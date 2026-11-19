@@ -7962,18 +7962,38 @@ function tokenEffects(sys, char, gm, F) {   // conditions C4: F (the formula eng
 // compares what each token was last sent with, so a list kept from before a change would hide the change). A kept list is also
 // passed over where the system, the values object, the sheet's stamp or the formula engine is another. The list handed back is shared:
 // its callers only read it (the token's effect marks, its card, the copy a token is sent with)
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 2: one character's change redrew the board, and every token's list was
+// worked out again, some 115 ms on a map of 47 character tokens): a list is ALSO kept from one pass to the next, by its CONTENT KEY, the text
+// a caller hands in as key (sheets.js keptKey: the character's whole stored self as JSON, what systemcore outsideKey reads through the
+// sources a resolver asks, the library a row's entry comes from and the system's shape), by the rule fog.js keeps a token's senses by
+// (CLAUDE.md, "A new source a resolver asks joins outsideKey"). A kept list is handed back only where that key, the system object, its
+// stamp and the formula engine are the very ones it was worked out with and it is younger than FX_KEPT_MS, which bounds what the key may
+// miss (a part of the system changed in place). So nothing has to be forgotten by hand: a character that changed, one it links to, a shared
+// value or the library each give another key, and only that list is worked out again. With no key (a caller that cannot make one, a suite)
+// nothing is kept past the pass, exactly as before. _fxKept holds no source for a resolver: fog.js's tripwire passes it by its shape
+var _fxKept = typeof WeakMap === 'function' ? new WeakMap() : null, FX_KEPT_MS = 30000;
 var _fxPass = null;
-function tokenEffectsPass(sys, char, gm, F) {
+function tokenEffectsPass(sys, char, gm, F, key) {
     if (!isObj(char) || typeof WeakMap !== 'function') return tokenEffects(sys, char, gm, F);
     if (!_fxPass) { var mine = _fxPass = new WeakMap(), clear = function() { if (_fxPass === mine) _fxPass = null; }; if (typeof queueMicrotask === 'function') queueMicrotask(clear); else Promise.resolve().then(clear); }
     var slot = _fxPass.get(char); if (!slot) { slot = {}; _fxPass.set(char, slot); }
     var k = gm === true ? 'g' : 'p', hit = slot[k];
     if (hit && hit.sys === sys && hit.vals === char.values && hit.upd === char.updated && hit.F === F) return hit.out;
-    var out = tokenEffects(sys, char, gm, F);
+    var out = null, now = Date.now(), keyed = typeof key === 'string' && !!_fxKept;
+    if (keyed) {   // across passes: the list kept for this very content, if it is still young
+        var kept = _fxKept.get(char), kh = kept ? kept[k] : null;
+        if (kh && kh.key === key && kh.sys === sys && kh.sysUpd === (isObj(sys) ? sys.updated : undefined) && kh.F === F && now >= kh.born && now - kh.born < FX_KEPT_MS) out = kh.out;
+    }
+    if (!out) {
+        out = tokenEffects(sys, char, gm, F);
+        if (keyed) { var kp = _fxKept.get(char); if (!kp) { kp = {}; _fxKept.set(char, kp); } kp[k] = { key: key, sys: sys, sysUpd: isObj(sys) ? sys.updated : undefined, F: F, born: now, out: out }; }
+    }
     slot[k] = { sys: sys, vals: char.values, upd: char.updated, F: F, out: out };
     return out;
 }
-function tokenEffectsForget() { _fxPass = null; }
+// The pass's lists are let go (every funnel of a character change asks this first). With all true (a suite, or a change no key can see),
+// every list kept across passes goes too
+function tokenEffectsForget(all) { _fxPass = null; if (all === true && typeof WeakMap === 'function') _fxKept = new WeakMap(); }
 // [systemcheck:fxpass-end]
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md; the owner's O6: "An effect can set posture"): the effects on a character that set its token's posture, by
 // their id: { p: the posture's id, back: true where it is put back when the effect ends } — the rows switched on of a library effect and the

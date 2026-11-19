@@ -326,6 +326,17 @@ pendingChecks.push((async () => {
         const Z = mkW({ maps: ['mA', 'mO'] }); Z.gm('c_a', 70); const zKeys = Z.pendKeys(); Z.ev.length = 0; Z.camp.items.mA.fog.mode = 'cover'; Z.net.sensesMoved('c_a'); const zAfter = [Z.pendKeys(), Z.ev.filter(e => e === 'clear:500').length, Object.keys(Z.sigs()), Z.fire(500), Z.net.conns.map(c => c.sent.filter(m => m.type === 'item').length)];
         check('senses S0: when a map stops being one a change of sight matters on (covered whole) while a send waits, the next call of the hook clears that send and drops what was kept for every player on that map',
             j(zKeys) === j(['u_a|mA']) && j(zAfter) === j([[], 1, ['u_a|mO', 'u_b|mO'], 0, [0, 0, 0, 0, 0]]), j([zKeys, zAfter]));
+        {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 5): a player's sight is read from their own tokens alone, so once each
+            // player's eyes on a map were judged, a change of one character judges only the players whose tokens on that map are of it, now or when last
+            // judged (net.js sensesWho and _sensesBy, run for real over the real fog.js): Bo is passed over for Ana's change, both are judged when Ana's
+            // token is handed to Bo, and a character another sheet is tied to (a link naming it) still judges every player
+            const Y = mkW({ maps: ['mA'] }); Y.gm('c_a', 70); Y.fire(500); Y.ev.length = 0; Y.gm('c_a', 80); const second = Y.ev.filter(e => /^sig:/.test(e)).map(e => e.slice(4).split('=')[0]);
+            Y.fire(500); Y.ev.length = 0; Y.camp.items.mA.whiteboard.find(w => w.id === 'tA').ownerId = 'u_b'; Y.net.sensesMoved('c_a'); const handed = Y.ev.filter(e => /^sig:/.test(e)).map(e => e.slice(4).split('=')[0]).sort();
+            Y.fire(500); Y.ev.length = 0; Y.camp.system = Object.assign({}, Y.camp.system, { links: [{ id: 'k_m', key: 'Mount', kind: 'mount' }] }); Y.camp.chars.c_c.links = { k_m: 'c_a' }; Y.net.sensesMoved('c_a'); const tied = Y.ev.filter(e => /^sig:/.test(e)).map(e => e.slice(4).split('=')[0]).sort();
+            Y.ev.length = 0; Y.net.sensesMoved(null); const every = Y.ev.filter(e => /^sig:/.test(e)).map(e => e.slice(4).split('=')[0]).sort();
+            check('1.6.3 (finding 5) once each player\'s eyes were judged, a change of one character judges only the players whose tokens are of it, now or when last judged: Bo is passed over for Ana\'s change; handing her token to Bo judges both; a character a link names, and a change of every character, judge every player',
+                j(second) === j(['u_a|mA']) && j(handed) === j(['u_a|mA', 'u_b|mA']) && j(tied) === j(['u_a|mA', 'u_b|mA']) && j(every) === j(['u_a|mA', 'u_b|mA']), j([second, handed, tied, every]));
+        }
     }
 
     // 15, 16. a character handed over; any character

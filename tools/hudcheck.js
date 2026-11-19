@@ -232,7 +232,7 @@ const j = v => JSON.stringify(v);
         const commits = ['function commit(c, f, value) {', 'function commitEffect(c, f, q) {', 'function commitItem(c, f, q) {'].map(body);
         check('HUD frame HF2a: one refresh path — no sheetOpen guard wraps a repaint any more; a change, an Undo expiring, a result, a save, a pin in another window, the feature and the campaign reach the HUDs with or without a sheet; a lost or deleted character closes its HUD (one notice)',
             !/sheetOpen[^;\n]{0,40}\)\s*(renderViews|renderSheet)\(/.test(sh2.replace(/function renderViews[\s\S]*?\n\}\n/, '')) && commits.every(b => b.length > 100 && !/renderSheet\(\)/.test(b) && /renderViews\(c\.id\)/.test(b))
-            && /if \(window\.appRender\) window\.appRender\(\);\n    renderViews\(c\.id\);/.test(body('function afterCharChange(')) && /delete _undo\[k\]; renderViews\(c\.id\);/.test(sh2)
+            && /if \(window\.appRender\) boardRedraw\(c\.id, whole \|\| posA\.length > 0 \|\| ownM > 0\);[^\n]*\n    renderViews\(c\.id\);/.test(body('function afterCharChange(')) && /delete _undo\[k\]; renderViews\(c\.id\);/.test(sh2)
             && /'That value was not accepted\.'\); renderViews\(null\); \}/.test(sh2) && /renderAll\(\); renderViews\(null\);/.test(sh2) && /if \(!e \|\| e\.key !== PIN_KEY\) return; renderViews\(null\);/.test(sh2)
             && /if \(!featureOn\(\)\) \{ if \(sheetOpen\) closeSheet\(\); closeHuds\(\); \}/.test(sh2) && /if \(_lastCamp !== null && id !== _lastCamp\) \{ if \(sheetOpen\) closeSheet\(\); closeHuds\(\); \}/.test(sh2)
             && /if \(sheetOpen === id\) closeSheet\(\);\n    closeHud\(id\);/.test(sh2) && /if \(typeof id === 'string' && huds\[id\]\) \{ closeHud\(id\); shown = true; \}/.test(sh2)
@@ -595,8 +595,8 @@ const j = v => JSON.stringify(v);
         cb.values = { f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 0 } }; PB.noteHostCopy('c_d', cb.values); PB.reapplyPending('c_d');   // a newer copy: everything still waiting is laid over it
         const midB = j(cb.values); PB.charPendingDone('b1', false, 'slow'); const afterB = j(cb.values);
         pendB.b2 = { charId: 'c_d', fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 5 }, batch: [{ fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 5 } }], timer: null }; PB.charPendingDone('b2', true);
-        check('HUD frame HF4b: a player\'s batch (the real pending code) — a newer host copy gets every waiting value laid over it again; a refused batch takes ALL its values back to the host\'s last copy (never the one it was made on), the other changes still waiting kept; one answer for the batch',
-            midB === j({ f_hp: { cur: 10 }, f_dsv: 0, f_sl1: { cur: 1 } }) && afterB === j({ f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 1 } }) && !pendB.b1 && !!pendB.v2 && !pendB.b2 && j(seenB) === j([['b1', false, 'slow'], ['ok', 'c_d']]), j([midB, afterB, seenB]));
+        check('HUD frame HF4b: a player\'s batch (the real pending code) — a newer host copy gets every waiting value laid over it again; a refused batch takes ALL its values back to the host\'s last copy (never the one it was made on), the other changes still waiting kept; one answer for the batch; an ok answer draws nothing (1.6.3, finding 23: nothing in the copy moved, and the delta that follows draws), moved on purpose',
+            midB === j({ f_hp: { cur: 10 }, f_dsv: 0, f_sl1: { cur: 1 } }) && afterB === j({ f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 1 } }) && !pendB.b1 && !!pendB.v2 && !pendB.b2 && j(seenB) === j([['b1', false, 'slow']]), j([midB, afterB, seenB]));
         check('HUD frame HF4b: the chip — drawn only behind sec.resetAll === true, in the header after the Pin; live decided when drawn (the real sheet or HUD, never the Layout preview or a pop-out), inert with nothing to reset; the client sends ONE char-edits message and keeps ONE pending entry for the batch',
             /var rsCh = !printV && sec\.resetAll === true \? resetChip\(sec, pctx\) : null;/.test(sh7) && /if \(pinCh\) head\.appendChild\(pinCh\);\n            if \(rsCh\) head\.appendChild\(rsCh\);/.test(sh7) && /\|\| chipNode \|\| pinCh \|\| rsCh \|\| cntN !== null \|\| \(sec\.explain && !printV\)\) \{/.test(sh7)   /* 1.6.0, backlog 180 R9: a count alone also draws the header; 1.6.2 (backlog 218 fold 3) and an (i), both moved on purpose */
             && /var live = _fxLive && !\(ctx\.vctx && ctx\.vctx\.preview\) && !window\.wpPopout, targets = rt\.targets, barred = typeof fillBarred === 'function' && fillBarred\(\), on = live && targets\.length > 0 && !barred;/.test(sh7)
@@ -921,6 +921,85 @@ const j = v => JSON.stringify(v);
             S.tokenEffectsForget(); const p6 = S.tokenEffectsPass(sysE, chE, true, F); await Promise.resolve(); const p7 = S.tokenEffectsPass(sysE, chE, true, F), p8 = S.tokenEffectsPass(Object.assign({}, sysE), chE, true, F);
             check('1.6.3 a token\'s effects kept for one pass (systemcore tokenEffectsPass, run for real): what tokenEffects gives, for the GM and for the players apart, the very list asked again in the same pass; new values, a new stamp, tokenEffectsForget, the next pass and another system read it afresh',
                 same && p1 === p2 && pl !== p1 && j(p3) === j([]) && p3 !== p1 && p4 !== p3 && p5 === p4 && p6 !== p5 && p7 !== p6 && p8 !== p7, j([p1, pl, p3]));
+        }
+        {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 2): a token's effects also kept from one pass to the next by the content key
+            // its caller hands in (systemcore tokenEffectsPass's fifth argument, run for real): the very list while the key, the system and its stamp
+            // are the same and it is young; another key, a new system stamp, tokenEffectsForget(true) or age past FX_KEPT_MS work it out again; with no
+            // key nothing is kept past the pass, as before; the GM's and the players' lists are kept apart
+            const sysK = cleanSystem({ v: 1, name: 'K', fields: [{ id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_a', name: 'Blessed', tone: 'buff', vis: 'all', mods: [] }] }, GVR);
+            const chK = { id: 'c_k', updated: 1, values: { f_fx: [{ id: 'r1', ref: 'e_a', on: true }] } }, tick = () => Promise.resolve();
+            S.tokenEffectsForget(true);
+            const k1 = S.tokenEffectsPass(sysK, chK, true, F, 'K1'); await tick(); const k2 = S.tokenEffectsPass(sysK, chK, true, F, 'K1'); await tick();
+            const k3 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick(); const k4 = S.tokenEffectsPass(sysK, chK, true, F); await tick(); const k5 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
+            const kp = S.tokenEffectsPass(sysK, chK, false, F, 'K2'); await tick(); const kp2 = S.tokenEffectsPass(sysK, chK, false, F, 'K2'); await tick();
+            sysK.updated = 99; const k6 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick(); const k6b = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
+            S.tokenEffectsForget(true); const k7 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
+            const realNow = Date.now; let k8; try { Date.now = () => realNow() + 31000; k8 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); } finally { Date.now = realNow; } await tick();
+            check('1.6.3 (finding 2) a token\'s effects kept across passes by their content key (systemcore tokenEffectsPass, run for real): the same key the next pass hands back the very list; another key, no key, a new system stamp, tokenEffectsForget(true) and an age past 30 s work it out again; the players\' list kept apart from the GM\'s',
+                j(k1) === j(S.tokenEffects(sysK, chK, true, F)) && k2 === k1 && k3 !== k2 && k4 !== k3 && k5 === k3 && kp !== k5 && kp2 === kp && k6 !== k5 && k6b === k6 && k7 !== k6b && k8 !== k7, j([k1, kp]));
+        }
+        {   // 1.6.3 (findings 2 and 14): the content key (sheets.js keptKey, in the hlpass slice, with the real outsideKey) and what it keeps, run for real:
+            // tokenFx hands the key to tokenEffectsPass, so the next pass gives the very list until the sheet, a sheet it links to, the campaign's library
+            // or the library's state moves; the party strip's lines (hlKept) are kept across passes by the same key with the token as self and their context
+            const shK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const hlK = shK.slice(shK.indexOf('function hoverLinesForToken(w, camp'), shK.indexOf('/* ---------- the facing dial'));
+            const sysL = cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number', hover: true }, { id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }], rolls: [], effects: [] }, GVR);
+            const chA = { id: 'c_a', name: 'A', updated: 1, values: { f_hp: 3 }, links: { k_m: 'c_b' } }, chB = { id: 'c_b', name: 'B', updated: 1, values: { f_hp: 9 } };
+            const campL = { id: 'k', activeItemId: 'm', system: sysL, library: { packs: [] }, chars: { c_a: chA, c_b: chB }, items: { m: { type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', x: 0, y: 0 }] } } };
+            let hlN = 0; const libW = { st: 1 }, winL = { wpSystemCore: S, wpLibrary: { state: () => libW.st, size: () => 0 } };
+            const API = new Function('featureOn', 'F', 'getActiveCampaign', 'systemOf', 'charById', 'isClient', 'hoverLines', 'withRound', 'tokenCtx', 'tokenFlags', 'combatOn', 'withRange', 'rangeFor', 'window', hlK + '\nreturn { fx: tokenFx, byId: hoverLinesForTokenId, key: keptKey, forget: passForget };')(
+                () => true, () => F, () => campL, c => c.system, (id, c) => (c.chars[id] || null), () => false, function() { hlN++; return S.hoverLines.apply(null, arguments); }, S.withRound, S.tokenCtx, () => ({ turning: true, posture: true, elevation: true }), () => null, S.withRange, () => null, winL);
+            S.setLinkSource((id) => campL.chars[id] || null); const tick = () => Promise.resolve(), w = campL.items.m.whiteboard[0];
+            try {
+                S.tokenEffectsForget(true);
+                const f1 = API.fx(w); await tick(); const f2 = API.fx(w); const kA = API.key(sysL, chA, campL, ''); await tick();
+                chB.values = { f_hp: 4 }; const kB = API.key(sysL, chA, campL, ''); const f3 = API.fx(w); await tick();
+                campL.library = { packs: [{ id: 'p1' }] }; const f4 = API.fx(w); await tick();
+                libW.st = 2; const f5 = API.fx(w); await tick(); const f6 = API.fx(w); await tick();
+                chA.values = { f_hp: 2 }; const f7 = API.fx(w); await tick();
+                const h1 = API.byId(campL, 't_a'), n1 = hlN; await tick(); const h2 = API.byId(campL, 't_a'), n2 = hlN; await tick();
+                chB.values = { f_hp: 5 }; API.byId(campL, 't_a'); const n3 = hlN; await tick();
+                const realNow = Date.now; try { Date.now = () => realNow() + 31000; API.byId(campL, 't_a'); } finally { Date.now = realNow; } const n4 = hlN; await tick();
+                check('1.6.3 (findings 2 and 14) the content key (sheets.js keptKey, with the real outsideKey): tokenFx hands it on, and the next pass gives the very list until a linked sheet, the campaign\'s library, the library\'s state or the sheet itself moves; the party strip\'s lines are kept across passes the same way, worked out again when a linked sheet moves and when they are older than 30 s',
+                    typeof kA === 'string' && f2 === f1 && kB !== kA && f3 !== f2 && f4 !== f3 && f5 !== f4 && f6 === f5 && f7 !== f6 && j(h1) === j(h2) && n2 === n1 && n3 === n2 + 1 && n4 === n3 + 1, j([n1, n2, n3, n4, h1]));
+            } finally { S.setLinkSource(null); }
+        }
+        {   // 1.6.3 (finding 14): a tab press hands back the figures worked out for the draw before (sheets.js allFor, sliced by its allkept markers and run
+            // for real with a counting resolveAll and a key of the test's own): only while a tab press draws, and only where the key, the context, the
+            // system, the character and the formula engine are the same; any other draw works them out afresh, and no key keeps nothing
+            const shT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const akS = shT.slice(shT.indexOf('// [systemcheck:allkept-start]'), shT.indexOf('// [systemcheck:allkept-end]'));
+            let rN = 0, keyNow = 'k1'; const T = new Function('F', 'resolveAll', 'keptKey', 'KEPT_MS', akS + '\nreturn { allFor: allFor, tab: function(v) { _sheetTabPress = v; } };')(() => F, () => ({ n: ++rN }), () => keyNow, 30000);
+            const sysT = { fields: [] }, cT = { id: 'c' }, ctxA = { self: 't', facing: { deg: 0 } };
+            const a1 = T.allFor('sheet', sysT, cT, {}, ctxA), a2 = T.allFor('sheet', sysT, cT, {}, ctxA); T.tab(1); const a3 = T.allFor('sheet', sysT, cT, {}, ctxA), a3b = T.allFor('sheet', sysT, cT, {}, ctxA); T.tab(1);
+            const a4 = T.allFor('sheet', sysT, cT, {}, { self: 't', facing: { deg: 90 } }); keyNow = 'k2'; const a5 = T.allFor('sheet', sysT, cT, {}, { self: 't', facing: { deg: 90 } });
+            const a6 = T.allFor('sheet', sysT, { id: 'c' }, {}, { self: 't', facing: { deg: 90 } }); const a7 = T.allFor('h:c', sysT, cT, {}, ctxA); keyNow = null; const a8 = T.allFor('h:c', sysT, cT, {}, ctxA), a9 = T.allFor('h:c', sysT, cT, {}, ctxA); T.tab(0);
+            check('1.6.3 (finding 14) a sheet\'s tab press reuses the figures worked out for the draw before (sheets.js allFor, run for real): only for the draw a tab press asks for (the next draw works them out again) and only for the same key, context, system and character; a draw that is no tab press, another context, key or character, another view and no key work them out afresh',
+                a2 !== a1 && a3 === a2 && a3b !== a3 && a4 !== a3b && a5 !== a4 && a6 !== a5 && a7 !== a6 && a8 !== a7 && a9 !== a8 && rN === 9, j([rN]));
+        }
+        {   // 1.6.3 (finding 2): one character's change draws the whole app only where the board draws something of it that moved (sheets.js boardRedraw,
+            // sliced by its boardskip markers and run for real with stubs): the light path only where the key is the one last drawn whole and no whole draw
+            // happened since; a change of its marks, a whole draw in between, a selected token of it, a sheet tied to it, another view and force draw whole
+            const shB = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const bsS = shB.slice(shB.indexOf('// [systemcheck:boardskip-start]'), shB.indexOf('// [systemcheck:boardskip-end]'));
+            const sysB = { fields: [], links: [] }, cB = { id: 'c_b', name: 'B', values: { hp: 3 } }, cO = { id: 'c_o', name: 'O', values: {} };
+            const campB = { id: 'k', activeItemId: 'm', system: sysB, chars: { c_b: cB, c_o: cO }, items: { m: { type: 'map', whiteboard: [{ id: 't_b', charId: 'c_b' }, { id: 't_o', charId: 'c_o' }] } } };
+            const st = { viewMode: 'visual', selWbId: null, selWbIds: [] }, fxNow = { t_b: ['Hurt'] }, ev = [];
+            const winB = { wpRenderN: 0, appRender() { winB.wpRenderN++; ev.push('whole'); }, wpHideTooltip() { ev.push('tip'); }, wpRenderPartyStrip() { ev.push('party'); }, wpRenderCombatStrip() { ev.push('strip'); }, wpCharList: { sync() { ev.push('chars'); } }, wpPills: { sync() {} }, wpTrackers: { draw() {} }, wpSystemCore: { sheetsAny: () => false } };
+            const B = new Function('state', 'getActiveCampaign', 'systemOf', 'charById', 'tokenFx', 'tokenBars', 'tokenEnv', 'window', bsS + '\nreturn { redraw: boardRedraw };')(
+                st, () => campB, c => c.system, (id, c) => (c.chars[id] || null), w => fxNow[w.id] || [], () => [], () => null, winB);
+            const run = (id, force) => { ev.length = 0; B.redraw(id, force); return ev.join(','); };
+            const r1 = run('c_b'), r2 = run('c_b'); cB.values = { hp: 2 }; const r3 = run('c_b');
+            fxNow.t_b = ['Hurt', 'Down']; const r4 = run('c_b'), r5 = run('c_b');
+            winB.appRender(); const r6 = run('c_b'), r7 = run('c_b');
+            st.selWbId = 't_b'; const r8 = run('c_b'), r9 = run('c_b'); st.selWbId = null; run('c_b');
+            cB.name = 'Bee'; const r10 = run('c_b'), r11 = run('c_b', true), r12 = run('c_b');
+            cO.links = { k_m: 'c_b' }; sysB.links = [{ id: 'k_m', kind: 'mount' }]; const r13 = run('c_b'), r14 = run('c_b'); delete cO.links; sysB.links = [];
+            st.viewMode = 'data'; const r15 = run('c_b'), r16 = run('c_b'); st.viewMode = 'visual'; run('c_b'); const r17 = run(null), r18 = run('c_b'), r19 = run('c_b'); campB.items.m.whiteboard[0].ownerId = 'u_x'; const r20 = run('c_b'), r21 = run('c_b');
+            const LIGHT = 'tip,party,strip,chars';
+            check('1.6.3 (finding 2) a character\'s change draws the whole app only where the board draws something of it that moved (sheets.js boardRedraw, run for real): its values alone take the light path once the board was drawn whole; a change of its marks, a whole draw since, a selected token of it, its name, a token of it changed (its owner), force, a sheet tied to it, another view and every character draw whole',
+                r1 === 'whole' && r2 === LIGHT && r3 === LIGHT && r4 === 'whole' && r5 === LIGHT && r6 === 'whole' && r7 === LIGHT && r8 === 'whole' && r9 === 'whole' && r10 === 'whole' && r11 === 'whole' && r12 === LIGHT
+                    && r13 === 'whole' && r14 === 'whole' && r15 === 'whole' && r16 === 'whole' && r17 === 'whole' && r18 === 'whole' && r19 === LIGHT && r20 === 'whole' && r21 === LIGHT, j([r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21]));
         }
         // a GM-only name anywhere in a label: the host's check fails closed exactly where the players' view scrubs
         const lgSys = cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }, { id: 'f_a', key: 'A', kind: 'number', def: 1 }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: '5', def: 'max', vis: 'gm' }], rolls: [] }, GVR);

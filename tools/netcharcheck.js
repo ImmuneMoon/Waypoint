@@ -1008,6 +1008,19 @@ pendingChecks.push((async () => {
     check('F6 a player takes nameless changes onto their own copy only, cleaned again (fields of their view, amounts only, nothing else kept); an empty list clears them; a teammate\'s copy and anyone but the synced host change nothing',
         J(c1.c_1.unseen) === J([{ f: 'f_dx', op: 'add', v: -2 }, { f: 'f_dx', op: 'add', v: 1 }]) && !('unseen' in c2.c_2) && !('unseen' in c3.c_1) && !('unseen' in c4.c_1)
         && /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\)/.test(require('./checkkit').part('netfog.js')) && (src.match(/full: camp[AQ]?\.system \}/g) || []).length >= 5, J([c1.c_1, c2.c_2, c3.c_1]));
+    {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 23): a player's own press was drawn three times (laid at once, then the
+        // host's answer, then its delta). The charin branch, run for real: a delta that only says what the player's copy already holds draws
+        // nothing again (no charChanged) and still gives a row of theirs it used up its Undo (goneFire); a delta that moves a value draws as before
+        const seen = [], winD = { wpSystemCore: Sx, wpSheets: { charChanged: id => seen.push('changed:' + id), charGone() {}, goneFire: id => seen.push('gone:' + id) } };
+        const runD = (chars, msg) => { const st = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', system: view, chars } } } };
+            new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', '_charPending', '_charHost', 'charPendingDone', 'reapplyPending', 'noteHostCopy', inSrc)({ foreign: true, syncedPeer: 'h', stream: false, myId: 'u_a' }, { peer: 'h' }, msg, st, id => st.appState.campaigns[id] || null, winD, {}, {}, () => {}, () => {}, () => {});
+            return st.appState.campaigns.k.chars; };
+        const held = () => ({ c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_dx: 10, f_rg: [] }, partial: false } });
+        seen.length = 0; runD(held(), { type: 'charDelta', campId: 'k', id: 'c_1', values: { f_dx: 10 } }); const same = seen.slice();
+        seen.length = 0; const moved = runD(held(), { type: 'charDelta', campId: 'k', id: 'c_1', values: { f_dx: 12 } }); const diff = seen.slice();
+        check('1.6.3 (finding 23) a delta that only says what the player\'s copy already holds draws nothing again (the charin branch, run for real): no charChanged, and goneFire still runs for a row it used up; a delta that moves a value draws as before',
+            J(same) === J(['gone:c_1']) && J(diff) === J(['changed:c_1']) && moved.c_1.values.f_dx === 12, J([same, diff]));
+    }
 })());
 // Stage 6 U2: a player's sheet upload (the [netcheck:charupload] slice, run for real with the real systemcore): their own character only, one
 // every 10 s, oversize dropped; the proposal waits for the GM in camp.uploads (never in a snapshot); under setting B their own row facts apply

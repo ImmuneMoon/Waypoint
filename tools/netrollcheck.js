@@ -677,7 +677,8 @@ pendingChecks.push((async () => {
             { id: 'r_d20', label: 'Adv', formula: 'd20 >= 1', then: [{ f: 'f_hits', formula: '2', add: true, when: 'hit' }] },
             { id: 'r_plain', label: 'Plain', formula: 'd6' },
             { id: 'r_sec', label: 'Sec', formula: '3d6 <= 30', then: [{ f: 'f_hits', formula: 'GMFig', add: true }] },
-            { id: 'r_gm', label: 'GM', formula: '3d6 <= 30', vis: 'gm', then: [{ f: 'f_hits', formula: '1', add: true }] }] }, { F: Fx, gmView: true });
+            { id: 'r_gm', label: 'GM', formula: '3d6 <= 30', vis: 'gm', then: [{ f: 'f_hits', formula: '1', add: true }] },
+            { id: 'r_same', label: 'Same', formula: '3d6 <= 30', then: [{ f: 'f_hits', formula: '3', set: true }] }] }, { F: Fx, gmView: true });
     const START = { f_hits: 3 };
     const runQ = (msg, o) => { o = o || {}; const out = { table: [], sent: [], deltas: [], saves: 0 };
         const camp = { id: 'k', activeItemId: 'm1', system: sysT, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(START)) } }, items: { m1: { type: 'map', whiteboard: [] } } };
@@ -698,6 +699,13 @@ pendingChecks.push((async () => {
         qMod.table.length === 1 && qMod.table[0].expr === wMod && j(qMod.vals.f_hits) === '4' && qAdv.table.length === 1 && qAdv.table[0].expr === aAdv && j(qAdv.vals.f_hits) === '5' && [qFake, qFakeMod, qNoAdv].every(refused),
         j([qMod.table.map(r => r.expr), qAdv.table.map(r => r.expr), qFake.sent, qFakeMod.sent, qNoAdv.sent]));
     const qGm = runQ({ act: 'r_gm', expr: '3d6 <= 30' }), qSec = runQ({ act: 'r_sec', expr: '3d6 <= 30' }), qPlain = runQ({ act: 'r_plain', expr: 'd6' });
+    {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 1): a Then that lands lines but moves no stored value (a Set to the figure
+        // already held) is not stored, saved, sent or drawn: the roll still goes to the table; and the GM's own roll (net.diceRoll's restR) asks the same
+        const qSame = runQ({ act: 'r_same', expr: '3d6 <= 30' }), drS = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+        check('1.6.3 (finding 1) a roll whose Then moves nothing (a Set to the figure already held) goes to the table and stores, saves and sends nothing (the host\'s roll-req branch, run for real); the GM\'s own roll judges what moved the same way before it saves',
+            qSame.table.length === 1 && qSame.deltas.length === 0 && qSame.saves === 0 && j(qSame.vals) === j(START) && qWin.saves === 1
+                && /var mvR = !!taR && taR\.ok && \(!!taR\.gone \|\| Object\.keys\(taR\.values\)\.some\(/.test(drS) && /if \(taR && taR\.ok && mvR && \(!onR \|\| Object\.keys\(taR\.values\)\.length\)\) \{/.test(drS), j([qSame.table.length, qSame.deltas, qSame.saves]));
+    }
     check('R1 an entry the player\'s view does not have (a GM-only roll) is refused; one whose consequences name a GM-only value rolls with none (their view dropped them); a roll with none changes nothing',
         refused(qGm) && qSec.table.length === 1 && qSec.deltas.length === 0 && j(qSec.vals) === j(START) && qPlain.table.length === 1 && qPlain.deltas.length === 0, j([qGm.sent, qSec.deltas, qPlain.deltas]));
     // the player's side: net.diceRoll's client branch sends the entry, its modifier and advantage as data (never with a row)

@@ -525,18 +525,84 @@ function afterCharChange(c, whole, values) {
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
     if (typeof lookPrune === 'function') lookPrune(c);   // item 35: a look whose text is no longer its own goes before the save
     var posA = typeof postureFollow === 'function' ? postureFollow(c, camp) : [];   // 1.5.9: an effect that came on lays its token down, in this very save
-    syncOwners(camp);
+    var ownM = syncOwners(camp);   // 1.6.3 (finding 2): how many maps it changed tokens on, which then are drawn whole below
     save(true);
     if (typeof passForget === 'function') passForget();   // 1.6.3: what was kept for this pass of the app (a token's effects, the party's hover lines) is read again before anything is drawn or sent
     var n = net();
     if (n && n.active && n.role === 'host') { if (whole || !values) n.syncChar(c.id); else n.syncCharDelta(c.id, values); }
     if (posA.length && n && n.active && n.role === 'host' && n.broadcastItemFiltered) posA.forEach(function(mid) { n.broadcastItemFiltered(camp.id, mid); });   // 1.5.9: the maps whose tokens it moved
-    if (window.appRender) window.appRender();
+    if (window.appRender) boardRedraw(c.id, whole || posA.length > 0 || ownM > 0);   // 1.6.3 (finding 2): the whole app only where the board draws something of it that moved
     renderViews(c.id);   // HUD frame (HF2a): the sheet and every HUD of this character
     if (typeof tileFollow === 'function') tileFollow(c, camp);   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function') crossFollow(c, camp);   // 1.5.9: a value that crossed a step runs its rules, once the change is stored
     if (typeof fxEndFollow === 'function') fxEndFollow(c, camp);   // 1.6.2: an effect that ended runs its end
 }
+// [systemcheck:boardskip-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 2): every change of one character ended in a whole redraw of the app
+// (appRender), most of which draws nothing of that character. boardRedraw is the one place the two funnels of a character's change
+// (afterCharChange and charChanged) ask for it. It draws the whole app as before unless ALL of these hold, and then draws only the parts that
+// read a character's figures and cost little (the light path: the hover card, the party strip, the turn strip, the Characters section, the
+// pills and the trackers strip):
+//  - boardKeyOf can say what the board draws of the character: the play map is on screen, no other sheet is tied to it (boardTied: a link of
+//    its own or another's that names it, a row joined to it or a row of its own joined to a sheet, since another token's marks may read this
+//    sheet through the tie), and none of its tokens is selected (Properties
+//    shows the selected token's senses and figures). The key is the character's own parts but its values and stamp (its name, portrait, owner,
+//    category...) and, for each of its tokens on that map, the token itself and the effect marks, the bars and the environment's badge the board
+//    draws (tokenFx, tokenBars, tokenEnv, the very functions the board asks);
+//  - the key is the very one this function noted when it last drew the app whole for this character;
+//  - and nothing has drawn the app whole since (main.js render counts its draws as window.wpRenderN), so the screen still shows what that
+//    key describes.
+// The caller passes force where it knows the board moved (a posture an effect laid down, tokens syncOwners changed, a whole character sent). Answers true where it drew
+// the app whole
+var _boardSeen = Object.create(null);
+function boardKeyOf(c, camp) {
+    if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !camp || !state || state.viewMode !== 'visual') return null;
+    var map = camp.items && typeof camp.activeItemId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, camp.activeItemId) ? camp.items[camp.activeItemId] : null;
+    if (!map || map.type !== 'map' || !Array.isArray(map.whiteboard)) return null;
+    var sys = systemOf(camp), S = window.wpSystemCore;
+    if (boardTied(camp, sys, c)) return null;   // a sheet tied to it may draw what it reads of this one
+    var sel = Array.isArray(state.selWbIds) && state.selWbIds.length ? state.selWbIds : typeof state.selWbId === 'string' && state.selWbId ? [state.selWbId] : [];
+    var toks = map.whiteboard.filter(function(w) { return w && w.charId === c.id; });
+    if (toks.some(function(w) { return sel.indexOf(w.id) >= 0; })) return null;   // Properties shows one of its tokens
+    var mine = {}; Object.keys(c).forEach(function(k) { if (k !== 'values' && k !== 'updated') mine[k] = c[k]; });
+    try { return JSON.stringify([camp.id, map.id, mine, toks.map(function(w) { return [w, tokenFx(w), tokenBars(w, map.id), tokenEnv(w)]; })]); } catch (e) { return null; }   // each token whole (its owner, name, place...), then what the board works out for it
+}
+// Whether another sheet may read this one, or this one another (the ties a resolver follows one level deep: systemcore linkVal, crewVal,
+// holdVal and sheetVal): a link of its own, a link of another character's that names it, a row of its own joined to a sheet, or a row of
+// any character's joined to it. A system with neither links nor rows joined to sheets has no tie, and the walk is skipped
+function boardTied(camp, sys, c) {
+    var S = window.wpSystemCore, own = Object.prototype.hasOwnProperty, chars = camp && camp.chars && typeof camp.chars === 'object' ? camp.chars : {};
+    var linked = !!(sys && Array.isArray(sys.links) && sys.links.length), joined = !!(sys && S && typeof S.sheetsAny === 'function' && S.sheetsAny(sys));
+    if (!linked && !joined) return false;
+    if (linked) {
+        if (c.links && typeof c.links === 'object' && Object.keys(c.links).some(function(k) { return typeof c.links[k] === 'string' && c.links[k]; })) return true;
+        if (Object.keys(chars).some(function(id) { var x = chars[id]; return id !== c.id && x && x.links && typeof x.links === 'object' && Object.keys(x.links).some(function(k) { return x.links[k] === c.id; }); })) return true;
+    }
+    if (joined) {
+        var lists = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.kind === 'item-list' && f.list && typeof f.list === 'object' && f.list.sheets && typeof f.list.sheets === 'object'; });
+        var rowsOf = function(x) { var out = []; if (!x || !x.values || typeof x.values !== 'object') return out; lists.forEach(function(f) { if (own.call(x.values, f.id) && Array.isArray(x.values[f.id])) out = out.concat(x.values[f.id]); }); return out; };
+        if (rowsOf(c).some(function(r) { return r && typeof r.sh === 'string' && r.sh; })) return true;
+        if (Object.keys(chars).some(function(id) { return rowsOf(chars[id]).some(function(r) { return r && r.sh === c.id; }); })) return true;
+    }
+    return false;
+}
+function boardRedraw(id, force) {
+    var camp = getActiveCampaign(), c = typeof id === 'string' ? charById(id, camp) : null, key = c ? boardKeyOf(c, camp) : null;   // made even where it is forced, so the whole draw below is noted
+    var rec = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_boardSeen, id) ? _boardSeen[id] : null, n = window.wpRenderN;
+    if (!force && key !== null && rec && rec.key === key && typeof n === 'number' && rec.n === n) {   // the light path: what reads the character's figures, and nothing else
+        if (window.wpHideTooltip) window.wpHideTooltip();   // the hover card under the pointer (and a pinned one) made again
+        if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+        if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
+        if (window.wpCharList) window.wpCharList.sync();
+        if (window.wpPills) window.wpPills.sync();
+        if (window.wpTrackers) window.wpTrackers.draw();
+        return false;
+    }
+    if (window.appRender) window.appRender();
+    if (typeof id === 'string') { if (key !== null && typeof window.wpRenderN === 'number') _boardSeen[id] = { key: key, n: window.wpRenderN }; else delete _boardSeen[id]; }
+    return true;
+}
+// [systemcheck:boardskip-end]
 // [systemcheck:envfollow-start]
 // 1.6.0, the map environment, fold 2 (docs/MAP_ENVIRONMENT_PLAN.md 4, 11 and 13; the owner, by prompt: "No reading at all"): on the machine that
 // owns the campaign alone, each character's readings are worked out where its token stands (fogcore envAt: its cell's painted value, else the
@@ -1179,7 +1245,7 @@ function tokenFx(w) {
     if (!w || !w.isChar || (window.wpVtt && !window.wpVtt.on('sheets'))) return [];
     var n = window.wpNet; if (n && (n.foreign || (n.active && n.role === 'client'))) return Array.isArray(w.fxb) ? w.fxb : [];
     var S = window.wpSystemCore, camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp); if (!S || !sys) return [];
-    if (c) return S.tokenEffectsPass ? S.tokenEffectsPass(sys, c, true, F()) : S.tokenEffects ? S.tokenEffects(sys, c, true, F()) : [];   // conditions C4: its automatic effects too; 1.6.3: worked out once a pass for every token of one sheet (systemcore tokenEffectsPass)
+    if (c) return S.tokenEffectsPass ? S.tokenEffectsPass(sys, c, true, F(), typeof keptKey === 'function' ? keptKey(sys, c, camp, '') : undefined) : S.tokenEffects ? S.tokenEffects(sys, c, true, F()) : [];   // 1.6.3 (finding 2): and kept across passes by its content key (keptKey)   // conditions C4: its automatic effects too; 1.6.3: worked out once a pass for every token of one sheet (systemcore tokenEffectsPass)
     return Array.isArray(w.fx) && S.tokenOwnEffects ? S.tokenOwnEffects(sys, w.fx, true) : [];   // C2: a token with no sheet, its own
 }
 // Backlog 28: a token's bars on this screen, [{ s, v, m, n, c, g? }] in slot order: the GM's worked out from the token and its character, a GM-only
@@ -1240,14 +1306,64 @@ function tokenFxCharOp(charId, fieldId, q) {   // a character token's menu: the 
 // stance, the round of its fight, its range to a target) reads the same, so a fight that ends or a target that moves within the pass is
 // read afresh. Each caller gets its own copy of the lines
 var _hlPass = null;
-function passForget() { _hlPass = null; var S = window.wpSystemCore; if (S && typeof S.tokenEffectsForget === 'function') S.tokenEffectsForget(); }   // what one pass kept (these lines, and systemcore's tokenEffectsPass) is read again
+function passForget() { _hlPass = null; _kkPass = null; var S = window.wpSystemCore; if (S && typeof S.tokenEffectsForget === 'function') S.tokenEffectsForget(); }   // what one pass kept (these lines, the content keys below, and systemcore's tokenEffectsPass) is read again
+// 1.6.3 (the improvement week's review of sheets and rolls, findings 2 and 14): what a character's figures are worked out from beside the system
+// object, the formula engine and the token's context, as ONE text, the CONTENT KEY: the character's whole stored self as JSON (a value written in
+// place with no stamp changes it), what systemcore outsideKey reads through the sources a resolver asks (the sheets it links to and those that
+// link to it, the holder of a joined row, the sheets its rows are joined to, with self, a token's id, whether that token moved this turn, and,
+// made once a pass by outsideCamp, the date, the shared values and the decks), the library a row's entry is read from (keptLib) and the
+// system's shape and stamp (keptShape). It is fog.js sensesContent's rule (CLAUDE.md, "A new source a resolver asks joins outsideKey"), so a
+// new source a resolver reads joins outsideKey and every result kept by this key follows it. A result kept by it is handed back only where
+// the key is the same, so nothing has to be forgotten by hand: a change of the character, of a sheet it links to, of a shared value or of the
+// library gives another key. Kept that way: a token's effect marks (systemcore tokenEffectsPass, from tokenFx and net.js fxbOf), the party
+// strip's hover lines (hlKept) and a sheet's worked-out figures for a tab press (allFor). Null where a part cannot be written as text, which
+// every caller reads as "work it out again". The parts that are the same for every character are made once a pass (_kkPass: let go in a
+// microtask, and at once by passForget, which every funnel of a character change asks first), and so is each character's key, made again
+// where its values object or its stamp moved within the pass
+var _kkPass = null, KEPT_MS = 30000;
+function keptLib(camp) {   // the library a row's entry may be read from, as fog.js sensesLib writes it: the pack list, the library's state and size
+    var L = typeof window !== 'undefined' && window ? window.wpLibrary : null, st = '', n = '';
+    if (L) { try { st = typeof L.state === 'function' ? String(L.state()) : ''; n = typeof L.size === 'function' ? String(L.size()) : ''; } catch (e) { st = '?'; } }
+    return (camp && camp.library !== undefined ? JSON.stringify(camp.library) : '') + '\u0001' + st + '\u0001' + n;
+}
+var _kkIds = typeof WeakMap === 'function' ? new WeakMap() : null, _kkIdN = 0;
+function keptShape(sys) {   // the system's top-level parts: an array by which array it is and its length, an object by which object it is (as fog.js sensesShape)
+    var idOf = function(o) { if (!_kkIds) return 0; var n = _kkIds.get(o); if (n === undefined) { n = ++_kkIdN; _kkIds.set(o, n); } return n; };
+    return Object.keys(sys).sort().map(function(k) { var v = sys[k]; return k + ':' + (Array.isArray(v) ? 'a' + idOf(v) + '.' + v.length : v && typeof v === 'object' ? 'o' + idOf(v) : typeof v + ':' + String(v)); }).join(',');
+}
+function keptPass(camp, sys) {   // the parts every character shares, once a pass: { oc, tail } (null where outsideCamp cannot write them)
+    var p = _kkPass; if (p && p.camp === camp && p.sys === sys) return p;
+    var S = typeof window !== 'undefined' && window ? window.wpSystemCore : null, oc = null, tail = null;
+    try { oc = S && typeof S.outsideCamp === 'function' ? S.outsideCamp(sys) : null; if (typeof oc === 'string') tail = keptLib(camp) + '\u0002' + keptShape(sys) + '\u0002' + JSON.stringify(sys.updated === undefined ? null : sys.updated); } catch (e) { oc = null; tail = null; }
+    p = _kkPass = { camp: camp, sys: sys, oc: oc, tail: tail, ch: typeof WeakMap === 'function' ? new WeakMap() : null };
+    var mine = p, clear = function() { if (_kkPass === mine) _kkPass = null; }; if (typeof queueMicrotask === 'function') queueMicrotask(clear); else Promise.resolve().then(clear);
+    return p;
+}
+function keptKey(sys, c, camp, self) {
+    var S = typeof window !== 'undefined' && window ? window.wpSystemCore : null; if (!sys || typeof sys !== 'object' || !c || typeof c !== 'object' || !S || typeof S.outsideKey !== 'function') return null;
+    var p = keptPass(camp || getActiveCampaign(), sys); if (typeof p.oc !== 'string' || typeof p.tail !== 'string') return null;
+    var sk = typeof self === 'string' ? self : '', e = p.ch ? p.ch.get(c) : null;
+    if (e && e.vals === c.values && e.upd === c.updated && Object.prototype.hasOwnProperty.call(e.by, sk)) return e.by[sk];
+    if (!e || e.vals !== c.values || e.upd !== c.updated) { e = { vals: c.values, upd: c.updated, by: Object.create(null) }; if (p.ch) p.ch.set(c, e); }
+    var out = null; try { var o = S.outsideKey(sys, c, sk, p.oc); if (typeof o === 'string') out = JSON.stringify(c) + '\u0002' + o + '\u0002' + p.tail; } catch (er) { out = null; }
+    e.by[sk] = out; return out;
+}
+// The party strip's lines are also kept from one pass to the next by the token's id (_hlKept), under the content key above (with the token's
+// id as self) and the context they were worked out in, for at most KEPT_MS, which bounds what the key may miss (a part of the system changed
+// in place): one character's change works out only its own lines again, where every chip's lines were worked out at every redraw (finding 2)
+var _hlKept = typeof Map === 'function' ? new Map() : null;
 function hlKept(w, sys, c, ctx) {
     var Fh = F(); if (typeof Map !== 'function' || !w || typeof w.id !== 'string') return hoverLines(sys, c, Fh, ctx);
     var ctxS = ''; try { ctxS = JSON.stringify(ctx === undefined ? null : ctx); } catch (e) { return hoverLines(sys, c, Fh, ctx); }   // a context that cannot be written out is never kept
     if (!_hlPass) { var mine = _hlPass = new Map(), clear = function() { if (_hlPass === mine) _hlPass = null; }; if (typeof queueMicrotask === 'function') queueMicrotask(clear); else Promise.resolve().then(clear); }
     var hit = _hlPass.get(w.id);
     if (hit && hit.w === w && hit.sys === sys && hit.c === c && hit.vals === c.values && hit.upd === c.updated && hit.F === Fh && hit.ctx === ctxS) return hit.out.slice();
-    var out = hoverLines(sys, c, Fh, ctx);
+    var key = keptKey(sys, c, null, w.id), now = Date.now(), kh = key !== null && _hlKept ? _hlKept.get(w.id) : null, out;
+    if (kh && kh.key === key && kh.ctx === ctxS && kh.sys === sys && kh.F === Fh && now >= kh.born && now - kh.born < KEPT_MS) out = kh.out.slice();
+    else {
+        out = hoverLines(sys, c, Fh, ctx);
+        if (_hlKept) { if (key !== null && Array.isArray(out)) { if (_hlKept.size >= 2000) _hlKept.clear(); _hlKept.set(w.id, { key: key, ctx: ctxS, sys: sys, F: Fh, born: now, out: out.slice() }); } else _hlKept.delete(w.id); }
+    }
     if (Array.isArray(out)) _hlPass.set(w.id, { w: w, sys: sys, c: c, vals: c.values, upd: c.updated, F: Fh, ctx: ctxS, out: out.slice() });
     return out;
 }
@@ -1752,6 +1868,28 @@ function asPlayerPress() {
     renderSheet();
 }
 // [systemcheck:asplayer-end]
+// [systemcheck:allkept-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 14): a press on a sheet's tab drew the whole sheet again and worked every
+// value out again (resolveAll, some 50 ms on a large sheet, 100 on a player's app), though a tab changes no value. allFor is the one place the
+// sheet and a HUD get their worked-out figures: it keeps the last answer for each view (slot: 'sheet', or 'h:' and the character's id) with
+// the CONTENT KEY it was worked out from (keptKey: the character's whole stored self, what outsideKey reads, the library, the system's shape),
+// the token's context as JSON, the system object, the character object and the formula engine, and hands it back ONLY while a tab press draws
+// (_sheetTabPress, set by the tab's own click in buildSections just before it draws again, and taken back by the first allFor that reads it,
+// so that a draw that throws before it asks leaves it set only until the next one) and only where all of those are the very same and the answer is younger
+// than KEPT_MS. Every other draw works the figures out afresh, as before, and keeps them for the next tab press. A context that cannot be
+// written out, or no key, keeps nothing
+var _allKept = Object.create(null), _sheetTabPress = 0;
+function allFor(slot, sys, c, camp, tctx) {
+    var Fa = F(), ctxS = null; try { ctxS = JSON.stringify(tctx === undefined ? null : tctx); } catch (e) { ctxS = null; }
+    var key = ctxS !== null && typeof keptKey === 'function' ? keptKey(sys, c, camp, tctx && typeof tctx.self === 'string' ? tctx.self : '') : null;
+    var k = Object.prototype.hasOwnProperty.call(_allKept, slot) ? _allKept[slot] : null, now = Date.now();
+    var tabNow = _sheetTabPress > 0; _sheetTabPress = 0;
+    if (tabNow && key !== null && k && k.key === key && k.ctx === ctxS && k.sys === sys && k.c === c && k.F === Fa && now >= k.born && now - k.born < KEPT_MS) return k.all;
+    var all = resolveAll(sys, c, Fa, tctx);
+    if (key !== null) _allKept[slot] = { key: key, ctx: ctxS, sys: sys, c: c, F: Fa, born: now, all: all }; else delete _allKept[slot];
+    return all;
+}
+// [systemcheck:allkept-end]
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
@@ -1795,7 +1933,7 @@ function renderSheet() {
     var rvB = ui('sheetReview'), rvN = gm ? uploadsOf(camp, c.id) : []; if (rvB) { rvB.style.display = rvN.length ? '' : 'none'; if (rvN.length) { var rvC = rvN[0].changes.filter(function(x) { return !x || x.kind !== 'note'; }).length; rvB.textContent = rvC ? 'Review (' + rvC + ')' : 'Review'; } }   // U3: the GM's review of it
     var hb = ui('sheetHud'); if (hb) { var hOn = hudHasContent(sys) && canOpen(c.id); hb.style.display = hOn ? '' : 'none'; if (hOn) hb.title = 'Open ' + ((hudOf(sys) || {}).title || 'the HUD'); }   // HUD frame (HF2a): only when the saved system has a HUD they can see
     p.classList.toggle('sheet-has-headportrait', !!(sys.sheet && sys.sheet.look && sys.sheet.look.portrait));   // Stage 5g: the header block carries the portrait, so the title bar's small one steps aside
-    var all = resolveAll(sysD, cD, F(), tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token
+    var all = allFor('sheet', sysD, cD, camp, tokenCtxFor(c.id, camp));   // 5h Fold 3 / Stage 6: the token names read this character's token; 1.6.3 (finding 14): kept for a tab press
     _dialSig = dialSigOf(c, camp); _dialStale = false; _dialOn = JSON.stringify(tokenFlags()); _roundSig = roundSigOf(c, camp); _rangeSig = rangeSigOf(c, camp);
     _sheetRefSig = refSig(sys);
     buildSections(body, sysD, cD, all, seeP ? false : gm, seeP ? true : own, renderSheet, { campId: camp.id, view: 'sheet', preview: false });
@@ -1945,7 +2083,7 @@ function renderHud(charId) {
     if (typeof plookText === 'function') plookText(v.body, c);
     v.panel.setAttribute('aria-label', 'HUD: ' + c.name);
     if (c.portrait) { v.por.src = imgSrc(c.portrait); v.por.style.display = ''; } else { v.por.removeAttribute('src'); v.por.style.display = 'none'; }
-    var all = resolveAll(sys, c, F(), tokenCtxFor(c.id, camp));
+    var all = allFor('h:' + charId, sys, c, camp, tokenCtxFor(c.id, camp));   // 1.6.3 (finding 14): kept for a tab press
     v.dialSig = dialSigOf(c, camp); v.dialStale = false; v.dialOn = JSON.stringify(tokenFlags()); v.roundSig = roundSigOf(c, camp); v.rangeSig = rangeSigOf(c, camp);
     _sheetRefSig = refSig(full);
     buildSections(v.body, sys, c, all, gm, own, function() { renderHud(charId); }, { campId: camp.id, view: 'hud', preview: false, targets: pinTargetsAll(full.sheet) });
@@ -2756,7 +2894,7 @@ function buildSections(body, sys, c, all, gm, own, rerender, vctx) {   // rerend
             tb.addEventListener('click', function() {
                 if (body.dataset.wpTab === t.id) return;
                 var wasStuck = body.scrollTop > frameFlowTop(body);   // the frame was stuck at the top: the new tab should start at its own top, under the strip
-                body.dataset.wpTab = t.id; (rerender || renderSheet)();
+                body.dataset.wpTab = t.id; _sheetTabPress = 1; (rerender || renderSheet)();
                 if (wasStuck) body.scrollTop = frameFlowTop(body);
             });
             strip.appendChild(tb);
@@ -7533,7 +7671,8 @@ function charChanged(id) {
     if (typeof openSyncOne === 'function') openSyncOne(id);   // 1.5.8: a change from the table (a Form a player switched on) that opens or closes rows
     if (typeof tileFollow === 'function' && typeof id === 'string') { var campT = getActiveCampaign(), cT = charById(id, campT); if (cT) tileFollow(cT, campT); }   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function' && typeof id === 'string') { var campX = getActiveCampaign(), cX = charById(id, campX); if (cX) crossFollow(cX, campX); }   // 1.5.9: a change from the table that crossed a step
-    if (typeof postureFollow === 'function' && typeof id === 'string') { var campP = getActiveCampaign(), cP = charById(id, campP), mpP = cP ? postureFollow(cP, campP) : []; if (mpP.length) { var nP = net(), wasP = nP ? nP.applyingRemote : false; if (nP) nP.applyingRemote = true; try { save(true); } finally { if (nP) nP.applyingRemote = wasP; } if (nP && nP.active && nP.role === 'host' && nP.broadcastItemFiltered) mpP.forEach(function(mid) { nP.broadcastItemFiltered(campP.id, mid); }); } }   // 1.5.9: a change from the table (a player's edit, a time rule) that brought on an effect that sets a posture; never a step of the GM's undo
+    var boardWhole = typeof id !== 'string';   // 1.6.3 (finding 2): every character, or a posture laid down below: the whole app is drawn
+    if (typeof postureFollow === 'function' && typeof id === 'string') { var campP = getActiveCampaign(), cP = charById(id, campP), mpP = cP ? postureFollow(cP, campP) : []; if (mpP.length) { boardWhole = true; var nP = net(), wasP = nP ? nP.applyingRemote : false; if (nP) nP.applyingRemote = true; try { save(true); } finally { if (nP) nP.applyingRemote = wasP; } if (nP && nP.active && nP.role === 'host' && nP.broadcastItemFiltered) mpP.forEach(function(mid) { nP.broadcastItemFiltered(campP.id, mid); }); } }   // 1.5.9: a change from the table (a player's edit, a time rule) that brought on an effect that sets a posture; never a step of the GM's undo
     if (typeof fxEndFollow === 'function' && typeof id === 'string') { var campE = getActiveCampaign(), cE = charById(id, campE); if (cE) fxEndFollow(cE, campE); }   // 1.6.2: an effect that ran out or was taken off from the table runs its end
     if (typeof goneFire === 'function') goneFire(id);   // 1.6.0: a row a press of ours used up, now gone from our copy: its Undo
     var lost = {};   // HUD frame (HF2a): one notice per character, however many of its views close
@@ -7541,7 +7680,8 @@ function charChanged(id) {
     if (isClient()) Object.keys(huds).forEach(function(hid) { if (id !== null && id !== undefined && hid !== id) return; var gh = charById(hid); if (gh && !gh.partial && gh.ownerId === myId()) return; closeHud(hid); if (!lost[hid]) { lost[hid] = 1; toast((gh ? gh.name : 'That character') + ' is no longer your character.'); var nH = net(); if (nH && nH.dropPending) nH.dropPending(hid); } });
     // 1.6.3: appRender draws the party strip itself (render, then the strip again for a view that is no map), so the strip is drawn here only
     // where there is no appRender: a third draw of every chip's hover lines after each change from the table
-    renderViews(id); if (window.appRender) window.appRender(); else if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
+    // 1.6.3 (finding 2): the whole app only where the board draws something of it that moved (boardRedraw)
+    renderViews(id); if (window.appRender) boardRedraw(id, boardWhole); else if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); if (window.wpDice && window.wpDice.syncChars) window.wpDice.syncChars(); }
 // the token's owner select moved (inspector.js): the character follows, and every token of it
 function ownerFromToken(w) {
     var camp = getActiveCampaign(), c = w && w.charId ? charById(w.charId, camp) : null; if (!c || c.npc) return;
@@ -8123,6 +8263,7 @@ function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : nul
 window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, blowDrop: blowDrop, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, runLand: runLand, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     templateToggle: templateToggle, newFromTemplate: newFromTemplate, templatesOf: templatesOf, shareAsk: shareAsk, shareTake: shareTake, shareOwn: shareOwn, ownSheetCount: ownSheetCount, ownSheetFor: ownSheetFor, shareSplitCount: shareSplitCount, shareSplitAsk: shareSplitAsk, charsOf: charsOf, charList: charList, charById: charById, ownerName: ownerName, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
+    keptKey: keptKey, goneFire: goneFire,   // 1.6.3: a character's content key (net.js fxbOf hands it to tokenEffectsPass) and a used-up row's Undo on a delta that draws nothing (findings 2 and 23)
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,

@@ -1172,7 +1172,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             return { api, posts, lis }; };
         const dLog = () => { const l = fakeLog(); l.textContent = ''; l.appendChild = () => {}; l.scrollTop = 0; l.scrollHeight = 0; return l; };
         let lookNow = { palette: pal0, accent: '#ab94b3' }; const wMain = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpSheets: { systemOf: () => ({ sheet: { look: lookNow } }) } }, lgM = dLog(), rM = mkRelay(wMain, lgM);
-        rM.api.render(); const props1 = JSON.parse(JSON.stringify(lgM.props)), tone1 = lgM.dataset.cardTone, post1 = rM.posts[rM.posts.length - 1]; const nAfter1 = rM.posts.length; wMain.wpChat.lookSync(); const quiet = rM.posts.length === nAfter1;
+        rM.lis.forEach(f => f({ data: { type: 'chatReq' } })); rM.api.render(); const props1 = JSON.parse(JSON.stringify(lgM.props)), tone1 = lgM.dataset.cardTone, post1 = rM.posts[rM.posts.length - 1]; const nAfter1 = rM.posts.length; wMain.wpChat.lookSync(); const quiet = rM.posts.length === nAfter1;
         lookNow = { accent: '#010203' }; wMain.wpChat.lookSync(); const post2 = rM.posts[rM.posts.length - 1], nAfter2 = rM.posts.length;
         const wPop = { wpDiceCore: DCs, wpPopout: true, wpVtt: { on: () => true }, wpSheets: { systemOf: () => null } }, lgP = dLog(), rP = mkRelay(wPop, lgP);
         rP.lis.forEach(f => f({ data: { type: 'chatSync', log: [], look: { primary: '#ABCDEF', good: 'url(x)', bad: '#123456', tone: 'light' } } }));
@@ -1183,6 +1183,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && lgM.props['--card-primary'] === '#010203' && !('--card-good' in lgM.props) && !lgM.dataset.cardTone && nAfter2 === nAfter1 + 1 && post2.look.primary === '#010203'
             && j(lgP.props) === j({ '--card-primary': '#abcdef', '--card-t-primary': '#abcdef', '--card-bad': '#123456', '--card-t-bad': '#123456' }) && lgP.dataset.cardTone === 'light' && rS.posts.length === 0,
             j([lgM.props, post1 && post1.look, post2 && post2.look, lgP.props, rS.posts.length]));
+        {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 33): the log is copied to the pop-out channel only once a pop-out has asked
+            // (chatReq), and a main window says hello as it loads so that a pop-out opened before it asks again; a pop-out answers a hello with a request
+            const wQ = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpSheets: { systemOf: () => ({ sheet: { look: lookNow } }) } }, rQ = mkRelay(wQ, dLog());
+            rQ.api.render(); wQ.wpChat.lookSync(); const before = rQ.posts.map(p => p.type);
+            rQ.lis.forEach(f => f({ data: { type: 'chatReq' } })); const asked = rQ.posts.map(p => p.type); rQ.api.render(); const after = rQ.posts.map(p => p.type);
+            const wP2 = { wpDiceCore: DCs, wpPopout: true, wpVtt: { on: () => true }, wpSheets: { systemOf: () => null } }, rP2 = mkRelay(wP2, dLog()); const p2Before = rP2.posts.length;
+            rP2.lis.forEach(f => f({ data: { type: 'chatHello' } }));
+            // and a roll's card is drawn again only where its record or what it reads beside it moved (renderChat, run for real with a counting wpDice)
+            const drawn = [], sysR = { sheet: { look: lookNow } }, wR = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpNet: { myId: 'u_gm', role: 'host', active: true }, wpSheets: { systemOf: () => sysR, damageOn: () => true },
+                wpDice: { renderCard: m => { drawn.push('card:' + m.roll.id); return { kind: 'card', id: m.roll.id }; }, renderApply: m => { drawn.push('apply:' + m.apply.id); return { kind: 'apply' }; }, renderDue: m => { drawn.push('due:' + m.due.id); return { kind: 'due' }; } } };
+            const rR = mkRelay(wR, dLog()), logR = rR.api.log();
+            logR.push({ roll: { id: 'r1', expr: 'd6' }, res: { ok: true, total: 3 } }, { apply: { id: 'a1' } }, { due: { id: 'd1' } });
+            rR.api.render(); const d1 = drawn.splice(0); rR.api.render(); const d2 = drawn.splice(0);
+            logR[0].roll.dmgUsed = 1; rR.api.render(); const d3 = drawn.splice(0);
+            logR.push({ roll: { id: 'r2', expr: 'd8' }, res: { ok: true, total: 5 } }); rR.api.render(); const d4 = drawn.splice(0);
+            wR.wpNet.myId = 'u_x'; rR.api.render(); const d5 = drawn.splice(0);
+            check('1.6.3 (finding 33) Table Chat draws a roll\'s and an apply card again only where its record or what it reads beside it moved (renderChat, run for real): the same log draws only its due card again; a record marked in place and a new roll draw only themselves; another viewer draws every card',
+                j(d1) === j(['card:r1', 'apply:a1', 'due:d1']) && j(d2) === j(['due:d1']) && j(d3) === j(['card:r1', 'due:d1']) && j(d4) === j(['due:d1', 'card:r2']) && j(d5) === j(['card:r1', 'apply:a1', 'due:d1', 'card:r2']), j([d1, d2, d3, d4, d5]));
+            check('1.6.3 (finding 33) the chat log goes to the pop-out channel only once a pop-out asked: a main window says hello as it loads and posts no log before a request; a request is answered with the log and every draw after it posts too; a pop-out answers a hello with a request and says no hello itself',
+                j(before) === j(['chatHello']) && j(asked) === j(['chatHello', 'chatSync']) && j(after) === j(['chatHello', 'chatSync', 'chatSync']) && p2Before === 0 && j(rP2.posts.map(p => p.type)) === j(['chatReq']), j([before, asked, after, rP2.posts]));
+        }
     }
     /* ---- targeting (the owner's ruling of 2026-10-01): a player targets by the token's right-click menu or T — the menu, sliced by its targetmenu markers and run on a recording menu ---- */
     {

@@ -1,13 +1,15 @@
 /* netfogcheck.js: a fogged map on the wire, the tests that came out of netcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, area 9,
    2026-11-19). The code lives mostly in system/app/scripts/netfog.js, a part of net.js; every slice of its markers (foglit, mapheld, fogmove,
    memsend, acks, hidpend, landing, curstage, actlog, strokeacts, patch, drawshow, snapitems, broadcast, fogdiffapply) and every definition
-   only it holds is read from the part by its own name, while the slices of other areas (the pos gate, the sends, the fights' orders, the
-   senses' resend) still read the joined net.js through srcjoin.
+   only it holds is read from the part by its own name, and the fights' orders from netfight.js by its own name, while the slices of other
+   areas (the pos gate, the sends, the senses' resend) still read the joined net.js through srcjoin.
    What it covers, each block as it stood in netcheck.js: a player's copy of a fogged map following what their tokens see (sensesMoved, the
    live position relay judged afresh, what each copy was made by), a player's page as the fogDiff branch and applyFogDiff see it (fold M3,
    with mkFogClient, a player's page of plain objects), an open drag judged where it began and a player's copies caught up in place when a
    move lands (fold M4: the one-module world over the real fog.js, with every later fold that runs in it), a token's own ranges for its
-   senses kept on a player's app (senses S2b), and per-player map possession with the take-back (mapGive, mapTake, mapLeft, the stub).
+   senses kept on a player's app (senses S2b), per-player map possession with the take-back (mapGive, mapTake, mapLeft, the stub), and,
+   last, the patch gate and the delta between two copies (a token or a stroke the GM locked, a drawing made a wall or a barrier, the host's
+   count for the GM's undo, R2 security's cluster A on the patch path and on the delta path), moved with the review of next area 6.
    Run: node tools/netfogcheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
@@ -3169,4 +3171,319 @@ pendingChecks.push((async () => {
     }
 })());
 
+// The patch gate and the delta between two copies (applyClientItemFiltered with playerStroke and strokeActs, itemDelta and
+// applyItemDelta: netfog.js, read by its own name), the blocks as they stood in netcheck.js, moved with their area (the review of next area 6).
+// the patch gate: own keys only, and a token (or a stroke) the GM locked is frozen for its player
+{
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js');
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+    const stroke = (w, pid) => (w && w.type === 'path' && w.ownerId === pid && Array.isArray(w.pts)) ? { id: w.id, type: 'path', byPlayer: true, ownerId: pid, pts: w.pts, x: w.x || 0, y: w.y || 0 } : null;
+    const coreP = { ownPostures: () => true, postureAt: (sys, v) => ({ i: v === 'kneeling' ? 1 : 0, p: { id: v === 'kneeling' ? v : 'standing' } }) };   // 1.6.0: a system's own list stands in (none is a default)
+    const runPatch = (camps, msg) => { try { return new Function('state', 'window', 'playerStroke', 'msg', 'prof', cleanersSrc + ownKeySrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpSystemCore: coreP }, stroke, msg, { id: 'u_p' }); } catch (e) { return 'threw: ' + e.message; } };
+    const mk = () => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [
+        { id: 't1', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 },
+        { id: 't2', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, locked: true },
+        { id: 's1', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [1, 1]], x: 0, y: 0, locked: true },
+        { id: 's2', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [2, 2]], x: 0, y: 0 }] } } } });
+    const moveAll = { campId: 'c1', itemId: 'm1', item: { whiteboard: [
+        { id: 't1', x: 40, y: 50, rot: 90, front: 45, posture: 'kneeling', elevation: 2 },
+        { id: 't2', x: 40, y: 50, rot: 90, front: 45, posture: 'kneeling', elevation: 2 }] } };
+    const cs = mk(), chg = runPatch(cs, moveAll), wb = cs.c1.items.m1.whiteboard, byId = id => wb.find(w => w.id === id);
+    check('patch (host): a player\'s own unlocked token moves, turns and takes its stance; their token the GM LOCKED is frozen — no move, turn, facing, posture or elevation',
+        chg === true && byId('t1').x === 40 && byId('t1').front === 45 && byId('t1').posture === 'kneeling' && byId('t1').elevation === 2
+        && j(byId('t2')) === j({ id: 't2', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, locked: true }), j([chg, wb]));
+    const csW = mk(); csW.c1.items.m1.whiteboard.push({ id: 'wt', waiting: 1, ownerId: 'u_p', x: 0, y: 0 }, { id: 'wo', waiting: 1, ownerId: 'u_q', x: 0, y: 0 });
+    const chgW = runPatch(csW, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'wt', x: 40, y: 50, rot: 90, front: 45, posture: 'kneeling', elevation: 2 }, { id: 'wo', x: 40, y: 50 }] } }), byW = id => csW.c1.items.m1.whiteboard.find(w => w.id === id);
+    check('patch (F1a): a player\'s own WAITING token takes a move and nothing else — no turn, facing, posture or elevation; another player\'s never moves',
+        chgW === true && j(byW('wt')) === j({ id: 'wt', waiting: 1, ownerId: 'u_p', x: 40, y: 50 }) && j(byW('wo')) === j({ id: 'wo', waiting: 1, ownerId: 'u_q', x: 0, y: 0 }), j([chgW, byW('wt'), byW('wo')]));
+    check('patch (host): a drawing the GM locked is not erased by leaving it out of a patch (an unlocked one still is), nor redrawn',
+        !!byId('s1') && !byId('s2') && j(byId('s1').pts) === '[[0,0],[1,1]]', j(wb.map(w => w.id)));
+    const cs2 = mk(), redraw = runPatch(cs2, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 's1', type: 'path', ownerId: 'u_p', pts: [[5, 5], [9, 9]] }, { id: 's2', type: 'path', ownerId: 'u_p', pts: [[0, 0], [2, 2]] }] } });
+    check('patch (host): a locked stroke\'s new points are refused', j(cs2.c1.items.m1.whiteboard.find(w => w.id === 's1').pts) === '[[0,0],[1,1]]', j([redraw, cs2.c1.items.m1.whiteboard]));
+    const csH = mk(); csH.c1.items.m1.whiteboard.push({ id: 's3', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [3, 3]], x: 0, y: 0, hidden: true }, { id: 't3', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, hidden: true }, { id: 's5', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [5, 5]], x: 0, y: 0, hidden: 1 });
+    const heldH = [{ id: 't1', x: 0, y: 0, rot: 0, front: 0 }, { id: 't2', x: 0, y: 0 }, { id: 's1', type: 'path', ownerId: 'u_p', pts: [[0, 0], [1, 1]] }, { id: 's2', type: 'path', ownerId: 'u_p', pts: [[0, 0], [2, 2]] }], hb = id => csH.c1.items.m1.whiteboard.find(w => w.id === id);
+    runPatch(csH, { campId: 'c1', itemId: 'm1', item: { whiteboard: heldH } }); const afterOut = [!!hb('s3'), !!hb('s2'), !!hb('t3'), !!hb('s5')];
+    runPatch(csH, { campId: 'c1', itemId: 'm1', item: { whiteboard: heldH.concat([{ id: 't3', x: 40, y: 50, rot: 90, front: 45, posture: 'kneeling' }, { id: 's3', type: 'path', ownerId: 'u_p', pts: [[9, 9], [8, 8]] }]) } });
+    check('hidden pieces (patch, host): a player\'s own drawing the GM hid is not on their copy, so a map copy of theirs that leaves it out does not erase it (it left by the GM\'s hand, not theirs; one they left out themselves still goes); a copy that names it, or their hidden token, changes neither',
+        j(afterOut) === j([true, true, true, true]) && j(hb('s3')) === j({ id: 's3', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [3, 3]], x: 0, y: 0, hidden: true }) && j(hb('t3')) === j({ id: 't3', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0, hidden: true })
+        && (() => { const c2 = mk(); c2.c1.items.m1.whiteboard.push({ id: 's4', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [4, 4]], x: 0, y: 0 }); runPatch(c2, { campId: 'c1', itemId: 'm1', item: { whiteboard: heldH } }); return !c2.c1.items.m1.whiteboard.some(w => w.id === 's4'); })(), j([afterOut, hb('s3'), hb('t3')]));
+    const protoRuns = [['constructor', 'm1'], ['__proto__', 'm1'], ['hasOwnProperty', 'm1'], ['c1', 'constructor'], ['c1', 'toString'], ['c1', '__proto__'], [5, 'm1'], ['c1', 7]].map(([c, i]) => runPatch(mk(), { campId: c, itemId: i, item: { whiteboard: [{ id: 't1', x: 9, y: 9 }] } }));
+    check('patch (host): a campaign or map id that is a prototype key (or not a string) names nothing — refused, never a throw', protoRuns.every(r => r === false), j(protoRuns));
+}
+// 49 (c) (the owner, by prompt, 2026-10-06: "Lock it for its player"): a player's drawing the GM made a wall (Blocks sight) or a see-through
+// barrier (Stops movement only) is no longer its player's to redraw or erase. The patch gate with the REAL playerStroke and the real fogcore
+// (strokeHeld, the one judge), a player's own eraser's two helpers sliced from whiteboard.js and run for real, and the words
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCh = await import(url('fogcore.js')), rdH = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n');
+    const coreH = rdH('system/app/scripts/fogcore.js'), wbH = rdH('system/app/scripts/whiteboard.js'), ixH = rdH('system/app/index.html'), claudeH = (() => { try { return rdH('CLAUDE.md'); } catch (e) { if (e && e.code === 'ENOENT') return null; throw e; } })();   // CLAUDE.md is kept on the maintainer's machine only (git-ignored): its pins run where it is there
+    // (1) the judge: the two flags alone, a wall as the wall judges read it (any value that blocks), a barrier only as true
+    const held = w => FCh.strokeHeld(w);
+    check('49 (c) the judge (fogcore strokeHeld, run for real): a drawing the GM made a wall is held — Blocks sight as true and as any value that blocks sight, a door open or shut, a hidden one too — and so is one made a see-through barrier, only as true; a barrier flag that is a word or a number, no flag, false flags, and what is no object are not held; the fog core publishes it both ways',
+        held({ blocksSight: true }) === true && held({ blocksSight: 1 }) === true && held({ blocksSight: true, sightType: 'door', doorOpen: true }) === true && held({ blocksSight: true, hidden: true }) === true && held({ barrier: true }) === true && held({ barrier: true, sightType: 'door', doorOpen: true }) === true
+        && held({ barrier: 'yes' }) === false && held({ barrier: 1 }) === false && held({}) === false && held({ blocksSight: false, barrier: false }) === false && held({ blocksSight: 0 }) === false && held(null) === false && held(undefined) === false && held('wall') === false && held(7) === false
+        && coreH.includes('barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier,') && coreH.includes('barrierOn, isDoor, strokeHeld, cleanBarrier,'),
+        j([held({ blocksSight: 1 }), held({ barrier: 'yes' }), held(null)]));
+    // (2) the host's patch gate
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js');
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n';
+    const run = (camps, msg, o) => { o = o || {}; const out = {}; let r;
+        try { r = new Function('state', 'window', 'msg', 'prof', 'out', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, o.noCore ? { wpVtt: { campaignOn: () => true } } : { wpVtt: { campaignOn: () => true }, wpFogCore: FCh }, msg, { id: o.pid || 'u_p' }, out); } catch (e) { r = 'threw: ' + e.message; }
+        return { r, whole: out.whole === true, strokes: out.strokes === true }; };
+    const S = (id, extra) => Object.assign({ id, type: 'path', byPlayer: true, ownerId: 'u_p', x: 5, y: 5, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [4, 4]], color: '#e9e9f0', strokeWidth: 3 }, extra);
+    const mk = () => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [S('wall', { blocksSight: true, sightType: 'wall' }), S('one', { blocksSight: 1 }), S('door', { blocksSight: true, sightType: 'door', doorOpen: true }), S('bar', { barrier: true }), S('odd', { barrier: 'yes' }), S('plain'), S('lockd', { locked: true }), S('hers', { ownerId: 'u_q', blocksSight: true })] } } } });
+    const wbOf = c => c.c1.items.m1.whiteboard, ids = c => wbOf(c).map(w => w.id).join(), by = (c, id) => wbOf(c).find(w => w.id === id);
+    // a copy of the map as an honest app of pid would send it: each drawing of theirs as it stands, but those named in drop, and those in redo changed
+    const copy = (c, o) => { o = o || {}; const pid = o.pid || 'u_p'; return { campId: 'c1', itemId: 'm1', item: { whiteboard: wbOf(c).filter(w => w.ownerId === pid && (o.drop || []).indexOf(w.id) < 0).map(w => Object.assign({ id: w.id, type: 'path', ownerId: pid, x: w.x, y: w.y, w: 10, h: 10, pts: w.pts.map(p => p.slice()) }, (o.redo || {})[w.id])) } }; };
+    const all = ['wall', 'one', 'door', 'bar', 'odd', 'plain', 'lockd'];
+    const cE = mk(), eAll = run(cE, copy(cE, { drop: all }));
+    const cW = mk(), eWall = run(cW, copy(cW, { drop: ['wall'] })), cB = mk(), eBar = run(cB, copy(cB, { drop: ['bar'] })), cN = mk(), eNone = run(cN, copy(cN));
+    check('49 (c) an erase (the host\'s patch gate with the real playerStroke and the real fogcore): a copy of the map that leaves every drawing of theirs out erases the plain one and the one whose barrier flag is only a word, and keeps each one the GM made a wall or a barrier (and the locked one, as ever); the sender is to get the map whole, so their screen holds the lines again; a copy that leaves out only a wall, or only a barrier, changes nothing and is answered the same way; a copy that names them all as they stand changes nothing and asks for no whole map',
+        eAll.r === true && eAll.whole === true && eAll.strokes === true && ids(cE) === 'wall,one,door,bar,lockd,hers'
+        && eWall.r === false && eWall.whole === true && ids(cW) === 'wall,one,door,bar,odd,plain,lockd,hers' && eBar.r === false && eBar.whole === true && ids(cB) === 'wall,one,door,bar,odd,plain,lockd,hers'
+        && eNone.r === false && eNone.whole === false && eNone.strokes === false && ids(cN) === 'wall,one,door,bar,odd,plain,lockd,hers', j([eAll, ids(cE), eWall, eBar, eNone]));
+    const P2 = [[9, 9], [1, 1]], redo = id => { const c = mk(), was = j(by(c, id)), r = run(c, copy(c, { redo: { [id]: { pts: P2 } } })); return { r: r.r, whole: r.whole, same: j(by(c, id)) === was, pts: j(by(c, id).pts) }; };
+    const move = id => { const c = mk(), was = j(by(c, id)), r = run(c, copy(c, { redo: { [id]: { x: 77 } } })); return { r: r.r, whole: r.whole, same: j(by(c, id)) === was, x: by(c, id).x }; };
+    const rW = redo('wall'), rO = redo('one'), rD = redo('door'), rB = redo('bar'), rP = redo('plain'), rOdd = redo('odd'), mW = move('wall'), mB = move('bar'), mP = move('plain');
+    const cM = mk(), bad = run(cM, { campId: 'c1', itemId: 'm1', item: { whiteboard: copy(cM).item.whiteboard.map(w => (w.id === 'wall' ? Object.assign({}, w, { pts: 'none' }) : w)) } });
+    check('49 (c) a redraw: new points, or a new place, for a drawing the GM made a wall, a door or a barrier are refused — the host\'s drawing is byte for byte as it was, its flags with it — and the sender is to get the map whole; the same redraw of a plain drawing, and of one whose barrier flag is only a word, lands as ever and asks for no whole map; a copy that names a wall in a shape that is no drawing changes nothing, erases nothing and asks for nothing',
+        [rW, rO, rD, rB, mW, mB].every(x => x.r === false && x.whole === true && x.same === true) && rW.pts === '[[0,0],[4,4]]' && mW.x === 5
+        && rP.r === true && rP.whole === false && rP.pts === j(P2) && rOdd.r === true && rOdd.whole === false && rOdd.pts === j(P2) && mP.r === true && mP.whole === false && mP.x === 77
+        && bad.r === false && bad.whole === false && ids(cM) === 'wall,one,door,bar,odd,plain,lockd,hers' && by(cM, 'wall').blocksSight === true, j([rW, rO, rD, rB, mW, mB, rP, rOdd, mP, bad]));
+    // handed back, another player's, and with no judge
+    const cU = mk(); delete by(cU, 'wall').blocksSight; delete by(cU, 'wall').sightType; delete by(cU, 'bar').barrier;
+    const uE = run(cU, copy(cU, { drop: ['wall', 'bar'] })), cU2 = mk(); delete by(cU2, 'wall').blocksSight; const uR = run(cU2, copy(cU2, { redo: { wall: { pts: P2 } } }));
+    const cQ = mk(), qE = run(cQ, copy(cQ, { pid: 'u_q', drop: ['hers'] }), { pid: 'u_q' }), cX = mk(), noCore = run(cX, copy(cX, { drop: ['wall'] }), { noCore: true });
+    check('49 (c) handed back, another player, and no judge: once the GM unticks the line it is its player\'s again — the same copy erases it, the same redraw lands; another player\'s copy keeps their own wall drawing the same way and never touches this player\'s; with no fog core on the page the rule cannot be asked and the gate answers as it did before; the gate asks the judge in exactly four places, the redraw and the erase, each once for a drawing the GM also locked and once for one that is not (round three of Match a wall), through its one helper',
+        uE.r === true && uE.whole === false && ids(cU) === 'one,door,odd,plain,lockd,hers' && uR.r === true && uR.whole === false && j(by(cU2, 'wall').pts) === j(P2)
+        && qE.r === false && qE.whole === true && ids(cQ) === 'wall,one,door,bar,odd,plain,lockd,hers' && noCore.r === true && noCore.whole === false && ids(cX) === 'one,door,bar,odd,plain,lockd,hers'
+        && (patchSrc.match(/strokeHeldOn\(/g) || []).length === 5 && patchSrc.includes("function strokeHeldOn(w) { var FCh = window.wpFogCore; return !!(FCh && typeof FCh.strokeHeld === 'function' && FCh.strokeHeld(w)); }")
+        && /if \(pOut\.whole\) net\.sendItem\(msg\.campId, msg\.itemId, conn, null, msg\.a\);/.test(src), j([uE, ids(cU), uR, qE, noCore, ids(cX)]));
+    // Round three of Match a wall (2026-10-12): a drawing the GM made a wall or a see-through barrier AND locked. No plain wall carries a lock to
+    // players (round two), so its player's copy of such a drawing says no lock: nothing on their screen tells them it is frozen, and a copy of
+    // theirs may redraw it or leave it out. The host changes nothing, as ever for a locked piece, and now answers with the map whole, as it does
+    // for a wall that is not locked, so their screen holds the line again. A drawing that is locked and NO wall still says locked on their
+    // screen (their app stops them there), and is answered with nothing, as before; so is a locked token
+    const SL = (id, extra) => S(id, Object.assign({ locked: true }, extra));
+    const mkLk = () => { const gm = SL('gmline', { blocksSight: true, sightType: 'wall' }); delete gm.byPlayer;   // a wall line that carries their id and is no drawing of a player's
+        return { c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [SL('lw', { blocksSight: true, sightType: 'wall' }), SL('lb', { barrier: true }), SL('ld', { blocksSight: true, sightType: 'door', doorOpen: true }), SL('lone', { blocksSight: 1 }),
+            SL('lk'), SL('lodd', { barrier: 'yes' }), gm, { id: 'ltok', type: 'image', isChar: true, ownerId: 'u_p', x: 5, y: 5, rot: 0, front: 0, blocksSight: true, locked: true }, { id: 'lbox', type: 'rect', byPlayer: true, ownerId: 'u_p', x: 5, y: 5, w: 10, h: 10, rot: 0, front: 0, blocksSight: true, sightType: 'wall', locked: true }, S('free'), SL('lhers', { ownerId: 'u_q', blocksSight: true, sightType: 'wall' })] } } } }; };
+    // a copy of the map as an app of pid would send it, with nothing of a lock or of a wall in it: each piece of theirs as it stands, but those dropped and those changed
+    const copyL = (c, o) => { o = o || {}; const pid = o.pid || 'u_p'; return { campId: 'c1', itemId: 'm1', item: { whiteboard: wbOf(c).filter(w => w.ownerId === pid && (o.drop || []).indexOf(w.id) < 0).map(w => Object.assign(w.type === 'path' ? { id: w.id, type: 'path', ownerId: pid, x: w.x, y: w.y, w: 10, h: 10, pts: w.pts.map(p => p.slice()) } : { id: w.id, x: w.x, y: w.y, rot: 0, front: 0 }, (o.redo || {})[w.id])) } }; };
+    const tryL = (o, how) => { const c = mkLk(), was = j(wbOf(c)), r = run(c, copyL(c, o), how); return [r.r, r.whole, j(wbOf(c)) === was]; };   // [what the gate answered, the map whole is owed, the host's map is text for text as it was]
+    const HELDL = ['lw', 'lb', 'ld', 'lone'], PLAINL = ['lk', 'lodd', 'gmline'], P3 = [[9, 9], [1, 1]];
+    const actsL = id => [tryL({ drop: [id] }), tryL({ redo: { [id]: { pts: P3 } } }), tryL({ redo: { [id]: { x: 77 } } }), tryL({ redo: { [id]: { y: 77 } } })];   // left out, new points, moved across, moved down
+    const heldL = HELDL.map(actsL), plainL = PLAINL.map(actsL), WHOLE4 = j([[false, true, true], [false, true, true], [false, true, true], [false, true, true]]), NONE4 = j([[false, false, true], [false, false, true], [false, false, true], [false, false, true]]);
+    const boxL = [tryL({ redo: { lbox: { type: 'path', ownerId: 'u_p', w: 10, h: 10, pts: P3 } } }), tryL({ redo: { lbox: { x: 77 } } }), tryL({ drop: ['lbox'] })];   // a box that carries the marks of a player's drawing, which no tool makes: named as a drawing, moved, left out
+    const asIsL = tryL({}), tokL = tryL({ redo: { ltok: { x: 77, y: 60, rot: 90, front: 45 } } }), badL = [tryL({ redo: { lw: { pts: 'none' } } }), tryL({ redo: { lw: { type: 'rect', pts: P3 } } }), tryL({ redo: { lw: { ownerId: 'u_q', pts: P3 } } })];
+    const noCoreL = [tryL({ drop: ['lw'] }, { noCore: true }), tryL({ redo: { lw: { pts: P3 } } }, { noCore: true }), tryL({ redo: { lb: { x: 77 } } }, { noCore: true })];
+    const cFree = mkLk(), rFree = run(cFree, copyL(cFree, { redo: { free: { pts: P3 } } })), cMixK = mkLk(), rMixK = run(cMixK, copyL(cMixK, { drop: ['lk', 'free'] })), cMixW = mkLk(), rMixW = run(cMixW, copyL(cMixW, { drop: ['lw', 'free'] }));
+    const ALLL = 'lw,lb,ld,lone,lk,lodd,gmline,ltok,lbox,free,lhers', LESSFREE = 'lw,lb,ld,lone,lk,lodd,gmline,ltok,lbox,lhers';
+    const qDropL = tryL({ pid: 'u_q', drop: ['lhers'] }, { pid: 'u_q' }), qAsIsL = tryL({ pid: 'u_q' }, { pid: 'u_q' });
+    const runBare = (camps, msg) => { try { return new Function('state', 'window', 'msg', 'prof', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCh }, msg, { id: 'u_p' }); } catch (e) { return 'threw: ' + e.message; } };
+    const bareL = [{ drop: ['lw'] }, { redo: { lw: { pts: P3 } } }, { drop: ['lk'] }].map(o => { const c = mkLk(), was = j(wbOf(c)); return [runBare(c, copyL(c, o)), j(wbOf(c)) === was]; });
+    check('49 (c) a wall the GM also locked (round three of Match a wall; the host\'s patch gate with the real playerStroke and the real fogcore): no plain wall carries a lock to players, so a player\'s copy of a drawing of theirs that the GM made a wall or a see-through barrier and locked says nothing of the lock. A copy of the map that leaves such a drawing out, gives it new points, or moves it across or down changes nothing on the host, the map text for text as it was, and the sender is to get the map whole, as for a wall that is not locked: held of a wall, a see-through barrier, an open door and a drawing whose Blocks sight is a 1. A copy that names them all as they stand changes nothing and asks for nothing, and so does one that names the wall in a shape that is no drawing, as another kind of piece, or under another player\'s id. A drawing that is locked and no wall, one whose barrier flag is only a word, and a wall line that carries the player\'s id and is no drawing of a player\'s are kept under each of the four and are NOT answered with the map whole, as before; nor is a locked token of theirs that blocks sight, which neither moves nor turns, nor a locked box that blocks sight and carries the marks of a player\'s drawing, named by the copy as a drawing, moved or left out. With no fog core on the page the rule cannot be asked: the locked drawing stays, and nothing is sent back. In the same copy a plain drawing of theirs is still redrawn and erased: beside a locked plain drawing left out that asks for nothing, beside a locked wall left out it asks for the map whole. Another player\'s copy that leaves out their own locked wall is answered the same way and touches nothing of this player\'s. And the gate called with no answer to fill throws nothing',
+        heldL.every(a => j(a) === WHOLE4) && heldL.length === 4 && plainL.every(a => j(a) === NONE4) && plainL.length === 3
+        && j(asIsL) === j([false, false, true]) && j(tokL) === j([false, false, true]) && boxL.every(t => j(t) === j([false, false, true])) && badL.every(t => j(t) === j([false, false, true])) && noCoreL.every(t => j(t) === j([false, false, true]))
+        && rFree.r === true && rFree.whole === false && rFree.strokes === true && j(by(cFree, 'free').pts) === j(P3) && ids(cFree) === ALLL
+        && rMixK.r === true && rMixK.whole === false && ids(cMixK) === LESSFREE && rMixW.r === true && rMixW.whole === true && ids(cMixW) === LESSFREE && by(cMixW, 'lw').locked === true
+        && j(qDropL) === j([false, true, true]) && j(qAsIsL) === j([false, false, true]) && bareL.every(b => j(b) === j([false, true])),
+        j([heldL, plainL, asIsL, tokL, boxL, badL, noCoreL, [rFree, ids(cFree)], [rMixK, ids(cMixK)], [rMixW, ids(cMixW)], qDropL, qAsIsL, bareL]));
+    // Round three of Match a wall: a player's line keeps the nib it was drawn with, so that every screen draws it as its drawer's does. Until
+    // then the host rebuilt a player's drawing with no nib at all, and every other screen drew a square or a flat line round. playerStroke keeps
+    // tip only as the word square or the word flat. Anything else names no nib: the line is round, as before. Never the Fill tip: a filled
+    // region is no line, and a player hands the host lines alone
+    const PSr = new Function(psSrc + '\nreturn playerStroke;')();
+    const inkP = more => Object.assign({ id: 'wbN1', type: 'path', ownerId: 'u_p', x: 5, y: 6, w: 30, h: 40, baseW: 30, baseH: 40, pts: [[0, 0], [30, 40]], color: '#aabbcc', strokeWidth: 7, opacity: 0.5 }, more);
+    const INKJ = '{"id":"wbN1","type":"path","x":5,"y":6,"w":30,"h":40,"baseW":30,"baseH":40,"z":35,"pts":[[0,0],[30,40]],"color":"#aabbcc","strokeWidth":7,"ownerId":"u_p","byPlayer":true,"opacity":0.5}', nibJ = t => INKJ.slice(0, -1) + ',"tip":"' + t + '"}';
+    const NONIB = ['round', 'fill', 'Square', 'SQUARE', 'Flat', ' square', 'square ', 'flat\n', 'squareflat', 'butt', '', '<img src=x onerror=alert(1)>', 5, 0, 1, true, false, null, undefined, ['square'], ['flat'], { tip: 'flat' }, { toString() { return 'square'; } }, new String('flat')];
+    const nibKept = ['square', 'flat'].map(t => j(PSr(inkP({ tip: t }), 'u_p'))), nibNone = NONIB.map(v => j(PSr(inkP({ tip: v }), 'u_p'))), nibBare = j(PSr(inkP({ opacity: undefined, tip: 'flat' }), 'u_p'));
+    // ... and through the gate: five new drawings, and two that stand on the map redrawn, each naming a nib
+    const cT = mk(), mT = copy(cT); mT.item.whiteboard.push(inkP({ id: 'nSq', tip: 'square' }), inkP({ id: 'nFl', tip: 'flat' }), inkP({ id: 'nFi', tip: 'fill' }), inkP({ id: 'nRo', tip: 'round' }), inkP({ id: 'nNo' }));
+    mT.item.whiteboard.forEach(w => { if (w.id === 'plain') { w.pts = P2; w.tip = 'flat'; } if (w.id === 'odd') { w.pts = P2; w.tip = 'fill'; } });
+    const rT = run(cT, mT), tipsT = ['nSq', 'nFl', 'nFi', 'nRo', 'nNo', 'plain', 'odd', 'wall'].map(id => { const w = by(cT, id); return !w ? 'not there' : 'tip' in w ? w.tip : 'no nib'; });
+    check('a player\'s line keeps its nib (round three of Match a wall; net.js playerStroke run for real, alone and through the real patch gate): a drawing a player hands the host is rebuilt with its nib where that is the word square or the word flat, as the last key of the rebuilt drawing, and with nothing else of it moved: text for text the drawing rebuilt without a nib, and the nib. Any other value names no nib and the drawing is rebuilt exactly as one that names none: the word round, the word fill, another case of square or flat, a blank before or after the word, a line break after it, the two words run together, a word the app does not know, an empty text, markup, a number, a truth value, null, nothing, a list that holds the word, an object, an object that reads as the word and a boxed text. A drawing with no opacity carries its nib right after its marks of whose it is. Through the gate a new drawing lands with the square nib, one with the flat nib, and one that names the Fill tip, one that names round and one that names none each land as a line with no nib; a drawing redrawn with the flat nib takes it with its new points, and one redrawn naming the Fill tip takes its new points and no nib; a drawing the copy does not change gains none',
+        j(nibKept) === j([nibJ('square'), nibJ('flat')]) && nibNone.length === 24 && nibNone.every(t => t === INKJ) && nibBare === '{"id":"wbN1","type":"path","x":5,"y":6,"w":30,"h":40,"baseW":30,"baseH":40,"z":35,"pts":[[0,0],[30,40]],"color":"#aabbcc","strokeWidth":7,"ownerId":"u_p","byPlayer":true,"tip":"flat"}'
+        && rT.r === true && rT.strokes === true && j(tipsT) === j(['square', 'flat', 'no nib', 'no nib', 'no nib', 'flat', 'no nib', 'no nib']) && j(by(cT, 'plain').pts) === j(P2) && j(by(cT, 'odd').pts) === j(P2) && j(by(cT, 'nFi')) === INKJ.replace('wbN1', 'nFi') && j(by(cT, 'nSq')) === nibJ('square').replace('wbN1', 'nSq'),
+        j([nibKept, nibNone.map((t, i) => (t === INKJ ? '' : [String(NONIB[i]), t])).filter(Boolean), nibBare, rT, tipsT]));
+    // Round four of Match a wall: a redraw and the nib. Round three's gate laid the rebuilt drawing over the host's line, and a rebuilt drawing
+    // that names no nib has no tip key at all, so a square or a flat line that its player redrew with the round nib stayed square or flat on
+    // the host and on every other screen. Now a redraw that names no nib leaves the host's line ROUND: its square or flat tip is deleted, as
+    // its drawer's screen shows it. A redraw is new points or a new place, as ever: a copy that changes only the nib is none, and changes
+    // nothing. Only the words square and flat are taken off. A tip of fill, should one ever stand on a player's drawing on the host, is no
+    // nib of a line and stays, and so does the word round, which the board reads as it reads no nib
+    const mkNib = () => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [S('sq', { tip: 'square' }), S('fl', { tip: 'flat' }), S('ro'), S('rd', { tip: 'round' }), S('fi', { tip: 'fill' }), S('wsq', { tip: 'square', blocksSight: true, sightType: 'wall' }), S('lfl', { tip: 'flat', locked: true }), S('hers', { ownerId: 'u_q', tip: 'square' })] } } } });
+    const nibOf = w => (!w ? 'not there' : 'tip' in w ? w.tip : 'no nib');
+    // [what the gate answered, the map whole is owed, a drawing of theirs changed, the nib the host's line then has, its points, its place across, every other piece of the map is text for text as it was]
+    const nibRe = (id, more, how) => { const c = mkNib(), others = () => j(wbOf(c).filter(w => w.id !== id)), was = others(), r = run(c, copy(c, { redo: { [id]: more } }), how), w = by(c, id); return [r.r, r.whole, r.strokes, nibOf(w), j(w.pts), w.x, others() === was]; };
+    const P1J = j([[0, 0], [4, 4]]), LANDS = t => j([true, false, true, t, j(P2), 5, true]), STAYS = t => j([false, false, false, t, P1J, 5, true]);
+    const nib4None = [nibRe('sq', { pts: P2 }), nibRe('fl', { pts: P2 }), nibRe('ro', { pts: P2 }), nibRe('sq', { pts: P2, tip: 'round' }), nibRe('fl', { pts: P2, tip: 'fill' }), nibRe('sq', { pts: P2, tip: 'Square' }), nibRe('fl', { pts: P2, tip: ['flat'] }), nibRe('sq', { pts: P2 }, { noCore: true })];   // redrawn naming no nib: nothing at all, the word round, the Fill tip, another case, a list that holds the word; and with no fog core on the page
+    const nibMoved = [nibRe('sq', { x: 77 }), nibRe('fl', { y: 77 })];   // a new place alone is a redraw too
+    const nibNamed = [nibRe('sq', { pts: P2, tip: 'flat' }), nibRe('fl', { pts: P2, tip: 'square' }), nibRe('ro', { pts: P2, tip: 'flat' }), nibRe('sq', { pts: P2, tip: 'square' }), nibRe('rd', { pts: P2, tip: 'square' })];   // redrawn naming square or flat: that nib, whatever nib of a LINE stood (round four had a sixth here, over a tip of fill: round five turned it, below)
+    const nibOnly = [nibRe('sq', {}), nibRe('sq', { tip: 'flat' }), nibRe('sq', { tip: 'round' }), nibRe('fl', { tip: 'square' }), nibRe('ro', { tip: 'flat' }), nibRe('ro', { tip: 'square' })];   // a copy that names the drawing as it stands, or changes only its nib: no redraw
+    const nibOdd = [nibRe('fi', { pts: P2 }), nibRe('rd', { pts: P2 })];   // a tip on the host's line that is neither square nor flat is not taken off
+    const nibHeld = [nibRe('wsq', { pts: P2 }), nibRe('lfl', { pts: P2 }), nibRe('wsq', { pts: P2 }, { noCore: true })];   // a redraw the gate refuses takes no nib off: a wall, a locked line. With no fog core the wall is no wall to the gate, and the redraw lands as any does
+    // Round five of Match a wall: a redraw never makes a FILLED REGION a line. Round four laid a nib named by the copy over whatever stood, so
+    // a copy that named the square nib or the flat one for a host piece whose tip is fill, with other points or with only another place, left
+    // an open line where a region stood, its holes still on it and read by nothing. Now a nib named for such a piece is not taken: the redraw
+    // lands (its points, its place) and the piece is the region it was. FLIPPED against round four at the first four and the last: there the
+    // region took that nib. The fifth, a move that names no nib, left it a region in round four too
+    const nibFill = [nibRe('fi', { pts: P2, tip: 'flat' }), nibRe('fi', { pts: P2, tip: 'square' }), nibRe('fi', { x: 77, tip: 'flat' }), nibRe('fi', { y: 77, tip: 'square' }), nibRe('fi', { x: 77 }), nibRe('fi', { pts: P2, tip: 'flat' }, { noCore: true })];
+    // ... and a region as the Fill tool leaves one, with a hole. A row: [what the gate answered, the map whole is owed, a drawing of theirs changed, its nib, its points, its place across, its place
+    // down, its holes, the fog core reads it as a line, how many stretches the fog core reads of it (a region is closed, and so is each of its holes), it is text for text the region it was but
+    // for what the copy changed and every other piece is as it was]
+    const RGPTS = [[0, 0], [10, 0], [10, 10], [0, 10]], RGNEW = [[0, 0], [10, 0], [5, 10]], RGHOLES = [[[2, 2], [6, 2], [6, 6]]];
+    const mkRg = extra => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [S('rg', Object.assign({ tip: 'fill', pts: RGPTS.map(p => p.slice()), holes: RGHOLES.map(h => h.map(p => p.slice())) }, extra)), S('hers', { ownerId: 'u_q', tip: 'square' })] } } } });
+    const rgRe = (more, extra, now) => { const c = mkRg(extra), others = () => j(wbOf(c).filter(o => o.id !== 'rg')), was = others(), r = run(c, copy(c, { redo: { rg: more } })), w = by(c, 'rg');
+        return [r.r, r.whole, r.strokes, nibOf(w), j(w.pts), w.x, w.y, j(w.holes), FCh.lineOf(w), FCh.pathSegs(w).length, j(w) === j(S('rg', Object.assign({ tip: 'fill', pts: RGPTS, holes: RGHOLES }, extra, now))) && others() === was]; };
+    const rgGot = [rgRe({ pts: RGNEW, tip: 'flat' }, {}, { pts: RGNEW }), rgRe({ pts: RGNEW, tip: 'square' }, {}, { pts: RGNEW }), rgRe({ x: 77, tip: 'flat' }, {}, { x: 77 }), rgRe({ y: 77, tip: 'square' }, {}, { y: 77 }), rgRe({ pts: RGNEW }, {}, { pts: RGNEW }),
+        rgRe({ pts: RGNEW, tip: 'flat' }, { blocksSight: true, sightType: 'wall' }, {}), rgRe({ x: 77, tip: 'square' }, { barrier: true }, {})];   // the last two: a region the GM made a wall, or a see-through barrier, is held and stays whole
+    const RGJ = j(RGPTS), RGNJ = j(RGNEW), RGHJ = j(RGHOLES);
+    const rgWant = [[true, false, true, 'fill', RGNJ, 5, 5, RGHJ, false, 6, true], [true, false, true, 'fill', RGNJ, 5, 5, RGHJ, false, 6, true], [true, false, true, 'fill', RGJ, 77, 5, RGHJ, false, 7, true], [true, false, true, 'fill', RGJ, 5, 77, RGHJ, false, 7, true], [true, false, true, 'fill', RGNJ, 5, 5, RGHJ, false, 6, true],
+        [false, true, false, 'fill', RGJ, 5, 5, RGHJ, false, 7, true], [false, true, false, 'fill', RGJ, 5, 5, RGHJ, false, 7, true]];
+    // ... and what round four left of it, as the fog core reads that: an open line of two stretches, its hole read by nothing. The rows above are told from this
+    const rgAsLine = S('rg', { tip: 'flat', pts: RGNEW, holes: RGHOLES }), rgLineRead = [FCh.lineOf(rgAsLine), FCh.pathSegs(rgAsLine).length];
+    // ... and text for text: three redraws in one copy. The square line redrawn naming no nib is the very drawing a round line redrawn is, a line that named no nib takes the flat one as its last key, and a flat line takes the square one in the place its nib stood
+    const cTxt = mkNib(), rTxt = run(cTxt, copy(cTxt, { redo: { sq: { pts: P2 }, ro: { pts: P2, tip: 'flat' }, fl: { pts: P2, tip: 'square' } } }));
+    const txtGot = [j(by(cTxt, 'sq')) === j(S('sq', { pts: P2 })), j(by(cTxt, 'ro')) === j(S('ro', { pts: P2, tip: 'flat' })), j(by(cTxt, 'fl')) === j(S('fl', { tip: 'square', pts: P2 })), nibOf(by(cTxt, 'hers')), nibOf(by(cTxt, 'fi')), nibOf(by(cTxt, 'wsq')), nibOf(by(cTxt, 'lfl'))];
+    check('a redraw and the nib (rounds four and five of Match a wall; the host\'s patch gate with the real playerStroke and the real fogcore): a redraw of a player\'s own line that names no nib leaves the host\'s line with NO tip key where it had the square nib or the flat one, since on its drawer\'s screen it is round now: redrawn with new points and nothing said of a nib, with the word round, with the Fill tip, with another case of the word or with a list that holds it, and with no fog core on the page alike; a line that had no nib has none after. A new place alone is a redraw too, and takes the nib off the same way. A redraw that names the square nib or the flat one sets it, whatever nib of a line stood there: flat over square, square over flat, on a line that had none and over the word round. ROUND FIVE, FLIPPED against round four: over a tip of fill it is NOT set, since a redraw never makes a filled region a line. A copy that names the square nib or the flat one for a host piece whose tip is fill, with other points or with only another place across or down, lands its points and its place and leaves the tip fill, with no fog core on the page too. A region as the Fill tool leaves one, with a hole, redrawn or only moved by a copy that names the flat nib or the square one, is text for text the region it was but for the new points or the new place: its tip is fill, its holes are as they were, and the fog core still reads it closed with its hole (six stretches for three points and a hole of three, seven for four points) and as no line, where round four left an open line of two stretches whose hole nothing read. A region the GM made a wall or a see-through barrier is held whole under such a copy, and the map whole is owed. A copy that names the line as it stands, or that changes only its nib, is still no redraw: the gate answers that nothing changed, the host\'s line keeps its nib and its points, and nothing is owed. A tip of fill on the host\'s line, should one ever be there, is NOT deleted by a redraw that names no nib, and neither is the word round: only the words square and flat are taken off. A redraw the gate refuses takes nothing off: a wall keeps its square nib and the map whole is owed, a locked line keeps its flat nib and nothing is owed; with no fog core on the page the wall is no wall to the gate, so its redraw lands and its nib goes. In every one of these the rest of the map is text for text as it was, another player\'s square line among it. And text for text: a square line redrawn naming no nib is the very drawing a line with no nib redrawn is, a line that had none takes the flat nib as its last key, and a flat line takes the square nib in its nib\'s own place',
+        nib4None.length === 8 && nib4None.every(g => j(g) === LANDS('no nib')) && j(nibMoved) === j([[true, false, true, 'no nib', P1J, 77, true], [true, false, true, 'no nib', P1J, 5, true]])
+        && j(nibNamed.map(g => j(g))) === j([LANDS('flat'), LANDS('square'), LANDS('flat'), LANDS('square'), LANDS('square')]) && nibNamed.length === 5
+        && j(nibFill.map(g => j(g))) === j([LANDS('fill'), LANDS('fill'), j([true, false, true, 'fill', P1J, 77, true]), j([true, false, true, 'fill', P1J, 5, true]), j([true, false, true, 'fill', P1J, 77, true]), LANDS('fill')]) && nibFill.length === 6
+        && j(rgGot) === j(rgWant) && rgGot.length === 7 && j(rgLineRead) === j([true, 2])
+        && j(nibOnly.map(g => j(g))) === j([STAYS('square'), STAYS('square'), STAYS('square'), STAYS('flat'), STAYS('no nib'), STAYS('no nib')])
+        && j(nibOdd.map(g => j(g))) === j([LANDS('fill'), LANDS('round')])
+        && j(nibHeld.map(g => j(g))) === j([j([false, true, false, 'square', P1J, 5, true]), STAYS('flat'), LANDS('no nib')])
+        && rTxt.r === true && rTxt.whole === false && rTxt.strokes === true && j(txtGot) === j([true, true, true, 'square', 'fill', 'square', 'flat']),
+        j([nib4None, nibMoved, nibNamed, nibFill, rgGot, rgLineRead, nibOnly, nibOdd, nibHeld, rTxt, txtGot, by(cTxt, 'sq')]));
+    // (3) a player's own eraser: the two helpers run for real, their call sites pinned
+    const eA = wbH.indexOf('// [netcheck:erasehold-start]'), eZ = wbH.indexOf('// [netcheck:erasehold-end]'), eSrc = eA > 0 && eZ > eA ? wbH.slice(eA, eZ) : 'throw new Error("no erasehold slice");';
+    const mkE = win => new Function('window', '"use strict";\n' + eSrc + '\nreturn { held: eraseHeld, words: eraseHeldWords };')(win);
+    const E = mkE({ wpFogCore: FCh }), E0 = mkE({}), wallI = S('w', { blocksSight: true, name: '<img src=x onerror=1>' }), barI = S('b', { barrier: true });
+    const fnE = wbH.slice(wbH.indexOf('  function eraseWorldPoint(x, y) {'), wbH.indexOf('  var _erasedAny = false;'));
+    const iOwn = fnE.indexOf("if (eraserClient && item.ownerId !== window.wpNet.myId) { out.push(item); return; }"), iAny = fnE.indexOf('if (!any) { out.push(item); return; }'), iHeld = fnE.indexOf('if (eraseHeld(item, eraserClient)) { heldHit = item; out.push(item); return; }   // 49 (c): touched, and kept whole'), iChg = fnE.indexOf('changed = true;\n          // Runs of consecutive intact segments become the surviving pieces');
+    check('49 (c) a player\'s own eraser (whiteboard.js, the erasehold slice run for real with the real fogcore): a line of theirs the GM made a wall or a barrier is held on a player\'s app and never on the GM\'s, whose eraser takes any line as ever; a plain line and one whose barrier flag is only a word are not; with no fog core nothing is held; the notice is fixed words that name a wall or a barrier and nothing of the line; the eraser asks only after the line is theirs and the eraser touched it, keeps the line whole, says the notice once a stroke and is ready to say it again at the next',
+        E.held(wallI, true) === true && E.held(barI, true) === true && E.held(wallI, false) === false && E.held(barI, false) === false && E.held(S('p'), true) === false && E.held(S('o', { barrier: 'yes' }), true) === false && E.held(null, true) === false && E0.held(wallI, true) === false
+        && E.words(wallI) === 'Your GM made that line a wall. It stays until they hand it back.' && E.words(barI) === 'Your GM made that line a barrier. It stays until they hand it back.' && E.words(null) === 'Your GM made that line a barrier. It stays until they hand it back.'
+        && iOwn > 0 && iAny > iOwn && iHeld > iAny && iChg > iHeld && fnE.includes('if (ddx*ddx + ddy*ddy <= reachSq) { if (eraseHeld(item, eraserClient)) { heldHit = item; out.push(item); return; } changed = true; return; }')
+        && (fnE.match(/eraseHeld\(item, eraserClient\)/g) || []).length === 2 && fnE.includes('      if (heldHit && !_heldSaid) { _heldSaid = true; toast(eraseHeldWords(heldHit)); }\n      if (changed) {')
+        && wbH.includes("      isErasing = false; lastErasePt = null; _heldSaid = false; if (_eraserCursor) _eraserCursor.classList.remove('pressed');") && wbH.includes('  var lastErasePt = null, _heldSaid = false;') && !/innerHTML|setAttribute/.test(eSrc),
+        j([E.held(wallI, true), E.held(wallI, false), E.words(wallI), iOwn, iAny, iHeld, iChg]));
+    // (4) said
+    const noteH = "- A player's line that you tick Blocks sight or Stops movement only is\n  yours from then on. Its player can no longer erase or redraw it, and\n  their eraser says why. Untick it to hand the line back.\n";
+    check('49 (c) said: Help for the GM says that a player\'s line ticked Blocks sight or Stops movement only is the GM\'s from then on and how it is handed back; Help for players has Your drawings, with what they may erase and that a wall or a barrier of the GM\'s stays; both release notes carry the same lines; CLAUDE.md names the one judge and its two askers',
+        ixH.includes('Tick <b>Blocks sight</b> or <b>Stops movement only</b> on a player&rsquo;s line and it is yours from then on: its player can no longer erase or redraw it. Untick it to hand the line back.</li>')
+        && ixH.includes('<li><b>Your drawings:</b> you have the pen and the eraser too. You can erase only your own marks. A line of yours that your GM made a wall or a barrier stays: you can no longer erase it, until they hand it back.</li>')
+        && rdH('WHATSNEW.txt').includes(noteH) && rdH('system/app/assets/whatsnew.txt').includes(noteH)
+        && (claudeH === null || (claudeH.includes('fogcore `strokeHeld` is the one judge, asked by the host\'s patch path (net.js `strokeHeldOn`') && claudeH.includes('and by a player\'s own eraser (whiteboard.js `eraseHeld`)'))));
+})());
+// 127 (the owner, by prompt, 2026-10-06: the GM's Undo takes back what the GM did to a player's drawing, "and still never moves or erases what the
+// player did themselves"): the host notes what players do to their own drawings in the one place a drawing of theirs is taken — the patch gate,
+// run for real with the REAL playerStroke, the real fogcore and a recorder in the count's place. (The count itself and the undo that reads it are
+// cleanupcheck's.)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const FCn = await import(url('fogcore.js'));
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), actsSrc = between('// [netcheck:strokeacts-start]', '// [netcheck:strokeacts-end]', 'strokeacts', 'netfog.js');
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n';
+    const run = (camps, msg, pid, pend) => { const notes = [], out = pend ? { conn: { peer: 'peer1' } } : {}; let r;
+        try { r = new Function('state', 'window', 'msg', 'prof', 'out', 'strokeNote', 'hidPendOf', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCn }, msg, { id: pid || 'u_p' }, out, (c, m, what, id) => { notes.push([c, m, what, id].join(':')); }, pend ? () => pend : undefined); } catch (e) { r = 'threw: ' + e.message; }
+        return { r, notes: notes.join(' '), whole: out.whole === true }; };
+    const S = (id, extra) => Object.assign({ id, type: 'path', byPlayer: true, ownerId: 'u_p', x: 5, y: 5, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [4, 4]], color: '#e9e9f0', strokeWidth: 3 }, extra);
+    // keep: named as it stands; gone: left out; redo: named with new points; wall, lockd: named with new points (refused); hid: hidden; wall2 (a barrier), lockd2 and shown (the GM
+    // hid it and has shown it again: this copy may be older than the showing) are left out, and kept; hers: another player's; tok: their own token
+    const mk = () => ({ c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [S('keep'), S('gone'), S('redo'), S('wall', { blocksSight: true }), S('lockd', { locked: true }), S('hid', { hidden: true }), S('wall2', { barrier: true }), S('lockd2', { locked: true }), S('shown'), S('hers', { ownerId: 'u_q' }), { id: 'tok', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 }] } } } });
+    const copyOf = w => ({ id: w.id, type: 'path', ownerId: 'u_p', x: w.x, y: w.y, w: 10, h: 10, pts: w.pts.map(p => p.slice()) });
+    const c = mk(), idsNow = () => c.c1.items.m1.whiteboard.map(w => w.id).join();   // read after the gate ran: an erase hands the map a new list
+    const copyMsg = () => ({ campId: 'c1', itemId: 'm1', item: { whiteboard: [copyOf(S('keep')), Object.assign(copyOf(S('redo')), { pts: [[1, 1], [2, 2]] }), Object.assign(copyOf(S('wall')), { pts: [[8, 8], [9, 9]] }), Object.assign(copyOf(S('lockd')), { pts: [[8, 8], [9, 9]] }),
+        copyOf(S('new1')), copyOf(S('new1')), { id: 'tok', x: 30, y: 40, rot: 0, front: 0 }, Object.assign(copyOf(S('hers')), { ownerId: 'u_q' })] } });
+    const pendRec = { shown: 1 }, a = run(c, copyMsg(), 'u_p', pendRec), ids1 = idsNow(), a2 = run(c, copyMsg(), 'u_p', pendRec), ids2 = idsNow();   // the same copy twice: the second time the shown drawing is theirs to erase
+    const same = run(mk(), { campId: 'c1', itemId: 'm1', item: { whiteboard: ['keep', 'gone', 'redo', 'wall', 'lockd', 'wall2', 'lockd2', 'shown'].map(id => copyOf(S(id))).concat([{ id: 'tok', x: 0, y: 0, rot: 0, front: 0 }]) } });
+    check('undo count (127, the host\'s patch gate with the real playerStroke and the real fogcore): a copy of the map notes each thing its player did to a drawing of their own, once, with the campaign and the map — a new drawing as added (the same new id twice in one copy is added once), a drawing sent with new points as redrawn, one left out as erased — and notes nothing for what the gate refuses or what is not theirs to do: a redraw of a line the GM made a wall or of a locked drawing, a hidden drawing, another player\'s drawing, a move of their own token; a barrier or a locked drawing the copy leaves out is kept and is no erase, and neither is one the GM hid and has shown again, the once that the copy may be older than the showing — the next copy without it is an erase, and is noted; a copy that names every drawing as it stands notes nothing',
+        a.r === true && a.notes === 'c1:m1:redrawn:redo c1:m1:added:new1 c1:m1:erased:gone' && a.whole === true && ids1 === 'keep,redo,wall,lockd,hid,wall2,lockd2,shown,hers,tok,new1'
+        && a2.notes === 'c1:m1:erased:shown' && ids2 === 'keep,redo,wall,lockd,hid,wall2,lockd2,hers,tok,new1' && same.r === false && same.notes === '', j([a, ids1, a2, ids2, same]));
+    // The owed review, 2026-10-09: a drawing the GM's undo brought back is noted with its time (hidBack). Every copy of its player's that lacks it
+    // within HID_BACK_MS of the step is no erase; a note past its time, one from a time that has not come, and one with no time are spent at once
+    const backCopy = () => ({ campId: 'c1', itemId: 'm1', item: { whiteboard: ['keep', 'gone', 'redo', 'wall', 'lockd', 'wall2', 'lockd2'].map(id => copyOf(S(id))).concat([{ id: 'tok', x: 0, y: 0, rot: 0, front: 0 }]) } });   // every drawing of theirs as it stands, but `shown`
+    const bq = pv => { const cB = mk(), rec = { shown: pv }, hasS = () => cB.c1.items.m1.whiteboard.some(w => w.id === 'shown'), r1 = run(cB, backCopy(), 'u_p', rec), h1 = hasS(), r2 = run(cB, backCopy(), 'u_p', rec), h2 = hasS(); return [h1, r1.whole, r1.notes, h2, r2.whole, r2.notes, 'shown' in rec]; };
+    const tNow = Date.now(), KEPT = j([true, true, '', true, true, '', true]), SPENT = j([false, false, 'c1:m1:erased:shown', false, false, '', false]);
+    const bFresh = bq({ at: tNow }), bEdge = bq({ at: tNow - 2000 }), bOld = bq({ at: tNow - 65000 }), bAhead = bq({ at: tNow + 3600000 }), bText = bq({ at: 'x' }), bBare = bq({}), bList = bq([tNow]);
+    check('a drawing the GM\'s undo brought back, in the patch gate (the owed review of 2026-10-09; run for real): while its note is within its time, every copy of its player\'s that lacks the drawing erases nothing, is answered with the map whole and leaves the note standing, the second such copy as the first; a note past its time is spent, and that copy is the player\'s own erase, noted as one; a note from a time that has not come, one whose time is no number and one with no time are spent alike; the time is 5 seconds',
+        j(bFresh) === KEPT && j(bEdge) === KEPT && j(bOld) === SPENT && j(bAhead) === SPENT && j(bText) === SPENT && j(bBare) === SPENT && j(bList) === SPENT && /var STROKE_CAP = 600, STROKE_PTS_CAP = 60000, HID_BACK_MS = 5000;/.test(patchSrc),
+        j([bFresh, bEdge, bOld, bAhead, bText, bBare, bList]));
+    check('undo count (127, the source): the gate notes in exactly three places, each through typeof so that a page with no count is as before; the count is published as three questions and a number, never as its sets; a map that is deleted takes its count with it; the count is not forgotten at a new table (a step of the GM\'s undo may be older than the session)',
+        (patchSrc.match(/if \(typeof strokeNote === 'function'\) strokeNote\(msg\.campId, msg\.itemId, '(added|redrawn|erased)', /g) || []).length === 3 && (patchSrc.match(/strokeNote\(/g) || []).length === 3
+        && /net\.strokeActs = strokeActs; net\.strokeSeq = function\(\) \{ return _strokeSeq; \};/.test(actsSrc) && !/net\.[A-Za-z_]+ = _strokeActs/.test(src) && /if \(typeof strokeActsForget === 'function'\) strokeActsForget\(campId, itemId\);/.test(fnSrc('net.itemGone = function(campId, itemId, title) {', '\n};', 'itemGone'))
+        && require('./checkkit').familyCount('net.js', /_strokeActs = /g) === 1 && require('./checkkit').familyCount('net.js', /_strokeSeq = /g) === 1 && (src.match(/strokeActsForget\(/g) || []).length === 2);
+})());
+// R2 security (cluster A, #1 #3 #23): the patch path with the REAL playerStroke — a copy of the map they are on, ids that are keys, each new id once,
+// and a budget of points per player per map beside the count
+{
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js');
+    const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n';
+    const runP = (camps, msg, prof) => { try { return new Function('state', 'window', 'msg', 'prof', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true } }, msg, prof); } catch (e) { return 'threw: ' + e.message; } };
+    const mk = () => ({ c1: { id: 'c1', items: {
+        m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tA', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 }, { id: 's1', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [1, 1]], x: 0, y: 0 }] },
+        m2: { id: 'm2', type: 'map', meta: { playerLock: true }, whiteboard: [{ id: 'tB', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 }] } } } });
+    const sk = (id, pts) => ({ id, type: 'path', ownerId: 'u_p', pts: pts || [[0, 0], [9, 9]] });
+    const ids = wb => wb.map(w => w.id);
+    // #1: the map they are on (the pos gate's rule)
+    const cA = mk(), rA = runP(cA, { campId: 'c1', itemId: 'm2', item: { whiteboard: [{ id: 'tB', x: 400, y: 500 }, sk('g1')] } }, { id: 'u_p', location: 'm1' });
+    const cC = mk(), rC = runP(cC, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 400, y: 500 }, sk('s1', [[0, 0], [1, 1]]), sk('g1')] } }, { id: 'u_p', location: 'm1' });
+    const cD = mk(), rD = runP(cD, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 400, y: 500 }, sk('s1', [[0, 0], [1, 1]])] } }, { id: 'u_p', location: null });
+    const cE = mk(), rE = runP(cE, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 400, y: 500 }, sk('s1', [[0, 0], [1, 1]])] } }, { id: 'u_p', location: 'm2' });
+    check('security (patch, host): a map copy from a player names the map they are on, as the pos gate and the threats branch have it — a copy of a map they left a token on (here one closed to players) moves nothing there and draws nothing, so no room\'s handout is found on a map they never traveled to; a copy of the map they stand on lands; a player with no place yet, as before; the GM moved them meanwhile: the stale copy of the old map is dropped',
+        rA === false && j(cA.c1.items.m2) === j(mk().c1.items.m2) && rC === true && cC.c1.items.m1.whiteboard[0].x === 400 && j(ids(cC.c1.items.m1.whiteboard)) === j(['tA', 's1', 'g1'])
+        && rD === true && cD.c1.items.m1.whiteboard[0].x === 400 && rE === false && j(cE.c1.items.m1) === j(mk().c1.items.m1), j([rA, cA.c1.items.m2, rC, ids(cC.c1.items.m1.whiteboard), rD, rE, cE.c1.items.m1.whiteboard[0]]));
+    // #3: a new drawing's id
+    const cI = mk(), oddIds = ['x'.repeat(100000), 'constructor', '__proto__', 'hasOwnProperty', '"><b>', '', 'a b', 'x'.repeat(81)];
+    const rI = runP(cI, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }, sk('s1', [[0, 0], [1, 1]])].concat(oddIds.map(id => sk(id))).concat([sk('dup', [[1, 1], [2, 2]]), sk('dup', [[3, 3], [4, 4]]), sk('dup', [[5, 5], [6, 6]]), sk('wb' + 'k'.repeat(78)), sk('a.b:c-d_e')]) } }, { id: 'u_p', location: 'm1' });
+    const wbI = cI.c1.items.m1.whiteboard;
+    check('security (patch, host): a new drawing\'s id is short plain text — letters, digits, _ . : - and up to 80 of them — and never a prototype\'s key: one 100,000 characters long, "constructor", "__proto__", "hasOwnProperty", markup, an empty one, one with a space and one 81 long each name nothing and are stored nowhere; the same new id three times in one copy lands once (the later entries redraw the first); the existing token and drawing are untouched',
+        rI === true && j(ids(wbI)) === j(['tA', 's1', 'dup', 'wb' + 'k'.repeat(78), 'a.b:c-d_e']) && j(wbI.find(w => w.id === 'dup').pts) === j([[5, 5], [6, 6]]) && j(wbI[0]) === j(mk().c1.items.m1.whiteboard[0]) && j(wbI[1].pts) === j([[0, 0], [1, 1]]) && JSON.stringify(cI).length < 2000,
+        j([rI, ids(wbI).map(s => s.slice(0, 20)), JSON.stringify(cI).length]));
+    // #23: a budget of points per player per map
+    const big = n => { const p = []; for (let i = 0; i < n; i++) p.push([i, i]); return p; };
+    const cB = mk(), many = []; for (let i = 0; i < 600; i++) many.push(sk('b' + i, big(4000)));
+    const rB = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }, sk('s1', [[0, 0], [1, 1]])].concat(many) } }, { id: 'u_p', location: 'm1' });
+    const wbB = cB.c1.items.m1.whiteboard, ptsOf = () => wbB.filter(w => w.type === 'path' && w.byPlayer).reduce((n, w) => n + w.pts.length, 0), held = () => wbB.filter(w => w.type === 'path').map(w => sk(w.id, w.pts));
+    const step1 = { ret: rB, ids: ids(wbB), pts: ptsOf(), bytes: JSON.stringify(cB.c1.items.m1).length };
+    const rB2 = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }].concat(held()).concat([sk('more4k', big(4000)), sk('tiny', [[0, 0], [1, 1]])]) } }, { id: 'u_p', location: 'm1' });
+    const step2 = { ret: rB2, more: ids(wbB).includes('more4k'), tiny: ids(wbB).includes('tiny'), pts: ptsOf() };
+    const rB3 = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }].concat(held().map(h => h.id === 's1' ? sk('s1', big(4000)) : h)) } }, { id: 'u_p', location: 'm1' });
+    const step3 = { ret: rB3, s1: wbB.find(w => w.id === 's1').pts.length, pts: ptsOf() };
+    const rB4 = runP(cB, { campId: 'c1', itemId: 'm1', item: { whiteboard: [{ id: 'tA', x: 0, y: 0 }].concat(held().map(h => h.id === 's1' ? sk('s1', big(3000)) : h)) } }, { id: 'u_p', location: 'm1' });
+    const step4 = { ret: rB4, s1: wbB.find(w => w.id === 's1').pts.length, pts: ptsOf(), tA: j(wbB[0]) === j(mk().c1.items.m1.whiteboard[0]) };
+    check('security (patch, host): a player\'s drawings on one map are bounded by their points as well as by their count — 600 new drawings of 4,000 points each leave 14 on the map (60,000 points a player a map, counted with what is there), the map under 2 MB; a further drawing of 4,000 points is refused while a small one still lands; a redraw of 4,000 points that would take their points past the budget is refused and one of 3,000 within it lands; their token is untouched throughout',
+        step1.ret === true && j(step1.ids.slice(0, 3)) === j(['tA', 's1', 'b0']) && step1.ids.length === 16 && step1.pts === 56002 && step1.bytes < 2e6
+        && step2.ret === true && step2.more === false && step2.tiny === true && step2.pts === 56004
+        && step3.ret === false && step3.s1 === 2 && step3.pts === 56004 && step4.ret === true && step4.s1 === 3000 && step4.pts === 59002 && step4.tA,
+        j([step1.ret, step1.ids.length, step1.pts, step1.bytes, step2, step3, step4]));
+}
+// R2 security (cluster A, #3, the delta path): the host's itemDelta and a player's applyItemDelta key their id maps off the prototype, so a drawing
+// an older save named for a prototype's key ("constructor") is deleted on every copy when it is erased, instead of standing as a ghost
+{
+    const qh = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\nreturn quickHash;')();
+    const idSrc = lineOf('function uniqueIds(', 'netfog.js') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js');
+    const mkMap = ids => ({ type: 'map', id: 'm1', whiteboard: ids.map(id => ({ id, type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [1, 1]] })), rooms: [] });
+    const delta = (baseIds, nowIds) => new Function('_lastSent', 'quickHash', 'cleanMap', idSrc + '\nreturn itemDelta("m1", cleanMap);')({ m1: mkMap(baseIds) }, qh, mkMap(nowIds));
+    const dC = delta(['t1', 'constructor', 'toString'], ['t1']), dAdd = delta(['t1'], ['t1', 'constructor']), dPlain = delta(['t1', 'd2'], ['t1']);
+    const adSrc = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta', 'netfog.js') + '\n}\n';
+    const applyD = (ids, msg) => {
+        const camp = { id: 'c1', activeItemId: 'm1', items: { m1: mkMap(ids) } }, asked = [];
+        new Function('state', 'net', 'window', 'broadcast', 'cleanHostMap', 'actOver', 'ackIn', 'getActiveCampaign', 'render', 'updateSidebarNav', 'msg',
+            ownKeySrc + adSrc + '\napplyItemDelta(msg);')({ appState: { campaigns: { c1: camp } } }, { applyingRemote: false }, {}, m => asked.push(m.type), () => {}, () => {}, () => 0, () => camp, () => {}, () => {}, msg);
+        return { ids: camp.items.m1.whiteboard.map(w => w.id), asked };
+    };
+    const aDel = applyD(['t1', 'constructor', 'hasOwnProperty'], { type: 'itemDelta', campId: 'c1', itemId: 'm1', whiteboard: { set: [], del: ['constructor', 'hasOwnProperty'], order: ['t1'] } });
+    const aSet = applyD(['t1', 'constructor'], { type: 'itemDelta', campId: 'c1', itemId: 'm1', whiteboard: { set: [{ id: 'constructor', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[5, 5], [6, 6]] }], del: [] } });
+    const aOrder = applyD(['t1', 'constructor', 'd2'], { type: 'itemDelta', campId: 'c1', itemId: 'm1', whiteboard: { set: [], del: [], order: ['constructor', 'd2', 't1'] } });
+    check('security (deltas, both sides — the real itemDelta and applyItemDelta): a drawing named for a prototype\'s key is a drawing like any other — erased on the host, the delta names it in del (it used to count as still there, so every other copy kept a ghost of it); added, the delta sets it; a player\'s copy told to delete it deletes it, told to set it replaces its own copy once, and sorts it by the order given',
+        j(dC.whiteboard) === j({ set: [], del: ['constructor', 'toString'], order: ['t1'] }) && j(dAdd.whiteboard) === j({ set: [mkMap(['constructor']).whiteboard[0]], del: [], order: ['t1', 'constructor'] }) && j(dPlain.whiteboard) === j({ set: [], del: ['d2'], order: ['t1'] })
+        && j(aDel.ids) === j(['t1']) && j(aSet.ids) === j(['t1', 'constructor']) && j(aOrder.ids) === j(['constructor', 'd2', 't1']) && [aDel, aSet, aOrder].every(a => a.asked.length === 0),
+        j([dC, dAdd, dPlain, aDel, aSet, aOrder]));
+}
 T.finish();

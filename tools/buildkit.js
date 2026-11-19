@@ -9,10 +9,14 @@
    - winRec, escFirst, ESC_WANT, ESC_FIRST, escSaid, ESC_WORDS: a window that keeps its listeners, and what a dialog's world says of Escape
      heard first there (the review of fold B6), for the generators' dialogs and Save Map as Picture.
    - cut(src, head, indent): the first function of that name in a source, to its closing brace at the indent it opened with.
-   - lcg(): a tiny seeded random walk, { rnd, ri }, the same every run, one for each suite that asks.
+   - lcg(at): a tiny seeded random walk, { rnd, ri, skip }, the same every run, one for each suite that asks. It starts `at` draws
+     in, and skip(n) passes n draws over: each seeded block of the two suites draws the very numbers it drew when buildcheck.js held
+     them all in one walk (the review of next area 1, 2026-11-18), so the seeded cases that ran before run again.
    - cutM(s, name, file): the text between a [buildcheck:name-start] and -end marker of a source; partOf(name): a part of a split
      giant script, read by its own name (tools/checkkit.js part).
    - HOSTILE: the values a cleaner is tried on.
+   - sortKeys(o) and b5Kit(B): a piece's keys in sorted order, and the pieces and marks of a secret door (fold B5) that buildcheck's
+     secret door blocks and buildtoolcheck's Build checks of a secret door both read.
    - wallOracle(B, F, hx): a counter of the suites' own for what stands and what is laid along a lattice (the walls around a
      selection and a door's cut are judged by it), made with buildcore, fogcore and a hex grid; it answers its functions by name.
    Requiring it installs srcjoin first, so that a read of a split script answers its joined text. */
@@ -60,8 +64,9 @@ const escSaid = got => Array.isArray(got) ? j((got.length === ESC_WANT.length ? 
 const ESC_WORDS = ' hears Escape FIRST, at the window in the capture phase, and lets it go no further (the review of fold B6). With the focus in the dialog or outside it the key is stopped at once, before any listener of the document such as the dice roller\'s, and the dialog is put away with the focus back on its row. A held Escape is stopped and puts nothing away. Where an event has no immediate stop the plain one is used. Any other key, a key while the dialog is down and a key while a question of the app\'s own is up are left alone. On the row itself a key still held from the press that put the dialog away goes no further, Escape as Enter and the space bar, so Build\'s own Escape does not put the tool away, while a fresh press and any other key are the page\'s. A window that keeps no listeners is no error. The press that put the dialog away is the dialog\'s for as long as it is held (the second review). Its repeats are stopped at once at the window and prevented while the dialog stays down, however many come. That ends when Escape is let go, and at any fresh press of a key, another key or Escape itself. It does not end when another key is let go or held. A held Escape with no such press before it is left alone: with no press at all, after a fresh Escape while the dialog was down, and under a question. The wiring leaves the window one keydown listener and one keyup listener, both in the capture phase, and the keyup listener stops nothing. A held Escape that the dialog stopped while it was up is no press that put it away (the third review): once the dialog is put away by other means, the same held Escape is left alone, however often it comes. And the press that did put the dialog away, still held, is stopped under a question of the app\'s own too: with the dialog down, and with the dialog opened again by its row';
 // the first function of that name in a source, up to its closing brace at the indent it opened with (how fogcheck slices fog.js)
 function cut(src, head, indent) { const i = src.indexOf(head), end = NL + (indent || '') + '}' + NL, k = src.indexOf(end, i); if (i < 0 || k < 0) throw new Error('buildcheck: ' + head + ' not found'); return src.slice(i, k + end.length); }
-// a tiny LCG: the same walk every run (each suite has its own, from the same seed)
-function lcg() { let seed = 12345; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const ri = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1)); return { rnd, ri }; }
+// a tiny LCG: the same walk every run (each suite has its own, from the same seed). at: how many draws it starts past; skip(n): n
+// draws passed over, so that a block keeps the place in the walk it had when buildcheck.js drew every block from one walk
+function lcg(at) { let seed = 12345; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const ri = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1)); const skip = n => { for (let i = 0; i < n; i++) rnd(); }; skip(at || 0); return { rnd, ri, skip }; }
 const cutM = (s, name, file) => { const a = '// [buildcheck:' + name + '-start]', b = '// [buildcheck:' + name + '-end]', i = s.indexOf(a), k = s.indexOf(b); if (i < 0 || k < i) throw new Error('buildcheck: ' + name + ' markers not found in ' + file); return s.slice(i, k); };
 // a part of a split giant script, read by its own name (area 4: the Build tool in wbbuild.js, the generators' dialogs in wbgen.js)
 const partOf = n => require('./checkkit').part(n);
@@ -122,4 +127,19 @@ function wallOracle(B, F, hx) {
     const eTouch = (g, outer, side) => { const cand = []; [side.in, side.out].forEach(c => eSides(g, c).forEach(sd => { if (!outer.has(eKey(sd.a, sd.b)) && [sd.a, sd.b].some(p => Math.hypot(p[0] - side.a[0], p[1] - side.a[1]) < 0.1)) cand.push(sd); })); return cand; };
     return { SQD: SQD, EHD: EHD, eKey: eKey, eSides: eSides, eCell: eCell, eNb: eNb, eDirs: eDirs, eOuter: eOuter, eOn: eOn, eUnits: eUnits, eIsWall: eIsWall, eSegs: eSegs, eHeld: eHeld, eJudge: eJudge, eL: eL, eH: eH, eV: eV, eRect: eRect, eHexOf: eHexOf, eTouch: eTouch };
 }
-module.exports = { NL, url, read, j, winRec, escFirst, ESC_WANT, ESC_FIRST, escSaid, ESC_WORDS, cut, lcg, cutM, partOf, HOSTILE, wallOracle };
+// the pieces and marks of fold B5 (a secret door) that buildcheck.js's secret door blocks and buildtoolcheck.js's Build checks of a
+// secret door both read (the review of next area 1, 2026-11-18), made with buildcore: a piece's keys in sorted order and alike, a piece
+// less one key or its name, a door block of a material, the Secret tick with a look, the Wall's color, where Build would lay again over
+// a door, and the three keys of the secret and the three of Match a wall
+const sortKeys = o => { const r = {}; Object.keys(o).sort().forEach(k => { r[k] = o[k]; }); return r; };
+function b5Kit(B) {
+    const b5Same = (a, b) => j(sortKeys(a)) === j(sortKeys(b));
+    const b5Off = (o, k) => { const r = Object.assign({}, o); delete r[k]; return r; }, b5Less = w => b5Off(w, 'name'), b5Nameless = s => !!s && !('name' in s);   // a wall less its name: what the players hold of a secret door has no name key at all (the second review of fold B5)
+    const b5Blk = (m, extra) => Object.assign({ id: 'D', type: 'rect', x: 350, y: 150, w: 50, h: 50, z: 10 }, B.pieceProps(m), extra || {});
+    const b5Tick = { secret: true, seenColor: '#112233', seenTexture: 'stone' }, b5WallCol = B.MATERIALS.wall.color;
+    const b5At = (extra, t) => B.seatedAt([Object.assign({ type: t || 'rect', x: 0, y: 0, w: 50, h: 50 }, B.pieceProps('door'), extra)], { type: t || 'rect', x: 0, y: 0, w: 50, h: 50 });
+    const b5Three = ['secret', 'seenColor', 'seenTexture'];
+    const mwThree = ['seenWidth', 'seenOpacity', 'seenTip'], mwSix = b5Three.concat(mwThree), mwSeen = { seenWidth: 9, seenOpacity: 0.4, seenTip: 'round' }, mwClean = s => mwSix.every(k => !(k in s));
+    return { b5Same, b5Off, b5Less, b5Nameless, b5Blk, b5Tick, b5WallCol, b5At, b5Three, mwThree, mwSix, mwSeen, mwClean };
+}
+module.exports = { NL, url, read, j, winRec, escFirst, ESC_WANT, ESC_FIRST, escSaid, ESC_WORDS, cut, lcg, cutM, partOf, HOSTILE, wallOracle, sortKeys, b5Kit };

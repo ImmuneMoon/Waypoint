@@ -21,7 +21,9 @@
       srcjoin.raw. A name a root exports through a glue line is imported by no script but its own parts. No script of the app imports
       a part with import(): a part is loaded only by its root's static import, so that a page holds one release's root and parts
       together (the website pins a release per tab, and a dynamic import of a part could load a newer release's part; the website
-      session's ask of 2026-11-18). The rule is tried on a text of its own first.
+      session's ask of 2026-11-18). An import( of anything but one plain quoted path (a name, a sum, a template with a part in it) is
+      refused in every script of the app too, since no scan can say what file it names (the review of next area 1). Both rules are tried
+      on a text of their own first.
    4. systemcore.js, when it is split: the real module graph and the joined text, each imported, give the same API object (the same
       keys in the same order, the same kind of value for each, the same name and length for each function and the same JSON for each
       other value), and the same exports but for the names the root re-exports to its parts.
@@ -47,6 +49,13 @@
    7b. A source pin (an includes or a split of a quoted string, or a plain regex's test) on a root's joined text, read directly or
       through a name the tool set to such a read, holds no text that only one of the root's parts holds: it reads that part by name
       (the review of area 3, 2026-11-18). The rule is tried on a text of its own first.
+   7c. The same, judged by the parser Node ships on each tool's own tree (the review of next area 1, 2026-11-18), so that what 7b's
+      patterns cannot see is judged too: a pin is a literal (a string of 6 characters or more, or a regex) handed to a call on a root's
+      joined text, read through any reader of a quoted path (rootRead, rdN, a name set to another such name), as the text of an includes,
+      a match, a split, a search, a replace, a startsWith or an endsWith, of an indexOf compared with 0 or -1, of a regex's test or exec,
+      of any helper of the tool's own handed that text (a count, an after), or of a function whose body reads it (a wbFn of a head). A
+      slice's anchors (between, fnSrc, cut and any helper named cut..., range, lineOf, an indexOf not compared) are point 7's to judge,
+      and a slice that crosses from a root into a part reads the joined text on purpose. The rule is tried on a text of its own first.
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
    bytes for a root git keeps byte for byte (net.js), the text with CRLF read as LF for the others, with one line ending throughout.
    It needs the parser Node ships, so it runs itself again with --expose-internals. */
@@ -72,9 +81,12 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
 // and it reads as 0 or '' where a number or text is wanted. A script's imports are made stubs (its other modules are not loaded), and so
 // are the page's document, storage, observers and channels; timers never fire. The window keeps what the script writes on it.
 const vm = require('vm');
-// A walk up, down or along the page tree ends: a stub has no parent, child or sibling, so a loop such as whiteboard.js's
-// while (el.firstChild) el.removeChild(el.firstChild) ends at once (step 0 of area 4, 2026-11-18; with a stub child it ran for good).
-const TREE_WALK = /^(firstChild|lastChild|nextSibling|previousSibling|parentNode|parentElement|firstElementChild|lastElementChild|nextElementSibling|previousElementSibling|offsetParent)$/;
+// A loop that empties an element ends: a stub has no first or last child, so whiteboard.js's while (el.firstChild) el.removeChild(el.firstChild)
+// ends at once (step 0 of area 4, 2026-11-18; with a stub child it ran for good). Only the four child links answer null (the review of next
+// area 1): a walk up or along the tree reads stubs as before, so a part function compared in 5b and 5c runs as far as it did, and any other
+// walk that never ends is stopped by the load's and each call's timeout. sheets.js's 52 calls end line for line alike under the stub with
+// no null link, with all eleven and with these four, and whiteboard.js's 62 under the eleven and the four.
+const TREE_WALK = /^(firstChild|lastChild|firstElementChild|lastElementChild)$/;
 function pageStub(nm) {
     const f = function() {};
     return new Proxy(f, {
@@ -264,6 +276,25 @@ function pageCalls(name, bundle, key) {
     }
     const dyn = [];
     files.forEach(f => dynParts(srcjoin.raw(f, 'latin1'), g => srcjoin.isPart(g)).forEach(p => dyn.push(f + ': import(' + p + ')')));
+    // ... and an import( whose argument is not one plain quoted path (a name, a sum, a template with a part in it) is refused in every
+    // script, since no scan can say what it loads (the review of next area 1, 2026-11-18). Judged on each script's tree, so a comment or a
+    // string that holds the word is no import; tried first on a text of its own
+    const dynLoose = (txt) => {
+        const A = L.acorn(); let ast = null;
+        for (const st of ['module', 'script']) { try { ast = A.parse(txt, { ecmaVersion: 'latest', sourceType: st, allowHashBang: true, locations: true }); break; } catch (e) { ast = null; } }
+        if (!ast) return ['does not parse'];
+        const out = [], st = [ast];
+        while (st.length) { const n = st.pop(); if (n.type === 'ImportExpression') { const s = n.source, plain = (s.type === 'Literal' && typeof s.value === 'string') || (s.type === 'TemplateLiteral' && s.expressions.length === 0); if (!plain) out.push('line ' + n.loc.start.line); }
+            for (const k in n) { if (k === 'loc') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(x => { if (x && typeof x.type === 'string') st.push(x); }); else if (v && typeof v.type === 'string') st.push(v); } }
+        return out; };
+    {
+        const t1 = dynLoose("var n = './netattack.js'; import(n); import('./' + n); import(`./${n}`); import(cond ? './a.js' : './b.js');");
+        const t2 = dynLoose("// import (one) in a comment\nvar s = 'import(x)'; import('./io.js'); import(\"./zip.js\"); import(`./dialogs.js`); import('/private/index.js').catch(function() {});");
+        check('3. the rule against an import( of anything but one plain quoted path, tried on a text of its own: a name, a sum, a template with a part in it and a choice are named; a quoted path, a template with no part and the word in a comment or a string are not', t1.length === 4 && t2.length === 0, { t1, t2 });
+    }
+    const loose = []; let loosed = 0;
+    files.forEach(f => { const t = srcjoin.raw(f, 'utf8'); if (!/\bimport\s*\(/.test(t)) return; loosed++; dynLoose(t).forEach(w => loose.push(f + ': ' + w)); });
+    check('3. every import( in the app\'s scripts takes one plain quoted path, so the rule above can read what it loads (' + loosed + ' scripts that hold the word)', loosed > 0 && loose.length === 0, loose.slice(0, 10));
     check('3. no script of the app imports a part with import() (' + files.length + ' scripts, ' + parts.length + ' parts): a part is a static import of its root alone', parts.length > 0 && dyn.length === 0, dyn.slice(0, 10));
     const priv = [process.env.WP_PRIVATE_DIR, path.join(ROOT, '..', 'Waypoint-private'), path.join(ROOT, '..', '..', '..', '..', 'Waypoint-private')].filter(Boolean).map(p => path.resolve(p)).find(p => fs.existsSync(path.join(p, 'tools', 'overlay.js')));
     if (priv) {
@@ -439,7 +470,7 @@ function pageCalls(name, bundle, key) {
     // a part reads the joined text on purpose (point 7 judges a slice cut at a definition only a part holds).
     const rootTxt7b = {}, partsTxt7b = {};
     roots.forEach(r => { rootTxt7b[r] = srcjoin.raw(r, 'utf8').replace(/\r\n/g, '\n'); partsTxt7b[r] = srcjoin.partsOf(r).map(p => [p, srcjoin.raw(p, 'utf8').replace(/\r\n/g, '\n')]); });
-    const rootAlt7b = roots.map(r => r.replace(/\./g, '\\.')).join('|'), reads7b = '(?:readFileSync|read|joined|readSrc)';
+    const rootAlt7b = roots.map(r => r.replace(/\./g, '\\.')).join('|'), reads7b = '(?:readFileSync|read|joined|readSrc|rootRead|rdN)';   // rootRead, rdN: lookcheck's and netcheck's own readers (the review of next area 1)
     const assign7b = new RegExp('\\b([A-Za-z_$][\\w$]*)\\s*=\\s*(?:[\\w$.]+\\.)?' + reads7b + '\\((?:(?!,\\s*[A-Za-z_$][\\w$]*\\s*=)[^;])*?[\'"/](' + rootAlt7b + ')[\'"]', 'g');
     const other7b = /\b([A-Za-z_$][\w$]*)\s*=\s*(?:[\w$.]+\.|require\([^)]*\)\.)?(?:part|cut|raw)\(/g;   // a name set to a part's text, or any other text, is no root's
     const direct7b = new RegExp(reads7b + '\\((?:[^()]|\\([^()]*\\))*?[\'"/](' + rootAlt7b + ')[\'"](?:[^()]|\\([^()]*\\))*\\)\\)?(?:\\.replace\\([^()]*\\))?\\.(?:includes|split)\\(\\s*(\'(?:[^\'\\\\\\n]|\\\\.)*\'|"(?:[^"\\\\\\n]|\\\\.)*")', 'g');
@@ -481,6 +512,88 @@ function pageCalls(name, bundle, key) {
     };
     check('7b. the rule tried on a text of its own: a pin on the joined sheets.js of a line only sheetlink.js holds is named, set by a name and read directly', try7b());
     check('7b. a source pin (includes, split or a plain regex) on the joined text of a root holds no text that only one of its parts holds, so it reads that part by name (' + pins7b + ' pins on a root judged)', pins7b > 0 && bad7b.length === 0, bad7b.slice(0, 20));
+
+    // ---- 7c. the same, on each tool's own tree ----
+    // 7b reads a line with patterns, so a pin made through a helper of the tool's own (count(wbSrc, ...), after(wbS, ...), a wbFn that reads
+    // the joined text), a regex's match, an indexOf compared with -1, a name set to another (nj = src) or a reader it does not know passed
+    // it by (the review of next area 1, 2026-11-18: seven such pins on wbbuild.js's and wbgen.js's text, two on net.js's parts). pins7c reads
+    // each tool with the parser, in source order, and follows what holds a root's joined text: a name set to a call that reads a root's path
+    // (never a part's, a raw read or a slice), a name set to such a name, and a function whose body reads one. Each literal handed to a pin
+    // on that text (above, in the header) is judged as 7b judges: text the root's own lines lack and a part holds is named.
+    function pins7c(acorn, src, roots, rootTxt, partsTxt, minLen) {
+        const out = [];
+        let ast; try { ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script', allowAwaitOutsideFunction: true, allowReturnOutsideFunction: true, allowHashBang: true, locations: true }); } catch (e) { return [{ line: 0, root: '', holders: [], what: 'does not parse: ' + e.message }]; }
+        const NOREAD = /^(part|partOf|raw|isPart|isRoot|rootOf|partsOf|joinRoot|url|freshUrl|fresh|require|pathToFileURL|existsSync|statSync|join|resolve|dirname|basename)$/;
+        const SLICERS = /^(between|tryBetween|fnSrc|cut\w*|range|lineOf|slice|substring|substr|sliceOf|slicer|netSlices|sheetsSlicer)$/;
+        const PINS = /^(includes|match|matchAll|split|search|replace|replaceAll|startsWith|endsWith)$/;
+        const kids = n => { const o = []; for (const k in n) { if (k === 'loc' || k === 'start' || k === 'end' || k === 'type') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(x => { if (x && typeof x.type === 'string') o.push(x); }); else if (v && typeof v.type === 'string') o.push(v); } return o; };
+        const each = (n, f) => { const st = [n]; while (st.length) { const x = st.pop(); f(x); const k = kids(x); for (let i = k.length - 1; i >= 0; i--) st.push(k[i]); } };
+        const nameOf = c => c.type === 'Identifier' ? c.name : (c.type === 'MemberExpression' && !c.computed && c.property.type === 'Identifier' ? c.property.name : null);
+        const rootIn = s => { if (typeof s !== 'string') return null; const b = s.split(/[\\/]/).pop(); return roots.indexOf(b) >= 0 ? b : null; };
+        // a call that reads a root: any call but a part's or a raw read, a path call or a slice, with a quoted path among its arguments that ends in a root's name
+        const readsRoot = x => {
+            if (!x || x.type !== 'CallExpression') return null;
+            const nm = nameOf(x.callee); if (!nm || NOREAD.test(nm) || SLICERS.test(nm) || PINS.test(nm)) return null;
+            let hit = null; x.arguments.forEach(a => each(a, y => { if (hit) return; if (y.type === 'Literal') hit = rootIn(y.value); else if (y.type === 'TemplateElement') hit = rootIn(y.value.cooked); }));
+            return hit;
+        };
+        const strip = x => { while (x && x.type === 'CallExpression' && x.callee.type === 'MemberExpression' && !x.callee.computed && /^(replace|toString|trim)$/.test(x.callee.property.name)) x = x.callee.object; return x; };
+        const vars = new Map(), fns = new Map();
+        const rootOf = x => { x = strip(x); if (!x) return null; if (x.type === 'Identifier') return vars.get(x.name) || null; return readsRoot(x); };
+        const lits = [];   // [literal node, root]
+        const judgeArgs = (n, root) => n.arguments.forEach(a => { if (a.type === 'Literal' && (a.regex || typeof a.value === 'string')) lits.push([a, root]); });
+        // a walk in source order, with each node's parent
+        const walk = (n, parent) => {
+            if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
+                const nm = n.id.name;
+                if (/Function/.test(n.init.type)) { let r = null; each(n.init.body, y => { if (!r && y.type === 'Identifier' && vars.has(y.name)) r = vars.get(y.name); }); if (r && !SLICERS.test(nm)) fns.set(nm, r); else fns.delete(nm); }
+                else { const r = rootOf(n.init); if (r) vars.set(nm, r); else vars.delete(nm); }
+            } else if (n.type === 'AssignmentExpression' && n.left.type === 'Identifier') {
+                const r = rootOf(n.right); if (r) vars.set(n.left.name, r); else vars.delete(n.left.name);
+            } else if (n.type === 'FunctionDeclaration' && n.id) {
+                let r = null; each(n.body, y => { if (!r && y.type === 'Identifier' && vars.has(y.name)) r = vars.get(y.name); }); if (r && !SLICERS.test(n.id.name)) fns.set(n.id.name, r); else fns.delete(n.id.name);
+            } else if (n.type === 'CallExpression') {
+                const c = n.callee, nm = nameOf(c);
+                if (c.type === 'MemberExpression' && !c.computed && nm && PINS.test(nm)) { const r = rootOf(c.object); if (r) judgeArgs(n, r); }
+                else if (c.type === 'MemberExpression' && !c.computed && (nm === 'indexOf' || nm === 'lastIndexOf')) {
+                    // a pin, where it is compared with 0 or -1; an anchor of a slice otherwise, which point 7 judges
+                    const r = rootOf(c.object), num = x => x && ((x.type === 'Literal' && (x.value === 0 || x.value === -1)) || (x.type === 'UnaryExpression' && x.operator === '-' && x.argument.type === 'Literal' && x.argument.value === 1));
+                    if (r && parent && parent.type === 'BinaryExpression' && /^(<|>=|===|!==|==|!=|>)$/.test(parent.operator) && num(parent.left === n ? parent.right : parent.left)) judgeArgs(n, r);
+                }
+                else if (c.type === 'MemberExpression' && !c.computed && (nm === 'test' || nm === 'exec') && c.object.type === 'Literal' && c.object.regex) { const r = n.arguments[0] && rootOf(n.arguments[0]); if (r) lits.push([c.object, r]); }
+                else if (c.type === 'Identifier' && fns.has(c.name)) judgeArgs(n, fns.get(c.name));
+                else if (nm && !SLICERS.test(nm) && !PINS.test(nm) && nm !== 'indexOf' && nm !== 'lastIndexOf') { const r = n.arguments.map(a => a.type === 'Identifier' ? vars.get(a.name) : null).filter(Boolean)[0]; if (r) judgeArgs(n, r); }
+            }
+            kids(n).forEach(k => walk(k, n));
+        };
+        walk(ast, null);
+        lits.forEach(([l, root]) => {
+            const parts = partsTxt[root] || [];
+            if (l.regex) {
+                let re; try { re = new RegExp(l.regex.pattern, l.regex.flags.replace(/[gy]/g, '')); } catch (e) { return; }
+                if (re.test(rootTxt[root])) return;
+                const h = parts.filter(p => re.test(p[1])).map(p => p[0]); if (h.length) out.push({ line: l.loc.start.line, root, holders: h, what: '/' + l.regex.pattern.slice(0, 90) + '/' });
+            } else if (l.value.length >= minLen) {
+                if (rootTxt[root].indexOf(l.value) >= 0) return;
+                const h = parts.filter(p => p[1].indexOf(l.value) >= 0).map(p => p[0]); if (h.length) out.push({ line: l.loc.start.line, root, holders: h, what: JSON.stringify(l.value.slice(0, 90)) });
+            }
+        });
+        return out;
+    }
+    const tryOwn7c = () => {
+        const only = (partsTxt7b['sheets.js'].filter(x => x[0] === 'sheetlink.js')[0] || [null, ''])[1].split('\n').filter(l => /^function [A-Za-z]+\(/.test(l) && rootTxt7b['sheets.js'].indexOf(l) < 0)[0] || '';
+        const q = JSON.stringify(only), rx = '/' + only.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&') + '/';
+        const txt = ["const shT = rootRead('system/app/scripts/sheets.js'), alias = shT, pt = kit.part('sheetlink.js');", 'const count = (s, x) => s.split(x).length - 1, fnOf = h => shT.indexOf(h);',
+            'check(1, count(shT, ' + q + ') === 1);', 'check(2, (alias.match(' + rx + 'g) || []).length === 1);', 'check(3, ' + rx + '.test(shT));', 'check(4, fnOf(' + q + ') >= 0);', 'check(5, shT.indexOf(' + q + ') < 0);',
+            'check(6, pt.includes(' + q + ') && count(pt, ' + q + ') === 1 && shT.slice(shT.indexOf(' + q + '), 9));'].join('\n');
+        const got = pins7c(L.acorn(), txt, roots, rootTxt7b, partsTxt7b, 6);
+        return !!only && got.length === 5 && j7c(got.map(o => o.line)) === j7c([3, 4, 5, 6, 7]) && got.every(o => o.root === 'sheets.js' && o.holders.join() === 'sheetlink.js');
+    };
+    const j7c = JSON.stringify;
+    check('7c. the rule tried on a text of its own: a line only sheetlink.js holds, pinned on the joined sheets.js through a count of the tool\'s own, a match on a name set to the read, a regex\'s test, a function whose body reads it and an indexOf compared with -1, is named five times; on the part read by name, and as a slice\'s anchor, it is not', tryOwn7c());
+    const bad7c = []; let tools7c = 0;
+    fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7c++; pins7c(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n'), roots, rootTxt7b, partsTxt7b, 6).forEach(o => bad7c.push(f + ':' + o.line + ' pins the joined ' + o.root + ' on text only ' + o.holders.join(' and ') + ' holds: ' + o.what)); });
+    check('7c. no tool pins a root\'s joined text, through a name, a helper of its own or a function that reads it, on text only one of its parts holds (' + tools7c + ' tools read by the parser)', tools7c > 50 && bad7c.length === 0, bad7c.slice(0, 20));
 
     // ---- --against <commit>: the joined text equals the old file ----
     if (argAgainst) {

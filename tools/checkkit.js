@@ -30,6 +30,8 @@
      start, however far indented (the least indented such line: whiteboard.js's code keeps a two-space indent; the review of next
      area 5); null where no file does. A helper that cuts a function out by a name built at run time ('function ' + name) cuts it from
      this text, so the area's tests read the code where it now lives (the review of next area 4; splitcheck point 7e holds it).
+   - wbState(which), netState(which): a split root's own state lines that a part reads and sets through setters (whiteboard.js's blasts and
+     Image Library, net.js's fights), for a harness that runs one of the part's slices on its own.
    - sheetsSlicer(label), plainPage(): systemcheck's slicer of the joined sheets.js and its page of plain objects, as its lighting
      block defines them, for the blocks that came out of it (timerulecheck's K5 scope).
    - netSlices(who): the slice helpers netcheck has at its top, over the joined net.js, each also able to read a part by name:
@@ -152,6 +154,17 @@ function wbState(which) {
     if (i < 0 || k < 0 || t.indexOf(ab[0], i + 1) >= 0) throw new Error('checkkit: the ' + which + ' state of whiteboard.js not found');
     return t.slice(i, k);
 }
+// The same for net.js (area 9): 'fight' is _fightN, fightNSet, the three limiters (hitLimit, deckLimit, declareLimit), _hitAsk and hitAskSet, which
+// stand in net.js's own lines above the fights' code (`// [split:netfight.js]`, or before the cut `// [netcheck:holds-start]`). A harness that runs
+// the holds, orders or targethit slice, or a branch of handleMessage that reads one of them, puts these lines before it.
+const NET_STATE_AT = { fight: ['var _fightN = 0;', ['// [split:netfight.js]', '// [netcheck:holds-start]']] };
+function netState(which) {
+    const ab = NET_STATE_AT[which]; if (!ab) throw new Error('checkkit: no net.js state ' + which);
+    const t = lf(srcjoin.raw(path.join(SCRIPTS, 'net.js'), 'latin1')), i = t.indexOf(ab[0]);
+    const ks = ab[1].map(e => t.indexOf(e, i + 1)).filter(k => k > i), k = ks.length ? Math.min(...ks) : -1;
+    if (i < 0 || k < 0 || t.indexOf(ab[0], i + 1) >= 0) throw new Error('checkkit: the ' + which + ' state of net.js not found');
+    return Buffer.from(t.slice(i, k), 'latin1').toString('utf8');
+}
 
 // netcheck's slice helpers. Each takes the text it cuts by the file it names: a part by its name, else the joined net.js.
 function netSlices(who) {
@@ -202,4 +215,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };

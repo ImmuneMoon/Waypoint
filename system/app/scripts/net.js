@@ -1175,6 +1175,10 @@ function tokBarsTell() {
    (no fog / drop nothing). sanitizeItem clones the heavy map ONCE; fogFilterClean makes a cheap shallow copy with a
    filtered whiteboard per peer (never re-cloning images — §11R-5). A hidden token is already out of the clean copy
    (wireWbItem); an unseen one is dropped here, matched by id. */
+// 1.6.3 (the split, area 9 of docs/REFACTOR_SPLIT_PLAN.md): the shared-delta baseline stands here, in net.js, since startHosting sets it and
+// sendItem and its kin below set and read its entries. The fog's code (netfog.js, a part of this file, from the line after this) reads it
+// through a live import: a part may not assign a name of its root.
+var _lastSent = {};   // itemId → the sanitized item as last broadcast by this host
 // [netcheck:foglit-start]
 // Senses S0: what each player's own tokens saw by when their copy of a fogged map was last made (profile id | map id -> wpFog.sightSigFor's
 // text). The host's memory only: never saved, never sent. Every copy made for a player seeds it, so a later change is judged against what
@@ -2265,7 +2269,7 @@ function applySnapshot(msg) {
     if (typeof rowTextKnows === 'function') rowTextKnows(msg.rowText);   // 155: a host that keeps a row of its own's long text says so here; an older one would drop it unanswered
     if (typeof hitsKnow === 'function') hitsKnow(msg.hits); if (typeof landsKnow === 'function') landsKnow(msg.lands);   // 1.6.0 (B5): a host that answers which locations a target has says so here; 1.6.3 (defense fold 1): and one that knows a landed attack (an older one would drop a Take it unanswered)
     if (typeof showKnows === 'function') showKnows(msg.drawShow);   // 1.6.2: a host that knows a drawing to show says so here
-    _sheetFilesOk = msg.sheetFiles === true;   // 2026-10-18: a host that reads a sheet file made elsewhere says so here, true only
+    sheetFilesOkSet(msg.sheetFiles === true);   // 2026-10-18: a host that reads a sheet file made elsewhere says so here, true only
     if (typeof sheetOutsKnow === 'function') sheetOutsKnow(msg.sheetOut);   // 1.6.0: and a file a reader there writes for a player's own character
     net.stanceCamps = cleanStanceCamps(msg.stanceCamps);   // null from an older host: msg.stance governs every campaign
     net.targets = cleanTargets(msg.targets);
@@ -2326,7 +2330,6 @@ function quickHash(s) {
    player who somehow lacks the item asks for the full copy (needItem). Whole-item sends remain the
    fallback whenever a delta would not be smaller. Players → host keeps the whole-item message: the
    host filters it field by field anyway. */
-var _lastSent = {};   // itemId → the sanitized item as last broadcast by this host
 function uniqueIds(list) { var seen = {}; return Array.isArray(list) && list.every(function(x) { if (!x || typeof x.id !== 'string' || !x.id || seen[x.id]) return false; seen[x.id] = 1; return true; }); }
 function itemDelta(itemId, clean) {
     var base = _lastSent[itemId];
@@ -3962,6 +3965,7 @@ net.charEffect = function(charId, fieldId, q) {
 // A sheet file made elsewhere is read only by an outside reader (systemcore registerReader: a module of the GM's own, none ships with the app):
 // a host with one says so in its snapshot (sheetFiles), which a player's app keeps (_sheetFilesOk). Without one a file is answered unread
 var _uploadPending = {}, _sheetFilesOk = false;
+function sheetFilesOkSet(v) { _sheetFilesOk = v; }   // 1.6.3 (the split, area 9): applySnapshot (in netfog.js, a part of this file) sets it through this setter
 function sheetFilesHere() { var S = SC(), cR = getActiveCampaign(); return !!(S && typeof S.readers === 'function' && S.readers(cR && cR.system).length > 0); }
 net.sheetFilesOk = function() { return net.role === 'client' ? !!net.active && _sheetFilesOk === true : sheetFilesHere(); };
 // [netcheck:sheetoutask-start]
@@ -5912,6 +5916,18 @@ function combatFreed(camp) {   // a deleted map's fight is over: what the charac
     Object.keys(net.turnSpent || {}).forEach(function(id) { if (!charCombat(camp, id)) { delete net.turnSpent[id]; actsTell(camp, id, true); } });
     fxClockTick();
 }
+// 1.6.3 (the split, area 9 of docs/REFACTOR_SPLIT_PLAN.md): state the fights' code (netfight.js, a part of this file, from the line after these)
+// keeps stands here, in net.js, since handleMessage and fightsBack below set it too: a part may not assign a name of its root, which it reads
+// through a live import, so it sets them through these setters, which only assign. _fightN: the order the fights began in, this session's
+// count (fightSet counts on, fightsBack catches up with a kept fight's). hitLimit, deckLimit and declareLimit: the limiters of a player's
+// hit-ask, deck-do and declare, made at their first message. _hitAsk: a player's app's hit-ask still open, { rid, cb, timer } (net.hitRows
+// sets it, the hit-rows branch answers it).
+var _fightN = 0;   // the order the fights began in: this session's count
+function fightNSet(v) { _fightN = v; return v; }
+var declareLimit = null, deckLimit = null;   // 1.6.2 (G9)
+var hitLimit = null;
+var _hitAsk = null;
+function hitAskSet(v) { _hitAsk = v; }
 // [netcheck:holds-start]
 // 1.6.0 Who holds whom (combat.holds, the host's alone; systemcore cleanHolds). A fight's hl holds one record a pair of tokens, its own as rh and th are: it
 // never travels (combatsFor names what it sends), a roster edit keeps it (fightReachKept), the save keeps it with the fight (fightsRead cleans it), and no
@@ -6307,7 +6323,6 @@ net.combatEnd = function(mapId) { return fightEnd(fightAt(mapId)); };   // fold 
    fightPlay makes a fight the one played (net.fightOn: a new fight, or the one the GM steps or plays; when it ends, the one furthest behind). The old
    names (net.combatSet, combatStep, combatHold, combatAct, combatEnd) stay as thin wrappers for the strip's fight on a map (fightAt). Fold 4 gives
    each fight its own time (below, at ordersMoved) */
-var _fightN = 0;   // the order the fights began in: this session's count
 net.fightOn = null;   // the fight played (its id), or null: the host's own, never sent
 function fightIds() {   // every fight's id, in the order begun (on a player's app, in the order its host sent them)
     var cs = net.combats && typeof net.combats === 'object' ? net.combats : null; if (!cs) return [];
@@ -6469,7 +6484,7 @@ function fightSet(fid, combat) {
         f.turn = Math.min(f.turn, f.rows.length - 1);
         var first = !had && !fightsOn(mapId).length;   // the map's first fight: the marks are held from now
         if (!had) fid = newFightId();
-        f = Object.assign({ id: fid }, f); f.n = had && typeof had.n === 'number' ? had.n : ++_fightN;
+        f = Object.assign({ id: fid }, f); f.n = had && typeof had.n === 'number' ? had.n : fightNSet(_fightN + 1);
         if (had) had.rows.forEach(function(r) { if (r && typeof r.tokId === 'string' && !f.rows.some(function(x) { return x && x.tokId === r.tokId; })) { var wn = _fightWas[fid] = _fightWas[fid] || Object.create(null); wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 }; } });
         tg = fightTime(campNow(), had, f);   // fold 4: its own time (a new fight's, or a roster edit's), before it is stored
         net.combats[fid] = f;
@@ -6922,21 +6937,19 @@ function targetHitAsk(camp, peer, pid, charId) {
     var w = Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return !!x && x.id === rc.tid; }) : null, tc = w && typeof w.charId === 'string' && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null;
     return tc ? { tid: rc.tid, rows: S.targetHitRows(camp.system, tc, true) } : null;
 }
-var declareLimit = null, deckLimit = null;   // 1.6.2 (G9)
-var hitLimit = null;
 // A player's app: a host that answers hit-ask says so in its join snapshot (hits: true, read as true only); an older one would stay silent, so
 // such a roll is rolled with no location picked, as before. net.hitRows asks the host for the rows of its own target (cb(rows), or cb(null)
 // when no answer comes); one question at a time, a newer one dropping the older unanswered
-var _hitAsk = null, _hitsOk = false;
+var _hitsOk = false;   // (_hitAsk, the question still open, stands in net.js above the holds slice)
 function hitsKnow(v) { _hitsOk = v === true; }
 net.hitsOk = function() { return net.role === 'client' ? _hitsOk : true; };
 net.hitRows = function(charId, cb) {
     if (typeof cb !== 'function') return false;
     if (!(net.active && net.role === 'client') || !_hitsOk || !net.foreign || !net.conns || !net.conns[0] || !net.conns[0].open || typeof charId !== 'string') { cb(null); return false; }
-    if (_hitAsk) { clearTimeout(_hitAsk.timer); _hitAsk = null; }
+    if (_hitAsk) { clearTimeout(_hitAsk.timer); hitAskSet(null); }
     var rid = 'q' + Math.random().toString(36).slice(2, 10);
-    _hitAsk = { rid: rid, cb: cb, timer: setTimeout(function() { if (_hitAsk && _hitAsk.rid === rid) { var c0 = _hitAsk.cb; _hitAsk = null; try { c0(null); } catch (e) {} } }, 5000) };
-    try { net.conns[0].send({ type: 'hit-ask', rid: rid, charId: charId }); } catch (e) { clearTimeout(_hitAsk.timer); _hitAsk = null; cb(null); return false; }
+    hitAskSet({ rid: rid, cb: cb, timer: setTimeout(function() { if (_hitAsk && _hitAsk.rid === rid) { var c0 = _hitAsk.cb; hitAskSet(null); try { c0(null); } catch (e) {} } }, 5000) });
+    try { net.conns[0].send({ type: 'hit-ask', rid: rid, charId: charId }); } catch (e) { clearTimeout(_hitAsk.timer); hitAskSet(null); cb(null); return false; }
     return true;
 };
 // 1.6.0 Where a hit behind cover lands: a damage roll at a target behind cover asks here, on the host, after its entry's own aim is read. A damage roll is

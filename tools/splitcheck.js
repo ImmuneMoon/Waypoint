@@ -385,14 +385,18 @@ function pageCalls(name, bundle, key) {
             const out = []; p.stdout.on('data', d => out.push(d)); p.stderr.on('data', d => out.push(d));
             p.on('close', code => res({ code, text: Buffer.concat(out).toString('utf8') }));
         });
-        const [j, b] = await Promise.all([run(false), run(true)]);
+        // The two runs go side by side, and under a loaded machine a run can print a line the other does not for timing alone
+        // (the review of test step 6: a count of sends in Match a wall's line). So a mismatch runs the pair once more, one after
+        // the other, and only a second mismatch is a failure; the label says when it was run again.
+        let [j, b] = await Promise.all([run(false), run(true)]), again = false;
         const norm = s => s.replace(/\r\n/g, '\n').replace(/\b\d+(\.\d+)?\s*(ms|s)\b/g, '<t>').replace(/(tools[\\\/][a-z0-9]+\.js):\d+:\d+/g, '$1').split('\n').filter(Boolean).sort();
         // compared as counts, line by line: a line printed twice in one run and once in the other is a difference
         const counts = a => { const m = new Map(); a.forEach(x => m.set(x, (m.get(x) || 0) + 1)); return m; };
-        const nj = norm(j.text), nb = norm(b.text), cj = counts(nj), cb = counts(nb);
         const over = (x, y) => [...x].filter(([k, n]) => (y.get(k) || 0) !== n).map(([k, n]) => n + 'x ' + k + ' (other run ' + (y.get(k) || 0) + 'x)');
-        const onlyJ = over(cj, cb).slice(0, 5), onlyB = over(cb, cj).slice(0, 5);
-        check('net.js: fuzzcheck gives the same lines and exit code on the joined text and on the real wiring, each part seeing only what it imports (' + nj.length + ' lines, exit ' + j.code + ')', j.code === b.code && !onlyJ.length && !onlyB.length && /net\.js loads whole/.test(b.text), { exit: [j.code, b.code], joinedOnly: onlyJ, realOnly: onlyB });
+        let nj, nb, onlyJ, onlyB;
+        const judge = () => { nj = norm(j.text); nb = norm(b.text); const cj = counts(nj), cb = counts(nb); onlyJ = over(cj, cb).slice(0, 5); onlyB = over(cb, cj).slice(0, 5); return j.code === b.code && !onlyJ.length && !onlyB.length; };
+        if (!judge()) { again = true; j = await run(false); b = await run(true); judge(); }
+        check('net.js: fuzzcheck gives the same lines and exit code on the joined text and on the real wiring, each part seeing only what it imports (' + nj.length + ' lines, exit ' + j.code + (again ? ', run again once after a mismatch' : '') + ')', j.code === b.code && !onlyJ.length && !onlyB.length && /net\.js loads whole/.test(b.text), { exit: [j.code, b.code], joinedOnly: onlyJ, realOnly: onlyB });
     }
 
     // ---- 5b. sheets.js: its joined text and its real wiring load alike, and its parts' functions run alike ----

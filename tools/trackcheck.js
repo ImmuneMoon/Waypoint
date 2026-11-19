@@ -1,7 +1,7 @@
 /* Offline check of the table trackers (1.6.0, backlog 29; the owner, 2026-10-29, by prompt on the mock-up sheet: "A. A strip on the map",
    a countdown's time "Each one picks", a clock "A. A circle in parts", and at the end "A. Glow and a chat line"). The pure half (trackcore.js)
    is imported and run; the strip's module (trackers.js) is sliced by its [trackcheck:core-*] markers, the stream window (stream.js) by its
-   [trackcheck:stream-*] markers, and both run on plain objects. The wire is netcheck's (trksync, trkmsg). The page, the floating box's lists,
+   [trackcheck:stream-*] markers, and both run on plain objects. The wire is netsessioncheck's (trksync, trkmsg). The page, the floating box's lists,
    the load's cleaner, the VTT switch, Help, both release notes and the CI step are pinned. No browser, no network.
    Usage: node tools/trackcheck.js   (exit 1 on any failure) */
 'use strict';

@@ -2,7 +2,7 @@
    normally, but if they need to use it to visually demonstrate something, fog shouldnt cover it. and just turning fog off isnt a good solution. same for if
    a player want to draw something that goes on the map (gm approval only) or also visually demonstrate something". drawshow.js is sliced by its
    [drawshowcheck:core-*] markers and run for real with the real fogcore on stand-ins of the page, the board's lines by [drawshowcheck:board-*]. The wire is
-   netcheck's, the fog's canvas fogcheck's, the file cleanupcheck's, the map's picture buildcheck's, and the right-click rows sinkcheck's; the page is pinned here.
+   netdragcheck's, the fog's canvas fogcheck's, the file cleanupcheck's, the map's picture buildcheck's, and the right-click rows sinkcheck's; the page is pinned here.
    Usage: node tools/drawshowcheck.js   (exit 1 on any failure) */
 'use strict';
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)

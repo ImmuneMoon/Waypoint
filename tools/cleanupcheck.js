@@ -1817,7 +1817,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                    Properties' Match sets for a door that meets a wall line whose color draws nothing. A file's seenColor of that word through
                    the same real import as the tick and the hex color above. And what round two did NOT move: the import still leaves a
                    piece's own width, opacity, nib and lock exactly as the file had them (the WIRE reads a line in one reading and takes a
-                   plain wall's lock off, net.js wireWbItem, which is netcheck's to hold; the GM's own save keeps what was drawn) ---- */
+                   plain wall's lock off, net.js wireWbItem, which is netwallcheck's to hold; the GM's own save keeps what was drawn) ---- */
                 const TR = 'transparent', NOKEY = 'none';
                 const bx = (id, extra) => pc(id, Object.assign(SD(), extra));   // a wall's door as a box
                 const colOf = m => wbOf(m).map(w => ('seenColor' in w ? w.seenColor : NOKEY));

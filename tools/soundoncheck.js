@@ -2,7 +2,7 @@
    environmental actions", set in a list under the Sound panel and by a small button where the thing is, heard by those on the map and the GM
    always, a hidden act silent for players with no tick to override it). The pure half (soundoncore.js) is imported and run. soundon.js is
    sliced by its [soundoncheck:*] markers and run on a page of plain objects that refuses markup, with a Sound engine of the suite's own. The
-   press itself runs from the button: sheets.js sheetRoll sliced, the real dicecore cleaner after it. Who hears is netcheck's (soundhear), a name
+   press itself runs from the button: sheets.js sheetRoll sliced, the real dicecore cleaner after it. Who hears is netsessioncheck's (soundhear), a name
    from a file sinkcheck's and a file's list cleanupcheck's. The page, the Sound panel's hook, Help, both release notes and the CI step are pinned.
    Usage: node tools/soundoncheck.js   (exit 1 on any failure) */
 'use strict';

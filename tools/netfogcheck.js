@@ -1,8 +1,11 @@
 /* netfogcheck.js: a fogged map on the wire, the tests that came out of netcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, area 9,
-   2026-11-19). The code lives mostly in system/app/scripts/netfog.js, a part of net.js; every slice of its markers (foglit, mapheld, fogmove,
-   memsend, acks, hidpend, landing, curstage, actlog, strokeacts, patch, drawshow, snapitems, broadcast, fogdiffapply) and every definition
-   only it holds is read from the part by its own name, and the fights' orders from netfight.js by its own name, while the slices of other
-   areas (the pos gate, the sends, the senses' resend) still read the joined net.js through srcjoin.
+   2026-11-19). The code lives mostly in system/app/scripts/netfog.js, a part of net.js; the slices of its markers this suite reads (foglit,
+   mapheld, fogmove with memsend, acks and hidpend, which stand inside it, patch and fogdiffapply) and every definition only it holds are
+   read from the part by its own name, and the fights' orders from netfight.js by its own name, while the slices of other areas (the pos
+   gate, the sends, the senses' resend) still read the joined net.js through srcjoin. The rest of netfog.js's slices went with their checks
+   at step 6 of "Finishing the test split": landing and curstage to netpiececheck.js, actlog and drawshow to netdragcheck.js (actlog also to
+   netpossesscheck.js and netmatchcheck.js), memsend and strokeacts to netpossesscheck.js, snapitems to netjoincheck.js, and broadcast is
+   read once by tools/checkkit.js netSlices (broadcastSrc) for every suite that needs it.
    What it covers, each block as it stood in netcheck.js: a player's copy of a fogged map following what their tokens see (sensesMoved, the
    live position relay judged afresh, what each copy was made by), a player's page as the fogDiff branch and applyFogDiff see it (fold M3,
    with mkFogClient, a player's page of plain objects, which tools/checkkit.js netFogClient holds), and a token's own ranges for its senses

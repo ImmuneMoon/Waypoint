@@ -680,6 +680,9 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && guideB.includes('"when" is "always" (the default), "making" (watched only while a player is making the character) or "play"') && guideB.includes('(System, in the campaign\'s menu in the top row; docs in Help') && !/Campaign pill/.test(guideB)
             && whB.every(t => t.split(NOTE_B).length === 2));
     }
+    /* ---- 1.5.5, the money display fold (docs/MONEY_DISPLAY_PLAN.md, "Fold for 1.5.5"): a row's level box fits its figure; a section can
+       start closed; a sub-section can stand before its parent's own fields. Each is open to every system and changes nothing where a system
+       does not use it. Invented names only (Kael, Docks, Pebbles, Coin Pouch) ---- */
     {
         const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), cssM = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL);
         const cutM = (a, b) => { const i = shM.indexOf(a), k = i < 0 ? -1 : shM.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('money fold slice: ' + a); return shM.slice(i, k); };
@@ -919,6 +922,10 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             ixM.includes('Pick <b>Starts closed</b> and it is folded when the sheet opens, until the reader opens it.') && ixM.includes('Pick <b>Before its fields</b> on its row and it stands above them instead.')
             && notesM.every(t => { const i5 = t.indexOf('WAYPOINT 1.5.5'), i4 = t.indexOf('WAYPOINT 1.5.4'), a = t.indexOf('Starts closed'), b = t.indexOf('Before its fields'), c = t.indexOf('level box now grows'); return i5 >= 0 && [a, b, c].every(x => x > i5 && x < i4); }));
     }
+    /* ---- 1.5.5, a list placed once a category (the owner, 2026-10-23, by prompt: "A new builder option (Recommended)", said to them as "A general
+       option: a list can be placed as several folds, each showing some of its categories. Any system can use it, and one list stays underneath").
+       The cleaner in both views, the rule for a list placed more than once, the real sheet drawing three placements of one list on the sheet, a
+       print, a window of its own, the Layout preview and the HUD, the readable page, and the Layout tab's control. Invented names only ---- */
     {
         const crypto = require('crypto'), hQ = v => crypto.createHash('sha256').update(typeof v === 'string' ? v : j(v)).digest('hex').slice(0, 16);
         const shQ = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), SEQ = await import(url('sheetexport.js'));

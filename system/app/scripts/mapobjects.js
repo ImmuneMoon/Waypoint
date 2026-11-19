@@ -17,6 +17,8 @@ function log(step, facts) { if (window.wpStepLog) window.wpStepLog('objects v1',
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function btn(cls, text, tip) { var b = el('button', cls, text); b.type = 'button'; if (tip) b.dataset.tip = tip; return b; }
 function $(id) { return document.getElementById(id); }
+// The color an object with no picture is drawn in when it names none of its own: objcore.js LAND_COLOR, which objProps hands a placed piece
+var OBJ_LAND = '#6b5b45';
 
 // [objcheck:win-start]
 // May this machine change them? The campaign's own machine, never at someone's table, never the stream window, never where the app keeps nothing
@@ -49,9 +51,10 @@ function store(kind, list) { var c = campNow(); if (!c || !listPut(c, kind, list
 function thumb(o) {
     var t = el('span', 'obj-thumb');
     var FUt = window.wpFurnCore, fsrc = !o.src && o.furn && FUt ? FUt.furnSrc({ k: o.furn, era: window.wpFurnish ? window.wpFurnish.era() : FUt.FURN_ERAS[0].id }) : '';   // 1.6.2 (backlog 222): an object that names a furnishing and has no picture shows its drawing
-    if (o.src || fsrc) { var i = el('img'); i.alt = ''; i.src = o.src || fsrc; t.appendChild(i); } else t.style.background = o.color || '#6b5b45';
+    if (o.src || fsrc) { var i = el('img'); i.alt = ''; i.src = o.src || fsrc; t.appendChild(i); } else t.style.background = o.color || OBJ_LAND;
     return t;
 }
+// [objcheck:form-start]
 function formInto(box, o, kind, list, acts) {
     var C = OC(), f = el('div', 'obj-form');
     var commit = function(next) { var nl = listsOf(campNow(), C)[kind].map(function(x) { return x.id === o.id ? Object.assign({}, x, next) : x; }); nl = C.cleanObjects(nl); store(kind, nl); return nl; };
@@ -66,6 +69,17 @@ function formInto(box, o, kind, list, acts) {
     pro.dataset.tip = 'How much it stops of a blow that passes through it, where your system reads it in a roll. Empty for none.';
     pro.addEventListener('change', function() { commit({ pro: Number(pro.value) || undefined }); draw(); });
     row('Protection', pro);
+    // 1.6.3 (the editor coverage audit, gap 5: the live system's eight objects each name a color that only a file could set). An object with no
+    // picture is drawn as a block in its own color (objcore cleanObj keeps a color only where there is no picture, objProps hands it to the piece).
+    // The swatch is the app's own color input, as an era's or a pool's color is, and shows the plain land color until one is picked. Its change
+    // commits the color through the same commit as every other row, and the row draws again. An object that names a furnishing is drawn as that
+    // furnishing's drawing, never in a color, so it has no swatch
+    if (!o.src && !o.furn) {
+        var col = el('input', 'obj-color'); col.type = 'color'; col.value = o.color || OBJ_LAND; col.setAttribute('aria-label', 'Its color');
+        col.dataset.tip = 'The color of its block on the map. A picture takes its place.';
+        col.addEventListener('change', function() { commit({ color: String(col.value).toLowerCase() }); draw(); });
+        row('Color', col);
+    }
     var FUf = window.wpFurnCore; if (FUf) {   // 1.6.2 (backlog 222): the furnishing kind this object gives its rules to (the owner: "The system says")
         var fk = el('select'), op0 = el('option', '', 'No furnishing'); op0.value = ''; fk.appendChild(op0);
         FUf.FURN_KINDS.forEach(function(k) { var op = el('option', '', k.label); op.value = k.key; fk.appendChild(op); });
@@ -96,6 +110,7 @@ function formInto(box, o, kind, list, acts) {
     if (!acts) f.appendChild(bar);
     box.appendChild(f);
 }
+// [objcheck:form-end]
 function rowOf(o, kind, list) {
     var C = OC(), r = el('div', 'obj-row'), top = el('div', 'obj-top'), txt = el('div', 'obj-txt');
     top.appendChild(thumb(o));

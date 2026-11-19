@@ -1945,4 +1945,29 @@ pendingChecks.push((async () => {
         j([(src.match(/combatHidden\(/g) || []).length, (src.match(/syncCombatHidden/g) || []).length, (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length]));
 }
 
+// From netcheck.js's closing block ("Finishing the test split", step 6), where it ran after every pending check (it leans on none of them):
+    {   // 1.6.0, found by hand on a live table
+        const flat = src.split('\r\n').join('\n'), cutN = (a, b) => { const i = flat.indexOf(a), k = flat.indexOf(b, i); if (i < 0 || k < 0) throw new Error('slice ' + a); return flat.slice(i, k); };
+        const farS = cutN('function fightFar(c, pr, was, loc) {', 'function combatsSendTo(c, was) {'), said = [], blasts = [];
+        const camp = { items: { m1: { meta: { title: 'Upper Deck' }, whiteboard: [{ id: 't1', charId: 'c1' }, { id: 't2', charId: 'c2' }] } }, chars: { c1: { ownerId: 'p1' }, c2: { ownerId: 'p2' } } };
+        const nF = { combats: { f1: { rows: [{ tokId: 't1' }] } }, broadcastBlast: (w, m, ch, only) => blasts.push([w.x, m, ch, only && only.peer]) };
+        const winF = { wpBlastsShown: m => (m === 'm1' ? [{ wire: { x: 7 }, charId: 'c9' }] : []) };
+        const far = new Function('net', 'getActiveCampaign', 'fightsOn', 'sendFailed', 'window', farS + '\nreturn { fightFar: fightFar, blastsSendTo: blastsSendTo };')(nF, () => camp, m => (m === 'm1' ? ['f1'] : []), () => {}, winF), cF = { peer: 'pc', send: m => said.push(m) };
+        far.fightFar(cF, { id: 'p1' }, 'm1', 'm2'); far.fightFar(cF, { id: 'p2' }, 'm1', 'm2'); far.fightFar(cF, { id: 'p1' }, 'm1', 'm1'); far.fightFar(cF, { id: 'p1' }, undefined, 'm2'); far.fightFar(cF, { id: 'p1' }, 'gone', 'm2');
+        check('a player who leaves a map with their token still in its fight is told, by the map\'s name (fightFar, run for real): nobody else, nobody who stayed, no word for a first landing or a map that is gone',
+            said.length === 1 && said[0].type === 'fightfar' && said[0].title === 'Upper Deck', JSON.stringify(said));
+        far.blastsSendTo(cF, 'm1'); far.blastsSendTo(cF, 'm2'); far.blastsSendTo(cF, 7);
+        check('one who comes to a map is told what the table was told stands there, alone (blastsSendTo, run for real): as it was sent, with its thrower so that an unseen NPC stays unnamed, and nothing for a map with none',
+            JSON.stringify(blasts) === JSON.stringify([[7, 'm1', 'c9', 'pc']]) && flat.includes('if ((!only || c === only) && c.open && net.roster[c.peer] && net.roster[c.peer].location === mapId)'), JSON.stringify(blasts));
+        const brS = cutN("    } else if (msg.type === 'fightfar' && net.role === 'client') {", "    } else if (msg.type === 'trigmsg' && net.role === 'client') {").replace('    } else if', 'if') + '}', toasts = [];
+        const runB = (m, n, c) => new Function('msg', 'net', 'conn', 'toast', brS)(m, n, c, t => toasts.push(t));
+        const okN = { role: 'client', foreign: true, syncedPeer: 'h', stream: false };
+        runB({ type: 'fightfar', title: 'Deck' }, okN, { peer: 'h' }); runB({ type: 'fightfar', title: 'Deck' }, okN, { peer: 'x' }); runB({ type: 'fightfar', title: 7 }, okN, { peer: 'h' }); runB({ type: 'fightfar', title: 'Deck' }, Object.assign({}, okN, { stream: true }), { peer: 'h' });
+        check('a player\'s app says the word from the synced host alone, as text, never in the stream window', JSON.stringify(toasts) === JSON.stringify(['You are still in the fight on Deck.']), JSON.stringify(toasts));
+        const wasS = cutN('var _fightWas = Object.create(null);', 'function fightSet(fid, combat) {'), nW = {}; const wasF = new Function('net', wasS + '\nreturn _fightWas;')(nW); wasF.f1 = Object.create(null); wasF.f1.t1 = { init: 9, rolled: true };
+        check('the host remembers what a token held when it left a fight (net.fightWas): by fight and token, nothing else answered, and the stored rows are noted as a roster edit drops them',
+            nW.fightWas('f1', 't1').init === 9 && nW.fightWas('f1', 'zz') === null && nW.fightWas('f9', 't1') === null && require('./checkkit').part('netfight.js').includes('wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 };'));
+        check('a join the player began closes the Multiplayer window; a reconnect leaves it as it stands', flat.includes("if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }"));
+    }
+
 T.finish();

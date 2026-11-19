@@ -1581,4 +1581,26 @@ pendingChecks.push((async () => {
         && /if \(nP && nP\.holdPeers\) nP\.holdPeers\(180000\); try \{ window\.print\(\); \} finally \{ if \(nP && nP\.heldDone\) nP\.heldDone\(\); \}/.test(ioS));
 }
 
+// From netcheck.js's closing block ("Finishing the test split", step 6), where it ran after every pending check (it leans on none of them):
+    // (g15) a snapshot's items as a player's app keeps them (snapItems, 1.5.4): a map and a page, each cleaned, and nothing of any other kind —
+    // a planner named in a host's snapshot used to be kept as sent (a whole item of another kind was already refused: applyItem)
+    {
+        const siP = require('./checkkit').part('netfog.js'), siA = siP.indexOf('// [netcheck:snapitems-start]'), siZ = siP.indexOf('// [netcheck:snapitems-end]'), siSrc = siA >= 0 && siZ > siA ? siP.slice(siA, siZ) : 'function snapItems() { throw new Error("the snapitems slice is not marked"); }';
+        const siTry = fn => { try { fn(); return ''; } catch (e) { return String(e && e.message); } }, siCalls = [];
+        const mkSI = win => new Function('window', 'cleanHostMap', "'use strict';\n" + siSrc + '\nreturn snapItems;')(win, m => { siCalls.push('map:' + m.id); m.cleaned = 1; return m; });
+        const winD = { wpDocRender: { cleanDoc: (d, o) => { siCalls.push('doc:' + d.id + ':' + j(o)); return d.bad ? null : { id: d.id, type: 'doc', clean: 1 }; } } };
+        const mkCamp = () => ({ items: JSON.parse('{"m1":{"id":"m1","type":"map"},"d1":{"id":"d1","type":"doc"},"d2":{"id":"d2","type":"doc","bad":1},"p1":{"id":"p1","type":"planner","blocks":[{"type":"raw","content":"<b>x</b>"}]},"u1":{"id":"u1","type":"weird"},"n1":null,"s1":"text","t1":{"id":"t1"},"k1":{"id":"k1","type":["map"]},"toString":{"id":"ts","type":"map"},"__proto__":{"id":"pp","type":"map"}}') });
+        const c1 = mkCamp(), e1 = siTry(() => mkSI(winD)(c1)), kept1 = Object.keys(c1.items).sort().join(','), calls1 = siCalls.slice(); siCalls.length = 0;
+        const c2 = mkCamp(), e2 = siTry(() => mkSI({})(c2)), kept2 = Object.keys(c2.items).sort().join(',');   // no page cleaner on hand: a page is not kept as sent
+        const odd = [{ items: 'abc' }, { items: [{ id: 'a', type: 'map' }] }, { items: null }, { items: 7 }, {}].map(c => { const e = siTry(() => mkSI(winD)(c)); return [e, j(c.items)]; });
+        const heir = { items: Object.create({ evil: { id: 'evil', type: 'planner' } }) }; heir.items.m1 = { id: 'm1', type: 'map' }; const e3 = siTry(() => mkSI(winD)(heir));
+        check('a snapshot\'s items on a player\'s app (snapItems, sliced by its snapitems markers and run for real): a map is cleaned as a host\'s map and a page as a host\'s page, in place; a page that does not clean, or with no page cleaner on hand, is dropped; a planner, an item of a kind this app does not know, of no kind, of a kind that is no text, and whatever is no item are dropped — none is kept as sent; an id a prototype holds is dropped whatever it names; items that are no plain object are none; items handed over with a prototype of the host\'s choosing get the plain one back, so nothing is inherited; nothing throws',
+            e1 === '' && kept1 === 'd1,m1' && c1.items.m1.cleaned === 1 && j(c1.items.d1) === j({ id: 'd1', type: 'doc', clean: 1 }) && j(calls1) === j(['map:m1', 'doc:d1:{"keepHidden":true}', 'doc:d2:{"keepHidden":true}'])
+            && e2 === '' && kept2 === 'm1' && odd.every(o => o[0] === '' && o[1] === '{}') && e3 === '' && Object.getPrototypeOf(heir.items) === Object.prototype && heir.items.evil === undefined && Object.keys(heir.items).join(',') === 'm1' && ({}).evil === undefined,
+            j([e1, kept1, calls1, e2, kept2, odd, e3]));
+        const snapP2 = require('./checkkit').part('netfog.js'), snapAt = snapP2.indexOf('function applySnapshot(msg) {'), snapBody = snapP2.slice(snapAt, snapAt + 4000);   // in netfog.js, a part of net.js
+        check('a snapshot\'s items (wired): applySnapshot hands each campaign\'s items to snapItems, the one place that keeps or drops them, before the active item is chosen; nothing else in it walks the items one by one',
+            snapAt > 0 && require('./checkkit').familyCount('net.js', 'snapItems(') === 2 && /\n        delete cS\.players;[^\n]*\n        snapItems\(cS\);[^\n]*\n        var actS = cS\.items && cS\.items\[cS\.activeItemId\];/.test(snapBody) && !/Object\.keys\(cS\.items \|\| \{\}\)\.forEach/.test(snapBody));
+    }
+
 T.finish();

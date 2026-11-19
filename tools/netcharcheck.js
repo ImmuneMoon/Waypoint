@@ -1820,4 +1820,38 @@ pendingChecks.push((async () => {
             (nsD.match(/msg\.type === 'char-damage' && net\.role === 'host'/g) || []).length === 1);
     })());
 
+// From netcheck.js's closing block ("Finishing the test split", step 6), where it ran after every pending check (it leans on none of them):
+    /* ---- 1.5.4: a player deletes an extra sheet of their own (char-delete) ---- */
+    {
+        const NL = '\n', delSrc = src.slice(src.indexOf('// [netcheck:chardelete-start]'), src.indexOf('// [netcheck:chardelete-end]'));
+        const runX = o => { o = o || {};
+            const camp = { id: 'k', chars: { c_play: { id: 'c_play', name: 'Ror', ownerId: 'u_a', npc: false }, c_mk: { id: 'c_mk', name: 'Ror', ownerId: 'u_a', npc: false, making: 1 }, c_kept: { id: 'c_kept', name: 'Old', ownerId: 'u_a', npc: false }, c_b: { id: 'c_b', name: 'Bea', ownerId: 'u_b', npc: false }, c_npc: { id: 'c_npc', name: 'N', npc: true, ownerId: 'u_a' } },
+                items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't1', charId: 'c_kept' }, { id: 't2', charId: 'c_play' }] }, m2: { id: 'm2', type: 'map', whiteboard: [null, { id: 't3', charId: 'c_mk' }] }, m3: { id: 'm3', type: 'map', whiteboard: [{ id: 't4', charId: 'c_kept' }] }, pg: { id: 'pg', type: 'doc', whiteboard: [{ id: 't5', charId: 'c_kept' }] }, gone: null, bare: { id: 'bare', type: 'map' } } };
+            const out = { ans: [], deleted: [], toasts: [], flushed: 0, allowed: [], remote: [], maps: [] };
+            const conn = { peer: o.from || 'pA', send: m => out.ans.push(JSON.parse(JSON.stringify(m))) };
+            const net = { role: 'host', paused: !!o.paused, applyingRemote: o.remoteWas === true, roster: { pA: { id: 'u_a', name: 'Pat' }, pB: { id: 'u_b', name: 'Bea' } } };
+            if (!o.noSend) net.broadcastItemFiltered = (cid, mid) => { out.maps.push([cid, mid, net.applyingRemote, out.deleted.length, out.toasts.length]); };
+            const win = { wpSheets: o.noSheets ? null : { deleteCharacter: id => { out.deleted.push([id, out.flushed]); out.remote.push(net.applyingRemote); if (o.boom) throw new Error('boom'); delete camp.chars[id]; } }, wpHistFlush: () => { out.flushed++; } };
+            try { new Function('msg', 'conn', 'net', 'own', 'getActiveCampaign', 'SC', 'window', 'peerPaused', 'allow', 'toast', 'sendFailed', 'cleanCharName', "'use strict';" + NL + delSrc)(
+                o.msg, conn, net, H.own, () => camp, () => (o.noCore ? null : { activeCharOf: (c, pid) => ({ id: o.active || (pid === 'u_a' ? 'c_play' : 'c_b') }) }), win, () => !!o.peerPaused, (k, lim, peer) => { out.allowed.push([k, peer]); return o.slow !== true; }, t => out.toasts.push(t), () => {}, n => String(n || '').slice(0, 40)); } catch (e) { out.threw = String(e && e.message); }
+            out.after = net.applyingRemote; return out; };
+        const mX = (id, rid) => ({ type: 'char-delete', rid: rid === undefined ? 'r1' : rid, charId: id }), why = o => (o.ans[0] ? o.ans[0].reason || (o.ans[0].ok ? 'ok' : '?') : 'silent');
+        const mk = runX({ msg: mX('c_mk') }), kept = runX({ msg: mX('c_kept') }), play = runX({ msg: mX('c_play') }), mkOnly = runX({ msg: mX('c_mk'), active: 'c_mk' });
+        const nestX = runX({ msg: mX('c_kept'), remoteWas: true }), boomX = runX({ msg: mX('c_kept'), boom: true }), noSendX = runX({ msg: mX('c_kept'), noSend: true });   // the owed review, 2026-10-09: the delete runs as a change from the table
+        check('a player deletes an extra sheet of their own (the host\'s char-delete, sliced by its chardelete markers and run for real): one still being made, or one they do not play, is deleted by the host\'s own delete after the GM\'s pending edit is flushed, the GM is told whose and which, with no promise of a way back since a sheet is not in the undo history, and the player is answered; the delete runs as a change from the table, so the unlinking of its tokens is no step of the GM\'s undo, and that mark is put back as it was, after a delete that throws too; each map that held a token of the sheet, and no other item, is sent to the table once the delete is done, since a save marked so sends no map by itself; the one they play is refused and stays, while one still being made goes even where it counts as the one in play',
+            j(mk.deleted) === j([['c_mk', 1]]) && j(mk.ans) === j([{ ok: true, type: 'char-delete-ans', rid: 'r1' }]) && j(mk.toasts) === j(['Pat deleted their sheet Ror (it was still being made).']) && j(mk.allowed) === j([['chardel', 'pA']])
+            && j(kept.deleted) === j([['c_kept', 1]]) && j(kept.toasts) === j(['Pat deleted their sheet Old.']) && j(mk.remote) === j([true]) && mk.after === false && j(nestX.remote) === j([true]) && nestX.after === true && boomX.threw === 'boom' && boomX.after === false && boomX.toasts.length === 0 && boomX.ans.length === 0 && !/Undo brings/.test(delSrc)
+            && j(kept.maps) === j([['k', 'm1', false, 1, 0], ['k', 'm3', false, 1, 0]]) && j(mk.maps) === j([['k', 'm2', false, 1, 0]]) && j(nestX.maps) === j([['k', 'm1', true, 1, 0], ['k', 'm3', true, 1, 0]]) && play.maps.length === 0 && boomX.maps.length === 0 && why(noSendX) === 'ok' && noSendX.deleted.length === 1 && why(play) === 'inplay' && play.deleted.length === 0 && play.toasts.length === 0 && play.allowed.length === 0 && j(mkOnly.deleted) === j([['c_mk', 1]]) && why(mkOnly) === 'ok', j([mk, kept, play, mkOnly]));
+        const refs = { other: runX({ msg: mX('c_b') }), npc: runX({ msg: mX('c_npc') }), gone: runX({ msg: mX('c_zz') }), proto: runX({ msg: mX('__proto__') }), ctor: runX({ msg: mX('constructor') }), notText: runX({ msg: mX({ toString: () => 'c_mk' }) }),
+            paused: runX({ msg: mX('c_mk'), paused: true }), pPaused: runX({ msg: mX('c_mk'), peerPaused: true }), off: runX({ msg: mX('c_mk'), noSheets: true }), noCore: runX({ msg: mX('c_mk'), noCore: true }), slow: runX({ msg: mX('c_mk'), slow: true }),
+            badRid: runX({ msg: mX('c_mk', 'bad rid!') }), noRid: runX({ msg: mX('c_mk', 7) }), stranger: runX({ msg: mX('c_mk'), from: 'pZ' }), another: runX({ msg: mX('c_mk'), from: 'pB' }) };
+        const whys = Object.keys(refs).map(k => k + ':' + why(refs[k]));
+        check('char-delete refuses everything else and deletes nothing: another player\'s sheet and an NPC\'s (owner), one that is not there or named by a prototype\'s key or by a value that is no text (missing), a paused table or player, sheets off, a request past the rate; a request with no usable id of its own and one from a connection that is not admitted are not answered at all',
+            j(whys) === j(['other:owner', 'npc:owner', 'gone:missing', 'proto:missing', 'ctor:missing', 'notText:missing', 'paused:paused', 'pPaused:paused', 'off:off', 'noCore:missing', 'slow:slow', 'badRid:silent', 'noRid:silent', 'stranger:silent', 'another:owner'])
+            && Object.keys(refs).every(k => refs[k].deleted.length === 0 && refs[k].toasts.length === 0 && refs[k].flushed === 0 && refs[k].maps.length === 0), j(whys));
+        check('char-delete on the player\'s side: one request through the same sender as the other character requests, its answer taken with theirs, the refusal for the character in play in the app\'s own words',
+            src.includes("net.charDelete = function(charId, done) { return mkSend('char-delete', { charId: String(charId) }, done); };") && src.includes("msg.type === 'char-done-ans' || msg.type === 'char-delete-ans' || msg.type === 'char-token-ans'")
+            && src.includes("inplay: 'That is the character you play: only your GM can delete it.'") && src.split("msg.type === 'char-delete'").length === 2);
+    }
+
 T.finish();

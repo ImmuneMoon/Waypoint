@@ -1651,4 +1651,45 @@ pendingChecks.push((async () => {
         J(rd) === J([[0, ['Not before round 2']], [0, ['Not before round 2']], [1, []]]), J(rd));
 })());
 
+// From netcheck.js's closing block ("Finishing the test split", step 6), where it ran after every pending check (it leans on none of them):
+    {   // 1.5.7: a damage roll's type rides on its card, worked out where the roll is made: the GM's own roll and a player's on the host, each from the roll's entry through systemcore dmgTypeOf, never from the roller's word
+        const dIdx = src.indexOf('if ((entR && entR.dmg === true) || o.dmg === true) rec.dmg = 1;'), qIdx = src.indexOf('if (actQ && actQ.dmg === true) recQ.dmg = 1;');
+        const dLine = src.slice(dIdx, src.indexOf('\n', src.indexOf('\n', dIdx) + 1)), qLine = src.slice(qIdx, src.indexOf('\n', src.indexOf('\n', qIdx) + 1));
+        check('1.5.7 a damage card names its damage type: on the GM\'s own roll (net.diceRoll) and on a player\'s (the roll-req branch, on the host) the type is worked out from the roll\'s entry by systemcore dmgTypeOf with the row\'s own names, only for a damage roll, and nothing of the request names it',
+            dIdx > 0 && qIdx > 0 && /rec\.dmg === 1 && entR && SR && typeof SR\.dmgTypeOf === 'function'[^\n]*SR\.dmgTypeOf\(campR\.system, entR, varsR, F\); if \(dtR\) rec\.dtype = dtR;/.test(dLine)
+            && /recQ\.dmg === 1 && [^\n]*SQ\.dmgTypeOf\(campQ\.system, actQ, varsQ, Fq\); if \(dtQ\) recQ\.dtype = dtQ;/.test(qLine) && !/dtype/.test(src.slice(src.indexOf('net.diceRoll = function'), src.indexOf('var campR = getActiveCampaign(), SR = SC()'))));
+    }
+    {   // 1.5.8 (book handoff 90 Part B): what changed the values a roll reads rides on its card, worked out where the roll is made, from the names the roll read and the resolver it was made with (systemcore rollMods), never from the roller's word
+        const flat = src.split('\r\n').join('\n');
+        check('1.5.8 a roll\'s card carries what changed the values it read: on the GM\'s own roll and on a player\'s on the host, after the names are recorded, through systemcore rollMods with the very resolver the roll was made with; nothing else writes it',
+            /if \(nmR\.length\) rec\.names = nmR; \}\n    if \(rec\.names && SR && typeof SR\.rollMods === 'function' && typeof varsR === 'function'\) \{ var mdR = SR\.rollMods\(varsR, rec\.names\); if \(mdR\) rec\.mods = mdR; \}/.test(flat)
+            && /if \(nmQ\.length\) recQ\.names = nmQ; \}\n\s*if \(recQ\.names && typeof SQ !== 'undefined' && SQ && typeof SQ\.rollMods === 'function' && typeof varsQ === 'function'\) \{ var mdQ = SQ\.rollMods\(varsQ, recQ\.names\); if \(mdQ\) recQ\.mods = mdQ; \}/.test(flat)
+            && (flat.match(/\.mods = md[RQ];/g) || []).length === 2);
+    }
+    check('1.6.0 On.<name> on the host (source): a player\'s press and a player\'s roll read the one it is used on through THEIR view of the system (no GM-only field of the other reaches a formula of theirs), the GM\'s own roll through the system; each in that token\'s own context',
+        src.includes("varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa,") && src.includes("varsQ = SQ.withOnSelf(varsQ, !onQ, onQ && viewQ ? SQ.makeResolver(viewQ, onQ.ch, Fq,") && src.includes("varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F,"));
+    {   // 1.6.2 (the owner, by prompt: "Yes, build it"): a roll that draws a card as its die (net.js drawForRoll, run for real with the real deck core)
+        const NL6 = String.fromCharCode(10), dk6 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'deckcore.js'), 'utf8').split(String.fromCharCode(13)).join('').split(NL6).filter(l => !/^(import|export) /.test(l)).join(NL6), K6 = new Function('cleanTexSrc', 'window', dk6 + NL6 + 'return API;')(() => '', {});
+        const a6 = src.indexOf('// [netcheck:drawfirst-start]'), b6 = src.indexOf('// [netcheck:drawfirst-end]'); let saved6 = 0, told6 = 0;
+        const own6 = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+        const mk6 = () => new Function('window', 'own', 'saveRemoteSoon', 'net', src.slice(a6, b6) + '\nreturn drawForRoll;')({ wpDeckCore: K6.default || K6, wpFormula: null }, own6, () => { saved6++; }, { decksTell: () => { told6++; } });
+        const deck6 = { key: 'D1', label: 'Fate', after: 'discard', stats: [{ key: 'Value', label: 'Value' }], cards: [{ name: 'Ace', vals: { Value: 14 } }, { name: 'Two', vals: { Value: 2 } }] };
+        const camp6 = { system: { decks: [deck6] } }, dr = mk6();
+        const d1 = dr(camp6, 'D1'), lastName = camp6.piles && camp6.piles.D1 ? deck6.cards[camp6.piles.D1.last].name : '';
+        const kept = JSON.stringify(camp6.piles.D1); d1.undo(); const undone = !camp6.piles || !own6(camp6.piles, 'D1');
+        const d2 = dr(camp6, 'D1'), n2 = d2.done();
+        const gmDeck = { system: { decks: [Object.assign({}, deck6, { vis: 'gm' })] } }, d3 = dr(gmDeck, 'D1'), n3 = d3.done();
+        const empty = dr({ system: { decks: [Object.assign({}, deck6, { after: 'gone' })] }, piles: { D1: { draw: [], disc: [], out: [0, 1], last: 1 } } }, 'D1'), gone = dr(camp6, 'D9');
+        check('1.6.2 a roll that draws a card as its die: the host draws one card before the roll is worked out, so the pile\'s last is that card; undo puts the pile back as it was; done keeps it, saves, tells the table and names the card, none for a deck the GM alone knows; a deck that is gone and one with nothing left refuse in words',
+            !!d1.name && d1.name === lastName && kept.length > 0 && undone && deck6.cards.some(c => c.name === n2) && saved6 === 2 && told6 === 2 && n3 === '' && /Nothing is left to draw from Fate/.test(empty.error || '') && /not here/.test(gone.error || ''), JSON.stringify([d1.name, lastName, n2, n3, empty, gone, saved6, told6]));
+        const deck7 = { key: 'D1', label: 'Bag', after: 'discard', stats: [{ key: 'Value', label: 'Value' }], cards: [{ name: 'Ruby', vals: { Value: 3 } }, { name: 'Jet', vals: { Value: 7 } }, { name: 'Opal', vals: { Value: 5 } }] }, camp7 = { system: { decks: [deck7] } }, d7 = dr(camp7, 'D1', 3), n7 = d7.done();
+        const camp8 = { system: { decks: [deck7] } }, d8 = dr(camp8, 'D1', 40);
+        check('1.6.2 a roll that draws several at once: the host draws as many as it says, keeps them all as the last draw, and the roll\'s card names each; a count past 20 draws one', n7.split(', ').sort().join() === 'Jet,Opal,Ruby' && camp7.piles.D1.got.length === 3 && camp8.piles.D1.got.length === 1 && d8.name.indexOf(',') < 0, JSON.stringify([n7, camp7.piles.D1, camp8.piles.D1]));
+        const flat6 = src;
+        check('1.6.2 both paths draw first and put the card back on any refusal: a player\'s roll through denyQ, the GM\'s own through each early return; the card stays only once nothing refused it, and the roll\'s card names it',
+            flat6.includes("var cardQ = null, denyQ = function(reason, r) { if (cardQ && cardQ.undo) { cardQ.undo(); cardQ = null; }") && flat6.includes("cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst, actQ.drawN) : null;")
+            && flat6.includes("var cardNQ = cardQ && cardQ.done ? cardQ.done() : ''; cardQ = null;") && flat6.includes('if (cardNQ) recQ.card = cardNQ;') && flat6.includes("var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst, entR.drawN) : null;")
+            && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
+    }
+
 T.finish();

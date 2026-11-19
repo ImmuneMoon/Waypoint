@@ -210,6 +210,21 @@ jobs:
       - name: netmakecheck — a character and a token coming to the table, out of netcheck
         if: ${{ !cancelled() }}
         run: node tools/netmakecheck.js
+      - name: netpiececheck — pieces on the wire and what a session sends, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netpiececheck.js
+      - name: netwallcheck — map builder B5, a secret door and a plain wall, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netwallcheck.js
+      - name: netmatchcheck — B5 and Match a wall in the one-module world, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netmatchcheck.js
+      - name: netdragcheck — an open drag and the catch-up, out of netfogcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netdragcheck.js
+      - name: netpossesscheck — map possession, the patch gate and explored ground, out of netfogcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netpossesscheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

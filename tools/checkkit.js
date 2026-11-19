@@ -199,7 +199,10 @@ function netSlices(who) {
     // API by id), so every harness that runs one loads it and none passes on an old path. It stands in netfight.js, a part of net.js, and is
     // read here once for every net suite (the review of "Finishing the test split" step 5: thirteen suites had each kept a copy of this line).
     const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
-    return { src, between, tryBetween, fnSrc, range, lineOf, ordersSrc };
+    // broadcast() as it runs on both ends (netfog.js, a part of net.js): the one-module worlds, a player's page and the admission gate's harness
+    // all load it, so it is read here once (step 6 of "Finishing the test split", 2026-11-19: netGate, netfogcheck and netcheck each kept a line)
+    const broadcastSrc = between('// [netcheck:broadcast-start]', '// [netcheck:broadcast-end]', 'broadcast', 'netfog.js');
+    return { src, between, tryBetween, fnSrc, range, lineOf, ordersSrc, broadcastSrc };
 }
 
 // The harness pieces netcheck keeps at its top, which the suites that came out of it with area 9 (netfogcheck, netfightcheck) share, made
@@ -239,11 +242,10 @@ let netG = null;
 function netGate(who) {
     if (netG) return netG;
     who = who || 'netcheck';
-    const { between } = netSlices(who);
+    const { between, broadcastSrc } = netSlices(who);
     const { helpersSrc, storage, H } = netHarness(who);
     const gateSrc = between('// [netcheck:gate-start]', '// [netcheck:gate-end]', 'gate') + '\n}';   // the slice ends inside the client auth branch: close it
     const queueSrc = between('// [netcheck:queue-start]', '// [netcheck:queue-end]', 'queue');
-    const broadcastSrc = between('// [netcheck:broadcast-start]', '// [netcheck:broadcast-end]', 'broadcast', 'netfog.js');
     const chatSrc = between('// [netcheck:chat-start]', '// [netcheck:chat-end]', 'chat');
     const rosterSrc = between('// [netcheck:roster-start]', '// [netcheck:roster-end]', 'roster');
     const rosterCleanSrc = between('// [netcheck:rosterclean-start]', '// [netcheck:rosterclean-end]', 'rosterclean');
@@ -319,6 +321,39 @@ function netGate(who) {
     return netG;
 }
 
+// A player's page as the fogDiff branch and applyFogDiff see it (fold M3), which netfogcheck and netdragcheck share (docs/REFACTOR_SPLIT_PLAN.md,
+// "Finishing the test split", step 6, 2026-11-19: it stood at netfogcheck's top, and fold M4 left for netdragcheck.js with the blocks that use
+// it). mkFogClient(FCx, o) is the very function netfogcheck held, word for word; it closes over the joined net.js, its slices, H and packCheck.
+let netFC = null;
+function netFogClient(who) {
+    if (netFC) return netFC;
+    who = who || 'netcheck';
+    const { src, between, fnSrc, broadcastSrc } = netSlices(who);
+    const { H } = netHarness(who);
+    // fold M3: a player's page as the 'fogDiff' branch and applyFogDiff see it, both sliced by their markers and run for real with the real
+    // cleaners (cleanHostWbItem, cleanHostLight and cleanWaitingItem from net.js, sanitizeRichText as it runs under Node, fogcore's cleanFogLit
+    // and cleanLight) and the real client broadcast. Each page keeps its own state, net and recorders
+    function mkFogClient(FCx, o) {
+        o = o || {};
+        const lnM = k => { const i = src.indexOf(k); if (i < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, src.indexOf('\n', i)); };
+        const branch = between('// [netcheck:fogdiff-start]', '// [netcheck:fogdiff-end]', 'fogdiff'), apply = between('// [netcheck:fogdiffapply-start]', '// [netcheck:fogdiffapply-end]', 'fogdiffapply', 'netfog.js');
+        const rich = lnM('function escAttr(s) {') + '\n' + fnSrc('function sanitizeRichText(', '\n}\n', 'sanitizeRichText') + '\n}\n';
+        const rec = { asked: [], renders: 0, redraws: 0, invalidated: 0, saves: 0, other: [] };
+        const hostConn = { peer: 'h', open: true, send(m) { packCheck(m); rec.asked.push(JSON.parse(JSON.stringify(m))); } };
+        const net = { role: 'client', active: true, foreign: true, syncedPeer: 'h', stream: false, applyingRemote: false, myId: o.myId || 'u_me', conns: [hostConn], roster: {} };
+        const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: o.active === undefined ? 'mA' : o.active, items: o.items || {} } } } };
+        if (o.other) state.appState.campaigns.k2 = { id: 'k2', activeItemId: null, items: o.other };
+        const win = { wpFogCore: o.core || FCx, wpFog: { invalidateVision() { rec.invalidated++; }, redraw() { rec.redraws++; } }, save() { rec.saves++; } };
+        const recv = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'cleanWaitingItem', 'onLocalSave', 'save',
+            '"use strict";\n' + lnM('function own(o, k) {') + '\n' + lnM('function validKey(k) {') + '\n' + lnM('function campOf(id) {') + '\n' + broadcastSrc + '\n' + rich
+            + lnM('function cleanHostWbItem(w) {') + '\n' + lnM('function cleanHostLight(w) {') + '\n' + lnM('function cleanHostTokSenses(w) {') + '\n' + fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n' + fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n' + apply + '\nreturn function(msg, conn) {\n' + branch + '\n};')(
+            net, state, win, () => state.appState.campaigns[state.appState.activeCampaignId], () => { rec.renders++; }, H.cleanWaitingItem, () => { rec.saves++; }, () => { rec.saves++; });
+        return { net, state, rec, camp: () => state.appState.campaigns.k, map: id => state.appState.campaigns.k.items[id], recv: (msg, peer) => recv(JSON.parse(JSON.stringify(msg)), { peer: peer === undefined ? 'h' : peer }) };
+    }
+    netFC = { mkFogClient };
+    return netFC;
+}
+
 // PeerJS 1.5.2's default serializer is BinaryPack (inside the bundled library file, assets/vendor/peerjs.min.js, which the suites do not load): its pack() reads value.constructor for every
 // object and throws on one it does not know — an object with no prototype, or an own "constructor" / "hasOwnProperty" — and the real
 // broadcast() swallows the throw. Every harness send runs this emulation, so a payload production could not deliver never passes here.
@@ -376,4 +411,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, netGate, packCheck, url, fresh, sysCore, starterFile, flatKids, presets, sevenList, ownLines, css0911, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, netGate, netFogClient, packCheck, url, fresh, sysCore, starterFile, flatKids, presets, sevenList, ownLines, css0911, APP, SCRIPTS, lf };

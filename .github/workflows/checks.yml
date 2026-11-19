@@ -282,6 +282,9 @@ jobs:
       - name: buildcheck — the map builder's pure core (code-drawn textures, materials, the lattice maths)
         if: ${{ !cancelled() }}
         run: node tools/buildcheck.js
+      - name: buildtoolcheck — the Build tool, walls around a selection and the generators' dialogs, read from wbbuild.js and wbgen.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/buildtoolcheck.js
       - name: updatercheck — signed updates, the way back, the core updating itself, the key tool and the core's record (run on scratch installs; nothing downloaded is ever started)
         if: ${{ !cancelled() }}
         run: node tools/updatercheck.js

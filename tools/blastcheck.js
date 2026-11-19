@@ -11,8 +11,11 @@
    and its Defense roll, a ring and a cone exploding, and the reviews after it), a launched round (Chambers from: the round last fired
    goes off where it is put), explosives (the pure half, the Combat tab's blast rules, an item's blast extras and the host's damage under
    the book's falloff, a mine), fragmentation and afflictions (the book's (es)), an item that fills its area and one no drop answers, a
-   blast's radius read from the dice it rolls and the firing row's scale, and the blasts kept per map. The Image Library's own part,
-   wbimglib.js, keeps its tests where they stood: imgtagcheck.js, lookcheck.js and sinkcheck.js read it by name.
+   blast's radius read from the dice it rolls and the firing row's scale, the blasts kept per map, and the blast half of the cover
+   follow-ups (a Full auto blast's damage behind cover and its undo, and a thrown blast seated in a wall; the review of next area 5).
+   The Image Library's own part, wbimglib.js, keeps its tests where they stood: imgtagcheck.js, lookcheck.js, sinkcheck.js and
+   cleanupcheck.js cut its functions from it by name (splitcheck point 7 holds it since the review of next area 5, which judged
+   whiteboard.js's indented definitions for the first time).
    Usage: node tools/blastcheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
@@ -1420,6 +1423,61 @@ function flatKids(n) { return (n && Array.isArray(n.kids) ? n.kids : []).reduce(
             awayOn.length === 1 && awayOn[0] === thrA && !!awayFound && awayFound.mapId === 'A' && shownA === 1 && pushedOnScreen === 0 && capped === 'b1,b2,b3' && backOn === 'b1,b2,b3' && unwired && playerKept === 0 && goneKept === 0 && forgot === 0
             && require('./checkkit').part('wbblast.js').includes("else if (typeof blastsAwayPush === 'function') blastsAwayPush(map.id, b);") && dlgA.split('window.wpBlastsForget(').length === 3 && netA.split('window.wpBlastsUnwire();').length === 3,
             JSON.stringify([awayOn.length, !!awayFound, shownA, pushedOnScreen, capped, backOn, unwired, playerKept, goneKept, forgot]));
+    }
+    // cover follow-ups (owner 2026-09-28), their blast half, moved from systemcheck.js with its area (the review of next area 5): the host's
+    // blast damage behind cover (applyBlastDamage, with its undo, sliced from wbblast.js by its name and run for real) and a thrown blast's
+    // seat in a wall (placeThrownBlast). The editor's per-grade outcome, the piece's Cover setting, the target marks' tag and Help stay in
+    // systemcheck.js
+    {
+        const abSrc = kit.cut('wbblast.js', '  var _lastThrowTx = null;', '  // Undo the last full-auto throw');
+        // what a blast holds is asked of the board's own judge (128 (e)): the real shapeHolds, from the radius slice, over this test's radius
+        const radC = require('./checkkit').cut('wbblast.js', '// [systemcheck:radius-start]', '// [systemcheck:radius-end]');
+        const holdsWith = rad => new Function('blastRadiusYd', 'tokenCentre', 'window', 'localStorage', "'use strict';\n" + radC + '\nreturn shapeHolds;')(rad, t => ({ x: (t.x || 0) + (t.w || 60) / 2, y: (t.y || 0) + (t.h || 52) / 2 }), {}, { getItem: () => null });
+        const sysCV = cleanSystem({ v: 1, name: 'CV', rolls: [], fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', vis: 'all', maxFormula: '20' }], combat: { blastAuto: 'full', hpResource: 'f_hp', cover: { on: true, style: 'graded', area: { half: 'half', total: 'none' } } } }, { F, gmView: true });
+        const runAB = (tiers, total) => { const out = { toasts: [], saves: 0, calls: [] }, camp = { system: sysCV, chars: { c_a: { id: 'c_a', values: { f_hp: { cur: 20 } } }, c_b: { id: 'c_b', values: { f_hp: { cur: 20 } } }, c_c: { id: 'c_c', values: { f_hp: { cur: 20 } } } } };
+            const toks = [{ id: 't_a', isChar: true, charId: 'c_a' }, { id: 't_b', isChar: true, charId: 'c_b' }, { id: 't_c', isChar: true, charId: 'c_c' }];
+            const mapAB = { whiteboard: toks }, win = { wpSystemCore: S, wpFormula: F, wpFog: { coverAt: (x, y, tok, m) => { out.calls.push([x, y, tok.id, m === mapAB]); return tiers[tok.id] || null; } } };
+            const api = new Function('getActiveCampaign', 'getActiveMap', 'blastRadiusYd', 'blastDistances', 'save', 'syncBlastMenu', 'toast', 'window', 'stanceOn', 'tokenElevation', 'shapeHolds', "'use strict';\n" + abSrc + '\nreturn { apply: applyBlastDamage, last: function() { return _lastThrowTx; } };')(() => camp, () => mapAB, () => 5, () => toks.map(t => ({ tok: t, d: 1 })), () => { out.saves++; }, () => {}, t => out.toasts.push(t), win, () => false, () => 0, holdsWith(() => 5));
+            api.apply({ x: 125, y: 375 }, total, 'f_hp'); out.hp = Object.keys(camp.chars).map(k => camp.chars[k].values.f_hp.cur); out.tx = api.last(); return out; };
+        const r1 = runAB({ t_b: { name: 'Half cover', block: false }, t_c: { name: 'Total cover', block: true } }, 7), r2 = runAB({ t_a: { name: 'Total cover', block: true }, t_b: { name: 'Total cover', block: true }, t_c: { name: 'Total cover', block: true } }, 7), r3 = runAB({}, 7);
+        check('Cover: a Full auto blast\'s damage behind cover (applyBlastDamage run for real) — each token takes its system\'s outcome for the cover it has from the blast (half rounded down, total none); a shielded token is left out of the throw (and its Undo); the toast counts, never names; all shielded says so; no cover, the whole to each',
+            j(r1.hp) === j([13, 17, 20]) && r1.tx && r1.tx.hits.length === 2 && /^\u22127 to 2 tokens \u00b7 1 behind cover took less \u00b7 1 shielded by cover\./.test(r1.toasts[0]) && r1.saves === 1
+            && j(r2.hp) === j([20, 20, 20]) && r2.tx === null && j(r2.toasts) === j(['No damage: 3 tokens shielded by cover.']) && j(r3.hp) === j([13, 13, 13]) && /^\u22127 to 3 tokens\. Undo/.test(r3.toasts[0]), j([r1.hp, r1.toasts, r2.toasts, r3.hp]));
+        // found during senses S0, (f): a token from a file names its character by a prototype's name — the blast's damage and its undo reach no prototype
+        const protoAB = (() => {
+            const camp = { system: sysCV, chars: { c_a: { id: 'c_a', values: { f_hp: { cur: 20 } } } } }, toast = [], win = { wpSystemCore: S, wpFormula: F, wpFog: { coverAt: () => null } };
+            const toks = ['__proto__', 'constructor', 'hasOwnProperty', 'toString', 'c_a'].map((cid, i) => ({ id: 't_' + i, isChar: true, charId: cid }));
+            const undoSrc = kit.cut('wbblast.js', '  var _lastThrowTx = null;', '  window.wpHasThrowUndo = function()');
+            const api = new Function('getActiveCampaign', 'getActiveMap', 'blastRadiusYd', 'blastDistances', 'save', 'syncBlastMenu', 'toast', 'window', 'stanceOn', 'tokenElevation', 'shapeHolds', "'use strict';\n" + undoSrc + '\nreturn { apply: applyBlastDamage, last: function() { return _lastThrowTx; } };')(() => camp, () => ({ whiteboard: toks }), () => 5, () => toks.map(t => ({ tok: t, d: 1 })), () => {}, () => {}, t => toast.push(t), win, () => false, () => 0, holdsWith(() => 5));
+            let threw = ''; try { api.apply({ x: 1, y: 1 }, 5, 'f_hp'); } catch (e) { threw = 'apply: ' + e.message; }
+            const hit = camp.chars.c_a.values.f_hp.cur, hits = api.last() ? api.last().hits.map(h => h.charId) : [];
+            try { win.wpUndoThrow(); } catch (e) { threw += ' undo: ' + e.message; }
+            return { threw, hit, hits, undone: camp.chars.c_a.values.f_hp.cur, clean: !Object.prototype.hasOwnProperty.call(Object.prototype, 'values') && ({}).values === undefined && /\[native code\]/.test(String(Object.values)) && !Object.prototype.hasOwnProperty.call(Object.prototype, 'updated') && /\[native code\]/.test(String(Object.prototype.hasOwnProperty)) };
+        })();
+        check('found during senses S0 (f): a Full auto blast over tokens whose character is named by a prototype\'s name (a token from a file: __proto__, constructor, hasOwnProperty, toString) damages only the real character beside them, and its undo restores that one alone — nothing is written onto any prototype or built-in, nothing throws',
+            protoAB.threw === '' && protoAB.hit === 15 && j(protoAB.hits) === j(['c_a']) && protoAB.undone === 20 && protoAB.clean === true, j(protoAB));
+        const r4 = runAB({ t_b: { name: 'Half cover', block: false } }, 1), r5 = runAB({ t_a: { name: 'Total cover', block: true } }, 0);
+        check('Cover: a blast\'s cover is read from its own point on the host\'s board, once per token; a half that rounds to nothing took less (never shielded); a roll of 0 shields nobody',
+            j(r1.calls) === j([[125, 375, 't_a', true], [125, 375, 't_b', true], [125, 375, 't_c', true]]) && j(r4.hp) === j([19, 20, 19]) && /^\u22121 to 3 tokens \u00b7 1 behind cover took less\./.test(r4.toasts[0])
+            && r5.toasts.length === 1 && !/shielded/.test(r5.toasts[0]), j([r1.calls, r4.hp, r4.toasts, r5.toasts]));
+        // a thrown blast's seat (placeThrownBlast, sliced and run strict): the thrower's token, else the click, decides the side; the toast says so
+        const ptSrc = kit.cut('wbblast.js', '  function placeThrownBlast(', '  window.wpPlaceThrownBlast = placeThrownBlast;');
+        const runPT = (opts, seat, board) => { const out = { seatArgs: null, toasts: [], pushed: null, resolved: null, sent: null, elevArgs: null, groundArgs: null }, mapPT = { id: 'mp', whiteboard: board };
+            const fnPT = new Function('getActiveMap', 'seatBlast', 'pushBlast', 'renderMeasures', 'syncBlastMenu', 'blastDistances', 'blastRadiusYd', 'toast', 'resolveThrow', 'tokenAtPoint', 'tokenElevation', 'groundAt', 'window', "'use strict';" + NL + ptSrc + NL + 'return placeThrownBlast;')(
+                () => mapPT, bb => { bb.x = 125; bb.y = 125; if (bb.autoElev) bb.elev = 0; }, bb => { out.pushed = { x: bb.x, y: bb.y, elev: bb.elev }; }, () => {}, () => {}, () => [], () => 10, t => out.toasts.push(t), bb => { out.resolved = { x: bb.x, y: bb.y }; },
+                (m, x) => (x === 75 ? { id: 'deck', elev: 3 } : null), (t, m, shown) => { out.elevArgs = [t.id, m === mapPT, shown]; return t.elev; }, (m, x, y, shown) => { out.groundArgs = [m === mapPT, x, y, shown]; return x === 175 ? 5 : 0; },   // item 19b H5: the token's height on its map, else the ground's own
+                { wpFog: { blastSeat: (m, x, y, tx, ty) => { out.seatArgs = [m === mapPT, x, y, tx, ty]; return seat; } },
+                wpNet: { active: true, role: 'host', broadcastBlast: (p, mid) => { out.sent = { x: p.x, y: p.y, elev: p.elev, map: mid }; } } });
+            fnPT(opts); return out; };
+        const pt1 = runPT({ x: 130, y: 120, ft: 20, name: 'Grenade', charId: 'c_t' }, { x: 75, y: 125 }, [{ id: 'pet', charId: 'c_t', x: 900, y: 900 }, { id: 'thr', isChar: true, charId: 'c_t', x: 0, y: 100, w: 50, h: 50 }]);
+        const pt2 = runPT({ x: 130, y: 120, ft: 20, name: 'Grenade' }, null, []);
+        check('Cover: a thrown blast seated in a wall goes off in front of it — the host asks from the thrower\'s token (their character\'s before another), else from the click; the moved blast is what is shown, sent and resolved, at the height of whoever stands there; the toast says it hit a wall',
+            j(pt1.seatArgs) === j([true, 125, 125, 25, 125]) && j(pt1.pushed) === j({ x: 75, y: 125, elev: 3 }) && j(pt1.resolved) === j({ x: 75, y: 125 }) && / It went off in front of the wall or door it hit\.$/.test(pt1.toasts[0])
+            && j(pt2.seatArgs) === j([true, 125, 125, 130, 120]) && j(pt2.pushed) === j({ x: 125, y: 125, elev: 0 }) && !/wall/.test(pt2.toasts[0])
+            && j(pt1.sent) === j({ x: 75, y: 125, elev: 3, map: 'mp' }) && j(pt2.sent) === j({ x: 125, y: 125, elev: 0, map: 'mp' }), j([pt1, pt2]));
+        const pt3 = runPT({ x: 130, y: 120, ft: 20, name: 'Grenade' }, { x: 175, y: 125 }, []);
+        check('item 19b H5 a thrown blast moved by the wall rule (placeThrownBlast, run strict): it takes the height of the token standing where it goes off, read on that map from the pieces players hold, and with no token there the ground\'s own height, asked the same way; that height is what is shown and sent',
+            j(pt1.elevArgs) === j(['deck', true, true]) && pt1.groundArgs === null && j(pt3.groundArgs) === j([true, 175, 125, true]) && pt3.elevArgs === null && j(pt3.pushed) === j({ x: 175, y: 125, elev: 5 }) && j(pt3.sent) === j({ x: 175, y: 125, elev: 5, map: 'mp' }) && pt2.groundArgs === null && pt2.elevArgs === null, j([pt1.elevArgs, pt3, pt2.groundArgs]));
     }
     await T.finish();
 })();

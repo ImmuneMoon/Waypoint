@@ -829,10 +829,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // normaliser before anything reads its fields: it threw there, so a Replace failed with no word and a save holding one did not load. The load runs
         // as the app runs it: strict (an ES module), with the real fogcore and the real picture migration (whiteboard.js, sliced), which walks every item's lists
         {
-            const jl = JSON.stringify, wbSrc = readSrc('whiteboard.js'), FCj = await import(surl('fogcore.js'));
-            const cut = (from, to) => { const i = wbSrc.indexOf(from), k = wbSrc.indexOf(to, i); return i > 0 && k > i ? wbSrc.slice(i, k) : null; };
-            const picParts = [cut('  var EMPTY_CATS = ', '  var _imgLibCat = '), cut('  function fixCats(', '  function catStore(store, create)'), cut('  function tagsIn(', '  function imgCatsOf('),
-                cut('  function pathKeys(', '  function buildImgIndex()'), cut('  function folderOf(', '  function imgCamps(im)'), cut('  window.wpMigratePictures = function', '  // A campaign is going')];
+            const jl = JSON.stringify, FCj = await import(surl('fogcore.js'));
+            // the picture migration is wbimglib.js's, a part of whiteboard.js, read by its name (docs/REFACTOR_SPLIT_PLAN.md, area 8)
+            const cut = (part, from, to) => { try { return require('./checkkit').cut(part, from, to); } catch (e) { return null; } };
+            const picParts = [cut('wbimglib.js', '  var EMPTY_CATS = ', '  var _imgLibCat = '), cut('wbimglib.js', '  function fixCats(', '  function catStore(store, create)'), cut('wbimglib.js', '  function tagsIn(', '  function imgCatsOf('),
+                cut('wbimglib.js', '  function pathKeys(', '  function buildImgIndex()'), cut('wbimglib.js', '  function folderOf(', '  function imgCamps(im)'), cut('wbimglib.js', '  window.wpMigratePictures = function', '  // A campaign is going')];
             const picWin = {};
             if (picParts.every(Boolean)) new Function('window', '"use strict";\n' + picParts.join(''))(picWin);
             const loadWin = { wpSystemCore: S, wpFormula: F, wpLibraryCore: LBC, wpFogCore: FCj, wpMigratePictures: picWin.wpMigratePictures };

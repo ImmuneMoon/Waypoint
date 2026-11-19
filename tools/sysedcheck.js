@@ -446,7 +446,7 @@ function flatKids(n) { return (n && Array.isArray(n.kids) ? n.kids : []).reduce(
         // the ruler (whiteboard.js): the square grid counts a diagonal as the system says
         const wbT = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL).replace(/\r/g, '');
         const dcSrc = wbT.slice(wbT.indexOf('  function diagCells(m) {'), wbT.indexOf('  function renderMeasures() {'));
-        const hxSrcT = wbT.slice(wbT.indexOf('  function hexCellOf('), wbT.indexOf('  function tokenCentre('));
+        const hxSrcT = kit.cut('wbblast.js', '  function hexCellOf(', '  function tokenCentre(');   // the hex helpers are wbblast.js's, a part of whiteboard.js, read by its name
         const dcF = (grid, diag) => new Function('window', 'state', 'mapMeasureConfig', "'use strict';" + NL + hxSrcT + NL + dcSrc + NL + 'return diagCells;')({ wpSystemCore: S, wpSheets: { systemOf: () => ({ combat: diag ? { turn: { diag: diag } } : {} }) } }, { gridType: grid }, () => ({ cellPx: grid === 'hex' ? 52 : 50 }));
         const dc = (grid, diag) => dcF(grid, diag)({ x1: 400, y1: 350, x2: 650, y2: 500 });
         check('T1 the ruler\'s diagonals (whiteboard.js diagCells, run for real): on a square grid 250 by 150 px is 6 cells alternating and 5 one-per-diagonal; a straight rule, no rule or no grid keep the straight line (null)',

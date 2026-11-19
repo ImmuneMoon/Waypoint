@@ -6,6 +6,8 @@
 'use strict';
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const path = require('path'), fs = require('fs');
+const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
+const wbI = kit.part('wbimglib.js');   // the Image Library is wbimglib.js, a part of whiteboard.js, read by its name (docs/REFACTOR_SPLIT_PLAN.md, area 8)
 const NL = String.fromCharCode(10);
 const root = path.join(__dirname, '..'), app = path.join(root, 'system', 'app');
 const readU = f => fs.readFileSync(path.join(app, f), 'utf8').replace(/\r\n/g, NL);
@@ -130,13 +132,13 @@ const ch = n => String.fromCharCode(n);
 
     /* ================= the wiring ================= */
     {
-        const rc = between(wb, '  function renderImgCats() {', '  function tagLog('), om = between(wb, '  function openImgCatMenu(', '  function hideImgCatMenu()');
+        const rc = kit.cut('wbimglib.js', '  function renderImgCats() {', '  function tagLog('), om = kit.cut('wbimglib.js', '  function openImgCatMenu(', '  function hideImgCatMenu()');
         check('the library draws its chips and its tag menu through the core, with no markup of a name (no innerHTML in either), and imports the core',
             wb.includes("import * as TagCore from './imgtagcore.js';") && rc.includes('TagCore.drawRow(document, row, m);') && !/innerHTML/.test(rc) && om.includes('TagCore.drawMenu(document, menu,') && !/innerHTML/.test(om));
-        const grid = between(wb, '  function renderImgLib(filter) {', '  // Multi-pick:');
+        const grid = kit.cut('wbimglib.js', '  function renderImgLib(filter) {', '  // Multi-pick:');
         check('the grid: no tag name in its markup, each cell\'s label and title drawn after as text (cellTags); the preview\'s lines through previewTags',
             !/img-lib-tag|esc\(imgCatOf/.test(grid) && grid.includes("TagCore.cellTags(document, cell, imgCatsOf(cell.dataset.src), label, hint);") && require('./checkkit').part('wbimglib.js').includes("TagCore.previewTags(document, document.getElementById('imgLibPreviewMeta'), mapName, imgCatsOf(src));")
-            && !/innerHTML/.test(between(wb, '  function openImgPreview(', '  // The pictures currently in the grid')));
+            && !/innerHTML/.test(kit.cut('wbimglib.js', '  function openImgPreview(', '  // The pictures currently in the grid')));
         check('a new or renamed tag goes through tagName (the chip row\'s own words refused, cut as the cleaner cuts)',
             /showPrompt\(shared \? 'New shared tag \(every campaign sees it\):' : 'New tag:', '', function\(name\) \{\n          name = TagCore\.tagName\(String\(name \|\| ''\)\); if \(!name\) return;/.test(require('./checkkit').part('wbimglib.js'))
             && /showPrompt\('Rename tag:', old, function\(name\) \{\n                  name = TagCore\.tagName\(String\(name \|\| ''\)\);/.test(require('./checkkit').part('wbimglib.js')));
@@ -145,7 +147,7 @@ const ch = n => String.fromCharCode(n);
             && io.includes('var itC = ITC.cleanStore(cc.imageCats, { filters: true }); if (itC) cc.imageCats = itC; else delete cc.imageCats;') && io.indexOf('ITC.cleanStore(data.imageCats)') < io.indexOf('window.wpMigratePictures(data)'));
         check('a Merge of a campaign\'s tags goes through mergeStores (the older merge stays for a page without the core)',
             mn.includes("if (ic.imageCats && typeof ic.imageCats === 'object' && window.wpImgTagCore) { var mgT = window.wpImgTagCore.mergeStores(existing.imageCats, ic.imageCats);") && mn.includes("else if (ic.imageCats && typeof ic.imageCats === 'object') {"));
-        const lib = between(wb, '  function renderImgLib(filter) {', '  // Multi-pick:'), rowC = between(wb, '      row.addEventListener(\'click\', function(e) {', '      // right-click a picture:');
+        const lib = kit.cut('wbimglib.js', '  function renderImgLib(filter) {', '  // Multi-pick:'), rowC = kit.cut('wbimglib.js', '      row.addEventListener(\'click\', function(e) {', '      // right-click a picture:');
         check('the grid filters by the picked tags through matchTags with the switch, and by every word through matchWords over the name, the map and the tags',
             lib.includes("picked = pickedTags(), ws = TagCore.words(filter);") && lib.includes("(picked.length && !TagCore.matchTags(imgCatsOf(im.path), picked, _imgLibMatch))") && lib.includes("if (!TagCore.matchWords([im.name, label].concat(imgCatsOf(im.path)), ws)) return;"));
         check('Ctrl-click on a tag\'s chip adds it to the picked ones or takes it off (never the last); a plain click picks one alone; the switch, a saved chip and the four saved-filter tools are wired',
@@ -153,7 +155,7 @@ const ch = n => String.fromCharCode(n);
             && rowC.includes("if (b.dataset.match) { _imgLibMatch = b.dataset.match === 'any' ? 'any' : 'all';") && rowC.includes("if (b.dataset.saved !== undefined) { applySaved(+b.dataset.saved); return; }")
             && ['saveFilter()', 'renameFilter()', 'deleteFilter()', 'openFilterImport('].every(s => rowC.includes(s)) && require('./checkkit').part('wbimglib.js').includes("if (act === 'filter-take') { takeFilter(b.dataset.camp, +b.dataset.i); return; }"));
         check('the one tag in view (its tools, Move and Remove, the cast shelf) is the tag picked alone (soleTag)', /var cur = imgCatsOf\(path\), from = soleTag\(\);/.test(require('./checkkit').part('wbimglib.js')) && /var from = soleTag\(\);/.test(require('./checkkit').part('wbimglib.js')) && require('./checkkit').part('wbimglib.js').includes('fromV = soleTag();') && require('./checkkit').part('wbimglib.js').includes('if (!_imgLibPicker && soleTag()) {') && require('./checkkit').part('wbimglib.js').includes('!!(soleTag() && isShelved(soleTag()))'));
-        const sv = between(wb, '  function saveFilter() {', '  // The tag menu for one picture.');
+        const sv = kit.cut('wbimglib.js', '  function saveFilter() {', '  // The tag menu for one picture.');
         check('saved filters live in the campaign\'s own store (filterList), another campaign\'s are read only when Import from another campaign is asked, a taken one is numbered and the tags it lacks made here; each step logs',
             require('./checkkit').part('wbimglib.js').includes("function savedFilters(campId) { var c = campId ? catStore(campId) : EMPTY_CATS; return Array.isArray(c.filters) ? c.filters : []; }") && sv.includes('var list = filterList(camp.id, true), at = filterAt(list, name, -1);')
             && sv.includes('var name = TagCore.freeName(f.name, list)') && sv.includes("nf.tags.forEach(function(t) { if (!catHome(t) && c.list.length < TagCore.LIMITS.tags) { c.list.push(t); made++; } });")
@@ -161,7 +163,7 @@ const ch = n => String.fromCharCode(n);
         check('Help says how to filter by several tags, what the words match, how to save, rename, delete and bring in a saved filter, and both release notes say it',
             ix.includes('<kbd>Ctrl</kbd>-click more. <b>Match</b> beside them') && ix.includes('Each word must be in the picture&rsquo;s name, its map or its tags.') && ix.includes('<li><b>Save this filter&hellip;</b> under <b>Saved</b>') && ix.includes('Only the ones you take come in.')
             && [readRoot('WHATSNEW.txt'), readU('assets/whatsnew.txt')].every(t => t.includes('- Filter by several tags: pick a tag\'s chip, then Ctrl-click more.') && t.includes('- Save a filter by name: Save this filter... keeps the tags, the switch')));
-        const om2 = between(wb, '  function openImgCatMenu(', '  function hideImgCatMenu()'), bar = between(wb, '  function renderImgSelBar() {', '  function castCells()');
+        const om2 = kit.cut('wbimglib.js', '  function openImgCatMenu(', '  function hideImgCatMenu()'), bar = kit.cut('wbimglib.js', '  function renderImgSelBar() {', '  function castCells()');
         check('the Tags list: each tag with how many of the pictures have it (tagState); its click takes the tag from all when all have it, else gives it to all; a right-click on a picked picture speaks for all the picked',
             om2.includes("return { name: c.name, store: c.store, state: TagCore.tagState(n, paths.length), n: n, of: paths.length };") && om2.includes("head: many ? 'Tags of ' + paths.length + ' pictures' : 'Tags', tags: tags,")
             && require('./checkkit').part('wbimglib.js').includes("if (act === 'toggle') { var tps = Array.isArray(src) ? src : [src]; imgCatChange(src, tps.every(function(p) { return imgCatsOf(p).indexOf(cat) >= 0; }) ? 'remove' : 'add', cat); return; }")
@@ -180,14 +182,14 @@ const ch = n => String.fromCharCode(n);
         const wn = readRoot('WHATSNEW.txt'), an = readU('assets/whatsnew.txt'), ci = readRoot('.github/workflows/checks.yml');
         check('the words: the library says tag, never category; Help says what a tag is, that tags stay on this computer, and where the steps are; the tour and both release notes say it',
             ix.includes('placeholder="Filter by name, map or tag&hellip;"') && ix.includes('id="imgLibPreviewCat" title="Give this picture a tag (it can wear several)">Tags&hellip;</button>') && !/Add to category/.test(ix + wb)
-            && ix.includes('<li><b>Tags</b> sort your pictures.') && ix.includes('They stay on your computer and never go to your players.') && ix.includes('as imglib v1 lines') && !/category|categor/i.test(between(wb, '  function renderImgCats() {', '  function tagLog(') + between(wb, "      var others = catList()", "      menu.dataset.src = many"))
+            && ix.includes('<li><b>Tags</b> sort your pictures.') && ix.includes('They stay on your computer and never go to your players.') && ix.includes('as imglib v1 lines') && !/category|categor/i.test(kit.cut('wbimglib.js', '  function renderImgCats() {', '  function tagLog(') + kit.cut('wbimglib.js', "      var others = catList()", "      menu.dataset.src = many"))
             && tu.includes('Filter by name, map or tag, and give pictures tags to sort them.') && [wn, an].every(t => t.includes('Image Library tags') && t.includes('- Tags are yours alone: they stay on your computer and never go to your')), '');
         check('CI runs this suite', ci.includes('run: node tools/imgtagcheck.js'));
     }
 
     {   // 1.6.2 (the viewing: the library had no way to add a picture from inside it): Add pictures uploads into this campaign's own folder
         const wb = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), ix2 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
-        const fA = wb.indexOf('  function imgAddFolder('), fZ = wb.indexOf('\n  window.wpImgAddFolder', fA), fold = fA > 0 && fZ > fA ? new Function(wb.slice(fA, fZ) + '\nreturn imgAddFolder;')() : null;
+        const fA = wbI.indexOf('  function imgAddFolder('), fZ = wbI.indexOf('\n  window.wpImgAddFolder', fA), fold = fA > 0 && fZ > fA ? new Function(wbI.slice(fA, fZ) + '\nreturn imgAddFolder;')() : null;
         const items = { p1: { type: 'planner' }, m1: { type: 'map' }, m2: { type: 'map' } };
         check('Add pictures in the Image Library (whiteboard.js imgAddFolder, run for real): a picture goes into the map on screen, else the campaign\'s first map, else the item on screen; never a name the items only inherit; a campaign with nothing says so; the button and its file box are in the page beside Select, and the upload draws the library again',
             !!fold && fold({ activeItemId: 'm2', items }) === 'm2' && fold({ activeItemId: 'p1', items }) === 'm1' && fold({ activeItemId: 'p1', items: { p1: { type: 'planner' } } }) === 'p1'
@@ -196,7 +198,7 @@ const ch = n => String.fromCharCode(n);
     }
     {   // 1.6.2 (backlog 41; the owner, by prompt: "Copied, tagged by folder", "Each folder's own name", and of a drag "optional in a setting between the two")
         const wb = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), ix3 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), css = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8');
-        const fl = wb.slice(wb.indexOf('  function folderTagOf('), wb.indexOf('\n', wb.indexOf('  function folderTagOf('))), TC = T;
+        const fl = wbI.slice(wbI.indexOf('  function folderTagOf('), wbI.indexOf('\n', wbI.indexOf('  function folderTagOf('))), TC = T;
         const fto = new Function('TagCore', fl + '\nreturn folderTagOf;')(TC);
         const wbIP = require('./checkkit').part('wbimglib.js'), da = wbIP.indexOf('// [lookcheck:libdrop-start]'), dz = wbIP.indexOf('// [lookcheck:libdrop-end]'), placed = [], toasts = [], am = { type: 'map', whiteboard: [] };
         const mkDrop = (snap, lat, persist) => new Function('getActiveMap', 'state', 'window', 'wbWrap', 'wbX', 'wbY', 'toast', 'uid', 'newOpacityProps', 'save', 'render', 'libDragEnd', wbIP.slice(da, dz) + '\nreturn libDropAt;')(() => am, { viewMode: 'visual', selWbIds: [] }, { wpSnapOn: () => snap, wpLatticeOf: () => lat, wpCanPersistLocal: () => persist }, { getBoundingClientRect: () => ({ left: 0, top: 0 }) }, cx => cx, (cx, cy) => cy, t => toasts.push(t), () => 'x1', () => ({}), () => {}, () => {}, () => {});

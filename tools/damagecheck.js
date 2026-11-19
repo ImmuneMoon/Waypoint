@@ -875,7 +875,7 @@ const j = v => JSON.stringify(v);
                     j([thr(sN), thr(s1), thr(sH), thr(s1, wornD(2)), thr(sZ), thr(sBad), s1.combat.damage.layers[0], S.nameWord(s1, 'Divisor')]));
             }
             {   // 1.6.2 (the CORE session's batch 6, 11): an item's blast may strike a named location; and (asked by the CORE session) a light nobody measured reads lit
-                const wbL = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), tA = wbL.indexOf('  function torsoOf(sys, ch, want) {'), tZ = wbL.indexOf('\n  }\n', tA) + 4;
+                const wbL = require('./checkkit').part('wbblast.js'), tA =wbL.indexOf('  function torsoOf(sys, ch, want) {'), tZ = wbL.indexOf('\n  }\n', tA) + 4;
                 const torsoOf = new Function('window', wbL.slice(tA, tZ) + '\nreturn torsoOf;')({ wpSystemCore: S });
                 const chL = { id: 'c_1', values: { f_locs: [{ id: 'w_body', defId: 'i_body', qty: 1 }, { id: 'w_head', defId: 'i_head', qty: 1 }, { id: 'w_eye', defId: 'i_eye', qty: 1 }] } };
                 const arL = S.cleanSystem(Object.assign(mkD(), { items: mkD().items.concat([{ id: 'i_mine', name: 'Mine', area: { ft: 6, loc: '  Head  ' } }]) }), { F, gmView: true }).items.filter(x => x.id === 'i_mine')[0];

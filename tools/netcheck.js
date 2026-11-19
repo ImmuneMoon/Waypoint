@@ -3435,8 +3435,10 @@ pendingChecks.push((async () => {
 // real net.broadcastBlast): a GM-only item's blast reaches the players on that map unnamed and its damage roll carries gmOnly; a visible item's keeps both
 pendingChecks.push((async () => {
     const wbT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
-    const cut = (a, b) => { const i = wbT.indexOf(a), k = wbT.indexOf(b, i); if (i < 0 || k < 0 || wbT.indexOf(a, i + 1) >= 0) throw new Error('netcheck: whiteboard.js ' + a + ' not found once'); return wbT.slice(i, k); };
-    const armSrc = cut('  window.wpArmBlast = function(ft, name, ctx) {', "  // A client's received shared blast"), placeSrc = cut('  function placeBlast(e) {', '  // A blast thrown from a character sheet'), throwSrc = cut('  // A blast thrown from a character sheet', '  var _lastThrowTx = null;');
+    // the blasts are wbblast.js's, a part of whiteboard.js: each slice is cut from the part read by its name, and its first anchor stands
+    // once in the whole family (docs/REFACTOR_SPLIT_PLAN.md, area 8)
+    const cut = (part, a, b) => { const t = require('./checkkit').part(part), i = t.indexOf(a), k = t.indexOf(b, i); if (i < 0 || k < 0 || wbT.indexOf(a, wbT.indexOf(a) + 1) >= 0) throw new Error('netcheck: ' + part + ' ' + a + ' not found once'); return t.slice(i, k); };
+    const armSrc = cut('wbblast.js', '  window.wpArmBlast = function(ft, name, ctx) {', "  // A client's received shared blast"), placeSrc = cut('wbblast.js', '  function placeBlast(e) {', '  // A blast thrown from a character sheet'), throwSrc = cut('wbblast.js', '  // A blast thrown from a character sheet', '  var _lastThrowTx = null;');
     const bbSrc = between('// [netcheck:blast-start]', '// [netcheck:blast-end]', 'blast');
     const runT = (name, ctx, o) => { o = o || {}; const out = { sent: [], rolls: [], placed: [], applied: [] };
         const peer = id => ({ peer: id, open: true, send(m) { packCheck(m); out.sent.push([id, JSON.parse(JSON.stringify(m))]); } });
@@ -3473,7 +3475,7 @@ pendingChecks.push((async () => {
     // hidden pieces (owner, 2026-10-01): a thrown blast's height — a number every player on the map gets — is never read from a token the GM hid, under
     // the seat or under the spot the wall rule moves it to; the GM's own blast tool still reads one (the GM is its only viewer). The real tokenAtPoint,
     // seatBlast, placeBlast, placeThrownBlast and net.broadcastBlast on a square grid
-    const tapSrc = cut('  function tokenAtPoint(map, x, y, shown) {', '  // Horizontal distance in yards'), seatSrc = cut('  // Seat a blast in its grid cell', '  function placeBlast(e) {');
+    const tapSrc = cut('wbblast.js', '  function tokenAtPoint(map, x, y, shown) {', '  // Horizontal distance in yards'), seatSrc = cut('wbblast.js', '  // Seat a blast in its grid cell', '  function placeBlast(e) {');
     const runE = (tokens, thrown, noWall, real) => { const out = { sent: [], placed: [] };   // real (item 19b H5): the real tokenElevation and groundAt, over the real fogcore   // noWall: the wall rule moves the blast nowhere, so the seat's own reading is the one sent
         const net = { active: true, role: 'host', conns: [{ peer: 'pA', open: true, send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } }], roster: { pA: { id: 'u_a', location: 'm1' } } };
         const camp = { id: 'k', system: { combat: { blastAuto: 'roll', hpResource: 'f_hp' } } }, map = { id: 'm1', whiteboard: tokens };

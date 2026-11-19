@@ -45,10 +45,12 @@
       "Tests move with their area"). So does a line that names such a marker as a quoted string (a suite may build the marker at run
       time from 'netcheck:swpay'), and a line where a slice's anchor (a quoted string in a call of fnSrc, cut, indexOf, range,
       between, tryBetween or lineOf) holds a definition that only a part holds: a function, a net. function or a var declared at the
-      left margin of the part's body and nowhere in its root's own text (the review of area 1's tests, 2026-11-18). A line names a part
+      left margin of the part's body, or at the top level of its install function however far it is indented (whiteboard.js's parts keep
+      its two-space indent; the review of next area 5, 2026-11-19), and nowhere in its root's own text (the review of area 1's tests,
+      2026-11-18). A line names a part
       only by a string or a template that holds the part's file name, or where every receiver of its indexOf is a name that stands, by
       the scopes, for a read whose path names the part; a comment never names it (the review of next area 2, 2026-11-18). A cut at a
-      definition that a script of another family also holds at its left margin (net.js's own var FACE_PICS) passes only where every
+      definition that a script of another family also holds at a line's start (net.js's own var FACE_PICS) passes only where every
       receiver stands for a read of such a script. A line is excused only by naming the very part that holds the marker or the
       definition, never another part of the same root (the review of next area 3, 2026-11-18). The rules are tried on texts of their own
       first.
@@ -68,10 +70,13 @@
    7d. A count (the length of a match or of a split, made directly or through a helper of the tool's own) is never made on a part's
       whole text read by its name, on parts named at run time or on a root's own lines: such a count was made over the whole joined
       file before the cut, so a new occurrence elsewhere in the family would pass unseen. It is made with checkkit.familyCount (the
-      review of next area 4, 2026-11-19). A count on a slice is not judged. The rule is tried on a text of its own first.
+      review of next area 4, 2026-11-19). A count on a slice is not judged. A name is read by the scopes, as the language reads it (a
+      function's parameter or an inner block's own declaration is another name; the review of next area 5). The rule is tried on a text
+      of its own first.
    7e. A helper of a tool that reads a root's joined text and cuts at 'function ' + a name it is handed is judged on every name it is
       handed (a string argument, or the strings of an array it is handed by map or forEach): where only a part holds that definition,
-      the helper reads the file that holds it, through checkkit.defOf (the review of next area 4, 2026-11-19). Tried on a text first.
+      the helper reads the file that holds it, through checkkit.defOf (the review of next area 4, 2026-11-19), which finds a definition
+      however far it is indented, as whiteboard.js's are (the review of next area 5). Tried on texts first.
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
    bytes for a root git keeps byte for byte (net.js), the text with CRLF read as LF for the others, with one line ending throughout.
    It needs the parser Node ships, so it runs itself again with --expose-internals. */
@@ -449,17 +454,37 @@ function pageCalls(name, bundle, key) {
         names.forEach(n => { if (n.indexOf('split:') !== 0 && rootRaw.indexOf('[' + n + '-') < 0) byPart7.push([n, p]); });   // a suite's markers, never the split's own body lines
     });
     // the definitions only a part holds: each line of its body that begins a function, a net. function or a var at the left margin,
-    // up to and including its "(" or "=", where the root's own text (its lines that stayed) holds no such text
-    const defs7 = [];   // [the definition's text, e.g. "function attRowAlts(", the part that holds it]
+    // and each statement at the top level of its install function's body however far it is indented (whiteboard.js's code keeps a
+    // two-space indent in wbblast.js and its kin, and a few of its lines stand at the left margin, so no one indent is the part's own:
+    // the parser says which statements are top-level; the review of next area 5, 2026-11-19), up to and including its "(" or "=",
+    // where the root's own text (its lines that stayed) holds no such text
+    const DEF7 = /^(?:function [A-Za-z0-9_$]+\(|net\.[A-Za-z0-9_$]+ = function\(|var [A-Za-z0-9_$]+ =)/;
+    // topDefs7: the definitions at the top level of a part's install function, each as DEF7 reads the text where the statement starts;
+    // null where the text does not parse or holds no install function
+    function topDefs7(acorn, txt) {
+        let ast; try { ast = acorn.parse(txt, { ecmaVersion: 'latest', sourceType: 'module', allowHashBang: true }); } catch (e) { return null; }
+        const inst = ast.body.filter(s => s.type === 'ExportNamedDeclaration' && s.declaration && s.declaration.type === 'FunctionDeclaration')[0];
+        if (!inst) return null;
+        const out = [];
+        inst.declaration.body.body.forEach(s => { const m = DEF7.exec(txt.slice(s.start, s.start + 300)); if (m) out.push(m[0]); });
+        return out;
+    }
+    const defs7 = [], topBad7 = [];   // [the definition's text, e.g. "function attRowAlts(", the part that holds it]; parts the parser could not read
     parts.forEach(p => {
         const rootRaw = srcjoin.raw(srcjoin.rootOf(p), 'latin1').replace(/\r\n/g, '\n'), body = srcjoin.raw(p, 'latin1').replace(/\r\n/g, '\n');
-        const seen = new Set();
-        (body.match(/^(?:function [A-Za-z0-9_$]+\(|net\.[A-Za-z0-9_$]+ = function\(|var [A-Za-z0-9_$]+ =)/gm) || []).forEach(d => {
+        const seen = new Set(), top = topDefs7(L.acorn(), body);
+        if (!top) topBad7.push(p);
+        (body.match(new RegExp(DEF7.source, 'gm')) || []).concat(top || []).forEach(d => {
             if (seen.has(d)) return; seen.add(d);
             if (rootRaw.indexOf(d) < 0) defs7.push([d, p]);
         });
     });
-    // A definition a part holds may also stand at the left margin of a script of another family: net.js keeps its own var FACE_PICS, as
+    // tried on a text of its own: an indented function and var under the install function are read, a nested function, a var inside a
+    // block and an async function are not, and a net. function at the left margin is read as before
+    const tryTop7 = JSON.stringify(topDefs7(L.acorn(), "import { a } from './x.js';\nexport function inst() {\n  function one(a) { function nested() {} }\n  var two = 1;\nnet.three = function() {};\n  if (a) { var four = 2; }\n  async function five() {}\n  return { one: one };\n}\n"));
+    check('7. the rule that a part\'s definitions are its install function\'s top-level statements however far they are indented, tried on a text of its own: an indented function and var and a net. function are read, a nested function, a var inside a block and an async function are not', tryTop7 === JSON.stringify(['function one(', 'var two =', 'net.three = function(']), tryTop7);
+    check('7. every part\'s install function is read by the parser (' + parts.length + ' parts)', topBad7.length === 0, topBad7);
+    // A definition a part holds may also stand at a line's start in a script of another family: net.js keeps its own var FACE_PICS, as
     // systemcore.js's part cleancore.js does. A line that cuts at such a definition is excused only where every text it cuts is read
     // from such a script: each receiver of its indexOf is a name bound (below, binds7) to a read whose path names that script, as
     // netcheck's src is to net.js, so the line reads that script's own definition and no part's (the review of next area 2)
@@ -470,11 +495,11 @@ function pageCalls(name, bundle, key) {
     // select and input, whose words other scripts hold inside longer anchors). The literal is a string's value, so an escaped line
     // break is a real one, as the part's text read with CRLF as LF holds it.
     const partTxt7 = {}, partHas7 = (p, s) => (partTxt7[p] = partTxt7[p] || srcjoin.raw(p, 'latin1').replace(/\r\n/g, '\n')).indexOf(s) >= 0;
-    const elsewhere7 = new Map();   // "the definition|its part" -> the scripts of other families that hold it at the left margin too
+    const elsewhere7 = new Map();   // "the definition|its part" -> the scripts of other families that hold it at a line's start too
     defs7.forEach(([d, p]) => {
         const fam = famOf7(p);
         elsewhere7.set(d + '|' + p, fs.readdirSync(SCRIPTS).filter(f => /\.js$/.test(f) && !fam.has(f)
-            && fs.readFileSync(path.join(SCRIPTS, f), 'latin1').replace(/\r\n/g, '\n').split('\n').some(l => l.indexOf(d) === 0)));
+            && fs.readFileSync(path.join(SCRIPTS, f), 'latin1').replace(/\r\n/g, '\n').split('\n').some(l => l.replace(/^[ \t]+/, '').indexOf(d) === 0)));   // at a line's start, however far it is indented (the review of next area 5)
     });
     // binds7: which script files a name of a tool stands for, where it is read. A name set by a declaration stands for every file a string
     // of its value names (kit.part('cleancore.js'), a readFileSync of a path ending in net.js) and every file a name in its value stands
@@ -800,13 +825,36 @@ function pageCalls(name, bundle, key) {
     const name7d = c => c.type === 'Identifier' ? c.name : (c.type === 'MemberExpression' && !c.computed && c.property.type === 'Identifier' ? c.property.name : null);
     const strip7d = x => { while (x && x.type === 'CallExpression' && x.callee.type === 'MemberExpression' && !x.callee.computed && /^(replace|toString|trim)$/.test(x.callee.property.name)) x = x.callee.object; return x; };
     const parse7d = (acorn, src) => { try { return acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script', allowAwaitOutsideFunction: true, allowReturnOutsideFunction: true, allowHashBang: true, locations: true }); } catch (e) { return null; } };
+    // A name is read by the scopes, as the language reads it (the review of next area 5, 2026-11-19: one map of names for the whole tool
+    // marked an arrow's parameter t as a part's text wherever a `const t = kit.part(...)` stood before it, and a `const t` of an inner
+    // block took the mark off the outer t, so a count on the outer t passed). A function's scope holds its parameters, its own name and
+    // the var and function declarations of its body (hoisted, but not those of a function inside it); a block's (a block, a for, a
+    // switch, a catch) holds its let, const, class and function declarations and a catch's parameter. Each such name is bound as
+    // holding no text where it is declared; a declarator or an assignment then sets the binding the name resolves to (the innermost
+    // scope that declares it; an assignment to a name no scope declares binds it in the program's). Each binding says the whole text
+    // it holds (or null) and, for a helper, the places of the arguments it counts on.
+    const isFn7d = n => n && /^(ArrowFunctionExpression|FunctionExpression|FunctionDeclaration)$/.test(n.type);
+    const patIds7d = (p, out) => {
+        if (!p) return out;
+        if (p.type === 'Identifier') out.push(p.name);
+        else if (p.type === 'ObjectPattern') p.properties.forEach(q => patIds7d(q.type === 'RestElement' ? q.argument : q.value, out));
+        else if (p.type === 'ArrayPattern') p.elements.forEach(e => patIds7d(e, out));
+        else if (p.type === 'RestElement') patIds7d(p.argument, out);
+        else if (p.type === 'AssignmentPattern') patIds7d(p.left, out);
+        return out;
+    };
     function counts7d(acorn, src) {
         const ast = parse7d(acorn, src); if (!ast) return [{ line: 0, what: 'a text that does not parse' }];
-        const out = [], vars = new Map(), helpers = new Map();   // a name -> the whole text it holds; a helper -> the places of its arguments it counts on
+        const out = [];
+        const scope = parent => ({ map: new Map(), parent });
+        const prog = scope(null);
+        const resolve = (name, sc) => { for (let s = sc; s; s = s.parent) if (s.map.has(name)) return s.map.get(name); return null; };
+        const bindNone = (sc, name) => { if (!sc.map.has(name)) sc.map.set(name, { text: null, helper: null }); };
+        let cur = prog;   // the innermost scope at the node being walked
         // the whole text a node reads: a part by its name (kit.part, srcjoin.raw), a part named at run time, or a root's own lines
         const textOf = x => {
             x = strip7d(x); if (!x) return null;
-            if (x.type === 'Identifier') return vars.get(x.name) || null;
+            if (x.type === 'Identifier') { const b = resolve(x.name, cur); return (b && b.text) || null; }
             if (x.type !== 'CallExpression') return null;
             const nm = name7d(x.callee); if (nm !== 'part' && nm !== 'raw') return null;
             const a = x.arguments[0]; if (!a) return null;
@@ -818,18 +866,50 @@ function pageCalls(name, bundle, key) {
         const countOn = n => { if (n.type !== 'MemberExpression' || n.computed || n.property.name !== 'length') return null; let o = n.object; if (o.type === 'LogicalExpression') o = o.left; return o.type === 'CallExpression' && o.callee.type === 'MemberExpression' && !o.callee.computed && /^(match|split)$/.test(name7d(o.callee)) ? o.callee.object : null; };
         // a helper of the tool's own that counts on one of its parameters: the places of those parameters
         const helperOf = fn => { const ps = fn.params.map(p => (p.type === 'Identifier' ? p.name : null)), at = new Set(); const w = n => { const r = countOn(n); if (r && r.type === 'Identifier' && ps.indexOf(r.name) >= 0) at.add(ps.indexOf(r.name)); kids7d(n).forEach(w); }; w(fn.body); return at.size ? at : null; };
+        // the var names a function's body declares, in it and its blocks but not in a function inside it
+        const varsIn = body => { const o = []; const w = n => { if (!n || typeof n.type !== 'string' || isFn7d(n)) return; if (n.type === 'VariableDeclaration' && n.kind === 'var') n.declarations.forEach(d => patIds7d(d.id, o)); kids7d(n).forEach(w); }; w(body); return o; };
+        // a block's own declarations, bound in its scope before it runs: let, const, class, and a function with what it counts on
+        const lexical = (stmts, sc) => (stmts || []).forEach(s => {
+            if (s.type === 'VariableDeclaration' && s.kind !== 'var') s.declarations.forEach(d => patIds7d(d.id, []).forEach(nm => bindNone(sc, nm)));
+            else if (s.type === 'ClassDeclaration' && s.id) bindNone(sc, s.id.name);
+            else if (s.type === 'FunctionDeclaration' && s.id) sc.map.set(s.id.name, { text: null, helper: helperOf(s) });
+        });
+        const inScope = (sc, f) => { const was = cur; cur = sc; try { f(); } finally { cur = was; } };
+        const BLOCK = /^(BlockStatement|ForStatement|ForInStatement|ForOfStatement|SwitchStatement|CatchClause|StaticBlock)$/;
         const walk = n => {
-            if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
-                if (/Function/.test(n.init.type)) { const h = helperOf(n.init); if (h) helpers.set(n.id.name, h); else helpers.delete(n.id.name); }
-                else { const t = textOf(n.init); if (t) vars.set(n.id.name, t); else vars.delete(n.id.name); }
-            } else if (n.type === 'FunctionDeclaration' && n.id) { const h = helperOf(n); if (h) helpers.set(n.id.name, h); else helpers.delete(n.id.name); }
-            else if (n.type === 'AssignmentExpression' && n.left.type === 'Identifier') { const t = textOf(n.right); if (t) vars.set(n.left.name, t); else vars.delete(n.left.name); }
+            // a count, or a helper handed a whole text, is judged first, on the names as they stand here
             const r = countOn(n), t = r && textOf(r);
             if (t) out.push({ line: n.loc.start.line, what: t });
-            if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && helpers.has(n.callee.name)) helpers.get(n.callee.name).forEach(i => { const ti = n.arguments[i] && textOf(n.arguments[i]); if (ti) out.push({ line: n.loc.start.line, what: ti }); });
+            if (n.type === 'CallExpression' && n.callee.type === 'Identifier') { const b = resolve(n.callee.name, cur); if (b && b.helper) b.helper.forEach(i => { const ti = n.arguments[i] && textOf(n.arguments[i]); if (ti) out.push({ line: n.loc.start.line, what: ti }); }); }
+            if (isFn7d(n)) {
+                const sc = scope(cur);
+                if (n.type === 'FunctionExpression' && n.id) bindNone(sc, n.id.name);
+                n.params.forEach(p => patIds7d(p, []).forEach(nm => bindNone(sc, nm)));
+                varsIn(n.body).forEach(nm => bindNone(sc, nm));
+                if (n.body.type === 'BlockStatement') lexical(n.body.body, sc);
+                inScope(sc, () => { n.params.forEach(walk); if (n.body.type === 'BlockStatement') n.body.body.forEach(walk); else walk(n.body); });
+                return;
+            }
+            if (BLOCK.test(n.type)) {
+                const sc = scope(cur);
+                if (n.type === 'BlockStatement' || n.type === 'StaticBlock') lexical(n.body, sc);
+                else if (n.type === 'SwitchStatement') n.cases.forEach(c => lexical(c.consequent, sc));
+                else if (n.type === 'CatchClause') patIds7d(n.param, []).forEach(nm => bindNone(sc, nm));
+                else [n.init, n.left].forEach(d => { if (d && d.type === 'VariableDeclaration' && d.kind !== 'var') d.declarations.forEach(x => patIds7d(x.id, []).forEach(nm => bindNone(sc, nm))); });
+                inScope(sc, () => kids7d(n).forEach(walk));
+                return;
+            }
+            if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
+                let b = resolve(n.id.name, cur); if (!b) { bindNone(cur, n.id.name); b = cur.map.get(n.id.name); }
+                if (isFn7d(n.init)) { b.helper = helperOf(n.init); b.text = null; } else { b.text = textOf(n.init); b.helper = null; }
+            } else if (n.type === 'AssignmentExpression' && n.operator === '=' && n.left.type === 'Identifier') {
+                let b = resolve(n.left.name, cur); if (!b) { bindNone(prog, n.left.name); b = prog.map.get(n.left.name); }
+                b.text = textOf(n.right);
+            }
             kids7d(n).forEach(walk);
         };
-        walk(ast);
+        varsIn(ast).forEach(nm => bindNone(prog, nm)); lexical(ast.body, prog);
+        ast.body.forEach(walk);
         return out;
     }
     const tryCounts7d = () => {
@@ -840,6 +920,18 @@ function pageCalls(name, bundle, key) {
         return JSON.stringify(got.map(o => o.line)) === '[2,3,4,5]' && got[1].what === 'wbbuild.js' && got[2].what === 'a part named at run time' && got[3].what === "whiteboard.js's own lines";
     };
     check('7d. the rule tried on a text of its own: a count on a part read by name, through a helper of the tool\'s own, over parts named at run time and on a root\'s own lines is named, each once; a count made with familyCount, or on a slice, is not', tryCounts7d());
+    // the scopes (the review of next area 5): an arrow's parameter t is not the part's text a t outside it holds (the false count the
+    // review found), nor is a var t of a function inside; an inner block's own const t takes no mark off the outer t, so a count on the
+    // outer t after it is named (the count the one map of names let pass)
+    const tryScopes7d = () => {
+        const txt = ["const t = kit.part('wbbuild.js'); const lens = [kit.cut('wbgen.js', 'a', 'b')].map(t => (t.match(/x/g) || []).length);",
+            "{ const t = 'abc'; check(7, t.split('q').length === 1); } (function () { var t = 'z'; return t.split('q').length; })();",
+            "function f(t) { return t.split('w').length; } f('abc');",
+            "check(8, t.split('q').length === 2);"].join('\n');
+        const got = counts7d(L.acorn(), txt);
+        return JSON.stringify(got.map(o => o.line)) === '[4]' && got[0].what === 'wbbuild.js';
+    };
+    check('7d. the rule reads a name by the scopes, tried on a text of its own: an arrow\'s parameter, a function\'s parameter and a function\'s own var that share the name of a part\'s text outside them are not named, and a count on that outer name after an inner block declared the same name is', tryScopes7d());
     const bad7d = []; let tools7d = 0;
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7d++; counts7d(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n')).forEach(o => bad7d.push(f + ':' + o.line + ' counts on ' + o.what + ', a subset of its family: count with checkkit.familyCount')); });
     check('7d. no tool counts on a part\'s whole text or on a root\'s own lines: a count compared with a figure is made over the whole family (' + tools7d + ' tools read by the parser)', tools7d > 50 && bad7d.length === 0, bad7d.slice(0, 20));
@@ -850,8 +942,9 @@ function pageCalls(name, bundle, key) {
     // helpers, each over the joined sheets.js, cut functions that now stand in the System editor's parts). Each helper of a tool whose
     // body reads a root's joined text and builds such an anchor from one of its parameters is found, and each name it is handed (a
     // string argument, or each string of an array handed it by map or forEach, written in place or a name set to one) is judged as a
-    // definition: where "function name(" stands at the left margin of a part and not in its root's own lines, the helper reads the
-    // file by name instead, as checkkit.defOf answers the file of the family that holds a definition. Tried on a text of its own first.
+    // definition: where "function name(" stands at a line's start in a part (at its install function's top level, however far
+    // indented) and not in its root's own lines, the helper reads the file by name instead, as checkkit.defOf answers the file of the
+    // family that holds a definition. Tried on a text of its own first.
     const defOnly7e = new Map();   // "root|function name(" -> the part that holds it, for each definition only a part holds
     defs7.forEach(([d, p]) => { if (/^function /.test(d)) defOnly7e.set(srcjoin.rootOf(p) + '|' + d, p); });
     function defs7e(acorn, src) {
@@ -910,6 +1003,18 @@ function pageCalls(name, bundle, key) {
         return JSON.stringify(got.map(o => o.line)) === '[4,3,8]';
     };
     check('7e. the rule tried on a text of its own: a helper over the joined sheets.js that cuts at "function " and the name it is handed, called with the name of a definition only a part holds, directly, through a name set to an array and through an array written in place, is named three times; the same helper reading the file through checkkit.defOf is not', tryDefs7e());
+    // whiteboard.js's code keeps a two-space indent, in its own lines and in its parts, so its definitions only a part holds are judged
+    // here too (the review of next area 5): a helper that builds '\n  function ' + a name is a helper, and checkkit.defOf answers the
+    // part that holds an indented definition, and the root's own lines for one the root holds
+    const tryIndent7e = () => {
+        const d = [...defOnly7e.keys()].filter(k => k.indexOf('whiteboard.js|') === 0)[0]; if (!d) return false;
+        const nm = d.slice('whiteboard.js|function '.length, -1), q = JSON.stringify(nm), p = defOnly7e.get(d);
+        const got = defs7e(L.acorn(), ["const wb = rootRead('system/app/scripts/whiteboard.js');", "const cut = name => wb.slice(wb.indexOf('\\n  function ' + name + '('), 9);", 'check(1, cut(' + q + '));'].join('\n'));
+        const kc = require('./checkkit'), own = kc.defOf('whiteboard.js', nm), root = kc.defOf('whiteboard.js', 'renderWhiteboard');
+        return got.length === 1 && got[0].line === 3 && own === kc.part(p) && own.indexOf('  function ' + nm + '(') >= 0
+            && root === srcjoin.raw('whiteboard.js', 'utf8').replace(/\r\n/g, '\n') && root.indexOf('\n  function renderWhiteboard(') >= 0;
+    };
+    check('7e. the rule on an indented family, tried on a text of its own: a helper over the joined whiteboard.js that cuts at a newline, two spaces and "function " and the name it is handed is named for a definition only a part holds; checkkit.defOf answers that part for it, and whiteboard.js\'s own lines for one they hold (renderWhiteboard)', tryIndent7e());
     const bad7e = []; let tools7e = 0;
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7e++; defs7e(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n')).forEach(o => bad7e.push(f + ':' + o.line + ' cuts at ' + o.what + ', through a helper over the joined root: read it with checkkit.defOf')); });
     check('7e. no helper of a tool cuts a definition only a part holds out of the joined root by a name built at run time (' + defOnly7e.size + ' such definitions, ' + tools7e + ' tools read by the parser)', defOnly7e.size > 0 && tools7e > 50 && bad7e.length === 0, bad7e.slice(0, 20));

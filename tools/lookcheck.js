@@ -3768,7 +3768,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const wantNo = [false, false, false, false, true, false, true, false, false, false, false, true, false, true];
     const odd = [run(undefined).no, run({ web: () => { throw new Error('x'); }, joinOnly: () => false, has: () => false }).no, run({ web: () => true, joinOnly: () => false }).no];
     const words = a > 0 && b > a ? run(undefined).words : '';
-    const up = (() => { const i = wb.indexOf('function uploadImageFile('), j = wb.indexOf("toast('Uploading image...')", i); return i > 0 && j > i ? wb.slice(i, j) : ''; })();
+    const up = (() => { const i = wbIP.indexOf('function uploadImageFile('), j = wbIP.indexOf("toast('Uploading image...')", i); return i > 0 && j > i ? wbIP.slice(i, j) : ''; })();   // wbimglib.js's, read by its name
     const tImg = up.indexOf("if(!f || !f.type.startsWith('image/')) return;"), tOwn = up.indexOf('wpCanPersistLocal()) {'), tPlan = up.indexOf('if (webNoUploads()) { toast(NO_UPLOAD_WORDS); return; }');
     const drop = (() => { const i = wb.indexOf("wbWrap.addEventListener('drop'"), j = wb.indexOf('uploadImageFile(f,', i); return i > 0 && j > i ? wb.slice(i, j) : ''; })();
     const ioS = read('scripts/io.js');

@@ -27,7 +27,8 @@
      occurrence in another file of the family would pass unseen (the review of next area 4, 2026-11-19; splitcheck point 7d holds it).
    - defOf(root, name): the text (CRLF read as LF) of the one file of a split root's family that holds the top-level definition
      "function name(": the root's own lines, or a part read by its name, found where the joined text first holds it at a line's
-     start; null where no file does. A helper that cuts a function out by a name built at run time ('function ' + name) cuts it from
+     start, however far indented (the least indented such line: whiteboard.js's code keeps a two-space indent; the review of next
+     area 5); null where no file does. A helper that cuts a function out by a name built at run time ('function ' + name) cuts it from
      this text, so the area's tests read the code where it now lives (the review of next area 4; splitcheck point 7e holds it).
    - sheetsSlicer(label), plainPage(): systemcheck's slicer of the joined sheets.js and its page of plain objects, as its lighting
      block defines them, for the blocks that came out of it (timerulecheck's K5 scope).
@@ -105,10 +106,17 @@ function familyCount(root, x) {
 // root's own lines through srcjoin.raw, a part by its name), CRLF read as LF; null where no line of the family begins so. A helper
 // that slices a function out by a name it is handed slices it from this text: the same slice, read where the code lives.
 const defCache = new Map();
+// A line's start may be indented (whiteboard.js's code keeps a two-space indent, in its own lines and in its parts): of the lines that
+// begin, after spaces or tabs, with "function name(", the least indented is the definition, the first of those where several are (the
+// review of next area 5, 2026-11-19); for a family whose definitions stand at the left margin that is the first line there, as before.
 function defOf(root, name) {
     if (!srcjoin.isRoot(root)) throw new Error('checkkit: ' + root + ' is not a split root');
     const t = famOf(root), need = 'function ' + name + '(';
-    const at = t.indexOf(need) === 0 ? 0 : (t.indexOf('\n' + need) + 1 || -1);   // the definition's line start, or -1 for none
+    let at = -1, ind = Infinity;   // the definition's line start, or -1 for none, and its indent
+    for (let i = t.indexOf(need); i >= 0 && ind > 0; i = t.indexOf(need, i + 1)) {
+        const ls = t.lastIndexOf('\n', i - 1) + 1, pre = t.slice(ls, i);
+        if (/^[ \t]*$/.test(pre) && pre.length < ind) { ind = pre.length; at = ls; }
+    }
     if (at < 0) return null;
     const w = srcjoin.where(root, t.slice(0, at).split('\n').length);
     if (!w) return null;

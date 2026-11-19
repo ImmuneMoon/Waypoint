@@ -341,11 +341,11 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         posted.length = 0; ctx.net.callsAfter(camp, rl(FS, 'r_atk'), false, S.makeResolver(FS, chars.c_ship, F), chars.c_ship, true);
         check('All crew posts to every one, an NPC’s to the GM, and a private roll’s to the GM alone', J(posted.map(p => [p[0], p[3]])) === J([['c_g', false], ['c_p', false], ['c_n', false]]), J(posted));
         check('Save says what it does with a crew card it cannot keep: no station ticked, or a card to the roller, goes to the character instead', J(S.crewDrops({ calls: [{ roll: 'r_dmg', crew: [] }, { roll: 'r_dmg', crew: 'all' }, { roll: 'r_dmg', when: 'resisted', to: 'self', crew: 'all' }, { roll: 'r_dmg' }] })) === J(['Calls for' + S.CREW_NONE, 'Calls for cannot go to the crew here, so Save sends the card to the character.']) && /none is ticked/.test(S.CREW_NONE), J(S.crewDrops({ calls: [{ roll: 'r_dmg', crew: [] }] })));
-        check('the editor says a Major Wound\u2019s or an Any wound row\u2019s crew card with no station ticked', /warn\('A Major Wound' \+ CREW_NONE\)/.test(read('scripts/sheets.js')) && /warn\('Any wound' \+ CREW_NONE\)/.test(read('scripts/sheets.js')) && /crewDrops\(r\)\.forEach/.test(read('scripts/sheets.js')));
+        check('the editor says a Major Wound\u2019s or an Any wound row\u2019s crew card with no station ticked', /warn\('A Major Wound' \+ CREW_NONE\)/.test(read('scripts/sheets.js')) && /warn\('Any wound' \+ CREW_NONE\)/.test(read('scripts/sheets.js')) && /crewDrops\(r\)\.forEach/.test(require('./checkkit').part('sysederr.js')));
         const shF = read('scripts/sheets.js'), fbF = read('scripts/formbox.js');
         check('the System editor offers a random row as a change’s target with its own box, and who a call’s card goes to on Calls for, a Major Wound and Any wound; their formulas are forms reading the list’s rows',
             /^function randTargets\(ch\) \{/m.test(shF) && /^function randBox\(ch\) \{/m.test(shF) && /^function crewPick\(obj, redraw\) \{/m.test(shF) && /if \(v\.indexOf\('rnd:'\) === 0\) \{ ch\.rand = v\.slice\(4\);/.test(shF)
-            && /rw\.appendChild\(crewPick\(c, draw\)\)/.test(shF) && /rM\.appendChild\(crewPick\(om,/.test(shF) && /rw\.appendChild\(crewPick\(w,/.test(shF) && /cl\.contains\('sys-rnd-test'\) \|\| cl\.contains\('sys-rnd-next'\)/.test(shF)
+            && /rw\.appendChild\(crewPick\(c, draw\)\)/.test(require('./checkkit').part('sysedbox.js')) && /rM\.appendChild\(crewPick\(om,/.test(shF) && /rw\.appendChild\(crewPick\(w,/.test(shF) && /cl\.contains\('sys-rnd-test'\) \|\| cl\.contains\('sys-rnd-next'\)/.test(require('./checkkit').part('sysedbox.js'))
             && /'sys-rnd-test': 'cond', 'sys-rnd-next': 'amt'/.test(fbF) && /if \(f\.crew\) \{/.test(shF));
     }
     /* ---- fold (e): blasts at scale ---- */
@@ -370,7 +370,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             /l === 'blastradius' \? b\.ft \/ 3 : l === 'mapcell' \? b\.cell/.test(wbE) && /if \(l === 'mapcell'\) return blastCellOf\(b, map\); if \(l === 'hitscale'\) return S\.hitScaleOf \? S\.hitScaleOf\(sys, ch, F\)/.test(wbE)
             && (wbE.match(/env: (o\.)?b\.env, cell: /g) || []).length === 3 && /l === 'mapcell' \? blastCellOf\(b, map\) : l === 'blastscale' \? /.test(wbE) && /function blastCellOf\(b, map\) \{/.test(wbE) && /\n      blastCellOf\(b, map\);   \/\/ 1\.6\.2/.test(wbE));
         check('the Combat tab\u2019s Blasts and throws has the system\u2019s distance unit and a sheet\u2019s scale, each with its line, and the forms offer MapCell and HitScale', /^function blastScaleInto\(box, cm, bl\) \{/m.test(shE) && /labeledSelect\('sys-combat-bunit'/.test(shE) && /labeledSelect\('sys-combat-bscale'/.test(shE)
-            && /'sys-combat-bfall': \['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'\]/.test(shE) && S.nameWord(ES, 'MapCell') === 'one cell of the map' && S.nameWord(ES, 'HitScale') === 'the scale of the one it hits');
+            && /'sys-combat-bfall': \['BlastDamage', 'BlastDistance', 'BlastDice', 'Direct', 'Centre', 'BlastFills', 'BlastNoDrop', 'BlastScale', 'MapCell', 'HitScale'\]/.test(require('./checkkit').part('sysedbox.js')) && S.nameWord(ES, 'MapCell') === 'one cell of the map' && S.nameWord(ES, 'HitScale') === 'the scale of the one it hits');
     }
     /* ---- the core's gaps 213 to 216 (2026-11-05) ---- */
     {

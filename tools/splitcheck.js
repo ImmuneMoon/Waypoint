@@ -457,6 +457,12 @@ function pageCalls(name, bundle, key) {
     // from such a script: each receiver of its indexOf is a name bound (below, binds7) to a read whose path names that script, as
     // netcheck's src is to net.js, so the line reads that script's own definition and no part's (the review of next area 2)
     const famOf7 = p => { const r = srcjoin.rootOf(p); return new Set([r].concat(srcjoin.partsOf(r))); };
+    // A literal cuts at a part's definition only where the part's own text holds the whole literal: "async function close()" holds the
+    // words "function close(", which sysedbox.js defines, yet a tool that cuts at it (catalogcheck, at the Library window's own close)
+    // reads another script, since no part holds that literal (area 7, 2026-11-19, where the System editor's parts define open, close,
+    // select and input, whose words other scripts hold inside longer anchors). The literal is a string's value, so an escaped line
+    // break is a real one, as the part's text read with CRLF as LF holds it.
+    const partTxt7 = {}, partHas7 = (p, s) => (partTxt7[p] = partTxt7[p] || srcjoin.raw(p, 'latin1').replace(/\r\n/g, '\n')).indexOf(s) >= 0;
     const elsewhere7 = new Map();   // "the definition|its part" -> the scripts of other families that hold it at the left margin too
     defs7.forEach(([d, p]) => {
         const fam = famOf7(p);
@@ -564,7 +570,7 @@ function pageCalls(name, bundle, key) {
             if (!anchorCall7.test(line)) return;
             const lits = strs.get(i + 1) || [];
             defs7.forEach(([d, p]) => {
-                if (!lits.some(s => s.indexOf(d) >= 0) || names(i, p, recv)) return;
+                if (!lits.some(s => s.indexOf(d) >= 0 && partHas7(p, s)) || names(i, p, recv)) return;
                 const other = elsewhere7.get(d + '|' + p) || [];
                 if (other.length && recv.length && recv.every(([r, ra]) => other.some(x => bind(r, ra).has(x)))) return;
                 unnamed7.push(f + ':' + (i + 1) + ' cuts at "' + d + '", which only ' + p + ' holds, without naming it');
@@ -583,6 +589,14 @@ function pageCalls(name, bundle, key) {
         return got.length === 2 && got[0].indexOf('try:1 ') === 0 && got[0].indexOf('nettrade.js') >= 0 && got[1].indexOf('try:3 ') === 0 && got[1].indexOf('nettrade.js') >= 0;
     };
     check('7. the rule that a line is excused only by naming the very part that holds its marker or its definition, tried on a text of its own: a line that names netlink.js does not cover nettrade.js\'s trade marker or tradeDo, a line that names nettrade.js does', tryNames7());
+    // tried on a text of its own: a literal that holds a part's definition only inside a longer anchor no part holds cuts at nothing,
+    // and the definition itself cut on a read of another part is named (area 7, 2026-11-19)
+    const tryLit7 = () => {
+        const df = defs7.filter(x => x[1] === 'nettrade.js' && x[0] === 'function tradeDo(')[0]; if (!df) return false;
+        const got = []; unnamed7In('try', "const w = kit.part('netlink.js'); w.indexOf('async function tradeDo(x, y, z) {');\nconst u = kit.part('netlink.js'); u.indexOf('function tradeDo(');\n", got);
+        return got.length === 1 && got[0].indexOf('try:2 ') === 0;
+    };
+    check('7. the rule that a literal cuts at a part\'s definition only where the part holds the whole literal, tried on a text of its own: an anchor no part holds is no cut at the definition its words contain, and the definition itself is', tryLit7());
     const unnamed7 = [];
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => unnamed7In(f, fs.readFileSync(path.join(__dirname, f), 'utf8'), unnamed7));
     check('7. a line of a tool that holds the literal of a marker only a part holds (' + byPart7.length + ' such markers), names one as a quoted string, or cuts a slice at a definition only a part holds (' + defs7.length + ' such definitions), names that part\'s file, so the area\'s tests read it by name', byPart7.length > 0 && defs7.length > 0 && unnamed7.length === 0, unnamed7.slice(0, 20));

@@ -18,7 +18,9 @@
    - joined(name): a script's text as srcjoin answers it (a split root's joined text), with CRLF read as LF.
    - part(name): a part's own text, read by its name (srcjoin.raw), with CRLF read as LF. It throws for a file that is not a part, so
      a test that says it reads a part really does. cut(name, a, b): that text from a up to the first b after it, as a suite's own
-     slicer of the joined sheets.js cut it before the lines moved into the part.
+     slicer of the joined sheets.js cut it before the lines moved into the part. cutEnd(name, a): that text from a to the end of the
+     part's body, for a slice of the joined text that ran from a in the part to the root's first line after it (area 7: refreshErrors
+     ends sysederr.js, and a slice from it to errorCell, which stayed in sheets.js, is the part from refreshErrors to its end).
    - sheetsSlicer(label), plainPage(): systemcheck's slicer of the joined sheets.js and its page of plain objects, as its lighting
      block defines them, for the blocks that came out of it (timerulecheck's K5 scope).
    - netSlices(who): the slice helpers netcheck has at its top, over the joined net.js, each also able to read a part by name:
@@ -68,6 +70,14 @@ function cut(name, a, b) {
     const t = part(name), i = t.indexOf(a), k = t.indexOf(b, i + 1);
     if (i < 0 || k < 0) throw new Error('checkkit: ' + a + ' to ' + b + ' not found in ' + name);
     return t.slice(i, k);
+}
+
+// The text of a part read by its name, from a (included) to the end of its body (the line break before `// [split:body-end]` included):
+// what a slice of the joined text from a up to the root's first line after the part held, cut from the part that holds a.
+function cutEnd(name, a) {
+    const t = part(name), i = t.indexOf(a), k = t.indexOf('\n// [split:body-end]', i + 1);
+    if (i < 0 || k < 0) throw new Error('checkkit: ' + a + ' to the end of ' + name + ' not found');
+    return t.slice(i, k + 1);
 }
 
 // systemcheck's slicer of the joined sheets.js, as its blocks define it (cutL in the lighting L4 block): shL the text with CRLF read as
@@ -134,4 +144,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, sheetsSlicer, plainPage, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, sheetsSlicer, plainPage, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };

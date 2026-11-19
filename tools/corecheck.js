@@ -471,7 +471,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         // the render: the band is built from sys.sheet (never the auto-layout fallback) BEFORE the tab strip, its inputs tagged for focus restore
         const shSrc = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
         check('Stage 5c: buildSections renders the band from sys.sheet before the tab strip and tags its inputs with data-band (Stage 6: through bandInto)', /body\.textContent = '';[\s\S]{0,2700}?var bandDef = \(sys\.sheet && Array\.isArray\(sys\.sheet\.band\)\) \? sys\.sheet\.band : null;[\s\S]{0,900}?bandInto\(frame, bandDef, pctx\);[\s\S]{0,900}?if \(tabs && !printV\) \{/.test(shSrc) && /function bandInto\(frame, bandDef, ctx\) \{[\s\S]{0,1500}?'sheet-band'[\s\S]{0,1200}?dataset\.band = '1'/.test(shSrc) && /k\.band \? '\[data-band\]' : ':not\(\[data-band\]\)'/.test(shSrc));
-        check('Stage 5c: "Start from the automatic layout" keeps the tabs and the band; "Use the automatic layout" asks about both', /sysLayoutAuto'\) \{[\s\S]{0,700}?keepBand[\s\S]{0,700}?draft\.sheet\.band = keepBand/.test(shSrc) && /sysLayoutClear'\) \{[\s\S]{0,300}?draft\.sheet\.band[\s\S]{0,300}?no pinned band/.test(shSrc));
+        check('Stage 5c: "Start from the automatic layout" keeps the tabs and the band; "Use the automatic layout" asks about both', /sysLayoutAuto'\) \{[\s\S]{0,700}?keepBand[\s\S]{0,700}?draft\.sheet\.band = keepBand/.test(require('./checkkit').part('sysedlayout.js')) && /sysLayoutClear'\) \{[\s\S]{0,300}?draft\.sheet\.band[\s\S]{0,300}?no pinned band/.test(require('./checkkit').part('sysedlayout.js')));
     }
 
     /* ---- Stage 5d: the header block (identity rows + ledger figures, read-only) and dashboard sections ---- */
@@ -516,7 +516,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('Stage 5d: a tab opened while the frame is stuck starts at its own top (the scroll returns to where the frame sits in the flow)', /var wasStuck = body\.scrollTop > frameFlowTop\(body\);[\s\S]{0,200}?\(rerender \|\| renderSheet\)\(\);\s*if \(wasStuck\) body\.scrollTop = frameFlowTop\(body\);/.test(shSrc2) && /function frameFlowTop\(body\)/.test(shSrc2));
         const cssSrc = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
         check('Stage 5d: the frame (band + tab strip) is the ONE sticky element; the header block and the band themselves are not sticky', /\.sheet-frame \{ position: sticky; top: 0;/.test(cssSrc) && !/\.sheet-band \{ position: sticky/.test(cssSrc) && !/\.sheet-head \{[^}]*sticky/.test(cssSrc) && /#sheetBody:has\(> \.sheet-frame\)/.test(cssSrc) && !/:has\(> \.sheet-band\)/.test(cssSrc));
-        check('Stage 5d: "Start from the automatic layout" keeps the identity rows and ledger figures too', /keepId = sheetList\('identity'\), keepLed = sheetList\('ledger'\)[\s\S]{0,900}?draft\.sheet\.identity = keepId; if \(keepLed\.length\) draft\.sheet\.ledger = keepLed;/.test(shSrc2));
+        check('Stage 5d: "Start from the automatic layout" keeps the identity rows and ledger figures too', /keepId = sheetList\('identity'\), keepLed = sheetList\('ledger'\)[\s\S]{0,900}?draft\.sheet\.identity = keepId; if \(keepLed\.length\) draft\.sheet\.ledger = keepLed;/.test(require('./checkkit').part('sysedlayout.js')));
     }
 
     /* ---- Stage 5e: the gradient slider — a display option on a ranged number ---- */
@@ -631,9 +631,9 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
             && /body\.classList\.toggle\('sheet-titles-headline', look\.titles === 'headline'\);/.test(sh5) && /el\('div', 'sheet-tabs' \+ \(look\.tabs === 'filled' \? ' sheet-tabs-filled' : ''\)\)/.test(sh5)
             && /\.sheet-titles-headline \.sheet-sec-title \{/.test(css5) && /\.sheet-tabs-filled \.sheet-tab\.active \{/.test(css5));
         check('Stage 5g: "Start from the automatic layout" and "Remove your layout" keep the sheet\'s shape (it lives in the Sheet look box); the tab icon edit finds its own row (.sys-row.sys-tab)',
-            /var keepLook = [\s\S]{0,200}?draft\.sheet = \{ sections: autoLayout\(cl \|\| draft\)\.sections \}; if \(keepLook\) draft\.sheet\.look = keepLook;/.test(sh5)
-            && /var keepShape = draft\.sheet && draft\.sheet\.look; draft\.sheet = \{ sections: \[\] \}; if \(keepShape\) draft\.sheet\.look = keepShape;/.test(sh5)
-            && /if \(c\.indexOf\('sys-tab-icon'\) >= 0\) \{ var itr = t\.closest && t\.closest\('\.sys-row\.sys-tab'\);/.test(sh5));
+            /var keepLook = [\s\S]{0,200}?draft\.sheet = \{ sections: autoLayout\(cl \|\| draft\)\.sections \}; if \(keepLook\) draft\.sheet\.look = keepLook;/.test(require('./checkkit').part('sysedlayout.js'))
+            && /var keepShape = draft\.sheet && draft\.sheet\.look; draft\.sheet = \{ sections: \[\] \}; if \(keepShape\) draft\.sheet\.look = keepShape;/.test(require('./checkkit').part('sysedlayout.js'))
+            && /if \(c\.indexOf\('sys-tab-icon'\) >= 0\) \{ var itr = t\.closest && t\.closest\('\.sys-row\.sys-tab'\);/.test(require('./checkkit').part('sysedlayout.js')));
     }
 
     /* ---- Stage 5g (Fold B): captions, capital labels, a pool's icon / reset / bar, the resizable panel ---- */
@@ -913,7 +913,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         check('6 F1 review: a named value is a word — no unit after it in the header', S.headerEntry(Object.assign({}, nsys.fields[1], { unit: 'kg' }), nr1.f_enc).text === 'Medium');
         const sh6 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
         check('6 F1 review UI: a stored value past the names shows as its number in the dropdown; a saved system re-checks every character\'s values before the sync; a named value is never toned or given a unit; namesFacing reads {\u00b1…}; the editor keeps blank places and redraws only the default cell',
-            /if \(!\(curL === Math\.floor\(curL\) && curL >= 0 && curL < f\.labels\.length\)\)/.test(sh6) && /camp\.system = clean;\n    reCleanChars\(camp, clean\);/.test(sh6.replace(/\r\n/g, '\n')) && /e\.error \|\| e\.label \|\| typeof e\.value/.test(sh6)
+            /if \(!\(curL === Math\.floor\(curL\) && curL >= 0 && curL < f\.labels\.length\)\)/.test(sh6) && /camp\.system = clean;\n    reCleanChars\(camp, clean\);/.test(require('./checkkit').part('sysederr.js')) && /e\.error \|\| e\.label \|\| typeof e\.value/.test(sh6)
             && /hit\(capExpr\(m\[1\]\)\.expr\)/.test(sh6) && /while \(vn\.length && !vn\[vn\.length - 1\]\) vn\.pop\(\);/.test(sh6) && /if \(dcV\) buildDefCell\(dcV, f\);/.test(sh6));
         check('6 F1 UI: a named number draws as a dropdown of its names (text only), the header never makes it an editable number, and the editor has a Value names box with a default picked from the names',
             /if \(k === 'number' && Array\.isArray\(f\.labels\) && f\.labels\.length\) \{   \/\/ Stage 6/.test(sh6) && /if \(ledger && f\.kind === 'number' && !f\.labels && /.test(sh6) && /input\('sys-vnames field'/.test(sh6) && /select\('sys-def-lbl'/.test(sh6));
@@ -1111,7 +1111,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         pendR.v1 = { charId: 'c_1', fieldId: 'f_x', value: 9, timer: null }; cr.values.f_x = 9; PR.charPendingDone('v1', false, 'slow');
         check('6 F4a client: a pending pickup into a stack is worked out once from the host\'s copy however many copies or refusals arrive (it was applied again each time); a refused value goes back to the host\'s', q2x === 2 && cr.values.f_x === 3 && cr.values.f_gear[0].qty === 2, j(cr.values));
         // gmFacing (sliced from sheets.js): what decides a resend of the owners' inline copies after a system save
-        const shG = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), gfS = shG.slice(shG.indexOf('// [systemcheck:gmfacing-start]'), shG.indexOf('// [systemcheck:gmfacing-end]'));
+        const shG = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), gfS = require('./checkkit').cut('sysedbox.js', '// [systemcheck:gmfacing-start]', '// [systemcheck:gmfacing-end]');
         const gmFacing = new Function('cleanRowDef', gfS + '\nreturn gmFacing;')(S.cleanRowDef), gf0 = gmFacing(R4), gfEdit = fn => { const s = JSON.parse(JSON.stringify(R4)); fn(s); return gmFacing(s); };
         check('6 F4a: gmFacing — a GM-only item\'s name, notes, category or icon changes what its owner holds (a resend); its damage, cost, removal rule or message, and a visible item\'s edit, do not',
             gfS.length > 0 && ['name', 'notes', 'category', 'icon'].every(k => gfEdit(s => { s.items[1][k] = 'Z'; }) !== gf0) && gfEdit(s => { s.items[1].damage = '9d6'; s.items[1].cost = '1'; s.items[1].rm = 'curse'; s.items[1].rmMsg = 'x'; }) === gf0 && gfEdit(s => { s.items[0].name = 'Cord'; }) === gf0);
@@ -1123,7 +1123,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
         const sh4 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
         check('6 F4a UI: rows drawn through rowDef and addressed by row id; controls inert in the preview and a pop-out; a lost copy marked with Make custom for the GM; the editor\'s removal rule and message; the GM throws a GM-only item; every item has the same controls on a player\'s sheet; a pickup opens its Undo; a save keeps copies of deleted items, keys legacy GM-only rows and resends GM-only inline copies',
             /editable = editable && _fxLive; canThrow = canThrow && _fxLive;/.test(sh4) && /var rd = rowDef\(sysI, entry\), def = rd \? rd\.def : null; if \(!def\) return;/.test(sh4) && /commitItem\(c, f, \{ op: 'keep', rowId: rowIdOf\(entry\) \}\)/.test(sh4)
-            && /select\('sys-item-rmmode'/.test(sh4) && /input\('sys-item-rmtext field'/.test(sh4) && (sh4.match(/def\.area && canThrow && \(gm \|\| def\.vis !== 'gm'\) && entry\.hid !== 1/g) || []).length === 2 && /stampRows\(clean, camp\.chars \|\| \{\}\)/.test(sh4) && !/canRm/.test(sh4) && /if \(r && r\.error\) toast\(r\.error\); else undoFollow\(r\);/.test(sh4) && /if \(ownerSeesSame\(camp, sys, prev, res\.value, f\.id\)\) d = \{\};/.test(sh4) && /commitItem\(c, f, \{ op: 'undo', rowId: rid, qty: n \}\)/.test(sh4) && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(sh4) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(sh4) && !/commitItem\(c, f, '/.test(sh4));
+            && /select\('sys-item-rmmode'/.test(sh4) && /input\('sys-item-rmtext field'/.test(sh4) && (sh4.match(/def\.area && canThrow && \(gm \|\| def\.vis !== 'gm'\) && entry\.hid !== 1/g) || []).length === 2 && /stampRows\(clean, camp\.chars \|\| \{\}\)/.test(require('./checkkit').part('sysederr.js')) && !/canRm/.test(sh4) && /if \(r && r\.error\) toast\(r\.error\); else undoFollow\(r\);/.test(sh4) && /if \(ownerSeesSame\(camp, sys, prev, res\.value, f\.id\)\) d = \{\};/.test(sh4) && /commitItem\(c, f, \{ op: 'undo', rowId: rid, qty: n \}\)/.test(sh4) && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(require('./checkkit').part('sysederr.js')) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(require('./checkkit').part('sysederr.js')) && !/commitItem\(c, f, '/.test(sh4));
     }
 
     await T.finish();

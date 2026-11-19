@@ -297,7 +297,7 @@ const J = JSON.stringify;
                 && BC.bodyOfferOk(K.camp.system, K.camp.chars.c_ogre, 'w_r') === true && BC.bodyOfferOk(K.camp.system, K.camp.chars.c_ogre, 'w_b') === false && BC.bodyOfferOk(K.camp.system, K.camp.chars.c_ogre, 'w_s') === false, J([kv, K.camp.chars.c_ogre.values]));
             const ntR = read('scripts/net.js'), shR = read('scripts/sheets.js').replace(/\r\n/g, '\n'), suR = read('scripts/sysui.js');
             check('a body the player cannot see answers nothing and an open window on one is closed; a change of the Bodies rule sends every map\u2019s chests again; the rule\u2019s error stands in the Bodies topic',
-                ntR.includes("if (!boxSeenBy(campB, mapB, wB, prB.id)) return;") && ntR.includes("!allyNear(map, tok, w, true) || !boxSeenBy(camp, map, w, pr.id)) { shut(peer);") && shR.includes("n.lootMoved(null);   /* the review of fold 3a")
+                ntR.includes("if (!boxSeenBy(campB, mapB, wB, prB.id)) return;") && ntR.includes("!allyNear(map, tok, w, true) || !boxSeenBy(camp, map, w, pr.id)) { shut(peer);") && require('./checkkit').part('sysederr.js').includes("n.lootMoved(null);   /* the review of fold 3a")
                 && suR.includes("var ERR_TOPIC = { bodies: ['combat', 'bodies'],") && suR.includes("var PROP_BOX = [[/^loot$/, ['sys-loot-if']], ") && shR.includes("var err = errorCell('bodies'); err.dataset.errFor = 'bodies';"));
         }
         {   // fold 3b: pickpocketing (the owner: "A. Right-click an NPC next to them"; the NPC resists; a success shows one row at random)

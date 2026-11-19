@@ -165,7 +165,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const sh2 = read('scripts/sheets.js'), slS = sh2.slice(sh2.indexOf('// [bodycheck:standsays-start]'), sh2.indexOf('// [bodycheck:standsays-end]')), says = new Function(slS + '; return standSays;')();
         const dice = n => J(n).includes('"dice"') || J(n).includes('"type":"dice"'), ok = () => true, no = () => false;
         check('what Save drops of a place is said, and why, so no formula quietly does nothing', J(says({ from: 'f_t', reach: 'At.Sec > 0' }, { from: 'f_t' }, F, dice, ok)).includes('Reaches reads a GM-only value') && J(says({ from: 'f_t', counts: 'Row.' }, { from: 'f_t' }, F, dice, ok)).includes('Counts where is no formula Save can keep') && says({ from: 'f_t' }, null, F, dice, ok)[0].includes('that list is not there') && J(says({ from: 'f_t', fits: 'At.Sec > 0' }, { from: 'f_t', fits: 'At.Sec > 0' }, F, dice, no)).includes('their own moves are not refused by it') && says({ from: 'f_t', fits: 'At.N > 0' }, { from: 'f_t', fits: 'At.N > 0' }, F, dice, ok).length === 0, J(says({ from: 'f_t', counts: 'Row.' }, { from: 'f_t' }, F, dice, ok)));
-        check('and it is said under the list, from what the cleaner kept', sh2.includes("standSays(f.list.stand, cf && cf.list ? cf.list.stand : null, F(), hasDice,"));
+        check('and it is said under the list, from what the cleaner kept', require('./checkkit').part('sysederr.js').includes("standSays(f.list.stand, cf && cf.list ? cf.list.stand : null, F(), hasDice,"));
     }
     /* ---- fold 3: tiles ---- */
     {

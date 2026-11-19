@@ -1548,6 +1548,9 @@ function endTurn() { var n = net(), r = n && n.turnEnd ? n.turnEnd() : { error: 
 
 /* ---------- the sheet panel ---------- */
 var sheetOpen = null, lastChange = null;
+// 1.6.3 (the split, area 7 of docs/REFACTOR_SPLIT_PLAN.md): the restoring of a rest (sysedcal.js, a part of this file) sets the change
+// Revert takes back through this setter, since a part may not assign a name of its root (it reads it through a live import)
+function lastChangeSet(v) { lastChange = v; }
 function lastChangePeek() { return lastChange; }   // the change Revert would take back, as the sheet's text box reads it
 // [systemcheck:restrev-start]
 // 1.6.2 (the owner, 2026-11-11, by prompt: "Each sheet its own (Recommended)"): after a rest, Revert on each rested character's sheet takes back what
@@ -3369,11 +3372,10 @@ function layoutAddOpts(placed, hudOn, onSheet, grpList) {
     if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
     return opts;
 }
-var _arrChar = null;   // 1.6.2: the character Arrange was opened from, for the preview's list
 function renderPreview() {
     var box = ui('sysLayoutPreview'), pick = ui('sysPreviewChar'); if (!box || !draft || !F()) return;
     var camp = getActiveCampaign();
-    if (pick) { var was = _arrChar || pick.value; _arrChar = null; pick.textContent = ''; pick.appendChild(opt('', 'Defaults')); charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''))); }); pick.value = Array.prototype.some.call(pick.options, function(o) { return o.value === was; }) ? was : ''; }
+    if (pick) { var was = _arrChar || pick.value; arrCharSet(null); pick.textContent = ''; pick.appendChild(opt('', 'Defaults')); charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''))); }); pick.value = Array.prototype.some.call(pick.options, function(o) { return o.value === was; }) ? was : ''; }
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) { box.textContent = ''; return; }
     var c = pick && pick.value ? charById(pick.value, camp) : null;
     var pc = c || { id: 'c_preview', name: 'Preview', ownerId: '', npc: false, values: {}, portrait: '' };
@@ -3382,7 +3384,7 @@ function renderPreview() {
     box.classList.toggle('sys-layout-preview-hud', layoutView === 'hud');
     var arrN = !!(window.wpArrange && window.wpArrange.on());
     if (!pv) { box.textContent = ''; box.appendChild(el('div', 'sys-empty', arrN ? 'No HUD yet. Press + Section, or Copy the sheet\u2019s sections.' : 'No HUD yet: add a section, a band figure or a ledger figure on the left.')); if (arrN) window.wpArrange.sync(box, { sheet: { sections: [] } }); return; }
-    _fxLive = false; try { buildSections(box, pv, pc, resolveAll(pv, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: layoutView, preview: true, targets: pinTargetsAll(clean.sheet), arrange: !!(window.wpArrange && window.wpArrange.on()) }); } finally { _fxLive = true; }   // 5h: the preview's effect controls would act on the saved system, not the draft
+    fxLiveSet(false); try { buildSections(box, pv, pc, resolveAll(pv, pc, F(), pc && pc.id ? tokenCtxFor(pc.id, camp) : null), true, false, renderPreview, { campId: camp && camp.id, view: layoutView, preview: true, targets: pinTargetsAll(clean.sheet), arrange: !!(window.wpArrange && window.wpArrange.on()) }); } finally { fxLiveSet(true); }   // 5h: the preview's effect controls would act on the saved system, not the draft
     applySheetLookTo(box, sheetLook(camp, clean));   // the preview wears the sheet's look too
     syncFramePad(box);
     Array.prototype.forEach.call(box.children, function(ch) { ch.inert = true; });   // Stage 6: the preview draws a real character's values as the GM — no keyboard edit may reach it (the box itself stays the scroller)
@@ -3451,7 +3453,7 @@ function onLayoutChange(t) {
     return false;
 }
 function onLayoutClick(b) {
-    if (b.closest && b.closest('#sysLayoutView') && (b.dataset.view === 'sheet' || b.dataset.view === 'hud')) { if (layoutView !== b.dataset.view) { layoutView = b.dataset.view; var pvb = ui('sysLayoutPreview'); if (pvb) delete pvb.dataset.wpTab; renderLayout(); } return true; }   // HUD frame HF1: the Sheet | HUD switch (never marks the draft dirty)
+    if (b.closest && b.closest('#sysLayoutView') && (b.dataset.view === 'sheet' || b.dataset.view === 'hud')) { if (layoutView !== b.dataset.view) { layoutViewSet(b.dataset.view); var pvb = ui('sysLayoutPreview'); if (pvb) delete pvb.dataset.wpTab; renderLayout(); } return true; }   // HUD frame HF1: the Sheet | HUD switch (never marks the draft dirty)
     if ((b.id === 'sysAddSection' || b.id === 'sysLayoutAuto') && typeof window !== 'undefined' && window.wpSysUi && window.wpSysUi.topicPress) window.wpSysUi.topicPress('layout', 'sections');   // 1.6.2: what they make is in view
     if (b.id === 'sysLayoutAuto' && layoutView === 'hud') {   // HF1: copy the sheet's sections (or the automatic layout's) onto the HUD's first tab — fresh ids, parents remapped, no tab
         var clH = cleanSystem(draft, { F: F(), gmView: true }) || draft, srcS = (clH.sheet && Array.isArray(clH.sheet.sections) && clH.sheet.sections.length) ? clH.sheet.sections : autoLayout(clH).sections;
@@ -5444,6 +5446,7 @@ function fieldOpen(f) { return !_lockNow || liveField(f); }   // may this field'
 function lockedNow() { return _lockNow; }
 // [systemcheck:sheetlock-end]
 var _fxLive = true, _fxForm = null, _fxView = 'sheet';   // _fxView (HUD frame HF1): the view being drawn, so an open New… form shows in one view only   // live: false while drawing the Layout preview or a pop-out (their controls act on nothing real); the open New… form's state
+function fxLiveSet(v) { _fxLive = v; }   // 1.6.3 (the split, area 7): the Layout tab's preview (sysedlayout.js, a part) sets it through this
 // Turn-based combat T5a: what a timed effect has left — in a combat (its clock stopped) the rounds its character's turns will take, out of it
 // the time by the clock (a ticker keeps each such chip current), paused: the time, held
 function fxLeftText(t, sys) {
@@ -8248,6 +8251,19 @@ function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none'
 
 /* ---------- the editor: fields, rolls, characters ---------- */
 var draft = null, dirty = false, tab = 'fields', errorsById = {}, warningsById = {}, layoutView = 'sheet';   // layoutView (HUD frame HF1): 'sheet' | 'hud'
+// 1.6.3 (the split, area 7 of docs/REFACTOR_SPLIT_PLAN.md): the System editor's parts (sysedlayout.js, sysedbox.js, sysederr.js,
+// sysedroll.js, sysedlist.js, sysedcombat.js, sysedrules.js, sysedcal.js and sysedtabs.js) read this state through live imports, which
+// a part may not assign, so each part sets it through one of these setters. _sidePrev (the Preview beside any tab), _starterPacks (a
+// starter's library packs waiting for Save) and _arrChar (the character Arrange was opened from, for the preview's list) are set by
+// more than one part, so they stand here too. A setter only assigns: what each name means is said where it is used.
+function draftSet(v) { draft = v; }
+function dirtySet(v) { dirty = v; }
+function tabSet(v) { tab = v; }
+function layoutViewSet(v) { layoutView = v; }
+var _sidePrev = false, _starterPacks = null, _arrChar = null;
+function sidePrevSet(v) { _sidePrev = v; }
+function starterPacksSet(v) { _starterPacks = v; }
+function arrCharSet(v) { _arrChar = v; }
 var KIND_LABEL = { number: 'Number', formula: 'Derived', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' };
 var KIND_HELP = { number: 'A stored number (an attribute): default, min, max, step. With a min and a max it can show as a slider on a two-color track.', formula: 'A figure worked out from others: a modifier, a secondary attribute, a derived stat. Worked out from other fields, never stored and never typed.', resource: 'A current value with a formula for its max (HP): a bar with - and + on the sheet.', skill: 'Stored ranks plus a base formula; its value is ranks + base.', toggle: 'On or off (a condition); true or false in formulas.', text: 'A short text (up to 200 characters); not a number for formulas.', notes: 'A long text; never read by formulas.', select: 'One of a fixed list of options.', 'item-list': 'A list of items the character carries, filled from the Items library on the sheet.', effects: 'The status effects the character carries: added from the Effects library in one click, or made on the spot with their own numbers. Each changes its numbers everywhere they are used.' };
 // [formcheck:source-start]
@@ -8328,17 +8344,17 @@ function open(which, topic) {
     if (!canWrite()) { toast('Not while you are at someone else\'s table.'); return; }
     var camp = getActiveCampaign(); if (!camp) return;
     formOn();
-    draft = clone(systemOf(camp) || emptySystem());
+    draftSet(clone(systemOf(camp) || emptySystem()));
     if (!Array.isArray(draft.fields)) draft.fields = []; if (!Array.isArray(draft.rolls)) draft.rolls = []; if (!draft.sheet || !Array.isArray(draft.sheet.sections)) draft.sheet = { sections: [] };
     if (!Array.isArray(draft.items)) draft.items = []; if (!draft.combat || typeof draft.combat !== 'object') draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' };
-    dirty = false; tab = which || 'fields'; layoutView = 'sheet'; _sidePrev = false;   // 1.6.2: Preview closed whenever the editor opens
+    dirtySet(false); tabSet(which || 'fields'); layoutViewSet('sheet'); sidePrevSet(false);   // 1.6.2: Preview closed whenever the editor opens
     var m = ui('systemModal'); if (!m) return;
     ui('sysCampName').textContent = camp.name || 'Campaign';
     ui('sysName').value = draft.name || '';
     if (ui('sysMark')) { ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : ''; var mkR = ui('sysMark').closest('.sys-flags'); if (mkR) mkR.hidden = !draft.mark && !sysReaders();   // 1.6.2: a word for an outside reader, which a table without one has no use for
     }
     m.style.display = 'flex';
-    _starterPacks = null; startersLoad().then(function(l) { startersFill(ui('sysStartSel'), l); });   // 1.6.2: the starters from their list, none waiting
+    starterPacksSet(null); startersLoad().then(function(l) { startersFill(ui('sysStartSel'), l); });   // 1.6.2: the starters from their list, none waiting
     if (window.wpSysUi) window.wpSysUi.pickReset();   // 1.6.2: a list opens on its first row
     if (topic && window.wpSysUi) window.wpSysUi.topicPress(tab, topic);   // the Combat or Rules tab at one topic
     renderAll();
@@ -8346,9 +8362,9 @@ function open(which, topic) {
 }
 function close(force) {
     var m = ui('systemModal'); if (!m || m.style.display === 'none') return;
-    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirty = false; close(true); } }, { noEnter: true }); return; }   // 1.6.2: a key pressed for something else never throws the changes away
+    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirtySet(false); close(true); } }, { noEnter: true }); return; }   // 1.6.2: a key pressed for something else never throws the changes away
     if (window.wpArrange && window.wpArrange.on()) window.wpArrange.set(false);
-    m.style.display = 'none'; draft = null; _starterPacks = null;
+    m.style.display = 'none'; draftSet(null); starterPacksSet(null);
 }
 // [systemcheck:explainbox-start] 1.6.2 (backlog 218 fold 3): the System editor's What it means, on a field, a roll, a list's stat and column, an effect,
 // a section and a link: the words behind the sheet's (i), and a handbook page that says more. Edited in place on the object it is handed, with listeners
@@ -8931,10 +8947,10 @@ function toneRow(obj) {   // R5: a tone beside each value name of a stat or a co
     return row;
 }
 // [systemcheck:badgebox-end]
-function markDirty() { dirty = true; var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); if (_sidePrev && tab !== 'layout') { clearTimeout(_sidePrevT); _sidePrevT = setTimeout(function() { if (_sidePrev && draft) renderPreview(); }, 250); } }   // 1.6.2: the preview beside a tab follows each edit
+function markDirty() { dirtySet(true); var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); if (_sidePrev && tab !== 'layout') { clearTimeout(_sidePrevT); _sidePrevT = setTimeout(function() { if (_sidePrev && draft) renderPreview(); }, 250); } }   // 1.6.2: the preview beside a tab follows each edit
 // 1.6.2 (backlog 59; the owner's pick: "A Preview button on every tab"): the Layout tab's preview, moved beside whatever tab is open while Preview is
 // pressed, and back home on the Layout tab, which shows it anyway. Closed whenever the editor opens
-var _sidePrev = false, _sidePrevT = 0, _prevHome = null;
+var _sidePrevT = 0, _prevHome = null;   // _sidePrev stands beside the editor's state (var draft)
 function sidePrevSync() {
     var side = ui('sysSidePrev'), pbox = document.querySelector('#systemModal .sys-layout-preview-box'), mb = document.querySelector('#systemModal .sys-box'); if (!side || !pbox || !mb) return;
     if (!_prevHome) _prevHome = pbox.parentNode;
@@ -9004,7 +9020,7 @@ function saveDraft() {
     stampRows(clean, camp.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id (its derived one would name the item)
     var reach = itemReach(prevSys, clean, camp.chars || {}), nR = net(); if (nR && nR.logEvent) reach.lines.forEach(function(l) { nR.logEvent('items', l); });   // Stage 6 F4c2: how far an edit to carried items reaches (after the re-check, so a removed stat's own values are gone), into the session log before the save
     if (window.wpLibrary && window.wpLibrary.refreshCore) { try { if (window.wpLibrary.refreshCore(camp, true)) clean = camp.system; } catch (e) { console.error(e); } }   // Stage 6 library L1d: the core its formulas now address (the draft below carries it); true: the editor's Save
-    draft = clone(clean); dirty = false; var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
+    draftSet(clone(clean)); dirtySet(false); var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
     if (pendS.length) { var dc = draft.combat || (draft.combat = {}), dsn = dc.senses && typeof dc.senses === 'object' ? dc.senses : (dc.senses = {}); dsn.list = (Array.isArray(dsn.list) ? dsn.list : []).concat(clone(pendS)); markDirty(); }
     save(true);
     starterSaved();   // 1.6.2: a starter's own packs, now that its system is the campaign's
@@ -9085,7 +9101,7 @@ function refWarns(saved, clean, camp0) {
 }
 // [systemcheck:refwarn-end]
 function refreshErrors() {
-    errorsById = {}; warningsById = {};
+    Object.keys(errorsById).forEach(function(k) { delete errorsById[k]; }); Object.keys(warningsById).forEach(function(k) { delete warningsById[k]; });   // 1.6.3: emptied in place (a part may not assign its root's name); nothing keeps either map across this
     if (!draft || !F()) return;
     if (typeof placeCatErrs === 'function') placeCatErrs();   // 1.5.5: what Save does with a list's places in the Layout tab
     var seenKey = Object.create(null);
@@ -14458,7 +14474,7 @@ function restDoes(ids, does, times, rest) {
     var n = Math.max(1, Math.min(20, Math.floor(typeof times === 'number' && isFinite(times) ? times : 1))), done = 0, S = window.wpSystemCore, has = Object.prototype.hasOwnProperty, recs = {}, ats = {};
     ids.forEach(function(id) {
         var c = charById(id, camp); if (!c) return;
-        var rec = null, was = lastChange, join = function() { if (lastChange !== was && lastChange !== rec) rec = restRecJoin(rec, lastChange, id); if (rec) lastChange = rec; was = lastChange; };   // whatever changed this character since is joined to its one record
+        var rec = null, was = lastChange, join = function() { if (lastChange !== was && lastChange !== rec) rec = restRecJoin(rec, lastChange, id); if (rec) lastChangeSet(rec); was = lastChange; };   // whatever changed this character since is joined to its one record
         var work = Object.assign({}, c, { values: clone(c.values || {}) }), d = {}, prev = {}, order = [], af0 = c.af ? clone(c.af) : null; if (c.af) work.af = clone(c.af);
         var seen = function(k) { if (has.call(prev, k)) return; prev[k] = c.values && has.call(c.values, k) ? clone(c.values[k]) : undefined; order.push(k); };
         var put = function(fid, value) {
@@ -14482,7 +14498,7 @@ function restDoes(ids, does, times, rest) {
             if (typeof mx === 'number' && isFinite(mx) && typeof cu === 'number' && isFinite(cu) && mx !== cu) put(f.id, mx);
         });
         if (order.length) {
-            var ex = null; order.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = rec = { charId: c.id, fieldId: order[0], prev: prev[order[0]], extra: ex, af: af0 }; was = lastChange;
+            var ex = null; order.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChangeSet(rec = { charId: c.id, fieldId: order[0], prev: prev[order[0]], extra: ex, af: af0 }); was = lastChange;
             var bNote = typeof budgetNote === 'function' ? budgetNote : null; if (bNote) bNote(sys, c, d);   // 126: the GM's notice, as commitMany asked it when a rest went through it
             c.values = work.values; if (work.af && Object.keys(work.af).length) c.af = work.af; else delete c.af;
             afterCharChange(c, false, d); done++; join();
@@ -14540,7 +14556,7 @@ function restTakeBack(diffs) {
                 });
                 if (keptF.length) out.kept.push((typeof c.name === 'string' && c.name ? c.name : 'A character') + ', ' + keptF.join(', '));
                 var ks = Object.keys(d); if (!ks.length) return;
-                var ex = null; ks.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChange = { charId: c.id, fieldId: ks[0], prev: prev[ks[0]], extra: ex };
+                var ex = null; ks.slice(1).forEach(function(k) { (ex = ex || {})[k] = prev[k]; }); lastChangeSet({ charId: c.id, fieldId: ks[0], prev: prev[ks[0]], extra: ex });
                 c.values = vals; afterCharChange(c, false, d); out.back++;
             } catch (er) { out.failed++; if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') window.wpStepLog('rest v1', 'takeback-fail', { err: String((er && er.message) || er).slice(0, 80) }); }
         });
@@ -15009,7 +15025,7 @@ function errWhere(id) {
 }
 function errGo(id) {
     var U = window.wpSysUi, p = errWhere(id); if (!p || !U) return;
-    tab = p.tab; if (p.kind) U.pickSet(p.kind, p.row); if (p.topic) U.topicPress(p.set, p.topic);
+    tabSet(p.tab); if (p.kind) U.pickSet(p.kind, p.row); if (p.topic) U.topicPress(p.set, p.topic);
     _tabPress = true; try { renderAll(); } finally { _tabPress = false; }
 }
 function errSay(e, warn) { return errPrefix(e && e.prop, warn) + (e && e.message ? (typeof plainMessage === 'function' ? plainMessage(draft, e.message) : e.message) : ''); }
@@ -15838,8 +15854,8 @@ function onClick(e) {
     if (b.id === 'sysAddList') { if (draft.fields.length >= LIMITS.fields) { toast('At most ' + LIMITS.fields + ' fields.'); return; } var nlF = { id: uid('f_'), key: '', label: '', kind: 'item-list', list: {}, def: 0, edit: 'owner', vis: 'all', hover: false }; draft.fields.push(nlF); if (window.wpSysUi && window.wpSysUi.pickSet) window.wpSysUi.pickSet('lists', nlF.id); markDirty(); renderAll(); var nlB = ui('sysListRows') ? ui('sysListRows').querySelector('input.sys-list-name') : null; if (nlB) nlB.focus(); return; }   // 1.6.2 (the owner, by prompt: "New list from the Lists tab")
     if (b.id === 'sysAddEffect') { if (!Array.isArray(draft.effects)) draft.effects = []; if (draft.effects.length >= LIMITS.effects) { toast('At most ' + LIMITS.effects + ' effects.'); return; } draft.effects.push({ id: uid('e_'), name: '', icon: '', tone: '', dur: '', notes: '', vis: 'all', mods: [] }); markDirty(); renderAll(); var lastE = ui('sysEffectRows') && ui('sysEffectRows').lastElementChild; if (lastE) { var ni = lastE.querySelector('.sys-fx-name'); if (ni) ni.focus(); } return; }   // 5h
     if (b.dataset.topic && window.wpSysUi) { window.wpSysUi.topicPress(b.dataset.set, b.dataset.topic); return; }   // 1.6.2: a topic down the side, nothing drawn again
-    if (b.dataset.tab) { tab = b.dataset.tab; _tabPress = true; try { renderAll(); } finally { _tabPress = false; } sidePrevSync(); return; }
-    if (b.id === 'sysPreviewBtn') { _sidePrev = !_sidePrev; sidePrevSync(); return; }   // 1.6.2: Preview beside any tab
+    if (b.dataset.tab) { tabSet(b.dataset.tab); _tabPress = true; try { renderAll(); } finally { _tabPress = false; } sidePrevSync(); return; }
+    if (b.id === 'sysPreviewBtn') { sidePrevSet(!_sidePrev); sidePrevSync(); return; }   // 1.6.2: Preview beside any tab
     if (onLayoutClick(b)) return;
     if (!b.dataset.act) return;
     if (turnClick(b)) return;   // turn-based combat T1: the Combat tab's actions and time units
@@ -16021,7 +16037,7 @@ function runTest() {
 // assets/systems/starters.json ({ starters: [{ id, name, packs?: [file] }] }), read once; a starter's packs are fetched with it and kept waiting
 // until Save, which writes them into the campaign's library (wpLibrary.starterPacks), since the library cleans each entry against the saved system.
 // An id and a pack file are names of the app's own folder only. With no list the page's own options stand
-var _starterPacks = null, _starters = null;
+var _starters = null;   // _starterPacks stands beside the editor's state (var draft)
 var STARTER_ID = /^[a-z0-9-]{1,40}$/, STARTER_FILE = /^[A-Za-z0-9_-]{1,60}(\/[A-Za-z0-9_.-]{1,80})?\.wppack\.json$/;
 function cleanStarters(j) {
     var out = [], seen = Object.create(null), src = j && typeof j === 'object' && Array.isArray(j.starters) ? j.starters : [];
@@ -16047,7 +16063,7 @@ function starterPacksGet(st) {   // the starter's packs as text, all or none
     return Promise.all(st.packs.map(function(p) { return fetch('assets/systems/' + p, { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.text(); }); }));
 }
 function starterSaved() {   // after Save: the waiting packs written, and said
-    var sp = _starterPacks; _starterPacks = null; if (!sp || !window.wpLibrary || !window.wpLibrary.starterPacks) return;
+    var sp = _starterPacks; starterPacksSet(null); if (!sp || !window.wpLibrary || !window.wpLibrary.starterPacks) return;
     window.wpLibrary.starterPacks(sp.texts).then(function(r) {
         if (!r || r.error) { toast((r && r.error) || 'The starter\u2019s packs could not be added.'); return; }
         toast(sp.name + '\u2019s library: ' + r.packs + ' pack' + (r.packs === 1 ? '' : 's') + ', ' + r.add + ' entr' + (r.add === 1 ? 'y' : 'ies') + ' added' + (r.update ? ', ' + r.update + ' updated' : '') + (r.skip ? ', ' + r.skip + ' passed over, their ids already in another pack' : '') + (r.bad ? '. ' + r.bad + ' could not be added' : '') + '.');
@@ -16057,7 +16073,7 @@ function starterSaved() {   // after Save: the waiting packs written, and said
 // [systemcheck:starters-end]
 function startFrom(id) {
     if (!draft) return;
-    var apply = function(sys, packs) { draft = clone(sys); draft.updated = 0; _starterPacks = packs || null; ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };
+    var apply = function(sys, packs) { draftSet(clone(sys)); draft.updated = 0; starterPacksSet(packs || null); ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };
     var go = function() {
         if (id === 'blank') { apply(emptySystem()); return; }
         var st = starterOf(id);
@@ -16085,7 +16101,7 @@ function importFile(file) {
         var j = JSON.parse(text);
         var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('not a system');
         var v = validateSystem(c, F());
-        draft = c; draft.updated = 0; ui('sysName').value = draft.name || ''; markDirty(); renderAll();
+        draftSet(c); draft.updated = 0; ui('sysName').value = draft.name || ''; markDirty(); renderAll();
         var dr = droppedCounts(j, c), drT = typeof droppedWords === 'function' ? droppedWords(dr) : Object.keys(dr).map(function(k) { return dr[k] + ' ' + (dr[k] === 1 ? k.slice(0, -1) : k); }).join(', ');   // Stage 6 library L0: what the file had that was left out is counted, never cut silently
         var nN = function(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
         toast('Imported ' + (c.name || 'a system') + ': ' + nN(c.fields.length, 'field') + ', ' + nN(c.rolls.length, 'roll') + (c.items && c.items.length ? ', ' + nN(c.items.length, 'item') : '') + (v.ok ? '.' : ', ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.') + (drT ? ' Left out (over the limits, or not valid): ' + drT + '.' : ''));

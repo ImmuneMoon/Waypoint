@@ -375,6 +375,87 @@ function tryWords(parts, o) { return 'For ' + o.who + ' it reads: ' + parts.map(
 // 1.6.2: a stat's options, the text its box keeps: Iron, Strength = ST. Rows of { label, name }, and back. A comma or an equals sign in a label would be read as the next option, so it goes
 function readOpts(t) { return String(t || '').split(',').map(function(p) { var q = p.split('='), lb = q[0].trim(), nm = (q.length > 1 ? q.slice(1).join('=') : '').trim(); return { label: lb, name: nm }; }).filter(function(o) { return !!o.label; }); }
 function writeOpts(rows) { return (Array.isArray(rows) ? rows : []).map(function(o) { var lb = String(o && o.label || '').replace(/[,=]/g, ' ').trim(), nm = String(o && o.name || '').replace(/[,=]/g, ' ').trim(); return !lb ? '' : nm && nm !== lb ? lb + ' = ' + nm : lb; }).filter(Boolean).join(', '); }
-var API = { readOpts: readOpts, writeOpts: writeOpts, readLine: readLine, readMake: readMake, tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
+// 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19, by prompt: an option stands for a row of a list picked as three
+// small picks, the list, the entry, with a search, and which figure of it, all by name): what an option of a choice stat may stand for beside
+// the sheet's own figures is a figure of one row of an item list, written as the resolver reads it, List.Entry.Figure (an addressed row, which
+// systemcore's listName reads), or on a list with Specialties List.Parent.Specialty.Figure (its specVal). These four are the pure half:
+// formbox.js dressOpts draws the picks from them, and the System editor's Save keeps the name as cleanPickOpts does, ASCII letters, digits,
+// _ and dots, 64 at most (OPT_NAME). Nothing here is shown as a name: the picks show labels, and a name is only what is stored
+var OPT_ID = /^[A-Za-z_][A-Za-z0-9_]*$/, OPT_NAME = /^[A-Za-z_][A-Za-z0-9_.]{0,63}$/;
+function optLow(s) { return String(s || '').toLowerCase(); }
+// The item lists an option may read a row of, each { key, label, specs (true where the list has Specialties), figs: [[key, label]], entries:
+// [[key, name, gray words]] }. figs: its level, then its number stats (a choice or a set of places is no figure), its columns and its counters,
+// the very words a list read takes after its row (listName). entries: what its rows may be, the system's own items, the library's core and
+// more (the campaign's library entries, which the caller hands in, a GM-only pack's marked vis gm), each key once, the first it meets winning,
+// only of the list's categories where it names any (as sysedtabs.js entryNames reads them), sorted by name. A key that a Save could not keep
+// (OPT_ID) is left out. A list with no figure is no list to read
+function optLists(sys, more) {
+    var out = []; if (!sys || !Array.isArray(sys.fields)) return out;
+    var pool = [].concat(Array.isArray(sys.items) ? sys.items : [], Array.isArray(sys.core) ? sys.core : [], Array.isArray(more) ? more : []);
+    var byName = function(a, b) { return String(a[1]).localeCompare(String(b[1])); };
+    sys.fields.forEach(function(f) {
+        if (!f || f.kind !== 'item-list' || typeof f.key !== 'string' || !OPT_ID.test(f.key) || !f.list || typeof f.list !== 'object') return;
+        var sp = f.list, figs = [], fseen = Object.create(null), put = function(k, lb) { if (typeof k === 'string' && OPT_ID.test(k) && !fseen[optLow(k)]) { fseen[optLow(k)] = 1; figs.push([k, String(lb || k)]); } };
+        if (sp.lvl && typeof sp.lvl === 'object') put('lvl', sp.lvl.label || 'Level');
+        (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { if (s && s.kind !== 'pick' && s.set !== true) put(s.key, s.label); });
+        (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(c) { if (c) put(c.key, c.label); });
+        (Array.isArray(sp.counters) ? sp.counters : []).forEach(function(c) { if (c) put(c.key, c.label); });
+        if (!figs.length) return;
+        var cats = Array.isArray(sp.cats) && sp.cats.length ? sp.cats.map(optLow) : null, seen = Object.create(null), ents = [];
+        pool.forEach(function(e) {
+            if (!e || typeof e.key !== 'string' || !OPT_ID.test(e.key) || seen[optLow(e.key)] || (cats && cats.indexOf(optLow(e.category)) < 0)) return;
+            seen[optLow(e.key)] = 1; ents.push([e.key, typeof e.name === 'string' && e.name ? e.name : e.key, e.vis === 'gm' ? 'GM only' : '']);
+        });
+        out.push({ key: f.key, label: typeof f.label === 'string' && f.label ? f.label : f.key, specs: !!(sp.specs && typeof sp.specs === 'object'), figs: figs, entries: ents.sort(byName) });
+    });
+    return out;
+}
+// A stored option's name read as a row of a list: { list, entry, known, spec, fig, figKnown }, or null where it is no such read (a sheet's own
+// figure, a list's total or its highest, a list that is gone). The list and a known entry and figure take the spelling the lists hold; an entry
+// or a figure none holds any more is kept as written, so that nothing stored is lost while the row says so
+function optRowRead(name, lists) {
+    var s = String(name || '').split('.'), L = null; if (s.length < 3 || s.length > 4 || !s.every(function(p) { return OPT_ID.test(p); })) return null;
+    (Array.isArray(lists) ? lists : []).forEach(function(l) { if (!L && l && optLow(l.key) === optLow(s[0])) L = l; });
+    if (!L || (s.length === 4 && !L.specs) || /^(on|max|min)$/i.test(s[1])) return null;
+    var e = null, fw = s[s.length - 1], fg = null;
+    L.entries.forEach(function(x) { if (!e && optLow(x[0]) === optLow(s[1])) e = x; });
+    L.figs.forEach(function(x) { if (!fg && optLow(x[0]) === optLow(fw)) fg = x; });
+    return { list: L.key, entry: e ? e[0] : s[1], known: !!e, spec: s.length === 4 ? s[2] : '', fig: fg ? fg[0] : fw, figKnown: !!fg };
+}
+// The name a row's three picks write, or '' where it is not whole yet (no entry) or a Save could not keep it
+function optRowWrite(p) {
+    if (!p || !p.list || !p.entry || !p.fig) return '';
+    var parts = [p.list, p.entry].concat(p.spec ? [p.spec] : []).concat([p.fig]);
+    if (!parts.every(function(x) { return OPT_ID.test(String(x)); })) return '';
+    var t = parts.join('.'); return OPT_NAME.test(t) ? t : '';
+}
+// A specialty as a player names it, written as one word of the name and back: Off Hand is OffHand, and OffHand reads Off Hand. The resolver
+// compares a specialty with accents, case and spaces taken out (systemcore specSquash), so the word stored need only hold its letters
+function optSpecWord(t) { return String(t || '').normalize('NFD').replace(/\p{M}+/gu, '').split(/[^A-Za-z0-9]+/).filter(Boolean).map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('').replace(/^[0-9]+/, '').slice(0, 40); }
+function optSpecSay(seg) { return String(seg || '').replace(/_+/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Za-z])([0-9])/g, '$1 $2').trim(); }
+// Whether optSpecWord would lose a letter or a digit of what was typed (the review of 2026-11-19): a letter outside A to Z once accents are
+// taken off (an O with a stroke, a word of another script), a digit before the first letter, or a word past 40. A name keeps only those, so such a
+// specialty is said back as one that cannot be kept, never stored as another word (Rsted) or none, which would read the entry itself
+function optSpecLoss(t) { var all = (String(t || '').normalize('NFD').replace(/\p{M}+/gu, '').match(/[\p{L}\p{N}]/gu) || []).join(''); return optLow(optSpecWord(t)) !== optLow(all); }
+// The specialties a pick may offer for one entry of a list, so that a known one is picked and not typed (the review of 2026-11-19): those
+// rows of the list name for it, a key written Entry__Specialty or a name written Entry (Specialty) or Entry: Specialty (the forms systemcore
+// specInfo reads), and the words the stat's other options already hold for it (more, stored words). Each [word, said], once, by its words.
+// L: one of optLists' lists. A specialty that cannot be kept (optSpecLoss) is not offered
+function optSpecsFor(L, entry, more) {
+    var out = [], seen = Object.create(null), sq = function(s) { return String(s || '').normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''); };
+    var put = function(raw) { if (!raw || optSpecLoss(raw)) return; var w = optSpecWord(raw); if (!w || !OPT_ID.test(w) || seen[optLow(w)]) return; seen[optLow(w)] = 1; out.push([w, optSpecSay(w)]); };
+    if (!L || !Array.isArray(L.entries) || !entry) return out;
+    var me = null; L.entries.forEach(function(x) { if (!me && optLow(x[0]) === optLow(entry)) me = x; });
+    var mine = [sq(entry)].concat(me ? [sq(me[1])] : []);
+    L.entries.forEach(function(x) {
+        var k = String(x[0]), kc = k.indexOf('__');
+        if (kc > 0 && mine.indexOf(sq(k.slice(0, kc))) >= 0) { put(k.slice(kc + 2).replace(/_+/g, ' ')); return; }
+        var nm = String(x[1] || '').trim(), m = /^(.*?)\s*\(([^()]*)\)$/.exec(nm) || /^([^:]+):\s*(.+)$/.exec(nm);
+        if (m && mine.indexOf(sq(m[1])) >= 0) put(m[2]);
+    });
+    (Array.isArray(more) ? more : []).forEach(function(w) { if (typeof w === 'string' && w) put(optSpecSay(w)); });
+    return out.sort(function(a, b) { return a[1].localeCompare(b[1]); });
+}
+var API = { optSpecLoss: optSpecLoss, optSpecsFor: optSpecsFor, optLists: optLists, optRowRead: optRowRead, optRowWrite: optRowWrite, optSpecWord: optSpecWord, optSpecSay: optSpecSay, readOpts: readOpts, writeOpts: writeOpts, readLine: readLine, readMake: readMake, tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
 if (typeof window !== 'undefined') window.wpFormCore = API;
-export { readOpts, writeOpts, readLine, readMake, tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };
+export { optSpecLoss, optSpecsFor, optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, readOpts, writeOpts, readLine, readMake, tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };

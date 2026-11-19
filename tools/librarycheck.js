@@ -417,7 +417,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const lbM = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n'), wnM = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n');
         check('L2b the Library form edits what the Items tab does — a player\'s removal and switching off (bound / curse on contact) with their messages, a bundled icon kept as it is; a switch lock the form does not show is kept',
             ff.rm === 'curse' && ff.rmMsg === 'Cold' && ff.eq === 'bound' && !('eqMsg' in ff) && ff.icon === 'icon:bolt' && !('rm' in fn) && !('rmMsg' in fn)
-            && /var out = clone\(e\), eqShown = !!ui\('libF_eq'\); FORM_KEYS\.forEach\(function\(k\) \{ if \(eqShown \|\| \(k !== 'eq' && k !== 'eqMsg'\)\) delete out\[k\]; \}\); return Object\.assign\(out, typed\);/.test(wnM) && /field\(form, 'icon', 'Icon', e\.icon \|\| '',/.test(wnM));
+            && /var out = clone\(e\), eqShown = !!ui\('libF_eq'\); FORM_KEYS\.forEach\(function\(k\) \{ if \(eqShown \|\| \(k !== 'eq' && k !== 'eqMsg'\)\) delete out\[k\]; \}\); return Object\.assign\(out, typed\);/.test(wnM) && /field\(form, 'icon', 'Icon', value, \{ hidden: true,/.test(wnM) && wnM.includes("    iconField(form, e.icon || '');"));   /* 1.6.3: the Icon picked by sight, its box hidden (moved on purpose) */
         check('L2b the move runs on the GM\'s machine only, once every pack is read, never with the System editor open, only after a safety copy (none: nothing moves), writes the entries before any item leaves the system, gives every row its copy before the items go, works the core out again, one save',
             /if \(_migrating \|\| !camp \|\| !camp\.system \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| \(cur\.state !== 'ready' && cur\.state !== 'none'\)\) return 0;/.test(lbM)
             && /var sm = document\.getElementById\('systemModal'\); if \(sm && sm\.style\.display === 'flex'\) return 0;/.test(lbM)
@@ -691,7 +691,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const mkE = tag => { const e = { tag, kids: [], on: {}, dataset: {}, value: '', _t: '', appendChild(c) { this.kids.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, setAttribute() {} }; Object.defineProperty(e, 'textContent', { configurable: true, get() { return this._t; }, set(v) { this.kids = []; this._t = String(v); } }); return e; };
             const form = mkE('div'); Object.defineProperty(form, 'textContent', { get() { return ''; }, set() { form.kids = []; Object.keys(byId).forEach(k => { delete byId[k]; }); } });
             const el = (tag, cls, text) => { const e = mkE(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = String(text); return e; };
-            const field = (fm, id, label, value) => { const inp = mkE('input'); inp.value = value == null ? '' : String(value); inp.id = 'libF_' + id; byId[inp.id] = inp; fm.appendChild(inp); return inp; };
+            const field = (fm, id, label, value, opts) => { const inp = mkE('input'); inp.value = value == null ? '' : String(value); inp.id = 'libF_' + id; inp.opts = opts || {}; byId[inp.id] = inp; fm.appendChild(inp); return inp; };
             const select = (opts, val) => { const s = mkE('select'); s.value = val; return s; };
             const W = { st: { entryId: 'i_a', packId: 'p', draftNew: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null }, byId, form, lb: null,
                 entries: [{ id: 'i_a', name: 'A', vis: 'all', needs: [{ id: 'i_b' }, { id: 'i_c', lvl: 2 }], mods: [{ f: 'f_st', op: 'add', v: 1 }], lvls: [{ lvl: 2, tag: 'a): b', text: 't' }] }, { id: 'i_b', name: 'B', vis: 'all' }, { id: 'i_c', name: 'C', vis: 'all' }, { id: 'i_r', name: 'R', vis: 'all', needsIf: 'ST >= 12' }] };
@@ -753,7 +753,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const saveA = winS2.indexOf('function saveEntry() {'), saveS = winS2.slice(saveA, winS2.indexOf('\n}', saveA));
         check('1.5.8 the Changes box aims a change at one entry of a list (librarywin.js modTargets, rowListOf, rowKeys and modsBox, sliced and run for real on a page of plain objects): each item list with columns is a target of its own, "one entry"; the key box offers the library\'s and the system\'s entries of that list\'s categories by their key, sorted by name, never one with no key; a change aimed at a row shows its target, a key box with those suggestions and the list\'s columns, and what is typed is kept, trimmed; another target takes the key and the column off, and the one-entry target again starts with no key and the first column; Save refuses a change on one entry with no usable key, in words',
             !!rw && JSON.stringify(rw.tg) === JSON.stringify([['f_st|add', 'ST'], ['f_sk|row', 'Skills: one entry']]) && JSON.stringify(rw.keys) === JSON.stringify([['Climb', 'Climb'], ['Sneak', 'Sneak']])
-            && rw.tierTyped === '1: +2, 2: 0' && rw.tierGone === undefined && rw.val === 'f_sk|row' && rw.kinds.join(' ') === 'select datalist input.field lib-mod-key select input.field lib-mod-amt input.field lib-mod-amtf label.lib-mod-lvl input.field lib-mod-tiers button.tool ghost' /* 1.6.0: By level; 1.6.2 (205): By a formula (each moved on purpose) */ && JSON.stringify(rw.colOpts) === JSON.stringify([['Target', 'Target'], ['Half', 'Half']])
+            && rw.tierTyped === '1: +2, 2: 0' && rw.tierGone === undefined && rw.val === 'f_sk|row' && rw.kinds.join(' ') === 'select datalist input.field lib-mod-key select input.field lib-mod-amt input.field lib-mod-amtf label.lib-mod-lvl input.field lib-mod-tiers button.tool ghost' /* 1.6.0: By level; 1.6.2 (205): By a formula (each moved on purpose) */.replace('select input.field lib-mod-amt', 'select select.field lib-mod-how input.field lib-mod-amt') /* 1.6.3 (the audit, gap 7): How, Adds, At least or At most (moved on purpose) */ && JSON.stringify(rw.colOpts) === JSON.stringify([['Target', 'Target'], ['Half', 'Half']])
             && rw.typed === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: 'Climb', col: 'Half' }]) && rw.back === JSON.stringify([{ f: 'f_st', op: 'add', v: -2 }]) && rw.fresh === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: '', col: 'Target' }])
             && saveS.includes("toast('A change on one entry needs that entry\u2019s key, such as Disguise. Pick it in the key box or remove the change.'); return; }") && saveS.indexOf('A change on one entry') < saveS.indexOf('cleanLibEntry(raw'),
             rwErr || JSON.stringify(rw));
@@ -811,6 +811,65 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && JSON.stringify(gt.fg) === JSON.stringify([{ list: 'f_dr', entry: 'i_ache', qty: 1 }, { list: 'f_dr', entry: 'i_ache', qty: 1, from: 2, lvl: 3, pay: true }])
             && JSON.stringify(gt.stored) === JSON.stringify([{ list: 'f_dr', entry: 'i_ache', qty: 1, pay: true, lvl: 2 }, { list: 'f_dr', entry: 'i_ache', qty: 1, from: 2 }]) && JSON.stringify(gt.form) === JSON.stringify(gt.fg),
             gtErr || JSON.stringify(gt));
+        // 1.6.3 (the editor coverage audit, gaps 6 to 10; Fulllion's rule that every mechanic of his system can be made by hand): the Library
+        // window's entry form offers what the Items tab offers, in its words, run for real on a page of plain objects with the live shapes: a
+        // grant's specifier (115 grants of the live library hold one, Acute Senses for hearing), a change's How (Adds, At least, At most, a stored
+        // At least or At most shown as such), as many roll bonuses as the cleaner keeps (One Eye holds 8), a needs Message as long as the cleaner
+        // keeps (Blindness holds 219 characters) and the Icon picked by sight, its stored value kept. Each read back through the real cleaner
+        let cv = null, cvErr = '';
+        try {
+            const sysV = S.cleanSystem({ v: 1, name: 'V', rolls: [{ id: 'r_per', label: 'Perception', formula: '3d6 <= 10' }], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number' }, { id: 'f_adv', key: 'Adv', label: 'Advantages', kind: 'item-list', list: { cats: ['Advantage'], lvl: { min: 1, max: 5 } } }] }, { F, gmView: true });
+            const mkE = tag => ({ tag, kids: [], on: {}, dataset: {}, value: '', attrs: {}, appendChild(c) { this.kids.push(c); return c; }, addEventListener(t2, f) { this.on[t2] = f; }, setAttribute(k, v) { this.attrs[k] = v; }, set textContent(v) { this.kids = []; this._t = v; }, get textContent() { return this._t || ''; } });
+            const el = (tag, cls, text) => { const e = mkE(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e._t = String(text); return e; };
+            const select = (opts, val) => { const s = mkE('select'); s.opts = opts; s.value = val; return s; };
+            const walk = (n, f, out = []) => { if (f(n)) out.push(n); (n.kids || []).forEach(k => walk(k, f, out)); return out; };
+            const mA = winS2.indexOf('function modTargets() {'), bZ = winS2.indexOf('\n// the form as an entry'), ents = [{ id: 'i_acute', name: 'Acute Senses', category: 'Advantage' }, { id: 'i_eye', name: 'One Eye', category: 'Advantage' }];
+            const mk = (st2, lim) => new Function('camp', 'itemLists', 'allEntries', 'sysItems', 'map', 'el', 'select', 'st', 'clone', 'document', 'byName', 'NEED_PICK', 'LIMITS', '"use strict";\n' + winS2.slice(mA, bZ) + '\nreturn { modsBox, swLibBox, grantsBox };')(
+                () => ({ system: sysV }), () => sysV.fields.filter(f => f.kind === 'item-list'), () => ents, () => [], () => Object.create(null), el, select, st2, v => JSON.parse(JSON.stringify(v)), { createTextNode: x => ({ text: x }) }, (a, b) => String(a).localeCompare(String(b)), 2000, lim);
+            // 6. a grant's specifier: drawn from the grant, typed in trimmed, a blank one no key, kept by Save's cleaner
+            const stG = { fg: null, fgFor: null }, apiG = mk(stG, S.LIMITS), fG = mkE('div'); apiG.grantsBox(fG, { id: 'i_acute', grants: [{ list: 'f_adv', entry: 'i_eye', qty: 1, spec: 'hearing' }] });
+            const spec = walk(fG, n => n.className === 'field lib-grant-spec')[0], specDrawn = [spec.value, spec.placeholder, spec.maxLength, /a specifier for the row it grants/i.test(spec.title)];
+            spec.value = '  Smell  '; spec.on.input(); const specTyped = stG.fg[0].spec; const keptG = cleanLibEntry(L.entryFromForm({ id: 'i_acute', name: 'Acute Senses', grants: stG.fg }), libCtx(sysV, F, true)).grants; spec.value = ' '; spec.on.input(); const specGone = 'spec' in stG.fg[0];
+            // 7. a change's How: a stored At least and At most shown as such, an Adds; a pick changes the op and takes per level off; another target keeps it
+            const stM = { fm: null, fmFor: null, fs: null, fsFor: null }, apiM = mk(stM, S.LIMITS), fM = mkE('div'); apiM.modsBox(fM, { id: 'i_m', mods: [{ f: 'f_st', op: 'max', v: 3 }, { f: 'f_st', op: 'min', v: 9 }, { f: 'f_st', op: 'add', v: 1, lvl: true }, { f: 'f_st', op: 'on' }] });
+            const hows = () => walk(fM, n => n.className === 'field lib-mod-how'), howDrawn = hows().map(h => h.value), howOpts = j(hows()[0].opts), howTip = hows()[0].title;
+            hows()[2].value = 'min'; hows()[2].on.change(); const afterPick = j(stM.fm[2]);
+            const tgt = walk(fM, n => n.tag === 'select' && n.title === 'What this change affects')[0]; tgt.value = 'f_st|add'; tgt.on.change(); const afterTarget = stM.fm[0].op;
+            const keptM = cleanLibEntry(L.entryFromForm({ id: 'i_m', name: 'M', mods: stM.fm }), libCtx(sysV, F, true)).mods;
+            // 8. roll bonuses up to the cleaner's figure: eight (One Eye) leaves + Roll bonus on, the figure itself turns it off
+            const sw = n => Array.from({ length: n }, (_, i) => ({ name: 'Bonus ' + i, v: 1, to: [{ r: 'r_per' }] })), addOf = fm => walk(fm, n => n.tag === 'button' && n._t === '+ Roll bonus')[0];
+            const stS8 = { fm: null, fmFor: null, fs: null, fsFor: null }, f8 = mkE('div'); mk(stS8, S.LIMITS).swLibBox(f8, { id: 'i_eye', rollSw: sw(8) });
+            const stSF = { fm: null, fmFor: null, fs: null, fsFor: null }, fF = mkE('div'); mk(stSF, S.LIMITS).swLibBox(fF, { id: 'i_eye', rollSw: sw(S.LIMITS.rollSw) });
+            const stS0 = { fm: null, fmFor: null, fs: null, fsFor: null }, f0 = mkE('div'); mk(stS0, undefined).swLibBox(f0, { id: 'i_eye', rollSw: sw(S.LIMITS.rollSw - 1) });   // no LIMITS handed in: the figure kept apart for a slice run alone
+            const add8 = addOf(f8).disabled, addF = addOf(fF).disabled, add0 = addOf(f0).disabled;
+            addOf(f8).on.click(); const nine = stS8.fs.length; addOf(fF).on.click();
+            cv = { specDrawn, specTyped, specGone, keptG, howDrawn, howOpts, howTip, afterPick, afterTarget, keptM, add8, addF, add0, nine, full: stSF.fs.length };
+        } catch (e) { cvErr = String(e && e.stack || e).slice(0, 700); }
+        check('1.6.3 (the audit, gaps 6 to 8) the Library window offers the Items tab\'s own controls: a grant\'s specifier drawn from the grant in the Items tab\'s words, typed in trimmed, a blank one no key, kept by Save; a change\'s How (Adds, At least, At most) shows a stored At least or At most as such, a pick changes the op and takes per level off, another target keeps it, and Save keeps both; + Roll bonus stays on past four, up to systemcore LIMITS.rollSw, which a slice run alone falls back to',
+            !!cv && j(cv.specDrawn) === j(['hearing', 'specifier', 60, true]) && cv.specTyped === 'Smell' && cv.specGone === false && j(cv.keptG) === j([{ list: 'f_adv', entry: 'i_eye', qty: 1, spec: 'Smell' }])
+            && j(cv.howDrawn) === j(['max', 'min', 'add']) && cv.howOpts === j([['add', 'Adds'], ['max', 'At least'], ['min', 'At most']]) && /^Adds: the figure is added\. At least: the value is never below it\. At most: never above it\./.test(cv.howTip)
+            && cv.afterPick === j({ f: 'f_st', op: 'min', v: 1 }) && cv.afterTarget === 'max' && j(cv.keptM) === j([{ f: 'f_st', op: 'max', v: 3 }, { f: 'f_st', op: 'min', v: 9 }, { f: 'f_st', op: 'min', v: 1 }]) /* a switch-on of a number is no change, and has no How */
+            && cv.add8 === false && cv.nine === 9 && cv.addF === true && cv.full === S.LIMITS.rollSw && cv.add0 === false && S.LIMITS.rollSw === 40 && winS2.includes("var swMax = typeof LIMITS === 'object' && LIMITS ? LIMITS.rollSw : " + S.LIMITS.rollSw + ';'),
+            cvErr || j(cv));
+        let ci = null, ciErr = '';
+        try {
+            // 9 and 10 through the real renderForm and readForm: the needs Message takes the cleaner's own figure; the Icon is a hidden box beside the
+            // picker the Items tab uses (a stand-in for window.wpSheets.glyphButton), its stored bundled icon read back as it was, and a picked emoji
+            // read as picked; with no picker at hand the box stays a text box
+            const blind = ('You cannot take this while your character can see. A character blind from birth, or who lost their sight in play, may take it at any time. Ask the GM if you are not sure which of the two applies to your own character at the table. ').repeat(2).slice(0, 219);
+            const W3 = formWorld(); W3.entries[0] = Object.assign({}, W3.entries[0], { icon: 'icon:graduation-cap', needsMsg: blind });
+            const made = []; globalThis.window = { wpSheets: { glyphButton: inp => { const b = { tag: 'button', className: 'tool ghost sys-btn sys-glyph-btn', kids: [], forInp: inp }; made.push(b); return b; } } };
+            try { W3.api.renderForm(); } finally { delete globalThis.window; }
+            const icon = W3.byId.libF_icon, r1 = W3.api.readForm(); icon.value = '🧠'; const r2 = W3.api.readForm();
+            const W4 = formWorld(); W4.entries[0] = Object.assign({}, W4.entries[0], { icon: 'icon:bolt' }); W4.api.renderForm();
+            const keptN = cleanLibEntry(L.entryFromForm({ id: 'i_a', name: 'Blindness', needs: [{ id: 'i_b' }], needsMsg: blind }), libCtx(S.cleanSystem({ v: 1, name: 'B', rolls: [], fields: [] }, { F, gmView: true }), F, true)).needsMsg;
+            ci = { msgMax: W3.byId.libF_needsMsg.opts.max, blind: blind.length, keptN: keptN === blind, hidden: icon.type, opts: icon.opts.hidden === true, btn: made.length === 1 && made[0].forInp === icon && W3.form.kids.indexOf(made[0]) === W3.form.kids.indexOf(icon) + 1, r1: r1.icon, r2: r2.icon, plain: W4.byId.libF_icon.type, plainRead: W4.api.readForm().icon };
+        } catch (e) { ciErr = String(e && e.stack || e).slice(0, 700); }
+        const shV = require('fs').readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
+        check('1.6.3 (the audit, gaps 9 and 10) the needs Message box takes systemcore LIMITS.rmMsg (400, 200 before), so Blindness\'s 219 characters are typed and kept; the Icon is a hidden box beside the Items tab\'s own picker (window.wpSheets.glyphButton, whose pop stands inside the Library window), a stored bundled icon read back as it was and a picked emoji as picked, and with no picker it stays a text box',
+            !!ci && ci.msgMax === S.LIMITS.rmMsg && S.LIMITS.rmMsg === 400 && ci.blind === 219 && ci.keptN === true && ci.hidden !== 'text' && ci.opts === true && winS2.includes("else inp.type = opts.hidden ? 'hidden' : 'text';") && ci.btn === true && ci.r1 === 'icon:graduation-cap' && ci.r2 === '🧠' && ci.plain === 'text' && ci.plainRead === 'icon:bolt'
+            && typeof globalThis.window === 'undefined' && shV.includes('Object.assign(window.wpSheets, { glyphButton: glyphButton });') && shV.includes("var host = (anchor && anchor.closest && anchor.closest('#libraryModal')) || ui('systemModal') || document.body,"),
+            ciErr || j(ci));
         // 1.5.8: an entry's blast extras in the form (librarywin.js blastBox, dmgTypePairs, blastDrops and the real renderForm and readForm)
         let bx = null, bxErr = '';
         try {

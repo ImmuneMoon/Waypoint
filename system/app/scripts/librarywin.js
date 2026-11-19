@@ -11,7 +11,7 @@ import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText, lvlsFromBox } from './librarycore.js';
 import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTarget, bestList, csvEntries, csvPreview, csvCats } from './csvcore.js';
-import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear } from './systemcore.js';
+import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear, LIMITS } from './systemcore.js';
 
 var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'pic', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'flies', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsWarn', 'needsMsg'];
 var NEED_MAX = 80, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
@@ -370,7 +370,7 @@ function field(form, id, label, value, opts) {
     var v = value == null ? '' : String(value), inp;
     if (opts.pairs) inp = select(opts.pairs, v);
     else if (opts.choices) { var pairs = [['', '—']].concat(opts.choices.map(function(c) { return [c, c]; })); if (v && opts.choices.indexOf(v) < 0) pairs.push([v, v]); inp = select(pairs, v); }
-    else { inp = el(opts.area ? 'textarea' : 'input', 'field'); if (opts.area) inp.rows = opts.rows || 3; else inp.type = 'text'; inp.value = v; if (opts.max) inp.maxLength = opts.max; if (opts.ph) inp.placeholder = opts.ph; if (opts.list) inp.setAttribute('list', opts.list); }
+    else { inp = el(opts.area ? 'textarea' : 'input', 'field'); if (opts.area) inp.rows = opts.rows || 3; else inp.type = opts.hidden ? 'hidden' : 'text'; inp.value = v; if (opts.max) inp.maxLength = opts.max; if (opts.ph) inp.placeholder = opts.ph; if (opts.list) inp.setAttribute('list', opts.list); }
     inp.id = 'libF_' + id; if (opts.title) row.title = opts.title;
     row.appendChild(inp); form.appendChild(row); if (typeof guideTip === 'function') guideTip(form, id); return inp;
 }
@@ -413,7 +413,7 @@ function renderForm() {
     var clash = keyClashes(allEntries().concat(sysItems()), e); if (clash.length) form.appendChild(el('div', 'lib-warn lib-keyclash', 'Also the key of ' + clash.slice(0, 3).map(function(c) { return c.name; }).join(', ') + (clash.length > 3 ? '…' : '') + ' (an item of the system wins in formulas).'));
     catList(form);
     field(form, 'category', 'Category', e.category, { max: 40, list: 'libCats', title: 'Which item lists offer it (a list names the categories it draws on)' });
-    field(form, 'icon', 'Icon', e.icon || '', { max: 32, ph: 'An emoji', title: 'An emoji, or a bundled icon as icon:name (kept as it is)' });
+    iconField(form, e.icon || '');   // 1.6.3 (the editor coverage audit, gap 10): picked by sight, as an item's on the Items tab
     if (typeof picField === 'function') picField(form, e.pic || '');   // 1.6.2 (backlog 42): its own picture
     field(form, 'vis', 'Who sees it', e.vis === 'gm' ? 'gm' : 'all', { pairs: VIS, title: 'A GM-only entry stays out of the players’ lists (one you give a character reaches its owner by name and notes)' });
     field(form, 'lvl', 'Starts at level', typeof e.lvl === 'number' ? e.lvl : '', { max: 4, title: 'A new row of it starts at this level (else the list’s)' });
@@ -447,6 +447,18 @@ function renderForm() {
         field(form, 'eq', 'When switched off', e.eq === 'bound' || e.eq === 'curse' ? e.eq : '', { pairs: [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], title: 'When a player switches it off. Bound: it stays on, with your message. Curse on contact: it looks off to them and stays on' });
         field(form, 'eqMsg', 'Message', e.eqMsg, { max: 200, ph: 'Shown to the player (optional)' });
     }
+}
+// 1.6.3 (the editor coverage audit, gap 10; Fulllion's rule that no key or internal name is ever typed or read by a user). An entry's Icon is
+// picked by sight, with the very picker the System editor's Items tab gives an item (sheets.js glyphButton, published on window.wpSheets): the
+// bundled icons and the emoji, each searched by its words, and No icon. The value lives in a hidden box the form reads as any field (readForm's
+// g('icon')), so a stored value is kept exactly as it was, an icon the bundled set no longer offers among them, and the button shows it drawn.
+// sheets.js glyphPicker puts its pop inside this window, which stands over the System editor. Where the picker is not there (a slice of this
+// file run alone) the box stays a plain text box, as it was before
+function iconField(form, value) {
+    var inp = field(form, 'icon', 'Icon', value, { hidden: true, max: 32, title: 'An icon beside its name, picked from Waypoint’s own icons or the emoji' });
+    var WS = typeof window !== 'undefined' ? window.wpSheets : null, row = inp.parentNode || form;
+    if (WS && typeof WS.glyphButton === 'function') row.appendChild(WS.glyphButton(inp)); else inp.type = 'text';
+    return inp;
 }
 // Stage 6 F6: an entry's changes to the character carrying it — a working copy while its form is open (Save entry keeps it), each a field to
 // change (the system's numbers, skills, formulas, pools' max, toggles) by an amount, per level once a list has levels; "only while switched on"
@@ -487,7 +499,7 @@ function needsBox(form, e) {
     form.appendChild(el('div', 'lib-note', 'A need or a rule with a From level counts only once the row of this entry is at that level. A player who raises a level is judged as when they take the entry.'));
     var rsN = LB() && LB().needRuleShown ? LB().needRuleShown : null; if (typeof e.needsIf === 'string' && e.needsIf && rsN && rsN(e.needsIf) !== true) form.appendChild(el('div', 'lib-warn', LB().whole && LB().whole() !== true ? 'A pack of this campaign is not read, so no rule is shown to players for now. Your machine judges it alone.' : 'This rule reads something players may not read. They are not shown it, and your machine judges it alone.'));   // the owed review, 2026-10-09: while a pack is unread no rule is shown, whatever it reads: the reason said is the true one
     field(form, 'needsWarn', 'When it isn’t met', e.needsWarn === true ? 'warn' : '', { pairs: [['', 'Refuse: a player cannot take it'], ['warn', 'Warn: a player may take it, and you are told']], title: 'What happens when a player takes this entry, or raises its level, without what it needs. You can always give it yourself' });
-    field(form, 'needsMsg', 'Message', e.needsMsg, { max: 200, ph: 'Shown to the player in place of what it needs (optional)' });
+    field(form, 'needsMsg', 'Message', e.needsMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player in place of what it needs (optional)' });   // 1.6.3 (the audit, gap 9): what the cleaner keeps, LIMITS.rmMsg (200 before, so a message of 219 could not be typed)
 }
 // 1.5.8 (book handoff 90, a Form opens techniques, the website's way: "shows by itself ... while the Form holds"): what this entry opens. While a
 // row of it is on (or on a list with no switch) and at the From level or above, each entry listed here shows by itself as a row of the list
@@ -546,6 +558,7 @@ function swLibTargets() {
 }
 function swLibBox(form, e) {
     if (st.fsFor !== e.id || !st.fs) { st.fs = clone(Array.isArray(e.rollSw) ? e.rollSw : []); st.fsFor = e.id; }
+    var swMax = typeof LIMITS === 'object' && LIMITS ? LIMITS.rollSw : 40;   // 1.6.3 (the audit, gap 8): as many as the cleaner keeps and the Items tab allows, systemcore LIMITS.rollSw (4 before)
     var targets = swLibTargets(), toVal = function(t) { return t && typeof t === 'object' ? (typeof t.f === 'string' ? 'f|' + t.f : typeof t.r === 'string' ? 'r|' + t.r : typeof t.l === 'string' ? 'l|' + t.l : '') : ''; }, toOf = function(v) { var p = String(v || '').split('|'), o = {}; if ((p[0] === 'f' || p[0] === 'r' || p[0] === 'l') && p[1]) { o[p[0]] = p[1]; return o; } return null; };
     form.appendChild(el('div', 'lib-fsub', 'Roll bonuses it offers, each a tick in the roll\u2019s \u00b1 window'));
     var box = el('div', 'lib-mods'); form.appendChild(box);
@@ -571,8 +584,8 @@ function swLibBox(form, e) {
             var x = el('button', 'tool ghost', '\u00d7'); x.type = 'button'; x.title = 'Remove this bonus'; x.addEventListener('click', function() { st.fs.splice(si, 1); draw(); }); ln.appendChild(x);
             box.appendChild(ln);
         });
-        var add = el('button', 'tool ghost', '+ Roll bonus'); add.type = 'button'; add.title = targets.length ? 'A bonus a roller may add to some rolls, ticked in the roll\u2019s \u00b1 window' : 'The system has no roll to offer it to yet'; add.disabled = !targets.length || st.fs.length >= 4;
-        add.addEventListener('click', function() { var o = toOf(targets[0][0]); if (o) { st.fs.push({ name: '', v: 1, to: [o] }); draw(); } });
+        var add = el('button', 'tool ghost', '+ Roll bonus'); add.type = 'button'; add.title = targets.length ? 'A bonus a roller may add to some rolls, ticked in the roll\u2019s \u00b1 window' : 'The system has no roll to offer it to yet'; add.disabled = !targets.length || st.fs.length >= swMax;
+        add.addEventListener('click', function() { if (st.fs.length >= swMax) return; var o = toOf(targets[0][0]); if (o) { st.fs.push({ name: '', v: 1, to: [o] }); draw(); } });
         box.appendChild(add);
     };
     draw();
@@ -588,7 +601,7 @@ function modsBox(form, e) {
             var ln = el('div', 'lib-ctl lib-mod'), val = m.f + '|' + (m.op === 'on' ? 'on' : m.part === 'max' ? 'max' : typeof m.col === 'string' ? 'row' : 'add'), opts = targets.slice();
             if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
             var sel = select(opts, val); sel.title = 'What this change affects'; ln.appendChild(sel);
-            sel.addEventListener('change', function() { var tp = sel.value.split('|'); m.f = tp[0]; delete m.key; delete m.col; if (tp[1] === 'on') { m.op = 'on'; delete m.v; delete m.part; delete m.lvl; } else { m.op = 'add'; if (typeof m.v !== 'number') m.v = 1; if (tp[1] === 'max') m.part = 'max'; else delete m.part; if (tp[1] === 'row') { var rl = rowListOf(m.f); m.key = ''; m.col = rl && rl.list.cols[0] ? rl.list.cols[0].key : ''; } } draw(); });
+            sel.addEventListener('change', function() { var tp = sel.value.split('|'); m.f = tp[0]; delete m.key; delete m.col; if (tp[1] === 'on') { m.op = 'on'; delete m.v; delete m.part; delete m.lvl; } else { m.op = m.op === 'max' || m.op === 'min' ? m.op : 'add'; if (typeof m.v !== 'number') m.v = 1; if (tp[1] === 'max') m.part = 'max'; else delete m.part; if (tp[1] === 'row') { var rl = rowListOf(m.f); m.key = ''; m.col = rl && rl.list.cols[0] ? rl.list.cols[0].key : ''; } } draw(); });
             if (val.slice(-4) === '|row') {   // 1.5.8: which entry, by its key, and which of the list's columns it adds to
                 var rl = rowListOf(m.f), ky = el('input', 'field lib-mod-key'), dlId = 'libRowKeys' + mi, dl = el('datalist');
                 dl.id = dlId; (rl ? rowKeys(rl) : []).forEach(function(k) { var op = el('option'); op.value = k[0]; op.label = k[1]; dl.appendChild(op); }); ln.appendChild(dl);
@@ -598,7 +611,11 @@ function modsBox(form, e) {
                 cs.addEventListener('change', function() { m.col = cs.value; });
             }
             if (m.op !== 'on') {
-                var am = el('input', 'field lib-mod-amt'); am.type = 'number'; am.step = 'any'; am.value = typeof m.v === 'number' ? String(m.v) : ''; am.title = 'How much it adds (negative to take away)'; ln.appendChild(am);
+                // 1.6.3 (the editor coverage audit, gap 7): how the figure works, in the Items tab's own words (sheets.js modHowSel): it adds, or the value is
+                // held at least or at most at it. A stored At least or At most shows as such. Per level counts only for Adds, so the cleaner keeps it only there
+                var how = select([['add', 'Adds'], ['max', 'At least'], ['min', 'At most']], m.op === 'max' || m.op === 'min' ? m.op : 'add'); how.className = 'field lib-mod-how'; how.title = 'Adds: the figure is added. At least: the value is never below it. At most: never above it. Two effects that each say at least 1 still read 1'; ln.appendChild(how);
+                how.addEventListener('change', function() { m.op = how.value === 'max' || how.value === 'min' ? how.value : 'add'; if (m.op !== 'add') delete m.lvl; draw(); });
+                var am = el('input', 'field lib-mod-amt'); am.type = 'number'; am.step = 'any'; am.value = typeof m.v === 'number' ? String(m.v) : ''; am.title = 'How much it adds (negative to take away), or the figure it holds the value at'; ln.appendChild(am);
                 am.addEventListener('input', function() { m.v = am.value === '' ? 0 : Number(am.value); });
                 var amF = el('input', 'field lib-mod-amtf'); amF.type = 'text'; amF.maxLength = 10000; amF.placeholder = 'By a formula'; amF.value = typeof m.vf === 'string' ? m.vf : ''; amF.title = 'By a formula, in place of the number: worked out for each character carrying it, reading the character and this entry\u2019s own row, such as its level. It rolls no dice'; if (amF.value) am.disabled = true; ln.appendChild(amF);   /* 1.6.2 (205): an entry's change sized by a formula */
                 amF.addEventListener('input', function() { if (amF.value.trim()) { m.vf = amF.value; m.v = 0; delete m.lvl; delete m.tiers; } else delete m.vf; am.disabled = !!amF.value.trim(); });
@@ -651,6 +668,10 @@ function grantsBox(form, e) {
             pc.addEventListener('change', function() { if (pc.checked) g.pay = true; else delete g.pay; }); ln.appendChild(pl);
             var gmr = el('div', 'lib-grant-more');   // 1.6.2 (body fold 1): what it names, on a line of its own
             var gnm = el('input', 'field lib-grant-nm'); gnm.type = 'text'; gnm.placeholder = 'Its own name'; gnm.value = typeof g.name === 'string' ? g.name : ''; gnm.title = 'A name for the row it grants in place of the entry\u2019s, such as Left Hand. Two grants of one entry with different names add a row each. Leave it empty for the entry\u2019s name'; gmr.appendChild(gnm);   // 1.6.2 (body fold 1)
+            // 1.6.3 (the editor coverage audit, gap 6): the subject the row it grants is held for, as the Items tab's grant has it (sysedtabs.js
+            // sys-grant-spec, its words too): Acute Senses for hearing. The cleaner keeps it trimmed, 60 characters at most, and none where it is blank
+            var gsp = el('input', 'field lib-grant-spec'); gsp.type = 'text'; gsp.maxLength = 60; gsp.placeholder = 'specifier'; gsp.spellcheck = false; gsp.autocomplete = 'off'; gsp.value = typeof g.spec === 'string' ? g.spec : ''; gsp.title = 'A specifier for the row it grants, such as Smell or Heat: the row is named for it, and a grant of the same entry with another specifier adds a row of its own. Blank: none'; gmr.appendChild(gsp);
+            gsp.addEventListener('input', function() { var sv = gsp.value.trim(); if (sv) g.spec = sv.slice(0, 60); else delete g.spec; });
             gnm.addEventListener('change', function() { var nv = gnm.value.trim().slice(0, 240), was = typeof g.name === 'string' ? g.name : ''; if (nv) g.name = nv; else delete g.name; if (was) st.fg.forEach(function(x) { if (x.up === was) { if (nv) x.up = nv; else delete x.up; } }); upDraws.forEach(function(f) { f(); }); });   // in place: a redraw here loses the box the focus is going to
             var gf = lists.filter(function(f) { return f.id === g.list; })[0], upOf = function() { var o = [['', 'Hangs from nothing']]; st.fg.forEach(function(x, xi) { if (xi !== gi && x.list === g.list && typeof x.name === 'string' && x.name) o.push([x.name, 'Hangs from ' + x.name]); }); if (typeof g.up === 'string' && g.up && !o.some(function(p) { return p[0] === g.up; })) o.push([g.up, 'Hangs from ' + g.up + ' (no such grant)']); return o; };
             if ((gf && gf.list && gf.list.hang === true) || g.up) { var us = select(upOf(), g.up || ''), usH = el('span', 'lib-grant-uphold'); us.title = 'The row of this list it stands under, by the name another grant here gives it'; var usW = function(sl) { sl.title = us.title; sl.addEventListener('change', function() { if (sl.value) g.up = sl.value; else delete g.up; }); }; usW(us); usH.appendChild(us); upDraws.push(function() { usH.textContent = ''; var s2 = select(upOf(), g.up || ''); usW(s2); usH.appendChild(s2); }); gmr.appendChild(usH); }

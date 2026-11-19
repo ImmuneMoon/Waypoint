@@ -55,6 +55,32 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
         J(W.listsOf(there, O).own.map(o => o.name)) === J(['Crate']) && !W.listsOf(there, O).sys.length && J(W.listsOf(here, O).own.map(o => o.name)) === J(['Mine']) && J(W.othersOf({ c1: here, c2: there, c3: none }, here, O).map(x => [x.camp, x.o.name])) === J([['There', 'Crate']]) && J(W.othersOf(null, here, O)) === '[]');
     const c = { id: 'c', system: { objects: [{ id: 's', name: 'B' }] }, objects: [{ id: 'm', name: 'M' }] }; W.listPut(c, 'sys', []); W.listPut(c, 'own', []);
     check('a list left empty leaves no key, and a campaign with no system holds no set', c.system.objects === undefined && c.objects === undefined && W.listPut({ id: 'x' }, 'sys', [{}]) === false);
+    // 1.6.3 (the editor coverage audit, gap 5): an object with no picture is drawn in its own color, and the color is picked in its row's editor. The
+    // live system's eight objects, each with a color only a file could set before, kept whole by the cleaner and placed in their colors; the editor
+    // (mapobjects.js formInto, sliced by its [objcheck:form-*] markers and run for real on a page of plain objects) shows the swatch for an object
+    // with no picture alone, set to its color or the plain land color, and a pick is committed through the cleaner as a color in lower case
+    const LIVE = [{ id: 'chair', name: 'Chair', cover: 'half', color: '#c0392b' }, { id: 'table', name: 'Table', cover: 'half', stops: true, w: 2, color: '#8e5a2b' }, { id: 'supply_box', name: 'Supply box', cover: 'half', stops: true, color: '#e0b04a' }, { id: 'cargo_crate', name: 'Cargo crate', cover: 'threeq', stops: true, color: '#3f8f5f' },
+        { id: 'fuel_drum', name: 'Fuel drum', cover: 'half', stops: true, color: '#2f6f9f' }, { id: 'low_wall', name: 'Low wall', cover: 'threeq', stops: true, w: 3, color: '#8a8f98' }, { id: 'pillar', name: 'Pillar', cover: 'total', sight: true, color: '#6a4c93' }, { id: 'wall_section', name: 'Wall section', cover: 'total', sight: true, w: 3, color: '#3a3f47' }];
+    const sysL = S.cleanSystem({ name: 'T', objects: LIVE }, { F, gm: true });
+    check('1.6.3 the live system\'s eight objects, each in its own color, are kept whole by the cleaner and through the system, and each is placed in its color',
+        J(O.cleanObjects(LIVE)) === J(LIVE) && J(sysL.objects) === J(LIVE) && LIVE.every(o => O.objProps(o, false).color === o.color) && O.objProps({ id: 'a', name: 'x' }, false).color === '#6b5b45');
+    let oc = null, ocErr = '';
+    try {
+        const mkE = tag => ({ tag, kids: [], on: {}, dataset: {}, attrs: {}, value: '', appendChild(c) { this.kids.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, setAttribute(k, v) { this.attrs[k] = v; }, set textContent(v) { this.kids = []; this._t = v; }, get textContent() { return this._t || ''; } });
+        const el = (tag, cls, text) => { const e = mkE(tag); if (cls) e.className = cls; if (text !== undefined) e._t = String(text); return e; };
+        const btn = (cls, text, tip) => { const b = el('button', cls, text); if (tip) b.dataset.tip = tip; return b; };
+        const walk = (n, f, out = []) => { if (f(n)) out.push(n); (n.kids || []).forEach(k => walk(k, f, out)); return out; };
+        const camp = { id: 'c', objects: JSON.parse(J(LIVE)).concat([{ id: 'pic', name: 'Picture crate', src: PIC }, { id: 'plain', name: 'Plain' }, { id: 'seat', name: 'Seat', furn: 'chair' }]) }, stored = [];
+        const formInto = new Function('OC', 'el', 'btn', 'listsOf', 'campNow', 'store', 'draw', 'pickPic', 'toast', 'save', 'log', 'nowOf', 'showConfirm', 'window', 'OBJ_LAND', '"use strict";\n' + slice(src, 'objcheck:form') + '\nreturn formInto;')(
+            () => O, el, btn, W.listsOf, () => camp, (kind, list) => { stored.push(list); camp.objects = list; return true; }, () => {}, () => {}, () => {}, () => {}, () => {}, o => o, () => {}, {}, (/var OBJ_LAND = '(#[0-9a-f]{6})';/.exec(src) || [])[1]);
+        const swatchOf = id => { const box = mkE('div'); formInto(box, camp.objects.find(o => o.id === id), 'own', camp.objects); return walk(box, n => n.className === 'obj-color')[0] || null; };
+        const chair = swatchOf('chair'), drawn = [chair.type, chair.value, chair.attrs['aria-label'], !!chair.dataset.tip];
+        chair.value = '#12ABEF'; chair.on.change(); const picked = stored[stored.length - 1].find(o => o.id === 'chair');
+        oc = { drawn, picked, plain: swatchOf('plain').value, pic: swatchOf('pic'), furn: swatchOf('seat'), others: J(stored[stored.length - 1].filter(o => o.id !== 'chair').slice(0, 7)) === J(LIVE.slice(1)) };
+    } catch (e) { ocErr = String(e && e.stack || e).slice(0, 600); }
+    check('1.6.3 (the audit, gap 5) a map object\'s color is picked in its row\'s editor: a swatch of the app\'s own color input for an object with no picture alone, set to its color or else the plain land color objcore draws, a pick kept by the cleaner in lower case and nothing else changed; an object with a picture, or one that names a furnishing, has none',
+        !!oc && J(oc.drawn) === J(['color', '#c0392b', 'Its color', true]) && J(oc.picked) === J({ id: 'chair', name: 'Chair', cover: 'half', color: '#12abef' }) && oc.plain === '#6b5b45' && oc.pic === null && oc.furn === null && oc.others === true
+        && /var LAND_COLOR = '#6b5b45';/.test(read('scripts/objcore.js')) && src.includes("var OBJ_LAND = '#6b5b45';") && read('style.css').includes('.obj-form input.obj-color {'), ocErr || oc);
     // the wiring
     const ix = read('index.html'), net = fs.readFileSync(app('scripts/net.js'), 'latin1'), cln = read('scripts/cleanup.js'), io = read('scripts/io.js'), esc = read('scripts/esckey.js'), fog = read('scripts/fog.js'), ins = read('scripts/inspector.js'), wb = read('scripts/whiteboard.js');
     check('the window: its row in Add the GM\'s alone, its box, its script, Escape; words as text alone, no markup written', /id="addObjectsBtn"/.test(ix) && /body\.net-client #addObjectsBtn/.test(read('style.css')) && /id="objModal"/.test(ix) && /src="scripts\/mapobjects\.js"/.test(ix) && esc.includes("['objModal', 'objClose']") && !/innerHTML|insertAdjacentHTML|outerHTML/.test(src) && wb.includes('window.wpArmPlacement = armPlacement;'));

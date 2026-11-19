@@ -45,7 +45,11 @@
       "Tests move with their area"). So does a line that names such a marker as a quoted string (a suite may build the marker at run
       time from 'netcheck:swpay'), and a line where a slice's anchor (a quoted string in a call of fnSrc, cut, indexOf, range,
       between, tryBetween or lineOf) holds a definition that only a part holds: a function, a net. function or a var declared at the
-      left margin of the part's body and nowhere in its root's own text (the review of area 1's tests, 2026-11-18).
+      left margin of the part's body and nowhere in its root's own text (the review of area 1's tests, 2026-11-18). A line names a part
+      only by a string or a template that holds the part's file name, or where every receiver of its indexOf is a name that stands, by
+      the scopes, for a read whose path names the part; a comment never names it (the review of next area 2, 2026-11-18). A cut at a
+      definition that a script of another family also holds at its left margin (net.js's own var FACE_PICS) passes only where every
+      receiver stands for a read of such a script. Both rules are tried on texts of their own first.
    7b. A source pin (an includes or a split of a quoted string, or a plain regex's test) on a root's joined text, read directly or
       through a name the tool set to such a read, holds no text that only one of the root's parts holds: it reads that part by name
       (the review of area 3, 2026-11-18). The rule is tried on a text of its own first.
@@ -443,20 +447,123 @@ function pageCalls(name, bundle, key) {
             if (rootRaw.indexOf(d) < 0) defs7.push([d, p]);
         });
     });
+    // A definition a part holds may also stand at the left margin of a script of another family: net.js keeps its own var FACE_PICS, as
+    // systemcore.js's part cleancore.js does. A line that cuts at such a definition is excused only where every text it cuts is read
+    // from such a script: each receiver of its indexOf is a name bound (below, binds7) to a read whose path names that script, as
+    // netcheck's src is to net.js, so the line reads that script's own definition and no part's (the review of next area 2)
+    const famOf7 = p => { const r = srcjoin.rootOf(p); return new Set([r].concat(srcjoin.partsOf(r))); };
+    const elsewhere7 = new Map();   // "the definition|its part" -> the scripts of other families that hold it at the left margin too
+    defs7.forEach(([d, p]) => {
+        const fam = famOf7(p);
+        elsewhere7.set(d + '|' + p, fs.readdirSync(SCRIPTS).filter(f => /\.js$/.test(f) && !fam.has(f)
+            && fs.readFileSync(path.join(SCRIPTS, f), 'latin1').replace(/\r\n/g, '\n').split('\n').some(l => l.indexOf(d) === 0)));
+    });
+    // binds7: which script files a name of a tool stands for, where it is read. A name set by a declaration stands for every file a string
+    // of its value names (kit.part('cleancore.js'), a readFileSync of a path ending in net.js) and every file a name in its value stands
+    // for; a function's parameter stands for every file its call sites hand it (netcheck's faceRule(scF) and faceRule(ps)). A name is
+    // read at a place by the scopes, as the language reads it: of the declarations of that name whose scope holds the place and that stand
+    // before it, the innermost scope's, and in that scope the latest (a var's scope is its function, a let's, a const's and a class's its
+    // block, a parameter's its function). resolve(name, at) answers a Set of file names, empty for a name it does not know.
+    function binds7(acorn, src) {
+        let ast; try { ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script', allowAwaitOutsideFunction: true, allowReturnOutsideFunction: true, allowHashBang: true, locations: true }); } catch (e) { return null; }
+        const kids = n => { const o = []; for (const k in n) { if (k === 'loc' || k === 'start' || k === 'end' || k === 'type') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(x => { if (x && typeof x.type === 'string') o.push(x); }); else if (v && typeof v.type === 'string') o.push(v); } return o; };
+        const each = (n, f) => { const st = [n]; while (st.length) { const x = st.pop(); f(x); const k = kids(x); for (let i = k.length - 1; i >= 0; i--) st.push(k[i]); } };
+        const isFn = n => n && /^(ArrowFunctionExpression|FunctionExpression|FunctionDeclaration)$/.test(n.type);
+        const decls = [];   // { name, at: where it is declared, s0, s1: its scope, files: Set }
+        const resolve = (name, at) => {
+            let best = null;
+            decls.forEach(d => { if (d.name === name && d.s0 <= at && at < d.s1 && d.at <= at && (!best || d.s0 > best.s0 || (d.s0 === best.s0 && d.at >= best.at))) best = d; });
+            return best ? best.files : new Set();
+        };
+        const filesIn = (n, at) => { const s = new Set(); each(n, y => {
+            const t = y.type === 'Literal' && typeof y.value === 'string' ? y.value : y.type === 'TemplateElement' ? y.value.cooked : null;
+            if (t) (t.match(/[A-Za-z0-9_-]+\.js\b/g) || []).forEach(x => s.add(x));
+            if (y.type === 'Identifier') resolve(y.name, at).forEach(x => s.add(x));
+        }); return s; };
+        const fns = [];   // [the function's name, its scope, its parameters' declarations]
+        const later = [];   // [a declaration, the value it is set to], worked out in source order once every declaration is known
+        const walk = (n, fnScope, block) => {
+            if (isFn(n)) {
+                const sc = [n.start, n.end], ps = n.params.map(q => q.type === 'Identifier' ? { name: q.name, at: n.start, s0: sc[0], s1: sc[1], files: new Set() } : null);
+                ps.forEach(q => { if (q) decls.push(q); });
+                if (n.type === 'FunctionDeclaration' && n.id) fns.push([n.id.name, block, ps]);
+                kids(n).forEach(k => walk(k, sc, sc));
+                return;
+            }
+            if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier') {
+                const sc = n.kind === 'var' ? fnScope : block;
+                if (isFn(n.init)) {
+                    walk(n.init, fnScope, block);
+                    const ps = decls.filter(d => d.s0 === n.init.start && d.at === n.init.start);
+                    fns.push([n.id.name, sc, n.init.params.map(q => q.type === 'Identifier' ? ps.find(d => d.name === q.name) : null)]);
+                    return;
+                }
+                const d = { name: n.id.name, at: n.start, s0: sc[0], s1: sc[1], files: new Set() }; decls.push(d);
+                if (n.init) { later.push([d, n.init]); walk(n.init, fnScope, block); }
+                return;
+            }
+            if (n.type === 'VariableDeclaration') { n.declarations.forEach(x => { x.kind = n.kind; walk(x, fnScope, block); }); return; }
+            const nb = /^(BlockStatement|ForStatement|ForInStatement|ForOfStatement|SwitchStatement|CatchClause|StaticBlock)$/.test(n.type) ? [n.start, n.end] : block;
+            kids(n).forEach(k => walk(k, fnScope, nb));
+        };
+        const whole = [ast.start, ast.end];
+        try { walk(ast, whole, whole); } catch (e) { return null; }
+        later.sort((a, b) => a[0].at - b[0].at).forEach(([d, v]) => filesIn(v, d.at).forEach(x => d.files.add(x)));
+        const fnAt = (name, at) => { let best = null; fns.forEach(f => { if (f[0] === name && f[1][0] <= at && at < f[1][1] && (!best || f[1][0] > best[1][0])) best = f; }); return best; };
+        each(ast, n => { if (n.type === 'CallExpression' && n.callee.type === 'Identifier') {
+            const f = fnAt(n.callee.name, n.start); if (!f) return;
+            n.arguments.forEach((a, i) => { if (f[2][i]) filesIn(a, n.start).forEach(x => f[2][i].files.add(x)); });
+        } });
+        return resolve;
+    }
+    const bindSrc7 = "var a = kit.part('cleancore.js');\nconst b = fs.readFileSync(path.join(d, 'net.js'));\nconst f = s => s.indexOf('x');\nf(a); f(b);\nconst a2 = a;\n{ const b = raw('wbbuild.js'); b.indexOf('y'); }\nb.indexOf('z');\n";
+    const bindTry7 = binds7(L.acorn(), bindSrc7), at7 = t => bindSrc7.indexOf(t), set7 = (n, t) => bindTry7 ? [...bindTry7(n, at7(t))].sort().join() : null;
+    check('7. the rule that a name stands for the files its read names, tried on a text of its own: a part read by name, a path, a name set to another name, a function\'s parameter by its call sites, a name declared again in an inner block read there and the outer one read outside it, and a name read before it is declared standing for nothing',
+        !!bindTry7 && set7('a', 'const b') === 'cleancore.js' && set7('b', 'const f') === 'net.js' && set7('s', "s.indexOf('x')") === 'cleancore.js,net.js'
+        && set7('a2', '{ const b') === 'cleancore.js' && set7('b', "b.indexOf('y')") === 'wbbuild.js' && set7('b', "b.indexOf('z')") === 'net.js' && set7('b', 'var a') === '' && set7('zz', 'f(a)') === '');
     const anchorCall7 = /\b(?:fnSrc|cut|indexOf|range|between|tryBetween|lineOf)\(/;
-    const quoted7 = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"/g;
+    // A part is named on a line only by a string or a template that holds its file's name (a path, kit.part('x.js'), srcjoin.raw): a
+    // comment never names it, or a comment could quiet point 7 on a real pin (the review of next area 2, 2026-11-18). Each tool is read by
+    // the parser's tokenizer, which tells strings and templates from comments and regexes, each string's text by the lines it spans; a
+    // slice's anchor is matched on those strings too. The rule is tried on a text of its own first.
+    function lineStrs7(acorn, src) {
+        const by = new Map();
+        try {
+            for (const t of acorn.tokenizer(src, { ecmaVersion: 'latest', allowHashBang: true, locations: true })) {
+                if (t.type.label !== 'string' && t.type.label !== 'template') continue;
+                for (let l = t.loc.start.line; l <= t.loc.end.line; l++) { if (!by.has(l)) by.set(l, []); by.get(l).push(String(t.value)); }
+            }
+        } catch (e) { return null; }
+        return by;
+    }
+    const try7 = lineStrs7(L.acorn(), "x.indexOf('a'); // kit.part('cleancore.js')\nkit.part('cleancore.js').indexOf('b');\nconst r = /'cleancore.js'/; y(`${z}cleancore.js`);\n");
+    const try7has = l => ((try7 && try7.get(l)) || []).filter(v => v.indexOf('cleancore.js') >= 0).length;
+    check('7. the rule that only a string names a part, tried on a text of its own: a comment that names the part names nothing, a string and a template do, and a regex that holds the name does not',
+        !!try7 && try7has(1) === 0 && try7has(2) === 1 && try7has(3) === 1, try7 && [...try7]);
     const unnamed7 = [];
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => {
-        fs.readFileSync(path.join(__dirname, f), 'utf8').split('\n').forEach((line, i) => {
+        const toolSrc = fs.readFileSync(path.join(__dirname, f), 'utf8'), strs = lineStrs7(L.acorn(), toolSrc), bind = binds7(L.acorn(), toolSrc);
+        if (!strs || !bind) { unnamed7.push(f + ' does not parse'); return; }
+        // each receiver of an indexOf on a line, with where it stands in the tool; a line names a part where a string on it does, or
+        // where every such receiver stands for that part (a name set to kit.part('netattack.js') on a line before)
+        let off = 0;
+        const recvOf = (line, at) => { const o = []; let m; const re = /\b([A-Za-z0-9_$]+)\.(?:indexOf|lastIndexOf)\(/g; while ((m = re.exec(line))) o.push([m[1], at + m.index]); return o; };
+        const names = (i, p, recv) => (strs.get(i + 1) || []).some(v => v.indexOf(p) >= 0) || (recv.length > 0 && recv.every(([r, at]) => bind(r, at).has(p)));
+        toolSrc.split('\n').forEach((line, i) => {
+            const at = off; off += line.length + 1;
+            const recv = recvOf(line, at);
             byPart7.forEach(([n, p]) => {
                 const tag = line.indexOf('[' + n + '-start]') >= 0 || line.indexOf('[' + n + '-end]') >= 0, said = line.indexOf("'" + n + "'") >= 0 || line.indexOf('"' + n + '"') >= 0;
-                if ((tag || said) && line.indexOf(p) < 0) unnamed7.push(f + ':' + (i + 1) + ' reads [' + n + ']' + (tag ? '' : ' (a quoted marker)') + ' without naming ' + p);
+                if ((tag || said) && !names(i, p, recv)) unnamed7.push(f + ':' + (i + 1) + ' reads [' + n + ']' + (tag ? '' : ' (a quoted marker)') + ' without naming ' + p);
             });
             if (!anchorCall7.test(line)) return;
-            // the line's quoted strings, as written (an escaped quote stays inside its string); a definition is matched on its own text
-            const lits = []; let m; quoted7.lastIndex = 0;
-            while ((m = quoted7.exec(line))) lits.push(m[1] !== undefined ? m[1] : m[2]);
-            defs7.forEach(([d, p]) => { if (lits.some(s => s.indexOf(d) >= 0) && line.indexOf(p) < 0) unnamed7.push(f + ':' + (i + 1) + ' cuts at "' + d + '", which only ' + p + ' holds, without naming it'); });
+            const lits = strs.get(i + 1) || [];
+            defs7.forEach(([d, p]) => {
+                if (!lits.some(s => s.indexOf(d) >= 0) || names(i, p, recv)) return;
+                const other = elsewhere7.get(d + '|' + p) || [];
+                if (other.length && recv.length && recv.every(([r, ra]) => other.some(x => bind(r, ra).has(x)))) return;
+                unnamed7.push(f + ':' + (i + 1) + ' cuts at "' + d + '", which only ' + p + ' holds, without naming it');
+            });
         });
     });
     check('7. a line of a tool that holds the literal of a marker only a part holds (' + byPart7.length + ' such markers), names one as a quoted string, or cuts a slice at a definition only a part holds (' + defs7.length + ' such definitions), names that part\'s file, so the area\'s tests read it by name', byPart7.length > 0 && defs7.length > 0 && unnamed7.length === 0, unnamed7.slice(0, 20));

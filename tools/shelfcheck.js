@@ -1317,6 +1317,24 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && secrets.length === 1 && secrets[0] === 'secrets.WEBSITE_DISPATCH_TOKEN' && count(ny, 'https://api.github.com/repos/ImmuneMoon/Waypoint-Website/dispatches') === 1
         && count(ny, '-d \'{"event_type":"waypoint-release"}\'') === 1 && nNames.length === 2 && nNames.every(v => nameBad(v) === ''),
         J([nOn, secrets, nNames]));
+    // the bytes of both files
+    // YAML allows no C0 control character outside an escaped double-quoted string, and a file GitHub cannot read stops every run before
+    // any suite. On 2026-11-18 a step's name was written with its em dash (U+2014) cut down to its low byte, 0x14, which the name rule above
+    // could not see. So each file is read as bytes: it must be valid UTF-8 (a strict decoder throws on a byte that is none) and hold no
+    // character of [\x00-\x08\x0b\x0c\x0e-\x1f], tab, line feed and carriage return being the only ones kept. The judge is tried on texts of its own first.
+    const ymlBad = buf => {
+        let s;
+        try { s = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { return 'not valid UTF-8'; }
+        const m = /[\x00-\x08\x0b\x0c\x0e-\x1f]/.exec(s);
+        return m ? 'a control character U+' + m[0].charCodeAt(0).toString(16).padStart(4, '0').toUpperCase() + ' at ' + m.index : '';
+    };
+    check('the rule for the CI files\' bytes, tried on texts of its own: an em dash, a tab and both line ends are fine; the em dash cut to its low byte, a NUL, an escape character and a byte that is no UTF-8 are not',
+        ymlBad(Buffer.from('- name: corecheck — the core\r\n\tx\n', 'utf8')) === '' && ymlBad(Buffer.from('- name: corecheck \x14 the core\n', 'latin1')) === 'a control character U+0014 at 18'
+        && /^a control character U\+0000/.test(ymlBad(Buffer.from('a\x00b', 'latin1'))) && /^a control character U\+001B/.test(ymlBad(Buffer.from('a\x1bb', 'latin1')))
+        && ymlBad(Buffer.from([0x61, 0xe2, 0x80, 0x20])) === 'not valid UTF-8' && ymlBad(Buffer.from([0xff])) === 'not valid UTF-8');
+    const ymlBytes = ['checks.yml', 'notify-website.yml'].map(f => { const p = path.join(root, '.github/workflows', f); return [f, fs.existsSync(p) ? ymlBad(fs.readFileSync(p)) : 'not there']; });
+    check('both CI files are valid UTF-8 and hold no control character but tab, line feed and carriage return, so GitHub can read them',
+        ymlBytes.every(([, bad]) => bad === ''), J(ymlBytes.filter(([, bad]) => bad)));
 }
 
 /* ---------- what git keeps out of the repository ---------- */

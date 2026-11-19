@@ -1,8 +1,9 @@
 'use strict';
-/* Offline check of the character-sheet feature's pure half (system/app/scripts/systemcore.js) against the real
+/* Offline check of the character-sheet feature's core (system/app/scripts/systemcore.js) and its sheet against the real
    formula engine (system/app/scripts/formula.js) and the two bundled presets (system/app/assets/systems/*.json):
-   keys, cleaners, the GM-view stripping, the validator (carets, loops, dice in definitions), the resolver, the
-   per-recipient view, edits, the auto layout and the hook an outside sheet reader registers through.
+   the rules a system adds past the core's first tests (conditions, postures, initiative, range, height, senses, budgets,
+   prerequisites, lists and their rows), the sheet and the System editor run on pages of plain objects, the auto layout and the hook
+   an outside sheet reader registers through.
    An area's tests leave this suite with their area (docs/REFACTOR_SPLIT_PLAN.md, 2026-11-18): the damage step's are in damagecheck.js, a card to
    press and what an attack reads of its attacker in answercheck.js, time rules in timerulecheck.js, linked sheets in linkcheck.js, and its first
    blocks (presets, keys, fields, systems, the validator, the resolver, values and edits, what a player receives, the look of Stages 3

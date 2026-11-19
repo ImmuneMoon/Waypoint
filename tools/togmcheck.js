@@ -34,7 +34,7 @@ function slice(text, name) { const a = text.indexOf('// [togmcheck:' + name + '-
     const dj = read('scripts/dice.js');
     check('the card draws its title and Sent to the GM, and nothing of the roll', dj.includes("if (rec.hid === 'gm') { wrap.appendChild(el('div', 'roll-togm', 'Sent to the GM.')); return wrap; }") && dj.indexOf("if (rec.hid === 'gm') { wrap.appendChild(") < dj.indexOf('var coin = rec.expr'));
     // the host
-    const net = read('scripts/net.js'), src = slice(net, 'host');
+    const net = read('scripts/net.js'), src = slice(require('./srcjoin').raw(app('scripts/nettrade.js'), 'utf8').replace(/\r\n/g, NL), 'host');   // the host's record stands in nettrade.js (a part of net.js), read by its name
     const mkDoc = () => { const mk = tag => ({ tag, children: [], className: '', textContent: '', title: '', type: '', ls: {}, appendChild(c) { this.children.push(c); c.parentNode = this; return c; }, removeChild(c) { this.children = this.children.filter(x => x !== c); }, get firstChild() { return this.children[0] || null; }, addEventListener(e, f) { this.ls[e] = f; } }); return { createElement: mk, createTextNode: t => ({ tag: '#text', text: t }) }; };
     const text = n => n.tag === '#text' ? n.text : (n.textContent || '') + (n.children || []).map(text).join('');
     const mkHost = () => {

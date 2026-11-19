@@ -82,7 +82,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
 
     /* ---- trade, keep, the sheet, the words ---- */
     const sh = read('scripts/sheets.js'), core = read('scripts/systemcore.js'), html = read('index.html');
-    check('a row traded away hangs from nothing on the other side', core.includes('delete mv.gr; delete mv.gp; delete mv.in; delete mv.up; delete mv.pl; grantOwn(mv);'));
+    check('a row traded away hangs from nothing on the other side', require('./srcjoin').raw(app('scripts/tradecore.js'), 'utf8').includes('delete mv.gr; delete mv.gp; delete mv.in; delete mv.up; delete mv.pl; grantOwn(mv);'));
     check('Hangs from is on both of a row’s forms, the GM’s alone, and goes through the row’s own change', sh.split("upBox(form, entry, c, f, spec, sysI, mode);").length === 3 && /function upBox\(form, entry, c, f, spec, sysI, mode\) \{\n    if \(mode !== 'gm'/.test(sh) && sh.includes("commitItem(c, f, { op: 'set', rowId: rid, facts: { up: s.value || null } });"));
     check('its menu offers no row that hangs from this one, so no circle can be picked', /kin\[r\.up\] === 1\) \{ kin\[x\] = 1; sub = true; \}/.test(sh));
     check('a grant’s boxes in both editors and a tick on the list', sh.includes("checkLabel('sys-list-hang', sp.hang === true, 'Rows hang from a row'") && sh.includes("select('sys-grant-up', upO") && read('scripts/librarywin.js').includes('lib-grant-nm'));

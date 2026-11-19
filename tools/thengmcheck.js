@@ -33,7 +33,7 @@ function slice(text, name) { const a = text.indexOf('// [thengmcheck:' + name + 
     const plain = S.cleanSystem(Object.assign({}, RAW, { rolls: [{ id: 'r_p', label: 'P', formula: '3d6 <= 12', then: [{ f: 'f_str', formula: '1', add: true }] }], fields: RAW.fields.slice(0, 3) }), { F, gmView: false });
     check('a Then the players’ view holds whole has no mark and is not named for it', plain.rolls[0].thenGm === undefined && plain.rolls[0].named === undefined && plain.rolls[0].then.length === 1, J(plain.rolls[0]));
     // the host's run
-    const net = read('scripts/net.js'), src = slice(net, 'run');
+    const net = read('scripts/net.js'), src = slice(require('./srcjoin').raw(app('scripts/nettrade.js'), 'utf8').replace(/\r\n/g, NL), 'run');   // the host's run stands in nettrade.js (a part of net.js), read by its name
     check('the host’s run is in its slice', src.includes('function thenGmRun('), src.slice(0, 80));
     const mkHost = (camp, charV) => {
         const out = { saves: 0, sync: [], log: [], changed: [] };

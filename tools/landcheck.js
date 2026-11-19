@@ -786,6 +786,6 @@ pendingChecks.push((async () => {
     // finding 10: a defense answered with a row that is itself an attack, or carries its damage, names that row; finding 2's hidden steps (thengmcheck runs them)
     check('1.6.3 (the review of defense fold 2, findings 2 and 10, source) both roll paths hand the row a defense was answered with to attemptMake, landRowNow and landAfter as its row, and thenGmRun reads q.with',
         src4.includes('tcQ && tcQ.range, chQ, !!recQ.priv, varsQ, q.row || q.with);') && src4.includes('tcR && tcR.range, chR, !!rec.priv || !!rec.to, varsR, o.row || o.with);') && src4.includes('landRowNow(chQ, q.row || q.with)') && src4.includes('landRowNow(chR, o.row || o.with)')
-        && src4.includes('tcQ, chQ, !!recQ.priv, q.row || q.with, atQ, recQ.from') && src4.includes('tcR, chR, !!rec.priv || !!rec.to, o.row || o.with, atR, rec.from') && src4.includes("var rq = q.row && q.row.r ? q.row : q.with && typeof q.with.f === 'string' && typeof q.with.r === 'string' ? q.with : null;"));
+        && src4.includes('tcQ, chQ, !!recQ.priv, q.row || q.with, atQ, recQ.from') && src4.includes('tcR, chR, !!rec.priv || !!rec.to, o.row || o.with, atR, rec.from') && kit.part('nettrade.js').includes("var rq = q.row && q.row.r ? q.row : q.with && typeof q.with.f === 'string' && typeof q.with.r === 'string' ? q.with : null;"));
 })());
 T.finish();

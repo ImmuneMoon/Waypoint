@@ -10,3 +10,4 @@ system/app/scripts/nethold.js -text
 system/app/scripts/netattack.js -text
 system/app/scripts/nettime.js -text
 system/app/scripts/netlink.js -text
+system/app/scripts/nettrade.js -text

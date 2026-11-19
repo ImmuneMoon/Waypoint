@@ -48,6 +48,21 @@ jobs:
       - name: systemcheck — character system + sheet model
         if: ${{ !cancelled() }}
         run: node tools/systemcheck.js
+      - name: listcheck — a list and its rows facts, With stats, highest and lowest, the caps and Locked while, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/listcheck.js
+      - name: listrulecheck — a copy of its own values, Setting A, the custom op and the stats a player asks for, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/listrulecheck.js
+      - name: listrowcheck — a list of rows, backlog 180, parts, grants and Laid from, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/listrowcheck.js
+      - name: speccheck — At most at a level, bars, a row look, fitted slots, Specialties and Subjects, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/speccheck.js
+      - name: loadcheck — Loads from, Chambers from, Counted once, Feeds, a job, holds, a line and cover hits, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/loadcheck.js
       - name: corecheck — the core's cleaners and validator, read from cleancore.js and validcore.js by name, with the core's first tests
         if: ${{ !cancelled() }}
         run: node tools/corecheck.js

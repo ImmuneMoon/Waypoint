@@ -41,7 +41,9 @@
      run, which netcheck and the suites that came out of it with area 9 share.
    - packCheck(v): PeerJS's BinaryPack refusals, which netcheck runs on every send of a harness (moved here from netcheck).
    - url(name): a file URL of a script, for import(). fresh(root, tag): the file URLs of a private copy of a split root and its
-     parts, by name, so that an import runs the real split wiring (a part as a module of its own). APP and SCRIPTS: the app's folders. */
+     parts, by name, so that an import runs the real split wiring (a part as a module of its own). APP and SCRIPTS: the app's folders.
+   - sysCore(), starterFile(n), flatKids(node): systemcheck.js's top (systemcore.js and formula.js, the names it unpacks, the presets),
+     which it and the suites that came out of it with the lists, rolls and sheet start from. */
 'use strict';
 const srcjoin = require('./srcjoin');
 srcjoin.install();
@@ -233,6 +235,28 @@ function packCheck(v) {
 
 const url = f => 'file:///' + path.resolve(path.join(SCRIPTS, f)).replace(/[\\]/g, '/');
 
+// systemcheck.js's top, which it and the suites that came out of it with the lists, rolls and sheet start from (docs/REFACTOR_SPLIT_PLAN.md,
+// "Finishing the test split", 2026-11-19), so that no suite keeps its own copy. starterFile names a system file for the tests: the two
+// starters frozen in tools/fixtures (Basic 3d6, out of the app since 1.5.6, and Basic d20 as it stood before its gear and coins, 1.6.2,
+// backlog 147, for the folds' own baselines), else one of the app's own systems. sysCore() imports systemcore.js and formula.js from the
+// real folder, as systemcheck.js always has (under srcjoin the root runs as its joined text, its parts' lines in place), and answers
+// { S, F, err } with, once both loaded, the fifteen names systemcheck.js unpacks from S, the d20 and 3d6 presets, and flatKids. A suite
+// checks err itself, in its own words. flatKids reads every box under a node of a page of plain objects at any depth (1.6.2, the owner:
+// "Folds by part, answer shown": the Combat tab's Blasts and throws stands in folds).
+const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter-3d6.json') : n === 'd20' ? path.join(__dirname, 'fixtures', 'starter-d20.json') : path.join(APP, 'assets', 'systems', n + '.json');
+function flatKids(n) { return (n && Array.isArray(n.kids) ? n.kids : []).reduce(function(a, k) { return a.concat([k], flatKids(k)); }, []); }
+const SYS_NAMES = ['LIMITS', 'validKey', 'cleanField', 'cleanSystem', 'cleanValue', 'cleanChar', 'cleanCharEdit', 'makeResolver', 'resolveAll', 'hoverLines', 'validateSystem', 'charFor', 'applyEdit', 'autoLayout', 'emptySystem'];
+async function sysCore() {
+    let S = null, F = null, err = null;
+    try { S = await import(url('systemcore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
+    const out = { S, F, err, flatKids };
+    if (!S || !F) return out;
+    SYS_NAMES.forEach(k => { out[k] = S[k]; });
+    out.d20 = JSON.parse(fs.readFileSync(path.join(APP, 'assets', 'systems', 'd20.json'), 'utf8'));
+    out.g3d6 = JSON.parse(fs.readFileSync(starterFile('3d6'), 'utf8'));
+    return out;
+}
+
 // The file URLs of a private copy of a split root and its parts (srcjoin.freshUrl), by name. An import of the real folder's root
 // runs the joined text srcjoin answers (the parts' lines put back in place), and an import of a real part answers its one neutral
 // line; an import from the copy runs the real split wiring instead, as the browser does: the part is a module of its own, read by
@@ -243,4 +267,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, packCheck, url, fresh, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, packCheck, url, fresh, sysCore, starterFile, flatKids, APP, SCRIPTS, lf };

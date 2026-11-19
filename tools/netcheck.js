@@ -8739,7 +8739,7 @@ pendingChecks.push((async () => {
         rc.u_a.face === '\u{1F409}' && !('face' in rc.u_b) && rc.u_c.face === 'pic:orc'
         && /var fP = cleanFace\(p\.face\); if \(fP\) e\.face = fP;/.test(src) && /prof = \{ id: prof\.id, name: prof\.name, color: prof\.color, avatar: prof\.avatar, face: cleanFace\(prof\.face\) \};[^\n]*\n\s*if \(!prof\.face\) delete prof\.face;/.test(src)
         && /if \(typeof patch\.face === 'string'\) \{ var cf = cleanFace\(patch\.face\); if \(cf\) p\.face = cf; else if \(patch\.face === ''\) delete p\.face; \}/.test(src), j(rc));
-    const expAt = src.indexOf('net.FACE_PICS = FACE_PICS.slice()'), helpEnd = src.indexOf('// [netcheck:helpers-end]'), picsAt = src.indexOf('var FACE_PICS = [');
+    const expAt = src.indexOf('net.FACE_PICS = FACE_PICS.slice()'), helpEnd = src.indexOf('// [netcheck:helpers-end]'), picsAt = src.indexOf('var FACE_PICS = [');   // net.js's own list (systemcore.js's copy stands in cleancore.js)
     check('F1b the face exports run after the helpers assign FACE_PICS (above them, net.js stopped loading at the first line that read it: found live — the table could not be hosted)',
         expAt > helpEnd && helpEnd > picsAt && picsAt > 0 && (src.match(/net\.FACE_PICS = FACE_PICS\.slice\(\)/g) || []).length === 1, j([picsAt, helpEnd, expAt]));
     const mlSrc = between('// [netcheck:mylook-start]', '// [netcheck:mylook-end]', 'mylook');
@@ -8809,8 +8809,8 @@ pendingChecks.push((async () => {
     const tF = tfc({ id: 'c_1', name: 'Ana', portrait: '', face: '\u{1F409}' }, 'u_a'), tPo = tfc({ id: 'c_1', name: 'Ana', portrait: '/saves/images/x.png', face: '\u{1F409}' }, 'u_a'), tBad = tfc({ id: 'c_1', name: 'Ana', face: '<b>x</b>' }, 'u_a');
     check('F1c a token made for a character wears its own face (its picture wins; a face the rule refuses is left off)',
         tfA > 0 && tF.face === '\u{1F409}' && tF.type === 'circle' && tF.color === '#123456' && !('face' in tPo) && tPo.src === '/saves/images/x.png' && !('face' in tBad), j([tF, tPo, tBad]));
-    const scF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8').replace(/\r\n/g, '\n');
-    const faceRule = s => { const a = s.indexOf('var FACE_PICS = ['), b = s.indexOf('function cleanFace(v) {'), e = s.indexOf('\n}\n', b); return a < 0 || b < 0 || e < 0 ? null : s.slice(a, s.indexOf('\n', a)) + '\n' + s.slice(b, e + 2); };
+    const scF = require('./checkkit').part('cleancore.js');   // systemcore.js's face rule stands in its part cleancore.js, read by name
+    const faceRule = s => { const a = s.indexOf('var FACE_PICS = ['), b = s.indexOf('function cleanFace(v) {'), e = s.indexOf('\n}\n', b); return a < 0 || b < 0 || e < 0 ? null : s.slice(a, s.indexOf('\n', a)) + '\n' + s.slice(b, e + 2); };   // read on cleancore.js's text (scF) and on net.js's (ps)
     check('F1c the face rule is one rule: systemcore.js (a character\'s face, on load and from the wire) carries net.js cleanFace and its picture list word for word',
         faceRule(scF) !== null && faceRule(scF) === faceRule(ps));
 }

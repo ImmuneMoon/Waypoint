@@ -385,6 +385,45 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         check('gap 4: Just this word takes the row\u2019s picks away', oBox.value.indexOf('Blade, ') > 0 && !q1(1, '.fb-optrow'), oBox.value);
         chg(q1(1, '.fb-optfig'), '@list:Gear'); chg(q1(1, '.ui-find-sel'), 'rope');
         check('gap 4: a list without Specialties asks none, and starts on its first figure', !q1(1, '.fb-optspec') && !q1(1, '.fb-optspecpick') && oBox.value.indexOf('Blade = Gear.rope.wt,') > 0, oBox.value);
+        {   // The typing slip of 2026-11-19: a typed specialty that no row of the list and no other option names yet says so in a gray line,
+            // with what it then reads (systemcore.js specVal's order) and Did you mean where a known one is within one or two slips. Typing
+            // stays allowed (Fulllion, "Keep typing allowed"). Invented data: Kael's skills, Knife and Pebbles
+            const skS = { cats: ['Skill'], lvl: { label: 'Level' }, stats: [{ key: 'fb', label: 'Fallback' }, { key: 'ap', label: 'Apart', labels: ['Thrown', 'Skipping'] }], cols: [{ key: 'Target', label: 'Target' }], specs: { fall: 'fb', apart: 'ap' } };
+            const sysK = { fields: [{ id: 'f_k', key: 'Skills', label: 'Skills', kind: 'item-list', list: skS }, { id: 'f_b', key: 'Bare', label: 'Bare', kind: 'item-list', list: { lvl: { label: 'Level' }, specs: {} } }],
+                items: [{ key: 'knife', name: 'Knife', category: 'Skill' }, { key: 'knife__OffHand', name: 'Knife off hand', category: 'Skill' }, { key: 'kt', name: 'Knife (Thrown)', category: 'Skill' },
+                    { key: 'pebbles', name: 'Pebbles', category: 'Skill', stats: { AP: 2 } }, { key: 'pq', name: 'Pebbles: Quick', category: 'Skill' }] };
+            const LK = C.optLists(sysK, []), kL = LK.filter(l => l.key === 'Skills')[0], bL = LK.filter(l => l.key === 'Bare')[0];
+            check('the typing slip: a list with Specialties carries whether its box names a Fallback, and which specialties each entry keeps apart, read from the entry’s own Stands apart stat',
+                kL.fall === true && bL.fall === false && j(kL.apart.pebbles) === j(['skipping']) && kL.apart.knife === undefined && j(Object.keys(bL.apart)) === '[]', j([kL.fall, kL.apart, bL.fall]));
+            const nK = C.optSpecNote(kL, 'knife', 'OfHand', []);
+            check('the typing slip: a specialty no row names says so by name and reads the parent with its fallback, and one slip from a known one asks Did you mean it',
+                nK && nK.says === 'No Skills row is Knife (Of Hand) yet. Until one is, this reads Knife with its fallback, and Knife untrained for a character who has no Knife at all.' && j(nK.near) === j(['OffHand', 'Off Hand']), j(nK));
+            const n2 = C.optSpecNote(kL, 'knife', 'OfHnd', []), n3 = C.optSpecNote(kL, 'knife', 'Ohnd', []), nT = C.optSpecNote(kL, 'knife', 'Thrwon', []), nJ = C.optSpecNote(kL, 'knife', 'Juggling', []);
+            check('the typing slip: two slips still find the known specialty, a swap of two letters is one, and three or a new word find none',
+                n2 && j(n2.near) === j(['OffHand', 'Off Hand']) && n3 && n3.near === null && nT && j(nT.near) === j(['Thrown', 'Thrown']) && nJ && nJ.near === null, j([n2, n3, nT, nJ]));
+            check('the typing slip: a specialty a row names, in any case or spacing, or one another option of the stat names, or none at all, says nothing',
+                C.optSpecNote(kL, 'knife', 'offhand', []) === null && C.optSpecNote(kL, 'KNIFE', 'Thrown', []) === null && C.optSpecNote(kL, 'knife', 'Juggling', ['Juggling']) === null && C.optSpecNote(kL, 'knife', '', []) === null && C.optSpecNote(kL, '', 'OfHand', []) === null && C.optSpecNote(null, 'knife', 'OfHand', []) === null);
+            const nA = C.optSpecNote(kL, 'pebbles', 'Skipping', []), nB = C.optSpecNote(bL, 'pebbles', 'Skipping', []);
+            check('the typing slip: a specialty the parent keeps apart reads the parent untrained, and a list whose Specialties name no Fallback reads the parent at its own figure',
+                nA && nA.says === 'No Skills row is Pebbles (Skipping) yet. Until one is, this reads Pebbles untrained, since Skipping stands apart for Pebbles.' && nA.near === null
+                && nB && nB.says === 'No Bare row is Pebbles (Skipping) yet. Until one is, this reads Pebbles at its own figure, since the Specialties name no Fallback, and Pebbles untrained for a character who has no Pebbles at all.', j([nA, nB]));
+            B.setSource(() => ({ groups: [], word: () => '', sys: sysK, get lib() { return []; } }));
+            const mk = v => { const rt = doc.createElement('div'), bx = doc.createElement('input'); bx.type = 'text'; bx.className = 'sys-list-statopts field'; bx.value = v; rt.appendChild(bx); modal.appendChild(rt); B.sweep(rt); return { rt, bx, q: (i, c) => rt.querySelectorAll('.fb-opt')[i].querySelector(c) }; };
+            const kStored = 'Low = Skills.knife.OfHand.lvl, Plain = Skills.knife.lvl', K1 = mk(kStored), line0 = K1.q(0, '.fb-optspecsay');
+            check('the typing slip: a stored specialty no row names shows its gray line with Did you mean and a button, by names only, and dressing writes nothing',
+                K1.bx.value === kStored && K1.bx.calls.length === 0 && line0.hidden === false && line0.textContent === 'No Skills row is Knife (Of Hand) yet. Until one is, this reads Knife with its fallback, and Knife untrained for a character who has no Knife at all. Did you mean Off Hand? Use Off Hand'
+                && K1.q(0, '.fb-optspecfix').textContent === 'Use Off Hand' && K1.q(0, '.fb-optspecpick').value === 'OfHand' && K1.q(1, '.fb-optspecsay').hidden === true && !/Skills\.|knife|OfHand|lvl/.test(line0.textContent), line0.textContent);
+            press(K1.q(0, '.fb-optspecfix'));
+            const K2 = mk(kStored); chg(K2.q(0, '.fb-optspecpick'), 'OffHand');
+            check('the typing slip: the button writes exactly what picking that specialty from the list writes, and the line goes',
+                K1.bx.value === 'Low = Skills.knife.OffHand.lvl, Plain = Skills.knife.lvl' && K1.bx.value === K2.bx.value && K1.q(0, '.fb-optspecpick').value === 'OffHand' && K1.q(0, '.fb-optspecsay').hidden === true && K1.q(0, '.fb-optspec').hidden === true, j([K1.bx.value, K2.bx.value]));
+            chg(K1.q(0, '.fb-optspecpick'), '@type'); chg(K1.q(0, '.fb-optspec'), 'juggling');
+            check('the typing slip: a new specialty typed is kept as typed, and its line says what it reads with no Did you mean where none is near',
+                K1.bx.value.indexOf('Low = Skills.knife.Juggling.lvl,') === 0 && K1.q(0, '.fb-optspecsay').hidden === false && /^No Skills row is Knife \(Juggling\) yet\./.test(K1.q(0, '.fb-optspecsay').textContent) && !K1.q(0, '.fb-optspecfix'), K1.q(0, '.fb-optspecsay').textContent);
+            chg(K1.q(1, '.fb-optspecpick'), '@type'); chg(K1.q(1, '.fb-optspec'), 'Juggling');
+            check('the typing slip: once another option names the same specialty, both lines go, since the stat names it on purpose',
+                K1.bx.value === 'Low = Skills.knife.Juggling.lvl, Plain = Skills.knife.Juggling.lvl' && K1.q(0, '.fb-optspecsay').hidden === true && K1.q(1, '.fb-optspecsay').hidden === true, K1.bx.value);
+        }
         {   // the review of gap 4: an entry not found while a library pack is not read yet is said to be loading, never gone
             const libW = libO.slice(); libW.waiting = true;
             B.setSource(() => ({ groups: [{ name: 'This character', items: [{ label: 'Strength', s: 'ST' }] }], word: () => '', sys: sysO, get lib() { return libW; } }));

@@ -383,6 +383,9 @@ function writeOpts(rows) { return (Array.isArray(rows) ? rows : []).map(function
 // _ and dots, 64 at most (OPT_NAME). Nothing here is shown as a name: the picks show labels, and a name is only what is stored
 var OPT_ID = /^[A-Za-z_][A-Za-z0-9_]*$/, OPT_NAME = /^[A-Za-z_][A-Za-z0-9_.]{0,63}$/;
 function optLow(s) { return String(s || '').toLowerCase(); }
+// A specialty's name squashed as systemcore.js specSquash compares it, accents, case, spaces and marks taken out, so Off Hand, off-hand and
+// OffHand are one name. optSpecsFor, optSpecRules and optSpecNote compare specialties through it
+function optSquash(s) { return String(s || '').normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''); }
 // The item lists an option may read a row of, each { key, label, specs (true where the list has Specialties), figs: [[key, label]], entries:
 // [[key, name, gray words]] }. figs: its level, then its number stats (a choice or a set of places is no figure), its columns and its counters,
 // the very words a list read takes after its row (listName). entries: what its rows may be, the system's own items, the library's core and
@@ -406,9 +409,34 @@ function optLists(sys, more) {
             if (!e || typeof e.key !== 'string' || !OPT_ID.test(e.key) || seen[optLow(e.key)] || (cats && cats.indexOf(optLow(e.category)) < 0)) return;
             seen[optLow(e.key)] = 1; ents.push([e.key, typeof e.name === 'string' && e.name ? e.name : e.key, e.vis === 'gm' ? 'GM only' : '']);
         });
-        out.push({ key: f.key, label: typeof f.label === 'string' && f.label ? f.label : f.key, specs: !!(sp.specs && typeof sp.specs === 'object'), figs: figs, entries: ents.sort(byName) });
+        var rec = { key: f.key, label: typeof f.label === 'string' && f.label ? f.label : f.key, specs: !!(sp.specs && typeof sp.specs === 'object'), figs: figs, entries: ents.sort(byName) };
+        if (rec.specs) optSpecRules(rec, sp, pool, cats);
+        out.push(rec);
     });
     return out;
+}
+// The two rules of a list's Specialties box that change what a specialty no row names reads (the typing slip of 2026-11-19, read from
+// systemcore.js specVal, which is the one rule; this only says it): fall, true where the box names a Fallback, a number stat or a column of
+// the list, as cleancore.js cleanListSpec keeps it; and apart, where the box names a Stands apart stat (a number with value names, read as a
+// set of places), the specialties each entry keeps apart, by the entry's key in lower case, each specialty squashed (optSquash). It reads the
+// entry's own stats as systemcore.js specApartRow does (its value, else the stat's default, one bit a value name, 16 at most). Written onto
+// rec, the list optLists answers; called only for a list with Specialties. An entry with no stats (a library entry handed in without them)
+// keeps nothing apart here
+function optSpecRules(rec, sp, pool, cats) {
+    var specs = sp.specs, stats = Array.isArray(sp.stats) ? sp.stats : [], cols = Array.isArray(sp.cols) ? sp.cols : [];
+    var named = function(k) { return typeof k === 'string' && k.trim() ? optLow(k.trim()) : ''; }, fk = named(specs.fall), ak = named(specs.apart);
+    rec.fall = !!fk && (stats.some(function(s) { return s && s.kind !== 'pick' && optLow(s.key) === fk; }) || cols.some(function(c) { return c && optLow(c.key) === fk; }));
+    var st = null; if (ak) stats.forEach(function(s) { if (!st && s && s.kind !== 'pick' && Array.isArray(s.labels) && s.labels.length && optLow(s.key) === ak) st = s; });
+    rec.apart = Object.create(null); if (!st) return;
+    pool.forEach(function(e) {
+        if (!e || typeof e.key !== 'string' || (cats && cats.indexOf(optLow(e.category)) < 0) || rec.apart[optLow(e.key)]) return;
+        var ds = e.stats && typeof e.stats === 'object' ? e.stats : null, v;
+        if (ds) Object.keys(ds).forEach(function(k) { if (v === undefined && optLow(k) === optLow(st.key)) v = ds[k]; });
+        if (typeof v !== 'number' || !isFinite(v)) v = typeof st.def === 'number' && isFinite(st.def) ? st.def : 0;
+        var bits = Math.floor(Math.abs(v)) & 0xFFFF, keep = [];
+        st.labels.forEach(function(lb, i) { if (i < 16 && ((bits >> i) & 1)) keep.push(optSquash(lb)); });
+        if (keep.length) rec.apart[optLow(e.key)] = keep;
+    });
 }
 // A stored option's name read as a row of a list: { list, entry, known, spec, fig, figKnown }, or null where it is no such read (a sheet's own
 // figure, a list's total or its highest, a list that is gone). The list and a known entry and figure take the spelling the lists hold; an entry
@@ -442,7 +470,7 @@ function optSpecLoss(t) { var all = (String(t || '').normalize('NFD').replace(/\
 // specInfo reads), and the words the stat's other options already hold for it (more, stored words). Each [word, said], once, by its words.
 // L: one of optLists' lists. A specialty that cannot be kept (optSpecLoss) is not offered
 function optSpecsFor(L, entry, more) {
-    var out = [], seen = Object.create(null), sq = function(s) { return String(s || '').normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''); };
+    var out = [], seen = Object.create(null), sq = optSquash;
     var put = function(raw) { if (!raw || optSpecLoss(raw)) return; var w = optSpecWord(raw); if (!w || !OPT_ID.test(w) || seen[optLow(w)]) return; seen[optLow(w)] = 1; out.push([w, optSpecSay(w)]); };
     if (!L || !Array.isArray(L.entries) || !entry) return out;
     var me = null; L.entries.forEach(function(x) { if (!me && optLow(x[0]) === optLow(entry)) me = x; });
@@ -456,6 +484,51 @@ function optSpecsFor(L, entry, more) {
     (Array.isArray(more) ? more : []).forEach(function(w) { if (typeof w === 'string' && w) put(optSpecSay(w)); });
     return out.sort(function(a, b) { return a[1].localeCompare(b[1]); });
 }
-var API = { optSpecLoss: optSpecLoss, optSpecsFor: optSpecsFor, optLists: optLists, optRowRead: optRowRead, optRowWrite: optRowWrite, optSpecWord: optSpecWord, optSpecSay: optSpecSay, readOpts: readOpts, writeOpts: writeOpts, readLine: readLine, readMake: readMake, tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
+// How many single-letter slips turn one squashed name into another: a letter added, dropped or changed, or two side by side swapped, each
+// one slip (the optimal string alignment distance). It stops counting past cap and answers cap + 1, since optSpecNote only asks whether a
+// typed specialty is within two slips of a known one
+function optSlips(a, b, cap) {
+    if (Math.abs(a.length - b.length) > cap) return cap + 1;
+    var d = [], i, j;
+    for (i = 0; i <= a.length; i++) { d[i] = [i]; }
+    for (j = 0; j <= b.length; j++) d[0][j] = j;
+    for (i = 1; i <= a.length; i++) {
+        var low = cap + 1;
+        for (j = 1; j <= b.length; j++) {
+            var c = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
+            d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+            if (i > 1 && j > 1 && a.charAt(i - 1) === b.charAt(j - 2) && a.charAt(i - 2) === b.charAt(j - 1)) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+            if (d[i][j] < low) low = d[i][j];
+        }
+        if (low > cap) return cap + 1;   // every way on is already past cap
+    }
+    return Math.min(d[a.length][b.length], cap + 1);
+}
+// The typing slip of 2026-11-19 (Fulllion kept typing allowed: "Keep typing allowed"): what the gray line under a specialty says when no row
+// of the list and no other option of the stat names it yet, since such a specialty still reads, through the parent, what systemcore.js
+// specVal reads for a specialty nobody holds. That is, in specVal's order: where the parent's entry keeps that specialty apart (Stands apart),
+// the parent untrained; else the character's best row of the parent with the list's Fallback where the Specialties box names one, or that
+// row's own figure where it names none; and the parent untrained for a character who holds no row of it at all. L: one of optLists' lists;
+// entry: the parent's key; spec: the specialty as one word (optSpecWord); more: the specialties the stat's other options name for this entry,
+// as formbox.js dressOpts hands optSpecsFor. Answers null where there is nothing to say (no specialty, no entry, or a known one), else
+// { says, near }: says the words, and near, the known specialty [word, said] within one or two slips of it (optSlips, compared squashed as
+// names are), the closest and then the first by name, or null. A slip is only offered where it is smaller than the shorter name, so that a
+// two-letter specialty is never offered for another two letters. No key or stored name is in the words: the list, the entry and the
+// specialty go by their names
+function optSpecNote(L, entry, spec, more) {
+    if (!L || !entry || !spec) return null;
+    var known = optSpecsFor(L, entry, more), sq = optSquash(spec);
+    if (!sq || known.some(function(k) { return optSquash(k[0]) === sq; })) return null;
+    var me = null; (Array.isArray(L.entries) ? L.entries : []).forEach(function(x) { if (!me && optLow(x[0]) === optLow(entry)) me = x; });
+    var pn = me ? me[1] : optSpecSay(entry), said = optSpecSay(spec), ap = L.apart && L.apart[optLow(entry)];
+    var words = 'No ' + L.label + ' row is ' + pn + ' (' + said + ') yet. Until one is, this reads ';
+    if (Array.isArray(ap) && ap.indexOf(sq) >= 0) words += pn + ' untrained, since ' + said + ' stands apart for ' + pn + '.';
+    else if (L.fall) words += pn + ' with its fallback, and ' + pn + ' untrained for a character who has no ' + pn + ' at all.';
+    else words += pn + ' at its own figure, since the Specialties name no Fallback, and ' + pn + ' untrained for a character who has no ' + pn + ' at all.';
+    var near = null, best = 3;
+    known.forEach(function(k) { var kq = optSquash(k[0]), n = optSlips(sq, kq, 2); if (n <= 2 && n < Math.min(sq.length, kq.length) && n < best) { best = n; near = k; } });
+    return { says: words, near: near };
+}
+var API = { optSpecNote: optSpecNote, optSpecLoss: optSpecLoss, optSpecsFor: optSpecsFor, optLists: optLists, optRowRead: optRowRead, optRowWrite: optRowWrite, optSpecWord: optSpecWord, optSpecSay: optSpecSay, readOpts: readOpts, writeOpts: writeOpts, readLine: readLine, readMake: readMake, tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
 if (typeof window !== 'undefined') window.wpFormCore = API;
-export { optSpecLoss, optSpecsFor, optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, readOpts, writeOpts, readLine, readMake, tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };
+export { optSpecNote, optSpecLoss, optSpecsFor, optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, readOpts, writeOpts, readLine, readMake, tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };

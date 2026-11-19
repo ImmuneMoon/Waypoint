@@ -96,7 +96,9 @@ function formLib() {
     packs.forEach(function(p) {
         if (!p || typeof p.id !== 'string') return;
         if (typeof LB.ready === 'function' ? !LB.ready(p.id) : typeof LB.whole === 'function' && !LB.whole()) out.waiting = true;
-        (LB.entriesOf(p.id) || []).forEach(function(e) { if (e && typeof e.key === 'string') out.push({ key: e.key, name: e.name, category: e.category, vis: p.vis === 'gm' || e.vis === 'gm' ? 'gm' : 'all' }); });
+        // an entry's own stats go along where it has them, so that formcore.js optLists can read which specialties it keeps apart (the typing
+        // slip of 2026-11-19); they are only read there, never written
+        (LB.entriesOf(p.id) || []).forEach(function(e) { if (e && typeof e.key === 'string') { var o = { key: e.key, name: e.name, category: e.category, vis: p.vis === 'gm' || e.vis === 'gm' ? 'gm' : 'all' }; if (e.stats && typeof e.stats === 'object') o.stats = e.stats; out.push(o); } });
     });
     return out;
 }

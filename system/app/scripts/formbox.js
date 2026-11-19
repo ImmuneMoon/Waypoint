@@ -3,7 +3,7 @@
    handler that reads it: the form writes its value and says so with an input event, and a change event as it closes, so the System editor's
    dispatchers, its errors and its Save need no word of this. The stored value is still the formula, and opening a form and leaving it writes
    nothing. Text nodes and values only: a label and a stored formula can come from a file. The pure half is formcore.js. */
-import { optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, optSpecLoss, optSpecsFor, readOpts, writeOpts, read, write, says, readCond, writeCond, saysCond, rollFace, readLine, readMake, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
+import { optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, optSpecLoss, optSpecsFor, optSpecNote, readOpts, writeOpts, read, write, says, readCond, writeCond, saysCond, rollFace, readLine, readMake, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
 import { find } from './uiparts.js';   // 1.6.3: the app's own choice of many with a search (an option's entry, gap 4)
 
 // [formcheck:boxes-start]
@@ -549,7 +549,9 @@ function dressOpts(inp) {
     // a row's picks write its name only once it is whole (an entry picked); until then the option keeps what it stood for, and the row says
     // so in its gray line (held), since the first pick already shows the list (the review of 2026-11-19: the picks showed one thing and a
     // Save kept another)
-    var commit = function(r) { var t = optRowWrite(r.row); if (t) { r.held = false; if (t !== r.name) { r.name = t; keep(); } } else r.held = true; say(r); };
+    // Each commit also asks every row to say its specialty line again (r._specNote, set where a row has a specialty pick), since what one
+    // option names counts as known for the others (the typing slip of 2026-11-19)
+    var commit = function(r) { var t = optRowWrite(r.row); if (t) { r.held = false; if (t !== r.name) { r.name = t; keep(); } } else r.held = true; say(r); rows.forEach(function(o) { if (o._specNote) o._specNote(); }); };
     // what the option still stands for while its picks are not whole: just the word, a figure of the sheet by its name, the row of a list it
     // stood for, or a figure that is gone. Words only, never a stored name
     var heldWords = function(r) {
@@ -563,7 +565,7 @@ function dressOpts(inp) {
     var draw = function() {
         box.textContent = '';
         rows.forEach(function(r, i) {
-            r._say = null; var rw = el('div', 'fb-opt'), lb = el('input', 'field fb-optname'), sel = el('select', 'field fb-optfig'), add = function(v, t) { var o = el('option', '', t); o.value = v; sel.appendChild(o); }, rm = btn('tool ghost sys-btn fb-optrm', '\u00d7', 'Take this option away');
+            r._say = null; r._specNote = null; var rw = el('div', 'fb-opt'), lb = el('input', 'field fb-optname'), sel = el('select', 'field fb-optfig'), add = function(v, t) { var o = el('option', '', t); o.value = v; sel.appendChild(o); }, rm = btn('tool ghost sys-btn fb-optrm', '\u00d7', 'Take this option away');
             lb.type = 'text'; lb.value = r.label; lb.placeholder = 'An option'; lb.title = 'What the option is called'; lb.addEventListener('input', function() { r.label = lb.value; }); lb.addEventListener('change', keep);
             add('', 'Just this word'); figs.forEach(function(f) { add(f[0], 'Stands for ' + f[1]); });
             lists.forEach(function(L) { add(LIST + L.key, 'Stands for a row of ' + L.label); });
@@ -577,14 +579,17 @@ function dressOpts(inp) {
             rw.appendChild(lb); if (figs.length || lists.length || r.name) rw.appendChild(sel);
             var L0 = r.row ? listOf(r.row.list) : null;
             if (L0) {   // the row's picks: the entry by its name with a search, its specialty where the list has them, and which figure
-                var pk = el('span', 'fb-optrow'), specFill = null;
+                var pk = el('span', 'fb-optrow'), specFill = null, specLine = null;   // specLine: the specialty's own gray line, set where the list has Specialties
                 // Pick an entry on a row that holds one is nothing to do: the entry it holds shows again, since a blank pick writes nothing (the
                 // review of 2026-11-19). An entry not found while the library is still loading is said so, not called gone
                 var fe = find({ cls: 'fb-optentry', label: 'Which entry of ' + L0.label, blank: 'Pick an entry', gone: lists.waiting ? 'An entry of the library, still loading' : 'An entry that is no longer there', placeholder: 'Search', value: r.row.entry,
                     choices: L0.entries.map(function(e) { return { value: e[0], name: e[1], sub: e[2] }; }), set: function(v) { if (!v) { if (r.row.entry) fe.setValue(r.row.entry); return; } r.row.entry = v; r.row.known = true; if (specFill) specFill(); commit(r); } });
                 pk.appendChild(fe);
                 if (L0.specs) {   // the specialty (the review of 2026-11-19): picked by name among those formcore.js optSpecsFor knows for the entry, else typed
-                    var TYPE = '@type', typing = false, sp = el('select', 'field fb-optspecpick'), spc = el('input', 'field fb-optspec');
+                    var TYPE = '@type', typing = false, sp = el('select', 'field fb-optspecpick'), spc = el('input', 'field fb-optspec'), spNote = el('small', 'fb-optspecsay');
+                    // the other options of this stat that name a specialty of the same entry: optSpecsFor offers theirs too, and
+                    // optSpecNote counts them as known
+                    var othersSpecs = function() { var low = function(x) { return String(x || '').toLowerCase(); }; return rows.filter(function(o) { return o !== r && o.row && o.row.list === L0.key && low(o.row.entry) === low(r.row.entry) && o.row.spec; }).map(function(o) { return o.row.spec; }); };
                     sp.title = 'A specialty of the entry, by its name. The entry itself reads the entry with no specialty';
                     spc.type = 'text'; spc.placeholder = 'Its specialty'; spc.title = 'A specialty in the words a player names it with, such as Off Hand. It keeps the letters A to Z and digits';
                     // the list: the entry itself, the specialties known for this entry (the list's rows and this stat's other options), the one
@@ -592,14 +597,34 @@ function dressOpts(inp) {
                     specFill = function() {
                         while (sp.firstChild) sp.removeChild(sp.firstChild);
                         var sadd = function(v, t) { var o = el('option', '', t); o.value = v; sp.appendChild(o); }, now = '', low = function(x) { return String(x || '').toLowerCase(); };
-                        var more = rows.filter(function(o) { return o !== r && o.row && o.row.list === L0.key && low(o.row.entry) === low(r.row.entry) && o.row.spec; }).map(function(o) { return o.row.spec; });
+                        var more = othersSpecs();
                         sadd('', 'The entry itself'); optSpecsFor(L0, r.row.entry, more).forEach(function(k) { sadd(k[0], k[1]); if (r.row.spec && !now && low(k[0]) === low(r.row.spec)) now = k[0]; });
                         if (r.row.spec && !now) { sadd(r.row.spec, optSpecSay(r.row.spec)); now = r.row.spec; }
-                        sadd(TYPE, 'Another specialty, typed'); sp.value = typing ? TYPE : now; spc.hidden = !typing;
+                        sadd(TYPE, 'Another specialty, typed'); sp.value = typing ? TYPE : now; spc.hidden = !typing; noteSay();
                     };
+                    // picking a specialty by its word, as the list does: the list's own change and the Did you mean button both come here,
+                    // so the button writes exactly what picking that specialty from the list writes
+                    var pickSpec = function(v) { typing = false; r.specNo = ''; r.row.spec = v; specFill(); commit(r); };
+                    // The typing slip of 2026-11-19: a gray line under a specialty that no row of the list and no other option names yet
+                    // (formcore.js optSpecNote says what it then reads), with Did you mean and a button where a known one is within one or
+                    // two slips of it. Typing stays allowed (Fulllion, 2026-11-19, "Keep typing allowed"): the line only tells, and the
+                    // option is kept as typed. Built of text nodes and the app's own button, never markup. specFill calls it as the entry or
+                    // the specialty changes, and commit calls it on every row as any option changes
+                    var noteSay = function() {
+                        spNote.textContent = '';
+                        var n = r.row.entry ? optSpecNote(L0, r.row.entry, r.row.spec, othersSpecs()) : null;
+                        spNote.hidden = !n; if (!n) return;
+                        spNote.appendChild(document.createTextNode(n.says));
+                        if (n.near) {
+                            var w = n.near[0], fix = btn('tool ghost sys-btn fb-optspecfix', 'Use ' + n.near[1], 'Pick the specialty ' + n.near[1] + ' in place of ' + optSpecSay(r.row.spec));
+                            fix.addEventListener('click', function() { pickSpec(w); });
+                            spNote.appendChild(document.createTextNode(' Did you mean ' + n.near[1] + '? ')); spNote.appendChild(fix);
+                        }
+                    };
+                    r._specNote = noteSay; specLine = spNote;
                     sp.addEventListener('change', function() {
                         if (sp.value === TYPE) { typing = true; spc.value = ''; specFill(); if (spc.focus) spc.focus(); return; }
-                        typing = false; r.specNo = ''; r.row.spec = sp.value; specFill(); commit(r);
+                        pickSpec(sp.value);
                     });
                     // a typed specialty whose letters a name cannot keep is refused and said, never stored as another word or none
                     spc.addEventListener('change', function() {
@@ -612,7 +637,7 @@ function dressOpts(inp) {
                 var fs = el('select', 'field fb-optrowfig'), fadd = function(v, t) { var o = el('option', '', t); o.value = v; fs.appendChild(o); };
                 L0.figs.forEach(function(f) { fadd(f[0], f[1]); }); if (!r.row.figKnown) fadd(r.row.fig, 'A figure that is gone'); fs.value = r.row.fig; fs.title = 'Which figure of that row';
                 fs.addEventListener('change', function() { r.row.fig = fs.value; r.row.figKnown = true; commit(r); });
-                r._say = el('small', 'fb-optsay'); pk.appendChild(fs); pk.appendChild(r._say); say(r); rw.appendChild(pk); rw.className = 'fb-opt fb-opt-row';
+                r._say = el('small', 'fb-optsay'); pk.appendChild(fs); pk.appendChild(r._say); if (specLine) pk.appendChild(specLine); say(r); rw.appendChild(pk); rw.className = 'fb-opt fb-opt-row';
             }
             rw.appendChild(rm); box.appendChild(rw);
         });

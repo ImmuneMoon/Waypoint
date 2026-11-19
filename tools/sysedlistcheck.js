@@ -870,5 +870,80 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             shQ.split("(typeof followIsQuiet === 'function' && followIsQuiet())").length - 1 === 3 && shQ.includes('function followQuiet(on) { _followQuiet = Math.max(0, _followQuiet + (on ? 1 : -1)); }') && !/function postureFollow[^\n]*\n[^\n]*followIsQuiet/.test(shQ)
             && shQ.includes("import { save, toast, toastAction, pressHold, keepPlace } from './io.js';") && require('./checkkit').part('sysedcal.js').includes("? pressHold(wrap, window) : null;") && require('./checkkit').part('sysedcal.js').includes("if (!redraw) return; var again = function() { if (typeof keepPlace === 'function') keepPlace(wrap, draw); else draw(); }; if (hold && hold.busy()) hold.then(again); else again(); };"), '');
     }
+    {   // 1.6.3 (docs/SOTMW_EDITOR_COVERAGE.md, gaps 1 to 3; Fulllion's rule that every value a system holds can be made by hand in the editor): what
+        // only a file could set before. Each block runs the real renderer and the real handler on a page of plain objects, with the very shapes the
+        // owner's live system holds, and then asks the cleaner whether Save keeps what the handler wrote
+        const J = JSON.stringify, NLx = String.fromCharCode(10);
+        const elQ = (tag, cls, txt) => ({ tag: tag, className: cls || '', textContent: txt || '', title: '', kids: [], dataset: {}, appendChild(k) { this.kids.push(k); return k; } });
+        const inpQ = (cls, v, title, ph) => { const i = elQ('input', cls); i.value = v; i.title = title; i.placeholder = ph; return i; };
+        const byCls = (root, c) => flatKids(root).filter(k => typeof k.className === 'string' && k.className.split(' ').indexOf(c) >= 0);
+        // gap 1: the Combat tab's Blast radius. sysedlist.js blastBox drew its box, but onBlastInput's test of the box's class left radius out, so what was
+        // typed never reached the draft. Every box of BLAST_BOXES is typed into here, so a box added later with the same miss fails too
+        const bbSrcQ = kit.cut('sysedlist.js', '// [systemcheck:blastbox-start]', '// [systemcheck:blastbox-end]');
+        const selQ = (cls, cap, opts, val, title) => { const l = elQ('label', 'sys-combat-item'); l.sel = { cls: cls, cap: cap, opts: opts, val: val, title: title }; return l; };
+        let draftQ = { combat: {} }, FQ = null, fqErr = '';
+        try {
+            FQ = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', 'LIMITS', "'use strict';" + NLx + 'var draft = getDraft();' + NLx + bbSrcQ + NLx
+                + 'return { box: blastBox, input: function(t) { draft = getDraft(); return onBlastInput(t); }, keys: BLAST_BOXES.map(function(d) { return d[0]; }) };')(
+                elQ, inpQ, () => {}, selQ, () => null, () => F, () => {}, () => draftQ, { wpSystemCore: S }, LIMITS);
+        } catch (e) { fqErr = String(e); }
+        const RAD = 'if(Env.air = 3, BlastRadius * 2, BlastRadius)';   // the live system's own Blast radius
+        let radOut = null;
+        if (FQ) {
+            const bx = elQ('div'); FQ.box(bx, { blast: { radius: RAD } }); const drawn = byCls(bx, 'sys-combat-bradius')[0];
+            draftQ = { combat: {} }; const took = FQ.input({ className: 'sys-combat-bradius field', value: ' ' + RAD + ' ', dataset: { bk: 'radius' } }), stored = draftQ.combat.blast && draftQ.combat.blast.radius;
+            const every = FQ.keys.map(k => { draftQ = { combat: {} }; FQ.input({ className: 'sys-combat-b' + k + ' field', value: '2', dataset: { bk: k } }); return [k, draftQ.combat.blast ? draftQ.combat.blast[k] : null]; });
+            draftQ = { combat: { blast: { radius: RAD } } }; FQ.input({ className: 'sys-combat-bradius field', value: '', dataset: { bk: 'radius' } }); const cleared = J(draftQ.combat);
+            radOut = { drawn: drawn ? [drawn.value, drawn.dataset.bk] : null, took: took, stored: stored, every: every, cleared: cleared, kept: (S.cleanBlastRules({ radius: stored }, F) || {}).radius };
+        }
+        check('1.6.3 gap 1, the Combat tab’s Blast radius (sysedlist.js blastBox and onBlastInput, run for real): the box shows the live system’s stored radius, what is typed there reaches the draft trimmed and Save keeps it, an emptied box takes it away, and every box of BLAST_BOXES reaches the draft',
+            !fqErr && !!radOut && J(radOut.drawn) === J([RAD, 'radius']) && radOut.took === true && radOut.stored === RAD && radOut.kept === RAD && radOut.cleared === J({})
+            && radOut.every.length === 8 && radOut.every.every(e => e[1] === '2') && FQ.keys.indexOf('radius') >= 0, fqErr || J(radOut));
+        // gaps 2 and 3: the Lists tab's change rows (sysedlist.js listApplyEditor, with renderLists' own line of targets and sheets.js fxHolds), and the
+        // input handler of the number an effect goes on with (sysedtabs.js onInput, its sys-list-applyfxn line)
+        const laSrcQ = kit.cut('sysedlist.js', NLx + 'function listApplyEditor(box, rr, ri, key, sp, targets, row) {', NLx + '// [systemcheck:blastbox-start]');
+        const shQx = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NLx), fxhLine = (shQx.match(/\nfunction fxHolds\(id\) \{[^\n]*\n/) || [''])[0];
+        const tgLine = (kit.part('sysedlist.js').replace(/\r\n/g, NLx).match(/\n\s*var tgL = [^\n]*\n/) || [''])[0];
+        const draftL = { effects: [{ id: 'e_stimk1', name: 'Stimulant: Adrenal Alacrity', val: { start: 1 } }, { id: 'e_plain', name: 'Plain' }], fields: [
+            { id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource' }, { id: 'f_st', key: 'ST', label: 'Strength', kind: 'number' }, { id: 'f_angry', key: 'Angry', label: 'Angry', kind: 'toggle' },
+            { id: 'f_note', key: 'Note', label: 'Note', kind: 'text' }, { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', list: {} }] };
+        let tgQ = null, LAE = null, laErr = '';
+        try {
+            tgQ = new Function('draft', 'APPLY_KINDS', tgLine + NLx + 'return tgL;')(draftL, S.APPLY_KINDS);
+            LAE = new Function('el', 'input', 'LIMITS', 'draft', "'use strict';" + NLx + fxhLine + laSrcQ + NLx + 'return listApplyEditor;')(elQ, inpQ, LIMITS, draftL);
+        } catch (e) { laErr = String(e); }
+        const rowOf = (key, ch, ri) => {
+            const bx = elQ('div'), rr = {}; rr[key] = [ch]; LAE(bx, rr, ri || 0, key, {}, tgQ, elQ('div')); const rw = byCls(bx, 'sys-list-applyrow')[0];
+            const tg = rw ? byCls(rw, 'sys-list-applytarget')[0] : null, op = rw ? byCls(rw, 'sys-list-applyop')[0] : null, fn = rw ? byCls(rw, 'sys-list-applyfxn') : [];
+            return { target: tg ? tg.value : null, opts: tg ? tg.kids.map(o => [o.value, o.textContent]) : [], op: op ? op.value : null, fxn: fn.map(i => [i.value, i.placeholder, i.title, i.maxLength]) };
+        };
+        // f_disadv's Temper roll and f_gear's Inject: Adrenal Alacrity, as the live system holds them, then the other cases of the number's box
+        const toggleRow = laErr ? null : rowOf('then', { f: 'f_angry', formula: 'if(Row.ang > 0, 1, if(Angry, 1, 0))', set: true, when: 'miss' });
+        const actRow = laErr ? null : rowOf('apply', { fx: 'e_stimk1', on: true, n: '2' }, 6);
+        const more = laErr ? null : [
+            rowOf('apply', { fx: 'e_stimk1', on: true }), rowOf('apply', { fx: 'e_plain', on: true, n: '3' }), rowOf('apply', { fx: 'e_plain', on: true }),
+            rowOf('apply', { fx: 'e_stimk1', on: false }), rowOf('then', { fx: 'e_stimk1', on: true, n: '1', when: 'hit' })];
+        const rollsTitle = 'The number the effect goes on with, as Bleeding 3. Empty: its own start. Added again while it is on, the effect\\u2019s rule says what happens';
+        check('1.6.3 gap 2, a toggle as a list change’s target (sysedlist.js renderLists’ targets and listApplyEditor, run for real): the picker offers the toggles beside the pools and numbers as the Rolls tab does, never a text, and a stored toggle target shows as itself with its Set to and its amount, not as a field that is gone',
+            !laErr && J(tgQ.map(f => f.id)) === J(['f_hp', 'f_st', 'f_angry']) && toggleRow.target === 'f_angry' && toggleRow.opts.some(o => o[0] === 'f_angry' && o[1] === 'Angry') && !toggleRow.opts.some(o => /gone/.test(o[1]) || o[0] === 'f_note')
+            && toggleRow.op === 'set' && toggleRow.opts[0][1] === 'Pick a pool, number, toggle or counter…', laErr || J([tgQ && tgQ.map(f => f.id), toggleRow]));
+        check('1.6.3 gap 3, the number an effect switched on goes on with, on a list’s action and a list roll’s Then (listApplyEditor, run for real): the stored number shows in the Rolls tab’s own box with its words, an effect that holds a number gets an empty box, a stored number on one that holds none still shows, and no box stands for an effect with neither or one switched off',
+            !laErr && actRow.target === 'fx+:e_stimk1' && J(actRow.fxn) === J([['2', 'With number', JSON.parse('"' + rollsTitle + '"'), LIMITS.formula]]) && kit.part('sysedroll.js').includes(rollsTitle)
+            && J(more.map(r => r.fxn.map(f => f[0]))) === J([[''], ['3'], [], [], ['1']]), laErr || J([actRow, more]));
+        const tbX = kit.part('sysedtabs.js').replace(/\r\n/g, NLx), hxA = tbX.indexOf("else if (lcc.indexOf('sys-list-applyfxn') >= 0) {"), hxLine = hxA < 0 ? '' : tbX.slice(hxA, tbX.indexOf(NLx, hxA)), onAx = tbX.indexOf('function onInput(');
+        const typeX = (lsp, ri, ai, k, value) => new Function('lcc', 't', 'lsp', 'LIMITS', 'if (false) {} ' + (hxLine || 'else throw new Error("the handler");') + NLx + 'else return "not mine"; return lsp;')(
+            'sys-list-applyfxn field', { value: value, closest: s => s === '.sys-list-applyrow' ? { dataset: { ri: String(ri), ai: String(ai), k: k } } : null }, lsp, LIMITS);
+        const lspX = { rolls: [{ label: 'Temper', then: [{ fx: 'e_stimk1', on: true, when: 'hit' }] }, { label: 'Inject', apply: [{ q: true, formula: '1' }, { fx: 'e_stimk1', on: true, n: '2' }] }] };
+        let typedX = null, hxErr = '';
+        try {
+            typedX = [J(typeX(lspX, 1, 1, 'apply', '4').rolls[1].apply[1]), J(typeX(lspX, 0, 0, 'then', 'Row.Dose').rolls[0].then[0]), J(typeX(lspX, 1, 1, 'apply', '  ').rolls[1].apply[1]), typeX(lspX, 5, 0, 'apply', '9')];
+        } catch (e) { hxErr = String(e); }
+        const savedX = S.cleanSystem({ v: 1, name: 'G', effects: [{ id: 'e_stimk1', name: 'Stim', val: { start: 1 } }], fields: [{ id: 'f_angry', key: 'Angry', label: 'Angry', kind: 'toggle' }, { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', list: { rolls: [
+            { label: 'Inject', apply: [{ q: true, formula: '1' }, { fx: 'e_stimk1', on: true, n: '4' }] }, { label: 'Temper', formula: '3d6 <= 10', then: [{ f: 'f_angry', formula: '1', set: true, when: 'miss' }] }] } }] }, { F, gmView: true });
+        const rollsX = S.fieldById(savedX, 'f_gear').list.rolls;
+        check('1.6.3 gap 3, its handler (sysedtabs.js onInput, the sys-list-applyfxn line run for real): what is typed is stored as the change’s number, on an action and on a roll’s Then, an emptied box takes it off, a row that is not there writes nothing; and Save keeps the number and a toggle target on a list’s change, as the live system holds them',
+            !hxErr && hxA > onAx && onAx > 0 && typedX[0] === J({ fx: 'e_stimk1', on: true, n: '4' }) && typedX[1] === J({ fx: 'e_stimk1', on: true, when: 'hit', n: 'Row.Dose' }) && typedX[2] === J({ fx: 'e_stimk1', on: true }) && typedX[3] === undefined
+            && J(rollsX[0].apply[1]) === J({ fx: 'e_stimk1', on: true, n: '4' }) && J(rollsX[1].then[0]) === J({ f: 'f_angry', formula: '1', set: true, when: 'miss' }), hxErr || J([typedX, rollsX]));
+    }
     await T.finish();
 })();

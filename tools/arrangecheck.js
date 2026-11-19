@@ -177,7 +177,7 @@ const R = 1;
     check('both release notes say it', /Arrange/.test(readRoot('WHATSNEW.txt')) && /Arrange/.test(readU('assets/whatsnew.txt')));
     check('the guide names the key', /beside/.test(readRoot('CAMPAIGN_INTEGRATION.md')));
     check('the CI step is there', readRoot('.github/workflows/checks.yml').includes('run: node tools/arrangecheck.js'));
-    check('the cleaner keeps it in one place', ['systemcore.js'].concat(require('./srcjoin').partsOf('systemcore.js')).reduce((n, f) => n + (require('./srcjoin').raw(f, 'utf8').match(/s\.beside === true/g) || []).length, 0) === 1);   // counted in systemcore.js and each of its parts (the cleaner stands in cleancore.js)
+    check('the cleaner keeps it in one place', require('./checkkit').familyCount('systemcore.js', /s\.beside === true/g) === 1);   // counted over systemcore.js and all its parts (the cleaner stands in cleancore.js)
     console.log('');
     console.log(pass + ' passed, ' + fail + ' failed');
     summed = true;

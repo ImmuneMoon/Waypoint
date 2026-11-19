@@ -21,6 +21,14 @@
      slicer of the joined sheets.js cut it before the lines moved into the part. cutEnd(name, a): that text from a to the end of the
      part's body, for a slice of the joined text that ran from a in the part to the root's first line after it (area 7: refreshErrors
      ends sysederr.js, and a slice from it to errorCell, which stayed in sheets.js, is the part from refreshErrors to its end).
+   - familyCount(root, x): how often a string, or a regex (read as global), stands in a split root's whole family: its joined text,
+     which is the root's own lines and every part's body, so the figure is the one the count gave before the cut. A count that a
+     check compares with an exact figure is made over the family, never over one part or the root's own lines: there a new
+     occurrence in another file of the family would pass unseen (the review of next area 4, 2026-11-19; splitcheck point 7d holds it).
+   - defOf(root, name): the text (CRLF read as LF) of the one file of a split root's family that holds the top-level definition
+     "function name(": the root's own lines, or a part read by its name, found where the joined text first holds it at a line's
+     start; null where no file does. A helper that cuts a function out by a name built at run time ('function ' + name) cuts it from
+     this text, so the area's tests read the code where it now lives (the review of next area 4; splitcheck point 7e holds it).
    - sheetsSlicer(label), plainPage(): systemcheck's slicer of the joined sheets.js and its page of plain objects, as its lighting
      block defines them, for the blocks that came out of it (timerulecheck's K5 scope).
    - netSlices(who): the slice helpers netcheck has at its top, over the joined net.js, each also able to read a part by name:
@@ -78,6 +86,34 @@ function cutEnd(name, a) {
     const t = part(name), i = t.indexOf(a), k = t.indexOf('\n// [split:body-end]', i + 1);
     if (i < 0 || k < 0) throw new Error('checkkit: ' + a + ' to the end of ' + name + ' not found');
     return t.slice(i, k + 1);
+}
+
+// The joined text of a root, read once a run (no suite changes a script while it runs).
+const famText = new Map(), famOf = r => { if (!famText.has(r)) famText.set(r, joined(r)); return famText.get(r); };
+// How often x (a string, or a regex read as global) stands in the whole family of a split root: its joined text, which is the root's
+// own lines and every part's body in their old order, with no glue line, header or install wrapper. So the figure is the one the count
+// gave before the root was cut, and no file of the family can gain an occurrence unseen. Throws for a name that is no split root.
+function familyCount(root, x) {
+    if (!srcjoin.isRoot(root)) throw new Error('checkkit: ' + root + ' is not a split root');
+    const t = famOf(root);
+    if (x instanceof RegExp) return (t.match(new RegExp(x.source, x.flags.indexOf('g') >= 0 ? x.flags : x.flags + 'g')) || []).length;
+    return t.split(String(x)).length - 1;
+}
+
+// The text of the file of a split root's family that holds the top-level definition "function name(": where the joined text first
+// holds it at a line's start, srcjoin.where says which real file that line stands in, and that file's own text is answered (the
+// root's own lines through srcjoin.raw, a part by its name), CRLF read as LF; null where no line of the family begins so. A helper
+// that slices a function out by a name it is handed slices it from this text: the same slice, read where the code lives.
+const defCache = new Map();
+function defOf(root, name) {
+    if (!srcjoin.isRoot(root)) throw new Error('checkkit: ' + root + ' is not a split root');
+    const t = famOf(root), need = 'function ' + name + '(';
+    const at = t.indexOf(need) === 0 ? 0 : (t.indexOf('\n' + need) + 1 || -1);   // the definition's line start, or -1 for none
+    if (at < 0) return null;
+    const w = srcjoin.where(root, t.slice(0, at).split('\n').length);
+    if (!w) return null;
+    if (!defCache.has(w.file)) defCache.set(w.file, w.file === root ? lf(srcjoin.raw(path.join(SCRIPTS, root), 'utf8')) : part(w.file));
+    return defCache.get(w.file);
 }
 
 // systemcheck's slicer of the joined sheets.js, as its blocks define it (cutL in the lighting L4 block): shL the text with CRLF read as
@@ -144,4 +180,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, cutEnd, sheetsSlicer, plainPage, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };

@@ -5770,9 +5770,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             JSON.stringify([h5.children.length, btn6, chip7 && chip7.children.length]));
     }
     {   // 1.5.8 Counted once: a row's name from a campaign file reaches the chip as text alone, and the editor's box names a hostile stat as an option's text
-        const SYO = await import(modUrl('systemcore.js')), shO = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const SYO = await import(modUrl('systemcore.js'));
         const made = [], mkEl = (tag, cls, text) => { const e = { tag, className: cls || '', textContent: text === undefined ? '' : text, kids: [], title: '', value: '', selected: false, appendChild(x) { this.kids.push(x); return x; } }; Object.defineProperty(e, 'innerHTML', { set() { made.push('innerHTML'); }, get() { return ''; } }); made.push(tag); return e; };
-        const cut = n => shO.slice(shO.indexOf('function ' + n + '('), shO.indexOf('\n}\n', shO.indexOf('function ' + n + '(')) + 3);
+        const cut = n => { const sx = require('./checkkit').defOf('sheets.js', n) || ''; return sx.slice(sx.indexOf('function ' + n + '('), sx.indexOf('\n}\n', sx.indexOf('function ' + n + '(')) + 3); };   // read from the file of sheets.js's family that holds it (onceBox stands in sysedlist.js)
         const OB = new Function('el', 'rowDef', 'onceOf', cut('onceBits') + '\nreturn onceBits;')(mkEl, SYO.rowDef, SYO.onceOf), OX = new Function('el', cut('onceBox') + '\nreturn onceBox;')(mkEl);
         const BAD = '<img src=x onerror=alert(1)>', spec = { stats: [{ key: 'grp', label: BAD }, { key: 'rk', label: 'Rank' }], once: { by: 'grp', rank: 'rk' } }, f = { id: 'f_t', list: spec };
         const rows = [{ id: 'w_a', def: { name: BAD, stats: { grp: 1, rk: 5 } } }, { id: 'w_b', def: { name: 'Plain', stats: { grp: 1, rk: 1 } } }], sysX = { fields: [f] }, c = { values: { f_t: rows } };

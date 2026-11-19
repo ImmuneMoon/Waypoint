@@ -65,6 +65,13 @@
       line reads (a kit.part('netlink.js') beside it covers nothing nettrade.js holds). A
       slice's anchors (between, fnSrc, cut and any helper named cut..., range, lineOf, an indexOf not compared) are point 7's to judge,
       and a slice that crosses from a root into a part reads the joined text on purpose. The rule is tried on a text of its own first.
+   7d. A count (the length of a match or of a split, made directly or through a helper of the tool's own) is never made on a part's
+      whole text read by its name, on parts named at run time or on a root's own lines: such a count was made over the whole joined
+      file before the cut, so a new occurrence elsewhere in the family would pass unseen. It is made with checkkit.familyCount (the
+      review of next area 4, 2026-11-19). A count on a slice is not judged. The rule is tried on a text of its own first.
+   7e. A helper of a tool that reads a root's joined text and cuts at 'function ' + a name it is handed is judged on every name it is
+      handed (a string argument, or the strings of an array it is handed by map or forEach): where only a part holds that definition,
+      the helper reads the file that holds it, through checkkit.defOf (the review of next area 4, 2026-11-19). Tried on a text first.
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
    bytes for a root git keeps byte for byte (net.js), the text with CRLF read as LF for the others, with one line ending throughout.
    It needs the parser Node ships, so it runs itself again with --expose-internals. */
@@ -679,7 +686,7 @@ function pageCalls(name, bundle, key) {
     function pins7c(acorn, src, roots, rootTxt, partsTxt, minLen) {
         const out = [];
         let ast; try { ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script', allowAwaitOutsideFunction: true, allowReturnOutsideFunction: true, allowHashBang: true, locations: true }); } catch (e) { return [{ line: 0, root: '', holders: [], what: 'does not parse: ' + e.message }]; }
-        const NOREAD = /^(part|partOf|raw|isPart|isRoot|rootOf|partsOf|joinRoot|url|freshUrl|fresh|require|pathToFileURL|existsSync|statSync|join|resolve|dirname|basename)$/;
+        const NOREAD = /^(part|partOf|raw|isPart|isRoot|rootOf|partsOf|joinRoot|url|freshUrl|fresh|require|pathToFileURL|existsSync|statSync|join|resolve|dirname|basename|familyCount|defOf)$/;   // familyCount and defOf (checkkit) read a root's whole family, or the one file that holds a definition
         const SLICERS = /^(between|tryBetween|fnSrc|cut\w*|range|lineOf|slice|substring|substr|sliceOf|slicer|netSlices|sheetsSlicer)$/;
         const PINS = /^(includes|match|matchAll|split|search|replace|replaceAll|startsWith|endsWith)$/;
         const kids = n => { const o = []; for (const k in n) { if (k === 'loc' || k === 'start' || k === 'end' || k === 'type') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(x => { if (x && typeof x.type === 'string') o.push(x); }); else if (v && typeof v.type === 'string') o.push(v); } return o; };
@@ -780,6 +787,132 @@ function pageCalls(name, bundle, key) {
     const bad7c = []; let tools7c = 0;
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7c++; pins7c(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n'), roots, rootTxt7b, partsTxt7b, 6).forEach(o => bad7c.push(f + ':' + o.line + ' pins the joined ' + o.root + ' on text only ' + o.holders.join(' and ') + ' holds: ' + o.what)); });
     check('7c. no tool pins a root\'s joined text, through a name, a helper of its own or a function that reads it, on text only one of its parts holds (' + tools7c + ' tools read by the parser)', tools7c > 50 && bad7c.length === 0, bad7c.slice(0, 20));
+
+    // ---- 7d. a count compared with a figure is made over a root's whole family ----
+    // Before a root was cut, a count over its text counted the whole file. A count over one part, over a few, or over the root's own
+    // lines counts a subset, so a new occurrence in another file of the family passes unseen (the review of next area 4, 2026-11-19:
+    // such counts stood in systemcheck, sysedlistcheck and uicheck, and in furncheck, lookcheck and arrangecheck). So a count (the
+    // length of a match or of a split, made directly or through a helper of the tool's own that makes one on a text it is handed) is
+    // never made on the whole text of a part read by its name (kit.part or srcjoin.raw of a part, or a part named at run time) nor on a
+    // root's own lines (srcjoin.raw of a root): it is made with checkkit.familyCount, over the joined text. A count on a slice (cut,
+    // cutEnd, between, fnSrc) counts inside one function or one marked region, and is not judged. The rule is tried on a text of its own.
+    const kids7d = n => { const o = []; for (const k in n) { if (k === 'loc' || k === 'start' || k === 'end' || k === 'type') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(x => { if (x && typeof x.type === 'string') o.push(x); }); else if (v && typeof v.type === 'string') o.push(v); } return o; };
+    const name7d = c => c.type === 'Identifier' ? c.name : (c.type === 'MemberExpression' && !c.computed && c.property.type === 'Identifier' ? c.property.name : null);
+    const strip7d = x => { while (x && x.type === 'CallExpression' && x.callee.type === 'MemberExpression' && !x.callee.computed && /^(replace|toString|trim)$/.test(x.callee.property.name)) x = x.callee.object; return x; };
+    const parse7d = (acorn, src) => { try { return acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'script', allowAwaitOutsideFunction: true, allowReturnOutsideFunction: true, allowHashBang: true, locations: true }); } catch (e) { return null; } };
+    function counts7d(acorn, src) {
+        const ast = parse7d(acorn, src); if (!ast) return [{ line: 0, what: 'a text that does not parse' }];
+        const out = [], vars = new Map(), helpers = new Map();   // a name -> the whole text it holds; a helper -> the places of its arguments it counts on
+        // the whole text a node reads: a part by its name (kit.part, srcjoin.raw), a part named at run time, or a root's own lines
+        const textOf = x => {
+            x = strip7d(x); if (!x) return null;
+            if (x.type === 'Identifier') return vars.get(x.name) || null;
+            if (x.type !== 'CallExpression') return null;
+            const nm = name7d(x.callee); if (nm !== 'part' && nm !== 'raw') return null;
+            const a = x.arguments[0]; if (!a) return null;
+            if (a.type !== 'Literal' || typeof a.value !== 'string') return 'a part named at run time';
+            const b = a.value.split(/[\\/]/).pop();
+            return srcjoin.isPart(b) ? b : (nm === 'raw' && srcjoin.isRoot(b) ? b + "'s own lines" : null);
+        };
+        // a count: the length of a match or of a split; answers the node that holds the text counted
+        const countOn = n => { if (n.type !== 'MemberExpression' || n.computed || n.property.name !== 'length') return null; let o = n.object; if (o.type === 'LogicalExpression') o = o.left; return o.type === 'CallExpression' && o.callee.type === 'MemberExpression' && !o.callee.computed && /^(match|split)$/.test(name7d(o.callee)) ? o.callee.object : null; };
+        // a helper of the tool's own that counts on one of its parameters: the places of those parameters
+        const helperOf = fn => { const ps = fn.params.map(p => (p.type === 'Identifier' ? p.name : null)), at = new Set(); const w = n => { const r = countOn(n); if (r && r.type === 'Identifier' && ps.indexOf(r.name) >= 0) at.add(ps.indexOf(r.name)); kids7d(n).forEach(w); }; w(fn.body); return at.size ? at : null; };
+        const walk = n => {
+            if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
+                if (/Function/.test(n.init.type)) { const h = helperOf(n.init); if (h) helpers.set(n.id.name, h); else helpers.delete(n.id.name); }
+                else { const t = textOf(n.init); if (t) vars.set(n.id.name, t); else vars.delete(n.id.name); }
+            } else if (n.type === 'FunctionDeclaration' && n.id) { const h = helperOf(n); if (h) helpers.set(n.id.name, h); else helpers.delete(n.id.name); }
+            else if (n.type === 'AssignmentExpression' && n.left.type === 'Identifier') { const t = textOf(n.right); if (t) vars.set(n.left.name, t); else vars.delete(n.left.name); }
+            const r = countOn(n), t = r && textOf(r);
+            if (t) out.push({ line: n.loc.start.line, what: t });
+            if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && helpers.has(n.callee.name)) helpers.get(n.callee.name).forEach(i => { const ti = n.arguments[i] && textOf(n.arguments[i]); if (ti) out.push({ line: n.loc.start.line, what: ti }); });
+            kids7d(n).forEach(walk);
+        };
+        walk(ast);
+        return out;
+    }
+    const tryCounts7d = () => {
+        const txt = ["const pt = kit.part('sysederr.js'), count = (s, x) => s.split(x).length - 1;", "check(1, (pt.match(/abc/g) || []).length === 1);", "check(2, count(kit.part('wbbuild.js'), 'xyz') === 1);",
+            "check(3, ['sysedroll.js', 'sysedlist.js'].reduce((n, p) => n + kit.part(p).split('q').length - 1, 0) === 2);", "check(4, count(require('./srcjoin').raw('whiteboard.js', 'utf8'), 'w') + count(sh, 'w') === 1);",
+            "check(5, kit.familyCount('sheets.js', /abc/g) === 1 && kit.cut('sysederr.js', 'a', 'b').split('q').length === 2 && count(kit.cutEnd('sysedtabs.js', 'x'), 'y') === 1);"].join('\n');
+        const got = counts7d(L.acorn(), txt);
+        return JSON.stringify(got.map(o => o.line)) === '[2,3,4,5]' && got[1].what === 'wbbuild.js' && got[2].what === 'a part named at run time' && got[3].what === "whiteboard.js's own lines";
+    };
+    check('7d. the rule tried on a text of its own: a count on a part read by name, through a helper of the tool\'s own, over parts named at run time and on a root\'s own lines is named, each once; a count made with familyCount, or on a slice, is not', tryCounts7d());
+    const bad7d = []; let tools7d = 0;
+    fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7d++; counts7d(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n')).forEach(o => bad7d.push(f + ':' + o.line + ' counts on ' + o.what + ', a subset of its family: count with checkkit.familyCount')); });
+    check('7d. no tool counts on a part\'s whole text or on a root\'s own lines: a count compared with a figure is made over the whole family (' + tools7d + ' tools read by the parser)', tools7d > 50 && bad7d.length === 0, bad7d.slice(0, 20));
+
+    // ---- 7e. a definition named at run time is cut where it lives ----
+    // A helper that cuts a function by a name it is handed builds its anchor at run time ('function ' + name), so point 7, which judges
+    // literals, cannot see it (the review of next area 4, 2026-11-19: sysuicheck's and ceilingcheck's cut, sinkcheck's and sysedcheck's
+    // helpers, each over the joined sheets.js, cut functions that now stand in the System editor's parts). Each helper of a tool whose
+    // body reads a root's joined text and builds such an anchor from one of its parameters is found, and each name it is handed (a
+    // string argument, or each string of an array handed it by map or forEach, written in place or a name set to one) is judged as a
+    // definition: where "function name(" stands at the left margin of a part and not in its root's own lines, the helper reads the
+    // file by name instead, as checkkit.defOf answers the file of the family that holds a definition. Tried on a text of its own first.
+    const defOnly7e = new Map();   // "root|function name(" -> the part that holds it, for each definition only a part holds
+    defs7.forEach(([d, p]) => { if (/^function /.test(d)) defOnly7e.set(srcjoin.rootOf(p) + '|' + d, p); });
+    function defs7e(acorn, src) {
+        const ast = parse7d(acorn, src); if (!ast) return [{ line: 0, what: 'a text that does not parse' }];
+        const NOREAD = /^(part|partOf|raw|isPart|isRoot|rootOf|partsOf|joinRoot|url|freshUrl|fresh|require|pathToFileURL|existsSync|statSync|join|resolve|dirname|basename|familyCount|defOf|cut\w*|between|tryBetween|fnSrc|range|lineOf|slice|netSlices|sheetsSlicer|includes|match|split|indexOf)$/;
+        const rootIn = s => { if (typeof s !== 'string') return null; const b = s.split(/[\\/]/).pop(); return srcjoin.isRoot(b) ? b : null; };
+        const each = (n, f) => { const st = [n]; while (st.length) { const x = st.pop(); f(x); kids7d(x).forEach(k => st.push(k)); } };
+        const vars = new Map(), arrs = new Map(), helpers = new Map(), out = [];   // a name -> the root it reads; a name -> its strings; a helper -> { root, at }
+        const rootOf = x => {
+            x = strip7d(x); if (!x) return null;
+            if (x.type === 'Identifier') return vars.get(x.name) || null;
+            if (x.type !== 'CallExpression') return null;
+            const nm = name7d(x.callee); if (!nm || NOREAD.test(nm)) return null;
+            let hit = null; x.arguments.forEach(a => each(a, y => { if (!hit && y.type === 'Literal') hit = rootIn(y.value); }));
+            return hit;
+        };
+        // a helper: its body reads a root's joined text and builds "function " + one of its parameters
+        const helperOf = fn => {
+            const ps = fn.params.map(p => (p.type === 'Identifier' ? p.name : null)); let root = null, at = -1;
+            each(fn.body, y => {
+                if (y.type === 'Identifier' && vars.has(y.name) && !root) root = vars.get(y.name);
+                if (y.type === 'VariableDeclarator' && y.id.type === 'Identifier' && y.init && !root) root = rootOf(y.init);
+                if (y.type === 'BinaryExpression' && y.operator === '+' && y.left.type === 'Literal' && typeof y.left.value === 'string' && /function $/.test(y.left.value) && y.right.type === 'Identifier' && ps.indexOf(y.right.name) >= 0) at = ps.indexOf(y.right.name);
+            });
+            return root && at >= 0 ? { root, at } : null;
+        };
+        const strs = x => (x && x.type === 'ArrayExpression' ? x.elements.filter(e => e && e.type === 'Literal' && typeof e.value === 'string') : x && x.type === 'Identifier' ? arrs.get(x.name) || [] : []);
+        const judge = (h, lit) => { const p = defOnly7e.get(h.root + '|function ' + lit.value + '('); if (p) out.push({ line: lit.loc.start.line, what: '"function ' + lit.value + '(", which only ' + p + ' holds' }); };
+        const walk = n => {
+            if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
+                const nm = n.id.name;
+                if (/Function/.test(n.init.type)) { const h = helperOf(n.init); if (h) helpers.set(nm, h); else helpers.delete(nm); }
+                else if (n.init.type === 'ArrayExpression') { arrs.set(nm, strs(n.init)); vars.delete(nm); }
+                else { const r = rootOf(n.init); if (r) vars.set(nm, r); else vars.delete(nm); }
+            } else if (n.type === 'FunctionDeclaration' && n.id) { const h = helperOf(n); if (h) helpers.set(n.id.name, h); else helpers.delete(n.id.name); }
+            else if (n.type === 'AssignmentExpression' && n.left.type === 'Identifier') { const r = rootOf(n.right); if (r) vars.set(n.left.name, r); else vars.delete(n.left.name); }
+            else if (n.type === 'CallExpression') {
+                const c = n.callee, h = c.type === 'Identifier' && helpers.get(c.name);
+                if (h) { const a = n.arguments[h.at]; if (a && a.type === 'Literal' && typeof a.value === 'string') judge(h, a); }
+                else if (c.type === 'MemberExpression' && !c.computed && /^(map|forEach)$/.test(name7d(c)) && n.arguments[0] && n.arguments[0].type === 'Identifier' && helpers.has(n.arguments[0].name)) {
+                    const hh = helpers.get(n.arguments[0].name); if (hh.at === 0) strs(c.object).forEach(l => judge(hh, l));
+                }
+            }
+            kids7d(n).forEach(walk);
+        };
+        walk(ast);
+        return out;
+    }
+    const tryDefs7e = () => {
+        const d = [...defOnly7e.keys()].filter(k => k.indexOf('sheets.js|') === 0)[0]; if (!d) return false;
+        const nm = d.slice('sheets.js|function '.length, -1), q = JSON.stringify(nm);
+        const txt = ["const sh = rootRead('system/app/scripts/sheets.js');", "const cut = name => sh.slice(sh.indexOf('\\nfunction ' + name + '('), 9);", "const names = ['el', " + q + '];',
+            'check(1, cut(' + q + '));', "names.map(cut).join('');", "const cut2 = name => { const t = kit.defOf('sheets.js', name) || ''; return t.slice(t.indexOf('function ' + name + '(')); };",
+            'check(3, cut2(' + q + ') && [' + q + '].map(cut2));', "['x', " + q + '].forEach(cut);'].join('\n');
+        const got = defs7e(L.acorn(), txt);
+        return JSON.stringify(got.map(o => o.line)) === '[4,3,8]';
+    };
+    check('7e. the rule tried on a text of its own: a helper over the joined sheets.js that cuts at "function " and the name it is handed, called with the name of a definition only a part holds, directly, through a name set to an array and through an array written in place, is named three times; the same helper reading the file through checkkit.defOf is not', tryDefs7e());
+    const bad7e = []; let tools7e = 0;
+    fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7e++; defs7e(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n')).forEach(o => bad7e.push(f + ':' + o.line + ' cuts at ' + o.what + ', through a helper over the joined root: read it with checkkit.defOf')); });
+    check('7e. no helper of a tool cuts a definition only a part holds out of the joined root by a name built at run time (' + defOnly7e.size + ' such definitions, ' + tools7e + ' tools read by the parser)', defOnly7e.size > 0 && tools7e > 50 && bad7e.length === 0, bad7e.slice(0, 20));
 
     // ---- --against <commit>: the joined text equals the old file ----
     if (argAgainst) {

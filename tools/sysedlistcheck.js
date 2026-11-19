@@ -827,7 +827,7 @@ function flatKids(n) { return (n && Array.isArray(n.kids) ? n.kids : []).reduce(
             && aOn.ok && aOn.setOff === 1 && J(got) === J([[{ by: 'c_1', from: 'w_1', map: 'm_1' }]]) && aOn.lines.some(l => l.say === 'Set off.')
             && aNone.ok && aNone.setOff === 0 && aNone.lines.some(l => /None lies within 2 yards/.test(l.say)) && aNoTok.ok && aNoTok.lines.some(l => /No token on the map/.test(l.say))
             && !vr.errors.length && wbO.includes('window.wpSetOffNear = function(list) {') && require('./checkkit').part('sheetlink.js').includes("setSetOffSink(function(list) { return typeof window.wpSetOffNear === 'function' ? window.wpSetOffNear(list) : 0; });")   /* sheetlink.js, read by its own name */
-            && require('./checkkit').part('sysedroll.js').includes("else if (v === 'setoff') { ch.setOff = true;") && ['sysedroll.js', 'sysedlist.js'].reduce((n, p) => n + require('./checkkit').part(p).split("'Set off the placed blast nearest it'").length - 1, 0) === 2,
+            && require('./checkkit').part('sysedroll.js').includes("else if (v === 'setoff') { ch.setOff = true;") && require('./checkkit').familyCount('sheets.js', "'Set off the placed blast nearest it'") === 2,
             J([sy.rolls[0].then, pl.rolls[0].then, sy.fields[0].list.rolls[0].then, aOn, aNone, aNoTok, vr.errors]));
     }
     {   // 1.6.2 (the owner, by prompt: "Yes, build it" and "One card each"): a roll that draws a card as its die, and a hand of single cards

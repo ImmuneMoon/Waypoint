@@ -120,6 +120,9 @@ jobs:
       - name: linkcheck — linked sheets, read from linkcore.js, linkseatcore.js, rowsheetcore.js, netlink.js, sheetlink.js and sheetlinkbox.js by name
         if: ${{ !cancelled() }}
         run: node tools/linkcheck.js
+      - name: tradecheck — trade and money, read from tradecore.js, moneycore.js and nettrade.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/tradecheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

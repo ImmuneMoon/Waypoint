@@ -18,7 +18,10 @@
    3. Every suite reads the giants through tools/srcjoin.js, installed as its first statement (after a 'use strict' directive); the private bridge's three entry files
       install it too where that folder is there; no suite imports a split root with a query (a fresh instance comes from
       srcjoin.freshUrl). The scans of what ships (updatercheck's list of names, sinkcheck's scans) read the real bytes through
-      srcjoin.raw. A name a root exports through a glue line is imported by no script but its own parts.
+      srcjoin.raw. A name a root exports through a glue line is imported by no script but its own parts. No script of the app imports
+      a part with import(): a part is loaded only by its root's static import, so that a page holds one release's root and parts
+      together (the website pins a release per tab, and a dynamic import of a part could load a newer release's part; the website
+      session's ask of 2026-11-18). The rule is tried on a text of its own first.
    4. systemcore.js, when it is split: the real module graph and the joined text, each imported, give the same API object (the same
       keys in the same order, the same kind of value for each, the same name and length for each function and the same JSON for each
       other value), and the same exports but for the names the root re-exports to its parts.
@@ -30,6 +33,8 @@
       judged statically in 2.
    5b. sheets.js, which no suite loads as a module: its joined text and its real wiring each load in a page of stubs, set the same window
       globals and the same window.wpSheets, bind every name a part returns, and each such name, called in both alike, ends alike.
+   5c. whiteboard.js, the same way (before its first cut, docs/REFACTOR_SPLIT_PLAN.md "Next areas", step 0): the same window globals,
+      each object among them key for key, every name a part returns bound, and each such name, called in both alike, ending alike.
    6. Under the wrap a part reads as one neutral line, and each marker of a suite in a part's body stands in the joined root as often
       as in the part.
    7. A part's area's tests read it by name: in tools/*.js (but srcjoin, splitlib, splitcheck, checkkit and suitecount), a line that
@@ -67,10 +72,13 @@ const git = (args, enc) => { const r = cp.spawnSync('git', args, { cwd: ROOT, en
 // and it reads as 0 or '' where a number or text is wanted. A script's imports are made stubs (its other modules are not loaded), and so
 // are the page's document, storage, observers and channels; timers never fire. The window keeps what the script writes on it.
 const vm = require('vm');
+// A walk up, down or along the page tree ends: a stub has no parent, child or sibling, so a loop such as whiteboard.js's
+// while (el.firstChild) el.removeChild(el.firstChild) ends at once (step 0 of area 4, 2026-11-18; with a stub child it ran for good).
+const TREE_WALK = /^(firstChild|lastChild|nextSibling|previousSibling|parentNode|parentElement|firstElementChild|lastElementChild|nextElementSibling|previousElementSibling|offsetParent)$/;
 function pageStub(nm) {
     const f = function() {};
     return new Proxy(f, {
-        get(o, k) { if (k === Symbol.toPrimitive) return () => 0; if (k === 'then' || k === Symbol.iterator) return undefined; if (k === 'toString' || k === 'valueOf') return () => ''; if (k === 'length') return 0; return pageStub(nm + '.' + String(k)); },
+        get(o, k) { if (k === Symbol.toPrimitive) return () => 0; if (k === 'then' || k === Symbol.iterator) return undefined; if (k === 'toString' || k === 'valueOf') return () => ''; if (k === 'length') return 0; if (TREE_WALK.test(String(k))) return null; return pageStub(nm + '.' + String(k)); },
         set() { return true; }, apply() { return pageStub(nm + '()'); }, construct() { return pageStub('new ' + nm); }, has() { return true; }
     });
 }
@@ -80,6 +88,10 @@ function pageLoad(name, bundle) {
     let t = bundle ? srcjoin.bundle(name) : (srcjoin.isRoot(name) ? srcjoin.joinRoot(name).text : srcjoin.raw(name, 'latin1'));
     t = Buffer.from(t, 'latin1').toString('utf8');
     t = t.replace(/^import \{([^}]*)\} from '\.\/([A-Za-z0-9_.-]+\.js)';[^\n]*$/gm, (a, names, mod) => 'var ' + names.split(',').map(s => s.trim()).filter(Boolean).map(s => { const p = s.split(/\s+as\s+/); return (p[1] || p[0]) + ' = __stub(' + JSON.stringify(mod + ':' + p[0]) + ')'; }).join(', ') + ';');
+    // a namespace import is a stub too, and the script's own export statements are dropped (whiteboard.js ends in a multi-line export {),
+    // since the text runs as a function body: a declaration it exports stays, without its export
+    t = t.replace(/^import \* as ([A-Za-z_$][\w$]*) from '\.\/([A-Za-z0-9_.-]+\.js)';[^\n]*$/gm, (a, ns, mod) => 'var ' + ns + ' = __stub(' + JSON.stringify(mod + ':*') + ');');
+    t = t.replace(/^export \{[^}]*\};?[^\n]*$/gm, '').replace(/^export (?=(?:async )?function |var |let |const |class )/gm, '');
     const win = {};
     const ctx = { console: { log() {}, warn() {}, error() {}, info() {}, debug() {} }, Object, JSON, Math, Array, String, Number, Boolean, Date, RegExp, Error, TypeError, RangeError, SyntaxError, Map, Set, WeakMap, WeakSet, Promise, Symbol, Proxy, Reflect,
         parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, decodeURIComponent, Infinity, NaN, undefined,
@@ -91,14 +103,17 @@ function pageLoad(name, bundle) {
     vm.createContext(ctx);
     const names = []; srcjoin.partsOf(name).forEach(p => (L.partGlue(p).returns || []).forEach(n => names.push(n)));
     const tail = '\n;return { names: {' + names.map(n => JSON.stringify(n) + ': typeof ' + n).join(', ') + '}, fns: {' + names.map(n => JSON.stringify(n) + ': typeof ' + n + " === 'function' ? " + n + ' : null').join(', ') + '} };';
-    const out = vm.runInContext('(function(){' + t + tail + '\n})', ctx, { filename: name + (bundle ? ' (real wiring)' : ' (joined)') })();
+    const out = vm.runInContext('(function(){' + t + tail + '\n})()', ctx, { filename: name + (bundle ? ' (real wiring)' : ' (joined)'), timeout: 60000 });   // a load that runs for good fails, never hangs the suite
     return { ctx, win, names: Object.keys(out.names).map(n => n + ' ' + out.names[n]), fns: out.fns, order: names };
 }
-// What the window holds after the load (each global's kind, and window.wpSheets key by key), and how each call of a part's names ends.
-function pageCalls(name, bundle) {
+// What the window holds after the load (each global's kind, and the keys of window[key], or with no key of every object among the
+// window's globals, each by its kind), and how each call of a part's names ends.
+function pageCalls(name, bundle, key) {
     const r = pageLoad(name, bundle), calls = [];
     const kind = v => (typeof v === 'function' ? 'function ' + v.name + '/' + v.length : typeof v);
-    const shape = Object.keys(r.win).sort().map(k => 'window.' + k + ' = ' + kind(r.win[k])).concat(Object.keys(r.win.wpSheets || {}).map(k => 'wpSheets.' + k + ' = ' + kind(r.win.wpSheets[k])));
+    const objs = key ? [key] : Object.keys(r.win).sort().filter(k => r.win[k] && typeof r.win[k] === 'object');
+    const shape = Object.keys(r.win).sort().map(k => 'window.' + k + ' = ' + kind(r.win[k]));
+    objs.forEach(o => Object.keys(r.win[o] || {}).forEach(k => shape.push(o + '.' + k + ' = ' + kind(r.win[o][k]))));
     r.ctx.__fns = r.fns;
     [false, true].forEach(withArgs => r.order.forEach(n => {
         let o;
@@ -236,6 +251,20 @@ function pageCalls(name, bundle) {
         allRoots.forEach(r => { const e = r.replace('.', '\\.'); if (new RegExp(e + "(\\?|['\"`]\\)\\s*\\+\\s*['\"`]\\?)").test(s)) queried.push(f + ': ' + r); });
     });
     check('no suite imports a split root (or a giant that may be split) with a query: a fresh instance comes from srcjoin.freshUrl', queried.length === 0, queried);
+    // No script of the app loads a part with import(): a part is loaded only through its root's static import (the website pins one
+    // release per tab, and a dynamic import of a part, made later than the root's load, could fetch a newer release's part; the
+    // website session's ask of 2026-11-18). dynParts names each import( of a quoted path whose file is a part (any file whose header
+    // says // [split:of), wherever it stands, a comment included; it is tried first on a text of its own.
+    const dynParts = (txt, isPart) => { const out = [], re = /\bimport\s*\(\s*(['"`])([^'"`\n]*)\1/g; let m; while ((m = re.exec(txt))) { const f = m[2].split('/').pop(); if (isPart(f)) out.push(m[2]); } return out; };
+    {
+        const fake = f => f === 'netattack.js';
+        const t1 = dynParts("x.then(function() { return import('./netattack.js'); }); import( \"./netattack.js\" ); import(`/scripts/netattack.js`);", fake);
+        const t2 = dynParts("import('./io.js'); import { netAttack } from './netattack.js'; import('/private/index.js');", fake);
+        check('3. the rule against a dynamic import of a part, tried on a text of its own: three import( of a part are named, a static import of one and an import( of a script that is no part are not', t1.length === 3 && t2.length === 0, { t1, t2 });
+    }
+    const dyn = [];
+    files.forEach(f => dynParts(srcjoin.raw(f, 'latin1'), g => srcjoin.isPart(g)).forEach(p => dyn.push(f + ': import(' + p + ')')));
+    check('3. no script of the app imports a part with import() (' + files.length + ' scripts, ' + parts.length + ' parts): a part is a static import of its root alone', parts.length > 0 && dyn.length === 0, dyn.slice(0, 10));
     const priv = [process.env.WP_PRIVATE_DIR, path.join(ROOT, '..', 'Waypoint-private'), path.join(ROOT, '..', '..', '..', '..', 'Waypoint-private')].filter(Boolean).map(p => path.resolve(p)).find(p => fs.existsSync(path.join(p, 'tools', 'overlay.js')));
     if (priv) {
         const miss = ['overlay.js', 'sbscan.js', 'sbv2.js'].filter(f => { try { return fs.readFileSync(path.join(priv, 'tools', f), 'utf8').indexOf("require(path.join(ROOT, 'tools', 'srcjoin.js')).install();") < 0; } catch (e) { return true; } });
@@ -324,12 +353,29 @@ function pageCalls(name, bundle) {
     {
         const name = 'sheets.js', split = srcjoin.isRoot(name);
         let a = null, b = null, err = null;
-        try { a = pageCalls(name, false); b = pageCalls(name, true); } catch (e) { err = e; }
+        try { a = pageCalls(name, false, 'wpSheets'); b = pageCalls(name, true, 'wpSheets'); } catch (e) { err = e; }
         if (err) check(name + ': the joined text and the real wiring load in a page of stubs', false, String(err && err.stack || err).slice(0, 600));
         else {
             const diff = (x, y) => x.filter((v, i) => v !== y[i]).slice(0, 8);
             const shapeA = a.shape, shapeB = b.shape;
             check(name + (split ? '' : ' (not split yet)') + ': the joined text and the real wiring set the same window globals and give window.wpSheets the same ' + shapeA.length + ' keys, each the same kind, function name and length', shapeA.length > 20 && shapeA.length === shapeB.length && diff(shapeA, shapeB).length === 0, diff(shapeA, shapeB));
+            const unbound = b.names.filter(x => / undefined$/.test(x));
+            check(name + ': the real wiring binds every name its parts return (' + b.names.length + '), each the same kind as in the joined text', unbound.length === 0 && a.names.length === b.names.length && diff(a.names, b.names).length === 0, { unbound: unbound.slice(0, 8), differ: diff(a.names, b.names) });
+            check(name + ': each name its parts return, called in the same order in both (with no arguments, then with stubs), ends alike: the same kind of answer or the same error (' + a.calls.length + ' calls)', a.calls.length === b.calls.length && diff(a.calls, b.calls).length === 0, diff(b.calls, a.calls));
+        }
+    }
+
+    // ---- 5c. whiteboard.js: its joined text and its real wiring load alike, and its parts' functions run alike ----
+    // As 5b, for whiteboard.js, which is also only ever tested as text (docs/REFACTOR_SPLIT_PLAN.md, "Next areas", step 0, before its
+    // first cut). It sets many window globals of its own, so every object among them is compared key for key.
+    {
+        const name = 'whiteboard.js', split = srcjoin.isRoot(name);
+        let a = null, b = null, err = null;
+        try { a = pageCalls(name, false, null); b = pageCalls(name, true, null); } catch (e) { err = e; }
+        if (err) check(name + ': the joined text and the real wiring load in a page of stubs', false, String(err && err.stack || err).slice(0, 600));
+        else {
+            const diff = (x, y) => x.filter((v, i) => v !== y[i]).slice(0, 8);
+            check(name + (split ? '' : ' (not split yet)') + ': the joined text and the real wiring set the same window globals, each object among them with the same keys (' + a.shape.length + ' in all), each the same kind, function name and length', a.shape.length > 20 && a.shape.length === b.shape.length && diff(a.shape, b.shape).length === 0, diff(a.shape, b.shape));
             const unbound = b.names.filter(x => / undefined$/.test(x));
             check(name + ': the real wiring binds every name its parts return (' + b.names.length + '), each the same kind as in the joined text', unbound.length === 0 && a.names.length === b.names.length && diff(a.names, b.names).length === 0, { unbound: unbound.slice(0, 8), differ: diff(a.names, b.names) });
             check(name + ': each name its parts return, called in the same order in both (with no arguments, then with stubs), ends alike: the same kind of answer or the same error (' + a.calls.length + ' calls)', a.calls.length === b.calls.length && diff(a.calls, b.calls).length === 0, diff(b.calls, a.calls));

@@ -1735,6 +1735,25 @@ function hideFigPress() {
     afterCharChange(c, true); if (window.wpStepLog) window.wpStepLog('hidefig v1', 'tick', { on: c.hideFig === true }); return true;
 }
 // [systemcheck:hidefig-end]
+// [systemcheck:hiderolls-start]
+// 1.6.3 (Fulllion, 2026-11-19, by prompt: "One switch, plus per NPC"): Hide rolls, a button in the sheet's ⋯ menu beside Hide figures, on an NPC's sheet or
+// one with no player, and for the GM alone (hideFigFits judges both). It writes one key of the character, rollsHid, true or none, which systemcore cleanChar
+// keeps on the host alone and net.js reads through rollsHidOf: every roll made as that character is private, whoever presses it, and the GM may still
+// show one to the table from its card
+function hideRollsHead(c, gm) {
+    var b = ui('sheetHideRolls'); if (!b) return; var fits = hideFigFits(c, gm), on = fits && c.rollsHid === true;
+    b.style.display = fits ? '' : 'none'; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    var tip = on ? 'Every roll made as this character is private, whoever makes it. Press to let its rolls show to the table again' : 'Keep every roll made as this character private, whoever makes it. You can still show one to the table from its card';
+    // the review of 2026-11-19, finding 6: the tooltip is kept in data-tip, which tooltips.js shows, and written only when its words change, since the sheet
+    // is drawn again often and tooltips.js has moved the title into data-tip by the first hover. A suite's plain object with no dataset keeps a title
+    if (b.dataset) { if (b.dataset.tip !== tip) { b.dataset.tip = tip; if (typeof b.removeAttribute === 'function') b.removeAttribute('title'); } } else if (b.title !== tip) b.title = tip;
+}
+function hideRollsPress() {
+    var camp = getActiveCampaign(), c = charById(sheetOpen, camp); if (!hideFigFits(c, !isClient())) return false;
+    if (c.rollsHid === true) delete c.rollsHid; else c.rollsHid = true;
+    afterCharChange(c, true); if (window.wpStepLog) window.wpStepLog('hiderolls v1', 'npc-tick', { on: c.rollsHid === true }); return true;
+}
+// [systemcheck:hiderolls-end]
 function asPlayerFree(t) { return !!(t && t.closest && t.closest('summary, .sheet-tab, .sheet-item-opener, .sheet-explain, .sheet-hint-x')); }
 function asPlayerGuard(e) {
     if (!_asPlayer || asPlayerFree(e.target)) return;
@@ -1781,6 +1800,7 @@ function renderSheet() {
     var arrH = ui('sheetArrange'); if (arrH) arrH.style.display = gm && canWrite() && !c.partial ? '' : 'none';   // 1.6.2
     if (typeof asPlayerHead === 'function') asPlayerHead(c, gm, seeP, sub, edB, camp);   // 1.6.0: As player
     if (typeof hideFigHead === 'function') hideFigHead(c, gm);   // 1.6.2: Hide figures
+    if (typeof hideRollsHead === 'function') hideRollsHead(c, gm);   // 1.6.3: Hide rolls
     if (typeof templateHead === 'function') templateHead(c, gm);   // 1.6.2 (backlog 227): Template
     var dlX = ui('sheetDelete'); if (dlX) { var mineX = isClient() && own && !c.partial && charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }).length > 1; dlX.style.display = (gm && canWrite()) || mineX ? '' : 'none'; dlX.title = gm ? 'Delete this sheet: its values are gone; its tokens keep their name and lose the link' : 'Delete this sheet of yours: one you are still making, or one you do not play (your GM is told)'; }
     if (c.shared === 1) ['sheetUpload', 'sheetPic', 'sheetDelete'].forEach(function(k) { var bS = ui(k); if (bS) bS.style.display = 'none'; });   // 1.6.2 (G8): those stay with its one player
@@ -6780,7 +6800,7 @@ var _debtAdd = Object.create(null);
 // As player, and Upload, Unlock for player, Arrange, Hide figures, Download and Delete stand in a menu behind a ⋯ button, Delete last and in
 // red. The buttons themselves move into the menu, so each keeps its id, its handler and the place that says whether it shows
 // [sinkcheck:sheetmore-start]
-var SHEET_MORE = ['sheetUpload', 'sheetUnlock', 'sheetArrange', 'sheetHideFig', 'sheetTemplate', 'sheetFromTemplate', 'sheetDownload', 'sheetDelete'];
+var SHEET_MORE = ['sheetUpload', 'sheetUnlock', 'sheetArrange', 'sheetHideFig', 'sheetHideRolls', 'sheetTemplate', 'sheetFromTemplate', 'sheetDownload', 'sheetDelete'];
 function sheetMoreOpen(on) {
     var b = ui('sheetMoreBtn'), m = ui('sheetMoreMenu'); if (!b || !m) return;
     m.hidden = !on; b.setAttribute('aria-expanded', on ? 'true' : 'false'); if (b.classList) b.classList.toggle('on', !!on);
@@ -7887,6 +7907,7 @@ var _sysedTabs = sysedTabs(), autoBox = _sysedTabs.autoBox, clockBox = _sysedTab
     var apBt = ui('sheetAsPlayer'); if (apBt) apBt.addEventListener('click', asPlayerPress);   // 1.6.0: As player
     var arrBt = ui('sheetArrange'); if (arrBt) arrBt.addEventListener('click', function() { if (!sheetOpen) return; _arrChar = sheetOpen; open('layout'); arrSet(true); });   // 1.6.2: the System editor, Arrange on, with this character's figures
     var hfBt = ui('sheetHideFig'); if (hfBt) hfBt.addEventListener('click', hideFigPress);   // 1.6.2: Hide figures
+    var hrBt = ui('sheetHideRolls'); if (hrBt) hrBt.addEventListener('click', hideRollsPress);   // 1.6.3: Hide rolls
     var tpBt = ui('sheetTemplate'); if (tpBt) tpBt.addEventListener('click', function() { if (sheetOpen) templateToggle(sheetOpen); });   // 1.6.2 (backlog 227)
     var ntBt = ui('sheetFromTemplate'); if (ntBt) ntBt.addEventListener('click', function() { var t = sheetOpen ? charById(sheetOpen, getActiveCampaign()) : null; if (!t || t.template !== true) return; showPrompt('Name the new sheet', t.name || 'New character', function(nm) { if (nm === null) return; var nc = newFromTemplate(t.id, nm); if (nc) openSheet(nc.id); }, { name: 'person' }); });
     var edBt = ui('sheetEdit'); if (edBt) edBt.addEventListener('click', function() { if (!sheetOpen) return; _sheetEdit = _sheetEdit === sheetOpen ? null : sheetOpen; renderSheet(); });   // the sheet's lock: this viewer's own switch, for the sheet that is open

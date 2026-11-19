@@ -47,8 +47,8 @@ const imp = p => import('file:///' + path.resolve(app(p)).replace(/\\/g, '/'));
     // ---- the editor, Help and notes
     const sh = read('scripts/sheets.js');
     check('Taking damage has Wound by and what a wound of 0 does, a type its own Wound by and Its multiplier, with their handlers and forms',
-        sh.includes("input('sys-dmgr-woundf field'") && sh.includes("select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']]") && sh.includes("input('sys-dmgr-ywf field'") && sh.includes("dbxTick('sys-dmgr-ybymult'")
-        && sh.includes("else if (dbxHas(c, 'sys-dmgr-woundf')) { dbxSet(dbxDraft(), 'woundF'") && sh.includes("else if (dbxHas(c, 'sys-dmgr-zero')) { dbxSet(dbxDraft(), 'zero', v); }") && read('scripts/formbox.js').includes("'sys-dmgr-woundf': 'amt', 'sys-dmgr-ywf': 'amt'"));
+        require('./checkkit').part('sysedrules.js').includes("input('sys-dmgr-woundf field'") && require('./checkkit').part('sysedrules.js').includes("select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']]") && require('./checkkit').part('sysedrules.js').includes("input('sys-dmgr-ywf field'") && require('./checkkit').part('sysedrules.js').includes("dbxTick('sys-dmgr-ybymult'")
+        && require('./checkkit').part('sysedrules.js').includes("else if (dbxHas(c, 'sys-dmgr-woundf')) { dbxSet(dbxDraft(), 'woundF'") && require('./checkkit').part('sysedrules.js').includes("else if (dbxHas(c, 'sys-dmgr-zero')) { dbxSet(dbxDraft(), 'zero', v); }") && read('scripts/formbox.js').includes("'sys-dmgr-woundf': 'amt', 'sys-dmgr-ywf': 'amt'"));
     const help = read('index.html'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), wn2 = read('assets/whatsnew.txt');
     check('Help and both release notes say it', help.includes('<li><b>Wound by</b> works a wound out by a formula, for every damage type.') && help.includes('A wound of 0 is no wound.') && wn.includes('- A wound can be worked out by a formula of what got through') && wn2.includes('- A wound can be worked out by a formula of what got through'));
     summed = true;

@@ -30,7 +30,7 @@ const j = JSON.stringify;
     check('dicecore keeps its own figures, the same as the core\'s', dcNum('applyLines') === L.applyChanges && dcNum('rowRolls') === L.rowRolls && dcNum('resistOr') === S.RESIST_OR, j([dcNum('applyLines'), dcNum('rowRolls'), dcNum('resistOr')]));
 
     const nums = (f, re) => Number((re.exec(read(f)) || [])[1]);
-    const dbx = read('sheets.js'), dbxF = (/DBX_LIM = typeof DMG_LIM === 'object' \? DMG_LIM : (\{[^}]*\})/.exec(dbx) || [])[1] || '{}', dbxV = new Function('return ' + dbxF)();
+    const dbx = read('sheets.js'), dbxF = (/DBX_LIM = typeof DMG_LIM === 'object' \? DMG_LIM : (\{[^}]*\})/.exec(require('./checkkit').part('sysedrules.js')) || [])[1] || '{}', dbxV = new Function('return ' + dbxF)();
     check('a figure kept apart, for a file that imports nothing or a slice that runs alone, says what the core says', nums('librarywin.js', /var NEED_MAX = (\d+)/) === L.needs && nums('librarywin.js', /var GRANT_LINES = (\d+)/) === S.GRANT_MAX && nums('sheets.js', /typeof COVER_HIT_ROWS === 'number' \? COVER_HIT_ROWS : (\d+)/) === S.COVER_HIT_ROWS && nums('net.js', /more\.rows\.slice\(0, (\d+)\)\.map/) === nums('dicecore.js', /var RESIST_ROWS = (\d+)/) && nums('fogcore.js', /\bsenses: (\d+),/) === L.senses && Object.keys(dbxV).every(k => dbxV[k] === S.DMG_LIM[k]), j(dbxV));
 
     /* ---------- a system at every ceiling ---------- */
@@ -145,7 +145,7 @@ const j = JSON.stringify;
         Object.defineProperty(d.El.prototype, 'options', { get() { return this.childNodes; } });
         const cut = name => { const a = sh.indexOf('\nfunction ' + name + '('); if (a < 0) return ''; if (name === 'listCard') return sh.slice(a + 1, sh.indexOf('    return card;\n}\n', a) + 18); const line = sh.slice(a + 1, sh.indexOf('\n', a + 1)); if (/\}\s*(\/\/.*)?$/.test(line) && (line.match(/\{/g) || []).length === (line.match(/\}/g) || []).length) return line; const m = /\n\}/g; m.lastIndex = a + 1; return sh.slice(a + 1, m.exec(sh).index + 2); };
         const names = ['el', 'input', 'numInput', 'numField', 'select', 'opt', 'labeledNum', 'labeledSelect', 'capBox', 'capInline', 'checkLabel', 'lazySelect', 'lineUnder', 'fieldRow', 'buildDefCell', 'roundCells', 'spillCtl', 'rollRow', 'effectRow', 'itemRow', 'listCard', 'renderAll', 'renderLists', 'renderCombat', 'combatBody'];
-        const code = names.map(cut).join('\n') + '\n' + sh.slice(sh.indexOf('// [sysuicheck:rows-start]'), sh.indexOf('// [sysuicheck:rows-end]'));
+        const code = names.map(cut).join('\n') + '\n' + require('./checkkit').cut('sysedtabs.js', '// [sysuicheck:rows-start]', '// [sysuicheck:rows-end]');
         window.wpSoundOn = { btn: () => document.createElement('button') }; window.wpSystemCore = {};
         const made = {}, stub = k => { if (!(k in made)) made[k] = () => { const e = document.createElement('div'); e.className = 'stub-' + k; return e; }; return made[k]; };
         const base = { document, window, console, draft: dr, Object, Array, String, Number, Math, JSON, RegExp, isFinite, parseFloat, parseInt, Date, Set, Map, WeakMap, Boolean, Error, Symbol, undefined, Infinity, NaN,

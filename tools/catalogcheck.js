@@ -409,8 +409,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     /* ---- 1.6.3 (the owner, 2026-11-16: "Make a new table, or replace one"): a spreadsheet read as one of a system's Tables (csvcore csvTable, with the
        editor's own short-form rule, sheets.js keyWord, sliced and run, and what it makes run through the real cleanTables) ---- */
     {
-        const T = C.csvTable, LM = S.LIMITS, shK = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), kwAt = shK.indexOf('function keyWord(label) {');
-        const keyWord = new Function(shK.slice(kwAt, shK.indexOf(NL, kwAt)) + NL + 'return keyWord;')();
+        const T = C.csvTable, LM = S.LIMITS, shK = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), kwT = require('./checkkit').part('sysedtabs.js'), kwAt = kwT.indexOf('function keyWord(label) {');
+        const keyWord = new Function(kwT.slice(kwAt, kwT.indexOf(NL, kwAt)) + NL + 'return keyWord;')();
         const csv = rows => parseCsv(rows.join(NL)), kept = r => S.cleanTables([r.table], true);
         const r1 = T(csv(['Metal,Density,Price (cp),', 'Steel,7.8,12,', 'Tin,7.3,,', 'Lead, 11.3 ,x,', 'Gold,19.3,2000000000,']), { keyOf: keyWord, label: 'Metals', taken: ['metals'] });
         const t1 = r1.table, c1 = kept(r1);

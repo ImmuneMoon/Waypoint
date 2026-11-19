@@ -10021,7 +10021,10 @@ pendingChecks.push((async () => {
         check('every name net.js asks of the system core and the dice core is one the core publishes on the window (listRollRef and rowKeptFrom were not, so a resist card never offered a list\'s roll)', sys.has('listRollRef') && sys.has('rowKeptFrom') && asked('SC', 'wpSystemCore').size > 3 && !noS.length && !noD.length, j([noS, noD]));
     }
 })());
-Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
+// The async checks land before the summary. A pending check may push another while it runs, so the wait goes round again until no
+// new one was added, as checkkit's suite().finish() does (the review of step 4 of "Finishing the test split", 2026-11-19: none of the
+// four indented pushes runs inside async code today, but a check that landed after a single Promise.all would print after the summary).
+(async () => { let seen = -1; while (seen !== pendingChecks.length) { seen = pendingChecks.length; await Promise.all(pendingChecks); } })().then(() => {
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {
         const NL = '\n', landSrc = (p => p.slice(p.indexOf('// [netcheck:landing-start]'), p.indexOf('// [netcheck:landing-end]')))(require('./checkkit').part('netfog.js'));

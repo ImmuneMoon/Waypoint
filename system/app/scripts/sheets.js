@@ -7509,7 +7509,7 @@ function debtBar(box, c, gm, camp) {
     var said = function(r) { if (r && r.error) toast(r.error); };
     list.forEach(function(d) {
         var row = el('span', 'sheet-debt' + (d.v > 0 ? ' owes' : ' owed')); row.title = 'A debt between two characters, from a trade or set by the GM. It is on both sheets.';   // 1.6.2 (171's third sitting; the owner, by prompt: "A labeled line (Recommended)"): what it is, said
-        row.appendChild(el('span', 'sheet-debt-lab', 'I owe you'));
+        row.appendChild(el('span', 'sheet-debt-lab', 'IOU'));
         var amt = document.createTextNode(debtNum(Math.abs(d.v)));
         if (can) { amt = el('input', 'field sheet-debt-amt'); amt.type = 'number'; amt.min = '0'; amt.step = 'any'; amt.value = String(Math.abs(d.v)); amt.title = 'How much'; amt.setAttribute('aria-label', 'How much'); amt.addEventListener('change', function() { var x = Number(amt.value); if (!isFinite(x) || x < 0) return; said(n.debtSet(c.id, d.with, d.v > 0 ? x : -x)); }); }
         if (d.v > 0) { row.appendChild(document.createTextNode('Owes ')); row.appendChild(amt); row.appendChild(document.createTextNode(' to ' + d.name)); }

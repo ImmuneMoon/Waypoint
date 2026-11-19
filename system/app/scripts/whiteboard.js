@@ -5104,6 +5104,15 @@ window.wpFitToGrid = fitToGrid;
      d = sqrt(h² + v²). The tool's circles are local, like rulers — never saved, never sent. */
   window.wpMeasureKind = 'ruler';
   window.isFogMode = false;
+  // 1.6.3 (the split, area 8 of docs/REFACTOR_SPLIT_PLAN.md): the Radius tool's and the thrown blasts' state stands here, in whiteboard.js,
+  // since the board's own pointer handlers above set and read it, and the blasts' code below (wbblast.js, a part of this file) sets it
+  // through these setters: a part may not assign a name of its root, which it reads through a live import. A setter only assigns.
+  // blasts: every circle of the Radius tool and every thrown blast on the map on screen (pushBlast keeps it to BLAST_CAP);
+  // coneAim: the cone being turned, { b, sx, sy, moved, fresh } (fresh: just placed, not yet said);
+  // blastDrag: { i, sx, sy, ox, oy, moved } while a blast is being dragged.
+  var blasts = [], coneAim = null, blastDrag = null;
+  function blastsSet(v) { blasts = v; }
+  function coneAimSet(v) { coneAim = v; }
   // [systemcheck:radius-start]
   // The Radius tool's own numbers and words (1.5.4; the owner, 2026-10-06: "lets make the explosion tool a radius/ diameter tool instead").
   // A circle keeps its RADIUS in yards, whatever was typed. Its size is typed and said in the ruler's unit on that map (by prompt: "The
@@ -5204,7 +5213,6 @@ window.wpFitToGrid = fitToGrid;
       if (oldBlast && typeof oldBlast === 'object' && typeof oldBlast.ft === 'number' && isFinite(oldBlast.ft) && oldBlast.ft > 0) return circleShape({ yd: Math.min(3000, oldBlast.ft) / 3, as: 'r' });
       return circleShape({ yd: 4, as: 'r' });
   }
-  var blasts = [];
   var BLAST_CAP = 40;   // blasts on screen per map: the oldest go as new ones land (a throw stream from a player never grows this, or every client's render, without bound)
   function pushBlast(b) { blasts.push(b); if (blasts.length > BLAST_CAP) blasts.splice(0, blasts.length - BLAST_CAP); }
   // [systemcheck:blastaway-start]
@@ -5226,7 +5234,7 @@ window.wpFitToGrid = fitToGrid;
           var left = blasts.filter(function(b) { return !ownCircle(b); });
           if (left.length) _blastsAway[fromId] = left.slice(-BLAST_CAP); else delete _blastsAway[fromId];
       }
-      blasts = keep && typeof toId === 'string' && Object.prototype.hasOwnProperty.call(_blastsAway, toId) ? _blastsAway[toId] : [];
+      blastsSet(keep && typeof toId === 'string' && Object.prototype.hasOwnProperty.call(_blastsAway, toId) ? _blastsAway[toId] : []);
       if (typeof toId === 'string') delete _blastsAway[toId];
       renderMeasures(); syncBlastMenu();
   }
@@ -5262,7 +5270,7 @@ window.wpFitToGrid = fitToGrid;
   try { circleKept = circlePref(JSON.parse(localStorage.getItem('wp_radius') || 'null'), JSON.parse(localStorage.getItem('wp_blast') || 'null')); } catch (e) {}
   var circleKeptPicked = false;   // the kept shape was picked in the options while no shape of the tool's own was on screen: a circle that comes back with its token does not take its place
   var _circleUnitShown = '';   // the unit the size box was last drawn in
-  var circleDir = 0, coneAim = null;   // the way the last cone was turned, and the cone being turned: { b, sx, sy, moved, fresh } (fresh: just placed, not yet said)
+  var circleDir = 0;   // the way the last cone was turned (coneAim, the cone being turned, stands above the radius slice)
   var circleCas = circleKept.as === 'd' ? 'd' : 'r';   // how a circle's number was last read: what Circle goes back to from a ring or a cone
   function rulerUnitNow() { return rulerUnitOf(mapMeasureConfig().unit, state.measureUnit === 'metric'); }   // the unit the ruler reads in on the map on screen
   function rulerImpNow() { return rulerUnitOf(mapMeasureConfig().unit, false); }   // the unit the same map reads in under Imperial: a thrown blast's meters are turned from it (blastNum)
@@ -5299,7 +5307,6 @@ window.wpFitToGrid = fitToGrid;
   }
   // [systemcheck:radius-end]
   var _blastHitIds = [];
-  var blastDrag = null;   // { i, sx, sy, ox, oy, moved } while a blast is being dragged
   var _armedThrow = null;   // { charId, fieldId, rowId, ft, name, by, damage, gmOnly } while a sheet Throw is armed (one-shot)
   function unitToYd(u) { return { yd: 1, ft: 1 / 3, m: 1 / 0.9144, km: 1000 / 0.9144, mi: 1760 }[u] || 1; }   // by the exact definitions, as ydPer
   function cellYards() { var cfg = mapMeasureConfig(); return cfg.per * unitToYd(cfg.unit); }
@@ -5380,12 +5387,12 @@ window.wpFitToGrid = fitToGrid;
           var awayG = blastsOn(mapId).filter(function(b) { return fz.some(function(f) { return f.b === b; }); });
           if (awayG.length) _blastsAway[mapId] = awayG; else delete _blastsAway[mapId];
       } else {
-      blasts = blasts.filter(function(b) { return ownCircle(b) || fz.some(function(f) { return f.b === b; }); });
+      blastsSet(blasts.filter(function(b) { return ownCircle(b) || fz.some(function(f) { return f.b === b; }); }));
       if (blasts.length !== had) { renderMeasures(); syncBlastMenu(); }
       }
       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) window.wpNet.broadcastBlastClear(mapId);
   };
-  function clearBlasts() { blasts = []; renderMeasures(); syncBlastMenu(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
+  function clearBlasts() { blastsSet([]); renderMeasures(); syncBlastMenu(); if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlastClear) { var mc = getActiveMap(); window.wpNet.broadcastBlastClear(mc ? mc.id : null); } }
   // Seat a blast in its grid cell; a blast whose height was never edited follows the token standing there
   function seatBlast(b) {
       if (state.gridType === 'hex') { var hc = snapToHex(b.x, b.y, 30, 'center'); b.x = hc.x; b.y = hc.y; }
@@ -5426,7 +5433,7 @@ window.wpFitToGrid = fitToGrid;
   }
   // A cone in hand follows the pointer once the pointer has really moved: a plain click leaves it turned as the last one was
   function coneTurn(e) {
-      var a = coneAim, b = a && a.b; if (!b || blasts.indexOf(b) < 0) { coneAim = null; return; }
+      var a = coneAim, b = a && a.b; if (!b || blasts.indexOf(b) < 0) { coneAimSet(null); return; }
       if (e.buttons === 0) { coneLetGo(); return; }   // the button was let go where no pointerup came, outside the window: the aim ends here
       if (!a.moved && Math.hypot(e.clientX - a.sx, e.clientY - a.sy) < 6) return;
       a.moved = true;
@@ -5435,7 +5442,7 @@ window.wpFitToGrid = fitToGrid;
       b.dir = Math.atan2(dy, dx); renderMeasures();
   }
   function coneLetGo() {
-      var a = coneAim; coneAim = null; if (!a || !a.b || blasts.indexOf(a.b) < 0) return;
+      var a = coneAim; coneAimSet(null); if (!a || !a.b || blasts.indexOf(a.b) < 0) return;
       circleDir = typeof a.b.dir === 'number' && isFinite(a.b.dir) ? a.b.dir : 0;
       if (a.fresh) { var m = getActiveMap(); if (m) circleSaid(a.b, m); }
       syncBlastMenu();
@@ -6540,7 +6547,7 @@ window.wpFitToGrid = fitToGrid;
       pushBlast(nb);
       renderMeasures();
   };
-  window.wpClearSharedBlasts = function() { var had = blasts.some(function(b) { return b.shared; }); blasts = blasts.filter(function(b) { return !b.shared; }); if (had) renderMeasures(); };
+  window.wpClearSharedBlasts = function() { var had = blasts.some(function(b) { return b.shared; }); blastsSet(blasts.filter(function(b) { return !b.shared; })); if (had) renderMeasures(); };
   // Visual effects (1.5.0): the ✨ panel arms a burst, a click on the map places it (its own Measure sub-mode)
   var _fxArm = null;
   window.wpArmFxBurst = function(look, rPx) { _fxArm = { look: look, r: Math.max(20, Math.min(6000, Math.round(rPx || 160))) }; window.isMeasureMode = true; window.wpMeasureKind = 'fx'; toast(look === 'ping' ? 'Click the map to ping that spot.' : 'Click the map to place the ' + look + ' burst.'); };
@@ -7217,7 +7224,7 @@ window.wpFitToGrid = fitToGrid;
   if (_el_blastElev) _el_blastElev.addEventListener('change', function() { var b = lastTall(); if (b) boxHeight(this, b.elev || 0); });   // once set, the box shows the height as kept, and steps from there
   var _el_blastClearBtn = document.getElementById('blastClearBtn');
   if (_el_blastClearBtn) _el_blastClearBtn.addEventListener('click', function() {
-      if (playerScreen()) { blasts = blasts.filter(function(b) { return !ownCircle(b); }); renderMeasures(); syncBlastMenu(); }   // a player clears the circles they placed: a blast the GM threw is the table's
+      if (playerScreen()) { blastsSet(blasts.filter(function(b) { return !ownCircle(b); })); renderMeasures(); syncBlastMenu(); }   // a player clears the circles they placed: a blast the GM threw is the table's
       else clearBlasts();
   });
   var _el_blastUndoThrow = document.getElementById('blastUndoThrow');
@@ -7284,6 +7291,15 @@ window.wpFitToGrid = fitToGrid;
   var _el_addImageBtn = document.getElementById('addImageBtn');
 
 if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.getElementById('imgFileIn').click());
+
+  // 1.6.3 (the split, area 8 of docs/REFACTOR_SPLIT_PLAN.md): the Image Library's state that the Campaign Cast's roster below reads and
+  // sets stands here, in whiteboard.js, and the library's code (wbimglib.js, a part of this file) sets it through these setters: a part
+  // may not assign a name of its root. A setter only assigns. _imgLibPick: a callback waiting for a picture (a planner's picture block,
+  // a sheet's portrait or look); _castSel and _castOrder: the Campaign Cast's picks (cast = tokens, not images), and the shown order for
+  // Shift-click runs (the roster below sets it).
+  var _imgLibPick = null, _castSel = {}, _castOrder = [];
+  function imgLibPickSet(v) { _imgLibPick = v; }
+  function castSelSet(v) { _castSel = v; }
 
   /* ---------- image library ---------- */
 
@@ -7876,7 +7892,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       if (selBar) selBar.addEventListener('click', function(e) {
           var b = e.target.closest && e.target.closest('button'); if (!b) return;
           var picked = Object.keys(_imgLibSel);
-          if (b.dataset.act === 'clear') { _imgLibSel = {}; _castSel = {}; _castLastPick = null; renderImgLib(document.getElementById('imgLibSearch').value); }
+          if (b.dataset.act === 'clear') { _imgLibSel = {}; castSelSet({}); _castLastPick = null; renderImgLib(document.getElementById('imgLibSearch').value); }
           else if (b.dataset.act === 'back') exitPicker(false);
           else if (b.dataset.act === 'bring') bringPictures(picked);
           else if (b.dataset.act === 'add-map') placeImagesBlock(picked);
@@ -7906,7 +7922,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       _imgLibCache = _imgLibCache.filter(notJournal);
       // The Campaign Cast shows inside a shelf category (the tutorial's "Default") and nowhere else — and only under THIS campaign's own scope, never the Shared/Unfiled/All-campaigns views (the cast is a per-campaign store with no picture category/scope tags, so a scope chip can't filter it).
       grid.dataset.cast = (!_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && !!(soleTag() && isShelved(soleTag()))) ? '1' : '';
-      if (!grid.dataset.cast) { _castSel = {}; _castLastPick = null; }   // cast roster hidden: drop any cast picks so a stale count can't linger
+      if (!grid.dataset.cast) { castSelSet({}); _castLastPick = null; }   // cast roster hidden: drop any cast picks so a stale count can't linger
       renderImgCats(); renderImgSource();
       var shelf = shelfApplies(), byMap = _imgLibCat === '__bymap', picked = pickedTags(), ws = TagCore.words(filter);   // backlog 34: the tags picked (all or any) and every word typed
       var byFolder = {};
@@ -7957,7 +7973,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   }
   function selectAllShown() { _imgLibOrder.forEach(function(p) { _imgLibSel[p] = 1; }); tagLog('select-all', { pics: _imgLibOrder.length }); }
   // Campaign Cast picks live in their own bucket (cast = tokens, not images). Selecting one type clears the other, so the single selection bar always shows a single type.
-  var _castSel = {}, _castOrder = [], _castLastPick = null;
+  var _castLastPick = null;   // _castSel and _castOrder stand above the image library
   function renderImgSelBar() {
       var bar = document.getElementById('imgLibSelBar'); if (!bar) return;
       var n = Object.keys(_imgLibSel).length;
@@ -8017,13 +8033,13 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       var ids = Object.keys(_castSel); if (!ids.length || !castOnMap()) return;
       var ctr = viewCentre();
       ids.forEach(function(id, i) { castPlace(id, ctr.x + (i % 4) * 74, ctr.y + Math.floor(i / 4) * 66, 1); });
-      _castSel = {}; _castLastPick = null;
+      castSelSet({}); _castLastPick = null;
       closeImgPreview();
       document.getElementById('imgLibModal').style.display = 'none';
   }
   function imgSelToggle(cell, e) {
       var p = cell.dataset.src; if (!p) return;
-      _castSel = {}; _castLastPick = null; castSelSync();   // picking a picture clears the cast selection (one type at a time)
+      castSelSet({}); _castLastPick = null; castSelSync();   // picking a picture clears the cast selection (one type at a time)
       if (e.shiftKey && _imgLibLastPick && _imgLibOrder.indexOf(_imgLibLastPick) >= 0 && _imgLibOrder.indexOf(p) >= 0) {
           var a = _imgLibOrder.indexOf(_imgLibLastPick), b = _imgLibOrder.indexOf(p);
           _imgLibOrder.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(function(q) { _imgLibSel[q] = 1; });
@@ -8059,7 +8075,6 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       document.getElementById('sheetViewModal').style.display = 'none';
   });
 
-  var _imgLibPick = null;   // a callback waiting for a picture (planner image block, a sheet's portrait or look)
   var _imgLibZ = null;      // the library's own stacking order while it is lifted over the caller (the system modal sits above it)
   function imgLibLift(on) {   // a picker opened from a modal (the sheet builder at z 100000) must land ABOVE it, below the app's confirm (100010)
       var m = document.getElementById('imgLibModal'); if (!m) return;
@@ -8067,7 +8082,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
       else if (_imgLibZ !== null) { m.style.zIndex = _imgLibZ; _imgLibZ = null; }
   }
   window.wpPickImage = async function(cb) {
-      _imgLibPick = cb;
+      imgLibPickSet(cb);
       _imgLibSel = {}; _imgLibLastPick = null; _imgLibSelMode = false; _imgLibPicker = null; _imgLibStash = null; _imgIndex = null; _imgLibScope = 'camp';
       var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
       imgLibLift(true);
@@ -8140,7 +8155,7 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
   var _el_imgLibClose = document.getElementById('imgLibCloseBtn');
 
   if (_el_imgLibClose) _el_imgLibClose.addEventListener('click', function() {
-      _imgLibPick = null; _imgLibPicker = null; _imgLibStash = null; closeImgPreview();
+      imgLibPickSet(null); _imgLibPicker = null; _imgLibStash = null; closeImgPreview();
       document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false);
   });
 
@@ -8304,10 +8319,10 @@ if(_el_addImageBtn) _el_addImageBtn.addEventListener('click', () => document.get
           var src = pv.dataset.src; if (!src) return;
           if (_imgLibPicker) {   // bring it in; with a block waiting, hand it over as well
               var cbP = _imgLibPick; bringPictures([src]);
-              if (cbP) { _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false); cbP(src); }
+              if (cbP) { imgLibPickSet(null); closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false); cbP(src); }
               return;
           }
-          if (_imgLibPick) { var cb = _imgLibPick; _imgLibPick = null; closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false); cb(src); return; }
+          if (_imgLibPick) { var cb = _imgLibPick; imgLibPickSet(null); closeImgPreview(); document.getElementById('imgLibModal').style.display = 'none'; imgLibLift(false); cb(src); return; }
           var am = getActiveMap();
           if (!am || am.type !== 'map' || state.viewMode !== 'visual') { toast('Open a play map first.'); return; }
           if (castBatch() > 1) { var many = []; for (var mi = 0; mi < castBatch(); mi++) many.push(src); placeImagesBlock(many); return; }

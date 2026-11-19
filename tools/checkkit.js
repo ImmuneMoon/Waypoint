@@ -134,10 +134,10 @@ function plainPage() {
 // The state a split root keeps for a part and the setters the part sets it through (area 8 of docs/REFACTOR_SPLIT_PLAN.md: whiteboard.js
 // keeps the blasts' and the Image Library's state above the slices that once declared it). A harness that runs such a slice on its own
 // puts these lines of the root's real text before it, so the slice finds the names it reads and the setters it calls. 'blast': blasts,
-// coneAim, blastDrag, blastsSet and coneAimSet, which stand above `// [systemcheck:radius-start]`; 'imglib': _imgLibPick, _castSel,
-// _castOrder, imgLibPickSet and castSelSet, which stand above the image library's banner.
-const STATE_AT = { blast: ['  var blasts = [], coneAim = null, blastDrag = null;', '  // [systemcheck:radius-start]'],
-    imglib: ['  var _imgLibPick = null, _castSel = {}, _castOrder = [];', '  /* ---------- image library ---------- */'] };
+// coneAim, blastDrag, blastsSet and coneAimSet, which stand above the line `// [split:wbblast.js]`; 'imglib':
+// _imgLibPick, _castSel, _castOrder, imgLibPickSet and castSelSet, which stand above the line `// [split:wbimglib.js]`.
+const STATE_AT = { blast: ['  var blasts = [], coneAim = null, blastDrag = null;', '// [split:wbblast.js]'],
+    imglib: ['  var _imgLibPick = null, _castSel = {}, _castOrder = [];', '// [split:wbimglib.js]'] };   // each up to its part's marker in the root's own lines
 function wbState(which) {
     const ab = STATE_AT[which]; if (!ab) throw new Error('checkkit: no state ' + which);
     const t = lf(srcjoin.raw(path.join(SCRIPTS, 'whiteboard.js'), 'utf8')), i = t.indexOf(ab[0]), k = t.indexOf(ab[1], i + 1);

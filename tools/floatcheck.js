@@ -1050,7 +1050,7 @@ const dice = read('scripts/dice.js');
         const tSrc = fnK(wb, "      document.addEventListener('keydown', function(e) {\n          if (e.key === 'Escape') {   // 1.5.4", "\n      });\n");
         const tRun = (v, tgt) => { let h = null, n = 0; const net = { active: true, role: 'client', myId: 'u1', targets: { u1: { id: 'tok' } }, clearMyTarget: () => { n++; } }; new Function('document', 'window', tSrc)({ addEventListener: (t, f) => { h = f; }, querySelector: () => null }, { wpEsc: freeAs(v), wpNet: net }); h({ key: 'Escape', target: tgt || { tagName: 'DIV' } }); return n; };
         // an armed throw or burst
-        const bSrc = fnK(wb, "  // Esc cancels an armed throw or FX burst and returns to the arrow", "\n  });\n");
+        const bSrc = fnK(require('./checkkit').part('wbblast.js'), "  // Esc cancels an armed throw or FX burst and returns to the arrow", "\n  });\n");
         const bRun = v => { let h = null, n = 0; const W = { wpEsc: freeAs(v), isMeasureMode: true, wpMeasureKind: 'fx' }; new Function('document', 'window', 'var _armedThrow = null, _fxArm = { look: "boom" };\n' + bSrc + '\nreturn function() { return _fxArm; };')({ addEventListener: (t, f) => { h = f; }, body: { classList: { remove() {} } }, getElementById: () => ({ click: () => { n++; } }) }, W); h({ key: 'Escape' }); return [n, W.isMeasureMode]; };
         // a placement's
         const plSrc = fnK(wb, "document.addEventListener('keydown', function(e) {\n    if (e.key === 'Escape' && window.wpPlace", "\n});\n");

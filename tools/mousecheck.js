@@ -117,7 +117,7 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
         /panBtnNow\(e\)/.test(dm) && /window\.wpMouse && typeof window\.wpMouse\.panButton === 'function' \? window\.wpMouse\.panButton\(\) : 1/.test(dm)
         && /window\.wpMouse\.gesture\('zoom'\) === 'ctrl' && !\(e\.ctrlKey \|\| e\.metaKey\)\) \{ e\.preventDefault\(\); var wk = [^;]*; wrapEl\.scrollLeft \+= \(e\.shiftKey \? e\.deltaY : e\.deltaX\) \* wk; if \(!e\.shiftKey\) wrapEl\.scrollTop \+= e\.deltaY \* wk; return; \}/.test(dm)
         && /window\.wpMouse\.gesture\('open'\) === 'shiftdbl' && !e\.shiftKey\) return;/.test(dm)
-        && /window\.wpMouse\.gesture\('ping'\) === 'ctrlalt'/.test(wb));
+        && /window\.wpMouse\.gesture\('ping'\) === 'ctrlalt'/.test(require('./checkkit').part('wbblast.js')));
     // Settings, the profile, the words
     const cmd = read(app('scripts/commands.js')), html = read(app('index.html')), pc = await import(url.pathToFileURL(app('scripts/profilecore.js')).href);
     check('Settings, under Keys: a Mouse column beside Key and Controller, its box asking wpMouse.pick, and the four gestures as lists under the commands, each with its words',

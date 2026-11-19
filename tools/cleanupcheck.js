@@ -2227,8 +2227,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 // 127 (the owner, by prompt, 2026-10-06: the GM's Undo takes back what the GM did to a player's drawing, "and still never moves or erases
                 // what the player did themselves"). The merge, run with the host's own count of what players did to their drawings (net.js, the
                 // strokeacts slice run for real) and the count a state was taken at
-                const saA = netSrc.indexOf('// [netcheck:strokeacts-start]'), saZ = netSrc.indexOf('// [netcheck:strokeacts-end]');
-                const mkActs = () => { const net = {}; const api = new Function('net', '"use strict";\n' + (saA > 0 && saZ > saA ? netSrc.slice(saA, saZ) : 'throw new Error("no strokeacts slice");') + '\nreturn { note: strokeNote, acts: strokeActs, forget: strokeActsForget };')(net); api.net = net; return api; };
+                const saP = require('./checkkit').part('netfog.js'), saA = saP.indexOf('// [netcheck:strokeacts-start]'), saZ = saP.indexOf('// [netcheck:strokeacts-end]');   // in netfog.js, a part of net.js
+                const mkActs = () => { const net = {}; const api = new Function('net', '"use strict";\n' + (saA > 0 && saZ > saA ? saP.slice(saA, saZ) : 'throw new Error("no strokeacts slice");') + '\nreturn { note: strokeNote, acts: strokeActs, forget: strokeActsForget };')(net); api.net = net; return api; };
                 const st = (id, more) => Object.assign({ id: id, type: 'path', byPlayer: true, ownerId: 'u_a', x: 10, y: 10, w: 20, h: 20, baseW: 20, baseH: 20, z: 35, pts: [[0, 0], [5, 5]], color: '#e9e9f0', strokeWidth: 3 }, more);
                 const run = (snapB, liveB, acts, q) => { const snap = { whiteboard: cp(snapB) }, lv = { id: 'm', type: 'map', whiteboard: liveB }, was = jm(lv); merge(snap, lv, acts, q); const m = {}; snap.whiteboard.forEach(w => { m[w.id] = w; }); return { ids: snap.whiteboard.map(w => w.id).join(), m, liveSame: jm(lv) === was }; };
                 const A1 = mkActs(); A1.note('c', 'm', 'added', 'a');
@@ -2275,9 +2275,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 // rebuilds, less the five that are the host's own word on every drawing (its id, its type, its level, its owner, and the mark that
                 // a player drew it). Those keys are the line's as it is now after an Undo across a redraw, and every other key a piece may carry
                 // is the state's. So a key the host's rule takes from a player later is one this check asks the undo for
-                const psA = netSrc.indexOf('\nfunction playerStroke(w, pid) {'), psZ = psA > 0 ? netSrc.indexOf('\n}\n', psA) : -1;
+                const psP = require('./checkkit').part('netfog.js'), psA = psP.indexOf('\nfunction playerStroke(w, pid) {'), psZ = psA > 0 ? psP.indexOf('\n}\n', psA) : -1;   // in netfog.js, a part of net.js
                 let PS = null, psErr = '';
-                try { if (psA > 0 && psZ > psA) PS = new Function('"use strict";\n' + netSrc.slice(psA, psZ + 3) + '\nreturn playerStroke;')(); else psErr = 'net.js playerStroke was not found'; } catch (e) { psErr = String((e && e.message) || e); }
+                try { if (psA > 0 && psZ > psA) PS = new Function('"use strict";\n' + psP.slice(psA, psZ + 3) + '\nreturn playerStroke;')(); else psErr = 'net.js playerStroke was not found'; } catch (e) { psErr = String((e && e.message) || e); }
                 const HOSTS = ['id', 'type', 'z', 'ownerId', 'byPlayer'], NOKEY2 = 'no key';
                 // the keys that are the GM's on a piece, or a token's own: none is a drawing's player's to hand over
                 const GMS = ['z', 'layer', 'rot', 'name', 'locked', 'hidden', 'blocksSight', 'sightType', 'barrier', 'blastStop', 'doorOpen', 'doorLock', 'secret', 'seenColor', 'seenTexture', 'seenWidth', 'seenOpacity', 'seenTip', 'texture', 'texSrc',
@@ -2372,7 +2372,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 [null, 5, {}, ''].forEach(v => { C.note(v, 'm', 'added', 'q'); C.note('c', v, 'added', 'q'); C.note('c', 'm', 'added', v); C.note('c', 'm', 'redrawn', v); }); C.note('c', 'm', 'nothing', 'b');
                 ['__proto__', 'constructor', 'hasOwnProperty'].forEach(k => { C.note(k, k, 'added', k); C.note('c', 'm', 'erased', k); });
                 const c4 = [C.net.strokeSeq(), C.acts('__proto__', '__proto__').addedAt('__proto__'), C.acts('c', 'm').erased('constructor'), ({}).added === undefined && Object.prototype.added === undefined, C.acts(null, 'm').addedAt('a'), C.acts('nope', 'nope').erased('a'), C.acts('nope', 'nope').redrawnAt('a')];
-                const capSrc = saA > 0 ? netSrc.slice(saA, saZ) : '', capN = Number((capSrc.match(/STROKE_ERASED_CAP = (\d+);/) || [])[1]);
+                const capSrc = saA > 0 ? saP.slice(saA, saZ) : '', capN = Number((capSrc.match(/STROKE_ERASED_CAP = (\d+);/) || [])[1]);
                 for (let i = 0; i < capN + 3; i++) C.note('c', 'big', 'erased', 'e' + i);
                 const c5 = [C.acts('c', 'big').erased('e0'), C.acts('c', 'big').erased('e2'), C.acts('c', 'big').erased('e3'), C.acts('c', 'big').erased('e' + (capN + 2))];
                 C.note('c', 'big', 'erased', 'e3'); C.note('c', 'big', 'erased', 'fresh');   // the oldest kept, erased again, is the newest: the next to go is the one after it
@@ -2462,12 +2462,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 // map goes through net.js applyClientItemFiltered (the patch slice with the real playerStroke and the real fog core, strict as the
                 // module runs), which lays what the copy hands over on the host's line and notes it in the same real count; then io.js's own
                 // history, merge and undo, as above. A copy names a drawing as st() makes one, which is how a player's app holds its own line
-                const paA = netSrc.indexOf('// [netcheck:patch-start]'), paZ = netSrc.indexOf('// [netcheck:patch-end]');
+                const paP = require('./checkkit').part('netfog.js'), paA = paP.indexOf('// [netcheck:patch-start]'), paZ = paP.indexOf('// [netcheck:patch-end]');   // in netfog.js, a part of net.js
                 const netLine = start => { const i = netSrc.indexOf('\n' + start); return i >= 0 ? netSrc.slice(i + 1, netSrc.indexOf('\n', i + 1)) : 'throw new Error("no line of net.js begins: ' + start + '");'; };
                 const FCu = await import(surl('fogcore.js'));
                 const mkR = () => { const W = mkW();
-                    const gate = new Function('state', 'window', 'strokeNote', '"use strict";\n' + [netLine('function own('), netLine('function validKey('), netLine('function campOf(')].join('\n') + '\n' + (psA > 0 && psZ > psA ? netSrc.slice(psA, psZ + 3) : 'throw new Error("no playerStroke");')
-                        + '\n' + (paA > 0 && paZ > paA ? netSrc.slice(paA, paZ) : 'throw new Error("no patch slice");') + '\nreturn applyClientItemFiltered;')({ appState: { campaigns: { c: W.camp } } }, { wpFogCore: FCu }, W.S.note);
+                    const gate = new Function('state', 'window', 'strokeNote', '"use strict";\n' + [netLine('function own('), netLine('function validKey('), netLine('function campOf(')].join('\n') + '\n' + (psA > 0 && psZ > psA ? psP.slice(psA, psZ + 3) : 'throw new Error("no playerStroke");')
+                        + '\n' + (paA > 0 && paZ > paA ? paP.slice(paA, paZ) : 'throw new Error("no patch slice");') + '\nreturn applyClientItemFiltered;')({ appState: { campaigns: { c: W.camp } } }, { wpFogCore: FCu }, W.S.note);
                     W.copy = list => gate({ campId: 'c', itemId: 'm1', item: { whiteboard: list } }, { id: 'u_a' }, {});   // the player u_a's copy of the map reaches the host: true where it changed the host's map
                     return W; };
                 let rg = null, rgErr = '';

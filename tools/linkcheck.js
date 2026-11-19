@@ -29,7 +29,7 @@ const T = kit.suite('whole'), check = T.check, pendingChecks = T.pending, packCh
 const j = v => JSON.stringify(v);
 // netcheck's slice helpers over the joined net.js; a call that names a part's file (netlink.js) reads that part by its own name
 const { src, between } = kit.netSlices('linkcheck');
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders');
+const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 check('linkcheck: netlink.js is a part of net.js, and sheetlink.js and sheetlinkbox.js parts of sheets.js, each read by its own name', kit.part('netlink.js').includes('// [netcheck:linktell-start]') && kit.part('sheetlink.js').includes('// [systemcheck:crewpick-start]') && kit.part('sheetlinkbox.js').includes('// [systemcheck:linkbox-start]'));
 
 (async () => {

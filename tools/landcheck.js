@@ -11,7 +11,7 @@ const kit = require('./checkkit');   // what the suites that came out of the gia
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file (netattack.js, nethold.js) reads that part by its own name
 const { src, between, fnSrc, range } = kit.netSlices('landcheck');
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders');
+const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 const j = JSON.stringify;
 check('landcheck: netattack.js and nethold.js are parts of net.js, read by their own names', kit.part('netattack.js').includes('// [split:body-start]') && kit.part('nethold.js').includes('// [split:body-start]'));
 
@@ -231,7 +231,7 @@ pendingChecks.push((async () => {
     // (i) the source: the host's branches gain land-take alone; the snapshot says lands; a player's app reads it through typeof; the save, the reload and the session's end ask the slice
     check('1.6.3 (defense fold 1, source): the host\'s land-take branch sits before card-act and asks landClose with the sender\'s own profile id; the snapshot says lands (true) and applySnapshot reads it through typeof beside hits; fightsKeep saves landsKeep, fightsRead hands the landings on as data, fightsBack asks landsBack; diceSessionReset asks landForget before attemptForget; roll-req and net.diceRoll each drop a landing once its damage is rolled and ask landAfter once after attemptMake',
         /\} else if \(msg\.type === 'land-take' && net\.role === 'host'\) \{\n        \/\/ \[netcheck:landtake-start\]/.test(src5) && src5.indexOf("landClose(getActiveCampaign(), msg.att, 'take', peerProfileId(conn))") > 0 && src5.indexOf("    } else if (msg.type === 'land-take' && net.role === 'host') {") < src5.indexOf("    } else if (msg.type === 'card-act' && net.role === 'host') {")
-        && /stance: net\.stanceFlags\(\), lands: true, stanceCamps:/.test(src5) && src5.includes("hitsKnow(msg.hits); if (typeof landsKnow === 'function') landsKnow(msg.lands);") && src5.split('landsKnow(').length === 3
+        && /stance: net\.stanceFlags\(\), lands: true, stanceCamps:/.test(src5) && require('./checkkit').part('netfog.js').includes("hitsKnow(msg.hits); if (typeof landsKnow === 'function') landsKnow(msg.lands);") && require('./checkkit').familyCount('net.js', 'landsKnow(') === 2
         && src5.includes("var lnK = typeof landsKeep === 'function' ? landsKeep() : []; if (lnK.length) bodyK.lands = lnK;") && src5.includes('lands: Array.isArray(raw.lands) ? raw.lands : null') && src5.includes('if (back.lands && typeof landsBack === \'function\')')
         && src5.indexOf("if (typeof landForget === 'function') landForget();") < src5.indexOf("    if (typeof attemptForget === 'function') attemptForget();   // 1.6.0 (B2)") && src5.split('landDone(blowRec').length === 3 && src5.split('landAfter(camp').length === 4
         /* the review of fold 1: landAfter runs after burstAfter in both roll paths; an attack that carries its damage keeps no pick in coverAims, and its landing's damage reads none; a fight that ends lets its landings go, never at the session's end */

@@ -2876,7 +2876,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     // is sent; the connection must still be marked as standing at that epoch, or Undo (the old epoch, the old key back) reads as
                     // already sent while the player's own screen emptied its store at the epoch change, and their ground comes back only on a reload
                     const netSrcF = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'latin1').replace(/\r\n/g, '\n');
-                    const msA = netSrcF.indexOf('// [netcheck:memsend-start]'), msB = netSrcF.indexOf('// [netcheck:memsend-end]'), msSrcF = msA > 0 && msB > msA ? netSrcF.slice(msA, msB) : '';
+                    const msP = require('./checkkit').part('netfog.js'), msA = msP.indexOf('// [netcheck:memsend-start]'), msB = msP.indexOf('// [netcheck:memsend-end]'), msSrcF = msA > 0 && msB > msA ? msP.slice(msA, msB) : '';   // in netfog.js, a part of net.js
                     const V = hmMk(), mV = hmMap('mV'), cV = hmCamp([mV]); V.st.appState.campaigns.c1 = cV; V.env.camp = cV;
                     const P2 = hmMk({ client: true }), pmV = hmMap('mV'), pcV = hmCamp([pmV]); P2.env.camp = pcV; P2.st.appState.campaigns.c1 = pcV;
                     const sentV = [], connV = { open: true, peer: 'pV', send: m => sentV.push(JSON.parse(JSON.stringify(m))) }, ownV = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
@@ -3288,7 +3288,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('S4b the GM\'s preview reads what is held and never takes a refresh of its own (a player with nothing held: worked out, not kept); out of a fight nothing is held; marksStrictOn: the table plays On your own turn and a fight runs on that map',
                 lj(pvGot) === lj([{ c: 10, r: 2, k: 1 }]) && pvHeld === false && lj(liveGot) === lj([{ c: 10, r: 2, k: 1 }]) && liveHeld === false && lj(soGot) === lj([true, false, false, false, false]), lj([pvGot, pvHeld, liveHeld, soGot]));
             {   // fold 2 (backlog 152, docs/FIGHT_CLOCK_DESIGN.md): marksStrictOn asked through net.js's own combatFor (its orders slice, run for real), the fights keyed by their own ids
-                const ntF = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, NL), ordA = ntF.indexOf('// [netcheck:orders-start]'), ordZ = ntF.indexOf('// [netcheck:orders-end]');
+                const ntF = require('./checkkit').part('netfight.js'), ordA = ntF.indexOf('// [netcheck:orders-start]'), ordZ = ntF.indexOf('// [netcheck:orders-end]');
                 let so2 = 'no orders slice';
                 if (ordA > 0 && ordZ > ordA) {
                     const realNet = { active: true, role: 'host', combats: { f_dock0001: { id: 'f_dock0001', mapId: hmMap.id, round: 1, turn: 0, rows: [] }, f_dock0002: { id: 'f_dock0002', mapId: hmMap.id, round: 3, turn: 0, rows: [] } } };

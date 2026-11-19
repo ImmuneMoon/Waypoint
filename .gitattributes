@@ -11,3 +11,5 @@ system/app/scripts/netattack.js -text
 system/app/scripts/nettime.js -text
 system/app/scripts/netlink.js -text
 system/app/scripts/nettrade.js -text
+system/app/scripts/netfog.js -text
+system/app/scripts/netfight.js -text

@@ -13,7 +13,7 @@ const kit = require('./checkkit');   // what the suites that came out of the gia
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file (nettime.js) reads that part by its own name
 const { src, between, fnSrc, lineOf } = kit.netSlices('nettimecheck');
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders');
+const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 const j = JSON.stringify;
 // the app's own own(), which netcheck hands its blocks among its helpers (H.own), read from net.js by its line
 const H = { own: new Function(lineOf('function own(') + '\nreturn own;')() };
@@ -81,7 +81,7 @@ pendingChecks.push((async () => {
     const T = src.replace(/\r\n/g, '\n');
     check('T5a the wiring (source): a player\'s added effect starts its timer on the host with the host\'s clock and whether they are in a combat; turnStarted takes a round; a combat\'s start banks and its end resumes, once no fight is left (152 fold 4, moved on purpose); the clock starts with the first render',
         /view: window\.wpSheets \? window\.wpSheets\.playerSystem\(campX\) : null, now: Date\.now\(\), inCombat: !!\(net\.charInCombat && net\.charInCombat\(qx\.charId\)\), timersGm: !!\(campX\.turnRules && campX\.turnRules\.timers === 'gm'\) \}\);/.test(T) && /try \{ turnFxStart\(mapId, c\); \} catch \(e\)/.test(T)
-        && /if \(f && !had\) \{ try \{ fxCombatEdge\(mapId, f, 'bank'\); \}/.test(T) && /if \(had && !leftO\) \{ try \{ fxCombatEdge\(mapId, had, 'resume'\); \}/.test(T) && /function renderWhere\(\) \{\n\s*if \(typeof fxClockStart === 'function'\) fxClockStart\(\);/.test(T));
+        && /if \(f && !had\) \{ try \{ fxCombatEdge\(mapId, f, 'bank'\); \}/.test(require('./checkkit').part('netfight.js')) && /if \(had && !leftO\) \{ try \{ fxCombatEdge\(mapId, had, 'resume'\); \}/.test(T) && /function renderWhere\(\) \{\n\s*if \(typeof fxClockStart === 'function'\) fxClockStart\(\);/.test(T));
 })());
 
 // 205 follow-up (3): an upkeep paid by the clock (net.rowSpans with the real systemcore) is said through net.timeCard, both run for real: the GM's
@@ -142,7 +142,7 @@ pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Cx = await import(url('calendarcore.js'));
     const J = v => JSON.stringify(v);
-    const cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), setS = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepS = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep');
+    const cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), setS = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepS = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep', 'netfight.js');
     const teS = between('// [netcheck:turnend-start]', '// [netcheck:turnend-end]', 'turnend');
     const calJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n');
     const cutC = (a, b) => { const i = calJs.indexOf(a), k = calJs.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('netcheck: calendar.js slice ' + a); return calJs.slice(i, k); };
@@ -426,7 +426,7 @@ pendingChecks.push((async () => {
         J(q5) === J(['Unit 7', false, false, false, false, true]), J(q5));
     const errs = [A, B, C2, D, E, W, G, L, H4, X, Y, R, D2w, Qw, Mw, Vw, Frw, Lxw, Axw].reduce((acc, w) => acc.concat(w.out.errs), []);
     check('152 fold 4 (source): the clock\'s old hooks are gone; ordersMoved is the one coordinator, asked by a fight\'s start or roster edit, a step that changes its round and an end, each once; a player\'s End turn and hold step their fight as a player; the session takes its second away; calendar.js counts a character\'s span only through livedSpans, in spansOf (which ownTime and moveTo ask), and has no rounds or fightEnded; no world above logged an error',
-        !/clockRounds|clockFightEnd/.test(src) && (src.match(/ordersMoved\(/g) || []).length === 4 && /if \(tg\) ordersMoved\(had \? 'edit' : 'start', tg\);/.test(src) && /if \(tg\) ordersMoved\('step', tg\);/.test(src) && /ordersMoved\('end', endO\);/.test(src)
+        !/clockRounds|clockFightEnd/.test(src) && (src.match(/ordersMoved\(/g) || []).length === 4 && /if \(tg\) ordersMoved\(had \? 'edit' : 'start', tg\);/.test(require('./checkkit').part('netfight.js')) && /if \(tg\) ordersMoved\('step', tg\);/.test(require('./checkkit').part('netfight.js')) && /ordersMoved\('end', endO\);/.test(src)
         && src.includes("fightStep(fidT, 1, 'player', pkT);") && src.includes("fightHold(fidH, 'player', { text: msg.text, roll: msg.roll });") /* 1.6.0, a deliberate change of this pin: a named hold's words go with it */ && src.includes('net.fightOn = null; net.second = null;')
         && (calJs.match(/livedSpans\(/g) || []).length === 2 && !/function rounds\(|fightEnded|roundPend/.test(calJs) && errs.length === 0, J(errs.slice(0, 3)));
 })());

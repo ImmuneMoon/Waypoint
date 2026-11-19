@@ -1326,7 +1326,7 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
         // run for real with the real tokenCtx, and what targets a token answered by net.js's own aimsOf (its targetas slice): an NPC the GM targets Ana
         // with through Target as, hidden from her, is no threat to an action or a reminder that reads Threats; shown, it is. Before, the hooks asked
         // with no viewer, so the hidden NPC counted: her value changed and a reminder was posted to her while her own sheet showed no threat
-        const ntF2 = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, NL), taF2 = ntF2.slice(ntF2.indexOf('// [netcheck:targetas-start]'), ntF2.indexOf('// [netcheck:targetas-end]'));
+        const ntF2 = require('./checkkit').part('netfight.js'), taF2 = ntF2.slice(ntF2.indexOf('// [netcheck:targetas-start]'), ntF2.indexOf('// [netcheck:targetas-end]'));
         const sysF2 = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_th', key: 'Seen', kind: 'number', def: 0 }],
             rolls: [{ id: 'r_seen', label: 'Seen', apply: [{ f: 'f_th', formula: 'Threats + 1', add: true }], each: 'turn' }, { id: 'r_rseen', label: 'Round seen', apply: [{ f: 'f_th', formula: 'Threats + 10', add: true }], each: 'round' },
                 { id: 'r_warn', label: 'Warn', apply: [{ f: 'f_th', formula: '1', add: true }], each: 'turn', by: 'owner', needs: 'Threats > 0' }] }, { F, gmView: true });

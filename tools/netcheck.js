@@ -23,14 +23,14 @@ function between(a, b, label, file) {
 const helpersSrc = between('// [netcheck:helpers-start]', '// [netcheck:helpers-end]', 'helpers');
 const gateSrc = between('// [netcheck:gate-start]', '// [netcheck:gate-end]', 'gate') + '\n}';   // the slice ends inside the client auth branch: close it
 const queueSrc = between('// [netcheck:queue-start]', '// [netcheck:queue-end]', 'queue');
-const broadcastSrc = between('// [netcheck:broadcast-start]', '// [netcheck:broadcast-end]', 'broadcast');
+const broadcastSrc = between('// [netcheck:broadcast-start]', '// [netcheck:broadcast-end]', 'broadcast', 'netfog.js');
 const chatSrc = between('// [netcheck:chat-start]', '// [netcheck:chat-end]', 'chat');
 const rosterSrc = between('// [netcheck:roster-start]', '// [netcheck:roster-end]', 'roster');
 const rosterCleanSrc = between('// [netcheck:rosterclean-start]', '// [netcheck:rosterclean-end]', 'rosterclean');
 const awaySrc = between('// [netcheck:away-start]', '// [netcheck:away-end]', 'away');
 // fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the API by id), so
 // every harness that runs one loads it: none passes on an old path
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders');
+const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 const fightIn = (cs, mapId) => { if (!cs || typeof cs !== 'object') return undefined; const k = Object.keys(cs).find(x => !!cs[x] && cs[x].mapId === mapId); return k === undefined ? undefined : cs[k]; };   // a fight by its map, in a copy keyed by the fights' own ids
 
 let pass = 0, fail = 0;
@@ -42,7 +42,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok        ' + 
 const storage = (() => { let m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, clear: () => { m = {}; } }; })();
 const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem, cleanFace, faceView, FACE_PICS, charFacePlan, hmacHex: typeof hmacHex === "function" ? hmacHex : null, authData: typeof authData === "function" ? authData : null, sameStr: typeof sameStr === "function" ? sameStr : null, retryGen: typeof retryGen === "function" ? retryGen : null };')(storage, globalThis.crypto);
 const hmacRef = (key, data) => require('crypto').createHmac('sha256', key).update(data).digest('hex');   // the suite's own HMAC: the app's proof is checked against it, never against itself
-const tryBetween = (a, b) => { try { return between(a, b, a); } catch (e) { return null; } };   // a slice whose markers may be missing: the check fails instead of the suite dying
+const tryBetween = (a, b, file) => { try { return between(a, b, a, file); } catch (e) { return null; } };   // a slice whose markers may be missing: the check fails instead of the suite dying
 const HS = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { validCn: typeof validCn === "function" ? validCn : null };')(storage, globalThis.crypto);   // security S: the nonce rule the hello gate reads
 const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterCleanSrc + '\nreturn { cleanHostRoster, cleanHostAway, validKey };')(storage, globalThis.crypto);
 
@@ -590,12 +590,12 @@ check('asset-req: a missing or over-cap picture is answered, never dropped silen
 check('asset arrival (client): a refused picture clears its pending flag and retries on busy, settles on missing', /msg\.error === 'busy' && tries <= 40/.test(src) && /assetCache\[msg\.path\] = ASSET_PLACEHOLDER/.test(src));
 
 /* ================= what a client accepts from a host ================= */
-check('client: every campaign/item lookup from a host message is an own-key lookup (campOf/validKey) in applyStage, applyItem, applyItemDelta, handlePos, itemGone, chars, system', (src.match(/campOf\(/g) || []).length >= 8 && /function applyItem\(msg\) \{\n\s*var camp = campOf\(msg\.campId\);\n\s*if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src) && /function applyItemDelta\(msg\) \{\n\s*var camp = campOf\(msg\.campId\); if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(src));
-check('client: a host map is cleaned on the snapshot, on a whole item and after a delta (text items rebuilt, colors checked, bounded)', (src.match(/cleanHostMap\(/g) || []).length >= 4 && /if \(incoming\.type === 'map'\) incoming = cleanHostMap\(incoming\)/.test(src) && /if \(it\.type === 'map'\) cleanHostMap\(it\)/.test(src));
-check('client: a snapshot without a usable appState is refused before anything is set; prototype keys are purged', /if \(!msg \|\| !msg\.appState \|\| typeof msg\.appState !== 'object' \|\| !msg\.appState\.campaigns/.test(src) && /\['__proto__', 'constructor', 'prototype'\]\.forEach/.test(src));
-check('client: the join snapshot\'s system is re-cleaned as the players\' view before its characters are (a host\'s system is never rendered raw)', /function applySnapshot\(msg\)[\s\S]{0,9000}?cs\.system = snapSys; else delete cs\.system;[\s\S]{0,400}?cleanChar\(/.test(src) && /var snapSys = \(cs\.system && window\.wpFormula\) \? window\.wpSystemCore\.cleanSystem\(cs\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\}, needShown: true \}\) : null;/.test(src)
+check('client: every campaign/item lookup from a host message is an own-key lookup (campOf/validKey) in applyStage, applyItem, applyItemDelta, handlePos, itemGone, chars, system', (src.match(/campOf\(/g) || []).length >= 8 && /function applyItem\(msg\) \{\n\s*var camp = campOf\(msg\.campId\);\n\s*if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(require('./checkkit').part('netfog.js')) && /function applyItemDelta\(msg\) \{\n\s*var camp = campOf\(msg\.campId\); if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(require('./checkkit').part('netfog.js')));
+check('client: a host map is cleaned on the snapshot, on a whole item and after a delta (text items rebuilt, colors checked, bounded)', (src.match(/cleanHostMap\(/g) || []).length >= 4 && /if \(incoming\.type === 'map'\) incoming = cleanHostMap\(incoming\)/.test(require('./checkkit').part('netfog.js')) && /if \(it\.type === 'map'\) cleanHostMap\(it\)/.test(require('./checkkit').part('netfog.js')));
+check('client: a snapshot without a usable appState is refused before anything is set; prototype keys are purged', /if \(!msg \|\| !msg\.appState \|\| typeof msg\.appState !== 'object' \|\| !msg\.appState\.campaigns/.test(require('./checkkit').part('netfog.js')) && /\['__proto__', 'constructor', 'prototype'\]\.forEach/.test(require('./checkkit').part('netfog.js')));
+check('client: the join snapshot\'s system is re-cleaned as the players\' view before its characters are (a host\'s system is never rendered raw)', /function applySnapshot\(msg\)[\s\S]{0,9000}?cs\.system = snapSys; else delete cs\.system;[\s\S]{0,400}?cleanChar\(/.test(require('./checkkit').part('netfog.js')) && /var snapSys = \(cs\.system && window\.wpFormula\) \? window\.wpSystemCore\.cleanSystem\(cs\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\}, needShown: true \}\) : null;/.test(require('./checkkit').part('netfog.js'))
     && /else \{ var csys = window\.wpSystemCore\.cleanSystem\(msg\.system, \{ F: window\.wpFormula, gmView: false, libCats: \{\}, needShown: true \}\); if \(csys\) campS\.system = csys; \}/.test(src)
-    && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null, needShown: window\.wpLibrary && window\.wpLibrary\.needShown \? window\.wpLibrary\.needShown : null, ruleShown: window\.wpLibrary && window\.wpLibrary\.needRuleShown \? window\.wpLibrary\.needRuleShown : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(src));
+    && /gmView: false, pages: [^\n]*, libCats: window\.wpLibrary && window\.wpLibrary\.catsFor \? window\.wpLibrary\.catsFor\(\) : null, needShown: window\.wpLibrary && window\.wpLibrary\.needShown \? window\.wpLibrary\.needShown : null, ruleShown: window\.wpLibrary && window\.wpLibrary\.needRuleShown \? window\.wpLibrary\.needRuleShown : null \}\); if \(psys\) camp\.system = psys; else delete camp\.system;/.test(require('./checkkit').part('netfog.js')));
 check('wireConn: a message that throws never leaves applyingRemote on', /try \{ handleMessage\(d, conn\); \} catch \(e\)[^\n]*finally \{ net\.applyingRemote = false; \}/.test(src));
 check('assets (client): prototype-free caches, own-key arrival check, size cap, old blob revoked, no outside URLs', /var assetCache = Object\.create\(null\)/.test(src) && /var assetPending = Object\.create\(null\)/.test(src) && /!own\(assetPending, msg\.path\)\) return;/.test(src) && /msg\.data\.byteLength > AUDIO_CAP/.test(src) && /var type = assetMime\(msg\.path\), was = assetCache\[msg\.path\], made;/.test(src) && /URL\.revokeObjectURL\(was\)/.test(src) && /return ASSET_PLACEHOLDER;\s*\/\/ an absolute URL from a host/.test(src));
 check('chat (client): only the synced host, shape-checked, text capped', /if \(conn\.peer !== net\.syncedPeer \|\| typeof msg\.text !== 'string' \|\| !msg\.from/.test(src) && /text: msg\.text\.slice\(0, 2000\)/.test(src));
@@ -698,15 +698,15 @@ pendingChecks.push((async () => {
         chk(src) && chk(src) === chk(stSrc) && chk(src) === chk(mnSrc) && /im\.src = safeAv\(p\.avatar\) \? p\.avatar : def;/.test(stSrc) && /avI\.src = wcSafeAvatar\(prof\.avatar\) \? prof\.avatar : wpDefaultAvatar\(prof\.color\);/.test(mnSrc)
         && !/innerHTML = '<img src="' \+ \(p\.avatar/.test(stSrc) && !/innerHTML = '<img src="' \+ \(prof\.avatar/.test(mnSrc) && !/innerHTML = '<img src="' \+ data \+/.test(mnSrc), [chk(src), chk(stSrc), chk(mnSrc)].join(' | '));
     check('snapshot: a player re-parents the decoded state, the campaign map and every campaign to a plain prototype (a packed "__proto__" re-parents a BinaryPack map), then drops the host\'s player records unread',
-        /\[msg\.appState, msg\.appState\.campaigns\]\.forEach\(function\(o\) \{ if \(Object\.getPrototypeOf\(o\) !== Object\.prototype\) Object\.setPrototypeOf\(o, Object\.prototype\); \}\);/.test(src)
-        && /forEach\(function\(cS\) \{\s*if \(!cS \|\| typeof cS !== 'object'\) return;\s*if \(Object\.getPrototypeOf\(cS\) !== Object\.prototype\) Object\.setPrototypeOf\(cS, Object\.prototype\);[^\n]*\n\s*delete cS\.players;/.test(src));
+        /\[msg\.appState, msg\.appState\.campaigns\]\.forEach\(function\(o\) \{ if \(Object\.getPrototypeOf\(o\) !== Object\.prototype\) Object\.setPrototypeOf\(o, Object\.prototype\); \}\);/.test(require('./checkkit').part('netfog.js'))
+        && /forEach\(function\(cS\) \{\s*if \(!cS \|\| typeof cS !== 'object'\) return;\s*if \(Object\.getPrototypeOf\(cS\) !== Object\.prototype\) Object\.setPrototypeOf\(cS, Object\.prototype\);[^\n]*\n\s*delete cS\.players;/.test(require('./checkkit').part('netfog.js')));
     { const o = {}; o['__proto__'] = { players: { u_x: {} } }; const before = o.players !== undefined; if (Object.getPrototypeOf(o) !== Object.prototype) Object.setPrototypeOf(o, Object.prototype); delete o.players;
       check('snapshot: (the technique) an object re-parented by an assigned "__proto__" key loses the inherited field once its prototype is reset', before && o.players === undefined); }
     check('Players panel: the join count is a number (a player record from a save or an import never writes markup); a roster location and an item lookup are escaped / own-keyed',
         /countOf\(p\.joinCount\) \+ ' join'/.test(src) && !/\(p\.joinCount \|\| 0\)/.test(src) && /function countOf\(v\) \{ var n = Math\.floor\(Number\(v\)\); return isFinite\(n\) && n > 0 \? n : 0; \}/.test(src)
         && /data-jump="' \+ escTextRoster\(p\.location\)/.test(src) && /own\(camp\.items, p\.location\) \? camp\.items\[p\.location\]/.test(src));
-    check('snapshot: a player drops the host\'s player records unread (an honest host already strips them)', /delete cS\.players;/.test(src));
-    check('broadcast: a send the packer refuses is logged, never silent', /try \{ c\.send\(msg\); \} catch \(e\) \{ try \{ console\.warn\('wire send failed'/.test(src));
+    check('snapshot: a player drops the host\'s player records unread (an honest host already strips them)', /delete cS\.players;/.test(require('./checkkit').part('netfog.js')));
+    check('broadcast: a send the packer refuses is logged, never silent', /try \{ c\.send\(msg\); \} catch \(e\) \{ try \{ console\.warn\('wire send failed'/.test(require('./checkkit').part('netfog.js')));
     check('sheet: a player sees their own character\'s owner as their own name and anyone else\'s missing owner as "a player" — never a bare id; the GM\'s view is unchanged',
         /if \(away && c\.ownerId === myId\(\) && n\.getProfile\) \{ var pr = n\.getProfile\(\);/.test(shSrc) && /return pn\[c\.ownerId\] \|\| \(away \? 'a player' : c\.ownerId\);/.test(shSrc) && /function playerNames\(camp\) \{\s*var out = Object\.create\(null\);/.test(shSrc));
 }
@@ -715,16 +715,16 @@ pendingChecks.push((async () => {
 {
     const bare = src.match(/\.send\([^;]*\); \} catch \(e\) \{\}/g) || [];   // spans lines: a send whose catch sits lines below counts too
     check('every per-peer send that fails is logged (sendFailed), none swallowed by a bare catch (one-line or multi-line); a refused snapshot also tells the GM',
-        bare.length === 0 && /catch \(e\) \{ sendFailed\(e, 'handout'\); return; \}/.test(src) && (src.match(/catch \(e\) \{ sendFailed\(e\); \}/g) || []).length >= 50 && /catch \(e\) \{ sendFailed\(e, 'snapshot'\); toast\('Could not send the campaign to '/.test(src) && /function sendFailed\(e, what\) \{ try \{ console\.warn\(/.test(src),
+        bare.length === 0 && /catch \(e\) \{ sendFailed\(e, 'handout'\); return; \}/.test(src) && (src.match(/catch \(e\) \{ sendFailed\(e\); \}/g) || []).length >= 50 && /catch \(e\) \{ sendFailed\(e, 'snapshot'\); toast\('Could not send the campaign to '/.test(src) && /function sendFailed\(e, what\) \{ try \{ console\.warn\(/.test(require('./checkkit').part('netfog.js')),
         bare.map(s => s.replace(/\s+/g, ' ').slice(0, 80)).join(' | '));
     check('player gates bound every number they store (rotation, facing, stroke geometry): a finite 1e300 is an "integer" the packer refuses',
-        /w\.rot = Math\.max\(-1e6, Math\.min\(1e6, wr\)\); w\.front = Math\.max\(-1e6, Math\.min\(1e6, wf\)\);/.test(src) && /msg\.rot = Math\.max\(-1e6, Math\.min\(1e6, prot\)\); msg\.front = Math\.max\(-1e6, Math\.min\(1e6, pfr\)\);/.test(src)
-        && /var num = function\(v, d\) \{ return \(typeof v === 'number' && isFinite\(v\)\) \? Math\.max\(-1e6, Math\.min\(1e6, v\)\) : d; \};/.test(src) && /init: Math\.max\(-1e6, Math\.min\(1e6, Number\(r\.init\) \|\| 0\)\)/.test(src));
-    const wireNum = new Function((src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || ['function wireNum(k, v) { return NaN; }'])[0] + '\nreturn wireNum;')();
+        /w\.rot = Math\.max\(-1e6, Math\.min\(1e6, wr\)\); w\.front = Math\.max\(-1e6, Math\.min\(1e6, wf\)\);/.test(require('./checkkit').part('netfog.js')) && /msg\.rot = Math\.max\(-1e6, Math\.min\(1e6, prot\)\); msg\.front = Math\.max\(-1e6, Math\.min\(1e6, pfr\)\);/.test(src)
+        && /var num = function\(v, d\) \{ return \(typeof v === 'number' && isFinite\(v\)\) \? Math\.max\(-1e6, Math\.min\(1e6, v\)\) : d; \};/.test(require('./checkkit').part('netfog.js')) && /init: Math\.max\(-1e6, Math\.min\(1e6, Number\(r\.init\) \|\| 0\)\)/.test(src));
+    const wireNum = new Function((require('./checkkit').part('netfog.js').match(/function wireNum\(k, v\) \{[^\n]*\}/) || ['function wireNum(k, v) { return NaN; }'])[0] + '\nreturn wireNum;')();
     const bounded = JSON.parse('{"a":1e20,"b":[1e300,-1e20,5,1.5],"t":1790000000000,"s":"1e300"}', wireNum);
     const threw2 = v => { try { packCheck(v); return false; } catch (e) { return true; } };
     check('wire clones: sanitizeItem and sanitizeAppState bound every number as they copy (a GM box, an import or a formula past 64 bits can never stop a map, a join or a snapshot)',
-        /var m = JSON\.parse\(JSON\.stringify\(item\), wireNum\);/.test(src) && /var c = JSON\.parse\(JSON\.stringify\(one\), wireNum\);/.test(src) && threw2({ a: 1e20 }) && !threw2(bounded)
+        /var m = JSON\.parse\(JSON\.stringify\(item\), wireNum\);/.test(src) && /var c = JSON\.parse\(JSON\.stringify\(one\), wireNum\);/.test(require('./checkkit').part('netfog.js')) && threw2({ a: 1e20 }) && !threw2(bounded)
         && bounded.a === 1e15 && bounded.b[0] === 1e15 && bounded.b[1] === -1e15 && bounded.b[2] === 5 && bounded.b[3] === 1.5 && bounded.t === 1790000000000 && bounded.s === '1e300', j(bounded));
     check('pos relay: the host rebuilds a player\'s move from its own fields before relaying it (extras a modified client adds never reach the table)', /msg = \{ type: 'pos', campId: msg\.campId, itemId: msg\.itemId, wbId: msg\.wbId, x: msg\.x, y: msg\.y, rot: msg\.rot, front: msg\.front, final: msg\.final === true \};[^\n]*\n\s*applyPosToDom\(msg\);\s*broadcastPos\(msg, conn, camp, map, w\);/.test(src));
     check('share: the size counted against a player\'s budget is real binary\'s (a decoded map claiming a negative byteLength is refused)', /if \(en\.data && !\(en\.data instanceof ArrayBuffer \|\| ArrayBuffer\.isView\(en\.data\)\)\) return;/.test(src));
@@ -784,7 +784,7 @@ pendingChecks.push((async () => {
     let at = -1; const inOrder = order.every(s => { const p = fxR.indexOf(s, at + 1); if (p < 0) return false; at = p; return true; });
     check('char-effect (host): shape, pause, rate, feature, existence and ownership are checked in that order before the list\'s own rules; then store, ack, sync (behavior: systemcheck runs this slice)', fxR.length > 0 && inOrder);
     check('char-effect (host): every projection carries the full library (a GM-only effect reaches its owner inline, never as a bare id); the probe that decides who sees a field is marked',
-        /S\.charFor\(src, view, pid, \{ lib: libD, items: itD, full: camp\.system \}\)/.test(src) && /S\.charFor\(probe, view, pid, \{ probe: true \}\)/.test(src) && /charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\)/.test(src) && /SQ\.charFor\(srcQ, viewQ, pidQ, \{ lib: fxLib\(campQ\.system\), items: itemLib\(campQ\.system\), full: campQ\.system \}\)/.test(src)
+        /S\.charFor\(src, view, pid, \{ lib: libD, items: itD, full: camp\.system \}\)/.test(src) && /S\.charFor\(probe, view, pid, \{ probe: true \}\)/.test(src) && /charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\)/.test(require('./checkkit').part('netfog.js')) && /SQ\.charFor\(srcQ, viewQ, pidQ, \{ lib: fxLib\(campQ\.system\), items: itemLib\(campQ\.system\), full: campQ\.system \}\)/.test(src)
         && /S\.charFor\(camp\.chars\[charId\], view, recipientId, \{ lib: lib, items: items, full: camp\.system \}\)/.test(src) && /S\.charFor\(src, view, src\.ownerId, \{ lib: lib \|\| null, items: items \|\| null, full: full \|\| null \}\)/.test(src));
     const ciR = (() => { const i = src.indexOf('// [netcheck:charitem-start]'), k = src.indexOf('// [netcheck:charitem-end]'); return i >= 0 && k > i ? src.slice(i, k) : ''; })();
     const ciOrder = ['Si.cleanCharItem(msg); if (!qi) return;', "denyI('paused')", "denyI('slow')", "denyI('off')", "denyI('missing')", "denyI('owner')", 'Si.applyRowOp(campI.system, chI, qi.fieldId, qi, Fi, { player: true, view:', "{ type: 'char-ack', rid: qi.rid }", 'net.syncCharDelta(qi.charId, dI);'];
@@ -794,7 +794,7 @@ pendingChecks.push((async () => {
     check('throw-req (host, Stage 6 F4a): the throw names a row of a VISIBLE item list; the definition is read on the host through rowDef (a GM-only item or one with no blast is never thrown by a player)',
         /var fT = St\.fieldById\(campT\.system, msg\.fieldId\); if \(!fT \|\| fT\.kind !== 'item-list' \|\| fT\.vis !== 'all'\) return;/.test(src) && /var rdT = St\.rowDef\(campT\.system, rowT\), defT = rdT \? rdT\.def : null; if \(!defT \|\| defT\.vis === 'gm' \|\| !defT\.area\) return;/.test(src) && /vT\.find\(function\(r\) \{ return r && r\.hid !== 1 && St\.rowIdOf\(r\) === msg\.rowId; \}\)/.test(src));
     check('Stage 6: a joining player\'s client keeps the host\'s whole copy of every character from the snapshot, and a delta only updates that copy (never starts a partial one a refusal would read as "no value")',
-        /charSessionReset\(\);\s*\n\s*Object\.values\(state\.appState\.campaigns \|\| \{\}\)\.forEach\(function\(cs\) \{ if \(cs && cs\.chars && typeof cs\.chars === 'object'\) Object\.keys\(cs\.chars\)\.forEach\(function\(id\) \{ noteHostCopy\(id, cs\.chars\[id\]\.values\); \}\); \}\);/.test(src)
+        /charSessionReset\(\);\s*\n\s*Object\.values\(state\.appState\.campaigns \|\| \{\}\)\.forEach\(function\(cs\) \{ if \(cs && cs\.chars && typeof cs\.chars === 'object'\) Object\.keys\(cs\.chars\)\.forEach\(function\(id\) \{ noteHostCopy\(id, cs\.chars\[id\]\.values\); \}\); \}\);/.test(require('./checkkit').part('netfog.js'))
         && /hb = Object\.prototype\.hasOwnProperty\.call\(_charHost, msg\.id\) \? _charHost\[msg\.id\] : null;/.test(src) && !/_charHost\[msg\.id\] = \{\}/.test(src));
     check('Stage 6: the host\'s Undo window — every pickup opens or extends it, a drop inside it lowers its count and never closes it (it lapses)',
         /if \(gA\) \{ gA\.added \+= resI\.added; gA\.until = nowI \+ Si\.LIMITS\.undoGraceMs; \} else _rowGrace\[gkA\] = \{ until: nowI \+ Si\.LIMITS\.undoGraceMs, added: resI\.added \};/.test(ciR) && /else if \(grI && resI\.undone > 0\) grI\.added = Math\.max\(0, grI\.added - resI\.undone\);/.test(ciR) && !/delete _rowGrace\[gkI\]/.test(ciR));
@@ -849,12 +849,12 @@ pendingChecks.push((async () => {
 }
 
 /* ================= F0 sweep: gaps found beside the binding fold, each on the real code ================= */
-const lineOf = k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
+const lineOf = (k, file) => { if (typeof file === 'string') return (partSlices || (partSlices = require('./checkkit').netSlices('netcheck'))).lineOf(k, file);   /* a part of net.js, read by its own name */ const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); };
 const ownKeySrc = [lineOf('function own('), lineOf('function validKey('), lineOf('function campOf(')].join('\n') + '\n';   // the real own-key one-liners
 const fnSrc = (start, end, label, file) => { if (file) return (partSlices || (partSlices = require('./checkkit').netSlices('netcheck'))).fnSrc(start, end, label, file);   /* a part of net.js (netattack.js, nethold.js), read by its own name */ const i = src.indexOf(start), k = src.indexOf(end, i + 1); if (i < 0 || k < 0) throw new Error('netcheck: ' + label + ' not found in net.js'); return src.slice(i, k); };
 /* ================= fog on is true alone (found during senses S0, (a)): net.js reads a map's fog as fog.js does ================= */
 {
-    const fgSrc = fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n' + lineOf('function mapFogged(');
+    const fgSrc = fnSrc('function anyFog(', '\n}\n', 'anyFog', 'netfog.js') + '\n}\n' + lineOf('function mapFogged(');
     const FG = new Function('window', "'use strict';\n" + fgSrc + '\nreturn { anyFog: anyFog, mapFogged: mapFogged };')({ wpFog: {}, wpVtt: { on: () => true } });
     const ons = [true, 'yes', 1, {}, [], 'true', false, null, undefined];
     const fgGot = ons.map(v => [FG.mapFogged({ type: 'map', fog: { on: v } }), FG.anyFog({ items: { m: { type: 'map', fog: { on: v } } } })]);
@@ -866,7 +866,7 @@ const fnSrc = (start, end, label, file) => { if (file) return (partSlices || (pa
 const siSrc = () => {
     const a = src.indexOf('function sanitizeItem('), b = src.indexOf('\n}\n', src.indexOf('function wireWbItem(', a));
     if (a < 0 || b < a) throw new Error('netcheck: sanitizeItem and wireWbItem not found in net.js');
-    return (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);
+    return (require('./checkkit').part('netfog.js').match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);   // wireNum stands in netfog.js, a part of net.js
 };
 // 1.6.2 (the owner, 2026-11-13: "lets lock proportions when resizing by default"): Lock proportions is on unless a piece carries lockRatio: false,
 // so the false has to reach the table and come back as it left: the real wireWbItem and the real cleanHostWbItem carry it, and true and absent alike
@@ -903,9 +903,9 @@ pendingChecks.push((async () => {
             && noCore.place === true && !has(noCore, 'placeName');
         const cH = cleanP(R({ place: 'yes', placeName: 'A'.repeat(90) + '\u0007' })), cH2 = cleanP(R({ place: false, placeName: { x: 1 } })), cN = cleanN(R({ place: true, placeName: 'The Inn' }));
         const okClient = !has(cH, 'place') && cH.placeName === 'A'.repeat(60) && cH2.place === false && !has(cH2, 'placeName') && cN.place === true && !has(cN, 'placeName');
-        const psP = new Function('"use strict";\n' + fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\nreturn playerStroke;')();
+        const psP = new Function('"use strict";\n' + fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\nreturn playerStroke;')();
         const st = psP({ id: 'dr1', type: 'path', ownerId: 'u_p', pts: [[0, 0], [5, 5]], x: 1, y: 1, w: 5, h: 5, place: true, placeName: 'Mine' }, 'u_p');
-        const patchSrcP = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), cleanersP = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), psSrcP = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+        const patchSrcP = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), cleanersP = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), psSrcP = fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n';
         const S = (id, extra) => Object.assign({ id, type: 'path', byPlayer: true, ownerId: 'u_p', x: 5, y: 5, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [4, 4]], color: '#e9e9f0', strokeWidth: 3 }, extra);
         const camps = { c1: { id: 'c1', items: { m1: { type: 'map', whiteboard: [R({ id: 'pl', place: true, placeName: 'Inn' }), R({ id: 'gate', nodeId: 'r1' }), S('mine')], rooms: [{ id: 'r1', name: 'Gate' }] } } } };
         const msg = { campId: 'c1', itemId: 'm1', item: { whiteboard: [S('mine', { place: true, placeName: 'My Spot' }), R({ id: 'pl', place: false, placeName: 'Renamed' }), R({ id: 'gate', place: false }), S('new1', { place: true, placeName: 'Fresh' })] } };
@@ -1077,9 +1077,9 @@ pendingChecks.push((async () => {
         ]);
         const hostOk = !!sent && Jw(sent.blocks) === want && siW(page(false)) === null && siW({ id: 'p', type: 'planner', blocks: page(true).blocks }) === null;
         // the player's side: the real applyItem, a host that sends the page raw
-        const ai = src.indexOf('function applyItem(msg) {'), ak = src.indexOf('\n}\n', ai);
+        const aiP = require('./checkkit').part('netfog.js'), ai = aiP.indexOf('function applyItem(msg) {'), ak = aiP.indexOf('\n}\n', ai);   // applyItem stands in netfog.js, a part of net.js
         const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
-        new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + src.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: 'dS', item: page(true) });
+        new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + aiP.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: 'dS', item: page(true) });
         const got = state.appState.campaigns.k.items.dS, html = got ? DRw.renderDoc(got, { mermaid: false }) : '';
         const clientOk = ai > 0 && ak > ai && !!got && Jw(got.blocks) === want && html.indexOf('<h1><span style="color:#d9534f;font-weight:bold;">Ru</span><span style="color:#d9534f;">les</span><span class="sub">v1</span></h1>') > 0 && html.indexOf('<td>x</td><td><span style="color:#5cb87a;">y</span>y</td>') > 0 && html.indexOf('<h3><span style="font-weight:bold;">T</span></h3>') > 0 && html.indexOf('evil.example') < 0;
         check(T, hostOk && clientOk, Jw([hostOk, clientOk, sent && sent.blocks, got && got.blocks]).slice(0, 1200));
@@ -1136,12 +1136,12 @@ pendingChecks.push((async () => {
             { type: 'table', id: 'b2', title: 'T', cols: ['A', 'B'], rows: [['x', 'yy']], colFmt: [null, { st: true }], rowFmt: [[null, { spans: [{ s: 0, e: 1, size: 'huge' }] }]] },
             { type: 'flowchart', id: 'b3', dir: 'TD', space: 'normal', zoom: 1, nodes: [{ id: 'n1', text: 'buy milk', shape: 'rect', color: 'neutral', fmt: { spans: [{ s: 0, e: 3, u: true }] } }], edges: [{ from: 'n1', to: 'n1', text: 'go', style: 'solid' }] }
         ]);
-        const ai = src.indexOf('function applyItem(msg) {'), ak = src.indexOf('\n}\n', ai);
+        const aiP = require('./checkkit').part('netfog.js'), ai = aiP.indexOf('function applyItem(msg) {'), ak = aiP.indexOf('\n}\n', ai);   // applyItem stands in netfog.js, a part of net.js
         const A = '<a href="https://ok.example/p?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">';
         const bad = BADL.filter(v => {
             const sent = siW(page(v)), hostOk = !!sent && Jw(sent.blocks) === want;
             const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
-            new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + src.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: 'dL', item: page(v) });
+            new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + aiP.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: 'dL', item: page(v) });
             const got = state.appState.campaigns.k.items.dL, html = got ? DRw.renderDoc(got, { mermaid: false }) : '';
             const clientOk = ai > 0 && ak > ai && !!got && Jw(got.blocks) === want && (html.match(/<a\b/g) || []).length === 1 && html.indexOf('<h1>' + A + '<span style="text-decoration:underline;font-size:1.2em;">Ru</span></a><span style="text-decoration:underline;">les</span><span class="sub">v1</span></h1>') > 0
                 && html.indexOf('<th>A</th><th><span style="text-decoration:line-through;">B</span></th>') > 0 && html.indexOf('<td>x</td><td><span style="font-size:1.728em;">y</span>y</td>') > 0 && !/javascript|vbscript|data:text|evil\.example|99em/i.test(html) && !/href|https?:/.test(DRw.compileFlowchart(got.blocks[2]));
@@ -1172,9 +1172,9 @@ pendingChecks.push((async () => {
             { type: 'diagram', id: 'b3', content: 'classDiagram\nclass S\nclick S href "' + OKL + '"' },
             { type: 'diagram', id: 'b4', content: 'gantt\nsection S\nT :A, 2024-01-01, 1d' }
         ]);
-        const ai = src.indexOf('function applyItem(msg) {'), ak = src.indexOf('\n}\n', ai);
+        const aiP = require('./checkkit').part('netfog.js'), ai = aiP.indexOf('function applyItem(msg) {'), ak = aiP.indexOf('\n}\n', ai);   // applyItem stands in netfog.js, a part of net.js
         const apply = item => { const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
-            new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + src.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: item.id, item: item });
+            new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', ownKeySrc + aiP.slice(ai, ak) + '\n}\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: DRw, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => {}, () => {}, m => m, { type: 'item', campId: 'k', itemId: item.id, item: item });
             return state.appState.campaigns.k.items[item.id]; };
         const bad = BADL.filter(v => {
             const sent = siW(page(v)), hostOk = !!sent && Jw(sent.blocks) === want;
@@ -1330,15 +1330,15 @@ pendingChecks.push((async () => {
             /\} else if \(msg\.type === 'tokBars' && net\.role === 'client'\) \{\n[^\n]*\n[^\n]*\n[^\n]*\n        if \(!net\.foreign \|\| conn\.peer !== net\.syncedPeer \|\| net\.stream\) return;\n        if \(typeof msg\.campId !== 'string' \|\| msg\.campId !== state\.appState\.activeCampaignId \|\| !validKey\(msg\.itemId\)\) return;\n        ownBarsTake\(msg\.campId, msg\.itemId, msg\.bars\);/.test(src)
             && src.includes('if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w);') && src.includes('function charSessionReset() { if (typeof ownBarsReset === \'function\') ownBarsReset();')
             && src.includes("function fxbMoved(id) {\n    if (typeof barsMoved === 'function') barsMoved(id);") && (src.match(/fxbMoved\((?:null|id)\);/g) || []).length === 3
-            && src.includes("function mapHeldNote(conn, mapId) { if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string') return; if (typeof tokBarsSoon === 'function') tokBarsSoon();") && (src.match(/if \(it\.type === 'map' && typeof tokBarsSoon === 'function'\) tokBarsSoon\(\);/g) || []).length === 2
-            && src.includes("if (typeof _barSent === 'object' && _barSent) delete _barSent[peer];"));
+            && require('./checkkit').part('netfog.js').includes("function mapHeldNote(conn, mapId) { if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string') return; if (typeof tokBarsSoon === 'function') tokBarsSoon();") && (src.match(/if \(it\.type === 'map' && typeof tokBarsSoon === 'function'\) tokBarsSoon\(\);/g) || []).length === 2
+            && require('./checkkit').part('netfog.js').includes("if (typeof _barSent === 'object' && _barSent) delete _barSent[peer];"));
     } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
 })());
 /* ================= 1.6.0 a GM-only stat: the real sanitizeAppState, for a player and for the stream window ================= */
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const saSrcC = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcC = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
     const win = { wpSystemCore: Sx, wpFormula: Fx, wpLibrary: { catsFor: () => ({ show: [], hide: [] }) } };
     const SAc = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcC + '\nreturn sanitizeAppState;')(H.own, win, () => ({}), () => ({}), v => v, it => it, it => it);
     const sys = () => Sx.cleanSystem({ v: 1, name: 'S', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_l', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Skill', label: 'Skill' }, { key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Use', formula: '3d6 <= Row.Skill', fumbleAt: '18 - Row.Flaw' }] } }], items: [{ id: 'i_a', name: 'Pebbles', stats: { Skill: 9, Flaw: 2 } }], combat: { checks: 'fixed' } }, { F: Fx, gmView: true });
@@ -1350,7 +1350,7 @@ pendingChecks.push((async () => {
 
 /* ================= a session is one campaign (owner's answer 2026-09-29, found during senses S0 (b)): the real sanitizeAppState copies only the hosted campaign ================= */
 {
-    const saSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
     const SA = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrc + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const map = id => ({ id, type: 'map', meta: { title: id }, rooms: [], links: [], whiteboard: [{ id: 'orc_' + id, type: 'image', isChar: true, x: 1, y: 1, w: 50, h: 50 }] });
     const gm = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: map('m1') } }, k2: { id: 'k2', name: 'Secret game', activeItemId: 'm2', items: { m2: map('m2'), p2: { id: 'p2', type: 'planner', blocks: [] } } } } });
@@ -1386,7 +1386,7 @@ pendingChecks.push((async () => {
     try {
         const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
         const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-        const saSrcC = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+        const saSrcC = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
         const win = { wpSystemCore: Sx, wpFormula: Fx, wpLibrary: { catsFor: () => ({ show: ['Charms'], hide: ['Smuggled Relics'] }) } };
         const SAc = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcC + '\nreturn sanitizeAppState;')(H.own, win, () => ({}), () => ({}), v => v, it => it, it => it);
         const sys = () => ({ v: 1, name: 'Docks kit', rolls: [], items: [{ id: 'i_blade', name: 'Blade', category: 'Weapons' }, { id: 'i_coat', name: 'Coat', category: 'Armor' }, { id: 'i_gem', name: 'Gem', category: 'Hidden Stash', vis: 'gm' }],
@@ -1403,28 +1403,26 @@ pendingChecks.push((async () => {
 })());
 // item 21 V1: the campaign's video library is the GM's alone — the real sanitizeAppState leaves it out of the join snapshot and the stream window
 {
-    const saSrcV = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcV = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
     const SAv = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcV + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const vids = () => [{ id: 'v_abcdefgh', name: 'The reveal', path: '/saves/images/video/k1/aaaa_reveal.mp4', size: 123456, dur: 42 }];
     const gmV = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: null, items: {}, videos: vids() } } });
     const forPv = SAv(gmV(), 'u_p'), forSv = SAv(gmV()), keptV = gmV(); SAv(keptV, 'u_p');
-    const netNoDelete = src.replace(/        delete camp\.videos;[^\n]*\n/, '');
     check('item 21 V1 the video library never leaves the host: the join snapshot and the stream window carry no videos key, no name and no path of one; the GM\'s own campaign keeps its library; net.js names camp.videos nowhere but where it strips it (no message carries it)',
         !('videos' in forPv.campaigns.k1) && !('videos' in forSv.campaigns.k1) && !/The reveal|reveal\.mp4|v_abcdefgh/.test(JSON.stringify([forPv, forSv])) && JSON.stringify(keptV.campaigns.k1.videos) === JSON.stringify(vids())
-        && /        delete camp\.uploads;[^\n]*\n        delete camp\.videos;/.test(src) && !/\.videos\b/.test(netNoDelete), JSON.stringify(forPv.campaigns.k1));
+        && /        delete camp\.uploads;[^\n]*\n        delete camp\.videos;/.test(require('./checkkit').part('netfog.js')) && require('./checkkit').familyCount('net.js', /\.videos\b/) === 1, JSON.stringify(forPv.campaigns.k1));   // .videos stands once in net.js and its parts: in the line that strips it
 }
 // backlog 125 (pageshelf.js): the pages pinned for the session name planners, which are the GM's alone — the real sanitizeAppState leaves the list (and the pinned maps) out of the join snapshot and the stream window
 {
-    const saSrcS = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcS = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
     const SAs = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcS + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const gmS = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', fights: { on: 'f_aaaaaaa1', list: { f_aaaaaaa1: { mapId: 'm1', rows: [] } } }, pinnedMaps: ['m1'], pinnedPages: ['plan_secret_twist', 'doc_rules'],
         items: { m1: { id: 'm1', type: 'map', meta: { title: 'm1', scenePage: 'plan_secret_twist' }, rooms: [], links: [], whiteboard: [{ id: 'pin1', type: 'image', x: 1, y: 1, w: 50, h: 50, page: 'plan_secret_twist', pageAt: 'sec_secret_twist' }, { id: 'pin2', type: 'rect', x: 9, y: 9, w: 50, h: 50, page: 'doc_rules' }, { id: 'tokN', type: 'image', isChar: true, x: 5, y: 5, w: 50, h: 50, page: 'plan_secret_twist' }] }, plan_secret_twist: { id: 'plan_secret_twist', type: 'planner', meta: { title: 'The twist' }, blocks: [] }, doc_rules: { id: 'doc_rules', type: 'doc', meta: { title: 'Rules' }, blocks: [] } } } } });
     const forPs = SAs(gmS(), 'u_p'), forSs = SAs(gmS()), keptS = gmS(); SAs(keptS, 'u_p');
-    const netNoPins = src.replace(/        delete camp\.pinnedPages;[^\n]*\n/, '');
     check('backlog 125 the pages pinned for the session never leave the host: the join snapshot and the stream window carry no pinnedPages key and no pinnedMaps key, and the id of a pinned planner is nowhere in either; the GM\'s own campaign keeps both lists; net.js names camp.pinnedPages nowhere but where it strips it (no message carries it)',
         !('fights' in forPs.campaigns.k1) && !('fights' in forSs.campaigns.k1) && !('pinnedPages' in forPs.campaigns.k1) && !('pinnedPages' in forSs.campaigns.k1) && !('pinnedMaps' in forPs.campaigns.k1) && !('pinnedMaps' in forSs.campaigns.k1) && !/plan_secret_twist|The twist/.test(JSON.stringify([forPs, forSs]))
         && JSON.stringify(keptS.campaigns.k1.pinnedPages) === '["plan_secret_twist","doc_rules"]' && JSON.stringify(keptS.campaigns.k1.pinnedMaps) === '["m1"]'
-        && /        delete camp\.pinnedMaps;\n        delete camp\.pinnedPages;/.test(src) && !/pinnedPages/.test(netNoPins), JSON.stringify(forPs.campaigns.k1).slice(0, 300));
+        && /        delete camp\.pinnedMaps;\n        delete camp\.pinnedPages;/.test(require('./checkkit').part('netfog.js')) && require('./checkkit').familyCount('net.js', /pinnedPages/) === 1, JSON.stringify(forPs.campaigns.k1).slice(0, 300));   // pinnedPages stands once in net.js and its parts: in the line that strips it
     // 1.5.4 (gencore.js): the seed and settings a dungeon was generated from are kept on its map for the GM alone, to make it again
     {
     const gmG = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', meta: { title: 'Keep', gridType: 'hex', gen: { seed: 'secret-4471-fox', w: 30, h: 20, rooms: 'some', corr: 'winding', doors: 'most' } }, rooms: [], links: [], whiteboard: [{ id: 'f1', type: 'rect', x: 0, y: 0, w: 50, h: 50 }] }, m2: { id: 'm2', type: 'map', meta: { title: 'Plain' }, rooms: [], links: [], whiteboard: [] }, m3: { id: 'm3', type: 'map', rooms: [], links: [], whiteboard: [] } } } } });
@@ -1454,11 +1452,11 @@ pendingChecks.push((async () => {
         && keptC.campaigns.k1.items.m1.meta.city.seed === 'secret-9-owl' && keptC.campaigns.k1.items.m1.meta.gen.seed === 'secret-dungeon' && JSON.stringify(forPc.campaigns.k1.items.m2.meta) === '{"title":"Plain"}' && forPc.campaigns.k1.items.m1.whiteboard.length === 1
         && JSON.stringify(fromHostC.meta) === '{"title":"Port","gridType":"square"}' && gmMetaOne('city'),
         JSON.stringify([forPc.campaigns.k1.items.m1.meta, forSc.campaigns.k1.items.m1.meta, fromHostC.meta, gmMetaSaid()]));
-    const adG = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n', campG = { id: 'c1', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', meta: { title: 'Keep' }, whiteboard: [], rooms: [] } } };
+    const adG = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta', 'netfog.js') + '\n}\n', campG = { id: 'c1', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', meta: { title: 'Keep' }, whiteboard: [], rooms: [] } } };
     new Function('state', 'net', 'window', 'broadcast', 'cleanHostMap', 'actOver', 'ackIn', 'getActiveCampaign', 'render', 'updateSidebarNav', 'msg', ownKeySrc + adG + '\napplyItemDelta(msg);')({ appState: { campaigns: { c1: campG } } }, { applyingRemote: false }, {}, () => {}, CHM, () => {}, () => 0, () => campG, () => {}, () => {},
         { type: 'itemDelta', campId: 'c1', itemId: 'm1', meta: { title: 'Keep 2', gridType: 'square', gen: { seed: 'by-delta', w: 9999 } }, whiteboard: { set: [{ id: 'a', type: 'rect', x: 0, y: 0, w: 5, h: 5 }], del: [] } });
-    const stubG = new Function(fnSrc('function mapStub(map) {', '\n}\n', 'mapStub') + '\n}\nreturn mapStub;')()({ id: 'm1', type: 'map', meta: { title: 'Keep', playerLock: true, parentId: 'm0', sortIndex: 3, gridType: 'hex', gen: { seed: 'secret-4471-fox', w: 30, h: 20 } }, whiteboard: [{ id: 'f1' }] });
-    const qhG = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')(), idG = lineOf('function uniqueIds(') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta');
+    const stubG = new Function(fnSrc('function mapStub(map) {', '\n}\n', 'mapStub', 'netfog.js') + '\n}\nreturn mapStub;')()({ id: 'm1', type: 'map', meta: { title: 'Keep', playerLock: true, parentId: 'm0', sortIndex: 3, gridType: 'hex', gen: { seed: 'secret-4471-fox', w: 30, h: 20 } }, whiteboard: [{ id: 'f1' }] });
+    const qhG = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\nreturn quickHash;')(), idG = lineOf('function uniqueIds(', 'netfog.js') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js');
     const sent1 = new Function(siSrc() + '\nreturn sanitizeItem;')()(gmG().campaigns.k1.items.m1), again = gmG().campaigns.k1.items.m1; again.meta.gen = { seed: 'another-seed', w: 44, h: 55, rooms: 'few', corr: 'straight', doors: 'none' };
     const sent2 = new Function(siSrc() + '\nreturn sanitizeItem;')()(again), onlySeed = new Function('_lastSent', 'quickHash', 'cleanMap', idG + '\nreturn itemDelta("m1", cleanMap);')({ m1: sent1 }, qhG, sent2);
     check('map builder: the seed stays off the wire on the other paths too (the review of the fold): a delta that names it leaves none on a player\'s copy, since the map is cleaned after the delta\'s meta is taken, while the rest of that meta and the delta\'s pieces are kept; the stub of a map that keeps a seed is its name, its lock and its place and nothing else; and a map whose only change is its seed, as after a second Generate or an Undo, gives no delta at all, so nothing is sent again',
@@ -1471,7 +1469,7 @@ pendingChecks.push((async () => {
     const campW = { id: 'c1', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', meta: { title: 'Realm' }, whiteboard: [], rooms: [] } } };
     new Function('state', 'net', 'window', 'broadcast', 'cleanHostMap', 'actOver', 'ackIn', 'getActiveCampaign', 'render', 'updateSidebarNav', 'msg', ownKeySrc + adG + '\napplyItemDelta(msg);')({ appState: { campaigns: { c1: campW } } }, { applyingRemote: false }, {}, () => {}, CHM, () => {}, () => 0, () => campW, () => {}, () => {},
         { type: 'itemDelta', campId: 'c1', itemId: 'm1', meta: { title: 'Realm 2', gridType: 'off', world: { seed: 'by-delta', land: 'islands' } }, whiteboard: { set: [{ id: 'a', type: 'rect', x: 0, y: 0, w: 5, h: 5 }], del: [] } });
-    const stubW = new Function(fnSrc('function mapStub(map) {', '\n}\n', 'mapStub') + '\n}\nreturn mapStub;')()({ id: 'm1', type: 'map', meta: { title: 'Realm', playerLock: true, parentId: 'm0', sortIndex: 3, gridType: 'off', world: { seed: 'secret-7-elm', land: 'continent' } }, whiteboard: [{ id: 'f1' }] });
+    const stubW = new Function(fnSrc('function mapStub(map) {', '\n}\n', 'mapStub', 'netfog.js') + '\n}\nreturn mapStub;')()({ id: 'm1', type: 'map', meta: { title: 'Realm', playerLock: true, parentId: 'm0', sortIndex: 3, gridType: 'off', world: { seed: 'secret-7-elm', land: 'continent' } }, whiteboard: [{ id: 'f1' }] });
     const sentW1 = new Function(siSrc() + '\nreturn sanitizeItem;')()(gmW().campaigns.k1.items.m1), againW = gmW().campaigns.k1.items.m1; againW.meta.world = { seed: 'another-seed', land: 'islands', size: 'small', mountains: 'none', forests: 'many', rivers: 'none', climate: 'dry', towns: 'none' };
     const sentW2 = new Function(siSrc() + '\nreturn sanitizeItem;')()(againW), onlySeedW = new Function('_lastSent', 'quickHash', 'cleanMap', idG + '\nreturn itemDelta("m1", cleanMap);')({ m1: sentW1 }, qhG, sentW2), srcW = gmW().campaigns.k1.items.m1; new Function(siSrc() + '\nreturn sanitizeItem;')()(srcW);
     check('map builder: the seed and settings a WORLD was generated from never leave the host either (fold B7): the join snapshot and the stream window carry the map with its title and its grid and with no world key, the city\'s and the dungeon\'s gone beside it, and none of the three seeds is anywhere in either; the GM\'s own map keeps all three, and a map handed to the sender is not changed by the send; a map with no such key is sent as it was; a player\'s app keeps none a host names, whatever stands there, a bag of settings, a text, a number, a truth value, nothing, a list, zero or an empty text, and leaves the rest of the map\'s meta as it came; a delta that names it leaves none on a player\'s copy while the rest of that meta and the delta\'s pieces are kept; the stub of a map that keeps a world\'s seed is its name, its lock and its place and nothing else; a map whose only change is its world\'s seed, as after a second Generate or an Undo, gives no delta at all; and net.js names the key only in those two places, in ONE list written the same in both',
@@ -1502,7 +1500,7 @@ pendingChecks.push((async () => {
         // the host: a whole map, the join snapshot and the stream window, and a delta
         const gmM = camMap(), sentC = siC(gmM), snapC = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: camMap() } } } });
         const forPc2 = SAs(snapC(), 'u_p'), forSc2 = SAs(snapC());
-        const qhC = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')(), idC = lineOf('function uniqueIds(') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta');
+        const qhC = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\nreturn quickHash;')(), idC = lineOf('function uniqueIds(', 'netfog.js') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js');
         const camOnly = new Function('_lastSent', 'quickHash', 'cleanMap', idC + '\nreturn itemDelta("m1", cleanMap);')({ m1: siC(camMap({ lastWbX: 15000, lastWbY: 15000, lastWbZoom: 1 })) }, qhC, sentC);
         const delKeys = ((/\n    if \(m\.meta && typeof m\.meta === 'object'\) \{((?: delete m\.meta\.[A-Za-z]+;)+) \}   \/\/ the camera/.exec(fnSrc('function sanitizeItem(', '\n}\n', 'sanitizeItem')) || [])[1] || '').match(/[A-Za-z]+(?=;)/g) || [];
         check('the camera never leaves the host (the review of Find on the map from a fight): the GM\'s remembered view of a map, which Find puts exactly on a hidden token, is on no whole map, no join snapshot and no stream window\'s copy, and its numbers are nowhere in them, for the play map and the data map alike; the GM\'s own map keeps it; a map whose only change is the camera gives no delta, so a pan or a find sends nothing at all; sanitizeItem deletes exactly the six keys of the one list',
@@ -1514,7 +1512,7 @@ pendingChecks.push((async () => {
         const hostCam = Object.assign({ lastX: 9, lastY: 8, lastZoom: 3 }, FOUND), fromHostCm = CM.cleanHostMap({ id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave' }, hostCam), whiteboard: [] });
         const OWN = { lastWbX: 100, lastWbY: 200, lastWbZoom: 2 };
         const stC = () => ({ appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave', lastY: 'x' }, OWN), whiteboard: [], rooms: [] } } } } } });
-        const aiC = fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', adC = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n';
+        const aiC = fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem', 'netfog.js') + '\n}\n', adC = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta', 'netfog.js') + '\n}\n';
         const runAi = (st, msg) => new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'camOf', 'camHold', 'msg', ownKeySrc + aiC + '\napplyItem(msg);')({ applyingRemote: false }, st, { wpFog: { invalidateVision() {}, redraw() {} } }, () => st.appState.campaigns.k, () => {}, () => {}, CM.cleanHostMap, CM.camOf, CM.camHold, msg);
         const runAd = (st, msg) => new Function('state', 'net', 'window', 'broadcast', 'cleanHostMap', 'actOver', 'ackIn', 'getActiveCampaign', 'render', 'updateSidebarNav', 'camOf', 'camHold', 'msg', ownKeySrc + adC + '\napplyItemDelta(msg);')(st, { applyingRemote: false }, {}, () => {}, CM.cleanHostMap, () => {}, () => 0, () => st.appState.campaigns.k, () => {}, () => {}, CM.camOf, CM.camHold, msg);
         const camOfM = m => { const o = {}; ['lastX', 'lastY', 'lastZoom', 'lastWbX', 'lastWbY', 'lastWbZoom'].forEach(k => { if (m && m.meta && k in m.meta) o[k] = m.meta[k]; }); return o; };
@@ -1532,7 +1530,7 @@ pendingChecks.push((async () => {
             && mD.meta.title === 'Cave 3' && JC(camOfM(mD)) === JC(OWN) && mD.whiteboard.length === 1 && mE.meta.title === 'Cave' && JC(camOfM(mE)) === JC(OWN) && mE.whiteboard.length === 1,
             JC([fromHostCm.meta, mA.meta, mA2.meta, mD.meta, mE.meta]));
         // where a map opens on a player's app and in the stream window: the real applyStage with camLand
-        const asC = fnSrc('function applyStage(stage) {', '\n}\n', 'applyStage') + '\n}\n';
+        const asC = fnSrc('function applyStage(stage) {', '\n}\n', 'applyStage', 'netfog.js') + '\n}\n';
         const TOKC = () => [{ id: 't_q', isChar: true, ownerId: 'u_q', x: 300, y: 400, w: 60, h: 52 }, { id: 't_w', waiting: 1, ownerId: 'u_p', x: 50, y: 60, w: 60, h: 52 }, { id: 't_p', isChar: true, ownerId: 'u_p', x: 1000, y: 2000, w: 120, h: 100 }, { id: 't_n', isChar: true, x: 7, y: 7 }];
         const stage = (o) => {
             const map = { id: 'm1', type: 'map', meta: Object.assign({ title: 'Cave' }, o.cam || {}), rooms: o.room ? [{ id: 'r1' }] : [], whiteboard: o.toks || TOKC() };
@@ -1549,7 +1547,7 @@ pendingChecks.push((async () => {
         const gOk = (() => { const m = gMap(), p = CM.camGiven(m, 'u_p', []); return !!p && p.x === 130 && p.y === 226 && m.meta.lastWbX === 130 && m.meta.lastWbY === 226 && m.meta.lastWbZoom === 2; })();
         const gKeep = (() => { const m = gMap(); return CM.camGiven(m, 'u_p', ['old']) === null && CM.camGiven(m, 'u_p', null) === null && CM.camGiven(gMap({ hidden: true }), 'u_p', []) === null && CM.camGiven(gMap({ isChar: false }), 'u_p', []) === null && CM.camGiven(gMap({ x: 'a' }), 'u_p', []) === null && CM.camGiven(gMap(), '', []) === null && m.meta.lastWbX === 9; })();
         const gMine = JC(CM.camMine(gMap(), 'u_p')) === '["mine"]' && JC(CM.camMine(gMap({ hidden: true }), 'u_p')) === '[]' && JC(CM.camMine(null, 'u_p')) === '[]' && JC(CM.camMine({ type: 'map', whiteboard: 'x' }, 'u_p')) === '[]';
-        check('a character token given to a player on the map on screen, where they held none, is where their view goes (camGiven); a token they already held, a hidden one or none leaves it', gOk && gKeep && gMine && (src.match(/camGiven\(/g) || []).length === 3 && src.includes('var mineWas = camWas && typeof camMine === \'function\' ? camMine(camp.items[msg.itemId], net.myId) : null;') && src.includes('var mineWas = camWas && typeof camMine === \'function\' ? camMine(it, net.myId) : null;'), JC([gOk, gKeep, gMine]));
+        check('a character token given to a player on the map on screen, where they held none, is where their view goes (camGiven); a token they already held, a hidden one or none leaves it', gOk && gKeep && gMine && (src.match(/camGiven\(/g) || []).length === 3 && require('./checkkit').part('netfog.js').includes('var mineWas = camWas && typeof camMine === \'function\' ? camMine(camp.items[msg.itemId], net.myId) : null;') && require('./checkkit').part('netfog.js').includes('var mineWas = camWas && typeof camMine === \'function\' ? camMine(it, net.myId) : null;'), JC([gOk, gKeep, gMine]));
         const landFn = CM.camLand, landOdd = [landFn(null, 'u_p'), landFn({ type: 'map', whiteboard: 'x' }, 'u_p'), landFn({ type: 'planner', whiteboard: TOKC() }, 'u_p'), landFn({ type: 'map', whiteboard: [{ isChar: true, ownerId: 'u_p', x: '10', y: 5 }] }, 'u_p')];
         check('the camera when a map opens (applyStage, run for real): on a player\'s app a map it holds no view of opens on the player\'s own character token there, else on their waiting token, else at the map\'s home as before; a view of its own and a landing room\'s point are kept; the stream window opens on a player\'s token; the GM\'s own screen is never moved this way; another player\'s token, a token with no owner, a hidden one, a player with no id and a place that is no number are no landing',
             JC(lands) === JC([[1060, 2050, 1, 'm1'], [80, 86, 1, 'm1'], [100, 200, 1, 'm1'], [500, 600, 1, 'm1'], [330, 426, 1, 'm1'], [null, null, 1, 'm1'], [null, null, 1, 'm1'], [null, null, 1, 'm1'], [null, null, 1, 'm1'], [1060, 2050, 1, 'm1'], [null, null, 1, 'm1']])
@@ -1565,16 +1563,16 @@ pendingChecks.push((async () => {
     check('backlog 125 a pin never leaves the host: a piece that opens a page reaches a player and the stream window as the piece alone, without its page key, whether it names a planner or a handbook page, on a picture, a shape or a token; the GM\'s own map keeps every link; the one rule a piece is sent by deletes the key, and a player\'s app deletes it again',
         wbP.length === 3 && wbS.length === 3 && wbP.concat(wbS).every(w => !('page' in w)) && JSON.stringify(wbP.map(w => w.id)) === '["pin1","pin2","tokN"]' && JSON.stringify(wbK.map(w => w.page)) === '["plan_secret_twist","doc_rules","plan_secret_twist"]'
         && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes('    if (w.page !== undefined) delete w.page;') && src.includes("if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand;")
-        && !/\.page\b/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')), JSON.stringify([wbP, wbK.map(w => w.page)]).slice(0, 300));
+        && !/\.page\b/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js')), JSON.stringify([wbP, wbK.map(w => w.page)]).slice(0, 300));
     check('1.6.0, backlog 32: the part of a page a pin names (pageAt) never leaves the host either: the join snapshot and the stream window carry the piece with neither key, and the part\'s id is nowhere in either; the GM\'s own map keeps it; the one rule a piece is sent by deletes it beside the page, a player\'s app deletes it again, and a player\'s own drawing never names it. Backlog 26: a map\'s scene page is in neither copy and the GM\'s map keeps it',
         wbP.concat(wbS).every(w => !('pageAt' in w)) && !/sec_secret_twist/.test(JSON.stringify([forPs, forSs])) && wbK[0].pageAt === 'sec_secret_twist'
         && !('scenePage' in forPs.campaigns.k1.items.m1.meta) && !('scenePage' in forSs.campaigns.k1.items.m1.meta) && keptS.campaigns.k1.items.m1.meta.scenePage === 'plan_secret_twist'
         && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes("    if (w.page !== undefined) delete w.page;   // 1.5.4 (pageshelf.js): a pin, the page a piece opens, is the GM's own link and names a planner: never on the wire\n    if (w.pageAt !== undefined) delete w.pageAt;")
-        && src.includes('if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand') && !/pageAt/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')), JSON.stringify([wbP, wbS]).slice(0, 300));
+        && src.includes('if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand') && !/pageAt/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js')), JSON.stringify([wbP, wbS]).slice(0, 300));
 }
 // hidden pieces (owner, 2026-10-01: players see nothing where something is hidden): the join snapshot and the stream window, by the real sanitizeAppState
 {
-    const saSrcH = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcH = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
     const SAh = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcH + '\nreturn sanitizeAppState;')(H.own, {}, () => ({}), () => ({}), v => v, (it) => it, (it) => it);
     const gmH = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: 'm1', items: { m1: { id: 'm1', type: 'map', rooms: [], links: [], whiteboard: [{ id: 'seen', type: 'rect', x: 1, y: 2, w: 3, h: 4 },
         { id: 'lurker', type: 'image', isChar: true, charName: 'Lurker', hidden: true, x: 777, y: 888, w: 60, h: 52 }, { id: 'trapdoor', type: 'rect', hidden: true, trap: true, targetMapId: 'm2', x: 555, y: 666, w: 50, h: 50 }] } } } } });
@@ -1593,7 +1591,7 @@ pendingChecks.push((async () => {
     const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
     const fogA = fogT.indexOf('function core() {'), fogB = fogT.indexOf('/* ---------- the overlay');
     const fogSrc = fogT.slice(fogA, fogB);
-    const saSrcP = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit') + '\n' + lineOf('function mapFogged(') + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcP = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit', 'netfog.js') + '\n' + lineOf('function mapFogged(') + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
     const mkSA = (feats, noFog, stance) => {   // stance: the host's stance module, where a case reads the ground
         const win = { wpFogCore: FCp, wpVtt: { on: k => feats[k] !== false, campaignOn: k => feats[k] !== false, mode: () => 'stream' } }; if (stance) win.wpStance = stance;
         let fog = null;
@@ -1650,8 +1648,8 @@ pendingChecks.push((async () => {
     const sj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'stream.js'), 'utf8').replace(/\r\n/g, '\n'), ioj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
     check('R2 #14 wired: the stream window alone calls sanitizeAppState with no recipient (stream.js each tick, io.js at its load), and sanitizeAppState hands a map of the hosted campaign to fogPartyCopy exactly there, to fogCopyFor for a player; fogPartyCopy is published to the window nowhere (never a message)',
         /var clean = net\.sanitizeAppState\(data\);/.test(sj) && /if \(window\.wpStream && window\.wpNet && window\.wpNet\.sanitizeAppState\) state\.appState = window\.wpNet\.sanitizeAppState\(state\.appState\);/.test(ioj)
-        && /if \(it\.type === 'map' && recipientId && camp\.id === c\.activeCampaignId\) it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);[^\n]*\n\s*else if \(it\.type === 'map' && !recipientId && camp\.id === c\.activeCampaignId\) it = fogPartyCopy\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig\);/.test(src)
-        && (src.match(/fogPartyCopy\(/g) || []).length === 2);
+        && /if \(it\.type === 'map' && recipientId && camp\.id === c\.activeCampaignId\) it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);[^\n]*\n\s*else if \(it\.type === 'map' && !recipientId && camp\.id === c\.activeCampaignId\) it = fogPartyCopy\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig\);/.test(require('./checkkit').part('netfog.js'))
+        && require('./checkkit').familyCount('net.js', /fogPartyCopy\(/g) === 2);
     };
     try { body(); } catch (e) { check('R2 #14 the stream window\'s party view (the case ran to its end)', false, e.message); }
 })());
@@ -1720,7 +1718,7 @@ pendingChecks.push((async () => {
 })());
 // the patch gate: own keys only, and a token (or a stroke) the GM locked is frozen for its player
 {
-    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js');
     const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const stroke = (w, pid) => (w && w.type === 'path' && w.ownerId === pid && Array.isArray(w.pts)) ? { id: w.id, type: 'path', byPlayer: true, ownerId: pid, pts: w.pts, x: w.x || 0, y: w.y || 0 } : null;
     const coreP = { ownPostures: () => true, postureAt: (sys, v) => ({ i: v === 'kneeling' ? 1 : 0, p: { id: v === 'kneeling' ? v : 'standing' } }) };   // 1.6.0: a system's own list stands in (none is a default)
@@ -1770,9 +1768,9 @@ pendingChecks.push((async () => {
         && coreH.includes('barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier,') && coreH.includes('barrierOn, isDoor, strokeHeld, cleanBarrier,'),
         j([held({ blocksSight: 1 }), held({ barrier: 'yes' }), held(null)]));
     // (2) the host's patch gate
-    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js');
     const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
-    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n';
     const run = (camps, msg, o) => { o = o || {}; const out = {}; let r;
         try { r = new Function('state', 'window', 'msg', 'prof', 'out', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, o.noCore ? { wpVtt: { campaignOn: () => true } } : { wpVtt: { campaignOn: () => true }, wpFogCore: FCh }, msg, { id: o.pid || 'u_p' }, out); } catch (e) { r = 'threw: ' + e.message; }
         return { r, whole: out.whole === true, strokes: out.strokes === true }; };
@@ -1930,9 +1928,9 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const FCn = await import(url('fogcore.js'));
-    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), actsSrc = between('// [netcheck:strokeacts-start]', '// [netcheck:strokeacts-end]', 'strokeacts');
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), actsSrc = between('// [netcheck:strokeacts-start]', '// [netcheck:strokeacts-end]', 'strokeacts', 'netfog.js');
     const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
-    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n';
     const run = (camps, msg, pid, pend) => { const notes = [], out = pend ? { conn: { peer: 'peer1' } } : {}; let r;
         try { r = new Function('state', 'window', 'msg', 'prof', 'out', 'strokeNote', 'hidPendOf', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof, out);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCn }, msg, { id: pid || 'u_p' }, out, (c, m, what, id) => { notes.push([c, m, what, id].join(':')); }, pend ? () => pend : undefined); } catch (e) { r = 'threw: ' + e.message; }
         return { r, notes: notes.join(' '), whole: out.whole === true }; };
@@ -1961,14 +1959,14 @@ pendingChecks.push((async () => {
     check('undo count (127, the source): the gate notes in exactly three places, each through typeof so that a page with no count is as before; the count is published as three questions and a number, never as its sets; a map that is deleted takes its count with it; the count is not forgotten at a new table (a step of the GM\'s undo may be older than the session)',
         (patchSrc.match(/if \(typeof strokeNote === 'function'\) strokeNote\(msg\.campId, msg\.itemId, '(added|redrawn|erased)', /g) || []).length === 3 && (patchSrc.match(/strokeNote\(/g) || []).length === 3
         && /net\.strokeActs = strokeActs; net\.strokeSeq = function\(\) \{ return _strokeSeq; \};/.test(actsSrc) && !/net\.[A-Za-z_]+ = _strokeActs/.test(src) && /if \(typeof strokeActsForget === 'function'\) strokeActsForget\(campId, itemId\);/.test(fnSrc('net.itemGone = function(campId, itemId, title) {', '\n};', 'itemGone'))
-        && (src.match(/_strokeActs = /g) || []).length === 1 && (src.match(/_strokeSeq = /g) || []).length === 1 && (src.match(/strokeActsForget\(/g) || []).length === 2);
+        && require('./checkkit').familyCount('net.js', /_strokeActs = /g) === 1 && require('./checkkit').familyCount('net.js', /_strokeSeq = /g) === 1 && (src.match(/strokeActsForget\(/g) || []).length === 2);
 })());
 // R2 security (cluster A, #1 #3 #23): the patch path with the REAL playerStroke — a copy of the map they are on, ids that are keys, each new id once,
 // and a budget of points per player per map beside the count
 {
-    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch');
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js');
     const cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
-    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n';
+    const psSrc = fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n';
     const runP = (camps, msg, prof) => { try { return new Function('state', 'window', 'msg', 'prof', cleanersSrc + ownKeySrc + psSrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true } }, msg, prof); } catch (e) { return 'threw: ' + e.message; } };
     const mk = () => ({ c1: { id: 'c1', items: {
         m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tA', isChar: true, ownerId: 'u_p', x: 0, y: 0, rot: 0, front: 0 }, { id: 's1', type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [1, 1]], x: 0, y: 0 }] },
@@ -2011,12 +2009,12 @@ pendingChecks.push((async () => {
 // R2 security (cluster A, #3, the delta path): the host's itemDelta and a player's applyItemDelta key their id maps off the prototype, so a drawing
 // an older save named for a prototype's key ("constructor") is deleted on every copy when it is erased, instead of standing as a ghost
 {
-    const qh = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')();
-    const idSrc = lineOf('function uniqueIds(') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta');
+    const qh = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\nreturn quickHash;')();
+    const idSrc = lineOf('function uniqueIds(', 'netfog.js') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js');
     const mkMap = ids => ({ type: 'map', id: 'm1', whiteboard: ids.map(id => ({ id, type: 'path', byPlayer: true, ownerId: 'u_p', pts: [[0, 0], [1, 1]] })), rooms: [] });
     const delta = (baseIds, nowIds) => new Function('_lastSent', 'quickHash', 'cleanMap', idSrc + '\nreturn itemDelta("m1", cleanMap);')({ m1: mkMap(baseIds) }, qh, mkMap(nowIds));
     const dC = delta(['t1', 'constructor', 'toString'], ['t1']), dAdd = delta(['t1'], ['t1', 'constructor']), dPlain = delta(['t1', 'd2'], ['t1']);
-    const adSrc = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n';
+    const adSrc = fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta', 'netfog.js') + '\n}\n';
     const applyD = (ids, msg) => {
         const camp = { id: 'c1', activeItemId: 'm1', items: { m1: mkMap(ids) } }, asked = [];
         new Function('state', 'net', 'window', 'broadcast', 'cleanHostMap', 'actOver', 'ackIn', 'getActiveCampaign', 'render', 'updateSidebarNav', 'msg',
@@ -3008,9 +3006,9 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
-    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto'), rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
+    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto', 'netfight.js'), rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
     const apSrc = (ordersSrc + '\n' + between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply')), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
-    const lineOf = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const lineOf = (k, file) => { const t = typeof file === 'string' ? require('./checkkit').part(file) : src, i = t.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return t.slice(i, t.indexOf('\n', i)); };   // file: a part of net.js, read by its own name
     const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function fogDrop('].map(lineOf).join('\n') + '\n';
     const STEPS = [{ to: 2, mod: 0 }, { to: 5, mod: -2 }, { to: 10, mod: -4 }];
     const sysOf = range => Sx.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10', def: 'max', min: -50, edit: 'owner' }],
@@ -3115,7 +3113,7 @@ pendingChecks.push((async () => {
     const wbU = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
     check('secrets (source): the roster\'s Roll all and its per-row Roll (whiteboard.js) pass the judge\'s word to the sheet\'s initiative roll as priv, and the every-round re-roll asks it beside the hidden tick',
         /var rr = window\.wpSheets\.rollInit\(r\.charId, \{ priv: combatRollPriv\(draft\.mapId, r\.tokId\) \}\);/.test(wbU) && /window\.wpSheets\.rollInit\(rows\[i\]\.charId, \{ priv: combatRollPriv\(combatDraft\.mapId, rows\[i\]\.tokId\) \}\)/.test(wbU)
-        && /rollInit\(ch\.id, \{ priv: !!\(tkI && \(tkI\.hidden \|\| \(typeof net\.tokUnseen === 'function' && net\.tokUnseen\(mapId, tkI\.id\)\)\)\) \}\)/.test(src));
+        && /rollInit\(ch\.id, \{ priv: !!\(tkI && \(tkI\.hidden \|\| \(typeof net\.tokUnseen === 'function' && net\.tokUnseen\(mapId, tkI\.id\)\)\)\) \}\)/.test(require('./checkkit').part('netfight.js')));
 })());
 // secrets (R2 #18): the VTT ceiling on the wire — net.broadcastStance (run for real) with vtt.js's own hostCamps (sliced, over a state of three
 // campaigns) names the hosted campaign alone: a session is one campaign, and the GM's other games (their ids, their switches) never reach a player
@@ -3144,8 +3142,8 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
-    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto'), rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
-    const lineOf = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto', 'netfight.js'), rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+    const lineOf = (k, file) => { const t = typeof file === 'string' ? require('./checkkit').part(file) : src, i = t.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return t.slice(i, t.indexOf('\n', i)); };   // file: a part of net.js, read by its own name
     const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function fogDrop('].map(lineOf).join('\n') + '\n';
     const sysR3 = Sx.cleanSystem({ v: 1, name: 'R3', fields: [{ id: 'f_atk', key: 'Atk', kind: 'formula', formula: '10 + RangeMod', vis: 'all' }, { id: 'f_a', key: 'A', kind: 'number', def: 4, vis: 'all' }], rolls: [],
         combat: { range: { steps: [{ to: 2, mod: 0 }, { to: 5, mod: -2 }, { to: 10, mod: -4 }] } } }, { F: Fx, gmView: true });
@@ -3239,7 +3237,7 @@ pendingChecks.push((async () => {
         j(offered) === j([{ id: 'testr', label: 'For <b>x</b>', sub: '' }]) && P.sent[0].type === 'sheet-out' && P.sent[0].id === 'testr' && P.sent[0].charId === 'c_a' && quiet === 0 && j(first) === j([[{ name: 'a.json', text: '{}' }, '']]) && P.got.length === 1 && j(Q.got) === j([[null, 'slow']]) && j(R2.got) === j([[null, 'unread']]) && j(T2.got) === j([[null, 'unread']]) && U2.got.length === 1 && U2.got[0][0] === null,
         j([offered, P.got, Q.got, R2.got, T2.got, U2.got.length]));
     check('1.6.0 a reader\'s file: nothing of it where no reader offers one (the snapshot names it only with a row to name), a player\'s Download menu asks net.sheetOuts for their own character alone and saves what comes back as any export is, its words as text',
-        ['cleanSheetOuts', 'cleanSheetOutReq', 'cleanSheetFile'].every(n => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8').includes(n + ': ' + n + ',')) && src.includes("var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap;") && src.includes("if (typeof sheetOutsKnow === 'function') sheetOutsKnow(msg.sheetOut);") && /if \(!gm && c\.ownerId === myId\(\)\) \{ var nO = net\(\);/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8')) && /saveTextFile\(file\.name, file\.text, 'application\/json'\)/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8')));
+        ['cleanSheetOuts', 'cleanSheetOutReq', 'cleanSheetFile'].every(n => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8').includes(n + ': ' + n + ',')) && src.includes("var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap;") && require('./checkkit').part('netfog.js').includes("if (typeof sheetOutsKnow === 'function') sheetOutsKnow(msg.sheetOut);") && /if \(!gm && c\.ownerId === myId\(\)\) \{ var nO = net\(\);/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8')) && /saveTextFile\(file\.name, file\.text, 'application\/json'\)/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8')));
 })());
 // 1.6.0 (B5, a called shot by the target's own location): the host judges the location row a roller picked on its target (the real roll-req
 // branch, the GM's own net.diceRoll, the hit-ask and hit-rows branches, with the real rangeTo, the targethit slice, systemcore, the formula engine
@@ -3249,10 +3247,10 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
-    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto'), thSrc = require('./checkkit').netState('fight') + between('// [netcheck:targethit-start]', '// [netcheck:targethit-end]', 'targethit');   // the open hit-ask and the limiters stand in net.js's own lines above the fights (area 9)
+    const rtSrc = between('// [netcheck:rangeto-start]', '// [netcheck:rangeto-end]', 'rangeto', 'netfight.js'), thSrc = require('./checkkit').netState('fight') + between('// [netcheck:targethit-start]', '// [netcheck:targethit-end]', 'targethit', 'netfight.js');   // the open hit-ask and the limiters stand in net.js's own lines above the fights (area 9)
     const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
     const askSrc = between('// [netcheck:hitask-start]', '// [netcheck:hitask-end]', 'hitask'), rowsSrc = between('// [netcheck:hitrows-start]', '// [netcheck:hitrows-end]', 'hitrows');
-    const lineOf = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const lineOf = (k, file) => { const t = typeof file === 'string' ? require('./checkkit').part(file) : src, i = t.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return t.slice(i, t.indexOf('\n', i)); };   // file: a part of net.js, read by its own name
     const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function fogDrop('].map(lineOf).join('\n') + '\n';
     const sysH = Sx.cleanSystem({ v: 1, name: 'H', fields: [{ id: 'f_locs', key: 'Locs', label: 'Locations', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'pen', label: 'Penalty' }, { key: 'sz', label: 'Size' }, { key: 'hp', label: 'HP' }], cols: [{ key: 'aim', label: 'Aim', formula: 'Row.pen + Row.sz' }] } }],
         rolls: [{ id: 'r_aim', label: 'Aim', formula: '3d6 + Target.Hit.aim', vis: 'all' }, { id: 'r_cut', label: 'Cut', formula: '1d6 + Target.Hit.aim', vis: 'all', dmg: true }],
@@ -3363,7 +3361,7 @@ pendingChecks.push((async () => {
     check('1.6.3 (the review of defense fold 1) a landed attack\'s damage neither reads nor uses up the pick another attack of that character left (coverHitIn with alone, run for real): with no location of its own it takes the die, twice, while the pick still stands for that other attack\'s own damage; a location of its own stands',
         memoL.every(x => x === true), j(memoL));
     check('1.6.0 (B5) the snapshot says hits (true) and a player\'s app reads it through typeof, true only; the host\'s hit-ask branch sits right after roll-req\'s, a player\'s request names a row only beside a named roll',
-        /stage: land\.stage, hits: true, paused: net\.paused/.test(src) && /\n    if \(typeof hitsKnow === 'function'\) hitsKnow\(msg\.hits\);/.test(src) && /\/\/ \[netcheck:rollreq-end\]\n    \} else if \(msg\.type === 'hit-ask' && net\.role === 'host'\) \{/.test(src)
+        /stage: land\.stage, hits: true, paused: net\.paused/.test(src) && /\n    if \(typeof hitsKnow === 'function'\) hitsKnow\(msg\.hits\);/.test(require('./checkkit').part('netfog.js')) && /\/\/ \[netcheck:rollreq-end\]\n    \} else if \(msg\.type === 'hit-ask' && net\.role === 'host'\) \{/.test(src)
         && src.includes("if (typeof o.hit === 'string' && o.charId && (req.act || req.fr || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.hit = o.hit;"));
 })());
 // 1.5.0 derived GM-only values: the GM's own roll (net.diceRoll, run for real with the real dicecore, formula engine and systemcore) goes to the
@@ -3755,7 +3753,7 @@ pendingChecks.push((async () => {
     check('L1c itemLib: a map of the system\'s items (well-formed ids only) with no library here or an empty one; with one, a lookup — the system\'s own item first, then the library, else nothing',
         typeof noLib === 'object' && j(Object.keys(noLib)) === j(['i_a']) && typeof empty === 'object' && typeof withLib === 'function' && withLib('i_a').name === 'A' && withLib('i_l') === libE && withLib('i_x') === null && withLib('bad') === null);
     check('L1c the players\' snapshot drops the item library\'s manifest beside the sounds and music (a player holds only the copies on their rows)',
-        /        delete camp\.music;[^\n]*\n        delete camp\.library;/.test(T));
+        /        delete camp\.music;[^\n]*\n        delete camp\.library;/.test(require('./checkkit').part('netfog.js')));
 }
 
 // Stage 6 HUD H7: the apply action on the wire. The host's char-apply (sliced, run for real with the real systemcore, formula engine, the host's
@@ -3799,7 +3797,7 @@ pendingChecks.push((async () => {
     const A = (act, extra) => Object.assign({ type: 'char-apply', rid: 'a1', charId: 'c_1', act: act }, extra || {});
     {   // 1.6.0 found by hand on a table: a list's action standing after a roll a player's view drops. Their press names its place in their view, and Off a character's turn judges from the GM's list
         const sysP = Sx.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_fp', key: 'FP', kind: 'resource', maxFormula: '6', def: 'max', min: 0, edit: 'owner' }, { id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Gnaw', formula: '3d6 <= 10 + Row.Flaw' }, { label: 'Use', apply: [{ f: 'f_fp', formula: '1' }] }] } }], items: [{ id: 'i_p', name: 'Pebbles' }] }, { F: Fx, gmView: true });
-        const preP = fnSrc('function rowOnGm(', '\n}\n', 'rowOnGm') + '\n}\nfunction offTurnBar(c, ch, a, row) { (window._off = window._off || []).push(row); return \'\'; }\nfunction offTurnWarn(c, ch, a, row) { window._off.push(row); }\n';
+        const preP = fnSrc('function rowOnGm(', '\n}\n', 'rowOnGm', 'netfight.js') + '\n}\nfunction offTurnBar(c, ch, a, row) { (window._off = window._off || []).push(row); return \'\'; }\nfunction offTurnWarn(c, ch, a, row) { window._off.push(row); }\n';
         const rP = host({ type: 'char-apply', rid: 'a1', charId: 'c_1', row: { f: 'f_gr', r: 'w_p', i: 0 } }, { sys: sysP, vals: { f_gr: [{ id: 'w_p', defId: 'i_p', qty: 1 }] }, pre: preP });
         check('1.6.0 a list\'s action after a roll the player\'s view drops: the real char-apply branch finds it by their place, and Off a character\'s turn, before it moves anything and after, reads it by its place on the GM\'s list (found by hand)',
             rP.owner.filter(m => m.type === 'apply').length === 1 && rP.off.length === 2 && rP.off.every(x => x.i === 1), j([rP.answer, rP.off]));
@@ -4534,7 +4532,7 @@ pendingChecks.push((async () => {
     const srcR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
     const line = k => { const i = srcR.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return srcR.slice(i, srcR.indexOf('\n', i)); };
     const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(line).join('\n') + '\n';
-    const allySrc = between('// [netcheck:ally-start]', '// [netcheck:ally-end]', 'ally');
+    const allySrc = between('// [netcheck:ally-start]', '// [netcheck:ally-end]', 'ally', 'netfight.js');
     const apSrc = (ordersSrc + '\n' + between('// [netcheck:charapply-start]', '// [netcheck:charapply-end]', 'charapply')), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply');
     const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
     const sysN = Sx.cleanSystem({ v: 1, name: 'N', fields: [
@@ -5351,7 +5349,7 @@ pendingChecks.push((async () => {
                 const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(valsS)) } }, items: { m1: { type: 'map', whiteboard: [] } } };
                 const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} }, conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
                 const win = { wpFormula: Fx, wpNotice: { stealth: (c, id, ref) => out.ref.push(ref) }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
-                new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'out', 'var diceLimit = null, _diceSlowSaid = {};\nfunction offTurnBar(c, ch, a, r) { out.off.push(r); return \'\'; }\nfunction offTurnWarn(c, ch, a, r) { out.warn.push(r); }\n' + fnSrc('function rowOnGm(', '\n}\n', 'rowOnGm') + '\n}\n' + fnSrc('function critFromGm(', '\n}\n', 'critFromGm') + '\n}\n' + fnSrc('function malfFromGm(', '\n}\n', 'malfFromGm') + '\n}\n' + helpers + rqSrc)(
+                new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'out', 'var diceLimit = null, _diceSlowSaid = {};\nfunction offTurnBar(c, ch, a, r) { out.off.push(r); return \'\'; }\nfunction offTurnWarn(c, ch, a, r) { out.warn.push(r); }\n' + fnSrc('function rowOnGm(', '\n}\n', 'rowOnGm', 'netfight.js') + '\n}\n' + fnSrc('function critFromGm(', '\n}\n', 'critFromGm') + '\n}\n' + fnSrc('function malfFromGm(', '\n}\n', 'malfFromGm') + '\n}\n' + helpers + rqSrc)(
                     { type: 'roll-req', rid: 'q1', charId: 'c_a', row: { f: 'f_gr', r: 'w_p', i: 0 }, expr: '3d6 <= Row.Skill' }, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, (k, t) => { out.log = t; }, () => {}, out);
                 return out; };
             const sM = sysOf({ malf: '18 - Row.Flaw' }), sF = sysOf({ fumbleAt: '17 - Row.Flaw' }, { checks: 'fixed' }), view = Sx.cleanSystem(sM, { F: Fx, gmView: false }), inView = view.fields[0].list.rolls.map(r => r.label);
@@ -5529,7 +5527,7 @@ pendingChecks.push((async () => {
     const line3 = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
     const help3 = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function moveMode('].map(line3).join('\n') + '\n';
     const cb3 = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), set3 = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), ta3 = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts'), hm3 = between('// [netcheck:turnholdmsg-start]', '// [netcheck:turnholdmsg-end]', 'turnholdmsg'), of3 = src.slice(src.indexOf('// [netcheck:offturn-start]'), src.indexOf('// [netcheck:offturn-end]'));
-    const fog3 = fnSrc('function fogDrop(', '\nfunction fogFilterClean(', 'fogDrop') + fnSrc('function anyFog(camp) {', '\n// Everything a player receives', 'anyFog');
+    const fog3 = fnSrc('function fogDrop(', '\nfunction fogFilterClean(', 'fogDrop', 'netfog.js') + fnSrc('function anyFog(camp) {', '\n// Everything a player receives', 'anyFog', 'netfog.js');
     const sysH = o => Sx.cleanSystem({ v: 1, name: 'H', sheet: { sections: [] }, fields: [{ id: 'f_dz', key: 'Dazed', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Grudge', kind: 'number', vis: 'gm', def: 1 }], rolls: [{ id: 'r_sh', label: 'Shoot', formula: '3d6 <= 13', vis: 'all' }, { id: 'r_gm', label: 'Secret', formula: '3d6', vis: 'gm' }],
         combat: { turn: Object.assign({ holdNames: true, holdLost: 'Dazed > 0', off: 'refuse', acts: [{ key: 'Action', n: 1, nf: '1 - Dazed' }] }, o || {}) } }, { F: Fx3, gmView: true });
     const mkH = o => {
@@ -5858,7 +5856,7 @@ pendingChecks.push((async () => {
 // for real) — never within a round, on a roster edit that keeps the round, or at its end; a hook that throws never stops the turn. Fold 3 (backlog
 // 152, moved on purpose): only for a round the fight reaches for the first time, so a step back past the first and on again runs nothing twice
 {
-    const setSrcG = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepSrcG = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep');
+    const setSrcG = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepSrcG = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep', 'netfight.js');
     const ccSrcG = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats');
     const calls = [], errs = [], hook = { throws: false };
     const netG = { role: 'host', active: true, combats: {} }, campG = { items: { m1: { type: 'map', meta: { title: 'Keep' } } } };
@@ -5966,7 +5964,7 @@ pendingChecks.push((async () => {
         J([g0, g1, g2, g3, g4, g5, eGot]));
     const dlgJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dialogs.js'), 'utf8');
     check('fold 0 (source): End, the session\'s end and a deleted map end a fight in one place (combatOver); the session\'s end asks it right after its drags go back, before the end is said and while the table is still on, never in the stream window; a deleted map asks it only on an active host, before the players are told, with the name it was handed; dialogs.js\'s two deletes of an item hand on the name the item had',
-        (src.match(/combatOver\(/g) || []).length === 4 && /\} else if \(!combat\) combatOver\(fid, had\);/.test(src) && /var fightsOver = wasHost && !net\.stream && typeof combatsOverAll === 'function' \? combatsOverAll\(\) : 0;/.test(lvS)
+        (src.match(/combatOver\(/g) || []).length === 4 && /\} else if \(!combat\) combatOver\(fid, had\);/.test(require('./checkkit').part('netfight.js')) && /var fightsOver = wasHost && !net\.stream && typeof combatsOverAll === 'function' \? combatsOverAll\(\) : 0;/.test(lvS)
         && lvS.indexOf('combatsOverAll()') > lvS.indexOf('fogDragSweep(true)') && lvS.indexOf('combatsOverAll()') < lvS.indexOf("broadcast({ type: 'end' }") && lvS.indexOf('combatsOverAll()') < lvS.indexOf('net.active = false')
         && igS.indexOf('combatOver(fid') > igS.indexOf("if (!(net.active && net.role === 'host')) return;") && igS.indexOf('combatOver(fid') < igS.indexOf("type: 'itemGone'")
         && /fightsOn\(itemId\)\.filter\(function\(fid\) \{ return combatOver\(fid, net\.combats\[fid\], false, title\); \}\)/.test(igS) && (dlgJs.match(/window\.wpNet\.itemGone\(/g) || []).length === 2   // 1.5.6: moved on purpose, the page switch's own call gone (the save takes a page from players, net.js pagesSync)
@@ -5978,7 +5976,7 @@ pendingChecks.push((async () => {
 // offers it only then (net.myTurnTok) and sends the row it saw
 {
     {   // initiative O1: a player's own initiative roll into the fight on their map, once (initIntoFight, run for real)
-        const ifSrc = between('// [netcheck:initfight-start]', '// [netcheck:initfight-end]', 'initfight'), J = JSON.stringify;
+        const ifSrc = between('// [netcheck:initfight-start]', '// [netcheck:initfight-end]', 'initfight', 'netfight.js'), J = JSON.stringify;
         const mkIF = () => { const out = { bc: 0, rf: 0, toasts: [], logs: [] }, net = { role: 'host', combats: { m1: { mapId: 'm1', round: 2, turn: 1, rows: [{ id: 'r_a', name: 'Ana', tokId: 't_a', init: 18, src: null, rolled: 1 }, { id: 'r_g', name: 'Goblin', tokId: 't_g', init: 12, src: null, rolled: 1 }, { id: 'r_b', name: 'Bo', tokId: 't_b', init: 0, src: null }, { id: 'c_t', name: 'Trap', tokId: null, init: 5, src: null }] } } };
             const camp = { items: { m1: { type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_ana', ownerId: 'u_a' }, { id: 't_g', isChar: true, charId: 'c_gob' }, { id: 't_b', isChar: true, charId: 'c_bo', ownerId: 'u_b' }] }, m2: { type: 'map', whiteboard: [] } } };
             out.fn = new Function('net', 'own', 'SC', 'toast', 'logEvent', 'mapTitleOf', 'broadcastCombats', 'combatRefresh', "'use strict';\n" + ordersSrc + '\n' + ifSrc + '\nreturn initIntoFight;')(net, H.own, () => ({ orderByInit: rows => rows.map((r, i) => ({ r, i })).sort((a, b) => (b.r.init - a.r.init) || (a.i - b.i)).map(x => x.r) }), t => out.toasts.push(t), (k, t) => out.logs.push(t), () => 'Hall', () => out.bc++, () => out.rf++);
@@ -6020,7 +6018,7 @@ pendingChecks.push((async () => {
             runTE({ mapId: 'm2', row: 'r_pat' }), runTE(ok, { loc: 'm2' }), runTE({ mapId: 'm1' }), runTE({ mapId: 'm1', row: 5 }), runTE(ok, { turns: false }), runTE(ok, { paused: true }), runTE(ok, { peerPaused: true }), runTE(ok, { slow: true }), runTE({ mapId: {}, row: 'r_pat' })].every(s => s.length === 0));
     {   // initiative O3: holding a turn — net.combatHold / net.combatAct and the hold's end at a new round (combatStep), run for real
         const wbAll = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
-        const hsSrc = fnSrc('net.combatStep = function', '// [netcheck:turnhold-start]', 'combatStep') + between('// [netcheck:turnhold-start]', '// [netcheck:turnhold-end]', 'turnhold');
+        const hsSrc = fnSrc('net.combatStep = function', '// [netcheck:turnhold-start]', 'combatStep', 'netfight.js') + between('// [netcheck:turnhold-start]', '// [netcheck:turnhold-end]', 'turnhold', 'netfight.js');
         const mkH = (turn, role) => { const out = { bc: 0, toasts: [], starts: 0 }, net = { role: role || 'host', combats: { m1: { mapId: 'm1', round: 1, turn: turn, rows: ['A', 'B', 'C', 'D'].map(x => ({ id: x, name: x, tokId: 't' + x, init: 0, src: null })) } } };
             new Function('net', 'own', 'toast', 'logEvent', 'mapTitleOf', 'broadcastCombats', 'combatRefresh', 'roundChanged', 'turnStarted', "'use strict';\n" + hsSrc + '\n' + ordersSrc)(net, H.own, t => out.toasts.push(t), () => {}, () => 'Hall', () => out.bc++, () => {}, () => {}, () => out.starts++);
             return Object.assign(out, { net, c: net.combats.m1, ids: () => net.combats.m1.rows.map(r => r.id + (r.held ? '*' : '')) }); };
@@ -6063,7 +6061,7 @@ pendingChecks.push((async () => {
                 && E1.c.eh === 2 && j(E2.seq) === j(['start C', 'end C r1 t0 m1', 'start D']) && E3.seq.every(x => x.indexOf('end') !== 0), j([E1.seq, E2.seq, E3.seq]));
             check('1.6.0 a turn\'s end (source): fightReachKept carries how far a fight\'s turn ends have gone through a roster edit, as it carries its turn starts; fightStep asks turnEnded through typeof, before the new round',
                 /if \(typeof had\.eh === 'number'\) f\.eh = had\.eh;[^\n]*\n    if \(had\.et && typeof had\.et === 'object'\) f\.et = had\.et;/.test(src)
-                && /if \(endRow && typeof turnEnded === 'function'\) turnEnded\(mapId, c, endRow, r0, t0\);[^\n]*\n    if \(c\.round > r0 && typeof combatNewRound === 'function'\)/.test(src));
+                && /if \(endRow && typeof turnEnded === 'function'\) turnEnded\(mapId, c, endRow, r0, t0\);[^\n]*\n    if \(c\.round > r0 && typeof combatNewRound === 'function'\)/.test(require('./checkkit').part('netfight.js')));
         }
         const hmSrc = between('// [netcheck:turnholdmsg-start]', '// [netcheck:turnholdmsg-end]', 'turnholdmsg');
         const runHM = (msg, o) => { o = o || {}; const calls = [];
@@ -6085,7 +6083,7 @@ pendingChecks.push((async () => {
     pendingChecks.push((async () => {
         const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
         const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-        const ccO = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats'), setO = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepO = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep');
+        const ccO = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats'), setO = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepO = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep', 'netfight.js');
         const mkO = (ir, o) => { o = o || {};
             const out = { toasts: [], logs: [], labels: [], calls: [], privs: [], errs: [], dice: (o.dice || []).slice(), seqs: JSON.parse(j(o.seqs || {})) };
             const camp = { system: { combat: { initiative: ir } }, chars: { c_a: { id: 'c_a' }, c_b: { id: 'c_b' }, c_g: { id: 'c_g' } }, items: { m1: { type: 'map', meta: { title: 'Hall' }, whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a' }, { id: 't_g', isChar: true, charId: 'c_g' }, { id: 't_b', isChar: true, charId: 'c_b', ownerId: 'u_b' }, { id: 't_x', isChar: false, charId: 'c_a', ownerId: 'u_a' }] } } };
@@ -6148,7 +6146,7 @@ pendingChecks.push((async () => {
         const clO = Si.api.cleanCombats({ m: { round: 1, turn: 0, rows: [{ id: 'a', name: 'A' }], side: 'pc', rr: 4 }, n: { round: 1, turn: 0, rows: [{ id: 'b', name: 'B' }], side: 'constructor' } });
         check('initiative O4 on the wire: the cleaner keeps a combat\'s side as the players\' or the rest\'s only (never its last rolled round, the host\'s own); the table\'s copy (combatsFor) names this round\'s side, never its rolls; the host rolls the sides by its own diceRoll',
             clO.m.side === 'pc' && !('rr' in clO.m) && !('side' in clO.n) && src.includes("if (cmb.side === 'pc' || cmb.side === 'rest') out[fid].side = cmb.side;") && src.includes("if (k.side === 'pc' || k.side === 'rest') f.side = k.side;")
-            && /if \(c\.round > r0 && typeof combatNewRound === 'function'\) \{ combatNewRound\(mapId, c\); t = c\.turn; \}/.test(src) && src.includes("if (typeof combatSideOrder === 'function') combatSideOrder(camp, mapId, c);") && src.includes("var r = net.diceRoll(ir.side, { label: label[side] + (k ? ' (again)' : '') });"), j(clO));
+            && /if \(c\.round > r0 && typeof combatNewRound === 'function'\) \{ combatNewRound\(mapId, c\); t = c\.turn; \}/.test(require('./checkkit').part('netfight.js')) && require('./checkkit').part('netfight.js').includes("if (typeof combatSideOrder === 'function') combatSideOrder(camp, mapId, c);") && require('./checkkit').part('netfight.js').includes("var r = net.diceRoll(ir.side, { label: label[side] + (k ? ' (again)' : '') });"), j(clO));
     })());
     // the client's side: whose turn it is on the map in view, and the message it sends
     const mtSrc = fnSrc('net.myTurnTok = function', '\n// the player ends their own turn', 'myTurnTok'), teCl = fnSrc('net.turnEnd = function', '\n// A player\'s change of a carried list', 'turnEnd');
@@ -6198,7 +6196,7 @@ pendingChecks.push((async () => {
     check('T2b a client\'s reminder (net.js, run for real): from the synced host only, cleaned (the label stays text), a whisper; nothing from another peer, in the stream window, malformed, or a GM\'s copy (theirs)',
         di1.length === 1 && di1[0].due.label === '<img src=x>' && di1[0].scope === 'whisper' && di1[0].due.charId === 'c_a'
         && [runDI(dueOk, { peer: 'other' }), runDI(dueOk, { stream: true }), runDI(Object.assign({}, dueOk, { act: 'f_hp' })), runDI(Object.assign({}, dueOk, { theirs: 1 }))].every(c => c.length === 0), j(di1));
-    const setSrcT = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepSrcT = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep'), ccSrcT = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats');
+    const setSrcT = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepSrcT = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep', 'netfight.js'), ccSrcT = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats');
     const callsT = [], netT = { role: 'host', active: true, combats: {} };
     new Function('net', 'window', 'getActiveCampaign', 'broadcastCombats', 'logEvent', 'toast', 'render', 'console', 'showConfirm', ccSrcT + '\n' + setSrcT + '\n' + stepSrcT + '\n' + ordersSrc)(
         netT, { wpSheets: { roundHook: (m, c) => callsT.push('R' + c.round), turnHook: (m, c) => callsT.push('T' + c.round + '.' + c.turn) } }, () => ({ items: { m1: { type: 'map', meta: { title: 'K' } } } }), () => {}, () => {}, () => {}, () => {}, { error: () => {} }, () => {});
@@ -6417,7 +6415,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const posT = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patT = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), tmT = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove');
+    const posT = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patT = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), tmT = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove');
     const clT = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const lineT = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
     const helpT = ['function peerProfileId(', 'function fxLib(', 'function itemLib('].map(lineT).join('\n') + '\n';
@@ -6598,7 +6596,7 @@ pendingChecks.push((async () => {
     {   // 1.6.0 A move by giving up an action (combat.turn.run and runCost): the host's gates, run for real (invented data: Pat, Speed, Dash)
         const Fx5 = await import(url('formula.js'));
         const line5 = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
-        const pos5 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), pat5 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), tm5 = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove'), ta5 = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts');
+        const pos5 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), pat5 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), tm5 = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove'), ta5 = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts');
         const cl5 = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
         const help5 = ['function peerProfileId(', 'function fxLib(', 'function itemLib('].map(line5).join('\n') + '\n';
         const sys5 = (o) => Sx.cleanSystem(Object.assign({ v: 1, name: 'R', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', vis: 'all', def: 5 }, { id: 'f_ds', key: 'Dash', kind: 'number', vis: 'all', def: 10 }, { id: 'f_dz', key: 'Dazed', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Secret', kind: 'number', vis: 'gm', def: 20 }],
@@ -6685,7 +6683,7 @@ pendingChecks.push((async () => {
         sAfter === '{}' && j(sLeft) === j(['pA:{"Action":1,"Bonus":2}:refuse', 'pA2:{"Action":1,"Bonus":2}:refuse']) && j(eLeft) === j(['pA:null:refuse', 'pA2:null:refuse']) && j(s2.net.turnSpent) === j({ c_p: { Action: 1 } }), j([sAfter, sLeft, eLeft, s2.net.turnSpent]));
     {   // 192 (the owner, by prompt: "Count is a formula (Recommended)"): an action's count a formula of the character's names, worked out at its turn's start over the players' view and the owner's own copy
         const Fx2 = await import(url('formula.js'));
-        const lineOf = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); }, fxL = lineOf('function fxLib(sys)'), itL = lineOf('function itemLib(sys)');
+        const lineOf = (k, file) => { const t = typeof file === 'string' ? require('./checkkit').part(file) : src, i = t.indexOf(k); return t.slice(i, t.indexOf('\n', i)); }, fxL = lineOf('function fxLib(sys)'), itL = lineOf('function itemLib(sys)');
         const sysR = { v: 1, name: 'R', rolls: [], fields: [{ id: 'f_er', key: 'ExtraReady', label: 'Extra ready', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 5 }],
             combat: { turn: { acts: [{ key: 'Ready', n: 1, nf: '1 + ExtraReady' }, { key: 'Act', n: 1 }, { key: 'Hid', n: 2, nf: '1 + Secret' }, { key: 'Dice', n: 3, nf: '1d6' }] } }, sheet: { sections: [] } };
         const mkR = (er) => {
@@ -6725,7 +6723,7 @@ pendingChecks.push((async () => {
 {
     const cbSrc = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats');
     const setSrc = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet');
-    const fogSrc = fnSrc('function fogDrop(', '\nfunction fogFilterClean(', 'fogDrop') + fnSrc('function anyFog(camp) {', '\n// Everything a player receives', 'anyFog');
+    const fogSrc = fnSrc('function fogDrop(', '\nfunction fogFilterClean(', 'fogDrop', 'netfog.js') + fnSrc('function anyFog(camp) {', '\n// Everything a player receives', 'anyFog', 'netfog.js');
     const wb = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
     const wbCut = (a, b, label) => { const i = wb.indexOf(a), k = wb.indexOf(b, i + 1); if (i < 0 || k < 0 || wb.indexOf(a, i + 1) >= 0) throw new Error('netcheck: ' + label + ' not found once in whiteboard.js'); return wb.slice(i, k); };
     const sortSrc = wbCut('function combatSortByInit(rows) {', '\nfunction renderCombatModal() {', 'combatSortByInit'), wireSrc = wbCut('(function wireCombatModal() {', '\nfunction renderCombatStrip() {', 'wireCombatModal');
@@ -6869,7 +6867,7 @@ pendingChecks.push((async () => {
         j([e1.toasts, e1.draftRows(), e2.draftRows()]));
     check('combat roster (source): a roll\'s answer is net.diceRoll\'s own ({ ok, value, priv }) through the sheet\'s rollInit; combats go to players only through combatsFor (the broadcast, the join snapshot, the one player whose sight moved and, fold M7, a copy caught up in place), never net.combats as it is; fold 2\'s review: each send through combatsTo, the one place a message of the fights is made, and the broadcast alone holds back a copy the connection holds already',
         /return \{ ok: true, value: res\.value, priv: !!rec\.priv \};/.test(src) && (src.match(/type: 'combats'/g) || []).length === 1 && /function combatsTo\(c, combats, fresh\) \{[^]*?c\.send\(\{ type: 'combats', combats: combats \}\);/.test(cbSrc)
-        && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove').match(/combatsTo\(c, combatsFor\(pid, connMap\(c\)\)\)/g) || []).length === 1
+        && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove', 'netfog.js').match(/combatsTo\(c, combatsFor\(pid, connMap\(c\)\)\)/g) || []).length === 1
         && (src.match(/if \(inFight\) combatsTo\(c, combatsFor\(pid, connMap\(c\)\)\);/g) || []).length === 2 && /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && !/combats: net\.combats/.test(src)
         && !/broadcast\(\{ type: 'combats'/.test(src) && /combatsTo\(c, combatsFor\(pr\.id, pr\.location\), true\)/.test(src) && /combatsTo\(c, combatsFor\(pr\.id, loc\)\)/.test(src) && (src.match(/combatsTo\(/g) || []).length === 5 && (src.match(/combatsTo\([^;\n]*, true\)/g) || []).length === 1);
 
@@ -6959,8 +6957,8 @@ pendingChecks.push((async () => {
         j(snA0) === j(['Goblin', 'Orc', 'Trap', 'Ana']) && j(snB0) === j(['Goblin', 'Hidden', 'Trap', 'Ana']) && j(snA1) === j(snA0) && j(snB1) === j(snB0) && j(snLate) === j(['Hidden', 'Orc', 'Trap', 'Ana']) && j(snNull) === j(['Hidden', 'Orc', 'Trap', 'Ana'])
         && j(seenAfterB) === j(['Hidden', 'Orc']) && j(snShown) === j(['Goblin', 'Orc']) && j(snAgain) === j(['Goblin', 'Orc']) && j(snEnded) === j(['Hidden']), j([snA0, snB0, snA1, snB1, snLate, snNull, seenAfterB, snShown, snAgain, snEnded]));
     check('the owner\'s ruling (source): what a player saw is kept in the combats slice alone, per fight by its own id (fold 2: a new fight has an id of its own, so nothing is seen in it), read only by combatsFor (and, as a read alone, by net.tokUnseen: secrets R2, by the fight that holds the token), forgotten at the fight\'s end and by fogForgetAll at a new table; the client\'s toast still names Hidden only for a row that reads so',
-        (src.match(/function combatForget\(/g) || []).length === 1 && (cbSrc.match(/combatSeen\(|combatSaw\(/g) || []).length === 4 && (src.match(/combatSeen\(|combatSaw\(/g) || []).length === 5 && /if \(typeof combatSeen === 'function' && combatSeen\(fightOfTok\(mapId, tokId\), p\.id, tokId\)\) return false;/.test(src)
-        && /function combatSeen\(fid, pid, tokId\) \{ var m = typeof fid === 'string' \? _combatSeen\[fid\] : null;/.test(src) && /if \(typeof fid === 'string'\) \{ delete net\.combats\[fid\];[^\n]*\n[^\n]*\n[^\n]*marksEnd\(mapId\)[^\n]*\n\s*if \(typeof fid === 'string' && typeof combatForget === 'function'\) combatForget\(fid\);/.test(src) && /_fogCost = Object\.create\(null\); if \(typeof combatForget === 'function'\) combatForget\(\); \}/.test(src)
+        (src.match(/function combatForget\(/g) || []).length === 1 && (cbSrc.match(/combatSeen\(|combatSaw\(/g) || []).length === 4 && (src.match(/combatSeen\(|combatSaw\(/g) || []).length === 5 && /if \(typeof combatSeen === 'function' && combatSeen\(fightOfTok\(mapId, tokId\), p\.id, tokId\)\) return false;/.test(require('./checkkit').part('netfight.js'))
+        && /function combatSeen\(fid, pid, tokId\) \{ var m = typeof fid === 'string' \? _combatSeen\[fid\] : null;/.test(src) && /if \(typeof fid === 'string'\) \{ delete net\.combats\[fid\];[^\n]*\n[^\n]*\n[^\n]*marksEnd\(mapId\)[^\n]*\n\s*if \(typeof fid === 'string' && typeof combatForget === 'function'\) combatForget\(fid\);/.test(src) && /_fogCost = Object\.create\(null\); if \(typeof combatForget === 'function'\) combatForget\(\); \}/.test(require('./checkkit').part('netfog.js'))
         && /A creature your players have seen stays in their order by name when you hide it or it moves out of their sight/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8')));
     // hidden pieces (owner, 2026-10-01): a pointer at a token the GM hid, or at nothing on the host's map, goes to no one, on a table without fog as on one
     // with it — hidden and gone answer alike; net.syncCombatHidden sends the pointers again when a hide, a show or a deletion changes which are sent
@@ -6985,13 +6983,13 @@ pendingChecks.push((async () => {
     const ta0 = tgKeys(Ta.N.targetsFor('u_a')); tokOf(Ta, 'm1', 't_gob').hidden = true; const ta1 = tgKeys(Ta.N.targetsFor('u_a')); tokOf(Ta, 'm1', 't_gob').hidden = false; tokOf(Ta, 'm1', 't_gob').waiting = true; const ta2 = tgKeys(Ta.N.targetsFor(null)); delete tokOf(Ta, 'm1', 't_gob').waiting;
     const Tb = scen({ fog: true, drops: { u_b: { t_gob: 1 } } }); Tb.net.targets = { 'tk:t_gob': { id: 't_ana', mapId: 'm1', name: 'Goblin', from: 't_gob' } };
     const tbA = tgKeys(Tb.N.targetsFor('u_a')), tbB = tgKeys(Tb.N.targetsFor('u_b')); Tb.conns.forEach(c => { c.sent.length = 0; }); Tb.N.broadcastTargets(); const tbOut = Tb.conns.map(c => c.sent.filter(m => m.type === 'targets').map(m => tgKeys(m.targets)));
-    const CT = new Function(fnSrc('function cleanTargets(', '\n}\n', 'cleanTargets') + '\n}\nreturn cleanTargets;')();
+    const CT = new Function(fnSrc('function cleanTargets(', '\n}\n', 'cleanTargets', 'netfight.js') + '\n}\nreturn cleanTargets;')();
     const ct = CT({ 'tk:a': { id: 'x', mapId: 'm', name: 'A', from: 'a' }, 'tk:b': { id: 'x', mapId: 'm', from: 'c' }, u_a: { id: 'x', mapId: 'm', from: 'a' }, ['tk:' + 'L'.repeat(78)]: { id: 'x', mapId: 'm', from: 'L'.repeat(78) }, 'tk:n': { id: 'x', mapId: 'm', from: 5 } });
     check('158 a pointer one of the GM\'s characters holds (net.js targetTok and targetsFor, run for real): sent while its token is shown on the target\'s map; to no one while that token is hidden, waiting, gone or on another map; on a fogged table to no player whose sight drops it, each player their own copy; and a player\'s app keeps its source only where the pointer\'s key names that very token',
         ta0 === 'tk:t_gob,u_a' && ta1 === 'u_a' && ta2 === 'u_a' && tbA === 'tk:t_gob' && tbB === '' && j(tbOut) === j([['tk:t_gob'], [''], [], []])
         && ct['tk:a'].from === 'a' && !('from' in ct['tk:b']) && !('from' in ct.u_a) && !('tk:' + 'L'.repeat(78) in ct) && !('from' in ct['tk:n']), j([ta0, ta1, ta2, tbA, tbB, tbOut, ct]));
     // setTargetAs (the host's alone) and what targets a token for the facing rules (aimsOf), sliced by their targetas markers and run for real
-    const taS = between('// [netcheck:targetas-start]', '// [netcheck:targetas-end]', 'targetas');
+    const taS = between('// [netcheck:targetas-start]', '// [netcheck:targetas-end]', 'targetas', 'netfight.js');
     const mkTA = (role, o) => {
         o = o || {}; const st = { applied: [], bc: 0, toasts: [] }, net = { active: role !== 'off', role: role === 'off' ? 'host' : role, targets: {} };
         const N = new Function('net', 'applyTarget', 'broadcastTargets', 'toast', 'getActiveCampaign', 'fogDrop', 'mapFogged', taS + '\nreturn net;')(net,
@@ -7441,11 +7439,11 @@ pendingChecks.push((async () => {
         const h = mkRT('host'), h0 = h.n.rowTextOk(); h.P.knows(false); const h1 = h.n.rowTextOk(), o = mkRT(null), o0 = o.n.rowTextOk(), o1 = mkRT(undefined).n.rowTextOk();
         return [w0, w1, w2, odd, h0, h1, o0, o1];
     } catch (e) { return String(e && e.message); } })();
-    const snA = src.indexOf('function applySnapshot(msg) {'), snZ = snA < 0 ? -1 : src.indexOf('\n}\n', snA), snCall = src.indexOf("    if (typeof rowTextKnows === 'function') rowTextKnows(msg.rowText);");
+    const snP = require('./checkkit').part('netfog.js'), snA = snP.indexOf('function applySnapshot(msg) {'), snZ = snA < 0 ? -1 : snP.indexOf('\n}\n', snA), snCall = snP.indexOf("    if (typeof rowTextKnows === 'function') rowTextKnows(msg.rowText);");   // applySnapshot stands in netfog.js, a part of net.js
     check('155 the host\'s word (rowTextKnows and net.rowTextOk, sliced and run): a player\'s app offers a row of its own\'s long text only once its host\'s snapshot says rowText, and only as true (a later snapshot that does not say it takes the word back); the machine that owns the campaign, and one at no table, always may; the snapshot says it beside looks, and applySnapshot takes it through typeof right after the looks, the one place that sets the word',
         J(rtWays) === J([false, true, false, [false, false, false, false, false, false, false, false], true, true, true, true])
         && /combats: combatsFor\(prof\.id, prof\.location\), fights: true, looks: true, rowText: true, notepad: notepadMsg\(\) \};/.test(src)
-        && /\n    if \(typeof styleHostKnows === 'function'\) styleHostKnows\(msg\.looks\);[^\n]*\n    if \(typeof rowTextKnows === 'function'\) rowTextKnows\(msg\.rowText\);/.test(src)
+        && /\n    if \(typeof styleHostKnows === 'function'\) styleHostKnows\(msg\.looks\);[^\n]*\n    if \(typeof rowTextKnows === 'function'\) rowTextKnows\(msg\.rowText\);/.test(require('./checkkit').part('netfog.js'))
         && snA > 0 && snCall > snA && snCall < snZ && src.split('rowTextKnows(').length === 3 && src.split('_rowTextOk =').length === 3, J(rtWays));
 })());
 
@@ -7711,7 +7709,7 @@ pendingChecks.push((async () => {
     }
     // lighting L3: one player's copy of a fogged map (the real fogDrop / fogFilterClean / fogCopyFor): the creatures they cannot see dropped, the lit
     // cells only they get (never on the shared clone), the host's light cap; the host's own map never carries either
-    const flF = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit');
+    const flF = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit', 'netfog.js');
     // the stub answers only for the host's own map and campaign, and the lit cells only for the drop worked out for that player (never the clone)
     const hostM = { type: 'map', id: 'm1', whiteboard: [{ id: 'foe', light: { bright: 2, dim: 4 } }, { id: 'me' }] }, campFL = { id: 'k_f' };
     const fwin = { wpFog: { fogDropIds: (rid, camp, map) => camp === campFL && map === hostM && rid === 'u_a' ? { foe: 1 } : null,
@@ -7723,7 +7721,7 @@ pendingChecks.push((async () => {
         j(cA.whiteboard.map(w => w.id)) === j(['me']) && j(cA.fogLit) === j([{ c: 3, r: 2, t: 2 }, { c: 4, r: 2, t: 1 }]) && !('lightsCapped' in cA) && !('fogLit' in hostM) && !('lightsCapped' in hostM) && cB === cleanM && !('fogLit' in cleanM) && !('lightsCapped' in cleanM)
         && cC !== cleanM && cC.lightsCapped === true && !('fogLit' in cC) && cC.whiteboard === cleanM.whiteboard
         && /delete m\.fogLit; delete m\.lightsCapped;/.test(srcL) && (srcL.match(/var out = fogCopyFor\(clean, camp, it, pr\.id\);/g) || []).length === 2
-        && /it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);/.test(srcL) && !/fogFilterClean\(clean, fogDrop\(/.test(srcL)
+        && /it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);/.test(require('./checkkit').part('netfog.js')) && !/fogFilterClean\(clean, fogDrop\(/.test(srcL)
         && /var flC = window\.wpFogCore && window\.wpFogCore\.cleanFogLit \? window\.wpFogCore\.cleanFogLit\(m\.fogLit\) : null; if \(flC\) m\.fogLit = flC; else delete m\.fogLit;/.test(srcL) && /if \(m\.lightsCapped !== true\) delete m\.lightsCapped;/.test(srcL), j([cA, cC]));
     const runF = (netC, msg, peer) => { const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', fog: { defaults: { sight: 2 } } } } } }, calls = [];
         new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvF)(netC, { peer }, msg, st, id => (Object.prototype.hasOwnProperty.call(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpFogCore: FCx, wpFog: { invalidateVision: () => calls.push('inv'), redraw: () => calls.push('draw') } });
@@ -7894,7 +7892,7 @@ pendingChecks.push((async () => {
     const c2 = runIn(mine(), D('c_2', [{ f: 'f_dx', op: 'add', v: -2 }]), 'h'), c3 = (() => { const m0 = mine(); m0.c_1.unseen = [{ f: 'f_dx', op: 'add', v: -2 }]; return runIn(m0, D('c_1', []), 'h'); })(), c4 = runIn(mine(), D('c_1', [{ f: 'f_dx', op: 'add', v: -2 }]), 'x');
     check('F6 a player takes nameless changes onto their own copy only, cleaned again (fields of their view, amounts only, nothing else kept); an empty list clears them; a teammate\'s copy and anyone but the synced host change nothing',
         J(c1.c_1.unseen) === J([{ f: 'f_dx', op: 'add', v: -2 }, { f: 'f_dx', op: 'add', v: 1 }]) && !('unseen' in c2.c_2) && !('unseen' in c3.c_1) && !('unseen' in c4.c_1)
-        && /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\)/.test(src) && (src.match(/full: camp[AQ]?\.system \}/g) || []).length >= 5, J([c1.c_1, c2.c_2, c3.c_1]));
+        && /withHoverLines\(window\.wpSystemCore\.charFor\(camp\.chars\[id\], camp\.system, recipientId, \{ lib: libFx, items: libIt, full: fullSys \}\)/.test(require('./checkkit').part('netfog.js')) && (src.match(/full: camp[AQ]?\.system \}/g) || []).length >= 5, J([c1.c_1, c2.c_2, c3.c_1]));
 })());
 
 // R2 security, cluster E (2026-10-01): a player's app that has joined a room but is not yet admitted (waiting for the GM's Allow, or for the
@@ -7907,8 +7905,8 @@ pendingChecks.push((async () => {
     const asSrc = between('// [netcheck:assetsrc-start]', '// [netcheck:assetsrc-end]', 'assetsrc');
     const wE = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
     const sendersSrc = ['var _lastPatchHash = {}, _posLast = 0, assetCache = Object.create(null), assetPending = Object.create(null);',
-        fnSrc('function activeItemPatch(', '\n}\n', 'activeItemPatch') + '\n}\n', fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', broadcastSrc, lsSrc, asSrc,
-        wE('net.streamPos = function('), wE('net.sendThreats = function('), wE('net.requestTravel = function('), wE('net.needItem = function('), wE('net.setTarget = function('),
+        fnSrc('function activeItemPatch(', '\n}\n', 'activeItemPatch', 'netfog.js') + '\n}\n', fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\n', broadcastSrc, lsSrc, asSrc,
+        wE('net.streamPos = function('), wE('net.sendThreats = function('), wE('net.requestTravel = function('), wE('net.needItem = function('), require('./checkkit').cut('netfight.js', 'net.setTarget = function(', '\n};\n') + '\n};\n',
         'return { pending: function() { return Object.keys(assetPending); }, hashes: function() { return Object.keys(_lastPatchHash); } };'].join('\n');
     const build = new Function('net', 'window', 'own', 'getActiveCampaign', 'sendFailed', 'scheduleStageFollow', 'getActiveMap', 'checkRoomHandouts', 'SC', 'toast', 'broadcastPos', 'Date', 'applyTarget', 'getProfile', sendersSrc);
     const PIC = '/saves/images/m1/villain.png';
@@ -8249,7 +8247,7 @@ pendingChecks.push((async () => {
         const wjSrc = tryBetween('// [netcheck:webjoin-start]', '// [netcheck:webjoin-end]') || '';
         const wj = W => { try { return new Function('window', wjSrc + '\nreturn webJoinOnly();')({ wpWebMode: W }); } catch (e) { return 'threw'; } };
         const wjOut = [wj({ joinOnly: () => true }), wj({ joinOnly: () => false }), wj(undefined), wj({ joinOnly: () => 1 }), wj({ joinOnly: 'yes' })];
-        const hideLine = (src.match(/\n    (if \(net\.fromWelcome \|\| \(typeof webJoinOnly === 'function' && webJoinOnly\(\)\)\) \{ net\.fromWelcome = false; if \(window\.wpHideWelcome\) window\.wpHideWelcome\(\); \})/) || [])[1] || '';
+        const hideLine = (require('./checkkit').part('netfog.js').match(/\n    (if \(net\.fromWelcome \|\| \(typeof webJoinOnly === 'function' && webJoinOnly\(\)\)\) \{ net\.fromWelcome = false; if \(window\.wpHideWelcome\) window\.wpHideWelcome\(\); \})/) || [])[1] || '';
         const runHide = (from, joinOnly) => { const n = { fromWelcome: from }, log = []; new Function('net', 'window', 'webJoinOnly', hideLine)(n, { wpHideWelcome: () => log.push('hide') }, () => joinOnly); return log.join() + ':' + n.fromWelcome; };
         const hideOut = hideLine ? [runHide(true, false), runHide(false, true), runHide(false, false)] : ['no line'];
         const shA = src.indexOf('function startHosting(forceFresh) {'), shB = src.indexOf('\n', src.indexOf('fogForgetAll();', shA)), shHead = shA >= 0 && shB > shA ? src.slice(shA, shB) + '\n}\nreturn startHosting;' : '';
@@ -8314,7 +8312,7 @@ pendingChecks.push((async () => {
         {   // 1.6.0 a running fight kept in the save (the owner, by prompt: "Yes, save it (Recommended)"), the fightsave slice run for real on a page of plain objects
             const fsA = src.indexOf('// [netcheck:fightsave-start]'), fsB = src.indexOf('// [netcheck:fightsave-end]'), fsS = src.slice(fsA, fsB);
             const CCf = await import(require('url').pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'calendarcore.js')).href), bodyA = src.indexOf('function cleanFightBody(k, mapId) {'), bodyS = src.slice(bodyA, src.indexOf('}\n// [netcheck', bodyA) >= 0 && src.indexOf('}\n// [netcheck', bodyA) < bodyA + 6000 ? src.indexOf('}\n// [netcheck', bodyA) + 2 : src.indexOf('    return f;\n}', bodyA) + 15);
-            const ctA = src.indexOf('function cleanTargets(raw) {'), cleanT = new Function(src.slice(ctA, src.indexOf('\n}\n', ctA) + 3) + '\nreturn cleanTargets;')();
+            const ctP = require('./checkkit').part('netfight.js'), ctA = ctP.indexOf('function cleanTargets(raw) {'), cleanT = new Function(ctP.slice(ctA, ctP.indexOf('\n}\n', ctA) + 3) + '\nreturn cleanTargets;')();   // cleanTargets stands in netfight.js, a part of net.js
             const mkW = (camp, role) => {
                 const log = { saves: 0, toasts: [], events: [], turns: [], marks: [], bank: [], sent: 0 }, w = { wpStepLog: () => {}, setTimeout: null };
                 const net = { role: role || 'host', stream: false, combats: {}, fightOn: null, targets: {} };
@@ -8412,10 +8410,10 @@ pendingChecks.push((async () => {
                 check('1.6.0 a thrown blast names its thrower only to a player who can see them, and the blast itself still reaches both', j(sentB) === j([['a', 'Brannoch'], ['b', '']]), j(sentB));
                 const wbB = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
                 check('1.6.0 a thrown blast\'s circle goes with the map\'s last fight (source): combatOver asks the board only once no fight is left on a map that still stands, the board keeps the Radius tool\'s own and one that waits on its fuse and tells the table for that map, a player\'s app takes the word for the map on screen alone, and a table taken afresh holds no circle of the table before it',
-                    src.includes("if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpFightBlastsGo)") && require('./checkkit').part('wbblast.js').includes('return ownCircle(b) || fz.some(function(f) { return f.b === b; });') && require('./checkkit').part('wbblast.js').includes('window.wpNet.broadcastBlastClear(mapId);') && src.includes("if (typeof msg.mapId === 'string' && amC && amC.id !== msg.mapId) return;") && src.includes("window.wpClearSharedBlasts();   // 1.6.0: a table taken afresh"), '');
+                    src.includes("if (had && !gone && !fightsOn(mapId).length && typeof window !== 'undefined' && window.wpFightBlastsGo)") && require('./checkkit').part('wbblast.js').includes('return ownCircle(b) || fz.some(function(f) { return f.b === b; });') && require('./checkkit').part('wbblast.js').includes('window.wpNet.broadcastBlastClear(mapId);') && src.includes("if (typeof msg.mapId === 'string' && amC && amC.id !== msg.mapId) return;") && require('./checkkit').part('netfog.js').includes("window.wpClearSharedBlasts();   // 1.6.0: a table taken afresh"), '');
             }
-            const iA = src.indexOf('function broadcastCombats() {'), keepW = src.slice(iA, src.indexOf('\n', src.indexOf('getActiveCampaign', iA) + 40)).includes('fightsKeepSoon'), snapD = /delete camp\.fights;/.test(src.slice(src.indexOf('function sanitizeAppState('), src.indexOf('delete camp.sessionLog;')));
-            check('1.6.0 a running fight, the wiring: every change ends in broadcastCombats, which keeps it; the session\'s end lets it go at once; the host\'s table asks for it as it opens, once; a player\'s copy of a campaign holds none of it', keepW && snapD && src.includes("if (typeof fightsKeep === 'function') fightsKeep();   // 1.6.0: the session's end") && (src.match(/fightsBack\(\);/g) || []).length === 4 && src.includes("if (net.role !== 'host') { net.role = 'host'; if (typeof fightsBack === 'function') try { fightsBack(); } catch (e) {} }"), j([keepW, snapD]));   // 1.6.2 (the owner: "Fight without hosting"): and once more as a GM with no table open becomes its own host, moved on purpose; and (the review of the click test's fixes) twice more where a table fails before it opens, in the invalid-key branch and at the end of the peer's error handler, moved on purpose
+            const iA = src.indexOf('function broadcastCombats() {'), keepW = src.slice(iA, src.indexOf('\n', src.indexOf('getActiveCampaign', iA) + 40)).includes('fightsKeepSoon'), snapD = /delete camp\.fights;/.test((sa => sa.slice(sa.indexOf('function sanitizeAppState('), sa.indexOf('delete camp.sessionLog;')))(require('./checkkit').part('netfog.js')));   // sanitizeAppState stands in netfog.js
+            check('1.6.0 a running fight, the wiring: every change ends in broadcastCombats, which keeps it; the session\'s end lets it go at once; the host\'s table asks for it as it opens, once; a player\'s copy of a campaign holds none of it', keepW && snapD && require('./checkkit').part('netfight.js').includes("if (typeof fightsKeep === 'function') fightsKeep();   // 1.6.0: the session's end") && (src.match(/fightsBack\(\);/g) || []).length === 4 && src.includes("if (net.role !== 'host') { net.role = 'host'; if (typeof fightsBack === 'function') try { fightsBack(); } catch (e) {} }"), j([keepW, snapD]));   // 1.6.2 (the owner: "Fight without hosting"): and once more as a GM with no table open becomes its own host, moved on purpose; and (the review of the click test's fixes) twice more where a table fails before it opens, in the invalid-key branch and at the end of the peer's error handler, moved on purpose
             {   // 1.6.2 (the owner: "Fight without hosting"): with no table open, the GM's own machine is its own host for fights (soloOk, soloHost, solo, run for real)
                 const sA = src.indexOf('function soloOk() {'), sZ = src.indexOf('function broadcastCombats() {'), sSrc = sA > 0 && sZ > sA ? src.slice(sA, sZ) : '';
                 const mk = (o) => { const net = { active: !!o.active, role: o.role || null, foreign: !!o.foreign }, win = { wpStream: !!o.stream, wpPopout: !!o.popout, wpCanPersistLocal: () => o.own !== false }; let back = 0;
@@ -8432,7 +8430,7 @@ pendingChecks.push((async () => {
                 const wbT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
                 const soloG = "!(net.active ? net.role === 'host' : (typeof net.soloHost === 'function' && net.soloHost()))";
                 check('1.6.2 targeting with no table open (found by the owner: the Target rows showed and set nothing): net.setTarget, setTargetAs and clearTargetOf make the GM\'s own machine its own host as a fight does (soloHost), and the GM\'s T key and menu rows judge it as the fight rows do',
-                    src.includes("if (!net.active && !(typeof net.soloHost === 'function' && net.soloHost())) return;") && src.split(soloG).length - 1 >= 2
+                    require('./checkkit').part('netfight.js').includes("if (!net.active && !(typeof net.soloHost === 'function' && net.soloHost())) return;") && src.split(soloG).length - 1 >= 2
                     && wbT.includes("function gmCanTarget(tok) { var n = window.wpNet; return !!(tok && tok.isChar && !tok.hidden && !tok.waiting && n && (n.active ? n.role === 'host' : (n.solo === true || (typeof n.soloOk === 'function' && n.soloOk()))) && !window.wpStream); }"));
             }
             const ixF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), ntF = [path.join(__dirname, '..', 'WHATSNEW.txt'), path.join(__dirname, '..', 'system', 'app', 'assets', 'whatsnew.txt')].map(p => fs.readFileSync(p, 'utf8'));
@@ -8576,7 +8574,7 @@ pendingChecks.push((async () => {
         j(bGm.answer) === j([{ n: 2, auto: 0, type: 'char-upload-ans', rid: 'e1' }]) && bGm.ch.values.f_sk[0].lvl === 12 && bGm.deltas.length === 0 && j(kinds(bGm)) === j([['c_1', 'u_a', 'Pat', 'value:ST|fact:Skills: Climbing']])
         && bHid.ch.values.f_sk[0].lvl === 12 && bHid.deltas.length === 0 && !/fact:/.test(j(kinds(bHid))), j([bGm.answer, kinds(bGm), bHid.answer, kinds(bHid)]));
     check('U2 a newer upload of a character replaces its older one in the queue (another character\'s stays); the players\' snapshot drops the queue beside the library',
-        j(rep.camp.uploads.map(u => u.id === 'up_old' ? 'old' : u.charId)) === j(['c_2', 'c_1']) && /        delete camp\.library;[^\n]*\n        delete camp\.uploads;/.test(src), j(rep.camp.uploads.map(u => u.id)));
+        j(rep.camp.uploads.map(u => u.id === 'up_old' ? 'old' : u.charId)) === j(['c_2', 'c_1']) && /        delete camp\.library;[^\n]*\n        delete camp\.uploads;/.test(require('./checkkit').part('netfog.js')), j(rep.camp.uploads.map(u => u.id)));
     const cs = src.replace(/\r\n/g, '\n'), cA = cs.indexOf('var _uploadPending = {}, _sheetFilesOk = false;'), cB = cs.indexOf('// U2: the host tells a character\'s owner'), dB = cs.indexOf('// A player throws an item from their sheet');
     const client = (charId, sheet, o) => {
         o = o || {}; const sent = [], answered = [], camp = { id: 'k', chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: {} }, c_2: { id: 'c_2', name: 'Bo', ownerId: 'u_b', npc: false, values: {} }, c_p: { id: 'c_p', name: 'P', ownerId: 'u_a', partial: true } } };
@@ -8596,7 +8594,7 @@ pendingChecks.push((async () => {
     const sfOk = (role, active, word, reader) => { const netS = { active, role, conns: [] }; if (reader) Sx.registerReader(stubR); try { return new Function('net', 'SC', 'getActiveCampaign', 'window', 'setTimeout', 'clearTimeout', cs.slice(cA, cB) + '\n_sheetFilesOk = ' + JSON.stringify(word) + ';\nreturn net.sheetFilesOk();')(netS, () => Sx, () => null, {}, () => 0, () => {}); } finally { Sx.dropReader('test'); } };
     const sfWays = [sfOk('host', true, false, false), sfOk('host', true, false, true), sfOk(null, false, true, true), sfOk('client', true, true, false), sfOk('client', true, false, true), sfOk('client', true, 'true', false), sfOk('client', false, true, false)];
     check('sheet files on the wire (net.sheetFilesOk run for real): the GM\'s machine reads a sheet file made elsewhere only while an outside reader is registered; a player\'s app takes the host\'s word from its snapshot, true only, and only while it is at the table; the host says it in the snapshot only while a reader is registered, beside looks, and a player\'s app keeps the word as true only',
-        j(sfWays) === j([false, true, true, true, false, false, false]) && /notepad: notepadMsg\(\) \}; if \(sheetFilesHere\(\)\) snap\.sheetFiles = true; var soSnap = [^\n]*?snap\.sheetOut = soSnap; gmSignSnap\(snap, conn\); \};/.test(cs) && /\n    sheetFilesOkSet\(msg\.sheetFiles === true\);/.test(cs) && /\nfunction sheetFilesOkSet\(v\) \{ _sheetFilesOk = v; \}/.test(cs)
+        j(sfWays) === j([false, true, true, true, false, false, false]) && /notepad: notepadMsg\(\) \}; if \(sheetFilesHere\(\)\) snap\.sheetFiles = true; var soSnap = [^\n]*?snap\.sheetOut = soSnap; gmSignSnap\(snap, conn\); \};/.test(cs) && /\n    sheetFilesOkSet\(msg\.sheetFiles === true\);/.test(require('./checkkit').part('netfog.js')) && /\nfunction sheetFilesOkSet\(v\) \{ _sheetFilesOk = v; \}/.test(cs)
         && /function sheetFilesHere\(\) \{ var S = SC\(\), cR = getActiveCampaign\(\); return !!\(S && typeof S\.readers === 'function' && S\.readers\(cR && cR\.system\)\.length > 0\); \}/.test(cs), j(sfWays));
 })());
 // Onboarding F1a: the waiting token — the client's cleaner, and the host's section run for real with the real systemcore (one per player per
@@ -8672,8 +8670,8 @@ pendingChecks.push((async () => {
     check('F1a review fixes: a waiting token placed after a give away stands beside the token they lost; a ban takes it at once even inside the grace (the timer stopped); turning waiting tokens off takes an away player\'s too; an undo that gives a token back settles it quietly (the undo saves and sends)',
         atNear.x === 700 && atNear.y === 800 && j(nearP) === j(['m1']) && banned && j(offMaps) === j(['m1', 'm2']) && offGone && undoOk, j([atNear, banned, offMaps, undoMaps, G.wb('m1')]));
     check('F1a review fixes (the hooks): a waiting token\'s map copy goes through the walls rule like a move before it takes x/y; the resolver passes the give-away spot and redraws a map a waiting token left; the GM\'s pending edit is flushed first; the Players panel\'s ban drops it; the Host panel box is the host\'s alone',
-        /if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{[\s\S]{0,1400}?\n\s*if \(lw\.waiting\) \{ if \(lw\.x !== w\.x/.test(src) && /var wMaps = settleWaiting\(camp, pid, map, src\.op, landRoomId, opts\.near/.test(src) && /wMaps\.indexOf\(myActive\.activeItemId\) >= 0\)\) render\(\);/.test(src)
-        && /function waitingChanged\(camp, maps\) \{\n\s*if \(!maps \|\| !maps\.length\) return;\n\s*if \(window\.wpHistFlush\) window\.wpHistFlush\(\);/.test(src.replace(/\r\n/g, '\n')) && /if \(key\) net\.kickPlayer\(key\);\n\s*dropWaitingFor\(pid\);/.test(src.replace(/\r\n/g, '\n')) && /if \(net\.active && net\.role !== 'host'\) \{ refreshNewPlayersBox\(\); return; \}/.test(src));
+        /if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{[\s\S]{0,1400}?\n\s*if \(lw\.waiting\) \{ if \(lw\.x !== w\.x/.test(require('./checkkit').part('netfog.js')) && /var wMaps = settleWaiting\(camp, pid, map, src\.op, landRoomId, opts\.near/.test(src) && /wMaps\.indexOf\(myActive\.activeItemId\) >= 0\)\) render\(\);/.test(src)
+        && /function waitingChanged\(camp, maps\) \{\n\s*if \(!maps \|\| !maps\.length\) return;\n\s*if \(window\.wpHistFlush\) window\.wpHistFlush\(\);/.test(src.replace(/\r\n/g, '\n')) && /if \(key\) net\.kickPlayer\(key\);\n\s*dropWaitingFor\(pid\);/.test(src.replace(/\r\n/g, '\n')) && /if \(net\.active && net\.role !== 'host'\) \{ refreshNewPlayersBox\(\); return; \}/.test(require('./checkkit').part('netfog.js')));
     // F1b review: the waiting token wears the roster face (kept for the GM while its player is away), cleaned on a player's copy; the client converges
     const Fw = mkW({ roster: { pA: { id: 'u_a', name: 'Ana', location: 'm1', face: 'pic:orc' } } }); Fw.api.placeWaiting(Fw.camp, 'u_a', Fw.camp.items.m1, null);
     const wf1 = (Fw.wb('m1')[0] || {}).face; Fw.net.roster.pA.face = '\u{1F409}'; const redress = Fw.api.placeWaiting(Fw.camp, 'u_a', Fw.camp.items.m1, null), wf2 = (Fw.wb('m1')[0] || {}).face;
@@ -8715,7 +8713,7 @@ pendingChecks.push((async () => {
         /var wMaps = settleWaiting\(camp, pid, map, src\.op, landRoomId, /.test(src) && /var spot = spawnSpot\(map, landRoomId, near, nw\.w \|\| 60, nw\.h \|\| 52, waitHere \? waitHere\.w\.id : null\);/.test(src)
         && /if \(p\) startWaitGrace\(p\.id\);/.test(src) && /if \(_waitGrace\[prof\.id\]\) \{ clearTimeout\(_waitGrace\[prof\.id\]\); delete _waitGrace\[prof\.id\]; \}/.test(src)
         && /if \(p\) dropWaitingFor\(p\.id\);/.test(src) && /endWaiting\(wasHost\);/.test(src)
-        && /if \(w\.hidden \|\| !\(w\.isChar \|\| w\.waiting\) \|\|/.test(src) && /if \(lw\.waiting\) \{ if \(lw\.x !== w\.x \|\| lw\.y !== w\.y\) \{ lw\.x = w\.x; lw\.y = w\.y; changed = true; \} return; \}/.test(src));
+        && /if \(w\.hidden \|\| !\(w\.isChar \|\| w\.waiting\) \|\|/.test(src) && /if \(lw\.waiting\) \{ if \(lw\.x !== w\.x \|\| lw\.y !== w\.y\) \{ lw\.x = w\.x; lw\.y = w\.y; changed = true; \} return; \}/.test(require('./checkkit').part('netfog.js')));
 })());
 // Onboarding F1b: faces — the rule (cleanFace), how a face is drawn (faceView), the roster both ways, hello, setProfile and my-look (run for real)
 {
@@ -8822,7 +8820,7 @@ pendingChecks.push((async () => {
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const lineOf = k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); };
+    const lineOf = (k, file) => { const t = typeof file === 'string' ? require('./checkkit').part(file) : src, i = t.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return t.slice(i, t.indexOf('\n', i)); };   // file: a part of net.js, read by its own name
     const cleanCharName = new Function(lineOf('function cleanCharName(') + '\nreturn cleanCharName;')();
     const sysK = Sx.cleanSystem({ v: 1, name: 'K', rolls: [], fields: [{ id: 'f_st', key: 'ST', label: 'ST', kind: 'number', vis: 'all', edit: 'gm' }] }, { F: Fx, gmView: true });
     const mkSrc = between('// [netcheck:charmake-start]', '// [netcheck:charmake-end]', 'charmake'), nmSrc = between('// [netcheck:charname-start]', '// [netcheck:charname-end]', 'charname'), dnSrc = between('// [netcheck:chardone-start]', '// [netcheck:chardone-end]', 'chardone');
@@ -8974,13 +8972,13 @@ pendingChecks.push((async () => {
     check('F3b Forget: the confirm says the character they are still making goes too; on yes it goes (from them alone), their finished ones and another player\'s stay; Cancel keeps it',
         /The character they are still making goes too\./.test(fgY.asked[0]) && j(fgY.gone) === j([['c_m', 'u_a']]) && j(fgY.chars) === j(['c_k', 'c_o']) && j(fgN.chars) === j(['c_m', 'c_k', 'c_o']) && fgN.gone.length === 0, j([fgY, fgN]));
     // the rules for making (camp.newPlayers create / fromFile): kept by the GM's waiting-token box, carried on the wire only where they differ, taken by a player
-    const snpSrc = (() => { const i = src.indexOf('function setNewPlayers('); return src.slice(i, src.indexOf('\n}\n', i) + 2); })();
-    const rnpSrc = (() => { const i = src.indexOf('function refreshNewPlayersBox('); return src.slice(i, src.indexOf('\n}\n', i) + 2); })().replace(/\r\n/g, '\n');
+    const snpSrc = (() => { const p = require('./checkkit').part('netfog.js'), i = p.indexOf('function setNewPlayers('); return p.slice(i, p.indexOf('\n}\n', i) + 2); })();   // in netfog.js, a part of net.js
+    const rnpSrc = (() => { const p = require('./checkkit').part('netfog.js'), i = p.indexOf('function refreshNewPlayersBox('); return p.slice(i, p.indexOf('\n}\n', i) + 2); })().replace(/\r\n/g, '\n');   // in netfog.js, a part of net.js
     const tickOf = (np, o) => { o = o || {}; const els = { netWaitingSelect: { value: '' }, netWaitingSight: { checked: false }, netMakeSelect: { value: '' }, netMakeFile: { checked: null, disabled: null } }; const camp = { id: 'k' }; if (np) camp.newPlayers = np;
         new Function('net', 'ui', 'SC', 'getActiveCampaign', rnpSrc + '\nreturn refreshNewPlayersBox;')({ active: !!o.client, role: o.client ? 'client' : 'host' }, id => els[id] || null, () => Sx, () => camp)(); return els.netMakeFile; };
     check('Onboarding F4 the "may start it from a file" tick shows the table\'s rule (on unless it is off), is disabled where making is off, and is read-only at someone else\'s table',
         tickOf(null).checked === true && tickOf(null).disabled === false && tickOf({ fromFile: false }).checked === false && tickOf({ create: 'off' }).disabled === true && tickOf({ create: 'invite' }).disabled === false && tickOf(null, { client: true }).disabled === true);
-    const hMF = src.slice(src.indexOf("var _makeFile = ui('netMakeFile');"), src.indexOf('\nvar _makeSel')), gotMF = []; let lMF = null;
+    const hMF = (p => p.slice(p.indexOf("var _makeFile = ui('netMakeFile');"), p.indexOf('\nvar _makeSel')))(require('./checkkit').part('netfog.js')), gotMF = []; let lMF = null;
     new Function('ui', 'setNewPlayers', 'toast', hMF)(id => id === 'netMakeFile' ? { addEventListener: (ev, f) => { if (ev === 'change') lMF = f; } } : null, p => gotMF.push(p), () => {});
     if (lMF) { lMF.call({ checked: false }); lMF.call({ checked: true }); }
     check('Onboarding F4 the tick saves what it shows: unticked, players may not start from a file; ticked, they may', j(gotMF) === j([{ fromFile: false }, { fromFile: true }]), j(gotMF));
@@ -9661,7 +9659,7 @@ pendingChecks.push((async () => {
         /\} else if \(\((?:msg\.type === '[a-z-]+' \|\| )+msg\.type === 'tok-light-ans'\) && net\.role === 'client'\) \{[^\n]*\n\s*\/\/ \[netcheck:charmakeans-start\]/.test(src));
 
     // (d) no other door in: the patch gate, the wire copy
-    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+    const patchSrc = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), cleanersSrc = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const stroke = (w, pid) => (w && w.type === 'path' && w.ownerId === pid && Array.isArray(w.pts)) ? { id: w.id, type: 'path', byPlayer: true, ownerId: pid, pts: w.pts, x: w.x || 0, y: w.y || 0 } : null;
     const runPatch = (camps, msg) => { try { return new Function('state', 'window', 'playerStroke', 'msg', 'prof', cleanersSrc + ownKeySrc + patchSrc + '\nreturn applyClientItemFiltered(msg, prof);')({ appState: { campaigns: camps } }, { wpVtt: { campaignOn: () => true }, wpFogCore: FCx, wpSystemCore: Sx }, stroke, msg, { id: 'u_p' }); } catch (e) { return 'threw: ' + e.message; } };
     const liveP = () => ({ c1: { id: 'c1', system: sysOf(), items: { m1: { type: 'map', whiteboard: [
@@ -9712,13 +9710,13 @@ pendingChecks.push((async () => {
     if (fogA < 0 || fogB < fogA) throw new Error('netcheck: the vision half of fog.js not found');
     const fogSrc = fogT.slice(fogA, fogB);
     const whole = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
-    const flS = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit'), smS = between('// [netcheck:sensesmoved-start]', '// [netcheck:sensesmoved-end]', 'sensesmoved');
+    const flS = between('// [netcheck:foglit-start]', '// [netcheck:foglit-end]', 'foglit', 'netfog.js'), smS = between('// [netcheck:sensesmoved-start]', '// [netcheck:sensesmoved-end]', 'sensesmoved');
     const dlS = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta'), edS = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit'), fxS = between('// [netcheck:charfx-start]', '// [netcheck:charfx-end]', 'charfx');
     const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime', 'nettime.js'), cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), bpS = between('// [netcheck:bpos-start]', '// [netcheck:bpos-end]', 'bpos');
     const siS = siSrc();
-    const afS = fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', mfS = lineOf('function mapFogged('), svS = lineOf('var _saveSoon = null;') + '\n' + lineOf('function saveRemoteSoon()');
+    const afS = fnSrc('function anyFog(', '\n}\n', 'anyFog', 'netfog.js') + '\n}\n', mfS = lineOf('function mapFogged('), svS = lineOf('var _saveSoon = null;') + '\n' + lineOf('function saveRemoteSoon()');
     const nsS2 = between('// [netcheck:newplayerssync-start]', '// [netcheck:newplayerssync-end]', 'newplayerssync'), thS2 = between('// [netcheck:threats-start]', '// [netcheck:threats-end]', 'threats');
-    const posS2 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patS2 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch'), clS2 = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+    const posS2 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patS2 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), clS2 = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
     const netSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siS, flS, afS, mfS, whole('net.sendItem = function('), whole('net.broadcastItemFiltered = function('), whole('net.itemGone = function('), whole('net.kickPlayer = function('), smS, nsS2, cbS, ordersSrc, svS, dlS, ftS, bpS,
         'return { edit: function(msg, conn) {', edS, '}, fx: function(msg, conn) {', fxS, '}, threats: function(msg, conn) {', thS2, '}, sig: function() { return _sensesSig; }, pend: function() { return _sensesPend; }, at: function() { return _sensesAt; }, seed: sensesSeed, fire: sensesFire, forget: sensesForget, reset: sensesReset, pids: sensesPids,',
         'drop: sensesDrop, forgetMap: sensesForgetMap, keys: sensesKeys, banned: function() { return bannedIds; },',
@@ -9917,7 +9915,7 @@ pendingChecks.push((async () => {
         W.camp.chars.c_a.values.f_sight = 65; W.net.sensesMoved('c_a'); const moved = W.pendKeys().filter(k => k === 'u_a|mA');
         check('senses S0: the copy made for a joining player (the snapshot\'s own call of fogCopyFor) records what it was made by, so a first change that leaves their Sight where it was sends no map and one that moves it does; a copy made for nobody records nothing, and a map a player was never sent counts as moved',
             j(none0) === j({}) && j(cp.whiteboard.map(w => w.id)) === j(['tA']) && j(seeded) === j({ 'u_a|mA': '12' }) && j(noName) === j(seeded) && j(same) === j([[], ['u_a|mB', 'u_b|mA', 'u_b|mB']]) && j(moved) === j(['u_a|mA'])
-            && /it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);/.test(src) && /function fogCopyFor\(clean, camp, map, recipientId\) \{\n    sensesSeed\(recipientId, camp, map\);\n    var drop = fogDrop\(/.test(src), j([none0, seeded, noName, same, moved]));
+            && /it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);/.test(require('./checkkit').part('netfog.js')) && /function fogCopyFor\(clean, camp, map, recipientId\) \{\n    sensesSeed\(recipientId, camp, map\);\n    var drop = fogDrop\(/.test(require('./checkkit').part('netfog.js')), j([none0, seeded, noName, same, moved]));
         const G = mkW({ maps: ['mA', 'mB', 'mO'] });
         G.camp.chars.c_a.values.f_sight = 70; G.net.sendItem('k', 'mA'); const first = [G.items(G.a1), G.items(G.a2), G.items(G.b1), G.w1.sent.length]; G.net.syncCharDelta('c_a', { f_sight: 70 });
         const gKeys = G.pendKeys(); G.fire(500); const gOut = [G.items(G.a1), G.items(G.a2), G.items(G.b1)];
@@ -10374,7 +10372,7 @@ pendingChecks.push((async () => {
             /var pOut = \{ conn: conn \}, changed = applyClientItemFiltered\(msg, profile, pOut\);[^\n]*\n            if \(changed\) \{\n(?:                [^\n]*\n){3,6}                saveRemoteSoon\(\);\n                if \(window\.wpFog && window\.wpFog\.invalidateSeen\) window\.wpFog\.invalidateSeen\(msg\.itemId\);[^\n]*\n                net\.sendItem\(msg\.campId, msg\.itemId, null, pOut\.strokes \? null : conn\);[^\n]*\n            \}\n            if \(pOut\.whole\) net\.sendItem\(msg\.campId, msg\.itemId, conn, null, msg\.a\);[^\n]*\n            \} finally \{ if \(typeof ackTook === 'function'\) ackTook\(conn, msg\.a\); \}\n            \/\/ \[netcheck:itempatch-end\]\n        \} else \{\n            if \(!fromHost\(conn\)\) return;[^\n]*\n            applyItem\(msg\);/.test(src)
             && (srcC.match(/invalidateSeen\(/g) || []).length === 7 && j((srcC.match(calls) || []).sort()) === j(['invalidateSeen(id)', 'invalidateSeen(itemId)', 'invalidateSeen(map.id)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', 'invalidateSeen(msg.itemId)', ownMove]) && !/invalidateSeen\(\s*\)/.test(srcC)
             && count1(flS, /invalidateSeen\(map\.id\)/g) && count1(whole('net.broadcastItemFiltered = function('), /invalidateSeen\(itemId\)/g) && count1(smS, /invalidateSeen\(/g) && count1(smS, /invalidateSeen\(id\)/g) && count1(posS2, /invalidateSeen\(msg\.itemId\)/g) && posC.split(ownMove).length === 2 && count1(posS2, /invalidateSeen\(msg\.itemId,/g) && count1(thS2, /invalidateSeen\(msg\.itemId\)/g)
-            && (srcC.match(/seenKeyOf/g) || []).length === 5 && (posC.match(/seenKeyOf/g) || []).length === 3 && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove').replace(/\/\/[^\n]*/g, '').match(/seenKeyOf/g) || []).length === 2 && (srcC.match(/lightMoves/g) || []).length === 2 && (posC.match(/lightMoves/g) || []).length === 2
+            && (srcC.match(/seenKeyOf/g) || []).length === 5 && (posC.match(/seenKeyOf/g) || []).length === 3 && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove', 'netfog.js').replace(/\/\/[^\n]*/g, '').match(/seenKeyOf/g) || []).length === 2 && (srcC.match(/lightMoves/g) || []).length === 2 && (posC.match(/lightMoves/g) || []).length === 2
             && posC.split('\n').map(l => l.trim()).filter(l => l).join('\n').indexOf([
                 'if (window.wpHistFlush) window.wpHistFlush();',
                 'var skW = window.wpFog && window.wpFog.seenKeyOf ? window.wpFog.seenKeyOf(map, w) : null;',
@@ -10749,7 +10747,7 @@ pendingChecks.push((async () => {
 // map's copy comes out byte for byte as it did before
 {
     const [siNew, wwi] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({});
-    const wireNumF = new Function((src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\nreturn wireNum;')();
+    const wireNumF = new Function((require('./checkkit').part('netfog.js').match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\nreturn wireNum;')();
     // sanitizeItem's rule written out a second time, to compare against (as it stood before fold M2, a35b807, with the one change since: a
     // hidden piece is left out whole where it used to be a position-only box)
     const siOld = (function(window, wireNum) {
@@ -10903,7 +10901,7 @@ pendingChecks.push((async () => {
 function mkFogClient(FCx, o) {
     o = o || {};
     const lnM = k => { const i = src.indexOf(k); if (i < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, src.indexOf('\n', i)); };
-    const branch = between('// [netcheck:fogdiff-start]', '// [netcheck:fogdiff-end]', 'fogdiff'), apply = between('// [netcheck:fogdiffapply-start]', '// [netcheck:fogdiffapply-end]', 'fogdiffapply');
+    const branch = between('// [netcheck:fogdiff-start]', '// [netcheck:fogdiff-end]', 'fogdiff'), apply = between('// [netcheck:fogdiffapply-start]', '// [netcheck:fogdiffapply-end]', 'fogdiffapply', 'netfog.js');
     const rich = lnM('function escAttr(s) {') + '\n' + fnSrc('function sanitizeRichText(', '\n}\n', 'sanitizeRichText') + '\n}\n';
     const rec = { asked: [], renders: 0, redraws: 0, invalidated: 0, saves: 0, other: [] };
     const hostConn = { peer: 'h', open: true, send(m) { packCheck(m); rec.asked.push(JSON.parse(JSON.stringify(m))); } };
@@ -10961,7 +10959,7 @@ pendingChecks.push((async () => {
     pI.recv({ type: 'fogDiff', campId: 'k', itemId: 'mA', drop: ['orc'], add: [{ item: { id: 'orc2', type: 'image', isChar: true, x: 5, y: 5 }, after: 'me1' }], lit: [{ c: 2, r: 2, t: 2 }], capped: false });
     check('fold M3: a catch-up applies in place: the map object, its whiteboard array, meta, rooms and the player\'s own token object are the very ones they were; the drop and the add land where the host put them; nothing is saved and no patch goes back',
         pI.map('mA') === mI && mI.whiteboard === wbI && mI.meta === metaI && mI.rooms === roomsI && wbI[1] === meI && J(ids(mI)) === J(['wall', 'me1', 'orc2', 'bo'])
-        && pI.rec.saves === 0 && pI.rec.asked.length === 0 && !/save\(|onLocalSave|wpHist|sendItem|type: 'item'/.test(between('// [netcheck:fogdiffapply-start]', '// [netcheck:fogdiffapply-end]', 'fogdiffapply') + between('// [netcheck:fogdiff-start]', '// [netcheck:fogdiff-end]', 'fogdiff')),
+        && pI.rec.saves === 0 && pI.rec.asked.length === 0 && !/save\(|onLocalSave|wpHist|sendItem|type: 'item'/.test(between('// [netcheck:fogdiffapply-start]', '// [netcheck:fogdiffapply-end]', 'fogdiffapply', 'netfog.js') + between('// [netcheck:fogdiff-start]', '// [netcheck:fogdiff-end]', 'fogdiff')),
         J(ids(mI)));
 
     // (4) the player's own token: never dropped, never replaced, never added; one ask follows
@@ -11016,7 +11014,7 @@ pendingChecks.push((async () => {
     // (8) where it sits: a client branch (the host's branches still 25), and nothing sends the message yet
     check('fold M3: the catch-up is a client branch only (the host\'s branches are 31: none new but video-up of item 21, char-delete of 1.5.4, char-style of item 35, char-ask of 1.5.5, char-damage and trade of 1.5.6, and voice-up of voice chat, 1.5.9); the host builds it in one place only, its catch-up of a copy (fold M7) (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34; 1.6.0 B5, a deliberate change of this pin: hit-ask, a player asking which locations their target has, makes them 35; 1.6.0, a deliberate change of this pin: sheet-out, a player asking the host\'s reader for a file of their own character, makes them 36; 1.6.2, a deliberate change of this pin: show-ask, a player asking to put drawings on the map, makes them 37)',
         (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 45 /* 1.6.3 (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */ && /\} else if \(msg\.type === 'fogDiff' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:fogdiff-start\]/.test(src)
-        && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && (src.match(/type: 'fogDiff'/g) || []).length === 1 && /function fogCatchUp\([^]*?type: 'fogDiff'/.test(between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove')));
+        && (src.match(/msg\.type === 'fogDiff'/g) || []).length === 1 && require('./checkkit').familyCount('net.js', /type: 'fogDiff'/g) === 1 && /function fogCatchUp\([^]*?type: 'fogDiff'/.test(between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove', 'netfog.js')));
 })());
 // fold M4: an open drag is judged where it began. The real pos gate, patch path, relay, sends, kick, senses and the fogmove slice are compiled as
 // ONE module over the real fog.js, so they share the host's open drags; timers are fakes, the clock is the world's, every send packs for the wire
@@ -11028,10 +11026,10 @@ pendingChecks.push((async () => {
     const realAllow = clock => new Function('window', 'Date', lineOf('var _lim = Object.create(null);') + '\n' + lineOf('function allow(') + '\nreturn allow;')({ wpDiceCore: Dx4 }, { now: clock });   // fold M9: the host's real limiter, on the world's clock
     const buildFog4 = () => new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells, fogMarksFor: fogMarksFor, fogOffFor: fogOffFor };');
     const whole4 = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
-    const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
-    const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siSrc(), bw('drawshow'), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('),
-        fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n', whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.itemGone = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
-        src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch'), bw('fogdiffapply'), bw('fogmove'), ordersSrc,
+    const bw = (n, file) => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n, typeof file === 'string' ? file : undefined);   // file: a part of net.js, read by its own name
+    const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {};', siSrc(), bw('drawshow', 'netfog.js'), bw('foglit', 'netfog.js'), fnSrc('function anyFog(', '\n}\n', 'anyFog', 'netfog.js') + '\n}\n', lineOf('function mapFogged('),
+        fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\n', fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n', whole4('net.sendItem = function('), whole4('net.broadcastItemFiltered = function('), whole4('net.itemGone = function('), whole4('net.kickPlayer = function('), bw('sensesmoved'), bw('combats'), lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'),
+        src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), ownKeySrc, bw('pos'), bw('patch', 'netfog.js'), bw('fogdiffapply', 'netfog.js'), bw('fogmove', 'netfog.js'), ordersSrc,
         'return { pos: handlePos, patch: applyClientItemFiltered, landed: fogLanded, sweep: fogDragSweep, open: openDrag, opens: openDrags, end: dragEnd, live: fogOwnLive, clean: sanitizeItem, combats: broadcastCombats, targets: broadcastTargets, drags: function() { return _dragFrom; }, stale: FOG_DRAG_STALE_MS,',
         'held: function() { return _fogHeld; }, seedSnap: fogSeedSnapshot, forgetAll: fogForgetAll, hash: quickHash, copy: fogCopyFor, hid: function() { return _hidPend; },',
         'acks: function() { return _acks; }, ackTook: ackTook, ackOf: ackOf, withAck: withAck, ackSend: ackSend, forgetConn: fogForgetConn,',
@@ -11046,8 +11044,8 @@ pendingChecks.push((async () => {
     const sysM = Sx.cleanSystem({ v: 1, name: 'S', rolls: [], fields: [{ id: 'f_sight', key: 'Sight', label: 'Sight', kind: 'number', def: 60, edit: 'owner', vis: 'all' }], combat: { postures: ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'].map(id => ({ id, name: id })) } }, { F: Fx, gmView: true });   // 1.6.0: postures of its own, none being a default
     // mA: a dark 5 ft map; Ana's tA at (2,2) sees 12 cells, the orc at (15,2) is 13 away (seen from (5,2)); Bo's tB at (2,4) sees tA, never the orc.
     // mB: tA2 and orc2 the same way. mC: a facing cone of 90 degrees with tC and a bat 4 cells off. mO: Bo's other map
-    const quickHash4 = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\nreturn quickHash;')();
-    const realDelta = ls => new Function('_lastSent', 'quickHash', lineOf('function uniqueIds(') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta') + '\nreturn itemDelta;')(ls, quickHash4);   // hidden pieces: a world sending an unfogged map's deltas for real (o.realDelta)
+    const quickHash4 = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\nreturn quickHash;')();
+    const realDelta = ls => new Function('_lastSent', 'quickHash', lineOf('function uniqueIds(', 'netfog.js') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js') + '\nreturn itemDelta;')(ls, quickHash4);   // hidden pieces: a world sending an unfogged map's deltas for real (o.realDelta)
     const mk4 = o => {
         o = o || {};
         const ev = [], timers = [], feats = { fog: true, lighting: true, sheets: true, turning: true };
@@ -11293,7 +11291,7 @@ pendingChecks.push((async () => {
     check('fold M5: the join snapshot records every fogged map of the hosted campaign it carried (never an unfogged one, never a map the host does not hold); the record is forgotten for a map that goes (for everyone) or is sent to the table unfogged, for every connection of a removed player (another\'s kept), and at a new table; a connection\'s id or a map\'s id holding a bar never collide',
         snap3[0] && snap3[1] === false && snap3[2] === null && J(snap3[3]) === J(['pB']) && J(gone4) === J([true, null, null, null, null, true, null, null]) && J(kick5) === J([null, null, true]) && all6 === 0 && J(bar8) === J([true, null, null]),
         J([snap3, gone4, kick5, all6, bar8]));
-    const fmSrc5 = bw('fogmove'), otherSrc5 = src.slice(0, src.indexOf('// [netcheck:fogmove-start]')) + src.slice(src.indexOf('// [netcheck:fogmove-end]'));
+    const fmSrc5 = bw('fogmove', 'netfog.js'), otherSrc5 = src.slice(0, src.indexOf('// [netcheck:fogmove-start]')) + src.slice(src.indexOf('// [netcheck:fogmove-end]'));
     const scripts5 = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f) && f !== 'net.js').filter(f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').indexOf('_fogHeld') >= 0);
     check('fold M5 (source): the record is named only inside its slice and in no other script; each whole send seeds after its try (a send that throws returns first); the snapshot seeds only once it went out, after its try; the close handler, kickPlayer, itemGone, both unfogged sends and a new table forget',
         fmSrc5.indexOf('var _fogHeld') >= 0 && otherSrc5.indexOf('_fogHeld') < 0 && scripts5.length === 0
@@ -11371,9 +11369,9 @@ pendingChecks.push((async () => {
     // action of theirs landed reaching them after they acted, then the host handling what they sent. 'old' strips every number the host sends
     // (a host without this): the step-back shows, then is gone with the numbers
     {
-        const pageSrc = [lineOf('function own(o, k) {'), lineOf('function validKey(k) {'), lineOf('function campOf(id) {'), bw('actlog'),
-            fnSrc('function activeItemPatch(', '\n}\n', 'activeItemPatch') + '\n}\n', fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n',
-            fnSrc('function handlePos(msg, conn) {', '\n}\n', 'handlePos') + '\n}\n', fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', 'var _lastPatchHash = {}, _posLast = 0;',
+        const pageSrc = [lineOf('function own(o, k) {'), lineOf('function validKey(k) {'), lineOf('function campOf(id) {'), bw('actlog', 'netfog.js'),
+            fnSrc('function activeItemPatch(', '\n}\n', 'activeItemPatch', 'netfog.js') + '\n}\n', fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem', 'netfog.js') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta', 'netfog.js') + '\n}\n',
+            fnSrc('function handlePos(msg, conn) {', '\n}\n', 'handlePos') + '\n}\n', fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\n', 'var _lastPatchHash = {}, _posLast = 0;',
             whole4('net.streamPos = function('), whole4('net.onLocalSave = function('), whole4('net.sendThreats = function('),
             'return { applyItem: applyItem, applyItemDelta: applyItemDelta, pos: handlePos, rec: function() { return _act; }, forget: actForget };'].join('\n');
         const PNAMES = ['net', 'state', 'window', 'getActiveCampaign', 'getActiveMap', 'cleanHostMap', 'render', 'updateSidebarNav', 'broadcast', 'applyPosToDom', 'sendFailed', 'SC', 'broadcastPos', 'scheduleStageFollow', 'checkRoomHandouts'];
@@ -11438,7 +11436,7 @@ pendingChecks.push((async () => {
         const overTop = (() => { const W = mk4(); const pg = mkPage(W); pg.drop('tA', 250, 100); gmSave(W); const m = W.a1.sent.filter(x => x.type === 'item').pop(); W.a1.sent.length = 0; m.ack = 2 ** 40; pg.feed(m); return Object.keys(pg.P.rec().pend.mA.t).length; })();
         check('14c K2: a delta that crosses her drop gets it written back; a drawing the host has taken is forgotten from the record, so the GM\'s later erase shows; the GM moving her token forgets her drop\'s record at once, so a copy made meanwhile is taken as it comes; a live move carries no number and records nothing; a number past the top leaves the record as it was',
             deltaCross === 250 && J(gmErase) === J([true, false]) && gmFirst === 400 && J(liveNone) === J(['pos', false, 0]) && overTop === 1, J([deltaCross, gmErase, gmFirst, liveNone, overTop]));
-        const actSrc = bw('actlog').replace(/\/\/[^\n]*/g, '');
+        const actSrc = bw('actlog', 'netfog.js').replace(/\/\/[^\n]*/g, '');
         check('14c K2: an unfogged map\'s copy for her is written back as a fogged one is (and not by a host that says nothing); a number that is no whole number from 0 to 2^31-1 (or none) writes nothing back; the highest number writes nothing back and forgets the record; the record holds at most sixteen maps, the oldest going first; forgetting it keeps the count going up; nothing in the record reaches markup, and the snapshot and leaving forget it',
             openCross(false) === 250 && openCross(true) === 100 && J(bad) === J([100, 100, 100, 100, 100, 100, 100, 100, 100, 100]) && J(big) === J([100, 0]) && J(cap) === J([16, 'm4', 16]) && J(forgot) === J([1, 2, 1])
             && !/innerHTML|insertAdjacentHTML|outerHTML|setAttribute/.test(actSrc) && /net\.syncedPeer = conn\.peer;[^\n]*\n\s*if \(typeof actForget === 'function'\) actForget\(\);/.test(src) && /var wasHost = net\.active && net\.role === 'host';\n\s*if \(typeof actForget === 'function'\) actForget\(\);/.test(src),
@@ -11551,7 +11549,7 @@ pendingChecks.push((async () => {
             W.api.forgetConn('pA2'); const r4 = J(W.api.hid()); W.net.itemGone('k', 'mA'); const r5 = J(W.api.hid()); W.net.sendItem('k', 'mA'); W.api.forgetAll(); const r6 = J(W.api.hid()); return { r1, r2, r3, r4, r5, r6 }; })();
         check('hidden pieces (the record): a send of a map notes each hidden drawing of a player\'s for every connection of theirs — hidden as true or as 1, never for another player\'s connections nor a peer not admitted — whole or filtered alike, another map adding nothing; a closed connection, the map gone and a new table forget it; the join notes every map of the hosted campaign after the snapshot went, and the record lives in the host\'s memory alone (never saved, never sent)',
             rc.r1 === J({ pA1: { mA: { s1: 1 } }, pA2: { mA: { s1: 1 } }, pB: { mA: { s2: 1 } } }) && rc.r2 === rc.r1 && rc.r3 === rc.r1 && rc.r4 === J({ pA1: { mA: { s1: 1 } }, pB: { mA: { s2: 1 } } }) && rc.r5 === J({ pA1: {}, pB: {} }) && rc.r6 === '{}'
-            && /if \(snapOk && typeof hidNoteAll === 'function'\) hidNoteAll\(\);/.test(src) && (src.match(/hidNote\(it\)/g) || []).length === 2 && !/_hidPend/.test(src.slice(src.indexOf('function sanitizeAppState('), src.indexOf('function fogNow()'))), J(rc));
+            && /if \(snapOk && typeof hidNoteAll === 'function'\) hidNoteAll\(\);/.test(src) && (src.match(/hidNote\(it\)/g) || []).length === 2 && !/_hidPend/.test((sa => sa.slice(sa.indexOf('function sanitizeAppState('), sa.indexOf('function fogNow()')))(require('./checkkit').part('netfog.js'))), J(rc));   // sanitizeAppState stands in netfog.js
     }
     // fold M7: the landing. A copy caught up in place after a move lands; every connection's copy then equals a fresh copy judged for it
     const fresh7 = (W, pid, mapId) => W.api.landed(null, () => { const m = W.camp.items[mapId || 'mA'], out = W.api.copy(W.api.clean(m), W.camp, m, pid); return { ids: out.whiteboard.map(w => w.id), fogLit: FCx.cleanFogLit(out.fogLit) || null, cap: out.lightsCapped === true }; });
@@ -11687,7 +11685,7 @@ pendingChecks.push((async () => {
     check('fold M7: over a seeded walk of 200 steps on two maps (drops, open drags, a lock put back by the sweep, GM saves, the GM\'s gesture, a hidden creature, a waiting token), after every fire every connection\'s copy equals a fresh copy judged for it, in the same order, with the same lit cells and cap, and no player page asked for a whole map',
         bad === '' && walk.length > 30 && ['mA', 'mB'].every(id => agree(CW, null, id)), bad || J(walk.length));
 
-    const fm7 = bw('fogmove'), pos7 = bw('pos'), pat7 = bw('patch'), rest7 = src.slice(0, src.indexOf('// [netcheck:fogmove-start]')) + src.slice(src.indexOf('// [netcheck:fogmove-end]'));
+    const fm7 = bw('fogmove', 'netfog.js'), pos7 = bw('pos'), pat7 = bw('patch', 'netfog.js'), rest7 = src.slice(0, src.indexOf('// [netcheck:fogmove-start]')) + src.slice(src.indexOf('// [netcheck:fogmove-end]'));
     check('fold M7 (source): the fire\'s one timer lives in its slice, and its stores nowhere else; the pos gate reads where the token sees from once after the seat, records where the drag began at its first accepted move and arms after the save is asked for and before a portal is taken; the map copy reads each own token\'s key before anything lands (at the drag\'s start while one is open) and arms after the erased drawings go; nothing else arms',
         (fm7.match(/setTimeout\(/g) || []).length === 1 && !/_fogPend|_fogCost|_fogHeld/.test(rest7)
         && /if \(msg\.final && window\.wpSeatDrop && window\.wpSeatDrop\(w, map, w\.gridFit === true\)\) \{[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*var skN = skW === null \? null : window\.wpFog\.seenKeyOf\(map, w\), mvW = skW === null \|\| skN !== skW;/.test(pos7)
@@ -11712,7 +11710,7 @@ pendingChecks.push((async () => {
         const smRun = (net, msg, peer) => { new Function('net', 'msg', 'conn', "'use strict';\n" + smSrc)(net, msg, { peer: peer }); return net.tableSnapOn; };
         const smGot = [smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: false }, { on: true }, 'h'), smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: true }, { on: 'yes' }, 'h'), smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: false }, { on: true }, 'other'), smRun({ foreign: false, syncedPeer: 'h', tableSnapOn: false }, { on: true }, 'h'), smRun({ foreign: true, syncedPeer: 'h', tableSnapOn: true }, {}, 'h')];
         check('snap rule: a player\'s app takes the table\'s Snap from the synced host only, after the snapshot, as true only; the snapshot carries it and the app takes it (true only); a new table starts with Snap as it stands; the host\'s pos gate seats a player\'s drop by wpSeatDrop (a fitted token forced)',
-            J(smGot) === J([true, false, false, false, false]) && /travelLocked: net\.travelLocked, snap: typeof window\.wpSnapOn === 'function' && window\.wpSnapOn\(\) === true, stance:/.test(src) && /setTravelLockLocal\(!!msg\.travelLocked\);\n\s*net\.tableSnapOn = msg\.snap === true;/.test(src)
+            J(smGot) === J([true, false, false, false, false]) && /travelLocked: net\.travelLocked, snap: typeof window\.wpSnapOn === 'function' && window\.wpSnapOn\(\) === true, stance:/.test(src) && /setTravelLockLocal\(!!msg\.travelLocked\);\n\s*net\.tableSnapOn = msg\.snap === true;/.test(require('./checkkit').part('netfog.js'))
             && /net\._lastSnapSent = typeof window\.wpSnapOn === 'function' && window\.wpSnapOn\(\) === true;/.test(src) && /\} else if \(msg\.type === 'snap' && net\.role === 'client'\) \{/.test(src) && !/msg\.type === 'snap' && net\.role === 'host'/.test(src)
             && /if \(msg\.final && window\.wpSeatDrop && window\.wpSeatDrop\(w, map, w\.gridFit === true\)\) \{ msg = Object\.assign\(\{\}, msg, \{ x: w\.x, y: w\.y \}\); \}/.test(src) && !/window\.wpSeatHex\(w, map\)\) \{ msg = /.test(src), J(smGot));
     }
@@ -11739,7 +11737,7 @@ pendingChecks.push((async () => {
             !/nullFx|e_voidarea/.test(nfSent) && !/nullFx|e_voidarea/.test(nfClone) && /zoneF/.test(nfSent) && !/zoneG/.test(nfSent) && nfOwn === 3, J([nfSent.length, nfOwn]));
         check('senses S7a (source): a hidden null area is left out of a player\'s copy whole and its live moves reach no one; the whole copy, the catch-up and the player\'s app carry and clean fogOff',
             /if \(w\.gmNoteFor \|\| w\.hidden\) return null;/.test(src) && /if \(w && \(w\.gmNoteFor \|\| w\.hidden\)\) return;/.test(src) && /delete w\.unsensed; delete w\.nulls; \}/.test(src)
-            && /if \(off\) out\.fogOff = off;/.test(src) && /if \(ofHash !== rec\.of\) msg\.off = ofNow;/.test(src) && /FCo\.cleanFogOff\(msg\.off, ownTokIdsOf\(map\)\)/.test(src) && /window\.wpFogCore\.cleanFogOff\(m\.fogOff, ownTokIdsOf\(m\)\)/.test(src));
+            && /if \(off\) out\.fogOff = off;/.test(require('./checkkit').part('netfog.js')) && /if \(ofHash !== rec\.of\) msg\.off = ofNow;/.test(require('./checkkit').part('netfog.js')) && /FCo\.cleanFogOff\(msg\.off, ownTokIdsOf\(map\)\)/.test(require('./checkkit').part('netfog.js')) && /window\.wpFogCore\.cleanFogOff\(m\.fogOff, ownTokIdsOf\(m\)\)/.test(src));
     }
     // senses S7b (host): smoke on the wire — a visible piece travels with its tick (every side must agree on what it hides), and a token walks through it
     {
@@ -11878,7 +11876,7 @@ pendingChecks.push((async () => {
         const afterLean = [!!Wq.tok('pLock') && Wq.tok('pLock').portalLock, !!Wq.tok('pOpen') && hasK(Wq.tok('pOpen'), 'portalLock'), !!Wq.tok('pHidTrap') && Wq.tok('pHidTrap').portalLock];
         check('portal lock (host, a player\'s map copy — the real patch path): nothing a copy says sets a portal\'s lock or clears it — the GM\'s locked portal sent back without its flag, or left out of the copy altogether, is locked still; the GM\'s open portal sent back locked stays open; her own token sent as a locked portal takes no lock and no destination; a new drawing of hers sent as a locked portal is taken as the drawing alone, and so is a plain drawing of hers she redraws as one (the redraw lands, the lock and the destination do not); and a drawing of hers the GM made a portal and locked stays one when she redraws it with the lock sent as false; the patch path and the drawing\'s whitelist never name the flag',
             J(afterFull) === J([true, false, false, false]) && !!drewP && !hasK(drewP, 'portalLock') && !hasK(drewP, 'targetMapId') && !hasK(drewP, 'nodeId') && !!redrewP && redrewP.portalLock === true && redrewP.targetMapId === 'mB' && J(redrewP.pts) === J([[0, 0], [5, 9]])
-            && !!plainP && J(plainP.pts) === J([[0, 0], [7, 7]]) && !hasK(plainP, 'portalLock') && !hasK(plainP, 'targetMapId') && J(afterLean) === J([true, false, true]) && !/portalLock/.test(bw('patch')) && !/portalLock/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')), J([afterFull, drewP, redrewP, plainP, afterLean]));
+            && !!plainP && J(plainP.pts) === J([[0, 0], [7, 7]]) && !hasK(plainP, 'portalLock') && !hasK(plainP, 'targetMapId') && J(afterLean) === J([true, false, true]) && !/portalLock/.test(bw('patch', 'netfog.js')) && !/portalLock/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js')), J([afterFull, drewP, redrewP, plainP, afterLean]));
     }
     // a piece's fog mark (1.5.4: Under fog, Always revealed) on the wire, in the same one-module world: host to player with a shown piece and only
     // as its two words; player to host nothing sets it and nothing clears it
@@ -11900,11 +11898,11 @@ pendingChecks.push((async () => {
             { id: 'fhDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 900, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [6, 6]], fogHand: 'hide' },   // her own drawing redrawn with a mark
             { id: 'wbnewF', type: 'path', ownerId: 'u_a', x: 0, y: 0, w: 10, h: 10, pts: [[0, 0], [5, 5]], fogHand: 'show', page: 'plan_x' }] } }, Wg.a1);   // a new drawing with one
         check('backlog 125 a pin (host, a player\'s map copy): nothing a player\'s copy says makes a piece a pin: the GM\'s piece sent back naming a page, her own token and her new drawing take no page key',
-            !hasK(Wg.tok('fPlain'), 'page') && !hasK(Wg.tok('tA'), 'page') && !!Wg.tok('wbnewF') && !hasK(Wg.tok('wbnewF'), 'page') && !/\.page\b/.test(bw('patch')), J([hasK(Wg.tok('fPlain'), 'page'), hasK(Wg.tok('tA'), 'page'), hasK(Wg.tok('wbnewF'), 'page')]));
+            !hasK(Wg.tok('fPlain'), 'page') && !hasK(Wg.tok('tA'), 'page') && !!Wg.tok('wbnewF') && !hasK(Wg.tok('wbnewF'), 'page') && !/\.page\b/.test(bw('patch', 'netfog.js')), J([hasK(Wg.tok('fPlain'), 'page'), hasK(Wg.tok('tA'), 'page'), hasK(Wg.tok('wbnewF'), 'page')]));
         const afterF = [Wg.tok('fHide').fogHand, Wg.tok('fShow').fogHand, hasK(Wg.tok('fPlain'), 'fogHand'), hasK(Wg.tok('tA'), 'fogHand'), !!Wg.tok('fhDraw') && J(Wg.tok('fhDraw').pts) === J([[0, 0], [6, 6]]), hasK(Wg.tok('fhDraw'), 'fogHand'), !!Wg.tok('wbnewF'), hasK(Wg.tok('wbnewF'), 'fogHand')];
         check('a piece\'s fog mark (host, the wire and a player\'s map copy — the real sends and patch path): a shown piece marked Under fog or Always revealed reaches each player with its mark, on a player\'s own copy and on the shared clone, so their own overlay reads what the host judges by; an unmarked one carries no key; a word that is no mark on the host\'s own map is sent as nothing (its own map untouched); a hidden one reaches no one. Nothing a player\'s copy says sets a mark, changes it or clears it: the GM\'s Under fog picture sent back without it keeps it, the Always revealed one sent back as Under fog stays as it was, a plain piece sent back marked takes none, and her own token, her redrawn drawing (the redraw itself lands) and a new drawing take none; the patch path and playerStroke never name the key',
             fk(fcA, 'fHide') === 'hide' && fk(fcB, 'fHide') === 'hide' && fk(cloneF, 'fHide') === 'hide' && fk(fcA, 'fShow') === 'show' && fk(cloneF, 'fShow') === 'show' && fk(fcA, 'fPlain') === 'none' && fk(fcA, 'fWord') === 'none' && fk(cloneF, 'fWord') === 'none' && !/fGone/.test(allF) && !/fGone/.test(J(cloneF)) && Wf.tok('fWord').fogHand === 'yes'
-            && J(afterF) === J(['hide', 'show', false, false, true, false, true, false]) && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes("    if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand;") && !/fogHand/.test(bw('patch')) && !/fogHand/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')),
+            && J(afterF) === J(['hide', 'show', false, false, true, false, true, false]) && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes("    if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand;") && !/fogHand/.test(bw('patch', 'netfog.js')) && !/fogHand/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js')),
             J([fk(fcA, 'fHide'), fk(cloneF, 'fHide'), fk(fcA, 'fShow'), fk(fcA, 'fPlain'), fk(fcA, 'fWord'), /fGone/.test(allF), afterF]));
     }
     // drawings to show (1.6.2) on the wire, in the same one-module world, with the real fogcore: host to player only as the cleaner keeps them; a player's NEW
@@ -11932,7 +11930,7 @@ pendingChecks.push((async () => {
             pen('wbNew3', { ownerId: 'u_a', toShow: true, showFor: 'always' })] } }, Wp.a1);
         const afterS = ['sGm', 'sPlain', 'sOther', 'tA', 'sMine', 'sOld', 'wbNew1', 'wbNew2', 'wbNew3'].map(id => sk({ whiteboard: Wp.camp.items.mA.whiteboard }, id));
         check('a drawing to show (host, a player\'s map copy, the real patch path): a new drawing of a player\'s is one whatever their copy says, so no patched app draws on the map without the GM\'s word, how long it stays only as a word of the list; the map it stands on is watched from then on; nothing else a copy says sets, changes or clears the mark: the GM\'s drawing sent back with none keeps it, a plain one sent back marked takes none, a redraw of their own drawing to show keeps it and a redraw of a map drawing of theirs takes none, and the redraws land',
-            J(afterS) === J(['true:scene', '0:0', 'true:0', '0:0', 'true:fade', '0:0', 'true:0', 'true:scene', 'true:0']) && J(Wp.tok('sMine').pts) === J([[0, 0], [6, 6]]) && J(Wp.tok('sOld').pts) === J([[0, 0], [7, 7]]) && J([...new Set(touched)]) === J(['mA']) && !/toShow|showFor/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')), J([afterS, touched]));
+            J(afterS) === J(['true:scene', '0:0', 'true:0', '0:0', 'true:fade', '0:0', 'true:0', 'true:scene', 'true:0']) && J(Wp.tok('sMine').pts) === J([[0, 0], [6, 6]]) && J(Wp.tok('sOld').pts) === J([[0, 0], [7, 7]]) && J([...new Set(touched)]) === J(['mA']) && !/toShow|showFor/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js')), J([afterS, touched]));
         const Wg2 = sW(); Wg2.net.showDropped('mA', ['wbGone', 7]); const has0 = [Wg2.api.showGoneHas('mA', 'wbGone'), Wg2.api.showGoneHas('mB', 'wbGone'), Wg2.api.showGoneHas('mA', 'wbOther')];
         Wg2.api.item({ type: 'item', campId: 'k', itemId: 'mA', a: 4, item: { id: 'mA', type: 'map', whiteboard: [Object.assign({}, Wg2.tok('tA')), pen('wbGone', { ownerId: 'u_a', byPlayer: true, toShow: true })] } }, Wg2.a1);
         const refused = !Wg2.tok('wbGone'), whole = Wg2.last(Wg2.a1), realNow = Date.now; Date.now = () => realNow() + 11000;
@@ -11951,9 +11949,9 @@ pendingChecks.push((async () => {
         const noIds = [Wc.net.showAsk('mA', []), Wc.net.showAsk('mA', 'x'), Wc.net.showAsk(7, ['s1'])]; Wc.a1.open = false; const shut = Wc.net.showAsk('mA', ['s1']); Wc.a1.open = true; Wc.net.foreign = false; const own1 = Wc.net.showAsk('mA', ['s1']); Wc.net.role = 'host'; const hostK = Wc.net.showKnown();
         check('the ask (a player\'s app, net.showAsk and the host\'s word): sent only once its host\'s snapshot said drawShow, and only as true; the map and the ids, and nothing else; never with no ids, a connection that is down, or a campaign of its own; the machine that hosts always knows it',
             before === false && k0 === false && k1 === true && sent1 === true && odd.every(v => v === false) && J(sends()) === J([{ type: 'show-ask', campId: 'k', itemId: 'mA', ids: ['s1', 's2'] }]) && noIds.every(v => v === false) && shut === false && own1 === false && hostK === true, J([sends(), noIds, shut, own1]));
-        const showA = src.indexOf('function strokeShow('), kept = src.includes('hits: true, paused: net.paused, drawShow: true, pausedSelf:') && /\n    if \(typeof hitsKnow === 'function'\) hitsKnow\(msg\.hits\);[^\n]*\n    if \(typeof showKnows === 'function'\) showKnows\(msg\.drawShow\);/.test(src);
+        const showA = require('./checkkit').part('netfog.js').indexOf('function strokeShow('), kept = src.includes('hits: true, paused: net.paused, drawShow: true, pausedSelf:') && /\n    if \(typeof hitsKnow === 'function'\) hitsKnow\(msg\.hits\);[^\n]*\n    if \(typeof showKnows === 'function'\) showKnows\(msg\.drawShow\);/.test(require('./checkkit').part('netfog.js'));
         check('a drawing to show (source): the snapshot says drawShow and applySnapshot takes it through typeof after the host\'s other words; the rule that sends one piece and the player\'s app ask one cleaner, with none at hand none goes; the host stamps in one place, after playerStroke, and the last fight on a map asks the drawings that stay until then',
-            showA > 0 && kept && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes("if (FCsw && typeof FCsw.keepShow === 'function') FCsw.keepShow(w); else { delete w.toShow; delete w.showFor; }") && src.includes("if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; }") && (src.match(/strokeShow\(stroke, w, msg\.itemId\)/g) || []).length === 1 && bw('patch').indexOf('strokeShow(stroke') > bw('patch').indexOf('var stroke = playerStroke(w, profile.id);')
+            showA > 0 && kept && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes("if (FCsw && typeof FCsw.keepShow === 'function') FCsw.keepShow(w); else { delete w.toShow; delete w.showFor; }") && src.includes("if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; }") && require('./checkkit').familyCount('net.js', /strokeShow\(stroke, w, msg\.itemId\)/g) === 1 && bw('patch', 'netfog.js').indexOf('strokeShow(stroke') > bw('patch', 'netfog.js').indexOf('var stroke = playerStroke(w, profile.id);')
             && fnSrc('function combatOver(', '\n}\n', 'combatOver').includes('window.wpDrawShow.sceneOver(mapId);'));
     }
     // a barrier's Stops blasts tick (the owner, 2026-10-03: "A tick per barrier") on the wire, in the same one-module world: host to player with a
@@ -11977,7 +11975,7 @@ pendingChecks.push((async () => {
         const afterB = [Wc.tok('bStop').blastStop, hasK(Wc.tok('bPlain'), 'blastStop'), hasK(Wc.tok('tA'), 'blastStop'), hasK(Wc.tok('tA'), 'barrier'), !!Wc.tok('bsDraw') && J(Wc.tok('bsDraw').pts) === J([[0, 0], [6, 6]]), hasK(Wc.tok('bsDraw'), 'blastStop'), hasK(Wc.tok('bsDraw'), 'barrier'), !!Wc.tok('wbnewB'), hasK(Wc.tok('wbnewB'), 'blastStop'), hasK(Wc.tok('wbnewB'), 'barrier')];
         check('a barrier\'s Stops blasts tick (host, the wire and a player\'s map copy — the real sends and patch path): a shown ticked barrier reaches each player with its tick, on a player\'s own copy and on the shared clone; an unticked one carries no key; a word on the host\'s own map is sent as nothing (its own map untouched); a hidden one reaches no one. Nothing a player\'s copy says sets the tick or clears it: the GM\'s ticked barrier sent back without it keeps it, the plain one sent back ticked takes none, her own token, her redrawn drawing (the redraw itself lands) and a new drawing take neither the tick nor the barrier; the patch path and playerStroke never name the key',
             bk(bcA, 'bStop') === true && bk(bcB, 'bStop') === true && bk(cloneB, 'bStop') === true && bk(bcA, 'bPlain') === 'none' && bk(bcA, 'bWord') === 'none' && bk(cloneB, 'bWord') === 'none' && !/bHidB/.test(allB) && !/bHidB/.test(J(cloneB)) && Wb.tok('bWord').blastStop === 'yes'
-            && J(afterB) === J([true, false, false, false, true, false, false, true, false, false]) && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes('    if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop;') && !/blastStop/.test(bw('patch')) && !/blastStop/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke')),
+            && J(afterB) === J([true, false, false, false, true, false, false, true, false, false]) && fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem').includes('    if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop;') && !/blastStop/.test(bw('patch', 'netfog.js')) && !/blastStop/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js')),
             J([bk(bcA, 'bStop'), bk(cloneB, 'bStop'), bk(bcA, 'bPlain'), bk(bcA, 'bWord'), /bHidB/.test(allB), afterB]));
     }
     // difficult terrain T1 (host): a shown piece reaches every player with its cost (their ruler reads it), a hidden one not at all
@@ -12006,7 +12004,7 @@ pendingChecks.push((async () => {
             && J(after) === J([3, -2, 44, 'none', 'none']) && !!drew && !('tip' in drew), J([gOf(gA), gOf(gB), gOf(cloneG), gOf(pageG), after, drew && Object.keys(drew)]));
         const wireSrc = fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem');
         check('item 19b H5 (source): the rule that sends one piece to a player names no ground (it is the table\'s to read: a player\'s app works its own token\'s height out from its copy), and sends nothing of a hidden piece; a player\'s drawing is rebuilt from a list of keys that holds none, and it names a nib in one statement alone, which hands on the nib the copy named and never names the Fill tip (round three of Match a wall: a player\'s line keeps its square or its flat nib, and a filled region is still no drawing a player hands the host); the player\'s app cleans it again before it returns the piece',
-            !/ground/.test(wireSrc) && /if \(w\.gmNoteFor \|\| w\.hidden\) return null;/.test(wireSrc) && (ps => !/ground/.test(ps) && (ps.match(/\.tip\b/g) || []).length === 4 && !/['"]fill['"]/.test(ps) && !/\.tip\s*=[^=]/.test(ps.replace('out.tip = w.tip;', '')))(fnSrc('function playerStroke(', '\n}\n', 'playerStroke'))
+            !/ground/.test(wireSrc) && /if \(w\.gmNoteFor \|\| w\.hidden\) return null;/.test(wireSrc) && (pSt => !/ground/.test(pSt) && (pSt.match(/\.tip\b/g) || []).length === 4 && !/['"]fill['"]/.test(pSt) && !/\.tip\s*=[^=]/.test(pSt.replace('out.tip = w.tip;', '')))(require('./checkkit').cut('netfog.js', 'function playerStroke(', '\n}\n'))
             && /if \(w\.ground !== undefined\) \{ var FCg = window\.wpFogCore, gr = FCg && FCg\.cleanGround \? FCg\.cleanGround\(w\.ground\) : null; if \(gr\) w\.ground = gr; else delete w\.ground; \} return w; \}/.test(src));
     }
     // senses S4b: "Marks in a fight" played On your own turn — the host's refreshes of each player's held marks (slice marksheld, run on stubs)
@@ -12052,7 +12050,7 @@ pendingChecks.push((async () => {
             J(own1.calls.hold.map(h => h[0])) === J(['u_a']) && J(own1.calls.catch.map(c => c[0])) === J(['pa', 'pa2']) && own2.calls.hold.length === 0 && J(own3.calls.hold.map(h => h[0])) === J(['u_b']) && own4.calls.hold.length === 0 && own5.calls.hold.length === 0 && J(own6.calls.hold.map(h => h[0])) === J(['u_c']) && own7.calls.hold.length === 0, J([own1.calls, own3.calls, own6.calls, own7.calls]));
         check('S4b (source): the round hook, the turn hook, a fight\'s start and end, a player\'s drop on the pos gate and in a map copy, and a new table reach the held marks; nothing else calls them',
             /function roundChanged\(mapId, c\) \{[^\n]*if \(typeof marksRound === 'function'\) \{ try \{ marksRound\(mapId, c\); \}/.test(src) && /function turnStarted\(mapId, c\) \{[^\n]*if \(typeof marksTurn === 'function'\) \{ try \{ marksTurn\(mapId, c\); \}/.test(src)
-            && /net\.combats\[fid\] = f;\n\s*if \(first && typeof marksStart === 'function'\) \{ try \{ marksStart\(mapId\); \}/.test(src) && /if \(typeof fid === 'string'\) \{ delete net\.combats\[fid\];[^\n]*\n[^\n]*\n\s*if \(had && typeof marksEnd === 'function' && !fightsOn\(mapId\)\.length\) \{ try \{ marksEnd\(mapId\); \}/.test(src)
+            && /net\.combats\[fid\] = f;\n\s*if \(first && typeof marksStart === 'function'\) \{ try \{ marksStart\(mapId\); \}/.test(require('./checkkit').part('netfight.js')) && /if \(typeof fid === 'string'\) \{ delete net\.combats\[fid\];[^\n]*\n[^\n]*\n\s*if \(had && typeof marksEnd === 'function' && !fightsOn\(mapId\)\.length\) \{ try \{ marksEnd\(mapId\); \}/.test(src)
             && /fogForgetAll\(\);[^\n]*\n\s*if \(window\.wpFog && typeof window\.wpFog\.marksForget === 'function'\) window\.wpFog\.marksForget\(null\);/.test(src)
             && (src.match(/marksOwnMoved\(/g) || []).length === 3 && (src.match(/marksStart\(/g) || []).length === 3 /* 1.6.0: a fight that comes back (moved on purpose) */ && (src.match(/marksEnd\(/g) || []).length === 2 && (src.match(/marksTurn\(/g) || []).length === 2 && (src.match(/marksRound\(/g) || []).length === 2 && (src.match(/\.marksHold\(/g) || []).length === 1);
     }
@@ -12415,14 +12413,14 @@ pendingChecks.push((async () => {
     const hbA = src.indexOf('function hbTick() {'), hbS = src.slice(hbA, src.indexOf('\n    } else {', hbA));
     const clA = src.indexOf("conn.on('close', function() {"), clS = src.slice(clA, src.indexOf("} else if (net.leaving) {", clA));
     const kpS = whole4('net.kickPlayer = function('), lvS = fnSrc('function leaveSession(silent) {', '\n}\n', 'leaveSession'), shS = fnSrc('function startHosting(forceFresh) {', '\n    diceSessionReset(true);', 'startHosting');
-    const fmS = bw('fogmove'), admS = fnSrc('function admitPlayer(', '\n}\n', 'admitPlayer');
+    const fmS = bw('fogmove', 'netfog.js'), admS = fnSrc('function admitPlayer(', '\n}\n', 'admitPlayer');
     check('fold M4 (source): the heartbeat\'s host branch ends with the sweep; the close handler sweeps after it forgets the player\'s senses and before its save; kickPlayer sweeps once the roster entries are gone; the session\'s end sweeps every drag back before the table is torn down; a new table starts with no drag; the clock lives outside every slice; both whole-map sends, the snapshot, the turn order, the pointers and the senses resend are judged inside fogLanded; the pos gate and the patch path read the drag through openDrag',
         /fogDragSweep\(\);[^\n]*\n\s*\} else \{/.test(src.slice(hbA, hbA + hbS.length + 20)) && /sensesForget\(p\.id\);[^\n]*\n\s*if \(net\.role === 'host' && typeof fogDragSweep === 'function'\) fogDragSweep\(\);/.test(clS) && clS.indexOf('fogDragSweep()') < clS.indexOf('save(true)')
         && /renderRoster\(\); \}\n\s*if \(p && typeof fogDragSweep === 'function'\) fogDragSweep\(\);/.test(kpS) && lvS.indexOf('fogDragSweep(true)') > 0 && lvS.indexOf('fogDragSweep(true)') < lvS.indexOf('net.conns = []') && /sensesReset\(\);[^\n]*\n\s*_dragFrom = Object\.create\(null\); _refusedAt = Object\.create\(null\);/.test(shS)
-        && /\nfunction fogNow\(\) \{ return Date\.now\(\); \}[^\n]*\n\/\/ \[netcheck:fogmove-start\]/.test(src) && fmS.indexOf('function fogNow') < 0 && (src.match(/function fogNow\(/g) || []).length === 1
+        && /\nfunction fogNow\(\) \{ return Date\.now\(\); \}[^\n]*\n\/\/ \[netcheck:fogmove-start\]/.test(require('./checkkit').part('netfog.js')) && fmS.indexOf('function fogNow') < 0 && require('./checkkit').familyCount('net.js', /function fogNow\(/g) === 1
         && (whole4('net.sendItem = function(').match(/fogLanded\(itemId, fogSend\)/g) || []).length === 1 && /var fogSend = function\(\) \{[^]*?var clean = sanitizeItem\(it\);/.test(whole4('net.sendItem = function(')) && /var fogSend = function\(\) \{[^\n]*\n\s*var clean = sanitizeItem\(it\);/.test(whole4('net.broadcastItemFiltered = function('))
         && /fogLanded\(null, mkSnap\); else mkSnap\(\);[^\n]*\n\s*conn\.send\(snap\);[^\n]*\n\s*\} catch \(e\) \{ sendFailed\(e, 'snapshot'\);/.test(admS) && (bw('combats').match(/fogLanded\(null, sendAll\)/g) || []).length === 2 && (bw('sensesmoved').match(/fogLanded\(null, sendAll\)/g) || []).length === 1
-        && /frW = openDrag\(msg\.itemId, w\);/.test(bw('pos')) && /frP = \(typeof openDrag === 'function' \? openDrag\(msg\.itemId, lw\) : _dragFrom\[dkP\]\) \|\|/.test(bw('patch')));
+        && /frW = openDrag\(msg\.itemId, w\);/.test(bw('pos')) && /frP = \(typeof openDrag === 'function' \? openDrag\(msg\.itemId, lw\) : _dragFrom\[dkP\]\) \|\|/.test(bw('patch', 'netfog.js')));
     const PM = mk4(); PM.move(PM.a1, 'tA', 250, 100, false); PM.tok('tA').x = 400; PM.asked.length = 0;
     PM.api.patch({ type: 'item', campId: 'k', itemId: 'mA', item: { type: 'map', whiteboard: [{ id: 'tA', x: 450, y: 100, rot: 0, front: 0 }] } }, { id: 'u_a' });
     check('fold M4: a map copy that lands after the GM moved the token mid-drag is judged from the GM\'s place (that drag is over), never from where the drag began',
@@ -12599,7 +12597,7 @@ pendingChecks.push((async () => {
     check('item 20 K2 what a player may be sent of a clock (clockOut): day 1 when there is none yet, the time cleaned (below 0 is 0, past the limit the limit), nothing with the Calendar off or no campaign',
         j(outK) === j([{ t: 0 }, { t: 0 }, { t: 0 }, { t: 1e15 }, null, null]), j(outK));
     // the join snapshot: the real sanitizeAppState, with and without the clock's rule beside it
-    const saSrcK = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+    const saSrcK = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
     const clockOutSrc = syncK.slice(syncK.indexOf('function clockOut('), syncK.indexOf('\n', syncK.indexOf('function clockOut(')));
     const SAk = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + clockOutSrc + '\n' + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it, it => it);
     const SA0 = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrcK + '\nreturn sanitizeAppState;')(H.own, { wpCalendarCore: CCx, wpVtt: vttK }, () => ({}), () => ({}), v => v, it => it, it => it);
@@ -12608,7 +12606,7 @@ pendingChecks.push((async () => {
     const keptK = gmK({ t: 500, hide: true }); SAk(keptK, 'u_p');
     check('item 20 K2 the join snapshot (the real sanitizeAppState, run for real) carries the hosted campaign\'s clock as its time alone while players may see it; none while the GM keeps the date from players or the Calendar is off, day 1 with no clock yet; without the clock\'s rule beside it none at all (it fails closed); the stream window alike; the GM\'s own state left as it was',
         j(snK) === j([{ t: 500 }, 'none', 'none', { t: 0 }, 'none', { t: 500 }]) && j(keptK.campaigns.k1.clock) === j({ t: 500, hide: true }) && keptK.campaigns.k2.clock.t === 99
-        && src.includes("var ckS = camp.id === c.activeCampaignId && typeof clockOut === 'function' ? clockOut(camp) : null; if (ckS) { camp.clock = ckS; delete camp.dateFig; } else { delete camp.clock;"), j(snK));
+        && require('./checkkit').part('netfog.js').includes("var ckS = camp.id === c.activeCampaignId && typeof clockOut === 'function' ? clockOut(camp) : null; if (ckS) { camp.clock = ckS; delete camp.dateFig; } else { delete camp.clock;"), j(snK));
     // a player's app: the host's clock message
     const runK = (msg, peer, o) => { o = o || {}; const st = { appState: { activeCampaignId: 'k_1', campaigns: { k_1: { id: 'k_1', clock: { t: 42 } }, k_2: { id: 'k_2' } } } }, calls = [];
         new Function('net', 'conn', 'msg', 'state', 'campOf', 'window', rcvK)(Object.assign({ role: 'client', foreign: true, syncedPeer: 'host1', stream: false }, o.net || {}), { peer }, msg, st, id => (ownK(st.appState.campaigns, id) ? st.appState.campaigns[id] : null), { wpCalendarCore: CCx, wpCalendar: { refresh: () => calls.push('refresh') } });
@@ -12651,7 +12649,7 @@ pendingChecks.push((async () => {
     }
     // a round of a fight: the real combatStep, over stubs, with the calendar watched. 152 fold 4 (moved on purpose): a round no longer tells the clock its
     // rounds; each fight keeps its own time (at), and the coordinator hands the clock the floor of the least time of the fights (calendar.js second)
-    const SxK = await import(url('systemcore.js')), csK = fnSrc('net.combatStep = function', '// [netcheck:turnhold-start]', 'combatStep');
+    const SxK = await import(url('systemcore.js')), csK = fnSrc('net.combatStep = function', '// [netcheck:turnhold-start]', 'combatStep', 'netfight.js');
     const mkK = (turn, nRows, withCal) => { const calls = [], camp = { id: 'k', clock: { t: 7200 }, system: { combat: { turn: { secs: 1 } } }, items: {}, chars: {} }, net = { role: 'host', combats: { m1: { mapId: 'm1', round: 1, turn: turn, rows: Array.from({ length: nRows }, (_, i) => ({ id: 'r' + i, name: 'R' + i, tokId: null, init: 0, src: null })) } } };
         const win = withCal ? { wpCalendarCore: CCx, wpCalendar: { ownTime: g => { calls.push(['own', g.length]); return false; }, second: (s, back, last) => calls.push([s, back, last]) } } : {};
         const names = ['net', 'own', 'toast', 'logEvent', 'mapTitleOf', 'broadcastCombats', 'combatRefresh', 'roundChanged', 'turnStarted', 'window', 'getActiveCampaign', 'SC'], args = [net, H.own, () => {}, () => {}, () => 'Hall', () => {}, () => {}, () => {}, () => {}, win, () => camp, () => SxK];
@@ -12974,7 +12972,7 @@ pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Dx = await import(url('dicecore.js'));
     const j = v => JSON.stringify(v);
-    const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
+    const bw = (n, file) => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n, typeof file === 'string' ? file : undefined);   // file: a part of net.js, read by its own name
     const hoT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'handouts.js'), 'utf8').replace(/\r\n/g, '\n');
     const hoBetween = (a, b) => { const i = hoT.indexOf(a), k = hoT.indexOf(b); if (i < 0 || k < 0 || k <= i || hoT.indexOf(a, i + 1) >= 0 || hoT.indexOf(b, k + 1) >= 0) throw new Error('netcheck: handouts.js journal markers not found once'); return hoT.slice(i + a.length, k); };
     const journalSrc = hoBetween('// [netcheck:journal-start]', '// [netcheck:journal-end]');
@@ -13650,19 +13648,19 @@ pendingChecks.push((async () => {
     const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
     const fogSrc = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
     const whole9 = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
-    const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
+    const bw = (n, file) => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n, typeof file === 'string' ? file : undefined);   // file: a part of net.js, read by its own name
     const has = n => src.indexOf('// [netcheck:' + n + '-start]') >= 0;
     const J = v => JSON.stringify(v);
-    const mhSrc = has('mapheld') ? bw('mapheld') : '';   // absent on the code before this fold: the cases then fail, not the run
+    const mhSrc = require('./checkkit').part('netfog.js').indexOf('// [netcheck:mapheld-start]') >= 0 ? bw('mapheld', 'netfog.js') : '';   // absent on the code before this fold: the cases then fail, not the run
     const niBody = has('needitem') ? bw('needitem') : (() => { const a = src.indexOf("} else if (msg.type === 'needItem' && net.role === 'host') {"), b = src.indexOf("\n    } else if (msg.type === 'stage'", a); return src.slice(src.indexOf('\n', a) + 1, b); })();
     const trSrc = fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel');
     const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {}, _travelDenyLast = {};',
         'var fxLib = function() { return {}; }, itemLib = function() { return {}; }, withHoverLines = function(v) { return v; };',
-        ownKeySrc, siSrc(), mhSrc, fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState'), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('), lineOf('var FOG_DIFF_ADD_MAX = '),
-        fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', lineOf('function uniqueIds('), fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta'), fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n',
+        ownKeySrc, siSrc(), mhSrc, fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js'), bw('foglit', 'netfog.js'), fnSrc('function anyFog(', '\n}\n', 'anyFog', 'netfog.js') + '\n}\n', lineOf('function mapFogged('), lineOf('var FOG_DIFF_ADD_MAX = ', 'netfog.js'),
+        fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\n', lineOf('function uniqueIds(', 'netfog.js'), fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js'), fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n',
         whole9('net.sendItem = function('), whole9('net.broadcastItemFiltered = function('), whole9('net.itemGone = function('), whole9('net.pushItems = function('), whole9('net.summonPlayerToMap = function('), bw('stage'), bw('combats'),
         fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', fnSrc('function portalUnder(', '\n}\n', 'portalUnder') + '\n}\n', trSrc,
-        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'), ordersSrc,
+        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch', 'netfog.js'), bw('fogmove', 'netfog.js'), ordersSrc,
         'return { snapshot: sanitizeAppState, travel: hostTravel, stageConn: stageConn, relay: broadcastPos, seedSnap: fogSeedSnapshot, catchUp: fogCatchUp, fire: fogMoveFire, arm: fogArm, forgetConn: fogForgetConn, forgetAll: fogForgetAll, ackTook: ackTook, fogHeld: function() { return _fogHeld; },',
         'held: typeof mapHeld === "function" ? mapHeld : null, heldNote: typeof mapHeldNote === "function" ? mapHeldNote : null, heldOf: typeof mapHeldOf === "function" ? mapHeldOf : null, give: typeof mapGive === "function" ? mapGive : null, stub: typeof mapStub === "function" ? mapStub : null, store: function() { return typeof _mapHeld === "object" ? _mapHeld : null; }, take: typeof mapTake === "function" ? mapTake : null, left: typeof mapLeft === "function" ? mapLeft : null, follow: typeof followConns === "function" ? followConns : null, pend: function(p, m) { return typeof hidPendOf === "function" ? hidPendOf(p, m) : null; }, posIn: typeof handlePos === "function" ? handlePos : null, patchIn: typeof applyClientItemFiltered === "function" ? applyClientItemFiltered : null,',
         'needItem: function(msg, conn) {', niBody, '}, stubSync: typeof mapStubSync === "function" ? mapStubSync : null, stubSaid: function() { return typeof _stubSaid === "object" ? _stubSaid : null; } };'].join('\n');
@@ -13671,9 +13669,9 @@ pendingChecks.push((async () => {
     const buildFog9 = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells, fogMarksFor: fogMarksFor, fogOffFor: fogOffFor };');
     // a player's page: the real applyItem, applyItemDelta, applyFogDiff and the fogDiff branch, over the real cleanHostMap and its cleaners
     const pageSrc = [ownKeySrc, broadcastSrc, lineOf('function escAttr(s) {'), fnSrc('function sanitizeRichText(', '\n}\n', 'sanitizeRichText') + '\n}\n', lineOf('function safeColor('), lineOf('function cleanHostWbItem(w) {'), lineOf('function cleanHostTokSenses(w) {'), lineOf('function cleanHostFxb(w) {'), lineOf('function cleanHostLight(w) {'),
-        fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n', fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n', fnSrc('function cleanHostMap(', '\n}\n', 'cleanHostMap') + '\n}\n', bw('actlog'),
-        fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n', bw('fogdiffapply'),
-        lineOf('function fromHost('), fnSrc('function mapStub(map) {', '\n}\n', 'mapStub') + '\n}\n', fnSrc('function activeItemPatch() {', '\n}\n', 'activeItemPatch') + '\n}\n',
+        fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n', fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n', fnSrc('function cleanHostMap(', '\n}\n', 'cleanHostMap') + '\n}\n', bw('actlog', 'netfog.js'),
+        fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem', 'netfog.js') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta', 'netfog.js') + '\n}\n', bw('fogdiffapply', 'netfog.js'),
+        lineOf('function fromHost('), fnSrc('function mapStub(map) {', '\n}\n', 'mapStub', 'netfog.js') + '\n}\n', fnSrc('function activeItemPatch() {', '\n}\n', 'activeItemPatch', 'netfog.js') + '\n}\n',
         'return { applyItem: applyItem, applyItemDelta: applyItemDelta, cleanMap: cleanHostMap, patch: activeItemPatch, fogDiff: function(msg, conn) {', bw('fogdiff'), '}, mapBack: function(msg, conn) {', has('mapback') ? bw('mapback') : '', '} };'].join('\n');   // mapback: absent on the code before the take-back — its cases then fail, not the run
     const buildPage = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanWaitingItem', pageSrc);
     const mkPage = (myId, active) => {
@@ -13880,7 +13878,7 @@ pendingChecks.push((async () => {
         const srcNoCm = src.replace(/\/\/[^\n]*/g, '');
         const html = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'), sbSrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sidebar.js'), 'utf8');
         check('possession (source): admitPlayer forgets the connection\'s record, notes the landing map and hands the record to sanitizeAppState (and forgets it when the snapshot fails); stageConn and hostTravel give the map before their stage word (the only three stage words as before); the needItem branch answers through sendItem alone; a player\'s app put on a map it holds as a stub asks for it whole (applyStage); Help, the Lock for players tooltip and the Maps list\'s lock badge say a map a player has not reached is not on their machine',
-            /camp\.items\[stage\.itemId\]\.stub === true && net\.needItem\) net\.needItem\(stage\.campId, stage\.itemId\);/.test(fnSrc('function applyStage(stage) {', '\n}\n', 'applyStage')) && /si-lock" title="[^"]*holds only its name/.test(sbSrc) &&
+            /camp\.items\[stage\.itemId\]\.stub === true && net\.needItem\) net\.needItem\(stage\.campId, stage\.itemId\);/.test(fnSrc('function applyStage(stage) {', '\n}\n', 'applyStage', 'netfog.js')) && /si-lock" title="[^"]*holds only its name/.test(sbSrc) &&
             /if \(typeof mapForgetConn === 'function'\) mapForgetConn\(conn\.peer\);[^\n]*\n\s*if \(land\.stage && typeof mapHeldNote === 'function'\) mapHeldNote\(conn, land\.stage\.itemId\);/.test(src) && /sanitizeAppState\(state\.appState, prof\.id, typeof mapHeldOf === 'function' \? mapHeldOf\(conn\) : null\)/.test(src) && /sendFailed\(e, 'snapshot'\);[^\n]*if \(typeof mapForgetConn === 'function'\) mapForgetConn\(conn\.peer\); \}/.test(src)
             && /ensurePlayerToken\(p\.id, stage\.itemId\);\n\s*if \(typeof mapGive === 'function'\) mapGive\(c, stage\.campId, stage\.itemId\);[^\n]*\n\s*if \(c\.open\) \{ try \{ c\.send\(personal \? \{ type: 'stage'/.test(src) && /if \(conn && typeof mapGive === 'function'\) mapGive\(conn, tCamp\.id, pRoom\.targetMapId\);[^\n]*\n\s*if \(conn\) \{ try \{ conn\.send\(\{ type: 'stage', personal: true/.test(src)
             && (src.match(/type: 'stage'/g) || []).length === 3 && /net\.sendItem\(msg\.campId, msg\.itemId, conn\);/.test(has('needitem') ? bw('needitem') : '') && !/conn\.send\(/.test(has('needitem') ? bw('needitem') : 'conn.send(') && (srcNoCm.match(/mapGive\(/g) || []).length === 3 && (srcNoCm.match(/mapStub\(/g) || []).length === 5
@@ -14049,7 +14047,7 @@ pendingChecks.push((async () => {
             (srcNoCm.match(/\.location = [^=]/g) || []).length === 3
             && /if \(c\.open\) \{ try \{ c\.send\(personal \? \{ type: 'stage', stage: stage, personal: true \} : \{ type: 'stage', stage: stage \}\); \} catch \(e\) \{ sendFailed\(e\); \} \}\n\s*if \(typeof mapLeft === 'function'\) mapLeft\(c, stage\.campId\);/.test(src)
             && /if \(conn\) \{ try \{ conn\.send\(\{ type: 'stage', personal: true, stage: \{[^\n]*\n\s*if \(conn && typeof mapLeft === 'function'\) mapLeft\(conn, tCamp\.id\);/.test(src)
-            && (srcNoCm.match(/mapLeft\(/g) || []).length === 3 && (srcNoCm.match(/mapTake\(/g) || []).length === 2 && (srcNoCm.match(/type: 'mapBack'/g) || []).length === 1
+            && (srcNoCm.match(/mapLeft\(/g) || []).length === 3 && require('./checkkit').familyCount('net.js', /(?<!\/\/[^\n]*)mapTake\(/g) === 2 && require('./checkkit').familyCount('net.js', /(?<!\/\/[^\n]*)type: 'mapBack'/g) === 1   /* counted over net.js's whole family outside its comments, as srcNoCm counts */
             && /delete _mapHeld\[conn\.peer\]\[mapId\];\n\s*if \(typeof fogForgetOne === 'function'\) fogForgetOne\(conn\.peer, mapId\);[\s\S]*conn\.send\(\{ type: 'mapBack', campId: campId, itemId: mapId, meta: mapStub\(it\)\.meta \}\)/.test(mhSrc)
             && /\} else if \(msg\.type === 'mapBack' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:mapback-start\]/.test(src) && /if \(!fromHost\(conn\)\) return;/.test(mb) && /mapStub\(\{ id: msg\.itemId, meta: /.test(mb) && !/msg\.item\b(?!Id)/.test(mb) && !/msg\.whiteboard|msg\.rooms/.test(mb));
         check('possession (take-back, words): Help says a map a player leaves is taken back until they return, and the Lock for players tooltip and the Maps list\'s lock badge say a player who is not on a map holds only its name',
@@ -15170,7 +15168,7 @@ pendingChecks.push((async () => {
             check('1.6.2 the wire carries a formula at its length: a table roll of LIMITS.expr characters (the same figure as LIMITS.formula, 10,000) passes dicecore\'s cleanExpr and the client\'s wireShapeOk, as does a system of forty such formulas; the string cap stands forty times above it',
                 SCw.LIMITS.formula === 10000 && DCw.LIMITS.expr === SCw.LIMITS.formula && longF.length <= SCw.LIMITS.formula && longF.length > SCw.LIMITS.formula - 4 && !!DCw.cleanExpr(longF) && okW(rec) === true && okW(sysMsg) === true && 400000 >= SCw.LIMITS.formula * 40, J([SCw.LIMITS.formula, DCw.LIMITS.expr, longF.length, okW(rec), okW(sysMsg)]));
         }
-        const aiSrc = ownKeySrc + fnK('function applyItem(msg) {', '\n}\n');
+        const aiSrc = ownKeySrc + require('./checkkit').cut('netfog.js', 'function applyItem(msg) {', '\n}\n') + '\n}\n';
         const mkI = () => { const I = { renders: 0 }; const state = { appState: { activeCampaignId: 'k', campaigns: { k: { id: 'k', activeItemId: 'mA', items: { mA: { id: 'mA', type: 'map', whiteboard: [] } } } } } };
             I.run = msg => noThrow(() => new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanHostMap', 'msg', aiSrc + '\nreturn applyItem(msg);')({ applyingRemote: false }, state, { wpDocRender: { cleanDoc: d => (d && d.type === 'doc' ? { id: d.id, type: 'doc', meta: { title: 'P' }, blocks: [] } : null) }, wpFog: { invalidateVision() {}, redraw() {} } }, () => state.appState.campaigns.k, () => { I.renders++; }, () => {}, m => m, msg)); I.items = () => state.appState.campaigns.k.items; return I; };
         const I = mkI(); const ie = ['planner', 'zzz', 'circle', 'map ', 'MAP', '', 7, null, undefined].map(t => I.run({ type: 'item', campId: 'k', itemId: 'i_' + String(t), item: { id: 'i_x', type: t, meta: { title: 'P' }, content: 'secret' } })).join('');
@@ -16347,9 +16345,9 @@ pendingChecks.push((async () => {
             && inSrc.includes('if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;') && chinSrc.includes('if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !window.wpSystemCore) return;')
             && pendSrc.includes("    if (typeof styleLay === 'function') styleLay(charId);") && chinSrc.includes("if (typeof noteHostLooks === 'function') noteHostLooks(outC);") && chinSrc.indexOf('noteHostLooks(outC)') < chinSrc.indexOf('Object.keys(outC).forEach(reapplyPending)')
             && chinSrc.includes("if (typeof noteHostChar === 'function') noteHostChar(c1); if (c1.partial || c1.ownerId !== net.myId) dropP(c1.id);") && /\n    if \(typeof styleLay === 'function'\) styleLay\(charId\);[^\n]*\n\}\nfunction noteHostCopy\(/.test(pendSrc) && chinSrc.includes("delete _charHost[msg.id]; if (typeof styleGone === 'function') styleGone(msg.id);")
-            && /noteHostCopy\(id, cs\.chars\[id\]\.values\); \}\); \}\);[^\n]*\n    if \(typeof noteHostChar === 'function'\) Object\.values\(state\.appState\.campaigns \|\| \{\}\)\.forEach\(function\(cs\) \{[^\n]*noteHostChar\(cs\.chars\[id\]\);/.test(src)
-            && src.includes("if (charLimit) charLimit.reset(); if (typeof styleReset === 'function') styleReset(); }") && /noteHostChar\(cs\.chars\[id\]\); \}\); \}\);[^\n]*\n    if \(typeof styleHostKnows === 'function'\) styleHostKnows\(msg\.looks\);/.test(src) && /combats: combatsFor\(prof\.id, prof\.location\), fights: true, looks: true, rowText: true, notepad: notepadMsg\(\) \}; if \(sheetFilesHere\(\)\) snap\.sheetFiles = true; var soSnap = [^\n]*?snap\.sheetOut = soSnap; gmSignSnap\(snap, conn\); \};/.test(src) && !/_styleKnown|_styleOldSaid|styleHeard/.test(src)
-            && (() => { const a0 = src.indexOf('function applySnapshot(msg) {'), a = src.indexOf('styleHostKnows(msg.looks);'), z = a < 0 ? -1 : src.indexOf('\n}\n', a), tail = a0 >= 0 && a > a0 && z > a ? src.slice(a + 26, z) : 'styleReset('; return src.split('styleHostKnows(msg.looks)').length === 2 && src.slice(a0, a).indexOf('\n}\n') < 0 && !/styleReset\(|charSessionReset\(|diceSessionReset\(|leaveSession\(|_styleHostOk|styleHostKnows\(/.test(tail); })() && src.split('net.syncCharStyle(').length === 2 && src.split('net.charStyle = function(').length === 2, j(gates));
+            && /noteHostCopy\(id, cs\.chars\[id\]\.values\); \}\); \}\);[^\n]*\n    if \(typeof noteHostChar === 'function'\) Object\.values\(state\.appState\.campaigns \|\| \{\}\)\.forEach\(function\(cs\) \{[^\n]*noteHostChar\(cs\.chars\[id\]\);/.test(require('./checkkit').part('netfog.js'))
+            && src.includes("if (charLimit) charLimit.reset(); if (typeof styleReset === 'function') styleReset(); }") && /noteHostChar\(cs\.chars\[id\]\); \}\); \}\);[^\n]*\n    if \(typeof styleHostKnows === 'function'\) styleHostKnows\(msg\.looks\);/.test(require('./checkkit').part('netfog.js')) && /combats: combatsFor\(prof\.id, prof\.location\), fights: true, looks: true, rowText: true, notepad: notepadMsg\(\) \}; if \(sheetFilesHere\(\)\) snap\.sheetFiles = true; var soSnap = [^\n]*?snap\.sheetOut = soSnap; gmSignSnap\(snap, conn\); \};/.test(src) && !/_styleKnown|_styleOldSaid|styleHeard/.test(src)
+            && (() => { const sp = require('./checkkit').part('netfog.js'), a0 = sp.indexOf('function applySnapshot(msg) {'), a = sp.indexOf('styleHostKnows(msg.looks);'), z = a < 0 ? -1 : sp.indexOf('\n}\n', a), tail = a0 >= 0 && a > a0 && z > a ? sp.slice(a + 26, z) : 'styleReset('; return require('./checkkit').familyCount('net.js', 'styleHostKnows(msg.looks)') === 1 && sp.slice(a0, a).indexOf('\n}\n') < 0 && !/styleReset\(|charSessionReset\(|diceSessionReset\(|leaveSession\(|_styleHostOk|styleHostKnows\(/.test(tail); })() && src.split('net.syncCharStyle(').length === 2 && src.split('net.charStyle = function(').length === 2, j(gates));
     }
 })());
 /* ================= fold B5: a secret door (the map builder, part one) =================
@@ -18258,22 +18256,22 @@ pendingChecks.push((async () => {
     const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
     const fogSrc = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
     const wholeS = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once'); return src.slice(i, e + 4); };
-    const bw = n => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n);
+    const bw = (n, file) => between('// [netcheck:' + n + '-start]', '// [netcheck:' + n + '-end]', n, typeof file === 'string' ? file : undefined);   // file: a part of net.js, read by its own name
     const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {}, _travelDenyLast = {};',
         'var fxLib = function() { return {}; }, itemLib = function() { return {}; }, withHoverLines = function(v) { return v; };',
-        ownKeySrc, siSrc(), bw('mapheld'), fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState'), bw('foglit'), fnSrc('function anyFog(', '\n}\n', 'anyFog') + '\n}\n', lineOf('function mapFogged('), lineOf('var FOG_DIFF_ADD_MAX = '),
-        fnSrc('function quickHash(', '\n}\n', 'quickHash') + '\n}\n', lineOf('function uniqueIds('), fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta'), fnSrc('function playerStroke(', '\n}\n', 'playerStroke') + '\n}\n',
+        ownKeySrc, siSrc(), bw('mapheld', 'netfog.js'), fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js'), bw('foglit', 'netfog.js'), fnSrc('function anyFog(', '\n}\n', 'anyFog', 'netfog.js') + '\n}\n', lineOf('function mapFogged('), lineOf('var FOG_DIFF_ADD_MAX = ', 'netfog.js'),
+        fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\n', lineOf('function uniqueIds(', 'netfog.js'), fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js'), fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js') + '\n}\n',
         wholeS('net.sendItem = function('), wholeS('net.broadcastItemFiltered = function('), wholeS('net.itemGone = function('), wholeS('net.pushItems = function('), wholeS('net.summonPlayerToMap = function('), bw('stage'),
         fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', fnSrc('function portalUnder(', '\n}\n', 'portalUnder') + '\n}\n', fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel'),
-        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch'), bw('fogmove'), ordersSrc,
+        lineOf('var _saveSoon = null;'), lineOf('function saveRemoteSoon()'), bw('bpos'), src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')), bw('pos'), bw('patch', 'netfog.js'), bw('fogmove', 'netfog.js'), ordersSrc,
         'return { snapshot: sanitizeAppState, seedSnap: fogSeedSnapshot, arm: fogArm, heldNote: mapHeldNote, heldOf: mapHeldOf, patchIn: applyClientItemFiltered };'].join('\n');
     const NAMES = ['net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'sendFailed', 'peerProfileId', 'lim', 'pushChat', 'state', 'broadcast', '_lastSent', 'setTimeout', 'clearTimeout', 'save', 'toast', 'logEvent', 'renderRoster', 'dropWaitingFor', 'allow', 'render', 'broadcastRoster', 'checkRoomHandouts', 'applyPosToDom', 'bellOut', 'renderNotepad', 'fogNow', 'ensurePlayerToken', 'findLandingRoom', 'landingPoint'];
     const buildHost = new Function(...NAMES, modSrc);
     const buildFog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogSrc + '\nreturn { fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, viewersFor: viewersFor, moveBlocked: moveBlocked, moveCells: moveCells, fogMarksFor: fogMarksFor, fogOffFor: fogOffFor };');
     const pageSrc = [ownKeySrc, broadcastSrc, lineOf('function escAttr(s) {'), fnSrc('function sanitizeRichText(', '\n}\n', 'sanitizeRichText') + '\n}\n', lineOf('function safeColor('), lineOf('function cleanHostWbItem(w) {'), lineOf('function cleanHostTokSenses(w) {'), lineOf('function cleanHostFxb(w) {'), lineOf('function cleanHostLight(w) {'),
-        fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n', fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n', fnSrc('function cleanHostMap(', '\n}\n', 'cleanHostMap') + '\n}\n', bw('actlog'),
-        fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta') + '\n}\n', bw('fogdiffapply'),
-        lineOf('function fromHost('), fnSrc('function mapStub(map) {', '\n}\n', 'mapStub') + '\n}\n', fnSrc('function activeItemPatch() {', '\n}\n', 'activeItemPatch') + '\n}\n',
+        fnSrc('function ownCellKeysOf(', '\n}\n', 'ownCellKeysOf') + '\n}\n', fnSrc('function ownTokIdsOf(', '\n}\n', 'ownTokIdsOf') + '\n}\n', fnSrc('function cleanHostMap(', '\n}\n', 'cleanHostMap') + '\n}\n', bw('actlog', 'netfog.js'),
+        fnSrc('function applyItem(msg) {', '\n}\n', 'applyItem', 'netfog.js') + '\n}\n', fnSrc('function applyItemDelta(msg) {', '\n}\n', 'applyItemDelta', 'netfog.js') + '\n}\n', bw('fogdiffapply', 'netfog.js'),
+        lineOf('function fromHost('), fnSrc('function mapStub(map) {', '\n}\n', 'mapStub', 'netfog.js') + '\n}\n', fnSrc('function activeItemPatch() {', '\n}\n', 'activeItemPatch', 'netfog.js') + '\n}\n',
         'return { applyItem: applyItem, applyItemDelta: applyItemDelta, cleanMap: cleanHostMap, fogDiff: function(msg, conn) {', bw('fogdiff'), '} };'].join('\n');
     const buildPage = new Function('net', 'state', 'window', 'getActiveCampaign', 'render', 'updateSidebarNav', 'cleanWaitingItem', pageSrc);
     const mkPage = myId => {
@@ -18651,7 +18649,7 @@ pendingChecks.push((async () => {
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
     const J = v => JSON.stringify(v), FID = /^f_[a-z0-9]{8}$/;
     const rdApp = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', f), 'utf8').replace(/\r\n/g, '\n');
-    const cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), setS = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepS = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep');
+    const cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), setS = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepS = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep', 'netfight.js');
     const tcS = fnSrc('function turnCombatOf(', '\n}\n', 'turnCombatOf') + '\n}\n' + lineOf('function moveMode(') + '\n', stgS = between('// [netcheck:stage-start]', '// [netcheck:stage-end]', 'stage');
     const teS = between('// [netcheck:turnend-start]', '// [netcheck:turnend-end]', 'turnend'), hmS = between('// [netcheck:turnholdmsg-start]', '// [netcheck:turnholdmsg-end]', 'turnholdmsg');
     const igA = src.indexOf('net.itemGone = function(campId, itemId, title) {'), igS = src.slice(igA, src.indexOf('\n};\n', igA) + 4);
@@ -18694,7 +18692,7 @@ pendingChecks.push((async () => {
         g1.ids && g1.docks && g1.bridge && J(g1.f2rows) === J(['rt_sela']) && g1.on && g1.forDocks && g1.forBridge && g1.noFight === null && J(g1.played) === J([true, true, false]) && J(g1.tok) === J([true, true, true, null, null])
         && J(marksStarted) === J(['start:mDocks', 'start:mBridge']), J([g1, marksStarted]));
     check('fold 2: net.orderOf is the one judge of which fight a character is in, by combatChars\' rule — a character token of a character of the campaign, a hidden token counted too — so a token with Is Character unticked puts its character in no fight (its timed effects run as outside one: net.charInCombat), where it used to stop them without ever ticking them; a character that is none, or a prototype\'s name, is in none',
-        J(g1.order) === J([true, true, true, null, false, true, null, null]) && /function charCombat\(camp, charId\) \{[^\n]*\n    var fid = orderOfIn\(camp, charId\); return fid \? \{ mapId: net\.combats\[fid\]\.mapId, combat: net\.combats\[fid\] \} : null;\n\}/.test(require('./checkkit').part('nettime.js')) && (src.match(/function orderOfIn\(/g) || []).length === 1, J(g1.order));
+        J(g1.order) === J([true, true, true, null, false, true, null, null]) && /function charCombat\(camp, charId\) \{[^\n]*\n    var fid = orderOfIn\(camp, charId\); return fid \? \{ mapId: net\.combats\[fid\]\.mapId, combat: net\.combats\[fid\] \} : null;\n\}/.test(require('./checkkit').part('nettime.js')) && require('./checkkit').familyCount('net.js', /function orderOfIn\(/g) === 1, J(g1.order));
     // fold 2's review: the one judge reads Is Character as combatChars reads it, any word that is true (a file may write 1 or yes), so such a character
     // is in its fight for both; read as true alone, it was a fighter to the round and turn hooks and in no fight to net.orderOf, its timed effects running
     const ischar = [1, 'yes', true, 0, false, null].map(v => { wb('t_u7').isChar = v; return [N.orderOf('c_u7') === f1, Sx.combatChars(camp.items.mDocks, N.combats[f1], camp.chars).some(x => x.charId === 'c_u7'), N.charInCombat('c_u7')]; }); wb('t_u7').isChar = true;
@@ -18716,7 +18714,7 @@ pendingChecks.push((async () => {
     // Docks moves it as hiding one of the first does; and a copy of a fogged map that leaves out or brings back a token of the second fight there
     // changes what that connection's order holds (fogSeed), as one of the first does
     const sg0 = A.hidSig(); wb('t_sela').hidden = true; const sg1 = A.hidSig(); wb('t_sela').hidden = false; wb('t_kael').hidden = true; const sg2 = A.hidSig(); wb('t_kael').hidden = false; const sg3 = A.hidSig();
-    const fsS = (() => { const i = src.indexOf('function fogSeed(conn, mapId, out) {'), e = src.indexOf('\n}\n', i); return i < 0 || e < 0 ? 'function fogSeed() { throw new Error("fogSeed is not found"); }' : src.slice(i, e + 3); })();
+    const fsS = (() => { const p = require('./checkkit').part('netfog.js'), i = p.indexOf('function fogSeed(conn, mapId, out) {'), e = p.indexOf('\n}\n', i); return i < 0 || e < 0 ? 'function fogSeed() { throw new Error("fogSeed is not found"); }' : p.slice(i, e + 3); })();   // in netfog.js, a part of net.js
     const netF = { combats: { f_dock0001: { id: 'f_dock0001', mapId: 'mDocks', round: 1, turn: 0, rows: [{ id: 'rt_kael', tokId: 't_kael' }] }, f_dock0002: { id: 'f_dock0002', mapId: 'mDocks', round: 1, turn: 0, rows: [{ id: 'rt_sela', tokId: 't_sela' }] } }, targets: {} };
     const seedF = new Function('net', 'own', 'getActiveCampaign', "'use strict';\nvar _fogHeld = Object.create(null); function quickHash(s) { return s; }\n" + ordersSrc + '\n' + fsS + '\nreturn fogSeed;')(netF, H.own, () => null);
     const cF = { peer: 'pB' }, wbOf = ids => ({ whiteboard: ids.map(id => ({ id })) });
@@ -18804,10 +18802,10 @@ pendingChecks.push((async () => {
     check('fold 2 (security): a hostile host\'s "__proto__" key is a key like any other — the reader of an older host\'s shape (cleanCombats) and the reader by id (cleanFights) build into an object with no prototype, so no fight becomes the copy\'s prototype (before, the older reader took it as one: the copy then read that fight\'s round and rows for any name); cleanFights keeps only an id of f_ and 8 of a-z0-9 with a map\'s id and a row, and names each fight by its key; nothing reaches Object.prototype',
         J(hp) === J([true, ['__proto__', 'mDocks'], null, null, true, ['f_bbbbbbbb'], 'f_bbbbbbbb', null, true, null, null]), J(hp));
     // the wiring
-    const snapAt = src.indexOf('function applySnapshot(msg) {'), snapEnd = src.indexOf('\n}\n', snapAt), snapBody = snapAt > 0 && snapEnd > snapAt ? src.slice(snapAt, snapEnd) : '';
+    const snapP = require('./checkkit').part('netfog.js'), snapAt = snapP.indexOf('function applySnapshot(msg) {'), snapEnd = snapP.indexOf('\n}\n', snapAt), snapBody = snapAt > 0 && snapEnd > snapAt ? snapP.slice(snapAt, snapEnd) : '';   // in netfog.js, a part of net.js
     const wbSrcR = rdApp('scripts/whiteboard.js'), shSrcR = rdApp('scripts/sheets.js');
     check('fold 2\'s review (source): the join snapshot seeds what its connection holds of the fights, and its close (fogForgetConn) and a new table (combatForget) forget it; CombatRound reads net.combatRoundOf in the host\'s roll for a player, in an apply action and on the sheet, never the fight the GM plays; the board\'s ring on a token whose turn it is asks every fight on the map through onTurnHere',
-        /\n    if \(snapOk && typeof combatsSentSeed === 'function'\) combatsSentSeed\(conn, snap\.combats\);/.test(src) && /function fogForgetConn\(peer\) \{[^\n]*if \(typeof combatsSentForget === 'function'\) combatsSentForget\(peer\); \}/.test(src)
+        /\n    if \(snapOk && typeof combatsSentSeed === 'function'\) combatsSentSeed\(conn, snap\.combats\);/.test(src) && /function fogForgetConn\(peer\) \{[^\n]*if \(typeof combatsSentForget === 'function'\) combatsSentForget\(peer\); \}/.test(require('./checkkit').part('netfog.js'))
         && /function combatForget\(fid\) \{ if \(fid === undefined\) \{ _combatSeen = Object\.create\(null\); _combatsSent = Object\.create\(null\); \}/.test(src)
         && (src.match(/net\.combatRoundOf\(/g) || []).length === 4 /* 1.6.0: and Or resisted by's list roll, judging its Shown where in the target's fight (moved on purpose); 1.6.3: and lockOptsHost, reading a field's Locked while in the round the player's own sheet reads it in (moved on purpose) */ && !/net\.combatFor\(loc[QA]\)/.test(src) && (shSrcR.match(/n\.combatRoundOf\(/g) || []).length === 1
         && /el\.classList\.toggle\('wb-turn', onTurnHere\(window\.wpNet, activeMap\.id, item\.id\)\);/.test(wbSrcR) && (wbSrcR.match(/onTurnHere\(/g) || []).length === 2);
@@ -18815,7 +18813,7 @@ pendingChecks.push((async () => {
         /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && /\n    if \(typeof fightsKnow === 'function'\) fightsKnow\(msg\.fights\);[^\n]*\n    net\.combats = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(snapBody)
         && src.split('fightsKnow(').length === 3 && /var before = net\.combats, after = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(src)
         && !/combats\[(mapId|am\.id|map\.id|activeMap\.id|combatDraft\.mapId|getActiveMap\(\)\.id|msg\.mapId|locQ|locA|pr\.location|mid)\]/.test(src + rdApp('scripts/whiteboard.js') + rdApp('scripts/pills.js') + rdApp('scripts/sheets.js'))
-        && (src.match(/net\.combats\[fid\] = f;/g) || []).length === 1 && (src.match(/combatOver\(/g) || []).length === 4 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 45 /* 1.6.3 (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */);
+        && require('./checkkit').familyCount('net.js', /net\.combats\[fid\] = f;/g) === 1 && (src.match(/combatOver\(/g) || []).length === 4 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 45 /* 1.6.3 (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */);
 })());
     /* ---- 1.5.6, the damage step on the wire: the host's char-damage branch, net.damageCard and net.charDamage, run for real ---- */
     pendingChecks.push((async () => {
@@ -19046,7 +19044,7 @@ pendingChecks.push((async () => {
         const DRh = await import(urlW('docrender.js')), win = { wpDocRender: DRh }, J2 = JSON.stringify;
         const pg = (id, players, parentId) => ({ id, type: 'doc', meta: Object.assign({ title: id }, players === false ? { players: false } : {}, parentId ? { parentId } : {}), blocks: [{ id: 'b1', type: 'text', content: '<p>' + id + '</p>' }] });
         const camp = { id: 'k', name: 'K', activeItemId: 'm', items: { m: { id: 'm', type: 'map', meta: { title: 'M' }, whiteboard: [], rooms: [], links: [] }, f: pg('f', false), c: pg('c', true, 'f'), g: pg('g', true, 'c'), p: pg('p', true) } };
-        const saSrcH = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState');
+        const saSrcH = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
         const [SAh, SIh] = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', 'getActiveCampaign', "'use strict';\n" + saSrcH + '\nreturn [sanitizeAppState, sanitizeItem];')(H.own, win, () => ({}), () => ({}), v => v, it => it, it => it, () => camp);
         const snap = SAh({ activeCampaignId: 'k', campaigns: { k: camp } }, 'u_a', null), keys = Object.keys(snap.campaigns.k.items).sort().join(), stream = Object.keys(SAh({ activeCampaignId: 'k', campaigns: { k: camp } }).campaigns.k.items).sort().join();
         const one = { c: SIh(camp.items.c), g: SIh(camp.items.g), p: !!SIh(camp.items.p), f: SIh(camp.items.f) };
@@ -19117,7 +19115,7 @@ pendingChecks.push((async () => {
 {   // 1.6.3 (the owner's ruling of 2026-11-17, finding 13: "Keep it across sessions"): a player's explored ground, kept by the host (fog.js
     // memHostNote), is sent to each connection of theirs once a map and a grid and fog epoch (memSendTo, sliced by its memsend markers and run for
     // real), and their app takes it from the synced host alone (the fogMem branch, sliced by its fogmem markers and run for real)
-    const msSrc = between('// [netcheck:memsend-start]', '// [netcheck:memsend-end]', 'memsend'), fmSrc = between('// [netcheck:fogmem-start]', '// [netcheck:fogmem-end]', 'fogmem');
+    const msSrc = between('// [netcheck:memsend-start]', '// [netcheck:memsend-end]', 'memsend', 'netfog.js'), fmSrc = between('// [netcheck:fogmem-start]', '// [netcheck:fogmem-end]', 'fogmem');
     const ownM = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
     const asked = [], memOut = (camp, map, pid, sent) => { asked.push([map.id, pid, sent]); return pid === 'u_a' && sent !== 'K1' ? { k: 'K1', c: ['1,1', '2,1'] } : null; };
     const win = { wpFog: { memOut: memOut } }, fails = [];
@@ -19136,12 +19134,12 @@ pendingChecks.push((async () => {
     check('1.6.3 (finding 13) a player\'s app takes its explored ground (the fogMem branch, run for real) from the synced host alone, after its snapshot, never in the stream window, for the campaign on screen, a map by a valid key, a key that is text and cells that are a list; it hands them to fog.js memSeed, which reads them as data',
         j(seeds) === j([['mA', 'K1', 1]]), j(seeds));
     check('1.6.3 (finding 13) the explored ground is the host\'s: sanitizeAppState sends no campaign\'s fogMem, no player\'s message writes it (fogMem is a branch of a player\'s app alone, the host\'s branches as they were), and it is sent after each whole copy of a fogged map goes, by the join snapshot, a copy sent alone and one sent to the table',
-        /delete camp\.pinnedPages; delete camp\.groups; delete camp\.panelOrder; delete camp\.fogMem;/.test(src) && !/msg\.type === 'fogMem' && net\.role === 'host'/.test(src) && /msg\.type === 'fogMem' && net\.role === 'client'/.test(src)
-        && (src.match(/if \(typeof memSendTo === 'function'\) memSendTo\(conn, pr\.id, camp, itemId\);/g) || []).length === 2 && /fogSeed\(conn, id, sc\.items\[id\]\); var prS = net\.roster\[conn\.peer\]; if \(prS && typeof prS\.id === 'string'\) memSendTo\(conn, prS\.id, camp, id\);/.test(src)
-        && /function fogForgetConn\(peer\) \{ if \(typeof memSentForget === 'function'\) memSentForget\(peer\);/.test(src) && /if \(typeof memSentForget === 'function'\) memSentForget\(null, mapId\);/.test(src) && /if \(typeof memSentForget === 'function'\) memSentForget\(null, null\);/.test(src));
+        /delete camp\.pinnedPages; delete camp\.groups; delete camp\.panelOrder; delete camp\.fogMem;/.test(require('./checkkit').part('netfog.js')) && !/msg\.type === 'fogMem' && net\.role === 'host'/.test(src) && /msg\.type === 'fogMem' && net\.role === 'client'/.test(src)
+        && (src.match(/if \(typeof memSendTo === 'function'\) memSendTo\(conn, pr\.id, camp, itemId\);/g) || []).length === 2 && /fogSeed\(conn, id, sc\.items\[id\]\); var prS = net\.roster\[conn\.peer\]; if \(prS && typeof prS\.id === 'string'\) memSendTo\(conn, prS\.id, camp, id\);/.test(require('./checkkit').part('netfog.js'))
+        && /function fogForgetConn\(peer\) \{ if \(typeof memSentForget === 'function'\) memSentForget\(peer\);/.test(require('./checkkit').part('netfog.js')) && /if \(typeof memSentForget === 'function'\) memSentForget\(null, mapId\);/.test(require('./checkkit').part('netfog.js')) && /if \(typeof memSentForget === 'function'\) memSentForget\(null, null\);/.test(require('./checkkit').part('netfog.js')));
     // the review of 1.6.3 (finding 13). (a) A map taken back from a connection (the take-back, fogForgetOne, its line run for real) forgets the key
     // of the ground last sent to that connection for that map alone, so it is sent again on their return though their screen let it go meanwhile
-    const ffLine = (src.match(/\nfunction fogForgetOne\([^\n]*/) || [''])[0];
+    const ffLine = (require('./checkkit').part('netfog.js').match(/\nfunction fogForgetOne\([^\n]*/) || [''])[0];   // in netfog.js, a part of net.js
     const FF = new Function('own', "'use strict'; var _fogHeld = { pA: { mA: 1, mB: 1 } }, _hidPend = { pA: { mA: 1 } }, _memSent = { pA: { mA: 'K1', mB: 'K2' }, pB: { mA: 'K3' } };" + ffLine + '\nreturn { run: fogForgetOne, sent: function() { return _memSent; }, held: function() { return _fogHeld; } };')(ownM);
     FF.run('pA', 'mA'); FF.run('pZ', 'mA'); FF.run(5, 'mA');
     const FF2 = new Function('own', "'use strict'; var _fogHeld = { pA: { mA: 1 } }, _hidPend = {};" + ffLine + '\nreturn fogForgetOne;')(ownM); let ff2 = ''; try { FF2('pA', 'mA'); } catch (e) { ff2 = String(e); }
@@ -19211,7 +19209,7 @@ pendingChecks.push((async () => {
     check('backlog 29 a player\'s app takes the trackers (the trkmsg branch, run for real) from the synced host only, for the campaign on screen only, never in the stream window, cleaned again as a player\'s copy: no map, no vis, no end, nothing else; a list that is no list is nothing',
         good.length === 1 && j(good[0]) === j([{ id: 'a', kind: 'count', name: 'Fear', color: 'gold', v: 2 }, { id: 'r', kind: 'timer', name: 'Countdown', color: 'gold', total: 9000, left: 4000, run: true }]) && nos.every(g => g.length === 0), j([good, nos]));
     check('backlog 29 a host has NO branch for \'trackers\' (a player never sets one), the join snapshot never carries them (sanitizeAppState deletes them) and a host starting afresh forgets what it sent',
-        !/msg\.type === 'trackers' && net\.role === 'host'/.test(src) && /delete camp\.videos;[^\n]*\n\s*delete camp\.trackers;/.test(src) && /net\._lastClockSig = null;[^\n]*\n\s*net\.trackersForget\(\);/.test(src)
+        !/msg\.type === 'trackers' && net\.role === 'host'/.test(src) && /delete camp\.videos;[^\n]*\n\s*delete camp\.trackers;/.test(require('./checkkit').part('netfog.js')) && /net\._lastClockSig = null;[^\n]*\n\s*net\.trackersForget\(\);/.test(src)
         && src.includes("if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }"));
     // the owner, 2026-10-29: "gm but for the whole table or specific players" — Table trackers switched off (vtt.js), or a player kept from them
     const mkV = () => {
@@ -19230,7 +19228,7 @@ pendingChecks.push((async () => {
     check('backlog 29 Table trackers on the wire: a player the GM keeps them from (camp.trkHide by profile id) is sent nothing while the others get theirs, and gets the list once let back in; the switch off sends every player an empty list once, and on again their lists; hiding one player later sends them an empty list',
         v1 === 1 && vA1 === 1 && vB1 === 0 && v2 === 1 && v.sent.b[0].list.length === 3 && v3 === 2 && v.sent.a[1].list.length === 0 && v.sent.b[1].list.length === 0 && v4 === 0 && v5 === 2 && v.sent.a[2].list.length === 3
         && v6 === 1 && lastA.list.length === 0 && lastB.list.length === 3 && !/u_a|u_b|trkHide/.test(JSON.stringify(v.sent)), j([v1, v2, v3, v4, v5, v6, v.sent]));
-    check('backlog 29 the join snapshot never names who the trackers are kept from (sanitizeAppState deletes camp.trkHide)', /delete camp\.trackers;[^\n]*\n\s*delete camp\.trkHide;/.test(src));
+    check('backlog 29 the join snapshot never names who the trackers are kept from (sanitizeAppState deletes camp.trkHide)', /delete camp\.trackers;[^\n]*\n\s*delete camp\.trkHide;/.test(require('./checkkit').part('netfog.js')));
 })());
 // 1.6.2 sounds on actions: who hears one. net.js's soundhear slice run for real on a table of plain objects, then the real roll-req branch with the
 // real core behind it, a press from the button naming only which button it was. Those on the map hear it and the GM always does; a hidden act is
@@ -19349,7 +19347,7 @@ pendingChecks.push((async () => {
     }
 })());
 {   // the review of backlog 237: a token given its own copy of a sheet while a fight runs (net.js charSplitFight and fightRowsRenamed, sliced by their charsplit markers and run for real)
-    const J = JSON.stringify, csS = between('// [netcheck:charsplit-start]', '// [netcheck:charsplit-end]', 'charsplit');
+    const J = JSON.stringify, csS = between('// [netcheck:charsplit-start]', '// [netcheck:charsplit-end]', 'charsplit', 'netfight.js');
     const mkS = (o) => {
         o = o || {}; const seen = { bc: 0, kept: 0, strip: 0 };
         const map = { id: 'm1', type: 'map', whiteboard: [{ id: 'g1', isChar: true, charId: 'c_g', charName: 'Guard', name: 'Guard' }, { id: 'g2', isChar: true, charId: 'c_n', charName: 'Guard 2', name: 'Guard 2' }, { id: 'g3', isChar: true, charId: 'c_g', charName: 'Guard', name: 'Guard' }] };
@@ -19381,7 +19379,7 @@ pendingChecks.push((async () => {
 }
 { const { pathToFileURL } = require('url'); pendingChecks.push((async () => {
     {   // 1.6.0 Who holds whom: net.js's holds slice run for real with the real core: the records, the effects, the keep, a squeeze, the move gates and what ends them
-        const J = JSON.stringify, src = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), hsS = between('// [netcheck:holds-start]', '// [netcheck:holds-end]', 'holds');
+        const J = JSON.stringify, src = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), hsS = between('// [netcheck:holds-start]', '// [netcheck:holds-end]', 'holds', 'netfight.js');
         const pool = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8').length;
         const mk = async (rules, mode) => {
             const Sh = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).href), Fh = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formula.js')).href), Dh = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dicecore.js')).href);
@@ -19541,7 +19539,7 @@ pendingChecks.push((async () => {
 Promise.all(pendingChecks).then(() => {   // the async checks land before the summary
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {
-        const NL = '\n', landSrc = src.slice(src.indexOf('// [netcheck:landing-start]'), src.indexOf('// [netcheck:landing-end]'));
+        const NL = '\n', landSrc = (p => p.slice(p.indexOf('// [netcheck:landing-start]'), p.indexOf('// [netcheck:landing-end]')))(require('./checkkit').part('netfog.js'));
         const stSrcF = src.slice(src.indexOf('// [netcheck:stage-start]'), src.indexOf('// [netcheck:stage-end]'));
         const wholeF = k => { const i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, e) + '\n};'; };
         const campF = () => ({ id: 'c1', items: { m1: { id: 'm1', type: 'map', meta: { title: 'One' } }, m2: { id: 'm2', type: 'map', meta: { title: 'Two' } }, m3: { id: 'm3', type: 'map', meta: { title: 'Locked', playerLock: true } }, p1: { id: 'p1', type: 'planner' } }, players: { u_old: { lastMap: 'm2' }, u_gone: { lastMap: 'm9' }, u_lock: { lastMap: 'm3' } } });
@@ -19574,7 +19572,7 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
             j(A[0]) === j(['last', null, '{}', 'm2:true,m2:true', '1,1', 'Everyone summoned to Two.', 0]) && j(A[1]) === j([null, 'm2', j({ c1: { mode: null, fallback: null } }), 'm2:false,m2:false', '1,1', 'Everyone summoned to Two; table pinned here.', 1]), j(A));
         const ixF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
         check('the follow ruling is wired and said: the choice is always offered; the GM is told once when players stayed behind and how to bring them; Help and the two tooltips say who moves when',
-            src.includes("    var lastOpt = '<option value=\"last\">Player\\'s last location</option>';") && !/hasLastLocations\(camp\) \|\| net\.stageMode === 'last'\) \?/.test(src)
+            require('./checkkit').part('netfog.js').includes("    var lastOpt = '<option value=\"last\">Player\\'s last location</option>';") && !/hasLastLocations\(camp\) \|\| net\.stageMode === 'last'\) \?/.test(src)
             && src.includes("if (!moved && net.stageMode === 'last' && !_stayHintShown && net.conns.some(function(c) { var pS = own(net.roster, c.peer) ? net.roster[c.peer] : null; return !!pS && pS.location !== s2.itemId; })) {")
             && ixF.includes('<b>Player\'s last location</b> is the default. Each player comes back to the map they were last on and stays put until they travel or you summon them.') && ixF.includes('nobody is moved because you open another map')
             && ixF.includes("'Player's last location' (the default) sends each player back to the map they were last on") && ixF.includes("'Follow me' puts them on the map you are on when they join, once: they do not follow you afterwards")
@@ -19582,8 +19580,8 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
     }
     /* ---- 1.5.6: the stage while the GM is on a planner (found live on 2026-10-24: a website player joined to no map) ---- */
     {
-        const NL = '\n', csSrc = src.slice(src.indexOf('// [netcheck:curstage-start]'), src.indexOf('// [netcheck:curstage-end]'));
-        const landSrcC = src.slice(src.indexOf('// [netcheck:landing-start]'), src.indexOf('// [netcheck:landing-end]'));
+        const NL = '\n', csSrc = (p => p.slice(p.indexOf('// [netcheck:curstage-start]'), p.indexOf('// [netcheck:curstage-end]')))(require('./checkkit').part('netfog.js'));
+        const landSrcC = (p => p.slice(p.indexOf('// [netcheck:landing-start]'), p.indexOf('// [netcheck:landing-end]')))(require('./checkkit').part('netfog.js'));
         const campC = act => ({ id: 'c1', activeItemId: act, items: { m1: { id: 'm1', type: 'map', meta: { title: 'One' } }, m2: { id: 'm2', type: 'map', meta: { title: 'Two' } }, p1: { id: 'p1', type: 'planner' }, d1: { id: 'd1', type: 'doc' } }, players: {} });
         const storeOf = v => ({ getItem: k => (k === 'wp_recent_c1' ? v : null) });
         const run = (act, recent, over, pid, store) => { const camp = campC(act), net = Object.assign({ stageMode: 'last', stageFallback: null, stagePicked: {}, stageOverride: null, lastMapStageObj: null, active: true, role: 'host' }, over || {});
@@ -19607,8 +19605,8 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
         const openAt = src.indexOf('        opened = true;\n        net.active = true;\n        if (typeof currentStage === \'function\') currentStage();');
         check('1.5.6: the map on screen as hosting begins is noted as the table\'s (currentStage asked in the peer\'s first open, once the table is active), and the Multiplayer window\'s Follow me names the map a new player would land on while the GM is on a planner',
             openAt > 0 && openAt < src.indexOf("toast(resumed ? 'Hosting resumed")
-            && src.includes("    var stF = (it && it.type === 'map') ? null : currentStage();")
-            && src.includes(": (stF && stF.campId === camp.id && camp.items[stF.itemId] && camp.items[stF.itemId].meta && camp.items[stF.itemId].meta.title) || 'your current map';"));
+            && require('./checkkit').part('netfog.js').includes("    var stF = (it && it.type === 'map') ? null : currentStage();")
+            && require('./checkkit').part('netfog.js').includes(": (stF && stF.campId === camp.id && camp.items[stF.itemId] && camp.items[stF.itemId].meta && camp.items[stF.itemId].meta.title) || 'your current map';"));
     }
     /* ---- 1.5.4: a player deletes an extra sheet of their own (char-delete) ---- */
     {
@@ -19645,7 +19643,7 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
     // (g15) a snapshot's items as a player's app keeps them (snapItems, 1.5.4): a map and a page, each cleaned, and nothing of any other kind —
     // a planner named in a host's snapshot used to be kept as sent (a whole item of another kind was already refused: applyItem)
     {
-        const siA = src.indexOf('// [netcheck:snapitems-start]'), siZ = src.indexOf('// [netcheck:snapitems-end]'), siSrc = siA >= 0 && siZ > siA ? src.slice(siA, siZ) : 'function snapItems() { throw new Error("the snapitems slice is not marked"); }';
+        const siP = require('./checkkit').part('netfog.js'), siA = siP.indexOf('// [netcheck:snapitems-start]'), siZ = siP.indexOf('// [netcheck:snapitems-end]'), siSrc = siA >= 0 && siZ > siA ? siP.slice(siA, siZ) : 'function snapItems() { throw new Error("the snapitems slice is not marked"); }';
         const siTry = fn => { try { fn(); return ''; } catch (e) { return String(e && e.message); } }, siCalls = [];
         const mkSI = win => new Function('window', 'cleanHostMap', "'use strict';\n" + siSrc + '\nreturn snapItems;')(win, m => { siCalls.push('map:' + m.id); m.cleaned = 1; return m; });
         const winD = { wpDocRender: { cleanDoc: (d, o) => { siCalls.push('doc:' + d.id + ':' + j(o)); return d.bad ? null : { id: d.id, type: 'doc', clean: 1 }; } } };
@@ -19658,9 +19656,9 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
             e1 === '' && kept1 === 'd1,m1' && c1.items.m1.cleaned === 1 && j(c1.items.d1) === j({ id: 'd1', type: 'doc', clean: 1 }) && j(calls1) === j(['map:m1', 'doc:d1:{"keepHidden":true}', 'doc:d2:{"keepHidden":true}'])
             && e2 === '' && kept2 === 'm1' && odd.every(o => o[0] === '' && o[1] === '{}') && e3 === '' && Object.getPrototypeOf(heir.items) === Object.prototype && heir.items.evil === undefined && Object.keys(heir.items).join(',') === 'm1' && ({}).evil === undefined,
             j([e1, kept1, calls1, e2, kept2, odd, e3]));
-        const snapAt = src.indexOf('function applySnapshot(msg) {'), snapBody = src.slice(snapAt, snapAt + 4000);
+        const snapP2 = require('./checkkit').part('netfog.js'), snapAt = snapP2.indexOf('function applySnapshot(msg) {'), snapBody = snapP2.slice(snapAt, snapAt + 4000);   // in netfog.js, a part of net.js
         check('a snapshot\'s items (wired): applySnapshot hands each campaign\'s items to snapItems, the one place that keeps or drops them, before the active item is chosen; nothing else in it walks the items one by one',
-            snapAt > 0 && src.split('snapItems(').length === 3 && /\n        delete cS\.players;[^\n]*\n        snapItems\(cS\);[^\n]*\n        var actS = cS\.items && cS\.items\[cS\.activeItemId\];/.test(snapBody) && !/Object\.keys\(cS\.items \|\| \{\}\)\.forEach/.test(snapBody));
+            snapAt > 0 && require('./checkkit').familyCount('net.js', 'snapItems(') === 2 && /\n        delete cS\.players;[^\n]*\n        snapItems\(cS\);[^\n]*\n        var actS = cS\.items && cS\.items\[cS\.activeItemId\];/.test(snapBody) && !/Object\.keys\(cS\.items \|\| \{\}\)\.forEach/.test(snapBody));
     }
     {   // 1.5.7: a damage roll's type rides on its card, worked out where the roll is made: the GM's own roll and a player's on the host, each from the roll's entry through systemcore dmgTypeOf, never from the roller's word
         const dIdx = src.indexOf('if ((entR && entR.dmg === true) || o.dmg === true) rec.dmg = 1;'), qIdx = src.indexOf('if (actQ && actQ.dmg === true) recQ.dmg = 1;');
@@ -19694,7 +19692,7 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
             && flatR.includes("saveRemoteSoon(); if (taQ.gone && !(typeof pressQ !== 'undefined' && pressQ) && typeof rowGoneTell === 'function') rowGoneTell(q.charId, chQ, taQ.gone, conn); net.syncCharDelta(q.charId, taQ.values);")
             && flatR.includes("window.wpSheets.goneLocal(chR.id, taR.gone); }, 0);") && (flatR.match(/typeof fxNow === 'function' \? fxNow\(/g) || []).length === 5 /* 1.6.2: and the host's run of a Then's hidden steps, thenGmRun, and a waiting Then the GM applies, toGmApply (HR1) (moved on purpose) */
             && flatR.includes("if (msg.type === 'row-gone') { var rgC = typeof SC2.cleanRowGone === 'function' ? SC2.cleanRowGone(msg) : null; if (!rgC) return;") && /msg\.type === 'char-deny' \|\| msg\.type === 'row-gone'\) && net\.role === 'client'\) \{\n        \/\/ \[netcheck:charin-start\]\n[^\n]*\n        if \(!net\.foreign \|\| conn\.peer !== net\.syncedPeer/.test(flatR)
-            && flatR.includes("if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; }") /* 1.6.0 (a builder audit): an effect's line keeps the words of which time was kept (moved on purpose) */ && flatR.includes("lines: rec.lines.map(function(l, i) { if (l.fx === 1 || l.fx === 0) return { n: l.n, fx: l.fx };"));
+            && flatR.includes("if (l.fx === 1 || l.fx === 0) { var oF = { n: String(l.n).slice(0, 60), fx: l.fx }; if (typeof l.roll === 'string' && l.roll) oF.roll = l.roll.slice(0, 60); return oF; }") /* 1.6.0 (a builder audit): an effect's line keeps the words of which time was kept (moved on purpose) */ && require('./checkkit').part('netfight.js').includes("lines: rec.lines.map(function(l, i) { if (l.fx === 1 || l.fx === 0) return { n: l.n, fx: l.fx };"));
     }
     check('1.6.0 On.<name> on the host (source): a player\'s press and a player\'s roll read the one it is used on through THEIR view of the system (no GM-only field of the other reaches a formula of theirs), the GM\'s own roll through the system; each in that token\'s own context',
         src.includes("varsA = Sa.withOnSelf(varsA, !onA, onA ? Sa.makeResolver(viewA, onA.ch, Fa,") && src.includes("varsQ = SQ.withOnSelf(varsQ, !onQ, onQ && viewQ ? SQ.makeResolver(viewQ, onQ.ch, Fq,") && src.includes("varsR = SR.withOnSelf(varsR, !onR, onR ? SR.makeResolver(campR.system, onR.ch, F,"));
@@ -19718,7 +19716,7 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
         check('a player\'s app says the word from the synced host alone, as text, never in the stream window', JSON.stringify(toasts) === JSON.stringify(['You are still in the fight on Deck.']), JSON.stringify(toasts));
         const wasS = cutN('var _fightWas = Object.create(null);', 'function fightSet(fid, combat) {'), nW = {}; const wasF = new Function('net', wasS + '\nreturn _fightWas;')(nW); wasF.f1 = Object.create(null); wasF.f1.t1 = { init: 9, rolled: true };
         check('the host remembers what a token held when it left a fight (net.fightWas): by fight and token, nothing else answered, and the stored rows are noted as a roster edit drops them',
-            nW.fightWas('f1', 't1').init === 9 && nW.fightWas('f1', 'zz') === null && nW.fightWas('f9', 't1') === null && flat.includes('wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 };'));
+            nW.fightWas('f1', 't1').init === 9 && nW.fightWas('f1', 'zz') === null && nW.fightWas('f9', 't1') === null && require('./checkkit').part('netfight.js').includes('wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 };'));
         check('a join the player began closes the Multiplayer window; a reconnect leaves it as it stands', flat.includes("if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }"));
     }
     {   // 1.6.2 (the owner, by prompt: "Yes, build it"): a roll that draws a card as its die (net.js drawForRoll, run for real with the real deck core)

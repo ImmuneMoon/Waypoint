@@ -431,7 +431,7 @@ const drawSrc = sliceOf(ps, 'draw');
 {
     const netS = read('scripts/net.js'), cu = read('scripts/cleanup.js'), sb = read('scripts/sidebar.js'), dp = fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'utf8');
     check('the pinned pages name planners, which are the GM\'s alone: the key is deleted from every copy of a campaign that is sent, beside the pinned maps, and it is one of the keys that mark a campaign as this machine\'s own (netcheck runs the real sender)',
-        count(netS, '        delete camp.pinnedMaps;\n        delete camp.pinnedPages;') === 1 && count(netS, 'pinnedPages') === 1 && /var STRIPPED = \[[^\]]*'pinnedMaps', 'pinnedPages', 'sessionLog'/.test(cu));
+        require('./checkkit').familyCount('net.js', '        delete camp.pinnedMaps;\n        delete camp.pinnedPages;') === 1 && require('./checkkit').familyCount('net.js', 'pinnedPages') === 1 && /var STRIPPED = \[[^\]]*'pinnedMaps', 'pinnedPages', 'sessionLog'/.test(cu));
     const sweepSrc = (cu.match(/\nfunction isObj\(v\) \{[^\n]*\}\n/) || [''])[0] + (cu.match(/\nfunction campaignsOf\(s\) \{[^\n]*\}\n/) || [''])[0] + cu.slice(cu.indexOf('function sweepRecents(appState) {'), cu.indexOf('function cleanupInfo()'));
     const store = { wp_recent_c1: '[]', wp_recent_gone: '[]', wp_recentp_c1: '[]', wp_recentp_gone: '[]', wp_recentp_: '[]', wp_recents: 'x', wp_other: '1', cleanup_ledger: '{}' }, removed = [];
     const ls = { get length() { return Object.keys(store).length; }, key: i => Object.keys(store)[i], removeItem: k => { removed.push(k); delete store[k]; } };

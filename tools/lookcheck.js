@@ -28,7 +28,7 @@ function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', na
 const ix = read('index.html'), css = read('style.css'), wbSrc = read('scripts/whiteboard.js'), mainSrc = read('scripts/main.js'), setSrc = read('scripts/settings.js'), tourSrc = read('scripts/tutorial.js');
 // fold 2 (backlog 152): net.js's orders slice (fightsOn, combatFor, the API by id), loaded onto a stand-in for net so the board's readers ask the
 // real one; and the board's fightsHere line
-const ordersOf = s => { const a = s.indexOf('// [netcheck:orders-start]'), z = s.indexOf('// [netcheck:orders-end]'); return a >= 0 && z > a ? s.slice(a, z) : ''; };
+const ordersOf = () => { const s = require('./checkkit').part('netfight.js'), a = s.indexOf('// [netcheck:orders-start]'), z = s.indexOf('// [netcheck:orders-end]'); return a >= 0 && z > a ? s.slice(a, z) : ''; };   // the fights' orders, in netfight.js, a part of net.js
 const sliceOf = (src, name) => { const A = '// [lookcheck:' + name + '-start]', Z = '// [lookcheck:' + name + '-end]', a = src.indexOf(A), z = src.indexOf(Z); return a >= 0 && z > a && count(src, A) === 1 && count(src, Z) === 1 ? src.slice(a + A.length, z) : ''; };
 
 /* ---------- the inventory: every control around the play map, by its id, as it stood on 2026-10-06 before the look work ---------- */
@@ -1833,7 +1833,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         drew = J([n1, s1, w1, n2, J(w2) === J(w1), n3, s3, n4, s4, n5, T.pillsDraw({ getElementById: () => null }, m1)]);
         // the state, read from what the other modules hold
         const btn = on => ({ classList: { contains: c => c === 'fog-on' && on } }), map = { type: 'map', id: 'm1' }, ros = { a: { id: 'u_1', name: 'Mira' }, b: { id: 'u_2', name: 'Bren' }, c: null, d: { name: 'no id' } };
-        const ordP = ordersOf(read('scripts/net.js')), withOrders = n => { new Function('net', 'getActiveCampaign', ordP)(n, () => null); return n; };   // fold 2: net.js's own combatFor on each stand-in
+        const ordP = ordersOf(), withOrders = n => { new Function('net', 'getActiveCampaign', ordP)(n, () => null); return n; };   // fold 2: net.js's own combatFor on each stand-in
         const hostW = { wpNet: withOrders({ active: true, role: 'host', roster: ros, paused: true, combats: { m1: { mapId: 'm1', round: 4, turn: 1, rows: [{ name: 'Orc' }, { name: 'Bren' }] } } }), wpFog: { preview: () => 'u_2' }, wpVtt: { on: f => f === 'fog' } };
         const S = (w, am, view, b) => { const s = T.pillsState(w, am, view, b); return [s.gm, s.play, s.fog || '', s.hosting, s.players, s.paused, s.round || 0, s.turn || '', s.preview, s.previewName || ''].join(','); };
         const inh = Object.create({ m1: { round: 9, turn: 0, rows: [{ name: 'Inherited' }] } });
@@ -2672,7 +2672,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const cutWb = (a, z) => { const i = wbSrc.indexOf(a), k = wbSrc.indexOf(z, i + 1); return i >= 0 && k > i && count(wbSrc, a) === 1 ? wbSrc.slice(i, k) : ''; };
     const stripSrc = cutWb('function renderCombatStrip() {', '\nwindow.wpRenderCombatStrip = renderCombatStrip;'), stripWire = cutWb('(function wireCombatStrip() {', '\n// [lookcheck:combatfind-start]');
     const modalSrc = cutWb('function renderCombatModal() {', '\nfunction openCombatModal('), modalWire = cutWb('(function wireCombatModal() {', '\n// [lookcheck:stripfight-start]');
-    const fhLine = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })(), sfSl = sliceOf(wbSrc, 'stripfight'), ordW = ordersOf(read('scripts/net.js'));   // fold 2: the strip's fight on a map
+    const fhLine = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })(), sfSl = sliceOf(wbSrc, 'stripfight'), ordW = ordersOf();   // fold 2: the strip's fight on a map
     const escSrc = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '';
     let cf = {}, cferr = '';
     try {
@@ -3341,7 +3341,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         let html = '', writes = 0; const stripEl = { style: {}, dataset: {}, get innerHTML() { return html; }, set innerHTML(v) { html = v; writes++; } };
         const net = { active: true, role: 'host', myId: 'u_g', combats: { m1: { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r1', name: 'Ana', tokId: 't1' }, { id: 'r2', name: 'Orc', tokId: 't2' }] } }, myTurnTok: () => null };
         const map = { id: 'm1', type: 'map', whiteboard: [{ id: 't1', isChar: true, x: 0, y: 0, w: 50, h: 50 }, { id: 't2', isChar: true, x: 100, y: 0, w: 50, h: 50 }] };
-        new Function('net', 'getActiveCampaign', ordersOf(read('scripts/net.js')))(net, () => ({ items: { m1: map } }));   // fold 2: net.js's own fightsOn
+        new Function('net', 'getActiveCampaign', ordersOf())(net, () => ({ items: { m1: map } }));   // fold 2: net.js's own fightsOn
         const fhD = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })();
         const draw = new Function('document', 'window', 'state', 'getActiveMap', 'getActiveCampaign', 'toast', 'resolveImg', 'setTimeout', 'clearTimeout', 'openCombatModal', escSrc + '\n' + fhD + '\n' + sliceOf(wbSrc, 'stripfight') + '\n' + fSl + '\n' + stripSrc + '\nreturn renderCombatStrip;')(
             { getElementById: id => (id === 'combatStrip' ? stripEl : null) }, { wpNet: net }, { viewMode: 'visual', zoomLevel: 1, wbEls: {} }, () => map, () => ({ items: { m1: map } }), () => {}, s => s, () => 0, () => {}, () => {});
@@ -3364,7 +3364,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     try {
         const cutF = (a, z) => { const i = wbSrc.indexOf(a), k = wbSrc.indexOf(z, i + 1); return i >= 0 && k > i && count(wbSrc, a) === 1 ? wbSrc.slice(i, k) : ''; };
         const stripF = cutF('function renderCombatStrip() {', '\nwindow.wpRenderCombatStrip = renderCombatStrip;'), wireF = cutF('(function wireCombatStrip() {', '\n// [lookcheck:combatfind-start]'), menuF = cutF('function tableMenuParts(e, role) {', '\n// [systemcheck:gmfight-start]');
-        const fhF = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })(), escF = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '', ordF = ordersOf(read('scripts/net.js'));
+        const fhF = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })(), escF = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '', ordF = ordersOf();
         const world = o => {
             o = o || {}; const log = [];
             const map = { id: 'mDocks', type: 'map', meta: { title: 'Docks' }, whiteboard: [{ id: 't_kael', isChar: true, ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, { id: 't_u7', isChar: true, x: 100, y: 0, w: 50, h: 50 }, { id: 't_sela', isChar: true, ownerId: 'u_b', x: 200, y: 0, w: 50, h: 50 }] };
@@ -3405,7 +3405,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     try {
         const cutP = (a, z) => { const i = wbSrc.indexOf(a), k = wbSrc.indexOf(z, i + 1); return i >= 0 && k > i && count(wbSrc, a) === 1 ? wbSrc.slice(i, k) : ''; };
         const stripP = cutP('function renderCombatStrip() {', '\nwindow.wpRenderCombatStrip = renderCombatStrip;'), wireP = cutP('(function wireCombatStrip() {', '\n// [lookcheck:combatfind-start]');
-        const fhP = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })(), escP = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '', ordP = ordersOf(read('scripts/net.js'));
+        const fhP = (() => { const i = wbSrc.indexOf('function fightsHere('); return i < 0 ? '' : wbSrc.slice(i, wbSrc.indexOf('\n', i)); })(), escP = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(read('scripts/inspector.js')) || [])[1] || '', ordP = ordersOf();
         const coreP = read('scripts/systemcore.js'), coreA = coreP.indexOf('// Initiative O5 (backlog 34;'), coreZ = coreP.indexOf('\nvar API = {', coreA);
         const CH = new Function('isObj', coreP.slice(coreA, coreZ) + '\nreturn { chosenPicks: chosenPicks, chosenNext: chosenNext };')(v => !!v && typeof v === 'object' && !Array.isArray(v));
         const world = o => {
@@ -3445,7 +3445,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     try {
         const OT = new Function(sliceOf(wbSrc, 'onturn') + '\nreturn onTurnHere;')();
         const netO = { active: true, role: 'host', combats: { f_dock0001: { id: 'f_dock0001', mapId: 'mDocks', round: 1, turn: 1, rows: [{ id: 'rt_kael', tokId: 't_kael' }, { id: 'rt_u7', tokId: 't_u7' }] }, f_dock0002: { id: 'f_dock0002', mapId: 'mDocks', round: 1, turn: 0, rows: [{ id: 'rt_sela', tokId: 't_sela' }] }, f_quay0001: { id: 'f_quay0001', mapId: 'mQuay', round: 1, turn: 0, rows: [{ id: 'rt_u9', tokId: 't_u9' }] } } };
-        new Function('net', 'getActiveCampaign', ordersOf(read('scripts/net.js')))(netO, () => null);
+        new Function('net', 'getActiveCampaign', ordersOf())(netO, () => null);
         ot = [OT(netO, 'mDocks', 't_sela'), OT(netO, 'mDocks', 't_u7'), OT(netO, 'mDocks', 't_kael'), OT(netO, 'mDocks', 't_u9'), OT(netO, 'mQuay', 't_u9'), OT(netO, 'mDocks', 't_crate'), OT(netO, 'mDocks', null), OT(Object.assign({}, netO, { active: false }), 'mDocks', 't_sela'), OT(null, 'mDocks', 't_sela')];
     } catch (e) { otErr = String(e && e.stack || e); }
     check('fold 2\'s review (whiteboard.js onTurnHere, run for real over net.js\'s own orders slice): the board\'s ring goes on a token whose turn it is in ANY fight on the map — Sela on turn in the second fight on the Docks, Unit 7 in the first — and on none off its turn, on turn in a fight on another map, in no fight, or with no table up; the board asks it for every token',
@@ -3810,7 +3810,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         J(reads) === J([U, 'maps,handbook,planners,characters,decks', U, 'decks,handbook,planners,maps,characters'])
         && J(steps) === J(['handbook,maps,planners,characters,decks', U, U, 'handbook,characters,planners,maps,decks', U, U])
         && J(puts) === J(['planners,maps,characters,decks,handbook', 'decks,handbook,planners,maps,characters', U]) && P.orderKept(null) === null && P.orderKept(['planners']) !== null
-        && sb.includes('if (window.wpPanelOrder) window.wpPanelOrder.sync();') && count(ix, 'scripts/panelorder.js') === 1 && /delete camp\.panelOrder;/.test(nb) && /'panelOrder'/.test(cu)
+        && sb.includes('if (window.wpPanelOrder) window.wpPanelOrder.sync();') && count(ix, 'scripts/panelorder.js') === 1 && /delete camp\.panelOrder;/.test(require('./checkkit').part('netfog.js')) && /'panelOrder'/.test(cu)
         && /Move section up/.test(po) && /Move section up<\/b>, <b>Move section down<\/b> and <b>Usual order<\/b>\. Each campaign keeps its own order/.test(ix) && notes.every(t => /Drag a section's title in the left panel/.test(t)),
         J([reads, steps, puts]));
 }
@@ -4411,7 +4411,7 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && ioO.includes("if (o !== 'last') { if (again) return; v = o; }") && ioO.includes("var nx = opensTake(); again = !nx && state.viewMapId === am.id; o = nx || opensOf(getActiveCampaign(), am); }")
         && count(htO, 'id="setMapOpens"') === 1 && count(htO, 'class="menu-item ctx-map-only ctx-opens"') === 4
         && stO.includes("moS.value = camp && (camp.opensOn === 'visual' || camp.opensOn === 'data') ? camp.opensOn : '';") && stO.includes("if (val) camp.opensOn = val; else delete camp.opensOn;")
-        && netO.includes('delete camp.opensOn;') && count(netO, "'fxEffect', 'opensOn'].forEach") === 2
+        && require('./checkkit').part('netfog.js').includes('delete camp.opensOn;') && count(netO, "'fxEffect', 'opensOn'].forEach") === 2
         && J(av) === J(['data', 'data', 'visual', 'data', 'data', 'visual', 'visual', 'visual', 'visual', 'data', 'data']) && mnO.includes("      if(!activeMap) { renderNoMap(); return; }\n      state.viewMapId = activeMap.id;")
         && require('./checkkit').familyCount('whiteboard.js', "map.meta.lastView = 'visual'; if (typeof window !== 'undefined' && window.wpOpensNext) window.wpOpensNext('visual');") === 3 && count(dlO, "window.wpApplyRememberedView('named')") === 4,
         J([r1, k1, k2, k3, k4, k5, k6, k7, av]));

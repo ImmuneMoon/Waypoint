@@ -116,7 +116,9 @@ const j = JSON.stringify;
     {
         const src = fs.readFileSync(path.join(scripts, 'net.js'), 'latin1'), cut = (a, b) => { const i = src.indexOf(a), k = src.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('slice ' + a); return src.slice(i, k); };
         const a = src.indexOf('function sanitizeItem('), b = src.indexOf('\n}\n', src.indexOf('function wireWbItem(', a));
-        const saSrc = src.slice(src.indexOf('function cleanElevation('), a) + '\n' + (src.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3) + '\n' + cut('function sanitizeAppState(', '\nfunction fogNow()');
+        // wireNum and sanitizeAppState stand in netfog.js, a part of net.js (area 9), read by its own name with the same bytes
+        const fogT = require('./srcjoin').raw(path.join(scripts, 'netfog.js'), 'latin1'), fogCut = (x, y, file) => { const t = require('./srcjoin').raw(path.join(scripts, file), 'latin1'), i = t.indexOf(x), k = t.indexOf(y, i + 1); if (i < 0 || k < 0) throw new Error('slice ' + x); return t.slice(i, k); };
+        const saSrc = src.slice(src.indexOf('function cleanElevation('), a) + '\n' + (fogT.match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3) + '\n' + fogCut('function sanitizeAppState(', '\nfunction fogNow()', 'netfog.js');
         const own1 = (o, k) => !!o && typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined && o[k] !== null;
         const SA = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', "'use strict';\n" + saSrc + '\nreturn sanitizeAppState;')(own1, { wpSystemCore: S, wpFormula: F, wpLibrary: { catsFor: () => ({ show: [], hide: [] }) } }, () => ({}), () => ({}), x => x, it => it, it => it);
         const gmSave = () => ({ activeCampaignId: 'k1', _schema: 2, campaigns: { k1: { id: 'k1', name: 'Hosted', activeItemId: null, items: {}, system: gm, chars: { c_big: ch } } } });

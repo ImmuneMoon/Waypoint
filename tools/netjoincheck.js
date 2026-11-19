@@ -5,7 +5,8 @@
    connection of a profile, identity validation, storms, versions and passwords, the join queue, broadcast, chat, what a client accepts
    from a host, the audits' small follow-ups, the roster reaching players and its sinks, no value making a send fail silently, the local
    server's bodies read as UTF-8, security R2 cluster J on the host, security S (the GM's signing key, trust on first use), Merge into,
-   "Same person as..." and a hand-over in Player History, and the host id apart from the joining id.
+   "Same person as..." and a hand-over in Player History, and the host id apart from the joining id. With step 5 (2026-11-19): the
+   heartbeat reaching a player still waiting for the GM's Allow, and a side about to freeze in a print dialog asking for the hold (F2b).
    It reads the joined net.js through srcjoin, as netcheck did, and takes the gate's harness from tools/checkkit.js (netGate).
    Run: node tools/netjoincheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
@@ -15,7 +16,7 @@ const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packChec
 // netcheck's slice helpers over the joined net.js; a call that names a part's file reads that part by its own name
 const { src, between, tryBetween, fnSrc } = kit.netSlices('netjoincheck');
 // the harness pieces netcheck keeps at its top, the very code (checkkit netHarness)
-const { helpersSrc, storage, H } = kit.netHarness('netjoincheck');
+const { helpersSrc, storage, H, mkConn } = kit.netHarness('netjoincheck');
 // the admission gate's harness netcheck kept at its top, the very code (checkkit netGate)
 const { gateSrc, hmacRef, RC, pre, FPP, FPH, FPTAIL, pcStub, runGate, runBroadcast, runChat, runRoster, runAway, harness } = kit.netGate('netjoincheck');
 // fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the API by id), so
@@ -1541,6 +1542,46 @@ pendingChecks.push((async () => {
         first === 'u_first' && store.wp_hostId === 'u_second' && after === 'u_first' && healed === 'u_second' && sites === 8 && gmSites === 2 && /getProfile\(\)\.id/.test(nS.slice(i0, i1)) && (nS.match(/getProfile\(\)\.id/g) || []).length === 11
         && nS.includes('net.myId = hostId();') && nS.includes("    var profile = setProfileName(name || getProfile().name || 'Player');\n    net.myId = profile.id;") && nS.includes("if (!window.wpStream && !net.stream && typeof hostId === 'function') net.myId = hostId();"),
         JSON.stringify([first, after, healed, store, sites, gmSites]));
+}
+
+
+// the heartbeat: a player waiting for the GM's Allow hears it too (it carries nothing of the table), so the wait is not taken for a lost GM
+{
+    const hbSrc = fnSrc('function hbTick() {', '\n// Where each player was last seen', 'hbTick');
+    const conns = [mkConn('pA'), mkConn('pWait'), mkConn('pShut', false)], bc = [];
+    const net = { active: true, role: 'host', conns, roster: { pA: { id: 'u_a' } } };
+    new Function('net', 'setIndicator', 'lastSeen', 'HB_DEAD', 'HB_STALE', 'toast', 'renderRoster', 'sendFailed', 'broadcast', hbSrc + '\nreturn hbTick();')(net, () => {}, {}, 20000, 8000, () => {}, () => {}, () => {}, m => bc.push(m));
+    check('heartbeat (host): every open connection hears it — an admitted player and one still waiting for the Allow — and nothing else goes to the waiting one; a closed connection is skipped',
+        j(conns[0].sent) === '[{"type":"hb"}]' && j(conns[1].sent) === '[{"type":"hb"}]' && conns[2].sent.length === 0 && bc.every(m => m.type !== 'hb'), j([conns.map(c => c.sent), bc]));
+}
+
+// Onboarding F2b: a side about to freeze in a print dialog asks the other to wait (the hold), capped; the next word from it ends the wait
+{
+    const hSrc = between('// [netcheck:hold-start]', '// [netcheck:hold-end]', 'hold');
+    const runHold = (role, ms) => { const st = { holdUntil: {}, hostHoldUntil: 0 }; new Function('msg', 'conn', 'net', 'holdUntil', 'HOLD_MAX', 'st', hSrc.replace('hostHoldUntil = Date.now() + msH', 'st.hostHoldUntil = Date.now() + msH'))({ type: 'hold', ms }, { peer: 'pA' }, { role }, st.holdUntil, 180000, st); return st; };
+    const t0 = Date.now(), hOk = runHold('host', 60000), hBig = runHold('host', 1e12), hBad = runHold('host', 'x'), hStr = runHold('host', '60000'), hTrue = runHold('host', true), hNeg = runHold('host', -5), cOk = runHold('client', 30000);
+    check('F2b the hold (run for real): the host waits for that player the time asked (3 minutes at most; nothing for a malformed or negative one); a player waits for their GM the same way',
+        hOk.holdUntil.pA - t0 >= 59000 && hOk.holdUntil.pA - t0 <= 61000 && hBig.holdUntil.pA - t0 <= 181000 && hBig.holdUntil.pA - t0 >= 179000 && Math.abs(hBad.holdUntil.pA - Date.now()) < 1000 && Math.abs(hStr.holdUntil.pA - Date.now()) < 1000 && Math.abs(hTrue.holdUntil.pA - Date.now()) < 1000 && Math.abs(hNeg.holdUntil.pA - Date.now()) < 1000 && cOk.hostHoldUntil - t0 >= 29000 && !('pA' in cOk.holdUntil), j([hOk, cOk]));
+    const hbSrcH = fnSrc('function hbTick() {', '\n// Where each player was last seen', 'hbTick');
+    const tickHost = (seenAgo, holdFor) => { const conns = [mkConn('pA')], closed = []; conns[0].close = () => closed.push('pA'); const net = { active: true, role: 'host', conns, roster: { pA: { id: 'u_a', name: 'Pat' } } }, now = Date.now(), toasts = [];
+        new Function('net', 'setIndicator', 'lastSeen', 'HB_DEAD', 'HB_STALE', 'toast', 'renderRoster', 'sendFailed', 'broadcast', 'holdUntil', hbSrcH + '\nreturn hbTick();')(net, () => {}, { pA: now - seenAgo }, 20000, 8000, t => toasts.push(t), () => {}, () => {}, () => {}, holdFor ? { pA: now + holdFor } : {});
+        return { closed, toasts, stale: !!net.roster.pA.stale }; };
+    const quiet = tickHost(30000, 0), held = tickHost(30000, 60000), heldOver = tickHost(30000, -1);
+    check('F2b the host waits for a player who said they would freeze: silent 30 s, held — not dropped (marked not responding); not held, or the hold run out — dropped',
+        quiet.closed.length === 1 && held.closed.length === 0 && held.stale === true && held.toasts.length === 0 && heldOver.closed.length === 1, j([quiet, held, heldOver]));
+    const hpSrc = between('// [netcheck:holdpeers-start]', '// [netcheck:holdpeers-end]', 'holdpeers');
+    const peers = (role) => { const conns = [mkConn('pA'), mkConn('pWait'), mkConn('pShut', false)], ticks = [], ls = { pA: 1, pWait: 1 }, st = { hostLastSeen: 1 };
+        const net = { active: true, role, conns, roster: { pA: { id: 'u_a' } } };
+        new Function('net', 'own', 'HOLD_MAX', 'sendFailed', 'lastSeen', 'hbTick', 'st', hpSrc.replace('hostLastSeen = now;', 'st.hostLastSeen = now;'))(net, H.own, 180000, () => {}, ls, () => ticks.push(1), st);
+        const r1 = net.holdPeers(999999); net.heldDone(); return { conns, ticks, ls, st, r1 }; };
+    const pH = peers('host'), pC = peers('client');
+    check('F2b holdPeers: the host tells its admitted players only (a waiting one hears nothing but the heartbeat), a player tells their GM; the time capped; after the dialog this side\'s clocks restart and a heartbeat goes at once',
+        j(pH.conns[0].sent) === j([{ type: 'hold', ms: 180000 }]) && pH.conns[1].sent.length === 0 && pH.conns[2].sent.length === 0 && pH.ticks.length === 1 && pH.ls.pA > 1 && pH.ls.pWait > 1 && pH.st.hostLastSeen > 1
+        && j(pC.conns[0].sent) === j([{ type: 'hold', ms: 180000 }]) && pC.conns[1].sent.length === 0 && pC.r1 === true, j([pH.conns.map(c => c.sent), pC.conns.map(c => c.sent)]));
+    const ns = src.replace(/\r\n/g, '\n'), ioS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
+    check('F2b (source): any word from the other side ends its hold, and a player waits for a GM who said so; Save PDF holds the table too',
+        /function noteSeen\(peerId\) \{ var now = Date\.now\(\); lastSeen\[peerId\] = now; delete holdUntil\[peerId\]; if \(net\.role === 'client'\) \{ hostLastSeen = now; hostHoldUntil = 0; \} \}/.test(ns) && /if \(age0 > HB_DEAD && !\(hostHoldUntil > now\)\) \{/.test(ns) && /hbTimer = null; lastSeen = \{\}; hostLastSeen = 0; holdUntil = \{\}; hostHoldUntil = 0;/.test(ns)
+        && /if \(nP && nP\.holdPeers\) nP\.holdPeers\(180000\); try \{ window\.print\(\); \} finally \{ if \(nP && nP\.heldDone\) nP\.heldDone\(\); \}/.test(ioS));
 }
 
 T.finish();

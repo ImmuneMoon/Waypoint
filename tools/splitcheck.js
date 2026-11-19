@@ -51,7 +51,8 @@
       only by a string or a template that holds the part's file name, or where every receiver of its indexOf is a name that stands, by
       the scopes, for a read whose path names the part; a comment never names it (the review of next area 2, 2026-11-18). A cut at a
       definition that a script of another family also holds at a line's start (net.js's own var FACE_PICS) passes only where every
-      receiver stands for a read of such a script. A line is excused only by naming the very part that holds the marker or the
+      receiver stands for a read of such a script (the src that tools/checkkit.js netSlices hands back, destructured plain or renamed, is
+      a read of net.js: "Finishing the test split", step 5, 2026-11-19). A line is excused only by naming the very part that holds the marker or the
       definition, never another part of the same root (the review of next area 3, 2026-11-18). The rules are tried on texts of their own
       first.
    7b. A source pin (an includes or a split of a quoted string, or a plain regex's test) on a root's joined text, read directly or
@@ -533,6 +534,19 @@ function pageCalls(name, bundle, key) {
                 kids(n).forEach(k => walk(k, sc, sc));
                 return;
             }
+            // const { src, between } = kit.netSlices('x'), or { src: nS }: the src netSlices hands back is the joined net.js (tools/checkkit.js),
+            // so the name it binds stands for net.js; any other name it binds stands for no file ("Finishing the test split", step 5,
+            // 2026-11-19: netmakecheck's moved faces block cuts at net.js's own var FACE_PICS through such a src, as netcheck's did through
+            // its readFileSync of net.js)
+            if (n.type === 'VariableDeclarator' && n.id.type === 'ObjectPattern' && n.init && n.init.type === 'CallExpression'
+                && ((n.init.callee.type === 'Identifier' && n.init.callee.name === 'netSlices') || (n.init.callee.type === 'MemberExpression' && !n.init.callee.computed && n.init.callee.property.name === 'netSlices'))) {
+                const sc = n.kind === 'var' ? fnScope : block;
+                n.id.properties.forEach(q => { if (q.type !== 'Property' || q.computed || q.value.type !== 'Identifier') return;
+                    const key = q.key.type === 'Identifier' ? q.key.name : q.key.value;
+                    decls.push({ name: q.value.name, at: n.start, s0: sc[0], s1: sc[1], files: new Set(key === 'src' ? ['net.js'] : []) }); });
+                walk(n.init, fnScope, block);
+                return;
+            }
             if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier') {
                 const sc = n.kind === 'var' ? fnScope : block;
                 if (isFn(n.init)) {
@@ -559,11 +573,12 @@ function pageCalls(name, bundle, key) {
         } });
         return resolve;
     }
-    const bindSrc7 = "var a = kit.part('cleancore.js');\nconst b = fs.readFileSync(path.join(d, 'net.js'));\nconst f = s => s.indexOf('x');\nf(a); f(b);\nconst a2 = a;\n{ const b = raw('wbbuild.js'); b.indexOf('y'); }\nb.indexOf('z');\n";
+    const bindSrc7 = "var a = kit.part('cleancore.js');\nconst b = fs.readFileSync(path.join(d, 'net.js'));\nconst f = s => s.indexOf('x');\nf(a); f(b);\nconst a2 = a;\n{ const b = raw('wbbuild.js'); b.indexOf('y'); }\nb.indexOf('z');\nconst { src, between: bw } = kit.netSlices('k'), { src: nS } = require('./checkkit').netSlices('m');\nsrc.indexOf('s'); nS.indexOf('t'); bw.indexOf('u');\n";
     const bindTry7 = binds7(L.acorn(), bindSrc7), at7 = t => bindSrc7.indexOf(t), set7 = (n, t) => bindTry7 ? [...bindTry7(n, at7(t))].sort().join() : null;
     check('7. the rule that a name stands for the files its read names, tried on a text of its own: a part read by name, a path, a name set to another name, a function\'s parameter by its call sites, a name declared again in an inner block read there and the outer one read outside it, and a name read before it is declared standing for nothing',
         !!bindTry7 && set7('a', 'const b') === 'cleancore.js' && set7('b', 'const f') === 'net.js' && set7('s', "s.indexOf('x')") === 'cleancore.js,net.js'
-        && set7('a2', '{ const b') === 'cleancore.js' && set7('b', "b.indexOf('y')") === 'wbbuild.js' && set7('b', "b.indexOf('z')") === 'net.js' && set7('b', 'var a') === '' && set7('zz', 'f(a)') === '');
+        && set7('a2', '{ const b') === 'cleancore.js' && set7('b', "b.indexOf('y')") === 'wbbuild.js' && set7('b', "b.indexOf('z')") === 'net.js' && set7('b', 'var a') === '' && set7('zz', 'f(a)') === ''
+        && set7('src', "src.indexOf('s')") === 'net.js' && set7('nS', "nS.indexOf('t')") === 'net.js' && set7('bw', "bw.indexOf('u')") === '' && set7('src', "b.indexOf('z')") === '');
     const anchorCall7 = /\b(?:fnSrc|cut|indexOf|range|between|tryBetween|lineOf)\(/;
     // A part is named on a line only by a string or a template that holds its file's name (a path, kit.part('x.js'), srcjoin.raw): a
     // comment never names it, or a comment could quiet point 7 on a real pin (the review of next area 2, 2026-11-18). Each tool is read by

@@ -4,7 +4,8 @@
    mid-session, the fog defaults changed mid-session (play areas), the library on the wire (L3 and L3b), security R2 cluster E (a player's
    app not yet at the table, and the plan-aware mode's writes), security R2 cluster F (journals, handouts, shares and the notepad), the
    Multiplayer panel's two parts, Leave session, the table trackers on the wire (backlog 29), sounds on actions, a row's look and work
-   line on the wire (206), and a chat line's mentions.
+   line on the wire (206), and a chat line's mentions. With step 5 (2026-11-19): the VTT ceiling on the wire (R2 #18, broadcastStance)
+   and the item library's manifest kept out of the players' snapshot (L1c).
    It reads the joined net.js through srcjoin, as netcheck did, and the broadcast slice (netfog.js, a part of net.js, read by its own
    name) from tools/checkkit.js (netGate).
    Run: node tools/netsessioncheck.js   (exit 1 on any failure) */
@@ -1686,5 +1687,41 @@ pendingChecks.push((async () => {
             && src.includes("var menS = chatMen(menT, text); if (menS) msg.men = menS;") && src.includes("links: no, mentions: yes, sizes: yes,") && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<input type="text" id="chatInput" data-mentions '));
     }
 })());
+
+
+// secrets (R2 #18): the VTT ceiling on the wire — net.broadcastStance (run for real) with vtt.js's own hostCamps (sliced, over a state of three
+// campaigns) names the hosted campaign alone: a session is one campaign, and the GM's other games (their ids, their switches) never reach a player
+{
+    const bsSrc = fnSrc('net.broadcastStance = function', '\n// The one place the ceiling is re-sent from', 'broadcastStance');
+    const vttSrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'vtt.js'), 'utf8').replace(/\r\n/g, '\n'), hcAt = vttSrc.indexOf('function hostCamps() {');
+    const hcSrc = hcAt < 0 ? '' : vttSrc.slice(hcAt, vttSrc.indexOf('\n', hcAt));
+    const stanceOf = (active, camps) => {
+        const state = { appState: { activeCampaignId: active, campaigns: camps } }, sent = [];
+        const hostCamps = new Function('state', 'flagsOf', hcSrc + '\nreturn hostCamps;')(state, c => ({ fog: c.vtt.features.fog }));
+        const conns = [{ peer: 'pA', open: true, send: m => { packCheck(m); sent.push(['pA', JSON.parse(JSON.stringify(m))]); } }, { peer: 'pW', open: true, send: m => sent.push(['pW', m]) }, { peer: 'pS', open: false, send: m => sent.push(['pS', m]) }];
+        const net = { active: true, role: 'host', conns, roster: { pA: { id: 'u_a' }, pS: { id: 'u_s' } }, stanceFlags: () => ({ fog: true }) };
+        new Function('net', 'getActiveCampaign', 'window', 'sendFailed', bsSrc + '\nnet.broadcastStance();')(net, () => (active && camps[active]) || null, { wpVtt: { hostCamps, hostFlags: () => ({ fog: true }) } }, e => { throw e; });
+        return sent;
+    };
+    const three = { camp_1700000000000: { id: 'camp_1700000000000', vtt: { features: { fog: true } } }, camp_1700000000001: { id: 'camp_1700000000001', vtt: { features: { fog: false } } }, camp_1700000000002: { id: 'camp_1700000000002', vtt: { features: { fog: false } } } };
+    const st1 = stanceOf('camp_1700000000000', three), stNone = stanceOf('camp_9', three), stOff = stanceOf(null, three);
+    check('secrets: the stance message goes to admitted open connections alone and its camps name the hosted campaign alone, its flags; the other campaigns\' ids appear nowhere in it; a hosted id the save does not hold, or none, gives an empty map; the join snapshot takes its stanceCamps from the same hostCamps',
+        st1.length === 1 && st1[0][0] === 'pA' && st1[0][1].type === 'stance' && j(Object.keys(st1[0][1].camps)) === j(['camp_1700000000000']) && st1[0][1].camps.camp_1700000000000.fog === true && st1[0][1].campId === 'camp_1700000000000'
+        && !/camp_1700000000001|camp_1700000000002/.test(JSON.stringify(st1)) && stNone.length === 1 && j(stNone[0][1].camps) === '{}' && stOff.length === 1 && j(stOff[0][1].camps) === '{}' && hcSrc.length > 0
+        && /stanceCamps: window\.wpVtt \? window\.wpVtt\.hostCamps\(\) : null, targets: targetsFor\(prof\.id\)/.test(src) && /camps: window\.wpVtt \? window\.wpVtt\.hostCamps\(\) : null \};/.test(src), j([st1, stNone, stOff]));
+}
+
+// Stage 6 library L1c: the item library's manifest never goes in the players' snapshot, and the host's projections read the library through
+// a lookup (itemLib, run for real): the system's items as a map while there is no library on this machine, a lookup once there is
+{
+    const T = src.replace(/\r\n/g, '\n'), il = (T.match(/function itemLib\(sys\) \{[^\n]*\}/) || [''])[0];
+    const mk = win => new Function('window', il + '\nreturn itemLib;')(win);
+    const sysI = { items: [{ id: 'i_a', name: 'A' }, { id: 'bad', name: 'X' }] }, libE = { id: 'i_l', name: 'L' };
+    const noLib = mk({})(sysI), empty = mk({ wpLibrary: { size: () => 0, entry: () => libE } })(sysI), withLib = mk({ wpLibrary: { size: () => 3, entry: id => (id === 'i_l' ? libE : null) } })(sysI);
+    check('L1c itemLib: a map of the system\'s items (well-formed ids only) with no library here or an empty one; with one, a lookup — the system\'s own item first, then the library, else nothing',
+        typeof noLib === 'object' && j(Object.keys(noLib)) === j(['i_a']) && typeof empty === 'object' && typeof withLib === 'function' && withLib('i_a').name === 'A' && withLib('i_l') === libE && withLib('i_x') === null && withLib('bad') === null);
+    check('L1c the players\' snapshot drops the item library\'s manifest beside the sounds and music (a player holds only the copies on their rows)',
+        /        delete camp\.music;[^\n]*\n        delete camp\.library;/.test(require('./checkkit').part('netfog.js')));
+}
 
 T.finish();

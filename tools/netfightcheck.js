@@ -7,7 +7,10 @@
    penalties R2) and kept to its roller and the GM while another player cannot see the target (R3), a called shot's location (B5: hit-ask
    and hit-rows, the GM's own roll), a player's End turn and the initiative folds O1 to O4 (a player's own roll into the fight, a hold, a
    roll each round, sides), a reminder card delivered to its player (T2b), a step back as a correction (fold 3 of backlog 152), fights by
-   their own ids with two on one map (fold 2), a sheet given its own copy while a fight runs, and who holds whom.
+   their own ids with two on one map (fold 2), a sheet given its own copy while a fight runs, and who holds whom. With "Finishing the
+   test split", step 5 (2026-11-19), from netcheck.js: the round hook (G10), a fight ended with its session or its map (fold 0 of backlog
+   152), walls that stop a player's token (T3a), the move limit and the out-of-turn lock (T3b), the actions a turn allows (T4), the combat
+   roster on the wire, and a hold that names what sets it off.
    Run: node tools/netfightcheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
@@ -16,7 +19,7 @@ const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packChec
 // netcheck's slice helpers over the joined net.js; a call that names a part's file (netfight.js) reads that part by its own name
 const { src, between, fnSrc, lineOf } = kit.netSlices('netfightcheck');
 // the harness pieces netcheck keeps at its top, the very code (checkkit netHarness)
-const { H, fightIn, mkConn } = kit.netHarness('netfightcheck');
+const { H, ownKeySrc, fightIn, mkConn } = kit.netHarness('netfightcheck');
 const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 const j = JSON.stringify;
 check('netfightcheck: netfight.js is a part of net.js, read by its own name', kit.part('netfight.js').includes('// [split:body-start]') && kit.part('netfight.js').includes('// [netcheck:orders-start]') && kit.part('netfight.js').includes('// [netcheck:holds-start]'));
@@ -1027,5 +1030,920 @@ pendingChecks.push((async () => {
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'datamap.js'), 'utf8').includes('window.wpNet.holdsMoved(am, item,'));
     }
 })()); }
+
+
+
+// 1.6.0 A hold names what sets it off (combat.turn.holdNames, holdLost): the host's fight, run for real on a world of plain objects (invented data: Kael, Sela, Orc, Pebbles)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx3 = await import(url('formula.js'));
+    const line3 = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
+    const help3 = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function moveMode('].map(line3).join('\n') + '\n';
+    const cb3 = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats'), set3 = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), ta3 = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts'), hm3 = between('// [netcheck:turnholdmsg-start]', '// [netcheck:turnholdmsg-end]', 'turnholdmsg'), of3 = src.slice(src.indexOf('// [netcheck:offturn-start]'), src.indexOf('// [netcheck:offturn-end]'));
+    const fog3 = fnSrc('function fogDrop(', '\nfunction fogFilterClean(', 'fogDrop', 'netfog.js') + fnSrc('function anyFog(camp) {', '\n// Everything a player receives', 'anyFog', 'netfog.js');
+    const sysH = o => Sx.cleanSystem({ v: 1, name: 'H', sheet: { sections: [] }, fields: [{ id: 'f_dz', key: 'Dazed', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Grudge', kind: 'number', vis: 'gm', def: 1 }], rolls: [{ id: 'r_sh', label: 'Shoot', formula: '3d6 <= 13', vis: 'all' }, { id: 'r_gm', label: 'Secret', formula: '3d6', vis: 'gm' }],
+        combat: { turn: Object.assign({ holdNames: true, holdLost: 'Dazed > 0', off: 'refuse', acts: [{ key: 'Action', n: 1, nf: '1 - Dazed' }] }, o || {}) } }, { F: Fx3, gmView: true });
+    const mkH = o => {
+        o = o || {};
+        const camp = { id: 'k', activeItemId: 'm1', system: o.system || sysH(), turnRules: {}, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', values: {} }, c_b: { id: 'c_b', name: 'Sela', ownerId: 'u_b', values: {} }, c_o: { id: 'c_o', name: 'Orc', npc: true, values: {} } },
+            items: { m1: { type: 'map', meta: { title: 'Keep' }, fog: { on: false }, whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', ownerId: 'u_a', x: 0, y: 0 }, { id: 't_b', isChar: true, charId: 'c_b', ownerId: 'u_b', x: 50, y: 0 }, { id: 't_o', isChar: true, charId: 'c_o', x: 100, y: 0 }] } } };
+        const out = { toasts: [], cards: [], posts: [], events: [], steps: [], sent: {} }, mk = p => ({ peer: p, open: true, send: m => { packCheck(m); (out.sent[p] = out.sent[p] || []).push(JSON.parse(JSON.stringify(m))); } }), cA = mk('pA'), cB = mk('pB');
+        const fight = { id: 'f_keep0001', mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_a', name: 'Kael', tokId: 't_a' }, { id: 'r_b', name: 'Sela', tokId: 't_b' }, { id: 'r_o', name: 'Orc', tokId: 't_o' }] };
+        const net = { active: true, role: 'host', paused: false, conns: [cA, cB], roster: { pA: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' } }, combats: { f_keep0001: fight }, damageCard: (ch, lines) => out.cards.push([ch.id, lines.join(' ')]) };
+        const win = { wpFog: { fogDropIds: () => null }, wpVtt: { on: () => true, rulesOn: () => true }, wpFormula: Fx3, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx3, gmView: false }) }, wpStepLog: (w, s) => out.steps.push(w + ':' + s) };
+        const api = new Function('net', 'getActiveCampaign', 'window', 'broadcast', 'sendFailed', 'logEvent', 'toast', 'render', 'renderNotepad', 'SC', 'callPost', 'turnMoveStart', 'turnFxStart', 'peerPaused', 'allow', 'mapTitleOf', 'bellOut', 'applyPosToDom', 'broadcastPos', 'turnNote',
+            help3 + fog3 + '\n' + cb3 + '\n' + set3 + '\n' + ordersSrc + '\n' + ta3 + '\n' + of3 + '\nreturn { combatsFor, cleanFights, actsMaxOf, offTurnOf, msg: function(msg, conn) {\n' + hm3 + '\n} };')(
+            net, () => camp, win, () => {}, e => { throw e; }, (a, s) => out.events.push(s), t => out.toasts.push(t), () => {}, () => {}, () => Sx, (cp, roll, ch, by, priv) => { out.posts.push([roll, ch.id, by, priv]); return o.posted !== false; }, () => {}, () => {}, () => false, () => true, () => 'Keep', () => {}, () => {}, () => {}, () => {});
+        return { camp, net, fight, out, api, cA, cB, row: id => fight.rows.find(r => r.id === id), step: d => net.fightStep('f_keep0001', d === undefined ? 1 : d), hold: hf => net.fightHold('f_keep0001', undefined, hf), off: id => net.fightSetOff('f_keep0001', id) };
+    };
+    const a = mkH(), a0 = a.hold(undefined), a1 = a.hold({ text: '   ' }), aTurn = a.fight.turn, a2 = a.hold({ text: 'Whoever comes\nthrough the door', roll: 'r_sh' });
+    check('1.6.0 a named hold: with nothing named it is refused and play stays; named it holds, cleaned to one line with its roll, and play moves on',
+        a0 === false && a1 === false && aTurn === 0 && a2 === true && a.row('r_a').held === 1 && j(a.row('r_a').holdFor) === j({ text: 'Whoever comes through the door', roll: 'r_sh' }) && a.fight.turn === 1, j(a.row('r_a')));
+    const seen = who => a.api.combatsFor(who, 'm1').f_keep0001.rows[0], copyA = seen('u_a'), copyB = seen('u_b'), kept = a.api.cleanFights({ f_keep0001: { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r', name: 'A', held: 1, hf: 'one\ntwo' + 'x'.repeat(200), sf: 1, holdFor: { text: 'x' } }, { id: 'r2', name: 'B', hf: 7 }] } }).f_keep0001.rows;
+    check('1.6.0 a named hold: what sets it off reaches its holder\'s own copy alone, held shows to everyone, the record travels to no one, and a player\'s app keeps a line of text',
+        copyA.held === 1 && copyA.hf === 'Whoever comes through the door' && copyB.held === 1 && !('hf' in copyB) && !('holdFor' in copyA) && !('holdFor' in copyB) && !/r_sh/.test(j(a.api.combatsFor('u_b', 'm1'))) && !/r_sh/.test(j(copyA)) && kept[0].hf.length === 120 && !/\n/.test(kept[0].hf) && !('holdFor' in kept[0]) && kept[0].sf === 1 && !('hf' in kept[1]), j([copyA, copyB, kept]));
+    a.step(); a.step();
+    check('1.6.0 a named hold lasts to its row\'s next turn: at that turn it clears, a card says the action was lost, and the turn plays as normal', a.row('r_a').held === undefined && a.row('r_a').holdFor === undefined && a.fight.round === 2 && a.fight.turn === 0 && j(a.out.cards) === j([['c_a', 'Nothing set off the hold, so that action was lost.']]), j([a.fight, a.out.cards]));
+    const b = mkH({ system: sysH({ holdLost: undefined }) }); b.step(); b.step(); b.hold({ text: 'A foe in sight' }); const bCross = b.row('r_o').held === 1 && b.fight.round === 2 && b.fight.turn === 0, bCard0 = b.out.cards.length; b.step(); b.step(); const bClear = b.row('r_o').held, bHf = b.row('r_o').holdFor;
+    check('1.6.0 a named hold on a round\'s last turn is not lost at once: it lasts over the round\'s end to its row\'s next turn, where it clears, with a card to the GM and its player that the action was lost',
+        bCross && bCard0 === 0 && bClear === undefined && bHf === undefined && j(b.out.cards) === j([['c_o', 'Nothing set off the hold, so that action was lost.']]) && b.out.steps.includes('hold v1:lapsed'), j([bCross, b.out.cards, b.row('r_o')]));
+    const c = mkH(); c.step(); c.hold({ text: 'A foe in sight', roll: 'r_sh' }); const cAt = c.fight.turn, cOrder = j(c.fight.rows.map(r => r.id)), cOff = c.off('r_b'), cRow = c.row('r_b');
+    check('1.6.0 Set off: the GM\'s press clears the hold, keeps the order and the turn on hand, sends the named roll as a card and says so; the row is marked until the turn moves, and acts off its turn under the system\'s rule',
+        cOff === true && cRow.held === undefined && cRow.holdFor === undefined && cRow.sf === 1 && c.fight.turn === cAt && j(c.fight.rows.map(r => r.id)) === cOrder && j(c.out.posts) === j([['r_sh', 'c_b', 'its hold', false]]) && !c.out.cards.length && c.out.toasts.includes('Sela acts before the turn goes on.') && c.api.offTurnOf(c.camp, 'c_b') === '' && c.api.combatsFor('u_a', 'm1').f_keep0001.rows[1].sf === 1, j([cOff, cRow, c.out]));
+    c.step(); const cAfter = c.row('r_b').sf, cOffAfter = c.api.offTurnOf(c.camp, 'c_b');
+    check('1.6.0 Set off: once the turn moves the row is off its turn again', cAfter === undefined && cOffAfter === 'refuse', j([cAfter, cOffAfter]));
+    const d = mkH({ posted: false }); d.step(); d.hold({ text: 'A sound' }); const dOff = d.off('r_b'), d2 = mkH({ posted: false }); d2.step(); d2.hold({ text: 'A sound', roll: 'r_sh' }); d2.off('r_b');
+    const e = mkH(), e1 = e.off('r_a'), e2 = e.net.fightSetOff('f_none0000', 'r_a'); e.step(); e.hold({ text: 'x' }); const e3 = e.off('nope'), e4 = e.net.fightAct('f_keep0001', 'r_b'); e.net.role = 'client'; const e5 = e.off('r_b');
+    check('1.6.0 Set off: with no roll named, or a roll whose needs do not hold, a card tells them to act now; it needs a row that holds, another fight or row sets nothing off, Act does not fire a named hold, and a player\'s app cannot press it',
+        dOff === true && d.out.cards[0][1] === 'The hold was set off: act now, before the turn goes on.' && d2.out.cards.length === 1 && e1 === false && e2 === false && e3 === false && e4 === false && e5 === false && e.row('r_b').held === 1, j([d.out, d2.out, e1, e3, e4, e5]));
+    const f = mkH(); f.hold({ text: 'A foe in sight' }); f.camp.chars.c_a.values.f_dz = 1; f.step(); const fGone = f.row('r_a'), fCard = f.out.cards.slice(), fHk = fGone.hk === 1, fMax = f.api.actsMaxOf(f.camp, f.camp.chars.c_a, f.camp.items.m1, f.camp.items.m1.whiteboard[0], f.fight).Action, fPlain = f.api.actsMaxOf(f.camp, f.camp.chars.c_b, f.camp.items.m1, f.camp.items.m1.whiteboard[1], f.fight).Action;
+    check('1.6.0 holdLost: as the system\'s formula comes true while a hold stands, the hold goes in the lost action\'s place, said on a card, and that row\'s next turn keeps its own actions though its count reads none',
+        fGone.held === undefined && fGone.holdFor === undefined && fHk && j(fCard) === j([['c_a', 'The hold went in place of a lost action. The next action stays.']]) && fMax === 1 && fPlain === 1, j([fGone, fCard, fMax]));
+    f.step(); const fTurn = f.fight.turn, fNext = f.api.actsMaxOf(f.camp, f.camp.chars.c_a, f.camp.items.m1, f.camp.items.m1.whiteboard[0], f.fight).Action; f.step(); const fAfter = f.api.actsMaxOf(f.camp, f.camp.chars.c_a, f.camp.items.m1, f.camp.items.m1.whiteboard[0], f.fight).Action, fHkA = f.row('r_a').hk;
+    check('1.6.0 holdLost: what the hold kept is that one turn\'s: once the turn ends the count reads as it reads', fTurn === 0 && fNext === 1 && fHkA === undefined && fAfter === 0, j([fTurn, fNext, fAfter, f.row('r_a')]));
+    const g = mkH(); g.camp.chars.c_a.values.f_dz = 1; g.hold({ text: 'A foe in sight' }); const gWas = g.row('r_a').holdFor.was; g.step(); const gStays = g.row('r_a').held === 1; delete g.camp.chars.c_a.values.f_dz; g.step(); g.camp.chars.c_a.values.f_dz = 2; g.step(); const gGone = g.row('r_a').held, gCards = g.out.cards.length;
+    const h = mkH({ system: sysH({ holdLost: 'Nope + 1' }) }); h.hold({ text: 'x' }); h.camp.chars.c_a.values.f_dz = 1; h.step(); const hHeld = h.row('r_a').held, i = mkH(); i.hold({ text: 'x' }); i.camp.chars.c_a.values.f_dz = 1; const iOff = i.off('r_a'), iRow = i.row('r_a');
+    check('1.6.0 holdLost: a formula already true as the row held takes nothing until it has gone false and comes true again; one that cannot be worked out takes nothing; and a Set off with the action lost is the hold going',
+        gWas === 1 && gStays && gGone === undefined && gCards === 1 && hHeld === 1 && iOff === true && iRow.held === undefined && iRow.sf === undefined && iRow.hk === 1 && !i.out.posts.length, j([gWas, gStays, gGone, g.out.cards, hHeld, iRow]));
+    const k = mkH({ system: sysH({ holdLost: undefined }) }); k.hold({ text: 'x' }); k.step(-1); const kRow = k.row('r_a'), kCards = k.out.cards.length;
+    check('1.6.0 a step back onto a held row clears its hold with no card, as a correction runs nothing', kRow.held === undefined && kRow.holdFor === undefined && kCards === 0, j([kRow, k.out]));
+    const m = mkH(), rowM = m.row('r_a'), msg = (conn, o2) => m.api.msg(Object.assign({ type: 'turn-hold', mapId: 'm1', row: 'r_a' }, o2), conn);
+    msg(m.cA, {}); const m0 = rowM.held; msg(m.cB, { text: 'Not my row' }); const m1 = rowM.held; msg(m.cA, { text: 'A <b>foe</b>\u0007 at the gate', roll: 'r_gm', kind: 'x' }); const m2 = j(rowM.holdFor);
+    const n = mkH(), msgN = (conn, o2) => n.api.msg(Object.assign({ type: 'turn-hold', mapId: 'm1', row: 'r_a' }, o2), conn); msgN(n.cA, { text: 'y'.repeat(500), roll: 'r_sh' }); const n1 = n.row('r_a').holdFor;
+    check('1.6.0 a named hold, the turn-hold branch (the host, run for real): a player\'s hold with no words is refused, another\'s row sets nothing, what it names is cleaned to a plain line of 120 characters, and a roll is kept only where their own view holds it, by its id alone',
+        m0 === undefined && m1 === undefined && m2 === j({ text: 'A <b>foe</b>  at the gate' }) && n1.text.length === 120 && n1.roll === 'r_sh', j([m0, m1, m2, n1]));
+    const p = mkH({ system: Sx.cleanSystem(Object.assign(JSON.parse(JSON.stringify(sysH())), { combat: { turn: { off: 'refuse', acts: [{ key: 'Action', n: 1 }] } } }), { F: Fx3, gmView: true }) }), p1 = p.net.fightHold('f_keep0001'), pHf = p.row('r_a').holdFor; p.step(); p.step(); const pHeld = p.row('r_a').held, pOff = p.net.fightSetOff('f_keep0001', 'r_a');
+    check('1.6.0 with no named holds a hold is as it was: no words asked, no record, gone by the round\'s end, and no Set off', p1 === true && pHf === undefined && pHeld === undefined && pOff === false && !p.out.cards.length, j([p1, pHf, pHeld, pOff]));
+    const rows2 = { rows: [{ id: 'r_a', held: 1 }, { id: 'r_b' }] }, had2 = { rows: [{ id: 'r_a', held: 1, holdFor: { text: 't' } }, { id: 'r_b', sf: 1, hk: 1 }, { id: 'r_gone', holdFor: { text: 'z' }, held: 1 }] };
+    const reach = new Function(fnSrc('function fightReachKept(had, f) {', '\n}\n', 'fightReachKept') + '\n}\nreturn fightReachKept;')(); reach(had2, rows2);
+    check('1.6.0 a roster edit keeps a named hold with its row, and what a set off and a lost action left', j(rows2.rows) === j([{ id: 'r_a', held: 1, holdFor: { text: 't' } }, { id: 'r_b', sf: 1, hk: 1 }]), j(rows2));
+})());
+// Stage 6 HUD G10: the round hook fires when a combat's round changes — its start, a step past either end (net.js combatSet / combatStep, run
+// for real) — never within a round, on a roster edit that keeps the round, or at its end; a hook that throws never stops the turn. Fold 3 (backlog
+// 152, moved on purpose): only for a round the fight reaches for the first time, so a step back past the first and on again runs nothing twice
+{
+    const setSrcG = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), stepSrcG = fnSrc('net.combatStep = function', '\nnet.combatEnd = function', 'combatStep', 'netfight.js');
+    const ccSrcG = fnSrc('function cleanCombats(c) {', '\nfunction applyNotepad(', 'cleanCombats');
+    const calls = [], errs = [], hook = { throws: false };
+    const netG = { role: 'host', active: true, combats: {} }, campG = { items: { m1: { type: 'map', meta: { title: 'Keep' } } } };
+    const win = { wpSheets: { roundHook: (mapId, c) => { calls.push(mapId + ':' + c.round); if (hook.throws) throw new Error('boom'); } } };
+    new Function('net', 'window', 'getActiveCampaign', 'broadcastCombats', 'logEvent', 'toast', 'render', 'console', 'showConfirm', ccSrcG + '\n' + setSrcG + '\n' + stepSrcG + '\n' + ordersSrc)(
+        netG, win, () => campG, () => {}, () => {}, () => {}, () => {}, { error: e => errs.push(String(e && e.message)) }, () => {});
+    const rw = n => Array.from({ length: n }, (_, i) => ({ id: 'r' + i, name: 'N' + i, tokId: 't' + i, init: 0, src: null }));
+    const st = () => fightIn(netG.combats, 'm1') ? 'r' + fightIn(netG.combats, 'm1').round + 't' + fightIn(netG.combats, 'm1').turn : 'none';
+    const seen = [];
+    netG.combatSet('m1', { round: 1, turn: 0, rows: rw(2) }); seen.push(st() + '=' + calls.join());
+    netG.combatSet('m1', { round: 1, turn: 1, rows: rw(3) }); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', 1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', 1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', -1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', -1); seen.push(st() + '=' + calls.join());
+    netG.combatStep('m1', -1); seen.push(st() + '=' + calls.join());
+    hook.throws = true; netG.combatStep('m1', 1); netG.combatStep('m1', 1); netG.combatStep('m1', 1); netG.combatStep('m1', 1); netG.combatStep('m1', 1); netG.combatStep('m1', 1); seen.push(st() + '=' + calls.join()); hook.throws = false;   // fold 3: on through round 2, reached already, into round 3
+    netG.combatSet('m1', { round: 5, turn: 0, rows: rw(3) }); seen.push(st() + '=' + calls.join());
+    netG.combatSet('m1', null); seen.push(st() + '=' + calls.join());
+    check('G10 the round hook (net.js, run for real): at the combat\'s start (round 1), a step past the last (round 2), on again into round 3 and a roster edit that sets round 5 — never within a round, on a roster edit that keeps it, at round 1\'s first turn stepping back, or at the end; fold 3: a step back past the first is a correction, so going back into round 1 and on again into round 2 runs nothing; a hook that throws is logged and the turn still moves',
+        j(seen) === j(['r1t0=m1:1', 'r1t1=m1:1', 'r1t2=m1:1', 'r2t0=m1:1,m1:2', 'r1t2=m1:1,m1:2', 'r1t1=m1:1,m1:2', 'r1t0=m1:1,m1:2',
+            'r3t0=m1:1,m1:2,m1:3', 'r5t0=m1:1,m1:2,m1:3,m1:5', 'none=m1:1,m1:2,m1:3,m1:5']) && j(errs) === j(['boom']), j([seen, errs]));
+}
+
+// Fold 0 (backlog 152, docs/FIGHT_CLOCK_DESIGN.md): a fight ends as End combat ends it when the session ends (leaveSession) and when its map is
+// deleted (net.itemGone). net.js sliced and run for real on stubs: leaveSession and net.itemGone beside the combats slice and everything from
+// combatRefresh to combatStep (combatOver, combatsOverAll, turnActsEnd, fxCombatEdge and the clock's tick with the real fxTick, clockFightEnd);
+// calendar.js liveHeld with its own helpers and the real cleanClock. Before this fold the session's end dropped every fight with its effects banked
+// until the clock's next tick and the Calendar never asked, and a deleted map left its fight running, so the clock waited for it for the rest of
+// the session. The review of fold 0: a fighter still in another fight keeps what it spent (combatFreed's guard), and a deleted map's fight is named
+// by the name dialogs.js hands on
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Cx = await import(url('calendarcore.js'));
+    const J = v => JSON.stringify(v);
+    const setS = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet'), cbS = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats');
+    const lvS = fnSrc('function leaveSession(silent) {', '\n}\n', 'leaveSession') + '\n}\n';
+    const igA = src.indexOf('net.itemGone = function(campId, itemId, title) {'), igS = src.slice(igA, src.indexOf('\n};\n', igA) + 4);
+    const pidS = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
+    const calJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n');
+    const calLine = k => { const i = calJs.indexOf(k); if (i < 0 || calJs.indexOf(k, i + 1) >= 0) throw new Error('netcheck: ' + k + ' not found once in calendar.js'); return calJs.slice(i, calJs.indexOf('\n', i)); };
+    const lhA = calJs.indexOf('function liveHeld(camp) {'), lhS = calJs.slice(lhA, calJs.indexOf('\n}\n', lhA)) + '\n}\n';
+    const liveHeldOf = n => new Function('window', 'cleanClock', "'use strict';\n" + ['function net() {', 'function isPlayer() {', 'function clockOn() {', 'function clockOf(camp) {', 'function sysClockStart() {', 'function fightMode() {', 'function liveHold(ck) {'].map(calLine).join('\n') + '\n' + lhS + '\nreturn liveHeld;')(
+        { wpNet: n, wpVtt: { on: k => k === 'calendar' } }, Cx.cleanClock);
+    const sysF = Sx.cleanSystem({ v: 1, name: 'F', fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_c', name: 'Charge', dur: '10 turns', mods: [] }], combat: { turn: { acts: [{ key: 'Action', n: 1 }] } } }, { F: Fx, gmView: true });
+    const mkW = o => {
+        o = o || {};
+        const ev = [], toasts = [], logs = [], cal = [], marks = [], loads = [];
+        const tok = (id, charId, ownerId) => ({ id, type: 'image', isChar: true, charId, ownerId: ownerId || null, x: 0, y: 0, w: 50, h: 50 });
+        const fx = id => ({ f_fx: [{ id, ref: 'e_c', on: true, t: { left: 30, at: 0 } }] });   // banked, as a fight's start leaves them
+        const camp = { id: 'k', clock: { t: 0 }, system: sysF,
+            items: { mDocks: { type: 'map', meta: { title: 'Docks' }, whiteboard: [tok('t_kael', 'c_kael', 'u_a'), tok('t_u7', 'c_u7')] }, mBridge: { type: 'map', meta: { title: 'Bridge' }, whiteboard: [tok('t_u9', 'c_u9')] }, pNote: { type: 'doc', meta: { title: 'Notes' } } },
+            chars: { c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_a', values: fx('x_k') }, c_u7: { id: 'c_u7', name: 'Unit 7', npc: true, values: fx('x_7') }, c_u9: { id: 'c_u9', name: 'Unit 9', npc: true, values: fx('x_9') } } };
+        if (o.sela) { camp.items.mBridge.whiteboard.push(tok('t_sela', 'c_sela', 'u_a')); camp.chars.c_sela = { id: 'c_sela', name: 'Sela', ownerId: 'u_a', values: fx('x_s') }; }   // the review of fold 0: a player's character still fighting on the Bridge
+        const row = (id, name) => ({ id: 'r_' + id, name, tokId: id, init: 0, src: null });
+        const conns = [{ peer: 'pA', open: true, sent: [], send(m) { packCheck(m); this.sent.push(JSON.parse(JSON.stringify(m))); } }];
+        const net = { active: true, role: o.role || 'host', stream: !!o.stream, foreign: o.role === 'client', myId: 'u_gm', conns, roster: { pA: { id: 'u_a', location: 'mBridge' } }, peer: null, paused: false,
+            combats: { mDocks: { mapId: 'mDocks', round: 3, turn: 1, rows: [row('t_kael', 'Kael'), row('t_u7', 'Unit 7')] }, mBridge: { mapId: 'mBridge', round: 1, turn: 0, rows: [row('t_u9', 'Unit 9')] } },
+            syncCharDelta: () => {}, videoStop: () => {}, libReset: () => {} };
+        if (o.sela) net.combats.mBridge.rows.push(row('t_sela', 'Sela'));
+        const win = { wpVtt: { on: k => (k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: () => {} }, wpCalendarCore: Cx, wpCalendar: { ownTime: () => false, second: () => { cal.push(net.active); ev.push('calendar'); } } };   // 152 fold 4: an end hands its closing round to ownTime and the clock to second (once a fight), where fightEnded was asked
+        const broadcast = msg => { packCheck(msg); ev.push('broadcast:' + msg.type); conns.forEach(c => { if (c.open && net.roster[c.peer]) c.send(msg); }); };
+        const noop = () => {}, env = { net, window: win, getActiveCampaign: () => camp, SC: () => Sx, own: (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), broadcast, sendFailed: e => { throw e; }, logEvent: (k, t) => logs.push(k + ':' + t), toast: t => toasts.push(t),
+            render: noop, moveMode: () => 'refuse', saveRemoteSoon: noop, pushChat: noop, anyFog: () => false, fogDrop: () => null, marksEnd: mid => marks.push(mid), _lastSent: {},
+            forgetHostCode: noop, cancelReconnect: noop, videoOver: noop, diceSessionReset: noop, _libSpent: {}, _shareBytes: {}, _shareCount: {}, resetAssetTransfers: noop, endWaiting: noop, combatAskOpen: {}, combatAsked: {}, renderNotepad: noop,
+            setTimeout: noop, stopHeartbeat: noop, setIndicator: noop, setPausedLocal: noop, setTravelLockLocal: noop, setSelfPausedLocal: noop, bannedIds: {}, pendingJoins: [], approvalOpen: false, _unboundSaid: {}, ui: () => null, renderRoster: noop, setStatus: noop,
+            save: noop, load: () => loads.push(1), syncSessionButtons: noop };
+        const api = new Function(...Object.keys(env), "'use strict';\n" + pidS + cbS + '\n' + setS + '\n' + ordersSrc + '\n' + lvS + '\n' + igS + '\nreturn { leaveSession, combatSeen, combatSaw };')(...Object.values(env));
+        net.turnSpent.c_kael = { Action: 1 };   // Kael spent his action this turn (the slice's own line set the record empty)
+        if (o.sela) net.turnSpent.c_sela = { Action: 1 };   // and Sela spent hers in the fight on the Bridge
+        api.combatSaw('mDocks', 'u_a', 't_u7');   // and Kael's player has seen Unit 7 in this fight
+        const atOf = () => { const out = {}; Object.keys(camp.chars).forEach(id => { const t = camp.chars[id].values.f_fx[0].t; out[id] = t.at > 0 ? 'run' : 'banked'; }); return out; };
+        const acts = () => conns[0].sent.filter(m => m.type === 'acts-left').map(m => m.charId + ':' + J(m.left));
+        return { net, camp, api, ev, toasts, logs, cal, marks, loads, conns, atOf, acts, seen: () => api.combatSeen('mDocks', 'u_a', 't_u7') };
+    };
+    const runs = (W, silent) => { W.api.leaveSession(silent); return { cal: W.cal, ev: W.ev, at: W.atOf(), spent: J(W.net.turnSpent), acts: W.acts(), marks: W.marks, seen: W.seen(), combats: J(W.net.combats), toasts: W.toasts, logs: W.logs, loads: W.loads.length }; };
+    const allRun = { c_kael: 'run', c_u7: 'run', c_u9: 'run' }, allBanked = { c_kael: 'banked', c_u7: 'banked', c_u9: 'banked' }, kaelSpent = J({ c_kael: { Action: 1 } });
+    const ended = ['table:Combat ended on Docks after 3 rounds', 'table:Combat ended on Bridge after 1 round'], bye = 'Session ended for everyone. The room code is retired.';
+    const hGot = runs(mkW(), false), qGot = runs(mkW(), true), oneW = mkW(); delete oneW.net.combats.mBridge; const oGot = runs(oneW, false), noneW = mkW(); noneW.net.combats = {}; const zGot = runs(noneW, false);
+    const pGot = runs(mkW({ role: 'client' }), false), tGot = runs(mkW({ stream: true }), false);
+    check('fold 0 (run for real): the session\'s end on the host ends every fight as End combat ends it, while the table still hears it — the Calendar asked once a fight with the table still on, both before the end is said; every fighter\'s timed effects running again (Kael, Unit 7, Unit 9); what Kael spent gone and his player told; the marks\' end on each map; nothing of a fight still seen; one log line a fight; quietly: no notice of a fight, the session\'s one notice saying the fight or the fights ended too, and a silent end (a new table over it) saying nothing at all; nothing at all on a player\'s app (its copy of the fights simply goes) or in the stream window, even one that says it hosts',
+        J(hGot) === J({ cal: [true, true], ev: ['calendar', 'calendar', 'broadcast:end'], at: allRun, spent: '{}', acts: ['c_kael:null'], marks: ['mDocks', 'mBridge'], seen: false, combats: '{}', toasts: [bye + ' The 2 fights ended too.'], logs: ended.concat(['session:Session ended']), loads: 0 })
+        && J(oGot.toasts) === J([bye + ' The fight ended too.']) && J(oGot.cal) === J([true]) && J(zGot.toasts) === J([bye]) && J(zGot.cal) === '[]' && J(zGot.at) === J(allBanked)
+        && J(qGot) === J({ cal: [true, true], ev: ['calendar', 'calendar'], at: allRun, spent: '{}', acts: ['c_kael:null'], marks: ['mDocks', 'mBridge'], seen: false, combats: '{}', toasts: [], logs: ended, loads: 0 })
+        && J(pGot) === J({ cal: [], ev: [], at: allBanked, spent: kaelSpent, acts: [], marks: [], seen: true, combats: '{}', toasts: ['Left the session. Restoring your own campaign.'], logs: [], loads: 1 })
+        && J(tGot) === J({ cal: [], ev: ['broadcast:end'], at: allBanked, spent: kaelSpent, acts: [], marks: [], seen: true, combats: '{}', toasts: [bye], logs: ['session:Session ended'], loads: 0 }),
+        J([hGot, oGot.toasts, zGot.toasts, qGot, pGot, tGot]));
+    // a deleted map: the GM's delete takes the map out of the campaign first, then asks net.itemGone
+    const sentOf = W => W.conns[0].sent.filter(m => m.type === 'combats' || m.type === 'itemGone').map(m => m.type === 'combats' ? 'combats:' + Object.keys(m.combats).join(',') : 'itemGone:' + m.itemId);
+    const G = mkW({ calendar: true, sela: true }), lhG = liveHeldOf(G.net), g0 = lhG(G.camp);
+    delete G.camp.items.mDocks; G.net.itemGone('k', 'mDocks', 'Docks');
+    const g1 = { lh: lhG(G.camp), combats: Object.keys(G.net.combats), cal: G.cal.slice(), toasts: G.toasts.slice(), logs: G.logs.slice(), marks: G.marks.slice(), seen: G.seen(), spent: J(G.net.turnSpent), acts: G.acts(), sent: sentOf(G), at: G.atOf() };
+    delete G.camp.items.mBridge; G.net.itemGone('k', 'mBridge'); const g2 = { lh: lhG(G.camp), combats: J(G.net.combats), cal: G.cal.length, toasts: G.toasts.slice(1), logs: G.logs.slice(1), spent: J(G.net.turnSpent), acts: G.acts(), sent: sentOf(G).slice(2) };
+    G.net.itemGone('k', 'mDocks', 'Docks'); G.net.itemGone('k', 'pNote', 'Notes'); const g3 = { cal: G.cal.length, toasts: G.toasts.length, combats: sentOf(G).filter(s => /^combats/.test(s)).length };
+    const G2 = mkW({ sela: true }); delete G2.camp.items.mDocks; G2.net.itemGone('k', 'mDocks', 'Docks'); const g4 = G2.atOf();
+    const GP = mkW({ role: 'client' }); delete GP.camp.items.mDocks; GP.net.itemGone('k', 'mDocks', 'Docks'); const g5 = { combats: Object.keys(GP.net.combats), cal: GP.cal.length, sent: GP.conns[0].sent.length, toasts: GP.toasts.length };
+    const E = mkW({ sela: true }); E.net.combatSet('mDocks', null);
+    const eGot = { combats: Object.keys(E.net.combats), cal: E.cal, toasts: E.toasts, logs: E.logs, marks: E.marks, seen: E.seen(), spent: J(E.net.turnSpent), acts: E.acts(), sent: sentOf(E), at: E.atOf() };
+    const selaSpent = J({ c_sela: { Action: 1 } }), selaBanked = { c_kael: 'banked', c_u7: 'banked', c_u9: 'banked', c_sela: 'banked' };
+    check('fold 0 (run for real): a fight on a deleted map ends as End combat ends it — the fight taken away and the players sent the fights left, before they are told the map is gone; the Calendar asked once; End\'s notice and log line naming the map by the name the delete hands on, and as the deleted map where none is handed on; the marks\' end; nothing of it still seen; what Kael spent gone and his player told, while what Sela spent, still fighting on the Bridge, stays and her player is told nothing until that fight ends too — so the clock no longer waits for it (calendar.js liveHeld: a fight, then still a fight on the Bridge, then running once that map goes too); a map with no token left to find its fighters by has the clock\'s own tick run at once, which (152 fold 4, moved on purpose) keeps everyone\'s effects banked while the fight on the Bridge runs, Kael and Unit 7 following the second as everyone in no fight does, with the Calendar off as on; another delete, of that map again or of a page, ends nothing; on a player\'s app a delete ends no fight; End itself as before, its fighters\' effects banked while another fight runs (fold 4)',
+        g0 === 'fight' && J(g1) === J({ lh: 'fight', combats: ['mBridge'], cal: [true], toasts: ['Combat ended on Docks.'], logs: ['table:Combat ended on Docks after 3 rounds'], marks: ['mDocks'], seen: false, spent: selaSpent, acts: ['c_kael:null'], sent: ['combats:mBridge', 'itemGone:mDocks'], at: selaBanked })
+        && J(g2) === J({ lh: '', combats: '{}', cal: 2, toasts: ['Combat ended on the deleted map.'], logs: ['table:Combat ended on the deleted map after 1 round'], spent: '{}', acts: ['c_kael:null', 'c_sela:null'], sent: ['combats:', 'itemGone:mBridge'] }) && J(g3) === J({ cal: 2, toasts: 2, combats: 2 })
+        && J(g4) === J(selaBanked) && J(g5) === J({ combats: ['mDocks', 'mBridge'], cal: 0, sent: 0, toasts: 0 })
+        && J(eGot) === J({ combats: ['mBridge'], cal: [true], toasts: ['Combat ended on Docks.'], logs: [ended[0]], marks: ['mDocks'], seen: false, spent: selaSpent, acts: ['c_kael:null'], sent: ['combats:mBridge'], at: selaBanked }),
+        J([g0, g1, g2, g3, g4, g5, eGot]));
+    const dlgJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dialogs.js'), 'utf8');
+    check('fold 0 (source): End, the session\'s end and a deleted map end a fight in one place (combatOver); the session\'s end asks it right after its drags go back, before the end is said and while the table is still on, never in the stream window; a deleted map asks it only on an active host, before the players are told, with the name it was handed; dialogs.js\'s two deletes of an item hand on the name the item had',
+        (src.match(/combatOver\(/g) || []).length === 4 && /\} else if \(!combat\) combatOver\(fid, had\);/.test(require('./checkkit').part('netfight.js')) && /var fightsOver = wasHost && !net\.stream && typeof combatsOverAll === 'function' \? combatsOverAll\(\) : 0;/.test(lvS)
+        && lvS.indexOf('combatsOverAll()') > lvS.indexOf('fogDragSweep(true)') && lvS.indexOf('combatsOverAll()') < lvS.indexOf("broadcast({ type: 'end' }") && lvS.indexOf('combatsOverAll()') < lvS.indexOf('net.active = false')
+        && igS.indexOf('combatOver(fid') > igS.indexOf("if (!(net.active && net.role === 'host')) return;") && igS.indexOf('combatOver(fid') < igS.indexOf("type: 'itemGone'")
+        && /fightsOn\(itemId\)\.filter\(function\(fid\) \{ return combatOver\(fid, net\.combats\[fid\], false, title\); \}\)/.test(igS) && (dlgJs.match(/window\.wpNet\.itemGone\(/g) || []).length === 2   // 1.5.6: moved on purpose, the page switch's own call gone (the save takes a page from players, net.js pagesSync)
+        && /window\.wpNet\.itemGone\(camp\.id, id, removed && removed\.meta \? removed\.meta\.title : undefined\);/.test(dlgJs) && /var goneId = camp\.activeItemId, goneIt = camp\.items\[goneId\];\r?\n\s*delete camp\.items\[goneId\];\r?\n\s*if \(window\.wpNet && window\.wpNet\.itemGone\) window\.wpNet\.itemGone\(camp\.id, goneId, goneIt && goneIt\.meta \? goneIt\.meta\.title : undefined\);/.test(dlgJs));
+})());
+
+
+
+
+// Turn-based combat T3a (D11, owner): walls stop a player's token — the host's pos gate (net.js, run for real) asks the fog for the move from
+// where the drag began; the campaign's mode: refuse (mid-drag moves are not applied; the drop puts the token back for everyone, the mover
+// too, with a note), warn (through, a note to the mover and the GM), off; a client shows the note from its synced host only, as plain text
+{
+    const posW = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), tnW = between('// [netcheck:turnnote-start]', '// [netcheck:turnnote-end]', 'turnnote');
+    const runW = (mode, moves, o) => {
+        o = o || {}; const w = { id: 't1', isChar: true, charId: 'c_w', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, map = { type: 'map', whiteboard: [w] }, camp = { items: { m1: map }, turnRules: mode === undefined ? undefined : { walls: mode } };
+        const out = { bcast: [], dom: [], toasts: [], sent: [], asked: [], bells: [] }, conn = { peer: 'pA', send: m => out.sent.push(m) };
+        const env = { net: { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' } }, tokenDropped() {} }, campOf: () => camp, validKey: k => k === 'm1', peerPaused: () => false, allow: () => true, checkRoomHandouts() {},
+            applyPosToDom: m => out.dom.push(m), broadcastPos: (m, ex) => out.bcast.push([m.x, m.y, m.final, ex === null ? 'all' : 'others']), toast: t => out.toasts.push(t), saveRemoteSoon() {}, sendFailed: e => { throw e; },
+            window: { wpFog: { moveBlocked: (mp, tok, fx, fy, tx, ty) => { out.asked.push([fx, fy, tx, ty]); return tx >= 200 && fx < 200; } } }, setTimeout: f => f(), bellOut: (cid, note) => out.bells.push([cid, note.title, note.text]) };
+        const run = new Function('env', 'msg', 'conn', 'var net = env.net, campOf = env.campOf, validKey = env.validKey, peerPaused = env.peerPaused, allow = env.allow, checkRoomHandouts = env.checkRoomHandouts, applyPosToDom = env.applyPosToDom, broadcastPos = env.broadcastPos, toast = env.toast, saveRemoteSoon = env.saveRemoteSoon, sendFailed = env.sendFailed, window = env.window, setTimeout = env.setTimeout, bellOut = env.bellOut;\n' + posW + '\nreturn function(m, c) { return handlePos(m, c); };')(env);
+        moves.forEach(mv => run(Object.assign({ type: 'pos', campId: 'c', itemId: 'm1', wbId: 't1' }, mv), conn));
+        out.at = [w.x, w.y]; return out;
+    };
+    const drag = [{ x: 100, y: 0 }, { x: 250, y: 0 }, { x: 300, y: 0, final: true }];
+    const rf = runW(undefined, drag), rfE = runW('refuse', drag), wn = runW('warn', drag), of = runW('off', drag), ok = runW('refuse', [{ x: 100, y: 0 }, { x: 150, y: 0, final: true }]);
+    const two = runW('refuse', [{ x: 100, y: 0, final: true }, { x: 150, y: 0 }, { x: 250, y: 0, final: true }]);
+    check('walls (host, run for real): refuse by default — a move past the wall is not applied mid-drag, the drop puts the token back where the drag began for everyone (the mover too) with one note to them; every check measures from where the drag began',
+        j(rf.at) === j([0, 0]) && j(rf.bcast) === j([[100, 0, false, 'others'], [0, 0, true, 'all']]) && rf.sent.length === 1 && rf.sent[0].type === 'turn-note' && /wall/.test(rf.sent[0].text) && rf.asked.every(a => a[0] === 0 && a[1] === 0) && j(rfE) === j(rf), j(rf));
+    check('walls: warn lets the move through with a note to the mover and the GM; off never asks; a move clear of the wall goes through untouched; each drop begins the next drag from where it landed',
+        j(wn.at) === j([300, 0]) && wn.sent.length === 1 && /went through a wall/.test(wn.sent[0].text) && wn.toasts.length === 1 && j(of.at) === j([300, 0]) && !of.asked.length && !of.sent.length
+        && j(ok.at) === j([150, 0]) && !ok.sent.length && j(two.at) === j([100, 0]) && j(two.asked.map(a => a[0])) === j([0, 100, 100]), j([wn, of.asked, two]));
+    const runTN = (msg, o) => { o = o || {}; const t = []; new Function('msg', 'conn', 'net', 'toast', 'bellOut', tnW)(msg, { peer: o.peer || 'h' }, { foreign: true, syncedPeer: 'h', stream: false }, x => t.push(x), (cid, note) => (o.bells || []).push([cid, note.title, note.text])); return t; };
+    check('turn-note (client, run for real): the synced host\'s note shows as one plain line (controls and bidi marks out, 200 at most); nothing from another peer or that is not text',
+        j(runTN({ type: 'turn-note', text: 'A wall\u202e\u0007 is <b>here</b>' + 'x'.repeat(300) })) === j(['A wall   is <b>here</b>' + 'x'.repeat(177)]) && !runTN({ type: 'turn-note', text: 'x' }, { peer: 'o' }).length && !runTN({ type: 'turn-note', text: 5 }).length);
+    const tb = [], tbN = []; runTN({ type: 'turn-note', text: 'Your \u202eturn', charId: 'c_p' }, { bells: tb }); runTN({ type: 'turn-note', text: 'x', charId: '../c' }, { bells: tbN }); runTN({ type: 'turn-note', text: 'x', charId: 5 }, { bells: tbN }); runTN({ type: 'turn-note', text: 'x' }, { bells: tbN }); runTN({ type: 'turn-note', text: ' ', charId: 'c_p' }, { bells: tbN }); runTN({ type: 'turn-note', text: 'x', charId: 'c_p' }, { peer: 'o', bells: tbN });
+    const tnS = (() => { const T = src.replace(/\r\n/g, '\n'), i = T.indexOf('function turnNote(conn, text, cid) {'); return i < 0 ? '' : T.slice(i, T.indexOf('\n}\n', i) + 2); })();
+    const tnSent = [], tnC = { send: m => tnSent.push(m) }, TNf = new Function('sendFailed', tnS + '\nreturn turnNote;')(e => { throw e; });
+    TNf(tnC, 'a', 'c_p'); TNf(tnC, 'b', '../x'); TNf(tnC, 'c'); TNf(tnC, 'd', 5); TNf(tnC, 'e', 'c_' + 'x'.repeat(30)); TNf(null, 'f', 'c_p');
+    check('The bell (Bell-b): turnNote (net.js, run for real) adds the character only when it is a well-formed id (a path, a number, none, one too long: the note alone); no connection, nothing',
+        j(tnSent) === j([{ type: 'turn-note', text: 'a', charId: 'c_p' }, { type: 'turn-note', text: 'b' }, { type: 'turn-note', text: 'c' }, { type: 'turn-note', text: 'd' }, { type: 'turn-note', text: 'e' }]), j(tnSent));
+    check('The bell (Bell-b): a turn note naming a character goes to that character\'s bell as its cleaned line (sheets.js takes the player\'s own only); none for a bad or missing id, an empty line or another peer; on the host the walls\' notes name the token\'s character and Warn also notes it in the GM\'s bell',
+        j(tb) === j([['c_p', 'Turn', 'Your  turn']]) && !tbN.length && rf.sent.every(m => m.charId === 'c_w') && wn.sent[0].charId === 'c_w' && j(wn.bells) === j([['c_w', 'Turn', 'Moved through a wall.']]) && !rf.bells.length && !of.bells.length, j([tb, tbN, rf.sent, wn.sent, wn.bells]));
+    // secrets (R2 #19): a trigger zone's message, said by the host when a player's own token lands in a shown zone — to that connection alone, as the
+    // dropper's app used to read it off its own copy (the token's center inside the zone's box, the first zone found); the player's app shows it as text
+    const runTZ = (moves, zones, o) => {
+        o = o || {}; const w = { id: 't1', isChar: true, charId: 'c_w', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, other = { id: 't2', isChar: true, charId: 'c_o', ownerId: 'u_b', x: 0, y: 0, w: 50, h: 50 };
+        const map = { type: 'map', whiteboard: [w, other].concat(zones) }, camp = { items: { m1: map } }, out = { sent: [], sentB: [], toasts: [] };
+        const conn = { peer: 'pA', send: m => { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } }, connB = { peer: 'pB', send: m => out.sentB.push(m) };
+        const env = { net: { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' } }, conns: [conn, connB], tokenDropped() { out.dropped = (out.dropped || 0) + 1; } }, campOf: () => camp, validKey: k => k === 'm1', peerPaused: () => false, allow: () => true, checkRoomHandouts() {},
+            applyPosToDom() {}, broadcastPos() {}, toast: t => out.toasts.push(t), saveRemoteSoon() {}, sendFailed: e => { throw e; }, window: {}, setTimeout: f => f(), bellOut() {} };
+        const run = new Function('env', 'msg', 'conn', 'var net = env.net, campOf = env.campOf, validKey = env.validKey, peerPaused = env.peerPaused, allow = env.allow, checkRoomHandouts = env.checkRoomHandouts, applyPosToDom = env.applyPosToDom, broadcastPos = env.broadcastPos, toast = env.toast, saveRemoteSoon = env.saveRemoteSoon, sendFailed = env.sendFailed, window = env.window, setTimeout = env.setTimeout, bellOut = env.bellOut;\n' + posW + '\nreturn function(m, c) { return handlePos(m, c); };')(env);
+        moves.forEach(mv => run(Object.assign({ type: 'pos', campId: 'c', itemId: 'm1', wbId: 't1' }, mv), conn));
+        return out;
+    };
+    const zoneA = { id: 'z1', type: 'trigger', name: 'Altar', eventMessage: 'The crystals brighten.', x: 200, y: 200, w: 100, h: 100 }, zoneHid = { id: 'z2', type: 'trigger', hidden: true, eventMessage: 'A trap', x: 400, y: 400, w: 100, h: 100 };
+    const zoneMute = { id: 'z3', type: 'trigger', eventMessage: '  ', x: 600, y: 600, w: 100, h: 100 }, zoneHex = { id: 'z4', type: 'trigger', shape: 'hexagon', eventMessage: 'Hex', x: 800, y: 800 }, zoneLong = { id: 'z5', type: 'trigger', eventMessage: 'y'.repeat(3000), x: 1000, y: 1000, w: 100, h: 100 };
+    const tzIn = runTZ([{ x: 100, y: 100 }, { x: 210, y: 210, final: true }], [zoneA, zoneHid, zoneMute, zoneHex, zoneLong]), tzEdge = runTZ([{ x: 275, y: 275, final: true }], [zoneA]), tzOut = runTZ([{ x: 276, y: 276, final: true }], [zoneA]);
+    const tzHid = runTZ([{ x: 410, y: 410, final: true }], [zoneA, zoneHid]), tzMute = runTZ([{ x: 610, y: 610, final: true }], [zoneMute]), tzMid = runTZ([{ x: 210, y: 210 }], [zoneA]), tzHex = runTZ([{ x: 820, y: 820, final: true }], [zoneHex]), tzLong = runTZ([{ x: 1010, y: 1010, final: true }], [zoneLong]);
+    const tzFirst = runTZ([{ x: 210, y: 210, final: true }], [{ id: 'z0', type: 'trigger', eventMessage: '', x: 200, y: 200, w: 100, h: 100 }, zoneA]), tzRect = runTZ([{ x: 210, y: 210, final: true }], [{ id: 'r', type: 'rect', eventMessage: 'a shape', x: 200, y: 200, w: 100, h: 100 }]);
+    // a gesture that leaves the token where it stood in a zone — a turn (the facing dial, the rotate handle, an arrow turn: a final with the same place),
+    // or a drag ending in the zone it began in — says nothing again; a nudge that carries it in (a final with no drag before it) does
+    const zoneAt0 = { id: 'z6', type: 'trigger', eventMessage: 'Here.', x: 0, y: 0, w: 100, h: 100 };
+    const tzTurn = runTZ([{ x: 0, y: 0, rot: 90, final: true }], [zoneAt0]), tzStay = runTZ([{ x: 10, y: 10 }, { x: 20, y: 20, final: true }], [zoneAt0]), tzBack = runTZ([{ x: 210, y: 210 }, { x: 0, y: 0, final: true }], [zoneAt0]);
+    const tzNudge = runTZ([{ x: 60, y: 60, final: true }], [{ id: 'z7', type: 'trigger', eventMessage: 'Step.', x: 50, y: 50, w: 100, h: 100 }]), tzAcross = runTZ([{ x: 210, y: 210 }, { x: 410, y: 410, final: true }], [zoneA, { id: 'z8', type: 'trigger', eventMessage: 'Second.', x: 400, y: 400, w: 100, h: 100 }]);
+    check('secrets: a player\'s own token dropped (final) with its center inside a shown trigger zone gets that zone\'s message once, as one trigmsg to its own connection alone (never another player\'s), text only, 2000 characters at most, a zone with no box 100 by 100 as the dropper\'s app read it; nothing mid-drag, outside every zone (the edge counts), in a hidden zone, in a zone whose message is blank or on a shape that is no zone; the first zone under the token is the one that speaks, even a mute one',
+        j(tzIn.sent) === j([{ type: 'trigmsg', text: 'The crystals brighten.' }]) && tzIn.sentB.length === 0 && tzIn.dropped === 1 && j(tzEdge.sent) === j([{ type: 'trigmsg', text: 'The crystals brighten.' }]) && j(tzHex.sent) === j([{ type: 'trigmsg', text: 'Hex' }])
+        && tzLong.sent.length === 1 && tzLong.sent[0].text.length === 2000 && [tzOut, tzHid, tzMute, tzMid, tzFirst, tzRect].every(r => r.sent.length === 0 && r.sentB.length === 0), j([tzIn.sent, tzEdge.sent, tzOut.sent, tzHid.sent, tzMute.sent, tzMid.sent, tzHex.sent, tzFirst.sent]));
+    check('secrets: the message is said when the gesture carries the token\'s center INTO the zone — a turn in place (the facing dial, the rotate handle, an arrow turn send a final too), a drag that ends in the zone it began in, or one that leaves and comes back say nothing again; a nudge into a zone (a final with no drag before it) and a drag from one zone into another speak',
+        [tzTurn, tzStay, tzBack].every(r => r.sent.length === 0 && r.sentB.length === 0) && j(tzNudge.sent) === j([{ type: 'trigmsg', text: 'Step.' }]) && j(tzAcross.sent) === j([{ type: 'trigmsg', text: 'Second.' }]), j([tzTurn.sent, tzStay.sent, tzBack.sent, tzNudge.sent, tzAcross.sent]));
+    const tgW = between('// [netcheck:trigmsg-start]', '// [netcheck:trigmsg-end]', 'trigmsg');
+    const runTG = (msg, o) => { o = o || {}; const shown = []; new Function('msg', 'conn', 'net', 'showAlert', tgW)(msg, { peer: o.peer || 'h' }, { foreign: o.foreign !== false, syncedPeer: 'h', stream: !!o.stream }, (t, cb) => { shown.push([t, typeof cb]); }); return shown; };
+    const tg1 = runTG({ type: 'trigmsg', text: 'The door\u202e\u0007 bangs <b>open</b>.\nA driver stumbles in.' + 'x'.repeat(3000) });
+    check('trigmsg (client, run for real): the synced host\'s message shows once as plain text through showAlert (a text node: controls and bidi marks out, line breaks kept, 2000 at most); nothing from another peer, before the snapshot, in the stream window, that is not text or that is blank',
+        tg1.length === 1 && tg1[0][1] === 'function' && tg1[0][0].length === 2000 && tg1[0][0].indexOf('The door   bangs <b>open</b>.\nA driver stumbles in.xxx') === 0
+        && [runTG({ type: 'trigmsg', text: 'x' }, { peer: 'o' }), runTG({ type: 'trigmsg', text: 'x' }, { foreign: false }), runTG({ type: 'trigmsg', text: 'x' }, { stream: true }), runTG({ type: 'trigmsg', text: 5 }), runTG({ type: 'trigmsg', text: ' \u200b ' })].every(s => s.length === 0), j(tg1));
+    const dmT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'datamap.js'), 'utf8').replace(/\r\n/g, '\n');
+    // the dropper's app still reads its own copy at a drop and speaks only for a zone that carries a message: at a 1.5.0 host the copy carries none
+    // (wireWbItem), so the host's trigmsg is the one word; at an older host, whose copies still carry it, the message shows as it always did
+    check('trigmsg (source): the client branch runs only for a client and the host\'s branch fires at a final drop, with where the gesture began, beside the room note and the travel; a player\'s app reads its own copy at a drop as before and speaks only for a zone that carries a message (none at a 1.5.0 host; an older host\'s copies still carry it), and net.js imports showAlert from the dialogs',
+        /\} else if \(msg\.type === 'trigmsg' && net\.role === 'client'\) \{\n\s*\/\/ \[netcheck:trigmsg-start\]/.test(src) && /if \(msg\.final\) \{\n\s*if \(typeof triggerFire === 'function'\) triggerFire\(conn, map, w, frW\);/.test(src) && /^import \{ showConfirm, showAlert \} from '\.\/dialogs\.js';/m.test(src)
+        && /var mdZn = multiDrag\.filter\(function\(m\) \{ return m\.item === item; \}\)\[0\], zoneMsg = gmZoneSay\(am, item, mdZn \? \{ x: mdZn\.ox, y: mdZn\.oy \} : null\);[^\n]*\n\s*if \(zoneMsg\) import\('\.\/dialogs\.js'\)\.then\(d => d\.showAlert\(zoneMsg, function\(\)\{\}\)\);/.test(dmT) && !/trigLocal/.test(dmT));
+}
+
+// Turn-based combat T3b (D2, D3, D5): the move limit and the out-of-turn lock on the host — the real pos gate and the real patch path together (a
+// client saves its map right after a drop; that copy closes the drag, judged and counted from where it began, when the drag's final pos was
+// lost), and the turn's start (turnMoveStart: the allowance through the player's view, their note)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const posT = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), patT = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), tmT = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove');
+    const clT = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+    const lineT = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
+    const helpT = ['function peerProfileId(', 'function fxLib(', 'function itemLib('].map(lineT).join('\n') + '\n';
+    const sysT = Sx.cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', def: 30 }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }], rolls: [], combat: { turn: { move: 'Speed', unit: 'ft', diag: 'one' } } }, { F: Fx, gmView: true });
+    const mkT = o => {
+        o = o || {};
+        const pat = { id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, orc = { id: 't_o', isChar: true, charId: 'c_o', x: 500, y: 0, w: 50, h: 50 }, free = { id: 't_f', isChar: true, charId: 'c_f', ownerId: 'u_a', x: 0, y: 500, w: 50, h: 50 };
+        const map = { type: 'map', meta: { gridType: 'square' }, whiteboard: [pat, orc, free] };
+        const camp = { id: 'c1', items: { m1: map }, system: o.system || sysT, turnRules: o.rules || {}, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: {} }, c_o: { id: 'c_o', name: 'Orc', npc: true, values: {} } } };
+        const out = { bcast: [], notes: [], toasts: [], sent: [], bells: [] }, conn = { peer: 'pA', open: true, send: m => out.sent.push(m) }, conn2 = { peer: 'pA2', open: true, send: m => out.sent.push(Object.assign({ to: 'pA2' }, m)) };
+        const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' }, pA2: { id: 'u_a', location: 'm1' } }, conns: [conn, conn2], tokenDropped() {}, combats: { f_keep0001: { id: 'f_keep0001', mapId: 'm1', round: 1, turn: o.turn === undefined ? 1 : o.turn, rows: [{ id: 'r_o', tokId: 't_o' }, { id: 'r_p', tokId: 't_p' }] } } };   // fold 2: a fight under its own id, on its map (fold 2's review: an id that is not its map's, so a turn's move keyed by the map is told apart)
+        const win = { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true, campaignOn: () => true }, wpFog: { moveBlocked: (mp, w, fx, fy, tx, ty) => tx >= 1000, moveCells: o.moveCells || ((mp, w, fx, fy, tx, ty) => Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50) }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpFormula: Fx };
+        const api = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign', 'bellOut',
+            clT + ownKeySrc + helpT + posT + '\n' + patT + '\n' + tmT + '\n' + ordersSrc + '\nreturn { pos: function(m, c) { return handlePos(m, c); }, patch: function(m) { return applyClientItemFiltered(m, { id: "u_a" }); }, patchOut: function(m, o) { return applyClientItemFiltered(m, { id: "u_a" }, o); }, start: turnMoveStart };')(
+            { appState: { campaigns: { c1: camp } } }, net, win, () => false, () => true, () => {}, () => {}, (m, ex) => out.bcast.push([m.wbId, m.x, m.y, ex === null ? 'all' : 'others']), t => out.toasts.push(t), () => {}, e => { throw e; }, f => f(), () => null, () => Sx, () => camp, (cid, note) => out.bells.push([cid, note.title, note.text]));
+        if (o.allow !== undefined) net.turnMove = { f_keep0001: { rowId: 'r_p', tokId: 't_p', moved: o.moved || 0, allow: o.allow } };
+        const P = (wb, x, y, fin) => api.pos({ type: 'pos', campId: 'c1', itemId: 'm1', wbId: wb, x, y, final: !!fin }, conn);
+        const C = (wb, x, y) => { const copy = JSON.parse(JSON.stringify(map.whiteboard)); copy.find(w => w.id === wb).x = x; copy.find(w => w.id === wb).y = y; api.patch({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: copy } }); };
+        out.notes = () => out.sent.filter(m => m.type === 'turn-note').map(m => (m.to ? m.to + ':' : '') + m.text);
+        return { out, net, map, camp, pat, free, P, C, api };
+    };
+    const wt = mkT({ rules: { walls: 'refuse' }, turns: false }); wt.map.whiteboard.push({ id: 't_w', waiting: 1, ownerId: 'u_a', x: 0, y: 200, w: 50, h: 50 }); wt.C('t_w', 1100, 200); const wtW = wt.map.whiteboard.find(w => w.id === 't_w');
+    const wt2 = mkT({ rules: { walls: 'refuse' }, turns: false }); wt2.map.whiteboard.push({ id: 't_w', waiting: 1, ownerId: 'u_a', x: 0, y: 200, w: 50, h: 50 }); wt2.C('t_w', 300, 200); const wt2W = wt2.map.whiteboard.find(w => w.id === 't_w');
+    check('F1a the walls rule on a waiting token\'s map copy (run for real): past a wall it goes back (it never lands where a move would be refused); within the walls it moves',
+        wtW.x === 0 && wtW.y === 200 && wt2W.x === 300, j([wtW, wt2W, wt.out.notes()]));
+    // the pos path: within the move, past it (refuse), the copy that follows a refused drop, a lost final (the copy closes it), warn, off
+    const a = mkT({ allow: 4 }); a.P('t_p', 50, 0); a.P('t_p', 100, 0, true); a.C('t_p', 100, 0);
+    const aMoved = a.net.turnMove.f_keep0001.moved, aNotes = a.out.notes();
+    a.P('t_p', 150, 0); a.P('t_p', 250, 0, true); a.C('t_p', 250, 0);
+    check('T3b the move limit (host, run for real): a drop within the move goes through and counts from where its drag began, with a note of what is left; one past it is not applied mid-drag, goes back for everyone with a note, and the map copy that repeats it moves nothing and says nothing more',
+        aMoved === 2 && j(aNotes) === j(['Moved 2 squares (10 ft); 2 squares (10 ft) left.']) && a.net.turnMove.f_keep0001.moved === 2 && a.pat.x === 100
+        && j(a.out.notes().slice(1)) === j(['That is 3 squares (15 ft); you have 2 squares (10 ft) left.']) && a.out.bcast.filter(b => b[3] === 'all').length === 2 && a.out.bcast.filter(b => b[3] === 'all').every(b => b[1] === 100), j([aMoved, a.out.notes(), a.out.bcast]));
+    const b = mkT({ allow: 4 }); b.P('t_p', 50, 0); b.C('t_p', 250, 0);
+    const b2 = mkT({ allow: 4 }); b2.P('t_p', 50, 0); b2.C('t_p', 150, 0);
+    check('T3b a drag whose final pos was lost: the map copy after it closes it — past the move, the token goes back to where the drag began for everyone, with a note to each of the player\'s connections; within it, the whole drag counts (from its start, not the last mid-drag place), with its note',
+        b.pat.x === 0 && b.out.bcast.some(x => x[1] === 0 && x[3] === 'all') && j(b.out.notes()) === j(['That is 5 squares (25 ft); you have 4 squares (20 ft) left.', 'pA2:That is 5 squares (25 ft); you have 4 squares (20 ft) left.'])
+        && b2.pat.x === 150 && b2.net.turnMove.f_keep0001.moved === 3 && j(b2.out.notes()) === j(['Moved 3 squares (15 ft); 1 square (5 ft) left.', 'pA2:Moved 3 squares (15 ft); 1 square (5 ft) left.']), j([b.out.notes(), b2.out.notes(), b2.net.turnMove]));
+    {   // 1.6.2 (backlog 70; the owner, 2026-11-11, by prompt: "System sets it, table rule (Recommended)"): the facing limit, the pos gate, the map-copy path and the turn's start run for real
+        const sysF = by => Sx.cleanSystem({ v: 1, name: 'F', fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', def: 30 }, { id: 'f_tn', key: 'Turns', kind: 'number', def: 2 }, { id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }], rolls: [], combat: { turn: Object.assign({ move: 'Speed', unit: 'ft', face: by === 'gm' ? 'GMFig + 1' : 'Turns' }, by === 'turn' ? { faceBy: 'turn' } : {}) } }, { F: Fx, gmView: true });
+        const mkF = (o, by) => { const x = mkT(Object.assign({ system: sysF(by) }, o || {})); x.conn = x.net.conns[0]; x.T = (rot, fin, px) => x.api.pos({ type: 'pos', campId: 'c1', itemId: 'm1', wbId: 't_p', x: px || 0, y: 0, rot: rot, front: 0, final: !!fin, a: 7 }, x.conn);
+            x.CR = rot => { const copy = JSON.parse(JSON.stringify(x.map.whiteboard)); copy.find(w => w.id === 't_p').rot = rot; return x.api.patch({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: copy } }); };
+            x.begin = () => x.api.start('m1', x.net.combats.f_keep0001); x.mine = () => x.out.notes().filter(n => !/^pA2:/.test(n) && !/to move/.test(n)); return x; };
+        const hadAck = Object.prototype.hasOwnProperty.call(globalThis, 'withAck'); if (!hadAck) globalThis.withAck = (m, c, a) => Object.assign({}, m, { ack: a });
+        let f, st0, n0, r1, r2, backs, r3, r3n, r4, r5, g, g1, wn, off, bt, hx, ng, ot, gm, both, h1, mid, rl, ar, lo, lw, sq, tiny, cl, f2, sn, ro;
+        try {
+            f = mkF(); f.begin(); st0 = j(f.net.turnFace.f_keep0001); n0 = f.out.notes();
+            f.T(90, true); r1 = [f.pat.rot, f.net.turnFace.f_keep0001.used, f.mine().slice(-1)[0]];
+            f.T(270, true); backs = f.out.sent.filter(m => m.type === 'pos').map(m => [m.rot, m.final, m.ack]); r2 = [f.pat.rot, f.net.turnFace.f_keep0001.used, f.mine().slice(-1)[0]]; const nBefore = f.out.notes().length; f.CR(270); r3 = [f.pat.rot, f.net.turnFace.f_keep0001.used, f.out.notes().length - nBefore];
+            f.T(180, false); const live = f.pat.rot; f.T(180, true); r4 = [live, f.pat.rot, f.net.turnFace.f_keep0001.used, f.mine().slice(-1)[0]];
+            f.T(270, false); f.T(270, true); r5 = [f.pat.rot, f.net.turnFace.f_keep0001.used, f.mine().slice(-1)[0]]; f.CR(180); r3n = [f.pat.rot, f.net.turnFace.f_keep0001.used];
+            g = mkF(); g.begin(); g.net.turnFace.f_keep0001.allow = 1; const gN = g.out.notes().length; g.T(180, false); g.CR(180); g1 = [g.pat.rot, g.net.turnFace.f_keep0001.used, g.out.notes().slice(gN)];
+            wn = mkF({ rules: { face: 'warn' } }); wn.begin(); wn.net.turnFace.f_keep0001.allow = 1; wn.T(180, true); wn = [wn.pat.rot, wn.net.turnFace.f_keep0001.used, wn.mine().slice(-1)[0], wn.out.toasts, wn.out.bells];
+            off = mkF({ rules: { face: 'off' } }); off.begin(); off.T(180, true); off.T(0, true); off.T(90, true); off = [off.pat.rot, off.net.turnFace.f_keep0001.used, off.mine()];
+            bt = mkF(null, 'turn'); bt.begin(); bt.T(180, true); bt = [bt.pat.rot, bt.net.turnFace.f_keep0001.used, bt.mine().slice(-1)[0]];
+            hx = mkF(); hx.map.meta.gridType = 'hex'; hx.begin(); hx.T(120, true); const hxU = hx.net.turnFace.f_keep0001.used; hx.T(120, true); hx.T(480, true); const hxN = [hx.pat.rot, hx.net.turnFace.f_keep0001.used]; hx.T(120.3, true); hx = [hxU, hxN, hx.pat.rot, hx.net.turnFace.f_keep0001.used];
+            ng = mkF(); ng.map.meta.gridType = 'off'; ng.begin(); ng.T(170, true); ng = [ng.pat.rot, ng.net.turnFace.f_keep0001.used];
+            ot = mkF({ turn: 0, rules: { order: 'off' } }); ot.begin(); ot.T(180, true); ot = [ot.pat.rot, j(ot.net.turnFace), ot.mine()];
+            gm = mkF(null, 'gm'); gm.begin(); gm.T(180, true); gm.T(0, true); gm.T(180, true); gm = [gm.pat.rot, j(gm.net.turnFace), gm.mine()];
+            both = mkF(); both.begin(); both.T(90, true, 100); both = [both.pat.x, both.pat.rot, both.net.turnMove.f_keep0001.moved, both.net.turnFace.f_keep0001.used, both.mine().slice(-1)[0], both.out.notes().filter(n => /^Moved/.test(n))];
+            // the review of 2026-11-11
+            h1 = mkF(); h1.begin(); h1.T(90, false, 50); const h1Live = [h1.pat.x, h1.pat.rot]; h1.T(90, true, 500); h1 = [h1Live, h1.pat.x, h1.pat.rot, h1.net.turnFace.f_keep0001.used, h1.out.sent.filter(m => m.type === 'pos').map(m => [m.x, m.rot, m.final])];
+            mid = mkF(); mid.begin(); mid.net.turnFace.f_keep0001.allow = 1; mid.T(180, false); const midA = [mid.pat.rot, mid.net.turnFace.f_keep0001.used]; mid.T(90, false); const midB = [mid.pat.rot, mid.net.turnFace.f_keep0001.used]; mid.T(90, true); mid = [midA, midB, mid.pat.rot, mid.net.turnFace.f_keep0001.used];
+            rl = mkF(); rl.begin(); rl.net.turnFace.f_keep0001.allow = 1; rl.T(90, false); const rlLive = rl.pat.rot, rlB = rl.out.bcast.length; rl.CR(180); rl = [rlLive, rl.pat.rot, rl.net.turnFace.f_keep0001.used, rl.out.bcast.slice(rlB).map(b => [b[0], b[1], b[3]]), rl.out.notes().filter(n => /turns back/.test(n)).length];
+            ar = mkF(); ar.begin(); ar.api.pos({ type: 'pos', campId: 'c1', itemId: 'm1', wbId: 't_p', x: 0, y: 0, rot: 0, front: 90, final: true, a: 1 }, ar.conn); ar = [ar.pat.rot || 0, ar.pat.front, ar.net.turnFace.f_keep0001.used];
+            lo = mkF(); lo.begin(); lo.T(90, false); lo.CR(90); lo = [lo.pat.rot, lo.net.turnFace.f_keep0001.used, lo.out.notes().filter(n => /Turned/.test(n))];
+            lw = mkF({ rules: { face: 'warn' } }); lw.begin(); lw.net.turnFace.f_keep0001.allow = 1; lw.T(90, false); lw.CR(180); lw = [lw.pat.rot, lw.net.turnFace.f_keep0001.used, lw.out.toasts.length, lw.out.bells.length];
+            // the check of 2026-11-11
+            sq = mkF(); sq.begin(); sq.net.turnFace.f_keep0001.allow = 9; sq.T(120, true); const sqA = sq.net.turnFace.f_keep0001.used; sq.T(135, true); sq = [sqA, sq.net.turnFace.f_keep0001.used];
+            tiny = mkF(); tiny.begin(); tiny.T(0.0005, true); tiny = [tiny.pat.rot, tiny.net.turnFace.f_keep0001.used];
+            cl = mkF(); cl.begin(); cl.net.turnFace.f_keep0001.allow = 1; cl.T(90, false); cl.T(180, false); cl = [cl.pat.rot, cl.net.turnFace.f_keep0001.used, cl.out.bcast.length];
+            f2 = mkF({ rules: { walls: 'refuse' } }); f2.begin(); f2.T(0, false, 50); const f2Out = { conn: f2.conn }; { const cp = JSON.parse(JSON.stringify(f2.map.whiteboard)); const t = cp.find(w => w.id === 't_p'); t.x = 1100; t.rot = 90; f2.api.patchOut({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: cp } }, f2Out); } f2 = [f2.pat.x, f2.pat.rot, f2.net.turnFace.f_keep0001.used, f2Out.whole === true];
+            sn = mkF(); sn.begin(); sn.T(90, true); sn.T(270, true); const snN = sn.out.notes().length, snOut = { conn: sn.conn }; { const cp = JSON.parse(JSON.stringify(sn.map.whiteboard)); cp.find(w => w.id === 't_p').rot = 270; sn.api.patchOut({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: cp } }, snOut); } sn = [sn.pat.rot, snOut.whole === true, sn.out.notes().length - snN];
+            ro = mkF(); ro.begin(); ro.net.turnFace.f_keep0001.allow = 1; ro.T(90, false); const roB = ro.out.bcast.length, roOut = { conn: ro.conn }; { const cp = JSON.parse(JSON.stringify(ro.map.whiteboard)); cp.find(w => w.id === 't_p').rot = 180; ro.api.patchOut({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: cp } }, roOut); } ro = [ro.pat.rot, roOut.whole === true, ro.out.bcast.slice(roB).map(b => [b[0], b[3]])];
+        } finally { if (!hadAck) delete globalThis.withAck; }
+        check('1.6.2 the facing limit, what its review found (backlog 70, run for real): a drop whose MOVE is refused goes back to the facing its drag began with too, for the mover as well, and counts no turn; mid-drag a turn past what is left is not applied, a turn within it is followed, and nothing is counted before the release; a map copy that closes a drag the host followed and is refused shows everyone the facing it goes back to, with its note to each of the player\'s connections; a token turned by its front is counted as one turned by its rotation; a lost final closed by a copy within the limit is counted with its note to each connection, and under Warn one past it goes through with a word and a bell to the GM',
+            j(h1) === j([[50, 90], 0, 0, 0, [[0, 0, true]]]) && j(mid) === j([[0, 0], [90, 0], 90, 1]) && j(rl) === j([90, 0, 0, [['t_p', 0, 'all']], 2])
+            && j(ar) === j([0, 90, 1]) && j(lo) === j([90, 1, ['Turned: 1 facing change left.', 'pA2:Turned: 1 facing change left.']]) && j(lw) === j([180, 2, 1, 1]), j([h1, mid, rl, ar, lo, lw]));
+        check('1.6.2 the facing limit, what its check found (backlog 70, run for real): part of a grid step is a whole one, so 120 degrees on squares is two changes; a turn of any size, however small, is at least one; mid-drag a turn past what is left keeps the token where it faces now, not where the drag began; a map copy that a Refuse rule stops from moving but that turns the token within the limit answers its sender with the map whole, the turn counted; a refused copy that repeats a final already refused answers with the map whole and no second note; a refused copy after a drag the host followed shows the others the facing it goes back to, its sender excepted',
+            j(sq) === j([2, 3]) && j(tiny) === j([0.0005, 1]) && cl[0] === 90 && cl[1] === 0 && j(f2) === j([0, 90, 1, true]) && j(sn) === j([90, true, 0]) && j(ro) === j([0, true, [['t_p', 'others']]]), j([sq, tiny, cl, f2, sn, ro]));
+        check('1.6.2 the facing limit, the review (source): a refused copy always answers its sender with the map whole, the relay is asked only where the host followed the drag, a put-back takes the drag\'s facing with it, Token facing off begins no count, and a player\'s map copy waits for an open turn gesture of their own that is no older than ten seconds',
+            patT.includes("w.rot = Number(drF.rot) || 0; w.front = Number(drF.front) || 0; if (out) out.whole = true;") && patT.includes("if ((wasR !== w.rot || wasFr !== w.front) && typeof faceRelay === 'function') faceRelay(camp, liveItem, msg, lw, w, out && out.conn);")
+            && posT.includes("if (to && typeof to.rot === 'number') { w.rot = to.rot; w.front = Number(to.front) || 0; }") && tmT.includes("if (!row || typeof row.tokId !== 'string' || !vt || !vt.on('turns') || !rl('turning')) return;")
+            && src.includes("if (net.role === 'client' && typeof tgL === 'number' && tgL > 0 && Date.now() - tgL < 10000) { net._heldSave = true; return; }")
+            && (() => { const wb = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8'); return wb.includes("window.wpTurnGesture = on === true ? Date.now() : 0;") && wb.includes("if (n && n._heldSave === true && typeof n.onLocalSave === 'function') n.onLocalSave();") && (wb.match(/turnGesture\(true\);/g) || []).length === 2 && (wb.match(/window\.wpTurnGesture = 0;/g) || []).length === 3 && (wb.match(/turnGesture\(false\)/g) || []).length === 6 && wb.includes("handle.addEventListener('pointercancel', rotCancel); handle.addEventListener('lostpointercapture', rotCancel);") && wb.includes("if (!turning) return; if (!turning.moved) { turning = null; turnGesture(false); return; } turnUp(e);"); })());
+        check('1.6.2 the facing limit (backlog 70; the pos gate, the map-copy path and the turn\'s start, run for real on the real systemcore): a turn\'s start works out how many facing changes the token of a player\'s own character has, through the players\' view, and tells each of their connections; a quarter turn on squares is one change, counted with a note of what is left; a turn past what is left goes back to the facing it began with, for the mover too as the answer to that very action, with why, and the map copy that repeats it changes nothing and says nothing more; a drag of the token\'s arrow is followed live and judged at its release from where it began',
+            st0 === j({ rowId: 'r_p', tokId: 't_p', used: 0, allow: 2 }) && j(n0.filter(n => /facing/.test(n))) === j(['You may change facing 2 times this turn.', 'pA2:You may change facing 2 times this turn.'])
+            && j(r1) === j([90, 1, 'Turned: 1 facing change left.']) && j(r2) === j([90, 1, 'That is 2 facing changes; you have 1 left: your token turns back.']) && j(backs) === j([[90, true, 7]]) && j(r3) === j([90, 1, 0])
+            && j(r4) === j([180, 180, 2, 'Turned: 0 facing changes left.']) && j(r5) === j([180, 2, 'That is 1 facing change; you have 0 left: your token turns back.']) && j(r3n) === j([180, 2]), j([st0, n0, r1, r2, backs, r3, r4, r5, r3n]));
+        check('1.6.2 the facing limit, its other ways (backlog 70, run for real): a drag whose final was lost is closed by the map copy, judged from where the drag began and turned back with a note to each of the player\'s connections; under Warn a turn past the limit goes through, counted, with a note to them and a word and a bell to the GM; under Off nothing is counted or said; a system that counts each turn as one counts a half turn once; on hexes a step is a sixth of a turn, the same facing sent again or a whole turn round is no change, and any real turn, however small, is at least one, so small turns never add up to a free one; on a map with no grid each turn is one; off the token\'s own turn nothing is counted; a limit that reads a GM-only value is no limit for players; a move and a turn in one drop are each counted and said',
+            j(g1) === j([0, 0, ['That is 2 facing changes; you have 1 left: your token turns back.', 'pA2:That is 2 facing changes; you have 1 left: your token turns back.']])
+            && j(wn) === j([180, 2, 'That went 1 facing change past what your turn allows.', ['A token turned past its facing changes.'], [['c_p', 'Turn', 'Turned past its facing changes.']]]) && j(off) === j([90, 0, []])
+            && j(bt) === j([180, 1, 'Turned: 1 facing change left.']) && j(hx) === j([2, [480, 2], 480, 2]) && j(ng) === j([170, 1]) && j(ot) === j([180, '{}', []]) && j(gm) === j([180, '{}', []])
+            && j(both) === j([100, 90, 2, 1, 'Turned: 1 facing change left.', ['Moved 2 squares (10 ft); 4 squares (20 ft) left.']]), j([g1, wn, off, bt, hx, ng, ot, gm, both]));
+        check('1.6.2 the facing limit is wired (backlog 70, source): the pos gate asks it after the move limit and sends the turn back to the mover after the relay; the map-copy path asks the same judge before the facing lands; the turn\'s start begins it; the table\'s mode is read as the move\'s is',
+            /if \(turnLimitCheck\(camp, map, w, frW, msg, conn\) === 'stop'\) return;[^\n]*\n\s*var fbW = typeof turnFaceCheck === 'function' && turnFaceCheck\(camp, map, w, frW, msg, conn\) === 'back';/.test(posT)
+            && /if \(frW\.sk === undefined\) frW\.sk = skW;[^\n]*\n\s*if \(fbW && conn && conn\.open && typeof conn\.send === 'function' && typeof withAck === 'function'\) \{ try \{ conn\.send\(withAck\(msg, conn, aIn\)\); \} catch \(e\) \{ sendFailed\(e\); \} \}/.test(posT)
+            && /if \(lw\.isChar && typeof faceJudge === 'function'\) \{[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n\s*\}\n[^\n]*\n[^\n]*\n\s*\}\n\s*if \(lw\.x !== w\.x \|\| lw\.y !== w\.y \|\| \(lw\.rot \|\| 0\) !== \(w\.rot \|\| 0\)/.test(patT)
+            && /if \(typeof turnFaceStart === 'function'\) \{ try \{ turnFaceStart\(mapId, c\); \} catch \(e\) \{ console\.error\(e\); \} \}/.test(tmT) && /var fm = moveMode\(camp, 'face'\); if \(fm === 'off'\) return null;/.test(posT));
+    }
+    // difficult terrain T2: the fog tells the move's own length beside its cost (moveCells' out.len); here a move ending past x 100 costs double
+    const terrMc = (mp, tw, fx, fy, tx, ty, dg, outL) => { const l = Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50; if (outL) outL.len = l; return tx > 100 ? l * 2 : l; };
+    const tA = mkT({ allow: 4, moveCells: terrMc }); tA.P('t_p', 150, 0, true);
+    const tB = mkT({ allow: 8, moveCells: terrMc }); tB.P('t_p', 150, 0, true);
+    const tN = mkT({ allow: 8, moveCells: terrMc }); tN.P('t_p', 100, 0, true);
+    const tC = mkT({ allow: 8, moveCells: terrMc }); tC.P('t_p', 50, 0); tC.C('t_p', 150, 0);
+    const tD = mkT({ allow: 4, moveCells: terrMc }); tD.P('t_p', 50, 0); tD.C('t_p', 150, 0);
+    check('terrain T2 the move limit counts a move\'s cost (host, run for real): a drop that difficult terrain makes cost past the move goes back, its note naming the cost; one within counts its cost, its note naming both the length and the cost; plain ground as before; the map copy that closes a drag alike, refused or counted, to each of the player\'s connections',
+        tA.pat.x === 0 && j(tA.out.notes()) === j(['That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.'])
+        && tB.pat.x === 150 && tB.net.turnMove.f_keep0001.moved === 6 && j(tB.out.notes()) === j(['Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.'])
+        && tN.net.turnMove.f_keep0001.moved === 2 && j(tN.out.notes()) === j(['Moved 2 squares (10 ft); 6 squares (30 ft) left.'])
+        && tC.pat.x === 150 && tC.net.turnMove.f_keep0001.moved === 6 && j(tC.out.notes()) === j(['Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.', 'pA2:Moved 3 squares (15 ft), costing 6 squares (30 ft) with difficult terrain; 2 squares (10 ft) left.'])
+        && tD.pat.x === 0 && j(tD.out.notes()) === j(['That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.', 'pA2:That costs 6 squares (30 ft) with difficult terrain; you have 4 squares (20 ft) left.']),
+        j([tA.out.notes(), tB.out.notes(), tN.out.notes(), tC.out.notes(), tD.out.notes()]));
+    // whole cells (owner, 2026-10-01): the real moveCells (fog.js, sliced, over the real fogcore and systemcore) in the real pos gate and patch
+    // path — a token standing off the grid is counted from the cell it stands in to the cell it lands in; a final that moved nothing says nothing
+    const FCm = await import(url('fogcore.js')), fogM = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+    const realMc = new Function('core', 'window', 'gridForMap', 'terrainFor', fogM.slice(fogM.indexOf('function moveCells('), fogM.indexOf('// GM clicks a door while in fog mode')) + '\nreturn moveCells;')(() => FCm, { wpSystemCore: Sx }, m => FCm.gridFor(m.meta.gridType), () => null);
+    const offAt = (o, x, y) => { const W = mkT(Object.assign({ moveCells: realMc }, o)); W.pat.x = x; W.pat.y = y; return W; };
+    const g1 = offAt({ allow: 4 }, 100, 321.7); g1.P('t_p', 100, 400, true);                                   // straight down, off the lattice: 2 squares (1.6 by the old raw count)
+    const g2 = offAt({ allow: 4 }, 100, 321.7); g2.P('t_p', 100, 360); g2.C('t_p', 100, 400);                  // the same through the map copy that closes a lost final
+    const g3 = offAt({ allow: 4 }, 100, 321.7); g3.P('t_p', 100, 580, true);                                   // six squares: past the move, back where it began
+    const g4 = offAt({ allow: 4 }, 0, 0); g4.P('t_p', 20, 20, true); g4.P('t_p', 20, 20, true); g4.C('t_p', 24, 24);   // a shuffle inside its own cell, a turn in place, a copy of the same
+    const g5 = offAt({ allow: 4, rules: { move: 'warn' }, moved: 9 }, 0, 0); g5.P('t_p', 0, 0, true);          // already past its move (Warn), turning in place: nothing more is said
+    const g6 = offAt({ allow: 4, moved: 9 }, 10, 10); g6.P('t_p', 12, 14, true); g6.P('t_p', 12, 14); g6.C('t_p', 16, 18);   // Refuse, already past its move: a shuffle in its cell is no move to refuse
+    check('whole cells in the move limit (host, the real moveCells in the real pos gate and patch path): a token standing off the grid that moves straight down two squares is told "Moved 2 squares", and so is the map copy that closes a lost final (each of the player\'s connections); six squares past a move of four goes back where it stood, off the grid as it was; a shuffle inside its own cell, a turn in place and a copy of the same count nothing and say nothing, even for a token already past its move, which is not sent back for a move of nothing either',
+        g1.net.turnMove.f_keep0001.moved === 2 && j(g1.out.notes()) === j(['Moved 2 squares (10 ft); 2 squares (10 ft) left.'])
+        && g2.net.turnMove.f_keep0001.moved === 2 && j(g2.out.notes()) === j(['Moved 2 squares (10 ft); 2 squares (10 ft) left.', 'pA2:Moved 2 squares (10 ft); 2 squares (10 ft) left.'])
+        && g3.pat.x === 100 && g3.pat.y === 321.7 && g3.net.turnMove.f_keep0001.moved === 0 && j(g3.out.notes()) === j(['That is 6 squares (30 ft); you have 4 squares (20 ft) left.'])
+        && g4.net.turnMove.f_keep0001.moved === 0 && j(g4.out.notes()) === '[]' && g4.out.toasts.length === 0 && g5.net.turnMove.f_keep0001.moved === 9 && j(g5.out.notes()) === '[]' && g5.out.toasts.length === 0 && g5.out.bells.length === 0
+        && g6.pat.x === 16 && g6.pat.y === 18 && g6.net.turnMove.f_keep0001.moved === 9 && j(g6.out.notes()) === '[]',
+        j([g1.out.notes(), g2.out.notes(), g3.out.notes(), [g3.pat.x, g3.pat.y], g4.out.notes(), g5.out.notes(), g5.out.toasts]));
+    const w = mkT({ allow: 4, rules: { move: 'warn' } }); w.P('t_p', 300, 0, true);
+    const bo = mkT({ turn: 0, rules: { order: 'warn' } }); bo.P('t_p', 50, 0, true); const br = mkT({ turn: 0 }); br.P('t_p', 50, 0, true);
+    const bp = mkT({ allow: 4 }); bp.P('t_p', 50, 0); bp.C('t_p', 250, 0); const bs = mkT(); bs.api.start('m1', bs.net.combats.f_keep0001);
+    check('The bell (Bell-b): every turn note of the move gates names the token\'s character — Your turn, a counted or refused move, out of turn, and the map copy\'s note to each of the player\'s connections; Warn past the move or out of turn also notes it in the GM\'s bell; a refusal does not',
+        [w, bo, br, bp, bs].every(x => { const tn = x.out.sent.filter(m => m.type === 'turn-note'); return tn.length > 0 && tn.every(m => m.charId === 'c_p'); }) && bp.out.sent.filter(m => m.type === 'turn-note').length === 2
+        && j(w.out.bells) === j([['c_p', 'Turn', 'Moved 2 squares (10 ft) past the move.']]) && j(bo.out.bells) === j([['c_p', 'Turn', 'Moved out of turn.']]) && !br.out.bells.length && !bp.out.bells.length, j([w.out.bells, bo.out.bells, bs.out.sent]));
+    const f = mkT({ allow: 4, rules: { move: 'off' } }); f.P('t_p', 300, 0, true);
+    const g = mkT({ allow: 4 }); g.P('t_f', 400, 500, true);
+    const nt = mkT({ allow: 4, turns: false }); nt.P('t_p', 300, 0, true);
+    check('T3b the move limit\'s modes: warn lets it past with a note to the player and the GM; off neither stops nor counts nor notes; a token outside the combat and a table without turn-based combat are free',
+        w.pat.x === 300 && j(w.out.notes()) === j(['That went 2 squares (10 ft) past your move.']) && w.out.toasts.length === 1 && f.pat.x === 300 && !f.out.notes().length && f.net.turnMove.f_keep0001.moved === 0
+        && g.free.x === 400 && !g.out.notes().length && nt.pat.x === 300 && !nt.out.notes().length, j([w.out.notes(), w.out.toasts, f.out.notes()]));
+    // out of turn
+    const o1 = mkT({ turn: 0 }); o1.P('t_p', 50, 0); o1.P('t_p', 100, 0, true); o1.C('t_p', 100, 0);
+    const o2 = mkT({ turn: 0, rules: { order: 'warn' } }); o2.P('t_p', 100, 0, true);
+    const o3 = mkT({ turn: 0, rules: { order: 'off' } }); o3.P('t_p', 100, 0, true);
+    const o4 = mkT({ turn: 0 }); o4.C('t_p', 100, 0);
+    const o5 = mkT({ turn: 0 }); o5.P('t_p', 50, 0); const o5mid = o5.pat.x;
+    const wl = mkT(); wl.C('t_p', 1000, 0);
+    const b3 = mkT({ allow: 4 }); b3.P('t_p', 50, 0); b3.C('t_p', 150, 0); b3.P('t_p', 200, 0, true);
+    check('T3b out of turn: a token in the combat moves only on its turn — refused, not applied mid-drag and put back with one note (its map copy after moves nothing); a copy alone is refused too; warn lets it with notes to them and the GM; off lets it be. A map copy alone crossing a wall is put back with its note; a copy closes its drag, so the next drag begins where it landed',
+        o1.pat.x === 0 && j(o1.out.notes()) === j(['It is not your turn: your token goes back.']) && o4.pat.x === 0 && o4.out.notes().length === 2 && o5mid === 0
+        && wl.pat.x === 0 && /A wall is in the way/.test(wl.out.notes()[0] || '') && b3.pat.x === 200 && b3.net.turnMove.f_keep0001.moved === 4
+        && o2.pat.x === 100 && j(o2.out.notes()) === j(['You moved out of turn.']) && o2.out.toasts.length === 1 && o3.pat.x === 100 && !o3.out.notes().length, j([o1.out.notes(), o4.out.notes(), o2.out.notes()]));
+    // the turn's start: the allowance through the player's view
+    const s1 = mkT(); s1.api.start('m1', s1.net.combats.f_keep0001);
+    const s2 = mkT(); s2.api.start('m1', Object.assign({}, s2.net.combats.f_keep0001, { turn: 0 }));
+    const s3 = mkT({ system: Sx.cleanSystem(Object.assign({}, sysT, { combat: { turn: { move: 'GMFig * 30', unit: 'ft' } } }), { F: Fx, gmView: true }) }); s3.api.start('m1', s3.net.combats.f_keep0001);
+    const s4 = mkT({ turns: false }); s4.api.start('m1', s4.net.combats.f_keep0001);
+    check('T3b the turn\'s start (turnMoveStart, run for real): the player\'s token gets its system\'s Move per turn as the map\'s cells (Speed 30 ft on 5 ft squares: 6) and each of its player\'s connections hears it; an NPC\'s token has no state; a move reading a GM-only value, or turn-based combat off, sets no limit',
+        j(s1.net.turnMove.f_keep0001) === j({ rowId: 'r_p', tokId: 't_p', moved: 0, allow: 6 }) && j(s1.out.notes()) === j(['Your turn: 6 squares (30 ft) to move.', 'pA2:Your turn: 6 squares (30 ft) to move.'])
+        && !('f_keep0001' in s2.net.turnMove) && s3.net.turnMove.f_keep0001.allow === null && !s3.out.notes().length && !('f_keep0001' in s4.net.turnMove), j([s1.net.turnMove, s1.out.notes(), s2.net.turnMove, s3.net.turnMove]));
+    // fold 2's review: each fight keeps its own turn's move (net.turnMove by the fight's id). Pat moves 2 of his 4 squares in the first fight on the
+    // map; a turn starting in a second fight there (his other token's) leaves his allowance and what he moved as they were, and his next move counts on
+    const tw = mkT({ allow: 4 }); tw.P('t_p', 50, 0); tw.P('t_p', 100, 0, true);
+    tw.net.combats.f_keep0002 = { id: 'f_keep0002', mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_f', tokId: 't_f' }] }; tw.api.start('m1', tw.net.combats.f_keep0002);
+    const twA = j(tw.net.turnMove.f_keep0001), twB = j(tw.net.turnMove.f_keep0002); tw.P('t_p', 150, 0, true); const twA2 = tw.net.turnMove.f_keep0001 && tw.net.turnMove.f_keep0001.moved;
+    check('fold 2\'s review (turnMoveStart and the pos gate, run for real): each fight keeps its own turn\'s move, by its own id — a turn starting in a second fight on the map leaves the first fight\'s allowance and what was moved in it as they were, and the next move there counts on from them',
+        twA === j({ rowId: 'r_p', tokId: 't_p', moved: 2, allow: 4 }) && twB === j({ rowId: 'r_f', tokId: 't_f', moved: 0, allow: null }) && twA2 === 3 && !('m1' in tw.net.turnMove), j([twA, twB, twA2, tw.net.turnMove]));
+})());
+
+// Turn-based combat T4 (D4, D5): the actions a turn allows — the host's spend (net.js, run for real), the refill at a turn's start and the clearing
+// at the combat's end, the player's counts on the wire (their connections only), and a client's intake (the synced host only, cleaned)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js'));
+    {   // 1.6.0 A move by giving up an action (combat.turn.run and runCost): the host's gates, run for real (invented data: Pat, Speed, Dash)
+        const Fx5 = await import(url('formula.js'));
+        const line5 = k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); };
+        const pos5 = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), pat5 = between('// [netcheck:patch-start]', '// [netcheck:patch-end]', 'patch', 'netfog.js'), tm5 = between('// [netcheck:turnmove-start]', '// [netcheck:turnmove-end]', 'turnmove'), ta5 = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts');
+        const cl5 = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem('));
+        const help5 = ['function peerProfileId(', 'function fxLib(', 'function itemLib('].map(line5).join('\n') + '\n';
+        const sys5 = (o) => Sx.cleanSystem(Object.assign({ v: 1, name: 'R', rolls: [], sheet: { sections: [] }, fields: [{ id: 'f_sp', key: 'Speed', kind: 'number', vis: 'all', def: 5 }, { id: 'f_ds', key: 'Dash', kind: 'number', vis: 'all', def: 10 }, { id: 'f_dz', key: 'Dazed', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Secret', kind: 'number', vis: 'gm', def: 20 }],
+            combat: { turn: Object.assign({ move: 'Speed', unit: 'cells', run: 'Dash', runCost: 'action', acts: [{ key: 'Action', n: 1, nf: '1 - Dazed' }, { key: 'Bonus', n: 1 }] }, o || {}) } }), { F: Fx5, gmView: true });
+        const mk5 = o => {
+            o = o || {};
+            const pat = { id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }, map = { type: 'map', meta: { gridType: 'square' }, whiteboard: [pat] };
+            const camp = { id: 'c1', items: { m1: map }, system: o.system || sys5(), turnRules: o.rules || {}, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: o.values || {} } } };
+            const out = { sent: [], toasts: [], bells: [] }, conn = { peer: 'pA', open: true, send: m => out.sent.push(m) }, fight = { id: 'f_keep0001', mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] };
+            const net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', location: 'm1' } }, conns: [conn], tokenDropped() {}, combats: { f_keep0001: fight } };
+            const win = { wpVtt: { on: () => true, campaignOn: () => true }, wpFog: { moveBlocked: () => false, moveCells: (mp, w, fx, fy, tx, ty) => Math.max(Math.abs(tx - fx), Math.abs(ty - fy)) / 50 }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx5, gmView: false }) }, wpFormula: Fx5 };
+            const api = new Function('state', 'net', 'window', 'peerPaused', 'allow', 'checkRoomHandouts', 'applyPosToDom', 'broadcastPos', 'toast', 'saveRemoteSoon', 'sendFailed', 'setTimeout', 'playerStroke', 'SC', 'getActiveCampaign', 'bellOut',
+                cl5 + ownKeySrc + help5 + pos5 + '\n' + pat5 + '\n' + tm5 + '\n' + ta5 + '\n' + ordersSrc + '\nreturn { pos: function(m, c) { return handlePos(m, c); }, patch: function(m) { return applyClientItemFiltered(m, { id: "u_a" }); }, start: function(c) { turnMoveStart("m1", c); turnActsStart("m1", c); }, spend: actSpend };')(
+                { appState: { campaigns: { c1: camp } } }, net, win, () => false, () => true, () => {}, () => {}, () => {}, t => out.toasts.push(t), () => {}, e => { throw e; }, f => f(), () => null, () => Sx, () => camp, (cid, note) => out.bells.push([cid, note.text]));
+            api.start(fight);
+            const st = () => net.turnMove.f_keep0001, go = (x, fin) => api.pos({ type: 'pos', campId: 'c1', itemId: 'm1', wbId: 't_p', x, y: 0, final: fin !== false }, conn), press = (k, look) => api.spend(camp, 'c_p', net.roster.pA, k, conn, 'Pat', look);
+            const C = x => { const copy = JSON.parse(JSON.stringify(map.whiteboard)); copy[0].x = x; api.patch({ type: 'item', campId: 'c1', itemId: 'm1', item: { type: 'map', whiteboard: copy } }); };
+            out.notes = () => out.sent.filter(m => m.type === 'turn-note').map(m => m.text);
+            return { out, net, camp, pat, st, go, press, C };
+        };
+        const a5 = mk5(); const aStart = a5.st().allow, aNote = a5.out.notes()[0]; a5.go(350); const aRan = a5.st().ran, aSpent = a5.net.turnSpent.c_p.Action, aAllow = a5.st().allow, aNote2 = a5.out.notes()[1];
+        a5.go(500); const aAt = a5.pat.x; a5.go(550); const aPast = a5.pat.x, aRefused = a5.press('Action'), aOther = a5.press('Bonus');
+        check('1.6.0 run: a free action gives the turn the run (10): moving 7 spends it, the turn keeps the 10, 11 goes back, and a roll that costs that action is then refused by the Move limit while another action stands',
+            aStart === 10 && aNote === 'Your turn: 5 squares (25 ft) to move, or 10 squares (50 ft) if you give up your Action.' && aRan === true && aSpent === 1 && aAllow === 10 && /That spent your Action\.$/.test(aNote2) && aAt === 500 && aPast === 500 && aRefused === 'You gave up your Action to move further.' && aOther === '' && a5.net.turnSpent.c_p.Action === 1 && a5.net.turnSpent.c_p.Bonus === 1, j([aStart, aNote, aRan, aSpent, aAllow, aNote2, aAt, aPast, aRefused, aOther, a5.net.turnSpent]));
+        const b5 = mk5(); const bPress = b5.press('Action'), bAllow = b5.st().allow; b5.go(300); const bRefused = b5.pat.x; b5.go(250); const bAt = b5.pat.x, bRan = b5.st().ran === undefined;
+        const c5 = mk5(); c5.go(150); const cPress = c5.press('Action'), cAllow = c5.st().allow, cLeftNote = c5.out.notes().length; c5.go(300); const cAt = c5.pat.x; c5.go(250); const cDone = c5.pat.x;
+        check('1.6.0 run: the action spent first leaves the move alone, 5 in all, before and after the attack',
+            bPress === '' && bAllow === 5 && bRefused === 0 && bAt === 250 && bRan && cPress === '' && cAllow === 5 && cLeftNote >= 2 && cAt === 150 && cDone === 250, j([bPress, bAllow, bRefused, bAt, cPress, cAllow, cAt, cDone]));
+        const d5 = mk5({ values: { f_dz: 1 } }), dNote = d5.out.notes()[0], dAllow = d5.st().allow; d5.go(300); const dAt = d5.pat.x;
+        const e5 = mk5({ values: { f_ds: 5 } }), eKeys = Object.keys(e5.st()).sort().join(), eNote = e5.out.notes()[0];
+        check('1.6.0 run: a turn whose count gives none of that action has the move alone, and a run no further than the move offers nothing',
+            dAllow === 5 && dNote === 'Your turn: 5 squares (25 ft) to move.' && dAt === 0 && e5.st().allow === 5 && eNote === 'Your turn: 5 squares (25 ft) to move.' && e5.st().ran === undefined, j([dAllow, dNote, dAt, eKeys, eNote]));
+        const w5 = mk5({ rules: { move: 'warn' } }); w5.go(350); const wPress = w5.press('Action'), wRn = w5.out.sent.filter(m => m.type === 'acts-left').pop();
+        const wA = mk5({ rules: { move: 'refuse', acts: 'warn' } }); wA.go(350); const waPress = wA.press('Action');
+        const o5 = mk5({ rules: { move: 'off' } }); o5.go(350); const oRan = o5.st().ran, oPress = o5.press('Action');
+        check('1.6.0 run: Warn lets the roll through with a note to them and the GM, and tells their app so that its button is not grayed by the Actions rule; the Move limit, not the Actions rule, says; Off counts no move and no run',
+            wPress === '' && w5.out.notes().pop() === 'Action: used after giving it up to move further.' && w5.out.toasts.length === 1 && w5.net.turnSpent.c_p.Action === 2 && wRn.rn === 'Action' && !/used after/.test(wA.out.notes().join()) && waPress === 'You gave up your Action to move further.' && oRan === undefined && oPress === '' && o5.pat.x === 350, j([wPress, w5.out.notes(), wRn, waPress, oRan, oPress]));
+        const f5 = mk5({ rules: { acts: 'off' } }); const fPress = f5.press('Action'), fAllow = f5.st().allow, fRan = f5.st().ran; f5.go(300); const fAt = f5.pat.x;
+        const g5 = mk5({ rules: { acts: 'off' } }); g5.go(350); const gPress = g5.press('Action');
+        check('1.6.0 run: with actions not counted the turn still reads what its action went to: a press takes it down to the move, a run past the move still meets the Move limit',
+            fPress === '' && fAllow === 5 && fRan === undefined && fAt === 0 && gPress === 'You gave up your Action to move further.', j([fPress, fAllow, fAt, gPress]));
+        const h5 = mk5(); h5.go(50); h5.C(350); const hSt = h5.st(), hAt = h5.pat.x;
+        check('1.6.0 run: a move that lands through a map copy counts as a move does, past the move it spends the action', hAt === 350 && hSt.ran === true && hSt.moved === 7 && h5.net.turnSpent.c_p.Action === 1, j([hAt, hSt, h5.net.turnSpent]));
+        const i5 = mk5({ system: sys5({ run: 'Secret' }) }), j5 = mk5({ system: sys5({ run: undefined, runCost: undefined }) }), k5 = mk5({ system: sys5({ run: '1d6' }) });
+        check('1.6.0 run: one read from a GM-only value leaves players the one move, a turn with none keeps the four keys it always had and its note, and a formula that rolls dice offers nothing',
+            i5.st().allow === 5 && i5.st().run === undefined && j(Object.keys(j5.st()).sort()) === j(['allow', 'moved', 'rowId', 'tokId']) && j5.out.notes()[0] === 'Your turn: 5 squares (25 ft) to move.' && k5.st().allow === 5 && k5.st().run === undefined, j([i5.st(), j5.st(), k5.st()]));
+        const cf5 = new Function(fnSrc('function cleanFightBody(', '\n// [netcheck:notepad-start]', 'cleanFightBody') + '\nreturn cleanFightBody;')();
+        const kept = cf5({ round: 1, turn: 0, rows: [{ id: 'r', name: 'A' }], mv: { m: 1, a: 10, w: 5 } }, 'm1'), plain = cf5({ round: 1, turn: 0, rows: [{ id: 'r', name: 'A' }], mv: { m: 1, a: 10, w: 'x' } }, 'm1');
+        check('1.6.0 run: a player\'s app keeps how far the move goes before it spends the action only as a number', kept.mv.w === 5 && !('w' in plain.mv), j([kept.mv, plain.mv]));
+    }
+    const posA = between('// [netcheck:pos-start]', '// [netcheck:pos-end]', 'pos'), taA = between('// [netcheck:turnacts-start]', '// [netcheck:turnacts-end]', 'turnacts'), aiA = between('// [netcheck:actsin-start]', '// [netcheck:actsin-end]', 'actsin');
+    const pidA = ['function peerProfileId('].map(k => { const i = src.indexOf(k); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
+    const mkA = o => {
+        o = o || {};
+        const map = { type: 'map', whiteboard: [{ id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a' }, { id: 't_o', isChar: true, charId: 'c_o' }, { id: 't_q', isChar: true, charId: 'c_q', ownerId: 'u_a' }] };
+        const camp = { id: 'c1', items: { m1: map }, turnRules: o.rules || {}, system: { combat: { turn: { acts: o.acts || [{ key: 'Action', n: 1 }, { key: 'Bonus', label: 'Bonus action', n: 2 }] } } }, chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a' }, c_o: { id: 'c_o', name: 'Orc', npc: true }, c_q: { id: 'c_q', name: 'Quin', ownerId: 'u_a' } } };
+        const out = { sent: [], toasts: [], bells: [] }, mk = p => ({ peer: p, open: true, send: m => out.sent.push(Object.assign({ to: p }, m)) }), conns = [mk('pA'), mk('pA2'), mk('pB')];
+        const net = { role: 'host', conns, roster: { pA: { id: 'u_a', location: 'm1' }, pA2: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' } }, combats: { m1: { mapId: 'm1', round: 1, turn: 1, rows: [{ id: 'r_o', tokId: 't_o' }, { id: 'r_p', tokId: 't_p' }] } } };
+        const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'toast', 'sendFailed', 'applyPosToDom', 'broadcastPos', 'bellOut', pidA + posA + '\n' + taA + '\n' + ordersSrc + '\nreturn { spend: actSpend, start: turnActsStart, end: turnActsEnd };')(
+            net, { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), t => out.toasts.push(t), e => { throw e; }, () => {}, () => {}, (cid, note) => out.bells.push([cid, note.title, note.text]));
+        const sp = (cost, ch) => api.spend(camp, ch || 'c_p', net.roster.pA, cost, conns[0], 'Pat');
+        out.notes = () => out.sent.filter(m => m.type === 'turn-note').map(m => m.text);
+        out.left = () => out.sent.filter(m => m.type === 'acts-left').map(m => m.to + ':' + JSON.stringify(m.left) + ':' + m.mode);
+        return { out, net, camp, api, sp, conns };
+    };
+    const a = mkA(); const a1 = a.sp('Action'), a2 = a.sp('Action'), a3 = a.sp('Bonus');
+    check('T4 actSpend (host, run for real): a press that costs an action spends it (a note of what is left; its player\'s connections hear the counts, another player nothing); none left under Refuse is refused with why, spending nothing; another action still has its own count',
+        a1 === '' && a2 === 'No Action left this turn.' && a3 === '' && j(a.net.turnSpent) === j({ c_p: { Action: 1, Bonus: 1 } }) && j(a.out.notes()) === j(['Action: 0 of 1 left this turn.', 'Bonus action: 1 of 2 left this turn.'])
+        && j(a.out.left()) === j(['pA:{"Action":0,"Bonus":2}:refuse', 'pA2:{"Action":0,"Bonus":2}:refuse', 'pA:{"Action":0,"Bonus":1}:refuse', 'pA2:{"Action":0,"Bonus":1}:refuse']), j([a1, a2, a3, a.net.turnSpent, a.out.notes(), a.out.left()]));
+    const w = mkA({ rules: { acts: 'warn' } }); w.sp('Action'); const w2 = w.sp('Action');
+    const f = mkA({ rules: { acts: 'off' } }); const f1 = f.sp('Action'), f2 = f.sp('Action');
+    const nq = mkA(); const nq1 = nq.sp('Action', 'c_q');
+    const nt = mkA({ turns: false }); nt.sp('Action'); const nt2 = nt.sp('Action');
+    const nk = mkA(); const nk1 = nk.sp('Nope'), nk2 = nk.sp('');
+    check('The bell (Bell-b): an action\'s turn note names its character (what is left, and past it under Warn), and Warn also notes it in the GM\'s bell; a spend within the count does not',
+        w.out.sent.filter(m => m.type === 'turn-note').length === 2 && w.out.sent.filter(m => m.type === 'turn-note').every(m => m.charId === 'c_p') && j(w.out.bells) === j([['c_p', 'Turn', 'Used a Action past what a turn allows.']]), j([w.out.sent, w.out.bells]));
+    check('T4 actSpend\'s modes and reach: Warn lets a press past the count through with a note to them and the GM (it still counts); Off neither counts nor notes; a character not in the combat, turn-based combat off, a cost naming no action or none: free',
+        w2 === '' && w.net.turnSpent.c_p.Action === 2 && /used past what a turn allows/.test(w.out.notes()[1]) && w.out.toasts.length === 1 && j(w.out.left().pop()) === j('pA2:{"Action":0,"Bonus":2}:warn')
+        && f1 === '' && f2 === '' && !f.out.sent.length && !('c_p' in f.net.turnSpent) && nq1 === '' && !('c_q' in nq.net.turnSpent) && nt2 === '' && !nt.out.sent.length && nk1 === '' && nk2 === '' && !nk.out.sent.length, j([w.net.turnSpent, w.out.notes(), f.out.sent]));
+    const s = mkA(); s.sp('Action'); s.out.sent.length = 0; s.api.start('m1', s.net.combats.m1); const sAfter = j(s.net.turnSpent), sLeft = s.out.left();
+    s.sp('Action'); s.out.sent.length = 0; s.api.end('m1', s.net.combats.m1); const eLeft = s.out.left();
+    const s2 = mkA(); s2.sp('Action'); s2.api.start('m1', Object.assign({}, s2.net.combats.m1, { turn: 0 }));
+    check('T4 a turn\'s start gives the character whose turn it is its actions back (its player hears the full counts); another\'s stay spent; the combat\'s end clears its characters\' counts (null: their sheets stop graying)',
+        sAfter === '{}' && j(sLeft) === j(['pA:{"Action":1,"Bonus":2}:refuse', 'pA2:{"Action":1,"Bonus":2}:refuse']) && j(eLeft) === j(['pA:null:refuse', 'pA2:null:refuse']) && j(s2.net.turnSpent) === j({ c_p: { Action: 1 } }), j([sAfter, sLeft, eLeft, s2.net.turnSpent]));
+    {   // 192 (the owner, by prompt: "Count is a formula (Recommended)"): an action's count a formula of the character's names, worked out at its turn's start over the players' view and the owner's own copy
+        const Fx2 = await import(url('formula.js'));
+        const lineOf = (k, file) => { const t = typeof file === 'string' ? require('./checkkit').part(file) : src, i = t.indexOf(k); return t.slice(i, t.indexOf('\n', i)); }, fxL = lineOf('function fxLib(sys)'), itL = lineOf('function itemLib(sys)');
+        const sysR = { v: 1, name: 'R', rolls: [], fields: [{ id: 'f_er', key: 'ExtraReady', label: 'Extra ready', kind: 'number', vis: 'all', def: 0 }, { id: 'f_gm', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', def: 5 }],
+            combat: { turn: { acts: [{ key: 'Ready', n: 1, nf: '1 + ExtraReady' }, { key: 'Act', n: 1 }, { key: 'Hid', n: 2, nf: '1 + Secret' }, { key: 'Dice', n: 3, nf: '1d6' }] } }, sheet: { sections: [] } };
+        const mkR = (er) => {
+            const map = { type: 'map', whiteboard: [{ id: 't_p', isChar: true, charId: 'c_p', ownerId: 'u_a', x: 0, y: 0, w: 50, h: 50 }] };
+            const camp = { id: 'c1', items: { m1: map }, turnRules: {}, system: Sx.cleanSystem(sysR, { F: Fx2, gmView: true }), chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: { f_er: er } } } };
+            const out = { sent: [] }, conns = [{ peer: 'pA', open: true, send: m => out.sent.push(m) }];
+            const net = { role: 'host', conns, roster: { pA: { id: 'u_a', location: 'm1' } }, combats: { m1: { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] } } };
+            const win = { wpVtt: { on: () => true }, wpFormula: Fx2, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx2, gmView: false }) } };
+            const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'toast', 'sendFailed', 'applyPosToDom', 'broadcastPos', 'bellOut', pidA + fxL + '\n' + itL + '\n' + posA + '\n' + taA + '\n' + ordersSrc + '\nreturn { spend: actSpend, start: turnActsStart, end: turnActsEnd };')(
+                net, win, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => {}, e => { throw e; }, () => {}, () => {}, () => {});
+            return { out, net, camp, api, sp: cost => api.spend(camp, 'c_p', net.roster.pA, cost, conns[0], 'Pat'), left: () => out.sent.filter(m => m.type === 'acts-left').map(m => JSON.stringify(m.left)) };
+        };
+        const r2 = mkR(2); r2.api.start('m1', r2.net.combats.m1); const l2 = r2.left().pop(), m2 = JSON.stringify(r2.net.turnMax.c_p);
+        const sp2 = [r2.sp('Ready'), r2.sp('Ready'), r2.sp('Ready'), r2.sp('Ready')];
+        const r0 = mkR(0); const pre = r0.sp('Ready'), pre2 = r0.sp('Ready'), m0 = JSON.stringify(r0.net.turnMax.c_p);
+        const rE = mkR(2); rE.api.start('m1', rE.net.combats.m1); rE.api.end('m1', rE.net.combats.m1); const gone = !('c_p' in rE.net.turnMax);
+        check('192 an action\'s count by formula (host, run for real): worked out at the turn\'s start over the players\' view and the owner\'s own copy (1 + ExtraReady with 2 gives 3; a count naming a GM-only value and one that rolls dice stand at their number), told as what is left, spent to 0 and then refused; a press before any turn of theirs works it out then; the combat\'s end forgets it',
+            m2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && l2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && JSON.stringify(sp2) === JSON.stringify(['', '', '', 'No Ready left this turn.'])
+            && pre === '' && pre2 === 'No Ready left this turn.' && m0 === JSON.stringify({ Ready: 1, Act: 1, Hid: 2, Dice: 3 }) && gone, j([m2, l2, sp2, pre, pre2, m0, gone]));
+    }
+    const runAI = (msg, o) => { o = o || {}; const net = { foreign: true, syncedPeer: 'h', stream: false, actsLeft: o.had || undefined }, seen = []; new Function('msg', 'conn', 'net', 'window', aiA)(Object.assign({ type: 'acts-left' }, msg), { peer: o.peer || 'h' }, net, { wpSheets: { charChanged: id => seen.push(id) } }); return { al: net.actsLeft, seen }; };
+    const ai1 = runAI({ charId: 'c_p', left: { Action: 0, Bonus: 2, 'bad key': 1, Big: 120, Mid: 12, Frac: 0.5, constructor: 1 }, mode: 'warn' }), ai2 = runAI({ charId: 'c_p', left: null }, { had: { c_p: { left: {}, mode: 'refuse' } } });
+    check('T4 a client\'s counts (net.js, run for real): from the synced host only — action keys (in a map with no prototype: constructor is a key like any) and whole numbers 0 to 99 kept (192: a count may be a formula, moved on purpose from 0 to 9), anything else dropped, the mode refuse unless warn; null clears; its sheet and HUD redraw; nothing from another peer, a bad character id or a left that is neither',
+        j(ai1.al.c_p) === j({ left: { Action: 0, Bonus: 2, Mid: 12, constructor: 1 }, mode: 'warn' }) && Object.getPrototypeOf(ai1.al.c_p.left) === null && j(ai1.seen) === j(['c_p']) && !('c_p' in ai2.al) && j(ai2.seen) === j(['c_p'])
+        && [runAI({ charId: 'c_p', left: {} }, { peer: 'o' }), runAI({ charId: 'x', left: {} }), runAI({ charId: 'c_p', left: [1] })].every(r => !r.seen.length), j([ai1, ai2]));
+    const T = src.replace(/\r\n/g, '\n');
+    check('T4 the presses on the host (source): a player\'s roll with a cost spends it once it is a valid roll, before it is recorded (refused: a roll-deny with why); a player\'s apply action once its change is worked out, before it lands; turnStarted refills, the combat\'s end clears',
+        /var whyQ = Dq\.checkTableRoll\(resQ\); if \(whyQ\) \{ denyQ\(whyQ\); return; \}\n\s*if \(actQ && actQ\.cost && chQ && typeof actSpend === 'function'\) \{ var costQ = actSpend\(campQ, turnChQ\.id, net\.roster\[conn\.peer\], actQ\.cost, conn, turnChQ\.name, false, actQ\.costN\); if \(costQ\) \{ denyQ\('error', \{ error: \{ message: costQ, pos: 0, len: 0 \} \}\); return; \} \}/.test(T)
+        && /if \(!resA\.ok\) \{ denyA\(resA\.reason, resA\.message\); return; \}\n\s*var costA = costDoneA \? '' : typeof actSpend === 'function' \? actSpend\(campA, qa\.charId, profA, actA\.cost, conn, chA\.name, false, actA\.costN\) : ''; if \(costA\) \{ denyA\('error', costA\); return; \}/.test(T)
+        && /try \{ turnActsStart\(mapId, c\); \} catch \(e\)/.test(T) && /if \(had\) \{ try \{ turnActsEnd\(mapId, had\); \} catch \(e\)/.test(T));
+})());
+
+// The combat roster on the wire (1.5.0): players get the order, never a number. A row's initiative can be the total of a roll the GM alone
+// saw (the roster's Roll keeps one that reads a GM-only value private, and its total still sets the order); on a fogged map an unseen
+// creature's row is Hidden whole. Run for real: the roster's Roll and Start (sliced from whiteboard.js) into net.js's combatSet, combatsFor,
+// broadcastCombats and cleanCombats (the [netcheck:combats] slice), with anyFog and fogDrop as they are; fogDropIds is the one stand-in
+{
+    const cbSrc = between('// [netcheck:combats-start]', '// [netcheck:combats-end]', 'combats');
+    const setSrc = fnSrc('function combatRefresh() {', '\nnet.combatStep = function', 'combatSet');
+    const fogSrc = fnSrc('function fogDrop(', '\nfunction fogFilterClean(', 'fogDrop', 'netfog.js') + fnSrc('function anyFog(camp) {', '\n// Everything a player receives', 'anyFog', 'netfog.js');
+    const wb = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+    const wbCut = (a, b, label) => { const i = wb.indexOf(a), k = wb.indexOf(b, i + 1); if (i < 0 || k < 0 || wb.indexOf(a, i + 1) >= 0) throw new Error('netcheck: ' + label + ' not found once in whiteboard.js'); return wb.slice(i, k); };
+    const sortSrc = wbCut('function combatSortByInit(rows) {', '\nfunction renderCombatModal() {', 'combatSortByInit'), wireSrc = wbCut('(function wireCombatModal() {', '\nfunction renderCombatStrip() {', 'wireCombatModal');
+    const fhSrc = wbCut('function fightsHere(', '\n', 'fightsHere');   // fold 2: the fights on a map, which the strip's stripShow asks after a Start
+    const fe = () => ({ on: {}, style: {}, value: '', addEventListener(t, f) { this.on[t] = f; }, querySelectorAll: () => [] });
+    // o.fog: m1 is fogged; o.drops: { profileId: { tokId: 1 } } — what fogDropIds hides from whom (null when nothing, as it does);
+    // o.rolled: what the sheet's rollInit gave (net.diceRoll's own shape: { ok, value, priv }, or { error })
+    const scen = o => {
+        o = o || {};
+        const tok = (id, ownerId) => ({ id, isChar: true, ownerId: ownerId || null, x: 0, y: 0 });
+        const camp = { id: 'k', activeItemId: 'm1', items: { m1: { type: 'map', meta: { title: 'Keep' }, fog: o.fog ? { on: true } : { on: false }, whiteboard: [tok('t_ana', 'u_a'), tok('t_orc'), tok('t_gob'), tok('t_x')] }, m2: { type: 'map', meta: { title: 'Yard' }, whiteboard: [] } } };
+        const conns = [mkConn('pA'), mkConn('pB'), mkConn('pWait'), mkConn('pShut', false)].concat(o.m2 ? [mkConn('pM')] : []);   // o.m2: a fifth player, on the Yard
+        const net = { active: true, role: 'host', conns, roster: { pA: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' }, pShut: { id: 'u_s', location: 'm1' } }, combats: {} };
+        if (o.m2) net.roster.pM = { id: 'u_m', location: 'm2' };
+        const out = { toasts: [], rolls: [], bcast: [], net, conns };
+        const win = { wpFog: { fogDropIds: (pid, c, map) => (o.drops && map === c.items.m1 && o.drops[pid]) || null }, wpVtt: { on: k => k === 'fog' } };
+        const broadcast = (msg, except) => { packCheck(msg); out.bcast.push(JSON.parse(JSON.stringify(msg))); conns.forEach(c => { if (c !== except && c.open && net.roster[c.peer]) c.send(msg); }); };   // admitted peers only, as the real one on a host
+        const N = new Function('net', 'getActiveCampaign', 'window', 'broadcast', 'sendFailed', 'logEvent', 'toast', 'render', 'renderNotepad', fogSrc + '\n' + cbSrc + '\n' + setSrc + '\n' + ordersSrc + '\nreturn { cleanCombats, cleanFights, combatsFor, broadcastCombats, targetsFor, broadcastTargets };')(
+            net, () => camp, win, broadcast, e => { throw e; }, () => {}, t => out.toasts.push(t), () => {}, () => {});
+        out.N = N; out.camp = camp;
+        const els = {}; ['combatModal', 'combatRows', 'combatAddBtn', 'combatAddName', 'combatCancelBtn', 'combatCloseBtn', 'combatStartBtn'].forEach(id => { els[id] = fe(); });
+        const draft = { mapId: 'm1', running: false, rows: [
+            { id: 'r_t_orc', name: 'Orc', tokId: 't_orc', init: 12, src: 'orc.png', on: true, charId: null },
+            { id: 'r_t_ana', name: 'Ana', tokId: 't_ana', init: 0, src: 'ana.png', on: true, party: true, charId: 'c_a' },
+            { id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 8, src: 'gob.png', on: true, charId: 'c_g' },
+            { id: 'c_trap', name: 'Trap', tokId: null, init: 5, src: null, on: true, custom: true },
+            { id: 'r_t_x', name: 'Bystander', tokId: 't_x', init: 3, src: null, on: false, charId: null }] };
+        const sheets = { rollInit: cid => { out.rolls.push(cid); return o.rolled !== undefined ? o.rolled : { ok: true, value: 23, priv: true }; } };
+        const W = new Function('document', 'window', 'toast', 'renderCombatModal', 'draft', 'getActiveCampaign', 'var combatDraft = draft;\n' + fhSrc + '\n' + sortSrc + '\n' + wireSrc + '\nreturn { draft: function(d) { if (d !== undefined) combatDraft = d; return combatDraft; }, strip: function(mapId) { return stripFightId(mapId); }, sw: function(mapId) { return stripSwitch(mapId); } };')(
+            { getElementById: id => els[id] || null }, { wpSheets: sheets, wpNet: net }, t => out.toasts.push(t), () => {}, draft, () => camp);
+        const at = (sel, i) => ({ target: { closest: s => s === '.combat-row' ? { dataset: { i: String(i) } } : s === sel ? {} : null } });
+        out.rollRow = name => { const i = W.draft().rows.findIndex(r => r.name === name); els.combatRows.on.click(at('.combat-roll', i)); };
+        out.start = () => els.combatStartBtn.on.click({});
+        out.stripOf = mapId => W.strip(mapId);   // fold 2: the fight this screen's strip shows on that map
+        out.stripSw = mapId => W.sw(mapId);
+        out.fresh = (name, id) => W.draft({ mapId: 'm1', fresh: true, rows: [{ id, name, tokId: null, init: 1, src: null, on: true, custom: true }] });   // a roster opened as Start another fight here, with one row of its own
+        out.draftRows = () => W.draft() && W.draft().rows.map(r => r.name + ':' + r.init);
+        out.last = c => { const m = c.sent.filter(x => x.type === 'combats'); m.forEach(packCheck); return m.length ? JSON.parse(JSON.stringify(m[m.length - 1])) : null; };
+        return out;
+    };
+    const rowsOf = (m, mapId) => { const fr = m && fightIn(m.combats, mapId || 'm1'); return fr ? fr.rows : null; };   // fold 2: the fight on that map, under its own id
+    const noFid = m => j(m).replace(/f_[a-z0-9]{8}/g, 'f_');   // a message as text with each fight's id taken out: an id is eight random letters and digits, and may hold any short word looked for (fold 3's review: "gob" one run in 7,800, "23" one in 185)
+    const full = (id, name, tokId, src) => ({ id, name, tokId, src });
+    const order = [full('r_t_gob', 'Goblin', 't_gob', 'gob.png'), full('r_t_orc', 'Orc', 't_orc', 'orc.png'), full('c_trap', 'Trap', null, null), full('r_t_ana', 'Ana', 't_ana', 'ana.png')];
+
+    // no fog: the private roll's 23 puts the Goblin first for the GM and the players; the players' rows carry no number
+    const a = scen();
+    a.rollRow('Goblin');
+    const aDraft = a.draftRows();
+    a.start();
+    const aHost = fightIn(a.net.combats, 'm1'), aFid = aHost.id, aMsg = a.last(a.conns[0]), aMsgB = a.last(a.conns[1]);
+    const oneFight = (fid, mapId, round, turn, rows) => ({ [fid]: { id: fid, mapId, round, turn, rows } });
+    check('combat roster (whiteboard + net.js, run for real): a private initiative roll still sets the order — its total fills the row and the roster sorts by it — and the host keeps every number for the GM\'s roster',
+        j(a.rolls) === '["c_g"]' && j(aDraft) === j(['Goblin:23', 'Orc:12', 'Trap:5', 'Bystander:3', 'Ana:0']) && aHost.rows.map(r => r.name + ':' + r.init).join() === 'Goblin:23,Orc:12,Trap:5,Ana:0' && aHost.turn === 0 && aHost.round === 1,
+        j([a.rolls, aDraft, aHost]));
+    check('combat roster (no fog): players get the order, the names, the tokens and the pictures, never a number — fold 2: under the fight\'s own id, each admitted player on that map their own copy, the same for each, never a broadcast; a waiting or closed connection gets nothing',
+        /^f_[a-z0-9]{8}$/.test(aFid) && j(aMsg) === j({ type: 'combats', combats: oneFight(aFid, 'm1', 1, 0, order) }) && j(aMsgB) === j(aMsg) && a.bcast.length === 0
+        && a.conns[2].sent.length === 0 && a.conns[3].sent.length === 0 && noFid(aMsg).indexOf('init') < 0 && noFid(aMsg).indexOf('23') < 0, j([aMsg, a.bcast.length, a.conns[2].sent]));
+    const snapA = a.N.combatsFor('u_a', 'm1');
+    check('combat roster: the join snapshot\'s combats (combatsFor, per player) carry no number either, and building them leaves the host\'s own rows as they were',
+        j(snapA) === j(aMsg.combats) && aHost.rows[0].init === 23 && aHost.rows[0].src === 'gob.png' && aHost.rows.every(r => 'init' in r), j([snapA, aHost.rows[0]]));
+    {   // 1.5.7 (the owner: "waypoint should show how much the player has traveled on a move in combat and how much more they can move"): the turn's move
+        // on that fight's copy, { m, a }, for the token's own player alone and only while its row is on turn; a player's app keeps it only as two numbers
+        const cur = aHost.rows[aHost.turn], hadOwn = a.net.turnMoveOwn;
+        a.net.turnMove = { [aFid]: { rowId: cur.id, tokId: cur.tokId, moved: 2.004, allow: 6 } }; a.net.turnMoveOwn = Object.create(null); a.net.turnMoveOwn[aFid] = 'u_a';
+        const mvA = a.N.combatsFor('u_a', 'm1'), mvB = a.N.combatsFor('u_b', 'm1');
+        a.net.turnMove[aFid].rowId = 'r_gone'; const mvGone = a.N.combatsFor('u_a', 'm1');
+        a.net.turnMove[aFid] = { rowId: cur.id, tokId: cur.tokId, moved: 0, allow: null }; const mvNone = a.N.combatsFor('u_a', 'm1');
+        const clMv = a.N.cleanFights({ [aFid]: Object.assign({}, mvA[aFid]) })[aFid], clBad = a.N.cleanFights({ [aFid]: Object.assign({}, mvA[aFid], { mv: { m: 'x', a: 6 } }) })[aFid];
+        const clBig = a.N.cleanFights({ [aFid]: Object.assign({}, mvA[aFid], { mv: { m: -3, a: 1e12, z: 1 } }) })[aFid];
+        a.net.turnMove = {}; a.net.turnMoveOwn = hadOwn;
+        check('1.5.7 the turn\'s move on the wire (combatsFor, run for real): the token\'s own player gets { m, a } on that fight\'s copy, to the hundredth; another player, a row no longer on turn and a turn with no limit carry none; a player\'s app keeps two numbers held to 0 and a million, and nothing else',
+            j(mvA[aFid].mv) === j({ m: 2, a: 6 }) && !('mv' in mvB[aFid]) && !('mv' in mvGone[aFid]) && !('mv' in mvNone[aFid])
+            && !!clMv && j(clMv.mv) === j({ m: 2, a: 6 }) && !!clBad && !('mv' in clBad) && !!clBig && j(clBig.mv) === j({ m: 0, a: 1e6 }), j([mvA, mvB[aFid], clMv, clBad, clBig]));
+    }
+    const cl = a.N.cleanFights(aMsg.combats), clF = cl[aFid];
+    check('combat roster (a player\'s machine, fold 2: by the fight\'s own id): the host\'s rows without a number clean to 0 each, keeping the order, the turn, the round, the map and the id (nothing on a player\'s side reads the number)',
+        !!clF && clF.rows.map(r => r.name + ':' + r.init).join() === 'Goblin:0,Orc:0,Trap:0,Ana:0' && clF.turn === 0 && clF.round === 1 && clF.mapId === 'm1' && clF.id === aFid && Object.keys(cl).length === 1, j(cl));
+    {   // fold 2 (backlog 152), found live: the GM switched the strip to the first fight on a map, started another there, and the strip still showed the first
+        const Sp = scen(); Sp.rollRow('Goblin'); Sp.start(); const sp1 = fightIn(Sp.net.combats, 'm1').id, spGot = [Sp.stripOf('m1') === sp1];
+        Sp.fresh('Bell', 'c_bell'); Sp.start(); const sp2 = Sp.net.fightsOn('m1')[1]; spGot.push(!!sp2 && sp2 !== sp1, Sp.stripOf('m1') === sp2);
+        spGot.push(Sp.stripSw('m1') === sp1, Sp.stripOf('m1') === sp1);
+        Sp.fresh('Gong', 'c_gong'); Sp.start(); const sp3 = Sp.net.fightsOn('m1')[2]; spGot.push(!!sp3 && sp3 !== sp2, Sp.stripOf('m1') === sp3);
+        Sp.stripSw('m1'); spGot.push(Sp.stripOf('m1') === sp1);
+        check('fold 2 (backlog 152, whiteboard.js\'s roster and strip run for real over net.js): a fight the GM starts from the roster is the one this screen\'s strip shows, beside a fight the strip\'s switch had picked on that map, and the switch still goes on from there',
+            j(spGot) === j([true, true, true, true, true, true, true, true]), j([spGot, Sp.net.fightsOn('m1')]));
+    }
+
+    {   // fold 2's review: a token already in another fight on the map is offered in a new roster with no tick (whiteboard.js combatRowsFor, renderCombatModal,
+        // openCombatModal and the roster's own change and Start handlers, run for real over net.js): its box grayed with the reason and its row tagged with
+        // the fight it is in; a tick on it does nothing, and Start leaves it out
+        const Bz = scen(); Bz.rollRow('Goblin'); Bz.start();   // the first fight on the Keep: the Goblin, the Orc, the Trap and Ana
+        const rowsS = wbCut('function combatRowsFor(mapId, opts) {', '\nfunction combatSortByInit(rows) {', 'combatRowsFor'), rendS = wbCut('function renderCombatModal() {', '\nfunction openCombatModal(', 'renderCombatModal'), openS = wbCut('function openCombatModal(mapId, opts) {', '\nwindow.wpOpenCombat = openCombatModal;', 'openCombatModal');
+        const findS = wbCut('// [lookcheck:combatfind-start]', '// [lookcheck:combatfind-end]', 'combatfind'), escS = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'inspector.js'), 'utf8').replace(/\r\n/g, '\n')) || [])[1] || '';
+        const elsB = {}; ['combatModal', 'combatRows', 'combatAddBtn', 'combatAddName', 'combatCancelBtn', 'combatCloseBtn', 'combatStartBtn', 'combatMapName', 'combatRollAllBtn'].forEach(id => { elsB[id] = fe(); });
+        const RB = new Function('document', 'window', 'toast', 'getActiveCampaign', 'getActiveMap', 'state', 'resolveImg', 'setTimeout', 'clearTimeout', 'var combatDraft = null;\n' + escS + '\n' + fhSrc + '\n' + findS + '\n' + rowsS + '\n' + sortSrc + '\n' + rendS + '\n' + openS + '\n' + wireSrc + '\nreturn { open: openCombatModal, draft: function() { return combatDraft; } };')(
+            { getElementById: id => elsB[id] || null }, { wpNet: Bz.net, wpSheets: { hasInitRoll: () => false } }, t => Bz.toasts.push(t), () => Bz.camp, () => Bz.camp.items.m1, { viewMode: 'visual' }, s => s, () => 0, () => {});
+        RB.open('m1', { fresh: true });
+        {   // found live, 2026-10-30: tokens picked on the map opened the roster each marked as targeted, though nobody had targeted anything
+            const netP = { combats: {}, fightsOn: () => [], targets: { u_a: { id: 'o1', mapId: 'm1' } } }, mapP = { id: 'm1', whiteboard: [{ id: 'p1', isChar: true, ownerId: 'u_a', name: 'Ana' }, { id: 'o1', isChar: true, name: 'Orc' }, { id: 'o2', isChar: true, name: 'Goblin' }, { id: 'o3', isChar: true, name: 'Bat' }, { id: 'o4', isChar: true, hidden: true, name: 'Rat' }] };
+            const rowsP = new Function('window', 'getActiveCampaign', fhSrc + '\n' + rowsS + '\nreturn combatRowsFor;')({ wpNet: netP }, () => ({ items: { m1: mapP } }))('m1', { pre: ['o2'] }).map(r => r.tokId + ':' + (r.on ? 'on' : 'off') + ':' + r.targeted);
+            check('the roster: a token picked on the map is ticked and is not called targeted; a real target and whoever points at it keep their tags; a token nobody picked or targeted is offered unticked, after the ticked ones (found live, 2026-10-30)',
+                j(rowsP) === j(['p1:on:targeting', 'o2:on:', 'o1:on:targeted', 'o3:off:']), j(rowsP));
+            const rowsA = new Function('window', 'getActiveCampaign', fhSrc + '\n' + rowsS + '\nreturn combatRowsFor;')({ wpNet: Object.assign({}, netP, { targets: { 'tk:o2': { id: 'o1', mapId: 'm1' } } }) }, () => ({ items: { m1: mapP } }))('m1', {}).filter(r => r.on).map(r => r.tokId + ':' + r.targeted);
+            check('the live test, 2026-10-30: one of the GM\'s characters aiming at a target (Target as) comes ticked with it, as a player\'s token does',
+                j(rowsA.sort()) === j(['o1:targeted', 'o2:targeting']), j(rowsA));
+        }
+        const busyOf = () => RB.draft().rows.map(r => r.tokId + ':' + (r.busy ? 'busy' : '') + ':' + (r.on ? 'on' : '')), rowHtml = i => String(elsB.combatRows.innerHTML || '').split('<div class="combat-row').find(h => h.indexOf(' data-i="' + i + '"') >= 0) || '';
+        const busy0 = busyOf(), title0 = elsB.combatMapName.textContent, rowsH = RB.draft().rows.map((r, i) => [/ disabled /.test(rowHtml(i)), rowHtml(i).indexOf('in another fight on Keep') >= 0]);
+        const tick = (i, on) => elsB.combatRows.on.change({ target: { checked: on, classList: { contains: c => c === 'combat-on' }, closest: sel => (sel === '.combat-row' ? { dataset: { i: String(i) } } : null) } });
+        tick(0, true); tick(3, true); const busy1 = busyOf();
+        elsB.combatStartBtn.on.click({}); const fB2 = Bz.net.fightsOn('m1')[1], rowsB2 = fB2 ? Bz.net.combats[fB2].rows.map(r => r.tokId) : null;
+        check('fold 2\'s review (whiteboard.js\'s roster run for real over net.js): Start another fight on a map that holds one offers its tokens with no tick — Ana, the Orc and the Goblin each with a grayed box and the tag of the fight they are in, the Bystander as any token — and its title says it is another fight; a tick on Ana does nothing while the Bystander\'s takes, and Start makes a fight of the Bystander alone',
+            j(busy0) === j(['t_ana:busy:', 't_orc:busy:', 't_gob:busy:', 't_x::']) && title0 === 'Keep, another fight' && j(rowsH) === j([[true, true], [true, true], [true, true], [false, false]])
+            && j(busy1) === j(['t_ana:busy:', 't_orc:busy:', 't_gob:busy:', 't_x::on']) && j(rowsB2) === j(['t_x']), j([busy0, title0, rowsH, busy1, rowsB2]));
+    }
+    // fog: a player who cannot see the Goblin gets a Hidden row with nothing of it (no name, token, picture, or the row id that carries its
+    // token's); one who sees everything gets the plain order; a combat on an unfogged map at the same table has no number either
+    const f = scen({ fog: true, drops: { u_a: { t_gob: 1 } } });
+    f.rollRow('Goblin'); f.start();
+    f.net.combatSet('m2', { mapId: 'm2', round: 2, turn: 1, rows: [{ id: 'c_tur', name: 'Turret', tokId: null, init: 9, src: null }, { id: 'c_gat', name: 'Gate', tokId: null, init: 4, src: null }] });
+    const fA = f.last(f.conns[0]), fB = f.last(f.conns[1]), fYard = fightIn(f.net.combats, 'm2'), fYardOut = f.N.combatsFor('u_a', 'm2');
+    const hid = { id: 'h0', name: 'Hidden', tokId: null, src: null };
+    check('combat roster (fog): an unseen creature\'s row is Hidden whole — no name, token, picture or token-bearing id — in its place in the order; nor is there a number on any row, on the fogged map or an unfogged one',
+        j(rowsOf(fA)) === j([hid].concat(order.slice(1))) && j(fYardOut) === j(oneFight(fYard.id, 'm2', 2, 1, [full('c_tur', 'Turret', null, null), full('c_gat', 'Gate', null, null)]))
+        && noFid(fA).indexOf('gob') < 0 && noFid(fA).indexOf('Goblin') < 0 && noFid(fA).indexOf('init') < 0, j([fA, fYardOut]));
+    check('fold 2 (backlog 152, run for real): a player is sent only the fights on the map they are on — Ana, on the Keep, gets the Keep\'s fight and nothing of the fight on the Yard (its turret, its gate, its round); every player was sent every fight on every map before',
+        Object.keys(fA.combats).length === 1 && fightIn(fA.combats, 'm2') === undefined && Object.keys(fB.combats).length === 1 && fightIn(fB.combats, 'm2') === undefined && j(fA).indexOf('Turret') < 0 && j(fB).indexOf('Gate') < 0
+        && Object.keys(f.net.combats).length === 2 && !!fYard && fYard.id !== fightIn(f.net.combats, 'm1').id, j([fA, fB]));
+    check('combat roster (fog): each admitted player gets their own copy (the one who sees the Goblin, the plain order); nothing goes to a waiting or closed connection; the host keeps the Goblin whole with its 23',
+        j(rowsOf(fB)) === j(order) && noFid(fB).indexOf('init') < 0 && f.bcast.length === 0 && f.conns[2].sent.length === 0 && f.conns[3].sent.length === 0
+        && fightIn(f.net.combats, 'm1').rows[0].name === 'Goblin' && fightIn(f.net.combats, 'm1').rows[0].init === 23 && fightIn(f.net.combats, 'm1').rows[0].tokId === 't_gob', j([fB, fightIn(f.net.combats, 'm1').rows[0]]));
+    const fSnap = f.N.combatsFor('u_a', 'm1'), fSnapB = f.N.combatsFor('u_b', 'm1');
+    check('combat roster (fog): the join snapshot for each player matches what the broadcast sent them', j(fSnap) === j(fA.combats) && j(fSnapB) === j(fB.combats), j([fSnap, fSnapB]));
+
+    // the Roll button: a refusal toasts and changes nothing; an answer with no number (a request still waiting) changes nothing
+    const e1 = scen({ rolled: { error: 'Dice are off for this campaign (Settings > VTT features).' } }); e1.rollRow('Goblin');
+    const e2 = scen({ rolled: { ok: true, pending: true } }); e2.rollRow('Goblin');
+    check('combat roster: a refused initiative roll toasts its reason and leaves the order; one with no number yet leaves it too',
+        j(e1.toasts) === j(['Dice are off for this campaign (Settings > VTT features).']) && j(e1.draftRows()) === j(['Orc:12', 'Ana:0', 'Goblin:8', 'Trap:5', 'Bystander:3']) && j(e2.draftRows()) === j(e1.draftRows()) && e2.toasts.length === 0,
+        j([e1.toasts, e1.draftRows(), e2.draftRows()]));
+    check('combat roster (source): a roll\'s answer is net.diceRoll\'s own ({ ok, value, priv }) through the sheet\'s rollInit; combats go to players only through combatsFor (the broadcast, the join snapshot, the one player whose sight moved and, fold M7, a copy caught up in place), never net.combats as it is; fold 2\'s review: each send through combatsTo, the one place a message of the fights is made, and the broadcast alone holds back a copy the connection holds already',
+        /return \{ ok: true, value: res\.value, priv: !!rec\.priv \};/.test(src) && (src.match(/type: 'combats'/g) || []).length === 1 && /function combatsTo\(c, combats, fresh\) \{[^]*?c\.send\(\{ type: 'combats', combats: combats \}\);/.test(cbSrc)
+        && (between('// [netcheck:fogmove-start]', '// [netcheck:fogmove-end]', 'fogmove', 'netfog.js').match(/combatsTo\(c, combatsFor\(pid, connMap\(c\)\)\)/g) || []).length === 1
+        && (src.match(/if \(inFight\) combatsTo\(c, combatsFor\(pid, connMap\(c\)\)\);/g) || []).length === 2 && /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && !/combats: net\.combats/.test(src)
+        && !/broadcast\(\{ type: 'combats'/.test(src) && /combatsTo\(c, combatsFor\(pr\.id, pr\.location\), true\)/.test(src) && /combatsTo\(c, combatsFor\(pr\.id, loc\)\)/.test(src) && (src.match(/combatsTo\(/g) || []).length === 5 && (src.match(/combatsTo\([^;\n]*, true\)/g) || []).length === 1);
+
+    // Fold M0 (a security fix): a token the GM hides after the fight began leaves every player's copy, so its row goes out Hidden too, on
+    // a table without fog as on a fogged one (combatHidden, run for real in combatsFor and broadcastCombats); the host keeps the row whole. m2
+    // holds a hidden token with the Orc's id and a combat of its own: a hidden token counts on its own map only. An item whose id reads 'null'
+    // (a file may hold any id) is hidden on m1: a row with no token is never touched
+    const tokOf = (s, mapId, id) => s.camp.items[mapId].whiteboard.find(w => w.id === id);
+    const hidRow = i => ({ id: 'h' + i, name: 'Hidden', tokId: null, src: null });
+    const hideWorld = o => {
+        const s = scen(Object.assign({ m2: true }, o)); s.rollRow('Goblin'); s.start(); fightIn(s.net.combats, 'm1').round = 3; fightIn(s.net.combats, 'm1').turn = 1;
+        s.camp.items.m1.whiteboard.push({ id: 'null', hidden: true, x: 0, y: 0 });
+        s.camp.items.m2.whiteboard.push({ id: 't_orc', isChar: true, hidden: true, x: 0, y: 0 });
+        s.net.combats.f_yard0001 = { id: 'f_yard0001', mapId: 'm2', round: 2, turn: 2, rows: [{ id: 'r_g2', name: 'Goblin2', tokId: 't_gob', init: 6, src: 'g2.png' }, { id: 'r_o2', name: 'Orc2', tokId: 't_orc', init: 4, src: 'o2.png' }, { id: 'c_gate', name: 'Gate', tokId: null, init: 2, src: null }] };
+        tokOf(s, 'm1', 't_gob').hidden = true; return s;
+    };
+    const m2Out = hid1 => ({ f_yard0001: { id: 'f_yard0001', mapId: 'm2', round: 2, turn: 2, rows: [full('r_g2', 'Goblin2', 't_gob', 'g2.png'), hid1 ? hidRow(1) : full('r_o2', 'Orc2', 't_orc', 'o2.png'), full('c_gate', 'Gate', null, null)] } });
+    const U = hideWorld(), ub0 = U.bcast.length, uFid = fightIn(U.net.combats, 'm1').id; U.N.broadcastCombats();
+    const uA = U.last(U.conns[0]), uB = U.last(U.conns[1]), uM = U.last(U.conns[4]), uSnap = [U.N.combatsFor('u_a', 'm1'), U.N.combatsFor('u_b', 'm1')], uHost = fightIn(U.net.combats, 'm1').rows[0];
+    check('fold M0 and the owner\'s ruling of 2026-10-01: on a table without fog a token the GM hid after the fight began keeps its row by name for the table that saw it go out whole at the start (broadcastCombats, run for real), the order, the count, the round and the turn intact; a creature hidden before any copy of its fight went out (the Yard\'s Orc2, its fight set up while it was hidden) goes out as a Hidden row to the player on the Yard — no name, token, picture or token-bearing id, in its place; a hidden token on another map than the fight\'s hides nothing; fold 2: each player gets the fights on the map they are on',
+        j(uA) === j({ type: 'combats', combats: oneFight(uFid, 'm1', 3, 1, order) }) && j(uM) === j({ type: 'combats', combats: m2Out(true) })
+        && j(rowsOf(uA)).indexOf('Goblin') >= 0 && j(uM).indexOf('Orc2') < 0 && j(uM).indexOf('o2.png') < 0 && j(uM).indexOf('t_orc') < 0, j([uA, uM]));
+    check('fold M0: without fog that is each player\'s own copy (fold 2: per connection always, never a broadcast), the same for each admitted player on that map, nothing to a waiting or closed connection; the join snapshot (combatsFor) says the same; the host keeps the hidden token\'s row whole with its number',
+        U.bcast.length === ub0 && ub0 === 0 && j(uB) === j(uA) && U.conns[2].sent.length === 0 && U.conns[3].sent.length === 0
+        && j(uSnap) === j([uA.combats, uA.combats]) && j(uHost) === j({ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 23, src: 'gob.png', rolled: 1 }) && !/rolled|init/.test(j(uA)), j([U.bcast.length - ub0, uSnap, uHost]));   // initiative O1: the roster's roll marks the host's row rolled (a deliberate change); a player gets neither
+    tokOf(U, 'm1', 't_gob').hidden = false; tokOf(U, 'm2', 't_orc').hidden = false; U.N.broadcastCombats(); const uShown = U.last(U.conns[0]), uShownM = U.last(U.conns[4]);
+    check('fold M0: a token shown again goes out whole — its row as it was, on both maps',
+        j(uShown) === j({ type: 'combats', combats: oneFight(uFid, 'm1', 3, 1, order) }) && j(uShownM) === j({ type: 'combats', combats: m2Out(false) }), j([uShown, uShownM]));
+    // fogged: Bo cannot see the Orc on m1; the Goblin is hidden
+    const Fh = hideWorld({ fog: true, drops: { u_b: { t_orc: 1 } } }), fb0 = Fh.bcast.length, fhFid = fightIn(Fh.net.combats, 'm1').id; Fh.N.broadcastCombats();
+    const fhA = Fh.last(Fh.conns[0]), fhB = Fh.last(Fh.conns[1]), fhM = Fh.last(Fh.conns[4]);
+    check('fold M0 and the owner\'s ruling: on a fogged table each player\'s own copy (per-player sends, no broadcast) keeps the hidden Goblin by name — both saw it at the start — while Bo, who never saw the Orc, still gets its row Hidden, by its place; the Trap and Ana whole; the Yard (no fog there) as on a table without fog, to the player on it; the join snapshot matches',
+        Fh.bcast.length === fb0 && fb0 === 0 && j(fhA) === j({ type: 'combats', combats: oneFight(fhFid, 'm1', 3, 1, order) })
+        && j(fhB) === j({ type: 'combats', combats: oneFight(fhFid, 'm1', 3, 1, [order[0], hidRow(1), order[2], order[3]]) }) && j(fhM) === j({ type: 'combats', combats: m2Out(true) })
+        && Fh.conns[2].sent.length === 0 && Fh.conns[3].sent.length === 0 && j(Fh.N.combatsFor('u_a', 'm1')) === j(fhA.combats) && j(Fh.N.combatsFor('u_b', 'm1')) === j(fhB.combats), j([fhA, fhB, fhM, Fh.bcast.length]));
+
+    // net.syncCombatHidden (run for real): the host sends the combats again only when a running row's hidden flag changes, and then (fold 2's review)
+    // only to a connection whose copy changes: a row a player saw keeps its name when its token is hidden (the owner's ruling of 2026-10-01), so
+    // their copy is as it was and nothing goes, where a copy as it was went out before and told them that the GM had hidden something. Here the
+    // Goblin is hidden from the start, so nobody has seen it; Mo stands on the Yard, and Pip joins the Keep once the Orc is hidden
+    const sendsTo = (s, i) => s.conns[i].sent.filter(m => m.type === 'combats').length;
+    const synOf = s => { const n = s.conns.map((c, i) => sendsTo(s, i)); s.net.syncCombatHidden(); return s.conns.map((c, i) => sendsTo(s, i) - n[i]); };
+    const Sy = scen({ m2: true }); tokOf(Sy, 'm1', 't_gob').hidden = true; Sy.rollRow('Goblin'); Sy.start();
+    const syFirst = synOf(Sy), syQuiet = synOf(Sy);
+    tokOf(Sy, 'm1', 't_gob').hidden = false; const syShow = synOf(Sy), syShowMsg = Sy.last(Sy.conns[0]), syShowAgain = synOf(Sy);   // shown: its row whole to both on the Keep
+    tokOf(Sy, 'm1', 't_gob').hidden = true; const syHide = synOf(Sy), syHideAgain = synOf(Sy);   // hidden again: both saw it, so their copies are as they were
+    tokOf(Sy, 'm1', 't_x').hidden = true; Sy.camp.items.m1.whiteboard.push({ id: 'null', hidden: true }); const syOff = synOf(Sy);   // the Bystander, left out of the fight, and an item no row names
+    Sy.net.combats.f_yard0002 = { id: 'f_yard0002', mapId: 'm2', round: 1, turn: 0, rows: [{ id: 'c_tur', name: 'Turret', tokId: null, init: 9, src: null }] }; const syAdd = synOf(Sy), syAddMsg = Sy.last(Sy.conns[4]);
+    delete Sy.net.combats.f_yard0002; const syDel = synOf(Sy), syDelMsg = Sy.last(Sy.conns[4]);
+    const cliBefore = Sy.conns.map(c => c.sent.length).join(); Sy.net.role = 'client'; tokOf(Sy, 'm1', 't_orc').hidden = true; const syCli = synOf(Sy), cliSent = Sy.conns.map(c => c.sent.length).join();
+    Sy.net.role = 'host'; Sy.net.active = false; const syOffline = synOf(Sy); Sy.net.active = true;
+    const cPip = mkConn('pPip'); Sy.conns.push(cPip); Sy.net.roster.pPip = { id: 'u_pip', location: 'm1' };   // a late joiner on the Keep, who never saw the Orc
+    const syBack = synOf(Sy), syBackPip = Sy.last(cPip), Z5 = [0, 0, 0, 0, 0];
+    check('fold M0: net.syncCombatHidden (run for real on a table without fog) sends nothing while the flags stay the same; when a running row\'s token is shown it sends each player on that map their copy with the row whole, and nothing more after; when it is hidden again nothing at all, since both saw it and their copies are as they were (fold 2\'s review: a copy as it was told them the GM had hidden something); nothing when a token no running row names is hidden; the player on another map is sent none of it',
+        j(syFirst) === j(Z5) && j(syQuiet) === j(Z5) && j(syShow) === j([1, 1, 0, 0, 0]) && j(rowsOf(syShowMsg)) === j(order) && j(syShowAgain) === j(Z5) && j(syHide) === j(Z5) && j(syHideAgain) === j(Z5) && j(syOff) === j(Z5),
+        j([syFirst, syQuiet, syShow, syShowAgain, syHide, syHideAgain, syOff, syShowMsg]));
+    check('fold M0: a combat added or removed changes what net.syncCombatHidden compares: the player on its map is sent it, once each, and nobody on another map (fold 2\'s review); on a player\'s machine or with no session it sends nothing, and once hosting again it catches up with a change made meanwhile: a player who joined meanwhile and never saw the creature hidden then gets its row Hidden, the others nothing, their copies as they were',
+        j(syAdd) === j([0, 0, 0, 0, 1]) && !!fightIn(syAddMsg.combats, 'm2') && !fightIn(syAddMsg.combats, 'm1') && j(syDel) === j([0, 0, 0, 0, 1]) && j(syDelMsg.combats) === '{}' && j(syCli) === j(Z5) && cliSent === cliBefore && j(syOffline) === j(Z5)
+        && j(syBack) === j([0, 0, 0, 0, 0, 1]) && j(rowsOf(syBackPip)) === j([hidRow(0), hidRow(1), order[2], order[3]]),
+        j([syAdd, syDel, syCli, syOffline, syBack, syBackPip]));
+    const Sf = scen({ fog: true }); tokOf(Sf, 'm1', 't_gob').hidden = true; Sf.rollRow('Goblin'); Sf.start(); Sf.net.syncCombatHidden(); Sf.conns.forEach(c => { c.sent.length = 0; });
+    tokOf(Sf, 'm1', 't_gob').hidden = false; Sf.net.syncCombatHidden();
+    const sfOut = Sf.conns.map(c => c.sent.filter(m => m.type === 'combats').length).join(''), sfRows = [rowsOf(Sf.last(Sf.conns[0])), rowsOf(Sf.last(Sf.conns[1]))];
+    tokOf(Sf, 'm1', 't_gob').hidden = true; Sf.conns.forEach(c => { c.sent.length = 0; }); Sf.net.syncCombatHidden(); const sfOut2 = Sf.conns.map(c => c.sent.filter(m => m.type === 'combats').length).join('');
+    check('fold M0: on a fogged table net.syncCombatHidden sends each admitted player their own copy (the Goblin, hidden from the start and then shown, by name); no broadcast, nothing to a waiting or closed connection; hidden again, nothing, since each saw it (fold 2\'s review)',
+        sfOut === '1100' && Sf.bcast.length === 0 && j(sfRows) === j([order, order]) && sfOut2 === '0000', j([sfOut, sfRows, sfOut2]));
+
+    // what the table holds is recorded by every send of the rows: once the rows went out for another reason (a turn step), a token shown reaches the
+    // player who never saw it and only them, and hidden again it is sent to nobody, as everyone has seen it now (fold 2's review)
+    const Sr = scen(); Sr.rollRow('Goblin'); Sr.start(); Sr.net.syncCombatHidden();
+    tokOf(Sr, 'm1', 't_gob').hidden = true; const srHide = synOf(Sr);   // Pat and Bea saw it: nothing
+    const cPip2 = mkConn('pPip'); Sr.conns.push(cPip2); Sr.net.roster.pPip = { id: 'u_pip', location: 'm1' };
+    Sr.N.broadcastCombats(); const srPip = rowsOf(Sr.last(cPip2));   // the rows go out for another reason: Pip, new, gets the Goblin Hidden
+    tokOf(Sr, 'm1', 't_gob').hidden = false; const srShow = synOf(Sr), srShowPip = rowsOf(Sr.last(cPip2));
+    tokOf(Sr, 'm1', 't_gob').hidden = true; const srReHide = synOf(Sr);
+    check('fold M0: what the table holds is recorded by every send of the rows: once the rows went out for another reason (a turn step), the Goblin shown reaches Pip, who never saw it, and nobody else; hidden again it is sent to nobody, as everyone has seen it now (fold 2\'s review: a copy as it was is never sent again)',
+        j(srHide) === j([0, 0, 0, 0]) && j(srPip) === j([hidRow(0)].concat(order.slice(1))) && j(srShow) === j([0, 0, 0, 0, 1]) && j(srShowPip) === j(order) && j(srReHide) === j([0, 0, 0, 0, 0]), j([srHide, srPip, srShow, srShowPip, srReHide]));
+    // the owner's ruling of 2026-10-01, run for real: a creature never sent whole in this fight reads Hidden until it is; one seen keeps its name while hidden or out of sight; a new fight there, the fight's end and a new table forget what was seen; a late joiner who never saw it gets Hidden
+    const Sn = scen({ fog: true, drops: { u_b: { t_orc: 1 } } }); Sn.rollRow('Goblin'); Sn.start();
+    const snA0 = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name), snB0 = rowsOf(Sn.last(Sn.conns[1])).map(r => r.name);
+    tokOf(Sn, 'm1', 't_gob').hidden = true; Sn.N.broadcastCombats(); const snA1 = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name), snB1 = rowsOf(Sn.last(Sn.conns[1])).map(r => r.name);
+    Sn.net.roster.pC = { id: 'u_c', location: 'm1' }; const snLate = fightIn(Sn.N.combatsFor('u_c', 'm1'), 'm1').rows.map(r => r.name), snNull = fightIn(Sn.N.combatsFor(null, 'm1'), 'm1').rows.map(r => r.name);
+    const seenAfterB = (() => { Object.keys(Sn.net.combats).forEach(k => { delete Sn.net.combats[k]; }); Sn.net.combatSet('m1', { round: 1, turn: 0, rows: [{ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 1, src: null }, { id: 'r_t_orc', name: 'Orc', tokId: 't_orc', init: 2, src: null }] }); return rowsOf(Sn.last(Sn.conns[0])).map(r => r.name); })();   // a new fight: the hidden Goblin unseen again
+    tokOf(Sn, 'm1', 't_gob').hidden = false; Sn.N.broadcastCombats(); const snShown = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name); tokOf(Sn, 'm1', 't_gob').hidden = true; Sn.N.broadcastCombats(); const snAgain = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name);
+    Sn.net.combatSet('m1', null); Sn.net.combatSet('m1', { round: 1, turn: 0, rows: [{ id: 'r_t_gob', name: 'Goblin', tokId: 't_gob', init: 1, src: null }] }); const snEnded = rowsOf(Sn.last(Sn.conns[0])).map(r => r.name);
+    check('the owner\'s ruling of 2026-10-01 (combatsFor, run for real on a fogged table): at the start Ana sees everyone and Bo not the Orc (Hidden for him); the GM hiding the Goblin changes nothing for either (both saw it), the Orc still Hidden for Bo; a player who joins now, and the unfogged broadcast\'s own view, never saw the Goblin and get Hidden; a new fight on that map forgets what was seen (the hidden Goblin Hidden again), seen once shown it keeps its name when hidden again, and the fight\'s end forgets it too',
+        j(snA0) === j(['Goblin', 'Orc', 'Trap', 'Ana']) && j(snB0) === j(['Goblin', 'Hidden', 'Trap', 'Ana']) && j(snA1) === j(snA0) && j(snB1) === j(snB0) && j(snLate) === j(['Hidden', 'Orc', 'Trap', 'Ana']) && j(snNull) === j(['Hidden', 'Orc', 'Trap', 'Ana'])
+        && j(seenAfterB) === j(['Hidden', 'Orc']) && j(snShown) === j(['Goblin', 'Orc']) && j(snAgain) === j(['Goblin', 'Orc']) && j(snEnded) === j(['Hidden']), j([snA0, snB0, snA1, snB1, snLate, snNull, seenAfterB, snShown, snAgain, snEnded]));
+    check('the owner\'s ruling (source): what a player saw is kept in the combats slice alone, per fight by its own id (fold 2: a new fight has an id of its own, so nothing is seen in it), read only by combatsFor (and, as a read alone, by net.tokUnseen: secrets R2, by the fight that holds the token), forgotten at the fight\'s end and by fogForgetAll at a new table; the client\'s toast still names Hidden only for a row that reads so',
+        (src.match(/function combatForget\(/g) || []).length === 1 && (cbSrc.match(/combatSeen\(|combatSaw\(/g) || []).length === 4 && (src.match(/combatSeen\(|combatSaw\(/g) || []).length === 5 && /if \(typeof combatSeen === 'function' && combatSeen\(fightOfTok\(mapId, tokId\), p\.id, tokId\)\) return false;/.test(require('./checkkit').part('netfight.js'))
+        && /function combatSeen\(fid, pid, tokId\) \{ var m = typeof fid === 'string' \? _combatSeen\[fid\] : null;/.test(src) && /if \(typeof fid === 'string'\) \{ delete net\.combats\[fid\];[^\n]*\n[^\n]*\n[^\n]*marksEnd\(mapId\)[^\n]*\n\s*if \(typeof fid === 'string' && typeof combatForget === 'function'\) combatForget\(fid\);/.test(src) && /_fogCost = Object\.create\(null\); if \(typeof combatForget === 'function'\) combatForget\(\); \}/.test(require('./checkkit').part('netfog.js'))
+        && /A creature your players have seen stays in their order by name when you hide it or it moves out of their sight/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8')));
+    // hidden pieces (owner, 2026-10-01): a pointer at a token the GM hid, or at nothing on the host's map, goes to no one, on a table without fog as on one
+    // with it — hidden and gone answer alike; net.syncCombatHidden sends the pointers again when a hide, a show or a deletion changes which are sent
+    const Tg = scen(); Tg.net.targets = { u_a: { id: 't_orc', mapId: 'm1', name: 'Ana' }, u_b: { id: 't_gob', mapId: 'm1', name: 'Bea' }, u_g: { id: 'nope', mapId: 'm1', name: 'GM' }, u_x: { id: 't_orc', mapId: 'zzz', name: 'X' }, u_y: { id: 't_orc', mapId: '__proto__', name: 'Y' }, u_z: { id: 't_orc', mapId: 'm2', name: 'Z' } };
+    const tgKeys = o => Object.keys(o || {}).sort().join(), tgn = () => { const n = Tg.bcast.length; Tg.net.syncCombatHidden(); return Tg.bcast.slice(n).map(m => m.type + ':' + tgKeys(m.targets)); };
+    const tg0 = tgKeys(Tg.N.targetsFor('u_a')), tgNull = tgKeys(Tg.N.targetsFor(null)); Tg.N.broadcastTargets(); const tgB = Tg.bcast[Tg.bcast.length - 1], tgQuiet = tgn();
+    tokOf(Tg, 'm1', 't_orc').hidden = true; const tgHide = tgn(), tgHideAgain = tgn(), tgHidFor = tgKeys(Tg.N.targetsFor('u_a'));
+    tokOf(Tg, 'm1', 't_orc').hidden = false; const tgShow = tgn();
+    Tg.camp.items.m1.whiteboard = Tg.camp.items.m1.whiteboard.filter(w => w.id !== 't_gob'); const tgGone = tgn(), tgGoneFor = tgKeys(Tg.N.targetsFor('u_b')), tgGoneAgain = tgn();
+    check('hidden pieces: a target pointer at a token the GM hid, at a token that is gone, at nothing on its map, or at a map that is none (another map, a prototype name) goes to no one on a table without fog — the one broadcast is built by the same judge, and hidden and gone answer alike; net.syncCombatHidden sends the pointers again once when a hide, a show or a deletion changes which are sent, and nothing while they stay',
+        tg0 === 'u_a,u_b' && tgNull === 'u_a,u_b' && tgB.type === 'targets' && tgKeys(tgB.targets) === 'u_a,u_b' && !/nope|zzz|u_g|u_x|u_y|u_z/.test(j(tgB)) && j(tgQuiet) === j([]) && j(tgHide) === j(['targets:u_b']) && j(tgHideAgain) === j([]) && tgHidFor === 'u_b'
+        && j(tgShow) === j(['targets:u_a,u_b']) && j(tgGone) === j(['targets:u_a']) && tgGoneFor === 'u_a' && j(tgGoneAgain) === j([]), j([tg0, tgNull, tgB, tgQuiet, tgHide, tgHideAgain, tgHidFor, tgShow, tgGone, tgGoneFor]));
+    const Tf = scen({ fog: true, drops: { u_b: { t_orc: 1 } } }); Tf.net.targets = { u_a: { id: 't_orc', mapId: 'm1', name: 'Ana' }, u_b: { id: 't_gob', mapId: 'm1', name: 'Bea' } }; tokOf(Tf, 'm1', 't_gob').hidden = true;
+    const tfA = tgKeys(Tf.N.targetsFor('u_a')), tfB = tgKeys(Tf.N.targetsFor('u_b')); Tf.conns.forEach(c => { c.sent.length = 0; }); Tf.N.broadcastTargets(); const tfOut = Tf.conns.map(c => c.sent.filter(m => m.type === 'targets').map(m => tgKeys(m.targets)));
+    check('hidden pieces: on a fogged table each player\'s own copy of the pointers drops one at a hidden token for everyone (Bea\'s pointer at the hidden goblin reaches neither) and one at a creature that player does not see for them alone (Ana\'s pointer at the orc Bea cannot see); no broadcast, nothing to a waiting or closed connection',
+        tfA === 'u_a' && tfB === '' && j(tfOut) === j([['u_a'], [''], [], []]) && Tf.bcast.length === 0, j([tfA, tfB, tfOut]));
+
+    // 158 (the owner by prompt, 2026-10-18: "From your selected token (Recommended)"): a pointer one of the GM's characters holds, keyed by its token,
+    // goes to no one while that token is hidden, waiting, gone or on another map, and on a fogged table to no player whose sight drops that token
+    const Ta = scen(); Ta.camp.items.m2.whiteboard.push({ id: 't_far', isChar: true, x: 0, y: 0 });
+    Ta.net.targets = { 'tk:t_gob': { id: 't_ana', mapId: 'm1', name: 'Goblin', from: 't_gob' }, 'tk:t_zz': { id: 't_ana', mapId: 'm1', name: 'Gone', from: 't_zz' }, 'tk:t_far': { id: 't_ana', mapId: 'm1', name: 'Far', from: 't_far' }, u_a: { id: 't_orc', mapId: 'm1', name: 'Ana' } };
+    const ta0 = tgKeys(Ta.N.targetsFor('u_a')); tokOf(Ta, 'm1', 't_gob').hidden = true; const ta1 = tgKeys(Ta.N.targetsFor('u_a')); tokOf(Ta, 'm1', 't_gob').hidden = false; tokOf(Ta, 'm1', 't_gob').waiting = true; const ta2 = tgKeys(Ta.N.targetsFor(null)); delete tokOf(Ta, 'm1', 't_gob').waiting;
+    const Tb = scen({ fog: true, drops: { u_b: { t_gob: 1 } } }); Tb.net.targets = { 'tk:t_gob': { id: 't_ana', mapId: 'm1', name: 'Goblin', from: 't_gob' } };
+    const tbA = tgKeys(Tb.N.targetsFor('u_a')), tbB = tgKeys(Tb.N.targetsFor('u_b')); Tb.conns.forEach(c => { c.sent.length = 0; }); Tb.N.broadcastTargets(); const tbOut = Tb.conns.map(c => c.sent.filter(m => m.type === 'targets').map(m => tgKeys(m.targets)));
+    const CT = new Function(fnSrc('function cleanTargets(', '\n}\n', 'cleanTargets', 'netfight.js') + '\n}\nreturn cleanTargets;')();
+    const ct = CT({ 'tk:a': { id: 'x', mapId: 'm', name: 'A', from: 'a' }, 'tk:b': { id: 'x', mapId: 'm', from: 'c' }, u_a: { id: 'x', mapId: 'm', from: 'a' }, ['tk:' + 'L'.repeat(78)]: { id: 'x', mapId: 'm', from: 'L'.repeat(78) }, 'tk:n': { id: 'x', mapId: 'm', from: 5 } });
+    check('158 a pointer one of the GM\'s characters holds (net.js targetTok and targetsFor, run for real): sent while its token is shown on the target\'s map; to no one while that token is hidden, waiting, gone or on another map; on a fogged table to no player whose sight drops it, each player their own copy; and a player\'s app keeps its source only where the pointer\'s key names that very token',
+        ta0 === 'tk:t_gob,u_a' && ta1 === 'u_a' && ta2 === 'u_a' && tbA === 'tk:t_gob' && tbB === '' && j(tbOut) === j([['tk:t_gob'], [''], [], []])
+        && ct['tk:a'].from === 'a' && !('from' in ct['tk:b']) && !('from' in ct.u_a) && !('tk:' + 'L'.repeat(78) in ct) && !('from' in ct['tk:n']), j([ta0, ta1, ta2, tbA, tbB, tbOut, ct]));
+    // setTargetAs (the host's alone) and what targets a token for the facing rules (aimsOf), sliced by their targetas markers and run for real
+    const taS = between('// [netcheck:targetas-start]', '// [netcheck:targetas-end]', 'targetas', 'netfight.js');
+    const mkTA = (role, o) => {
+        o = o || {}; const st = { applied: [], bc: 0, toasts: [] }, net = { active: role !== 'off', role: role === 'off' ? 'host' : role, targets: {} };
+        const N = new Function('net', 'applyTarget', 'broadcastTargets', 'toast', 'getActiveCampaign', 'fogDrop', 'mapFogged', taS + '\nreturn net;')(net,
+            (pid, name, t) => { st.applied.push([pid, name, t && JSON.parse(JSON.stringify(t))]); if (t) { net.targets[pid] = { id: t.id, mapId: t.mapId, name: name }; if (typeof t.from === 'string') net.targets[pid].from = t.from; } else delete net.targets[pid]; },
+            () => { st.bc++; }, t => st.toasts.push(t), () => o.camp || null, (c, m, pid) => (o.drops && o.drops[pid]) || null, m => !!(m && m.fog && m.fog.on === true));
+        return { N, st, net };
+    };
+    const orcT = { id: 't_orc', isChar: true, charName: 'Orc', x: 100, y: 300 }, H1 = mkTA('host');
+    const as1 = H1.N.setTargetAs(orcT, 't_ana', 'm1', 'Ana'), as1T = j(H1.net.targets), as1B = H1.st.bc, as2 = H1.N.setTargetAs(orcT, 't_ana', 'm1', 'Ana'), as2T = j(H1.net.targets);
+    const asNo = [H1.N.setTargetAs(orcT, 't_orc', 'm1'), H1.N.setTargetAs({ id: 'x'.repeat(78) }, 't_ana', 'm1'), H1.N.setTargetAs(null, 't_ana', 'm1'), H1.N.setTargetAs(orcT, 5, 'm1'), mkTA('client').N.setTargetAs(orcT, 't_ana', 'm1'), mkTA('off').N.setTargetAs(orcT, 't_ana', 'm1')];
+    const me = { id: 't_me', isChar: true, ownerId: 'u_p', x: 100, y: 100 }, hidT = { id: 't_hid', isChar: true, hidden: true, x: 400, y: 100 }, qTok = { id: 't_q', isChar: true, ownerId: 'u_q', charId: 'c_q', x: 100, y: 0 }, waitT = { id: 't_w', waiting: true, isChar: true, x: 0, y: 0 };
+    const mapA = { id: 'm1', type: 'map', fog: { on: false }, whiteboard: [me, orcT, hidT, qTok, waitT] };
+    const tgA = { 'tk:t_orc': { id: 't_me', mapId: 'm1', from: 't_orc' }, 'tk:t_hid': { id: 't_me', mapId: 'm1', from: 't_hid' }, u_q: { id: 't_me', mapId: 'm1' }, 'tk:t_me': { id: 't_me', mapId: 'm1', from: 't_me' }, 'tk:t_w': { id: 't_me', mapId: 'm1', from: 't_w' }, 'tk:t_odd': { id: 't_me', mapId: 'm1', from: 't_orc' }, u_x: { id: 't_me', mapId: 'm2' }, u_z: { id: 't_orc', mapId: 'm1' } };
+    const H2 = mkTA('host', { camp: {} }); H2.net.targets = tgA;
+    const ids = l => l.map(w => w.id).join();
+    const aimGm = ids(H2.N.aimsOf(mapA, me)), aimP = ids(H2.N.aimsOf(mapA, me, 'u_p'));
+    const mapF = Object.assign({}, mapA, { fog: { on: true } }), H3 = mkTA('host', { camp: {}, drops: { u_p: { t_orc: 1 } } }); H3.net.targets = tgA; const aimFog = ids(H3.N.aimsOf(mapF, me, 'u_p')), aimFogGm = ids(H3.N.aimsOf(mapF, me));
+    const C1 = mkTA('client'); C1.net.targets = tgA; const aimC = ids(C1.N.aimsOf(mapA, me, 'u_p')), aimOff = ids(mkTA('off').N.aimsOf(mapA, me));
+    check('158 setTargetAs and aimsOf (the targetas slice, run for real): the host keys a pointer of one of the GM\'s characters by its token, with its name and its source, sends the pointers and says so, and the same again clears it; refused for the token itself, a key too long, no token, an id that is no text, a player\'s app and no table; what targets a token is each attacker\'s own token on that map (a player\'s character, one of the GM\'s characters), never the token itself, a waiting token, a source its key does not name, another map\'s pointer or one at another token; judged for a player on the host, never an attacker the GM hid or their sight drops; for the GM every one; a player\'s app reads its own copy',
+        as1 === true && as1T === j({ 'tk:t_orc': { id: 't_ana', mapId: 'm1', name: 'Orc', from: 't_orc' } }) && as1B === 1 && as2 === true && as2T === '{}' && H1.st.bc === 2 && /Orc is targeting Ana/.test(H1.st.toasts[0]) && asNo.every(x => x === false)
+        && aimGm === 't_orc,t_hid,t_q' && aimP === 't_orc,t_q' && aimFog === 't_q' && aimFogGm === 't_orc,t_hid,t_q' && aimC === 't_orc,t_hid,t_q' && aimOff === '', j([as1T, asNo, aimGm, aimP, aimFog, aimFogGm, aimC]));
+    // 1.5.9 (the owner's game of 2026-10-25, by prompt: "Both places"): net.clearTargetOf, the GM taking a player's pointer off (or one of the GM's
+    // characters'), run for real in the targetas slice beside the real broadcastTargets and targetsFor of the combats slice, on a table with fog and one without
+    const ctRun = (o) => {
+        const S = scen(o.fog ? { fog: true, drops: {} } : undefined), st = { toasts: [], applied: [] };
+        S.net.myId = 'u_gm'; S.net.targets = { u_a: { id: 't_orc', mapId: 'm1', name: 'Ana <b>' }, u_b: { id: 't_gob', mapId: 'm1', name: 'Bea' }, 'tk:t_gob': { id: 't_orc', mapId: 'm1', name: 'Goblin', from: 't_gob' } };
+        if (o.role) S.net.role = o.role;
+        const N = new Function('net', 'applyTarget', 'broadcastTargets', 'toast', 'getActiveCampaign', 'fogDrop', 'mapFogged', taS + '\nreturn net;')(S.net,
+            (pid, name, t) => { st.applied.push([pid, name, t]); if (t) S.net.targets[pid] = t; else delete S.net.targets[pid]; }, () => S.N.broadcastTargets(), t => st.toasts.push(t), () => S.camp, () => null, () => false);
+        S.conns.forEach(c => { c.sent.length = 0; }); const b0 = S.bcast.length;
+        const ret = o.pids.map(p => N.clearTargetOf(p));
+        const per = S.conns.map(c => c.sent.filter(m => m.type === 'targets').map(m => tgKeys(m.targets)));
+        return { ret, left: tgKeys(S.net.targets), per, bc: S.bcast.slice(b0).filter(m => m.type === 'targets').map(m => tgKeys(m.targets)), toasts: st.toasts };
+    };
+    const ctF = ctRun({ fog: true, pids: ['u_a'] }), ctU = ctRun({ pids: ['u_a', 'tk:t_gob'] }), ctNo = ctRun({ pids: ['u_zz', '', 5, null, '__proto__', 'x'.repeat(81)] }), ctP = ctRun({ role: 'client', pids: ['u_a'] });
+    check('1.5.9 net.clearTargetOf (the targetas slice run for real with the real broadcastTargets and targetsFor): the host takes a player\'s pointer off and the pointers go to everyone afresh, each player\'s own copy on a fogged table and the one broadcast on a table without, with the cleared pointer in none of them; one of the GM\'s characters\' pointers is cleared the same way; the GM is told whose it was, the name as given (the notice sets it as text); a key that holds no pointer, one that is no text, empty, too long or a prototype\'s name changes nothing and sends nothing; nothing on a player\'s app',
+        j(ctF.ret) === j([true]) && ctF.left === 'tk:t_gob,u_b' && ctF.per.slice(0, 2).every(l => l.length === 1 && !/u_a/.test(l[0])) && ctF.bc.length === 0 && j(ctF.toasts) === j(['Ana <b>\u2019s target is cleared.'])
+        && j(ctU.ret) === j([true, true]) && ctU.left === 'u_b' && j(ctU.bc) === j(['tk:t_gob,u_b', 'u_b']) && j(ctU.toasts) === j(['Ana <b>\u2019s target is cleared.', 'Goblin\u2019s target is cleared.'])
+        && ctNo.ret.every(r => r === false) && ctNo.left === 'tk:t_gob,u_a,u_b' && ctNo.bc.length === 0 && ctNo.per.every(l => l.length === 0) && ctNo.toasts.length === 0
+        && j(ctP.ret) === j([false]) && ctP.left === 'tk:t_gob,u_a,u_b' && ctP.toasts.length === 0, j([ctF, ctU, ctNo, ctP]));
+    const ioSrcM0 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n'), undoLine = (ioSrcM0.match(/\n[^\n]*if \(hosting\) \{ window\.wpNet\.applyingRemote = true; save\(true\);[^\n]*/) || [''])[0];
+    check('fold M0 (source): the GM\'s undo while hosting (io.js), saved as a remote change so the host\'s save hook returns early, calls net.syncCombatHidden itself, after the map and the other maps it undid went out',
+        undoLine.length > 0 && /window\.wpNet\.sendItem\(camp\.id, item\.id\);[^\n]*wUndo\.forEach\([^\n]*broadcastItemFiltered[^\n]*\}\); if \(window\.wpNet\.syncCombatHidden\) window\.wpNet\.syncCombatHidden\(\); \}/.test(undoLine), undoLine.slice(0, 400));
+    // the host's save calls it right after the map it saved went out (the map first, the token gone from it), run for real: net.onLocalSave sliced whole, over stubs
+    const olsSrc = fnSrc('net.onLocalSave = function() {', '\n};\n', 'onLocalSave') + '\n};';
+    const SYNCS = ['syncStance', 'syncSounds', 'syncMusic', 'syncSystem', 'syncSenses', 'syncDocStyle', 'syncCampName', 'syncTurnRules', 'syncLibrary', 'syncNewPlayers', 'syncCampFog', 'syncClock'];
+    const runSave = (s, patch) => {
+        const log = [], real = s.net.syncCombatHidden;
+        SYNCS.forEach(k => { s.net[k] = () => log.push(k); });
+        s.net.sendItem = (c, i) => { log.push('sendItem:' + i); s.conns.forEach(cn => { if (cn.open && s.net.roster[cn.peer]) cn.send({ type: 'item', campId: c, itemId: i }); }); };
+        s.net.syncCombatHidden = () => { log.push('combatHidden'); real(); };
+        new Function('net', 'window', 'activeItemPatch', 'quickHash', '_lastPatchHash', 'broadcast', 'scheduleStageFollow', 'getActiveMap', 'checkRoomHandouts', olsSrc)(
+            s.net, {}, () => (patch ? { campId: 'k', itemId: 'm1', item: { id: 'm1' } } : null), () => 'h', {}, m => log.push('broadcast:' + m.type), () => log.push('follow'), () => null, () => {});
+        s.net.onLocalSave(); s.net.syncCombatHidden = real; return log;
+    };
+    const Ls = scen(); tokOf(Ls, 'm1', 't_gob').hidden = true; Ls.rollRow('Goblin'); Ls.start(); Ls.net.syncCombatHidden(); tokOf(Ls, 'm1', 't_gob').hidden = false; Ls.conns.forEach(c => { c.sent.length = 0; });   // fold 2's review: hidden from the start, shown before the save, so the players' copies change
+    const lsHost = runSave(Ls, true), lsWire = Ls.conns[0].sent.map(m => m.type), lsRows = rowsOf(Ls.last(Ls.conns[0]));
+    const lsNoPatch = runSave(Ls, false);
+    Ls.net.role = 'client'; Ls.net.foreign = true; Ls.net.syncedPeer = Ls.conns[0].peer; const lsCli = runSave(Ls, true); Ls.net.role = 'host'; Ls.net.foreign = false; Ls.net.syncedPeer = null; Ls.net.applyingRemote = true; const lsRemote = runSave(Ls, true); Ls.net.applyingRemote = false;
+    check('fold M0: the host\'s save (net.onLocalSave, run for real) calls net.syncCombatHidden once, right after the map went out (sendItem) — a player gets the map (the token on it again) first, then the combats (its row whole now); a save with no map to send still calls it once; a player\'s save and a remote change\'s save never do',
+        j(lsHost) === j(SYNCS.concat(['sendItem:m1', 'combatHidden', 'follow'])) && j(lsWire) === j(['item', 'combats']) && j(lsRows) === j(order)
+        && j(lsNoPatch) === j(SYNCS.concat(['combatHidden', 'follow'])) && lsCli.indexOf('combatHidden') < 0 && !lsCli.some(e => SYNCS.indexOf(e) >= 0) && lsCli.length > 0 &&j(lsRemote) === j([]), j([lsHost, lsWire, lsNoPatch, lsCli, lsRemote]));
+    const wbAll = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8');
+    check('fold M0 (source): combatHidden is defined once and read only by combatsFor and net.syncCombatHidden, inside the combats slice; net.syncCombatHidden is called once, from the host\'s save; the GM\'s own strip (whiteboard.js) reads neither; the host\'s message handler has the same number of branches as before (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34; 1.6.0 B5, a deliberate change of this pin: hit-ask, a player asking which locations their target has, makes them 35; 1.6.0, a deliberate change of this pin: sheet-out, a player asking the host\'s reader for a file of their own character, makes them 36; 1.6.2, a deliberate change of this pin: show-ask, a player asking to put drawings on the map, makes them 37)',
+        (src.match(/function combatHidden\(/g) || []).length === 1 && (src.match(/combatHidden\(/g) || []).length === 3 && (cbSrc.match(/combatHidden\(/g) || []).length === 3
+        && (src.match(/syncCombatHidden/g) || []).length === 3 && (cbSrc.match(/syncCombatHidden/g) || []).length === 1 && (olsSrc.match(/syncCombatHidden/g) || []).length === 2 && (cbSrc.match(/_combatHidSig = combatHidSigNow\(\);/g) || []).length === 1
+        && !/combatsFor|combatHidden|syncCombatHidden/.test(wbAll) && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 45 /* 1.6.3 (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */,
+        j([(src.match(/combatHidden\(/g) || []).length, (src.match(/syncCombatHidden/g) || []).length, (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length]));
+}
 
 T.finish();

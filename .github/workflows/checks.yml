@@ -198,6 +198,18 @@ jobs:
       - name: netsessioncheck — what a session keeps in step at a table, out of netcheck
         if: ${{ !cancelled() }}
         run: node tools/netsessioncheck.js
+      - name: netcharcheck — a character on the wire, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netcharcheck.js
+      - name: netrollcheck — rolls and apply actions on the host, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netrollcheck.js
+      - name: netapplycheck — what a roll card carries and applies, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netapplycheck.js
+      - name: netmakecheck — a character and a token coming to the table, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netmakecheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

@@ -17226,7 +17226,7 @@ pendingChecks.push((async () => {
             [wbLine('var BUILD_MAX = '), wbLine('var CITY_GRIDS = '), wbLine('function buildWet(id) {'), wbFn('function buildMaterial(mat) {'), wbFn('function buildProps() {'), wbLine('function buildWallItem(L, pre) {'), wbFn('function buildLay(map, boxes, props, more, walls) {'), wbFn('function cityPiece(g, props) {'), wbFn('function cityItems(pc, theme, furn) {'),
                 'return { buildMaterial: buildMaterial, buildProps: buildProps, buildLay: buildLay, cityItems: cityItems };'].join('\n'))(() => BCn, stB, () => 'n' + (++uidN), () => ({}), () => {}, () => {}, () => {}, {});
         const penSrc = dmN.slice(onceN(dmN, '// [buildcheck:penpreset-start]'), onceN(dmN, '// [buildcheck:penpreset-end]'));
-        const penArmed = wbN.includes('window.wpPenPreset = BC.penPreset(_build.mat, { color: _build.color });');   // what buildArm hands the pen: stroke() below hands it the same
+        const penArmed = require('./checkkit').part('wbbuild.js').includes('window.wpPenPreset = BC.penPreset(_build.mat, { color: _build.color });');   // what buildArm hands the pen: stroke() below hands it the same
         // A piece Build lays: the material picked (which brings its own color and pattern), then a color and a row of the Texture list, then the lay.
         // With pic, the list's last row is picked: one of the campaign's pictures as the fill, at a repeat of 2 cells (the material took any earlier one off)
         const lay = (mat, color, tex, box, pic) => { if (!Bt.buildMaterial(mat)) return null; if (color !== undefined) stB.color = color; if (tex !== undefined) stB.tex = tex; if (pic) { stB.pic = pic; stB.tile = 2; }

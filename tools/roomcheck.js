@@ -309,12 +309,12 @@ function mkDoc() {
                 && RC.mapPlaceParent('beside', { id: 'm1', meta: { parentId: 'g1' } }, { g1: { type: 'planner' } }) === null && RC.mapPlaceParent('beside', { id: 'm1', meta: {} }, {}) === null && RC.mapPlaceParent('top', { id: 'm1' }, {}) === null && RC.mapPlaceParent('inside', null, {}) === null
                 && /var META_LIVE = \{[^}]*\bparentId: 1,/.test(read('scripts/io.js')));
         }
-        const prS = cut(read('scripts/whiteboard.js'), 'pieceroom', 'whiteboard.js');
+        const prS = cut(require('./checkkit').part('wbbuild.js'), 'pieceroom', 'wbbuild.js');
         check('Make a room for this makes no map: its piece is the room\'s place already (it never asks roomAddAt)', !/roomAddAt|wpRoomAdd|wpPortalPlace/.test(prS));
     }
     {
         const FC = await import(url('fogcore.js'));
-        const wbS = read('scripts/whiteboard.js'), ppS = cut(wbS, 'portalplace', 'whiteboard.js');
+        const wbS = read('scripts/whiteboard.js'), ppS = cut(require('./checkkit').part('wbbuild.js'), 'portalplace', 'wbbuild.js');
         const da = wbS.indexOf('function disarmPlacement() {'), daSrc = wbS.slice(da, wbS.indexOf('\n}\n', da) + 3);
         const ek = wbS.indexOf("document.addEventListener('keydown', function(e) {\n    if (e.key === 'Escape' && window.wpPlace && !window.wpPlace.build"), ekSrc = wbS.slice(ek, wbS.indexOf('\n});', ek) + 4);
         check('the slices are found: disarmPlacement and the placement\'s Escape listener', da > 0 && ek > 0 && daSrc.includes('portalEnd();') && ekSrc.includes('portalSkipSay(portalP)'), [da, ek].join());
@@ -439,7 +439,7 @@ function mkDoc() {
             && /\.portal-ghost \{[^}]*pointer-events: none; opacity: 0\.5; z-index: 15200;/.test(css2) && /\.portal-tip \{ position: fixed;[^}]*pointer-events: none;/.test(css2) && css2.includes('.portal-ghost.pg-hex { clip-path:'));
     }
     /* ---- the play map's row ---- */
-    const wb = read('scripts/whiteboard.js'), prSrc = cut(wb, 'pieceroom', 'whiteboard.js');
+    const wb = read('scripts/whiteboard.js'), prSrc = cut(require('./checkkit').part('wbbuild.js'), 'pieceroom', 'wbbuild.js');
     const mkRow = o => { o = o || {}; let n = 0; return new Function('window', 'buildMay', 'uid', prSrc + '\nreturn { row: pieceRoomRow, make: pieceRoomMake, ROW: ROOM_ROW };')({ wpRoomCore: o.noCore ? undefined : RC, wpStream: !!o.stream }, () => o.may !== false, () => 'p' + (++n)); };
     const PR = mkRow(), floor = { id: 'w1', type: 'rect', name: 'Kitchen' };
     const rowOk = PR.row([floor]), am2 = { type: 'map', cats: { k: {} }, rooms: [{ id: 'r1', x: 100, y: 100 }] }, made = PR.make(am2, floor);
@@ -592,7 +592,7 @@ function mkDoc() {
             && RC.roomPlacePiece('area', {}, { x: 0, y: 0, w: 50, h: 50 }) === null && RC.roomPlacePiece('area', room, null) === null, J([area, floor]));
     }
     {
-        const wbS = read('scripts/whiteboard.js'), rpS = cut(wbS, 'roomplace', 'whiteboard.js');
+        const wbS = read('scripts/whiteboard.js'), rpS = cut(require('./checkkit').part('wbbuild.js'), 'roomplace', 'wbbuild.js');
         const mkRP = o => {
             o = o || {}; const doc = mkDoc(), toasts = [], asks = [], saves = []; let n = 0, renders = 0, viewSet = [];
             const mv = doc.createElement('button'); mv.classList.add('active'); let mvClicks = 0; mv.click = () => { mvClicks++; }; doc.byId.moveModeBtn = mv;

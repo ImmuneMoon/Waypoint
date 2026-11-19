@@ -190,7 +190,7 @@ const J = JSON.stringify;
             ins.includes("(linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links\n              (typeof boxFieldHtml === 'function' ? boxFieldHtml(w) : '')+") && ins.includes("if (typeof boxFieldWire === 'function') boxFieldWire(w);")
             && ins.includes("showConfirm(q, function(ok) { done(!!ok); }, { noEnter: true })") && ins.includes('id="wbHoldsItems"') && ins.includes('id="wbOpenBox"'));
         check('the right-click menu: Open contents on ONE container, the GM\'s, opening its window',
-            wb.includes("function boxOpenRow(items)") && wb.includes("if (bxRow) html += bxRow.html;") && wb.includes("} else if (action.includes('cm-box-open')) {") && wb.includes("window.wpBoxes.open(selectedIds[0]);"));
+            require('./checkkit').part('wbbuild.js').includes("function boxOpenRow(items)") && wb.includes("if (bxRow) html += bxRow.html;") && wb.includes("} else if (action.includes('cm-box-open')) {") && wb.includes("window.wpBoxes.open(selectedIds[0]);"));
         check('Show on my map: a Containers row that players see too, so As players see it leaves it as it is',
             il.includes("{ k: 'box', name: 'Containers', seen: true }") && il.includes("if (typeof w.box === 'string' && (typeof hasBox !== 'function' || hasBox(w))) out.push('box');") && il.includes('KINDS.filter(function(x) { return !x.more && !x.seen; })'));
         check('the wire: what containers hold and a piece\'s box id never leave the host, a container wearing only the mark boxed, which a player\'s app keeps only as 1',
@@ -199,7 +199,7 @@ const J = JSON.stringify;
             io.includes("import './boxcore.js';") && io.includes("BXl.cleanBoxes(c.boxes, c.system)") && io.includes("window.wpBoxCore.boxesTidy(c);") && io.includes("window.wpBoxCore.boxesOf(camp.boxes, items)")
             && read('scripts/main.js').includes("var bxI = window.wpBoxCore.cleanBoxes(ic.boxes, existing.system || ic.system);") && read('scripts/cleanup.js').includes("if (w.box !== undefined && (typeof w.box !== 'string' || !/^c_bx[A-Za-z0-9]{4,20}$/.test(w.box) || w.isChar || w.waiting)) delete w.box;"));
         check('the window follows the app: render() and the empty state ask its sync, and the menu row asks that the store holds the container',
-            (read('scripts/main.js').match(/if \(window\.wpBoxes\) window\.wpBoxes\.sync\(\);/g) || []).length === 2 && wb.includes("!B.has(list[0])"));
+            (read('scripts/main.js').match(/if \(window\.wpBoxes\) window\.wpBoxes\.sync\(\);/g) || []).length === 2 && require('./checkkit').part('wbbuild.js').includes("!B.has(list[0])"));
         check('a floating box by the rules: FLOAT_IDS, Z_BOXES, and Escape by its own close',
             /var FLOAT_IDS = \[[^\]]*'boxPanel'/.test(fl) && /var Z_BOXES = \[[^\]]*'boxPanel'/.test(sh) && /var ESC_LAST = \[[^\]]*'boxPanel'/.test(esc) && esc.includes("boxPanel: function(el) { if (!escPress(doc, 'boxClose')) el.style.display = 'none'; },"));
         check('the page: the window with its close, the module after the layers, its styles',

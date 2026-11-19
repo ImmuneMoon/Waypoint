@@ -132,6 +132,12 @@ jobs:
       - name: blastcheck — the Radius tool and the blasts, read from wbblast.js by name
         if: ${{ !cancelled() }}
         run: node tools/blastcheck.js
+      - name: netfogcheck — a fogged map on the wire, read from netfog.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/netfogcheck.js
+      - name: netfightcheck — the fights on the host, read from netfight.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/netfightcheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

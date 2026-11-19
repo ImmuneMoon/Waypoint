@@ -37,6 +37,8 @@
    - netSlices(who): the slice helpers netcheck has at its top, over the joined net.js, each also able to read a part by name:
      between(a, b, label, file), tryBetween(a, b, file), fnSrc(start, end, label, file), range(file, a, b) (the text from a up to b,
      both in the part) and lineOf(k). A call that names a part's file reads that part; one that names none reads the joined net.js.
+   - netHarness(who): the harness pieces netcheck keeps at its top (helpersSrc, storage, H, ownKeySrc, siSrc, fightIn, mkConn), made once a
+     run, which netcheck and the suites that came out of it with area 9 share.
    - packCheck(v): PeerJS's BinaryPack refusals, which netcheck runs on every send of a harness (moved here from netcheck).
    - url(name): a file URL of a script, for import(). fresh(root, tag): the file URLs of a private copy of a split root and its
      parts, by name, so that an import runs the real split wiring (a part as a module of its own). APP and SCRIPTS: the app's folders. */
@@ -186,6 +188,32 @@ function netSlices(who) {
     return { src, between, tryBetween, fnSrc, range, lineOf };
 }
 
+// The harness pieces netcheck keeps at its top, which the suites that came out of it with area 9 (netfogcheck, netfightcheck) share, made
+// once a run and handed to each the same (docs/REFACTOR_SPLIT_PLAN.md, area 9). helpersSrc: net.js's helpers slice; storage: a localStorage
+// of plain objects, and H: the helpers built over it (own, validProfileId, the table keys, the faces, the key proof's hmacHex and authData);
+// ownKeySrc: the real own-key one-liners (own, validKey, campOf); siSrc(): sanitizeItem as it runs, with wireNum (netfog.js, a part of
+// net.js, read by its own name) and wireWbItem; fightIn(cs, mapId): a fight by its map in a copy keyed by the fights' own ids; mkConn(peer,
+// open): a connection that keeps what it was sent. Each is the very code netcheck held, so a block moved out of it runs as it ran there.
+let netH = null;
+function netHarness(who) {
+    if (netH) return netH;
+    who = who || 'netcheck';
+    const { src, between, lineOf } = netSlices(who);
+    const helpersSrc = between('// [netcheck:helpers-start]', '// [netcheck:helpers-end]', 'helpers');
+    const storage = (() => { let m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, clear: () => { m = {}; } }; })();
+    const H = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { own, validProfileId, newKey, tableKeys, tableKeyFor, rememberTableKey, safeAvatar, cleanRosterName, cleanWaitingItem, cleanFace, faceView, FACE_PICS, charFacePlan, hmacHex: typeof hmacHex === "function" ? hmacHex : null, authData: typeof authData === "function" ? authData : null, sameStr: typeof sameStr === "function" ? sameStr : null, retryGen: typeof retryGen === "function" ? retryGen : null };')(storage, globalThis.crypto);
+    const ownKeySrc = [lineOf('function own('), lineOf('function validKey('), lineOf('function campOf(')].join('\n') + '\n';   // the real own-key one-liners
+    const siSrc = () => {
+        const a = src.indexOf('function sanitizeItem('), b = src.indexOf('\n}\n', src.indexOf('function wireWbItem(', a));
+        if (a < 0 || b < a) throw new Error(who + ': sanitizeItem and wireWbItem not found in net.js');
+        return (part('netfog.js').match(/function wireNum\(k, v\) \{[^\n]*\}/) || [''])[0] + '\n' + src.slice(a, b + 3);   // wireNum stands in netfog.js, a part of net.js
+    };
+    const fightIn = (cs, mapId) => { if (!cs || typeof cs !== 'object') return undefined; const k = Object.keys(cs).find(x => !!cs[x] && cs[x].mapId === mapId); return k === undefined ? undefined : cs[k]; };   // a fight by its map, in a copy keyed by the fights' own ids
+    const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
+    netH = { helpersSrc, storage, H, ownKeySrc, siSrc, fightIn, mkConn };
+    return netH;
+}
+
 // PeerJS 1.5.2's default serializer is BinaryPack (inside the bundled library file, assets/vendor/peerjs.min.js, which the suites do not load): its pack() reads value.constructor for every
 // object and throws on one it does not know — an object with no prototype, or an own "constructor" / "hasOwnProperty" — and the real
 // broadcast() swallows the throw. Every harness send runs this emulation, so a payload production could not deliver never passes here.
@@ -215,4 +243,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, packCheck, url, fresh, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, packCheck, url, fresh, APP, SCRIPTS, lf };

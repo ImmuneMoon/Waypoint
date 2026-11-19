@@ -87,11 +87,17 @@ function formTrial(d, ctx) {
 // 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md): the campaign's library entries, for an option that stands for a row of a list (formbox.js
 // dressOpts, through formcore.js optLists), read as grantEntries reads them: every pack the campaign lists, through window.wpLibrary, an entry
 // of a GM-only pack marked GM-only as its own key index counts it. Only what a pick needs is handed on: its key, its name, its category and
-// whether it is the GM's alone. Nothing where the library is not loaded
+// whether it is the GM's alone. Nothing where the library is not loaded. The list answered carries waiting, true while a pack the campaign
+// lists is not read yet (wpLibrary.ready, else whole), so that formbox.js says an entry it cannot find then is still loading and not gone
+// (the review of 2026-11-19)
 function formLib() {
     var LB = window.wpLibrary, cp = getActiveCampaign(), packs = cp && cp.library && Array.isArray(cp.library.packs) ? cp.library.packs : [], out = [];
     if (!LB || typeof LB.entriesOf !== 'function') return out;
-    packs.forEach(function(p) { if (p && typeof p.id === 'string') (LB.entriesOf(p.id) || []).forEach(function(e) { if (e && typeof e.key === 'string') out.push({ key: e.key, name: e.name, category: e.category, vis: p.vis === 'gm' || e.vis === 'gm' ? 'gm' : 'all' }); }); });
+    packs.forEach(function(p) {
+        if (!p || typeof p.id !== 'string') return;
+        if (typeof LB.ready === 'function' ? !LB.ready(p.id) : typeof LB.whole === 'function' && !LB.whole()) out.waiting = true;
+        (LB.entriesOf(p.id) || []).forEach(function(e) { if (e && typeof e.key === 'string') out.push({ key: e.key, name: e.name, category: e.category, vis: p.vis === 'gm' || e.vis === 'gm' ? 'gm' : 'all' }); });
+    });
     return out;
 }
 function formSource(inp) {

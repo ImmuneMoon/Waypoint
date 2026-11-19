@@ -433,6 +433,29 @@ function optRowWrite(p) {
 // compares a specialty with accents, case and spaces taken out (systemcore specSquash), so the word stored need only hold its letters
 function optSpecWord(t) { return String(t || '').normalize('NFD').replace(/\p{M}+/gu, '').split(/[^A-Za-z0-9]+/).filter(Boolean).map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('').replace(/^[0-9]+/, '').slice(0, 40); }
 function optSpecSay(seg) { return String(seg || '').replace(/_+/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Za-z])([0-9])/g, '$1 $2').trim(); }
-var API = { optLists: optLists, optRowRead: optRowRead, optRowWrite: optRowWrite, optSpecWord: optSpecWord, optSpecSay: optSpecSay, readOpts: readOpts, writeOpts: writeOpts, readLine: readLine, readMake: readMake, tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
+// Whether optSpecWord would lose a letter or a digit of what was typed (the review of 2026-11-19): a letter outside A to Z once accents are
+// taken off (an O with a stroke, a word of another script), a digit before the first letter, or a word past 40. A name keeps only those, so such a
+// specialty is said back as one that cannot be kept, never stored as another word (Rsted) or none, which would read the entry itself
+function optSpecLoss(t) { var all = (String(t || '').normalize('NFD').replace(/\p{M}+/gu, '').match(/[\p{L}\p{N}]/gu) || []).join(''); return optLow(optSpecWord(t)) !== optLow(all); }
+// The specialties a pick may offer for one entry of a list, so that a known one is picked and not typed (the review of 2026-11-19): those
+// rows of the list name for it, a key written Entry__Specialty or a name written Entry (Specialty) or Entry: Specialty (the forms systemcore
+// specInfo reads), and the words the stat's other options already hold for it (more, stored words). Each [word, said], once, by its words.
+// L: one of optLists' lists. A specialty that cannot be kept (optSpecLoss) is not offered
+function optSpecsFor(L, entry, more) {
+    var out = [], seen = Object.create(null), sq = function(s) { return String(s || '').normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''); };
+    var put = function(raw) { if (!raw || optSpecLoss(raw)) return; var w = optSpecWord(raw); if (!w || !OPT_ID.test(w) || seen[optLow(w)]) return; seen[optLow(w)] = 1; out.push([w, optSpecSay(w)]); };
+    if (!L || !Array.isArray(L.entries) || !entry) return out;
+    var me = null; L.entries.forEach(function(x) { if (!me && optLow(x[0]) === optLow(entry)) me = x; });
+    var mine = [sq(entry)].concat(me ? [sq(me[1])] : []);
+    L.entries.forEach(function(x) {
+        var k = String(x[0]), kc = k.indexOf('__');
+        if (kc > 0 && mine.indexOf(sq(k.slice(0, kc))) >= 0) { put(k.slice(kc + 2).replace(/_+/g, ' ')); return; }
+        var nm = String(x[1] || '').trim(), m = /^(.*?)\s*\(([^()]*)\)$/.exec(nm) || /^([^:]+):\s*(.+)$/.exec(nm);
+        if (m && mine.indexOf(sq(m[1])) >= 0) put(m[2]);
+    });
+    (Array.isArray(more) ? more : []).forEach(function(w) { if (typeof w === 'string' && w) put(optSpecSay(w)); });
+    return out.sort(function(a, b) { return a[1].localeCompare(b[1]); });
+}
+var API = { optSpecLoss: optSpecLoss, optSpecsFor: optSpecsFor, optLists: optLists, optRowRead: optRowRead, optRowWrite: optRowWrite, optSpecWord: optSpecWord, optSpecSay: optSpecSay, readOpts: readOpts, writeOpts: writeOpts, readLine: readLine, readMake: readMake, tryWords: tryWords, readWords: readWords, writeWords: writeWords, saysWords: saysWords, rollFace: rollFace, tryRoll: tryRoll, tryValue: tryValue, read: read, write: write, says: says, readCond: readCond, writeCond: writeCond, saysCond: saysCond, CMP_WORDS: CMP_WORDS, STEP_WORDS: STEP_WORDS, ROUND_WORDS: ROUND_WORDS };
 if (typeof window !== 'undefined') window.wpFormCore = API;
-export { optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, readOpts, writeOpts, readLine, readMake, tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };
+export { optSpecLoss, optSpecsFor, optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, readOpts, writeOpts, readLine, readMake, tryWords, readWords, writeWords, saysWords, rollFace, tryRoll, tryValue, read, write, says, readCond, writeCond, saysCond, CMP_WORDS, STEP_WORDS, ROUND_WORDS };

@@ -99,6 +99,14 @@ function page() {
             && r6[0] === '' && r6[1] === 2 && r7 === 2 && r8[0] === J([['', 'Pick an entry', false], ['gone', 'An entry that is no longer there', false]]) && r8[1] === J(['off', 'two'])
             && mr.length === 201 && mr[200].disabled === true && mr[200].textContent === '30 more. Search to narrow them' && U.findMatch({ name: 'Off Hand' }, '') === true && U.findMatch(null, 'x') === false,
             J([shape, r0, r1, r2, r3, r4, r5, r6, r7, r8]));
+        {   // the review of 2026-11-19: a closed list changes its pick at every arrow key, so stepping it by its place must walk on through the list
+            const ag = [], A = U.find({ blank: 'Pick an entry', value: '', choices: ['alpha', 'bravo', 'charlie', 'delta'].map(v => ({ value: v, name: v })), set: v => ag.push(v) }, page()), as = A.select;
+            const stepDown = () => { const kids = as.children, at = kids.findIndex(o => o.value === as.value); let k = at + 1; while (k < kids.length && kids[k].disabled) k++; if (k < kids.length) { as.value = kids[k].value; as.fire('change'); } };
+            const order0 = J(as.children.map(o => o.value)); for (let k = 0; k < 4; k++) stepDown(); const order1 = J(as.children.map(o => o.value));
+            A.input.value = 'a'; A.input.fire('input'); const order2 = J(as.children.map(o => o.value));
+            check('find: a pick made in the list leaves its order alone, so the arrow keys walk on through it; the next word typed puts the pick first again',
+                J(ag) === J(['alpha', 'bravo', 'charlie', 'delta']) && A.picked() === 'delta' && order1 === order0 && order2 === J(['', 'delta', 'alpha', 'bravo', 'charlie']), J([ag, order0, order1, order2]));
+        }
         const css = read('style.css'), ek = read('scripts/esckey.js');
         check('find\u2019s frame is the style sheet\u2019s, and Escape leaves a search that holds words to it', /\.ui-find \{[^}]*border: 1px solid var\(--edge\)/.test(css) && /\.ui-find > \.ui-find-q \{/.test(css) && ek.includes("t.classList.contains('ui-find-q')"));
     }

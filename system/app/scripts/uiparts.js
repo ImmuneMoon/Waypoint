@@ -140,7 +140,7 @@ function findMatch(c, q) {
 }
 // The choice of many with a search (see the head of the file). The list is drawn again at each word typed: the picked one stays first, so it is
 // always in sight and never changed by a search, then what matches, at most o.max, and a last row that says how many more a search would show.
-// A choice is picked from the list itself (its change event, which the arrow keys and a press give alike); Enter in the search box picks the
+// A choice is picked from the list itself (its change event, which the arrow keys and a press give alike), and that pick leaves the list's order as it stands; Enter in the search box picks the
 // first that matches and ArrowDown goes on to the list. Escape in a search that holds words empties it and goes no further (esckey.js escKeep
 // leaves such a press to it). Every word is set as text: a choice's name can come from a file
 function find(o, doc) {
@@ -162,7 +162,14 @@ function find(o, doc) {
         if (hits.length > max) add(MORE, (hits.length - max) + ' more. Search to narrow them', true);
         sel.value = cur;
     };
-    var go = function(v) { if (typeof v !== 'string' || v === MORE || v === cur) { show(); return; } cur = v; show(); if (typeof o.set === 'function') o.set(v); };
+    // A pick. From the search (Enter) the list is drawn again with the pick first. From the list itself (still) it is NOT drawn again: a
+    // closed list changes its pick at every arrow key (Chromium on Windows, what Electron runs), and a list that moved its pick to the top at
+    // each one sent the next ArrowDown back to the row just left, so the arrows went back and forth between two entries (the review of
+    // 2026-11-19). The order stays as it is until the next word is typed, which puts the pick first again
+    var go = function(v, still) {
+        if (typeof v !== 'string' || v === MORE || v === cur) { if (still) sel.value = cur; else show(); return; }
+        cur = v; if (!still) show(); if (typeof o.set === 'function') o.set(v);
+    };
     q.addEventListener('input', show);
     q.addEventListener('keydown', function(ev) {
         if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
@@ -170,7 +177,7 @@ function find(o, doc) {
         else if (ev.key === 'ArrowDown') { ev.preventDefault(); ev.stopPropagation(); sel.focus(); }
         else if (ev.key === 'Escape' && q.value) { ev.preventDefault(); ev.stopPropagation(); q.value = ''; show(); }
     });
-    sel.addEventListener('change', function() { go(sel.value); });
+    sel.addEventListener('change', function() { go(sel.value, true); });
     w.appendChild(q); w.appendChild(sel);
     w.input = q; w.select = sel;
     w.picked = function() { return cur; };

@@ -684,6 +684,9 @@ function pageCalls(name, bundle, key) {
         const PINS = /^(includes|match|matchAll|split|search|replace|replaceAll|startsWith|endsWith)$/;
         const kids = n => { const o = []; for (const k in n) { if (k === 'loc' || k === 'start' || k === 'end' || k === 'type') continue; const v = n[k]; if (Array.isArray(v)) v.forEach(x => { if (x && typeof x.type === 'string') o.push(x); }); else if (v && typeof v.type === 'string') o.push(v); } return o; };
         const each = (n, f) => { const st = [n]; while (st.length) { const x = st.pop(); f(x); const k = kids(x); for (let i = k.length - 1; i >= 0; i--) st.push(k[i]); } };
+        // the names a function's body reads: every Identifier but a property's key and a member's name, which are words and no reads (a
+        // function that builds { sheet: [] } reads no `sheet` a tool set to sheets.js: found by area 7, 2026-11-19)
+        const readsIn = (body, f) => { const keys = new Set(); each(body, y => { if ((y.type === 'Property' && !y.computed && !y.shorthand) || (y.type === 'MethodDefinition' && !y.computed)) keys.add(y.key); else if (y.type === 'MemberExpression' && !y.computed) keys.add(y.property); }); each(body, y => { if (y.type === 'Identifier' && !keys.has(y)) f(y); }); };
         const nameOf = c => c.type === 'Identifier' ? c.name : (c.type === 'MemberExpression' && !c.computed && c.property.type === 'Identifier' ? c.property.name : null);
         const rootIn = s => { if (typeof s !== 'string') return null; const b = s.split(/[\\/]/).pop(); return roots.indexOf(b) >= 0 ? b : null; };
         // a call that reads a root: any call but a part's or a raw read, a path call or a slice, with a quoted path among its arguments that ends in a root's name
@@ -710,12 +713,12 @@ function pageCalls(name, bundle, key) {
                 });
             } else if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
                 const nm = n.id.name;
-                if (/Function/.test(n.init.type)) { let r = null; each(n.init.body, y => { if (!r && y.type === 'Identifier' && vars.has(y.name)) r = vars.get(y.name); }); if (r && !SLICERS.test(nm)) fns.set(nm, r); else fns.delete(nm); }
+                if (/Function/.test(n.init.type)) { let r = null; readsIn(n.init.body, y => { if (!r && vars.has(y.name)) r = vars.get(y.name); }); if (r && !SLICERS.test(nm)) fns.set(nm, r); else fns.delete(nm); }
                 else { const r = rootOf(n.init); if (r) vars.set(nm, r); else vars.delete(nm); }
             } else if (n.type === 'AssignmentExpression' && n.left.type === 'Identifier') {
                 const r = rootOf(n.right); if (r) vars.set(n.left.name, r); else vars.delete(n.left.name);
             } else if (n.type === 'FunctionDeclaration' && n.id) {
-                let r = null; each(n.body, y => { if (!r && y.type === 'Identifier' && vars.has(y.name)) r = vars.get(y.name); }); if (r && !SLICERS.test(n.id.name)) fns.set(n.id.name, r); else fns.delete(n.id.name);
+                let r = null; readsIn(n.body, y => { if (!r && vars.has(y.name)) r = vars.get(y.name); }); if (r && !SLICERS.test(n.id.name)) fns.set(n.id.name, r); else fns.delete(n.id.name);
             } else if (n.type === 'CallExpression') {
                 const c = n.callee, nm = nameOf(c);
                 if (c.type === 'MemberExpression' && !c.computed && nm && PINS.test(nm)) { const r = rootOf(c.object); if (r) judgeArgs(n, r); }
@@ -764,6 +767,16 @@ function pageCalls(name, bundle, key) {
     const j7c = JSON.stringify;
     check('7c. the rule tried on a text of its own: a line only sheetlink.js holds, pinned on the joined sheets.js through a count of the tool\'s own, a match on a name set to the read, a regex\'s test, a function whose body reads it and an indexOf compared with -1, is named five times; on the part read by name, and as a slice\'s anchor, it is not', tryOwn7c());
     check('7c. the rule tried on a text of its own: a line only nettrade.js holds, pinned on the src netSlices hands back (plain and renamed, a read of netlink.js beside it), is named twice; on nettrade.js read by name it is not', tryOwn7cSlices());
+    // tried on a text of its own: a function whose body only names a property `sheet` reads no `sheet` set to sheets.js, and one whose
+    // body reads it does (area 7, 2026-11-19)
+    const tryKeys7c = () => {
+        const only = (partsTxt7b['sheets.js'].filter(x => x[0] === 'sheetlink.js')[0] || [null, ''])[1].split('\n').filter(l => /^function [A-Za-z]+\(/.test(l) && rootTxt7b['sheets.js'].indexOf(l) < 0)[0] || '';
+        const q = JSON.stringify(only), txt = ["const sheet = rootRead('system/app/scripts/sheets.js');", 'const mkA = r => ({ sheet: { sections: [r] }, o: r.sheet });', 'const mkB = r => sheet.indexOf(r) >= 0;',
+            'check(1, mkA(' + q + '));', 'check(2, mkB(' + q + '));'].join('\n');
+        const got = pins7c(L.acorn(), txt, roots, rootTxt7b, partsTxt7b, 6);
+        return !!only && got.length === 1 && got[0].line === 5;
+    };
+    check('7c. the rule tried on a text of its own: a property\'s key or a member\'s name in a function\'s body is no read of a name a tool set to a root\'s text, and a read of it is', tryKeys7c());
     const bad7c = []; let tools7c = 0;
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7c++; pins7c(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n'), roots, rootTxt7b, partsTxt7b, 6).forEach(o => bad7c.push(f + ':' + o.line + ' pins the joined ' + o.root + ' on text only ' + o.holders.join(' and ') + ' holds: ' + o.what)); });
     check('7c. no tool pins a root\'s joined text, through a name, a helper of its own or a function that reads it, on text only one of its parts holds (' + tools7c + ' tools read by the parser)', tools7c > 50 && bad7c.length === 0, bad7c.slice(0, 20));

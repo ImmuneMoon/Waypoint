@@ -323,7 +323,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         const nP = fired.length; K.keyBoxFollow(box('sys-other', 'x')); K.keyBoxFollow({ classList: null }); K.keyBoxFollow(null);
         check('any other box is left alone', fired.length === nP);
         const css = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8'), page = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
-        check('the short forms stand out of sight until a tick of this computer shows them, and each control stays in the page', ['sys-list-statkey', 'sys-list-colkey', 'sys-list-ctkey', 'sys-dmgr-ykey', 'sys-dmgr-kkey', 'sys-item-key', 'sys-tbl-ckey'].every(k => css.includes('#systemModal:not(.sys-show-keys) .' + k)) && ['sys-env-key', 'sys-tbl-key', 'sys-link-key', 'sys-key'].every(k => css.includes('label:has(> .' + k + ')')) && page.includes('id="sysShowKeys"') && shK.includes("input('sys-list-statkey field'"));
+        check('the short forms stand out of sight until a tick of this computer shows them, and each control stays in the page', ['sys-list-statkey', 'sys-list-colkey', 'sys-list-ctkey', 'sys-dmgr-ykey', 'sys-dmgr-kkey', 'sys-item-key', 'sys-tbl-ckey'].every(k => css.includes('#systemModal:not(.sys-show-keys) .' + k)) && ['sys-env-key', 'sys-tbl-key', 'sys-link-key', 'sys-key'].every(k => css.includes('label:has(> .' + k + ')')) && page.includes('id="sysShowKeys"') && require('./checkkit').part('sysedlist.js').includes("input('sys-list-statkey field'"));
     }
 
     {   // 1.6.2 (backlog 167 D; the owner, by prompt: "Also contains"): a test of the words a field holds, in the form

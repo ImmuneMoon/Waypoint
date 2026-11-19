@@ -81,7 +81,7 @@ const scripted = d => { let i = 0; return () => d[i++ % d.length]; };
     check('the ± window has its Dice to add box, which says when what is typed is no dice and stops the Roll, and the card writes a bonus through bonusWords',
         diceS.includes("dRow.appendChild(el('span', 'dice-moddice-cap', 'Dice to add'));") && diceS.includes("if (dIn && cleanDiceBonus(dIn.value) === null) { toast(") && diceS.includes("bonusWords(x.v, x.d) + ' ' + x.n + ', added'") && read('style.css').includes('.dice-moddice-in {'));
     check('the System editor’s and the Library window’s roll bonuses have a Dice it adds box, and Save says what it drops',
-        shS.includes("input('sys-sw-d field'") && shS.includes("else if (/(^| )sys-sw-d( |$)/.test(c))") && shS.includes("Save drops its dice: write them as 1d6") && lwS.includes("el('input', 'field lib-sw-d')"));
+        require('./checkkit').part('sysedroll.js').includes("input('sys-sw-d field'") && require('./checkkit').part('sysedroll.js').includes("else if (/(^| )sys-sw-d( |$)/.test(c))") && require('./checkkit').part('sysedroll.js').includes("Save drops its dice: write them as 1d6") && lwS.includes("el('input', 'field lib-sw-d')"));
     // the card's dice line (readableInto, run for real on nodes of plain objects): an added die said apart from the roll's own
     const riSrc = diceS.slice(diceS.indexOf('function readableInto(brk, res, parts, expr) {'), diceS.indexOf('// 1.5.8 (handoff 90 Part B): what changed the values the roll read'));
     const node = (cls, txt) => ({ className: cls || '', textContent: txt || '', kids: [], title: '', appendChild(k) { this.kids.push(k); return k; } });

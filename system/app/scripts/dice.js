@@ -130,6 +130,7 @@ function renderCard(m) {
     if (rec.from.gm) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-gm', 'GM')); }
     var tag = rec.priv === 'gm' ? (rec.from.gm ? 'private' : 'to the GM') : rec.to ? (m.toName ? 'to ' + m.toName : 'private') : '';
     if (tag) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag', tag)); }
+    if (rec.rev === 1) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-tag chat-rev', rec.priv === 'gm' ? 'shown to the table' : 'revealed')); }   // 1.6.3: a roll the GM hid and then showed to the table
     if (rec.dmg === 1) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-dmg', 'damage')); }   // chat cards (owner 2026-09-27): a damage roll's tag
     if (rec.as && rec.as !== rec.from.name) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(typeof asTag === 'function' ? asTag('as ', rec, wrap) : el('span', 'chat-tag', 'as ' + rec.as)); }   // the character the roll was made as (1.5.0)
     wrap.appendChild(el('span', 'chat-time', chatTime(rec.ts)));
@@ -209,6 +210,11 @@ function renderCard(m) {
         wrap.appendChild(ab);
     }
     if (n && typeof n.toGmButtons === 'function') n.toGmButtons(wrap, rec);   // HR1: on the GM's own card of a roll that went to them
+    if (n && rec.priv === 'gm' && rec.rev !== 1 && !rec.pend && typeof n.revealOk === 'function' && typeof n.revealRoll === 'function' && n.revealOk(rec.id)) {   // 1.6.3: the GM's card of a roll hidden by choice alone, which the host says may be shown
+        var rvB = el('button', 'tool ghost chat-reveal', 'Show to the table'); rvB.type = 'button'; rvB.title = 'Send this roll to everyone as it was rolled. Only what a card would show them goes, and nothing of it runs again';
+        rvB.addEventListener('click', function() { if (n.revealRoll(rec.id) && rvB.parentNode) rvB.parentNode.removeChild(rvB); });
+        wrap.appendChild(rvB);
+    }
     return wrap;
 }
 // [dicecheck:ansapply-start]
@@ -441,7 +447,53 @@ function syncRoleLabels() {
     if (t) t.textContent = isClient() ? 'To the GM only' : 'Private';
     if (lbl) lbl.title = isClient() ? 'Only you and the GM see this roll' : 'Only you see this roll (it is still logged)';
     var s = ui('diceSoundChk'); if (s) s.checked = soundOn();
+    if (typeof hideSync === 'function') hideSync();   // 1.6.3: the box shows Hide my rolls on the GM's machine
 }
+// [dicecheck:hiderolls-start]
+// 1.6.3 (Fulllion, 2026-11-19: "we should have a way for the GM to easily hide or unhide rolls"; his pick by prompt: "One switch, plus per NPC"). Hide my
+// rolls is the GM's one switch, the eye button at the top of Table Chat: while it is on, every roll the GM makes is private, whatever made it (the roller's
+// typed rolls and Coin, every sheet and HUD roll, the ± window, a page's inline dice, a card the GM presses, initiative), since every one of them comes
+// through roll() below, which sends it with hide. It is ONE state with the roller's Private box on the GM's machine, so the two can never disagree: the box
+// shows the switch, and ticking the box sets the switch. On a player's app the box is To the GM only and the switch is not there. The switch is this
+// computer's own and each campaign's (wp_hideRolls: { campaign id: true }, read back as data through hideClean, the newest HIDE_MAX), never sent: the host
+// reads the press's own word, and a roll the host keeps private for a reason of its own stays so whatever it says
+var HIDE_KEY = 'wp_hideRolls', HIDE_MAX = 200, HIDE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+function hideClean(raw) {
+    var out = {}; if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    var ks = Object.keys(raw).filter(function(k) { return raw[k] === true && HIDE_ID.test(k) && k !== '__proto__'; });
+    ks.slice(-HIDE_MAX).forEach(function(k) { out[k] = true; });   // the newest, which a write puts last
+    return out;
+}
+function hideRead() { try { return hideClean(JSON.parse(localStorage.getItem(HIDE_KEY) || '{}')); } catch (e) { return {}; } }
+function hideCampId() { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null; return c && typeof c.id === 'string' && HIDE_ID.test(c.id) ? c.id : ''; }
+// Whether this machine hides the GM's rolls now: never on a player's app or in the stream window
+function hidden() { var n = net(); if (isClient() || (n && n.stream) || window.wpStream) return false; var id = hideCampId(); return !!id && Object.prototype.hasOwnProperty.call(hideRead(), id); }
+// The switch pressed (or the Private box ticked) on the GM's machine: kept for the campaign on screen, the newest HIDE_MAX campaigns. Answers what it is now
+function setHidden(on) {
+    var n = net(); if (isClient() || (n && n.stream)) return false; var id = hideCampId(); if (!id) return false;
+    var all = hideRead(); delete all[id]; if (on) all[id] = true;
+    var ks = Object.keys(all); while (ks.length > HIDE_MAX) delete all[ks.shift()];
+    setPref(HIDE_KEY, JSON.stringify(all));
+    if (window.wpStepLog) window.wpStepLog('hiderolls v1', 'switch', { on: !!on });
+    hideSync(); return !!on;
+}
+// Everything that shows the switch, drawn from the one state: the switch itself, the Private box, and the mark on the Table Chat button. Writes only what
+// changed, so main.js render() may ask it at every redraw. A player's app shows no switch and no mark, and a box this machine ticked as the GM is
+// unticked once it sits at someone else's table, so that it never sends their rolls to the GM by the GM's own setting
+var _hidePrivGm = false;
+function hideSync() {
+    var on = hidden(), gmSide = !isClient(), b = ui('chatHideRolls'), mk = ui('chatHideMark'), cb = ui('chatBtn'), pv = ui('dicePriv');
+    if (b) {
+        var disp = gmSide && !window.wpStream ? '' : 'none'; if (b.style.display !== disp) b.style.display = disp;
+        if (b.classList.contains('on') !== on) b.classList.toggle('on', on);
+        var pr = on ? 'true' : 'false'; if (b.getAttribute('aria-pressed') !== pr) b.setAttribute('aria-pressed', pr);
+        var tt = on ? 'Your rolls are hidden: only you see them. Press to roll for the table again' : 'Hide my rolls: every roll you make stays private until you press this again'; if (b.title !== tt) b.title = tt;
+    }
+    if (mk) { var md = on ? '' : 'none'; if (mk.style.display !== md) mk.style.display = md; }
+    if (cb) { var ct = on ? 'Table chat. Your rolls are hidden' : 'Table chat'; if (cb.title !== ct) cb.title = ct; }
+    if (pv) { if (gmSide) { if (pv.checked !== on) pv.checked = on; _hidePrivGm = true; } else if (_hidePrivGm) { pv.checked = false; _hidePrivGm = false; } }
+}
+// [dicecheck:hiderolls-end]
 // 1.6.2 (the viewing, a player at the table): the first of these characters whose token stands, seated, on the map on screen, else null
 function charOnMap(camp, list) {
     var m = camp && camp.items && typeof camp.activeItemId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, camp.activeItemId) ? camp.items[camp.activeItemId] : null, wb = m && Array.isArray(m.whiteboard) ? m.whiteboard : [];
@@ -564,7 +616,8 @@ function openPanel() {
 }
 function closePanel() { var p = ui('dicePanel'); if (p) p.style.display = 'none'; }
 function remember(expr) { var i = history.indexOf(expr); if (i >= 0) history.splice(i, 1); history.unshift(expr); if (history.length > LIMITS.history) history.length = LIMITS.history; histAt = -1; }
-// roll(expr, { priv }) — the one entry point for the roller, the chat commands and the console's /table
+// roll(expr, { priv, hide }) — the one entry point for the roller, the chat commands and the console's /table. hide (1.6.3): hidden by choice, the GM's
+// own word or Hide my rolls (the host may show such a roll to the table later), on a player's app their To the GM only; priv: kept private for a reason
 function roll(expr, opts) {
     opts = opts || {};
     var more = typeof _rollMore !== 'undefined' ? _rollMore : null; if (more) _rollMore = null;   // taken at once: a roll refused below leaves nothing for the next (asked through typeof: a suite runs roll alone)
@@ -572,20 +625,20 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr.toLocaleString('en-US') + ' characters).' };
-    var r = n.diceRoll(clean, { aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
+    var r = n.diceRoll(clean, { hide: opts.hide === true || (typeof hidden === 'function' && hidden()) ? true : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
     if (!r.error && !opts.row && !opts.coin) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
 }
 // 1.6.2: the Coin button, as the roller's own character and Private tick say
 function coinFromPanel() {
-    var r = roll('1d2', { label: 'Coin flip', coin: true, priv: !!(ui('dicePriv') && ui('dicePriv').checked), source: 'panel', charId: ui('diceChar') && ui('diceChar').value || undefined });
+    var r = roll('1d2', { label: 'Coin flip', coin: true, hide: !!(ui('dicePriv') && ui('dicePriv').checked), source: 'panel', charId: ui('diceChar') && ui('diceChar').value || undefined });
     clearErr(); if (r.error) showErr(r.error, '', 0, 0);
 }
 function rollFromPanel() {
     var f = ui('diceExpr'); if (!f) return;
     var expr = f.value, priv = !!(ui('dicePriv') && ui('dicePriv').checked), charId = ui('diceChar') && ui('diceChar').value || undefined;
     clearErr();
-    var r = roll(expr, { priv: priv, source: 'panel', charId: charId });
+    var r = roll(expr, { hide: priv, source: 'panel', charId: charId });   // 1.6.3: the box is a choice, which the host may let the GM show later
     if (r.error) { showErr(r.error, cleanExpr(expr) || '', r.pos || 0, r.len || 0); return; }
     f.select();
 }
@@ -602,6 +655,7 @@ function sync() {
     if (b) b.style.display = on ? '' : 'none';
     if (!on) closePanel(); else if (panelOpen()) syncChars();
     var n = net(); if (n && n.syncSessionButtons) n.syncSessionButtons();
+    hideSync();   // 1.6.3: a session that starts or ends changes who this machine is
 }
 (function wire() {
     var b = ui('diceBtn'), p = ui('dicePanel'); if (!b || !p) return;
@@ -626,6 +680,8 @@ function sync() {
         f.focus();
     });
     var sc = ui('diceSoundChk'); if (sc) sc.addEventListener('change', function() { setPref('wp_diceSound', sc.checked ? 'on' : 'off'); });
+    var hb2 = ui('chatHideRolls'); if (hb2) hb2.addEventListener('click', function() { setHidden(!hidden()); });   // 1.6.3: Hide my rolls
+    var pvB = ui('dicePriv'); if (pvB) pvB.addEventListener('change', function() { if (!isClient()) setHidden(pvB.checked); });   // ... which the GM's Private box is too
     // the chat panel closing takes the roller with it
     var cc = ui('chatCloseBtn'); if (cc) cc.addEventListener('click', closePanel);
     var cb = ui('chatBtn'); if (cb) cb.addEventListener('click', function() { setTimeout(function() { var c = ui('chatPanel'); if (c && c.style.display === 'none') closePanel(); else if (panelShown()) placePanel(); }, 0); });
@@ -636,4 +692,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { waits: waits, roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, renderHelp: renderHelp, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { hidden: hidden, setHidden: setHidden, hideSync: hideSync, hideClean: hideClean, waits: waits, roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, renderHelp: renderHelp, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

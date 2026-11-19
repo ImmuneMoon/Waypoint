@@ -1692,4 +1692,99 @@ pendingChecks.push((async () => {
             && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
     }
 
+// 1.6.3 Hide my rolls (Fulllion, 2026-11-19: "we should have a way for the GM to easily hide or unhide rolls"; his picks by prompt: "One switch, plus per NPC"
+// and "Yes, Show to the table"): the host's real net.diceRoll and roll-req branch, with the real sends, cleaners and a latecomer's history (net.js's
+// hiderolls slice beside hidefig and npcseen). A roll hidden by choice (the GM's word on the press, an NPC's Hide rolls tick) is private and may be shown to
+// the table once; one kept private for a secret reason never may; the shown copy goes by the rules every card goes by (invented data: Kael, Bo, Brannoch)
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx0 = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const src4 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n');
+    const line = k => { const i = src4.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src4.slice(i, src4.indexOf('\n', i)); };
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom(', 'function applyLines(', 'function chatHistoryOf('].map(line).join('\n') + '\n';
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), drSrc = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll'), atSrc = between('// [netcheck:attempt-start]', '// [netcheck:attempt-end]', 'attempt', 'netattack.js');
+    const hfSrc = between('// [netcheck:hidefig-start]', '// [netcheck:hidefig-end]', 'hidefig'), hrSrc = between('// [netcheck:hiderolls-start]', '// [netcheck:hiderolls-end]', 'hiderolls'), nsSrc = between('// [netcheck:npcseen-start]', '// [netcheck:npcseen-end]', 'npcseen'), paSrc = between('// [netcheck:postapply-start]', '// [netcheck:postapply-end]', 'postapply'), stSrc = fnSrc('function sendTable(msg, exceptConn) {', '\n}\n', 'sendTable') + '\n}\n', pcSrc = line('net.postApplyCard = function(') + '\n' + src4.slice(src4.indexOf('net.postApplyCard = function(') + line('net.postApplyCard = function(').length, src4.indexOf('\n};\n', src4.indexOf('net.postApplyCard = function(')) + 4);
+    const DUCK = '3d6 <= Will - AttemptMargin';
+    const mk = o => {
+        o = o || {}; let dq = []; const Fx = Object.assign({}, Fx0, { evaluate: (e, op) => Fx0.evaluate(e, Object.assign({ random: () => { if (!dq.length) throw new Error('netcheck: no die left'); return dq.shift(); } }, op)) });
+        const sys = Sx.cleanSystem({ v: 1, name: 'K', combat: { checks: 'under3d6' }, fields: [{ id: 'f_wl', key: 'Will', label: 'Will', kind: 'number', vis: 'all', edit: 'owner', def: 12 }, { id: 'f_sc', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', edit: 'gm', def: 9 }],
+            rolls: [{ id: 'r_st', label: 'Strike', formula: '3d6 <= 13', vis: 'all', resistBy: 'r_dg' }, { id: 'r_dg', label: 'Duck', formula: DUCK, vis: 'all', resist: true }, { id: 'r_pk', label: 'Peek', formula: '3d6 <= 12', vis: 'all' }] }, { F: Fx, gmView: true });
+        const out = { sent: { pA: [], pB: [] }, dues: [], log: [], chat: [], toasts: [], steps: [] }, aim = { u_a: null, u_b: null, gm: null };
+        const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: Object.assign({ id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: {} }, o.pcTick ? { rollsHid: true } : {}), c_n: Object.assign({ id: 'c_n', name: 'Brannoch', ownerId: '', npc: true, values: {} }, o.tick ? { rollsHid: true } : {}, o.fig ? { hideFig: true } : {}), c_p: { id: 'c_p', name: 'Pebbles', ownerId: 'u_a', npc: true, rollsHid: true, values: {} } },
+            items: { m1: { type: 'map', whiteboard: [{ id: 't_a', charId: 'c_a', ownerId: 'u_a', isChar: true, x: 0, y: 0 }, { id: 't_n', charId: 'c_n', isChar: true, x: 100, y: 0 }, { id: 't_p', charId: 'c_p', ownerId: 'u_a', isChar: true, x: 150, y: 0 }] } } };
+        const conn = p => ({ peer: p, open: true, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cA = conn('pA'), cB = conn('pB');
+        const net = { role: 'host', active: true, stream: false, paused: false, conns: [cA, cB], roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {}, postDue: (ch, act, kind, round, toOwner, more) => out.dues.push({ ch: ch.id, act: act.id, att: more && more.att }) };
+        const rng = t => t ? { mod: 0, dist: 2, tid: t, mapId: 'm1' } : null;
+        const win = { wpFormula: Fx, wpStepLog: (k, s, d) => out.steps.push([k, s, d]), wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'pushRoll', 'pushChat', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save', 'fogDrop', 'applyLine', 'chatLog', 'renderChat',
+            'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\n' + helpers + nsSrc + '\n' + stSrc + hfSrc + '\n' + hrSrc + (o.judge ? '\nrollsHidOf = function(ch) { return !!ch && ch.id === ' + JSON.stringify(o.judge) + '; };\n' : '') + '\n' + paSrc + '\n' + pcSrc + '\n' + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, hist: chatHistoryOf, seen: historySeen, forget: revealForget, hid: rollsHidOf };')(
+            net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, (rec, res, scope) => { out.log.push({ from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res }); }, m => { out.chat.push(m); out.log.push(m); }, () => {}, () => {},
+            (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, () => {}, () => null, () => '', out.log, () => {});
+        const roll = (cn, charId, extra, expr, dice) => { dq = dice.slice(); W.rq(Object.assign({ type: 'roll-req', rid: 'q' + Math.random().toString(36).slice(2, 7), charId: charId, expr: expr }, extra), cn); };
+        const gm = (expr, op, dice) => { dq = dice.slice(); return W.dr(expr, op); };
+        const rolls = p => out.sent[p].filter(m => m.type === 'roll'), lastRoll = p => { const r = rolls(p); return r[r.length - 1]; }, whole = () => { const r = out.log.filter(m => m.roll); return r[r.length - 1].roll; };
+        return { W, net, camp, out, aim, cA, cB, roll, gm, rolls, lastRoll, whole };
+    };
+    const DROP = ['priv', 'to', 'rid', 'ans', 'landed', 'thru', 'hit', 'dmgUsed', 'dmgWait', 'pend', 'offers', 'pts', 'onName'];
+    const replays = m => { const c = Dx.cleanRoll(m), r = c ? Dx.replay(c, Fx0, Fx0.VERSION) : null; return !!r && r.ok && c.rev === 1; };
+
+    // the GM's own word, a roll made as an NPC the players can see
+    const A = mk(); const rA = A.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', label: 'Peek', hide: true }, [2, 3, 4]), gA = A.whole();
+    check('1.6.3 Hide my rolls, the GM\'s word on the press: the roll is the GM\'s alone, sent to nobody, kept whole on the GM\'s card, and the host says its card may be shown to the table',
+        rA.ok === true && rA.priv === true && gA.priv === 'gm' && A.rolls('pA').length === 0 && A.rolls('pB').length === 0 && A.net.revealOk(gA.id) === true && A.out.toasts.length === 0, j([rA, gA, A.out.toasts]));
+    A.net.roster.pB.location = 'm_other';
+    const okA = A.net.revealRoll(gA.id), sA = A.lastRoll('pA'), nB = A.rolls('pB').length, again = A.net.revealRoll(gA.id);
+    check('1.6.3 Show to the table: the roll goes to the table once, as it was rolled, with no mark of its privacy and the small mark rev, passing a player\'s cleaner and replaying there; a card made as an NPC still reaches only a player who can see it; a second press sends nothing',
+        okA === true && again === false && !!sA && sA.id === gA.id && sA.rev === 1 && DROP.every(k => !(k in sA)) && sA.expr === '3d6 <= 13' && j(sA.draws) === j([2, 3, 4]) && sA.as === 'Brannoch' && replays(sA) && nB === 0 && A.net.revealOk(gA.id) === false && gA.rev === 1 && gA.priv === 'gm', j([sA, nB]));
+    const hA = A.W.seen(A.W.hist(A.out.log), A.net.roster.pA).filter(m => m.roll), hB = A.W.seen(A.W.hist(A.out.log), A.net.roster.pB).filter(m => m.roll);
+    check('1.6.3 Show to the table: a latecomer\'s history holds the shown roll as the table\'s copy, global and marked rev, never the GM\'s whole record; and one who cannot see the NPC still gets none of it',
+        hA.length === 1 && hA[0].scope === 'global' && hA[0].roll.rev === 1 && !('priv' in hA[0].roll) && !!Dx.cleanRoll(hA[0].roll) && hB.length === 0, j([hA, hB]));
+
+    // a secret reason overrules the choice
+    const B = mk(); B.gm('3d6 <= Secret', { charId: 'c_n', hide: true }, [2, 3, 4]); const gB = B.whole();
+    B.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', priv: true }, [2, 3, 4]); const gB2 = B.whole();
+    B.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', hide: true, gmOnly: true }, [2, 3, 4]); const gB3 = B.whole();
+    check('1.6.3 a roll kept private for a reason of its own offers no Show to the table, whatever the GM chose: one that reads a GM-only value (and the GM is told why), one a caller keeps private (a hidden creature\'s initiative), one made of GM-only data; and nothing is sent',
+        gB.priv === 'gm' && B.net.revealOk(gB.id) === false && B.out.toasts.some(t => /GM-only value \(Secret\)/.test(t)) && gB2.priv === 'gm' && B.net.revealOk(gB2.id) === false && gB3.priv === 'gm' && B.net.revealOk(gB3.id) === false
+        && B.net.revealRoll(gB.id) === false && B.rolls('pA').length === 0 && B.rolls('pB').length === 0, j([gB, gB2, gB3, B.out.toasts]));
+
+    // the NPC's tick
+    const C = mk({ tick: true }); C.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', label: 'Peek' }, [2, 3, 4]); const gC = C.whole(); C.gm('3d6 <= 13', { charId: 'c_a', act: 'r_pk', label: 'Peek' }, [2, 3, 4]); const gC2 = C.whole();
+    const D0 = mk(); D0.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', label: 'Peek' }, [2, 3, 4]); const gD0 = D0.whole();
+    check('1.6.3 Hide rolls on an NPC: every roll the GM makes as it is private and may be shown later, with no word on the press; a roll as anyone else, and as that NPC with no tick, goes to the table as ever',
+        gC.priv === 'gm' && C.net.revealOk(gC.id) === true && C.rolls('pA').length === 1 && gC2.priv === undefined && C.lastRoll('pA').as === 'Kael' && gD0.priv === undefined && D0.rolls('pA').length === 1 && D0.net.revealOk(gD0.id) === false, j([gC, gC2, gD0]));
+    const E = mk({ pcTick: true }); E.gm('3d6 <= 13', { charId: 'c_a', act: 'r_pk' }, [2, 3, 4]); const gE = E.whole();
+    check('1.6.3 Hide rolls counts on an NPC alone (rollsHidOf): a tick left on a player\'s character hides nothing; an NPC a player owns counts as an NPC, as Hide figures does',
+        gE.priv === undefined && E.rolls('pB').length === 1 && E.W.hid({ npc: false, ownerId: 'u_a', rollsHid: true }) === false && E.W.hid({ npc: true, ownerId: 'u_a', rollsHid: true }) === true && E.W.hid({ ownerId: '', rollsHid: true }) === true && E.W.hid({ npc: true, rollsHid: 'yes' }) === false && E.W.hid(null) === false, j(gE));
+
+    // a player's roll as a sheet whose rolls are hidden (roll-req, run for real). A player rolls as an NPC only through a crew press, so the one judge
+    // stands in here for the tick on the sheet they press as; the branch, its sends and its notes are the real ones
+    const F1 = mk({ judge: 'c_a' }); F1.roll(F1.cA, 'c_a', { act: 'r_pk', label: 'Peek' }, '3d6 <= 12', [2, 3, 4]); const pF = F1.lastRoll('pA'), gF = F1.whole();
+    check('1.6.3 Hide rolls on an NPC, whoever presses it: a player\'s own roll as it reaches the GM alone, its roller gets their own copy marked private, the table nothing, and the GM may show it later',
+        !!pF && pF.priv === 'gm' && F1.rolls('pB').length === 0 && gF.priv === 'gm' && F1.net.revealOk(gF.id) === true, j([pF, gF]));
+    F1.net.revealRoll(gF.id); const sF = F1.lastRoll('pB');
+    check('1.6.3 Show to the table, a player\'s roll the tick hid: the other player now gets it, as the table\'s copy, with no request id and no mark of privacy', !!sF && sF.id === gF.id && sF.rev === 1 && !('rid' in sF) && !('priv' in sF) && replays(sF), j(sF));
+    const F2 = mk({ judge: 'c_a' }); F2.roll(F2.cA, 'c_a', { act: 'r_pk', priv: 'gm' }, '3d6 <= 12', [2, 3, 4]); const gF2 = F2.whole();
+    check('1.6.3 a player\'s own To the GM only stays as it is: never shown to the table by the GM, the NPC\'s tick or no', gF2.priv === 'gm' && F2.net.revealOk(gF2.id) === false, j(gF2));
+
+    // a figure the host hides from the table stays hidden in the shown copy
+    const G = mk({ fig: true }); G.aim.gm = 't_a'; G.gm('3d6 <= 13', { charId: 'c_n', act: 'r_st', label: 'Strike', hide: true }, [2, 3, 4]); const gG = G.whole();
+    const okG = G.net.revealRoll(gG.id), sG = G.lastRoll('pA');
+    check('1.6.3 Show to the table keeps a hidden figure hidden: an NPC\'s attack whose figure Hide figures keeps off the table goes as its masked copy, the dice and the host\'s word, marked rev, while the GM\'s card keeps it whole',
+        okG === true && !!sG && sG.hid === 'pass' && sG.expr === '3d6' && sG.rev === 1 && !('priv' in sG) && gG.expr === '3d6 <= 13' && gG.hid === undefined && replays(sG), j([sG, gG]));
+
+    // nobody at the table, the session's end, the wire
+    const H = mk(); H.net.active = false; H.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', hide: true }, [2, 3, 4]); const gH = H.whole();
+    const I = mk(); I.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', hide: true }, [2, 3, 4]); const gI = I.whole(); I.W.forget();
+    check('1.6.3 nobody at the table: a hidden roll is private and nothing offers to show it (the secret checks run only at a table); a table that ends lets its notes go',
+        gH.priv === 'gm' && H.net.revealOk(gH.id) === false && I.net.revealOk(gI.id) === false && I.net.revealRoll(gI.id) === false, j([gH, gI]));
+    const sentC = []; const netC = { active: true, role: 'client', foreign: true, syncedPeer: 'h', stream: false, conns: [{ open: true, send(m) { sentC.push(m); } }] };
+    const drC = new Function('net', 'DC', 'window', 'getActiveCampaign', 'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\nfunction rollLookOwn() { return null; }\n' + drSrc.replace(/function rollLookOwn\(\)[^\n]*\n/, '') + '\nreturn { dr: net.diceRoll, clear: function() { if (_dicePending) clearTimeout(_dicePending.timer); } };')(netC, () => Dx, { wpFormula: Fx0, wpVtt: { on: () => true } }, () => null);
+    const rC = drC.dr('1d20', { hide: true }); drC.clear();
+    check('1.6.3 on a player\'s app hide is their own To the GM only: the request asks the host to keep it private, and names nothing else of it', rC.ok === true && sentC.length === 1 && sentC[0].priv === 'gm' && !('hide' in sentC[0]), j(sentC));
+    check('1.6.3 the wiring: a table that ends lets the notes go (diceSessionReset), /gmroll is the GM\'s choice, a latecomer\'s history reads a shown roll\'s table copy, and the host never writes rollsHid onto anything it sends',
+        src4.includes("    if (typeof revealForget === 'function') revealForget();") && src4.includes("window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll', source: 'chat' })") && src4.includes("var wr = m.shown || m.roll || m.apply;") && !/\.rollsHid\s*=[^=]/.test(src4)
+        && A.out.steps.some(s => s[0] === 'hiderolls v1' && s[1] === 'shown'));
+})());
+
 T.finish();

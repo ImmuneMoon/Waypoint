@@ -426,6 +426,7 @@ function cleanRoll(rec) {
     if (rec.names !== undefined) { var nm = cleanNames(rec.names); if (!nm) return null; if (nm.length) out.names = nm; }
     if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; if (rec.malfHid === 1) out.malfHid = 1; }   // malfHid (1.6.0): the figure is the roll's own, standing in for a Malf that reads a GM-only stat, so a card names none
     if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = crc.high ? [crc.at, crc.fumble, 1] : [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
+    if (rec.rev === 1) out.rev = 1;   // 1.6.3: a roll the GM hid and then showed to the table, only as 1
     if (rec.hid === 'gm') out.hid = 'gm';   // HR1: a roll that went straight to the GM: its roller's copy holds no figure
     if (rec.hid === 'pass' || rec.hid === 'fail' || rec.hid === 'rolled') { out.hid = rec.hid; if ((rec.hidc === 'crit' || rec.hidc === 'fumble') && rec.hid !== 'rolled') out.hidc = rec.hidc; }   // 1.6.2: the host's own word for a roll whose figure is hidden (hidRoll): only these words
     if (typeof rec.card === 'string' && rec.card.trim()) out.card = rec.card.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80);   // 1.6.2: the card a roll drew as its die, text alone

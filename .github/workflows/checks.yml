@@ -48,6 +48,9 @@ jobs:
       - name: systemcheck — character system + sheet model
         if: ${{ !cancelled() }}
         run: node tools/systemcheck.js
+      - name: corecheck  the core's cleaners and validator, read from cleancore.js and validcore.js by name, with the core's first tests
+        if: ${{ !cancelled() }}
+        run: node tools/corecheck.js
       - name: damagecheck — the damage step and a burst, read from damagecore.js by name
         if: ${{ !cancelled() }}
         run: node tools/damagecheck.js

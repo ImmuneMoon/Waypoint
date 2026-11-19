@@ -123,6 +123,12 @@ jobs:
       - name: tradecheck — trade and money, read from tradecore.js, moneycore.js and nettrade.js by name
         if: ${{ !cancelled() }}
         run: node tools/tradecheck.js
+      - name: sysedcheck — the System editor's Layout tab, boxes, Save and tabs, read from its parts of sheets.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/sysedcheck.js
+      - name: sysedlistcheck — the System editor's Rolls, Lists, Combat and Calendar boxes, read from its parts of sheets.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/sysedlistcheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

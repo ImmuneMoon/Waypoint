@@ -1,7 +1,8 @@
 'use strict';
 /* needcheck.js: what a player may see and take: derived GM-only values and GM-only pools (1.5.0), the system's senses and the fields a
    player cannot read truthfully (S1), what a token shows (conditions C1), a redraw keeping the sheet's place, point budgets (126),
-   prerequisites ticked, by level and as a rule, their words and the mark (126b), and a GM-only stat (24b).
+   prerequisites ticked, by level and as a rule, their words and the mark (126b), and a GM-only stat (24b). S1 and C1 move on to
+   sensecheck.js and the redraw guard to hudcheck.js at step 3, the features they serve (the plan's firm item from the review of step 2).
    These are the tests that came out of systemcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, "Finishing the test split",
    step 2, 2026-11-19). Their code is systemcore.js's own lines and the parts and slices each block reads by name, so the suite
    imports systemcore.js as systemcheck.js does (kit.sysCore, the top every suite out of it starts from). Each block is as it stood

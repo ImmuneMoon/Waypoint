@@ -3,7 +3,8 @@
    a roll's consequences and Set to (R1), a system roll's needs and the reasons they give (fold 2, m410 and its review, needsWhy), a
    list's counters (R2a, R2b), a roll's Malf (R3), a Then on a critical success or failure, a list switch's needs, a removed row's
    Undo, a group roll by its weakest member, a damage roll's type, a change on one entry of a list and an entry's What it opens; the
-   sheet's own look (doc theming) stood at the head of these blocks and came with them, as the plan's ranges have it.
+   sheet's own look (doc theming) stood at the head of these blocks and came with them, as the plan's ranges have it; step 3 moves it on to
+   sheetlookcheck.js, the feature it serves (the plan's firm item from the review of step 2).
    These are the tests that came out of systemcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, "Finishing the test split",
    step 2, 2026-11-19). Their code is systemcore.js's own lines and the parts and slices each block reads by name, so the suite
    imports systemcore.js as systemcheck.js does (kit.sysCore, the top every suite out of it starts from). Each block is as it stood

@@ -186,6 +186,18 @@ jobs:
       - name: netfightcheck — the fights on the host, read from netfight.js by name
         if: ${{ !cancelled() }}
         run: node tools/netfightcheck.js
+      - name: netjoincheck — who comes to a table, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netjoincheck.js
+      - name: nettransportcheck — the transport under the wire's gates, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/nettransportcheck.js
+      - name: netmediacheck — light, the clock and video on the wire, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netmediacheck.js
+      - name: netsessioncheck — what a session keeps in step at a table, out of netcheck
+        if: ${{ !cancelled() }}
+        run: node tools/netsessioncheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

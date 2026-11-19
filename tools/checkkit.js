@@ -39,6 +39,8 @@
      both in the part) and lineOf(k). A call that names a part's file reads that part; one that names none reads the joined net.js.
    - netHarness(who): the harness pieces netcheck keeps at its top (helpersSrc, storage, H, ownKeySrc, siSrc, fightIn, mkConn), made once a
      run, which netcheck and the suites that came out of it with area 9 share.
+   - netGate(who): the admission gate's harness netcheck kept at its top (the gate's and its neighbours' slices, hmacRef, the fingerprints,
+     runGate and the other slices made functions, harness(opts)), made once a run, which netjoincheck and nettransportcheck share.
    - packCheck(v): PeerJS's BinaryPack refusals, which netcheck runs on every send of a harness (moved here from netcheck).
    - url(name): a file URL of a script, for import(). fresh(root, tag): the file URLs of a private copy of a split root and its
      parts, by name, so that an import runs the real split wiring (a part as a module of its own). APP and SCRIPTS: the app's folders.
@@ -66,7 +68,11 @@ function suite(style) {
         : (name, ok, detail) => { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + String(detail).slice(0, 300) : ''); } };
     // Waits for every pending check, then prints the summary line both giants print and exits 1 on a failure.
     async function finish() {
-        await Promise.all(pending);
+        // A pending check may push another while it runs (netsessioncheck's Journal block pushes one from inside the cluster F block): wait
+        // again until no new one was added, so that a check landing late is counted before the summary and a failure there still exits 1
+        // (found at step 4 of "Finishing the test split", 2026-11-19: in netcheck it landed before the summary only because other work was slower)
+        let seen = -1;
+        while (seen !== pending.length) { seen = pending.length; await Promise.all(pending); }
         summed = true;
         console.log('\n' + pass + ' passed, ' + fail + ' failed.');
         if (fail) process.exit(1);
@@ -186,7 +192,8 @@ function netSlices(who) {
     const fnSrc = (start, end, label, file) => { const t = textOf(file), i = t.indexOf(start), k = t.indexOf(end, i + 1); if (i < 0 || k < 0) throw new Error(who + ': ' + label + ' not found in ' + where(file)); return t.slice(i, k); };
     // The text from a up to (not including) b, both found in the part named: src.slice(src.indexOf(a), src.indexOf(b)) on the part.
     const range = (file, a, b) => { const t = textOf(file), i = t.indexOf(a), k = t.indexOf(b); if (i < 0 || k < 0 || k < i) throw new Error(who + ': ' + a + ' to ' + b + ' not found in ' + where(file)); return t.slice(i, k); };
-    const lineOf = (k, file) => { const t = textOf(file), i = t.indexOf(k); return i < 0 ? '' : t.slice(i, t.indexOf('\n', i)); };
+    // only a string names a part, as netcheck's own lineOf read it: a lineOf handed to map() is given each index as its second argument
+    const lineOf = (k, file) => { const t = textOf(typeof file === 'string' ? file : undefined), i = t.indexOf(k); return i < 0 ? '' : t.slice(i, t.indexOf('\n', i)); };
     return { src, between, tryBetween, fnSrc, range, lineOf };
 }
 
@@ -214,6 +221,97 @@ function netHarness(who) {
     const mkConn = (peer, open) => ({ peer, open: open !== false, sent: [], send(m) { this.sent.push(m); } });
     netH = { helpersSrc, storage, H, ownKeySrc, siSrc, fightIn, mkConn };
     return netH;
+}
+
+// The admission gate's harness that netcheck kept at its top, which netjoincheck and nettransportcheck share (docs/REFACTOR_SPLIT_PLAN.md,
+// "Finishing the test split", step 4, 2026-11-19), made once a run and handed to each the same: the slices of the gate, the join queue,
+// broadcast, chat, the roster, its cleaner and the away map (gateSrc to awaySrc), the suite's own HMAC (hmacRef), the helpers built over
+// netHarness's storage (HS, RC, HT), the names a slice is given (ENV_NAMES, pre), the two certificate fingerprints a harness connection
+// carries (FPP, FPH, FPTAIL, pcStub), each slice made a function (runGate to runAway), and harness(opts), a fresh host per scenario. Each is
+// the very code netcheck held, word for word, so a block moved out of it runs as it ran there; tryBetween is netSlices' own, which is the
+// same one-liner netcheck had beside them.
+let netG = null;
+function netGate(who) {
+    if (netG) return netG;
+    who = who || 'netcheck';
+    const { between } = netSlices(who);
+    const { helpersSrc, storage, H } = netHarness(who);
+    const gateSrc = between('// [netcheck:gate-start]', '// [netcheck:gate-end]', 'gate') + '\n}';   // the slice ends inside the client auth branch: close it
+    const queueSrc = between('// [netcheck:queue-start]', '// [netcheck:queue-end]', 'queue');
+    const broadcastSrc = between('// [netcheck:broadcast-start]', '// [netcheck:broadcast-end]', 'broadcast', 'netfog.js');
+    const chatSrc = between('// [netcheck:chat-start]', '// [netcheck:chat-end]', 'chat');
+    const rosterSrc = between('// [netcheck:roster-start]', '// [netcheck:roster-end]', 'roster');
+    const rosterCleanSrc = between('// [netcheck:rosterclean-start]', '// [netcheck:rosterclean-end]', 'rosterclean');
+    const awaySrc = between('// [netcheck:away-start]', '// [netcheck:away-end]', 'away');
+
+    /* ---- the sliced code, built once ---- */
+    const hmacRef = (key, data) => require('crypto').createHmac('sha256', key).update(data).digest('hex');   // the suite's own HMAC: the app's proof is checked against it, never against itself
+    const HS = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { validCn: typeof validCn === "function" ? validCn : null };')(storage, globalThis.crypto);   // security S: the nonce rule the hello gate reads
+    const RC = new Function('localStorage', 'crypto', helpersSrc + '\n' + rosterCleanSrc + '\nreturn { cleanHostRoster, cleanHostAway, validKey };')(storage, globalThis.crypto);
+
+    const ENV_NAMES = ['net', 'own', 'validProfileId', 'cleanFace', '_connMeta', 'UNADMITTED_TTL', 'noteSeen', 'denyJoin', 'lastSeen', 'HB_STALE', 'bannedIds', 'getActiveCampaign', 'APP_VERSION', 'versionCmp', 'updateMessage', 'toast', 'logEvent', 'newerSeen', 'ui', '_pwFails', 'PW_LOCK_FAILS', 'PW_LOCK_MS', 'admitPlayer', 'queueJoin', 'setTimeout', 'clearTimeout', 'tableKeyFor', 'getProfile', 'showConfirm', 'pendingJoins', 'processNextApproval', 'allow', 'pushChat', 'broadcast', 'safeAvatar', 'cleanRosterName', 'awayMap', 'validKey', 'sendFailed', 'newKey', 'hmacHex', 'authData', 'sameStr', 'validCn', 'gmPresign'];
+    // the env supplies every name a slice references — except the function the slice itself DEFINES (a var of the same name would overwrite the hoisted declaration)
+    const pre = (except) => 'var ' + ENV_NAMES.filter(n => except.indexOf(n) < 0).map(n => n + ' = env.' + n).join(', ') + ';\n';
+    // transport T (2026-10-01): the proof names the two certificate fingerprints of the connection it travels on (the player's, then the host's). Every harness
+    // connection carries a stub RTCPeerConnection whose two descriptions hold one each — a host's connection the host's as its own and the player's as the
+    // other side's, a player's the reverse — and the suite's reference proofs name the same pair (FPTAIL)
+    const HT = new Function('localStorage', 'crypto', helpersSrc + '\nreturn { dtlsPrint: typeof dtlsPrint === "function" ? dtlsPrint : null, chanPrints: typeof chanPrints === "function" ? chanPrints : null, saidPrints: typeof saidPrints === "function" ? saidPrints : null };')(storage, globalThis.crypto);
+    const FPP = 'sha-256 0A:1B:2C:3D', FPH = 'sha-256 4E:5F:60:71', FPTAIL = '|' + FPP + '|' + FPH;
+    const pcStub = (mine, theirs) => { const d = f => ({ type: 'x', sdp: 'v=0\r\ns=-\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=fingerprint:' + f + '\r\n' }); return { localDescription: d(mine), remoteDescription: d(theirs) }; };
+    ENV_NAMES.push('chanPrints', 'saidPrints');
+    ENV_NAMES.push('gmHail', 'unboundNotice');   // H2 (2026-10-01): the host's early proof (none in a plain harness, as its snapshot is unsigned) and the GM's notice of a right key over another connection (recorded: h.unbound)
+    const runGate = new Function('env', 'msg', 'conn', pre([]) + gateSrc + '\nreturn "ran";');
+    const runQueue = new Function('env', 'conn', 'prof', 'why', pre(['queueJoin']) + queueSrc + '\nreturn queueJoin(conn, prof, why);');
+    const runBroadcast = new Function('env', 'msg', 'exceptConn', pre(['broadcast']) + broadcastSrc + '\nreturn broadcast(msg, exceptConn);');
+    const runChat = new Function('env', 'msg', 'conn', pre([]) + chatSrc + '\nreturn "ran";');
+    const runRoster = new Function('env', pre([]) + rosterSrc + '\nreturn { rosterPayload, broadcastRoster };');
+    const runAway = new Function('env', pre(['awayMap']) + awaySrc + '\nreturn awayMap();');
+
+    /* ---- a fresh host harness per scenario ---- */
+    function versionCmp(a, b) { const pa = String(a).split('-')[0].split('.').map(Number), pb = String(b).split('-')[0].split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (pa[i] || 0) - (pb[i] || 0); if (d) return d; } return 0; }
+    function harness(opts) {
+        opts = opts || {};
+        const h = {
+            sent: [], admitted: [], closed: [], toasts: [], confirms: [], timers: [], pushed: [], bcast: [], seen: [], pending: [], unbound: [],
+            camp: { id: 'c1', players: opts.players || {}, bannedPlayers: opts.bannedPlayers || {} },
+        };
+        const env = {
+            net: { role: opts.role || 'host', myId: 'u_gm', conns: [], roster: Object.create(null), gmId: '', roomPeer: opts.roomPeer || 'waypoint-c1', syncedPeer: null },
+            own: H.own, validProfileId: H.validProfileId, tableKeyFor: H.tableKeyFor, newKey: H.newKey,
+            authData: H.authData || ((n, r) => 'wp-auth|' + n + '|' + r), sameStr: H.sameStr || ((a, b) => a === b),
+            hmacHex: (k, d) => { const p = (H.hmacHex || ((k2, d2) => Promise.resolve(hmacRef(k2, d2))))(k, d); h.pending.push(p); return p; },   // the proof's HMAC, its promise kept so a check can wait for the gate's asynchronous half
+            _connMeta: Object.create(null), UNADMITTED_TTL: 10 * 60 * 1000, HB_STALE: 8000, lastSeen: {},
+            noteSeen: p => h.seen.push(p),
+            denyJoin: (conn, reason) => { conn.send({ type: 'denied', reason }); conn.close(); },
+            bannedIds: {}, newerSeen: {}, _pwFails: Object.create(null), PW_LOCK_FAILS: 5, PW_LOCK_MS: 60000, pendingJoins: [],
+            getActiveCampaign: () => h.camp, APP_VERSION: '1.5.0', versionCmp, updateMessage: () => 'update',
+            toast: m => h.toasts.push(String(m)), logEvent: () => {}, showConfirm: m => h.confirms.push(m),
+            ui: () => ({ value: opts.password || '' }),
+            admitPlayer: (conn, prof, key) => { h.admitted.push({ peer: conn.peer, prof, key }); env.net.roster[conn.peer] = prof; },
+            processNextApproval: () => {},
+            getProfile: () => ({ id: 'u_me', name: 'Me' }),
+            setTimeout: (fn, ms) => { const id = h.timers.length + 1; h.timers.push({ id, fn, ms }); return id; },
+            clearTimeout: id => { h.timers = h.timers.filter(t => t.id !== id); },
+            allow: () => true,
+            pushChat: m => h.pushed.push(m),
+            broadcast: (m, ex) => { packCheck(m); h.bcast.push({ m, ex }); },
+            safeAvatar: H.safeAvatar, cleanRosterName: H.cleanRosterName, cleanFace: H.cleanFace, awayMap: () => ({ u_a: 'map_1' }), validKey: RC.validKey, sendFailed: () => {},
+            gmHail: () => null, unboundNotice: p => { h.unbound.push(p && p.id); },
+            validCn: HS.validCn || (() => false), gmPresign: () => null,   // security S: no signing key in a plain harness (a snapshot goes unsigned, as to an older app); the S checks give a host its real one
+        };
+        env.queueJoin = (conn, prof, why) => runQueue(env, conn, prof, why);
+        env.chanPrints = HT.chanPrints || (() => null); env.saidPrints = HT.saidPrints || (() => null);   // transport T: the gate reads a connection's two fingerprints through the real helpers
+        h.env = env;
+        h.conn = (peer, pc) => { const c = { peer, open: true, send: m => { packCheck(m); h.sent.push({ peer, m }); }, close: () => { c.open = false; h.closed.push(peer); } }; if (pc !== null) c.peerConnection = pc || (env.net.role === 'client' ? pcStub(FPP, FPH) : pcStub(FPH, FPP)); env.net.conns.push(c); env._connMeta[peer] = { openedAt: Date.now(), hellos: 0 }; return c; };
+        h.hello = (conn, profile, extra) => runGate(env, Object.assign({ type: 'hello', profile, version: '1.5.0' }, extra || {}), conn);
+        h.fireTimers = () => { const t = h.timers.splice(0); t.forEach(x => x.fn()); return t.length; };
+        h.lastSent = (peer, type) => h.sent.filter(s => s.peer === peer && s.m.type === type).pop();
+        h.settle = async () => { while (h.pending.length) { const ps = h.pending.splice(0); await Promise.all(ps); } await new Promise(r => setImmediate(r)); };   // every proof check the gate started has landed
+        return h;
+    }
+    netG = { gateSrc, queueSrc, broadcastSrc, chatSrc, rosterSrc, rosterCleanSrc, awaySrc, hmacRef, HS, RC, ENV_NAMES, pre, HT, FPP, FPH, FPTAIL, pcStub,
+        runGate, runQueue, runBroadcast, runChat, runRoster, runAway, versionCmp, harness };
+    return netG;
 }
 
 // PeerJS 1.5.2's default serializer is BinaryPack (inside the bundled library file, assets/vendor/peerjs.min.js, which the suites do not load): its pack() reads value.constructor for every
@@ -273,4 +371,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, packCheck, url, fresh, sysCore, starterFile, flatKids, presets, sevenList, ownLines, css0911, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, netGate, packCheck, url, fresh, sysCore, starterFile, flatKids, presets, sevenList, ownLines, css0911, APP, SCRIPTS, lf };

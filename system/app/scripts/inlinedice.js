@@ -76,7 +76,7 @@ function press(btn) {
     var D = window.wpDice || (window.opener && !window.opener.closed && window.opener.wpDice) || null;
     if (!D || typeof D.roll !== 'function') { toast('Dice are not available here.'); return; }
     var pv = document.getElementById('dicePriv') || (window.opener && window.opener.document && window.opener.document.getElementById('dicePriv'));
-    var r = D.roll(expr, { hide: !!(pv && pv.checked), label: labelOf(btn), source: 'text' });   // 1.6.3: the box is a choice (on the GM's machine it is Hide my rolls, which roll() reads too)
+    var r = D.roll(expr, { hide: !!(pv && pv.checked), label: labelOf(btn), source: 'text' });   // 1.6.3: the box is a choice (on the GM's machine it is Hide my rolls, which net.diceRoll reads itself)
     if (r && r.error) toast(r.error);
 }
 if (typeof document !== 'undefined' && typeof window !== 'undefined' && !window.wpStream) {

@@ -451,12 +451,14 @@ function syncRoleLabels() {
 }
 // [dicecheck:hiderolls-start]
 // 1.6.3 (Fulllion, 2026-11-19: "we should have a way for the GM to easily hide or unhide rolls"; his pick by prompt: "One switch, plus per NPC"). Hide my
-// rolls is the GM's one switch, the eye button at the top of Table Chat: while it is on, every roll the GM makes is private, whatever made it (the roller's
-// typed rolls and Coin, every sheet and HUD roll, the ± window, a page's inline dice, a card the GM presses, initiative), since every one of them comes
-// through roll() below, which sends it with hide. It is ONE state with the roller's Private box on the GM's machine, so the two can never disagree: the box
-// shows the switch, and ticking the box sets the switch. On a player's app the box is To the GM only and the switch is not there. The switch is this
-// computer's own and each campaign's (wp_hideRolls: { campaign id: true }, read back as data through hideClean, the newest HIDE_MAX), never sent: the host
-// reads the press's own word, and a roll the host keeps private for a reason of its own stays so whatever it says
+// rolls is the GM's one switch, the eye button at the top of Table Chat: while it is on, every roll the GM's machine makes is private, whatever made it (the
+// roller's typed rolls and Coin, every sheet and HUD roll, the ± window, a page's inline dice, a card the GM presses, initiative and a side's initiative, a
+// thing in flight arriving). net.js net.diceRoll reads the switch itself through hidden() below (the review of 2026-11-19, finding 2), since some of those
+// rolls never pass through roll(). Two kinds of roll are left out of it (finding 3): one made as a player's character, which is that player's to see, and
+// one that follows a player's own press (a line's damage). It is ONE state with the roller's Private box on the GM's machine, so the two can never
+// disagree: the box shows the switch, and ticking the box sets the switch. On a player's app the box is To the GM only and the switch is not there. The
+// switch is this computer's own and each campaign's (wp_hideRolls: { campaign id: true }, read back as data through hideClean, the newest HIDE_MAX), never
+// sent: the host reads it on its own machine, and a roll the host keeps private for a reason of its own stays so whatever it says
 var HIDE_KEY = 'wp_hideRolls', HIDE_MAX = 200, HIDE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 function hideClean(raw) {
     var out = {}; if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
@@ -481,16 +483,24 @@ function setHidden(on) {
 // changed, so main.js render() may ask it at every redraw. A player's app shows no switch and no mark, and a box this machine ticked as the GM is
 // unticked once it sits at someone else's table, so that it never sends their rolls to the GM by the GM's own setting
 var _hidePrivGm = false;
+// A tooltip that changes while the page runs is kept in data-tip, which tooltips.js shows, and written only when its words change (the review of
+// 2026-11-19, finding 6): tooltips.js moves a title into data-tip at the first hover, so comparing with title wrote it again at every redraw, and a
+// browser's own bubble could show beside the app's. A page with no dataset (a suite's plain objects) keeps a title
+function hideTip(el, words) {
+    if (!el) return;
+    if (el.dataset) { if (el.dataset.tip === words) return; el.dataset.tip = words; if (typeof el.removeAttribute === 'function') el.removeAttribute('title'); return; }
+    if (el.title !== words) el.title = words;
+}
 function hideSync() {
     var on = hidden(), gmSide = !isClient(), b = ui('chatHideRolls'), mk = ui('chatHideMark'), cb = ui('chatBtn'), pv = ui('dicePriv');
     if (b) {
         var disp = gmSide && !window.wpStream ? '' : 'none'; if (b.style.display !== disp) b.style.display = disp;
         if (b.classList.contains('on') !== on) b.classList.toggle('on', on);
         var pr = on ? 'true' : 'false'; if (b.getAttribute('aria-pressed') !== pr) b.setAttribute('aria-pressed', pr);
-        var tt = on ? 'Your rolls are hidden: only you see them. Press to roll for the table again' : 'Hide my rolls: every roll you make stays private until you press this again'; if (b.title !== tt) b.title = tt;
+        hideTip(b, on ? 'Your rolls are hidden: only you see them. Press to roll for the table again' : 'Hide my rolls: every roll you make stays private until you press this again. A roll made as a player’s character still goes to the table');
     }
     if (mk) { var md = on ? '' : 'none'; if (mk.style.display !== md) mk.style.display = md; }
-    if (cb) { var ct = on ? 'Table chat. Your rolls are hidden' : 'Table chat'; if (cb.title !== ct) cb.title = ct; }
+    if (cb) hideTip(cb, on ? 'Table chat. Your rolls are hidden' : 'Table chat');
     if (pv) { if (gmSide) { if (pv.checked !== on) pv.checked = on; _hidePrivGm = true; } else if (_hidePrivGm) { pv.checked = false; _hidePrivGm = false; } }
 }
 // [dicecheck:hiderolls-end]
@@ -616,8 +626,10 @@ function openPanel() {
 }
 function closePanel() { var p = ui('dicePanel'); if (p) p.style.display = 'none'; }
 function remember(expr) { var i = history.indexOf(expr); if (i >= 0) history.splice(i, 1); history.unshift(expr); if (history.length > LIMITS.history) history.length = LIMITS.history; histAt = -1; }
-// roll(expr, { priv, hide }) — the one entry point for the roller, the chat commands and the console's /table. hide (1.6.3): hidden by choice, the GM's
-// own word or Hide my rolls (the host may show such a roll to the table later), on a player's app their To the GM only; priv: kept private for a reason
+// roll(expr, { priv, hide }) — the one entry point for the roller, the chat commands and the console's /table. hide (1.6.3): hidden by choice, which the
+// host may show to the table later. On a player's app it is their To the GM only. On the GM's machine it is /gmroll's word alone (source 'chat'): the
+// roller's Private box, Coin and a page's inline dice send their box, and that box IS Hide my rolls, which net.diceRoll reads itself, leaving out a roll
+// made as a player's character (the review of 2026-11-19, findings 2 and 3). priv: kept private for a reason
 function roll(expr, opts) {
     opts = opts || {};
     var more = typeof _rollMore !== 'undefined' ? _rollMore : null; if (more) _rollMore = null;   // taken at once: a roll refused below leaves nothing for the next (asked through typeof: a suite runs roll alone)
@@ -625,7 +637,7 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr.toLocaleString('en-US') + ' characters).' };
-    var r = n.diceRoll(clean, { hide: opts.hide === true || (typeof hidden === 'function' && hidden()) ? true : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
+    var r = n.diceRoll(clean, { hide: opts.hide === true && (isClient() || opts.source === 'chat') ? true : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
     if (!r.error && !opts.row && !opts.coin) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
 }

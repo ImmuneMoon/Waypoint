@@ -1743,7 +1743,10 @@ function hideFigPress() {
 function hideRollsHead(c, gm) {
     var b = ui('sheetHideRolls'); if (!b) return; var fits = hideFigFits(c, gm), on = fits && c.rollsHid === true;
     b.style.display = fits ? '' : 'none'; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    b.title = on ? 'Every roll made as this character is private, whoever makes it. Press to let its rolls show to the table again' : 'Keep every roll made as this character private, whoever makes it. You can still show one to the table from its card';
+    var tip = on ? 'Every roll made as this character is private, whoever makes it. Press to let its rolls show to the table again' : 'Keep every roll made as this character private, whoever makes it. You can still show one to the table from its card';
+    // the review of 2026-11-19, finding 6: the tooltip is kept in data-tip, which tooltips.js shows, and written only when its words change, since the sheet
+    // is drawn again often and tooltips.js has moved the title into data-tip by the first hover. A suite's plain object with no dataset keeps a title
+    if (b.dataset) { if (b.dataset.tip !== tip) { b.dataset.tip = tip; if (typeof b.removeAttribute === 'function') b.removeAttribute('title'); } } else if (b.title !== tip) b.title = tip;
 }
 function hideRollsPress() {
     var camp = getActiveCampaign(), c = charById(sheetOpen, camp); if (!hideFigFits(c, !isClient())) return false;

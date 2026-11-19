@@ -515,7 +515,7 @@ pendingChecks.push((async () => {
             j(ownV.sk) === j({ w_s1: { id: 'c_bolt', name: 'Bolt', v: { hp: 22 } } }) && firstV.length === 1 && firstV[0][0] === 'pA' && firstV[0][1].char.sk.w_s1.v.hp === 22 && sameV.length === 0 && movedV.length === 1 && movedV[0][1].char.sk.w_s1.v.hp === 9 && logsV.every(l => l[0] === 'rowsheet v1' && l[1] === 'told'),
             j([ownV.sk, firstV, sameV, movedV, logsV]));
         check('1.6.2 (vehicles, fold (a)): a trade stores the sheets of the rows that changed hands (sheetsGo) and sends each to its new owner',
-            src.includes("S.sheetsGo(camp.system, camp, cb, res.valuesB)") && src.includes("goA.give.concat(goB.give).forEach(function(sid) { net.syncChar(sid);") && kit.part('netlink.js').includes("if (S.sheetFigs) { var sk = S.sheetFigs(view, v, window.wpFormula); if (sk) v.sk = sk; }"));
+            kit.part('nettrade.js').includes("S.sheetsGo(camp.system, camp, cb, res.valuesB)") && kit.part('nettrade.js').includes("goA.give.concat(goB.give).forEach(function(sid) { net.syncChar(sid);") && kit.part('netlink.js').includes("if (S.sheetFigs) { var sk = S.sheetFigs(view, v, window.wpFormula); if (sk) v.sk = sk; }"));
     }
     // 1.6.2 (vehicles, fold (c)): a map's marks, the host's own (the tags slice run for real with the real systemcore): kept as a change put them on, sent to
     // each player as theirs (tokTags) and never a hidden token's, once a change, and cleaned again on a player's app (the tagsin slice)

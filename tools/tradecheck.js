@@ -255,7 +255,7 @@ check('tradecheck: tradecore.js and moneycore.js are parts of systemcore.js and 
         const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).replace(/[\\]/g, '/');
         const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
         const nsT = src.split('\r\n').join('\n'), cutT = (a, b) => { const i = nsT.indexOf(a), k = nsT.indexOf(b, i); if (i < 0 || k < 0) throw new Error('trade slice ' + a.slice(0, 40)); return nsT.slice(i, k); };
-        const ntP = require('./checkkit').part('nettrade.js'), apiT = ntP.slice(ntP.indexOf('// [netcheck:trade-start]'), ntP.indexOf('// [netcheck:trade-end]')),   // the trade lines, read from nettrade.js (a part of net.js) by its name
+        const apiT = require('./checkkit').cut('nettrade.js', '// [netcheck:trade-start]', '// [netcheck:trade-end]'),   // the trade lines, read from nettrade.js (a part of net.js) by its name
             brT = cutT('        // [netcheck:tradebranch-start]', '        // [netcheck:tradebranch-end]'), stT = cutT('        // [netcheck:tradestate-start]', '        // [netcheck:tradestate-end]');
         const sysT = Sx.cleanSystem({ v: 1, name: 'T', rolls: [], fields: [
             { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { trade: true, price: 'cr', stats: [{ key: 'cr', label: 'Cost' }] } },

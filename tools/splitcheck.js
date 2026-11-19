@@ -49,15 +49,20 @@
       only by a string or a template that holds the part's file name, or where every receiver of its indexOf is a name that stands, by
       the scopes, for a read whose path names the part; a comment never names it (the review of next area 2, 2026-11-18). A cut at a
       definition that a script of another family also holds at its left margin (net.js's own var FACE_PICS) passes only where every
-      receiver stands for a read of such a script. Both rules are tried on texts of their own first.
+      receiver stands for a read of such a script. A line is excused only by naming the very part that holds the marker or the
+      definition, never another part of the same root (the review of next area 3, 2026-11-18). The rules are tried on texts of their own
+      first.
    7b. A source pin (an includes or a split of a quoted string, or a plain regex's test) on a root's joined text, read directly or
       through a name the tool set to such a read, holds no text that only one of the root's parts holds: it reads that part by name
-      (the review of area 3, 2026-11-18). The rule is tried on a text of its own first.
+      (the review of area 3, 2026-11-18). The src that tools/checkkit.js netSlices hands back, destructured (const { src } or
+      { src: name }), is the joined net.js (the review of next area 3, 2026-11-18). The rule is tried on a text of its own first.
    7c. The same, judged by the parser Node ships on each tool's own tree (the review of next area 1, 2026-11-18), so that what 7b's
       patterns cannot see is judged too: a pin is a literal (a string of 6 characters or more, or a regex) handed to a call on a root's
       joined text, read through any reader of a quoted path (rootRead, rdN, a name set to another such name), as the text of an includes,
       a match, a split, a search, a replace, a startsWith or an endsWith, of an indexOf compared with 0 or -1, of a regex's test or exec,
-      of any helper of the tool's own handed that text (a count, an after), or of a function whose body reads it (a wbFn of a head). A
+      of any helper of the tool's own handed that text (a count, an after), or of a function whose body reads it (a wbFn of a head), the src
+      destructured from netSlices among them. No line is excused for naming a part: a pin on the joined text is judged whatever else the
+      line reads (a kit.part('netlink.js') beside it covers nothing nettrade.js holds). A
       slice's anchors (between, fnSrc, cut and any helper named cut..., range, lineOf, an indexOf not compared) are point 7's to judge,
       and a slice that crosses from a root into a part reads the joined text on purpose. The rule is tried on a text of its own first.
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
@@ -540,9 +545,9 @@ function pageCalls(name, bundle, key) {
     const try7has = l => ((try7 && try7.get(l)) || []).filter(v => v.indexOf('cleancore.js') >= 0).length;
     check('7. the rule that only a string names a part, tried on a text of its own: a comment that names the part names nothing, a string and a template do, and a regex that holds the name does not',
         !!try7 && try7has(1) === 0 && try7has(2) === 1 && try7has(3) === 1, try7 && [...try7]);
-    const unnamed7 = [];
-    fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => {
-        const toolSrc = fs.readFileSync(path.join(__dirname, f), 'utf8'), strs = lineStrs7(L.acorn(), toolSrc), bind = binds7(L.acorn(), toolSrc);
+    // unnamed7In: the lines of one tool's text that read a part's marker or cut at a part's definition without naming that very part
+    function unnamed7In(f, toolSrc, unnamed7) {
+        const strs = lineStrs7(L.acorn(), toolSrc), bind = binds7(L.acorn(), toolSrc);
         if (!strs || !bind) { unnamed7.push(f + ' does not parse'); return; }
         // each receiver of an indexOf on a line, with where it stands in the tool; a line names a part where a string on it does, or
         // where every such receiver stands for that part (a name set to kit.part('netattack.js') on a line before)
@@ -565,7 +570,21 @@ function pageCalls(name, bundle, key) {
                 unnamed7.push(f + ':' + (i + 1) + ' cuts at "' + d + '", which only ' + p + ' holds, without naming it');
             });
         });
-    });
+    }
+    // tried on a text of its own: a line that names netlink.js does not name the part that holds the trade marker or tradeDo's
+    // definition (nettrade.js), and a line that names nettrade.js does (the review of next area 3, 2026-11-18)
+    const tryNames7 = () => {
+        const mk = byPart7.filter(x => x[1] === 'nettrade.js')[0], df = defs7.filter(x => x[1] === 'nettrade.js' && x[0] === 'function tradeDo(')[0];
+        if (!mk || !df) return false;
+        const q = s => JSON.stringify(s), tag = '// [' + mk[0] + '-start]';
+        const txt = ["const t = kit.part('netlink.js'); t.indexOf(" + q(tag) + ');', "kit.part('nettrade.js').indexOf(" + q(tag) + ');',
+            "const u = kit.part('netlink.js'); u.indexOf(" + q(df[0]) + ');', "const w = kit.part('nettrade.js'); w.indexOf(" + q(df[0]) + ');'].join('\n') + '\n';
+        const got = []; unnamed7In('try', txt, got);
+        return got.length === 2 && got[0].indexOf('try:1 ') === 0 && got[0].indexOf('nettrade.js') >= 0 && got[1].indexOf('try:3 ') === 0 && got[1].indexOf('nettrade.js') >= 0;
+    };
+    check('7. the rule that a line is excused only by naming the very part that holds its marker or its definition, tried on a text of its own: a line that names netlink.js does not cover nettrade.js\'s trade marker or tradeDo, a line that names nettrade.js does', tryNames7());
+    const unnamed7 = [];
+    fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => unnamed7In(f, fs.readFileSync(path.join(__dirname, f), 'utf8'), unnamed7));
     check('7. a line of a tool that holds the literal of a marker only a part holds (' + byPart7.length + ' such markers), names one as a quoted string, or cuts a slice at a definition only a part holds (' + defs7.length + ' such definitions), names that part\'s file, so the area\'s tests read it by name', byPart7.length > 0 && defs7.length > 0 && unnamed7.length === 0, unnamed7.slice(0, 20));
 
     // ---- 7b. a source pin on a root's text holds no text only a part holds ----
@@ -581,6 +600,9 @@ function pageCalls(name, bundle, key) {
     const assign7b = new RegExp('\\b([A-Za-z_$][\\w$]*)\\s*=\\s*(?:[\\w$.]+\\.)?' + reads7b + '\\((?:(?!,\\s*[A-Za-z_$][\\w$]*\\s*=)[^;])*?[\'"/](' + rootAlt7b + ')[\'"]', 'g');
     const other7b = /\b([A-Za-z_$][\w$]*)\s*=\s*(?:[\w$.]+\.|require\([^)]*\)\.)?(?:part|cut|raw)\(/g;   // a name set to a part's text, or any other text, is no root's
     const direct7b = new RegExp(reads7b + '\\((?:[^()]|\\([^()]*\\))*?[\'"/](' + rootAlt7b + ')[\'"](?:[^()]|\\([^()]*\\))*\\)\\)?(?:\\.replace\\([^()]*\\))?\\.(?:includes|split)\\(\\s*(\'(?:[^\'\\\\\\n]|\\\\.)*\'|"(?:[^"\\\\\\n]|\\\\.)*")', 'g');
+    // the src that netSlices (tools/checkkit.js) hands back is the joined net.js: const { src, between } = kit.netSlices('x'), or { src: nS }
+    const slices7b = /\{([^{}]*)\}\s*=\s*(?:[\w$.]+\.|require\([^)]*\)\.)?netSlices\(/g;
+    const srcOf7b = (inner, vars) => inner.split(',').forEach(x => { const kv = x.split(':').map(s => s.trim()); if (kv[0] === 'src' && /^[A-Za-z_$][\w$]*$/.test(kv[1] || 'src')) vars.set(kv[1] || 'src', 'net.js'); });
     const pin7b = /([A-Za-z_$][\w$]*)\.(?:includes|split)\(\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/g;
     const rx7b = /\/((?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])+)\/[gimsuy]*\.test\(\s*([A-Za-z_$][\w$]*)\s*\)/g;
     const lit7b = s => { try { const v = Function('"use strict"; return (' + s + ');')(); return typeof v === 'string' ? v : null; } catch (e) { return null; } };
@@ -597,6 +619,7 @@ function pageCalls(name, bundle, key) {
             const where = f + ':' + (i + 1); let m;
             assign7b.lastIndex = 0; while ((m = assign7b.exec(line))) vars.set(m[1], m[2]);
             other7b.lastIndex = 0; while ((m = other7b.exec(line))) vars.delete(m[1]);
+            slices7b.lastIndex = 0; while ((m = slices7b.exec(line))) srcOf7b(m[1], vars);
             direct7b.lastIndex = 0; while ((m = direct7b.exec(line))) judge7b(where, m[1], lit7b(m[2]));
             pin7b.lastIndex = 0; while ((m = pin7b.exec(line))) { const r = vars.get(m[1]); if (r) judge7b(where, r, lit7b(m[2])); }
             rx7b.lastIndex = 0; while ((m = rx7b.exec(line))) {
@@ -618,6 +641,18 @@ function pageCalls(name, bundle, key) {
         return !!line && set && got.length === 2 && got[0].indexOf('sheetlink.js') >= 0 && got[1].indexOf('sheetlink.js') >= 0;
     };
     check('7b. the rule tried on a text of its own: a pin on the joined sheets.js of a line only sheetlink.js holds is named, set by a name and read directly', try7b());
+    // through the src netSlices hands back, plain and renamed, with a part of another name read on the same line (the review of next area 3)
+    const try7bSlices = () => {
+        const keep = bad7b.length; let m;
+        const nt = (partsTxt7b['net.js'].filter(x => x[0] === 'nettrade.js')[0] || [null, ''])[1].split('\n').filter(l => /^function [A-Za-z]+\(/.test(l) && rootTxt7b['net.js'].indexOf(l) < 0)[0] || '';
+        const nq = JSON.stringify(nt), nv = new Map();
+        const d = "const { src, between } = kit.netSlices('x'), other = 1; const { src: nS } = require('./checkkit').netSlices('y');", e = "check('z', src.includes(" + nq + ") && kit.part('netlink.js').includes('x') && nS.includes(" + nq + '));';
+        slices7b.lastIndex = 0; while ((m = slices7b.exec(d))) srcOf7b(m[1], nv);
+        pin7b.lastIndex = 0; while ((m = pin7b.exec(e))) { const r = nv.get(m[1]); if (r) judge7b('try:e', r, lit7b(m[2])); }
+        const got = bad7b.splice(keep);
+        return !!nt && got.length === 2 && got.every(g => g.indexOf('try:e') === 0 && g.indexOf('nettrade.js') >= 0) && nv.get('src') === 'net.js' && nv.get('nS') === 'net.js' && !nv.has('between') && !nv.has('other');
+    };
+    check('7b. the rule tried on a text of its own: a pin on the joined net.js of a line only nettrade.js holds, through the src netSlices hands back (plain and renamed), is named whatever else the line reads', try7bSlices());
     check('7b. a source pin (includes, split or a plain regex) on the joined text of a root holds no text that only one of its parts holds, so it reads that part by name (' + pins7b + ' pins on a root judged)', pins7b > 0 && bad7b.length === 0, bad7b.slice(0, 20));
 
     // ---- 7c. the same, on each tool's own tree ----
@@ -651,7 +686,15 @@ function pageCalls(name, bundle, key) {
         const judgeArgs = (n, root) => n.arguments.forEach(a => { if (a.type === 'Literal' && (a.regex || typeof a.value === 'string')) lits.push([a, root]); });
         // a walk in source order, with each node's parent
         const walk = (n, parent) => {
-            if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
+            if (n.type === 'VariableDeclarator' && n.id.type === 'ObjectPattern' && n.init) {
+                // const { src, between } = kit.netSlices('x'): its src is the joined net.js (tools/checkkit.js); any other name it binds holds no root
+                const ns = strip(n.init), fromSlices = ns && ns.type === 'CallExpression' && nameOf(ns.callee) === 'netSlices';
+                n.id.properties.forEach(p => {
+                    if (p.type !== 'Property' || p.value.type !== 'Identifier') return;
+                    const key = !p.computed && (p.key.type === 'Identifier' ? p.key.name : p.key.value);
+                    if (fromSlices && key === 'src' && roots.indexOf('net.js') >= 0) vars.set(p.value.name, 'net.js'); else vars.delete(p.value.name);
+                });
+            } else if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.init) {
                 const nm = n.id.name;
                 if (/Function/.test(n.init.type)) { let r = null; each(n.init.body, y => { if (!r && y.type === 'Identifier' && vars.has(y.name)) r = vars.get(y.name); }); if (r && !SLICERS.test(nm)) fns.set(nm, r); else fns.delete(nm); }
                 else { const r = rootOf(n.init); if (r) vars.set(nm, r); else vars.delete(nm); }
@@ -696,8 +739,17 @@ function pageCalls(name, bundle, key) {
         const got = pins7c(L.acorn(), txt, roots, rootTxt7b, partsTxt7b, 6);
         return !!only && got.length === 5 && j7c(got.map(o => o.line)) === j7c([3, 4, 5, 6, 7]) && got.every(o => o.root === 'sheets.js' && o.holders.join() === 'sheetlink.js');
     };
+    const tryOwn7cSlices = () => {
+        // the src netSlices hands back, plain and renamed, beside a read of a part of another name; and the part read by its own name
+        const nt = (partsTxt7b['net.js'].filter(x => x[0] === 'nettrade.js')[0] || [null, ''])[1].split('\n').filter(l => /^function [A-Za-z]+\(/.test(l) && rootTxt7b['net.js'].indexOf(l) < 0)[0] || '', nq = JSON.stringify(nt);
+        const txt2 = ["const { src, between } = kit.netSlices('x'), { src: nS } = require('./checkkit').netSlices('y');",
+            'check(1, src.includes(' + nq + ") && kit.part('netlink.js').includes('function x('));", 'check(2, nS.indexOf(' + nq + ') >= 0);', "check(3, kit.part('nettrade.js').includes(" + nq + '));'].join('\n');
+        const got2 = pins7c(L.acorn(), txt2, roots, rootTxt7b, partsTxt7b, 6);
+        return !!nt && got2.length === 2 && j7c(got2.map(o => o.line)) === j7c([2, 3]) && got2.every(o => o.root === 'net.js' && o.holders.join() === 'nettrade.js');
+    };
     const j7c = JSON.stringify;
     check('7c. the rule tried on a text of its own: a line only sheetlink.js holds, pinned on the joined sheets.js through a count of the tool\'s own, a match on a name set to the read, a regex\'s test, a function whose body reads it and an indexOf compared with -1, is named five times; on the part read by name, and as a slice\'s anchor, it is not', tryOwn7c());
+    check('7c. the rule tried on a text of its own: a line only nettrade.js holds, pinned on the src netSlices hands back (plain and renamed, a read of netlink.js beside it), is named twice; on nettrade.js read by name it is not', tryOwn7cSlices());
     const bad7c = []; let tools7c = 0;
     fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => { tools7c++; pins7c(L.acorn(), fs.readFileSync(path.join(__dirname, f), 'utf8').replace(/\r\n/g, '\n'), roots, rootTxt7b, partsTxt7b, 6).forEach(o => bad7c.push(f + ':' + o.line + ' pins the joined ' + o.root + ' on text only ' + o.holders.join(' and ') + ' holds: ' + o.what)); });
     check('7c. no tool pins a root\'s joined text, through a name, a helper of its own or a function that reads it, on text only one of its parts holds (' + tools7c + ' tools read by the parser)', tools7c > 50 && bad7c.length === 0, bad7c.slice(0, 20));

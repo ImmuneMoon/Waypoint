@@ -129,6 +129,9 @@ jobs:
       - name: sysedlistcheck — the System editor's Rolls, Lists, Combat and Calendar boxes, read from its parts of sheets.js by name
         if: ${{ !cancelled() }}
         run: node tools/sysedlistcheck.js
+      - name: blastcheck — the Radius tool and the blasts, read from wbblast.js by name
+        if: ${{ !cancelled() }}
+        run: node tools/blastcheck.js
       - name: sinkcheck — the GM's renderers against a campaign from a file
         if: ${{ !cancelled() }}
         run: node tools/sinkcheck.js

@@ -63,6 +63,21 @@ jobs:
       - name: loadcheck — Loads from, Chambers from, Counted once, Feeds, a job, holds, a line and cover hits, out of systemcheck
         if: ${{ !cancelled() }}
         run: node tools/loadcheck.js
+      - name: rollcheck — a roll and its needs and reasons, consequences, counters, Malf and criticals, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/rollcheck.js
+      - name: applycheck — what an action applies and when, the library, grants and roll switches, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/applycheck.js
+      - name: needcheck — what a player may see and take, GM-only values, budgets and prerequisites, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/needcheck.js
+      - name: stancecheck — the token stance, walls, a move in cells, crossings and names by place, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/stancecheck.js
+      - name: envcheck — the map environment, a row taken off, other names and tables, out of systemcheck
+        if: ${{ !cancelled() }}
+        run: node tools/envcheck.js
       - name: corecheck — the core's cleaners and validator, read from cleancore.js and validcore.js by name, with the core's first tests
         if: ${{ !cancelled() }}
         run: node tools/corecheck.js

@@ -84,10 +84,20 @@ function formTrial(d, ctx) {
         asks: function(text) { var nm = F() ? F().names(text) : [], r0 = ctx && ctx.roll && Array.isArray(ctx.roll.asks) ? ctx.roll.asks : []; return (Array.isArray(nm) ? nm : []).filter(function(n) { return nameAsks(d, n); }).map(function(n) { return { s: n, word: nameWord(d, n), opts: trialOpts(d, r0, n) }; }); }
     };
 }
+// 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md): the campaign's library entries, for an option that stands for a row of a list (formbox.js
+// dressOpts, through formcore.js optLists), read as grantEntries reads them: every pack the campaign lists, through window.wpLibrary, an entry
+// of a GM-only pack marked GM-only as its own key index counts it. Only what a pick needs is handed on: its key, its name, its category and
+// whether it is the GM's alone. Nothing where the library is not loaded
+function formLib() {
+    var LB = window.wpLibrary, cp = getActiveCampaign(), packs = cp && cp.library && Array.isArray(cp.library.packs) ? cp.library.packs : [], out = [];
+    if (!LB || typeof LB.entriesOf !== 'function') return out;
+    packs.forEach(function(p) { if (p && typeof p.id === 'string') (LB.entriesOf(p.id) || []).forEach(function(e) { if (e && typeof e.key === 'string') out.push({ key: e.key, name: e.name, category: e.category, vis: p.vis === 'gm' || e.vis === 'gm' ? 'gm' : 'all' }); }); });
+    return out;
+}
 function formSource(inp) {
     var cF = draft ? null : getActiveCampaign(), d = draft || (cF ? systemOf(cF) : null); if (!d) return null;
     var ctx = inp && /^libF_/.test(inp.id || '') ? {} : formCtx(inp);
-    return { subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, get wgroups() { return readsOf(d, Object.assign({}, ctx, { words: true })); }, get wlists() { return Array.isArray(ctx.only) ? [] : (d.fields || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.key === 'string' && f.key && f.key.indexOf('.') < 0; }).map(function(f) { return [f.key, f.label || f.key]; }); }, word: function(s) { return nameWord(d, s, ctx.list); } };   // wgroups (167 D): what a test of words may read
+    return { sys: d, get lib() { return formLib(); }, subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, get wgroups() { return readsOf(d, Object.assign({}, ctx, { words: true })); }, get wlists() { return Array.isArray(ctx.only) ? [] : (d.fields || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.key === 'string' && f.key && f.key.indexOf('.') < 0; }).map(function(f) { return [f.key, f.label || f.key]; }); }, word: function(s) { return nameWord(d, s, ctx.list); } };   // wgroups (167 D): what a test of words may read
 }
 // [formcheck:source-end]
 var _formOn = false;

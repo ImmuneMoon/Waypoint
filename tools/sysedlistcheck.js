@@ -870,5 +870,30 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             shQ.split("(typeof followIsQuiet === 'function' && followIsQuiet())").length - 1 === 3 && shQ.includes('function followQuiet(on) { _followQuiet = Math.max(0, _followQuiet + (on ? 1 : -1)); }') && !/function postureFollow[^\n]*\n[^\n]*followIsQuiet/.test(shQ)
             && shQ.includes("import { save, toast, toastAction, pressHold, keepPlace } from './io.js';") && require('./checkkit').part('sysedcal.js').includes("? pressHold(wrap, window) : null;") && require('./checkkit').part('sysedcal.js').includes("if (!redraw) return; var again = function() { if (typeof keepPlace === 'function') keepPlace(wrap, draw); else draw(); }; if (hold && hold.busy()) hold.then(again); else again(); };"), '');
     }
+    {   // 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19): a choice stat's option that stands for a figure of one row of
+        // another list, List.Entry.Figure or, on a list with Specialties, List.Parent.Specialty.Figure. The core keeps such an option word for
+        // word, the validator takes it, the resolver reads the stat through it, and the option's form writes it as the Lists tab's box then
+        // reads it (the statopts line of sysedtabs.js onChange). Invented data (no game named)
+        const J = JSON.stringify, C3 = await import(url('formcore.js'));
+        const optsIn = [{ label: 'Knife', name: 'Skills.knife.Target' }, { label: 'Off Hand', name: 'Skills.knife.OffHand.Target' }, { label: 'Swim', name: 'Skills.swim.lvl' }, { label: 'Iron', name: 'Iron' }];
+        const rawG = { v: 1, name: 'G', rolls: [], fields: [
+            { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', list: { cats: ['Skill'], custom: true, lvl: { label: 'Level', min: 0, max: 30, def: 10 }, stats: [{ key: 'bonus', label: 'Bonus' }], cols: [{ key: 'Target', label: 'Target', formula: 'Row.lvl + Row.bonus' }], specs: {} } },
+            { id: 'f_wp', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', list: { custom: true, stats: [{ key: 'sk', label: 'Skill', kind: 'pick', opts: optsIn }], cols: [{ key: 'Skill', label: 'Skill', formula: 'Row.sk' }] } }],
+            items: [{ id: 'i_knife', name: 'Knife', key: 'knife', category: 'Skill', stats: { bonus: 1 } }, { id: 'i_swim', name: 'Swimming', key: 'swim', category: 'Skill', stats: { bonus: 0 } }] };
+        const sG = cleanSystem(rawG, { F, gmView: true }), vG = validateSystem(sG, F), keptO = sG.fields.find(f => f.id === 'f_wp').list.stats[0].opts;
+        const chG = { id: 'c_g', name: 'G', ownerId: '', npc: true, values: { f_sk: [{ id: 'w_s1', defId: 'i_knife', qty: 1, lvl: 12 }, { id: 'w_s2', qty: 1, lvl: 15, def: { name: 'Knife (Off Hand)', category: 'Skill', stats: { bonus: 0 } } }, { id: 'w_s3', defId: 'i_swim', qty: 1, lvl: 9 }],
+            f_wp: [{ id: 'w_a', qty: 1, def: { name: 'Dagger', stats: { sk: 'Knife' } } }, { id: 'w_b', qty: 1, def: { name: 'Parrying dagger', stats: { sk: 'Off Hand' } } }, { id: 'w_c', qty: 1, def: { name: 'Float', stats: { sk: 'Swim' } } }, { id: 'w_d', qty: 1, def: { name: 'Bar', stats: { sk: 'Iron' } } }] } };
+        const aG = resolveAll(sG, chG, F), cellG = ['w_a', 'w_b', 'w_c', 'w_d'].map(r => aG.f_wp.cells[r] ? aG.f_wp.cells[r][0].text : '?');
+        check('gap 4: an option that stands for a row of another list (an entry\u2019s column, a specialty\u2019s, an entry\u2019s level) is kept word for word, taken by the validator and read through the stat as the formula would read it',
+            J(keptO) === J(optsIn) && vG.errors.length === 0 && J(cellG) === J(['13', '15', '9', '0']), J([keptO, vG.errors, cellG]));
+        const tabsS = require('./checkkit').part('sysedtabs.js'), lnA = tabsS.indexOf("stD.opts = t.value.split(',')"), lnB = lnA < 0 ? -1 : tabsS.indexOf('.slice(0, LIMITS.pickOpts);', lnA);
+        const parse = lnA > 0 && lnB > lnA ? new Function('t', 'LIMITS', 'return ' + tabsS.slice(lnA + 'stD.opts = '.length, lnB) + '.slice(0, LIMITS.pickOpts);') : null;
+        const lists = C3.optLists(sG, []), text0 = C3.writeOpts(optsIn.map(o => ({ label: o.label, name: o.name === o.label ? '' : o.name })));
+        const rows0 = C3.readOpts(text0); rows0[3].name = C3.optRowWrite({ list: 'Skills', entry: 'swim', spec: C3.optSpecWord('free style'), fig: 'Target' });
+        const back = parse ? parse({ value: C3.writeOpts(rows0) }, LIMITS) : null, sG2 = back ? cleanSystem(Object.assign({}, rawG, { fields: [rawG.fields[0], Object.assign({}, rawG.fields[1], { list: Object.assign({}, rawG.fields[1].list, { stats: [{ key: 'sk', label: 'Skill', kind: 'pick', opts: back }] }) })] }), { F, gmView: true }) : null;
+        check('gap 4: what the option\u2019s picks write reaches the Lists tab\u2019s box, which reads every option back as it stood, the new one too, and Save keeps it',
+            !!parse && J(parse({ value: text0 }, LIMITS)) === J(optsIn) && rows0[3].name === 'Skills.swim.FreeStyle.Target' && back[3].name === 'Skills.swim.FreeStyle.Target' && back[3].label === 'Iron'
+            && sG2.fields[1].list.stats[0].opts[3].name === 'Skills.swim.FreeStyle.Target' && validateSystem(sG2, F).errors.length === 0 && lists.map(l => l.key).join() === 'Skills,Weapons', J([back, lists.map(l => l.key)]));
+    }
     await T.finish();
 })();

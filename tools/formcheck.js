@@ -305,6 +305,73 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('taking an option away writes the box and says so', pOpt.value === 'Strength = ST, Bronze' && pOpt.calls.includes('dispatch change') && optRows().length === 2, pOpt.value);
     press(optBox.querySelector('.fb-optadd')); const lbN = optBox.querySelectorAll('.fb-optname'), lastN = lbN[lbN.length - 1]; lastN.value = 'Tin'; (lastN.handlers.input || []).forEach(h => h({ target: lastN })); (lastN.handlers.change || []).forEach(h => h({ target: lastN }));
     check('+ Option adds a row, and what is typed reaches the box as it is left', pOpt.value === 'Strength = ST, Bronze, Tin' && optRows().length === 3, pOpt.value);
+    {   // 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19): an option may stand for a figure of one row of a list, picked as the
+        // list, the entry with a search, and the figure, each by its name, never typed. Invented data (no game named): a list of skills with
+        // Specialties, a list of gear, the system's own items, the library's core and the campaign's library entries
+        const sysO = { fields: [{ id: 'f_st', key: 'ST', label: 'Strength', kind: 'number' },
+            { id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', list: { cats: ['Skill'], lvl: { label: 'Level' }, stats: [{ key: 'bonus', label: 'Bonus' }, { key: 'grp', label: 'Group', kind: 'pick', opts: [] }, { key: 'pl', label: 'Places', set: true }], cols: [{ key: 'Target', label: 'Target' }], specs: {} } },
+            { id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { stats: [{ key: 'wt', label: 'Weight' }] } },
+            { id: 'f_n', key: 'Notes', label: 'Notes', kind: 'item-list', list: {} }, { id: 'f_d', key: 'Odd.Key', kind: 'item-list', list: { stats: [{ key: 'a' }] } }],
+            items: [{ key: 'knife', name: 'Knife', category: 'Skill' }, { key: 'rope', name: 'Rope', category: 'Gear' }],
+            core: [{ key: 'club', name: 'Club', category: 'Skill' }, { key: 'Knife', name: 'A second knife', category: 'Skill' }] };
+        const libO = [{ key: 'swim', name: 'Swimming', category: 'Skill' }, { key: 'lore', name: 'Hidden Lore', category: 'skill', vis: 'gm' }, { key: 'bad key', name: 'Spaced', category: 'Skill' }, { key: 'club', name: 'Club again', category: 'Skill' }];
+        const LO = C.optLists(sysO, libO), skL = LO.filter(l => l.key === 'Skills')[0], gL = LO.filter(l => l.key === 'Gear')[0];
+        check('gap 4: the lists an option may read a row of are the item lists with a figure, each with its figures (its level, number stats, columns; never a choice or a set of places) and its entries by name, the system\u2019s own, the core\u2019s and the library\u2019s, each key once, only of its categories, GM-only ones marked',
+            j(LO.map(l => l.key)) === j(['Skills', 'Gear']) && skL.specs === true && gL.specs === false && j(skL.figs) === j([['lvl', 'Level'], ['bonus', 'Bonus'], ['Target', 'Target']])
+            && j(skL.entries) === j([['club', 'Club', ''], ['lore', 'Hidden Lore', 'GM only'], ['knife', 'Knife', ''], ['swim', 'Swimming', '']]) && j(gL.entries.map(e => e[0])) === j(['club', 'lore', 'knife', 'rope', 'swim']), j(LO));
+        const rd = n => C.optRowRead(n, LO);
+        check('gap 4: a stored name reads as a list, an entry, a specialty and a figure, in the spelling the lists hold, and back word for word; a total, a highest, a sheet figure, a specialty on a list without them and a list that is gone are no row',
+            j(rd('Skills.knife.Target')) === j({ list: 'Skills', entry: 'knife', known: true, spec: '', fig: 'Target', figKnown: true }) && C.optRowWrite(rd('Skills.knife.Target')) === 'Skills.knife.Target'
+            && j(rd('Skills.knife.OffHand.Target')) === j({ list: 'Skills', entry: 'knife', known: true, spec: 'OffHand', fig: 'Target', figKnown: true }) && C.optRowWrite(rd('Skills.knife.OffHand.Target')) === 'Skills.knife.OffHand.Target'
+            && C.optRowWrite(rd('skills.KNIFE.target')) === 'Skills.knife.Target' && rd('Skills.axe.Target').known === false && rd('Skills.axe.Target').entry === 'axe' && rd('Skills.knife.Wear').figKnown === false && rd('Skills.knife.Wear').fig === 'Wear'
+            && rd('Skills.max.Target') === null && rd('Skills.on.bonus') === null && rd('Skills.count') === null && rd('ST') === null && rd('Gear.rope.Spec.wt') === null && rd('Lost.knife.Target') === null && rd('Skills.kn ife.Target') === null && rd('') === null);
+        check('gap 4: what a row\u2019s picks write is whole or nothing, and only what a Save keeps (letters, digits and _, 64 at most)',
+            C.optRowWrite({ list: 'Skills', entry: '', fig: 'Target' }) === '' && C.optRowWrite({ list: 'Skills', entry: 'knife', fig: '' }) === '' && C.optRowWrite({ list: 'Skills', entry: 'kn-ife', fig: 'Target' }) === '' && C.optRowWrite({ list: 'Skills', entry: 'k'.repeat(60), fig: 'Target' }) === '' && C.optRowWrite(null) === '');
+        check('gap 4: a specialty is a player\u2019s own words, held as one word with its accents and spaces taken out, and said back as words',
+            C.optSpecWord('off hand') === 'OffHand' && C.optSpecWord('  Two-handed  flail ') === 'TwoHandedFlail' && C.optSpecWord('R\u00e9sum\u00e9 2') === 'Resume2' && C.optSpecWord('9 lives') === 'Lives' && C.optSpecWord('!!') === ''
+            && C.optSpecSay('OffHand') === 'Off Hand' && C.optSpecSay('TwoHandedFlail') === 'Two Handed Flail' && C.optSpecSay('Resume2') === 'Resume 2' && C.optSpecWord(C.optSpecSay('TwoHandedFlail')) === 'TwoHandedFlail');
+        const oRoot = doc.createElement('div'); modal.appendChild(oRoot);
+        B.setSource(() => ({ groups: [{ name: 'This character', items: [{ label: 'Strength', s: 'ST' }] }], word: () => '', sys: sysO, get lib() { return libO; } }));
+        const stored = 'Off Hand = Skills.knife.OffHand.Target, Blade = Skills.KNIFE.target, Old = Skills.axe.Target, Iron, Strength = ST';
+        const oBox = doc.createElement('input'); oBox.type = 'text'; oBox.className = 'sys-list-statopts field'; oBox.value = stored; oRoot.appendChild(oBox); B.sweep(oRoot);
+        const oRows = () => oRoot.querySelectorAll('.fb-opt'), q1 = (i, c) => oRows()[i].querySelector(c), texts = s => s.childNodes.map(o => o.textContent);
+        const chg = (e, v) => { if (v !== undefined) e.value = v; (e.handlers.change || []).forEach(h => h({ target: e })); }, typ = (e, v) => { e.value = v; (e.handlers.input || []).forEach(h => h({ target: e })); };
+        const key = (e, k) => { let stop = false; (e.handlers.keydown || []).forEach(h => h({ key: k, target: e, preventDefault() {}, stopPropagation() { stop = true; } })); return stop; };
+        check('gap 4: an option stored as a row of a list shows as its three picks, and dressing the box writes nothing',
+            oRows().length === 5 && oBox.value === stored && oBox.calls.length === 0 && q1(0, '.fb-optfig').value === '@list:Skills' && q1(0, '.ui-find-sel').value === 'knife' && texts(q1(0, '.ui-find-sel'))[1] === 'Knife'
+            && q1(0, '.fb-optspec').value === 'Off Hand' && q1(0, '.fb-optrowfig').value === 'Target' && j(texts(q1(0, '.fb-optrowfig'))) === j(['Level', 'Bonus', 'Target'])
+            && q1(1, '.ui-find-sel').value === 'knife' && q1(1, '.fb-optspec').value === '' && q1(3, '.fb-optfig').value === '' && !q1(3, '.fb-optrow') && q1(4, '.fb-optfig').value === 'ST', oBox.value);
+        check('gap 4: the first pick offers the sheet\u2019s own figures first, then a row of each list by its name, never a key',
+            j(texts(q1(3, '.fb-optfig'))) === j(['Just this word', 'Stands for Strength', 'Stands for a row of Skills', 'Stands for a row of Gear']));
+        check('gap 4: a stored entry that is no longer there says so, and is kept', q1(2, '.ui-find-sel').value === 'axe' && j(texts(q1(2, '.ui-find-sel')).slice(0, 2)) === j(['Pick an entry', 'An entry that is no longer there']) && oBox.value === stored);
+        oBox.calls.length = 0; chg(q1(3, '.fb-optfig'), '@list:Skills');
+        check('gap 4: picking a list shows the entry and the figure, starts on the figure the other options read, and writes nothing until an entry is picked',
+            oBox.value === stored && oBox.calls.length === 0 && !!q1(3, '.fb-optrow') && q1(3, '.fb-optrowfig').value === 'Target' && q1(3, '.ui-find-sel').value === '' && doc.activeElement === q1(3, '.ui-find-q'));
+        typ(q1(3, '.ui-find-q'), 'swi');
+        check('gap 4: the entry\u2019s search narrows its list as it is typed', j(texts(q1(3, '.ui-find-sel'))) === j(['Pick an entry', 'Swimming']));
+        typ(q1(3, '.ui-find-q'), 'lore');
+        check('gap 4: an entry only the GM sees says so', j(texts(q1(3, '.ui-find-sel'))) === j(['Pick an entry', 'Hidden Lore (GM only)']));
+        typ(q1(3, '.ui-find-q'), 'swi'); const stopped = key(q1(3, '.ui-find-q'), 'Enter');
+        check('gap 4: Enter in the search picks what it found, and the option is written as the stat reads it, the options it did not touch word for word',
+            stopped && oBox.value === 'Off Hand = Skills.knife.OffHand.Target, Blade = Skills.KNIFE.target, Old = Skills.axe.Target, Iron = Skills.swim.Target, Strength = ST' && oBox.calls.includes('dispatch change'), oBox.value);
+        chg(q1(0, '.fb-optspec'), ' two-handed ');
+        check('gap 4: a specialty typed in a player\u2019s words is held as one word and said back', q1(0, '.fb-optspec').value === 'Two Handed' && oBox.value.indexOf('Off Hand = Skills.knife.TwoHanded.Target,') === 0, oBox.value);
+        chg(q1(0, '.fb-optspec'), '');
+        check('gap 4: an empty specialty reads the entry itself', oBox.value.indexOf('Off Hand = Skills.knife.Target,') === 0, oBox.value);
+        chg(q1(1, '.fb-optrowfig'), 'bonus');
+        check('gap 4: another figure of the row is picked by its name', oBox.value.indexOf('Blade = Skills.knife.bonus,') > 0, oBox.value);
+        chg(q1(2, '.ui-find-sel'), 'club');
+        check('gap 4: an entry that was gone can be picked again from the list', oBox.value.indexOf('Old = Skills.club.Target,') > 0, oBox.value);
+        chg(q1(1, '.fb-optfig'), '');
+        check('gap 4: Just this word takes the row\u2019s picks away', oBox.value.indexOf('Blade, ') > 0 && !q1(1, '.fb-optrow'), oBox.value);
+        chg(q1(1, '.fb-optfig'), '@list:Gear'); chg(q1(1, '.ui-find-sel'), 'rope');
+        check('gap 4: a list without Specialties asks none, and starts on its first figure', !q1(1, '.fb-optspec') && oBox.value.indexOf('Blade = Gear.rope.wt,') > 0, oBox.value);
+        B.setSource(() => ({ groups: [{ name: 'This character', items: [{ label: 'Strength', s: 'ST' }] }], word: () => '' }));
+        const oRoot2 = doc.createElement('div'), oBox2 = doc.createElement('input'); oBox2.type = 'text'; oBox2.className = 'sys-list-statopts field'; oBox2.value = 'Blade = Skills.knife.Target'; oRoot2.appendChild(oBox2); modal.appendChild(oRoot2); B.sweep(oRoot2);
+        check('gap 4: with no system at hand the option is drawn as before and kept', oBox2.value === 'Blade = Skills.knife.Target' && j(texts(oRoot2.querySelector('.fb-optfig'))) === j(['Just this word', 'Stands for Strength', 'Stands for a figure that is gone']) && !oRoot2.querySelector('.fb-optrow'));
+        const fbS = readU('scripts/formbox.js');
+        check('gap 4: the entry is the app\u2019s own choice of many with a search, and nothing of it is markup', /import \{ find \} from '\.\/uiparts\.js';/.test(fbS) && /pk\.appendChild\(find\(\{/.test(fbS) && /sys: d, get lib\(\) \{ return formLib\(\); \}/.test(require('./checkkit').part('sysedbox.js')));
+    }
     {
         const shK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), kS = require('./checkkit').cut('sysedtabs.js', 'var KEY_FOLLOW = {', 'function onInput(e) {');
         const fired = []; class Ev { constructor(n, o) { this.type = n; this.o = o; } } const box = (c, v) => { const b = { value: v || '', dataset: {}, classList: { contains: x => c.split(' ').includes(x) }, dispatchEvent: e => fired.push([c, b.value, e.type]) }; return b; };

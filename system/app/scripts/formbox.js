@@ -3,7 +3,8 @@
    handler that reads it: the form writes its value and says so with an input event, and a change event as it closes, so the System editor's
    dispatchers, its errors and its Save need no word of this. The stored value is still the formula, and opening a form and leaving it writes
    nothing. Text nodes and values only: a label and a stored formula can come from a file. The pure half is formcore.js. */
-import { readOpts, writeOpts, read, write, says, readCond, writeCond, saysCond, rollFace, readLine, readMake, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
+import { optLists, optRowRead, optRowWrite, optSpecWord, optSpecSay, readOpts, writeOpts, read, write, says, readCond, writeCond, saysCond, rollFace, readLine, readMake, tryRoll, tryValue, tryWords, readWords, writeWords, saysWords } from './formcore.js';
+import { find } from './uiparts.js';   // 1.6.3: the app's own choice of many with a search (an option's entry, gap 4)
 
 // [formcheck:boxes-start]
 // which boxes wear the form, and what each wants: a figure (amt), a figure with dice (roll) or a yes or no (cond)
@@ -528,19 +529,54 @@ function dressPick(inp, kind) {
     sel.addEventListener('change', set);
     if (rule) { inp.dataset.fbr = '1'; dress(inp); } else inp.hidden = true;
 }
-// A stat's options: a row each, with what it stands for picked from the sheet's own figures, never typed
+// A stat's options: a row each, with what it stands for picked from the sheet's own figures, never typed. Since 1.6.3 (gap 4 of
+// docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19: three small picks, the list, the entry with a search, and which figure) it may stand
+// for a figure of one row of an item list too: the first pick then names the list, and beside it stand the entry (uiparts.js find, which
+// searches), the specialty where the list has Specialties (a player's own words for it, optional) and the figure, each by its name.
+// formcore.js optLists, optRowRead and optRowWrite are the rule; the source hands the system being edited (sys) and the campaign's library
+// entries (lib), which sysedbox.js formSource gathers
+function listsOf(inp) { var s = null; try { s = source ? source(inp) : null; } catch (e) { s = null; } try { return s && s.sys ? optLists(s.sys, s.lib) : []; } catch (e) { return []; } }
 function figsOf(inp) { var s = null; try { s = source ? source(inp) : null; } catch (e) { s = null; } var out = []; ((s && s.groups) || []).forEach(function(g) { if (g && g.name === 'This character') (g.items || []).forEach(function(i) { if (i && typeof i.s === 'string') out.push([i.s, i.label || i.s]); }); }); return out; }
 function dressOpts(inp) {
-    inp.dataset.fbo = '1'; inp.hidden = true; var box = el('div', 'fb-opts'), rows = readOpts(inp.value), figs = figsOf(inp); inp.parentNode.insertBefore(box, inp);
+    inp.dataset.fbo = '1'; inp.hidden = true; var box = el('div', 'fb-opts'), rows = readOpts(inp.value), figs = figsOf(inp), lists = listsOf(inp); inp.parentNode.insertBefore(box, inp);
+    var LIST = '@list:', listOf = function(k) { for (var q = 0; q < lists.length; q++) if (lists[q].key === k) return lists[q]; return null; };
+    rows.forEach(function(r) { r.row = lists.length ? optRowRead(r.name, lists) : null; });   // an option stored as a row of a list shows as its picks
     var keep = function() { var t = writeOpts(rows); if (t === inp.value) return; inp.value = t; try { inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {} };
+    // the figure a new pick of a list starts on: the one the other options of this stat read of that list most, else the list's first
+    var figFor = function(L) { var n = Object.create(null), best = ''; rows.forEach(function(o) { if (o.row && o.row.list === L.key && o.row.figKnown !== false) { n[o.row.fig] = (n[o.row.fig] || 0) + 1; if (!best || n[o.row.fig] > n[best]) best = o.row.fig; } }); return best || L.figs[0][0]; };
+    // a row's picks write its name only once it is whole (an entry picked); until then the option keeps what it stood for
+    var commit = function(r) { var t = optRowWrite(r.row); if (t && t !== r.name) { r.name = t; keep(); } };
     var draw = function() {
         box.textContent = '';
         rows.forEach(function(r, i) {
             var rw = el('div', 'fb-opt'), lb = el('input', 'field fb-optname'), sel = el('select', 'field fb-optfig'), add = function(v, t) { var o = el('option', '', t); o.value = v; sel.appendChild(o); }, rm = btn('tool ghost sys-btn fb-optrm', '\u00d7', 'Take this option away');
             lb.type = 'text'; lb.value = r.label; lb.placeholder = 'An option'; lb.title = 'What the option is called'; lb.addEventListener('input', function() { r.label = lb.value; }); lb.addEventListener('change', keep);
-            add('', 'Just this word'); figs.forEach(function(f) { add(f[0], 'Stands for ' + f[1]); }); if (r.name && !figs.some(function(f) { return String(f[0]).toLowerCase() === r.name.toLowerCase(); })) add(r.name, 'Stands for a figure that is gone'); sel.value = r.name || ''; sel.title = 'An option may stand for a figure of the sheet, which a formula then reads through it'; sel.addEventListener('change', function() { r.name = sel.value; keep(); });
+            add('', 'Just this word'); figs.forEach(function(f) { add(f[0], 'Stands for ' + f[1]); });
+            lists.forEach(function(L) { add(LIST + L.key, 'Stands for a row of ' + L.label); });
+            if (!r.row && r.name && !figs.some(function(f) { return String(f[0]).toLowerCase() === r.name.toLowerCase(); })) add(r.name, 'Stands for a figure that is gone');
+            sel.value = r.row ? LIST + r.row.list : r.name || ''; sel.title = 'An option may stand for a figure of the sheet, or of one row of a list, which a formula then reads through it';
+            sel.addEventListener('change', function() {
+                if (sel.value.indexOf(LIST) === 0) { var L = listOf(sel.value.slice(LIST.length)); if (!L) return; r.row = { list: L.key, entry: '', known: false, spec: '', fig: figFor(L), figKnown: true }; draw(); var fq = box.querySelectorAll('.fb-opt')[i]; fq = fq && fq.querySelector ? fq.querySelector('.ui-find-q') : null; if (fq && fq.focus) fq.focus(); return; }
+                var was = !!r.row; r.row = null; r.name = sel.value; keep(); if (was) draw();
+            });
             rm.addEventListener('click', function() { rows.splice(i, 1); keep(); draw(); });
-            rw.appendChild(lb); if (figs.length || r.name) rw.appendChild(sel); rw.appendChild(rm); box.appendChild(rw);
+            rw.appendChild(lb); if (figs.length || lists.length || r.name) rw.appendChild(sel);
+            var L0 = r.row ? listOf(r.row.list) : null;
+            if (L0) {   // the row's picks: the entry by its name with a search, its specialty where the list has them, and which figure
+                var pk = el('span', 'fb-optrow');
+                pk.appendChild(find({ cls: 'fb-optentry', label: 'Which entry of ' + L0.label, blank: 'Pick an entry', gone: 'An entry that is no longer there', placeholder: 'Search', value: r.row.entry,
+                    choices: L0.entries.map(function(e) { return { value: e[0], name: e[1], sub: e[2] }; }), set: function(v) { r.row.entry = v; r.row.known = !!v; commit(r); } }));
+                if (L0.specs) {
+                    var spc = el('input', 'field fb-optspec'); spc.type = 'text'; spc.value = optSpecSay(r.row.spec); spc.placeholder = 'Any specialty'; spc.title = 'A specialty of the entry, in the words a player names it with, such as Off Hand. Leave it empty for the entry itself';
+                    spc.addEventListener('change', function() { r.row.spec = optSpecWord(spc.value); spc.value = optSpecSay(r.row.spec); commit(r); });
+                    pk.appendChild(spc);
+                }
+                var fs = el('select', 'field fb-optrowfig'), fadd = function(v, t) { var o = el('option', '', t); o.value = v; fs.appendChild(o); };
+                L0.figs.forEach(function(f) { fadd(f[0], f[1]); }); if (!r.row.figKnown) fadd(r.row.fig, 'A figure that is gone'); fs.value = r.row.fig; fs.title = 'Which figure of that row';
+                fs.addEventListener('change', function() { r.row.fig = fs.value; r.row.figKnown = true; commit(r); });
+                pk.appendChild(fs); rw.appendChild(pk); rw.className = 'fb-opt fb-opt-row';
+            }
+            rw.appendChild(rm); box.appendChild(rw);
         });
         var more = btn('tool ghost sys-btn fb-optadd', '+ Option', 'Add an option to this list'); more.addEventListener('click', function() { rows.push({ label: '', name: '' }); draw(); var all = box.querySelectorAll('.fb-optname'); if (all.length && all[all.length - 1].focus) all[all.length - 1].focus(); }); box.appendChild(more);
     };

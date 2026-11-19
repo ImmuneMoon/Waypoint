@@ -25,6 +25,14 @@
 //                    along it and go no further; Enter and the space bar are a button's own press. Every word is set as text. Answers the
 //                    .ui-pick element with picked() (the value picked), setValue(v) (shown, set not called), focusPick(), touched (true
 //                    once a press or a key picked) and buttons
+//   find(o)          a choice of many, one picked, with a search over them (1.6.3; the owner, 2026-11-19, of an entry picked by name
+//                    among a list's 120: "im usually partial to lists having searches too"): a search box and a list, joined in one
+//                    .ui-find frame. o: choices [{ value, name, sub }] (sub, a few gray words a search reads too, such as GM only),
+//                    value, blank (the words of a first row that picks nothing; none: no such row), gone (the words for a value no
+//                    choice has any more, kept and shown so that nothing stored is lost), label, placeholder, cls, max (rows shown at
+//                    most, 200), set(v) called when a pick changes. Answers the .ui-find element with picked(), setValue(v) (shown, set
+//                    not called), input and select
+//   findMatch        whether a choice holds every word typed anywhere, case and accents aside (pure, for the suites)
 //   clampTo, roundTo the pure rules, for the suites
 function fin(n) { return typeof n === 'number' && isFinite(n); }
 function roundTo(v, dec) { var k = Math.pow(10, Math.max(0, Math.min(6, dec | 0))); return Math.round(v * k) / k; }
@@ -121,6 +129,55 @@ function pick(o, doc) {
     show(o.value);
     return w;
 }
+// A search's words: lower case, accents taken off (NFD, then the marks dropped), split on anything that is no letter or digit. Pure
+function findWords(t) { return String(t === undefined || t === null ? '' : t).normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean); }
+// Whether a choice matches what was typed: every word typed stands somewhere in its name or its gray words, as the library's picker
+// searches (librarycore entryHay), so "sword" finds Broadsword and "off ha" finds Off Hand. Nothing typed matches every choice
+function findMatch(c, q) {
+    var want = findWords(q); if (!want.length) return true;
+    var have = findWords((c && c.name !== undefined && c.name !== null ? c.name : '') + ' ' + (c && c.sub ? c.sub : '')).join(' ');
+    return want.every(function(w) { return have.indexOf(w) >= 0; });
+}
+// The choice of many with a search (see the head of the file). The list is drawn again at each word typed: the picked one stays first, so it is
+// always in sight and never changed by a search, then what matches, at most o.max, and a last row that says how many more a search would show.
+// A choice is picked from the list itself (its change event, which the arrow keys and a press give alike); Enter in the search box picks the
+// first that matches and ArrowDown goes on to the list. Escape in a search that holds words empties it and goes no further (esckey.js escKeep
+// leaves such a press to it). Every word is set as text: a choice's name can come from a file
+function find(o, doc) {
+    doc = doc || document; o = o || {};
+    var ch = (Array.isArray(o.choices) ? o.choices : []).filter(function(c) { return c && typeof c.value === 'string' && c.value !== ''; });
+    var max = fin(o.max) && o.max > 0 ? Math.floor(o.max) : 200, cur = typeof o.value === 'string' ? o.value : '', MORE = '\u0000more';
+    var w = el(doc, 'span', 'ui-find' + (o.cls ? ' ' + o.cls : '')), q = el(doc, 'input', 'field ui-find-q'), sel = el(doc, 'select', 'field ui-find-sel');
+    q.type = 'text'; q.placeholder = typeof o.placeholder === 'string' ? o.placeholder : 'Search'; q.setAttribute('aria-label', 'Search ' + (o.label ? String(o.label).toLowerCase() : 'the list')); q.setAttribute('autocomplete', 'off'); q.setAttribute('spellcheck', 'false'); q.title = 'Type a few letters to narrow the list beside it';
+    if (o.label) { sel.setAttribute('aria-label', String(o.label)); sel.title = String(o.label); }
+    var nameOf = function(c) { return (c.name === undefined || c.name === null || c.name === '' ? c.value : String(c.name)) + (c.sub ? ' (' + c.sub + ')' : ''); };
+    var add = function(v, t, off) { var op = el(doc, 'option', '', t); op.value = v; if (off) op.disabled = true; sel.appendChild(op); };
+    var show = function() {
+        while (sel.firstChild) sel.removeChild(sel.firstChild);
+        var mine = null; for (var i = 0; i < ch.length; i++) if (ch[i].value === cur) { mine = ch[i]; break; }
+        if (typeof o.blank === 'string') add('', o.blank);
+        if (cur && mine) add(cur, nameOf(mine)); else if (cur) add(cur, typeof o.gone === 'string' ? o.gone : cur);   // the pick first, in sight whatever is typed
+        var hits = ch.filter(function(c) { return c !== mine && findMatch(c, q.value); });
+        hits.slice(0, max).forEach(function(c) { add(c.value, nameOf(c)); });
+        if (hits.length > max) add(MORE, (hits.length - max) + ' more. Search to narrow them', true);
+        sel.value = cur;
+    };
+    var go = function(v) { if (typeof v !== 'string' || v === MORE || v === cur) { show(); return; } cur = v; show(); if (typeof o.set === 'function') o.set(v); };
+    q.addEventListener('input', show);
+    q.addEventListener('keydown', function(ev) {
+        if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+        if (ev.key === 'Enter') { var first = ch.filter(function(c) { return findMatch(c, q.value); })[0]; ev.preventDefault(); ev.stopPropagation(); if (first && q.value) go(first.value); }
+        else if (ev.key === 'ArrowDown') { ev.preventDefault(); ev.stopPropagation(); sel.focus(); }
+        else if (ev.key === 'Escape' && q.value) { ev.preventDefault(); ev.stopPropagation(); q.value = ''; show(); }
+    });
+    sel.addEventListener('change', function() { go(sel.value); });
+    w.appendChild(q); w.appendChild(sel);
+    w.input = q; w.select = sel;
+    w.picked = function() { return cur; };
+    w.setValue = function(v) { cur = typeof v === 'string' ? v : ''; show(); };
+    show();
+    return w;
+}
 var VALUE = typeof HTMLInputElement !== 'undefined' ? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value') : null;
 function typed(range, o) {
     if (!range || range._uiVal) return range && range._uiVal;
@@ -147,8 +204,8 @@ function typedAll(root) {
     var n = 0; [].forEach.call(r.querySelectorAll('input[type="range"][data-typed]'), function(x) { if (!x._uiVal) { var hid = x.getAttribute('data-hide'), h = hid && x.ownerDocument ? x.ownerDocument.getElementById(hid) : null; typed(x, { unit: x.getAttribute('data-unit') || '', hide: h }); n++; } });
     return n;
 }
-var API = { card: card, pick: pick, step: step, typed: typed, typedAll: typedAll, clampTo: clampTo, roundTo: roundTo, fmtTime: fmtTime, readTime: readTime };
-export { card, pick, step, typed, typedAll, clampTo, roundTo, fmtTime, readTime };
+var API = { card: card, pick: pick, find: find, findMatch: findMatch, step: step, typed: typed, typedAll: typedAll, clampTo: clampTo, roundTo: roundTo, fmtTime: fmtTime, readTime: readTime };
+export { card, pick, find, findMatch, step, typed, typedAll, clampTo, roundTo, fmtTime, readTime };
 if (typeof window !== 'undefined') {
     window.wpUi = API;
     if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() { typedAll(document); }); else typedAll(document); }

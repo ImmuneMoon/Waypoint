@@ -20,21 +20,19 @@ const NL = String.fromCharCode(10);
 const app = kit.APP, url = kit.url;
 const T = kit.suite('system'), check = T.check;
 const j = v => JSON.stringify(v);
-const sevenList = () => ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'].map(id => ({ id, name: id }));   // as systemcheck.js has it
-const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter-3d6.json') : n === 'd20' ? path.join(__dirname, 'fixtures', 'starter-d20.json') : path.join(app, 'assets', 'systems', n + '.json');
-// the Combat tab's Blasts and throws stands in folds, so a harness reads every box under it, at any depth (as systemcheck.js has it)
-function flatKids(n) { return (n && Array.isArray(n.kids) ? n.kids : []).reduce(function(a, k) { return a.concat([k], flatKids(k)); }, []); }
+const starterFile = kit.starterFile;   // the two frozen starters for the tests and the app's own systems, by name (tools/checkkit.js)
+const sevenList = kit.sevenList;   // a posture list for the tests (tools/checkkit.js)
+const flatKids = kit.flatKids;   // every box under a node of a page of plain objects, at any depth (tools/checkkit.js)
 
 (async () => {
     // the core and the formula engine, imported as systemcheck.js imports them (the joined systemcore.js, srcjoin's answer), so each block
     // runs on the module state it ran on there
-    let S = null, F = null, err = null;
-    try { S = await import(url('systemcore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
+    const core = await kit.sysCore();   // systemcore.js and formula.js imported, the names systemcheck.js unpacks, the two presets and flatKids
+    const { S, F, err } = core;
     check('sysedcheck: the core and the formula engine load in Node with no window', !!S && !!F && !err, err && err.message);
     if (!S || !F) { await T.finish(); return; }
-    const { LIMITS, validKey, cleanField, cleanSystem, cleanValue, cleanChar, cleanCharEdit, makeResolver, resolveAll, hoverLines, validateSystem, charFor, applyEdit, autoLayout, emptySystem } = S;   // the names systemcheck.js unpacks, which its blocks read
-    const d20 = JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', 'd20.json'), 'utf8'));
-    const g3d6 = JSON.parse(fs.readFileSync(starterFile('3d6'), 'utf8'));
+    const { LIMITS, validKey, cleanField, cleanSystem, cleanValue, cleanChar, cleanCharEdit, makeResolver, resolveAll, hoverLines, validateSystem, charFor, applyEdit, autoLayout, emptySystem } = core;   // the names systemcheck.js unpacks, which its blocks read
+    const { d20, g3d6 } = core;
     check('sysedcheck: sysedlayout.js, sysedbox.js, sysederr.js, sysedtabs.js are parts of sheets.js, each read here by its own name', ['sysedlayout.js', 'sysedbox.js', 'sysederr.js', 'sysedtabs.js'].every(p => /^\/\* [a-z]+\.js: a part of sheets\.js/.test(kit.part(p))));
 
     /* ---- Stage 6 HUD frame (HF2b): the HUD's entry points and the HUD button placement ---- */

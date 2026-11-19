@@ -42,8 +42,8 @@
    - packCheck(v): PeerJS's BinaryPack refusals, which netcheck runs on every send of a harness (moved here from netcheck).
    - url(name): a file URL of a script, for import(). fresh(root, tag): the file URLs of a private copy of a split root and its
      parts, by name, so that an import runs the real split wiring (a part as a module of its own). APP and SCRIPTS: the app's folders.
-   - sysCore(), starterFile(n), flatKids(node): systemcheck.js's top (systemcore.js and formula.js, the names it unpacks, the presets),
-     which it and the suites that came out of it with the lists, rolls and sheet start from. */
+   - sysCore(), starterFile(n), flatKids(node), presets(), sevenList(), ownLines(src), css0911(): systemcheck.js's top (systemcore.js
+     and formula.js, the names it unpacks, the presets, and its helpers), which it and the suites that came out of it start from. */
 'use strict';
 const srcjoin = require('./srcjoin');
 srcjoin.install();
@@ -245,6 +245,13 @@ const url = f => 'file:///' + path.resolve(path.join(SCRIPTS, f)).replace(/[\\]/
 // "Folds by part, answer shown": the Combat tab's Blasts and throws stands in folds).
 const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter-3d6.json') : n === 'd20' ? path.join(__dirname, 'fixtures', 'starter-d20.json') : path.join(APP, 'assets', 'systems', n + '.json');
 function flatKids(n) { return (n && Array.isArray(n.kids) ? n.kids : []).reduce(function(a, k) { return a.concat([k], flatKids(k)); }, []); }
+// The rest of systemcheck.js's top, word for word, so that no suite keeps a copy (the review of test step 1, 2026-11-19): presets() reads
+// the d20 system and the frozen 3d6 starter afresh each call (a suite that imports a private copy of systemcore.js takes them from here);
+// sevenList is a posture list for the tests, ownLines net.js's own-key lookups for a sliced gate, css0911 the style sheet as it stands.
+const presets = () => ({ d20: JSON.parse(fs.readFileSync(path.join(APP, 'assets', 'systems', 'd20.json'), 'utf8')), g3d6: JSON.parse(fs.readFileSync(starterFile('3d6'), 'utf8')) });
+const sevenList = () => ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'].map(id => ({ id, name: id }));   // 1.6.0, backlog 183 (3): a system's own list for the tests, none being a default
+const ownLines = src => ['function own(', 'function validKey(', 'function campOf('].map(k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';   // net.js's own-key lookups (the real one-liners) for a sliced gate that uses them
+function css0911() { return require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8'); }   // the viewing of 2026-11-09: the HUD fits what it holds
 const SYS_NAMES = ['LIMITS', 'validKey', 'cleanField', 'cleanSystem', 'cleanValue', 'cleanChar', 'cleanCharEdit', 'makeResolver', 'resolveAll', 'hoverLines', 'validateSystem', 'charFor', 'applyEdit', 'autoLayout', 'emptySystem'];
 async function sysCore() {
     let S = null, F = null, err = null;
@@ -252,8 +259,7 @@ async function sysCore() {
     const out = { S, F, err, flatKids };
     if (!S || !F) return out;
     SYS_NAMES.forEach(k => { out[k] = S[k]; });
-    out.d20 = JSON.parse(fs.readFileSync(path.join(APP, 'assets', 'systems', 'd20.json'), 'utf8'));
-    out.g3d6 = JSON.parse(fs.readFileSync(starterFile('3d6'), 'utf8'));
+    Object.assign(out, presets());
     return out;
 }
 
@@ -267,4 +273,4 @@ function fresh(root, tag) {
     return name => u.slice(0, u.lastIndexOf('/') + 1) + name;
 }
 
-module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, packCheck, url, fresh, sysCore, starterFile, flatKids, APP, SCRIPTS, lf };
+module.exports = { suite, joined, part, cut, cutEnd, familyCount, defOf, sheetsSlicer, plainPage, wbState, netState, netSlices, netHarness, packCheck, url, fresh, sysCore, starterFile, flatKids, presets, sevenList, ownLines, css0911, APP, SCRIPTS, lf };

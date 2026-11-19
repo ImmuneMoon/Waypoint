@@ -28,7 +28,7 @@ const j = v => JSON.stringify(v);
     check('damagecheck: damagecore.js loads by name as a module of its own in Node with no window, with the install systemcore.js calls, and systemcore.js installs it', !!P0 && typeof P0.damageCore === 'function' && !!S && !!F && !err, err && err.message);
     if (!S || !F) { await T.finish(); return; }
     const { LIMITS, validKey, cleanField, cleanSystem, cleanValue, cleanChar, cleanCharEdit, makeResolver, resolveAll, hoverLines, validateSystem, charFor, applyEdit, autoLayout, emptySystem } = S;
-    const d20 = JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', 'd20.json'), 'utf8'));
+    const { d20 } = kit.presets();   // the d20 system (tools/checkkit.js)
 
     /* ---- 1.5.6, the damage step (docs/DAMAGE_STEP_DESIGN.md): the core run for real on an invented system (systemcore damageStep, cleanDamageRules,
        cleanCharDamage), and the System editor's Taking damage box (sheets.js, sliced by its dmgbox markers and run for real on a page of plain

@@ -19,8 +19,7 @@ const NL = String.fromCharCode(10);
 const app = kit.APP, url = kit.url;
 const T = kit.suite('system'), check = T.check;
 const j = v => JSON.stringify(v);
-const sevenList = () => ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'].map(id => ({ id, name: id }));
-const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter-3d6.json') : n === 'd20' ? path.join(__dirname, 'fixtures', 'starter-d20.json') : path.join(app, 'assets', 'systems', n + '.json');
+const starterFile = kit.starterFile;   // the two frozen starters for the tests and the app's own systems, by name (tools/checkkit.js)
 
 (async () => {
     // The area's parts are imported by their own names from a private copy of systemcore.js and its parts (kit.fresh), so each runs as
@@ -32,8 +31,7 @@ const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter
     check('timerulecheck: timecore.js and everycore.js load by name as modules of their own in Node with no window, each with the install systemcore.js calls, and systemcore.js installs them', !!P1 && typeof P1.timeCore === 'function' && !!P2 && typeof P2.everyCore === 'function' && !!S && typeof S.timeRuleRun === 'function' && typeof S.cleanEvery === 'function' && !err, err && String(err.stack || err));
     if (!S || !F) { await T.finish(); return; }
     const { LIMITS, validKey, cleanField, cleanSystem, cleanValue, cleanChar, cleanCharEdit, makeResolver, resolveAll, hoverLines, validateSystem, charFor, applyEdit, autoLayout, emptySystem } = S;
-    const d20 = JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', 'd20.json'), 'utf8'));
-    const g3d6 = JSON.parse(fs.readFileSync(starterFile('3d6'), 'utf8'));
+    const { d20, g3d6 } = kit.presets();   // the d20 system and the frozen 3d6 starter (tools/checkkit.js)
     // 1.5.5's review (a large campaign's hour): every harness that runs runTimeRules (sheets.js) runs it as the app does, handed ruleRunCtx and
     // chainsShallow (trFlat, which keeps in trSeen what chainsShallow answered for that harness), and trTwin runs the same fires on two copies of
     // the campaign, one so and one handed neither (the path every run took before), with the same dice, and keeps in trSeen whether the two

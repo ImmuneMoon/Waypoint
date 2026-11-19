@@ -17,18 +17,16 @@
    speccheck.js, and Loads from, Chambers from, Counted once, Feeds, a job, holds, a line and cover hits to loadcheck.js.
    Usage: node tools/systemcheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
-function css0911() { return require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8'); }   // the viewing of 2026-11-09: the HUD fits what it holds
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
 const app = path.join(__dirname, '..', 'system', 'app');
-const sevenList = () => ['standing', 'crouching', 'sitting', 'kneeling', 'crawling', 'lying-prone', 'lying-face-up'].map(id => ({ id, name: id }));   // 1.6.0, backlog 183 (3): a system's own list for the tests, none being a default
 const kit = require('./checkkit');   // what the suites that came out of this one share with it (tools/checkkit.js)
 const starterFile = kit.starterFile;   // the two frozen starters for the tests and the app's own systems, by name
+const { sevenList, ownLines, css0911 } = kit;   // a posture list for the tests, net.js's own-key lookups for a sliced gate, the style sheet
 const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).replace(/[\\]/g, '/');
 let pass = 0, fail = 0;
 function check(name, ok, detail) { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + String(detail).slice(0, 300) : ''); } }
 const j = v => JSON.stringify(v);
-const ownLines = src => ['function own(', 'function validKey(', 'function campOf('].map(k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';   // net.js's own-key lookups (the real one-liners) for a sliced gate that uses them
 
 let summed = false;   // a check that never settles (a promise nothing answers) would let Node exit with no summary and code 0: that is a failure
 process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });

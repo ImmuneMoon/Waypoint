@@ -20,9 +20,8 @@ const NL = String.fromCharCode(10);
 const app = kit.APP, url = kit.url;
 const T = kit.suite('system'), check = T.check;
 const j = v => JSON.stringify(v);
-// what the moved blocks took from systemcheck.js's top, word for word
-const starterFile = n => n === '3d6' ? path.join(__dirname, 'fixtures', 'starter-3d6.json') : n === 'd20' ? path.join(__dirname, 'fixtures', 'starter-d20.json') : path.join(app, 'assets', 'systems', n + '.json');
-const ownLines = src => ['function own(', 'function validKey(', 'function campOf('].map(k => { const i = src.indexOf(k); return i < 0 ? '' : src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';   // net.js's own-key lookups (the real one-liners) for a sliced gate that uses them
+// what the moved blocks take from systemcheck.js's top, now in the kit
+const { ownLines } = kit;
 
 (async () => {
     // The area's parts are imported by their own names from a private copy of systemcore.js and its parts (kit.fresh), so each runs as
@@ -35,8 +34,7 @@ const ownLines = src => ['function own(', 'function validKey(', 'function campOf
     check('corecheck: the cleaners and the validator are read by name: cleancore.js holds cleanSystem and validcore.js holds validateSystem and the namewords slice', kit.part('cleancore.js').includes('\nfunction cleanSystem(') && kit.part('validcore.js').includes('\nfunction validateSystem(') && kit.part('validcore.js').includes('// [formcheck:namewords-start]'));
     if (!S || !F) { await T.finish(); return; }
     const { LIMITS, validKey, cleanField, cleanSystem, cleanValue, cleanChar, cleanCharEdit, makeResolver, resolveAll, hoverLines, validateSystem, charFor, applyEdit, autoLayout, emptySystem } = S;   // the names systemcheck.js unpacks, which its blocks read
-    const d20 = JSON.parse(fs.readFileSync(path.join(app, 'assets', 'systems', 'd20.json'), 'utf8'));
-    const g3d6 = JSON.parse(fs.readFileSync(starterFile('3d6'), 'utf8'));
+    const { d20, g3d6 } = kit.presets();   // the d20 system and the frozen 3d6 starter (tools/checkkit.js)
 
     /* ---- presets ---- */
     [['d20', d20], ['3d6', g3d6]].forEach(([n, p]) => {

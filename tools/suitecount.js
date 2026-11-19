@@ -40,12 +40,14 @@ function suites() {
 // A result line as it is compared: one space after its word, no trailing space, a measured time as "# ms" (above: at the end in
 // parentheses, ceilingcheck's ceilings, a time taken "here" or "built in", and the detail after "->"), and a count of suites as
 // "# suites" (splitcheck names how many suites it read, which a new suite moves), and splitcheck's counts of the pins it judged and the
-// tools it parsed in 7b and 7c as "#" (a pin added or moved in any suite moves them; the review of next area 1, 2026-11-18). A line
+// tools it parsed in 7b, 7c and 7e as "#" (a pin added or moved in any suite moves them; the review of next area 1, 2026-11-18;
+// 7e names that count after a count of definitions, "(N such definitions, M tools read by the parser)", so the figure is read
+// right before its words wherever it stands; the review of test step 1, 2026-11-19). A line
 // already so written reads the same again, so
 // a count file written before a rule was added compares as one written after it.
 const MS = /\d[\d.,]*\s*ms\b/g;
 const norm = l => {
-    l = l.replace(/^(ok|FAIL)\s+/, '$1 ').replace(/\s+$/, '').replace(/\(\d+ suites\)/g, '(# suites)').replace(/\(\d+ pins on a root judged\)/g, '(# pins on a root judged)').replace(/\(\d+ tools read by the parser\)/g, '(# tools read by the parser)');
+    l = l.replace(/^(ok|FAIL)\s+/, '$1 ').replace(/\s+$/, '').replace(/\(\d+ suites\)/g, '(# suites)').replace(/\(\d+ pins on a root judged\)/g, '(# pins on a root judged)').replace(/\b\d+ tools read by the parser\)/g, '# tools read by the parser)');
     const k = l.indexOf(' -> '), head = k < 0 ? l : l.slice(0, k), tail = k < 0 ? '' : l.slice(k).replace(MS, '# ms');
     let h = head.replace(/\(\d[\d.,]*\s*ms\)$/, '(# ms)');
     // a time the check measured on this machine and names in its own words: "134 ms here" and "built in 412 ms"

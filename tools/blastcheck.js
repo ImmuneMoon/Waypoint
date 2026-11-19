@@ -24,17 +24,16 @@ const NL = String.fromCharCode(10);
 const app = kit.APP, url = kit.url;
 const T = kit.suite('system'), check = T.check;
 const j = v => JSON.stringify(v);
-// the Combat tab's Blasts and throws stands in folds, so a harness reads every box under it, at any depth (as systemcheck.js has it)
-function flatKids(n) { return (n && Array.isArray(n.kids) ? n.kids : []).reduce(function(a, k) { return a.concat([k], flatKids(k)); }, []); }
+const flatKids = kit.flatKids;   // every box under a node of a page of plain objects, at any depth (tools/checkkit.js)
 
 (async () => {
     // the core and the formula engine, imported as systemcheck.js imports them (the joined systemcore.js, srcjoin's answer), so each block
     // runs on the module state it ran on there
-    let S = null, F = null, err = null;
-    try { S = await import(url('systemcore.js')); F = await import(url('formula.js')); } catch (e) { err = e; }
+    const core = await kit.sysCore();   // systemcore.js and formula.js imported, the names systemcheck.js unpacks, the two presets and flatKids
+    const { S, F, err } = core;
     check('blastcheck: the core and the formula engine load in Node with no window', !!S && !!F && !err, err && err.message);
     if (!S || !F) { await T.finish(); return; }
-    const { LIMITS, cleanSystem } = S;   // the names systemcheck.js unpacks that these blocks read
+    const { LIMITS, cleanSystem } = core;   // the names systemcheck.js unpacks that these blocks read
     check('blastcheck: wbblast.js and wbimglib.js are parts of whiteboard.js, each read here by its own name, and the state the blasts set stands in whiteboard.js with its two setters',
         ['wbblast.js', 'wbimglib.js'].every(p => /^\/\* [a-z]+\.js: a part of whiteboard\.js/.test(kit.part(p))) && kit.part('wbblast.js').includes('  // [systemcheck:radius-start]\n')
         && /function blastsSet\(v\) \{ blasts = v; \}/.test(kit.wbState('blast')) && /function coneAimSet\(v\) \{ coneAim = v; \}/.test(kit.wbState('blast')));

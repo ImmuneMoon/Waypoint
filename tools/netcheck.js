@@ -6,7 +6,7 @@
    bounded), broadcast() (admitted peers only on the host), and chat (the sender is the roster's, never the claim).
    An area's tests leave this suite with their area (docs/REFACTOR_SPLIT_PLAN.md, 2026-11-18): attacks and defenses on the host are in
    attackcheck.js, and the defense folds (a landed attack, the answers, an attack sent on) in landcheck.js; what time does at a table
-   (timed effects, a time rules summary, each fight's own time) in nettimecheck.js.
+   (timed effects, a time rules summary, each fight's own time) in nettimecheck.js, linked sheets (a crew's press, char-link, linkTell, crew in a vehicle's turn) in linkcheck.js.
    Run: node tools/netcheck.js */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const fs = require('fs'), path = require('path');
@@ -2886,53 +2886,6 @@ pendingChecks.push((async () => {
         && e.table.length === 0 && e.sent.length === 1 && e.sent[0].priv === 'gm' && rd(e.sent[0], 'RoundNow') === 3
         && g.table.length === 0 && g.sent.length === 1 && g.sent[0].type === 'roll-deny' && g.sent[0].reason === 'error',
         j([a, b.table, c.table, d.table, f.table, e.sent, g.sent]));
-})());
-
-// 1.6.0 Its crew may press this sheet's rolls: the real roll-req branch with the real dicecore, formula engine and systemcore. The host judges the press by its own
-// copy: a crew member of that vehicle, at a station the roll names, spends their own action, the roll lands on the vehicle, and Presser reads the sheet that pressed
-pendingChecks.push((async () => {
-    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
-    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
-    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
-    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
-    const raw = { fields: [{ id: 'f_aim', key: 'Aim', label: 'Aim', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_ammo', key: 'Ammo', label: 'Ammo', kind: 'number', vis: 'all', edit: 'gm' }],
-        rolls: [{ id: 'r_gun', label: 'Gun', formula: '3d6 <= Presser.Aim + 20', vis: 'all', then: [{ f: 'f_ammo', formula: '1', add: true }] }, { id: 'r_eng', label: 'Engine', formula: '3d6 <= 30', vis: 'all', stations: ['Engineer', 'Bad station!', 'Engineer'] }, { id: 'r_ini', label: 'Start', formula: '3d6', vis: 'all', init: true }],
-        links: [{ id: 'lk_c', key: 'Ship', label: 'Ship', kind: 'crew', group: 'Crew', press: true, stations: ['Gunner', 'Engineer'], edit: 'gm' }, { id: 'lk_off', key: 'Boat', label: 'Boat', kind: 'crew', edit: 'gm' }] };
-    const gmSys = Sx.cleanSystem(raw, { F: Fx, gmView: true });
-    const chars = () => ({ c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, links: { lk_c: 'c_v' }, stn: { lk_c: 'Gunner' }, values: { f_aim: 13 } }, c_b: { id: 'c_b', name: 'Pebbles', ownerId: 'u_a', npc: false, values: { f_aim: 9 } }, c_o: { id: 'c_o', name: 'Rook', ownerId: 'u_o', npc: false, links: { lk_c: 'c_v' }, values: { f_aim: 15 } }, c_q: { id: 'c_q', name: 'Tam', ownerId: 'u_a', npc: false, links: { lk_off: 'c_v' }, values: {} }, c_v: { id: 'c_v', name: 'Swift', ownerId: '', npc: true, values: { f_ammo: 5 } } });
-    const run = msg0 => {
-        const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: chars(), items: { m1: { type: 'map', whiteboard: [] } } };
-        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
-        const out = { table: [], sent: [], camp };
-        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
-        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
-        Sx.setCrewSource((vid, lid) => Object.values(camp.chars).filter(c => c.links && c.links[lid] === vid));
-        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
-            Object.assign({ type: 'roll-req', rid: 'q1' }, msg0), conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, () => {}, () => {}, () => {});
-        Sx.setCrewSource(null);
-        return out;
-    };
-    const gun = { expr: '3d6 <= Presser.Aim + 20', charId: 'c_v', act: 'r_gun', label: 'Gun' };
-    const ok = run(Object.assign({ by: 'c_a' }, gun)), noBy = run(gun), other = run(Object.assign({ by: 'c_b' }, gun)), theirs = run(Object.assign({ by: 'c_o' }, gun)), off = run(Object.assign({ by: 'c_q' }, gun));
-    const eng = run({ expr: '3d6 <= 30', charId: 'c_v', act: 'r_eng', label: 'Engine', by: 'c_a' }), ini = run({ expr: '3d6', charId: 'c_v', act: 'r_ini', label: 'Start', by: 'c_a' }), loose = run({ expr: '3d6 <= 99', charId: 'c_v', act: 'r_gun', label: 'Gun', by: 'c_a' });
-    const nm = (rec, n) => ((rec && rec.names) || []).filter(x => x.name === n).map(x => x.value)[0], deny = o => o.sent.length === 1 && o.sent[0].type === 'roll-deny' && o.table.length === 0;
-    check('1.6.0 a crew member presses a vehicle\'s roll (roll-req, run for real): judged by the host\'s own copy, the card says who on what, Presser reads the sheet that pressed alone, and its Then lands on the vehicle',
-        ok.table.length === 1 && ok.table[0].as === 'Kael on Swift' && nm(ok.table[0], 'Presser.Aim') === 13 && ok.camp.chars.c_v.values.f_ammo === 6 && ok.sent.length === 0, j([ok.table, ok.sent, ok.camp.chars.c_v.values]));
-    check('1.6.0 no press without the link: no sheet named, a sheet of theirs that is not linked, a sheet of another player\'s and a Crew link not ticked are each refused with nothing rolled and nothing moved; the wrong station, the initiative roll and a formula that is not the button\'s too',
-        deny(noBy) && noBy.sent[0].reason === 'char' && deny(other) && /not one your character crews/.test(other.sent[0].message) && deny(theirs) && deny(off) && deny(eng) && /another station/.test(eng.sent[0].message) && deny(ini) && deny(loose) && [noBy, other, theirs, off, eng, ini, loose].every(o => o.camp.chars.c_v.values.f_ammo === 5), j([noBy.sent, other.sent, theirs.sent, off.sent, eng.sent, ini.sent, loose.sent]));
-    const view = Sx.cleanSystem(raw, { F: Fx, gmView: false }), gnr = Sx.crewRollsOf(view, { values: {} }, ['Gunner'], Fx), egr = Sx.crewRollsOf(view, { values: {} }, ['Engineer'], Fx);
-    const nmd = Sx.crewRollsOf(view, { values: {} }, ['Engineer'], Fx, true), nmG = Sx.crewRollsOf(view, { values: {} }, ['Gunner'], Fx, true), cln = Sx.cleanSystem(Object.assign({}, raw, { links: [Object.assign({}, raw.links[0], { pressNamed: true }), Object.assign({}, raw.links[1], { pressNamed: true })] }), { F: Fx, gmView: false });
-    check('1.6.0 Only rolls that name a station: a crew member is offered those alone, and the judge agrees, a roll that names none refused; the key is kept only beside press, in both views',
-        j(nmd.map(e => e.act)) === '["r_eng"]' && nmG.length === 0 && Sx.rollStationOk({}, ['Gunner'], true) === false && Sx.rollStationOk({}, ['Gunner']) === true && Sx.rollStationOk({ stations: ['Gunner'] }, ['Gunner'], true) === true && cln.links[0].pressNamed === true && cln.links[1].pressNamed === undefined, j([nmd, nmG, cln.links]));
-    check('1.6.0 what a crew member is offered: the system\'s rolls their station may press, never the initiative roll; a roll keeps only sound station words, each once, in both views',
-        j(gmSys.rolls[1].stations) === '["Engineer"]' && j(view.rolls[1].stations) === '["Engineer"]' && j(gnr.map(e => e.act)) === '["r_gun"]' && j(egr.map(e => e.act)) === '["r_gun","r_eng"]' && gmSys.links[0].press === true && gmSys.links[1].press === undefined && view.links[0].press === true, j([gnr, egr, gmSys.links]));
-    const hostile = { lk_c: [{ act: 'r_gun', expr: '3d6', label: 'Gun\u0007' }, { act: '__proto__', expr: '3d6' }, { f: 'f_x', r: 'w_a1', i: 1, expr: '1d6', label: '<b>x</b>' }, { f: 'f_x', r: 'w_a1', i: 999, expr: '1d6' }, { act: 'r_x', expr: 7 }, 'junk'], lk_off: [{ act: 'r_gun', expr: '3d6' }], __proto__x: 1 };
-    const cr = Sx.cleanCr(hostile, gmSys);
-    check('1.6.0 a player\'s app takes the list as data: a sound entry alone, a label as plain text, nothing for a link that lets no one press, none from what is no list',
-        cr && cr.lk_c.length === 2 && cr.lk_c[0].label === 'Gun' && cr.lk_c[1].label === '<b>x</b>' && !cr.lk_off && Sx.cleanCr('x', gmSys) === null && Sx.cleanCr({}, gmSys) === null, j(cr));
-    const vr = Sx.validateSystem(Object.assign({}, raw, { links: [{ id: 'lk_c', key: 'Ship', label: 'Ship', kind: 'crew', edit: 'gm' }] }), Fx);
-    check('1.6.0 Presser is known only where a Crew link lets its crew press and reads them as a group', Sx.validateSystem(gmSys, Fx).errors.every(e => !/Presser/.test(e.message)) && vr.errors.some(e => /Presser/.test(e.message)), j(vr.errors));
-    check('1.6.0 a press names a roll and is a press of another sheet: cleanRollReq keeps by only beside a named roll of a character, never the same sheet', Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', act: 'r_a', by: 'c_a' }).by === 'c_a' && Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', by: 'c_a' }) === null && Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', act: 'r_a', by: 'c_v' }) === null && Dx.cleanRollReq({ rid: 'q1', expr: '3d6', charId: 'c_v', act: 'r_a', by: 'x y' }) === null);
 })());
 
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a player's roll with bonuses ticked in its ± window — the real roll-req branch
@@ -19368,158 +19321,6 @@ pendingChecks.push((async () => {
         && nS.includes('net.myId = hostId();') && nS.includes("    var profile = setProfileName(name || getProfile().name || 'Player');\n    net.myId = profile.id;") && nS.includes("if (!window.wpStream && !net.stream && typeof hostId === 'function') net.myId = hostId();"),
         JSON.stringify([first, after, healed, store, sites, gmSites]));
 }
-// 1.6.0 linked sheets (the owner, by prompt: "Two kinds", "A menu on the sheet", "Its owner and the GM", "Only the figures read"): a player's
-// link set on the host (char-link, sliced and run for real with the real systemcore and formula engine), the figures an owner's copy carries
-// (withLinkFigs) and the copy sent again when the linked sheet moves (linkTell). Invented names only
-pendingChecks.push((async () => {
-    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
-    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const lkS = between('// [netcheck:charlink-start]', '// [netcheck:charlink-end]', 'charlink'), ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell', 'netlink.js');
-    const raw = { v: 1, name: 'L', rolls: [], fields: [{ id: 'f_mv', key: 'Move', kind: 'number', def: 5 }, { id: 'f_sc', key: 'Secret', kind: 'number', def: 9, vis: 'gm' }, { id: 'f_sp', key: 'Speed', kind: 'formula', formula: 'if(Mount.has, Mount.Move, Move)' }, { id: 'f_sn', key: 'Sneak', kind: 'formula', formula: 'Mount.Secret + 1' }],
-        links: [{ id: 'lk_m', key: 'Mount', label: 'Mount', kind: 'mount' }, { id: 'lk_v', key: 'Vehicle', label: 'Vehicle', kind: 'crew', edit: 'gm' }] };
-    const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), view = Sx.cleanSystem(raw, { F: Fx, gmView: false });
-    const chars0 = () => ({ c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_a', npc: false, values: {} }, c_peb: { id: 'c_peb', name: 'Pebbles', ownerId: 'u_a', npc: false, values: { f_mv: 12, f_sc: 3 } },
-        c_sela: { id: 'c_sela', name: 'Sela', ownerId: 'u_b', npc: false, values: {} }, c_npc: { id: 'c_npc', name: 'Old cart', ownerId: '', npc: true, values: { f_mv: 4 } } });
-    const host = (msg, chars, more) => {
-        const camp = { id: 'k', system: sys, chars: chars || chars0() }, out = { answer: [], synced: [], saves: 0, logs: [], changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
-        const conn = { peer: 'pA', send: box(out.answer) };
-        const net = Object.assign({ active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, syncChar: id => out.synced.push(id) }, more || {});
-        const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { charChanged: id => out.changed.push(id) }, wpDiceCore: null, wpStepLog: (a, s, f) => out.logs.push([a, s, f]) };
-        new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'var charLimit = { allow: () => true }, _charSlowSaid = {};\n' + lkS)(
-            msg, conn, net, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; });
-        out.camp = camp; return out;
-    };
-    const M = (to, more) => Object.assign({ type: 'char-link', rid: 'k1', charId: 'c_kael', linkId: 'lk_m', to }, more || {});
-    const ok = host(M('c_peb')), off = (() => { const cs = chars0(); cs.c_kael.links = { lk_m: 'c_peb' }; return host(M(''), cs); })();
-    check('1.6.0 linked sheets: a player\'s char-link (the host, run for real) links their own character as a mount: stored, saved once, acked, the character sent whole and redrawn, each step logged with no name; taking it off leaves no links key; every message packs',
-        j(ok.camp.chars.c_kael.links) === j({ lk_m: 'c_peb' }) && ok.saves === 1 && j(ok.answer) === j([{ type: 'char-ack', rid: 'k1' }]) && j(ok.synced) === j(['c_kael']) && j(ok.changed) === j(['c_kael'])
-        && j(ok.logs) === j([['links v1', 'asked', { on: 1 }], ['links v1', 'done', { on: 1 }]]) && !('links' in off.camp.chars.c_kael) && j(off.answer) === j([{ type: 'char-ack', rid: 'k1' }]) && off.saves === 1,
-        j([ok.camp.chars.c_kael, ok.answer, ok.synced, ok.logs, off.camp.chars.c_kael]));
-    const quiet = r => r.saves === 0 && r.synced.length === 0 && !('links' in r.camp.chars.c_kael || (r.camp.chars.c_sela && 'links' in r.camp.chars.c_sela && r.camp.chars.c_sela.links.lk_m !== 'c_peb'));
-    const npc = host(M('c_npc')), mate = host(M('c_sela')), gmOnly = host(M('c_peb', { linkId: 'lk_v' })), self = host(M('c_kael')), gone = host(M('c_zed'));
-    const other = host(M('c_peb', { charId: 'c_sela' })), taken = (() => { const cs = chars0(); cs.c_sela.links = { lk_m: 'c_peb' }; return host(M('c_peb'), cs); })();
-    const words = r => r.answer.map(a => [a.type, a.reason, a.msg || '']);
-    check('1.6.0 linked sheets: the host refuses with its words, storing, saving and sending nothing: an NPC or a teammate\'s character (a player links only their own), a link the GM sets, the character itself, one that is not there, another player\'s character as the rider, and a mount another rides (a player is never told who rides it)',
-        [npc, mate, gmOnly, self, gone, taken].every(quiet) && other.saves === 0 && !('links' in other.camp.chars.c_sela)
-        && j(words(npc)) === j([['char-deny', 'error', 'You can link only a character of your own.']]) && j(words(mate)) === j(words(npc)) && j(words(gmOnly)) === j([['char-deny', 'error', 'Only the GM sets Vehicle here.']])
-        && j(words(self)) === j([['char-deny', 'error', 'A sheet cannot link to itself.']]) && j(words(gone)) === j([['char-deny', 'error', 'That character is not here now.']]) && j(words(other)) === j([['char-deny', 'owner', '']])
-        && j(words(taken)) === j([['char-deny', 'error', 'Pebbles already has a rider.']]) && !/Sela/.test(j(taken.answer)),
-        j([words(npc), words(gmOnly), words(self), words(gone), words(other), words(taken)]));
-    const bad = [M('c_peb', { rid: 'bad rid' }), M('c_peb', { linkId: 'f_mv' }), M('c_peb', { to: 5 }), M('__proto__'), M('c_peb', { charId: 'constructor' })].map(m => host(m)), paused = host(M('c_peb'), null, { paused: true });
-    check('1.6.0 linked sheets: a char-link of the wrong shape (a request id, a link id, a target that is not a character id, a prototype key) is dropped unanswered; a paused table answers paused and changes nothing',
-        bad.every(r => r.answer.length === 0 && quiet(r)) && j(words(paused)) === j([['char-deny', 'paused', '']]) && quiet(paused), j(bad.map(r => r.answer).concat([paused.answer])));
-    // withLinkFigs and linkTell: the owner's copy carries the figures read through the players' view, and a change of the mount sends it again once
-    const camp = { id: 'k', system: sys, chars: chars0() }; camp.chars.c_kael.links = { lk_m: 'c_peb' };
-    Sx.setLinkSource((id, s) => { const c = camp.chars[id]; return !c ? null : s === sys ? c : Sx.charForView(c, s, { full: sys }); });
-    const sentL = [], logsL = [], mk = peer => ({ peer, open: true, send: m => { packCheck(m); sentL.push([peer, JSON.parse(JSON.stringify(m))]); } });
-    const netL = { active: true, role: 'host', conns: [mk('pA'), mk('pB')], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
-    const winL = { wpFormula: Fx, wpStepLog: (a, s, f) => logsL.push([a, s, f]) };
-    const charViewFor = (id, pid) => { const f = new Function('SC', 'window', ltS + '\nreturn withLinkFigs;')(() => Sx, winL); return f(Sx.charFor(camp.chars[id], view, pid, {}), view); };
-    const api = new Function('net', 'SC', 'window', 'getActiveCampaign', 'charViewFor', 'peerProfileId', 'sendFailed', ltS + '\nreturn { linkTell: linkTell, withLinkFigs: withLinkFigs };')(netL, () => Sx, winL, () => camp, charViewFor, c => netL.roster[c.peer].id, e => { throw e; });
-    const own = charViewFor('c_kael', 'u_a'), mateV = api.withLinkFigs(Sx.charFor(camp.chars.c_kael, view, 'u_b', {}), view), cl = Sx.cleanChar(JSON.parse(j(own)), view, { state: 'owner' }); Sx.setLinkSource(null);
-    const rP = Sx.makeResolver(view, cl, Fx); Sx.setLinkSource((id, s) => { const c = camp.chars[id]; return !c ? null : s === sys ? c : Sx.charForView(c, s, { full: sys }); });
-    check('1.6.0 linked sheets: an owner\'s whole copy carries the figures of the sheet it links, worked out through the players\' view (Move 12, never the GM-only Secret, whose formula players see as GM only); a teammate\'s copy carries none; the player\'s app reads them as the host does',
-        j(own.links) === j({ lk_m: 'c_peb' }) && j(own.lk) === j({ lk_m: { id: 'c_peb', name: 'Pebbles', v: { move: 12 } } }) && !/secret|"3"/i.test(j(own.lk)) && !('lk' in (mateV || {})) && !('links' in (mateV || {}))
-        && rP('Speed') === 12 && rP('Mount.has') === 1 && view.fields.find(f => f.key === 'Sneak').formula === null, j([own, mateV, rP('Speed')]));
-    api.linkTell('c_peb'); const first = sentL.slice(); sentL.length = 0; api.linkTell('c_peb'); const same = sentL.slice(); sentL.length = 0;
-    camp.chars.c_peb.values.f_mv = 15; api.linkTell('c_peb'); const moved = sentL.slice(); sentL.length = 0; camp.chars.c_peb.values.f_sc = 1; api.linkTell('c_peb'); const secret = sentL.slice(); sentL.length = 0;
-    api.linkTell('c_sela'); const none = sentL.slice(); netL.role = 'client'; camp.chars.c_peb.values.f_mv = 3; api.linkTell('c_peb'); const client = sentL.slice();
-    check('1.6.0 linked sheets: a change of the linked sheet sends its rider\'s owner their copy whole, with the new figures, once (the same figures again send nothing, nor does a GM-only change), to them alone; a sheet nobody links sends nothing, and a player\'s app never sends; logged by count',
-        first.length === 1 && first[0][0] === 'pA' && first[0][1].type === 'char' && first[0][1].char.id === 'c_kael' && same.length === 0 && moved.length === 1 && moved[0][1].char.lk.lk_m.v.move === 15
-        && secret.length === 0 && none.length === 0 && client.length === 0 && logsL.every(l => l[0] === 'links v1' && l[1] === 'told' && typeof l[2].copies === 'number'), j([first, same, moved, secret, none, client, logsL]));
-    Sx.setLinkSource(null);
-    check('1.6.0 linked sheets (source): every way a character change leaves the host reaches linkTell through typeof (syncChar and syncCharDelta), the copy an owner is sent and the join snapshot carry the figures, and the host\'s branch judges by linkSet alone',
-        (src.match(/if \(typeof linkTell === 'function'\) linkTell\(id\);/g) || []).length === 2 && (src.match(/\(typeof withLinkFigs === 'function' \? withLinkFigs : function\(v0\) \{ return v0; \}\)\(withHoverLines\(/g) || []).length === 2
-        && (src.match(/linkSet\(/g) || []).length === 1 && lkS.indexOf("Sk.linkSet(campK.system, campK.chars, chK, qk.linkId, qk.to, qk.stn !== undefined ? { player: true, pid: profK.id, stn: qk.stn, F: window.wpFormula } : { player: true, pid: profK.id, F: window.wpFormula })") > lkS.indexOf("denyK('owner')"));   // CORE gap 16, and 1.6.2 (218) the engine for a station's filter (each a deliberate change of this pin): and the station the player picked
-    // 1.6.2 (vehicles, fold (a)): a row of a player's own character joined to a sheet of their own, or a new sheet made from it, through the same
-    // char-link branch, run for real; the figures the owner's copy carries, and that copy sent again once the joined sheet moves (sheetTell)
-    {
-        const rawV = { v: 1, name: 'V', rolls: [], fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_isv', key: 'IsV', kind: 'toggle' }, { id: 'f_vh', key: 'Vehicles', kind: 'item-list', list: { sheets: { on: 'f_isv' }, cols: [{ key: 'Hull', label: 'Hull', formula: 'Row.sheet.HP' }] } }], items: [{ id: 'i_sk', key: 'Skiff', name: 'Skiff' }] };
-        const sysV = Sx.cleanSystem(rawV, { F: Fx, gmView: true }), viewV = Sx.cleanSystem(rawV, { F: Fx, gmView: false });
-        const cV = () => ({ c_kael: { id: 'c_kael', name: 'Kael', ownerId: 'u_a', npc: false, values: { f_vh: [{ id: 'w_s1', defId: 'i_sk', qty: 1 }] } }, c_bolt: { id: 'c_bolt', name: 'Bolt', ownerId: 'u_a', npc: false, values: { f_hp: 22 } }, c_sela: { id: 'c_sela', name: 'Sela', ownerId: 'u_b', npc: false, values: {} } });
-        const hostV = (msg, chars) => {
-            const camp = { id: 'k', system: sysV, chars: chars || cV() }, out = { answer: [], synced: [], saves: 0, logs: [], changed: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); };
-            const netV = { active: true, role: 'host', paused: false, conns: [], roster: { pA: { id: 'u_a' } }, syncChar: id => out.synced.push(id) };
-            const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { charChanged: id => out.changed.push(id) }, wpDiceCore: null, wpStepLog: (a, s, f) => out.logs.push([a, s, f]) };
-            new Function('msg', 'conn', 'net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'var charLimit = { allow: () => true }, _charSlowSaid = {};\n' + lkS)(
-                msg, { peer: 'pA', send: box(out.answer) }, netV, () => Sx, win, () => false, () => camp, () => { out.saves++; }, e => { throw e; });
-            out.camp = camp; return out;
-        };
-        const MR = more => Object.assign({ type: 'char-link', rid: 'k2', charId: 'c_kael', row: { f: 'f_vh', r: 'w_s1' } }, more);
-        const jn = hostV(MR({ to: 'c_bolt' })), mk = hostV(MR({ make: true })), mkId = Object.keys(mk.camp.chars).find(id => !cV()[id]), made = mkId ? mk.camp.chars[mkId] : null;
-        check('1.6.2 (vehicles, fold (a)): a player\'s char-link that names a row joins it to a sheet of their own, and with make makes a new one under the row\'s name, theirs and with the list\'s toggle on: stored, saved once, acked, the new sheet and the character sent and redrawn, each step logged with no name',
-            jn.camp.chars.c_kael.values.f_vh[0].sh === 'c_bolt' && jn.saves === 1 && j(jn.answer) === j([{ type: 'char-ack', rid: 'k2' }]) && j(jn.synced) === j(['c_kael']) && j(jn.logs) === j([['links v1', 'asked', { on: 1 }], ['links v1', 'done', { row: 1, on: 1 }]])
-            && !!made && made.name === 'Skiff' && made.ownerId === 'u_a' && made.npc === false && made.values.f_isv === true && mk.camp.chars.c_kael.values.f_vh[0].sh === mkId && j(mk.synced) === j([mkId, 'c_kael']) && j(mk.changed) === j([mkId, 'c_kael']) && mk.saves === 1 && mk.logs[1][1] === 'made',
-            j([jn.camp.chars.c_kael, jn.answer, jn.logs, made, mk.synced, mk.logs]));
-        const wordsV = r => r.answer.map(a => [a.type, a.reason, a.msg || '']), quietV = r => r.saves === 0 && r.synced.length === 0 && Object.keys(r.camp.chars).length === 3 && !('sh' in r.camp.chars.c_kael.values.f_vh[0]);
-        const notMine = hostV(MR({ to: 'c_sela' })), noRow = hostV(MR({ to: 'c_bolt', row: { f: 'f_vh', r: 'w_zz' } })), noMake = hostV(MR({ make: true, row: { f: 'f_vh', r: 'w_zz' } })), bad = hostV(MR({ to: 'c_bolt', make: true }));
-        check('1.6.2 (vehicles, fold (a)): the host refuses in the judge\'s words and keeps nothing: another player\'s sheet, a row that is not there, a new sheet for a row that is not there (made and then let go), and a make that names a sheet is no message at all',
-            [notMine, noRow, noMake].every(quietV) && j(wordsV(notMine)) === j([['char-deny', 'owner', 'You can join only a sheet of your own.']]) && j(wordsV(noRow)) === j([['char-deny', 'error', 'That row is not there now.']]) && j(wordsV(noMake)) === j([['char-deny', 'missing', '']]) && bad.answer.length === 0 && quietV(bad),
-            j([wordsV(notMine), wordsV(noRow), wordsV(noMake), bad.answer]));
-        const campV = { id: 'k', system: sysV, chars: cV() }; campV.chars.c_kael.values.f_vh[0].sh = 'c_bolt';
-        Sx.setLinkSource((id, s) => { const c = campV.chars[id]; return !c ? null : s === sysV ? c : Sx.charForView(c, s, { full: sysV }); });
-        const sentV = [], logsV = [], mkC = peer => ({ peer, open: true, send: m => { packCheck(m); sentV.push([peer, JSON.parse(JSON.stringify(m))]); } });
-        const netW = { active: true, role: 'host', conns: [mkC('pA'), mkC('pB')], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } }, winW = { wpFormula: Fx, wpStepLog: (a, s, f) => logsV.push([a, s, f]) };
-        const ownFn = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
-        const viewFor = (id, pid) => { const f = new Function('SC', 'window', 'own', ltS + '\nreturn withLinkFigs;')(() => Sx, winW, ownFn); return f(Sx.charFor(campV.chars[id], viewV, pid, {}), viewV); };
-        const apiV = new Function('net', 'SC', 'window', 'getActiveCampaign', 'charViewFor', 'peerProfileId', 'sendFailed', 'own', ltS + '\nreturn { linkTell: linkTell };')(netW, () => Sx, winW, () => campV, viewFor, c => netW.roster[c.peer].id, e => { throw e; }, ownFn);
-        const ownV = viewFor('c_kael', 'u_a');
-        apiV.linkTell('c_bolt'); const firstV = sentV.slice(); sentV.length = 0; apiV.linkTell('c_bolt'); const sameV = sentV.slice(); sentV.length = 0; campV.chars.c_bolt.values.f_hp = 9; apiV.linkTell('c_bolt'); const movedV = sentV.slice(); sentV.length = 0;
-        Sx.setLinkSource(null);
-        check('1.6.2 (vehicles, fold (a)): an owner\'s copy carries the figures of the sheets its rows are joined to, by row, and a change of such a sheet sends the row\'s owner their copy again, once, to them alone, logged by count',
-            j(ownV.sk) === j({ w_s1: { id: 'c_bolt', name: 'Bolt', v: { hp: 22 } } }) && firstV.length === 1 && firstV[0][0] === 'pA' && firstV[0][1].char.sk.w_s1.v.hp === 22 && sameV.length === 0 && movedV.length === 1 && movedV[0][1].char.sk.w_s1.v.hp === 9 && logsV.every(l => l[0] === 'rowsheet v1' && l[1] === 'told'),
-            j([ownV.sk, firstV, sameV, movedV, logsV]));
-        check('1.6.2 (vehicles, fold (a)): a trade stores the sheets of the rows that changed hands (sheetsGo) and sends each to its new owner',
-            src.includes("S.sheetsGo(camp.system, camp, cb, res.valuesB)") && src.includes("goA.give.concat(goB.give).forEach(function(sid) { net.syncChar(sid);") && src.includes("if (S.sheetFigs) { var sk = S.sheetFigs(view, v, window.wpFormula); if (sk) v.sk = sk; }"));
-    }
-    // 1.6.2 (vehicles, fold (c)): a map's marks, the host's own (the tags slice run for real with the real systemcore): kept as a change put them on, sent to
-    // each player as theirs (tokTags) and never a hidden token's, once a change, and cleaned again on a player's app (the tagsin slice)
-    {
-        const tgS = between('// [netcheck:tags-start]', '// [netcheck:tags-end]', 'tags'), tiS = between('// [netcheck:tagsin-start]', '// [netcheck:tagsin-end]', 'tagsin');
-        const sysT = Sx.cleanSystem({ v: 1, name: 'T', fields: [], tags: [{ key: 'Hound', label: 'Hound', fight: true }, { key: 'Track', label: 'Track', turn: true }] }, { F: Fx, gmView: true });
-        const mapT = { id: 'm1', type: 'map', meta: { title: 'Canyon' }, whiteboard: [{ id: 'tA', isChar: true, ownerId: 'u_a' }, { id: 'tB', isChar: true, ownerId: '' }, { id: 'tH', isChar: true, ownerId: '', hidden: true }, { id: 'tC', isChar: true, ownerId: 'u_b' }] };
-        const campT = { id: 'k', system: sysT, items: { m1: mapT } }, sentT = [], saves = { n: 0 }, mkT = peer => ({ peer, open: true, send: m => { packCheck(m); sentT.push([peer, JSON.parse(JSON.stringify(m))]); } });
-        const netT = { active: true, role: 'host', conns: [mkT('pA'), mkT('pB')], roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } } };
-        const apiT = new Function('net', 'SC', 'window', 'getActiveCampaign', 'own', 'mapHeldOf', 'save', 'render', 'sendFailed', tgS + '\nreturn { tagsTell: tagsTell, tagsEnded: tagsEnded };')(netT, () => Sx, {}, () => campT, (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k), () => ({ m1: 1 }), () => { saves.n++; }, () => {}, e => { throw e; });
-        netT.tagsPut([{ mapId: 'm1', by: 'tA', on: 'tB', k: 'Hound', put: true }, { mapId: 'm1', by: 'tH', on: 'tA', k: 'Track', put: true }, { mapId: 'm1', by: 'tB', on: 'tC', k: 'Hound', put: true }]);
-        const toA = sentT.filter(s => s[0] === 'pA').map(s => s[1]), toB = sentT.filter(s => s[0] === 'pB').map(s => s[1]); sentT.length = 0; apiT.tagsTell(); const again = sentT.slice();
-        check('1.6.2 (vehicles, fold (c)): the host keeps a mark on its map, saved, and sends each player the marks their own tokens hold or are held by, never one of a hidden token, nothing twice for the same marks; the map leaves with none of them',
-            j(Sx.mapTagsOf(mapT, sysT)) === j([{ k: 'Hound', by: 'tA', on: 'tB' }, { k: 'Track', by: 'tH', on: 'tA' }, { k: 'Hound', by: 'tB', on: 'tC' }]) && saves.n === 1
-            && j(toA) === j([{ type: 'tokTags', campId: 'k', itemId: 'm1', marks: [{ k: 'Hound', by: 'tA', on: 'tB' }] }]) && j(toB) === j([{ type: 'tokTags', campId: 'k', itemId: 'm1', marks: [{ k: 'Hound', by: 'tB', on: 'tC' }] }]) && again.length === 0, j([toA, toB, again]));
-        sentT.length = 0; apiT.tagsEnded('m1', { fight: true });
-        check('1.6.2 (vehicles, fold (c)): a fight\u2019s end takes off every mark of that map that ends with the fight, and the players are told', j(Sx.mapTagsOf(mapT, sysT)) === j([{ k: 'Track', by: 'tH', on: 'tA' }]) && sentT.length === 2 && sentT.every(s => j(s[1].marks) === j([])), j([mapT.meta, sentT]));
-        const stP = { appState: { activeCampaignId: 'k' } }, campP = { id: 'k', system: sysT }, drew = { n: 0 };
-        const runIn = (msg, peer) => new Function('msg', 'conn', 'net', 'state', 'SC', 'getActiveCampaign', 'validKey', 'render', '_tagsSeen', tiS)(msg, { peer: peer || 'host' }, { foreign: true, syncedPeer: 'host', stream: false }, stP, () => Sx, () => campP, k => typeof k === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(k), () => { drew.n++; }, seen);
-        const seen = Object.create(null); runIn({ type: 'tokTags', campId: 'k', itemId: 'm1', marks: [{ k: 'hound', by: 'tA', on: 'tB' }, { k: 'Nope', by: 'tA', on: 'tB' }, { k: 'Hound', by: '<x>', on: 'tB' }, 5] }); runIn({ type: 'tokTags', campId: 'k', itemId: 'm2', marks: [{ k: 'Hound', by: 'a', on: 'b' }] }, 'stranger');
-        check('1.6.2 (vehicles, fold (c)): a player\u2019s app takes the marks from the synced host alone, cleaned by its own system: a mark it does not have and a token id that is no id are gone', j(seen.m1) === j([{ k: 'Hound', by: 'tA', on: 'tB' }]) && !('m2' in seen) && drew.n === 1, j([seen, drew]));
-    }
-})());
-// The core handbook session's ask (2026-10-29, after ask 6): a crew figure that reads the vehicle doing the reading (Vehicle.Class). The host's
-// withLinkFigs (the linktell slice, run for real with the real systemcore and formula engine) gives a player's vehicle its crew figures, ck,
-// worked out through the players' view: each vehicle its own, and never a figure read from a GM-only name of the vehicle. Invented names only
-pendingChecks.push((async () => {
-    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
-    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
-    const ltS = between('// [netcheck:linktell-start]', '// [netcheck:linktell-end]', 'linktell', 'netlink.js');
-    const raw = { v: 1, name: 'V', rolls: [], fields: [{ id: 'f_cl', key: 'Class', kind: 'number', def: 0 }, { id: 'f_sk', key: 'Skiffs', kind: 'number', def: 0 }, { id: 'f_hl', key: 'Haulers', kind: 'number', def: 0 },
-        { id: 'f_hu', key: 'Hush', kind: 'number', def: 0, vis: 'gm' }, { id: 'f_he', key: 'Helm', kind: 'formula', formula: 'Crew.Pilot.max.Fly' }, { id: 'f_qu', key: 'Quiet', kind: 'formula', formula: 'Crew.max.Hidden' }],
-        links: [{ id: 'lk_v', key: 'Vehicle', label: 'Vehicle', kind: 'crew', group: 'Crew', stations: ['Pilot'], figs: [{ key: 'Fly', formula: 'if(Vehicle.Class = 1, Skiffs, Haulers)' }, { key: 'Hidden', formula: 'Vehicle.Hush + 1' }] }] };
-    const sys = Sx.cleanSystem(raw, { F: Fx, gmView: true }), view = Sx.cleanSystem(raw, { F: Fx, gmView: false });
-    const chars = { c_sk: { id: 'c_sk', name: 'Gull', ownerId: 'u_a', npc: false, values: { f_cl: 1, f_hu: 7 } }, c_hl: { id: 'c_hl', name: 'Ox', ownerId: 'u_a', npc: false, values: { f_cl: 2, f_hu: 7 } },
-        c_ana: { id: 'c_ana', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_sk: 14, f_hl: 9 }, links: { lk_v: 'c_sk' }, stn: { lk_v: 'Pilot' } },
-        c_bo: { id: 'c_bo', name: 'Bo', ownerId: 'u_b', npc: false, values: { f_sk: 11, f_hl: 13 }, links: { lk_v: 'c_hl' }, stn: { lk_v: 'Pilot' } } };
-    Sx.setCrewSource((id, lid, s) => Object.keys(chars).map(k => chars[k]).filter(x => x.links && x.links[lid] === id).map(x => s === sys ? x : Sx.charForView(x, s, { full: sys })));
-    const winL = { wpFormula: Fx, wpStepLog: () => {} };
-    const wlf = new Function('SC', 'window', ltS + '\nreturn withLinkFigs;')(() => Sx, winL);
-    const own = id => wlf(Sx.charFor(chars[id], view, 'u_a', {}), view);
-    const gmR = id => Sx.makeResolver(sys, chars[id], Fx);
-    const sk = own('c_sk'), hl = own('c_hl'), gm = [gmR('c_sk')('Helm'), gmR('c_hl')('Helm'), gmR('c_sk')('Quiet')];
-    Sx.setCrewSource(null);
-    const rP = id => Sx.makeResolver(view, Sx.cleanChar(JSON.parse(j(id === 'c_sk' ? sk : hl)), view, { state: 'owner' }), Fx);
-    check('the core handbook session\'s ask (after ask 6): the host gives a player\'s vehicle its crew figures (ck) through the players\' view, a figure that reads Vehicle.Class picking by that very vehicle\'s class (Ana flies the skiff by Skiffs, 14; Bo the hauler by Haulers, 13), the same figures the GM\'s sheet reads; a figure read from the GM-only Vehicle.Hush is never among them, though the GM reads it (8); the player\'s app reads them back; every copy packs',
-        j(sk.ck) === j({ lk_v: { v: { 'pilot.max.fly': 14 } } }) && j(hl.ck) === j({ lk_v: { v: { 'pilot.max.fly': 13 } } }) && j(gm) === j([14, 13, 8]) && !/hidden|"8"/i.test(j([sk.ck, hl.ck]))
-        && rP('c_sk')('Helm') === 14 && rP('c_hl')('Helm') === 13 && (() => { try { packCheck(sk); packCheck(hl); return true; } catch (e) { return false; } })(), j([sk.ck, hl.ck, gm]));
-})());
 // Backlog 29 (1.6.0): the table trackers on the wire — the host's sync (sliced by its trksync markers) and a player's branch (trkmsg), each run
 // for real over the real trackcore. A GM-only tracker is in no message, a player is sent their map's and every map's, a host has no branch
 {   // 1.6.3 (the owner's ruling of 2026-11-17, finding 13: "Keep it across sessions"): a player's explored ground, kept by the host (fog.js
@@ -20151,20 +19952,6 @@ Promise.all(pendingChecks).then(() => {   // the async checks land before the su
             flat6.includes("var cardQ = null, denyQ = function(reason, r) { if (cardQ && cardQ.undo) { cardQ.undo(); cardQ = null; }") && flat6.includes("cardQ = actQ && typeof actQ.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campQ, actQ.drawFirst, actQ.drawN) : null;")
             && flat6.includes("var cardNQ = cardQ && cardQ.done ? cardQ.done() : ''; cardQ = null;") && flat6.includes('if (cardNQ) recQ.card = cardNQ;') && flat6.includes("var cardR = entR && typeof entR.drawFirst === 'string' && typeof drawForRoll === 'function' ? drawForRoll(campR, entR.drawFirst, entR.drawN) : null;")
             && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
-    }
-    {   // 1.6.2 (CORE Ch19): crew who act in the vehicle's turn (net.js crewturn slice, run for real; the parry that takes the blow is in attackcheck.js)
-        const own = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
-        const ctS = src.slice(src.indexOf('// [netcheck:crewturn-start]'), src.indexOf('// [netcheck:crewturn-end]')), netC = { combats: { f1: { id: 'f1' } } }, inFight = { c_v: 'f1' };
-        const ctA = new Function('net', 'own', 'orderOfIn', ctS + '\nreturn { crewVeh, crewVehFight, crewOfVeh };')(netC, own, (camp, id) => inFight[id] || null);
-        const campC = { system: { links: [{ id: 'k_crew', kind: 'crew', vturn: true }, { id: 'k_old', kind: 'crew' }] }, chars: { c_v: { id: 'c_v' }, c_p: { id: 'c_p', links: { k_crew: 'c_v' } }, c_g: { id: 'c_g', links: { k_old: 'c_v' } }, c_t: { id: 'c_t', links: { k_crew: 'c_v' } } } };
-        inFight.c_t = 'f2';
-        const v1 = ctA.crewVeh(campC, 'c_p'), v2 = ctA.crewVeh(campC, 'c_g'), v3 = ctA.crewVeh(campC, 'c_t'), fg = ctA.crewVehFight(campC, 'c_p'), crew = ctA.crewOfVeh(campC, 'c_v');
-        delete inFight.c_v; const v4 = ctA.crewVeh(campC, 'c_p');
-        check('1.6.2 a crew member with no fight of their own, at a Crew link ticked Crew act in the vehicle\'s turn, is judged by the vehicle in its fight; a link not ticked, a crew member with a fight of their own and a vehicle in no fight give none',
-            v1 === 'c_v' && v2 === null && v3 === null && fg === netC.combats.f1 && JSON.stringify(crew) === JSON.stringify(['c_p']) && v4 === null, JSON.stringify([v1, v2, v3, crew, v4]));
-        check('1.6.2 the hooks: Off a character\'s turn asks the vehicle\'s turn for its crew, a press spends the crew member\'s own action in the vehicle\'s fight, their actions come back at its turn\'s start and go at a fight\'s end, and a player\'s damage message carries thru',
-            src.includes("if (!fid && typeof crewVeh === 'function') { var cvO = crewVeh(camp, charId); if (cvO) return offTurnOf(camp, cvO); }") && src.includes("var cbS = actsCombat(camp, charId, pr) || (typeof crewVehFight === 'function' ? crewVehFight(camp, charId) : null); if (!a || !cbS) return '';")
-            && src.includes("if (typeof crewOfVeh === 'function') crewOfVeh(camp, w.charId).forEach(function(cid) { delete net.turnSpent[cid];") && src.includes("'weapon', 'only', 'thru', 'part2'") && src.includes("if (pass === true && ch && typeof thruNote === 'function' && !(rec && (typeof rec.lw === 'string' || rec.area))) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);"));   /* 1.6.3 (defense fold 3): never for a landing, and as the line picked says (moved on purpose); the review of that fold: nor for a line's hit (moved on purpose) */
     }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');

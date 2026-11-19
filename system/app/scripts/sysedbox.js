@@ -84,7 +84,7 @@ function formTrial(d, ctx) {
         asks: function(text) { var nm = F() ? F().names(text) : [], r0 = ctx && ctx.roll && Array.isArray(ctx.roll.asks) ? ctx.roll.asks : []; return (Array.isArray(nm) ? nm : []).filter(function(n) { return nameAsks(d, n); }).map(function(n) { return { s: n, word: nameWord(d, n), opts: trialOpts(d, r0, n) }; }); }
     };
 }
-// 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md): the campaign's library entries, for an option that stands for a row of a list (formbox.js
+// 1.6.3 (gap 4 of docs/EDITOR_COVERAGE.md): the campaign's library entries, for an option that stands for a row of a list (formbox.js
 // dressOpts, through formcore.js optLists), read as grantEntries reads them: every pack the campaign lists, through window.wpLibrary, an entry
 // of a GM-only pack marked GM-only as its own key index counts it. Only what a pick needs is handed on: its key, its name, its category and
 // whether it is the GM's alone. Nothing where the library is not loaded. The list answered carries waiting, true while a pack the campaign

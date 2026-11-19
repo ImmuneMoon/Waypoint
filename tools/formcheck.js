@@ -305,7 +305,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
     check('taking an option away writes the box and says so', pOpt.value === 'Strength = ST, Bronze' && pOpt.calls.includes('dispatch change') && optRows().length === 2, pOpt.value);
     press(optBox.querySelector('.fb-optadd')); const lbN = optBox.querySelectorAll('.fb-optname'), lastN = lbN[lbN.length - 1]; lastN.value = 'Tin'; (lastN.handlers.input || []).forEach(h => h({ target: lastN })); (lastN.handlers.change || []).forEach(h => h({ target: lastN }));
     check('+ Option adds a row, and what is typed reaches the box as it is left', pOpt.value === 'Strength = ST, Bronze, Tin' && optRows().length === 3, pOpt.value);
-    {   // 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19): an option may stand for a figure of one row of a list, picked as the
+    {   // 1.6.3 (gap 4 of docs/EDITOR_COVERAGE.md; the owner, 2026-11-19): an option may stand for a figure of one row of a list, picked as the
         // list, the entry with a search, and the figure, each by its name, never typed. Invented data (no game named): a list of skills with
         // Specialties, a list of gear, the system's own items, the library's core and the campaign's library entries
         const sysO = { fields: [{ id: 'f_st', key: 'ST', label: 'Strength', kind: 'number' },

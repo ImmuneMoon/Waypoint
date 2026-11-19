@@ -375,7 +375,7 @@ function tryWords(parts, o) { return 'For ' + o.who + ' it reads: ' + parts.map(
 // 1.6.2: a stat's options, the text its box keeps: Iron, Strength = ST. Rows of { label, name }, and back. A comma or an equals sign in a label would be read as the next option, so it goes
 function readOpts(t) { return String(t || '').split(',').map(function(p) { var q = p.split('='), lb = q[0].trim(), nm = (q.length > 1 ? q.slice(1).join('=') : '').trim(); return { label: lb, name: nm }; }).filter(function(o) { return !!o.label; }); }
 function writeOpts(rows) { return (Array.isArray(rows) ? rows : []).map(function(o) { var lb = String(o && o.label || '').replace(/[,=]/g, ' ').trim(), nm = String(o && o.name || '').replace(/[,=]/g, ' ').trim(); return !lb ? '' : nm && nm !== lb ? lb + ' = ' + nm : lb; }).filter(Boolean).join(', '); }
-// 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19, by prompt: an option stands for a row of a list picked as three
+// 1.6.3 (gap 4 of docs/EDITOR_COVERAGE.md; the owner, 2026-11-19, by prompt: an option stands for a row of a list picked as three
 // small picks, the list, the entry, with a search, and which figure of it, all by name): what an option of a choice stat may stand for beside
 // the sheet's own figures is a figure of one row of an item list, written as the resolver reads it, List.Entry.Figure (an addressed row, which
 // systemcore's listName reads), or on a list with Specialties List.Parent.Specialty.Figure (its specVal). These four are the pure half:

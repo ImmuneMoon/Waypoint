@@ -530,7 +530,7 @@ function dressPick(inp, kind) {
     if (rule) { inp.dataset.fbr = '1'; dress(inp); } else inp.hidden = true;
 }
 // A stat's options: a row each, with what it stands for picked from the sheet's own figures, never typed. Since 1.6.3 (gap 4 of
-// docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19: three small picks, the list, the entry with a search, and which figure) it may stand
+// docs/EDITOR_COVERAGE.md; the owner, 2026-11-19: three small picks, the list, the entry with a search, and which figure) it may stand
 // for a figure of one row of an item list too: the first pick then names the list, and beside it stand the entry (uiparts.js find, which
 // searches), the specialty where the list has Specialties (picked by name among those the list and the stat's other options name, or typed
 // in a player's own words) and the figure, each by its name. formcore.js optLists, optRowRead and optRowWrite are the rule; the source hands

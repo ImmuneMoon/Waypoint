@@ -870,7 +870,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             shQ.split("(typeof followIsQuiet === 'function' && followIsQuiet())").length - 1 === 3 && shQ.includes('function followQuiet(on) { _followQuiet = Math.max(0, _followQuiet + (on ? 1 : -1)); }') && !/function postureFollow[^\n]*\n[^\n]*followIsQuiet/.test(shQ)
             && shQ.includes("import { save, toast, toastAction, pressHold, keepPlace } from './io.js';") && require('./checkkit').part('sysedcal.js').includes("? pressHold(wrap, window) : null;") && require('./checkkit').part('sysedcal.js').includes("if (!redraw) return; var again = function() { if (typeof keepPlace === 'function') keepPlace(wrap, draw); else draw(); }; if (hold && hold.busy()) hold.then(again); else again(); };"), '');
     }
-    {   // 1.6.3 (docs/SOTMW_EDITOR_COVERAGE.md, gaps 1 to 3; Fulllion's rule that every value a system holds can be made by hand in the editor): what
+    {   // 1.6.3 (docs/EDITOR_COVERAGE.md, gaps 1 to 3; Fulllion's rule that every value a system holds can be made by hand in the editor): what
         // only a file could set before. Each block runs the real renderer and the real handler on a page of plain objects, with the very shapes the
         // owner's live system holds, and then asks the cleaner whether Save keeps what the handler wrote
         const J = JSON.stringify, NLx = String.fromCharCode(10);
@@ -960,7 +960,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             rowErrs(fxRowOk[0]).length === 0 && rowErrs(fxRowOk[1]).length === 0 && rowErrs(fxRowOk[2]).length > 0 && rowErrs(fxRowOk[3]).length > 0
             && (fxRowOk[0].errors || []).length === 0 && (fxRowOk[1].errors || []).length === 0, J(fxRowOk.map(v => v.errors)));
     }
-    {   // 1.6.3 (gap 4 of docs/SOTMW_EDITOR_COVERAGE.md; the owner, 2026-11-19): a choice stat's option that stands for a figure of one row of
+    {   // 1.6.3 (gap 4 of docs/EDITOR_COVERAGE.md; the owner, 2026-11-19): a choice stat's option that stands for a figure of one row of
         // another list, List.Entry.Figure or, on a list with Specialties, List.Parent.Specialty.Figure. The core keeps such an option word for
         // word, the validator takes it, the resolver reads the stat through it, and the option's form writes it as the Lists tab's box then
         // reads it (the statopts line of sysedtabs.js onChange). Invented data (no game named)

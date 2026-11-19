@@ -944,6 +944,21 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 gap 3, its handler (sysedtabs.js onInput, the sys-list-applyfxn line run for real): what is typed is stored as the change’s number, on an action and on a roll’s Then, an emptied box takes it off, a row that is not there writes nothing; and Save keeps the number and a toggle target on a list’s change, as the live system holds them',
             !hxErr && hxA > onAx && onAx > 0 && typedX[0] === J({ fx: 'e_stimk1', on: true, n: '4' }) && typedX[1] === J({ fx: 'e_stimk1', on: true, when: 'hit', n: 'Row.Dose' }) && typedX[2] === J({ fx: 'e_stimk1', on: true }) && typedX[3] === undefined
             && J(rollsX[0].apply[1]) === J({ fx: 'e_stimk1', on: true, n: '4' }) && J(rollsX[1].then[0]) === J({ f: 'f_angry', formula: '1', set: true, when: 'miss' }), hxErr || J([typedX, rollsX]));
+        // the review of that fold: the With number box stands inside the list card, so its form offers the row's own figures (Row.Dose) and applyAct works
+        // the number out with the row's resolver. The validator's fxSays checked it with no list, so a value the form offers failed the editor's own check.
+        // validcore.js now hands fxSays the list field on a list's action and Then; a system roll's Then still knows no Row.* name
+        const fxV = (rolls, sysRolls) => S.validateSystem(S.cleanSystem({ v: 1, name: 'G', effects: [{ id: 'e_stimk1', name: 'Stim', val: { start: 1 } }], rolls: sysRolls || [], fields: [
+            { id: 'f_fx', key: 'Fx', label: 'Effects', kind: 'effects' },
+            { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', list: { stats: [{ key: 'Dose', label: 'Dose' }], rolls: rolls } }] }, { F, gmView: true }), F);
+        const rowErrs = v => (v.errors || []).filter(e => /names a row|Unknown name|Row./.test(e.message || ''));
+        const fxRowOk = [
+            fxV([{ label: 'Inject', apply: [{ fx: 'e_stimk1', on: true, n: 'Row.Dose' }] }]),
+            fxV([{ label: 'Temper', formula: '3d6 <= 10', then: [{ fx: 'e_stimk1', on: true, when: 'hit', n: 'Row.Dose * 2' }] }]),
+            fxV([{ label: 'Inject', apply: [{ fx: 'e_stimk1', on: true, n: 'Row.Nope' }] }]),
+            fxV([], [{ id: 'r_t', label: 'Temper', formula: '3d6 <= 10', then: [{ fx: 'e_stimk1', on: true, when: 'hit', n: 'Row.Dose' }] }])];
+        check('1.6.3 the review of gap 3: a list’s action and a list roll’s Then may give an effect a number read from the row’s own figures (Row.Dose), as the box’s form offers it, and the System editor’s check takes it; a name the list does not have is still an error, and a system roll’s Then still knows no row',
+            rowErrs(fxRowOk[0]).length === 0 && rowErrs(fxRowOk[1]).length === 0 && rowErrs(fxRowOk[2]).length > 0 && rowErrs(fxRowOk[3]).length > 0
+            && (fxRowOk[0].errors || []).length === 0 && (fxRowOk[1].errors || []).length === 0, J(fxRowOk.map(v => v.errors)));
     }
     await T.finish();
 })();

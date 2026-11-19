@@ -93,7 +93,7 @@ function open() {
     m.style.display = 'flex'; state(''); renderAll(); guideOpen();
     if (s) try { s.focus({ preventScroll: true }); } catch (e) {}
 }
-async function close() { if (!st.open) return; await flush(); st.open = false; st.work = map(); st.imp = null; csvWide(false); st.g = null; guideSync(); var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b && !b.offsetParent) b = ui('campMenuBtn'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
+async function close() { if (!st.open) return; glyphClose(); await flush(); st.open = false; st.work = map(); st.imp = null; csvWide(false); st.g = null; guideSync(); var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b && !b.offsetParent) b = ui('campMenuBtn'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
 function renderAll() { renderPacks(); renderPackBar(); renderList(); renderForm(); }
 // the library finished reading (library.js): what was loading can be shown now; an entry being edited stays as typed
 function refresh() { if (!st.open) return; renderPacks(); renderPackBar(); renderList(); if (!current()) renderForm(); }
@@ -387,6 +387,7 @@ function lvlToneBox(form, e) {
     if (area) area.addEventListener('input', draw); draw(); form.appendChild(box);
 }
 function renderForm() {
+    if (typeof glyphClose === 'function') glyphClose();   // 1.6.3 (the review of the audit's gaps 5 to 10): an icon picker left open belongs to the form it was opened from, as the Items tab closes it at every redraw
     var form = ui('libForm'); if (!form) return; form.textContent = '';
     st.fs = null; st.fsFor = null;   // 1.6.0: and of its roll bonuses
     if (typeof csvWide === 'function') csvWide(!!(st.imp && st.imp.csv));   // 1.6.2
@@ -442,10 +443,10 @@ function renderForm() {
     form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
     field(form, 'again', 'Held again', e.again === 'name' ? 'name' : '', { pairs: [['', 'Held once'], ['name', 'Held again under another name']], title: 'On a list that holds each entry once, a character may hold this one again as another row. Each copy is asked for a name of its own' });   // 1.6.0
     field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
-    field(form, 'rmMsg', 'Message', e.rmMsg, { max: 400, ph: 'Shown to the player (optional)' });
+    field(form, 'rmMsg', 'Message', e.rmMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player (optional)' });   // what the cleaner keeps, LIMITS.rmMsg
     if (itemLists().some(function(f) { return f.list && f.list.on; })) {   // only once a list has a switch (Readied, Equipped…)
         field(form, 'eq', 'When switched off', e.eq === 'bound' || e.eq === 'curse' ? e.eq : '', { pairs: [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], title: 'When a player switches it off. Bound: it stays on, with your message. Curse on contact: it looks off to them and stays on' });
-        field(form, 'eqMsg', 'Message', e.eqMsg, { max: 200, ph: 'Shown to the player (optional)' });
+        field(form, 'eqMsg', 'Message', e.eqMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player (optional)' });   // 1.6.3 (the review of the audit's gaps 5 to 10): the cleaner keeps a switch-off message to LIMITS.rmMsg, as the Items tab's sys-item-eqtext does (200 before)
     }
 }
 // 1.6.3 (the editor coverage audit, gap 10; Fulllion's rule that no key or internal name is ever typed or read by a user). An entry's Icon is
@@ -457,9 +458,12 @@ function renderForm() {
 function iconField(form, value) {
     var inp = field(form, 'icon', 'Icon', value, { hidden: true, max: 32, title: 'An icon beside its name, picked from Waypoint’s own icons or the emoji' });
     var WS = typeof window !== 'undefined' ? window.wpSheets : null, row = inp.parentNode || form;
-    if (WS && typeof WS.glyphButton === 'function') row.appendChild(WS.glyphButton(inp)); else inp.type = 'text';
+    if (WS && typeof WS.glyphButton === 'function') row.appendChild(WS.glyphButton(inp, 'Pick an icon from Waypoint’s own icons or the emoji')); else inp.type = 'text';   // the review: its own words, since this form has no box to type an emoji in
     return inp;
 }
+// The review of the audit's gaps 5 to 10: the icon picker's pop is a child of this window, so a form drawn again or a window closed takes it away,
+// or it would come back on the next open and write into a box of a form that is gone. Asked by renderForm and close(), through window.wpSheets
+function glyphClose() { var WS = typeof window !== 'undefined' ? window.wpSheets : null; if (WS && typeof WS.closeGlyphPicker === 'function') WS.closeGlyphPicker(); }
 // Stage 6 F6: an entry's changes to the character carrying it — a working copy while its form is open (Save entry keeps it), each a field to
 // change (the system's numbers, skills, formulas, pools' max, toggles) by an amount, per level once a list has levels; "only while switched on"
 // once a list has a switch. Built with text nodes; the entry is cleaned as any is when saved
@@ -593,6 +597,7 @@ function swLibBox(form, e) {
 function modsBox(form, e) {
     if (st.fmFor !== e.id || !st.fm) { st.fm = clone(Array.isArray(e.mods) ? e.mods : []); st.fmFor = e.id; }
     var anyL = itemLists().some(function(f) { return f.list && f.list.lvl; }), anyO = itemLists().some(function(f) { return f.list && f.list.on; }), targets = modTargets();
+    var modMax = typeof LIMITS === 'object' && LIMITS ? LIMITS.effectMods : 120;   // 1.6.3 (the review of the audit's gaps 5 to 10): as many changes as the cleaner keeps and the Items tab allows, systemcore LIMITS.effectMods (12 before)
     form.appendChild(el('div', 'lib-fsub', 'Changes to the character carrying it'));
     var box = el('div', 'lib-mods'); form.appendChild(box);
     var draw = function() {
@@ -627,8 +632,8 @@ function modsBox(form, e) {
             var x = el('button', 'tool ghost', '×'); x.type = 'button'; x.title = 'Remove this change'; x.addEventListener('click', function() { st.fm.splice(mi, 1); draw(); }); ln.appendChild(x);
             box.appendChild(ln);
         });
-        var add = el('button', 'tool ghost', '+ Change'); add.type = 'button'; add.title = 'Add a number to a field, or switch a toggle on, while a character carries it'; add.disabled = !targets.length || st.fm.length >= 12;
-        add.addEventListener('click', function() { var tp = targets[0][0].split('|'), nm = { f: tp[0], op: tp[1] === 'on' ? 'on' : 'add' }; if (nm.op === 'add') { nm.v = 1; if (tp[1] === 'max') nm.part = 'max'; } st.fm.push(nm); draw(); });
+        var add = el('button', 'tool ghost', '+ Change'); add.type = 'button'; add.title = 'Add a number to a field, or switch a toggle on, while a character carries it'; add.disabled = !targets.length || st.fm.length >= modMax;
+        add.addEventListener('click', function() { if (st.fm.length >= modMax || !targets.length) return; var tp = targets[0][0].split('|'), nm = { f: tp[0], op: tp[1] === 'on' ? 'on' : 'add' }; if (nm.op === 'add') { nm.v = 1; if (tp[1] === 'max') nm.part = 'max'; } st.fm.push(nm); draw(); });
         box.appendChild(add);
         if (anyO && (st.fm.length || (st.fs ? st.fs.length : Array.isArray(e.rollSw) && e.rollSw.length))) {   // renderForm reads the roll bonuses after this box, so they may not be read yet
             var ol = el('label', 'lib-mod-on'), oc = el('input'); oc.type = 'checkbox'; oc.id = 'libF_modsOn'; oc.checked = e.modsOn === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Only while switched on')); ol.title = 'Its changes count only while its row is switched on (Readied, Equipped…)'; box.appendChild(ol); }
@@ -669,7 +674,7 @@ function grantsBox(form, e) {
             var gmr = el('div', 'lib-grant-more');   // 1.6.2 (body fold 1): what it names, on a line of its own
             var gnm = el('input', 'field lib-grant-nm'); gnm.type = 'text'; gnm.placeholder = 'Its own name'; gnm.value = typeof g.name === 'string' ? g.name : ''; gnm.title = 'A name for the row it grants in place of the entry\u2019s, such as Left Hand. Two grants of one entry with different names add a row each. Leave it empty for the entry\u2019s name'; gmr.appendChild(gnm);   // 1.6.2 (body fold 1)
             // 1.6.3 (the editor coverage audit, gap 6): the subject the row it grants is held for, as the Items tab's grant has it (sysedtabs.js
-            // sys-grant-spec, its words too): Acute Senses for hearing. The cleaner keeps it trimmed, 60 characters at most, and none where it is blank
+            // sys-grant-spec, its words too): a keen sense held for smell. The cleaner keeps it trimmed, 60 characters at most, and none where it is blank
             var gsp = el('input', 'field lib-grant-spec'); gsp.type = 'text'; gsp.maxLength = 60; gsp.placeholder = 'specifier'; gsp.spellcheck = false; gsp.autocomplete = 'off'; gsp.value = typeof g.spec === 'string' ? g.spec : ''; gsp.title = 'A specifier for the row it grants, such as Smell or Heat: the row is named for it, and a grant of the same entry with another specifier adds a row of its own. Blank: none'; gmr.appendChild(gsp);
             gsp.addEventListener('input', function() { var sv = gsp.value.trim(); if (sv) g.spec = sv.slice(0, 60); else delete g.spec; });
             gnm.addEventListener('change', function() { var nv = gnm.value.trim().slice(0, 240), was = typeof g.name === 'string' ? g.name : ''; if (nv) g.name = nv; else delete g.name; if (was) st.fg.forEach(function(x) { if (x.up === was) { if (nv) x.up = nv; else delete x.up; } }); upDraws.forEach(function(f) { f(); }); });   // in place: a redraw here loses the box the focus is going to

@@ -55,14 +55,15 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
         J(W.listsOf(there, O).own.map(o => o.name)) === J(['Crate']) && !W.listsOf(there, O).sys.length && J(W.listsOf(here, O).own.map(o => o.name)) === J(['Mine']) && J(W.othersOf({ c1: here, c2: there, c3: none }, here, O).map(x => [x.camp, x.o.name])) === J([['There', 'Crate']]) && J(W.othersOf(null, here, O)) === '[]');
     const c = { id: 'c', system: { objects: [{ id: 's', name: 'B' }] }, objects: [{ id: 'm', name: 'M' }] }; W.listPut(c, 'sys', []); W.listPut(c, 'own', []);
     check('a list left empty leaves no key, and a campaign with no system holds no set', c.system.objects === undefined && c.objects === undefined && W.listPut({ id: 'x' }, 'sys', [{}]) === false);
-    // 1.6.3 (the editor coverage audit, gap 5): an object with no picture is drawn in its own color, and the color is picked in its row's editor. The
-    // live system's eight objects, each with a color only a file could set before, kept whole by the cleaner and placed in their colors; the editor
+    // 1.6.3 (the editor coverage audit, gap 5): an object with no picture is drawn in its own color, and the color is picked in its row's editor.
+    // Eight objects in the shape a real system holds, each with a color only a file could set before. The first check is a GUARD, not the fold's
+    // test: the cleaner kept a color before the fold too, and this holds it so (with the drawing in that color). The fold's test is the second: the editor
     // (mapobjects.js formInto, sliced by its [objcheck:form-*] markers and run for real on a page of plain objects) shows the swatch for an object
     // with no picture alone, set to its color or the plain land color, and a pick is committed through the cleaner as a color in lower case
     const LIVE = [{ id: 'chair', name: 'Chair', cover: 'half', color: '#c0392b' }, { id: 'table', name: 'Table', cover: 'half', stops: true, w: 2, color: '#8e5a2b' }, { id: 'supply_box', name: 'Supply box', cover: 'half', stops: true, color: '#e0b04a' }, { id: 'cargo_crate', name: 'Cargo crate', cover: 'threeq', stops: true, color: '#3f8f5f' },
         { id: 'fuel_drum', name: 'Fuel drum', cover: 'half', stops: true, color: '#2f6f9f' }, { id: 'low_wall', name: 'Low wall', cover: 'threeq', stops: true, w: 3, color: '#8a8f98' }, { id: 'pillar', name: 'Pillar', cover: 'total', sight: true, color: '#6a4c93' }, { id: 'wall_section', name: 'Wall section', cover: 'total', sight: true, w: 3, color: '#3a3f47' }];
     const sysL = S.cleanSystem({ name: 'T', objects: LIVE }, { F, gm: true });
-    check('1.6.3 the live system\'s eight objects, each in its own color, are kept whole by the cleaner and through the system, and each is placed in its color',
+    check('1.6.3 (a guard the color swatch rests on, which held before it) eight objects of a real system\'s shape, each in its own color, are kept whole by the cleaner and through the system, and each is placed in its color',
         J(O.cleanObjects(LIVE)) === J(LIVE) && J(sysL.objects) === J(LIVE) && LIVE.every(o => O.objProps(o, false).color === o.color) && O.objProps({ id: 'a', name: 'x' }, false).color === '#6b5b45');
     let oc = null, ocErr = '';
     try {

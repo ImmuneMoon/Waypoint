@@ -10,12 +10,9 @@ const fs = require('fs'), path = require('path');
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file reads that part by its own name
-const { src, between, fnSrc, lineOf } = kit.netSlices('netmediacheck');
+const { src, between, fnSrc, lineOf, ordersSrc } = kit.netSlices('netmediacheck');
 // the harness pieces netcheck keeps at its top, the very code (checkkit netHarness)
 const { H, ownKeySrc, siSrc, mkConn } = kit.netHarness('netmediacheck');
-// fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the API by id), so
-// every harness that runs one loads it: none passes on an old path
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 const j = JSON.stringify;
 // Lighting L4 (system light rules) on the wire: the Sight unit of the campaign's fog defaults (the real host sync and the client's branch,
 // sliced), an item's light cleaned again by a client (the real cleanHostWbItem / cleanHostLight / cleanHostMap with the real fogcore), the

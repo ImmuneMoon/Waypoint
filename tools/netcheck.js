@@ -36,9 +36,8 @@ function between(a, b, label, file) {
 }
 // the harness pieces this suite shares with the suites that came out of it with area 9 (tools/checkkit.js netHarness, the very code that stood here)
 const { H, ownKeySrc, siSrc, mkConn } = require('./checkkit').netHarness('netcheck');
-// fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the API by id), so
-// every harness that runs one loads it: none passes on an old path
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
+// the orders slice every reader of a fight asks (tools/checkkit.js netSlices, read from netfight.js by its own name)
+const { ordersSrc } = require('./checkkit').netSlices('netcheck');
 // the broadcast slice (netfog.js, a part of net.js), from the admission gate's harness that stood here (tools/checkkit.js netGate)
 const { broadcastSrc } = require('./checkkit').netGate('netcheck');
 const j = JSON.stringify;

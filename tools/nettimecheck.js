@@ -12,8 +12,7 @@ const fs = require('fs'), path = require('path');
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file (nettime.js) reads that part by its own name
-const { src, between, fnSrc, lineOf } = kit.netSlices('nettimecheck');
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
+const { src, between, fnSrc, lineOf, ordersSrc } = kit.netSlices('nettimecheck');
 const j = JSON.stringify;
 // the app's own own(), which netcheck hands its blocks among its helpers (H.own), read from net.js by its line
 const H = { own: new Function(lineOf('function own(') + '\nreturn own;')() };

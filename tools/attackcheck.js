@@ -11,8 +11,7 @@ const fs = require('fs'), path = require('path');
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file (netattack.js, nethold.js) reads that part by its own name
-const { src, between, fnSrc, range } = kit.netSlices('attackcheck');
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
+const { src, between, fnSrc, range, ordersSrc } = kit.netSlices('attackcheck');
 const j = JSON.stringify;
 check('attackcheck: netattack.js is a part of net.js, read by its own name', kit.part('netattack.js').includes('// [split:body-start]'));
 

@@ -13,10 +13,7 @@ const fs = require('fs'), path = require('path');
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file reads that part by its own name
-const { src, between, fnSrc } = kit.netSlices('netrollcheck');
-// fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the API by id), so
-// every harness that runs one loads it: none passes on an old path
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
+const { src, between, fnSrc, ordersSrc } = kit.netSlices('netrollcheck');
 const j = JSON.stringify;
 
 // Stage 6 HUD frame (HF3): the HUDs' roll history — a local ring of what this machine saw, tagged here with the character; no wire change

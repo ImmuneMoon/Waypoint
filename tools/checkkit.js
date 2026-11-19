@@ -37,6 +37,7 @@
    - netSlices(who): the slice helpers netcheck has at its top, over the joined net.js, each also able to read a part by name:
      between(a, b, label, file), tryBetween(a, b, file), fnSrc(start, end, label, file), range(file, a, b) (the text from a up to b,
      both in the part) and lineOf(k). A call that names a part's file reads that part; one that names none reads the joined net.js.
+     ordersSrc beside them is the fights' orders slice (netfight.js, read by its name), which every net suite that runs a fight loads.
    - netHarness(who): the harness pieces netcheck keeps at its top (helpersSrc, storage, H, ownKeySrc, siSrc, fightIn, mkConn), made once a
      run, which netcheck and the suites that came out of it with area 9 share.
    - netGate(who): the admission gate's harness netcheck kept at its top (the gate's and its neighbours' slices, hmacRef, the fingerprints,
@@ -194,7 +195,11 @@ function netSlices(who) {
     const range = (file, a, b) => { const t = textOf(file), i = t.indexOf(a), k = t.indexOf(b); if (i < 0 || k < 0 || k < i) throw new Error(who + ': ' + a + ' to ' + b + ' not found in ' + where(file)); return t.slice(i, k); };
     // only a string names a part, as netcheck's own lineOf read it: a lineOf handed to map() is given each index as its second argument
     const lineOf = (k, file) => { const t = textOf(typeof file === 'string' ? file : undefined), i = t.indexOf(k); return i < 0 ? '' : t.slice(i, t.indexOf('\n', i)); };
-    return { src, between, tryBetween, fnSrc, range, lineOf };
+    // fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the
+    // API by id), so every harness that runs one loads it and none passes on an old path. It stands in netfight.js, a part of net.js, and is
+    // read here once for every net suite (the review of "Finishing the test split" step 5: thirteen suites had each kept a copy of this line).
+    const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
+    return { src, between, tryBetween, fnSrc, range, lineOf, ordersSrc };
 }
 
 // The harness pieces netcheck keeps at its top, which the suites that came out of it with area 9 (netfogcheck, netfightcheck) share, made

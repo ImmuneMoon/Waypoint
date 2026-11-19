@@ -14,14 +14,11 @@ const fs = require('fs'), path = require('path');
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file reads that part by its own name
-const { src, between, tryBetween, fnSrc, lineOf } = kit.netSlices('netsessioncheck');
+const { src, between, tryBetween, fnSrc, lineOf, ordersSrc } = kit.netSlices('netsessioncheck');
 // the harness pieces netcheck keeps at its top, the very code (checkkit netHarness)
 const { helpersSrc, storage, H, ownKeySrc } = kit.netHarness('netsessioncheck');
 // the admission gate's harness netcheck kept at its top, the very code (checkkit netGate)
 const { broadcastSrc } = kit.netGate('netsessioncheck');
-// fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the API by id), so
-// every harness that runs one loads it: none passes on an old path
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 const j = JSON.stringify;
 
 /* ================= doc theming mid-session ================= */

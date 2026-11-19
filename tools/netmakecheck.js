@@ -11,12 +11,9 @@ const fs = require('fs'), path = require('path');
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const T = kit.suite('net'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 // netcheck's slice helpers over the joined net.js; a call that names a part's file reads that part by its own name
-const { src, between, fnSrc } = kit.netSlices('netmakecheck');
+const { src, between, fnSrc, ordersSrc } = kit.netSlices('netmakecheck');
 // the harness pieces netcheck keeps at its top, the very code (checkkit netHarness)
 const { H, siSrc } = kit.netHarness('netmakecheck');
-// fold 2 (backlog 152): fights by id. Every reader of a fight asks the orders slice (fightsOn, fightOfTok, the one judge orderOfIn, the API by id), so
-// every harness that runs one loads it: none passes on an old path
-const ordersSrc = between('// [netcheck:orders-start]', '// [netcheck:orders-end]', 'orders', 'netfight.js');
 const j = JSON.stringify;
 // Onboarding F1a: the waiting token — the client's cleaner, and the host's section run for real with the real systemcore (one per player per
 // campaign, moved not copied, gone once they have a token, the GM's Remove, the grace after a leave, the end of the session), the rules'

@@ -39,6 +39,9 @@
       time from 'netcheck:swpay'), and a line where a slice's anchor (a quoted string in a call of fnSrc, cut, indexOf, range,
       between, tryBetween or lineOf) holds a definition that only a part holds: a function, a net. function or a var declared at the
       left margin of the part's body and nowhere in its root's own text (the review of area 1's tests, 2026-11-18).
+   7b. A source pin (an includes or a split of a quoted string, or a plain regex's test) on a root's joined text, read directly or
+      through a name the tool set to such a read, holds no text that only one of the root's parts holds: it reads that part by name
+      (the review of area 3, 2026-11-18). The rule is tried on a text of its own first.
    `node tools/splitcheck.js --against <commit>` also proves the joined text of each root equal to that commit's (joined) root: the raw
    bytes for a root git keeps byte for byte (net.js), the text with CRLF read as LF for the others, with one line ending throughout.
    It needs the parser Node ships, so it runs itself again with --expose-internals. */
@@ -380,6 +383,58 @@ function pageCalls(name, bundle) {
         });
     });
     check('7. a line of a tool that holds the literal of a marker only a part holds (' + byPart7.length + ' such markers), names one as a quoted string, or cuts a slice at a definition only a part holds (' + defs7.length + ' such definitions), names that part\'s file, so the area\'s tests read it by name', byPart7.length > 0 && defs7.length > 0 && unnamed7.length === 0, unnamed7.slice(0, 20));
+
+    // ---- 7b. a source pin on a root's text holds no text only a part holds ----
+    // A pin is an includes(...) or a split(...) with a quoted string, or a plain regex's .test(...), whose text is a root's: a call that
+    // reads the root (readFileSync, read, joined or readSrc of a path that ends in the root's name, which srcjoin answers joined), or a
+    // name a line of the same tool last set to such a read. Where the pinned text stands in no line of the root's own text but in one of
+    // its parts, the pin reads the part by name instead (kit.part or srcjoin.raw), so the area's tests say where the code lives (the
+    // review of area 3, 2026-11-18). A slice cut by indexOf between two anchors is not judged here: one that crosses from the root into
+    // a part reads the joined text on purpose (point 7 judges a slice cut at a definition only a part holds).
+    const rootTxt7b = {}, partsTxt7b = {};
+    roots.forEach(r => { rootTxt7b[r] = srcjoin.raw(r, 'utf8').replace(/\r\n/g, '\n'); partsTxt7b[r] = srcjoin.partsOf(r).map(p => [p, srcjoin.raw(p, 'utf8').replace(/\r\n/g, '\n')]); });
+    const rootAlt7b = roots.map(r => r.replace(/\./g, '\\.')).join('|'), reads7b = '(?:readFileSync|read|joined|readSrc)';
+    const assign7b = new RegExp('\\b([A-Za-z_$][\\w$]*)\\s*=\\s*(?:[\\w$.]+\\.)?' + reads7b + '\\((?:(?!,\\s*[A-Za-z_$][\\w$]*\\s*=)[^;])*?[\'"/](' + rootAlt7b + ')[\'"]', 'g');
+    const other7b = /\b([A-Za-z_$][\w$]*)\s*=\s*(?:[\w$.]+\.|require\([^)]*\)\.)?(?:part|cut|raw)\(/g;   // a name set to a part's text, or any other text, is no root's
+    const direct7b = new RegExp(reads7b + '\\((?:[^()]|\\([^()]*\\))*?[\'"/](' + rootAlt7b + ')[\'"](?:[^()]|\\([^()]*\\))*\\)\\)?(?:\\.replace\\([^()]*\\))?\\.(?:includes|split)\\(\\s*(\'(?:[^\'\\\\\\n]|\\\\.)*\'|"(?:[^"\\\\\\n]|\\\\.)*")', 'g');
+    const pin7b = /([A-Za-z_$][\w$]*)\.(?:includes|split)\(\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/g;
+    const rx7b = /\/((?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])+)\/[gimsuy]*\.test\(\s*([A-Za-z_$][\w$]*)\s*\)/g;
+    const lit7b = s => { try { const v = Function('"use strict"; return (' + s + ');')(); return typeof v === 'string' ? v : null; } catch (e) { return null; } };
+    const bad7b = []; let pins7b = 0;
+    const judge7b = (where, root, s) => {
+        if (typeof s !== 'string' || s.length < 6) return; pins7b++;
+        if (rootTxt7b[root].indexOf(s) >= 0) return;
+        const holders = partsTxt7b[root].filter(x => x[1].indexOf(s) >= 0).map(x => x[0]);
+        if (holders.length) bad7b.push(where + ' pins the joined ' + root + ' on text only ' + holders.join(' and ') + ' holds: ' + JSON.stringify(s).slice(0, 100));
+    };
+    fs.readdirSync(__dirname).filter(f => /\.js$/.test(f) && !own7.has(f)).forEach(f => {
+        const vars = new Map();
+        fs.readFileSync(path.join(__dirname, f), 'utf8').split('\n').forEach((line, i) => {
+            const where = f + ':' + (i + 1); let m;
+            assign7b.lastIndex = 0; while ((m = assign7b.exec(line))) vars.set(m[1], m[2]);
+            other7b.lastIndex = 0; while ((m = other7b.exec(line))) vars.delete(m[1]);
+            direct7b.lastIndex = 0; while ((m = direct7b.exec(line))) judge7b(where, m[1], lit7b(m[2]));
+            pin7b.lastIndex = 0; while ((m = pin7b.exec(line))) { const r = vars.get(m[1]); if (r) judge7b(where, r, lit7b(m[2])); }
+            rx7b.lastIndex = 0; while ((m = rx7b.exec(line))) {
+                const r = vars.get(m[2]), b = m[1]; if (!r) continue;
+                if (/(^|[^\\])[.*+?()[\]{}|^$]/.test(b.replace(/\\\\/g, ''))) continue;   // a regex that is no plain text once its escapes are read
+                judge7b(where, r, b.replace(/\\(.)/g, '$1'));
+            }
+        });
+    });
+    // the rule tried on a text of its own: a pin on the joined sheets.js of a line only sheetlink.js holds, by a name and by a direct read
+    const try7b = () => {
+        const keep = bad7b.length, line = (partsTxt7b['sheets.js'].filter(x => x[0] === 'sheetlink.js')[0] || [null, ''])[1].split('\n').filter(l => /^function [A-Za-z]+\(/.test(l) && rootTxt7b['sheets.js'].indexOf(l) < 0)[0] || '';
+        const q = JSON.stringify(line), vars = new Map([['shT', 'sheets.js']]);
+        const a = 'const shT = fs.readFileSync(path.join(app, \'scripts\', \'sheets.js\'), \'utf8\');', b = 'check(\'x\', shT.includes(' + q + '));', c = 'check(\'y\', read(\'scripts/sheets.js\').includes(' + q + '));';
+        let m; assign7b.lastIndex = 0; const set = (m = assign7b.exec(a)) && m[1] === 'shT' && m[2] === 'sheets.js';
+        pin7b.lastIndex = 0; while ((m = pin7b.exec(b))) { const r = vars.get(m[1]); if (r) judge7b('try:b', r, lit7b(m[2])); }
+        direct7b.lastIndex = 0; while ((m = direct7b.exec(c))) judge7b('try:c', m[1], lit7b(m[2]));
+        const got = bad7b.splice(keep);
+        return !!line && set && got.length === 2 && got[0].indexOf('sheetlink.js') >= 0 && got[1].indexOf('sheetlink.js') >= 0;
+    };
+    check('7b. the rule tried on a text of its own: a pin on the joined sheets.js of a line only sheetlink.js holds is named, set by a name and read directly', try7b());
+    check('7b. a source pin (includes, split or a plain regex) on the joined text of a root holds no text that only one of its parts holds, so it reads that part by name (' + pins7b + ' pins on a root judged)', pins7b > 0 && bad7b.length === 0, bad7b.slice(0, 20));
 
     // ---- --against <commit>: the joined text equals the old file ----
     if (argAgainst) {

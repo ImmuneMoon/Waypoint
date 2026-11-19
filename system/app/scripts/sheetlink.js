@@ -5,6 +5,11 @@
    (linkBar, in the [systemcheck:linkbar-*] lines, with + Crew... in the [systemcheck:crewpick-*] lines: crewCandidates, crewAddPick),
    a sheet's category in the Characters list (charCatSet, charCatNow) and a link set from the menu (setLink). The judge of a link is
    systemcore.js's (linkcore.js); the System editor's Linked sheets box is sheetlinkbox.js.
+   NOT linked sheets, though they stand here: the sheet's other registrations with systemcore.js, which stood among the link sources
+   in sheets.js and came with them, since moving them back would change the joined text (the review of area 3, 2026-11-18). Look here
+   for: setTagSource and setTagSink (a map's marks, vehicles fold (c)), setSetOffSink (a change that sets off a placed blast),
+   setLaunchSink (what an act launches, things in flight), setGateEngine (Changes apply where), setValueSource and setValueSink
+   (shared values, G8) with valuesMoved, and setDeckSource and setDeckSink (decks, G9).
    Why it looks this way: these lines stood in sheets.js, and they still run exactly where they stood. sheets.js calls sheetLink() at
    its line `// [split:sheetlink.js]`, so the body below runs in the old order, after everything above that line and before everything
    below it. The body keeps its lines at the left margin inside the install function, unchanged, so that every test that reads

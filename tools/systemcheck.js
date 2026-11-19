@@ -14174,7 +14174,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const thR = fs.readFileSync(path.join(app, 'scripts', 'systemcore.js'), 'utf8'), netR = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1');
         check('1.5.9 a jam fires nothing, the validator and the one judge: a Then that fires On malfunction is a warning that it never happens, in its own words, and is no roll that tests nothing; every caller of a roll\'s Then goes through thenChanges with the malfunction it knows (the host\'s roll branch, the GM\'s own roll and a time rule), so none fires a jammed round',
             vMf.errors.length === 0 && vMfW.filter(m => /Fire never happens on a malfunction: a shot that jams is not fired and spends nothing\./.test(m)).length === 1 && !vMfW.some(m => /tests nothing/.test(m))
-            && thR.includes('return isObj(c) && !(malf === true && (c.fire === true || c.feed === true)) && (!c.when ||') && thR.includes('th = thenChanges(rule, pass, mfHit, cr, bandOf(sys, rule, vars, F, res, vd, mfHit, bg0));')
+            && thR.includes('return isObj(c) && !(malf === true && (c.fire === true || c.feed === true)) && (!c.when ||') && require('./checkkit').part('timecore.js').includes('th = thenChanges(rule, pass, mfHit, cr, bandOf(sys, rule, vars, F, res, vd, mfHit, bg0));')   /* timecore.js, read by its own name */
             && netR.includes('thQ = SQ.thenChanges(actQ, mfHitQ ? false : recQ.body === 1 ? true : (vdQ && vdQ.kind === \'check\' ? vdQ.pass : null), mfHitQ, recQ.body === 1 ? \'\' : crQ, recQ.band);') && netR.includes('thR = SR.thenChanges(entR, mfHitR ? false : rec.body === 1 ? true : (vdR && vdR.kind === \'check\' ? vdR.pass : null), mfHitR, rec.body === 1 ? \'\' : crR, rec.band);') /* 1.6.2: a stray shot that hit a body in the way is a full hit, a jam still none (moved on purpose) */,
             j([vMf.errors, vMfW]));
         const v1 = validateSystem(sC, F), noChS = sysOf(gear({})), v2 = validateSystem(noChS, F), v2m = v2.errors.map(e => e.message).join(' | ');
@@ -19100,7 +19100,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 Changes apply where in the System editor: the Lists tab\'s box after Tradable with its handler, what refreshErrors says Save drops as the cleaner reads it, the engine registered for the host\'s hidden rows; the Lists key, Help and both release notes say it',
             shM.includes("var miW = el('label', 'sys-check'), miI = el('input', 'field sys-list-modsif');") && shM.includes("miW.appendChild(document.createTextNode('Changes apply where '));")
             && shM.includes("else if (c.indexOf('sys-list-modsif') >= 0) { var miV = String(t.value || '').trim(); if (miV) lsc.modsIf = miV.slice(0, LIMITS.formula); else delete lsc.modsIf; }")
-            && shM.includes("var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || (cf.list && cf.list.modsIf)) return;") && shM.includes("if (typeof setGateEngine === 'function') setGateEngine(F);")
+            && shM.includes("var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || (cf.list && cf.list.modsIf)) return;") && require('./checkkit').part('sheetlink.js').includes("if (typeof setGateEngine === 'function') setGateEngine(F);")   /* sheetlink.js, read by its own name */
             && ixM.includes('<b>Changes apply where</b><small>A row gives its changes only where this formula holds.</small>') && ixM.includes('<li><b>Changes apply where</b> is a formula that says where a list&rsquo;s rows give their changes.')
             && ixM.includes('It reads the sheet before any item or effect changes it, so a column an item change moves is read before that change.')
             && wnM.includes("- A list can say where its rows' changes apply. Changes apply where, in the") && wnM2.includes("- A list can say where its rows' changes apply. Changes apply where, in the"));
@@ -20425,7 +20425,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             J(sy.rolls[0].then) === J([{ setOff: true, when: 'fumble' }]) && J(pl.rolls[0].then) === J([{ setOff: true, when: 'fumble' }]) && J(sy.fields[0].list.rolls[0].then) === J([{ setOff: true, when: 'miss' }])
             && aOn.ok && aOn.setOff === 1 && J(got) === J([[{ by: 'c_1', from: 'w_1', map: 'm_1' }]]) && aOn.lines.some(l => l.say === 'Set off.')
             && aNone.ok && aNone.setOff === 0 && aNone.lines.some(l => /None lies within 2 yards/.test(l.say)) && aNoTok.ok && aNoTok.lines.some(l => /No token on the map/.test(l.say))
-            && !vr.errors.length && wbO.includes('window.wpSetOffNear = function(list) {') && shO.includes("setSetOffSink(function(list) { return typeof window.wpSetOffNear === 'function' ? window.wpSetOffNear(list) : 0; });")
+            && !vr.errors.length && wbO.includes('window.wpSetOffNear = function(list) {') && require('./checkkit').part('sheetlink.js').includes("setSetOffSink(function(list) { return typeof window.wpSetOffNear === 'function' ? window.wpSetOffNear(list) : 0; });")   /* sheetlink.js, read by its own name */
             && shO.includes("else if (v === 'setoff') { ch.setOff = true;") && (shO.split("'Set off the placed blast nearest it'").length - 1) === 2,
             J([sy.rolls[0].then, pl.rolls[0].then, sy.fields[0].list.rolls[0].then, aOn, aNone, aNoTok, vr.errors]));
     }
@@ -20445,8 +20445,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             J(sy.rolls[0].then) === J([{ f: 'f_pow', formula: '1', link: 'lk_v' }, { f: 'f_pow', formula: '1' }])
             && aG.ok && J(aG.linkValues) === J({ c_v: { f_pow: { cur: 4 } } }) && J(aG.values) === '{}' && aG.lines.some(l => l.n === 'Truck: Power' && l.v === 4) && truck.values.f_pow.cur === 5
             && aL.ok && !aL.linkValues && aL.lines.some(l => /Nothing is linked there/.test(l.say)) && aN.ok && !aN.linkValues && aN.lines.some(l => /not here/.test(l.say))
-            && ntL.includes('window.wpSheets.linkValuesWrite(resA.linkValues);') && ntL.includes('window.wpSheets.linkValuesWrite(taQ.linkValues)') && ntL.includes('window.wpSheets.linkValuesWrite(taR.linkValues)') && ntL.includes('window.wpSheets.linkValuesWrite(plan.links);')
-            && shL.includes('if (res.linkValues) linkValuesWrite(res.linkValues);') && shL.includes('setLinkCharSource(function(id) {'),
+            && ntL.includes('window.wpSheets.linkValuesWrite(resA.linkValues);') && ntL.includes('window.wpSheets.linkValuesWrite(taQ.linkValues)') && ntL.includes('window.wpSheets.linkValuesWrite(taR.linkValues)') && require('./checkkit').part('nethold.js').includes('window.wpSheets.linkValuesWrite(plan.links);')   /* nethold.js, read by its own name */
+            && shL.includes('if (res.linkValues) linkValuesWrite(res.linkValues);') && require('./checkkit').part('sheetlink.js').includes('setLinkCharSource(function(id) {'),   /* sheetlink.js, read by its own name */
             J([sy.rolls[0].then, aG, aL, aN]));
     }
     {   // 1.6.2 (the CORE session's batch 6, 5c): a roll bonus's figure by the level of the row that holds it

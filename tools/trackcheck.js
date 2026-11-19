@@ -196,7 +196,7 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         check('the snapshot never carries the trackers (sanitizeAppState deletes them); a joiner is sent theirs after it; a player at another map is sent that map\'s; the chat line is a whisper of this machine\'s own, drawn by trackers.js',
             net.includes("delete camp.trackers; // backlog 29") && net.includes("if (snapOk && typeof net.trackersForget === 'function') { net.trackersForget(conn.peer); trkSendTo(conn, Date.now()); }")
             && net.includes("broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); }")
-            && net.includes("pushChat({ type: 'chat', scope: 'whisper', from: { id: 'tracker', name: 'Tracker' }, text: text.slice(0, 200), ts: Date.now(), trk: true });")
+            && require('./srcjoin').raw('nettime.js', 'utf8').includes("pushChat({ type: 'chat', scope: 'whisper', from: { id: 'tracker', name: 'Tracker' }, text: text.slice(0, 200), ts: Date.now(), trk: true });")   /* nettime.js, read by its own name */
             && net.includes("m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : chatEntryNode(m);") && net.includes("function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; })")
             && !/msg\.type === 'trackers' && net\.role === 'host'/.test(net));
         check('the strip draws with elements and text nodes only: no markup anywhere in trackers.js, a color only from the fixed list, every step logged',

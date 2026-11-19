@@ -11,7 +11,8 @@
 
    What it offers:
    - suite(style): { check, pending, finish, counts }. check(name, ok, detail) prints one line exactly as the suite it came from did
-     ('system' for systemcheck's form, 'net' for netcheck's). pending is a list a suite pushes its asynchronous checks onto, and
+     ('system' for systemcheck's form, 'net' for netcheck's, 'whole' for a suite holding both, whose failures keep their whole
+     detail). pending is a list a suite pushes its asynchronous checks onto, and
      finish() waits for them, prints the summary and exits 1 on any failure. A suite that never reaches finish() (a promise nothing
      answers) is caught by the exit guard both giants have: it prints a failure and exits 1.
    - joined(name): a script's text as srcjoin answers it (a split root's joined text), with CRLF read as LF.
@@ -35,12 +36,15 @@ const APP = path.join(__dirname, '..', 'system', 'app');
 const SCRIPTS = path.join(APP, 'scripts');
 const lf = t => String(t).replace(/\r\n/g, '\n');
 
-// One suite's counts and its check function. The two forms differ only in spacing and in how a failure's detail is written.
+// One suite's counts and its check function. The forms differ only in spacing and in how a failure's detail is written: 'net' as
+// netcheck writes it (a string as it is, anything else as JSON, whole), 'system' as systemcheck writes it (cut at 300 characters), and
+// 'whole' for a suite whose checks came from both giants (linkcheck): an ok line as both write it, a failure's detail as netcheck
+// writes it, so the host's blocks, whose details are the long JSON of every message sent, keep all of it (the review of area 3).
 function suite(style) {
     let pass = 0, fail = 0, summed = false;
     const pending = [];
     process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      the asynchronous checks never finished (a promise was left waiting)'); process.exitCode = 1; } });
-    const check = style === 'net'
+    const check = style === 'net' || style === 'whole'
         ? (name, ok, detail) => { if (ok) { pass++; console.log('ok        ' + name); } else { fail++; console.log('FAIL      ' + name + (detail !== undefined ? '  -> ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '')); } }
         : (name, ok, detail) => { if (ok) { pass++; console.log('ok       ', name); } else { fail++; console.log('FAIL     ', name, detail !== undefined ? '-> ' + String(detail).slice(0, 300) : ''); } };
     // Waits for every pending check, then prints the summary line both giants print and exits 1 on a failure.

@@ -14,13 +14,18 @@
    which sheets are crewed (backlog 218 fold 1), and a station's seats (backlog 205); from netcheck.js, a crew member pressing a
    vehicle's roll on the host, a player's link set on the host with the figures an owner's copy carries and the copy sent again when
    a linked sheet moves, a crew figure that reads the vehicle doing the reading, and the crew who act in the vehicle's turn.
+   Not linked sheets, though they stand here: the three checks of the marks of vehicles fold (c) (the host keeps a mark on its map,
+   a fight's end takes off every mark, a player's app takes the marks), which stood inside netcheck's char-link block and came with
+   it. The marks' code is still systemcore.js's and net.js's own (cleanTags to tagsEnd, the tags and tagsin slices); they are one
+   block of their own here, needing only Sx, Fx and between, and go to the suite of the marks' area when that area is cut.
+   A failure prints its whole detail, as netcheck printed it (kit.suite('whole')): the host's blocks say every message sent.
    Usage: node tools/linkcheck.js   (exit 1 on any failure) */
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
 const kit = require('./checkkit');   // what the suites that came out of the giant ones share (tools/checkkit.js)
 const path = require('path'), fs = require('fs');
 const NL = String.fromCharCode(10);
 const app = kit.APP, url = kit.url;
-const T = kit.suite('system'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
+const T = kit.suite('whole'), check = T.check, pendingChecks = T.pending, packCheck = kit.packCheck;
 const j = v => JSON.stringify(v);
 // netcheck's slice helpers over the joined net.js; a call that names a part's file (netlink.js) reads that part by its own name
 const { src, between } = kit.netSlices('linkcheck');
@@ -81,7 +86,7 @@ check('linkcheck: netlink.js is a part of net.js, and sheetlink.js and sheetlink
             && S.linkBare(g, null, 'Crew.Pilot.max.Piloting') === 'Piloting' && S.linkBare(g, null, 'Crew.count') === 'Crew.count'
             && vBad.errors.filter(e => e.id === 'f_nn').map(e => e.message.split(' \u2014')[0]).join('|') === 'Unknown name "Crew.Engineer.max.Piloting"|Unknown name "Crew.max.Nope"|Unknown name "Crew.Pilot"', J([vC.errors, vC.warnings, vBad.errors]));
         const slC = kit.part('sheetlink.js'), sbC = kit.part('sheetlinkbox.js'), nlC = kit.part('netlink.js');   // the parts its pins stand in, each read by its own name
-        const nC =fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), ixC = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+        const nC = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), ixC = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
         const ntC = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n'));
         const raw2 = JSON.parse(J(rawC)); raw2.links[0].most = 9; raw2.fields.push({ id: 'f_pr', key: 'PilotRoll', kind: 'formula', formula: 'Piloting - 2 * (Vehicle.stations > 1)', vis: 'all' });
         const g2 = cleanSystem(raw2, { F, gmView: true }), raw1 = JSON.parse(J(rawC)); raw1.links[0].most = 1; const g1 = cleanSystem(raw1, { F, gmView: true });
@@ -247,7 +252,7 @@ check('linkcheck: netlink.js is a part of net.js, and sheetlink.js and sheetlink
             && J(gmV) === J([12, 1, 9, 0, 0]) && J(ck) === J({ lk_m: { v: { 'max.riding': 11, count: 1 } } }) && J(plV) === J([12, 1]) && !vM.errors.length && J(says('f_sp')) === J(['"Riders.sum.Secret" is GM only: players will see an error for this field.']) && !says('f_sa').length
             && S.linkBare(g, null, 'Riders.max.Riding') === 'Riding' && lsM.ok === false && /already has a rider/.test(lsM.msg) && S.groupLink(g.links[0]) && !S.groupLink({ kind: 'other' }),
             J([g.links, gmV, ck, plV, vM.errors, vM.warnings, lsM]));
-        const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), nM = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), ixM = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+        const ixM =fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
         const ntM = [path.join(app, 'assets', 'whatsnew.txt'), path.join(app, '..', '..', 'WHATSNEW.txt')].map(f => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')), gdM = fs.readFileSync(path.join(app, '..', '..', 'CAMPAIGN_INTEGRATION.md'), 'utf8');
         const LS = new Function('LIMITS', 'LINK_NOT', 'cleanLinks', require('./checkkit').cut('sheetlinkbox.js', 'function linkSays(', '// [systemcheck:linkbox-end]') + '\nreturn linkSays;')(S.LIMITS, S.LINK_NOT, S.cleanLinks);
         const lsW = LS([{ key: 'Steed', kind: 'mount', group: 'Bad key' }, { key: 'Pony', kind: 'mount', group: 'Riding' }], [{ key: 'Riding', label: 'Riding' }], F);
@@ -303,7 +308,7 @@ check('linkcheck: netlink.js is a part of net.js, and sheetlink.js and sheetlink
             J(S.cleanCharLink({ rid: 'k1', charId: 'c_a', linkId: 'lk_m', to: 'c_b', extra: 1 })) === J({ rid: 'k1', charId: 'c_a', linkId: 'lk_m', to: 'c_b' }) && J(S.cleanCharLink({ rid: 'k1', charId: 'c_a', linkId: 'lk_m' })) === J({ rid: 'k1', charId: 'c_a', linkId: 'lk_m', to: '' })
             && [{ rid: 'k 1', charId: 'c_a', linkId: 'lk_m' }, { rid: 'k1', charId: 'x', linkId: 'lk_m' }, { rid: 'k1', charId: 'c_a', linkId: 'f_m' }, { rid: 'k1', charId: 'c_a', linkId: 'lk_m', to: 7 }, { rid: 'k1', charId: 'c_a', linkId: 'lk_m', to: '__proto__' }, null].every(m => S.cleanCharLink(m) === null));
         // the sheet and the System editor (sheets.js, run for real on stand-ins of the page)
-        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), cutL = (a, b) => { const i = shL.indexOf(a), k = shL.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('linked sheets slice: ' + a); return shL.slice(i, k); };
+        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL);
         const ckL = require('./checkkit'), barS = ckL.cut('sheetlink.js', 'function linkBar(', '// A link set from the menu'), saysS = ckL.cut('sheetlinkbox.js', 'function linkSays(', '// [systemcheck:linkbox-end]'), srcS = ckL.cut('sheetlink.js', 'function linkSource(', '// The characters whose sheets link this one');   // read by their own names
         const feL = (tag, cls, text) => { const e = { tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], title: '', value: '', selected: false, dataset: {}, on: {}, appendChild(x) { this.children.push(x); return x; }, addEventListener(t, fn) { this.on[t] = fn; } }; return e; };
         const optL = (v, t, s) => { const o = feL('option', null, t); o.value = v; o.selected = !!s; return o; };

@@ -18,7 +18,8 @@
      node tools/suitecount.js --compare <before.json>   runs every suite and compares with a file written before: it fails (exit 1)
                                                         unless every result line of before is still printed by some suite (each as
                                                         many times as before), the total of "ok" lines is at least what it was, and
-                                                        no suite fails that passed before. It prints the lines that left a suite and
+                                                        no suite fails that passed before (each such suite with the checks that
+                                                        failed, by name, up to 20). It prints the lines that left a suite and
                                                         the suite that prints them now: that list is what a commit says it moved.
      --only a,b,c   runs only the suites named (their file names without .js), for a quick look; a compare then reads only those.
      --jobs N       how many suites run at once (4 unless named). */
@@ -73,7 +74,7 @@ function runOne(name) {
 async function runAll() {
     const names = suites(), out = {};
     let next = 0;
-    const worker = async () => { while (next < names.length) { const n = names[next++]; const r = await runOne(n); out[n] = r; process.stderr.write((r.code ? 'FAIL ' : 'ok   ') + n + ' (' + r.ok + ' ok, ' + r.failed + ' failed, ' + Math.round(r.ms / 1000) + ' s)\n'); } };
+    const worker = async () => { while (next < names.length) { const n = names[next++]; const r = await runOne(n); out[n] = r; process.stderr.write((r.code ? 'FAIL ' : 'ok   ') + n + ' (' + r.ok + ' ok, ' + r.failed + ' failed, ' + Math.round(r.ms / 1000) + ' s)\n'); if (r.code) r.lines.filter(l => l.startsWith('FAIL ')).slice(0, 5).forEach(l => process.stderr.write('       ' + l.slice(0, 300) + '\n')); } };   // a suite that fails names its first failed checks at once
     await Promise.all(Array.from({ length: jobs }, worker));
     return out;
 }
@@ -115,7 +116,11 @@ function countOf(list) { const m = new Map(); list.forEach(l => m.set(l, (m.get(
     // suites
     Object.keys(now).forEach(n => {
         const b = before[n];
-        if (now[n].code && (!b || !b.code)) { bad++; console.log('FAILS     ' + n + ' (' + now[n].summary + ')'); }
+        if (now[n].code && (!b || !b.code)) {
+            bad++; console.log('FAILS     ' + n + ' (' + now[n].summary + ')');
+            // the checks that failed, by name, so that a failure of one run can be told apart from another (the review of area 3)
+            now[n].lines.filter(l => l.startsWith('FAIL ')).slice(0, 20).forEach(l => console.log('  ' + l.slice(0, 400)));
+        }
         console.log('suite     ' + n + ': ' + (b ? b.ok : '-') + ' -> ' + now[n].ok + ' ok' + (now[n].failed ? ', ' + now[n].failed + ' failed' : ''));
     });
     const totB = names.reduce((a, n) => a + before[n].ok, 0), totA = Object.values(now).reduce((a, r) => a + r.ok, 0);

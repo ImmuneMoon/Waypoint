@@ -17,6 +17,7 @@ function page() {
         const e = { tagName: tag.toUpperCase(), children: [], attrs: {}, on: {}, style: {}, dataset: {}, value: '', disabled: false, readOnly: false, ownerDocument: doc, parentNode: null, className: '', textContent: '',
             classList: { contains: c => (' ' + e.className + ' ').includes(' ' + c + ' ') },
             appendChild(c) { c.parentNode = e; e.children.push(c); return c; },
+            get firstChild() { return e.children[0] || null; }, removeChild(c) { const i = e.children.indexOf(c); if (i >= 0) e.children.splice(i, 1); c.parentNode = null; return c; },
             insertBefore(c, ref) { c.parentNode = e; const i = ref ? e.children.indexOf(ref) : -1; if (i < 0) e.children.push(c); else e.children.splice(i, 0, c); return c; },
             setAttribute(k, v) { e.attrs[k] = String(v); }, getAttribute(k) { return k in e.attrs ? e.attrs[k] : null },
             addEventListener(t, f) { (e.on[t] = e.on[t] || []).push(f); },
@@ -75,6 +76,39 @@ function page() {
             shape === J(['ui-pick x-where', 'ui-pick-cap', 'Its map goes', 'ui-seg ui-seg-wide', 'group', true, 'SMALL', 'ui-pick-say', 'Second.', [['BUTTON', 'button', 'a', 'Alpha'], ['BUTTON', 'button', 'b', 'Beta'], ['BUTTON', 'button', 'c', '<b>C</b>']], [['tool', 'false', -1], ['tool on', 'true', 0], ['tool', 'false', -1]], 'b', false])
             && f0 && J(r1) === J(['c', true, 'Third.']) && r2 === 'a' && J(r3) === J(['c', 5, 5]) && J(r4) === J(['c', 5, 5]) && P.touched === true && J(r5) === J(['b', 'Second.', J(['c', 'a', 'c', 'a', 'c', 'a'])])
             && Q.picked() === 'a' && Q.children[2].textContent === 'A.' && Q.children[1].children[1].textContent === 'b', J([shape, r1, r2, r3, r4, r5]));
+    }
+    {   // 1.6.3: a choice of many with a search (find; the owner, 2026-11-19: "im usually partial to lists having searches too"), first used for the entry an option stands for
+        const fd = page(), got = [], ch = [{ value: 'off', name: 'Off Hand' }, { value: 'two', name: 'Two-handed Club' }, { value: 'res', name: 'R\u00e9sum\u00e9', sub: 'GM only' }, { value: '', name: 'no value' }, null, { value: 'x<b>', name: '<b>Bold</b>' }];
+        const Fd = U.find({ cls: 'x-ent', label: 'Which entry', blank: 'Pick an entry', gone: 'An entry that is no longer there', value: 'two', choices: ch, set: v => got.push(v) }, fd);
+        const q = Fd.input, s = Fd.select, rows = () => s.children.map(o => [o.value, o.textContent, o.disabled === true]);
+        const shape = J([Fd.className, Fd.children.map(c => [c.tagName, c.className]), q.attrs['aria-label'], s.attrs['aria-label'], q.placeholder]);
+        const r0 = J(rows()), v0 = s.value;
+        q.value = 'hand'; q.fire('input'); const r1 = J(rows());
+        q.value = 'resu gm'; q.fire('input'); const r2 = J(rows());
+        q.value = 'zz'; q.fire('input'); const r3 = J(rows()); q.value = 'and'; q.fire('input'); const r3b = J(rows());
+        q.value = 'off'; let stop = 0; q.fire('keydown', { key: 'Enter', stopPropagation() { stop++; } }); const r4 = [Fd.picked(), J(got), J(rows()), stop];
+        s.value = 'two'; s.fire('change'); s.value = 'two'; s.fire('change'); const r5 = [Fd.picked(), J(got)];
+        q.value = 'zz'; q.fire('keydown', { key: 'Escape', stopPropagation() { stop++; } }); const r6 = [q.value, stop]; q.fire('keydown', { key: 'Escape', stopPropagation() { stop++; } }); const r7 = stop;
+        Fd.setValue('gone'); const r8 = [J(rows().slice(0, 2)), J(got)];
+        const many = []; for (let i = 0; i < 230; i++) many.push({ value: 'e' + i, name: 'Entry ' + i }); const M = U.find({ choices: many, max: 200 }, page()), mr = M.select.children;
+        check('a choice of many with a search (find): a search box and a list in one frame, each named; the picked one first and in sight whatever is typed, then every choice that holds each word typed anywhere in it, case and accents aside, its gray words read too; set as text; Enter picks the first found; a pick handed on once; Escape empties a search that holds words and goes no further; a value no choice has is kept and said; past its most a row says how many more',
+            shape === J(['ui-find x-ent', [['INPUT', 'field ui-find-q'], ['SELECT', 'field ui-find-sel']], 'Search which entry', 'Which entry', 'Search'])
+            && r0 === J([['', 'Pick an entry', false], ['two', 'Two-handed Club', false], ['off', 'Off Hand', false], ['res', 'R\u00e9sum\u00e9 (GM only)', false], ['x<b>', '<b>Bold</b>', false]]) && v0 === 'two'
+            && r1 === J([['', 'Pick an entry', false], ['two', 'Two-handed Club', false], ['off', 'Off Hand', false]]) && r2 === J([['', 'Pick an entry', false], ['two', 'Two-handed Club', false], ['res', 'R\u00e9sum\u00e9 (GM only)', false]])
+            && r3 === J([['', 'Pick an entry', false], ['two', 'Two-handed Club', false]]) && r3b === J([['', 'Pick an entry', false], ['two', 'Two-handed Club', false], ['off', 'Off Hand', false]]) && r4[0] === 'off' && r4[1] === J(['off']) && r4[3] === 1 && r5[0] === 'two' && r5[1] === J(['off', 'two'])
+            && r6[0] === '' && r6[1] === 2 && r7 === 2 && r8[0] === J([['', 'Pick an entry', false], ['gone', 'An entry that is no longer there', false]]) && r8[1] === J(['off', 'two'])
+            && mr.length === 201 && mr[200].disabled === true && mr[200].textContent === '30 more. Search to narrow them' && U.findMatch({ name: 'Off Hand' }, '') === true && U.findMatch(null, 'x') === false,
+            J([shape, r0, r1, r2, r3, r4, r5, r6, r7, r8]));
+        {   // the review of 2026-11-19: a closed list changes its pick at every arrow key, so stepping it by its place must walk on through the list
+            const ag = [], A = U.find({ blank: 'Pick an entry', value: '', choices: ['alpha', 'bravo', 'charlie', 'delta'].map(v => ({ value: v, name: v })), set: v => ag.push(v) }, page()), as = A.select;
+            const stepDown = () => { const kids = as.children, at = kids.findIndex(o => o.value === as.value); let k = at + 1; while (k < kids.length && kids[k].disabled) k++; if (k < kids.length) { as.value = kids[k].value; as.fire('change'); } };
+            const order0 = J(as.children.map(o => o.value)); for (let k = 0; k < 4; k++) stepDown(); const order1 = J(as.children.map(o => o.value));
+            A.input.value = 'a'; A.input.fire('input'); const order2 = J(as.children.map(o => o.value));
+            check('find: a pick made in the list leaves its order alone, so the arrow keys walk on through it; the next word typed puts the pick first again',
+                J(ag) === J(['alpha', 'bravo', 'charlie', 'delta']) && A.picked() === 'delta' && order1 === order0 && order2 === J(['', 'delta', 'alpha', 'bravo', 'charlie']), J([ag, order0, order1, order2]));
+        }
+        const css = read('style.css'), ek = read('scripts/esckey.js');
+        check('find\u2019s frame is the style sheet\u2019s, and Escape leaves a search that holds words to it', /\.ui-find \{[^}]*border: 1px solid var\(--edge\)/.test(css) && /\.ui-find > \.ui-find-q \{/.test(css) && ek.includes("t.classList.contains('ui-find-q')"));
     }
     const src = read('scripts/uiparts.js');
     check('the review of the sweep: a figure typed is handed on only once a press that took the focus from it has landed, so that press is never lost under a redraw; a press of the counter\'s own button hands it on first; a slider dragged meanwhile wins',

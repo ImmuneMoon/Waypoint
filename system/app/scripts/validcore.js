@@ -555,12 +555,12 @@ function validateSystem(sys, F) {
         }
     });
     // 1.6.0: what the editor says of a change that switches an effect, and of one that sets its row's quantity or one of its stats
-    var fxSays = function(id, prop, c, vis) {
+    var fxSays = function(id, prop, c, vis, lf, key) {   // lf and key: a list's own change, whose With number knows Row.* as its amounts do (the review of 1.6.3's editor fold)
         var d = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(x) { if (!d && isObj(x) && x.id === c.fx) d = x; });
         if (!d) { errors.push({ id: id, prop: prop, message: 'Pick the effect this switches: that one is gone.' }); return; }
         if (!sys.fields.some(function(x) { return isObj(x) && x.kind === 'effects'; })) errors.push({ id: id, prop: prop, message: 'The sheet has no status effects list, so "' + (d.name || d.id) + '" cannot go on.' });
         else if (vis === 'all' && d.vis === 'gm') warnings.push({ id: id, prop: prop, message: '"' + (d.name || d.id) + '" is GM only: players will not get this.' });
-        if (typeof c.n === 'string' && c.n) { if (!isObj(d.val)) warnings.push({ id: id, prop: prop, message: '"' + (d.name || d.id) + '" holds no number, so its With number does nothing.' }); else checkFormula({ id: id, key: id }, prop, c.n, false, vis); }   // 1.6.2: the number it goes on with
+        if (typeof c.n === 'string' && c.n) { if (!isObj(d.val)) warnings.push({ id: id, prop: prop, message: '"' + (d.name || d.id) + '" holds no number, so its With number does nothing.' }); else checkFormula({ id: id, key: key || id }, prop, c.n, false, vis, lf); }   // 1.6.2: the number it goes on with
     };
     var allSays = function(id, prop, c, vis, then) {   // 1.6.0: a system entry's change on every row of a list: an item list of the system, a number stat of it, and a list players see where the entry is theirs
         var lf = fieldById(sys, c.list);
@@ -743,7 +743,7 @@ function validateSystem(sys, F) {
                     var rp2 = F.parse(r.formula || ''), tests2 = !!(rp2.ok && rp2.ast && (rp2.ast.top || rp2.ast.body) && (rp2.ast.top || rp2.ast.body).t === 'cmp');
                     r.then.forEach(function(c, k) {
                         var tp2 = 'list.then.' + i + '.' + k + '.' + rl2, tf2 = c.f ? fieldById(sys, c.f) : null;
-                        if (typeof c.fx === 'string') { fxSays(f.id, tp2, c, f.vis); return; }   // 1.6.0: an effect switched, the row's quantity or one of its stats
+                        if (typeof c.fx === 'string') { fxSays(f.id, tp2, c, f.vis, f, 'l#' + lower(f.key) + '#then'); return; }   // 1.6.0: an effect switched, the row's quantity or one of its stats
                         if (moreSays(f.id, 'l#' + lower(f.key) + '#then', tp2, c, f.vis, f)) { if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); return; }
                         if (typeof c.money === 'string') { if (!moneyBoxes(sys).length) errors.push({ id: f.id, prop: tp2, message: 'Money needs a list with a Money box on the Lists tab, and this system has none.' }); if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.money, false, f.vis, f); return; }   // 1.6.0: the sheet's money, by a figure with no dice, Row.* known
                         if (c.q === true || typeof c.s === 'string') { rowSays(f, tp2, c); if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.formula, c.roll === true, f.vis, f); rolledWarn(f.id, tp2, c); return; }
@@ -767,7 +767,7 @@ function validateSystem(sys, F) {
             if (!r.apply.length) { errors.push({ id: f.id, prop: 'list.apply.' + i + '.x.' + al, message: 'An apply action needs a change: the pool or number it moves, and by how much.' }); return; }
             r.apply.forEach(function(c, k) {
                 var cp = 'list.apply.' + i + '.' + k + '.' + al, tf = c.f ? fieldById(sys, c.f) : null;
-                if (typeof c.fx === 'string') { fxSays(f.id, cp, c, f.vis); return; }   // 1.6.0: an effect switched, the row's quantity or one of its stats
+                if (typeof c.fx === 'string') { fxSays(f.id, cp, c, f.vis, f, 'l#' + lower(f.key) + '#apply'); return; }   // 1.6.0: an effect switched, the row's quantity or one of its stats
                 if (moreSays(f.id, 'l#' + lower(f.key) + '#apply', cp, c, f.vis, f)) return;
                 if (c.discard === true) { if (!isObj(f.list.hand)) errors.push({ id: f.id, prop: cp, message: 'Discard needs a hand, and this list is not marked as one.' }); return; }   // 1.6.2 (G9)
                 if (c.setOff === true) return;   // 1.6.2 (10): no pool, no amount

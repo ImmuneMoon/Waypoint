@@ -251,9 +251,9 @@ const j = v => JSON.stringify(v);
 
         // the System editor: the Rules box (renderLists, real), the handlers and the save (pinned)
         const nodes = { sysListRows: fe5('div'), sysListRules: fe5('div') };
-        const RL = new Function('ui', 'draft', 'el', 'listCard', 'errorCell', 'labeledSelect', cutT('function renderLists(', 'function listCard(') + '\nreturn renderLists;');
+        const RL = new Function('ui', 'draft', 'el', 'listCard', 'errorCell', 'labeledSelect', 'APPLY_KINDS', cutT('function renderLists(', 'function listCard(') + '\nreturn renderLists;');
         const lSel = (cls, cap, options, value, title) => { const l = fe5('label', 'sys-combat-item'), s = fe5('select', cls); l.appendChild(fe5('span', 'sys-num-cap', cap)); options.forEach(o => s.appendChild(opt5(o[0], o[1], o[0] === value))); s.value = value; s.title = title; l.appendChild(s); return l; };
-        const runRL = dr => { nodes.sysListRows = fe5('div'); nodes.sysListRules = fe5('div'); RL(id => nodes[id], dr, fe5, () => fe5('div', 'sys-list-card'), () => fe5('div'), lSel)(); return nodes.sysListRules; };
+        const runRL = dr => { nodes.sysListRows = fe5('div'); nodes.sysListRules = fe5('div'); RL(id => nodes[id], dr, fe5, () => fe5('div', 'sys-list-card'), () => fe5('div'), lSel, { resource: 1, number: 1, toggle: 1 })(); return nodes.sysListRules; };
         const rOn = runRL({ fields: [{ id: 'f_wp', kind: 'item-list' }], listRules: { ownerStats: true } }), rOff = runRL({ fields: [{ id: 'f_wp', kind: 'item-list' }] }), rNone = runRL({ fields: [{ id: 'f_n', kind: 'number' }], listRules: { ownerStats: true } });
         const rSel = find5(rOn, 'sys-listrules-stats')[0], rUp = runRL({ fields: [{ id: 'f_wp', kind: 'item-list' }], listRules: { uploadFacts: true } }), uSel = find5(rUp, 'sys-listrules-upload')[0];
         check('U3 the Rules box\'s second setting (renderLists, run for real): A player\'s sheet upload — Everything waits for you, or Their row facts apply at once (the draft\'s setting chosen; the first setting untouched); nothing without an item list; the handler keeps the other setting as it sets or clears its own',

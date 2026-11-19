@@ -2649,8 +2649,8 @@ function picPicker(inp) {
     x.addEventListener('click', function(e) { e.preventDefault(); put(''); });
     paint(); wrap.appendChild(b); wrap.appendChild(x); return wrap;
 }
-function glyphButton(inp) {
-    var b = el('button', 'tool ghost sys-btn sys-glyph-btn'); b.type = 'button'; b.title = 'Pick an icon (or type an emoji)';
+function glyphButton(inp, title) {   // title: the button's own words where its box is not one to type in (the Library window's Icon, a hidden box)
+    var b = el('button', 'tool ghost sys-btn sys-glyph-btn'); b.type = 'button'; b.title = typeof title === 'string' && title ? title : 'Pick an icon (or type an emoji)';
     var paint = function() { b.textContent = ''; var v = inp.value.trim(); b.appendChild(v ? iconNode(v, 'sys-glyph-cur') : el('span', 'sys-glyph-cur', '\u2026')); };
     paint();
     b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); glyphPicker(inp, b, paint); });
@@ -2659,14 +2659,14 @@ function glyphButton(inp) {
 }
 function glyphPicker(inp, anchor, repaint) {
     closeGlyphPicker();
-    var host = ui('systemModal') || document.body, pop = el('div', 'sys-glyph-pop'); _glyphPop = pop;
+    var host = (anchor && anchor.closest && anchor.closest('#libraryModal')) || ui('systemModal') || document.body, pop = el('div', 'sys-glyph-pop'); _glyphPop = pop;   // 1.6.3: the Library window's Icon uses this picker too, and its window stands over the System editor
     var tabsRow = el('div', 'sys-glyph-tabs'), tIcons = el('button', 'tool ghost sys-btn sys-glyph-tab', 'Icons'), tEmoji = el('button', 'tool ghost sys-btn sys-glyph-tab', 'Emoji');
     tIcons.type = 'button'; tEmoji.type = 'button'; tabsRow.appendChild(tIcons); tabsRow.appendChild(tEmoji); pop.appendChild(tabsRow);
     var q = el('input', 'field sys-glyph-q'); q.type = 'text'; q.spellcheck = false; q.autocomplete = 'off'; pop.appendChild(q);
     var grid = el('div', 'sys-glyph-grid'); pop.appendChild(grid);
     var none = el('button', 'tool ghost sys-btn sys-glyph-none', 'No icon'); none.type = 'button'; pop.appendChild(none);
     var mode = 'icons';
-    var pick = function(val) { inp.value = val; inp.dispatchEvent(new Event('input', { bubbles: true })); if (repaint) repaint(); closeGlyphPicker(); try { inp.focus(); } catch (er) {} };   // the editor's own input handlers store it
+    var pick = function(val) { inp.value = val; inp.dispatchEvent(new Event('input', { bubbles: true })); if (repaint) repaint(); closeGlyphPicker(); try { if (inp.type === 'hidden') anchor.focus(); else inp.focus(); } catch (er) {} };   // the editor's own input handlers store it. A hidden box takes no focus (the Library window's Icon), so the focus goes back to the button, never to the page
     var matches = function() {
         var s = q.value.trim().toLowerCase();
         if (mode === 'emoji') return EMOJI_SET.filter(function(x) { return !s || x[1].indexOf(s) >= 0 || x[0] === s; }).map(function(x) { return { v: x[0], t: x[1].split(' ')[0] }; });
@@ -8128,6 +8128,7 @@ window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, re
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by
 Object.assign(window.wpSheets, { facingTarget: facingTarget, dueBlock: dueBlock, takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext });   // 1.5.6, the damage step
+Object.assign(window.wpSheets, { glyphButton: glyphButton, closeGlyphPicker: closeGlyphPicker });   // 1.6.3 (the editor coverage audit, gap 10): the Library window's Icon is picked by sight with the Items tab's own picker
 
 // An outside sheet reader (2026-10-18): a module of the GM's own may stand beside the app, in the repository's private/ folder, which only the
 // development server serves (none ships with the app). It is asked for once, after the page has drawn and never in the stream window; it

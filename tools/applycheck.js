@@ -4,7 +4,7 @@
    to L4), item mods and a custom row's changes (F6, F6b), a choice reading a list (F3, F7), Applies to an adjacent character and to
    the user or their target, On.<name>, one Revert after a press used on another, a change that switches an effect or sets a row's
    quantity, its stat or every row's, a custom roller's starting text, grants (raising a held row, once a character, their own
-   terms), Off a character's turn, Counts at its turn's end, an effect added again, a switch by where rows sit, the campaign build's
+   terms, and a ready-made hero's implants and a path's package built from them, 1.6.3), Off a character's turn, Counts at its turn's end, an effect added again, a switch by where rows sit, the campaign build's
    gaps, the campaign's date, roll switches, a formula's rounding, <Pool>.full, CrossStep and Crossed, and a set of places.
    These are the tests that came out of systemcheck.js with their area (docs/REFACTOR_SPLIT_PLAN.md, "Finishing the test split",
    step 2, 2026-11-19). Their code is systemcore.js's own lines and the parts and slices each block reads by name, so the suite
@@ -1335,6 +1335,63 @@ const j = v => JSON.stringify(v);
             && ntQ.every(t => { const i = t.indexOf('- A grant can pay back: tick Pays back'), k = t.indexOf('- A grant can set the level its row starts at'); return i > 0 && k > i && k < t.indexOf('WAYPOINT 1.5.'); });
         check('1.6.0 a grant\'s own terms in the editors and said: the Items tab\'s grant line has a Level box after From level and a Pays back tick after Once a character, before its remove button; Save says a Level on a list with no level does nothing; the handlers write lvl and pay or take them off, as the Library window\'s line does; Help, the Items key, the integration guide and both release notes say it',
             boxQ && wireQ && saidQ, J([boxQ, wireQ, saidQ, lnQ.map(cls), GQ.grantSays(drQ.items[0])]));
+    }
+    {   // 1.6.3 (backlog: implants and path packages read from a hero file, 2026-11-20): a ready-made hero's implants and a path's package need
+        // no option of their own. They are grants the builder already has, on invented data. A hero entry grants each implant on the implant list,
+        // with Sets a stat for a price that differs from the entry's (an upgrade at its fitted value), and its coins as a Money row at a Level.
+        // Each implant grants its flaws Once a character and Pays back, so they pay XP into the bank, and a benefit free, paid for by the implant's
+        // own XP stat. A path's package is an entry granted with Pays back: its traits, its drawback and its small edges' XP all count
+        const J = JSON.stringify, paidOnly = 'if(and(Row.granted, not Row.paysback), 0, ';   // a granted row counts only where its grant ticks Pays back
+        const rawK = { v: 1, name: 'Skyline', rolls: [], items: [
+            { id: 'i_arm', name: 'Brass arm', category: 'Limb', stats: { cost: 1200, xp: 0 }, grants: [{ list: 'f_fl', entry: 'i_creak', once: true, pay: true, lvl: 1 }, { list: 'f_fl', entry: 'i_upkeep', once: true, pay: true, lvl: 2 }] },
+            { id: 'i_spark', name: 'Spark finger', category: 'Upgrade', stats: { cost: 500, xp: 10 }, grants: [{ list: 'f_fl', entry: 'i_creak', once: true, pay: true, lvl: 1 }] },
+            { id: 'i_heel', name: 'Hollow heel', category: 'Upgrade', stats: { cost: 300, xp: 10 }, grants: [{ list: 'f_ed', entry: 'i_stash', lvl: 1 }] },
+            { id: 'i_creak', name: 'Creaky', category: 'Flaw', stats: { pb: 10 } }, { id: 'i_upkeep', name: 'Upkeep', category: 'Flaw', stats: { pb: 15 } },
+            { id: 'i_stash', name: 'Stash', category: 'Edge', stats: { tc: 10 } }, { id: 'i_keen', name: 'Keen', category: 'Edge', stats: { tc: 10 } }, { id: 'i_coins', name: 'Coins', category: 'Coins' },
+            { id: 'i_river', name: 'River-born', category: 'Package', stats: { edge: 5 }, grants: [{ list: 'f_ed', entry: 'i_keen', pay: true, lvl: 2 }, { list: 'f_fl', entry: 'i_upkeep', pay: true, lvl: 1 }] },
+            { id: 'i_pebbles', name: 'Pebbles', category: 'Ready-made hero', stats: { hxp: 100, hgrit: 12, coin: 3000 }, grants: [{ list: 'f_ed', entry: 'i_keen', pay: true, lvl: 2 },
+                { list: 'f_im', entry: 'i_arm' }, { list: 'f_im', entry: 'i_spark', stats: { cost: 900 } }, { list: 'f_im', entry: 'i_heel' }, { list: 'f_purse', entry: 'i_coins', lvl: 600 }] },
+            { id: 'i_kael', name: 'Kael, Ferryman level 1', category: 'Ready-made hero', stats: { hxp: 100, hgrit: 11, coin: 0 }, grants: [{ list: 'f_pk', entry: 'i_river', pay: true }, { list: 'f_ed', entry: 'i_stash', pay: true, lvl: 1 }] },
+            { id: 'i_kael0', name: 'Kael with no package', category: 'Ready-made hero', stats: { hxp: 100, hgrit: 11, coin: 0 }, grants: [{ list: 'f_ed', entry: 'i_stash', pay: true, lvl: 1 }] }],
+            fields: [
+                { id: 'f_start', key: 'StartXP', label: 'Starting XP', kind: 'number', vis: 'all', edit: 'owner' }, { id: 'f_grit', key: 'Grit', label: 'Grit', kind: 'number', vis: 'all', edit: 'owner' },
+                { id: 'f_gritxp', key: 'GritXP', label: 'Grit XP', kind: 'formula', formula: '(Grit - 10) * 10' },
+                { id: 'f_ed', key: 'Edges', label: 'Edges', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, lvl: { label: 'Tier', min: 1, max: 4, def: 1 }, stats: [{ key: 'tc', label: 'XP a tier' }], cols: [{ key: 'Pts', label: 'XP', formula: paidOnly + 'Row.tc * Row.lvl)' }] } },
+                { id: 'f_fl', key: 'Flaws', label: 'Flaws', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, lvl: { label: 'Tier', min: 1, max: 4, def: 1 }, stats: [{ key: 'pb', label: 'XP back a tier' }], cols: [{ key: 'Back', label: 'Pays back', formula: paidOnly + 'Row.pb * Row.lvl)' }] } },
+                { id: 'f_im', key: 'Implants', label: 'Implants', kind: 'item-list', vis: 'all', edit: 'owner', list: { multi: true, price: 'cost', stats: [{ key: 'cost', label: 'Price' }, { key: 'xp', label: 'XP of its benefits' }], cols: [{ key: 'Pts', label: 'XP', formula: 'Row.xp' }] } },
+                { id: 'f_pk', key: 'Packages', label: 'Packages', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, stats: [{ key: 'edge', label: 'XP of its small edges' }], cols: [{ key: 'Pts', label: 'XP', formula: paidOnly + 'Row.edge)' }] } },
+                { id: 'f_purse', key: 'Purse', label: 'Purse', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, multi: true, lvl: { label: 'Coins', min: 0, max: 1000000, def: 0 }, money: '@lvl' } },
+                { id: 'f_hero', key: 'Hero', label: 'Hero', kind: 'item-list', vis: 'all', edit: 'owner', list: { noQty: true, stats: [{ key: 'hxp', label: 'XP' }, { key: 'hgrit', label: 'Grit' }, { key: 'coin', label: 'Starting coins' }],
+                    rolls: [{ label: 'Take its Grit and XP', apply: [{ f: 'f_start', formula: 'Row.hxp', set: true }, { f: 'f_grit', formula: 'Row.hgrit', set: true }] }] } },
+                { id: 'f_spent', key: 'Spent', label: 'XP spent', kind: 'formula', formula: 'GritXP + Edges.Pts + Implants.Pts + Packages.Pts - min(Flaws.Back, StartXP)' },
+                { id: 'f_left', key: 'Banked', label: 'XP banked', kind: 'formula', formula: 'StartXP - Spent' },
+                { id: 'f_coinleft', key: 'CoinsLeft', label: 'Coins after implants', kind: 'formula', formula: 'Hero.coin - Implants.cost' }], sheet: { sections: [] } };
+        const gK = cleanSystem(JSON.parse(J(rawK)), { F, gmView: true }), pK = cleanSystem(JSON.parse(J(rawK)), { F, gmView: false }), vK = validateSystem(gK, F);
+        const cleanOk = !!gK && !!pK && J(S.droppedCounts(rawK, gK)) === '{}' && !vK.errors.length && !vK.warnings.length && J(cleanSystem(gK, { F, gmView: true })) === J(gK)
+            && J(gK.items.find(i => i.id === 'i_pebbles').grants.map(g => [g.entry, g.stats || null, g.lvl === undefined ? null : g.lvl])) === J([['i_keen', null, 2], ['i_arm', null, null], ['i_spark', { cost: 900 }, null], ['i_heel', null, null], ['i_coins', null, 600]]);
+        const put = (ch, f, r) => { if (r.ok) { ch.values[f] = r.value; if (r.also) Object.keys(r.also).forEach(k => { ch.values[k] = r.also[k]; }); } return r; };
+        // the GM adds the hero to its list (the app lays every grant, an implant's own too), then presses its action
+        const hero = id => {
+            const ch = { id: 'c_' + id, name: id, ownerId: 'u_p', npc: false, values: { f_purse: [] } }, ad = put(ch, 'f_hero', S.applyRowOp(gK, ch, 'f_hero', { op: 'add', defId: id, rowId: 'w_h' }, F, {}));
+            const act = S.applyAct(gK, ch, gK.fields.find(f => f.id === 'f_hero').list.rolls[0], makeResolver(gK, ch, F).row('f_hero', 'w_h'), F, null, { f: 'f_hero', r: 'w_h' }); if (act.ok) Object.assign(ch.values, act.values);
+            const all = resolveAll(gK, ch, F, null, null), byDef = f => (ch.values[f] || []).map(r => [r.defId, r.lvl === undefined ? null : r.lvl, r.gp === 1 ? 'pays' : r.gr ? 'free' : 'own']);
+            return { ok: ad.ok && act.ok, ch, figs: ['Spent', 'Banked', 'Implants.cost', 'Money', 'CoinsLeft'].map(n => all.vars(n)), ed: byDef('f_ed'), fl: byDef('f_fl'), pk: byDef('f_pk'), im: ch.values.f_im || [] };
+        };
+        const P = hero('i_pebbles'), K = hero('i_kael'), K0 = hero('i_kael0');
+        // Pebbles: Grit 12 is 20 XP, Keen 2 is 20 XP, the two implants' benefits 20 XP; Creaky (once, though two implants grant it) and Upkeep 2 pay 40 back.
+        // Spent 20 of 100, so 80 stays in the bank: the core reader's build less the flaws' 40, plus the benefits' 20. The prices add up to 2400 with the
+        // Spark finger at its fitted 900, not its entry's 500; a granted row records Paid 0, and the 600 coins left are the purse's own row
+        const spark = P.im.find(r => r.defId === 'i_spark');
+        const pebOk = P.ok && J(P.figs) === J([20, 80, 2400, 600, 600]) && J(P.ed) === J([['i_keen', 2, 'pays'], ['i_stash', 1, 'free']]) && J(P.fl) === J([['i_creak', 1, 'pays'], ['i_upkeep', 2, 'pays']])
+            && J(P.im.map(r => [r.defId, r.paid])) === J([['i_arm', 0], ['i_spark', 0], ['i_heel', 0]]) && !!spark && J(spark.ov && spark.ov.stats) === J({ cost: 900 });
+        // Kael: Grit 11 is 10 XP, Stash 1 is 10; the paid package adds Keen 2 (20), its edges (5) and Upkeep 1 (15 back), so 10 XP on the path with no package
+        const kaelOk = K.ok && K0.ok && J(K.figs) === J([30, 70, 0, 0, 0]) && J(K0.figs) === J([20, 80, 0, 0, 0]) && J(K.pk) === J([['i_river', null, 'pays']])
+            && J(K.ed) === J([['i_keen', 2, 'pays'], ['i_stash', 1, 'pays']]) && J(K.fl) === J([['i_upkeep', 1, 'pays']]);
+        // the hero's owner reads the same figures in the players' view
+        const ownK = c => { const o = S.charFor(S.cleanChar(c, gK, { state: 'host' }), pK, 'u_p'), a = resolveAll(pK, S.cleanChar(o, pK), F, null, null); return ['Spent', 'Banked', 'Implants.cost', 'Money'].map(n => a.vars(n)); };
+        const ownOk = J(ownK(P.ch)) === J([20, 80, 2400, 600]) && J(ownK(K.ch)) === J([30, 70, 0, 0]);
+        check('1.6.3 implants and a path\'s package from the builder\'s own options, on invented data: the system cleans in both views with nothing dropped, no fault, the same again, and the hero\'s grants keep a price of their own and a Level; Pebbles, added and her action pressed, holds her three implants (granted, Paid 0, the Spark finger at its fitted 900), Creaky once though two implants grant it, Upkeep 2, both paying back, Stash free with its implant, Keen 2 bought: 20 XP spent, 80 banked, 2400 in prices, 600 coins in her purse; Kael on a path whose package is granted Pays back spends 30, the same path with no package 20; the owner\'s view reads the same',
+            cleanOk && pebOk && kaelOk && ownOk, J([cleanOk, vK.errors.slice(0, 3), vK.warnings.slice(0, 3), P.figs, P.ed, P.fl, P.im.map(r => [r.defId, r.paid, r.ov || null]), K.figs, K0.figs, K.ed, K.fl, K.pk, ownK(P.ch), ownK(K.ch)]));
     }
     {   // 1.6.0 O1: a switch that goes by where rows sit (on.over: a number stat read as a set of places)
         const J = JSON.stringify;

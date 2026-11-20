@@ -962,8 +962,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const sysL = { fields: [{ key: 'HP', label: 'HP', kind: 'resource' }, { key: 'Throwing', label: 'Throwing', kind: 'skill' }, { key: 'Note', label: 'Note', kind: 'text' }], combat: { blast: { roll: '3d6 <= ThrowSkill' } } };
             const noteBad = libN(sysL, { areaFt: '6', areaFrag: '1d6', areaAff0Vs: 'HT', areaAff0Who: '', areaPlace: 'yes', areaTrig: '', areaLoc: 'Legs', flySpeed: '1', flyRounds: '0', flyEnd: 'off', rmMsg: 'Stuck', rm: '', eqMsg: 'On', eq: '' }).entryNotes({});
             const noteOk = libN(Object.assign({}, sysL, { combat: { blast: { roll: '3d6', resist: '3d6' }, damage: { locs: { list: 'f_l' } } } }), { areaFt: '6', damage: '2d6', areaFrag: '1d6', areaAff0Vs: 'HT', areaPlace: 'yes', areaTrig: '2', throwSkill: 'Throwing', areaLoc: 'Legs', rmMsg: 'Stuck', rm: 'bound' }).entryNotes({});
+            // the review of library (moved on purpose): the rounds' note says empty or under 1, since a 0 is said too
             check('1.6.3 what a library entry keeps that does nothing is said at Save (librarywin.js entryNotes, run for real): fragmentation and an affliction that reaches those it hurts with no Damage, afflictions with no resist roll, a mine with no trigger radius, a blast with no throw skill, Strikes at with no hit locations, what flies with no rounds or going off with no blast, and a message beside no lock are each said in one plain sentence, and an entry that has what it needs says nothing',
-                noteBad === 'Its fragmentation is rolled with its damage, so with no Damage it is never rolled. It has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands. The Combat tab has no resist roll, so its afflictions are never rolled. Its trigger radius is empty, so the mine goes off within 2 yards. It has no throw skill, so no throw roll is made for it: it lands where it is aimed. Strikes at does nothing, since this system names no hit locations. Flies for (rounds) is empty, so it flies for 1 round. Its removal message is kept only when it is Bound or Curse on contact. Its switch-off message is kept only when it is Bound or Curse on contact.'
+                noteBad === 'Its fragmentation is rolled with its damage, so with no Damage it is never rolled. It has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands. The Combat tab has no resist roll, so its afflictions are never rolled. Its trigger radius is empty, so the mine goes off within 2 yards. It has no throw skill, so no throw roll is made for it: it lands where it is aimed. Strikes at does nothing, since this system names no hit locations. Flies for (rounds) is empty or under 1, so it flies for 1 round. Its removal message is kept only when it is Bound or Curse on contact. Its switch-off message is kept only when it is Bound or Curse on contact.'
                 && noteOk === '' && libN(sysL, { flySpeed: '1', flyRounds: '2', flyEnd: 'off' }).entryNotes({}) === 'It has no blast, so it cannot go off when its rounds run out.',
                 j([noteBad, noteOk]));
         }
@@ -994,7 +995,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const Cq = await import(url('csvcore.js'));
             const reqWorld = (sys, entry, win, others) => {
                 const byId = Object.create(null);
-                const mkE = tag => { const e = { tag, kids: [], on: {}, dataset: {}, value: '', _t: '', appendChild(c) { this.kids.push(c); if (c && typeof c === 'object') c.parentNode = this; return c; }, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); }, setAttribute() {} }; Object.defineProperty(e, 'textContent', { configurable: true, get() { return this._t; }, set(v) { this.kids = []; this._t = String(v); } }); return e; };
+                const mkE = tag => { const e = { tag, kids: [], on: {}, dataset: {}, style: {}, value: '', _t: '', appendChild(c) { this.kids.push(c); if (c && typeof c === 'object') c.parentNode = this; return c; }, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); }, setAttribute() {} }; Object.defineProperty(e, 'textContent', { configurable: true, get() { return this._t; }, set(v) { this.kids = []; this._t = String(v); } }); return e; };
                 const form = mkE('div'); Object.defineProperty(form, 'textContent', { get() { return ''; }, set() { form.kids = []; Object.keys(byId).forEach(k => { delete byId[k]; }); } });
                 const el = (tag, cls, text) => { const e = mkE(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = String(text); return e; };
                 const select = (opts, val) => { const s = mkE('select'); s.opts = opts; s.value = val; return s; };
@@ -1043,6 +1044,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             W6.set('areaCloudFx', '', 'change'); W6.set('areaAff0Fx', 'e_s', 'change'); out.affLine = W6.lines().join('|'); const rdA = W6.api.readForm(); out.affSave = W6.api.blastDrops(rdA, cleanLibEntry(rdA, libCtx(S.cleanSystem(Object.assign({ v: 1, name: 'B', rolls: [] }, sysB), { F, gmView: true }), F, true)));
             W6.set('areaAff0Vs', 'HT'); out.affOk = W6.lines().join('|');
             const W7 = reqWorld(sysB, { id: 'i_t', name: 'Bomb', vis: 'all', damage: '2d6' }); W7.set('areaFt', '6'); out.typeNew = W7.byId.libF_areaType.value;
+            // the review of library: a value the form filled by itself is taken back where its cause goes, so Save says nothing the GM never typed.
+            // The 2 Placed filled, and the 2 a stored mine is drawn with, go when Thrown is picked again; a figure the GM typed stays, is said under
+            // the box and at Save. The first type Blast (ft) filled goes when Blast (ft) is emptied; a type the GM picked stays and Save says so
+            const saveOf = W => { const rd = W.api.readForm(); return W.api.blastDrops(rd, cleanLibEntry(rd, libCtx(S.cleanSystem(Object.assign({ v: 1, name: 'B', rolls: [] }, sysB), { F, gmView: true }), F, true))); };
+            const W10 = reqWorld(sysB, { id: 'i_g', name: 'Grenade', vis: 'all', damage: '2d6', throwSkill: 'Throwing', area: { ft: 6, shape: 'circle', name: 'Grenade', type: 'cr' } });
+            W10.set('areaPlace', 'yes', 'change'); W10.set('areaPlace', '', 'change'); out.trigBack = [W10.byId.libF_areaTrig.value, W10.lines().join('|'), saveOf(W10)];
+            W10.set('areaPlace', 'yes', 'change'); W10.set('areaTrig', '3'); W10.set('areaPlace', '', 'change'); out.trigTyped = [W10.byId.libF_areaTrig.value, W10.lines().join('|'), saveOf(W10)];
+            W5.set('areaPlace', '', 'change'); out.trigStored = [W5.byId.libF_areaTrig.value, saveOf(W5)];
+            W7.set('areaFt', ''); out.typeBack = [W7.byId.libF_areaType.value, saveOf(W7)];
+            const W7c = reqWorld(sysB, { id: 'i_t', name: 'Bomb', vis: 'all', damage: '2d6' }); W7c.set('areaFt', '6'); W7c.set('areaType', 'cut', 'change'); W7c.set('areaFt', ''); out.typePicked = [W7c.byId.libF_areaType.value, saveOf(W7c)];
             const W7b = reqWorld(sysB, { id: 'i_t', name: 'Bomb', vis: 'all', damage: '2d6', area: { ft: 6, shape: 'circle', name: 'Bomb' } }); W7b.set('areaFt', '8'); out.typeOld = W7b.byId.libF_areaType.value;
             // Category: none, one no list takes and one a list takes
             const sysC2 = { fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { cats: ['Gear', 'Weapon'] } }], items: [] };
@@ -1051,10 +1062,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             out.newCat = [ncRun(['Gear', 'Skill'], [{ category: 'skill' }, { category: 'Skill' }, { category: 'Gear' }, { category: 'Other' }]), ncRun(['Gear', 'Skill'], []), ncRun([], [{ category: 'X' }])];
             out.catFree = reqWorld({ fields: [], items: [] }, { id: 'i_c', name: 'Rope', vis: 'all', category: '' }).lines().join('|');
             // Strikes at: a pick of the locations by name, a stored name kept as the entry it names, one that names none kept and said; with no list, said
-            const winL = { wpSheets: { locNames: () => [['Legs', 'Legs'], ['Torso', 'Torso']], locFinds: (l, at) => /^(legs|torso)$/i.test(String(at).trim()) } };
+            // the review of library: locFinds is read as the blast reads it (dbxLocFinds: a name, or a name it holds inside another), and null while a pack is being read
+            const finds = (l, at) => { const w = String(at).trim().toLowerCase(); return !w || ['legs', 'torso'].some(n => n === w || n.indexOf(w) >= 0); };
+            const winL = { wpSheets: { locNames: () => [['Legs', 'Legs'], ['Torso', 'Torso']], locFinds: finds } };
             const sysL2 = Object.assign({}, sysB, { combat: { damage: { locs: { list: 'f_loc' } } } });
-            const W9 = reqWorld(sysL2, { id: 'i_k', name: 'Claymore', vis: 'all', area: { ft: 6, shape: 'circle', name: 'C', loc: 'legs' } }, winL); out.locPick = [W9.byId.libF_areaLoc.tag, W9.byId.libF_areaLoc.value, j(W9.byId.libF_areaLoc.opts), W9.lines().join('|')];
-            const W9b = reqWorld(sysL2, { id: 'i_k', name: 'Claymore', vis: 'all', area: { ft: 6, shape: 'circle', name: 'C', loc: 'Lefs' } }, winL); out.locGone = [W9b.byId.libF_areaLoc.value, j(W9b.byId.libF_areaLoc.opts.slice(-1)), W9b.lines().join('|')];
+            const pickOf = W => W.find(k => k.className === 'field lib-locpick')[0] || null, ANOTHER = ['?', 'Another location\u2026'];
+            const W9 = reqWorld(sysL2, { id: 'i_k', name: 'Claymore', vis: 'all', area: { ft: 6, shape: 'circle', name: 'C', loc: 'legs' } }, winL); out.locPick = [W9.byId.libF_areaLoc.tag, W9.byId.libF_areaLoc.value, pickOf(W9).value, j(pickOf(W9).opts), W9.byId.libF_areaLoc.style.display, W9.lines().join('|')];
+            const W9b = reqWorld(sysL2, { id: 'i_k', name: 'Claymore', vis: 'all', area: { ft: 6, shape: 'circle', name: 'C', loc: 'Lefs' } }, winL); out.locGone = [W9b.byId.libF_areaLoc.value, pickOf(W9b).value, j(pickOf(W9b).opts.slice(-2)), W9b.byId.libF_areaLoc.style.display, W9b.lines().join('|')];
+            // a stored name the blast finds inside a location's name (Leg in Legs) is no gone location: it shows in the typed box under Another location
+            const W9d = reqWorld(sysL2, { id: 'i_k', name: 'Claymore', vis: 'all', area: { ft: 6, shape: 'circle', name: 'C', loc: 'Leg' } }, winL); const pkD = pickOf(W9d);
+            out.locInside = [W9d.byId.libF_areaLoc.value, pkD.value, j(pkD.opts.filter(p => /no such/.test(p[1]))), W9d.byId.libF_areaLoc.style.display, W9d.lines().join('|')];
+            pkD.value = 'Torso'; W9d.fire(pkD, 'change'); const toT = [W9d.byId.libF_areaLoc.value, W9d.byId.libF_areaLoc.style.display];
+            pkD.value = '?'; W9d.fire(pkD, 'change'); W9d.set('areaLoc', 'Lower Legs'); out.locPicked = [toT, W9d.byId.libF_areaLoc.value, W9d.byId.libF_areaLoc.style.display, j(W9d.api.readForm().area.loc)];
+            // while a pack is being read the blast cannot say, so the box stays one to type in, unmarked and unsaid
+            const W9e = reqWorld(sysL2, { id: 'i_k', name: 'Claymore', vis: 'all', area: { ft: 6, shape: 'circle', name: 'C', loc: 'Lefs' } }, { wpSheets: { locNames: winL.wpSheets.locNames, locFinds: () => null } });
+            out.locLoading = [W9e.byId.libF_areaLoc.tag, W9e.byId.libF_areaLoc.value, !!pickOf(W9e), W9e.lines().filter(t => /Strikes at/.test(t)).join('|')];
+            out.ANOTHER = ANOTHER;
             const W9c = reqWorld(sysB, { id: 'i_k', name: 'Claymore', vis: 'all', area: { ft: 6, shape: 'circle', name: 'C', loc: 'Legs' } }, winL); out.locNone = [W9c.byId.libF_areaLoc.tag, W9c.lines().filter(t => /Strikes at/.test(t)).join('|')];
             rq = out;
         } catch (e) { rqErr = String(e && e.stack || e).slice(0, 900); }
@@ -1074,12 +1097,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && rq.cloudLine === 'The cloud\u2019s settings count only when it leaves a cloud. Pick Yes, or Save drops them.' && rq.cloudSave === 'Not kept: the cloud\u2019s settings, which need Leaves a cloud.'
             && rq.affLine === 'Save drops it: it needs what it is resisted against.' && rq.affSave === 'Not kept: affliction 1, which needs a formula it is resisted against and an effect of the system.' && rq.affOk === ''
             && rq.typeNew === 'cr' && rq.typeOld === '', rqErr || j(rq));
+        check('1.6.3 (the review of library) a value the form filled by itself goes again with its cause: the 2 Placed filled, and the 2 a mine with none is drawn at, go when Thrown is picked again and Save says nothing; a trigger radius the GM typed stays, is said under the box on a thrown blast and at Save; the first type Blast (ft) filled goes when Blast (ft) is emptied, while a type the GM picked stays and Save says so',
+            !!rq && j(rq.trigBack) === j(['', '', '']) && j(rq.trigStored) === j(['', ''])
+            && j(rq.trigTyped) === j(['3', 'Trigger radius counts only for a placed blast. Pick Placed, not thrown, or Save drops it.', 'Not kept: the trigger radius, which needs Placed, not thrown.'])
+            && j(rq.typeBack) === j(['', '']) && j(rq.typePicked) === j(['cut', 'Not kept: the blast\u2019s other settings, which need a blast radius.']), rqErr || j(rq));
         check('1.6.3 (the library batch) Category: a new entry starts on the category a list takes that most entries of its pack hold, else the first a list takes (newCat, run for real); one with none, or one no list that names categories takes, is said under it as it is typed, and one a list takes, or any where no list names categories, says nothing',
             !!rq && rq.catNone === 'No category, so a list that names categories will not offer it. Pick one a list takes.' && rq.catOff === 'No list that names categories takes \u201cVehicle\u201d, so those lists will not offer it.' && rq.catOk === '' && rq.catFree === '' && j(rq.newCat) === j(['Skill', 'Gear', ''])
             && winS2.includes("st.draftNew = { id: id, name: '', category: newCat(), vis: 'all' }; st.entryId = id; st.sel = map(); st.imp = null; guideAt('entry'); drawRows(); renderForm();"), rqErr || j(rq));
-        check('1.6.3 (the library batch) Strikes at is picked by name from the hit locations where the system names them, The usual one first: a stored name is the entry it names whatever its case, one that names none is kept and marked and said; with no hit locations the box stays one to type in and a name is said to do nothing',
-            !!rq && j(rq.locPick) === j(['select', 'Legs', j([['', 'The usual one'], ['Legs', 'Legs'], ['Torso', 'Torso']]), ''])
-            && j(rq.locGone) === j(['Lefs', j([['Lefs', 'Lefs (no such location now)']]), 'Strikes at: no hit location is called \u201cLefs\u201d, so the blast strikes the usual one.'])
+        check('1.6.3 (the library batch) Strikes at is picked by name from the hit locations where the system names them, The usual one first: a stored name is the entry it names whatever its case, one that names none is kept and marked and said; with no hit locations the box stays one to type in and a name is said to do nothing; and (the review of library) a name the blast finds inside a location is not marked and shows in the typed box under Another location, a pick writes the box, Another location shows it for a name outside the list, and while a pack is being read the box stays one to type in',
+            // the review of library (moved on purpose): the pick stands beside the typed box, which the form reads, with Another location last
+            !!rq && j(rq.locPick) === j(['input', 'legs', 'Legs', j([['', 'The usual one'], ['Legs', 'Legs'], ['Torso', 'Torso'], rq.ANOTHER]), 'none', ''])
+            && j(rq.locGone) === j(['Lefs', 'Lefs', j([['Lefs', 'Lefs (no such location now)'], rq.ANOTHER]), 'none', 'Strikes at: no hit location is called \u201cLefs\u201d, so the blast strikes the usual one.'])
+            && j(rq.locInside) === j(['Leg', '?', '[]', '', '']) && j(rq.locPicked) === j([['Torso', 'none'], 'Lower Legs', '', j('Lower Legs')])
+            && j(rq.locLoading) === j(['input', 'Lefs', false, ''])
             && j(rq.locNone) === j(['input', 'Strikes at: this system names no hit locations, on the Combat tab under Taking damage, so it does nothing.'])
             && require('fs').readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').includes('Object.assign(window.wpSheets, { locNames: function(list, sys) { return dbxLocNames(list, sys); }, locFinds: function(list, at, sys) { return dbxLocFinds(list, at, sys); } });'), rqErr || j(rq));
         // ... and what the window says of a rule, and what it exports, while a pack of the campaign is not read

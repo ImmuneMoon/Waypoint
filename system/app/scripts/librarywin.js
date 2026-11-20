@@ -827,41 +827,63 @@ function blastBox(form, a) {
     // first type. None stays offered, and a blast saved with none keeps none: the form is never filled as it is drawn
     var tys = dmgTypePairs(a.type).slice(1), ftI = typeof ui === 'function' ? ui('libF_areaFt') : null, ftWas = ftI ? String(ftI.value).trim() : '';
     if (typeof warnLine === 'function') warnLine(form, function() { return tys.length && libVal('areaFt') && libVal('damage') && !libVal('areaType') ? 'The blast\u2019s damage has no type, so it takes no type\u2019s multiplier or DR. Pick its damage type.' : ''; });
-    if (ftI && ftI.addEventListener && tys.length && !(a && a.ft)) ftI.addEventListener('input', function() { var now = String(ftI.value).trim(); if (!ftWas && now && tyS && !tyS.value) tyS.value = tys[0][0]; ftWas = now; });
+    // 1.6.3 (the review of library): the type the form fills by itself is marked (dataset.auto), and taken back off where Blast (ft) is emptied again
+    // while it still holds that type, so a blast typed and cleared leaves no type for Save to say it drops. A pick in the list is the GM's own
+    if (ftI && ftI.addEventListener && tys.length && !(a && a.ft)) ftI.addEventListener('input', function() { var now = String(ftI.value).trim(); if (!ftWas && now && tyS && !tyS.value) { tyS.value = tys[0][0]; tyS.dataset.auto = '1'; } else if (ftWas && !now && tyS && tyS.dataset.auto === '1' && tyS.value === tys[0][0]) { tyS.value = ''; delete tyS.dataset.auto; } ftWas = now; });
+    if (tyS && tyS.addEventListener) tyS.addEventListener('change', function() { delete tyS.dataset.auto; });
     field(form, 'areaUse', 'Uses one up', a.use === true ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, going off uses one up']], title: 'Going off uses one up, as a grenade is used up' });
     var plS = field(form, 'areaPlace', 'Placed', a.place === true ? 'yes' : '', { pairs: [['', 'Thrown'], ['yes', 'Placed, not thrown']], title: 'Placed, not thrown: a mine. It goes off when a token comes within its trigger radius' });
     // 1.6.3: a placed blast goes off within 2 yards where its trigger radius is empty (blastcore cleanMine), a figure the box now shows: a placed
     // blast with none is drawn at 2, Placed picked fills an empty box with 2, and an emptied box is said under it
     var trI = field(form, 'areaTrig', 'Trigger radius (yd)', num(a.trig) !== '' ? num(a.trig) : (a.place === true ? 2 : ''), { max: 6, title: 'For a placed blast only: it goes off when a token comes this many yards from it. Empty: 2 yards' });
-    if (plS && plS.addEventListener) plS.addEventListener('change', function() { if (plS.value === 'yes' && trI && !String(trI.value).trim()) trI.value = '2'; });
+    // 1.6.3 (the review of library): the 2 the form puts there by itself is marked (dataset.auto), as it is drawn for a mine with none and as Placed
+    // is picked, and taken back off where Thrown is picked again while the box still holds that 2. So a blast set Placed and back to Thrown leaves
+    // no trigger radius for Save to say it drops. Typing in the box makes the figure the GM's own
+    if (trI && a.place === true && num(a.trig) === '') trI.dataset.auto = '1';
+    if (plS && plS.addEventListener) plS.addEventListener('change', function() { if (!trI) return; if (plS.value === 'yes' && !String(trI.value).trim()) { trI.value = '2'; trI.dataset.auto = '1'; } else if (plS.value !== 'yes' && trI.dataset.auto === '1' && String(trI.value).trim() === '2') { trI.value = ''; delete trI.dataset.auto; } });
+    if (trI && trI.addEventListener) trI.addEventListener('input', function() { delete trI.dataset.auto; });
     if (typeof warnLine === 'function') warnLine(form, function() { return libVal('areaFt') && libVal('areaPlace') === 'yes' && !libVal('areaTrig') ? 'Trigger radius is empty, so this mine goes off when a character comes within 2 yards. Fill it in to set its own.' : ''; });
+    // a trigger radius on a thrown blast counts for nothing: its row is dimmed while the blast is thrown, and a figure in it is said, as a lock's
+    // Message is beside no lock. Save says it again in blastDrops' words
+    if (typeof warnLine === 'function') warnLine(form, function() { var on = libVal('areaPlace') === 'yes', r = trI && trI.parentNode; if (r && r !== form && r.style) r.style.opacity = on ? '' : '0.5'; return libVal('areaFt') && !on && libVal('areaTrig') ? 'Trigger radius counts only for a placed blast. Pick Placed, not thrown, or Save drops it.' : ''; });
     field(form, 'areaAd', 'Armor divisor', num(a.ad), { max: 6, title: 'Armor is divided by this number against its damage. Blank or 1: none' });
     field(form, 'areaFlight', 'On a miss, launched', a.flight === 'scatter' || a.flight === 'line' ? a.flight : '', { pairs: [['', 'You place it'], ['scatter', 'It scatters, as a throw'], ['line', 'It flies straight']], title: 'How a round fired from a launcher lands when the roll misses. One that scatters lands as a missed throw does. One that flies straight goes off on the first wall or character in its path, or at its farthest' });   // 1.5.9 (es)
     field(form, 'areaFrag', 'Fragmentation', typeof a.frag === 'string' ? a.frag : '', { title: 'Its fragmentation, a dice roll such as 1d6. When the blast goes off the host rolls it for the characters it reaches, as the Combat tab says. Blank: none' });   // 1.5.9 (es)
     field(form, 'areaFragType', 'Fragmentation type', typeof a.fragType === 'string' ? a.fragType : '', { pairs: [['', 'As the Combat tab says']].concat(dmgTypePairs(a.fragType).slice(1)), title: 'The damage type of its fragmentation, one of the Combat tab\u2019s damage types' });
     var afs = Array.isArray(a.aff) ? a.aff.filter(function(x) { return x && typeof x === 'object'; }).slice(0, 2) : [];   // 1.5.9 (es): its afflictions, a second drawn once the first is kept
     for (var ai = 0; ai < Math.min(2, afs.length + 1); ai++) affRows(form, ai, afs[ai] || {});
-    var lcP = typeof locPairs === 'function' ? locPairs(a.loc) : null;   // 1.6.3: picked by name from the hit locations, where the system names them
-    field(form, 'areaLoc', 'Strikes at', lcP ? locPick(a.loc, lcP) : (typeof a.loc === 'string' ? a.loc : ''), lcP ? { pairs: lcP, title: 'The hit location its blast strikes, such as Legs for a mine underfoot. The usual one: where unaimed blows land' } : { title: 'The hit location its blast strikes, by the name of a location, such as Legs for a mine underfoot. Blank: the usual one' });   // 1.6.2 (11): last, so the places of the boxes before it stand
+    // 1.6.3: picked by name from the hit locations, where the system names them and they can be read. The typed box is what the form reads; the
+    // pick beside it writes the box, and Another location shows the box for a name outside the list, as the Items tab's own pick does
+    var lcP = typeof locPairs === 'function' ? locPairs(a.loc) : null;
+    var lcI = field(form, 'areaLoc', 'Strikes at', typeof a.loc === 'string' ? a.loc : '', { max: 60, title: lcP ? 'The hit location its blast strikes, by the name of a location' : 'The hit location its blast strikes, by the name of a location, such as Legs for a mine underfoot. Blank: the usual one' });   // 1.6.2 (11): last, so the places of the boxes before it stand
+    if (lcP && lcI && typeof locPick === 'function') locPick(lcI, lcP);
     if (typeof warnLine === 'function') warnLine(form, locSays);
     cloudRows(form, a.cloud && typeof a.cloud === 'object' ? a.cloud : null);   // 1.6.2: after it, for the same reason
 }
 // 1.6.3 (Fulllion's rulings of 2026-11-20): Strikes at names one of the Combat tab's hit locations, which a list of the system holds, so where the
 // system names that list the box is a pick of its entries by name (the System editor's own list, published on window.wpSheets as locNames),
-// The usual one first. A stored name kept is the entry it names (by its short name or its name, as the blast reads it); one that names none is
-// kept as its own choice, marked. null where the system names no list, or the editor is not at hand: the box stays one to type in
+// The usual one first. A stored name that is an entry's short name or name stands as that entry. A stored name the blast cannot find (locFinds
+// answers false, by the same reading the blast uses, a name it holds inside another counting as found) is kept as its own choice, marked. Any
+// other stored name is shown in the typed box under Another location. null where the system names no list, the editor is not at hand, or a
+// pack is still being read (locFinds answers null): the box stays one to type in
 function locList() { var cp = camp(), lk = cp && cp.system && cp.system.combat && cp.system.combat.damage && cp.system.combat.damage.locs; return lk && typeof lk.list === 'string' && lk.list ? lk.list : ''; }
 function locPairs(cur) {
-    var WS = typeof window !== 'undefined' ? window.wpSheets : null, ls = locList(); if (!ls || !WS || typeof WS.locNames !== 'function') return null;
-    var out = [['', 'The usual one']].concat((WS.locNames(ls, camp().system) || []).filter(function(p) { return p && p[0]; })), c = typeof cur === 'string' ? cur.trim() : '';
-    if (c && !out.some(function(p) { return p[0] && (p[0].toLowerCase() === c.toLowerCase() || String(p[1]).toLowerCase() === c.toLowerCase()); })) out.push([c, c + ' (no such location now)']);
+    var WS = typeof window !== 'undefined' ? window.wpSheets : null, ls = locList(), sy = camp().system; if (!ls || !WS || typeof WS.locNames !== 'function') return null;
+    var finds = typeof WS.locFinds === 'function' ? function(w) { return WS.locFinds(ls, w, sy); } : function() { return true; };
+    if (finds('') === null) return null;
+    var out = [['', 'The usual one']].concat((WS.locNames(ls, sy) || []).filter(function(p) { return p && p[0]; })), c = typeof cur === 'string' ? cur.trim() : '';
+    if (c && !out.some(function(p) { return p[0] && (p[0].toLowerCase() === c.toLowerCase() || String(p[1]).toLowerCase() === c.toLowerCase()); }) && finds(c) === false) out.push([c, c + ' (no such location now)']);
     return out;
 }
-// the choice a stored name stands for in those pairs: its own short name where it is one, else the entry whose name it is, else itself
-function locPick(cur, ps) {
-    var c = typeof cur === 'string' ? cur.trim() : ''; if (!c) return '';
-    var hit = ps.filter(function(p) { return p[0] === c; })[0] || ps.filter(function(p) { return p[0] && (p[0].toLowerCase() === c.toLowerCase() || String(p[1]).toLowerCase() === c.toLowerCase()); })[0];
-    return hit ? hit[0] : c;
+// the pick put beside the typed box inp, in the same row: the entry its value names (its short name, else its name), the marked choice of a
+// name that is gone, else Another location with the box shown. A pick writes the box, so the form's own listener says the line under it again
+function locPick(inp, ps) {
+    var c = String(inp.value || '').trim(), hit = !c ? null : ps.filter(function(p) { return p[0] === c; })[0] || ps.filter(function(p) { return p[0] && (p[0].toLowerCase() === c.toLowerCase() || String(p[1]).toLowerCase() === c.toLowerCase()); })[0];
+    var s = select(ps.concat([['?', 'Another location…']]), !c ? '' : hit ? hit[0] : '?'); s.className = 'field lib-locpick'; s.title = 'The hit location its blast strikes, such as Legs for a mine underfoot. The usual one: where unaimed blows land';
+    var show = function(on) { if (inp.style) inp.style.display = on ? '' : 'none'; }; show(!!c && !hit);
+    var row = inp.parentNode; if (row && row.insertBefore) row.insertBefore(s, inp); else if (row) row.appendChild(s);
+    s.addEventListener('change', function() { if (s.value === '?') { show(true); if (inp.focus) inp.focus(); return; } show(false); inp.value = s.value; });
+    return s;
 }
 // what Strikes at depends on: a hit location list on the Combat tab, and a location of that list by the name typed
 function locSays() {
@@ -956,7 +978,7 @@ function entryNotes(raw) {
     if (ftOn && g('areaLoc') && !(sys.combat && sys.combat.damage && sys.combat.damage.locs && sys.combat.damage.locs.list)) out.push('Strikes at does nothing, since this system names no hit locations.');
     var CFn = typeof cleanFlies === 'function' ? cleanFlies : (typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore.cleanFlies : null);   // 1.6.3: the cleaner reads no rounds as 1 round
     if (g('flySpeed') && CFn && !CFn({ speed: g('flySpeed'), rounds: 1 })) out.push('Its Speed cannot be kept as a formula, so what it is once launched is not kept.');
-    else if (g('flySpeed') && !(Number(g('flyRounds')) >= 1)) out.push('Flies for (rounds) is empty, so it flies for 1 round.');
+    else if (g('flySpeed') && !(Number(g('flyRounds')) >= 1)) out.push('Flies for (rounds) is empty or under 1, so it flies for 1 round.');
     if (g('flySpeed') && g('flyEnd') === 'off' && !ftOn) out.push('It has no blast, so it cannot go off when its rounds run out.');
     if (g('rmMsg') && g('rm') !== 'bound' && g('rm') !== 'curse') out.push('Its removal message is kept only when it is Bound or Curse on contact.');
     if (g('eqMsg') && g('eq') !== 'bound' && g('eq') !== 'curse') out.push('Its switch-off message is kept only when it is Bound or Curse on contact.');

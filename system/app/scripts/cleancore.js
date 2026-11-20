@@ -211,7 +211,7 @@ function cleanReach(text, F) { return blastFormula(text, F, null, false); }
 // (1 to 1,000,000) and Protection (0 or more), its Size (-20 to 20), its Speed (a formula with no dice of the launcher's names and the map's
 // factors, read as whole cells a round), the rounds it flies (1 to 99), straight (path 'line') or homing (absent), the system roll made on arrival
 // as the launcher's attack (roll, a roll's id; absent: its blast alone), and end 'off' where running out of rounds sets it off where it stands
-// (absent: it is gone). The same in both views. null without a Speed or rounds
+// (absent: it is gone). The same in both views. null without a Speed it can keep; rounds missing or under 1 read as 1
 function cleanFlies(v) {
     // 1.6.3 (Fulllion's rulings of 2026-11-20: the cleaner never drops what was saved for lacking a box, and falls back to a plain figure): rounds
     // that are missing, no number or under 1 read as 1 round. Only a Speed that cannot be kept still drops what it is once launched

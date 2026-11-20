@@ -2135,7 +2135,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             lcI, j([saidI(rA, 'i_loc'), saidI(rA, 'i_loc2'), saidI(rB, 'i_loc2')]));
         // 1.6.3, the library batch (moved on purpose): the cleaner now reads rounds of 0 as 1 round, so with rounds missing what flies is kept and the
         // empty box is said under the rounds, while a Speed missing is still said under the Speed
-        const flI = j(saidI(rA, 'i_fl1', /^fl/)) === j(['flies: Flies once launched needs a Speed Save can keep, or Save drops what it is once launched.']) && j(saidI(rA, 'i_fl2', /^fl/)) === j(['flyRounds: Flies for (rounds) is empty, so it flies for 1 round. Fill it in.']) && saidI(rA, 'i_fl3', /^fl/).length === 0;
+        // the review of library (moved on purpose): the rounds line says empty or under 1, since a 0 is read as 1 round too
+        const flI = j(saidI(rA, 'i_fl1', /^fl/)) === j(['flies: Flies once launched needs a Speed Save can keep, or Save drops what it is once launched.']) && j(saidI(rA, 'i_fl2', /^fl/)) === j(['flyRounds: Flies for (rounds) is empty or under 1, so it flies for 1 round. Fill it in.']) && saidI(rA, 'i_fl3', /^fl/).length === 0;
         check('1.6.3 what flies needs its Speed and rounds (refreshErrors, run for real): a Speed missing is said under the Speed, since Save drops it; rounds missing are said under the rounds, since Save reads them as 1 round; with both nothing is said',
             flI, j([saidI(rA, 'i_fl1'), saidI(rA, 'i_fl2'), saidI(rA, 'i_fl3')]));
         const rmI = j(saidI(rA, 'i_rm', /Msg$/)) === j(['rmMsg: Message on removal is shown only when it is Bound or Curse on contact, so Save drops it.', 'eqMsg: Message on switching off is shown only when it is Bound or Curse on contact, so Save drops it.']) && saidI(rA, 'i_rm2', /Msg$/).length === 0;

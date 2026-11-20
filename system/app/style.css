@@ -4745,6 +4745,7 @@
   .lib-frow-area { align-items: start; }
   .lib-frow-area .lib-flabel { padding-top: 5px; }
   .lib-flabel { color: var(--dim); }
+  .lib-frow > .lib-locpick ~ .field { grid-column: 2; }   /* 1.6.3: Strikes at's typed box, shown for Another location, stands under its pick */
   #libraryModal .lib-frow textarea.field { min-height: 0; resize: vertical; line-height: 1.4; }
   .lib-fsub { margin-top: 6px; color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; flex: none; }
   .lib-warn { color: var(--gold); font-size: 11.5px; line-height: 1.4; flex-basis: 100%; }

@@ -1723,19 +1723,64 @@ pendingChecks.push((async () => {
             && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
     }
 
-// 1.6.3 (the improvement week's review of sheets and rolls, finding 6): a defense or reminder card pressed whose roll never happened is live again
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 6, and the review of input): a defense or reminder card pressed whose roll never happened is live again
 {
-    const dlSrc = fnSrc('function dueLive(att) {', '\nnet.diceRoll = function', 'dueLive');
-    const mkLog = () => [{ due: { att: 'a_aaaaaaaa' }, done: true }, { due: { att: 'a_aaaaaaaa' }, done: true, over: 1 }, { due: { att: 'a_bbbbbbbb' }, done: true }, { roll: { id: 'r' } }];
+    const dlSrc = fnSrc('function dueLive(att, card) {', '\nnet.dueLive = function', 'dueLive');
+    const mkLog = () => [{ due: { id: 'd1', att: 'a_aaaaaaaa' }, done: true }, { due: { id: 'd2', att: 'a_aaaaaaaa' }, done: true, over: 1 }, { due: { id: 'd3', att: 'a_bbbbbbbb' }, done: true }, { roll: { id: 'r' } }, { due: { id: 'd5' }, done: true }];
     let log = mkLog(), drawn = 0;
     const DL = new Function('chatLog', 'renderChatSoon', dlSrc + '\nreturn dueLive;')(log, () => { drawn++; });
     const r1 = DL('a_aaaaaaaa'), state1 = log.map(m => [!!m.done, !!m.over]), r2 = DL('a_aaaaaaaa'), r3 = DL(''), r4 = DL(7);
-    const shS = fs.readFileSync(path.join(kit.APP, 'scripts', 'sheets.js'), 'utf8'), diS = fs.readFileSync(path.join(kit.APP, 'scripts', 'dice.js'), 'utf8');
-    check('1.6.3 (finding 6): a card of an attempt pressed and not over is live again (dueLive: its buttons drawn again, once; a card that is over or of another attempt stays as it is), on a player\'s app at the host\'s roll-deny and at the request\'s own timeout, the pending request keeping the card\'s attempt; on any machine runDue and runLand answer what the roll they made answered (dice.js lastRoll for a sheet button pressed for the card), so a roll refused there leaves the card live',
-        r1 === true && j(state1) === j([[false, false], [true, true], [true, false], [false, false]]) && drawn === 1 && r2 === false && r3 === false && r4 === false
-        && src.includes("if (pend.att && typeof dueLive === 'function') dueLive(pend.att);") && src.includes("if (attP && typeof dueLive === 'function') dueLive(attP); }, D.LIMITS.timeoutMs), att: attP };")
-        && shS.includes('return !(rV && rV.error);') && shS.includes('return !(rW && rW.error);') && shS.includes('return !(rL && rL.error);') && shS.includes('var gotD = lrD ? lrD() : null; return !(gotD && gotD.n !== n0D && gotD.r && gotD.r.error);')
-        && diS.includes('_rollSeq++; _rollLast = r;') && diS.includes('lastRoll: lastRoll,'), j([r1, state1, drawn]));
+    const rc = DL('', 'd5'), rcState = !!log[4].done, rc2 = DL('', 'd5'), rc9 = DL('', 'd9'), rcWins = DL('a_bbbbbbbb', 'd1');   // a reminder found by its own id; the card's id wins over an attempt named beside it
+    const shS = fs.readFileSync(path.join(kit.APP, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), diS = fs.readFileSync(path.join(kit.APP, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n');
+    check('1.6.3 (finding 6 and the review of input): a card pressed and not over is live again (dueLive: its buttons drawn again, once; a card that is over or another card stays as it is), found by its own id where the press named it (a reminder names no attempt) and by its attempt otherwise, on a player\'s app at the host\'s roll-deny and at the request\'s own timeout, the pending request keeping the card\'s attempt and its id (this machine\'s own word, never sent)',
+        r1 === true && j(state1) === j([[false, false], [true, true], [true, false], [false, false], [true, false]]) && drawn === 2 && r2 === false && r3 === false && r4 === false
+        && rc === true && rcState === false && rc2 === false && rc9 === false && rcWins === false && log[2].done === true
+        && src.includes("if ((pend.att || pend.card) && typeof dueLive === 'function') dueLive(pend.att, pend.card);") && src.includes("if ((attP || cardP) && typeof dueLive === 'function') dueLive(attP, cardP); }, D.LIMITS.timeoutMs), att: attP, card: cardP };")
+        && src.includes("cardP = typeof o.card === 'string' ? o.card : '';") && src.includes("net.dueLive = function(card) { return dueLive('', card); };")
+        && /try \{ net\.conns\[0\]\.send\(req\); \}/.test(src) && !/card: cardP[^\n]*\n[^\n]*req\.card/.test(src), j([r1, state1, drawn, rc, rc2, rc9, rcWins]));
+    // dice.js: the press of a card under way, its first roll taking it (dueTake), and a press that rolls later watched
+    const dcSrc = diS.slice(diS.indexOf('// [netrollcheck:duecard-start]'), diS.indexOf('// [netrollcheck:duecard-end]'));
+    const lived = [], timers = []; let asking = false, clock = 0;
+    const DC = new Function('net', 'window', 'setTimeout', 'Date', dcSrc + '\nreturn { duePress, dueTake, cur: function() { return _dueCard; } };')(() => ({ dueLive: id => { lived.push(id); return true; } }), { wpSheets: { rollAsking: () => asking } }, f => { timers.push(f); }, { now: () => clock });
+    const tick = () => timers.splice(0).forEach(f => f());
+    const rec = id => ({ id, charId: 'c_a' });
+    let took = ''; const a = DC.duePress(rec('d1'), () => { took = DC.dueTake('c_a'); return true; }); const aCur = DC.cur();
+    const b = DC.duePress(rec('d2'), () => false), bCur = DC.cur(), bOther = DC.duePress(rec('d2b'), () => { took += '|' + DC.dueTake('c_b'); return true; });
+    asking = true; const c = DC.duePress(rec('d3'), () => 'wait'); tick(); const cWait = [timers.length, lived.slice()]; const cTook = DC.dueTake('c_a'); tick(); const cAfter = lived.slice();
+    asking = false; const d = DC.duePress(rec('d4'), () => 'wait'); tick(); const dLived = lived.slice(), dCur = DC.cur();
+    asking = true; DC.duePress(rec('d5'), () => 'wait'); clock += 120001; tick(); const eLived = lived.slice();
+    const thrown = DC.duePress(rec('d6'), () => { throw new Error('x'); }), tCur = DC.cur();
+    check('1.6.3 (the review of input): dice.js duePress runs a card\'s press with the card noted, its first roll for that character takes it (dueTake, never a roll for another character), a press that rolled nothing yet (\'wait\') leaves the card pressed while its button still asks something and makes it live again by its own id once nothing is asked and no roll came, or after two minutes; a press that throws or is refused leaves nothing noted',
+        a === true && took === 'd1|' && aCur === null && b === false && bCur === null && bOther === true && c === true && j(cWait) === j([1, []]) && cTook === 'd3' && j(cAfter) === j([])
+        && d === true && j(dLived) === j(['d4']) && dCur === null && j(eLived) === j(['d4', 'd5']) && thrown === false && tCur === null
+        && diS.includes("var cardF = typeof dueTake === 'function' ? dueTake(charId) : '';") && diS.includes("var r = roll(expr, { card: cardF || undefined, aim:")
+        && diS.includes("if (cardF && r && r.error) { var nC = net(); if (nC && typeof nC.dueLive === 'function') nC.dueLive(cardF); }")
+        && diS.includes("var r = n.diceRoll(clean, { card: typeof opts.card === 'string' && opts.card ? opts.card : undefined, aim:")
+        && diS.split("var ok = (typeof duePress === 'function' ? duePress : function(rq, f) { return f(); })(rec, function() {").length === 3, j({ a, took, b, c, cWait, cTook, cAfter, d, dLived, eLived }));
+    // sheets.js runDue and runLand, run on stand-ins with rollFor answering a refusal, then a roll
+    const rdSrc = shS.slice(shS.indexOf('// [netrollcheck:rundue-start]'), shS.indexOf('// [netrollcheck:rundue-end]'));
+    const sys = { rolls: [{ id: 'r_def', formula: '3d6', label: 'Defend', withRow: 'f_w' }, { id: 'r_dmg', formula: '2d6', label: 'Damage' }, { id: 'r_app', label: 'Mend', apply: [] }], fields: [{ id: 'f_w', kind: 'item-list', list: { rolls: [{ formula: '1d6', label: 'Parry' }] } }] };
+    const ch = { id: 'c_a', values: { f_w: [{ id: 'w_1' }] } }, camp = { chars: { c_a: ch } };
+    let answer = { error: 'refused' }, seq = 0, last = null, btnRolls = true, btnOff = false, askE = null, ldPop = null, placing = false; const toasts = [], applied = [], nn = { _attNext: null };
+    const winR = { wpDice: { rollFor: () => { seq++; last = answer; return answer; }, lastRoll: () => ({ n: seq, r: last }) } };
+    const btn = { get disabled() { return btnOff; }, title: 'Not now', click() { if (btnRolls) winR.wpDice.rollFor(); } };
+    const docR = { activeElement: null, body: { classList: { contains: k => k === 'placing' && placing } } };
+    const RD = new Function('getActiveCampaign', 'systemOf', 'charById', 'canRoll', 'toast', 'net', 'rowIdOf', 'askEntry', 'askThen', 'rollNode', 'canApply', 'applyAction', 'document', 'window', 'getPop',
+        'var _askNext = null; var _ldPop = null;\n' + rdSrc + '\nreturn { runDue, runLand, rollAsking: function() { _ldPop = getPop(); return rollAsking(); }, hitWait: function(t) { _hitWaitAt = t; } };')(
+        () => camp, () => sys, id => camp.chars[id] || null, () => true, t => toasts.push(t), () => nn, x => x.id, () => askE, () => {}, () => ({ querySelector: () => btn }), () => true, (r, c2) => applied.push(r.id), docR, winR, () => ldPop);
+    const both = f => { answer = { error: 'refused' }; const no = f(); answer = { ok: true, pending: true }; const yes = f(); return [no, yes]; };
+    const wrP = both(() => RD.runDue('c_a', 'r_def', 'a_x', undefined, null, { f: 'f_w', r: 'w_1' }));
+    const rowP = both(() => RD.runDue('c_a', 'r_def', 'a_x', { f: 'f_w', r: 'w_1', i: 0 }, null));
+    const btnP = both(() => RD.runDue('c_a', 'r_dmg', undefined, undefined, null));
+    const landP = both(() => RD.runLand('c_a', 'r_dmg', 'a_x'));
+    btnRolls = false; const btnWait = RD.runDue('c_a', 'r_dmg', undefined, undefined, null); btnRolls = true; btnOff = true; const btnOffR = RD.runDue('c_a', 'r_dmg', undefined, undefined, null); btnOff = false;
+    askE = { asks: [] }; const askWait = RD.runDue('c_a', 'r_dmg', undefined, undefined, undefined); askE = null;
+    const appR = RD.runDue('c_a', 'r_app', undefined, undefined, null), attLeft = nn._attNext;
+    const asks = [RD.rollAsking()]; ldPop = {}; asks.push(RD.rollAsking()); ldPop = null; RD.hitWait(Date.now()); asks.push(RD.rollAsking()); RD.hitWait(Date.now() - 16000); asks.push(RD.rollAsking()); RD.hitWait(0); placing = true; asks.push(RD.rollAsking()); placing = false;
+    check('1.6.3 (the review of input): runDue\'s three roll paths (a roll answered with a row, a list\'s roll on one row, the sheet\'s own button) and runLand, run on stand-ins: a roll refused on this machine answers false, so its card is live again, and a roll made answers true; a button that rolled nothing yet, or a roll that asks first, answers \'wait\'; a button that cannot be pressed answers false; an action answers true; the attempt handed to the roll is let go after it; rollAsking says a menu of the sheet\'s own, the host asked for the locations (15 seconds at most) and an aim on the map',
+        j(wrP) === j([false, true]) && j(rowP) === j([false, true]) && j(btnP) === j([false, true]) && j(landP) === j([false, true]) && btnWait === 'wait' && btnOffR === false && askWait === 'wait' && appR === true && j(applied) === j(['r_app']) && attLeft === null
+        && j(asks) === j([false, true, true, false, true]) && shS.includes('window.wpSheets = {') && shS.includes('runDue: runDue, runLand: runLand, rollAsking: rollAsking,')
+        && shS.includes("if (typeof _hitWaitAt === 'number') _hitWaitAt = Date.now(); n.hitRows(need.c.id, function(rows) { if (typeof _hitWaitAt === 'number') _hitWaitAt = 0; show(rows); }); return; }"), j({ wrP, rowP, btnP, landP, btnWait, btnOffR, askWait, appR, asks }));
 }
 
 T.finish();

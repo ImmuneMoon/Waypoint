@@ -1148,18 +1148,46 @@ const j = v => JSON.stringify(v);
             lisIn === 1 && lisCh === 1 && marked === true && cleared === false && out._wpTyped === undefined && tick._wpTyped === undefined
             && j(back) === j(['14', '14', true, [2, 2], true]) && j(said) === j(['change']) && j(native) === j([]) && k2.val === undefined && nb3.value === '6' && nb3._wpTyped === undefined,
             j({ back, said, native, k2 }));
+        // the review of input: a counter of the sheet (uiparts.js step) commits by Enter, which fires no change: the mark comes off all the same, so a redraw
+        // with another stored figure (the host refused 5 and still holds 3) shows that figure, never the 5 typed again; and a figure typed for one character
+        // is never put back into the same field of another character's view (root._wpFor, set by renderSheet and renderHud)
+        const UQ = await import(url('uiparts.js'));
+        const mkDoc = () => { const d = { activeElement: null }; d.createElement = tag => { const e = { tagName: tag.toUpperCase(), children: [], attrs: {}, on: {}, style: {}, dataset: {}, value: '', className: '', textContent: '', isConnected: true,
+            appendChild(ch) { e.children.push(ch); return ch; }, setAttribute(k, v) { e.attrs[k] = String(v); }, addEventListener(t, f) { (e.on[t] = e.on[t] || []).push(f); },
+            fire(t, ev) { (e.on[t] || []).forEach(f => f(Object.assign({ type: t, target: e, preventDefault() {}, stopPropagation() {} }, ev || {}))); }, closest: inPanel, focus() { d.activeElement = e; }, select() {} }; return e; }; return d; };
+        const sets = [], cq = UQ.step({ value: 3, min: 0, data: { fid: 'f_str', part: 'q-w_1' }, set: n => sets.push(n) }, mkDoc()), qi = cq.input;
+        qi.value = '5'; TK.typedMark({ type: 'input', target: qi }); const typedQ = qi._wpTyped; qi.fire('keydown', { key: 'Enter' }); const afterEnter = qi._wpTyped;
+        docT.activeElement = qi; const kq = TK.focusKeyOf({ contains: () => true });
+        const nq = box('3', { dataset: { fid: 'f_str', part: 'q-w_1' } }); TK.restoreFocus({ querySelector: () => nq }, kq);
+        const a2 = box('9'); TK.typedMark({ type: 'input', target: a2 }); docT.activeElement = a2; const kc = TK.focusKeyOf({ contains: () => true, _wpFor: 'c_a' });
+        const other = box('2'); TK.restoreFocus({ querySelector: () => other, _wpFor: 'c_b' }, kc); const same = box('2'); TK.restoreFocus({ querySelector: () => same, _wpFor: 'c_a' }, kc);
+        check('1.6.3 (the review of input): a counter of the sheet that hands its figure on by Enter takes the mark off its box, so a redraw from the table shows the stored figure (a refusal, a correction) and says no change again; a figure typed is put back only into the view of the very character it was typed for, another character\'s view getting the focus and its own figure',
+            j(sets) === j([5]) && typedQ === true && afterEnter === false && kq.val === undefined && nq.value === '3' && nq._wpTyped === undefined
+            && kc.val === '9' && kc.cid === 'c_a' && other.value === '2' && other._wpTyped === undefined && docT.activeElement === same && same.value === '9' && same._wpTyped === true
+            && shT.includes("fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0; if (body && c) body._wpFor = c.id;") && shT.includes("fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()); v.body._wpFor = c.id;"),
+            j({ sets, typedQ, afterEnter, kq, nq: nq.value, kc, other: other.value, same: same.value }));
         // finding 17: renderViews waits while a press that began in the sheet panel or the HUDs' layer is down, and draws once it has landed
         const rvSrcT = shT.slice(shT.indexOf('var _chgNow = 0, _chgWait = null;'), shT.indexOf('// A token turned (tokenTurned)'));
         const holds = {}, mkHold = () => ({ down: false, todo: null, busy() { return this.down; }, then(f) { this.todo = f; } });
-        const elT = id => ({ id, addEventListener() {} }), docP = { addEventListener() {}, getElementById: id => (id === 'sheetPanel' || id === 'hudLayer' ? elT(id) : null) };
-        const asked = [], drawn = [];
-        const RVP = new Function('document', 'window', 'setTimeout', 'pressHold', 'ui', 'huds', 'drawn', '"use strict";' + NL + 'var sheetOpen = "c_a"; function renderSheet() { drawn.push("sheet"); } function renderHud(id) { drawn.push(id); }' + NL + rvSrcT + NL + 'return renderViews;')(
-            docP, { addEventListener() {} }, f => f(), (el, win) => { asked.push(el.id); return holds[el.id] || (holds[el.id] = mkHold()); }, () => ({ n: 'sheetBody' }), { c_a: { body: { n: 'b' } } }, drawn);
+        const els = {}, elT = id => els[id] || (els[id] = { id, lis: [], addEventListener(t, f, cap) { this.lis.push([t, f, cap]); } }), docP = { addEventListener() {}, getElementById: id => (id === 'sheetPanel' || id === 'hudLayer' ? elT(id) : null) };
+        const asked = [], drawn = [], timers = []; let clock = 1000;
+        const RVP = new Function('document', 'window', 'setTimeout', 'pressHold', 'ui', 'huds', 'drawn', 'Date', '"use strict";' + NL + 'var sheetOpen = "c_a"; function renderSheet() { drawn.push("sheet"); } function renderHud(id) { drawn.push(id); }' + NL + rvSrcT + NL + 'return renderViews;')(
+            docP, { addEventListener() {} }, (f, ms) => { if (!ms) f(); else timers.push(f); }, (el, win) => { asked.push(el.id); return holds[el.id] || (holds[el.id] = mkHold()); }, () => ({ n: 'sheetBody' }), { c_a: { body: { n: 'b' } } }, drawn, { now: () => clock });
+        const press = (id, onBtn) => els[id].lis.filter(x => x[0] === 'pointerdown' && x[2] === true).forEach(x => x[1]({ target: { closest: s => (onBtn && /button/.test(s) ? {} : null) } }));   // a press begun on a button, or on something else (a list)
         const atLoad = asked.slice().sort();
         RVP('c_a'); const free = drawn.splice(0);
-        holds.sheetPanel.down = true; RVP('c_a'); RVP('c_a'); const whileDown = drawn.length;
-        holds.sheetPanel.down = false; holds.sheetPanel.todo(); const landed = drawn.splice(0);
-        holds.hudLayer.down = true; RVP(null); holds.hudLayer.down = false; holds.hudLayer.todo(); const hudPress = drawn.splice(0);
+        press('sheetPanel', true); holds.sheetPanel.down = true; RVP('c_a'); RVP('c_a'); const whileDown = drawn.length;
+        holds.sheetPanel.down = false; holds.sheetPanel.todo(); const landed = drawn.splice(0); timers.splice(0).forEach(f => f()); const lateTimer = drawn.splice(0);
+        press('hudLayer', true); holds.hudLayer.down = true; RVP(null); holds.hudLayer.down = false; holds.hudLayer.todo(); const hudPress = drawn.splice(0); timers.splice(0);
+        // the review of input: a press on a list (the browser's own drop-down may take its release) holds nothing; a press whose release never comes lets its
+        // redraws go once PRESS_HOLD_MS is up, and a redraw past that time draws at once; the press listener is put on each place once
+        press('sheetPanel', false); holds.sheetPanel.down = true; RVP('c_a'); const onList = drawn.splice(0); holds.sheetPanel.down = false;
+        press('sheetPanel', true); holds.sheetPanel.down = true; RVP('c_a'); const stuck = drawn.length; timers.splice(0).forEach(f => f()); const timeUp = drawn.splice(0);
+        clock += 1600; RVP('c_a'); const pastTime = drawn.splice(0); holds.sheetPanel.down = false; holds.sheetPanel.todo(); const afterLand = drawn.splice(0);
+        const marksOnce = ['sheetPanel', 'hudLayer'].map(id => els[id].lis.filter(x => x[0] === 'pointerdown' && x[2] === true).length);
+        check('1.6.3 (the review of input): a press holds the redraws only where it began on a button: a press on a list (a choice field, whose drop-down may keep its release) holds nothing, a press whose release never comes lets them go once the time is up and holds no later redraw, the time of a hold already landed draws nothing again, and the listener that notes where a press began is put on each place once',
+            j(lateTimer) === j([]) && j(onList) === j(['sheet', 'c_a']) && stuck === 0 && j(timeUp) === j(['sheet', 'c_a']) && j(pastTime) === j(['sheet', 'c_a']) && j(afterLand) === j([]) && j(marksOnce) === j([1, 1]),
+            j({ lateTimer, onList, stuck, timeUp, pastTime, afterLand, marksOnce }));
         check('1.6.3 (finding 17): a redraw of the sheet or a HUD waits while a press that began in the sheet panel or the HUDs\' layer is down (io.js pressHold, one hold for each, made at load so a press is known from its start) and is made once that press has landed, each character once, so the button pressed right after a box was typed in keeps its click; with no press down it draws at once',
             j(atLoad) === j(['hudLayer', 'sheetPanel']) && j(free) === j(['sheet', 'c_a']) && whileDown === 0 && j(landed) === j(['sheet', 'c_a']) && j(hudPress) === j(['sheet', 'c_a'])
             && /\{ chgDefer\(charId, skip\); return; \} if \(typeof pressBusy === 'function' && pressBusy\(charId, skip\)\) return;/.test(shT),

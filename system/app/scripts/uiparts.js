@@ -82,7 +82,10 @@ function step(o, doc) {
     v.inp.value = cur === null ? '' : String(roundTo(cur, dec)); fit();
     mi.disabled = !!o.off || (cur !== null && lo !== null && cur <= lo); pl.disabled = !!o.off || (cur !== null && hi !== null && cur >= hi); v.inp.readOnly = !!o.off;
     var ends = function() { mi.disabled = !!o.off || (cur !== null && lo !== null && cur <= lo); pl.disabled = !!o.off || (cur !== null && hi !== null && cur >= hi); };
-    var go = function(n) { pend = null; var c = clampTo(n, lo, hi); if (c === null) { v.inp.value = cur === null ? '' : String(roundTo(cur, dec)); fit(); return; } c = roundTo(c, dec); v.inp.value = String(c); fit(); if (c === cur) return; cur = c; ends(); if (typeof o.set === 'function') o.set(c);
+    // 1.6.3 (the review of input): a counter hands its figure on here (Enter, the arrow keys, − and +, flush), never by a change event, so the mark a
+    // view of the sheet keeps on a box being typed in (_wpTyped, sheets.js typedMark) is taken off here too: the figure is with the caller now, and a
+    // redraw must show what is stored (a refusal, a correction), never the figure typed again
+    var go = function(n) { pend = null; v.inp._wpTyped = false; var c = clampTo(n, lo, hi); if (c === null) { v.inp.value = cur === null ? '' : String(roundTo(cur, dec)); fit(); return; } c = roundTo(c, dec); v.inp.value = String(c); fit(); if (c === cur) return; cur = c; ends(); if (typeof o.set === 'function') o.set(c);
         if (typeof o.truth === 'function') setTimeout(function() { if (!w.isConnected) return; var t = num(o.truth()); if (t !== null && t !== cur) w.setValue(t); }, 450);   // a change the caller did not make (a price window cancelled, a refusal) puts the true figure back
     };
     var pend = null;

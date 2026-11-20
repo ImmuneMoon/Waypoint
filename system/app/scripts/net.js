@@ -7936,7 +7936,7 @@ function handleMessage(msg, conn) {
             if (dn.reason === 'paused' && net.selfHeld && !net.paused && !net.selfPaused) dn.reason = 'held';   // 1.6.0 (backlog 190): said as the hold it was
             var pend = _dicePending; clearTimeout(pend.timer); _dicePending = null;
             if (window.wpDice) window.wpDice.onDeny(dn, pend.expr);
-            if (pend.att && typeof dueLive === 'function') dueLive(pend.att);   // 1.6.3 (finding 6): a defense or reminder card whose roll the host refused is live again
+            if ((pend.att || pend.card) && typeof dueLive === 'function') dueLive(pend.att, pend.card);   // 1.6.3 (finding 6): a defense or reminder card whose roll the host refused is live again (the review of input: found by its own id where the press named it)
             return;
         }
         var rc = Dr.cleanRoll(msg); if (!rc) return;
@@ -9448,12 +9448,14 @@ function rollLookOwn() { var D = DC(); return D && typeof D.cleanDiceLook === 'f
 // 1.6.3 (the improvement week's review of sheets and rolls, finding 6): a card pressed whose roll never happened (the host refused it, or never answered) is
 // live again, as land-deny makes a refused Take it live: the card of that attempt, pressed and not over, is drawn with its buttons. Asked on a player's
 // app by the roll-deny branch and by the request's own timeout; a refusal on this machine itself is answered by runDue's own result (sheets.js)
-function dueLive(att) {
-    if (typeof att !== 'string' || !att || typeof chatLog === 'undefined' || !Array.isArray(chatLog)) return false;
-    var live = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === att && !m.over && m.done) { m.done = false; live = true; } });
+// The review of input: card, the card's own id (rec.id), finds the very card pressed, a reminder that names no attempt among them; with none, the attempt
+function dueLive(att, card) {
+    var byCard = typeof card === 'string' && !!card; if ((!byCard && (typeof att !== 'string' || !att)) || typeof chatLog === 'undefined' || !Array.isArray(chatLog)) return false;
+    var live = false; chatLog.forEach(function(m) { if (m && m.due && (byCard ? m.due.id === card : m.due.att === att) && !m.over && m.done) { m.done = false; live = true; } });
     if (live && typeof renderChatSoon === 'function') renderChatSoon();
     return live;
 }
+net.dueLive = function(card) { return dueLive('', card); };   // the review of input: dice.js duePress, a card whose press rolled nothing
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
     var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && (((o.act === atN.act || !o.act) && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) { o = Object.assign({}, o, atN.act ? { act: atN.act } : null, { att: atN.att }, atN.with && typeof atN.with === 'object' ? { with: { f: atN.with.f, r: atN.with.r } } : null); net._attNext = null; }   /* 1.6.3 (defense fold 2): and the row a roll answered with a row was pressed with */   // 1.6.0: a plain roll's button names nothing, so the card names it, and the first roll takes it: a blast its answer lets go rolls as itself   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
@@ -9479,8 +9481,8 @@ net.diceRoll = function(expr, o) {
         if (o.ask && typeof o.ask === 'object' && o.charId && (req.act || (req.row && typeof req.row.i === 'number'))) req.ask = o.ask;   // 1.6.2: what they answered (the host judges it)
         if (typeof o.hit === 'string' && o.charId && (req.act || req.fr || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.hit = o.hit;   // 1.6.0 (B5): the location row picked on their target, beside a named roll (the host judges it)
         if (o.aim && typeof o.aim === 'object' && o.charId && (req.act || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.aim = { x: Number(o.aim.x), y: Number(o.aim.y) };   // 1.6.0: the point a line is aimed at (the host finds who stands in it)
-        var attP = typeof req.att === 'string' ? req.att : '';   // 1.6.3 (finding 6): the card it answers, live again if no roll comes of it
-        _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); if (attP && typeof dueLive === 'function') dueLive(attP); }, D.LIMITS.timeoutMs), att: attP };
+        var attP = typeof req.att === 'string' ? req.att : '', cardP = typeof o.card === 'string' ? o.card : '';   // 1.6.3 (finding 6): the card it answers, live again if no roll comes of it; the review of input: and the card's own id, which a reminder card has where it names no attempt (dice.js duePress). This machine's own word, never sent
+        _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); if ((attP || cardP) && typeof dueLive === 'function') dueLive(attP, cardP); }, D.LIMITS.timeoutMs), att: attP, card: cardP };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -9734,8 +9736,12 @@ var chatUnread = 0;
 var CHAT_KEEP = 'wp_rehostChat', CHAT_KEEP_MAX = 1500000;
 function chatKeepOut() {   // what is kept as the page goes: JSON, the oldest messages let go where it would be too long
     var list = chatLog.filter(function(m) { return m && typeof m === 'object' && !m.help && !(m.roll && m.roll.pend); }).slice(-200).map(function(m) { if (!m.roll) return m; var o = Object.assign({}, m); delete o.res; return o; }), txt = '';   // a roll's worked-out result is made again from its record as it comes back
-    for (var i = 0; i <= list.length; i++) { try { txt = JSON.stringify(list.slice(i)); } catch (e) { return ''; } if (txt.length <= CHAT_KEEP_MAX) return txt; }
-    return '';
+    // the review of input: each message is written out once and the newest are kept while the whole still fits (it was every tail of the list written out
+    // again, some 300 MB of work on a long chat as the page went). The text is what JSON.stringify of that tail gives: '[' + each, joined by ',', + ']'
+    var outs = []; try { outs = list.map(function(m) { return JSON.stringify(m); }); } catch (e) { return ''; }
+    var len = 2, from = outs.length; while (from > 0 && len + outs[from - 1].length + (from < outs.length ? 1 : 0) <= CHAT_KEEP_MAX) { len += outs[from - 1].length + (from < outs.length ? 1 : 0); from--; }
+    txt = '[' + outs.slice(from).join(',') + ']';
+    return txt;
 }
 function chatKeepIn(txt) {   // laid back in front of what the chat holds now, each message marked kept; answers how many
     var list = null; try { list = typeof txt === 'string' && txt ? JSON.parse(txt) : null; } catch (e) { list = null; }

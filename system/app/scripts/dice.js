@@ -327,13 +327,13 @@ function renderDue(m) {
             var picks = [{ act: rec.act, label: rec.label || 'Roll' }].concat(rec.or), bs = []; if (rec.nm === 1) picks.shift();   // 1.6.0: nm, only the rows it offers
             picks.forEach(function(p) {
                 var pb = el('button', 'tool chat-due-run', p.label || 'Roll'); pb.type = 'button'; pb.title = 'Resist with ' + (p.label || 'this roll') + ', as its button on the sheet rolls it'; bs.push(pb);
-                pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row, undefined, p.w) : false;   /* 1.6.3 (defense fold 2): p.w, the row a roll answered with a row is pressed with */ if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
+                pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = (typeof duePress === 'function' ? duePress : function(rq, f) { return f(); })(rec, function() { return window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row, undefined, p.w) : false; });   /* 1.6.3 (defense fold 2): p.w, the row a roll answered with a row is pressed with; the review of input: duePress knows the card by its own id */ if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
                 wrap.appendChild(pb); wrap.appendChild(document.createTextNode(' '));
             });
             if (rec.lnd === 1) landBtns(wrap, rec, m, bs, false); return wrap;   // 1.6.3 (defense fold 1): and Take it, or No defense
         }
         var runW = rec.roll === 1 ? 'Roll' : 'Run', b = el('button', 'tool chat-due-run', runW); b.type = 'button'; b.title = rec.roll === 1 ? 'Roll it now, as its button on the sheet does' : 'Apply it now, as its button on the sheet does';   // 1.5.9: a roll that is due
-        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = rec.lnd === 1 && rec.why === 'called' && window.wpSheets && window.wpSheets.runLand ? window.wpSheets.runLand(rec.charId, rec.act, rec.att, rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined, rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
+        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = (typeof duePress === 'function' ? duePress : function(rq, f) { return f(); })(rec, function() { return rec.lnd === 1 && rec.why === 'called' && window.wpSheets && window.wpSheets.runLand ? window.wpSheets.runLand(rec.charId, rec.act, rec.att, rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined, rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : false; }); if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
         wrap.appendChild(b); if (rec.lnd === 1 && rec.why === 'resist') landBtns(wrap, rec, m, [b], false);   // 1.6.3 (defense fold 1): and Take it, or No defense
     }
     return wrap;
@@ -466,13 +466,41 @@ function rollFor(charId, expr, label, opts) {
     opts = opts || {};
     var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
     _rollMore = opts.range || opts.blast || opts.used === true || opts.cross ? { range: opts.range || undefined, blast: opts.blast || undefined, used: opts.used === true ? true : undefined, usedWait: opts.usedWait === true ? true : undefined, cross: opts.cross && typeof opts.cross === 'object' ? opts.cross : undefined } : null;   // 1.5.8 explosives: a throw's range to its aim, the blast a damage roll is for (this machine's own words); 1.5.9: a damage roll already applied as it is rolled (a blast's fragmentation)
-    var r = roll(expr, { aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: typeof opts.by === 'string' && opts.by ? opts.by : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: charId, label: label, source: opts.source || 'sheet', src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined });   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)   // 1.5.9: on, the token of the adjacent character it is used on
+    var cardF = typeof dueTake === 'function' ? dueTake(charId) : '';   // the review of input: the card whose press this roll is (duePress), so a roll refused or never answered makes that card live again
+    var r = roll(expr, { card: cardF || undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: typeof opts.by === 'string' && opts.by ? opts.by : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: charId, label: label, source: opts.source || 'sheet', src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined });   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)   // 1.5.9: on, the token of the adjacent character it is used on
     if (r.error) toast(r.error);
     _rollSeq++; _rollLast = r;   // 1.6.3 (finding 6): what the last roll asked for answered, for a card that pressed a sheet's button (lastRoll)
+    if (cardF && r && r.error) { var nC = net(); if (nC && typeof nC.dueLive === 'function') nC.dueLive(cardF); }   // refused here, after its card's press: the card is live again
     return r;
 }
 var _rollSeq = 0, _rollLast = null;
 function lastRoll() { return { n: _rollSeq, r: _rollLast }; }
+// [netrollcheck:duecard-start]
+// 1.6.3 (the review of input): a card pressed whose roll never happens is live again, whatever card it is. A defense card names its attempt, but a reminder
+// (its turn, a round, an effect's end) names none, so a card is known by its own id (rec.id). duePress runs a card's press with the card noted as the
+// one under way (_dueCard); the first roll this machine makes for that character takes it (dueTake, from rollFor) and carries it to net.diceRoll as card,
+// which keeps it with the request, so the host's refusal or no answer at all makes that card live again (net.js dueLive). A press that rolled nothing yet
+// because its button asks first (a location, a level, what a roll asks, an aim on the map: sheets.js runDue answers 'wait') is watched: once nothing is
+// asked any more (sheets.js rollAsking) and no roll came, or after DUE_WAIT_MS, the card is live again. Nothing of it is sent
+var _dueCard = null, DUE_WAIT_MS = 120000, DUE_LOOK_MS = 400;
+function duePress(rec, call) {
+    var dc = { id: rec && typeof rec.id === 'string' ? rec.id : '', charId: rec ? rec.charId : '', took: false, at: Date.now() }; _dueCard = dc;
+    var ok = false; try { ok = call(); } catch (e) { ok = false; }
+    if (ok === 'wait' && !dc.took && _dueCard === dc && dc.id) { dueWatch(dc); return true; }   // its roll comes later: the card stays pressed while it is asked
+    if (_dueCard === dc) _dueCard = null;
+    return !!ok;
+}
+function dueWatch(dc) {
+    var look = function() {
+        if (_dueCard !== dc || dc.took) return;   // its roll came, or another card was pressed since
+        var sh = typeof window !== 'undefined' ? window.wpSheets : null, asking = !!(sh && typeof sh.rollAsking === 'function' && sh.rollAsking());
+        if (asking && Date.now() - dc.at < DUE_WAIT_MS) { setTimeout(look, DUE_LOOK_MS); return; }
+        _dueCard = null; var n = net(); if (n && typeof n.dueLive === 'function') n.dueLive(dc.id);   // put away with no roll: the card is live again
+    };
+    setTimeout(look, DUE_LOOK_MS);
+}
+function dueTake(charId) { var dc = _dueCard; if (!dc || dc.took || !dc.id || dc.charId !== charId) return ''; dc.took = true; _dueCard = null; return dc.id; }
+// [netrollcheck:duecard-end]
 /* ---------- Stage 5a: the situational-modifier popover (shift/alt-click a sheet roll button) ---------- */
 var modPop = null;
 function closeModPop() { if (!modPop) return; modPop.remove(); modPop = null; document.removeEventListener('pointerdown', onModOutside, true); document.removeEventListener('keydown', onModKey, true); }
@@ -575,7 +603,7 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr.toLocaleString('en-US') + ' characters).' };
-    var r = n.diceRoll(clean, { aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
+    var r = n.diceRoll(clean, { card: typeof opts.card === 'string' && opts.card ? opts.card : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
     if (!r.error && !opts.row && !opts.coin) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
 }

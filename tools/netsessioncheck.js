@@ -1755,4 +1755,23 @@ pendingChecks.push((async () => {
         && fs.readFileSync(path.join(kit.APP, 'scripts', 'dice.js'), 'utf8').includes("m.overSay === 'reload' ?"), j({ kept: kept.length, nBack, before, after, hist: hist.length, bad }));
 }
 
+// 1.6.3 (the review of input): chatKeepOut writes each message out once, never every tail of the list again, and keeps the very text it kept before
+{
+    const ckSrc = between('// [netcheck:chatkeep-start]', '// [netcheck:chatkeep-end]', 'chatkeep');
+    let calls = 0; const JC = { stringify: v => { calls++; return JSON.stringify(v); }, parse: JSON.parse };
+    const mkO = log => new Function('chatLog', 'DC', 'window', 'renderChatSoon', 'attemptRec', 'JSON', ckSrc + '\nreturn chatKeepOut;')(log, () => null, {}, () => {}, () => null, JC);
+    function oldOut(chatLog) {   // the text kept before, written out the old way: the longest tail of the list that fits
+        var list = chatLog.filter(function(m) { return m && typeof m === 'object' && !m.help && !(m.roll && m.roll.pend); }).slice(-200).map(function(m) { if (!m.roll) return m; var o = Object.assign({}, m); delete o.res; return o; }), txt = '';
+        for (var i = 0; i <= list.length; i++) { txt = JSON.stringify(list.slice(i)); if (txt.length <= 1500000) return txt; }
+        return '';
+    }
+    const from = { id: 'gm', name: 'GM', gm: true }; let seed = 7; const rnd = n => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+    const lists = [[], [{ from, text: 'one', ts: 1 }], [{ from, text: 'x'.repeat(1600000), ts: 1 }], [{ from, text: 'x'.repeat(1600000), ts: 1 }, { from, text: 'last', ts: 2 }]];
+    for (let s = 0; s < 6; s++) lists.push(Array.from({ length: 150 + rnd(120) }, (x, i) => ({ from, text: 'y'.repeat(rnd(30000)), ts: i, roll: rnd(3) ? undefined : { id: 'r' + i, v: i, pend: !rnd(9) }, res: { v: i }, help: !rnd(17) ? { id: 'h' } : undefined })));
+    const same = lists.map(l => mkO(l)() === oldOut(l));
+    const big = lists[lists.length - 1]; calls = 0; const outB = mkO(big)(); const callsB = calls, keptB = JSON.parse(outB).length;
+    check('1.6.3 (the review of input): the GM\'s chat kept as the page goes is the very text it was (the newest messages that fit in 1.5 MB, as JSON of that list), each message written out once and no more (it was every tail of the list again, some 300 MB of work on a long chat)',
+        same.every(Boolean) && callsB <= Math.min(200, big.length) && keptB > 0 && outB.length <= 1500000 && mkO(lists[2])() === '[]' && JSON.parse(mkO(lists[3])()).length === 1, j({ same, callsB, keptB }));
+}
+
 T.finish();

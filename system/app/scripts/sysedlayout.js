@@ -11,7 +11,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { BAND_KINDS, F, IDENTITY_KINDS, LEDGER_KINDS, LIMITS, LOOK_PRESETS, PALETTE_KEYS, PAL_CAPS, PIN_GID, _arrChar, applySheetLookTo, arrCharSet, autoLayout, btnRow, buildSections, capBox, catChoices, catHome, catSplits, charById, charList, cleanPlaceCats, cleanSystem, clone, dirty, draft, el, errorCell, errorsById, explainBox, fieldWord, fxLiveSet, getActiveCampaign, glyphButton, headerEdits, hintBox, hudView, input, isClient, layoutView, layoutViewSet, lazySelect, markDirty, open, opt, pageOptions, paletteOf, pinTargetsAll, resolveAll, rollPick, select, sheetLook, showConfirm, startRows, syncFramePad, tab, tabStandIns, toast, tokenCtxFor, ui, uid, validKey, validateSystem } from './sheets.js';   // [split:glue]
+import { BAND_KINDS, F, IDENTITY_KINDS, LEDGER_KINDS, LIMITS, LOOK_PRESETS, PALETTE_KEYS, PAL_CAPS, PIN_GID, _arrChar, applySheetLookTo, arrCharSet, autoLayout, btnRow, buildSections, capBox, catChoices, catHome, catSplits, charById, charList, cleanPlaceCats, cleanSystem, clone, dirty, draft, el, errorCell, errorsById, explainBox, fieldWord, fxLiveSet, getActiveCampaign, glyphButton, headerEdits, hintBox, hudView, input, isClient, layoutView, layoutViewSet, lazySelect, markDirty, open, opt, pageOptions, paletteOf, patchErrors, pinTargetsAll, resolveAll, rollPick, select, sheetLook, showConfirm, startRows, syncFramePad, tab, tabStandIns, toast, tokenCtxFor, ui, uid, validKey, validateSystem } from './sheets.js';   // [split:glue]
 export function sysedLayout() {   // [split:glue]
 // [split:body-start]
 /* ---------- the Layout tab (SB4): sections, columns, placements, a live preview ---------- */
@@ -143,11 +143,32 @@ function placeCatSays(secs, fields) {
 // ...under each place, for both layouts, in errorsById ('plc:' and the layout, the section's id and the place's index)
 function placeCatErrs() {
     Object.keys(errorsById).forEach(function(k) { if (k.indexOf('plc:') === 0) delete errorsById[k]; });
+    if (typeof layoutNameErrs === 'function') layoutNameErrs();   // 1.6.3: a tab's label and a band group's name, said with the places' own lines
     if (!draft) return;
     [['sheet', draft.sheet], ['hud', draft.sheet && draft.sheet.hud]].forEach(function(lv) {
         var lay = lv[1]; if (!lay || typeof lay !== 'object' || !Array.isArray(lay.sections)) return;
         var said = placeCatSays(lay.sections, draft.fields); Object.keys(said).forEach(function(k) { errorsById['plc:' + lv[0] + ':' + k] = said[k]; });
     });
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", "none isn't a good default
+// substitution"): a tab's label is what the sheet's or the HUD's tab strip shows, and a band group's name is what its Pin button says. With none they
+// show the stand-in words Tab and Pin Group, and several emptied tabs read alike, so an empty one is said under its box. Keys: 'tablbl:' with the
+// layout and the tab's id, 'grplbl:' with the group's id. The cleaner keeps them as they are. Asked by placeCatErrs, so the editor's fault check and renderLayout
+// both fill them
+function layoutNameErrs() {
+    Object.keys(errorsById).forEach(function(k) { if (k.indexOf('tablbl:') === 0 || k.indexOf('grplbl:') === 0) delete errorsById[k]; });
+    var sh = draft && draft.sheet && typeof draft.sheet === 'object' ? draft.sheet : null; if (!sh) return;
+    [['sheet', sh, 'the sheet'], ['hud', sh.hud, 'the HUD']].forEach(function(lv) {
+        (lv[1] && typeof lv[1] === 'object' && Array.isArray(lv[1].tabs) ? lv[1].tabs : []).forEach(function(tb, i) { if (tb && typeof tb.id === 'string' && !(typeof tb.label === 'string' && tb.label.trim())) errorsById['tablbl:' + lv[0] + ':' + tb.id] = [{ message: 'A tab needs a label. Until it has one, ' + lv[2] + ' shows Tab.', prop: 'tab.label.' + i }]; });
+    });
+    (Array.isArray(sh.bandGroups) ? sh.bandGroups : []).forEach(function(g, i) { if (g && typeof g.id === 'string' && !(typeof g.label === 'string' && g.label.trim())) errorsById['grplbl:' + g.id] = [{ message: 'A group needs a name. Until it has one, its Pin button says Pin Group.', prop: 'group.label.' + i }]; });
+}
+// 1.6.3 (lane B batch "rules"): what a Handbook link's place says while it names no page, or a page that is gone. The GM's sheet draws no button then,
+// and the players' view drops the place at Save, so the line says so. The words, or '' where its page is there. pageOptions lists the pages a link may name
+function linkPageSays(pl) {
+    if (!pl || pl.kind !== 'link') return '';
+    if (pl.page && pageOptions('', null).some(function(o) { return o[0] === pl.page; })) return '';
+    return pl.page ? 'This page is gone. Pick another, since until then this button shows on no sheet.' : 'Pick a page, since until then this button shows on no sheet.';
 }
 // The ticks under a place (while it names a category, or By category is open) and what Save does with it
 function placeCatPart(host, pl, sec, pi, f, secs) {
@@ -206,7 +227,8 @@ function renderLayout() {
         var tr = el('div', 'sys-row sys-tab'); tr.dataset.tid = tb.id;
         var tmain = el('div', 'sys-row-main');
         var tIcoIn = input('sys-tab-icon field', tb.icon, 'An icon before the label on the sheet \u2014 an emoji or a bundled icon (optional)', 'Icon'); tmain.appendChild(tIcoIn); tmain.appendChild(glyphButton(tIcoIn));   // Stage 5g (Stage 6: the picker)
-        tmain.appendChild(input('sys-tab-label field', tb.label, 'This tab\'s label on the sheet', 'Tab label'));
+        tmain.appendChild(input('sys-tab-label field', tb.label, 'This tab\'s label on the sheet. It must be filled in', 'Tab label'));
+        var tbErr = 'tablbl:' + layoutView + ':' + tb.id, tbEc = errorCell(tbErr); tbEc.dataset.errFor = tbErr; tmain.appendChild(tbEc);   // 1.6.3: a label it still needs, said under it
         tmain.appendChild(btnRow([['tabup', 'Move this tab left', '&#9650;'], ['tabdown', 'Move this tab right', '&#9660;'], ['tabdel', 'Remove this tab (its sections move to the first tab)', '&times;']]));
         tr.appendChild(tmain);
         tabBox.appendChild(tr);
@@ -363,7 +385,8 @@ function renderLayout() {
             var targetsG = pinTargetsAll(draft.sheet);   // HF1: a Pin in either view
             grpList.forEach(function(g, gi) {
                 var gr = el('div', 'sys-band-grp'); gr.dataset.gi = String(gi);
-                var gl = input('sys-bgrp-label field', g.label, 'The group\u2019s name (on its Pin button: \u201cPin <name>\u201d)', 'Group name'); gl.addEventListener('input', function(e) { e.stopPropagation(); g.label = gl.value.slice(0, LIMITS.label); markDirty(); renderPreview(); }); gl.addEventListener('change', function(e) { e.stopPropagation(); }); gr.appendChild(gl);
+                var gl = input('sys-bgrp-label field', g.label, 'The group\u2019s name (on its Pin button: \u201cPin <name>\u201d). It must be filled in', 'Group name'); gl.addEventListener('input', function(e) { e.stopPropagation(); g.label = gl.value.slice(0, LIMITS.label); markDirty(); renderPreview(); if (typeof patchErrors === 'function') patchErrors(); }); gl.addEventListener('change', function(e) { e.stopPropagation(); }); gr.appendChild(gl);
+                var grErr = 'grplbl:' + g.id, grEc = errorCell(grErr); grEc.dataset.errFor = grErr; gr.appendChild(grEc);   // 1.6.3: a name it still needs, said under it
                 var where = null; [[draft.sheet && draft.sheet.sections, ''], [draft.sheet && draft.sheet.hud && draft.sheet.hud.sections, 'HUD: ']].forEach(function(lv) { (Array.isArray(lv[0]) ? lv[0] : []).forEach(function(s) { if (where) return; if (s.pin === g.id || (s.fields || []).some(function(p) { return p && p.kind === 'pin' && p.g === g.id; })) where = lv[1] + (s.title || 'a section'); }); });
                 gr.appendChild(el('span', 'sys-hint sys-bgrp-note', targetsG[g.id] === 1 ? 'Pin: ' + where : 'No Pin button yet: always shown'));
                 var gd = el('button', 'tool ghost sys-btn', '\u00d7'); gd.title = 'Delete this group (its figures stay on the band, always shown; its Pin buttons go)'; gd.addEventListener('click', function(e) { e.stopPropagation(); deleteGroup(g.id); }); gr.appendChild(gd);
@@ -487,6 +510,7 @@ function renderLayout() {
             if (pl.kind === 'link') {   // Stage 5f: which page, and an optional label (blank = the page's own title)
                 pr.appendChild(select('sys-pl-page', pageOptions(pl.page, pl.page ? null : 'Choose a page\u2026'), pl.page || '', 'The handbook page this button opens'));
                 pr.appendChild(input('sys-pl-text field', pl.text, 'The button\'s label (blank = the page\'s title)', 'Label (optional)'));
+                var lkSay = typeof linkPageSays === 'function' ? linkPageSays(pl) : ''; if (lkSay) pr.appendChild(el('span', 'sys-warn-line', lkSay));   // 1.6.3: a link with no page, or a page that is gone, shows on no sheet
             }
             if (pl.kind === 'hud') {   // HUD frame (HF2b): the HUD tab it opens (none: the tab it shows if it is open, else its first) and its own words
                 var hTabs = (draft.sheet && draft.sheet.hud && Array.isArray(draft.sheet.hud.tabs)) ? draft.sheet.hud.tabs : [], hOpts = [['', 'Its current tab (first when closed)']];
@@ -553,7 +577,7 @@ function renderPreview() {
 function onLayoutInput(t) {
     var c = t.className || '';
     if (c.indexOf('sys-tab-icon') >= 0) { var itr = t.closest && t.closest('.sys-row.sys-tab'); if (itr) { var tbi = layoutTabs().find(function(x) { return x.id === itr.dataset.tid; }); if (tbi) { if (t.value.trim()) tbi.icon = t.value.slice(0, 32); else delete tbi.icon; markDirty(); renderPreview(); } } return true; }   // Stage 5g (Save trims it to a few code points)
-    if (c.indexOf('sys-tab-label') >= 0) { var ltr = t.closest && t.closest('.sys-tab'); if (ltr) { var tb0 = layoutTabs().find(function(x) { return x.id === ltr.dataset.tid; }); if (tb0) { tb0.label = t.value.slice(0, LIMITS.label); markDirty(); renderPreview(); } } return true; }
+    if (c.indexOf('sys-tab-label') >= 0) { var ltr = t.closest && t.closest('.sys-tab'); if (ltr) { var tb0 = layoutTabs().find(function(x) { return x.id === ltr.dataset.tid; }); if (tb0) { tb0.label = t.value.slice(0, LIMITS.label); markDirty(); renderPreview(); if (typeof patchErrors === 'function') patchErrors(); } } return true; }   // 1.6.3: the line under the label follows it
     if (t.classList && t.classList.contains('sys-hud-title')) { var hr = layoutRoot(); if (t.value.trim()) hr.title = t.value.slice(0, LIMITS.label); else delete hr.title; markDirty(); renderPreview(); return true; }   // HUD frame HF1 (before the section lookup: the title row is outside a section)
     var lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;

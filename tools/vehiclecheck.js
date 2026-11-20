@@ -768,6 +768,16 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             && fb.modes.length === 2 && fb.modes[0].key === 'Mode2' && fb.modes[1].key === 'Mode'
             && J(fb.terr) === J([{ key: 'Kind2', label: '\u0663', cost: 2 }, { key: 'Kind', label: 'Kind', cost: 3 }]), J(fb));
     }
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules"): a mark's name is what the map and cards show, so a new one starts named and an emptied one
+    // is said under the Marks box (refreshErrors, run for real); the cleaner shows A mark, never the key
+    {
+        const reRu = require('./checkkit').cutEnd('sysederr.js', 'function refreshErrors('), errsRu = more => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'var errorsById = {}, warningsById = {};\n' + reRu + '\nrefreshErrors(); return errorsById;')(Object.assign(S.emptySystem(), { name: 'E', fields: [], items: [], effects: [] }, more), () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => null, c => c && c.system && typeof c.system === 'object' ? c.system : null);
+        const sayRu = (id, more) => (errsRu(more)[id] || []).map(e => e.prop + '|' + e.message), nameRu = new Function(require('./checkkit').cut('sysedcombat.js', 'function ruleName(', 'function tableBtn(') + '\nreturn ruleName;')();
+        const sT = sayRu('tags', { tags: [{ key: 'M1', label: '' }, { key: 'M2', label: 'Hound' }] });
+        check('1.6.3 a mark with no name is said under the Marks box and lands on its name; a named one says nothing; + Mark starts named; the cleaner names one with none A mark',
+            J(sT) === J(['tags.label.0|Mark 1: it needs a name, which the map and cards show. Until it has one, they show A mark.']) && J(sayRu('tags', { tags: [{ key: 'M1', label: 'Hound' }] })) === '[]'
+            && nameRu([{ label: 'Mark 1' }], 'Mark') === 'Mark 2' && S.cleanTags([{ key: 'M1', label: '' }], true)[0].label === 'A mark' && require('./checkkit').part('sysedcombat.js').includes("draft.tags.push({ key: 'M' + n, label: ruleName(draft.tags, 'Mark') })") && read('scripts/sysui.js').includes("tags: ['rules', 'tags']"), J(sT));
+    }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });
 process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never finished'); process.exitCode = 1; } });

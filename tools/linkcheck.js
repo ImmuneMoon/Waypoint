@@ -581,5 +581,40 @@ pendingChecks.push((async () => {
             && src.includes("if (typeof crewOfVeh === 'function') crewOfVeh(camp, w.charId).forEach(function(cid) { delete net.turnSpent[cid];") && src.includes("'weapon', 'only', 'thru', 'part2'") && kit.part('netattack.js').includes("if (pass === true && ch && typeof thruNote === 'function' && !(rec && (typeof rec.lw === 'string' || rec.area))) thruNote(camp, ch, row, pick && pick.line ? pick.line.does === 'thru' : undefined);"));   /* 1.6.3 (defense fold 3): never for a landing, and as the line picked says (moved on purpose); the review of that fold: nor for a line's hit (moved on purpose) */
     }
 
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules": "it makes sense to have fields be required when other fields depend on them"): what a
+    // Crew link's boxes need is said under the Linked sheets box (sheetlinkbox.js linkSays, run for real), the cleaner agreeing on each, and One holds
+    // stands only once the link names two stations (renderLinks, run for real on a page of plain objects)
+    {
+        const J = v => JSON.stringify(v);
+        const LS3 = new Function('LIMITS', 'LINK_NOT', 'cleanLinks', kit.cut('sheetlinkbox.js', 'function linkSays(', '// [systemcheck:linkbox-end]') + '\nreturn linkSays;')(S.LIMITS, S.LINK_NOT, S.cleanLinks);
+        const W = (k, rolls, fields) => LS3([Object.assign({ id: 'lk_v', key: 'Vehicle', kind: 'crew' }, k)], fields || [], F, rolls).warns.map(w => w.prop + '|' + w.message);
+        const kept = k => (S.cleanLinks([Object.assign({ id: 'lk_v', key: 'Vehicle', kind: 'crew' }, k)], F) || [])[0] || {};
+        const fW = { stations: ['Pilot'], fit: { Pilot: { says: 'Only a pilot' } } }, fD = { stations: ['Pilot'], fit: { Pilot: { 'if': '1d6 > 3', says: 'No' } } }, fB = { stations: ['Pilot'], fit: { Pilot: { 'if': 'Size >' } } }, fOk = { stations: ['Pilot'], fit: { pilot: { 'if': 'Size > 2', says: 'Too small' } } };
+        check('1.6.3 Why not, in words with no rule in Who may sit at, and a rule Save cannot keep, are said under the box and land on that station\u2019s rule; a rule Save keeps says nothing, its station read in any case; the cleaner agrees on each',
+            J(W(fW)) === J(['link.0.fit.Pilot|Link 1: Why not, in words for Pilot needs a rule in Who may sit at Pilot. Until it has one, Save drops the words.'])
+            && J(W(fD)) === J(['link.0.fit.Pilot|Link 1: Who may sit at Pilot is not a rule Save can keep: it does not read, or it rolls dice. Save drops it and its words, so anyone may sit there.'])
+            && J(W(fB)) === J(['link.0.fit.Pilot|Link 1: Who may sit at Pilot is not a rule Save can keep: it does not read, or it rolls dice. Save drops it, so anyone may sit there.'])
+            && J(W(fOk)) === '[]' && !kept(fW).fit && !kept(fD).fit && !kept(fB).fit && J(kept(fOk).fit) === J({ Pilot: { 'if': 'Size > 2', says: 'Too small' } }), J([W(fW), W(fD), W(fB), W(fOk)]));
+        const m1 = { most: 2 }, m2 = { most: 3, stations: ['Pilot', 'Gunner'] }, m3 = { most: 2, stations: ['Pilot', 'Gunner'] };
+        check('1.6.3 One holds with no stations, or more than the link has, is said with what Save keeps, the cleaner agreeing; two of two says nothing',
+            J(W(m1)) === J(['link.0.stations|Link 1: One holds needs two stations or more first. Save keeps one.']) && J(W(m2)) === J(['link.0.most|Link 1: One holds is more than its 2 stations, so Save keeps 2.']) && J(W(m3)) === '[]'
+            && kept(m1).most === undefined && kept(m2).most === 2 && kept(m3).most === 2, J([W(m1), W(m2), W(m3)]));
+        const pN = { press: true, pressNamed: true }, pS = Object.assign({ stations: ['Pilot'] }, pN), lstR = [{ id: 'f_g', key: 'Guns', kind: 'item-list', list: { rolls: [{ label: 'Fire', formula: '1d6', stations: ['PILOT'] }] } }];
+        check('1.6.3 Only rolls that name a station with no station, or with no roll naming one, is said: its crew could press no roll. A system roll or a list\u2019s roll naming a station in any case says nothing, and a caller that hands in no rolls is answered as before',
+            J(W(pN, [])) === J(['link.0.stations|Link 1: Only rolls that name a station needs a station in Stations first, or its crew can press no roll.'])
+            && J(W(pS, [{ id: 'r_1', formula: '1d6', stations: ['Gunner'] }])) === J(['link.0.pressnamed|Link 1: no roll names Pilot among its stations, so with Only rolls that name a station ticked its crew can press no roll.'])
+            && J(W(pS, [{ id: 'r_1', formula: '1d6', stations: ['pilot'] }])) === '[]' && J(W(pS, [], lstR)) === '[]' && J(W(pS)) === '[]', J([W(pN, []), W(pS, []), W(pS, [], lstR)]));
+        const many = Array.from({ length: S.cleanLinks([{ id: 'lk_v', key: 'V', kind: 'crew', stations: Array.from({ length: 200 }, (x, i) => 'S' + i) }], F)[0].stations.length + 1 }, (x, i) => 'S' + i), wMany = W({ stations: many });
+        check('1.6.3 stations past what the cleaner keeps are said by the cleaner\u2019s own count, never a figure of the editor\u2019s own, and a station of the wrong shape as before',
+            J(wMany) === J(['link.0.stations|Link 1: Save keeps the first ' + (many.length - 1) + ' stations and drops ' + many[many.length - 1] + '.']) && J(W({ stations: ['Pilot', 'max', '9x'] })) === J(['link.0.stations|Link 1: a station is a key of letters, digits and underscores, starting with a letter, once each, never count, max, min, sum or has. Save drops max, 9x.']), J(wMany));
+        // renderLinks on a page of plain objects: One holds stands only beside two stations or more
+        const nodeR = (tag, cls, text) => ({ tag, cls: cls || '', text, children: [], dataset: {}, style: {}, appendChild(c) { this.children.push(c); return c; }, set textContent(v) { this.children = []; } });
+        const allR = (n, out) => { out = out || []; out.push(n); (n.children || []).forEach(c => allR(c, out)); return out; };
+        const drawL = k => { const box = nodeR('div'), dr = { links: [Object.assign({ id: 'lk_v', key: 'Vehicle', kind: 'crew' }, k)] };
+            new Function('draft', 'ui', 'el', 'input', 'labeledSelect', 'checkLabel', 'errorCell', 'LIMITS', 'explainBox', 'segPut', kit.cut('sheetlinkbox.js', 'var LINK_KIND_OPTS = ', 'function onLinkInput(') + '\nrenderLinks();')(dr, () => box, nodeR, cls => nodeR('input', cls), cls => nodeR('label', cls), cls => nodeR('label', cls), () => nodeR('div'), S.LIMITS, undefined, undefined);
+            return allR(box).some(n => /sys-link-most/.test(n.cls)); };
+        check('1.6.3 One holds stands only once the link names two stations or more, and the stored figure is kept in the draft either way', drawL({ stations: ['Pilot', 'Gunner'] }) === true && drawL({ stations: ['Pilot'] }) === false && drawL({ most: 2 }) === false && drawL({ stations: ['Pilot', ' '] }) === false);
+    }
+
     await T.finish();
 })();

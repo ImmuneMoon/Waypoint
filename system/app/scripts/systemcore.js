@@ -5411,7 +5411,7 @@ var _linkSeatCore = linkSeatCore(), crewHost = _linkSeatCore.crewHost, linkedFro
 var TAG_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, TAGS_MAX = 12, TAG_FX = 8, MAP_TAGS_MAX = 200, TAG_TOK = /^[A-Za-z0-9_-]{1,64}$/, _tagSrc = null, _tagSink = null;
 function cleanTags(raw, gmView) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, TAGS_MAX * 4).forEach(function(m) { if (out.length >= TAGS_MAX || !isObj(m) || typeof m.key !== 'string') return; var k = m.key.trim(); if (!TAG_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var o = { key: k, label: cutText(m.label, LIMITS.label) || k }; if (m.fight === true) o.fight = true; if (m.turn === true) o.turn = true;
+    raw.slice(0, TAGS_MAX * 4).forEach(function(m) { if (out.length >= TAGS_MAX || !isObj(m) || typeof m.key !== 'string') return; var k = m.key.trim(); if (!TAG_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var o = { key: k, label: cutText(m.label, LIMITS.label) || 'A mark' };   /* 1.6.3: a mark with no name shows a generic word, never its key */ if (m.fight === true) o.fight = true; if (m.turn === true) o.turn = true;
         if (gmView) {
             if (m.sight === true) o.sight = true; var kp = typeof m.keep === 'string' ? m.keep.trim().slice(0, LIMITS.formula) : ''; if (kp) o.keep = kp;
             if ((o.sight || o.keep) && (m.check === 'move' || m.check === 'turn')) o.check = m.check;
@@ -5867,7 +5867,7 @@ function cleanResults(v, gmView) {
             }
             rows.push(x);
         });
-        if (!rows.length) return; seen[lower(key)] = 1; var o = { key: key, label: cutText(t.label, LIMITS.label) || key, dice: dice, rows: rows }; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
+        if (!rows.length) return; seen[lower(key)] = 1; var o = { key: key, label: cutText(t.label, LIMITS.label) || 'A result table', dice: dice, rows: rows }; /* 1.6.3: a table with no name shows a generic word, never its key */ if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
     });
     return res;
 }
@@ -5925,10 +5925,11 @@ function testFormula(t, key) {
     if (t.shape === 'plus') return t.dice + ' + ' + key + (t.target ? ' >= (' + t.target + ')' : '');
     return t.dice + ' <= ' + key;
 }
+// 1.6.3 (Fulllion's rulings of 2026-11-20, "none isn't a good default substitution"): a value with no name shows A shared value, never its key
 function cleanValues(v, gmView) {
     var res = [], seen = map(), num = function(x) { return typeof x === 'number' && fin(x) ? clampNum(x, -LIMITS.statAbs, LIMITS.statAbs) : undefined; }; (Array.isArray(v) ? v : []).slice(0, VALUES_MAX * 4).forEach(function(t) {
         if (res.length >= VALUES_MAX || !isObj(t) || (t.vis === 'gm' && !gmView)) return; var key = tableKeyOk(t.key, TABLE_KEY); if (!key || seen[lower(key)]) return; seen[lower(key)] = 1;
-        var o = { key: key, label: cutText(t.label, LIMITS.label) || key }, mn = num(t.min), mx = num(t.max), st = num(t.start); if (mn !== undefined) o.min = mn; if (mx !== undefined && (mn === undefined || mx >= mn)) o.max = mx; if (st !== undefined) o.start = st; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
+        var o = { key: key, label: cutText(t.label, LIMITS.label) || 'A shared value' }, mn = num(t.min), mx = num(t.max), st = num(t.start); if (mn !== undefined) o.min = mn; if (mx !== undefined && (mn === undefined || mx >= mn)) o.max = mx; if (st !== undefined) o.start = st; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
     });
     return res;
 }

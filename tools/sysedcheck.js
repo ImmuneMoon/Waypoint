@@ -1887,5 +1887,25 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
                 J([picks(gP), picks(pP), offL, offN, offBare, eg, msgs('errors'), msgs('warnings'), wL, wN]));
         }
     }
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules": "it makes sense to have fields be required when other fields depend on them", "none isn't a good
+    // default substitution"): an emptied tab label and band group name are said under their box (sysedlayout.js layoutNameErrs, run for real), and a Handbook
+    // link with no page, or a page that is gone, says so on its place (linkPageSays, run for real)
+    {
+        const lyS = require('./checkkit').part('sysedlayout.js'), cutL3 = (a, b) => lyS.slice(lyS.indexOf(a), lyS.indexOf(b, lyS.indexOf(a)));
+        const nameErrs = dr => { const eb = { 'plc:x': 1, 'tablbl:sheet:old': 1 }; new Function('draft', 'errorsById', cutL3('function layoutNameErrs(', '// 1.6.3 (lane B batch "rules"): what a Handbook link') + '\nlayoutNameErrs();')(dr, eb); return eb; };
+        const eL = nameErrs({ sheet: { tabs: [{ id: 't_a', label: 'Main' }, { id: 't_b', label: '  ' }], hud: { tabs: [{ id: 't_h', label: '' }] }, bandGroups: [{ id: 'g_1', label: 'Points' }, { id: 'g_2' }] } });
+        check('1.6.3 an emptied tab label, on the sheet and on the HUD, and a band group with no name are each said under their box, landing on it; a filled one says nothing, and the old lines of the kind go first',
+            j(eL) === j({ 'plc:x': 1, 'tablbl:sheet:t_b': [{ message: 'A tab needs a label. Until it has one, the sheet shows Tab.', prop: 'tab.label.1' }], 'tablbl:hud:t_h': [{ message: 'A tab needs a label. Until it has one, the HUD shows Tab.', prop: 'tab.label.0' }], 'grplbl:g_2': [{ message: 'A group needs a name. Until it has one, its Pin button says Pin Group.', prop: 'group.label.1' }] })
+            && j(nameErrs({ sheet: { tabs: [{ id: 't_a', label: 'Main' }] } })) === j({ 'plc:x': 1 }) && j(nameErrs(null)) === j({ 'plc:x': 1 }), j(eL));
+        const pages = [['p_1', 'Rules']], lkSays = new Function('pageOptions', cutL3('function linkPageSays(', '// The ticks under a place') + '\nreturn linkPageSays;')((cur, none) => none === null ? pages : [['', none]].concat(pages));
+        check('1.6.3 a Handbook link with no page, or a page that is gone, says so on its place; one with a page says nothing, nor does any other place',
+            lkSays({ kind: 'link', page: '' }) === 'Pick a page, since until then this button shows on no sheet.' && lkSays({ kind: 'link', page: 'p_9' }) === 'This page is gone. Pick another, since until then this button shows on no sheet.' && lkSays({ kind: 'link', page: 'p_1' }) === '' && lkSays({ kind: 'roll' }) === '');
+        const tbs = require('./checkkit').part('sysedtabs.js'), uiS = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8');
+        check('1.6.3 the lines are drawn under their boxes and follow the typing, and a press on one goes to the Layout tab and its box',
+            lyS.includes("var tbErr = 'tablbl:' + layoutView + ':' + tb.id, tbEc = errorCell(tbErr); tbEc.dataset.errFor = tbErr; tmain.appendChild(tbEc);") && lyS.includes("var grErr = 'grplbl:' + g.id, grEc = errorCell(grErr); grEc.dataset.errFor = grErr; gr.appendChild(grEc);") && lyS.includes("if (lkSay) pr.appendChild(el('span', 'sys-warn-line', lkSay));")
+            && lyS.includes("if (typeof layoutNameErrs === 'function') layoutNameErrs();") && /tb0\.label = t\.value\.slice\(0, LIMITS\.label\); markDirty\(\); renderPreview\(\); if \(typeof patchErrors === 'function'\) patchErrors\(\);/.test(lyS)
+            && tbs.includes("if (/^(?:plc|tablbl|grplbl):/.test(id)) return { tab: 'layout', name: 'Layout' };") && uiS.includes("[/^tab\\.label\\.(\\d+)$/, ['sys-tab-label']], [/^group\\.label\\.(\\d+)$/, ['sys-bgrp-label']]"));
+    }
+
     await T.finish();
 })();

@@ -239,7 +239,7 @@ function errWhere(id) {
     if ((x = one(draft.rolls))) return { tab: 'rolls', kind: 'rolls', row: id, name: 'Roll ' + (x.label || '') };
     if ((x = one(draft.items))) return { tab: 'items', kind: 'items', row: id, name: 'Item ' + (x.name || '') };
     if ((x = one(draft.effects))) return { tab: 'effects', kind: 'effects', row: id, name: 'Effect ' + (x.name || '') };
-    if (/^plc:/.test(id)) return { tab: 'layout', name: 'Layout' };
+    if (/^(?:plc|tablbl|grplbl):/.test(id)) return { tab: 'layout', name: 'Layout' };   // 1.6.3: a tab's label and a band group's name stand in the Layout tab too
     if (id === 'calendar') return { tab: 'calendar', name: 'Calendar' };
     var t = U && U.topicOf(id); return t ? { tab: t[0], set: t[0], topic: t[1], name: (t[0] === 'combat' ? 'Combat, ' : 'Rules, ') + U.topicName(t[0], t[1]) } : null;
 }

@@ -621,46 +621,60 @@ function refreshErrors() {
     // item 20 K1: what Save drops or changes of the calendar, said under the Calendar tab — each name read by calendarcore cleanCalendar itself
     var calE = draft.calendar && typeof draft.calendar === 'object' && !Array.isArray(draft.calendar) ? draft.calendar : null, cErr = [];
     if (calE) {
-        var cWh = function(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; }, cPs = Array.isArray(calE.periods) ? calE.periods : [], cWk = Array.isArray(calE.week) ? calE.week : [], cOkP = Object.create(null), cOkW = Object.create(null), cKp = 0, cKw = 0;
-        cPs.forEach(function(p, i) {
-            var nm = 'Period ' + (i + 1), q = p && typeof p === 'object' ? p : {};
-            if (!cleanCalendar({ periods: [{ name: q.name, days: 1 }] })) cErr.push({ message: nm + ' needs a name: Save drops it.' });
-            else if (!cWh(q.days, 1, CAL_LIMITS.periodDays)) cErr.push({ message: nm + ': its days are a whole number from 1 to ' + CAL_LIMITS.periodDays + ': Save drops it.' });
-            else if (cKp >= CAL_LIMITS.periods) cErr.push({ message: nm + ': at most ' + CAL_LIMITS.periods + ', so Save drops it.' });
-            else { cOkP[i] = 1; cKp++; }
+        var cWh = function(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; };
+        // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules"): the checks a calendar's own periods, weekdays, Day 1 and leap rules take. The
+        // cleaner reads another calendar (Calendar 2 to 5) by the very same rules, so each is judged here too, its name before every line. pre: '' for
+        // the main calendar, whose lines stay word for word; main: true for the main one alone, which has the hours of a day and the other calendars
+        // (between, run between its first leap rule and the rest, so its lines keep their old order). cOkP, cOkW and cKp are each calendar's own, so a leap
+        // rule is judged against the periods its own calendar keeps
+        var calChecks = function(c, pre, main, between) {
+            var cPs = Array.isArray(c.periods) ? c.periods : [], cWk = Array.isArray(c.week) ? c.week : [], cOkP = Object.create(null), cOkW = Object.create(null), cKp = 0, cKw = 0, say = function(m) { cErr.push({ message: pre + m }); };
+            cPs.forEach(function(p, i) {
+                var nm = 'Period ' + (i + 1), q = p && typeof p === 'object' ? p : {};
+                if (!cleanCalendar({ periods: [{ name: q.name, days: 1 }] })) say(nm + ' needs a name: Save drops it.');
+                else if (!cWh(q.days, 1, CAL_LIMITS.periodDays)) say(nm + ': its days are a whole number from 1 to ' + CAL_LIMITS.periodDays + ': Save drops it.');
+                else if (cKp >= CAL_LIMITS.periods) say(nm + ': at most ' + CAL_LIMITS.periods + ', so Save drops it.');
+                else { cOkP[i] = 1; cKp++; }
+            });
+            cWk.forEach(function(w, i) {
+                if (!cleanCalendar({ week: [w] })) say('Weekday ' + (i + 1) + ' needs a name: Save drops it.');
+                else if (cKw >= CAL_LIMITS.week) say('Weekday ' + (i + 1) + ': at most ' + CAL_LIMITS.week + ', so Save drops it.');
+                else { cOkW[i] = 1; cKw++; }
+            });
+            if (typeof c.first === 'number' && c.first > 0 && !cOkW[c.first]) say('Day 1\u2019s weekday is dropped, so Save starts the week at the first weekday it keeps.');
+            if (main) [['hours', 'Hours a day', CAL_LIMITS.hours, 24], ['minutes', 'Minutes an hour', CAL_LIMITS.minutes, 60], ['seconds', 'Seconds a minute', CAL_LIMITS.seconds, 60]].forEach(function(g) {
+                if (c[g[0]] !== undefined && !cWh(c[g[0]], 1, g[2])) say(g[1] + ': a whole number from 1 to ' + g[2] + ', so Save keeps ' + g[3] + '.');
+            });
+            if (c.one !== undefined && !cWh(c.one, -CAL_LIMITS.year, CAL_LIMITS.year)) say('Day 1\u2019s year: a whole number within 10,000,000 either way, so Save keeps 1.');
+            var cLp = c.leap && typeof c.leap === 'object' && !Array.isArray(c.leap) ? c.leap : null;
+            if (cLp) {
+                if (!cKp) say('Leap years: add a period first, or Save drops the rule.');
+                else if (!cWh(cLp.every, 2, CAL_LIMITS.leapEvery)) say('Leap years: every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops the rule.');
+                else if (!cWh(cLp.from, -CAL_LIMITS.year, CAL_LIMITS.year)) say('Leap years: the year it counts from is a whole number within 10,000,000 either way, or Save drops the rule.');
+                else if (!cWh(cLp.days, 1, CAL_LIMITS.leapDays)) say('Leap years: 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops the rule.');
+                else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) say('Leap years: the period that gains the days is dropped, so Save drops the rule.');
+            }
+            if (typeof between === 'function') between();
+            (Array.isArray(c.leaps) ? c.leaps : []).forEach(function(r0, k) {   // 1.6.2 (backlog 60): each rule beside the first, read as cleanCalendar reads it
+                var r = r0 && typeof r0 === 'object' ? r0 : {}, nm = 'Leap rule ' + (k + (cLp ? 2 : 1)), tu = Array.isArray(r.periods) ? r.periods : [];
+                if (!cKp) say(nm + ': add a period first, or Save drops it.');
+                else if (k >= CAL_LIMITS.leaps) say(nm + ': at most ' + CAL_LIMITS.leaps + ' rules beside the first, so Save drops it.');
+                else if (!cWh(r.every, 2, CAL_LIMITS.leapEvery)) say(nm + ': every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops it.');
+                else if (!cWh(r.from, -CAL_LIMITS.year, CAL_LIMITS.year)) say(nm + ': the year it counts from is a whole number within 10,000,000 either way, or Save drops it.');
+                else if (!cWh(r.days, 1, CAL_LIMITS.leapDays)) say(nm + ': 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops it.');
+                else { var kept = tu.slice(0, CAL_LIMITS.leapTurns).filter(function(p) { return typeof p === 'number' && cOkP[p]; }).length; if (!kept) say(nm + ': every period it gives its days to is dropped, so Save drops it.'); else if (kept < tu.length) say(nm + ': a period in its turns is dropped, so Save leaves it out of the turns.'); }
+            });
+        };
+        var calOthers = [];
+        calChecks(calE, '', true, function() {
+            (Array.isArray(calE.others) ? calE.others : []).forEach(function(o, k) {   // 1.6.2 (backlog 60): another calendar keeps its name, and four at most
+                var q = o && typeof o === 'object' ? o : {};
+                if (k >= CAL_LIMITS.others) cErr.push({ message: 'Calendar ' + (k + 2) + ': at most ' + CAL_LIMITS.others + ' other calendars, so Save drops it.' });
+                else if (!cleanCalendar({ others: [{ name: q.name }] })) cErr.push({ message: 'Calendar ' + (k + 2) + ' needs a name: Save drops it.' });
+                else calOthers.push([q, k]);   // a calendar Save keeps: its own periods, weekdays and leap rules are judged below
+            });
         });
-        cWk.forEach(function(w, i) {
-            if (!cleanCalendar({ week: [w] })) cErr.push({ message: 'Weekday ' + (i + 1) + ' needs a name: Save drops it.' });
-            else if (cKw >= CAL_LIMITS.week) cErr.push({ message: 'Weekday ' + (i + 1) + ': at most ' + CAL_LIMITS.week + ', so Save drops it.' });
-            else { cOkW[i] = 1; cKw++; }
-        });
-        if (typeof calE.first === 'number' && calE.first > 0 && !cOkW[calE.first]) cErr.push({ message: 'Day 1\u2019s weekday is dropped, so Save starts the week at the first weekday it keeps.' });
-        [['hours', 'Hours a day', CAL_LIMITS.hours, 24], ['minutes', 'Minutes an hour', CAL_LIMITS.minutes, 60], ['seconds', 'Seconds a minute', CAL_LIMITS.seconds, 60]].forEach(function(g) {
-            if (calE[g[0]] !== undefined && !cWh(calE[g[0]], 1, g[2])) cErr.push({ message: g[1] + ': a whole number from 1 to ' + g[2] + ', so Save keeps ' + g[3] + '.' });
-        });
-        if (calE.one !== undefined && !cWh(calE.one, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: 'Day 1\u2019s year: a whole number within 10,000,000 either way, so Save keeps 1.' });
-        var cLp = calE.leap && typeof calE.leap === 'object' && !Array.isArray(calE.leap) ? calE.leap : null;
-        if (cLp) {
-            if (!cKp) cErr.push({ message: 'Leap years: add a period first, or Save drops the rule.' });
-            else if (!cWh(cLp.every, 2, CAL_LIMITS.leapEvery)) cErr.push({ message: 'Leap years: every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops the rule.' });
-            else if (!cWh(cLp.from, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: 'Leap years: the year it counts from is a whole number within 10,000,000 either way, or Save drops the rule.' });
-            else if (!cWh(cLp.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: 'Leap years: 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops the rule.' });
-            else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) cErr.push({ message: 'Leap years: the period that gains the days is dropped, so Save drops the rule.' });
-        }
-        (Array.isArray(calE.others) ? calE.others : []).forEach(function(o, k) {   // 1.6.2 (backlog 60): another calendar keeps its name, and four at most
-            var q = o && typeof o === 'object' ? o : {};
-            if (k >= CAL_LIMITS.others) cErr.push({ message: 'Calendar ' + (k + 2) + ': at most ' + CAL_LIMITS.others + ' other calendars, so Save drops it.' });
-            else if (!cleanCalendar({ others: [{ name: q.name }] })) cErr.push({ message: 'Calendar ' + (k + 2) + ' needs a name: Save drops it.' });
-        });
-        (Array.isArray(calE.leaps) ? calE.leaps : []).forEach(function(r0, k) {   // 1.6.2 (backlog 60): each rule beside the first, read as cleanCalendar reads it
-            var r = r0 && typeof r0 === 'object' ? r0 : {}, nm = 'Leap rule ' + (k + (cLp ? 2 : 1)), tu = Array.isArray(r.periods) ? r.periods : [];
-            if (!cKp) cErr.push({ message: nm + ': add a period first, or Save drops it.' });
-            else if (k >= CAL_LIMITS.leaps) cErr.push({ message: nm + ': at most ' + CAL_LIMITS.leaps + ' rules beside the first, so Save drops it.' });
-            else if (!cWh(r.every, 2, CAL_LIMITS.leapEvery)) cErr.push({ message: nm + ': every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops it.' });
-            else if (!cWh(r.from, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: nm + ': the year it counts from is a whole number within 10,000,000 either way, or Save drops it.' });
-            else if (!cWh(r.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: nm + ': 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops it.' });
-            else { var kept = tu.slice(0, CAL_LIMITS.leapTurns).filter(function(p) { return typeof p === 'number' && cOkP[p]; }).length; if (!kept) cErr.push({ message: nm + ': every period it gives its days to is dropped, so Save drops it.' }); else if (kept < tu.length) cErr.push({ message: nm + ': a period in its turns is dropped, so Save leaves it out of the turns.' }); }
-        });
+        calOthers.forEach(function(qk) { calChecks(qk[0], (typeof qk[0].name === 'string' && qk[0].name.trim() ? qk[0].name.trim() : 'Calendar ' + (qk[1] + 2)) + ': ', false); });
     }
     if (calE) {   // 1.6.2 (backlog 147): a season and a moon, read by calendarcore cleanCalendar itself
         (Array.isArray(calE.seasons) ? calE.seasons : []).forEach(function(s, i) {
@@ -943,9 +957,10 @@ function refreshErrors() {
         });
     });
     if (bErr.length) errorsById.budgets = bErr;
-    var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F()) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
+    var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F(), draft.rolls) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
     if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
     if (typeof tableSays === 'function') { var tbSy = tableSays(draft.tables); if (tbSy.errs.length) errorsById.tables = tbSy.errs; }   // 1.6.0: what Save drops of the tables, as the cleaner reads them
+    if (typeof rulesSays === 'function') { var ruS = rulesSays(draft); Object.keys(ruS).forEach(function(id) { if (ruS[id].length) errorsById[id] = (errorsById[id] || []).concat(ruS[id]); }); }   // 1.6.3 (lane B batch "rules"): the Rules tab's names and result tables
     if (typeof defendSays === 'function') { var dfS = defendSays(draft.combat && draft.combat.blast && draft.combat.blast.defend, draft.rolls, draft.combat, draft.fields); if (dfS.errs.length) errorsById.blastdefend = dfS.errs; if (dfS.warns.length) warningsById.blastdefend = dfS.warns; }   // 1.6.0: what Save drops of a blast's own Defense roll, as the cleaner reads it
     if (typeof coverHitSays === 'function') { var cvS = coverHitSays(draft.combat && draft.combat.cover, draft.combat, F()); if (cvS.errs.length) errorsById.coverhit = cvS.errs; if (cvS.warns.length) warningsById.coverhit = cvS.warns; }   // 1.6.0: what Save drops of where a hit behind cover lands, as the cleaner reads it
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
@@ -1068,6 +1083,38 @@ function listCleanSays(f, cf) {
     }
     var lk = sp.look && typeof sp.look === 'object' ? sp.look : null;
     if (lk && has(lk, 'by') && cl.look && !(Array.isArray(cl.look.shades) && cl.look.shades.length)) say('list.lkshades', 'Shade by is picked, but Shades holds no line Save keeps, so no row takes a shade. Give each value of that stat a line, such as Steel = #8a8f99.');
+    return out;
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules": "it makes sense to have fields be required when other fields depend on them", "none
+// isn't a good default substitution"): what the Rules tab's boxes still need, read from the draft as the cleaners read it. A shared value, a mark, a
+// currency and a result table keep their name for cards, trackers, the map and the trade window, and Save shows a generic word where it is empty. A sheet
+// category with no name is dropped with its rule. A result table needs its dice and a row, and a row its From (and a To not below it); a random add
+// narrowed by a stat needs a bound. Answers { id: [{ message, prop }] } for errorsById, each prop landing on its box (sysui PROP_BOX, boxIn). Nothing here
+// holds Save, and the cleaners are as they were. Called from refreshErrors
+function rulesSays(dr) {
+    var out = { values: [], tags: [], money: [], results: [], charcats: [] }, d = dr && typeof dr === 'object' ? dr : {}, nm0 = function(x) { return !!x && typeof x === 'object' && typeof x.label === 'string' && x.label.trim() ? x.label.trim() : ''; };
+    var cft = typeof cleanFormulaText === 'function' ? cleanFormulaText : function(v) { return typeof v === 'string' ? v.trim() : ''; }, isNum = function(v) { return typeof v === 'number' && isFinite(v); };
+    [['values', d.values, 'Shared value', 'cards and trackers show', 'A shared value'], ['tags', d.tags, 'Mark', 'the map and cards show', 'A mark'], ['money', d.currencies, 'Currency', 'the sheet and the trade window show', 'A currency']].forEach(function(g) {
+        (Array.isArray(g[1]) ? g[1] : []).forEach(function(x, i) { if (x && typeof x === 'object' && !nm0(x)) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': it needs a name, which ' + g[3] + '. Until it has one, they show ' + g[4] + '.', prop: g[0] + '.label.' + i }); });
+    });
+    (Array.isArray(d.charCats) ? d.charCats : []).forEach(function(x, i) { if (x && typeof x === 'object' && !nm0(x)) out.charcats.push({ message: 'Category ' + (i + 1) + ': it needs a name. Until it has one, Save drops it and its rule, and sheets filed under it by hand go back to no category.', prop: 'charcats.label.' + i }); });
+    (Array.isArray(d.results) ? d.results : []).forEach(function(t, i) {
+        if (!t || typeof t !== 'object') return; var nm = nm0(t) || 'Result table ' + (i + 1), rows = Array.isArray(t.rows) ? t.rows.slice(0, 200) : [], kept = 0, rowSaid = false;   // 200: the rows the cleaner reads (systemcore RES_ROWS)
+        if (!nm0(t)) out.results.push({ message: nm + ': it needs a name, which cards show. Until it has one, they show A result table.', prop: 'results.label.' + i });
+        if (!cft(t.dice)) out.results.push({ message: nm + ': it needs Dice, what rolls on it, such as 1d20. Until it has them, Save drops the table and every row.', prop: 'results.dice.' + i });
+        rows.forEach(function(r, j) {
+            if (!r || typeof r !== 'object') return; var at = nm + ', row ' + (j + 1) + ': ';
+            if (!isNum(r.lo)) { out.results.push({ message: at + 'it needs From. Until it has one, Save drops the row and what it does.', prop: 'results.' + i + '.' + j + '.lo' }); rowSaid = true; }
+            else if (isNum(r.hi) && Math.floor(r.hi) < Math.floor(r.lo)) { out.results.push({ message: at + 'To is below From, so Save drops the row and what it does.', prop: 'results.' + i + '.' + j + '.hi' }); rowSaid = true; }
+            else kept++;
+            var ad = r.add && typeof r.add === 'object' ? r.add : null;
+            if (ad && typeof ad.cat === 'string' && ad.cat.trim() && typeof ad.stat === 'string' && ad.stat && !isNum(ad.least) && !isNum(ad.most)) {
+                var lf = (Array.isArray(d.fields) ? d.fields : []).filter(function(f) { return !!f && f.id === ad.list && !!f.list; })[0], st = lf && Array.isArray(lf.list.stats) ? lf.list.stats.filter(function(s) { return !!s && s.key === ad.stat; })[0] : null;
+                out.results.push({ message: at + 'give At least or At most for Where ' + (st && st.label ? st.label : 'its stat') + ', or Save drops it and the draw takes any ' + ad.cat.trim() + '.', prop: 'results.' + i + '.' + j + '.addstat' });
+            }
+        });
+        if (!kept && !rowSaid) out.results.push({ message: nm + ': it needs a row. Until it has one, Save drops the table.', prop: 'results.rows.' + i });
+    });
     return out;
 }
 // [split:body-end]

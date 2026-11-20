@@ -4636,6 +4636,7 @@
   @media (prefers-reduced-motion: reduce) { .sheet-fan .sheet-item { transition: none; } }
   .dk-head, .dk-card { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
   .dk-card .dk-name { flex: 1 1 160px; min-width: 120px; }
+  .dk-head > .dk-need, .dk-card > .dk-need { flex: 1 0 100%; font-size: 12px; }   /* 1.6.3: the line under a name a deck needs takes its own line */
   .dk-card input[type="number"] { width: 64px; }
   .dk-pic { max-width: 26px; max-height: 26px; border-radius: 3px; }
   .dk-count { color: var(--muted); font-size: 12px; }

@@ -1080,6 +1080,16 @@ const j = v => JSON.stringify(v);
             && none.cats === undefined && J(none.players.map(r => r.name)) === J(['Kael', 'Rex']) && J(none.npcs.map(r => r.name)) === J(['Ox']),
             J([cc, P.charCats, rows, none]));
     }
+    {   // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules": "it makes sense to have fields be required when other fields depend on them"): a sheet
+        // category with no name is dropped with its rule, so + Category starts named and an emptied name is said under the box (refreshErrors, run for real)
+        const reCc = require('./checkkit').cutEnd('sysederr.js', 'function refreshErrors('), errCc = more => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'var errorsById = {}, warningsById = {};\n' + reCc + '\nrefreshErrors(); return errorsById;')(Object.assign(S.emptySystem(), { name: 'E', fields: [], items: [], effects: [] }, more), () => F, S.validKey, S.KINDS, S.cleanItemKey, cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => null, c => c && c.system && typeof c.system === 'object' ? c.system : null);
+        const sCc = (errCc({ charCats: [{ label: 'Beasts' }, { label: ' ', 'if': '1 > 0' }] }).charcats || []).map(e => e.prop + '|' + e.message), cmb = require('./checkkit').part('sysedcombat.js'), nameCc = new Function(require('./checkkit').cut('sysedcombat.js', 'function ruleName(', 'function tableBtn(') + '\nreturn ruleName;')();
+        check('1.6.3 a sheet category with no name is said under the box and lands on its name, a named one says nothing, the cleaner drops it with its rule; + Category starts named and the line follows the name as it is typed',
+            j(sCc) === j(['charcats.label.1|Category 2: it needs a name. Until it has one, Save drops it and its rule, and sheets filed under it by hand go back to no category.']) && !(errCc({ charCats: [{ label: 'Beasts' }] }).charcats)
+            && j(S.cleanCharCats([{ label: ' ', 'if': '1 > 0' }], F)) === 'null' && nameCc([{ label: 'Category 1' }], 'Category') === 'Category 2'
+            && cmb.includes("a2.push({ label: typeof ruleName === 'function' ? ruleName(a2, 'Category') : 'Category ' + (a2.length + 1) })") && cmb.includes("var errC = errorCell('charcats'); errC.dataset.errFor = 'charcats';") && /else return; markDirty\(\); if \(typeof patchErrors === 'function'\) patchErrors\(\); \}\);/.test(cmb)
+            && require('fs').readFileSync(require('path').join(app, 'scripts', 'sysui.js'), 'utf8').includes("charcats: ['rules', 'cats']"), j(sCc));
+    }
     {   // 1.6.2 (backlog 164 i; the owner, by prompt: "Name or entry key"): holds(List, Field), a list holds a row named by a field's words
         const J = JSON.stringify, sH = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_c', key: 'Culture', kind: 'text' }, { id: 'f_l', key: 'Cultures', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'x' }] } },
             { id: 'f_ok', key: 'Ok', kind: 'formula', formula: 'holds(Cultures, Culture) + holds(Cultures, "zabrak  clans") * 10 + holds(Cultures, "nope") * 100' }, { id: 'f_bad', key: 'Bad', kind: 'formula', formula: 'Cultures + 1' }],

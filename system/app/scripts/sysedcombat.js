@@ -303,6 +303,10 @@ function envSays(env, fields, F0, gmNames) {   // what Save does with each readi
 var TABLE_VIS_OPTS = [['', 'Everyone'], ['gm', 'The GM alone']];
 function tablesDraft() { return Array.isArray(draft.tables) ? draft.tables : (draft.tables = []); }
 function tableFresh(list, word) { var has = function(k) { return list.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === k; }); }, n = list.length + 1; while (has(word + n)) n++; return word + n; }
+// 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", "none isn't a good
+// default substitution"): the name a new row of the Rules tab starts with, the word and the first number from the list's length up that no row's
+// name holds yet, ignoring case (Mark 2, Currency 3). The name is what cards, trackers and the map show, so a row is never born nameless
+function ruleName(list, word) { var has = function(t) { return (list || []).some(function(x) { return !!x && typeof x.label === 'string' && x.label.trim().toLowerCase() === t.toLowerCase(); }); }, n = (list || []).length + 1; while (has(word + ' ' + n)) n++; return word + ' ' + n; }
 function tableBtn(text, act, title) { var b = el('button', 'tool ghost sys-btn', text); b.dataset.act = act; b.title = title; return b; }
 // 1.6.2 (G7): the Rules tab's Result tables. A key is made once and never shown. Its own listeners
 // 1.6.2 (G8): the Rules tab's Shared values. The definition is the system's, and Now is this campaign's own figure. Its own listeners
@@ -388,8 +392,8 @@ function renderTags() {
         if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(fxS);
         r3.appendChild(fxS); wrap.appendChild(r3);
     });
-    var add = el('button', 'tool ghost sys-btn sys-tag-add', '+ Mark'); add.type = 'button'; add.title = 'A mark one token may hold on another'; add.addEventListener('click', function() { draft.tags = Array.isArray(draft.tags) ? draft.tags : []; if (draft.tags.length >= 12) { toast('A system holds 12 marks.'); return; } var n = 1; while (draft.tags.some(function(t) { return t && t.key === 'M' + n; })) n++; draft.tags.push({ key: 'M' + n, label: '' }); ch(true); });
-    wrap.appendChild(add); box.appendChild(wrap);
+    var add = el('button', 'tool ghost sys-btn sys-tag-add', '+ Mark'); add.type = 'button'; add.title = 'A mark one token may hold on another'; add.addEventListener('click', function() { draft.tags = Array.isArray(draft.tags) ? draft.tags : []; if (draft.tags.length >= 12) { toast('A system holds 12 marks.'); return; } var n = 1; while (draft.tags.some(function(t) { return t && t.key === 'M' + n; })) n++; draft.tags.push({ key: 'M' + n, label: ruleName(draft.tags, 'Mark') }); ch(true); });   // 1.6.3: a new mark starts named
+    wrap.appendChild(add); var errT = errorCell('tags'); errT.dataset.errFor = 'tags'; wrap.appendChild(errT); box.appendChild(wrap);   // 1.6.3: what a mark still needs, said under the box
 }
 // 1.6.2 (backlog 59; the owner, by prompt: "A system's tests, more than one"): the Rules tab's Tests, the kinds of roll a figure is tested with. A key is
 // made once and never shown. Its own listeners. What each makes is said under it, with a figure called Skill
@@ -423,7 +427,7 @@ function renderValues() {
         var capped = function(txt, x) { var l = el('label', 'sys-check'); l.appendChild(document.createTextNode(txt + ' ')); l.appendChild(x); return l; };
         [nm, capped('Least', num('sys-val-min', 'min', 'The lowest it goes. Empty: no limit', '')), capped('Most', num('sys-val-max', 'max', 'The highest it goes. Empty: no limit', '')), capped('Starts at', num('sys-val-start', 'start', 'Where it stands in a new campaign', '0')), capped('Now', nowB), vis, rm].forEach(function(x) { rw.appendChild(x); }); wrap.appendChild(rw);
     });
-    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Shared value'); add.type = 'button'; add.title = 'A number the whole table shares'; add.addEventListener('click', function() { draft.values = Array.isArray(draft.values) ? draft.values : []; var n = 1; while (draft.values.some(function(t) { return t && t.key === 'V' + n; })) n++; draft.values.push({ key: 'V' + n, label: '' }); ch(true); }); wrap.appendChild(add); box.appendChild(wrap);
+    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Shared value'); add.type = 'button'; add.title = 'A number the whole table shares'; add.addEventListener('click', function() { draft.values = Array.isArray(draft.values) ? draft.values : []; var n = 1; while (draft.values.some(function(t) { return t && t.key === 'V' + n; })) n++; draft.values.push({ key: 'V' + n, label: ruleName(draft.values, 'Shared value') }); ch(true); }); wrap.appendChild(add); var errV = errorCell('values'); errV.dataset.errFor = 'values'; wrap.appendChild(errV); box.appendChild(wrap);   // 1.6.3: a new value starts named, and an emptied name is said under the box
 }
 // 157 M1 (the owner, 2026-11-03): the Rules tab's Money, the currencies money is counted in. A key is made once and never shown. Its own listeners
 function renderCurrencies() {
@@ -451,7 +455,7 @@ function renderCurrencies() {
     trI.addEventListener('change', function() { if (trI.checked) draft.trading = Object.assign({}, draft.trading || {}, { rates: true }); else if (draft.trading) { delete draft.trading.rates; if (!Object.keys(draft.trading).length) delete draft.trading; } ch(); }); trL.appendChild(trI); trL.appendChild(document.createTextNode(' Traders set buy and sell prices'));   // 157 M1c
     var chL = el('label', 'sys-check sys-trade-change'), chI = el('input'); chI.type = 'checkbox'; chI.checked = !!(draft.trading && draft.trading.change === true); chL.title = 'Where a side pays more than it gets, the trade window says the change owed, or that the other side cannot give it from what it holds, and the payer may overpay. Off: change is never judged';
     chI.addEventListener('change', function() { if (chI.checked) draft.trading = Object.assign({}, draft.trading || {}, { change: true }); else if (draft.trading) { delete draft.trading.change; if (!Object.keys(draft.trading).length) delete draft.trading; } ch(); }); chL.appendChild(chI); chL.appendChild(document.createTextNode(' Traders make change'));   // 157 M1d
-    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Currency'); add.type = 'button'; add.title = 'A currency your game counts money in'; add.disabled = !!list && list.length >= CUR_MAX; add.addEventListener('click', function() { draft.currencies = Array.isArray(draft.currencies) ? draft.currencies : []; var n = 1; while (draft.currencies.some(function(t) { return t && t.key === 'C' + n; })) n++; draft.currencies.push({ key: 'C' + n, label: '', worth: 1 }); ch(true); }); var xcL = el('label', 'sys-check sys-trade-xch'), xcI = el('input'); xcI.type = 'checkbox'; xcI.checked = !!(draft.trading && draft.trading.exchange === true); xcL.title = 'A trader sets what it takes each currency at, a per cent of its worth, beside the currencies it accepts in the trade window. A Separate currency may then be taken in place of money. Off: every currency at its worth';
+    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Currency'); add.type = 'button'; add.title = 'A currency your game counts money in'; add.disabled = !!list && list.length >= CUR_MAX; add.addEventListener('click', function() { draft.currencies = Array.isArray(draft.currencies) ? draft.currencies : []; var n = 1; while (draft.currencies.some(function(t) { return t && t.key === 'C' + n; })) n++; draft.currencies.push({ key: 'C' + n, label: ruleName(draft.currencies, 'Currency'), worth: 1 }); ch(true); }); /* 1.6.3: a new currency starts named */ var xcL = el('label', 'sys-check sys-trade-xch'), xcI = el('input'); xcI.type = 'checkbox'; xcI.checked = !!(draft.trading && draft.trading.exchange === true); xcL.title = 'A trader sets what it takes each currency at, a per cent of its worth, beside the currencies it accepts in the trade window. A Separate currency may then be taken in place of money. Off: every currency at its worth';
     xcI.addEventListener('change', function() { if (xcI.checked) draft.trading = Object.assign({}, draft.trading || {}, { exchange: true }); else if (draft.trading) { delete draft.trading.exchange; if (!Object.keys(draft.trading).length) delete draft.trading; } ch(); }); xcL.appendChild(xcI); xcL.appendChild(document.createTextNode(' Traders set exchange rates'));   // 157 M1e
     wrap.appendChild(add); wrap.appendChild(trL); wrap.appendChild(chL); wrap.appendChild(xcL);
     var hgD = draft.trading && draft.trading.haggle && typeof draft.trading.haggle === 'object' ? draft.trading.haggle : null, hgRolls = (Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return r && typeof r === 'object' && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply) && r.init !== true; });   // 157 M1i: haggling
@@ -468,6 +472,7 @@ function renderCurrencies() {
         var cap = function(txt, x, after) { var l = el('label', 'sys-check'); l.appendChild(document.createTextNode(txt + ' ')); l.appendChild(x); if (after) l.appendChild(document.createTextNode(' ' + after)); return l; };
         [cap('Haggle roll', hgS), cap('Each point moves', hgSt, '%'), cap('At most', hgM, '%')].forEach(function(x) { hgW.appendChild(x); }); hgW.classList.add('sys-trade-hagrow'); if (htL.parentNode === wrap) wrap.insertBefore(hgW, htL); else wrap.appendChild(hgW);   // the viewing of 2026-11-09: under its own tick, with a name
     }
+    var errM = errorCell('money'); errM.dataset.errFor = 'money'; wrap.appendChild(errM);   // 1.6.3: a currency's name it still needs, said under the box
     box.appendChild(wrap);
 }
 // 1.6.2 (G9): the Rules tab's Decks, one editor for a system's and a campaign's
@@ -506,7 +511,7 @@ function renderResults() {
         });
         var ad = el('button', 'tool ghost sys-btn', '+ Row'); ad.type = 'button'; ad.title = 'A range of the roll and what it says'; ad.addEventListener('click', function() { t.rows = Array.isArray(t.rows) ? t.rows : []; var last = t.rows[t.rows.length - 1], s = last && typeof last.hi === 'number' ? last.hi + 1 : 1; t.rows.push({ lo: s, hi: s }); ch(true); }); blk.appendChild(ad); wrap.appendChild(blk);
     });
-    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Result table'); add.type = 'button'; add.title = 'A table a roll can land on'; add.addEventListener('click', function() { draft.results = Array.isArray(draft.results) ? draft.results : []; var n = 1; while (draft.results.some(function(t) { return t && t.key === 'R' + n; })) n++; draft.results.push({ key: 'R' + n, label: '', dice: '1d6', rows: [{ lo: 1, hi: 1 }] }); ch(true); }); wrap.appendChild(add); box.appendChild(wrap);
+    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Result table'); add.type = 'button'; add.title = 'A table a roll can land on'; add.addEventListener('click', function() { draft.results = Array.isArray(draft.results) ? draft.results : []; var n = 1; while (draft.results.some(function(t) { return t && t.key === 'R' + n; })) n++; draft.results.push({ key: 'R' + n, label: ruleName(draft.results, 'Result table'), dice: '1d6', rows: [{ lo: 1, hi: 1 }] }); ch(true); }); wrap.appendChild(add); var errR = errorCell('results'); errR.dataset.errFor = 'results'; wrap.appendChild(errR); box.appendChild(wrap);   // 1.6.3: a new table starts named with its dice and a row, and what a table or a row still needs is said under the box
 }
 function renderTables() {
     var box = ui('sysTables'); if (!box) return; box.textContent = '';
@@ -566,14 +571,15 @@ function renderCharCats() {
         row.appendChild(tableBtn('\u00d7', 'ccdel', 'Remove this category')); wrap.appendChild(row);
     });
     var ad = tableBtn('+ Category', 'ccadd', arr.length >= CHAR_CATS ? 'At most ' + CHAR_CATS : 'A folder in the Characters list'); ad.disabled = arr.length >= CHAR_CATS; wrap.appendChild(ad);
+    var errC = errorCell('charcats'); errC.dataset.errFor = 'charcats'; wrap.appendChild(errC);   // 1.6.3: a category's name it still needs, said under the box
     box.appendChild(wrap);
     if (!box._ccWired) { box._ccWired = true;
         box.addEventListener('input', function(e) { var tg = e.target, rw = tg.closest ? tg.closest('.sys-cc') : null, x = rw ? charCatsDraft()[+rw.dataset.ci] : null; if (!x) return; e.stopPropagation();
-            if (tg.classList.contains('sys-cc-label')) x.label = tg.value.slice(0, 60); else if (tg.classList.contains('sys-cc-if')) { var v = tg.value.slice(0, LIMITS.formula); if (v.trim()) x['if'] = v; else delete x['if']; } else return; markDirty(); });
+            if (tg.classList.contains('sys-cc-label')) x.label = tg.value.slice(0, 60); else if (tg.classList.contains('sys-cc-if')) { var v = tg.value.slice(0, LIMITS.formula); if (v.trim()) x['if'] = v; else delete x['if']; } else return; markDirty(); if (typeof patchErrors === 'function') patchErrors(); });   // 1.6.3: the line under the box follows the name as it is typed
         box.addEventListener('change', function(e) { if (e.target && e.target.closest && e.target.closest('.sys-cc')) e.stopPropagation(); });
         box.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b || (b.dataset.act !== 'ccadd' && b.dataset.act !== 'ccdel')) return; e.stopPropagation(); var a2 = charCatsDraft();
-            if (b.dataset.act === 'ccadd') { if (a2.length < CHAR_CATS) a2.push({ label: '' }); } else { var rw2 = b.closest('.sys-cc'), i2 = rw2 ? +rw2.dataset.ci : -1; if (i2 >= 0) a2.splice(i2, 1); }
-            if (!a2.length) delete draft.charCats; markDirty(); renderCharCats(); });
+            if (b.dataset.act === 'ccadd') { if (a2.length < CHAR_CATS) a2.push({ label: typeof ruleName === 'function' ? ruleName(a2, 'Category') : 'Category ' + (a2.length + 1) }); } else { var rw2 = b.closest('.sys-cc'), i2 = rw2 ? +rw2.dataset.ci : -1; if (i2 >= 0) a2.splice(i2, 1); }   // 1.6.3: a new category starts named, since Save drops one with no name and its rule with it
+            if (!a2.length) delete draft.charCats; markDirty(); renderCharCats(); if (typeof patchErrors === 'function') patchErrors(); });
     }
 }
 // [systemcheck:charcats-end]

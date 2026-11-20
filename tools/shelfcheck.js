@@ -1900,6 +1900,16 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && JSON.stringify(rank('', false)) === JSON.stringify(['Docks']) && JSON.stringify(rank('tarn', false)) === JSON.stringify(['Hraak Tarn 2']) && rank('', true).indexOf('Kael') >= 0
         && mj.includes("if (cliK) return;   // at someone else's table") && !mj.includes("if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;") && mj.includes("if (en.kind === 'char') { if (typeof cmdkChar === 'function') cmdkChar(en, ev); return; }") && mj.includes("if (en.kind === 'char') return 'Enter opens the sheet.'"),
         JSON.stringify([gmR.map(r => r.label), plR.map(r => r.label), opened, rank('', false), rank('tarn', false)]));
+    // the review of the sheet picks: at someone else's table quick jump finds no page by its words either (cmdkRender's content search asks cmdkSolo),
+    // while the GM's list still does
+    const byWords = (q, solo) => { const list = { innerHTML: '' }, asked = [], st = { appState: { campaigns: { k1: { id: 'k1', name: 'Camp' } } } }, ents = plR.slice();
+        const W = { wpDocSearch: (raw, c) => { asked.push(c.id); return [{ id: 'p9', type: 'doc', title: 'Harbor gossip', snippet: 'Kael was seen' }]; } };
+        const got = new Function('state', 'window', 'document', 'esc', 'cmdkHintSync', 'cmdkSolo', 'var _cmdkEntries = ' + JSON.stringify(ents) + ', _cmdkShown = [], _cmdkIdx = 0;\n' + sliceOf(mj, 'cmdkrows') + '\nreturn function(q) { cmdkRender(q); return _cmdkShown.map(function(e) { return e.kind + ":" + e.label; }); };')(st, W, { getElementById: () => list }, s => String(s), () => {}, () => solo)(q);
+        return [got, asked.length]; };
+    const plWords = byWords('kael', true), gmWords = byWords('kael', false);
+    check("1.6.3 (the review of the sheet picks): at someone else's table a player's quick jump holds their own sheets alone, typed words finding no page of the host's campaign by its content (the search is not even asked); on the GM's own list a page found by its words still comes after the rows",
+        JSON.stringify(plWords) === JSON.stringify([['char:Kael'], 0]) && JSON.stringify(gmWords) === JSON.stringify([['char:Kael', 'doc:Harbor gossip'], 1]),
+        JSON.stringify({ plWords, gmWords }));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

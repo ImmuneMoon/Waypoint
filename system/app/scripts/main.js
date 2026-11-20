@@ -1768,7 +1768,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         scored.sort(function(a, b) { return a[0] - b[0]; });
         var shown = scored.map(function(p) { return p[1]; });
         // Also surface pages matched by their CONTENT (not just the title) — ranked below the name matches, with a snippet.
-        if (raw && window.wpDocSearch) {
+        // The review of the sheet picks: never on a player's app at someone else's table, where quick jump holds their own sheets alone
+        // (cmdkSolo); a player reaches the words of a page through Search Pages
+        if (raw && window.wpDocSearch && !(typeof cmdkSolo === 'function' && cmdkSolo())) {
             var already = {};
             shown.forEach(function(en) { if (en.kind === 'doc' || en.kind === 'planner') already[en.campId + '/' + en.itemId] = 1; });
             Object.values(state.appState.campaigns).forEach(function(c) {

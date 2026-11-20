@@ -3688,6 +3688,7 @@ function sheetMenu(anchor, entry, c, f) {
 }
 // A join, a new sheet or none: on a player's app sent and waited for (the host judges it), on the GM's machine judged by rowSheetSet and stored
 function rowSheetDo(c, f, entry, toId, make) {
+    if (typeof popFwd === 'function' && c && f && entry && popFwd('rowSheetDo', [f.id, rowIdOf(entry), typeof toId === 'string' ? toId : '', make === true])) return;   // the review of the sheet picks: pressed in a sheet's window of its own, made by the main window (popSheetDo)
     var camp = getActiveCampaign(), sys = camp && camp.system, rid = rowIdOf(entry); if (!sys || !c || !rid) return;
     if (isClient()) { var nR = net(), aR = nR && typeof nR.charRowSheet === 'function' ? nR.charRowSheet(c.id, f.id, rid, toId, make === true) : { error: 'Not at a table.' }; if (aR && aR.error) toast(aR.error); return; }
     if (!canWrite()) return;
@@ -3912,7 +3913,11 @@ function needBits(host, sys, c, entry, rd, gm) {
     var nd = rd.src === 'inline' ? entry.needs : rd.src === 'lib' && rd.base ? rd.base.needs : null, rl = rd.src === 'inline' ? entry.needsIf : rd.src === 'lib' && rd.base ? rd.base.needsIf : null;
     nd = Array.isArray(nd) ? nd : []; rl = typeof rl === 'string' ? rl : ''; if (!nd.length && !rl) return;   // its needed entries, and its rule
     var rf = rd.src === 'inline' ? entry.needsFrom : rd.src === 'lib' && rd.base ? rd.base.needsFrom : undefined;   // a level's own needs: the rule's from-level, and the row judged at the level it has
-    var nm = needsMet(sys, typeof needsAsTaken === 'function' ? needsAsTaken(sys, c, entry) : c, { needs: nd, needsIf: rl, needsFrom: typeof rf === 'number' ? rf : undefined }, !gm, typeof F === 'function' ? F() : null, null, typeof entry.lvl === 'number' ? entry.lvl : undefined); if (nm.ok) return;   // 1.6.3 (finding 11): judged as when it was taken
+    var nmAs = function(now) { return needsMet(sys, typeof needsAsTaken === 'function' ? needsAsTaken(sys, c, entry, now) : c, { needs: nd, needsIf: rl, needsFrom: typeof rf === 'number' ? rf : undefined }, !gm, typeof F === 'function' ? F() : null, null, typeof entry.lvl === 'number' ? entry.lvl : undefined); };
+    // 1.6.3 (finding 11): judged as when it was taken. The review of the sheet picks: nothing records whether a row was taken in the making or in
+    // play, so the row counts as met where its needs hold EITHER as a character in the making OR as the character stands now (each with the row
+    // itself off its own list), and the chip shows only where both fail. A rule for play alone (Making = 0) then marks no row taken in play
+    var nm = nmAs(false); if (nm.ok) return; if (typeof needsAsTaken === 'function' && nmAs(true).ok) return;
     var chip = el('span', 'sheet-chip sheet-item-unmet', 'needs not met');
     var dfN = rd.src === 'inline' ? entry : rd.base, own = dfN && typeof dfN.needsMsg === 'string' && dfN.needsMsg.trim() ? dfN.needsMsg.trim().slice(0, 400) : '';   // the GM's own words for it, where the entry has them
     var byName = nm.missing.filter(function(m) { return !(m && m.rule !== undefined); }), ruleOut = nm.missing.length > byName.length;
@@ -3926,13 +3931,15 @@ function needBits(host, sys, c, entry, rd, gm) {
 // as it was when it was taken. A rule such as Making = 1 (only while the character is being made) and not Advantages.sensitive.has (not beside
 // another) can never hold once the row is held and the character done, and every character made with it wore needs not met for good. So the
 // character is read as one in the making (Making reads 1) and with this very row off its own list (its own has reads 0). Answers a copy:
-// the character itself is never changed. Asked by needBits alone; the host's judge of a pick (applyRowOp) is not touched
-function needsAsTaken(sys, c, entry) {
+// the character itself is never changed. Asked by needBits alone; the host's judge of a pick (applyRowOp) is not touched. With now true
+// (the review of the sheet picks) the character keeps its own Making, as it stands now, and only the row is taken off its list: needBits
+// asks both, since a row may have been taken in play under a rule for play alone
+function needsAsTaken(sys, c, entry, now) {
     if (!c || typeof c !== 'object') return c;
     var vals = c.values && typeof c.values === 'object' ? c.values : {}, out = {};
     Object.keys(vals).forEach(function(k) { out[k] = vals[k]; });
     (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && Array.isArray(vals[f.id]) && vals[f.id].indexOf(entry) >= 0) out[f.id] = vals[f.id].filter(function(r) { return r !== entry; }); });
-    return Object.assign({}, c, { making: 1, values: out });
+    return now === true ? Object.assign({}, c, { values: out }) : Object.assign({}, c, { making: 1, values: out });
 }
 // The words for a rule that does not hold: what it reads, through the form's reader with every name as the sheet says it (nameWord); a rule the
 // reader cannot put in words is said as the GM's rule. Never the formula itself
@@ -5517,12 +5524,15 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
-        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'text'; ci.inputMode = 'decimal'; ci.autocomplete = 'off'; ci.spellcheck = false; ci.title = typeof POOL_TIP === 'string' ? POOL_TIP : ''; ci.ariaLabel = (f.label || 'Pool') + ': type a number, or -7 or +3 to change it'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true ? max !== null : f.min !== undefined) ci.min = String(f.minNeg === true ? -max : f.min); if (max !== null) ci.max = String(max);   // 1.6.0: a pool that goes down to minus its max. 1.6.3 (finding 18): a text box, so -7 and +3 can be typed (poolTyped); its min and max are kept as words of its range, commit clamps
+        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'text'; ci.inputMode = 'text'; ci.autocomplete = 'off'; ci.spellcheck = false; ci.title = typeof POOL_TIP === 'string' ? POOL_TIP : ''; ci.ariaLabel = (f.label || 'Pool') + ': type a number, or -7 or +3 to change it'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true ? max !== null : f.min !== undefined) ci.min = String(f.minNeg === true ? -max : f.min); if (max !== null) ci.max = String(max);   // 1.6.0: a pool that goes down to minus its max. 1.6.3 (finding 18): a text box, so -7 and +3 can be typed (poolTyped); its min and max are kept as words of its range, commit clamps. The review of the sheet picks: inputMode text, since a phone's or tablet's number keyboard often has no minus or plus key
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
         var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : f.maxFormula ? ((typeof formulaSays === 'function' ? formulaSays(sysArg, f.maxFormula) : '') || 'Its maximum is worked out by a rule') : 'It has no maximum';   /* 1.6.3 (finding 10): in words, never the formula */ if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
-        ci.addEventListener('change', function() { var pt = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null; if (!pt || pt.value === cur) { ci.value = String(cur); return; } commit(c, f, { cur: pt.value }); });   // 1.6.3 (finding 18): -7 and +3 change it, a plain number sets it, an empty or unreadable box puts the old figure back, never 0
+        ci.addEventListener('change', function() { var pt = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null; if (!pt || pt.value === cur) { ci.value = String(cur); return; } commit(c, f, { cur: pt.value }); });
+        // the review of the sheet picks: the box still steps by one with the up and down arrow keys, as the number box it replaced did, from what it
+        // reads now (what was typed, else the figure shown), through commit as - and + do (commit clamps); with any key held the arrows are the page's
+        ci.addEventListener('keydown', function(ev) { if ((ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') || ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return; ev.preventDefault(); var pk = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null, base = pk ? pk.value : cur; ci._wpTyped = false; commit(c, f, { cur: base + (ev.key === 'ArrowUp' ? 1 : -1) }); });   // 1.6.3 (finding 18): -7 and +3 change it, a plain number sets it, an empty or unreadable box puts the old figure back, never 0
         r.appendChild(minus); r.appendChild(ci); r.appendChild(plus); r.appendChild(mx);
         if (f.reset) {   // Fold B: fill back to the max (the host clamps it like any edit)
             var rs = el('button', 'tool ghost sheet-pm sheet-reset', '\u21bb'); rs.dataset.fid = f.id; rs.dataset.part = 'reset';
@@ -6548,7 +6558,9 @@ function sbxCommit(key) {
         // one run of typing in one field is ONE change to take back: Revert brings back the words as they stood before the run, as it did
         // when the input stored once, on leaving
         var now = peek ? peek() : null, ours = !!now && now !== lc && now.charId === p.c.id && now.fieldId === p.f.id;   // the commit left a change of this field's to take back (a refused one leaves none)
-        if (run && ours) now.prev = lc.prev;
+        // the review of the sheet picks: the record of the run's earlier chunk is folded into this one, so it is no earlier step of the sheet
+        // any more either (revDrop): left on the stack it would hold a value the field no longer has, and each later Revert would only say so
+        if (run && ours) { now.prev = lc.prev; if (typeof revDrop === 'function') revDrop(p.c.id, lc); }
         if (ours) _sbx.run = key;
     }
     if (!p.c.values || p.c.values[p.f.id] !== d.text) return true;
@@ -6812,6 +6824,7 @@ function askStatsOf(c, f, rid, p, ovS, heldL) {
     if (p && typeof p === 'object' && p.stats === null) { st = {}; Object.keys(ovS || {}).forEach(function(k) { st[k] = null; }); }   // every stat of their copy, one the GM set too: the GM sees which
     else if (p && typeof p === 'object' && p.stats && typeof p.stats === 'object') st = p.stats;
     if (!st || !Object.keys(st).length) return;
+    if (typeof popFwd === 'function' && popFwd('askStats', [f.id, rid, p, ovS && typeof ovS === 'object' ? ovS : null])) return;   // the review of the sheet picks: from a sheet's window of its own, asked by the main window, which holds the table
     var n = net(); if (!n || !n.charAsk) { toast('Your GM\u2019s Waypoint cannot take this yet.'); return; }
     var r = n.charAsk(c.id, f.id, rid, st, function(a) { if (a && a.error) toast(a.error); else toast(a && a.back ? 'Your ask is taken back. The row stays as it is.' : 'Sent to the GM. It changes once they apply it.'); renderViews(c.id); });
     if (r && r.error) toast(r.error);
@@ -8641,9 +8654,20 @@ function popSheetPush(id, fresh) {
     try { _popBC.postMessage(msg); } catch (e) { return false; }
     w.sig = popSigOf(w, camp, c); return true;
 }
+// The review of the sheet picks: why this window will not answer a sheet's window now ('' where it will): another campaign is on screen ('camp'),
+// the character is gone ('gone'), or it is a sheet this window may no longer open ('open'). popSheetNo says it back to that window, which says so
+// at once and is read only until it is answered again; press: the word answers a press, which the window always says
+function popSheetWhy(campId, charId) {
+    var camp = getActiveCampaign(); if (!camp || camp.id !== campId || !systemOf(camp)) return 'camp';
+    var c = charById(charId, camp); if (!c) return 'gone';
+    return canOpen(c.id) ? '' : 'open';
+}
+function popSheetNo(id, why, press) { if (!_popBC || !why) return; try { _popBC.postMessage({ type: 'sheetNo', to: id, from: _popSelf, why: why, press: press === true }); } catch (e) {} }
 // A press made in a sheet's window, made here as this window's own: the campaign on screen and the character it names alone, by the sheet's own
-// functions, which judge who may (canOpen, then each function's own rights). args are data, as the window sent them
+// functions, which judge who may (canOpen, then each function's own rights). args are data, as the window sent them. A press this window cannot
+// make (popSheetWhy) is answered with why, so the window never counts it as done
 function popSheetDo(m) {
+    var whyD = popSheetWhy(m.camp, m.char); if (whyD) { popSheetNo(m.id, whyD, true); return false; }
     var camp = getActiveCampaign(), sys = systemOf(camp), a = Array.isArray(m.args) ? m.args : []; if (!camp || !sys || m.camp !== camp.id) return false;
     var c = charById(m.char, camp); if (!c || !canOpen(c.id)) return false;
     var fOf = function(id) { return typeof id === 'string' ? fieldById(sys, id) : null; }, f;
@@ -8653,6 +8677,12 @@ function popSheetDo(m) {
     else if (m.op === 'commitEffect') { if ((f = fOf(a[0])) && a[1] && typeof a[1] === 'object') commitEffect(c, f, a[1]); }
     else if (m.op === 'applyAction') applyAction({ id: typeof a[0] === 'string' ? a[0] : '' }, c, typeof a[1] === 'string' ? a[1] : '', a[2] || undefined, a[3] || undefined, a[4] || undefined, a[5] || undefined);
     else if (m.op === 'roll') { if (a[0] === c.id && typeof a[1] === 'string' && window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(c.id, a[1], typeof a[2] === 'string' ? a[2] : '', a[3] && typeof a[3] === 'object' ? a[3] : {}); }
+    else if (m.op === 'rowSheetDo') {   // the review of the sheet picks: a row joined to a sheet, a sheet made from it, or the join taken off, by the row's own id
+        var rowsJ = (f = fOf(a[0])) && c.values && Array.isArray(c.values[f.id]) ? c.values[f.id] : [], rowJ = null;
+        if (typeof a[1] === 'string') rowsJ.forEach(function(r) { if (!rowJ && rowIdOf(r) === a[1]) rowJ = r; });
+        if (rowJ && typeof rowSheetDo === 'function') rowSheetDo(c, f, rowJ, typeof a[2] === 'string' ? a[2] : '', a[3] === true);
+    }
+    else if (m.op === 'askStats') { if ((f = fOf(a[0])) && typeof a[1] === 'string' && a[2] && typeof a[2] === 'object' && typeof askStatsOf === 'function') askStatsOf(c, f, a[1], a[2], a[3] && typeof a[3] === 'object' ? a[3] : null); }   // a player's ask for their copy's stats, sent by the main window
     else return false;
     if (window.wpStepLog) window.wpStepLog('popsheet v1', 'press', { op: m.op });
     setTimeout(function() { popSheetPush(m.id, false); }, 120);
@@ -8672,6 +8702,7 @@ function popSheetWatch() {
         if (m.type === 'sheetWant') {
             var w = _popWant[m.id] || (_popWant[m.id] = { camp: m.camp, char: m.char, sig: '', sys: null }); w.at = Date.now(); w.camp = m.camp; w.char = m.char;
             popSheetPush(m.id, m.fresh === true);
+            var whyW = popSheetWhy(m.camp, m.char); if (whyW) popSheetNo(m.id, whyW, false);   // the review of the sheet picks: a window that asks and will not be answered is told why at once
             if (!_popTimer) _popTimer = setInterval(popSheetWatch, 1000);
         } else if (m.type === 'sheetDo' && _popWant[m.id] && m.to === _popSelf) popSheetDo(m);   // a press made by the one window it was meant for
     });

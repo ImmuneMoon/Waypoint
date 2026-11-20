@@ -272,8 +272,19 @@ if (spec) {
                 return true;
             }
         };
+        // The review of the sheet picks: the main window will not answer (another campaign is open there, the character is gone, or the sheet may no
+        // longer be opened there). Said at once for a press, and on a plain ask only where the window had counted itself live; the window is then
+        // read only until the main window answers it again
+        var NO_WORDS = { camp: 'The main Waypoint window has another campaign open now, so nothing was changed. This sheet is read only here.', gone: 'This character is no longer in the campaign there, so nothing was changed. This sheet is read only here.', open: 'This sheet cannot be opened in the main window now, so nothing was changed. It is read only here.' };
+        var sheetNo = function(m) {
+            if ((mainId && m.from !== mainId) || !Object.prototype.hasOwnProperty.call(NO_WORDS, m.why)) return;
+            var was = live(); seen = 0;
+            if ((m.press === true || was) && window.appToast) window.appToast(NO_WORDS[m.why]);
+            readOnly();
+        };
         if (bc) bc.addEventListener('message', function(e) {
-            var m = e.data; if (!m || m.type !== 'sheetData' || m.to !== pid || !m.camp || typeof m.camp !== 'object' || typeof m.from !== 'string') return;
+            var m = e.data; if (m && m.type === 'sheetNo' && m.to === pid && typeof m.from === 'string' && typeof m.why === 'string') { sheetNo(m); return; }
+            if (!m || m.type !== 'sheetData' || m.to !== pid || !m.camp || typeof m.camp !== 'object' || typeof m.from !== 'string') return;
             if (mainId && m.from !== mainId && live()) return;   // two app windows hold the campaign: the one it chose speaks for it
             if (m.from !== mainId) { mainId = m.from; if (!m.system) { sysC = null; want(true); return; } }
             if (m.system && typeof m.system === 'object') sysC = m.system; if (!sysC) { want(true); return; }

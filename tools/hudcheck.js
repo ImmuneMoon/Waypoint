@@ -1207,9 +1207,19 @@ const j = v => JSON.stringify(v);
             ptSrc.length > 200 && pt('-7', 23) === 16 && pt('+3', 23) === 26 && pt(' − 4 ', 10) === 6 && pt('–2', 5) === 3 && pt('12', 23) === 12 && pt('0', 23) === 0 && pt('=-3', 23) === -3 && pt('=5', 23) === 5 && pt('-1.5', 2) === 0.5
             && pt('', 23) === null && pt('   ', 23) === null && pt('ten', 23) === null && pt('-', 23) === null && pt('5-2', 23) === null && pt('+-3', 23) === null && pt(null, 4) === null && pt('-2', undefined) === -2
             && PT.poolTyped('-7', 23).how === 'off' && PT.poolTyped('+3', 1).how === 'on' && PT.poolTyped('9', 1).how === 'set' && /-7 to take 7 off or \+3 to add 3/.test(PT.POOL_TIP) && /An empty box keeps what it had/.test(PT.POOL_TIP)
-            && shP.includes("ci.type = 'text'; ci.inputMode = 'decimal';") && shP.includes("ci.title = typeof POOL_TIP === 'string' ? POOL_TIP : '';") && shP.includes("ci.addEventListener('change', function() { var pt = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null; if (!pt || pt.value === cur) { ci.value = String(cur); return; } commit(c, f, { cur: pt.value }); });")
+            && shP.includes("ci.type = 'text'; ci.inputMode = 'text';") && shP.includes("ci.title = typeof POOL_TIP === 'string' ? POOL_TIP : '';") && shP.includes("ci.addEventListener('change', function() { var pt = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null; if (!pt || pt.value === cur) { ci.value = String(cur); return; } commit(c, f, { cur: pt.value }); });")
             && !shP.includes("commit(c, f, { cur: Number(ci.value) })") && shP.includes("ci.min = String(f.minNeg === true ? -max : f.min)") && shP.includes("ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true"),   /* found live: a comment set inside the line once hid the box's own figure */
             j([pt('-7', 23), pt('+3', 23), pt('=-3', 23), pt('', 23)]));
+        // the review of the sheet picks: the pool's box keeps the number box's arrow keys (its keydown listener, sliced and run for real with the real
+        // poolTyped), stepping by one from what it reads through commit, and its touch keyboard is the plain one, which has the minus and plus keys
+        const kdLine = (shP.match(/ci\.addEventListener\('keydown', function\(ev\) \{[^\n]*\}\);/) || [''])[0];
+        const kdRun = (val, cur, key, mods) => { const sent = [], ci = { value: val, _wpTyped: true, on: {}, addEventListener(t, fn) { this.on[t] = fn; } }; let stopped = false;
+            new Function('ci', 'poolTyped', 'cur', 'commit', 'c', 'f', kdLine)(ci, PT.poolTyped, cur, (c, f, v) => sent.push(v.cur), { id: 'c_a' }, { id: 'f_pl' });
+            ci.on.keydown(Object.assign({ key, preventDefault() { stopped = true; } }, mods || {})); return [sent, stopped, ci._wpTyped]; };
+        const kd = [kdRun('23', 23, 'ArrowUp'), kdRun('23', 23, 'ArrowDown'), kdRun('-7', 23, 'ArrowUp'), kdRun('words', 5, 'ArrowDown'), kdRun('23', 23, 'ArrowUp', { shiftKey: true }), kdRun('23', 23, 'Enter')];
+        check('1.6.3 (the review of the sheet picks): a pool\'s box still steps by one with the up and down arrow keys, as the number box it replaced did: from what it reads (what was typed, else the figure shown) through commit, its typed mark taken off so a redraw shows what was stored; with a key held, or any other key, the page has it; the box asks for the plain touch keyboard, so - and + can be typed on a tablet',
+            kdLine.length > 100 && j(kd) === j([[[24], true, false], [[22], true, false], [[17], true, false], [[4], true, false], [[], false, true], [[], false, true]]) && !shP.includes("ci.inputMode = 'decimal'"),
+            j(kd));
         // finding 37: the Text style line only while the sheet is unlocked
         check('1.6.3 (finding 37, Fulllion\'s pick): the Text style line stands under the sheet\'s head only while the sheet is unlocked (Edit sheet, or a character being made), read from the sheet\'s own lock; nothing of it is taken away',
             shP.includes("var plB = ui('sheetPlook'); if (plB) plB.style.display = !c.partial && !lockedS && typeof lookBar === 'function' && lookBar(plB, c, gm, own) ? '' : 'none';") && /\nfunction lookBar\(box, c, gm, own\) \{/.test(shP));
@@ -1240,6 +1250,29 @@ const j = v => JSON.stringify(v);
             j(r0) === j(['f_st', 2]) && j(r1) === j(['{"f_hp":8,"f_st":5}', '{"f_hp":1}', 'c_b', 'f_hp']) && j(r2) === j(['{"f_hp":10,"f_st":5}', null, 0]) && j(r3) === j(['{"f_hp":10,"f_st":5}', ['Reverted.', 'Reverted.']])
             && j(r4) === j(['{"f_hp":4,"f_st":5}', ['Nothing was put back: Hit Points changed since and was left as it is.']]) && j(r5) === j(['{"f_hp":4,"f_st":5}', 0]) && r6 === 5 && r7 === 0,
             j({ r0, r1, r2, r3, r4, r5, r6, r7 }));
+        // the review of the sheet picks: a run of typing in the sheet's text box (sbxCommit, sliced and run for real beside the revstack slice) is ONE
+        // step: each chunk the box stores folds the chunk before into its own record and takes that record off the stack, so Revert takes the whole
+        // run back once and the stack is then empty and the button hidden, with no stale step left that would only say the field changed since
+        const sbFn = (shP.match(/function sbxCommit\(key\) \{[\s\S]*?\n\}/) || [''])[0];
+        const campT = { system: sysR, chars: { c_a: { id: 'c_a', values: { f_nt: 'a', f_hp: 10 } } } }, saidT = [], HT = {};
+        HT.api = new Function('getActiveCampaign', 'systemOf', 'charById', 'fieldById', 'isClient', 'toast', 'afterCharChange', 'ownerSeesSame', 'clone', 'renderSheet', 'commitMany', 'makeResolver', 'F', 'window', 'renderViews', 'commitLook', 'lookFor',
+            'var lastChange = null, sheetOpen = null, _sbx = { timers: {}, drafts: {}, run: null }, SBX_ROW = /^row:/;\n'
+            + 'function lastChangePeek() { return lastChange; }\nfunction sbxParts(key) { var a = key.split(":"), c = getActiveCampaign().chars[a[0]]; return c ? { c: c, f: fieldById(systemOf(getActiveCampaign()), a[1]) } : null; }\n'
+            + 'function sbxStored(c, f) { return c.values[f.id]; }\nfunction sbxFmtOf() { return undefined; }\nfunction sbxRowCommit() { return false; }\n'
+            + 'function commit(c, f, v) { var had = Object.prototype.hasOwnProperty.call(c.values, f.id); lastChange = { charId: c.id, fieldId: f.id, prev: had ? c.values[f.id] : undefined }; c.values[f.id] = v; afterCharChange(c); }\n'
+            + shP.slice(rrA, rrZ) + '\n' + cutP(shP, 'revstack') + '\n' + lwFn + '\n' + rvFn + '\n' + sbFn
+            + '\nreturn { revertLast: revertLast, revOf: revOf, revNote: revNote, revStack: revStack, sbxCommit: sbxCommit, draft: function(k, t, b) { _sbx.drafts[k] = { text: t, base: b }; }, open: function(id) { sheetOpen = id; }, set: function(v) { lastChange = v; }, typed: function(c, f, v) { commit(c, f, v); } };')(
+            () => campT, c => c.system, (id, c) => (c || campT).chars[id] || null, (sy, id) => sy.fields.find(f => f.id === id) || null, () => false, m => saidT.push(m), c => HT.api.revNote(c), () => false, v => JSON.parse(JSON.stringify(v)), () => {},
+            () => {}, () => () => 0, () => ({}), {}, () => {}, () => {}, () => undefined);
+        HT.api.typed(campT.chars.c_a, sysR.fields[0], 8);   // an earlier step of the sheet, before the run of typing
+        HT.api.draft('c_a:f_nt', 'ab', 'a'); const s1 = HT.api.sbxCommit('c_a:f_nt'); HT.api.draft('c_a:f_nt', 'abc', 'ab'); HT.api.sbxCommit('c_a:f_nt'); HT.api.draft('c_a:f_nt', 'abcd', 'abc'); HT.api.sbxCommit('c_a:f_nt');
+        const runN = HT.api.revStack('c_a').length; HT.api.open('c_a'); HT.api.revertLast();
+        const runBack = [campT.chars.c_a.values.f_nt, HT.api.revStack('c_a').length, HT.api.revOf('c_a') && HT.api.revOf('c_a').fieldId]; HT.api.revertLast();
+        const runEarlier = [j(campT.chars.c_a.values), HT.api.revStack('c_a').length, HT.api.revOf('c_a'), saidT.slice()];
+        check('1.6.3 (the review of the sheet picks): a run of typing in the sheet\'s text box is one step of Revert: each chunk the box stores takes the chunk before off the stack (revDrop), so one Revert brings back the words as the run began, the step before the run is the next, and then nothing is left and the button is hidden, never a stale step that only says the field changed since',
+            s1 === true && sbFn.includes("if (run && ours) { now.prev = lc.prev; if (typeof revDrop === 'function') revDrop(p.c.id, lc); }") && runN === 2 && j(runBack) === j(['a', 1, 'f_hp'])
+            && j(runEarlier) === j(['{"f_nt":"a","f_hp":10}', 0, null, ['Reverted.', 'Reverted.']]),
+            j({ s1, runN, runBack, runEarlier }));
         const p = mkR(true); p.api.open('c_a');
         p.api.myRevNote('c_a', [{ fieldId: 'f_hp', prev: 10 }]); p.camp.chars.c_a.values.f_hp = 6; p.api.myRevNote('c_a', [{ fieldId: 'f_pl', prev: undefined }, { fieldId: 'f_nt', prev: undefined }]); p.camp.chars.c_a.values.f_pl = { cur: 2 }; p.camp.chars.c_a.values.f_nt = 'y';
         const m0 = p.api.myRevOf('c_a'); p.api.revertLast(); const m1 = j(p.sent.splice(0)); p.api.revertLast(); const m2 = j(p.sent.splice(0)), m3 = p.api.myRevOf('c_a');
@@ -1278,6 +1311,33 @@ const j = v => JSON.stringify(v);
             typeof fromMain === 'string' && /^m[a-z0-9]+$/.test(fromMain) && toMain.length === 4 && toMain.every(t => t === fromMain) && otherMain === '[]'
             && cutP(shP, 'popsheetlive').includes("m.type === 'sheetDo' && _popWant[m.id] && m.to === _popSelf") && cutP(poP, 'popsheetwin').includes("if (mainId && m.from !== mainId && live()) return;"),
             j({ fromMain, toMain, otherMain }));
+        // the review of the sheet picks: a row's join to a sheet (rowSheetDo) and a player's ask for their copy's stats (askStatsOf) go to the main
+        // window too, found again there by the row's own id; a press the main window will not make (another campaign on screen there, the character
+        // gone, a sheet it may no longer open) is answered with why (sheetNo), which the window says at once and is then read only, a plain ask saying
+        // nothing where the window was not live; the popsheetlive and popsheetwin slices run for real over a channel of the suite's own
+        const bus2 = [], chans2 = [];
+        class BC2 { constructor() { this.ls = []; chans2.push(this); } addEventListener(t, f) { this.ls.push(f); } postMessage(m) { bus2.push(m); const d = JSON.parse(JSON.stringify(m)); chans2.filter(x => x !== this).forEach(x => x.ls.forEach(f => f({ data: d }))); } }
+        const toasts2 = [], winB = { wpPopout: true, appToast: m => toasts2.push(m) }, ticks2 = { n: 0 }, did2 = [];
+        const PW2 = new Function('arg', 'window', 'BroadcastChannel', 'setInterval', 'setTimeout', 'clearInterval', 'tickSheet', 'tick', "var lastSig = 'x';\n" + cutP(poP, 'popsheetwin') + '\nreturn popSheetLive;')(
+            'k1/c_a', winB, BC2, () => 1, () => 0, () => {}, () => {}, () => { ticks2.n++; });
+        const campB = { id: 'k1', system: { v: 1 }, chars: { c_a: { id: 'c_a', ownerId: 'u1', values: { f_mt: [{ id: 'w_1', defId: 'i_x' }] } }, c_b: { id: 'c_b', values: {} } }, items: {} }, roleB = { camp: campB };
+        new Function('window', 'BroadcastChannel', 'setInterval', 'clearInterval', 'setTimeout', 'getActiveCampaign', 'systemOf', 'charById', 'fieldById', 'canOpen', 'isClient', 'myId', 'dialSigFor', 'commit', 'commitMany', 'commitItem', 'commitEffect', 'applyAction', 'rowSheetDo', 'askStatsOf', 'rowIdOf',
+            cutP(shP, 'popsheetlive') + '\nreturn true;')(
+            {}, BC2, () => 1, () => {}, f => f(), () => roleB.camp, c => c.system, (id, c) => c.chars[id] || null, (s, id) => ({ id }), id => id === 'c_a', () => false, () => 'u1', () => 'dial',
+            (c, f, v) => did2.push(['commit', c.id, f.id, v]), () => {}, () => {}, () => {}, () => {}, (c, f, e, to, mk) => did2.push(['rowSheet', c.id, f.id, e.id, to, mk]), (c, f, rid, p, ov) => did2.push(['ask', c.id, f.id, rid, p, ov]), r => (r && typeof r.id === 'string' ? r.id : null));
+        PW2(); const live2 = !!winB.wpPopoutAs;
+        winB.wpPopoutSheet.send('rowSheetDo', ['f_mt', 'w_1', 'c_b', false]); winB.wpPopoutSheet.send('rowSheetDo', ['f_mt', 'w_none', '', true]); winB.wpPopoutSheet.send('askStats', ['f_mt', 'w_1', { stats: { size: 2 } }, null]);
+        const fwd2 = j(did2.splice(0));
+        roleB.camp = { id: 'k2', system: { v: 2 }, chars: {}, items: {} }; winB.wpPopoutSheet.send('commit', ['f_hp', 1]);
+        const no2 = [j(did2.splice(0)), toasts2.slice(-1)[0], winB.wpPopoutAs, ticks2.n, bus2.filter(m => m.type === 'sheetNo').map(m => [m.why, m.press])];
+        winB.wpPopoutSheet.send('commit', ['f_hp', 1]); const after2 = [toasts2.slice(-1)[0], j(did2.splice(0))];
+        const nT = toasts2.length; chans2[0].postMessage({ type: 'sheetNo', to: bus2[0].id, from: bus2.find(m => m.type === 'sheetData').from, why: 'gone', press: false }); const quiet2 = toasts2.length === nT;
+        check('1.6.3 (the review of the sheet picks): in a sheet\'s window of its own a row\'s join to a sheet and a player\'s ask for their stats go to the main window, which makes them by the row\'s own id (a row it does not hold is made by nobody); a press the main window will not make, another campaign being on screen there, is answered with why: the window says so at once, makes nothing and is read only, a later press says the main window is not answering, and a plain ask refused while the window is not live says nothing',
+            live2 && fwd2 === j([['rowSheet', 'c_a', 'f_mt', 'w_1', 'c_b', false], ['ask', 'c_a', 'f_mt', 'w_1', { stats: { size: 2 } }, null]])
+            && no2[0] === '[]' && /another campaign open now, so nothing was changed/.test(no2[1]) && no2[2] === null && no2[3] === 1 && j(no2[4]) === j([['camp', true]])
+            && /not answering/.test(after2[0]) && after2[1] === '[]' && quiet2
+            && shP.includes("popFwd('rowSheetDo', [f.id, rowIdOf(entry), typeof toId === 'string' ? toId : '', make === true])") && shP.includes("popFwd('askStats', [f.id, rid, p, ovS && typeof ovS === 'object' ? ovS : null])"),
+            j({ live2, fwd2, no2, after2, quiet2 }));
         const noMain = { wpPopout: true, appToast: m => toasts.push(m) }, tk = { n: 0 }, tm = [], posted = [];
         new Function('arg', 'window', 'BroadcastChannel', 'setInterval', 'setTimeout', 'clearInterval', 'tickSheet', 'tick', "var lastSig = '';\n" + cutP(poP, 'popsheetwin') + '\nreturn popSheetLive;')('k1/c_a', noMain, class { addEventListener() {} postMessage(m) { posted.push(m.type); } }, (f, ms) => { tm.push(ms); return 1; }, (f, ms) => { if (ms === 4000) f(); }, () => {}, () => {}, () => { tk.n++; })();
         const gone = [noMain.wpPopoutSheet.send('commit', ['f_hp', 1]), posted.indexOf('sheetDo') < 0, toasts.slice(-1)[0]];

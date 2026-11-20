@@ -1034,10 +1034,10 @@ pendingChecks.push((async () => {
         const rcSrc = fnK('function renderChat() {', '\n}\n'), cnSrc = fnK('function chatNewShow(log, on) {', '\n}\n');
         const els = {}, mkEl = tag => { const e = { tag, style: {}, kids: [], listeners: {}, addEventListener(k, f) { this.listeners[k] = f; } }; return e; };
         const parent = { insertBefore(n) { if (n.id) els[n.id] = n; } };
-        const log = { kids: [], parentNode: parent, clientHeight: 200, scrollTop: 0, listeners: {}, addEventListener(k, f) { this.listeners[k] = f; }, get firstChild() { return this.kids[0] || null; }, get scrollHeight() { return this.kids.length * 50; }, set textContent(v) { this.kids = []; }, appendChild(f) { this.kids = this.kids.concat(f.kids); } };
+        const log = { kids: [], parentNode: parent, shown: true, get clientHeight() { return this.shown ? 200 : 0; }, scrollTop: 0, listeners: {}, addEventListener(k, f) { this.listeners[k] = f; }, get firstChild() { return this.kids[0] || null; }, get scrollHeight() { return this.shown ? this.kids.length * 50 : 0; }, set textContent(v) { this.kids = []; }, appendChild(f) { this.kids = this.kids.concat(f.kids); } };
         const doc = { createDocumentFragment: () => ({ kids: [], appendChild(n) { this.kids.push(n); } }), getElementById: id => els[id] || null, createElement: mkEl };
         let R = null, rErr = null;
-        try { R = new Function('ui', 'cardLookNow', 'paintCardLook', 'chatEnv', 'chatOuter', 'chatEntryNode', 'window', 'document', 'net', 'broadcastChatSync', 'var chatLog = [], chatUnread = 0, _chatNodes = null, _cardLook = null, _cardSig = \'\', _chatPopAsked = false, _chatLastDrawn = null;\n' + rcSrc + '\n' + cnSrc + '\nreturn { draw: renderChat, log: function() { return chatLog; } };')(
+        try { R = new Function('ui', 'cardLookNow', 'paintCardLook', 'chatEnv', 'chatOuter', 'chatEntryNode', 'window', 'document', 'net', 'broadcastChatSync', 'var chatLog = [], chatUnread = 0, _chatNodes = null, _cardLook = null, _cardSig = \'\', _chatPopAsked = false, _chatLastDrawn = null, _chatToEnd = false;\n' + rcSrc + '\n' + cnSrc + '\nreturn { draw: renderChat, log: function() { return chatLog; }, toEnd: function() { _chatToEnd = true; } };')(
             k => (k === 'chatLog' ? log : null), () => null, () => {}, () => '', () => '', m => ({ m }), { wpPopout: false }, doc, { myId: 'u_me' }, () => {}); } catch (e) { rErr = e; }
         const say = (who, n) => { for (let i = 0; i < (n || 1); i++) R.log().push({ type: 'chat', from: { id: who, name: who }, text: 'x', ts: i }); R.draw(); };
         let s1 = -1, s2 = -1, chip2 = '', s3 = -1, chip3 = '', s4 = -1, chip4 = '', s5 = -1, chip5 = '';
@@ -1050,6 +1050,20 @@ pendingChecks.push((async () => {
         }
         check('1.6.3 (finding 16) Table Chat keeps its reader\'s place: a log at its end sticks to the end, one scrolled up stays where it was with New messages up, a line of this machine\'s own and the button take it to the end, and reaching the end by hand puts the button away',
             !rErr && rcSrc !== '' && cnSrc !== '' && s1 === 500 && s2 === 100 && chip2 === '' && chip3 === 'none' && s3 === 600 && s4 === 650 && chip4 === 'none' && s5 === 700 && chip5 === 'none', J([rErr && String(rErr), s1, s2, chip2, chip3, s3, s4, chip4, s5, chip5]));
+        // the review of words: a panel put away has no layout (height 0). Lines that come while it is put away are drawn there, the browser forgets its
+        // scroll, and when the panel is opened again (the chat button, a roll raising it, back on screen: each sets _chatToEnd) the newest line is in
+        // view. Shown again with no such word, a line that came while it was away still counts as fresh, so New messages comes up
+        let h1 = -1, hc1 = '', h2 = -1, hc2 = '';
+        if (R) {
+            log.shown = false; log.scrollTop = 0; say('u_x', 3); log.shown = true; R.toEnd(); R.draw(); h1 = log.scrollTop; hc1 = els.chatNewBtn.style.display;   // opened: at the end
+            log.shown = false; log.scrollTop = 0; say('u_x', 2); log.shown = true; R.draw(); h2 = log.scrollTop; hc2 = els.chatNewBtn.style.display;   // shown with no word: kept, the button up
+        }
+        const nsrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8');
+        check('the review of words: Table Chat opened, raised by a roll or back on screen shows its newest line, lines that came while it was put away do not count as drawn, and a draw while it has no layout takes up no wish to go to the end',
+            !rErr && h1 === 850 && hc1 === 'none' && h2 === 0 && hc2 === ''
+            && /if \(opening\) \{ chatUnread = 0; refreshChatRecipients\(\); _chatToEnd = true; renderChat\(\);/.test(nsrc)
+            && /addEventListener\('wpfloatback', function\(\) \{ chatUnread = 0; _chatToEnd = true; renderChat\(\); \}\)/.test(nsrc)
+            && /panel\.style\.display = 'flex'; chatUnread = 0; refreshChatRecipients\(\); closed = false; _chatToEnd = true;/.test(nsrc), J([h1, hc1, h2, hc2]));
     }
 })());
 // Voice chat (1.5.9, pull request #1 by Hydragal): net.js routes two words to voice.js and reads nothing else of them. The two branches, sliced

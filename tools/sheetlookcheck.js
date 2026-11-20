@@ -206,6 +206,11 @@ const j = v => JSON.stringify(v);
         const lab6 = { f_st: 'ST', f_hp: 'HP', f_pr: 'Prone' };
         const pills = [fxPillText({ f: 'f_st', op: 'add', v: 2 }, lab6), fxPillText({ f: 'f_hp', op: 'add', v: -5, part: 'max' }, lab6), fxPillText({ f: 'f_pr', op: 'on' }, lab6), fxPillText({ f: 'f_gone', op: 'add', v: 0.5 }, lab6)];
         check('look L6: a pill reads amount first (the owner\'s Q10) — "+2 ST", "−5 HP max", the name alone for a switch, "?" for a field that is gone', j(pills) === j(['+2 ST', '\u22125 HP max', 'Prone', '+0.5 ?']), j(pills));
+        // the review of words: a pill whose change is worked out by a formula says it in words (amountSays), never the formula; with no amountSays at hand, an amount
+        const fxPillW = new Function('fmtNum', 'amountSays', pillSrc + '\nreturn fxPillText;')(S.fmtNum, (s, t) => t === '2 * KeenEvery' ? 'twice Keen every' : 'an amount');
+        const pillsW = [fxPillW({ f: 'f_st', op: 'add', vf: '2 * KeenEvery' }, lab6), fxPillW({ f: 'f_hp', op: 'max', vf: 'Lvl + 1', part: 'max' }, lab6), fxPillText({ f: 'f_st', op: 'add', vf: '2 * KeenEvery' }, lab6)];
+        check('the review of words: a status effect drawn as a card says a change worked out by a formula in words (amountSays), never the formula itself',
+            j(pillsW) === j(['ST by twice Keen every', 'HP max \u2265 an amount', 'ST by an amount']) && pillsW.every(p => p.indexOf('KeenEvery') < 0 && p.indexOf('Lvl') < 0), j(pillsW));
         check('look L6: fxCard and fxPillText sit inside the effects slice (no innerHTML there); the card is used only when the look asks, with the switch built once above the branch; a pill\'s class is picked by comparison; the × is the existing remove, for whoever may end it',
             /function fxCard\(/.test(fxSlice6) && /function fxPillText\(/.test(fxSlice6) && !/innerHTML/.test(fxSlice6)
             && /var cards = !!\(sys && sys\.sheet && sys\.sheet\.look && sys\.sheet\.look\.effects === 'cards'\);/.test(fxSlice6)

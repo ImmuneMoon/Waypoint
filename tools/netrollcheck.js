@@ -108,7 +108,7 @@ pendingChecks.push((async () => {
         const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
         const msg = Object.assign({ type: 'roll-req', rid: 'q1', expr: 'd20 + RoundNow', charId: 'c_a', label: 'Attack (+5)' }, o.msg || {});
-        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', (o.pre || '') + 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
             msg, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope, x) => out.pushed.push([scope, x && x.cid]), () => {});
         return out;
     };
@@ -120,6 +120,19 @@ pendingChecks.push((async () => {
         && e.table.length === 0 && e.sent.length === 1 && e.sent[0].priv === 'gm' && rd(e.sent[0], 'RoundNow') === 3
         && g.table.length === 0 && g.sent.length === 1 && g.sent[0].type === 'roll-deny' && g.sent[0].reason === 'error',
         j([a, b.table, c.table, d.table, f.table, e.sent, g.sent]));
+    // the review of words (the improvement week's review of sheets and rolls): a roll changed by hand in the ± window that its button does not name goes
+    // as its formula alone, as the plain press does, so the host's rules judge it as the plain press. Run with the real offTurnBar under Refuse (its
+    // offTurnOf answering refuse, the real systemcore offTurnFree): a named chosen roll is refused off the character's turn, the same roll unnamed
+    // with +2 added by hand goes through exactly as the plain press does, and its card says the +2 (hmod, from the request's hm)
+    const otBar = src.slice(src.indexOf('function offTurnBar('), src.indexOf('function offTurnWarn('));
+    const otPre = 'function offTurnOf() { return "refuse"; }\nfunction offTurnTell() {}\n' + otBar + '\n';
+    const atkId = (gmSys.rolls || []).filter(r => r.label && /^Attack/.test(r.label))[0].id;
+    const onNamed = run({ pre: otPre, msg: { expr: 'd20 + 2', act: atkId, mod: 2 } }), onHand = run({ pre: otPre, msg: { expr: 'd20 + 2', hm: { v: 2 } } }), onPlain = run({ pre: otPre, msg: { expr: 'd20 + 2' } });
+    check('the review of words: a roll changed by hand that is not named goes as the plain press does: under Off a character\'s turn: Refuse the named roll is refused, the same roll unnamed with +2 by hand and the plain press both go through, and only the one changed by hand says +2 on its card',
+        otBar.length > 0 && onNamed.table.length === 0 && onNamed.sent.length === 1 && onNamed.sent[0].type === 'roll-deny'
+        && onHand.table.length === 1 && j(onHand.table[0].hmod) === j({ v: 2 }) && !onHand.table[0].act
+        && onPlain.table.length === 1 && !('hmod' in onPlain.table[0]),
+        j([onNamed.sent, onHand.table, onPlain.table]));
 })());
 
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a player's roll with bonuses ticked in its ± window — the real roll-req branch

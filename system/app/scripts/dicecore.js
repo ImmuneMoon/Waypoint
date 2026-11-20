@@ -299,6 +299,7 @@ function cleanRollReq(msg) {
         if (msg.modD !== undefined) { var mdz = cleanDiceBonus(msg.modD); if (mdz === null) return null; if (mdz) out.modD = mdz; }   // 1.6.2: dice the \u00b1 window adds
         if (msg.adv !== undefined) { if (msg.adv !== 'adv' && msg.adv !== 'dis') return null; out.adv = msg.adv; }
     } else if (msg.mod !== undefined || msg.modD !== undefined || msg.adv !== undefined) return null;
+    else if (msg.hm !== undefined) { var hmw = cleanHmod(msg.hm); if (hmw) out.hm = hmw; }   // the review of words: what was added by hand to a roll that is not named (its formula already holds it), words for its card alone; one that does not clean is left off, the roll kept
     if (msg.sw !== undefined) {   // 1.6.0: the roll switches ticked in its ± window, each by its holder and its place there (the host judges them: systemcore swJudge)
         if (!(out.act || out.fr || (out.row && out.row.i !== undefined)) || !Array.isArray(msg.sw) || !msg.sw.length || msg.sw.length > LIMITS.swPicks) return null;
         var swO = [], swK = {};

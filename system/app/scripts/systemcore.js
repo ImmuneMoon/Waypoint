@@ -8136,7 +8136,8 @@ function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (ty
 // to leave it out. A toggle shows as a chip only while on; an error prints '—' with the message as a title (as the field itself does
 // below); a negative number marks itself so the figure can read red. Stage 5g: an empty text/select keeps its place as a dash (a row
 // that vanished read as a missing field), the field's unit follows the value, and a field colored by sign marks a positive too.
-function headerEntry(f, e, metric) {   // metric (1.5.4): the viewer's Measurement system, true for Metric and false for Imperial; absent, the field as stored (an export)
+// sys (the review of words): the sheet's system, handed to fxText so that a value an effect moves is named by its label, never its key (absent: as before)
+function headerEntry(f, e, metric, sys) {   // metric (1.5.4): the viewer's Measurement system, true for Metric and false for Imperial; absent, the field as stored (an export)
     if (!f || !e) return null;
     if (f.kind === 'toggle') return e.value === true ? { chip: true, text: f.label } : null;
     if (e.error) return { text: '\u2014', error: String(e.error) };
@@ -8145,7 +8146,7 @@ function headerEntry(f, e, metric) {   // metric (1.5.4): the viewer's Measureme
     var ht = f.kind === 'text' && !!cleanFieldUnit(f.unit, 'text');   // 1.5.4: a height or a weight, by the half of the viewer's setting (with none told, as stored)
     var out = { text: ht ? (metric === true || metric === false ? textWords(f, String(e.text), metric) : e.text) : f.unit && !e.label ? (f.kind === 'resource' ? e.text + ' ' + f.unit + unitTail(f, e.value, e.text, metric, e.max, typeof e.max === 'number' ? fmtNum(e.max) : '') : unitWords(f, e.value, e.text, metric)) : e.text };   // Stage 6: a named value is a word (no unit); 1.5.4: a measure in metric too under Metric, in the field's own form
     if (numeric && e.value < 0) out.neg = true; else if (numeric && f.sign && e.value > 0) out.pos = true;
-    var why = fxText(e) || (f.kind === 'resource' ? fxText(e, true) : ''); if (why) out.why = why;   // 5h: where the number came from
+    var why = fxText(e, false, sys) || (f.kind === 'resource' ? fxText(e, true, sys) : ''); if (why) out.why = why;   // 5h: where the number came from
     return out;
 }
 // "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error

@@ -2493,9 +2493,9 @@ function headerBlocks(head, sys, c, all, gm, own) {
         list.forEach(function(q) {
             var f = q && q.id ? byId[q.id] : null; if (!f) return;
             if (c.partial && !f.hover) return;
-            var en = headerEntry(f, all[f.id], typeof unitsMetric === 'function' ? unitsMetric() : undefined); if (!en) { if (ledger || f.kind !== 'toggle' || !idnOk(f)) return; en = { text: f.label }; }   // an off toggle shows as a chip only while on — unless it can be switched on here
+            var en = headerEntry(f, all[f.id], typeof unitsMetric === 'function' ? unitsMetric() : undefined, sys); if (!en) { if (ledger || f.kind !== 'toggle' || !idnOk(f)) return; en = { text: f.label }; }   // an off toggle shows as a chip only while on — unless it can be switched on here
             var it = el('div', itemCls + (f.vis === 'gm' ? ' sheet-gm' : ''));
-            var lab = el('span', 'sheet-label', f.label); lab.title = f.key; it.appendChild(lab);
+            var lab = el('span', 'sheet-label', f.label); it.appendChild(lab);   // the review of words: no tooltip of the field's short name (a key) on the header's label
             var tone = en.neg ? ' sheet-hdr-neg' : en.pos ? ' sheet-hdr-pos' : '';
             if (ledger && f.kind === 'number' && !f.labels && !en.error && !c.partial && !(all[f.id] && all[f.id].over) && openF(f) && (gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1)))) {
                 var raw = c.values ? c.values[f.id] : undefined;
@@ -2510,7 +2510,7 @@ function headerBlocks(head, sys, c, all, gm, own) {
             }
             if (!ledger && IDN_EDIT[f.kind] === 1 && !en.error && !(all[f.id] && all[f.id].over) && idnOk(f)) { it.appendChild(idnControl(f, c, all[f.id], tone)); box.appendChild(it); return; }   // Stage 6: changed right here, so the field needs no second copy
             var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + tone + (en.empty ? ' sheet-hdr-empty' : ''), en.chip ? 'on' : en.text);
-            v.title = en.error ? en.error : en.empty ? f.label + ': not set' : en.why ? en.text + '\n' + en.why : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one)
+            v.title = en.error ? (typeof sheetFault === 'function' ? sheetFault(sys, en.error) : en.error) : en.empty ? f.label + ': not set' : en.why ? en.text + '\n' + en.why : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one, in the sheet's own words: sheetFault, the review of words)
             if (all[f.id] && typeof all[f.id].locked === 'string') v.title += '\n' + all[f.id].locked;   // 1.6.3 (backlog 170): a locked figure in the header says why it cannot be changed here
             if (!en.chip && !en.error && !en.empty && typeof lookInto === 'function') lookInto(v, f, c, en.text);   // item 35: a one-line text with a look is read with it here too
             it.appendChild(v); box.appendChild(it);
@@ -5095,7 +5095,8 @@ function fxNameNode(c, f, r, d, mk) {
     return mine && r.lk && typeof rowRead === 'function' ? rowRead(d.name || 'Effect', r.lk, 'fx', 'span', 'sheet-fx-name') : el('span', 'sheet-fx-name', d.name || 'Effect');
 }
 // L6: a pill's text, the amount first (the owner's Q10): "+2 ST", "−5 HP max"; a switch reads as the name of what it turns on
-function fxPillText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : m.op === 'min' ? ' \u2264 ' : ' ') + m.vf; if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : ' \u2264 ') + fmtNum(m.v); return (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)) + ' ' + nm + (m.part === 'max' ? ' max' : ''); }
+// The review of words: a change worked out by a formula is said in words (amountSays), never the formula, as fxChangeText says it on the plain list
+function fxPillText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : m.op === 'min' ? ' \u2264 ' : ' by ') + (typeof amountSays === 'function' ? amountSays(null, m.vf) : 'an amount'); if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' \u2265 ' : ' \u2264 ') + fmtNum(m.v); return (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)) + ' ' + nm + (m.part === 'max' ? ' max' : ''); }
 // 5h: the New… form: a name, a tone, a duration note and up to LIMITS.effectMods changes (a field and an amount, or a toggle switched on)
 function effectForm(f, c, sys, onClose) {
     var form = el('div', 'sheet-fx-form');
@@ -5925,7 +5926,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
         if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, r.to === 'target', function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
         if (sys && typeof vars === 'function' && r.label && r.label.indexOf('{') >= 0 && F()) { try { var campN = getActiveCampaign(), cN = charById(c.id, campN) || c; vv = resolveAll(sys, cN, F(), tokenCtxFor(c.id, campN)).vars; lb = rollLabel(r, sys, cN, vv); } catch (err) { lb = label; vv = vars; } }   // HF5 review: the values as they are at the click, as the roll reads them (a redraw may still wait on a focused box)
-        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + why + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs || r.needsWhy || r.named) { oR = oR || {}; oR.act = r.id; } if ((r.to === 'near' || r.to === 'target')) { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if (r.resist === true || r.resisted === true || typeof r.resistBy === 'string' || r.area) { oR = oR || {}; oR.act = r.id; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR, { r: r.id });   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
+        var why = labelSecret(sys, vv, r.label); if (why) toast('Kept private: its label shows a GM-only value (' + (typeof privWordsS === 'function' ? privWordsS(sys, why) : why) + ').'); var oR = why ? { priv: true } : r.vis === 'gm' ? { gmOnly: true } : undefined; if (r.needs || r.needsWhy || r.named) { oR = oR || {}; oR.act = r.id; } if ((r.to === 'near' || r.to === 'target')) { oR = oR || {}; oR.act = r.id; if (e && typeof e.wpAlly === 'string' && e.wpAlly) oR.on = e.wpAlly; } if (r.resist === true || r.resisted === true || typeof r.resistBy === 'string' || r.area) { oR = oR || {}; oR.act = r.id; } if ((Array.isArray(r.then) && r.then.length) || r.malf || r.cost || r.dmg || r.init === true) { oR = oR || {}; oR.act = r.id; } sheetRoll(e, c.id, r.formula, lb, oR, { r: r.id });   // R1: a roll with consequences names itself (initiative O1: the initiative roll too, so the host can trust its number into the fight)   // a GM-only roll stays the GM's
     };
     b.addEventListener('click', goN);
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b);
@@ -5958,6 +5959,18 @@ function rollWhyNot(c) {
 }
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
 // sheets feature on (an apply moves the sheet, no dice)
+// The review of words (the improvement week's review of sheets and rolls): the GM-only values a Kept private notice names, said in the sheet's own words
+// (systemcore nameWord, a field's label), never by the names a formula reads them by, as net.js privWords says them for a roll. names: a list, or
+// labelSecret's answer (names joined by ", "); a name nameWord cannot say stays as it is, and one said twice is said once. Asked by applyAction,
+// rollNode and rollInit through typeof (a suite runs each alone)
+function privWordsS(sys, names) {
+    var seen = [], out = [];
+    (Array.isArray(names) ? names : String(names || '').split(', ')).forEach(function(n) {
+        if (!n) return; var w = String(n); try { if (typeof nameWord === 'function') w = String(nameWord(sys, n) || n); } catch (err) { w = String(n); }
+        if (seen.indexOf(w.toLowerCase()) < 0) { seen.push(w.toLowerCase()); out.push(w); }
+    });
+    return out.join(', ');
+}
 function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return canWrite(); }
 // An apply action's tooltip, each change in words. 1.6.3 (the improvement week's review of sheets and rolls, finding 10): its amount said through
 // amountSays (a plain figure or plain dice as written, anything else in the sheet's words, never the formula); a list's counter and stat by their
@@ -6029,7 +6042,7 @@ function applyAction(r, c, label, row, on, cx, ask) {   // cx (1.6.0): a crossin
     var scope = applyScope(sys, c, act, hit.length > 0 || gmRow || keptRow, F()), pub = applyScope(sys, c, act, false, F()) !== 'gm';
     if (gmRow && pub) toast(rowP.stat === true ? 'Kept private: that reads a GM-only stat.' : 'Kept private: that is on a GM-only item or list.');
     else if (keptRow && pub) toast('Kept private: its owner sees that item switched off.');
-    else if (hit.length && pub) toast('Kept private: that amount uses a GM-only value (' + hit.join(', ') + ').');
+    else if (hit.length && pub) toast('Kept private: that amount uses a GM-only value (' + (typeof privWordsS === 'function' ? privWordsS(sys, hit.join(', ')) : hit.join(', ')) + ').');   // the review of words: in the sheet's words
     if (n && n.postApplyCard && res.lines.length) n.postApplyCard(c, label, res.lines, scope, undefined, askedS);
     if (n && typeof n.soundAfter === 'function') n.soundAfter(camp, row ? { row: row } : { act: r.id }, c, '', scope === 'gm', scope === 'owner' ? c.ownerId : undefined);   // 1.6.2: a sound on this action, for whoever its card goes to
     if (res.gone) goneLocal(c.id, res.gone);   // 1.6.0: a row it used up, with its Undo
@@ -6200,7 +6213,7 @@ function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
     var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label) : '';   // HF5a: the label's value, and the GM's privacy rule
     if ((r.needs || r.needsWhy) && !(allI && typeof rollNeedsOk === 'function' && rollNeedsOk(r, allI.vars, F()))) return { held: true, error: typeof rollNeedsSays === 'function' ? rollNeedsSays(r, allI ? allI.vars : undefined, F()) : (r.needsText || 'Not now: it needs ' + r.needs) };   // 1.5.4: what the initiative roll needs, before anything is rolled (the roster's Roll all and the every-round re-roll pass over a row it holds back)
-    if (whyI) toast('Kept private: its label shows a GM-only value (' + whyI + ').');
+    if (whyI) toast('Kept private: its label shows a GM-only value (' + (typeof privWordsS === 'function' ? privWordsS(sys, whyI) : whyI) + ').');
     return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI || !!(opts && opts.priv === true), gmOnly: r.vis === 'gm' });
 }
 // [split:sheetlink.js]

@@ -7742,7 +7742,7 @@ function handleMessage(msg, conn) {
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollMods === 'function' && typeof varsQ === 'function') { var mdQ = SQ.rollMods(varsQ, recQ.names); if (mdQ) recQ.mods = mdQ; }
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollRefs === 'function' && typeof varsQ === 'function') { var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ; }   // 1.6.0 Specialties: the case each reference used, worked out through the player's view
         if (typeof swQ !== 'undefined' && swQ && swQ.ok && swQ.names.length) recQ.sw = swQ.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches it was rolled with, by name (their view holds no GM-only one)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
-        if (q.mod || q.adv) { var hmQ = Dq.cleanHmod ? Dq.cleanHmod({ v: q.mod, adv: q.adv }) : null; if (hmQ) recQ.hmod = hmQ; }   // 1.6.3 (finding 13): what the player added by hand in the ± window, which cleanRollReq takes only on a named roll and the host checked against its button above; the card says it to the table
+        if (q.mod || q.adv) { var hmQ = Dq.cleanHmod ? Dq.cleanHmod({ v: q.mod, adv: q.adv }) : null; if (hmQ) recQ.hmod = hmQ; } else if (q.hm) recQ.hmod = q.hm;   /* the review of words: a roll that is not named carries what was added by hand as words alone (cleanRollReq cleaned it), so it is judged as the plain press it is */   // 1.6.3 (finding 13): what the player added by hand in the ± window, which cleanRollReq takes only on a named roll and the host checked against its button above; the card says it to the table
         if (q.label) recQ.label = q.label;
         if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label); if (chQ && typeof plOn === 'function' && !(typeof pressQ !== 'undefined' && pressQ)) plOn(recQ, chQ);   // 1.6.2, backlog 35: a player's roll, in its character's look (a crew press names two, so none)
         if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? null : q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
@@ -9481,6 +9481,7 @@ net.diceRoll = function(expr, o) {
         if (o.src && o.charId) req.src = o.src;   // 1.6.2: which button it came from, for a sound on it
         if (o.row && o.charId) { req.row = { f: String(o.row.f), r: String(o.row.r) }; if (typeof o.row.k === 'string') req.row = { f: String(o.row.f), k: o.row.k }; if (typeof o.row.i === 'number') req.row.i = o.row.i; if (typeof o.row.i === 'number' && typeof o.row.lv === 'number') req.row.lv = o.row.lv; }   // R2b: a list's roll with consequences or needs names its index
         if (o.charId && ((o.act && !o.row) || (o.fr && !o.act && !o.row) || (o.row && typeof o.row.i === 'number'))) { if (o.act && !o.row) req.act = String(o.act); if (o.fr && !o.act && !o.row) req.fr = String(o.fr); if (Array.isArray(o.sw) && o.sw.length) req.sw = o.sw.slice(0, D.LIMITS.swPicks).map(function(x) { return { s: String(x && x.s), i: x && x.i }; }); if (o.mod) req.mod = o.mod; if (typeof o.modD === 'string' && o.modD) req.modD = o.modD; if (o.adv) req.adv = o.adv; if (typeof o.on === 'string' && o.on) req.on = o.on.slice(0, 80); }   // 1.5.9: on, the token of the adjacent character it is used on (the host judges it)   // Stage 6 HUD R1: the entry, its modifier and advantage (the host rebuilds the formula)   // Stage 6 F5b: a roll on a row
+        if (!req.act && !req.fr && !(req.row && typeof req.row.i === 'number') && o.hm && typeof o.hm === 'object' && D.cleanHmod) { var hmS = D.cleanHmod(o.hm); if (hmS) req.hm = hmS; }   // the review of words: what was added by hand to a roll that is not named, for its card alone
         if (typeof o.att === 'string' && o.charId && ((o.act && !o.row) || (o.row && !o.act && typeof o.row.i === 'number' && typeof o.row.r === 'string'))) req.att = o.att;   // 1.6.0: or beside a list's roll on one row   // 1.6.0 (B2): the attempt a resist roll answers
         if (o.with && typeof o.with === 'object' && req.att && req.act && !req.row) req.with = { f: String(o.with.f), r: String(o.with.r) };   // 1.6.3 (defense fold 2): the row a roll answered with a row was pressed with (the host judges it)
         if (o.ask && typeof o.ask === 'object' && o.charId && (req.act || (req.row && typeof req.row.i === 'number'))) req.ask = o.ask;   // 1.6.2: what they answered (the host judges it)
@@ -9598,7 +9599,8 @@ net.diceRoll = function(expr, o) {
     if (rec.names && SR && typeof SR.rollMods === 'function' && typeof varsR === 'function') { var mdR = SR.rollMods(varsR, rec.names); if (mdR) rec.mods = mdR; }
     if (rec.names && SR && typeof SR.rollRefs === 'function' && typeof varsR === 'function') { var rfR = SR.rollRefs(varsR, rec.names); if (rfR) rec.refs = rfR; }   // 1.6.0 Specialties: the case each reference used (a GM-only row is never named)
     if (swR && swR.names.length) rec.sw = swR.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches, by name (a GM-only one keeps the roll the GM's, below)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
-    if ((o.act || o.fr || o.row) && (o.mod || o.adv)) { var hmR = D.cleanHmod ? D.cleanHmod({ v: o.mod, adv: o.adv }) : null; if (hmR) rec.hmod = hmR; }   // 1.6.3 (finding 13): what this machine's own ± window added by hand to a named roll, said on its card
+    if ((o.act || o.fr || o.row) && (o.mod || o.adv)) { var hmR = D.cleanHmod ? D.cleanHmod({ v: o.mod, adv: o.adv }) : null; if (hmR) rec.hmod = hmR; }
+    else if (!(o.act || o.fr || (o.row && typeof o.row.i === 'number')) && o.hm) { var hmU = D.cleanHmod ? D.cleanHmod(o.hm) : null; if (hmU) rec.hmod = hmU; }   // the review of words: the GM's own roll that is not named, changed by hand: its words alone   // 1.6.3 (finding 13): what this machine's own ± window added by hand to a named roll, said on its card
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) { rec.as = String(chR.name || '').slice(0, D.LIMITS.label); if (typeof plOn === 'function') plOn(rec, chR); }
     if (rec.dmg !== 1 && chR && typeof bodySwitch === 'function' && bodySwitch(campR, chR.id, rec, res, D, mfR, tcR && tcR.range, function() { return rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'bodyRead'); })) tcR = bodyAim(tcR, rec);   // 1.6.2: a miss within a body's cover hits the body, a full hit aimed at it
@@ -9873,8 +9875,12 @@ function renderChat() {
     // up to press an older card (Apply, Accept, a defense) used to be sent to the bottom by every new line, the button moving away under the
     // pointer. Now the log sticks to the bottom only where it stood there (within 24 px), or where the newest line is this machine's own;
     // otherwise its place is put back and a New messages button under it offers the way down (chatNewShow). A panel put away reads as at the end
+    // The review of words: a panel put away has no layout (its height 0), so a draw then neither marks the newest line as drawn nor takes up a
+    // wish to go to the end. The newest line is shown when the panel is opened, raised by a roll or back on screen (each sets _chatToEnd), and a
+    // line that came while it was put away still counts as fresh at the next draw that can be seen
+    var laidC = log.clientHeight > 0, toEndC = !!_chatToEnd && laidC; if (toEndC) _chatToEnd = false;
     var wasTopC = log.scrollTop, atEndC = !log.firstChild || log.scrollHeight - wasTopC - log.clientHeight < 24;
-    var lastC = chatLog.length ? chatLog[chatLog.length - 1] : null, freshC = !!lastC && lastC !== _chatLastDrawn, mineC = freshC && !!(lastC.from && net.myId && lastC.from.id === net.myId); _chatLastDrawn = lastC;
+    var lastC = chatLog.length ? chatLog[chatLog.length - 1] : null, freshC = !!lastC && lastC !== _chatLastDrawn, mineC = freshC && !!(lastC.from && net.myId && lastC.from.id === net.myId); if (laidC) _chatLastDrawn = lastC;
     var envC = chatEnv();   // 1.6.3 (finding 33): what a roll's card reads beside its own record, so a card is drawn again only where that moved
     chatLog.forEach(function(m) {
         var node = null, keep = !!(m && (m.roll || m.apply) && _chatNodes), sigC = null, kc = keep ? _chatNodes.get(m) : null;
@@ -9887,7 +9893,7 @@ function renderChat() {
         if (node) frag.appendChild(node);
     });
     log.textContent = ''; log.appendChild(frag);
-    if (atEndC || mineC) { log.scrollTop = log.scrollHeight; chatNewShow(log, false); }
+    if (toEndC || atEndC || mineC) { log.scrollTop = log.scrollHeight; chatNewShow(log, false); }
     else { log.scrollTop = wasTopC; if (freshC) chatNewShow(log, true); }
     var badge = ui('chatBadge');
     if (badge) {
@@ -9898,6 +9904,7 @@ function renderChat() {
 }
 var _chatRenderTimer = null;   // one pending draw of the chat panel (renderChatSoon): a burst of lines costs one render
 var _chatLastDrawn = null;   // 1.6.3 (finding 16): the newest line the last draw held, so a draw knows whether a line came since
+var _chatToEnd = false;   // the review of words: the next draw that can be seen goes to the newest line (set by the chat button opening it, a roll raising it, and the panel back on screen)
 // 1.6.3 (finding 16): the New messages button under Table Chat's log, made the first time it is wanted, shown while lines came in below a reader
 // who had scrolled up. A press takes the log to its end; reaching the end by hand puts it away too (one scroll listener on the log)
 function chatNewShow(log, on) {
@@ -9987,7 +9994,7 @@ function pushChat(m) {
     var rise = !view || view === 'play' || !m.roll || m.from.id === net.myId;   // someone else's roll raises the chat only on the play map: on another view it is a notice and a count on the button
     if ((m.roll || (m.due && !m.due.theirs) || (m.help && !m.help.done && (m.help.mine || m.help.gm || (m.help.can && m.help.can.length)))) && panel && closed && rise) {   // 1.6.2 Assist: a roll that waits for your help too   // T2b: a reminder to press surfaces it too (never dismissed by itself)   // a roll always surfaces Table Chat so everyone sees the result (no toast needed then)
         var lent = fl && fl.reveal ? fl.reveal(panel) : '';   // up on another view: borrowed for this one, and given back when the roll's few seconds are over
-        panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false;
+        panel.style.display = 'flex'; chatUnread = 0; refreshChatRecipients(); closed = false; _chatToEnd = true;   // the review of words: raised by a roll, it opens on the newest line
         _chatRollOpened = lent || true; _chatRaisedBy = m;
     }
     else if (m.roll && panel && !closed && fl && fl.place) fl.place(panel);   // up already: clear of a sheet opened since, unless the user moved it (floats.js)
@@ -10063,12 +10070,12 @@ if (_chatBtn) _chatBtn.addEventListener('click', function() {
     if (!opening && typeof window.wpBoxFront === 'function' && window.wpBoxFront(panel)) return;   // 1.6.2: under a box opened after it, it comes in front, and closes at the next press
     panel.style.display = opening ? 'flex' : 'none';
     if (opening && window.wpFloats) window.wpFloats.reveal(panel);   // asked for here: it shows on this view
-    if (opening) { chatUnread = 0; refreshChatRecipients(); renderChat(); var i = ui('chatInput'); if (i) i.focus(); }
+    if (opening) { chatUnread = 0; refreshChatRecipients(); _chatToEnd = true; renderChat(); var i = ui('chatInput'); if (i) i.focus(); }   // the review of words: opened, it shows the newest line
 });
 // touching the chat or the dice roller cancels the roll auto-dismiss (the player is reading / rolling)
 ['chatPanel', 'dicePanel'].forEach(function(id) { var p = ui(id); if (p) { p.addEventListener('pointerdown', cancelChatDismiss); p.addEventListener('focusin', cancelChatDismiss); } });
 // 1.5.4 (floats.js): the chat is back on screen after being put away with another view. What came meanwhile is on show: nothing is unread, and the newest line is in view
-var _chatBackEl = ui('chatPanel'); if (_chatBackEl) _chatBackEl.addEventListener('wpfloatback', function() { chatUnread = 0; renderChat(); });
+var _chatBackEl = ui('chatPanel'); if (_chatBackEl) _chatBackEl.addEventListener('wpfloatback', function() { chatUnread = 0; _chatToEnd = true; renderChat(); });
 var _chatClose = ui('chatCloseBtn');
 if (_chatClose) _chatClose.addEventListener('click', function() { cancelChatDismiss(); ui('chatPanel').style.display = 'none'; });
 var _chatSend = ui('chatSendBtn');

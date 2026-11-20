@@ -2991,7 +2991,7 @@ function reapplyPending(charId) {
     });
     if (typeof styleLay === 'function') styleLay(charId);   // item 35: the looks follow the text they belong to
 }
-function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(values || {})); }   // Stage 6: what the host last said this character holds
+function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(values || {})); }   // Stage 6: what the host last said this character holds
 // 1.6.3 (the improvement week's review of sheets and rolls, finding 7): a player's edits of one field, one at a time. A pool's − pressed six times quickly
 // sent six edits, the host's limiter refused those within 100 ms of the one before (and said so once), and each one it said nothing of was undone five
 // seconds later with "No answer from the GM". Now an edit (net.charEdit, marked edit) waits while one of the same field is with the host (held, no timer,
@@ -7742,6 +7742,7 @@ function handleMessage(msg, conn) {
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollMods === 'function' && typeof varsQ === 'function') { var mdQ = SQ.rollMods(varsQ, recQ.names); if (mdQ) recQ.mods = mdQ; }
         if (recQ.names && typeof SQ !== 'undefined' && SQ && typeof SQ.rollRefs === 'function' && typeof varsQ === 'function') { var rfQ = SQ.rollRefs(varsQ, recQ.names); if (rfQ) recQ.refs = rfQ; }   // 1.6.0 Specialties: the case each reference used, worked out through the player's view
         if (typeof swQ !== 'undefined' && swQ && swQ.ok && swQ.names.length) recQ.sw = swQ.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches it was rolled with, by name (their view holds no GM-only one)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
+        if (q.mod || q.adv) { var hmQ = Dq.cleanHmod ? Dq.cleanHmod({ v: q.mod, adv: q.adv }) : null; if (hmQ) recQ.hmod = hmQ; }   // 1.6.3 (finding 13): what the player added by hand in the ± window, which cleanRollReq takes only on a named roll and the host checked against its button above; the card says it to the table
         if (q.label) recQ.label = q.label;
         if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label); if (chQ && typeof plOn === 'function' && !(typeof pressQ !== 'undefined' && pressQ)) plOn(recQ, chQ);   // 1.6.2, backlog 35: a player's roll, in its character's look (a crew press names two, so none)
         if (!q.priv && tcQ && tcQ.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campQ, tcQ.range, pidQ) && rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? null : q.row)) {   // range R3: its card would tell another player how far a target they cannot see is
@@ -9456,6 +9457,10 @@ function dueLive(att, card) {
     return live;
 }
 net.dueLive = function(card) { return dueLive('', card); };   // the review of input: dice.js duePress, a card whose press rolled nothing
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 42): the GM-only values a roll read, said in a Kept private notice by the
+// sheet's own words (systemcore nameWord, the field's label), never by the names a formula reads them by; a name it cannot read stays as it is.
+// S is the character system's core, sys the campaign's system. Asked by net.diceRoll's privacy notices alone
+function privWords(S, sys, names) { return (Array.isArray(names) ? names : []).map(function(n) { try { return S && typeof S.nameWord === 'function' ? String(S.nameWord(sys, n) || n) : String(n); } catch (e) { return String(n); } }).join(', '); }
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
     var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && (((o.act === atN.act || !o.act) && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) { o = Object.assign({}, o, atN.act ? { act: atN.act } : null, { att: atN.att }, atN.with && typeof atN.with === 'object' ? { with: { f: atN.with.f, r: atN.with.r } } : null); net._attNext = null; }   /* 1.6.3 (defense fold 2): and the row a roll answered with a row was pressed with */   // 1.6.0: a plain roll's button names nothing, so the card names it, and the first roll takes it: a blast its answer lets go rolls as itself   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
@@ -9593,6 +9598,7 @@ net.diceRoll = function(expr, o) {
     if (rec.names && SR && typeof SR.rollMods === 'function' && typeof varsR === 'function') { var mdR = SR.rollMods(varsR, rec.names); if (mdR) rec.mods = mdR; }
     if (rec.names && SR && typeof SR.rollRefs === 'function' && typeof varsR === 'function') { var rfR = SR.rollRefs(varsR, rec.names); if (rfR) rec.refs = rfR; }   // 1.6.0 Specialties: the case each reference used (a GM-only row is never named)
     if (swR && swR.names.length) rec.sw = swR.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches, by name (a GM-only one keeps the roll the GM's, below)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
+    if ((o.act || o.fr || o.row) && (o.mod || o.adv)) { var hmR = D.cleanHmod ? D.cleanHmod({ v: o.mod, adv: o.adv }) : null; if (hmR) rec.hmod = hmR; }   // 1.6.3 (finding 13): what this machine's own ± window added by hand to a named roll, said on its card
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
     if (chR) { rec.as = String(chR.name || '').slice(0, D.LIMITS.label); if (typeof plOn === 'function') plOn(rec, chR); }
     if (rec.dmg !== 1 && chR && typeof bodySwitch === 'function' && bodySwitch(campR, chR.id, rec, res, D, mfR, tcR && tcR.range, function() { return rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'bodyRead'); })) tcR = bodyAim(tcR, rec);   // 1.6.2: a miss within a body's cover hits the body, a full hit aimed at it
@@ -9610,12 +9616,12 @@ net.diceRoll = function(expr, o) {
     else if (hosting && rowP && rowP.kept) { rec.priv = 'gm'; toast('Kept private: its owner sees that item switched off' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // owed review F5b#2: a curse the GM keeps on
     else if (hosting && swR && swR.names.some(function(x) { return x.gm; })) { rec.priv = 'gm'; toast('Kept private: it adds a GM-only bonus (' + swR.names.filter(function(x) { return x.gm; }).map(function(x) { return x.n; }).join(', ') + ').'); }   // 1.6.0: a roll switch of a GM-only item or effect
     else if (hosting && o.gmOnly) { rec.priv = 'gm'; toast('Kept private: that roll is GM only' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // the caller's word: a GM-only field's own roll, a GM-only roll, a GM-only item's damage — its label and formula are the GM's
-    else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + gmR.join(', ') + ').'); }   // a public roll never carries a GM-only value
+    else if (gmR.length) { rec.priv = 'gm'; toast('Kept private: that roll uses a GM-only value (' + privWords(SR, campR && campR.system, gmR) + ').'); }   // a public roll never carries a GM-only value
     else if (hosting && typeof abR !== 'undefined' && abR && abR.kp === true && SR && typeof SR.readsAttempt === 'function' && SR.readsAttempt(expr, F)) { rec.priv = 'gm'; toast('Kept private: it reads the kind of a GM-only attack' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // 1.6.0: a record's names travel, so a public card would name it
     else if (hosting && thnR && thnR.secret()) { rec.priv = 'gm'; toast('Kept private: it reads a figure of its target\u2019s location that players do not see' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // 1.6.0 (B5): a GM-only row, or a figure worked out from a GM-only value
     else if (hosting && tcR && tcR.range && typeof rangeUnseen === 'function' && typeof rangeReadBy === 'function' && rangeUnseen(campR, tcR.range, '') && rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row && o.row.k ? null : o.row)) { rec.priv = 'gm'; toast('Kept private: a player on that map cannot see its target' + (rec.label ? ' (' + rec.label + ')' : '') + '.'); }   // range R3: its card would tell them how far it is
-    else if (hosting && rowP && SR && varsR && SR.gmEffectNames(varsR, rowP.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rowP.names).join(', ') + '.'); }   // F5b: through a column
-    else if (hosting && rec.names && SR && varsR && SR.gmEffectNames(varsR, rec.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + SR.gmEffectNames(varsR, rec.names).join(', ') + '.'); }   // 5h: nor a number a GM-only effect moved
+    else if (hosting && rowP && SR && varsR && SR.gmEffectNames(varsR, rowP.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + privWords(SR, campR && campR.system, SR.gmEffectNames(varsR, rowP.names)) + '.'); }   // F5b: through a column
+    else if (hosting && rec.names && SR && varsR && SR.gmEffectNames(varsR, rec.names).length) { rec.priv = 'gm'; toast('Kept private: a GM-only effect changes ' + privWords(SR, campR && campR.system, SR.gmEffectNames(varsR, rec.names)) + '.'); }   // 5h: nor a number a GM-only effect moved
     else if (hosting) {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';   // a whisper target makes the roll private to that player
         var target = toKey ? net.conns.find(function(c) { return c.peer === toKey; }) : null;
@@ -9665,7 +9671,7 @@ net.diceRoll = function(expr, o) {
             if (hosting && scT !== 'gm') {   // the review of fold 1: the card says the amount, so one that reads a GM-only value, one worked out from it or one a GM-only effect moved keeps it the GM's, as the GM's press of an action does (sheets.js applyAction)
                 var rpT = o.row ? SR.rowRollNames(campR.system, chR, o.row.f, o.row.r, nmT, F) : o.with ? SR.rowRollNames(campR.system, chR, o.with.f, o.with.r, nmT, F) : null;   /* 1.6.3 (defense fold 2): or the row a roll answered with a row was pressed with */ if (rpT) { nmT = rpT.names; if (rpT.gm || rpT.kept) scT = 'gm'; }
                 SR.gmOnlyNames(campR.system, nmT).concat(SR.gmDerivedNames(campR.system, F, nmT), SR.gmEffectNames(varsR, nmT)).forEach(function(n) { if (hitT.indexOf(n) < 0) hitT.push(n); });
-                if (hitT.length && scT !== 'gm') { scT = 'gm'; toast('Kept private: that amount uses a GM-only value (' + hitT.join(', ') + ').'); }
+                if (hitT.length && scT !== 'gm') { scT = 'gm'; toast('Kept private: that amount uses a GM-only value (' + privWords(SR, campR && campR.system, hitT) + ').'); }
             }
             net.postApplyCard(chR, String(o.label || (typeof entR.label === 'string' && entR.label && entR.label.indexOf('{') < 0 ? entR.label : 'Then')).slice(0, 60), taR.lines, scT, hdR);
         }
@@ -9723,8 +9729,8 @@ function burstAfter(camp, ch, ent, row, res, rule, malf, ta, tc, persist) {
 // [netcheck:burst-end]
 
 /* ---------- table chat ---------- */
-var chatLog = [];   // {from:{id,name}, text, scope:'global'|'whisper', ts}
-var chatUnread = 0;
+var chatLog = [];   // {from:{id,name}, text, scope:'global'|'whisper', ts}
+var chatUnread = 0;
 // [netcheck:chatkeep-start]
 // 1.6.3 (the improvement week's review of sheets and rolls, finding 24): the GM's Table Chat comes back with a reload. It lived in this window's memory alone,
 // so a reload mid-fight lost the damage cards not yet applied (with whether each was), the GM's copies of the players' cards and the reminders due. As the
@@ -9863,6 +9869,12 @@ function renderChat() {
     if (!log) return;
     var clR = cardLookNow(); if (!window.wpPopout) { _cardLook = clR; _cardSig = JSON.stringify(clR); } paintCardLook(log, clR);
     var frag = document.createDocumentFragment();
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 16): where the reader was before the panel is drawn again. A reader scrolled
+    // up to press an older card (Apply, Accept, a defense) used to be sent to the bottom by every new line, the button moving away under the
+    // pointer. Now the log sticks to the bottom only where it stood there (within 24 px), or where the newest line is this machine's own;
+    // otherwise its place is put back and a New messages button under it offers the way down (chatNewShow). A panel put away reads as at the end
+    var wasTopC = log.scrollTop, atEndC = !log.firstChild || log.scrollHeight - wasTopC - log.clientHeight < 24;
+    var lastC = chatLog.length ? chatLog[chatLog.length - 1] : null, freshC = !!lastC && lastC !== _chatLastDrawn, mineC = freshC && !!(lastC.from && net.myId && lastC.from.id === net.myId); _chatLastDrawn = lastC;
     var envC = chatEnv();   // 1.6.3 (finding 33): what a roll's card reads beside its own record, so a card is drawn again only where that moved
     chatLog.forEach(function(m) {
         var node = null, keep = !!(m && (m.roll || m.apply) && _chatNodes), sigC = null, kc = keep ? _chatNodes.get(m) : null;
@@ -9875,7 +9887,8 @@ function renderChat() {
         if (node) frag.appendChild(node);
     });
     log.textContent = ''; log.appendChild(frag);
-    log.scrollTop = log.scrollHeight;
+    if (atEndC || mineC) { log.scrollTop = log.scrollHeight; chatNewShow(log, false); }
+    else { log.scrollTop = wasTopC; if (freshC) chatNewShow(log, true); }
     var badge = ui('chatBadge');
     if (badge) {
         badge.style.display = chatUnread > 0 ? 'block' : 'none';
@@ -9884,6 +9897,21 @@ function renderChat() {
     if (!window.wpPopout && _chatPopAsked) broadcastChatSync();   // mirror the chat to any popped-out chat window (which owns no session of its own); 1.6.3 (finding 33): only once one has asked
 }
 var _chatRenderTimer = null;   // one pending draw of the chat panel (renderChatSoon): a burst of lines costs one render
+var _chatLastDrawn = null;   // 1.6.3 (finding 16): the newest line the last draw held, so a draw knows whether a line came since
+// 1.6.3 (finding 16): the New messages button under Table Chat's log, made the first time it is wanted, shown while lines came in below a reader
+// who had scrolled up. A press takes the log to its end; reaching the end by hand puts it away too (one scroll listener on the log)
+function chatNewShow(log, on) {
+    if (!log || !log.parentNode || typeof document === 'undefined') return;
+    var b = document.getElementById('chatNewBtn');
+    if (!b && !on) return;
+    if (!b) {
+        b = document.createElement('button'); b.type = 'button'; b.id = 'chatNewBtn'; b.className = 'tool ghost chat-new'; b.textContent = 'New messages ↓'; b.title = 'Go to the newest message';
+        b.addEventListener('click', function() { log.scrollTop = log.scrollHeight; b.style.display = 'none'; });
+        log.parentNode.insertBefore(b, log.nextSibling);
+    }
+    if (!log._wpNewWired) { log._wpNewWired = true; log.addEventListener('scroll', function() { if (log.scrollHeight - log.scrollTop - log.clientHeight < 24) { var nb = document.getElementById('chatNewBtn'); if (nb) nb.style.display = 'none'; } }); }
+    b.style.display = on ? '' : 'none';
+}
 function renderChatSoon() { if (_chatRenderTimer) return; _chatRenderTimer = setTimeout(function() { _chatRenderTimer = null; renderChat(); }, 40); }
 // 1.5.4 (floats.js): Table Chat put away on a view it was not asked for on counts as closed, so its button, a dock and a roll bring it up where you are
 function chatHidden(p) { return !p || p.style.display === 'none' || !!(window.wpFloats && window.wpFloats.away(p)); }

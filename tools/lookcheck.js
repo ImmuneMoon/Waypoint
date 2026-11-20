@@ -4838,5 +4838,27 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         !!rowRule && !!binRule && lastBin && beats(wBin, wRow) && (!same || after) && J(weight('.element-list-item .el-del')) === J([0, 2, 0]) && J(weight('.element-list-item button.tool')) === J([0, 2, 1]) && J(weight('#a .b button.c:hover')) === J([1, 3, 1]),
         J([rowRule && rowRule.sel, wRow, binRule && binRule.sel, wBin, after]));
 }
+{   // 1.6.3 (the improvement week's review of sheets and rolls, finding 43): the Give menu has a heading, and a gray line under each player that tells
+    // two of one name apart: the character they play, then here now or the day last seen (charlist.js giveLine, sliced and run for real), as text
+    const cl = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'charlist.js'), 'utf8').replace(/\r\n/g, '\n');
+    const glSrc = cl.slice(cl.indexOf('function giveLine(camp, pid) {'), cl.indexOf('function giveMenu(id, x, y) {'));
+    const seen = Date.UTC(2026, 10, 2), camp = { players: { u_a: { name: 'Hshif', lastSeen: seen }, u_b: { name: 'Hshif' }, u_c: { name: 'Scorch', lastSeen: seen } } };
+    const winG = { wpSystemCore: { playsAs: (c, p) => (p === 'u_a' ? 'Tarn' : '') }, wpNet: { roster: { pB: { id: 'u_b', name: 'Hshif' } } } };
+    const gl = new Function('window', 'charText', 'CHAR_NAME', glSrc + '\nreturn giveLine;')(winG, (v, n) => String(v).slice(0, n), 60);
+    const gl0 = new Function('window', 'charText', 'CHAR_NAME', glSrc + '\nreturn giveLine;')(undefined, (v, n) => String(v).slice(0, n), 60);
+    const day = new Date(seen).toLocaleDateString();
+    check('1.6.3 (finding 43) the Give menu tells two players of one name apart: a gray line of the character they play and here now or last seen, nothing where nothing is known, and none of it needs the table or the core',
+        gl(camp, 'u_a') === 'plays Tarn · last seen ' + day && gl(camp, 'u_b') === 'here now' && gl(camp, 'u_c') === 'last seen ' + day && gl(camp, 'u_z') === '' && gl0(camp, 'u_b') === ''
+        && cl.includes("hdG.className = 'char-menu-head'; hdG.textContent = 'Give to';") && cl.includes("var gl = giveLine(camp, pid); if (gl) { var sm = document.createElement('small'); sm.className = 'char-menu-sub'; sm.textContent = gl; d.appendChild(sm); }")
+        && /\.char-menu button \.char-menu-sub \{[^}]*pointer-events: none;/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8')), J([gl(camp, 'u_a'), gl(camp, 'u_b'), gl(camp, 'u_c')]));
+}
+{   // 1.6.3 (the improvement week's review of sheets and rolls, finding 40): the library picker's search names no builder's word, and its preview says a
+    // note that is only the description's own cut beginning once (libpicker.js noteBegins, sliced and run for real, by the sheet's own noteInDesc rule)
+    const lp = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');
+    const nb = new Function(lp.slice(lp.indexOf('function noteBegins(note, desc) {'), lp.indexOf('function line(box, label, value) {')) + '\nreturn noteBegins;')();
+    check('1.6.3 (finding 40) the library picker: its search says names, categories and tags, and a note the description begins with is not said twice; a note of its own still is',
+        lp.includes("search.placeholder = 'Search names, categories, tags…';") && !/keys, categories/.test(lp) && nb('Fast and deadly…', 'Fast and deadly. More words.') === true && nb('Fast', 'Slow and fast') === false && nb('', 'x') === false && nb('x', '') === false
+        && lp.includes("if (e.notes && !noteBegins(e.notes, e.desc)) box.appendChild(el('div', 'lib-pick-notes', e.notes));"));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

@@ -2247,7 +2247,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         amts.push({ f: f, ctr: ctr, rq: rq, all: !!lfA, st: stQ || stA, lf: lfC || lfQ || lfA, amt: c.set === true || (f && TRACK_MARKS[c.mark] === 1) ? v : (v > 0 ? v : 0), add: c.add === true, set: c.set === true, mark: f && TRACK_MARKS[c.mark] === 1 ? c.mark : '', loss: c.loss === true, roll: rolled && res.diceRolled > 0 ? rollWords(res) : '' });   // R1: Set to takes the amount as it is; 1.5.9: what a Rolled amount drew
     }
     if (!tagMoves.length && !amts.some(function(a) { return a.allSw || a.say || a.launch || a.setOff || a.rand || a.discard || a.deckD || a.shared || a.table || a.fire || a.feed || a.off || a.fx || a.set || a.amt > 0 || (a.money && a.amt !== 0) || (!!a.per && Object.keys(a.per).some(function(k) { return a.per[k].amt > 0; })); })) return { ok: false, reason: 'none' };
-    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], asIs = same === true, fired = null, burst = false, shotsA = null, launches = [], lkWs = map(), lkOut = map(), setOffs = [], soLine = null;   // asIs: work still as char stands; burst: a fire with How many went, so its card says how many
+    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], still = [], asIs = same === true, fired = null, burst = false, shotsA = null, launches = [], lkWs = map(), lkOut = map(), setOffs = [], soLine = null;   // asIs: work still as char stands; burst: a fire with How many went, so its card says how many
     var onW = isObj(on) && isObj(on.char) ? Object.assign({}, on.char, { values: JSON.parse(JSON.stringify(on.char.values || {})) }) : null, onTc = onW ? (on.tctx || null) : null, onOut = {}, onLines = [], sameFx = '', gone = [], paidM = false, shortM = null, valMoves = map(), deckMoves = map();   // gone (1.6.0): the rows a quantity used up took out, each as it was   // 1.5.9 (book es/et plan, section 3): the character it is used on, on a working copy of its own
     for (var j = 0; j < amts.length; j++) {
         var a = amts[j]; if (a.money) {   // 1.6.0: too little money refuses the whole change for a player; the GM's hand (fxo.gmHand) takes what is held and is told
@@ -2386,7 +2386,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
                     var ggQ = grantsKept(sys, work.values, rowCtx.r); if (ggQ) { goQ.grants = ggQ; var gcQ = map(); ggQ.rows.forEach(function(p) { gcQ[p.f + '|' + rowIdOf(p.row)] = 1; }); itemListIds(sys).forEach(function(fid) { var lsG = Array.isArray(work.values[fid]) ? work.values[fid] : null; if (!lsG || !lsG.some(function(r) { return gcQ[fid + '|' + rowIdOf(r)] === 1; })) return; var kpG = lsG.filter(function(r) { return gcQ[fid + '|' + rowIdOf(r)] !== 1; }); lsG.length = 0; kpG.forEach(function(r) { lsG.push(r); }); out[fid] = lsG; }); }   // 1.6.0 (v2, B4): what it granted goes with it, kept for its Undo
                     if (gpQ) partsKeptAll(gpQ).forEach(function(kp) { var lsP = kp.f === a.lf.id ? rowsQ : (work.values[kp.f] = JSON.parse(JSON.stringify(Array.isArray(work.values[kp.f]) ? work.values[kp.f] : []))), gidQ = map(); kp.rows.forEach(function(p) { gidQ[rowIdOf(p.row)] = 1; }); var keepQ = lsP.filter(function(r) { return !(isObj(r) && gidQ[rowIdOf(r)] === 1); }); lsP.length = 0; keepQ.forEach(function(r) { lsP.push(r); }); if (kp.f !== a.lf.id) out[kp.f] = lsP; });   // 1.6.2: of every list they come from
                 } else rwQ.qty = nxQ;
-                out[a.lf.id] = rowsQ; var lnQ = { f: a.lf.id, n: nmQ, d: nxQ - curQ, v: nxQ }; if (a.roll) lnQ.roll = a.roll; lines.push(lnQ);
+                out[a.lf.id] = rowsQ; var lnQ = { f: a.lf.id, n: nmQ, d: nxQ - curQ, v: nxQ }; if (a.roll) lnQ.roll = a.roll; lines.push(lnQ); if (nxQ === curQ && !a.roll) still.push(lnQ);
                 continue;
             }
             var spQ = isObj(a.lf.list) ? a.lf.list : null, curS = rowStat(spQ, rdQ ? rdQ.def : null, a.st.key); curS = typeof curS === 'number' && fin(curS) ? curS : 0;
@@ -2394,7 +2394,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             if (typeof rwQ.defId === 'string') { rwQ.ov = isObj(rwQ.ov) ? rwQ.ov : {}; rwQ.ov.stats = Object.assign({}, isObj(rwQ.ov.stats) ? rwQ.ov.stats : {}); rwQ.ov.stats[a.st.key] = nxS; }   // a library row: its own figure over the entry's
             else if (isObj(rwQ.def)) { rwQ.def = Object.assign({}, rwQ.def); rwQ.def.stats = Object.assign({}, isObj(rwQ.def.stats) ? rwQ.def.stats : {}); rwQ.def.stats[a.st.key] = nxS; }   // a row of its own: its own copy
             else return { ok: false, reason: 'missing' };
-            out[a.lf.id] = rowsQ; var lnS = { f: a.lf.id, n: a.st.label || a.st.key, d: nxS - curS, v: nxS }; if (a.roll) lnS.roll = a.roll; lines.push(lnS);
+            out[a.lf.id] = rowsQ; var lnS = { f: a.lf.id, n: a.st.label || a.st.key, d: nxS - curS, v: nxS }; if (a.roll) lnS.roll = a.roll; lines.push(lnS); if (nxS === curS && !a.roll) still.push(lnS);
             continue;
         }
         if (a.fire) {   // 1.5.9 Chambers from: the first chambered round leaves the chamber and is kept on the row as the round last fired (one copy, replaced at each shot). Nothing chambered: nothing fires. 1.6.0: How many (a.n) takes that many in order, stopping when the chamber is empty, each a shot as one press would make it: fd is the last that went
@@ -2428,7 +2428,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             var curC = rowCt(rwC, a.ctr), nxC = Math.max(0, Math.min(1e6, Math.round(a.set ? a.amt : a.add ? curC + a.amt : curC - a.amt))), mxC = makeResolver(sys, work, F, tctx || null).ctMax(a.lf, rwC, a.ctr.key);
             if (typeof mxC === 'number') nxC = Math.min(nxC, mxC);
             rwC.ct = Object.assign({}, isObj(rwC.ct) ? rwC.ct : {}); rwC.ct[a.ctr.key] = nxC; out[a.lf.id] = rowsC;
-            var lnC = { f: a.lf.id, n: a.ctr.label || a.ctr.key, d: a.set ? nxC - curC : a.add ? a.amt : -a.amt, v: nxC }; if (a.roll) lnC.roll = a.roll; lines.push(lnC);   // 1.5.9: and what a Rolled amount drew
+            var lnC = { f: a.lf.id, n: a.ctr.label || a.ctr.key, d: a.set ? nxC - curC : a.add ? a.amt : -a.amt, v: nxC }; if (a.roll) lnC.roll = a.roll; lines.push(lnC); if (nxC === curC && !a.roll) still.push(lnC);   // 1.5.9: and what a Rolled amount drew
             continue;
         }
         var lkW = null; if (a.lk) { if (!lkWs[a.lk]) { var lk0 = null; try { lk0 = _linkCharSrc ? _linkCharSrc(a.lk) : null; } catch (e) { lk0 = null; } if (isObj(lk0) && _linkOver && isObj(_linkOver[a.lk])) lk0 = Object.assign({}, lk0, { values: Object.assign({}, lk0.values || {}, _linkOver[a.lk]) }); if (isObj(lk0)) lkWs[a.lk] = Object.assign({}, lk0, { values: JSON.parse(JSON.stringify(lk0.values || {})) }); } lkW = lkWs[a.lk] || null; if (!lkW) { lines.push({ n: a.f.label || a.f.key, say: 'The linked sheet is not here, so nothing moves.' }); continue; } }   // 1.6.2 (12): a copy of the linked sheet, read and moved in its own names
@@ -2449,11 +2449,16 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         tw.values[a.f.id] = ed.value; if (lkW) (lkOut[a.lk] = lkOut[a.lk] || {})[a.f.id] = ed.value; else if (onW) onOut[a.f.id] = ed.value; else { out[a.f.id] = ed.value; asIs = false; }
         var nv = a.f.kind === 'resource' ? ed.value.cur : a.f.kind === 'toggle' ? (ed.value ? 1 : 0) : ed.value;
         var lnF = { f: a.f.id, n: a.f.label || a.f.key, d: a.set || mkR ? nv - cur : a.add ? a.amt : -a.amt, v: nv }; if (mkR) lnF.say = mkR.say; if (scS > 0) lnF.sur = scS; if (a.roll) lnF.roll = a.roll; if (lkW) { delete lnF.f; lnF.n = cutText(lkW.name || 'The linked sheet', 40) + ': ' + lnF.n; lnF.lk = 1; lines.push(lnF); } else { if (onW && a.set) lnF.set = true; (onW ? onLines : lines).push(lnF); }
+        if (nv === cur && !mkR && !scS && !a.roll) still.push(lnF);   // 1.6.3 (finding 38): a value the change left where it stood, put aside below
         if (a.f.kind === 'resource' && !a.set && !a.add && isObj(a.f.spill)) {   // 1.6.0 Spills into: a Subtract past the pool's spill point goes on into another pool, in this one change
             var spA = poolSpill(sys, tw, a.f, cur, a.amt, F, ttc); if (spA.error) return { ok: false, reason: 'error', message: spA.error };
             spA.steps.forEach(function(s) { if (lkW) { (lkOut[a.lk] = lkOut[a.lk] || {})[s.f] = s.value; lines.push({ n: cutText(lkW.name || 'The linked sheet', 40) + ': ' + s.label, d: -s.amt, v: s.v, lk: 1 }); return; } if (onW) onOut[s.f] = s.value; else out[s.f] = s.value; (onW ? onLines : lines).push({ f: s.f, n: s.label, d: -s.amt, v: s.v }); });
         }   // a Set's line says what it moved; 1.5.9: and what a Rolled amount drew; a Set on another says so, for the card its user's player gets with no figure
     }
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 38): a value, a counter, a row's stat or its quantity that the change left
+    // where it stood (a Set to what it already was, an Add of 0, a Subtract at its least) is no line of the card ("Bleeding +0 → 0"), so long
+    // as anything else is said. Where nothing moved at all every line stays, so a press that changed nothing still answers as it always did
+    if (still.length && lines.concat(onLines).some(function(l) { return still.indexOf(l) < 0; })) { lines = lines.filter(function(l) { return still.indexOf(l) < 0; }); onLines = onLines.filter(function(l) { return still.indexOf(l) < 0; }); }
     tagMoves.forEach(function(t) { lines.push({ n: t.n, fx: t.put ? 1 : 0 }); });   // 1.6.2 (vehicles, fold (c)): a mark on or off, said as an effect is
     if (!lines.length && !onLines.length) return sameFx ? { ok: false, reason: 'none', message: sameFx } : { ok: false, reason: 'none' };   // 1.5.9: a Then that only fires, with nothing chambered
     var doneA = { ok: true, values: out, lines: lines, names: names }; if (paidM) doneA.paid = true; if (shortM) doneA.short = shortM; if (fired && !shotsA) doneA.fired = fired; if (burst) doneA.burst = true; if (shotsA) doneA.shots = shotsA; if (gone.length) doneA.gone = gone;   // 1.6.0: the rows used up, for their Undo   // 1.5.9: the round it fired, for the blast it places
@@ -8112,14 +8117,18 @@ function cleanBarFigs(list) {
 function barFill(e) { return isObj(e) && typeof e.m === 'number' && e.m > 0 && typeof e.v === 'number' ? Math.max(0, Math.min(1, e.v / e.m)) : 0; }
 function barTip(e) { return isObj(e) ? (e.n || 'Bar') + ' ' + fmtNum(e.v) + ' / ' + fmtNum(e.m) : ''; }
 // 5h: a value's breakdown as plain text — "12 = 10 base · Rage +2", and on a derived value "· Rage +2 on ST"
-function fxText(e, max) {
-    var base = max ? e.maxBase : e.base, mods = (max ? e.maxMods : e.mods) || [], via = (max ? e.maxVia : e.via) || [];
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 32): a change of +0 says nothing and is left out, and with the system handed
+// in (sys, the sheet's own) a derived value names the value it moved by its label (nameWord), never its key: "Tough +2 on Toughness"
+function fxText(e, max, sys) {
+    var zero = function(m) { return !!m && (m.op === undefined || m.op === 'add') && m.v === 0; };
+    var base = max ? e.maxBase : e.base, mods = ((max ? e.maxMods : e.mods) || []).filter(function(m) { return !zero(m); }), via = ((max ? e.maxVia : e.via) || []).filter(function(m) { return !zero(m); });
     if (!mods.length && !via.length) return '';
+    var thru = function(t) { if (!sys || typeof nameWord !== 'function') return t; try { return nameWord(sys, t) || t; } catch (x) { return t; } };
     var amt = function(m) { return m.op === 'max' ? 'at least ' + fmtNum(m.v) : m.op === 'min' ? 'at most ' + fmtNum(m.v) : (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); };   // 1.6.0: a floor and a ceiling said as such
     var parts = [];
     if (typeof base === 'number') parts.push(fmtNum(base) + ' base');   // the value with no effect at all, so the parts add up to what is shown
     mods.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (on)' : m.name + ' ' + amt(m)); });
-    via.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (' + m.through + ' on)' : m.name + ' ' + amt(m) + ' on ' + m.through); });
+    via.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (' + thru(m.through) + ' on)' : m.name + ' ' + amt(m) + ' on ' + thru(m.through)); });
     return parts.slice(0, 13).join(' \u00b7 ');
 }
 function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (typeof v !== 'number' || !isFinite(v)) return v === null || v === undefined ? '' : String(v); if (Math.floor(v) === v) return String(v); return String(Number(v.toFixed(2))); }

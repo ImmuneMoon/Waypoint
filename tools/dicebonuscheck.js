@@ -89,8 +89,11 @@ const scripted = d => { let i = 0; return () => d[i++ % d.length]; };
     const ri = new Function('el', 'document', 'fmtNum', 'F', 'readWords', riSrc + '\nreturn readableInto;')((t, c, x) => node(c, x), { createTextNode: t => node('', t) }, x => String(x), () => F, () => '');
     const line = (expr, draws) => { const r = ev(expr, draws), b = node(); ri(b, r, F.parts(r), expr); return [text(b), b.title]; };
     const l1 = line(u.expr, [4, 2, 3, 2]), l2 = line(v.expr, [4, 1, 2]), l3 = line(cm('2d6', 0, '+1d6-1d4').expr, [3, 4, 5, 1]), l4 = line('3d6 <= 12', [4, 2, 3]);
-    check('a card says an added die apart: a check reads its own dice and what it needs, then what was added; a value the same way, one taken away with a minus; with none as before, and its tooltip never names the die',
-        l1[0] === '3d6 [4, 2, 3] = 9 · needs 14 or less · added 1d6 [2]' && l2[0] === '2d6 [4, 1] · added 1d8 [2]' && l3[0] === '2d6 [3, 4] · added 1d6 [5] − 1d4 [1]' && l4[0] === '3d6 [4, 2, 3] = 9 · needs 12 or less' && !/_bonus/.test(l1[1]), J([l1, l2, l3, l4]));
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 12), moved on purpose: a value whose dice stand in brackets now says its
+    // add and its added dice in line, so what the card shows comes to the total (2d6 [4, 1] + 1d8 [2] + 3 is 10), where it once said the bracketed
+    // value's dice alone and "added" apart
+    check('a card says an added die apart: a check reads its own dice and what it needs, then what was added; a value adds its dice, its added dice and its add in line, one taken away with a minus; with none as before, and its tooltip never names the die',
+        l1[0] === '3d6 [4, 2, 3] = 9 · needs 14 or less · added 1d6 [2]' && l2[0] === '2d6 [4, 1] + 1d8 [2] + 3' && l3[0] === '2d6 [3, 4] + 1d6 [5] − 1d4 [1]' && l4[0] === '3d6 [4, 2, 3] = 9 · needs 12 or less' && !/_bonus/.test(l1[1]), J([l1, l2, l3, l4]));
     const help = read('index.html'), wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
     check('Help says the window’s Dice to add and a bonus’s dice, and both notes say it', help.includes('Type <b>Dice to add</b> for a one-off die') && help.includes('A bonus can add dice as well as a figure') && wn.includes('- A roll can take dice as a bonus.') && wa.includes('- A roll can take dice as a bonus.'));
     summed = true; console.log('\n' + pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);

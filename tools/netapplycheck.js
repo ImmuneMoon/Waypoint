@@ -639,7 +639,7 @@ pendingChecks.push((async () => {
         out.ret = dr(expr, { charId: 'c_a' }); return out; };
     const a2_hid = ['Weapons.Longsword.Ability', 'AtkBonus', 'Weapons.Eff', 'Grit.max'].map(n => [n, a2_runGM('d20 + ' + n)]), a2_pub = a2_runGM('d20 + ST');
     check('F5a2 owed review #1 on the wire: the GM\'s public roll of a choice whose option reads a GM-only value (Weapons.Longsword.Ability), of a visible formula over it (AtkBonus), of a column reading Row.Ability (Weapons.Eff) and of a pool whose max reads it (Grit.max) is kept private with its toast, nothing to the table; d20 + ST still goes to the table',
-        a2_hid.every(([n, r]) => r.ret.ok && r.ret.priv === true && j(r.pushed) === j([['whisper', 'gm']]) && r.table.length === 0 && r.toasts.length === 1 && r.toasts[0].indexOf('Kept private: that roll uses a GM-only value (') === 0 && r.toasts[0].indexOf(n) > 0)
+        a2_hid.every(([n, r]) => r.ret.ok && r.ret.priv === true && j(r.pushed) === j([['whisper', 'gm']]) && r.table.length === 0 && r.toasts.length === 1 && r.toasts[0].indexOf('Kept private: that roll uses a GM-only value (') === 0 && r.toasts[0].indexOf(Sx.nameWord(a2_sys, n)) > 0 && r.toasts[0].indexOf(n) < 0)   // 1.6.3 (finding 42), moved on purpose: named in the sheet's words, never by the formula's name
         && a2_pub.ret.ok && a2_pub.ret.priv === false && j(a2_pub.pushed) === j([['global', '']]) && a2_pub.table.length === 1 && a2_pub.toasts.length === 0, j([a2_hid.map(([n, r]) => [n, r.pushed, r.toasts]), a2_pub.pushed]));
 })());
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): a blast's fragmentation is a damage roll applied as it is rolled. The host's own
@@ -713,7 +713,7 @@ pendingChecks.push((async () => {
     const b5_S3 = b5_runGM(b5_sysN, b5_ch(true), 'd20 + Row.Hit', b5_row('Attack')), b5_S4 = b5_runGM(b5_sysN, b5_ch(true), 'd20 + Row.Deep', b5_row('Deep'));
     const b5_S5 = b5_runGM(b5_sys, b5_ch(false), 'd6', b5_row('Hush', 'f_se', 'w_s')), b5_P = b5_runGM(b5_sysN, b5_ch(false), 'd20 + Row.Hit', b5_row('Attack'));
     check('owed F5b the GM\'s own row roll, hosting (net.diceRoll run for real): a column reading GMFig (S1), a choice whose option names GMFig (S2), a column a GM-only effect moves (S3) or two columns down to it (S4), a choice whose option names ST under that effect (S2e) and a visible item\'s row on a GM-only list (S5) each go to the GM alone (whisper, priv gm) with one toast that says why, and nothing reaches the table; the same row\'s plain Row.Hit with no effect on goes to the table (Row.Hit = 13)',
-        b5_priv(b5_S1, /^Kept private: that roll uses a GM-only value \(.*GMFig/) && b5_priv(b5_S2, /^Kept private: that roll uses a GM-only value \(.*GMFig/)
+        b5_priv(b5_S1, /^Kept private: that roll uses a GM-only value \((.*, )?G\b/) && b5_priv(b5_S2, /^Kept private: that roll uses a GM-only value \((.*, )?G\b/)
         && b5_priv(b5_S2e, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_S3, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_S4, /^Kept private: a GM-only effect changes .*\bST\b/)
         && b5_priv(b5_S5, 'Kept private: that roll is on a GM-only item or list (Blaster · Hush).') && b5_pub(b5_P) && j(b5_P.pushed[0][2]) === j(['Row.Hit=13']),
         j([b5_S1.pushed, b5_S1.toasts, b5_S2.pushed, b5_S2.toasts, b5_S2e.pushed, b5_S2e.toasts, b5_S3.pushed, b5_S3.toasts, b5_S4.pushed, b5_S4.toasts, b5_S5.pushed, b5_S5.toasts, b5_P.pushed, b5_P.toasts]));
@@ -723,7 +723,7 @@ pendingChecks.push((async () => {
     const b5_c6 = b5_chain(b5_raw, 'Row.Grip'), b5_e6 = b5_chain(b5_rawN, 'ST'), b5_g6 = b5_chain(b5_rawN, 'Row.Grip');
     const b5_C6 = b5_runGM(b5_c6, b5_ch(false), 'd20 + Row.A', b5_row('Attack')), b5_E6 = b5_runGM(b5_e6, b5_ch(true), 'd20 + Row.A', b5_row('Attack')), b5_G6 = b5_runGM(b5_g6, b5_ch(true), 'd20 + Row.A', b5_row('Attack')), b5_E6off = b5_runGM(b5_e6, b5_ch(false), 'd20 + Row.A', b5_row('Attack'));
     check('owed F5b a GM-only value twelve columns down (a list\'s most since 1.5.4) stays the GM\'s: a chain of twelve columns ending in a choice whose option names GMFig, in ST under a GM-only effect, or in a choice whose option names ST under it keeps the GM\'s roll private (every column is followed, not four); the same chain with no effect on goes to the table (Row.A = 10)',
-        b5_c6.fields[3].list.cols.length === 12 && b5_priv(b5_C6, /^Kept private: that roll uses a GM-only value \(.*GMFig/) && b5_priv(b5_E6, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_G6, /^Kept private: a GM-only effect changes .*\bST\b/)
+        b5_c6.fields[3].list.cols.length === 12 && b5_priv(b5_C6, /^Kept private: that roll uses a GM-only value \((.*, )?G\b/) && b5_priv(b5_E6, /^Kept private: a GM-only effect changes .*\bST\b/) && b5_priv(b5_G6, /^Kept private: a GM-only effect changes .*\bST\b/)
         && b5_pub(b5_E6off) && j(b5_E6off.pushed[0][2]) === j(['Row.A=10']), j([b5_C6.pushed, b5_C6.toasts, b5_E6.pushed, b5_E6.toasts, b5_G6.pushed, b5_G6.toasts, b5_E6off.pushed, b5_E6off.toasts]));
     // a curse the GM keeps on: the player switched it off (applyRowOp, run for real) — their copy reads it off (Row.Hit 1), the GM's on (3)
     const b5_rawK = { v: 1, name: 'K', rolls: [], fields: [

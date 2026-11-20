@@ -1814,7 +1814,7 @@ if (_subEl && _subEl.addEventListener) { _subEl.addEventListener('click', subGiv
 // from what this table sends that player, the players' view of the system and the owner's copy of the character (net.charViewFor), never from the GM's
 // own with parts left out, so it shows what they get. It only reads: tabs, folds and a row's arrow work, and every other press and key inside it does
 // nothing (asPlayerGuard). The GM's own sheet is one press away, and another character or closing the sheet ends it
-var _asPlayer = null, _asSaid = 0;
+var _asPlayer = null, _asSaid = 0, _asEdit = null;   // _asEdit (1.6.3, finding 44): the character whose sheet was open to editing when As player was pressed, unlocked again when it ends
 function asPlayerFits(c, gm) { return !!(gm && c && c.ownerId && !c.npc && !c.partial); }
 function asPlayerView(c, camp, gm) {
     if (_asPlayer && (!c || _asPlayer !== c.id)) _asPlayer = null;
@@ -1895,7 +1895,8 @@ function asPlayerWire(body) {
 }
 function asPlayerPress() {
     if (!sheetOpen) return; var camp = getActiveCampaign(), c = charById(sheetOpen, camp); if (!asPlayerFits(c, !isClient())) return;
-    if (_asPlayer === c.id) _asPlayer = null; else { if (typeof sbxFlush === 'function') sbxFlush(); _sheetEdit = null; _asPlayer = c.id; }
+    if (_asPlayer === c.id) { _asPlayer = null; if (_asEdit === c.id) _sheetEdit = c.id; _asEdit = null; }   // 1.6.3 (finding 44): back from As player, a sheet that was being edited is open to editing again
+    else { if (typeof sbxFlush === 'function') sbxFlush(); _asEdit = _sheetEdit === c.id ? c.id : null; _sheetEdit = null; _asPlayer = c.id; }
     renderSheet();
 }
 // [systemcheck:asplayer-end]
@@ -3958,6 +3959,7 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
     var pf = pfs[0], hid = rowIdOf(entry), parts = partsOf(sysI, c, spec, hid); if (!parts.length && !chg) return null;
     var box = el('div', 'sheet-parts');
     if (typeof partsCapLines === 'function') partsCapLines(sysI, spec, entry, typeof partsBag === 'function' ? partsBag(sysI, c, spec, '', null) : (c.values || {})[pf.id], hid, typeof capRead === 'function' && typeof F === 'function' ? capRead(sysI, c, f, entry, F()) : undefined).forEach(function(ln) {   // 1.6.2 Fitted slots: how many of each kind this row holds
+        if (!ln.cap && !ln.used) return;   // 1.6.3 (finding 20): a kind this row cannot hold and holds none of says nothing (a weapon listed thirteen "0 of 0"); one holding parts past a 0 still shows, as over
         var over = ln.used > ln.cap, sl = el('span', 'sheet-part-slot' + (over ? ' over' : ''), (ln.kind || 'Parts') + ' ' + ln.used + ' of ' + ln.cap); sl.title = over ? 'More than this row holds' : 'How many this row holds'; box.appendChild(sl);
     });
     pfs.forEach(function(pf) { var pspec = pf.list || {};   // 1.6.2: each part with the list it is in, so its - + and x change that list
@@ -4141,7 +4143,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r && Array.isArray(r.apply)) {   // Stage 6 HUD H7b: an apply action on this row (Apply costs on a power), for a viewer who may change the character
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
-            var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign())); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
+            var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign()), spec); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
             var nOkA = !(r.needs || r.needsWhy) || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA && r.hideOff === true) return; if (!nOkA) { ab.disabled = true; ab.title = res.rw && res.rw[rid] && res.rw[rid][ri] ? res.rw[rid][ri] : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }   // the core handbook session's ask (b): its needs for this row, as a list roll's
             var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; var goL = function(ans) { if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function') { allyPick(ab, cN, r.to === 'target', function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined, undefined, ans); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, undefined, undefined, ans); }; if (Array.isArray(r.asks) && r.asks.length) askThen(r, cN, ab, { row: { f: f.id, r: rid, i: ri } }, null, goL); else goL(); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
@@ -4769,6 +4771,8 @@ function rowForm(entry, rd, c, f, spec, sysI, mode) {
     }
     return typeof lockForm === 'function' ? lockForm(form, c, f, rid, entry) : form;   // 1.6.2 Locked while, and Laid from
 }
+// 1.6.3 (finding 21): the System editor's Short names tick, read here as librarywin.js reads it: on only where this computer keeps it as '1'
+function keysShown() { try { return typeof localStorage !== 'undefined' && localStorage.getItem('wp_sysShort') === '1'; } catch (e) { return false; } }
 // Stage 6 F4c3: a custom row's form (the character's own item) — its values as they are, nothing behind them (no placeholders, no ↺): name, icon,
 // category (the list's categories, else those of the items drawn from, plus its own; or none), notes, key and stats, for its owner ('own') and
 // the GM ('gm'); the GM's also a blast, the damage and cost formulas, the two locks (a message while one holds) and GM only. Each box commits
@@ -4806,7 +4810,9 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
     var cs = el('select', 'field sheet-rf-sel'); cs.appendChild(opt('', '(none)', !curC)); cats.forEach(function(x) { cs.appendChild(opt(x, x, x === curC)); });
     cs.addEventListener('change', function() { one('category', cs.value || null); }); add('Category', cs, 'category');
     text('notes', 'Notes', LIMITS.noteText, d.notes || '');
-    text('key', 'Key', 40, d.key || '', 'A short fixed name your formulas read this row by (List.Key.lvl): a letter, then letters, digits and _ (up to 40); no other row or item of this list may have it. A GM-only row is read by its key only on a GM-only list', true);
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 21): a user is never asked to read or type a key. The row's short name
+    // shows only to the GM, and only while the System editor's Short names tick is on (wp_sysShort, read by keysShown), for writing formulas as text
+    if (gmF && keysShown()) text('key', 'Short name', 40, d.key || '', 'The short name formulas read this row by, for writing them as text. Up to 40 letters, digits and _, a letter first; no other row of this list may share it', true);
     var longOk = !(typeof isClient === 'function' && isClient()) || !!(typeof net === 'function' && net() && typeof net().rowTextOk === 'function' && net().rowTextOk());   // 1.5.5 (155): a row of its own's long text, where the host keeps it (an older GM's Waypoint would drop it with no word)
     if (longOk) {
         var area = function(k, cap, max, val, title, read) {   // a long text of its own, in a box of several lines; blank clears it
@@ -4889,7 +4895,7 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
 // 1.6.0: how a change that is no switch works — it adds, or it holds the value at least or at most at its figure (op max, op min)
 function modHowSel(cls, op) { return select(cls, [['add', 'Adds'], ['max', 'At least'], ['min', 'At most']], op === 'max' || op === 'min' ? op : 'add', 'Adds: the figure is added. At least: the value is never below it. At most: never above it. Two effects that each say at least 1 still read 1'); }
 // 5h: an effect's changes as short text, with the field labels ("+2 ST · HP max +5 · Prone on")
-function fxChangeText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + m.vf; if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : ' at most ') + fmtNum(m.v); return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); }
+function fxChangeText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + (typeof amountSays === 'function' ? amountSays(null, m.vf) : 'an amount');   /* 1.6.3 (finding 10): a figure worked out by a formula said in words, never the formula */ if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : ' at most ') + fmtNum(m.v); return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); }
 // 5h: what an effect can change, for a picker: [value, label] with value "fieldId|add" / "fieldId|max" / "fieldId|on"
 function fxTargets(sys, rows) {   // rows (1.5.8): an item list with columns as a target of its own, one entry of it by its key
     var out = [];
@@ -4923,7 +4929,8 @@ function rowAimSet(mm, sys, value) {   // a target picked: one entry of a list s
 }
 // 5h: a ▲ / ▼ beside a value an effect touched, its tooltip the breakdown ("12 = 10 base · Rage +2"); null when nothing touched it
 function fxMark(e, max) {
-    if (!e) return null; var why = fxText(e, max); if (!why) return null;
+    var sysM = null; try { sysM = typeof systemOf === 'function' && typeof getActiveCampaign === 'function' ? systemOf(getActiveCampaign()) : null; } catch (x) { sysM = null; }   // 1.6.3 (finding 32): what a derived value moved is named by its label
+    if (!e) return null; var why = fxText(e, max, sysM); if (!why) return null;
     var v = max ? e.max : e.value, b = max ? e.maxBase : e.base;
     var dir = (typeof v === 'number' && typeof b === 'number') ? (v > b ? 'up' : v < b ? 'down' : 'same') : 'same';   // the shown value against its value with no effect
     var s = el('span', 'sheet-eff sheet-eff-' + dir, dir === 'up' ? '\u25b2' : dir === 'down' ? '\u25bc' : '\u25c6'); s.title = why; return s;
@@ -5209,6 +5216,21 @@ function needsTip(text) {
     try { var sy = systemOf(getActiveCampaign()), w = FC.saysCond(r.cond, { name: function(n) { return nameWord(sy, n); } }); return w ? ' \u2014 only while ' + w : ''; } catch (err) { return ''; }
 }
 function sheetFault(sysA, text) { try { return plainMessage(sysA || systemOf(getActiveCampaign()), text); } catch (err) { return String(text || ''); } }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 10): an amount a change moves by, in words: a plain figure or plain dice as
+// written, anything else through the form's reader with every name as the sheet says it (nameWord), never the formula. 'an amount' where it
+// cannot be read. Asked by applyTitle (an action's tooltip) and fxChangeText (an effect's line)
+function amountSays(sysA, text) {
+    var t = String(text === null || text === undefined ? '' : text).trim(); if (!t) return 'an amount';
+    var FC = typeof window !== 'undefined' ? window.wpFormCore : null, r = null; try { r = FC ? FC.read(t) : null; } catch (err) { r = null; }
+    if (!r || !r.ok) return /^[+\-]?\d+(\.\d+)?$/.test(t) ? t : 'an amount';
+    var s = sysA || (typeof getActiveCampaign === 'function' && typeof systemOf === 'function' ? systemOf(getActiveCampaign()) : null);
+    try { return FC.says(r.form, { name: function(n) { return nameWord(s, n); } }) || 'an amount'; } catch (err) { return 'an amount'; }
+}
+// 1.6.3 (finding 10): a condition in words, "while ..." (as needsTip says one), '' where it cannot be read. For an overridden number's tooltip
+function whileSays(sysA, text) {
+    var FC = typeof window !== 'undefined' ? window.wpFormCore : null, r = null; try { r = FC && text ? FC.readCond(String(text)) : null; } catch (err) { r = null; } if (!r || !r.ok) return '';
+    try { var w = FC.saysCond(r.cond, { name: function(n) { return nameWord(sysA || systemOf(getActiveCampaign()), n); } }); return w ? 'while ' + w : ''; } catch (err) { return ''; }
+}
 // [markcheck:track-start] 1.6.2, track displays (the owner, 2026-11-03, by prompt; the looks picked on the track sheet, all four A): a number,
 // a pool or a formula drawn as dots (filled and outlined), a row of boxes (filled from the left), boxes marked one by one (a cross in a marked box,
 // its number under it) or a clock in parts (a pie in wedges). A press on a mark sets the value to it, a press on the highest filled one takes one
@@ -5279,7 +5301,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.vis === 'gm' ? 'Only the GM sees this' : ''; box.appendChild(lab);
     if (f.explain && typeof explainTo === 'function') explainTo(lab, f.explain, c, f.kind === 'formula' && typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : '');   // 1.6.2 (backlog 218 fold 3): its (i)
-    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.title = 'Roll ' + (f.label || f.key) + ' · shift-click to add a modifier'; rb.disabled = !canRoll(c); var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || f.key, f.vis === 'gm' ? { gmOnly: true } : undefined, { f: f.id }); }; rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF, typeof swCount === 'function' ? swCount(c, { f: f.id }) : 0) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
+    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.disabled = !canRoll(c); rb.title = rb.disabled ? (typeof rollWhyNot === 'function' ? rollWhyNot(c) : '(dice are off here, or this is not your character)') : 'Roll ' + (f.label || 'this field') + ' · shift-click to add a modifier'; var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || 'this field', f.vis === 'gm' ? { gmOnly: true } : undefined, { f: f.id }); }; rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF, typeof swCount === 'function' ? swCount(c, { f: f.id }) : 0) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
     var editable = gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1));
     var lk = typeof lockedNow === 'function' && lockedNow(), use = editable && (typeof fieldOpen !== 'function' || fieldOpen(f)) && !(e && e.locked);   // the sheet's lock: this field's own control in the view being drawn (locked, only what changes in play). Asked through typeof: a harness that slices this function alone draws it unlocked
     var playOk = editable && (!lk || f.live !== false), editOk = editable && (!lk || f.live === true);   // a list's two halves: what is used in play (a switch, a count, a use), and what changes the character (a level, a row, a note)
@@ -5291,7 +5313,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : ''; if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\n' + roundSays(f, e.unrounded); if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' && e && e.over === true) {   // 205 (6): taken from a formula while its when holds: its figure, closed to editing
         var ovV = el('div', 'sheet-value sheet-over' + signTone(f, e), f.unit && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text);
-        ovV.title = 'Taken from ' + (f.override && f.override.value ? f.override.value : 'a formula') + ' while ' + (f.override && f.override.when ? f.override.when : 'it holds') + '. It cannot be changed until then.';
+        ovV.title = ((f.override && f.override.value && typeof formulaSays === 'function' ? formulaSays(sysArg, f.override.value) : '') || 'Worked out by a rule') + ' ' + ((f.override && f.override.when && typeof whileSays === 'function' ? whileSays(sysArg, f.override.when) : '') || 'while its rule holds') + '. It cannot be changed until then.';   // 1.6.3 (finding 10): in words, never the formula
         box.appendChild(ovV); return box;
     }
     if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a number with value names — a dropdown that stores the position (formulas read the number)
@@ -5330,7 +5352,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var uAt = [Number(inp.value), inp.value];   // 1.5.4: the figure the unit follows: the box's, the effective value beside it, or a skill's total
         if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); uAt = [e.value, fmtNum(e.value)]; } }   // 5h: the box edits the base; the effective value beside it
         var skW = k === 'skill' && !!e && !e.error && !!f.unit && (f.unitShow === 'swap' || f.unitShow === 'bare') && typeof figWords === 'function';   // 1.5.4: a skill's total is read, so a Metric list other than beside writes it in its own form, its unit with it
-        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? (skW ? figWords(f, e.value, e.text) : e.text) : '')); tot.title = e && e.error ? e.error : (f.base ? 'ranks + ' + f.base : 'ranks'); row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } uAt = [e && !e.error ? e.value : NaN, e ? e.text : '']; }
+        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? (skW ? figWords(f, e.value, e.text) : e.text) : '')); tot.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : (f.base ? 'Its ranks plus ' + (typeof amountSays === 'function' ? amountSays(sysArg, f.base) : 'its base') : 'Its ranks');   /* 1.6.3 (finding 10): its base by its label, a fault in plain words */ row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } uAt = [e && !e.error ? e.value : NaN, e ? e.text : '']; }
         if (f.unit && !skW) row.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, uAt[0], uAt[1]) : f.unit));   // Stage 5g; 1.5.4: a measure in metric too under Metric
         var abN = k === 'number' && typeof autoBits === 'function' ? autoBits(f, c, e, use, raw) : null; if (abN) row.appendChild(abN);   // 1.6.2 (auto apply)
         box.appendChild(row); return box;
@@ -5344,7 +5366,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
         var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true ? max !== null : f.min !== undefined) ci.min = String(f.minNeg === true ? -max : f.min); if (max !== null) ci.max = String(max);   // 1.6.0: a pool that goes down to minus its max
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
-        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? e.error : (f.maxFormula || 'no max'); if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
+        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : f.maxFormula ? ((typeof formulaSays === 'function' ? formulaSays(sysArg, f.maxFormula) : '') || 'Its maximum is worked out by a rule') : 'It has no maximum';   /* 1.6.3 (finding 10): in words, never the formula */ if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
         ci.addEventListener('change', function() { commit(c, f, { cur: Number(ci.value) }); });
@@ -5525,7 +5547,7 @@ function aimNeed(opts) {
 // [systemcheck:greypress-start]
 // 1.6.0 (the by-hand test: a player's press on a roll that could not be made did nothing they could see): a grayed roll or action takes no click, and
 // what held it back stood in its tooltip alone. A press on one says it, the rest of the tooltip, the GM's formula among it, staying in the tooltip
-var GREY_BTN = '.sheet-roll, .sheet-roll-mod, .sheet-item-roll';
+var GREY_BTN = '.sheet-roll, .sheet-roll-mod, .sheet-item-roll, .sheet-field-roll';   // 1.6.3 (finding 41): a field's own die too
 function greyWords(b) {
     var t = b ? String(b.title || (b.dataset && b.dataset.tip) || '').trim() : ''; if (!t) return '';
     if (/\(dice are off here, or this is not your character\)$/.test(t)) return 'Dice are off here, or this is not your character.';
@@ -5925,10 +5947,34 @@ function dueBlock(charId, actId) {   // ... and of the roll a Due card runs (dic
     return r && r.cost ? costBlock(charById(charId, camp), r.cost, r.costN) : '';
 }
 function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return true; }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 41): why canRoll says no, in one plain sentence, for a grayed die's tooltip,
+// which greyPress says when it is pressed: dice switched off here, a character still being made, one that is not theirs
+function rollWhyNot(c) {
+    if (!c || !window.wpDice || !window.wpDice.rollFor) return 'Dice are not available here.';
+    if (window.wpVtt && !window.wpVtt.on('dice')) return 'Dice are off at this table.';
+    if (isClient() && c.making === 1 && c.ownerId === myId()) return 'Finish making this character first.';
+    if (isClient()) return 'This is not your character to roll for.';
+    return '(dice are off here, or this is not your character)';
+}
 // Stage 6 HUD H7: a viewer who may press an apply action on this character — the GM (who may write here), a player on their own character; the
 // sheets feature on (an apply moves the sheet, no dice)
 function canApply(c) { if (!c || !F()) return false; if (window.wpVtt && !window.wpVtt.on('sheets')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return canWrite(); }
-function applyTitle(r, sys) { return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) { if (ch && ch.launch === true) return 'Launch it at the target'; if (ch && ch.fire === true) return 'Fire'; if (ch && ch.off === true) return 'Switch this row off'; if (ch && typeof ch.fx === 'string') { var dF = (sys && Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return d && d.id === ch.fx; })[0]; return ((dF && dF.name) || 'An effect') + (ch.on === false ? ' off' : ' on'); } var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null; return (ch && ch.c ? ch.c : f ? (f.label || f.key) : 'a value') + (ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' \u2212 ') + ((ch && ch.formula) || '?'); }).join('; '); }
+// An apply action's tooltip, each change in words. 1.6.3 (the improvement week's review of sheets and rolls, finding 10): its amount said through
+// amountSays (a plain figure or plain dice as written, anything else in the sheet's words, never the formula); a list's counter and stat by their
+// labels from spec, the list the action stands on; a change of the row's own quantity said as one used, or its quantity; never a key
+function applyTitle(r, sys, spec) {
+    var amt = function(t) { var s0 = String(t === null || t === undefined ? '' : t).trim(); if (typeof amountSays === 'function') return amountSays(sys, s0); return /^[+\-]?\d+(\.\d+)?$/.test(s0) ? s0 : 'an amount'; };
+    var listLabel = function(k, key) { var hit = null; (spec && Array.isArray(spec[k]) ? spec[k] : []).forEach(function(x) { if (!hit && x && typeof x.key === 'string' && x.key.toLowerCase() === String(key).toLowerCase()) hit = x; }); return hit ? (hit.label || '') : ''; };
+    return (Array.isArray(r.apply) ? r.apply : []).map(function(ch) {
+        if (ch && ch.launch === true) return 'Launch it at the target'; if (ch && ch.fire === true) return 'Fire'; if (ch && ch.off === true) return 'Switch this row off';
+        if (ch && typeof ch.fx === 'string') { var dF = (sys && Array.isArray(sys.effects) ? sys.effects : []).filter(function(d) { return d && d.id === ch.fx; })[0]; return ((dF && dF.name) || 'An effect') + (ch.on === false ? ' off' : ' on'); }
+        var a = amt(ch && ch.formula), op = ch && ch.set ? ' = ' : ch && ch.add ? ' + ' : ' − ';
+        if (ch && ch.q === true) return !ch.set && !ch.add && a === '1' ? 'One used' : 'Its quantity' + op + a;
+        var f = sys && ch && ch.f ? fieldById(sys, ch.f) : null;
+        var who = ch && ch.c ? (listLabel('counters', ch.c) || 'A counter') : ch && typeof ch.s === 'string' ? (listLabel('stats', ch.s) || 'A figure') : f ? (f.label || 'A value') : 'A value';
+        return who + op + a;
+    }).join('; ');
+}
 function rollPick(r) { return Array.isArray(r.apply) ? 'Apply: ' + (r.label || 'Apply') : 'Roll: ' + (r.label || r.formula); }   // Stage 6 HUD H7: the Layout tab's name for a roll entry
 // Stage 6 HUD H7: an apply action's button — its label and look as a roll's; pressed, it moves its pools or numbers (applyAction). Inert in the
 // Layout preview and a pop-out, and for a viewer who may not change this character

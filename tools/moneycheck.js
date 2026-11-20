@@ -243,6 +243,10 @@ function moneyWalk(S, F) {
         check('1.6.3 a currency with no name is said under the Money box and lands on its name; a named one says nothing; + Currency starts named',
             J(sM) === J(['money.label.0|Currency 1: it needs a name, which the sheet and the trade window show. Until it has one, they show A currency.']) && J(sayRu('money', { currencies: [{ key: 'C1', label: 'Gold' }] })) === '[]'
             && nameRu([{ label: 'Currency 1' }, { label: 'Currency 2' }], 'Currency') === 'Currency 3' && read('scripts/sysui.js').includes("money: ['rules', 'money']") && require('./checkkit').part('sysedcombat.js').includes("var errM = errorCell('money');"), J(sM));
+        // 1.6.3 (the review of rules): a currency saved with an emptied name holds its short name (C2) or, since 1.6.3, A currency: each is said under the box
+        const sM2 = sayRu('money', { currencies: [{ key: 'C1', label: 'Crowns', worth: 10 }, { key: 'C2', label: 'C2', worth: 1 }, { key: 'C3', label: 'A currency', worth: 1 }] });
+        check('1.6.3 a currency whose name is still its short name, or the word the cleaner gave it, is said under the Money box',
+            J(sM2) === J(['money.label.1|Currency 2: Save named it C2 for want of a name. Give it a name of your own, which the sheet and the trade window show.', 'money.label.2|Currency 3: Save named it A currency for want of a name. Give it a name of your own, which the sheet and the trade window show.']), J(sM2));
     }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

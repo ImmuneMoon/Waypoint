@@ -62,6 +62,11 @@ globalThis.window = globalThis.window || {};
         check('1.6.3 a shared value with no name is said under the box and lands on its name; a named one says nothing; + Shared value starts named; the cleaner names one with none A shared value',
             J(sV) === J(['values.label.1|Shared value 2: it needs a name, which cards and trackers show. Until it has one, they show A shared value.']) && J(sayRu('values', { values: [{ key: 'V1', label: 'M' }] })) === '[]'
             && nameRu([{ label: 'Shared value 1' }], 'Shared value') === 'Shared value 2' && S.cleanValues([{ key: 'V1', label: '' }], true)[0].label === 'A shared value' && read('scripts/sysui.js').includes("values: ['rules', 'values']") && read('scripts/sysui.js').includes("[/^values\\.label\\.(\\d+)$/, ['sys-val-label']]"), J(sV));
+        // 1.6.3 (the review of rules): a system saved before 1.6.3 with an emptied name holds the value's short name as its name (V2), and one saved since,
+        // A shared value. Neither is empty, so each is said under the box; a name of one's own that only looks like a short name of another value is not
+        const sV2 = sayRu('values', { values: [{ key: 'V1', label: 'Momentum' }, { key: 'V2', label: 'V2' }, { key: 'V3', label: 'a shared value' }, { key: 'V4', label: 'V9' }] });
+        check('1.6.3 a shared value whose name is still its short name, or the word the cleaner gave it, is said under the box; a name of its own is not',
+            J(sV2) === J(['values.label.1|Shared value 2: Save named it V2 for want of a name. Give it a name of your own, which cards and trackers show.', 'values.label.2|Shared value 3: Save named it a shared value for want of a name. Give it a name of your own, which cards and trackers show.']), J(sV2));
     }
     check('Help, both notes and CI say it', /<b>Shared values<\/b> are numbers the whole table shares/.test(ix) && /Shared values: a number the whole table shares/.test(fb) && /Shared values: a number the whole table shares/.test(read('assets/whatsnew.txt')) && readRoot('.github/workflows/checks.yml').includes('node tools/valuecheck.js'));
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);

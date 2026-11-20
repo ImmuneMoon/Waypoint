@@ -1904,7 +1904,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 the lines are drawn under their boxes and follow the typing, and a press on one goes to the Layout tab and its box',
             lyS.includes("var tbErr = 'tablbl:' + layoutView + ':' + tb.id, tbEc = errorCell(tbErr); tbEc.dataset.errFor = tbErr; tmain.appendChild(tbEc);") && lyS.includes("var grErr = 'grplbl:' + g.id, grEc = errorCell(grErr); grEc.dataset.errFor = grErr; gr.appendChild(grEc);") && lyS.includes("if (lkSay) pr.appendChild(el('span', 'sys-warn-line', lkSay));")
             && lyS.includes("if (typeof layoutNameErrs === 'function') layoutNameErrs();") && /tb0\.label = t\.value\.slice\(0, LIMITS\.label\); markDirty\(\); renderPreview\(\); if \(typeof patchErrors === 'function'\) patchErrors\(\);/.test(lyS)
-            && tbs.includes("if (/^(?:plc|tablbl|grplbl):/.test(id)) return { tab: 'layout', name: 'Layout' };") && uiS.includes("[/^tab\\.label\\.(\\d+)$/, ['sys-tab-label']], [/^group\\.label\\.(\\d+)$/, ['sys-bgrp-label']]"));
+            /* 1.6.3: the pin moved on purpose (the review of rules), a place's or a tab label's fault names its Sheet or HUD view, which errGo switches to (sysuicheck runs both) */
+            && tbs.includes("if (/^(?:plc|tablbl|grplbl):/.test(id)) { var lv = /^(?:plc|tablbl):(sheet|hud):/.exec(id); return lv ? { tab: 'layout', view: lv[1], name: 'Layout' } : { tab: 'layout', name: 'Layout' }; }") && tbs.includes("layoutViewSet(p.view);") && uiS.includes("[/^tab\\.label\\.(\\d+)$/, ['sys-tab-label']], [/^group\\.label\\.(\\d+)$/, ['sys-bgrp-label']]"));
     }
 
     await T.finish();

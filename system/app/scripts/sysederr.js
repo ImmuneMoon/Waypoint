@@ -1094,14 +1094,24 @@ function listCleanSays(f, cf) {
 function rulesSays(dr) {
     var out = { values: [], tags: [], money: [], results: [], charcats: [] }, d = dr && typeof dr === 'object' ? dr : {}, nm0 = function(x) { return !!x && typeof x === 'object' && typeof x.label === 'string' && x.label.trim() ? x.label.trim() : ''; };
     var cft = typeof cleanFormulaText === 'function' ? cleanFormulaText : function(v) { return typeof v === 'string' ? v.trim() : ''; }, isNum = function(v) { return typeof v === 'number' && isFinite(v); };
-    [['values', d.values, 'Shared value', 'cards and trackers show', 'A shared value'], ['tags', d.tags, 'Mark', 'the map and cards show', 'A mark'], ['money', d.currencies, 'Currency', 'the sheet and the trade window show', 'A currency']].forEach(function(g) {
-        (Array.isArray(g[1]) ? g[1] : []).forEach(function(x, i) { if (x && typeof x === 'object' && !nm0(x)) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': it needs a name, which ' + g[3] + '. Until it has one, they show ' + g[4] + '.', prop: g[0] + '.label.' + i }); });
+    // 1.6.3 (the review of rules): a name Save gave for want of one. Before this batch the cleaners fell back to the short name the box made (V2, M1, C3,
+    // R1), and since 1.6.3 they fall back to a generic word (A shared value). A system saved with an emptied name holds that as its name, which no
+    // emptiness test sees, so it is said here too: the label read as the made short name (ignoring case, only where the short name has the made form re)
+    // or as the generic word. Answers that stored name, else ''
+    var madeName = function(x, re, word) { var lb = nm0(x), k = typeof x.key === 'string' ? x.key.trim() : ''; return lb && ((k && re.test(k) && lb.toLowerCase() === k.toLowerCase()) || lb.toLowerCase() === word.toLowerCase()) ? lb : ''; };
+    [['values', d.values, 'Shared value', 'cards and trackers show', 'A shared value', /^V\d+$/i], ['tags', d.tags, 'Mark', 'the map and cards show', 'A mark', /^M\d+$/i], ['money', d.currencies, 'Currency', 'the sheet and the trade window show', 'A currency', /^C\d+$/i]].forEach(function(g) {
+        (Array.isArray(g[1]) ? g[1] : []).forEach(function(x, i) {
+            if (!x || typeof x !== 'object') return; var mdN = nm0(x) ? madeName(x, g[5], g[4]) : '';
+            if (!nm0(x)) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': it needs a name, which ' + g[3] + '. Until it has one, they show ' + g[4] + '.', prop: g[0] + '.label.' + i });
+            else if (mdN) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': Save named it ' + mdN + ' for want of a name. Give it a name of your own, which ' + g[3] + '.', prop: g[0] + '.label.' + i });
+        });
     });
     (Array.isArray(d.charCats) ? d.charCats : []).forEach(function(x, i) { if (x && typeof x === 'object' && !nm0(x)) out.charcats.push({ message: 'Category ' + (i + 1) + ': it needs a name. Until it has one, Save drops it and its rule, and sheets filed under it by hand go back to no category.', prop: 'charcats.label.' + i }); });
     (Array.isArray(d.results) ? d.results : []).forEach(function(t, i) {
-        if (!t || typeof t !== 'object') return; var nm = nm0(t) || 'Result table ' + (i + 1), rows = Array.isArray(t.rows) ? t.rows.slice(0, 200) : [], kept = 0, rowSaid = false;   // 200: the rows the cleaner reads (systemcore RES_ROWS)
+        if (!t || typeof t !== 'object') return; var mdR = nm0(t) ? madeName(t, /^R\d+$/i, 'A result table') : '', nm = (!mdR && nm0(t)) || 'Result table ' + (i + 1), rows = Array.isArray(t.rows) ? t.rows.slice(0, 200) : [], kept = 0, rowSaid = false;   // 200: the rows the cleaner reads (systemcore RES_ROWS). A name Save gave is no name, so the lines below say Result table and its place
         if (!nm0(t)) out.results.push({ message: nm + ': it needs a name, which cards show. Until it has one, they show A result table.', prop: 'results.label.' + i });
-        if (!cft(t.dice)) out.results.push({ message: nm + ': it needs Dice, what rolls on it, such as 1d20. Until it has them, Save drops the table and every row.', prop: 'results.dice.' + i });
+        else if (mdR) out.results.push({ message: nm + ': Save named it ' + mdR + ' for want of a name. Give it a name of your own, which cards show.', prop: 'results.label.' + i });   // 1.6.3 (the review of rules)
+        if (!cft(t.dice)) out.results.push({ message: nm + ': What rolls on it is empty. Give it dice, such as 1d20. Until it has them, Save drops the table and every row.', prop: 'results.dice.' + i });   // 1.6.3 (the review of rules): said in the box's own words, What rolls on it
         rows.forEach(function(r, j) {
             if (!r || typeof r !== 'object') return; var at = nm + ', row ' + (j + 1) + ': ';
             if (!isNum(r.lo)) { out.results.push({ message: at + 'it needs From. Until it has one, Save drops the row and what it does.', prop: 'results.' + i + '.' + j + '.lo' }); rowSaid = true; }

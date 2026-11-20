@@ -777,6 +777,10 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('1.6.3 a mark with no name is said under the Marks box and lands on its name; a named one says nothing; + Mark starts named; the cleaner names one with none A mark',
             J(sT) === J(['tags.label.0|Mark 1: it needs a name, which the map and cards show. Until it has one, they show A mark.']) && J(sayRu('tags', { tags: [{ key: 'M1', label: 'Hound' }] })) === '[]'
             && nameRu([{ label: 'Mark 1' }], 'Mark') === 'Mark 2' && S.cleanTags([{ key: 'M1', label: '' }], true)[0].label === 'A mark' && require('./checkkit').part('sysedcombat.js').includes("draft.tags.push({ key: 'M' + n, label: ruleName(draft.tags, 'Mark') })") && read('scripts/sysui.js').includes("tags: ['rules', 'tags']"), J(sT));
+        // 1.6.3 (the review of rules): a mark saved with an emptied name holds its short name (M2) or, since 1.6.3, A mark: each is said under the box
+        const sT2 = sayRu('tags', { tags: [{ key: 'M1', label: 'm1' }, { key: 'M2', label: 'A mark' }, { key: 'M3', label: 'Hound' }] });
+        check('1.6.3 a mark whose name is still its short name, or the word the cleaner gave it, is said under the Marks box',
+            J(sT2) === J(['tags.label.0|Mark 1: Save named it m1 for want of a name. Give it a name of your own, which the map and cards show.', 'tags.label.1|Mark 2: Save named it A mark for want of a name. Give it a name of your own, which the map and cards show.']), J(sT2));
     }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

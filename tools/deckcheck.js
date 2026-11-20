@@ -131,6 +131,14 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             born === 'Card ' + (cards0 + 1) && shut && open && back && snOpen && snShut && !/Number[0-9]/.test(page.textContent), J([born, shut, open, back, snOpen, snShut]));
         check('1.6.3 the cleaner names a number with none A number, never its short name, and still drops a card with no name', K.cleanDeck({ key: 'D1', label: 'X', stats: [{ key: 'Number1', label: '' }], cards: [{ name: '' }, { name: 'Ace' }] }).stats[0].label === 'A number' && K.cleanDeck({ key: 'D1', label: 'X', stats: [], cards: [{ name: '' }, { name: 'Ace' }] }).cards.length === 1);
         press(qa('.dk-cardrm')[qa('.dk-cardrm').length - 1]); press(q('.dk-statrm'));
+        // 1.6.3 (the review of rules): a deck saved before 1.6.3 holds a number's short name as its name (Number1), and one saved since an emptied name as A
+        // number. Neither is empty, so the line said nothing: now each is said under its box, and goes once a name of its own is typed
+        list[0].stats.push({ key: 'Number1', label: 'Number1' }, { key: 'Number2', label: 'a number' }, { key: 'Speed', label: 'Speed' }); U.edit(page, o);
+        const sns = qa('.dk-statneed'), sOld = sns[0] && sns[0].hidden === false && sns[0].textContent === 'Save named it Number1 for want of a name. Give it a name of your own, which cards show.', sGen = sns[1] && sns[1].hidden === false && sns[1].textContent === 'Save named it a number for want of a name. Give it a name of your own, which cards show.', sOwn = sns[2] && sns[2].hidden === true;
+        go(qa('.dk-stat')[0], 'input', 'Reach'); const sTyped = sns[0].hidden === true; go(qa('.dk-stat')[0], 'input', ''); const sEmpty = sns[0].hidden === false && sns[0].textContent === 'It needs a name, which cards show. Until it has one, they say A number.';
+        check('1.6.3 a number whose name is still its short name, or the word the cleaner gave it, is said under its box until a name of its own is typed',
+            sOld && sGen && sOwn && sTyped && sEmpty, J(sns.map(s => [s.hidden, s.textContent])));
+        while (q('.dk-statrm')) press(q('.dk-statrm'));
     }
     const nt = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), ix = read('index.html'), sh = read('scripts/sheets.js'), fb = readRoot('WHATSNEW.txt');
     check('a pile never leaves the host: the snapshot carries counts, and a player’s app takes counts alone from the synced host', require('./checkkit').part('netfog.js').includes("camp.pileN = typeof decksFor === 'function' ? decksFor(camp) : {}; delete camp.piles;") && nt.includes("c.send({ type: 'decks', campId: camp.id, counts: counts, decks: defs })") && nt.includes("} else if (msg.type === 'decks' && net.role === 'client') {") && nt.includes('dkCore.cleanCounts(msg.counts[d.key], d)') && !/type === 'decks'[^\n]*net\.role === 'host'/.test(nt));

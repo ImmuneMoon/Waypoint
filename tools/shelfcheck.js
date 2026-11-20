@@ -65,6 +65,18 @@ const W = new Function(waySrc + '\nreturn { way: pageWay, pageOf: pageOf };')();
     const fDoc = ['window', 'panel', 'go'].map(w => run({ way: w, id: 'd1', foreign: true })), fPlan = ['window', 'panel', 'go'].map(w => run({ way: w, id: 'p1', foreign: true }));
     check('at someone else\'s table a handbook page is read in the reader whatever way is asked, never opened to edit and never in a window, and a planner is not opened at all',
         fDoc.every(r => r.how === 'reader' && J(r.read) === J(['d1']) && kept(r) && r.opened.length === 0 && r.popped.length === 0) && fPlan.every(r => r.how === '' && kept(r) && r.read.length === 0 && r.opened.length === 0 && r.popped.length === 0), J([fDoc.map(r => r.how), fPlan.map(r => r.how)]));
+    {   // 1.6.3 (Fulllion, 2026-11-19): a page link's Open in a new tab, the way 'tab' (pageshelf.js openPage, run for real)
+        const runTab = o => { const Rt = { tab: [], opened: [], toasts: [] }, campT = { activeItemId: 'm1', items: { p1: { type: 'planner', meta: { title: 'The Bar' } }, d1: { type: 'doc' }, m1: { type: 'map' } } };
+            const dpT = { open: (id, land) => { Rt.opened.push([id, land ? land.at : '']); }, popOut: () => true }; if (!o.noTab) dpT.tab = (id, land) => { Rt.tab.push([id, land ? land.at : '']); return o.answer === undefined ? 'behind' : o.answer; };
+            const winT = { wpDocPanel: dpT, wpNet: { foreign: !!o.foreign }, wpOpenDoc: id => { Rt.opened.push(['reader', id]); }, appRender() {}, wpPageNav: { landOf: l => (l && typeof l.at === 'string' ? { at: l.at } : null) } };
+            const openPage = new Function('window', 'state', 'getActiveCampaign', 'updateSidebarNav', 'save', 'toast', 'pageTitle', waySrc + '\n' + openSrc + '\nreturn openPage;')(winT, {}, () => campT, () => {}, () => {}, t => Rt.toasts.push(t), it => it.meta && it.meta.title || 'Page');
+            const how = 'land' in o ? openPage(o.id || 'p1', 'tab', o.land) : openPage(o.id || 'p1', 'tab');
+            return [how, Rt.tab, Rt.opened, Rt.toasts, campT.activeItemId]; };
+        const tabs = [runTab({}), runTab({ land: { at: 'b_1' } }), runTab({ answer: 'front' }), runTab({ answer: '' }), runTab({ noTab: true }), runTab({ id: 'm1' }), runTab({ foreign: true, id: 'd1' })];
+        check('1.6.3 a page opens in a new tab of the page panel (openPage, way tab, run for real): the panel\'s own tab is asked with the cleaned landing; a tab behind the page in front is said in a notice by the page\'s name, one that came to the front says nothing; where no tab came, or the panel has none, the page opens in the panel; what is no page opens nothing; at someone else\'s table a page is read in the reader',
+            J(tabs) === J([['tab', [['p1', '']], [], ['The Bar is open in a new tab of the page panel.'], 'm1'], ['tab', [['p1', 'b_1']], [], ['The Bar is open in a new tab of the page panel.'], 'm1'], ['tab', [['p1', '']], [], [], 'm1'],
+                ['panel', [['p1', '']], [['p1', '']], [], 'm1'], ['panel', [], [['p1', '']], [], 'm1'], ['', [], [], [], 'm1'], ['reader', [], [['reader', 'd1']], [], 'm1']]), J(tabs));
+    }
     {   // 1.6.2 (docs/PLANNER_ORG_DESIGN.md 6.1): a part of a page in a window of its own
         const runPart = o => { const Rp = { popped: [], opened: [], read: [] }, campP = { activeItemId: 'm1', items: { p1: { type: 'planner' }, d1: { type: 'doc' }, m1: { type: 'map' }, 'a/b': { type: 'planner' } } };
             const dpP = { open: (id, land) => { Rp.opened.push([id, land ? land.at : '']); }, popOut: (id, land, part) => { Rp.popped.push([id, land ? land.at : '', part === undefined ? null : part]); return !(o.popFails === true || (o.popFails === 'part' && part)); } };
@@ -742,12 +754,13 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
 }
 {
     // the tab functions run for real, beside a draw and a close of the suite's own that record what they are asked
-    const mk = () => { const dom = makeDom(), strip = dom.mk('div', '', null, 'docPanelTabs'), body = { scrollTop: 0 }, camp = mkCamp(), R = { drawn: [], closed: 0, told: [], stripDraws: 0 };
-        const ui = id => id === 'docPanelTabs' ? strip : id === 'docPanelBody' ? body : null;
+    const mk = () => { const dom = makeDom(), strip = dom.mk('div', '', null, 'docPanelTabs'), body = { scrollTop: 0 }, camp = mkCamp(), R = { drawn: [], closed: 0, told: [], stripDraws: 0, opens: [], landed: [], revealed: 0 }, panel = { style: { display: 'flex' } };
+        const ui = id => id === 'docPanelTabs' ? strip : id === 'docPanelBody' ? body : id === 'docPanel' ? panel : null; R.panel = panel;
         const api = new Function('ui', 'activeCamp', 'window', 'document', 'R', "var openId = '', lastSig = 'old', tabs = [], tabTop = Object.create(null), tabSig = '';\n" + tabsSrc.replace('function tabsDraw(strip, list, front, camp) {', 'function tabsDraw(strip, list, front, camp) { R.stripDraws++;') + '\n' + tabdoSrc
             + "\nfunction draw(force) { R.drawn.push(openId + (force ? '!' : '') + ':' + lastSig); tabsSync(activeCamp()); }\nfunction close() { R.closed++; openId = ''; tabs = []; }\n"
-            + "return { keep: tabKeep, sync: tabsSync, front: tabFront, shut: tabClose, get: function() { return { front: openId, tabs: tabs.slice(), top: Object.assign({}, tabTop) }; }, set: function(f, t) { openId = f; tabs = t.slice(); } };")(
-            ui, () => camp, { wpPageShelf: { opened: id => { R.told.push(id); } } }, dom.document, R);
+            + "function open(id, land) { R.opens.push([id, land ? land.at : '']); tabs = tabsWith(tabs, id); openId = id; }\nfunction landOpen(it, land) { R.landed.push([it && it.meta ? it.meta.title : null, land.at]); }\n"
+            + "return { keep: tabKeep, sync: tabsSync, front: tabFront, shut: tabClose, tab: tab, lands: function() { return Object.assign({}, tabLand); }, get: function() { return { front: openId, tabs: tabs.slice(), top: Object.assign({}, tabTop) }; }, set: function(f, t) { openId = f; tabs = t.slice(); } };")(
+            ui, () => camp, { wpPageShelf: { opened: id => { R.told.push(id); } }, wpFloats: { reveal: el => { R.revealed++; } } }, dom.document, R);
         return { api, R, strip, body, camp }; };
     const A = mk(); A.api.set('p_bar', ['p_bar', 'p_free', 'd_rules']); A.body.scrollTop = 320; A.api.front('d_rules'); const a1 = A.api.get(), d1 = A.R.drawn.slice(), t1 = A.R.told.slice();
     A.body.scrollTop = 90; A.api.front('p_bar'); const a2 = A.api.get(); A.api.front('p_bar'); A.api.front('nope'); A.api.front('m_bar'); const a3 = [A.R.drawn.length, A.R.told.length];
@@ -766,13 +779,27 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     E.api.set('d_rules', ['p_bar', 'p_free']); E.api.sync(E.camp); const e3 = [J(E.api.get().tabs), E.R.stripDraws]; delete E.camp.items.p_bar; E.api.sync(E.camp); const e4 = J(E.api.get().tabs); E.api.sync(null); const e5 = E.R.stripDraws;
     check('the strip is drawn only when its pages, one of their names or the page in front changed, so a redraw of the app costs it nothing; a page shown that has no tab yet gets one; a page that is gone loses its tab; with no campaign nothing is drawn',
         e1 === 1 && J(e2) === J([2, 'Renamed']) && J(e3) === J([J(['p_bar', 'p_free', 'd_rules']), 3]) && e4 === J(['p_free', 'd_rules']) && e5 === 4, J([e1, e2, e3, e4, e5]));
+    {   // 1.6.3 (Fulllion, 2026-11-19): a page opened in a new tab of the panel, from a link's menu or its press (docpanel.js tab, run for real)
+        const Tb = mk(); Tb.api.set('p_bar', ['p_bar']); const t1 = Tb.api.tab('d_rules', { at: 'b_9' }), t1s = [J(Tb.api.get()), J(Tb.api.lands()), Tb.R.drawn.length, Tb.R.revealed, Tb.R.opens.length, Tb.strip.children.length];
+        Tb.api.front('d_rules'); const t2 = [Tb.api.get().front, J(Tb.R.landed), J(Tb.api.lands())];
+        Tb.api.tab('p_free'); const t3 = J(Tb.api.lands()); Tb.api.shut('p_free'); const t3b = J(Tb.api.lands());
+        const Te = mk(); const e0 = Te.api.tab('p_bar', { at: 'b_1' }); const e1 = [e0, J(Te.R.opens)]; Te.api.set('p_bar', ['p_bar']); const e2 = [Te.api.tab('p_bar'), J(Te.R.opens.slice(-1)[0])];
+        Te.R.panel.style.display = 'none'; const e3 = [Te.api.tab('d_rules'), J(Te.R.opens.slice(-1)[0])];
+        const Tn = mk(); Tn.api.set('p_bar', ['p_bar']); const n1 = [Tn.api.tab('m_bar'), Tn.api.tab('gone'), Tn.api.tab('toString'), Tn.api.tab(7), J(Tn.api.get().tabs)];
+        const Tf = mk(); const full = ['p_bar', 'd_rules', 'x1', 'x2', 'x3', 'x4', 'x5', 'x6']; full.slice(2).forEach(id => { Tf.camp.items[id] = { type: 'doc', meta: { title: id } }; }); Tf.api.set('p_bar', full); Tf.api.tab('p_free'); const f8 = Tf.api.get();
+        check('1.6.3 a page opens in a new tab of the panel: where another page is in front it takes a tab behind it, the panel is shown on this view, nothing is drawn but the strip, and its landing waits on the tab until the tab is brought to the front, where it lands once; a tab closed forgets its landing; with nothing in front, for the page in front, or with the panel closed it opens as the panel\'s own open does; what is no page takes no tab; the page in front keeps its tab when the panel is full',
+            t1 === 'behind' && J(t1s) === J([J({ front: 'p_bar', tabs: ['p_bar', 'd_rules'], top: {} }), J({ d_rules: { at: 'b_9' } }), 0, 1, 0, 2]) && J(t2) === J(['d_rules', J([['House rules', 'b_9']]), '{}'])
+            && t3 === '{}' && t3b === '{}' && J(e1) === J(['front', J([['p_bar', 'b_1']])]) && J(e2) === J(['front', J(['p_bar', ''])]) && J(e3) === J(['front', J(['d_rules', ''])])
+            && J(n1) === J(['', '', '', '', J(['p_bar'])]) && f8.front === 'p_bar' && f8.tabs.length === 8 && f8.tabs[0] === 'p_bar' && f8.tabs[7] === 'p_free', J([t1, t1s, t2, t3, e1, e2, e3, n1, f8]));
+        check('1.6.3 the panel publishes its new tab, and closing the panel forgets every landing a tab held behind', count(dpS, "window.wpDocPanel.tab = tab;   // 1.6.3: a page in a new tab of the panel, behind the page in front (pageshelf.js openPage, way 'tab')") === 1 && count(dpS, 'tabLand = Object.create(null); tabSig') === 1);
+    }
     const F = mk(); F.api.set('', []); F.body.scrollTop = 50; F.api.keep(); F.api.set('p_bar', ['p_bar']); F.api.keep(); const f1 = J(F.api.get().top);
     check('where a page is scrolled to is kept under its own id, and nothing is kept while the panel is closed', f1 === J({ p_bar: 50 }), f1);
     check('the panel\'s own code asks these and nothing else: a page opened takes a tab before it becomes the page in front; a page that is gone has its tab closed; the strip follows each draw; a page drawn again keeps its place and a tab brought forward comes back where it was left; closing the panel closes every tab and empties the strip; the window button closes the tab of the page it sent away; a press, and the middle button, on the strip; the module publishes its tabs',
         count(dpS, "    tabKeep(); tabs = tabsWith(tabsKept(tabs, camp), id);") === 1 && dpS.indexOf("tabKeep(); tabs = tabsWith(tabsKept(tabs, camp), id);") < dpS.indexOf("    openId = id; lastSig = '';\n    var p = ui('docPanel'); if (!p) return;")
         && count(dpS, "    if (!it || (it.type !== 'doc' && it.type !== 'planner')) { tabClose(openId); return; }") === 1 && count(dpS, "    var t = ui('docPanelTitle'); if (t) t.textContent = title;\n    tabsSync(camp);") === 1
         && count(dpS, "    var keep = drawnId === openId ? body.scrollTop : (tabTop[openId] || 0); drawnId = openId;") === 1
-        && count(dpS, "function close() { openId = ''; lastSig = ''; tabs = []; tabTop = Object.create(null); tabSig = ''; drawnId = ''; var strip = ui('docPanelTabs'); if (strip) { strip.textContent = ''; strip.style.display = 'none'; } clearMarks();") === 1
+        && count(dpS, "function close() { openId = ''; lastSig = ''; tabs = []; tabTop = Object.create(null); tabLand = Object.create(null); tabSig = ''; drawnId = ''; var strip = ui('docPanelTabs'); if (strip) { strip.textContent = ''; strip.style.display = 'none'; } clearMarks();") === 1
         && count(dpS, "        if (openId && popOut(openId)) tabClose(openId);") === 1
         && count(dpS, "strip.addEventListener('click', function(e) { var tab = e.target.closest ? e.target.closest('.docpanel-tab') : null; if (!tab) return; if (e.target.closest('.docpanel-tab-x')) tabClose(tab.dataset.id); else tabFront(tab.dataset.id); });") === 1
         && count(dpS, "strip.addEventListener('auxclick', function(e) { var tab = e.button === 1 && e.target.closest ? e.target.closest('.docpanel-tab') : null; if (tab) { e.preventDefault(); tabClose(tab.dataset.id); } });") === 1
@@ -1718,7 +1745,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         nS === 1 && !Bs[0].cls.has('wp-mention-gone') && Bs[0].cls.has('wp-mention') && nK === 2 && Bs[1].text === 'kept words' && Bs[1].cls.has('wp-mention') && Bs[2].text === 'read pad' && Bs[2].cls.has('wp-mention'), J(Bs.map(a => [a.text, [...a.cls]])));
     const plM = read('scripts/planner.js'), lgM = read('scripts/linkgate.js'), escM = read('scripts/esckey.js');
     check('166 f wired (pinned): the editors write a mention (mentionCan, mentionAt, mention published on wpTextBox), a press goes through the link gate with no question, every read view paints its mentions before its folds, the list is heard first by Escape\u2019s own-menu rule, the module loaded after the time panel; Help says it',
-        plM.includes('mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,') && lgM.includes("if (mn) { if (c.editing === false && c.held !== true) mentionGo(win, mn, e.type === 'auxclick' ? 'window' : '', e, a); return; }") && read('scripts/pagenav.js').includes("window.wpPageShelf.mentionPaint(root); } catch (e) {} }")
+        plM.includes('mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,') && lgM.includes("            if (pg) pageGo(win, pg, way, e, a); else mentionGo(win, mn, way, e, a);") && read('scripts/pagenav.js').includes("window.wpPageShelf.mentionPaint(root); } catch (e) {} }")
         && escM.includes('#mentionMenu:not([hidden])') && ix.includes('<script type="module" src="scripts/timepanel.js"></script>\n<script type="module" src="scripts/mention.js"></script>') && ix.includes('<b>@-mentions.</b>'));
 }
 

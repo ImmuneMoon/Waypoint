@@ -251,8 +251,9 @@ function landClean(land) {
     var pn = window.wpPageNav; if (land == null || !pn || typeof pn.landOf !== 'function') return null;
     try { return pn.landOf(land) || null; } catch (e) { return null; }
 }
-// Opens a page of the campaign on screen the way that was asked for, and says how it opened: 'window', 'panel', 'go', 'reader', or ''
+// Opens a page of the campaign on screen the way that was asked for, and says how it opened: 'window', 'panel', 'tab', 'go', 'reader', or ''
 // when there is no such page. A window that cannot be opened falls back to the panel, and a panel that is not there to the page itself.
+// 1.6.3: 'tab' is a new tab of the panel (docpanel.js tab), behind the page in front there; with no tab at hand it is the panel.
 // A landing goes with every way, the fallbacks too; with none, each way is asked exactly as before
 function openPage(id, way, land) {
     var camp = getActiveCampaign(), it = pageOf(camp, id); if (!it) return '';
@@ -262,6 +263,7 @@ function openPage(id, way, land) {
         return '';
     }
     if (way === 'window') { if (dp && typeof dp.popOut === 'function' && (to ? dp.popOut(id, to) : dp.popOut(id))) return 'window'; way = 'panel'; }
+    if (way === 'tab') { var tb = dp && typeof dp.tab === 'function' ? dp.tab(id, to) : ''; if (tb) { if (tb === 'behind') toast(pageTitle(it) + ' is open in a new tab of the page panel.'); return 'tab'; } way = 'panel'; }
     if (way === 'panel' && dp && typeof dp.open === 'function') { if (to) dp.open(id, to); else dp.open(id); return 'panel'; }
     camp.activeItemId = id; state.selId = null; state.selWbId = null; state.linkStart = null;
     updateSidebarNav(); if (window.appRender) window.appRender(); save(true);

@@ -7,7 +7,7 @@
    mousecore as it is read; a profile carries it as it carries the keys. Logged as "mouse v1": what was set and what ran, never a name.
    Published as window.wpMouse. */
 import { toast } from './io.js';
-import { mouseOf, mouseName, sideButton, mouseClean, gestureOf, gestureWords, mapTakes, mouseAt, GESTURES, GESTURE_IDS } from './mousecore.js';
+import { mouseOf, mouseName, sideButton, mouseClean, gestureOf, gestureWords, mapTakes, mouseAt, GESTURES, GESTURE_IDS, linkClash } from './mousecore.js';
 
 function mLog(step, f) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('mouse v1', step, f || {}); } catch (e) {} }
 function mMine() { try { return mouseClean(JSON.parse(localStorage.getItem('wp_mouse') || '{}')); } catch (e) { return { cmds: {} }; } }
@@ -87,8 +87,10 @@ if (typeof window !== 'undefined') {
         picking: function(id) { return !!_pick && (id === undefined || _pick.id === id); },
         setGesture: function(g, w) {
             if (GESTURE_IDS.indexOf(g) < 0 || !GESTURES[g].some(function(o) { return o[0] === w; })) return false;
-            var m = mMine(); m[g] = w; var ok = mSave(m); _m = mMine(); mLog(ok ? 'gesture-set' : 'mouse-save-failed', { g: g, w: w }); return ok;
+            var m = mMine(), took = linkClash(m, g, w); m[g] = w; if (took) m[took] = 'off';   // 1.6.3: a press another link gesture had is taken from it
+            var ok = mSave(m); _m = mMine(); mLog(ok ? 'gesture-set' : 'mouse-save-failed', { g: g, w: w, took: took }); return ok;
         },
+        linkClash: function(g, w) { return linkClash(_m, g, w); },   // 1.6.3: which link gesture would lose its press to this pick, for Settings' words
         gestureWords: gestureWords,
         reset: function() { try { localStorage.removeItem('wp_mouse'); } catch (e) {} _m = mMine(); mLog('mouse-reset', {}); },
         reload: function() { _m = mMine(); }   // a profile opened here brought its mouse

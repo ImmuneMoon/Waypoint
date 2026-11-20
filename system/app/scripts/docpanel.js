@@ -398,7 +398,7 @@ function open(id, land) {
     landOpen(it, land);   // 1.5.4: at one block or at a search hit; with no landing, nothing more
 }
 // [textcheck:panelland-end]
-function close() { openId = ''; lastSig = ''; tabs = []; tabTop = Object.create(null); tabSig = ''; drawnId = ''; var strip = ui('docPanelTabs'); if (strip) { strip.textContent = ''; strip.style.display = 'none'; } clearMarks(); var box = ui('docPanelSearchInput'); if (box) box.value = ''; query = ''; renderResults([]); var p = ui('docPanel'); if (p) p.style.display = 'none'; }
+function close() { openId = ''; lastSig = ''; tabs = []; tabTop = Object.create(null); tabLand = Object.create(null); tabSig = ''; drawnId = ''; var strip = ui('docPanelTabs'); if (strip) { strip.textContent = ''; strip.style.display = 'none'; } clearMarks(); var box = ui('docPanelSearchInput'); if (box) box.value = ''; query = ''; renderResults([]); var p = ui('docPanel'); if (p) p.style.display = 'none'; }
 // [shelfcheck:tabdo-start]
 // 1.5.4 tabs: where the page in front is scrolled to; the strip drawn when its pages, their names or the one in front changed; a tab
 // brought to the front; a tab closed (the panel closes with its last one)
@@ -414,10 +414,27 @@ function tabFront(id) {
     if (id === openId || tabsKept(tabs, activeCamp()).indexOf(id) < 0) return;
     tabKeep(); openId = id; lastSig = ''; draw(true);
     if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // the head's pin follows the page in front
+    var L = tabLand[id]; if (L) { delete tabLand[id]; var c = activeCamp(); landOpen(c && c.items ? c.items[id] : null, L); }   // 1.6.3: a tab opened behind lands where its link said, once it is in front
+}
+// 1.6.3 (Fulllion, 2026-11-19): a page opened in a new tab of the panel, from a link's menu or its press (linkgate.js, through pageshelf.js
+// openPage's way 'tab'). Where the panel already shows another page, the new page takes a tab BEHIND it, as a browser's new tab does, and the
+// panel is shown on this view (floats.js reveal); its landing waits on the tab (tabLand) until the tab is brought to the front. With nothing in
+// the panel, or for the page in front, it opens as open() does. Answers 'behind', 'front', or '' where it is no page of the campaign
+var tabLand = Object.create(null);
+function tab(id, land) {
+    var camp = activeCamp(), it = camp && camp.items && typeof id === 'string' && Object.prototype.hasOwnProperty.call(camp.items, id) ? camp.items[id] : null;
+    if (!it || (it.type !== 'doc' && it.type !== 'planner')) return '';
+    var p = ui('docPanel'); if (!p) return '';
+    if (!openId || id === openId || p.style.display === 'none') { open(id, land); return 'front'; }
+    tabs = tabsWith(tabsKept(tabs, camp), id); if (tabs.indexOf(openId) < 0) tabs = [openId].concat(tabs.slice(1));   // the page in front never loses its own tab to the new one
+    if (land) tabLand[id] = land; else delete tabLand[id];
+    if (window.wpFloats) window.wpFloats.reveal(p);
+    tabsSync(camp);
+    return 'behind';
 }
 function tabClose(id) {
     var camp = activeCamp(), r = tabsWithout(tabs, id, openId), kept = tabsKept(r.tabs, camp), front = kept.indexOf(r.front) >= 0 ? r.front : (kept[0] || '');
-    delete tabTop[id]; tabs = kept;
+    delete tabTop[id]; delete tabLand[id]; tabs = kept;
     if (!front) { close(); return; }
     if (front === openId) { tabsSync(camp); return; }
     openId = front; lastSig = ''; draw(true);
@@ -535,6 +552,7 @@ function dockTakes(search) { try { var q = new URLSearchParams(String(search == 
 })();
 
 window.wpDocPanel = { open: open, close: close, refresh: refresh, popOut: popOut, openId: function() { return openId; }, tabs: function() { return tabs.slice(); } };
+window.wpDocPanel.tab = tab;   // 1.6.3: a page in a new tab of the panel, behind the page in front (pageshelf.js openPage, way 'tab')
 // 1.6.0: the map on screen, for the panel's place kept per map: the play map of this computer's own campaign alone (never at someone else's
 // table, where nothing of a campaign is written to this computer), as "<campaign>/<map>"
 placeMapNow = function() {

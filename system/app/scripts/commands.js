@@ -304,7 +304,8 @@ function keysReset(doc) {
     return ok;
 }
 // 1.6.2: the map's own gestures under the keys, each a list of the words mousemap.js takes (the owner: "A short list each")
-var GES_IDS = { pan: 'setGesPan', zoom: 'setGesZoom', ping: 'setGesPing', open: 'setGesOpen' };
+var GES_IDS = { pan: 'setGesPan', zoom: 'setGesZoom', ping: 'setGesPing', open: 'setGesOpen',
+    linkMenu: 'setGesLinkMenu', linkTab: 'setGesLinkTab', linkWin: 'setGesLinkWin', linkPanel: 'setGesLinkPanel' };   // 1.6.3: the presses on a link in a page, under Links in pages
 function gesturesShow(doc) {
     var M = typeof window !== 'undefined' ? window.wpMouse : null; if (!M || typeof M.gesture !== 'function') return false;
     Object.keys(GES_IDS).forEach(function(g) { var s = doc.getElementById(GES_IDS[g]); if (s) s.value = M.gesture(g); });
@@ -315,8 +316,10 @@ function gesturesWire(doc) {
         var s = doc.getElementById(GES_IDS[g]); if (!s || s._ges) return; s._ges = true;
         s.addEventListener('change', function() {
             var M = window.wpMouse; if (!M || typeof M.setGesture !== 'function') return;
+            var nameOf = function(el) { return el && el.closest && el.closest('label') ? String(el.closest('label').querySelector('.set-name span').textContent) : 'That'; };
+            var took = typeof M.linkClash === 'function' ? M.linkClash(g, s.value) : '';   // 1.6.3: a link press another link gesture had is taken from it, and said
             var ok = M.setGesture(g, s.value); gesturesShow(doc); keysDraw(doc);
-            keysSay(doc, ok ? (s.closest && s.closest('label') ? String(s.closest('label').querySelector('.set-name span').textContent) : 'That') + ' is ' + M.gestureWords(g, s.value) + ' now.' : 'The change could not be kept on this computer.');
+            keysSay(doc, ok ? nameOf(s) + ' is ' + M.gestureWords(g, s.value) + ' now.' + (took ? ' ' + nameOf(doc.getElementById(GES_IDS[took])) + ' had it and is Off now.' : '') : 'The change could not be kept on this computer.');
         });
     });
 }

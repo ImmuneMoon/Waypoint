@@ -3106,7 +3106,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && J(runsSrc.match(/setAttribute\('([a-z]+)'/g)) === J(["setAttribute('href'", "setAttribute('target'", "setAttribute('rel'"]) && /el\.style\.fontFamily = r && r\.font \? fontCss\(r\.font\) : '';/.test(runsSrc) && /if \(o\.ask === true\) el\.dataset\.ask = '1'; else delete el\.dataset\.ask;/.test(runsSrc)
                 && /\nif \(typeof window !== 'undefined'\) window\.wpTextRead = \{ fill: fillRuns \};\n/.test(read('linkgate.js').replace(/\r\n/g, '\n')) && /\n    var ask = !!a\.closest\('\[data-ask\]'\);[^\n]*\n    var v = a\.closest\(ZONE_VIEWER\);\n/.test(gateSrc) && /c\.own = !ask && d\.linksOwn === '1';/.test(gateSrc) && /\n    if \(ask\) return c;\n    if \(a\.closest\(ZONE_APP\)\)/.test(gateSrc) && gateSrc.split("closest('[data-ask]')").length === 2
                 && /typed = o\.typed === true && ruleLinks\(o\.rule\);/.test(runsSrc) && runsSrc.split('linkParts(t)').length === 2 && !/fillLinked\(span/.test(runsSrc)
-                && J((read('linkgate.js').match(/^import [^\n]*$/gm) || []).map(s => s.trim())) === J(["import { cleanLink, linkParts } from './textfmt.js';", "import { showConfirm } from './dialogs.js';", "import { runsOf, SIZE_EM, fontCss } from './textfmt.js';", "import { cleanRec, ruleLinks } from './lookcore.js';", "import { pageLink, mentionLink } from './textfmt.js';   // 1.5.6: a link to a page of the campaign; 1.6.2, a mention"])
+                && J((read('linkgate.js').match(/^import [^\n]*$/gm) || []).map(s => s.trim())) === J(["import { cleanLink, linkParts } from './textfmt.js';", "import { showConfirm } from './dialogs.js';", "import { runsOf, SIZE_EM, fontCss } from './textfmt.js';", "import { cleanRec, ruleLinks } from './lookcore.js';", "import { pageLink, mentionLink } from './textfmt.js';   // 1.5.6: a link to a page of the campaign; 1.6.2, a mention", "import { mouseClean, linkPress, gestureOf, gestureWords } from './mousecore.js';   // 1.6.3: the presses on a page link are this computer's, as the map's gestures are"])
                 && /\n  \.wp-run-read \{ white-space: pre-wrap; overflow-wrap: anywhere; \}\n/.test(read('../style.css').replace(/\r\n/g, '\n')));
             // item 35, fold 3a: a player's table notepad drawn from a hostile host's message (net.js sliced by its padbox markers and run for real
             // with the REAL reader beside it, on the page of plain objects, which refuses markup)
@@ -5462,8 +5462,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
 
     {   // 1.5.6: a link from one page to another (textfmt.js pageLink), through the real gate: never a question, never window.open
-        const J = JSON.stringify, TFg = await import(modUrl('textfmt.js')), gSrc = slice('linkgate.js', 'linkgate'), pSrc = slice('linkgate.js', 'linkpeek');
-        const G = new Function('cleanLink', 'linkParts', 'URL', 'pageLink', gSrc + '\n' + pSrc + '\nreturn { linkGate: linkGate, pageMenu: pageMenu, peekOf: peekOf };')(TFg.cleanLink, TFg.linkParts, URL, TFg.pageLink);
+        const J = JSON.stringify, TFg = await import(modUrl('textfmt.js')), MCg = await import(modUrl('mousecore.js')), gSrc = slice('linkgate.js', 'linkgate'), pSrc = slice('linkgate.js', 'linkpeek');
+        const G = new Function('cleanLink', 'linkParts', 'URL', 'pageLink', 'mentionLink', 'mouseClean', 'linkPress', gSrc + '\n' + pSrc + '\nreturn { linkGate: linkGate, pageMenu: pageMenu, peekOf: peekOf };')(TFg.cleanLink, TFg.linkParts, URL, TFg.pageLink, TFg.mentionLink, MCg.mouseClean, MCg.linkPress);
         const el = (tag, attrs, parent, ce) => ({ nodeType: 1, tagName: tag.toUpperCase(), nodeName: tag.toUpperCase(), parentNode: parent || null, attrs: attrs || {}, isContentEditable: !!ce,
             hasAttribute(k) { return Object.prototype.hasOwnProperty.call(this.attrs, k); }, getAttribute(k) { return this.hasAttribute(k) ? this.attrs[k] : null; },
             matches(sel) { return sel.split(',').map(s => s.trim()).some(s => s === this.tagName.toLowerCase() || (s[0] === '#' && this.attrs.id === s.slice(1)) || (s === '[data-ask]' && this.hasAttribute('data-ask'))); },
@@ -5471,14 +5471,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const page = el('div', { id: 'plannerPreview' }), editBox = el('div', {}, el('div', {}), true), other = el('div', { 'data-ask': '' });
         const link = (href, parent, extra) => el('a', Object.assign({ href: href }, extra || {}), parent);
         const mkWin = (o) => { const calls = [], opened = []; const w = { calls: calls, opened: opened, wpPopout: !!o.pop, document: { body: { classList: { contains: c => !!o.stream && c === 'stream-mode' } } }, open() { opened.push([].slice.call(arguments)); },
+            localStorage: { getItem: k => (k === 'wp_mouse' && o.mouse ? JSON.stringify(o.mouse) : null) },
             wpPageShelf: { linkGo(id, at, way) { calls.push([id, at, way]); return way; }, wayNow(e) { return e && e.ctrlKey ? 'window' : 'panel'; }, linkWords(id, at) { return id === 'p1' ? 'Plan \u203a ' + (at || 'top') : ''; } } };
             if (o.pop) { w.opener = o.opener; w.wpPageShelf = null; } return w; };
         let asked = 0; const ask = () => { asked++; };
         const fire = (win, a, o) => { const e = Object.assign({ type: 'click', button: 0, target: a, dp: false, preventDefault() { this.dp = true; }, stopPropagation() { this.sp = true; } }, o || {}); G.linkGate(win, win.document, ask)(e); return e; };
         const w1 = mkWin({}), e1 = fire(w1, link('#wp:page:p1:b_d', page)), e2 = fire(w1, link('#wp:page:p1:b_d', page), { ctrlKey: true }), e3 = fire(w1, link('#wp:page:p1', page), { type: 'auxclick', button: 1 });
         const e4 = fire(w1, link('#wp:page:p1', other)), e5 = fire(w1, link('#wp:page:p1', editBox)), e6 = fire(w1, link('#wp:page:p1', page, { 'data-held': '' })), e7 = fire(w1, link('#wp:page:bad id', page)), e8 = fire(w1, link('#wp:page:p1', page), { button: 2 });
-        check('1.5.6 page links (the gate, run for real): a click opens the page at its section by the shelf\'s own way, Ctrl or the middle button a window of its own, a page link from someone else\'s text the same with no question; in a box being edited, after a drag, for an address that is no link and for the right button\'s click nothing opens; the engine follows none of them; never window.open, never the question',
-            J(w1.calls) === J([['p1', 'b_d', 'panel'], ['p1', 'b_d', 'window'], ['p1', '', 'window'], ['p1', '', 'panel']]) && [e1, e2, e3, e4, e5, e6, e7].every(e => e.dp === true) && e8.dp === false && w1.opened.length === 0 && asked === 0, J([w1.calls, w1.opened, asked]));
+        check('1.5.6 page links (the gate, run for real): a click opens the page at its section by the shelf\'s own plain way, Ctrl + click an external window and the middle button a new tab (1.6.3, the link gestures as they come, moved on purpose), a page link from someone else\'s text the same with no question; in a box being edited, after a drag, for an address that is no link and for the right button\'s click nothing opens; the engine follows none of them; never window.open, never the question',
+            J(w1.calls) === J([['p1', 'b_d', 'panel'], ['p1', 'b_d', 'window'], ['p1', '', 'tab'], ['p1', '', 'panel']]) && [e1, e2, e3, e4, e5, e6, e7].every(e => e.dp === true) && e8.dp === false && w1.opened.length === 0 && asked === 0, J([w1.calls, w1.opened, asked]));
+        {   // 1.6.3 (Fulllion, 2026-11-19: "able to be changed like any other control"): the presses follow this computer's link gestures (wp_mouse)
+            const wg = mkWin({ mouse: { linkTab: 'shift', linkWin: 'middle', linkPanel: 'off' } });
+            const g1 = fire(wg, link('#wp:page:p1', page), { ctrlKey: true }), g2 = fire(wg, link('#wp:page:p1', page), { type: 'auxclick', button: 1 }), g3 = fire(wg, link('#wp:page:p1', page), { shiftKey: true });
+            const g4 = fire(wg, link('#wp:page:p1', page), { altKey: true }), g5 = fire(wg, link('#wp:page:p1', page), { ctrlKey: true, shiftKey: true }), wOff = mkWin({ mouse: { linkTab: 'off' } }), g6 = fire(wOff, link('#wp:page:p1', page), { type: 'auxclick', button: 1 });
+            const wDef = mkWin({}), g7 = fire(wDef, link('#wp:page:p1', page), { shiftKey: true }), g8 = fire(wDef, link('#wp:@:page:p1', page), { type: 'auxclick', button: 1 }), g9 = fire(wDef, link('#wp:page:p1', page), { ctrlKey: true, shiftKey: true });
+            const wBad = mkWin({}); wBad.localStorage = { getItem() { throw new Error('blocked'); } }; fire(wBad, link('#wp:page:p1', page), { ctrlKey: true });
+            check('1.6.3 page links follow the link gestures (the gate, run for real with the real mousecore): set otherwise, Ctrl + click with no gesture of its own follows the link as a plain click does, the middle button opens an external window and Shift + click a new tab; Alt + click nobody picked still opens the page itself; a press with more keys than a gesture names is no gesture; the middle button set Off opens nothing, its click still stopped; as they come Shift + click opens the page panel and a page\'s mention follows the same presses; a store that cannot be read is the gestures as they come',
+                J(wg.calls) === J([['p1', '', 'panel'], ['p1', '', 'window'], ['p1', '', 'tab'], ['p1', '', 'go'], ['p1', '', 'panel']]) && [g1, g2, g3, g4, g5, g6].every(e => e.dp === true) && wOff.calls.length === 0
+                && J(wDef.calls) === J([['p1', '', 'panel'], ['p1', '', 'tab'], ['p1', '', 'panel']]) && [g7, g8, g9].every(e => e.dp === true) && J(wBad.calls) === J([['p1', '', 'window']]), J([wg.calls, wOff.calls, wDef.calls, wBad.calls]));
+        }
         const host = mkWin({}), pop = mkWin({ pop: true, opener: host }), st = mkWin({ stream: true }), lone = mkWin({ pop: true, opener: null });
         fire(pop, link('#wp:page:p1:b_d', page)); fire(st, link('#wp:page:p1', page)); const eL = fire(lone, link('#wp:page:p1', page));
         check('1.5.6 page links (the gate): from a window of its own a page link opens a window of its own through the main window, which holds the campaign; in the stream window and in a window whose main window is gone nothing opens',
@@ -5487,6 +5498,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const w2 = mkWin({}), c1 = cm(w2, link('#wp:page:p1:b_d', page)), c2 = cm(w2, link('https://ok.example/', page)), c3 = cm(w2, link('#wp:page:p1', editBox));
         check('1.5.6 page links (the right button): on a page link it opens a window of its own and no menu; on a web link and in a box being edited the menu is the browser\'s own',
             J(w2.calls) === J([['p1', 'b_d', 'window']]) && c1.dp && c1.sp && !c2.dp && !c3.dp, J(w2.calls));
+        {   // 1.6.3: which right press opens the menu is a link gesture; the menu key on the keyboard (no right button) always does
+            const cmB = (win, a, o) => { const e = Object.assign({ type: 'contextmenu', button: 2, target: a, dp: false, sp: false, preventDefault() { this.dp = true; }, stopPropagation() { this.sp = true; } }, o || {}); G.pageMenu(win)(e); return e; };
+            const wR = mkWin({}), r1 = cmB(wR, link('#wp:page:p1', page)), r2 = cmB(wR, link('#wp:page:p1', page), { shiftKey: true }), r3 = cmB(wR, link('#wp:@:map:m1', page));
+            const wS = mkWin({ mouse: { linkMenu: 'shiftright' } }), s1 = cmB(wS, link('#wp:page:p1', page)), s2 = cmB(wS, link('#wp:page:p1', page), { shiftKey: true });
+            const wO = mkWin({ mouse: { linkMenu: 'off' } }), o1 = cmB(wO, link('#wp:page:p1', page)), o2 = cmB(wO, link('#wp:page:p1', page), { button: 0 });
+            check('1.6.3 the menu of where a link opens is a link gesture (the right button, run for real): as it comes the right click opens it, Shift + right click is no gesture; set to Shift + right click the plain right click is left to the page and Shift + right click opens it; set Off no right click does; the menu key always does; a mention is heard too',
+                r1.dp && !r2.dp && r3.dp && !s1.dp && s2.dp && !o1.dp && o2.dp && J(wR.calls) === J([['p1', '', 'window']]) && J(wS.calls) === J([['p1', '', 'window']]) && J(wO.calls) === J([['p1', '', 'window']]), J([wR.calls, wS.calls, wO.calls]));
+        }
         const w3 = mkWin({});
         check('1.5.6 page links (before a press): the strip says which page and which part, a page that is not here as such, and nothing in a box being edited',
             G.peekOf(w3, link('#wp:page:p1:b_d', page)) === 'Page: Plan \u203a b_d' && G.peekOf(w3, link('#wp:page:p9', page)) === 'A page that is not here' && G.peekOf(w3, link('#wp:page:p1', editBox)) === '');
@@ -5497,16 +5516,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
     {   // 1.5.8: where a page link may open (linkgate.js sliced by its linkgate, linkpeek, linkmenu and linkpop markers and run for real on tools/boxdom.js,
         // a page of plain objects that refuses markup). The owner, 2026-10-25, by prompt: "Both": a right-click menu, and a button beside a page link
-        const J = JSON.stringify, TFg = await import(modUrl('textfmt.js')), { makeDom } = require('./boxdom.js');
+        const J = JSON.stringify, TFg = await import(modUrl('textfmt.js')), MCm = await import(modUrl('mousecore.js')), { makeDom } = require('./boxdom.js');
         const src = ['linkgate', 'linkpeek', 'linkmenu', 'linkpop'].map(n => slice('linkgate.js', n)).join('\n');
         const mkWorld = (o) => {
             o = o || {};
             const dom = makeDom(), doc = dom.document, timers = [], calls = [];
-            const G = new Function('cleanLink', 'linkParts', 'URL', 'pageLink', 'setTimeout', 'clearTimeout', src + '\nreturn { pageMenu: pageMenu, lmRows: lmRows, lmOpen: lmOpen, lmClose: lmClose, popShow: popShow, popHide: popHide, peekHide: peekHide, pageGo: pageGo };')(
-                TFg.cleanLink, TFg.linkParts, URL, TFg.pageLink, fn => { timers.push(fn); return timers.length; }, () => {});
+            const G = new Function('cleanLink', 'linkParts', 'URL', 'pageLink', 'mentionLink', 'mouseClean', 'linkPress', 'gestureOf', 'gestureWords', 'setTimeout', 'clearTimeout', src + '\nreturn { pageMenu: pageMenu, lmRows: lmRows, lmOpen: lmOpen, lmClose: lmClose, popShow: popShow, popHide: popHide, peekHide: peekHide, pageGo: pageGo };')(
+                TFg.cleanLink, TFg.linkParts, URL, TFg.pageLink, TFg.mentionLink, MCm.mouseClean, MCm.linkPress, MCm.gestureOf, MCm.gestureWords, fn => { timers.push(fn); return timers.length; }, () => {});
             const HOSTILE = 'Plan <img src=x onerror=alert(1)> & "q"';
             const win = { document: doc, innerWidth: 1000, innerHeight: 700, wpNet: o.player ? { foreign: true } : { foreign: false, active: false },
-                wpPageShelf: { linkGo(id, at, way) { calls.push(['go', id, at, way]); return way; }, wayNow() { return 'panel'; }, linkWords(id) { return id === 'p1' ? HOSTILE : ''; } },
+                localStorage: { getItem: k => (k === 'wp_mouse' && o.mouse ? JSON.stringify(o.mouse) : null) },
+                wpPageShelf: { linkGo(id, at, way) { calls.push(['go', id, at, way]); return way; }, wayNow() { return 'panel'; }, linkWords(id) { return id === 'p1' ? HOSTILE : ''; }, mentionWords(kind, id) { return kind === 'map' && id === 'm1' ? 'Map: Docks' : ''; }, mentionGo(kind, id, at) { calls.push(['mention', kind, id, at || '']); return true; } },
                 wpPageNav: { placeOf: el => el.closest('#plannerPreview') || el.closest('#docPanelBody') || el.closest('#docReaderBody') || el.closest('#popoutBody'), follow(root, id, at) { calls.push(['follow', root.id, id, at]); return true; } } };
             if (o.noHost) { win.wpPopout = true; win.opener = null; win.wpPageShelf = null; }
             const zone = id => { const z = dom.mk('div', '', null, id); doc.body.appendChild(z); return z; };
@@ -5515,21 +5535,36 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             return { dom, doc, win, G, calls, timers, zone, link, HOSTILE };
         };
         const rowsOf = m => m.childNodes.filter(n => n.nodeType === 1 && n.className === 'linkmenu-row').map(b => [b.dataset.way, b.childNodes.map(t => t.nodeType === 3 ? t.nodeValue : '#' + t.tagName).join('')]);
-        const textOnly = el => el.all().every(n => n.tagName === 'DIV' || n.tagName === 'BUTTON') && el.all().every(n => n.childNodes.every(c => c.nodeType === 3 || c.nodeType === 1));
+        const keysOf = m => m.childNodes.filter(n => n.nodeType === 1 && n.className === 'linkmenu-row').map(b => { const k = b.childNodes.filter(t => t.nodeType === 1 && t.className === 'linkmenu-key')[0]; return k ? k.childNodes.map(t => t.nodeValue).join('') : ''; });
+        const W = '#SPAN';   // 1.6.3: each row ends in the press that does the same, a span of its own (keysOf reads it)
+        const textOnly = el => el.all().every(n => n.tagName === 'DIV' || n.tagName === 'BUTTON' || (n.tagName === 'SPAN' && n.className === 'linkmenu-key')) && el.all().every(n => n.childNodes.every(c => c.nodeType === 3 || c.nodeType === 1));   // 1.6.3: a row's press is a span of its own
         // the GM's planner view: three rows, the page's name a text node, each row its own way
         const A = mkWorld(), pv = A.zone('plannerPreview'), a1 = A.link(pv, '#wp:page:p1:b_d');
         const e1 = A.dom.fire(a1, 'contextmenu', { button: 2, clientX: 300, clientY: 200 }), m = A.doc.getElementById('pageLinkMenu');
         const head = m && m.childNodes[0], first = [m && m.hidden, head && head.className, head && head.childNodes.length === 1 && head.childNodes[0].nodeType === 3 && head.childNodes[0].nodeValue, rowsOf(m), m && m.attrs.role, textOnly(m), A.doc.activeElement === A.doc.body];
+        const keys0 = keysOf(m);
         A.dom.fire(m.childNodes[3], 'click'); const afterPanel = [m.hidden, J(A.calls.slice(-1)[0])];
         A.dom.fire(a1, 'contextmenu', { button: 2 }); A.dom.fire(m.childNodes[1], 'click'); const afterHere = J(A.calls.slice(-1)[0]);
-        A.dom.fire(a1, 'contextmenu', { button: 2 }); A.dom.fire(m.childNodes[2], 'click'); const afterWin = J(A.calls.slice(-1)[0]);
-        check('1.5.8 a page link\'s menu (the right button, run for real): it is one menu made by name of elements and text nodes, its heading the page\'s own name as a text node whatever that name holds, then Open here, Open in a new window and Open in the panel over the map; the press opens nothing and the browser\'s own menu stays away; Open here follows the link in the place it stands in, the others open the page by the shelf\'s own ways; a row taken puts the menu away',
-            e1.defaultPrevented && e1.stopped && J(first) === J([false, 'linkmenu-head', A.HOSTILE, [['here', 'Open here'], ['window', 'Open in a new window'], ['panel', 'Open in the panel over the map']], 'menu', true, true])
-            && J(afterPanel) === J([true, J(['go', 'p1', 'b_d', 'panel'])]) && afterHere === J(['follow', 'plannerPreview', 'p1', 'b_d']) && afterWin === J(['go', 'p1', 'b_d', 'window']) && A.doc.querySelectorAll('#pageLinkMenu').length === 1, J([first, afterPanel, afterHere, afterWin]));
+        A.dom.fire(a1, 'contextmenu', { button: 2 }); A.dom.fire(m.childNodes[4], 'click'); const afterWin = J(A.calls.slice(-1)[0]);
+        A.dom.fire(a1, 'contextmenu', { button: 2 }); A.dom.fire(m.childNodes[2], 'click'); const afterTab = J(A.calls.slice(-1)[0]);
+        check('1.5.8 a page link\'s menu (the right button, run for real): it is one menu made by name of elements and text nodes, its heading the page\'s own name as a text node whatever that name holds, then (1.6.3, Fulllion, 2026-11-19, moved on purpose) Open here, Open in a new tab, Open in a new window inside Waypoint and Open in an external window, each saying the press that does the same as the link gestures come; the press opens nothing and the browser\'s own menu stays away; Open here follows the link in the place it stands in, the others open the page by the shelf\'s own ways (tab, panel, window); a row taken puts the menu away',
+            e1.defaultPrevented && e1.stopped && J(first) === J([false, 'linkmenu-head', A.HOSTILE, [['here', 'Open here' + W], ['tab', 'Open in a new tab' + W], ['panel', 'Open in a new window inside Waypoint' + W], ['window', 'Open in an external window' + W]], 'menu', true, true])
+            && J(keys0) === J(['Click', 'Middle click', 'Shift + click', 'Ctrl + click'])
+            && J(afterPanel) === J([true, J(['go', 'p1', 'b_d', 'panel'])]) && afterHere === J(['follow', 'plannerPreview', 'p1', 'b_d']) && afterWin === J(['go', 'p1', 'b_d', 'window']) && afterTab === J(['go', 'p1', 'b_d', 'tab']) && A.doc.querySelectorAll('#pageLinkMenu').length === 1, J([first, keys0, afterPanel, afterHere, afterWin, afterTab]));
+        {   // 1.6.3: the presses a row says follow the link gestures, and one set Off says none; a mention of a map or a character holds Open alone
+            const K = mkWorld({ mouse: { linkTab: 'ctrlshift', linkPanel: 'off', linkWin: 'alt' } }), k1 = K.link(K.zone('plannerPreview'), '#wp:page:p1'); K.dom.fire(k1, 'contextmenu', { button: 2 }); const kSet = keysOf(K.doc.getElementById('pageLinkMenu'));
+            const Mn = mkWorld(), mz = Mn.zone('plannerPreview'), mA = Mn.link(mz, '#wp:@:map:m1:r1'); const mE = Mn.dom.fire(mA, 'contextmenu', { button: 2 }), mm = Mn.doc.getElementById('pageLinkMenu');
+            const mRows = rowsOf(mm), mHead = mm.childNodes[0].childNodes[0].nodeValue; Mn.dom.fire(mm.childNodes[1], 'click'); const mGo = J(Mn.calls.slice(-1)[0]);
+            const cA = Mn.link(mz, '#wp:@:char:c1'); Mn.dom.fire(cA, 'contextmenu', { button: 2 }); const cRows = rowsOf(mm), cHead = mm.childNodes[0].childNodes[0].nodeValue;
+            const pA = Mn.link(mz, '#wp:@:page:p1'); Mn.dom.fire(pA, 'contextmenu', { button: 2 }); const pRows = rowsOf(mm).map(r => r[0]);
+            check('1.6.3 a link\'s menu says the presses as this computer has them (Settings, Keys, Links in pages): set otherwise each row says its own, a way set Off says none; a mention of a map holds Go to this map, of a character Open the sheet, each headed by what it names, and a row opens it by the shelf\'s own way for a mention; a page\'s mention holds every way of a page',
+                J(kSet) === J(['Click', 'Ctrl + Shift + click', '', 'Alt + click']) && mE.defaultPrevented && J(mRows) === J([['here', 'Go to this map' + W]]) && mHead === 'Map: Docks' && mGo === J(['mention', 'map', 'm1', 'r1'])
+                && J(cRows) === J([['here', 'Open the sheet' + W]]) && cHead === 'Not in this campaign' && J(pRows) === J(['here', 'tab', 'panel', 'window']), J([kSet, mRows, mHead, mGo, cRows, cHead, pRows]));
+        }
         // the keyboard: opened by the menu key, the first row takes the focus; the arrows go round; Escape and Tab put it away and give the focus back
         a1.focus(); A.dom.fire(a1, 'contextmenu', { button: 0 }); const k0 = A.doc.activeElement === m.childNodes[1];
         A.dom.fire(A.doc.activeElement, 'keydown', { key: 'ArrowDown' }); const k1 = A.doc.activeElement === m.childNodes[2];
-        A.dom.fire(A.doc.activeElement, 'keydown', { key: 'ArrowUp' }); A.dom.fire(A.doc.activeElement, 'keydown', { key: 'ArrowUp' }); const k2 = A.doc.activeElement === m.childNodes[3];
+        A.dom.fire(A.doc.activeElement, 'keydown', { key: 'ArrowUp' }); A.dom.fire(A.doc.activeElement, 'keydown', { key: 'ArrowUp' }); const k2 = A.doc.activeElement === m.childNodes[4];
         A.dom.fire(A.doc.activeElement, 'keydown', { key: 'Home' }); const k3 = A.doc.activeElement === m.childNodes[1];
         const esc = A.dom.fire(A.doc.activeElement, 'keydown', { key: 'Escape' }); const k4 = [m.hidden, A.doc.activeElement === a1, esc.defaultPrevented];
         A.dom.fire(a1, 'contextmenu', { button: 0 }); A.dom.fire(A.doc.activeElement, 'keydown', { key: 'Tab' }); const k5 = [m.hidden, A.doc.activeElement === a1];
@@ -5544,9 +5579,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const F = mkWorld(); F.doc.body.classList.add('stream-mode'); const f1 = F.link(F.zone('plannerPreview'), '#wp:page:p1'); const fe = F.dom.fire(f1, 'contextmenu', { button: 2 });
         const Gw = mkWorld(), g1 = Gw.link(Gw.zone('plannerPreview'), '#wp:page:p1', true); const ge = Gw.dom.fire(g1, 'contextmenu', { button: 2 });
         const Hw = mkWorld(), h1 = Hw.link(Hw.zone('plannerPreview'), 'https://ok.example/'); const he = Hw.dom.fire(h1, 'contextmenu', { button: 2 });
-        check('1.5.8 a page link\'s menu, where: from the panel over the map no row for the panel itself; on a player\'s app Open here alone, a page opening there in the reader alone; in a window whose main window is gone Open here alone, named as a page; outside every page Open, as a click opens it; in the stream window and in a box being edited no menu, and a web link keeps the browser\'s own',
-            J(rPanel) === J([['here', 'Open here'], ['window', 'Open in a new window']]) && J(rPlayer) === J([['here', 'Open here']]) && J(rLone) === J([['here', 'Open here']]) && dHead === 'A page'
-            && J(rOut) === J([['here', 'Open'], ['window', 'Open in a new window'], ['panel', 'Open in the panel over the map']])
+        check('1.5.8 a page link\'s menu, where: from the panel over the map no row for the panel itself (1.6.3: a new tab and an external window stay); on a player\'s app Open here alone, a page opening there in the reader alone; in a window whose main window is gone Open here alone, named as a page; outside every page Open, as a click opens it; in the stream window and in a box being edited no menu, and a web link keeps the browser\'s own',
+            J(rPanel) === J([['here', 'Open here' + W], ['tab', 'Open in a new tab' + W], ['window', 'Open in an external window' + W]]) && J(rPlayer) === J([['here', 'Open here' + W]]) && J(rLone) === J([['here', 'Open here' + W]]) && dHead === 'A page'
+            && J(rOut) === J([['here', 'Open' + W], ['tab', 'Open in a new tab' + W], ['panel', 'Open in a new window inside Waypoint' + W], ['window', 'Open in an external window' + W]])
             && fe.defaultPrevented && F.doc.getElementById('pageLinkMenu') === null && F.calls.length === 0 && !ge.defaultPrevented && Gw.doc.getElementById('pageLinkMenu') === null && !he.defaultPrevented && Hw.doc.getElementById('pageLinkMenu') === null, J([rPanel, rPlayer, rLone, rOut]));
         // the button beside a page link
         const P = mkWorld(), p1 = P.link(P.zone('plannerPreview'), '#wp:page:p1:b_q'), up = P.G.popShow(P.win, P.doc, p1), pop = P.doc.getElementById('pageLinkPop');
@@ -5559,7 +5594,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const S = mkWorld(), sUp = S.G.popShow(S.win, S.doc, S.link(S.zone('plannerPreview'), '#wp:page:p1', true));
         const T = mkWorld({ noHost: true }), tUp = T.G.popShow(T.win, T.doc, T.link(T.zone('popoutBody'), '#wp:page:p1'));
         check('1.5.8 the button beside a page link (run for real): one button made by name, out of the Tab order, saying in fixed words that it opens the page in a new window, its drawing the page panel\'s own pop-out drawing made by name as three paths, placed at the link\'s end; its press opens the page in a window of its own and puts it away; the strip going leaves it a moment and it stays while the pointer is on it, going once the pointer leaves; never for a web link, on a player\'s app, in the stream window, in a box being edited or in a window whose main window is gone',
-            J(shape) === J([true, 'BUTTON', 'button', false, -1, 'Open this page in a new window', 'SVG', 'http://www.w3.org/2000/svg', 'PATH:87,PATH:15,PATH:13', '119px', '48px'])
+            J(shape) === J([true, 'BUTTON', 'button', false, -1, 'Open this page in an external window', 'SVG', 'http://www.w3.org/2000/svg', 'PATH:87,PATH:15,PATH:13', '119px', '48px'])
             && J(pClick) === J([J(['go', 'p1', 'b_q', 'window']), true]) && stays === false && hovered === false && left === true && J(noWeb) === J([false, true]) && qUp === false && rUp === false && sUp === false && tUp === false, J([shape, pClick, stays, hovered, left, noWeb]));
         const lgAll = read('linkgate.js').replace(/\r\n/g, '\n'), mp = slice('linkgate.js', 'linkmenu') + slice('linkgate.js', 'linkpop'), css = read('../style.css').replace(/\r\n/g, '\n');
         check('1.5.8 the menu and the button, wired and in the style sheet (pinned): the strip asks for the button through typeof, so the gate run alone is as it was; neither slice writes markup, a handler or an address; the menu stands over the strip and the button under it, each put away by its hidden attribute, and the stream window\'s rule puts both away',

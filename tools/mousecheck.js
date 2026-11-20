@@ -36,12 +36,29 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
         M.mapTakes('Middle', gr) === '' && /menu/.test(M.mapTakes('Right', gr)) && M.mapTakes('Alt+Left', gr) === '' && /pings/.test(M.mapTakes('Ctrl+Alt+Left', gr)) && M.mapTakes('Middle', { cmds: {}, pan: 'off' }) === '');
 
     // gestures
-    check('each gesture is a short list, its first what it does as it comes (the owner: "A short list each"): pan by the middle button, the right or not at all; zoom by the wheel or Ctrl + wheel; ping by Alt + click or Ctrl + Alt + click; open a piece by a double-click or Shift + double-click',
-        J(M.GESTURE_IDS) === J(['pan', 'zoom', 'ping', 'open']) && J(M.GESTURES.pan.map(o => o[0])) === J(['middle', 'right', 'off']) && J(M.GESTURES.zoom.map(o => o[0])) === J(['wheel', 'ctrl'])
+    check('each gesture is a short list, its first what it does as it comes (the owner: "A short list each"): pan by the middle button, the right or not at all; zoom by the wheel or Ctrl + wheel; ping by Alt + click or Ctrl + Alt + click; open a piece by a double-click or Shift + double-click; and (1.6.3, moved on purpose) the four presses on a link in a page after them',
+        J(M.GESTURE_IDS) === J(['pan', 'zoom', 'ping', 'open', 'linkMenu', 'linkTab', 'linkWin', 'linkPanel']) && J(M.GESTURES.pan.map(o => o[0])) === J(['middle', 'right', 'off']) && J(M.GESTURES.zoom.map(o => o[0])) === J(['wheel', 'ctrl'])
         && J(M.GESTURES.ping.map(o => o[0])) === J(['alt', 'ctrlalt']) && J(M.GESTURES.open.map(o => o[0])) === J(['dbl', 'shiftdbl'])
         && M.gestureOf({}, 'pan') === 'middle' && M.gestureOf({ pan: 'right' }, 'pan') === 'right' && M.gestureOf({ pan: 'sideways' }, 'pan') === 'middle' && M.gestureOf(null, 'zoom') === 'wheel' && M.gestureOf({}, 'nope') === ''
         && M.gestureWords('zoom', 'ctrl') === 'Ctrl + wheel' && M.gestureWords('zoom', 'x') === '');
 
+    // 1.6.3 (Fulllion, 2026-11-19): "right click by default brings up a open in new tab, or open in new window (inside waypoint), or open in
+    // external window, able to be changed like any other control": the presses on a link in a page, judged by linkPress, which linkgate.js asks
+    check('1.6.3 the presses on a link in a page are link gestures, each a short list whose first is what it does as it comes: the menu by a right click, a new tab by the middle click, an external window by Ctrl + click, the page panel by Shift + click; each may be Off',
+        J(M.GESTURES.linkMenu.map(o => o[0])) === J(['right', 'shiftright', 'off']) && J(M.GESTURES.linkTab.map(o => o[0])) === J(['middle', 'ctrl', 'shift', 'alt', 'ctrlshift', 'off'])
+        && J(M.GESTURES.linkWin.map(o => o[0])) === J(['ctrl', 'middle', 'shift', 'alt', 'ctrlshift', 'off']) && J(M.GESTURES.linkPanel.map(o => o[0])) === J(['shift', 'middle', 'ctrl', 'alt', 'ctrlshift', 'off'])
+        && ['linkMenu', 'linkTab', 'linkWin', 'linkPanel'].every(g => M.GESTURES[g].every(o => o[0] === 'off' || M.LINK_PRESSES[o[0]])) && M.gestureWords('linkMenu', 'shiftright') === 'Shift + right click');
+    const lp = (button, o, m) => M.linkPress(Object.assign({ button, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false }, o || {}), m || {});
+    check('1.6.3 linkPress names what a press does as the gestures come: a right click the menu, the middle click a new tab, Ctrl + click (or the command key) an external window, Shift + click the page panel; a plain click, Alt + click, a click with more keys than a word names, Shift + right click and a press of no button are none',
+        lp(2) === 'menu' && lp(1) === 'tab' && lp(0, { ctrlKey: true }) === 'window' && lp(0, { metaKey: true }) === 'window' && lp(0, { shiftKey: true }) === 'panel'
+        && lp(0) === '' && lp(0, { altKey: true }) === '' && lp(0, { ctrlKey: true, shiftKey: true }) === '' && lp(2, { shiftKey: true }) === '' && lp(1, { ctrlKey: true }) === '' && M.linkPress(null, {}) === '' && M.linkPress({}, {}) === '');
+    const lm = { linkMenu: 'shiftright', linkTab: 'ctrlshift', linkWin: 'alt', linkPanel: 'off' };
+    check('1.6.3 linkPress follows what this computer keeps: set otherwise Shift + right click is the menu and a plain right click none, Ctrl + Shift + click a new tab, Alt + click an external window, and the panel set Off is none; a store that names one press twice reads it as the first way in the order menu, tab, window, panel',
+        lp(2, { shiftKey: true }, lm) === 'menu' && lp(2, {}, lm) === '' && lp(0, { ctrlKey: true, shiftKey: true }, lm) === 'tab' && lp(0, { altKey: true }, lm) === 'window' && lp(0, { shiftKey: true }, lm) === '' && lp(1, {}, lm) === ''
+        && lp(1, {}, { linkTab: 'middle', linkWin: 'middle' }) === 'tab' && lp(0, { ctrlKey: true }, M.mouseClean({ linkWin: 'sideways' })) === 'window');
+    check('1.6.3 linkClash names the other link gesture that holds a press, so that picking it takes it from that one, and a map gesture never clashes with one (the pan on the middle button leaves the middle click on a link alone): the middle click from a new tab, Ctrl + click from an external window; Off and a word that is no press clash with nothing, and a gesture never clashes with itself',
+        M.linkClash({}, 'linkWin', 'middle') === 'linkTab' && M.linkClash({}, 'linkTab', 'ctrl') === 'linkWin' && M.linkClash({}, 'linkPanel', 'alt') === '' && M.linkClash({}, 'linkTab', 'off') === '' && M.linkClash({}, 'linkTab', 'middle') === '' && M.linkClash({}, 'linkTab', 'nope') === '' && M.linkClash({}, 'pan', 'middle') === '' && M.linkClash({}, 'pan', 'right') === ''
+        && J(M.mouseClean({ linkMenu: 'shiftright', linkTab: 'off', linkWin: 'ctrl', linkPanel: 'x' })) === J({ cmds: {}, linkMenu: 'shiftright', linkTab: 'off' }));
     // what is kept
     const raw = { cmds: { 'map.last': 'Back', 'tool.pen': 'Ctrl+Middle', 'page.scene': '', 'tool.x': 'Wheel', '__proto__': 'Back', 'constructor': 'Back', 'Not.an.id': 'Back', 'a.b': 7 }, pan: 'right', zoom: 'wheel', ping: 'shout', open: 'shiftdbl', extra: 1 };
     const c = M.mouseClean(raw);
@@ -109,6 +126,11 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     fire('pointermove', { clientX: 40, clientY: 10 }); const cm = fire('contextmenu', { button: 2, target: mapEl, _stop: 0, preventDefault() {}, stopImmediatePropagation() { this._stop++; } });
     fire('pointerdown', Object.assign(ev(2), mv, { preventDefault() {}, stopImmediatePropagation() {} })); const cm2 = fire('contextmenu', { button: 2, target: mapEl, _stop: 0, preventDefault() {}, stopImmediatePropagation() { this._stop++; } });
     check('with Pan on the right button a right drag opens no menu at its end, and a right click that did not move still does', cm._stop === 1 && cm2._stop === 0);
+    {   // 1.6.3: picking a link press another link gesture has takes it from that one, which is left Off, as a key another command has moves
+        const clash = W.linkClash('linkWin', 'middle'), setW = W.setGesture('linkWin', 'middle'), kept = JSON.parse(store.wp_mouse);
+        check('1.6.3 a link press another link gesture has moves to the one picked, and that one is left Off: the middle click given to the external window takes it from the new tab, and both are kept on this computer',
+            clash === 'linkTab' && setW && W.gesture('linkWin') === 'middle' && W.gesture('linkTab') === 'off' && kept.linkWin === 'middle' && kept.linkTab === 'off' && W.linkClash('linkTab', 'ctrl') === '', store.wp_mouse);
+    }
     W.reset(); check('Restore default keys puts the mouse back too: nothing kept', !('wp_mouse' in store) && W.gesture('pan') === 'middle' && W.word('tool.pen') === '');
 
     // the board reads the gestures
@@ -123,6 +145,15 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('Settings, under Keys: a Mouse column beside Key and Controller, its box asking wpMouse.pick, and the four gestures as lists under the commands, each with its words',
         cmd.includes("['set-mouse-col', 'Mouse']") && cmd.includes("mo.className = 'tool ghost set-mouse'") && /M\.pick\(c\.id, c\.name, keysNames\(\), mo,/.test(cmd)
         && ['setGesPan', 'setGesZoom', 'setGesPing', 'setGesOpen'].every(id => html.split('id="' + id + '"').length === 2) && html.includes('Space + drag always pans too.'));
+    {   // 1.6.3: Links in pages, under the map's gestures: a list for each link gesture, its options its list's words in its list's order, wired as the map's are
+        const optsOf = id => { const m = html.match(new RegExp('<select id="' + id + '" class="field">([\\s\\S]*?)</select>')); return m ? (m[1].match(/<option value="([a-z]+)">([^<]+)<\/option>/g) || []).map(o => o.match(/value="([a-z]+)">([^<]+)</).slice(1)) : null; };
+        const ids = { linkMenu: 'setGesLinkMenu', linkTab: 'setGesLinkTab', linkWin: 'setGesLinkWin', linkPanel: 'setGesLinkPanel' };
+        check('1.6.3 Settings, under Keys: Links in pages after the map\'s gestures, a list for each link gesture holding its list\'s words in its own order, each row saying what it does in words, wired as the map\'s gestures are and saying in the same line which row lost its press',
+            Object.keys(ids).every(g => html.split('id="' + ids[g] + '"').length === 2 && J(optsOf(ids[g])) === J(M.GESTURES[g].map(o => [o[0], o[1]])))
+            && html.indexOf('<div class="set-key-grp set-ges-head">Links in pages</div>') > html.indexOf('id="setGesOpen"') && html.indexOf('<div class="set-key-grp set-ges-head">Links in pages</div>') < html.indexOf('id="setKeysResetBtn"')
+            && ['Menu of where it opens', 'Open in a new tab', 'Open in a window inside Waypoint', 'Open in an external window'].every(w => html.includes('<span class="set-name"><span>' + w + '</span>'))
+            && cmd.includes("linkMenu: 'setGesLinkMenu', linkTab: 'setGesLinkTab', linkWin: 'setGesLinkWin', linkPanel: 'setGesLinkPanel' };") && cmd.includes("' had it and is Off now.'"));
+    }
     const store2 = { wp_profile: JSON.stringify({ id: 'p_abcdefgh12', name: 'Kael', color: '#aa3344' }), wp_mouse: JSON.stringify({ cmds: { 'map.last': 'Back', 'x.y': 'Wheel' }, pan: 'right', zoom: 'loud' }) };
     const pk = pc.packOf(store2, {}, 1);
     const w1 = pk ? pc.openWrites({}, pk) : null, w2 = pk ? pc.openWrites({ wp_keysLocal: '1' }, pk) : null;

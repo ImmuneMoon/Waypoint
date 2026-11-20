@@ -460,6 +460,27 @@ pendingChecks.push((async () => {
     check('conditions C1 (source): the three funnels every character change leaves by look for moved effects — syncChars for every character, syncChar and syncCharDelta for the one that changed',
         /net\.syncChars = function\(\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(null\);/.test(src) && /net\.syncChar = function\(id\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src)
         && /net\.syncCharDelta = function\(id, values\) \{[^\n]*\n[^\n]*\n[^\n]*\n    if \(typeof fxbMoved === 'function'\) fxbMoved\(id\);/.test(src));
+    {   // the review of the speed fold: the list kept ACROSS passes on the host, end to end. fxbOf hands tokenEffectsPass the real content key (sheets.js
+        // keptKey, sliced and run for real with the real outsideKey), so a list is kept from one pass to the next; a change made in place in the same task
+        // (the same values object, the same stamp, as a host branch writes one) followed by fxbMoved still sends the new list, since fxbMoved lets the
+        // content keys made this pass go (sheets.js keptForget) before it looks; nothing changed sends nothing, in the same task and in the next pass
+        const shK = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const hlK = shK.slice(shK.indexOf('function hoverLinesForToken(w, camp'), shK.indexOf('/* ---------- the facing dial'));
+        const campK = { id: 'k', system: sysA4, chars: { c_a: { id: 'c_a', name: 'A', updated: 5, values: { f_hp: 3 } } }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 'tA', isChar: true, charId: 'c_a', x: 0, y: 0, w: 50, h: 50 }] } } }, sentK = [];
+        const SK = new Function('featureOn', 'F', 'getActiveCampaign', 'systemOf', 'charById', 'isClient', 'hoverLines', 'withRound', 'tokenCtx', 'tokenFlags', 'combatOn', 'withRange', 'rangeFor', 'window', hlK + '\nreturn { keptKey: keptKey, keptForget: keptForget };')(
+            () => true, () => Fx4, () => campK, c => c.system, (id, c) => (c.chars[id] || null), () => false, Sx.hoverLines, Sx.withRound, Sx.tokenCtx, () => ({}), () => null, Sx.withRange, () => null, { wpSystemCore: Sx, wpLibrary: { state: () => 1, size: () => 0 } });
+        const apiK = new Function('net', 'getActiveCampaign', 'SC', 'own', 'window', "'use strict';\n" + fxS + '\nreturn { sanitizeItem: sanitizeItem, fxbMoved: fxbMoved };')({ role: 'host', active: true, sendItem: (cid, mid) => sentK.push(cid + ':' + mid) }, () => campK, () => Sx, H.own, { wpFormula: Fx4, wpSheets: SK });
+        const tickK = () => Promise.resolve();
+        Sx.tokenEffectsForget(true); const kA = tokOf(apiK.sanitizeItem(campK.items.m1), 'tA');
+        campK.chars.c_a.values.f_hp = 0; apiK.fxbMoved('c_a'); const kMv1 = sentK.splice(0); const kB = tokOf(apiK.sanitizeItem(campK.items.m1), 'tA');
+        apiK.fxbMoved('c_a'); const kMv2 = sentK.splice(0); await tickK(); apiK.fxbMoved('c_a'); const kMv3 = sentK.splice(0);
+        campK.chars.c_a.values.f_hp = 4; apiK.fxbMoved('c_a'); const kMv4 = sentK.splice(0); const kC = tokOf(apiK.sanitizeItem(campK.items.m1), 'tA');
+        const keyed = typeof SK.keptKey(sysA4, campK.chars.c_a, campK, '') === 'string';
+        check('the review of the speed fold: the effects list kept across passes on the host (fxbOf with the real sheets.js keptKey, run for real): a sheet changed in place in the same task (same values object, same stamp) still sends its new list at fxbMoved, which lets the content keys of the pass go first; nothing changed sends nothing in the same task and in the next pass; a change back sends again',
+            keyed && !('fxb' in kA) && J(kMv1) === J(['k:m1']) && J(kB.fxb) === J([{ n: 'Unconscious', i: 'X', t: 'debuff' }]) && J(kMv2) === J([]) && J(kMv3) === J([]) && J(kMv4) === J(['k:m1']) && !('fxb' in kC)
+                && /function fxPassForget\(\) \{[^\n]*window\.wpSheets\.keptForget\(\);/.test(fxS) && /SF\.tokenEffectsForget\(\); if \(window\.wpSheets && typeof window\.wpSheets\.keptForget === 'function'\) window\.wpSheets\.keptForget\(\);/.test(fxS),
+            J([keyed, kA, kMv1, kB, kMv2, kMv3, kMv4, kC]));
+    }
     {   // 1.6.3 (the review of the game's fixes): the effects kept for one pass (systemcore tokenEffectsPass) are let go on the FIRST line of each host
         // funnel (fxPassForget, run for real from the slice), before sensesMoved, the bars, the look or the loot may send a map: a list kept earlier in
         // the same task, before the sheet changed in place (same object, same values object, same stamp), would otherwise ride on that copy

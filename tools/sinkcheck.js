@@ -1166,8 +1166,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // the delivery (net.js, sliced from the colors through the relay): renderChat paints #chatLog and sends the colors to a pop-out; a system change
         // repaints and sends once; a pop-out takes them checked again; the stream window never speaks on the relay (its empty log would wipe the pop-out)
         const netS = read('net.js'), dvS = netS.slice(netS.indexOf('// [sinkcheck:cardlook-start]'), netS.indexOf('// A roll opens Table Chat if it was closed'));
-        const mkRelay = (win, log) => { const posts = [], lis = []; function BC() {} BC.prototype.postMessage = m => posts.push(JSON.parse(JSON.stringify(m))); BC.prototype.addEventListener = (t, f) => lis.push(f);
-            const doc = { createDocumentFragment: () => ({ children: [], appendChild(c) { this.children.push(c); } }) };
+        const mkRelay = (win, log, body) => { const posts = [], lis = []; function BC() {} BC.prototype.postMessage = m => posts.push(JSON.parse(JSON.stringify(m))); BC.prototype.addEventListener = (t, f) => lis.push(f);
+            const doc = { createDocumentFragment: () => ({ children: [], appendChild(c) { this.children.push(c); } }), body: body };   // body: the window's body, whose popout-chat class says a chat pop-out (the review of the speed fold)
             const api = new Function('window', 'ui', 'document', 'BroadcastChannel', 'chatEntryNode', 'sendChat', "'use strict';\nvar chatLog = [], chatUnread = 0;\n" + dvS + '\nreturn { render: renderChat, log: function() { return chatLog; } };')(win, id => id === 'chatLog' ? log : null, doc, BC, () => null, () => {});
             return { api, posts, lis }; };
         const dLog = () => { const l = fakeLog(); l.textContent = ''; l.appendChild = () => {}; l.scrollTop = 0; l.scrollHeight = 0; return l; };
@@ -1188,7 +1188,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const wQ = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpSheets: { systemOf: () => ({ sheet: { look: lookNow } }) } }, rQ = mkRelay(wQ, dLog());
             rQ.api.render(); wQ.wpChat.lookSync(); const before = rQ.posts.map(p => p.type);
             rQ.lis.forEach(f => f({ data: { type: 'chatReq' } })); const asked = rQ.posts.map(p => p.type); rQ.api.render(); const after = rQ.posts.map(p => p.type);
-            const wP2 = { wpDiceCore: DCs, wpPopout: true, wpVtt: { on: () => true }, wpSheets: { systemOf: () => null } }, rP2 = mkRelay(wP2, dLog()); const p2Before = rP2.posts.length;
+            const wP2 = { wpDiceCore: DCs, wpPopout: true, wpVtt: { on: () => true }, wpSheets: { systemOf: () => null } }, rP2 = mkRelay(wP2, dLog(), { classList: { contains: c => c === 'popout-chat' } }); const p2Before = rP2.posts.length;
             rP2.lis.forEach(f => f({ data: { type: 'chatHello' } }));
             // and a roll's card is drawn again only where its record or what it reads beside it moved (renderChat, run for real with a counting wpDice)
             const drawn = [], sysR = { sheet: { look: lookNow } }, wR = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpNet: { myId: 'u_gm', role: 'host', active: true }, wpSheets: { systemOf: () => sysR, damageOn: () => true },
@@ -1203,6 +1203,33 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 j(d1) === j(['card:r1', 'apply:a1', 'due:d1']) && j(d2) === j(['due:d1']) && j(d3) === j(['card:r1', 'due:d1']) && j(d4) === j(['due:d1', 'card:r2']) && j(d5) === j(['card:r1', 'apply:a1', 'due:d1', 'card:r2']), j([d1, d2, d3, d4, d5]));
             check('1.6.3 (finding 33) the chat log goes to the pop-out channel only once a pop-out asked: a main window says hello as it loads and posts no log before a request; a request is answered with the log and every draw after it posts too; a pop-out answers a hello with a request and says no hello itself',
                 j(before) === j(['chatHello']) && j(asked) === j(['chatHello', 'chatSync']) && j(after) === j(['chatHello', 'chatSync', 'chatSync']) && p2Before === 0 && j(rP2.posts.map(p => p.type)) === j(['chatReq']), j([before, asked, after, rP2.posts]));
+            {   // the review of the speed fold: only a CHAT pop-out answers a hello (a page or a sheet in a window of its own runs net.js too and asked for the
+                // log it never shows), a chat pop-out that closes says so at pagehide (chatBye), and the main window then stops copying and says hello
+                // again, so that a chat pop-out still open asks once more; and the flag has a name of its own in all of net.js (it shared the name of the
+                // chat's pop-out button, which set it to that button as the module loaded, so the main window copied the log at every draw after all)
+                const lisOf = () => { const ls = []; return { ls, add: (t, f) => ls.push([t, f]) }; };
+                const pgL = lisOf(), wPg = { wpDiceCore: DCs, wpPopout: true, addEventListener: pgL.add, wpVtt: { on: () => true }, wpSheets: { systemOf: () => null } }, rPg = mkRelay(wPg, dLog(), { classList: { contains: () => false } });
+                rPg.lis.forEach(f => f({ data: { type: 'chatHello' } })); const pgHello = rPg.posts.map(p => p.type); pgL.ls.filter(l => l[0] === 'pagehide').forEach(l => l[1]()); const pgBye = rPg.posts.map(p => p.type);
+                const chL = lisOf(), wCh = { wpDiceCore: DCs, wpPopout: true, addEventListener: chL.add, wpVtt: { on: () => true }, wpSheets: { systemOf: () => null } }, rCh = mkRelay(wCh, dLog(), { classList: { contains: c => c === 'popout-chat' } });
+                chL.ls.filter(l => l[0] === 'pagehide').forEach(l => l[1]()); const chBye = rCh.posts.map(p => p.type);
+                const wMn = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpSheets: { systemOf: () => ({ sheet: { look: lookNow } }) } }, rMn = mkRelay(wMn, dLog());
+                rMn.lis.forEach(f => f({ data: { type: 'chatReq' } })); rMn.api.render(); const mn1 = rMn.posts.map(p => p.type).join(',');
+                rMn.lis.forEach(f => f({ data: { type: 'chatBye' } })); rMn.api.render(); wMn.wpChat.lookSync(); const mn2 = rMn.posts.map(p => p.type).join(',');
+                rMn.lis.forEach(f => f({ data: { type: 'chatReq' } })); rMn.api.render(); const mn3 = rMn.posts.map(p => p.type).join(',');
+                const netAll = read('net.js');
+                check('the review of the speed fold: only a chat pop-out answers a hello and says chatBye as it closes (a page in a window of its own neither); a main window that hears chatBye copies the log no more and says hello again, and the next request turns the copies back on; the flag is declared once in all of net.js under a name of its own, apart from the chat\'s pop-out button',
+                    j(pgHello) === j([]) && j(pgBye) === j([]) && j(chBye) === j(['chatBye']) && mn1 === 'chatHello,chatSync,chatSync' && mn2 === 'chatHello,chatSync,chatSync,chatHello' && mn3 === 'chatHello,chatSync,chatSync,chatHello,chatSync,chatSync'
+                        && (netAll.match(/var _chatPopAsked\b/g) || []).length === 1 && (netAll.match(/var _chatPop\b/g) || []).length === 1 && /var _chatPop = ui\('chatPop'\);/.test(netAll) && !/_chatPop = (true|false)/.test(netAll), j([pgHello, pgBye, chBye, mn1, mn2, mn3]));
+                // a roll's card drawn again when what it reads of this machine's state for that roll moves (chatOuter: net.toGmSig, net.revealOk)
+                const drawnO = [], sysO = { sheet: { look: lookNow } }, gmSig = { r1: 'w', r2: '' }, rev = { r1: false };
+                const wO = { wpDiceCore: DCs, wpVtt: { on: () => true }, wpNet: { myId: 'u_gm', role: 'host', active: true, toGmSig: id => gmSig[id] || '', revealOk: id => !!rev[id] }, wpSheets: { systemOf: () => sysO, damageOn: () => true },
+                    wpDice: { renderCard: m => { drawnO.push(m.roll.id); return { kind: 'card', id: m.roll.id }; } } };
+                const rO = mkRelay(wO, dLog()), logO = rO.api.log(); logO.push({ roll: { id: 'r1', expr: 'd6' }, res: { ok: true, total: 3 } }, { roll: { id: 'r2', expr: 'd6' }, res: { ok: true, total: 4 } });
+                rO.api.render(); const o1 = drawnO.splice(0); rO.api.render(); const o2 = drawnO.splice(0); gmSig.r1 = 'w|apply'; rO.api.render(); const o3 = drawnO.splice(0);
+                delete gmSig.r1; rO.api.render(); const o4 = drawnO.splice(0); rev.r1 = true; rO.api.render(); const o5 = drawnO.splice(0); rO.api.render(); const o6 = drawnO.splice(0);
+                check('the review of the speed fold: a kept roll card is drawn again when what it reads of this machine\'s state for that roll moves (net.js chatOuter: the GM\'s buttons on a roll sent to them, net.toGmSig, and whether a hidden roll may still be shown, net.revealOk), and only that card',
+                    j(o1) === j(['r1', 'r2']) && j(o2) === j([]) && j(o3) === j(['r1']) && j(o4) === j(['r1']) && j(o5) === j(['r1']) && j(o6) === j([]), j([o1, o2, o3, o4, o5, o6]));
+            }
         }
     }
     /* ---- targeting (the owner's ruling of 2026-10-01): a player targets by the token's right-click menu or T — the menu, sliced by its targetmenu markers and run on a recording menu ---- */

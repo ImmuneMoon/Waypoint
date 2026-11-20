@@ -554,7 +554,9 @@ function afterCharChange(c, whole, values) {
 //    key describes.
 // The caller passes force where it knows the board moved (a posture an effect laid down, tokens syncOwners changed, a whole character sent). Answers true where it drew
 // the app whole
-var _boardSeen = Object.create(null);
+// The review of the speed fold: _boardSeen holds one note a character; it is emptied whenever another campaign is drawn (_boardCamp) and a
+// character's note goes with it (keptDrop, from charGone and deleteCharacter), so nothing of a campaign no longer open is held
+var _boardSeen = Object.create(null), _boardCamp = null;
 function boardKeyOf(c, camp) {
     if (!c || typeof c !== 'object' || typeof c.id !== 'string' || !camp || !state || state.viewMode !== 'visual') return null;
     var map = camp.items && typeof camp.activeItemId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, camp.activeItemId) ? camp.items[camp.activeItemId] : null;
@@ -587,7 +589,8 @@ function boardTied(camp, sys, c) {
     return false;
 }
 function boardRedraw(id, force) {
-    var camp = getActiveCampaign(), c = typeof id === 'string' ? charById(id, camp) : null, key = c ? boardKeyOf(c, camp) : null;   // made even where it is forced, so the whole draw below is noted
+    var camp = getActiveCampaign(), campId = camp && typeof camp.id === 'string' ? camp.id : null; if (campId !== _boardCamp) { _boardSeen = Object.create(null); _boardCamp = campId; }   // another campaign: nothing noted for the one before
+    var c = typeof id === 'string' ? charById(id, camp) : null, key = c ? boardKeyOf(c, camp) : null;   // made even where it is forced, so the whole draw below is noted
     var rec = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_boardSeen, id) ? _boardSeen[id] : null, n = window.wpRenderN;
     if (!force && key !== null && rec && rec.key === key && typeof n === 'number' && rec.n === n) {   // the light path: what reads the character's figures, and nothing else
         if (window.wpHideTooltip) window.wpHideTooltip();   // the hover card under the pointer (and a pinned one) made again
@@ -1073,7 +1076,7 @@ function charsWire() {
 function deleteCharacter(id) {
     var camp = getActiveCampaign(), c = charById(id, camp); if (!c) return;
     var prev = c.ownerId || '';
-    delete charsOf(camp)[id];
+    delete charsOf(camp)[id]; if (typeof keptDrop === 'function') keptDrop(id);   // the review of the speed fold: nothing kept of it stays
     var lkGone = linksDrop(charsOf(camp), id);   // 1.6.0: every link to it goes
     if (typeof rowSheetsDrop === 'function' && camp.system) lkGone = lkGone.concat(rowSheetsDrop(camp.system, charsOf(camp), id));   // 1.6.2 (vehicles, fold (a)): and every row joined to it
     Object.values(camp.items || {}).forEach(function(m) { if (m && m.type === 'map') (m.whiteboard || []).forEach(function(w) { if (w && w.charId === id) delete w.charId; }); });
@@ -1306,7 +1309,11 @@ function tokenFxCharOp(charId, fieldId, q) {   // a character token's menu: the 
 // stance, the round of its fight, its range to a target) reads the same, so a fight that ends or a target that moves within the pass is
 // read afresh. Each caller gets its own copy of the lines
 var _hlPass = null;
-function passForget() { _hlPass = null; _kkPass = null; var S = window.wpSystemCore; if (S && typeof S.tokenEffectsForget === 'function') S.tokenEffectsForget(); }   // what one pass kept (these lines, the content keys below, and systemcore's tokenEffectsPass) is read again
+function passForget() { _hlPass = null; _kkPass = null; var S = window.wpSystemCore; if (S && typeof S.tokenEffectsForget === 'function') S.tokenEffectsForget(); }
+// The review of the speed fold: the content keys made this pass alone (_kkPass) go, and nothing else, for net.js fxPassForget and fxbMoved, which
+// look at a sheet the host may have changed in place (the same values object and stamp) earlier in the same task: a key made before that change
+// would hand back the list tokenEffectsPass kept across passes for the sheet as it was
+function keptForget() { _kkPass = null; }   // what one pass kept (these lines, the content keys below, and systemcore's tokenEffectsPass) is read again
 // 1.6.3 (the improvement week's review of sheets and rolls, findings 2 and 14): what a character's figures are worked out from beside the system
 // object, the formula engine and the token's context, as ONE text, the CONTENT KEY: the character's whole stored self as JSON (a value written in
 // place with no stamp changes it), what systemcore outsideKey reads through the sources a resolver asks (the sheets it links to and those that
@@ -1321,6 +1328,10 @@ function passForget() { _hlPass = null; _kkPass = null; var S = window.wpSystemC
 // microtask, and at once by passForget, which every funnel of a character change asks first), and so is each character's key, made again
 // where its values object or its stamp moved within the pass
 var _kkPass = null, KEPT_MS = 30000;
+// The review of the speed fold: how long a result kept by its content key lives, from 30 to 45 seconds by a hash of what it is kept for (a token's
+// id, a view's slot and character), as fog.js sensesJitter spreads a token's senses: results worked out on the same draw no longer all run out on
+// the same later draw, which brought back at once every 30 seconds the cost keeping them took away. systemcore's fxLife is the same rule
+function keptLife(id) { var s = String(id === undefined || id === null ? '' : id), h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return KEPT_MS + ((h >>> 0) % 15000); }   // FNV-1a, so ids that differ in one character still fall far apart
 function keptLib(camp) {   // the library a row's entry may be read from, as fog.js sensesLib writes it: the pack list, the library's state and size
     var L = typeof window !== 'undefined' && window ? window.wpLibrary : null, st = '', n = '';
     if (L) { try { st = typeof L.state === 'function' ? String(L.state()) : ''; n = typeof L.size === 'function' ? String(L.size()) : ''; } catch (e) { st = '?'; } }
@@ -1359,10 +1370,10 @@ function hlKept(w, sys, c, ctx) {
     var hit = _hlPass.get(w.id);
     if (hit && hit.w === w && hit.sys === sys && hit.c === c && hit.vals === c.values && hit.upd === c.updated && hit.F === Fh && hit.ctx === ctxS) return hit.out.slice();
     var key = keptKey(sys, c, null, w.id), now = Date.now(), kh = key !== null && _hlKept ? _hlKept.get(w.id) : null, out;
-    if (kh && kh.key === key && kh.ctx === ctxS && kh.sys === sys && kh.F === Fh && now >= kh.born && now - kh.born < KEPT_MS) out = kh.out.slice();
+    if (kh && kh.key === key && kh.ctx === ctxS && kh.sys === sys && kh.F === Fh && now >= kh.born && now - kh.born < kh.life) out = kh.out.slice();   // the review of the speed fold: each its own life (keptLife)
     else {
         out = hoverLines(sys, c, Fh, ctx);
-        if (_hlKept) { if (key !== null && Array.isArray(out)) { if (_hlKept.size >= 2000) _hlKept.clear(); _hlKept.set(w.id, { key: key, ctx: ctxS, sys: sys, F: Fh, born: now, out: out.slice() }); } else _hlKept.delete(w.id); }
+        if (_hlKept) { if (key !== null && Array.isArray(out)) { if (_hlKept.size >= 2000) _hlKept.clear(); _hlKept.set(w.id, { key: key, ctx: ctxS, sys: sys, F: Fh, born: now, life: keptLife(w.id), out: out.slice() }); } else _hlKept.delete(w.id); }
     }
     if (Array.isArray(out)) _hlPass.set(w.id, { w: w, sys: sys, c: c, vals: c.values, upd: c.updated, F: Fh, ctx: ctxS, out: out.slice() });
     return out;
@@ -1764,7 +1775,7 @@ function openSheet(charId) {
     p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p);   // 1.5.4 (floats.js): asked for here, so it shows on this view
     placeSheet(); raisePanel(p); renderSheet();
 }
-function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var pS = ui('sheetPanel'); if (pS) pS.classList.remove('sheet-slim'); if (typeof _asPlayer !== 'undefined') _asPlayer = null; var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); }   // (item 35: what was being typed in it is stored, and the run of typing ends)
+function closeSheet() { closeDownloadMenu(); sheetOpen = null; _sheetEdit = null; var pS = ui('sheetPanel'); if (pS) pS.classList.remove('sheet-slim'); if (typeof _asPlayer !== 'undefined') _asPlayer = null; if (typeof keptDrop === 'function') keptDrop(null, 'sheet'); var p = ui('sheetPanel'); if (p) p.style.display = 'none'; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); }   // (item 35: what was being typed in it is stored, and the run of typing ends)
 function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos = JSON.parse(pref('wp_sheetPanel', 'null')); if (pos && isFinite(pos.x) && isFinite(pos.y)) { p.style.left = Math.max(0, Math.min(window.innerWidth - 160, pos.x)) + 'px'; p.style.top = Math.max(0, Math.min(window.innerHeight - 80, pos.y)) + 'px'; p.style.right = 'auto'; } if (pos && isFinite(pos.w) && isFinite(pos.h)) sizePanel(p, pos.w, pos.h); } catch (e) {} if (window.wpFloats && window.wpFloats.fit) window.wpFloats.fit(p); }   // found by hand: another sheet opened in a box already up came back to a stored place past the window's edge, and the box's own fit runs only as it comes up
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
@@ -1884,12 +1895,24 @@ function allFor(slot, sys, c, camp, tctx) {
     var key = ctxS !== null && typeof keptKey === 'function' ? keptKey(sys, c, camp, tctx && typeof tctx.self === 'string' ? tctx.self : '') : null;
     var k = Object.prototype.hasOwnProperty.call(_allKept, slot) ? _allKept[slot] : null, now = Date.now();
     var tabNow = _sheetTabPress > 0; _sheetTabPress = 0;
-    if (tabNow && key !== null && k && k.key === key && k.ctx === ctxS && k.sys === sys && k.c === c && k.F === Fa && now >= k.born && now - k.born < KEPT_MS) return k.all;
+    if (tabNow && key !== null && k && k.key === key && k.ctx === ctxS && k.sys === sys && k.c === c && k.F === Fa && now >= k.born && now - k.born < k.life) return k.all;
     var all = resolveAll(sys, c, Fa, tctx);
-    if (key !== null) _allKept[slot] = { key: key, ctx: ctxS, sys: sys, c: c, F: Fa, born: now, all: all }; else delete _allKept[slot];
+    if (key !== null) _allKept[slot] = { key: key, ctx: ctxS, sys: sys, c: c, F: Fa, born: now, life: typeof keptLife === 'function' ? keptLife(slot + '|' + (c && c.id)) : KEPT_MS, all: all }; else delete _allKept[slot];   // the review of the speed fold: each its own life (keptLife)
     return all;
 }
 // [systemcheck:allkept-end]
+// The review of the speed fold: what is kept of a view and of a character goes once it can no longer be asked for, so nothing of a closed HUD, a
+// closed sheet or a character that is gone stays in memory (each held the character and its whole resolveAll): closeHud hands 'hud' (its slot),
+// closeSheet 'sheet', and charGone and deleteCharacter the character alone (its HUD's slot, the sheet's where it shows that character, and its
+// note in _boardSeen, which boardRedraw also empties for another campaign)
+function keptDrop(id, what) {
+    if (what === 'sheet') { delete _allKept.sheet; return; }
+    if (typeof id !== 'string') return;
+    delete _allKept['h:' + id];
+    if (what === 'hud') return;
+    if (_allKept.sheet && _allKept.sheet.c && _allKept.sheet.c.id === id) delete _allKept.sheet;
+    delete _boardSeen[id];
+}
 function renderSheet() {
     var p = ui('sheetPanel'); if (!p || p.style.display === 'none') return;
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(sheetOpen, camp);
@@ -2070,7 +2093,7 @@ function placeHud(v) {
     else if (foot !== null && y + h > foot) p.style.height = Math.max(240, Math.round(foot - y)) + 'px';
     if (window.wpFloats && typeof window.wpFloats.fit === 'function') window.wpFloats.fit(p);   // the live test, 2026-10-30: at phone width no place was clear, and the HUD stood over the top row
 }
-function closeHud(charId) { var v = huds[charId]; if (!v) return; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); clearTimeout(v.redraw); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); }
+function closeHud(charId) { var v = huds[charId]; if (!v) return; if (typeof sbxFlush === 'function') sbxFlush(); if (typeof closeLoadMenu === 'function') closeLoadMenu(); clearTimeout(v.redraw); if (typeof keptDrop === 'function') keptDrop(charId, 'hud'); delete huds[charId]; if (v.panel && v.panel.parentNode) v.panel.parentNode.removeChild(v.panel); }
 function closeHuds() { Object.keys(huds).forEach(function(id) { closeHud(id); }); }
 // The HUD's twin of renderSheet: its head (portrait, name, the HUD's title), then the HUD's own layout in the sheet's look
 function renderHud(charId) {
@@ -7689,7 +7712,7 @@ function ownerFromToken(w) {
     if (!w.ownerId) { var nT = net(); if (nT && nT.noWaiting && !playableChars(camp, c.ownerId).some(function(x) { return x.id !== c.id; })) nT.noWaiting(c.ownerId); }   // Onboarding F1a: "GM controlled" is a takeover: no waiting token pops up for a player it leaves with nothing
     giveCharacter(w.ownerId || '', c.id, { keep: w.id });   // a same-owner pick on a kept character's token makes it the one in play, with its token placed where they stand
 }
-function charGone(id) { var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
+function charGone(id) { if (typeof keptDrop === 'function') keptDrop(id); var shown = false; if (sheetOpen === id) { closeSheet(); shown = true; } if (typeof id === 'string' && huds[id]) { closeHud(id); shown = true; } if (shown) toast('That character is no longer shared with you.'); if (window.appRender) window.appRender(); }
 function editResult(rid, ok, reason, msg, op) { if (!ok) toast(reason === 'none' ? (msg || 'Nothing to apply.') : reason === 'error' ? (msg || 'That amount could not be worked out.') : op === 'apply' && reason === 'field' ? 'That action is not on your sheet now.' : op === 'apply' && reason === 'timeout' ? 'No answer from the GM.' : reason === 'budget' ? (msg || 'That would take the character over a point budget.') : reason === 'money' || reason === 'change' || reason === 'max' ? (msg || 'Not enough money for that.') : reason === 'needs' ? (msg || 'Your character does not meet what that needs.') : reason === 'stays' ? (msg || (op === 'set' ? 'It stays on.' : 'You can\u2019t get rid of it.')) : reason === 'field' && op === 'custom' ? 'Only the GM changes that row now.' : reason === 'field' && op === 'ov' ? 'Only the GM changes this copy’s stats now.' : reason === 'long' ? 'This list\u2019s own rows hold all the long text they may.' : reason === 'off' ? 'Character sheets are off here.' : reason === 'owner' ? 'That sheet is not yours.' : reason === 'field' ? 'That field cannot be edited.' : reason === 'slow' ? 'Slow down a little.' : reason === 'missing' || (reason === 'stale' && op === 'restore') ? (op === 'restore' ? 'That cannot come back now: the list changed since, or the moment passed.' : 'That is no longer there.') : reason === 'timeout' ? 'No answer from the GM; the change was undone.' : reason === 'making' ? 'Finish the character first (press Done on its sheet).' : reason === 'paused' ? 'The table is paused.' : reason === 'value' && msg ? msg : 'That value was not accepted.'); renderViews(null); }
 
 /* ---------- the editor: fields, rolls, characters ---------- */
@@ -8263,7 +8286,7 @@ function nameWordNow(n) { var c = getActiveCampaign(), s = c ? systemOf(c) : nul
 window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, restTakeBack: restTakeBack, charCatSet: charCatSet, charCatNow: charCatNow, tagsMoved: tagsMoved, tagsTurn: tagsTurn, tagJudge: tagJudge, debtAdd: debtAdd, uniqueToggle: uniqueToggle, lootOf: lootOf, lootSet: lootSet, valuesMoved: valuesMoved, shareToggle: shareToggle, nameWord: nameWordNow, linkValuesWrite: linkValuesWrite, formOn: formOn, majorFollow: majorFollow, blowDrop: blowDrop, areaFxFollow: areaFxFollow, envSoon: envSoon, envFollow: envFollow, rollSwitchesFor: rollSwitchesFor, groupRollsFor: groupRollsFor, groupRoll: groupRoll, crossSeed: crossSeed, turnEndHook: turnEndHook, goneLocal: goneLocal, goneWait: goneWait, postureSeed: function() { return postureSeed(getActiveCampaign()); }, fxEndSeed: function() { return fxEndSeed(getActiveCampaign()); }, fxRanOut: fxRanOut, runTimeRules: runTimeRules, startMaking: startMaking, inviteMaking: inviteMaking, applyTokenFace: applyTokenFace, open: open, close: close, playerSystem: playerSystem, readablePages: readablePages, openPage: openPage, sheetRefsChanged: sheetRefsChanged, systemOf: systemOf, save: saveDraft, startFrom: startFrom, sync: sync, roundHook: roundHook, turnHook: turnHook, runDue: runDue, runLand: runLand, draft: function() { return draft; },
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     templateToggle: templateToggle, newFromTemplate: newFromTemplate, templatesOf: templatesOf, shareAsk: shareAsk, shareTake: shareTake, shareOwn: shareOwn, ownSheetCount: ownSheetCount, ownSheetFor: ownSheetFor, shareSplitCount: shareSplitCount, shareSplitAsk: shareSplitAsk, charsOf: charsOf, charList: charList, charById: charById, ownerName: ownerName, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
-    keptKey: keptKey, goneFire: goneFire,   // 1.6.3: a character's content key (net.js fxbOf hands it to tokenEffectsPass) and a used-up row's Undo on a delta that draws nothing (findings 2 and 23)
+    keptKey: keptKey, keptForget: keptForget, goneFire: goneFire,   // 1.6.3: a character's content key (net.js fxbOf hands it to tokenEffectsPass) and a used-up row's Undo on a delta that draws nothing (findings 2 and 23)
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,

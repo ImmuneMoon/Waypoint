@@ -351,6 +351,13 @@ net.toGmButtons = function(wrap, rec) {
     if (h.crit === 'fumble' && !h.decided) { mk('Roll again secretly', 'Roll the same roll where only you see it', function() { var r = toGmAgain(rec.id); if (r.error) say(r.error); }); mk('Decide', 'Decide what happens yourself, with no roll', function() { h.decided = true; say('You decide.'); }); }
     wrap.appendChild(row);
 };
+// The review of the speed fold: Table Chat keeps a roll's card as drawn while its record is the same, but the buttons above read _toGm, which
+// changes with no change of the record (Apply, Skip, Decide, and the newest 50 kept). toGmSig says what they read, as text, which Table Chat in
+// net.js adds to the card's signature, so the card is drawn again whenever it moves: '' where this machine keeps nothing for that roll
+net.toGmSig = function(id) {
+    var h = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_toGm, id) ? _toGm[id] : null; if (!h || net.role === 'client') return '';
+    return [h.wait ? 1 : 0, typeof h.ran === 'string' ? h.ran : '', h.decided ? 1 : 0, typeof h.crit === 'string' ? h.crit : ''].join('|');
+};
 // [togmcheck:host-end]
 // [moneycheck:tradelog-start]
 // 157 M1g: the GM's log of this session's trades, in memory alone (the newest 30): each side's lists before and after, so that Put back restores every

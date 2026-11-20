@@ -731,6 +731,29 @@ pendingChecks.push((async () => {
         gWin.ret.ok && j(gWin.vals.f_hits) === '4' && j(gWin.deltas) === j([['c_a', { f_hits: 4 }]]) && gWin.saves === 1 && j(gWin.changed) === j(['c_a'])
         && gOff.ret.ok && j(gOff.vals) === j({ f_hits: 0, f_fp: { cur: 9 } }) && gOff.deltas.length === 0 && gOff.saves === 1 && gNo.ret.ok && j(gNo.vals) === j(START) && gNo.saves === 0,
         j([gWin.vals, gWin.deltas, gOff.vals, gNo.vals]));
+    {   // the review of the speed fold: the GM's own roll (net.diceRoll's restR) run for real, as the host's branch for a player's roll is above: a Then
+        // that sets a value already held stores, saves, sends and draws nothing; one that moves a value, and one that uses a row up (taR.gone), store,
+        // save, send and draw as before (the row's own list moves too, so a row used up is stored whether or not its list's text would compare equal)
+        const runGs = (sys, vals, expr, o) => { const out = { deltas: [], saves: 0, changed: [] };
+            const camp = { id: 'k', system: sys, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(vals)) } } };
+            const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
+            const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged: id => out.changed.push(id), goneLocal: () => {} } };
+            const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+                net, () => Dx, () => Sx, win, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, () => {}, () => {}, () => { out.saves++; });
+            out.ret = dr(expr, Object.assign({ charId: 'c_a' }, o || {})); out.vals = camp.chars.c_a.values; out.stamp = camp.chars.c_a.updated; return out; };
+        const gSame = runGs(sysT, START, '3d6 <= 30', { act: 'r_same' }), gMove = runGs(sysT, START, '3d6 <= 30', { act: 'r_win' });
+        const sysU = Sx.cleanSystem({ v: 1, name: 'U', fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner',
+            list: { rolls: [{ label: 'Use', formula: '3d6 <= 30', then: [{ q: true, formula: '1' }] }, { label: 'Keep', formula: '3d6 <= 30', then: [{ q: true, formula: '1', set: true }] }] } }],
+            items: [{ id: 'i_k', name: 'Kit', vis: 'all' }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+        const ROWS = { f_g: [{ id: 'w_1', defId: 'i_k', qty: 1 }] };
+        const gGone = runGs(sysU, ROWS, '3d6 <= 30', { row: { f: 'f_g', r: 'w_1', i: 0 } }), gKeep = runGs(sysU, ROWS, '3d6 <= 30', { row: { f: 'f_g', r: 'w_1', i: 1 } });
+        check('the review of the speed fold (finding 1, the GM\'s side run for real): the GM\'s own roll whose Then sets a value already held saves, sends and draws nothing and leaves the sheet\'s stamp; one that moves a value saves once, sends one delta and draws; one that uses a row up (its quantity to 0) stores the list without it, saves, sends and draws; one that sets the quantity it already has does none of it',
+            gSame.ret.ok && gSame.saves === 0 && gSame.deltas.length === 0 && gSame.changed.length === 0 && gSame.stamp === undefined && j(gSame.vals) === j(START)
+                && gMove.ret.ok && gMove.saves === 1 && j(gMove.deltas) === j([['c_a', { f_hits: 4 }]]) && j(gMove.changed) === j(['c_a'])
+                && gGone.ret.ok && gGone.saves === 1 && gGone.deltas.length === 1 && j(gGone.changed) === j(['c_a']) && j(gGone.vals.f_g) === j([])
+                && gKeep.ret.ok && gKeep.saves === 0 && gKeep.deltas.length === 0 && gKeep.changed.length === 0 && j(gKeep.vals) === j(ROWS),
+            j([gSame.saves, gSame.deltas, gMove.saves, gGone.saves, gGone.deltas, gGone.vals, gKeep.saves, gKeep.deltas]));
+    }
 })());
 
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md section 1, the book's (es)): a round fired by a roll's Then lands by the roll's verdict. The host's roll-req branch

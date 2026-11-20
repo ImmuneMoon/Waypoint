@@ -1041,12 +1041,12 @@ function fxbOf(w) {
 // enters the host's three funnels (net.syncChars, net.syncChar, net.syncCharDelta), on the first line of each, before sensesMoved: that and
 // the bars, the look and the loot below may send a map at once, and a list kept earlier in the same task, before the sheet changed in place,
 // would ride on it and be noted as what the token was last sent with. fxbMoved lets it go once more itself, since it may be asked alone
-function fxPassForget() { var SF = SC(); if (SF && typeof SF.tokenEffectsForget === 'function') SF.tokenEffectsForget(); }
+function fxPassForget() { var SF = SC(); if (SF && typeof SF.tokenEffectsForget === 'function') SF.tokenEffectsForget(); if (window.wpSheets && typeof window.wpSheets.keptForget === 'function') window.wpSheets.keptForget(); }   // the review of the speed fold: and the content keys sheets.js made this pass (keptKey), which a sheet changed in place would otherwise keep
 function fxbMoved(id) {
     if (typeof barsMoved === 'function') barsMoved(id);   // backlog 28: the bars on the tokens, at every change the effects are looked at for
     if (typeof plMoved === 'function') plMoved(id);   // 1.6.2, backlog 35: the personal look on the tokens
     if (typeof lootMoved === 'function') lootMoved(id);   // 1.6.2 (backlog 42, fold 3): a body that comes to be lootable, or stops
-    var SF = SC(); if (SF && typeof SF.tokenEffectsForget === 'function') SF.tokenEffectsForget();   // 1.6.3: a list kept for this pass (tokenEffectsPass) is worked out again, so what each token was last sent with is compared with the character as it is now
+    var SF = SC(); if (SF && typeof SF.tokenEffectsForget === 'function') SF.tokenEffectsForget(); if (window.wpSheets && typeof window.wpSheets.keptForget === 'function') window.wpSheets.keptForget();   // the review of the speed fold: with the content keys made this pass (sheets.js keptForget), or a key made before an in-place change would hand back the list kept across passes. 1.6.3: a list kept for this pass (tokenEffectsPass) is worked out again, so what each token was last sent with is compared with the character as it is now
     if (!net.active || net.role !== 'host') return;
     var camp = getActiveCampaign(), S = SC(); if (!camp || !S || !S.tokenEffects || !camp.chars) return;
     var moved = Object.create(null), out = Object.create(null);
@@ -9759,6 +9759,18 @@ function chatEnv() {
     if (sy && typeof sy === 'object' && _chatSysIds) { sid = _chatSysIds.get(sy); if (sid === undefined) { sid = ++_chatSysN; _chatSysIds.set(sy, sid); } }
     try { return JSON.stringify([n.myId || '', n.role || '', !!n.active, !!n.foreign, !!window.wpPopout, sid, sy && typeof sy === 'object' ? sy.updated : null, dmg, pl]); } catch (e) { return String(Math.random()); }
 }
+// The review of the speed fold: what a roll's card reads of THIS machine's own state for that very roll, beside its record and chatEnv, as text:
+// the GM's buttons on a roll that went straight to them (net.toGmSig, nettrade.js: whether it waits, what was done, whether it is still kept at all,
+// since only the newest 50 are), and, where this build has it, whether a hidden roll may still be shown to the table (net.revealOk). renderChat
+// draws a kept card again whenever this moves, so a button whose roll the host no longer keeps goes, and one granted since comes. A new reader of
+// such state in a roll's card joins this function
+function chatOuter(m) {
+    var r = m && m.roll, n = window.wpNet; if (!r || typeof r.id !== 'string' || !n) return '';
+    var out = '';
+    try { if (typeof n.toGmSig === 'function') out += String(n.toGmSig(r.id)); } catch (e) { out += '?'; }
+    try { if (typeof n.revealOk === 'function') out += '|' + (n.revealOk(r.id) ? 1 : 0); } catch (e) { out += '|?'; }
+    return out;
+}
 function renderChat() {
     var log = ui('chatLog');
     if (!log) return;
@@ -9767,7 +9779,7 @@ function renderChat() {
     var envC = chatEnv();   // 1.6.3 (finding 33): what a roll's card reads beside its own record, so a card is drawn again only where that moved
     chatLog.forEach(function(m) {
         var node = null, keep = !!(m && (m.roll || m.apply) && _chatNodes), sigC = null, kc = keep ? _chatNodes.get(m) : null;
-        if (keep) { try { sigC = JSON.stringify(m); } catch (eS) { sigC = null; keep = false; } }
+        if (keep) { try { sigC = JSON.stringify(m) + '\u0001' + chatOuter(m); } catch (eS) { sigC = null; keep = false; } }   // the review of the speed fold: and what the card reads of this machine's state for that roll (chatOuter)
         if (keep && kc && kc.sig === sigC && kc.env === envC) node = kc.node;   // the same record and the same world: the card drawn before
         else {
             try { node = m.roll ? (window.wpDice ? window.wpDice.renderCard(m) : null) : m.apply ? (window.wpDice && window.wpDice.renderApply ? window.wpDice.renderApply(m) : null) : m.due ? (window.wpDice && window.wpDice.renderDue ? window.wpDice.renderDue(m) : null) : m.trun && window.wpTimePanel && window.wpTimePanel.renderLine ? window.wpTimePanel.renderLine(m) : m.help ? (window.wpDice && window.wpDice.renderHelp ? window.wpDice.renderHelp(m) : null) : m.trk && window.wpTrackers && window.wpTrackers.renderLine ? window.wpTrackers.renderLine(m) : chatEntryNode(m); } catch (e) { node = null; }   // one bad entry never blanks the panel
@@ -9782,7 +9794,7 @@ function renderChat() {
         badge.style.display = chatUnread > 0 ? 'block' : 'none';
         badge.textContent = chatUnread;
     }
-    if (!window.wpPopout && _chatPop) broadcastChatSync();   // mirror the chat to any popped-out chat window (which owns no session of its own); 1.6.3 (finding 33): only once one has asked
+    if (!window.wpPopout && _chatPopAsked) broadcastChatSync();   // mirror the chat to any popped-out chat window (which owns no session of its own); 1.6.3 (finding 33): only once one has asked
 }
 var _chatRenderTimer = null;   // one pending draw of the chat panel (renderChatSoon): a burst of lines costs one render
 function renderChatSoon() { if (_chatRenderTimer) return; _chatRenderTimer = setTimeout(function() { _chatRenderTimer = null; renderChat(); }, 40); }
@@ -9793,23 +9805,37 @@ function chatHidden(p) { return !p || p.style.display === 'none' || !!(window.wp
    render, answers a new pop-out's request, and sends on the pop-out's behalf; the pop-out relays its input. */
 var _chatBC = null; try { _chatBC = new BroadcastChannel('waypoint'); } catch (e) {}
 // 1.6.3 (finding 33): the whole log is copied to the pop-out channel only once a pop-out chat window has asked for it (chatReq) in this window's
-// life (_chatPop). A pop-out asks as it opens; one opened before this window loaded hears this window's chatHello and asks again
-var _chatPop = false;
+// life (_chatPopAsked). A pop-out asks as it opens; one opened before this window loaded hears this window's chatHello and asks again.
+// The review of the speed fold: the flag had the name of the chat's pop-out button further down this file (_chatPop, the element ui('chatPop')), which
+// set it to that button as the module loaded, so the main window copied the log at every draw after all; it has a name of its own now. Only a
+// chat pop-out answers a hello (chatPopHere: a page or a sheet in a window of its own runs this file too, and asked for the log it never shows),
+// and a chat pop-out that closes says so (chatBye), on which the main window stops copying and says hello again, so that another chat pop-out
+// still open asks once more
+var _chatPopAsked = false;
+function chatPopHere() {
+    try {
+        var b = typeof document !== 'undefined' && document ? document.body : null; if (b && b.classList && typeof b.classList.contains === 'function' && b.classList.contains('popout-chat')) return true;
+        var q = typeof location !== 'undefined' && location && typeof location.search === 'string' && typeof URLSearchParams === 'function' ? new URLSearchParams(location.search).get('popout') : null;
+        return typeof q === 'string' && /^chat(?::|$)/.test(q);
+    } catch (e) { return false; }
+}
 if (_chatBC && !window.wpPopout && !window.wpStream) { try { _chatBC.postMessage({ type: 'chatHello' }); } catch (e) {} }
+if (_chatBC && window.wpPopout && typeof window.addEventListener === 'function') window.addEventListener('pagehide', function() { if (chatPopHere()) { try { _chatBC.postMessage({ type: 'chatBye' }); } catch (e) {} } });
 function broadcastChatSync() { if (!_chatBC || window.wpStream) return; try { _chatBC.postMessage({ type: 'chatSync', log: JSON.parse(JSON.stringify(chatLog)), look: _cardLook }); } catch (e) {} }
 if (_chatBC) _chatBC.addEventListener('message', function(e) {
     var d = e.data; if (!d || !d.type || window.wpStream) return;   // the stream window holds no chat of its own: it neither answers nor sends for a pop-out
     if (window.wpPopout) {
         if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; _cardLook = d.look || null; renderChat(); }   // the main window's card colors (checked again in cardLookNow)
-        else if (d.type === 'chatHello') { try { _chatBC.postMessage({ type: 'chatReq' }); } catch (e2) {} }   // 1.6.3 (finding 33): a main window that loaded after this pop-out asks who is there
+        else if (d.type === 'chatHello' && chatPopHere()) { try { _chatBC.postMessage({ type: 'chatReq' }); } catch (e2) {} }   // 1.6.3 (finding 33): a main window that loaded after this pop-out asks who is there
     } else {
-        if (d.type === 'chatReq') { _chatPop = true; broadcastChatSync(); }
+        if (d.type === 'chatReq') { _chatPopAsked = true; broadcastChatSync(); }
+        else if (d.type === 'chatBye') { _chatPopAsked = false; try { _chatBC.postMessage({ type: 'chatHello' }); } catch (e3) {} }   // a chat pop-out closed: copy nothing more until one that is still open asks again
         else if (d.type === 'chatSend') { var ci = ui('chatInput'); if (ci) { ci.value = String(d.text || ''); sendChat(Array.isArray(d.men) ? d.men : []); } }
         else if (d.type === 'dock' && d.kind === 'chat') { var cp = ui('chatPanel'); if (cp && chatHidden(cp)) { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } }
     }
 });
 window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && chatHidden(cp)) { var cb = ui('chatBtn'); if (cb) cb.click(); else cp.style.display = 'flex'; } },
-    lookSync: function() { if (window.wpPopout) return; var cl = cardLookNow(), sg = JSON.stringify(cl); if (sg === _cardSig) return; _cardSig = sg; _cardLook = cl; var lg = ui('chatLog'); if (lg) paintCardLook(lg, cl); if (_chatPop) broadcastChatSync(); } };   // the system or the sheets switch changed: the cards' colors follow (no card rebuilt)
+    lookSync: function() { if (window.wpPopout) return; var cl = cardLookNow(), sg = JSON.stringify(cl); if (sg === _cardSig) return; _cardSig = sg; _cardLook = cl; var lg = ui('chatLog'); if (lg) paintCardLook(lg, cl); if (_chatPopAsked) broadcastChatSync(); } };   // the system or the sheets switch changed: the cards' colors follow (no card rebuilt)
 // A roll opens Table Chat if it was closed; that auto-open dismisses itself after a few seconds (a fresh roll extends
 // it). If the chat was already open, or the user opens/touches it, it stays — cancelChatDismiss() clears the flag.
 var _chatRollOpened = false, _chatDismissTimer = null;   // false; true: a roll opened it; a view's name: a roll borrowed it for that view while it was up on another (1.5.4)

@@ -934,9 +934,18 @@ const j = v => JSON.stringify(v);
             const kp = S.tokenEffectsPass(sysK, chK, false, F, 'K2'); await tick(); const kp2 = S.tokenEffectsPass(sysK, chK, false, F, 'K2'); await tick();
             sysK.updated = 99; const k6 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick(); const k6b = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
             S.tokenEffectsForget(true); const k7 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
-            const realNow = Date.now; let k8; try { Date.now = () => realNow() + 31000; k8 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); } finally { Date.now = realNow; } await tick();
-            check('1.6.3 (finding 2) a token\'s effects kept across passes by their content key (systemcore tokenEffectsPass, run for real): the same key the next pass hands back the very list; another key, no key, a new system stamp, tokenEffectsForget(true) and an age past 30 s work it out again; the players\' list kept apart from the GM\'s',
-                j(k1) === j(S.tokenEffects(sysK, chK, true, F)) && k2 === k1 && k3 !== k2 && k4 !== k3 && k5 === k3 && kp !== k5 && kp2 === kp && k6 !== k5 && k6b === k6 && k7 !== k6b && k8 !== k7, j([k1, kp]));
+            // the review of the speed fold: each kept list lives 30 to 45 s by a hash of its character's id (systemcore fxLife; sheets.js keptLife is the
+            // same rule, written out here as the suite's own reading), so lists worked out on one draw do not all run out on one later draw
+            const lifeOf = id => { const s = String(id); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return 30000 + ((h >>> 0) % 15000); };
+            const realNow = Date.now; let k8, k8a; try { Date.now = () => realNow() + lifeOf('c_k') - 2000; k8a = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); } finally { Date.now = realNow; } await tick();
+            try { Date.now = () => realNow() + lifeOf('c_k') + 50; k8 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); } finally { Date.now = realNow; } await tick();
+            const idB = Array.from({ length: 200 }, (x, i) => 'c_' + i).find(id => Math.abs(lifeOf(id) - lifeOf('c_k')) > 6000), chQ = { id: idB, updated: 1, values: chK.values };
+            S.tokenEffectsForget(true); const q1 = S.tokenEffectsPass(sysK, chK, true, F, 'K9'), q2 = S.tokenEffectsPass(sysK, chQ, true, F, 'K9'); await tick();
+            const tMid = (lifeOf('c_k') + lifeOf(idB)) / 2; let q3, q4; try { Date.now = () => realNow() + tMid; q3 = S.tokenEffectsPass(sysK, chK, true, F, 'K9'); q4 = S.tokenEffectsPass(sysK, chQ, true, F, 'K9'); } finally { Date.now = realNow; } await tick();
+            const lives50 = Array.from({ length: 50 }, (x, i) => lifeOf('c_' + i)), spread = new Set(lives50).size > 40 && lives50.every(v => v >= 30000 && v < 45000) && Math.max(...lives50) - Math.min(...lives50) > 10000;
+            check('1.6.3 (finding 2) a token\'s effects kept across passes by their content key (systemcore tokenEffectsPass, run for real): the same key the next pass hands back the very list; another key, no key, a new system stamp, tokenEffectsForget(true) and an age past its life work it out again; the players\' list kept apart from the GM\'s; and (the review of the speed fold) each list lives 30 to 45 s by a hash of its character\'s id, so two lists worked out together run out apart',
+                j(k1) === j(S.tokenEffects(sysK, chK, true, F)) && k2 === k1 && k3 !== k2 && k4 !== k3 && k5 === k3 && kp !== k5 && kp2 === kp && k6 !== k5 && k6b === k6 && k7 !== k6b && k8a === k7 && k8 !== k7
+                    && !!idB && (lifeOf('c_k') < lifeOf(idB) ? (q3 !== q1 && q4 === q2) : (q3 === q1 && q4 !== q2)) && spread, j([k1, kp, idB, lifeOf('c_k'), idB && lifeOf(idB)]));
         }
         {   // 1.6.3 (findings 2 and 14): the content key (sheets.js keptKey, in the hlpass slice, with the real outsideKey) and what it keeps, run for real:
             // tokenFx hands the key to tokenEffectsPass, so the next pass gives the very list until the sheet, a sheet it links to, the campaign's library
@@ -959,9 +968,11 @@ const j = v => JSON.stringify(v);
                 chA.values = { f_hp: 2 }; const f7 = API.fx(w); await tick();
                 const h1 = API.byId(campL, 't_a'), n1 = hlN; await tick(); const h2 = API.byId(campL, 't_a'), n2 = hlN; await tick();
                 chB.values = { f_hp: 5 }; API.byId(campL, 't_a'); const n3 = hlN; await tick();
-                const realNow = Date.now; try { Date.now = () => realNow() + 31000; API.byId(campL, 't_a'); } finally { Date.now = realNow; } const n4 = hlN; await tick();
+                const lifeT = (s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return 30000 + ((h >>> 0) % 15000); })('t_a');   // the review of the speed fold: its life by the token's id (keptLife)
+                const realNow = Date.now; try { Date.now = () => realNow() + lifeT - 2000; API.byId(campL, 't_a'); } finally { Date.now = realNow; } const n3b = hlN; await tick();
+                try { Date.now = () => realNow() + 46000; API.byId(campL, 't_a'); } finally { Date.now = realNow; } const n4 = hlN; await tick();
                 check('1.6.3 (findings 2 and 14) the content key (sheets.js keptKey, with the real outsideKey): tokenFx hands it on, and the next pass gives the very list until a linked sheet, the campaign\'s library, the library\'s state or the sheet itself moves; the party strip\'s lines are kept across passes the same way, worked out again when a linked sheet moves and when they are older than 30 s',
-                    typeof kA === 'string' && f2 === f1 && kB !== kA && f3 !== f2 && f4 !== f3 && f5 !== f4 && f6 === f5 && f7 !== f6 && j(h1) === j(h2) && n2 === n1 && n3 === n2 + 1 && n4 === n3 + 1, j([n1, n2, n3, n4, h1]));
+                    typeof kA === 'string' && f2 === f1 && kB !== kA && f3 !== f2 && f4 !== f3 && f5 !== f4 && f6 === f5 && f7 !== f6 && j(h1) === j(h2) && n2 === n1 && n3 === n2 + 1 && n3b === n3 && n4 === n3 + 1, j([n1, n2, n3, n3b, n4, h1]));
             } finally { S.setLinkSource(null); }
         }
         {   // 1.6.3 (finding 14): a tab press hands back the figures worked out for the draw before (sheets.js allFor, sliced by its allkept markers and run
@@ -976,6 +987,33 @@ const j = v => JSON.stringify(v);
             const a6 = T.allFor('sheet', sysT, { id: 'c' }, {}, { self: 't', facing: { deg: 90 } }); const a7 = T.allFor('h:c', sysT, cT, {}, ctxA); keyNow = null; const a8 = T.allFor('h:c', sysT, cT, {}, ctxA), a9 = T.allFor('h:c', sysT, cT, {}, ctxA); T.tab(0);
             check('1.6.3 (finding 14) a sheet\'s tab press reuses the figures worked out for the draw before (sheets.js allFor, run for real): only for the draw a tab press asks for (the next draw works them out again) and only for the same key, context, system and character; a draw that is no tab press, another context, key or character, another view and no key work them out afresh',
                 a2 !== a1 && a3 === a2 && a3b !== a3 && a4 !== a3b && a5 !== a4 && a6 !== a5 && a7 !== a6 && a8 !== a7 && a9 !== a8 && rN === 9, j([rN]));
+        }
+        {   // the review of the speed fold (its findings 4 and 6): what allFor and boardRedraw keep goes once it can no longer be asked for (sheets.js keptDrop,
+            // run for real with the allkept and boardskip slices: a HUD's slot when it closes, the sheet's when the sheet closes, everything of a character
+            // that is gone, and boardRedraw's notes when another campaign is drawn), and a kept answer lives its own life (keptLife), not a fixed 30 s
+            const shD = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const cut = (a, b) => shD.slice(shD.indexOf(a), shD.indexOf(b));
+            const akD = cut('// [systemcheck:allkept-start]', '// [systemcheck:allkept-end]'), bsD = cut('// [systemcheck:boardskip-start]', '// [systemcheck:boardskip-end]');
+            const kdD = shD.slice(shD.indexOf('function keptDrop(id, what) {'), shD.indexOf('\n}\n', shD.indexOf('function keptDrop(id, what) {')) + 3);
+            let campNow = { id: 'k1', activeItemId: 'm', system: { fields: [] }, chars: { c_b: { id: 'c_b', name: 'B', values: {} } }, items: { m: { type: 'map', whiteboard: [{ id: 't_b', charId: 'c_b' }] } } }, rN = 0, lifeNow = 1000;
+            const winD = { wpRenderN: 0, appRender() { winD.wpRenderN++; }, wpSystemCore: { sheetsAny: () => false } };
+            const D = new Function('F', 'resolveAll', 'keptKey', 'KEPT_MS', 'keptLife', 'state', 'getActiveCampaign', 'systemOf', 'charById', 'tokenFx', 'tokenBars', 'tokenEnv', 'window', akD + bsD + kdD
+                + '\nreturn { allFor: allFor, tab: function(v) { _sheetTabPress = v; }, drop: keptDrop, kept: function() { return Object.keys(_allKept).sort(); }, seen: function() { return Object.keys(_boardSeen).sort(); }, redraw: boardRedraw };')(
+                () => F, () => ({ n: ++rN }), () => 'k', 30000, () => lifeNow, { viewMode: 'visual', selWbIds: [] }, () => campNow, c => c.system, (id, c) => (c.chars[id] || null), () => [], () => [], () => null, winD);
+            const sysD = { fields: [] }, cC = { id: 'c' }, cE = { id: 'e' }, ctxD = { self: 't' };
+            D.allFor('sheet', sysD, cC, {}, ctxD); D.allFor('h:c', sysD, cC, {}, ctxD); D.allFor('h:e', sysD, cE, {}, ctxD); const k0 = D.kept();
+            D.drop('c', 'hud'); const k1 = D.kept(); D.drop(null, 'sheet'); const k2 = D.kept();
+            D.allFor('sheet', sysD, cC, {}, ctxD); D.allFor('h:c', sysD, cC, {}, ctxD); D.drop('c'); const k3 = D.kept(); D.drop('e'); const k4 = D.kept();
+            D.redraw('c_b'); const s1 = D.seen(); D.drop('c_b'); const s2 = D.seen(); D.redraw('c_b'); const s3 = D.seen();
+            campNow = { id: 'k2', activeItemId: 'm', system: { fields: [] }, chars: { c_x: { id: 'c_x', name: 'X', values: {} } }, items: { m: { type: 'map', whiteboard: [{ id: 't_x', charId: 'c_x' }] } } }; D.redraw('c_x'); const s4 = D.seen();
+            // the life: a tab press within the slot's life hands back what was kept, one past it works it out again
+            const realNow = Date.now; let l1, l2, l3; l1 = D.allFor('sheet', sysD, cC, {}, ctxD);
+            try { Date.now = () => realNow() + 500; D.tab(1); l2 = D.allFor('sheet', sysD, cC, {}, ctxD); Date.now = () => realNow() + 1600; D.tab(1); l3 = D.allFor('sheet', sysD, cC, {}, ctxD); } finally { Date.now = realNow; }
+            const callers = [/clearTimeout\(v\.redraw\); if \(typeof keptDrop === 'function'\) keptDrop\(charId, 'hud'\); delete huds\[charId\];/, /if \(typeof keptDrop === 'function'\) keptDrop\(null, 'sheet'\); var p = ui\('sheetPanel'\);/,
+                /function charGone\(id\) \{ if \(typeof keptDrop === 'function'\) keptDrop\(id\);/, /delete charsOf\(camp\)\[id\]; if \(typeof keptDrop === 'function'\) keptDrop\(id\);/].map(re => re.test(shD));
+            check('the review of the speed fold (findings 4 and 6): what allFor and boardRedraw keep goes once it can no longer be asked for (sheets.js keptDrop, run for real): a HUD that closes takes its slot, the sheet that closes its own, a character that is gone its HUD\'s slot, the sheet\'s where it shows it and its board note; another campaign drawn empties the board notes; a kept answer lives its own life (keptLife), so a tab press within it reuses and one past it works out again; closeHud, closeSheet, charGone and deleteCharacter ask it',
+                j(k0) === j(['h:c', 'h:e', 'sheet']) && j(k1) === j(['h:e', 'sheet']) && j(k2) === j(['h:e']) && j(k3) === j(['h:e']) && j(k4) === j([]) && j(s1) === j(['c_b']) && j(s2) === j([]) && j(s3) === j(['c_b']) && j(s4) === j(['c_x'])
+                    && l2 === l1 && l3 !== l1 && callers.every(Boolean), j([k0, k1, k2, k3, k4, s1, s2, s3, s4, l2 === l1, l3 !== l1, callers]));
         }
         {   // 1.6.3 (finding 2): one character's change draws the whole app only where the board draws something of it that moved (sheets.js boardRedraw,
             // sliced by its boardskip markers and run for real with stubs): the light path only where the key is the one last drawn whole and no whole draw

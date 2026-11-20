@@ -7972,6 +7972,9 @@ function tokenEffects(sys, char, gm, F) {   // conditions C4: F (the formula eng
 // value or the library each give another key, and only that list is worked out again. With no key (a caller that cannot make one, a suite)
 // nothing is kept past the pass, exactly as before. _fxKept holds no source for a resolver: fog.js's tripwire passes it by its shape
 var _fxKept = typeof WeakMap === 'function' ? new WeakMap() : null, FX_KEPT_MS = 30000;
+// The review of the speed fold: each kept list lives 30 to 45 seconds by a hash of its character's id (sheets.js keptLife is the same rule), so lists
+// worked out on one draw do not all run out on one later draw and bring back, every 30 seconds, the cost keeping them took away
+function fxLife(id) { var s = String(id === undefined || id === null ? '' : id), h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return FX_KEPT_MS + ((h >>> 0) % 15000); }   // FNV-1a, so ids that differ in one character still fall far apart
 var _fxPass = null;
 function tokenEffectsPass(sys, char, gm, F, key) {
     if (!isObj(char) || typeof WeakMap !== 'function') return tokenEffects(sys, char, gm, F);
@@ -7982,11 +7985,11 @@ function tokenEffectsPass(sys, char, gm, F, key) {
     var out = null, now = Date.now(), keyed = typeof key === 'string' && !!_fxKept;
     if (keyed) {   // across passes: the list kept for this very content, if it is still young
         var kept = _fxKept.get(char), kh = kept ? kept[k] : null;
-        if (kh && kh.key === key && kh.sys === sys && kh.sysUpd === (isObj(sys) ? sys.updated : undefined) && kh.F === F && now >= kh.born && now - kh.born < FX_KEPT_MS) out = kh.out;
+        if (kh && kh.key === key && kh.sys === sys && kh.sysUpd === (isObj(sys) ? sys.updated : undefined) && kh.F === F && now >= kh.born && now - kh.born < kh.life) out = kh.out;
     }
     if (!out) {
         out = tokenEffects(sys, char, gm, F);
-        if (keyed) { var kp = _fxKept.get(char); if (!kp) { kp = {}; _fxKept.set(char, kp); } kp[k] = { key: key, sys: sys, sysUpd: isObj(sys) ? sys.updated : undefined, F: F, born: now, out: out }; }
+        if (keyed) { var kp = _fxKept.get(char); if (!kp) { kp = {}; _fxKept.set(char, kp); } kp[k] = { key: key, sys: sys, sysUpd: isObj(sys) ? sys.updated : undefined, F: F, born: now, life: fxLife(char.id), out: out }; }
     }
     slot[k] = { sys: sys, vals: char.values, upd: char.updated, F: F, out: out };
     return out;

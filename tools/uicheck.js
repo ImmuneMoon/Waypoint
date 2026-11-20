@@ -130,6 +130,25 @@ function page() {
             check('find: a pick made in the list leaves its order alone, so the arrow keys walk on through it; the next word typed puts the pick first again',
                 J(ag) === J(['alpha', 'bravo', 'charlie', 'delta']) && A.picked() === 'delta' && order1 === order0 && order2 === J(['', 'delta', 'alpha', 'bravo', 'charlie']), J([ag, order0, order1, order2]));
         }
+        {   // 1.6.3 (finding 19; Fulllion: "A search, grouped"): find's groups, first used by the sheet's + Add effect
+            const gg = [], G = U.find({ blank: '+ Add effect\u2026', groups: [['buff', 'Helpful'], ['debuff', 'Harmful']], other: 'Other', choices: [{ value: 'e1', name: 'Stunned', group: 'debuff' }, { value: 'e2', name: 'Blessed', group: 'buff' }, { value: 'e3', name: 'Prone' }, { value: 'e4', name: 'Shaken', group: 'debuff' }, { value: 'e5', name: 'Hasted', group: 'buff' }, { value: 'e6', name: 'Odd', group: 'nope' }], set: v => gg.push(v) }, page()), gs = G.select;
+            const tree = () => gs.children.map(o => o.tagName === 'OPTGROUP' ? [o.label, o.children.map(x => x.value + ':' + x.textContent)] : o.value + ':' + o.textContent);
+            const g0 = J(tree()); G.input.value = 'stun'; G.input.fire('input'); const g1 = J(tree()); G.input.value = 'ed'; G.input.fire('keydown', { key: 'Enter' }); const g2 = [G.picked(), J(gg)];
+            const P0 = U.find({ choices: [{ value: 'a', name: 'A', group: 'x' }, { value: 'b', name: 'B' }] }, page());
+            check('find with groups: each match under its group\u2019s heading, the groups in the order named and each in its own order, one that names no listed group last under Other, a group with no match left out; Enter picks the first shown; with no groups the list as before',
+                g0 === J([':+ Add effect\u2026', ['Helpful', ['e2:Blessed', 'e5:Hasted']], ['Harmful', ['e1:Stunned', 'e4:Shaken']], ['Other', ['e3:Prone', 'e6:Odd']]])
+                && g1 === J([':+ Add effect\u2026', ['Harmful', ['e1:Stunned']]]) && g2[0] === 'e2' && g2[1] === J(['e2']) && J(P0.select.children.map(o => o.tagName + o.value)) === J(['OPTIONa', 'OPTIONb']), J([g0, g1, g2]));
+        }
+        {   // the sheet's + Add effect (sheets.js fxAddFind, sliced and run for real with this very find): grouped by tone, a pick the commit, the control back to its first row
+            const shF = read('scripts/sheets.js'), fA = shF.indexOf('function fxAddFind('), fZ = shF.indexOf('function effectsInto(');
+            const picks = [], keyed = [], FX = new Function('window', 'iconText', shF.slice(fA, fZ) + '\nreturn fxAddFind;')({ wpUi: { find: o => U.find(o, page()) }, wpTexList: { keys: s => keyed.push(s) } }, ic => ic === 'icon:x' ? '*' : '');
+            const W = FX([{ id: 'e_a', name: 'Stunned', tone: 'debuff' }, { id: 'e_b', name: 'Blessed', tone: 'buff', icon: 'icon:x' }, { id: 'e_c', name: 'Marked' }, null, { name: 'no id' }], v => picks.push(v)), ws = W.select;
+            const t0 = J(ws.children.map(o => o.tagName === 'OPTGROUP' ? [o.label, o.children.map(x => x.value + ':' + x.textContent)] : o.value + ':' + o.textContent));
+            ws.value = 'e_a'; ws.fire('change'); const t1 = [J(picks), W.picked(), ws.value]; ws.value = 'e_a'; ws.fire('change');
+            check('the sheet\u2019s + Add effect is a search grouped Helpful, Harmful and Other by each effect\u2019s tone, its first row + Add effect\u2026; a pick hands the effect to the commit and the control shows its first row again, so the same effect can be added twice; a key step on the closed list opens it; with no parts at hand, the plain list',
+                W.className === 'ui-find sheet-fx-add' && t0 === J([':+ Add effect\u2026', ['Helpful', ['e_b:* Blessed']], ['Harmful', ['e_a:Stunned']], ['Other', ['e_c:Marked']]]) && t1[0] === J(['e_a']) && t1[1] === '' && t1[2] === '' && J(picks) === J(['e_a', 'e_a']) && keyed.length === 1 && keyed[0] === ws
+                && new Function('window', 'iconText', shF.slice(fA, fZ) + '\nreturn fxAddFind;')({}, () => '')([{ id: 'e_a', name: 'A' }], () => {}) === null && shF.includes("var fxFind = defs.length && typeof fxAddFind === 'function' ? fxAddFind(defs,"), J([t0, t1, picks]));
+        }
         const css = read('style.css'), ek = read('scripts/esckey.js');
         check('find\u2019s frame is the style sheet\u2019s, and Escape leaves a search that holds words to it', /\.ui-find \{[^}]*border: 1px solid var\(--edge\)/.test(css) && /\.ui-find > \.ui-find-q \{/.test(css) && ek.includes("t.classList.contains('ui-find-q')"));
     }

@@ -5374,6 +5374,8 @@
   .sheet-fx-mods { flex: 1 1 100%; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .sheet-fx-add-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .sheet-fx-add { flex: 1 1 auto; }
+  .ui-find.sheet-fx-add > .ui-find-q { flex: 1 1 9em; max-width: none; width: auto; }   /* 1.6.3 (finding 19): the effect search has the room to read what is typed, beside its list */
+  .ui-find.sheet-fx-add > .ui-find-sel { flex: 2 1 12em; max-width: none; }
   .sheet-fx-form { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px dashed var(--edge); border-radius: 6px; }
   .sheet-fx-form input.sheet-fx-fname, .sheet-fx-form input.sheet-fx-fdur { flex: 1 1 140px; width: auto; }
   .sheet-fx-flines { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; }

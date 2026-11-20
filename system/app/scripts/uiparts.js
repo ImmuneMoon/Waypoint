@@ -30,7 +30,7 @@
 //                    .ui-find frame. o: choices [{ value, name, sub }] (sub, a few gray words a search reads too, such as GM only),
 //                    value, blank (the words of a first row that picks nothing; none: no such row), gone (the words for a value no
 //                    choice has any more, kept and shown so that nothing stored is lost), label, placeholder, cls, max (rows shown at
-//                    most, 200), set(v) called when a pick changes. Answers the .ui-find element with picked(), setValue(v) (shown, set
+//                    most, 200), groups and other (headings the choices stand under by their own c.group, 1.6.3), set(v) called when a pick changes. Answers the .ui-find element with picked(), setValue(v) (shown, set
 //                    not called), input and select
 //   findMatch        whether a choice holds every word typed anywhere, case and accents aside (pure, for the suites)
 //   clampTo, roundTo the pure rules, for the suites
@@ -159,13 +159,25 @@ function find(o, doc) {
     if (o.label) { sel.setAttribute('aria-label', String(o.label)); sel.title = String(o.label); }
     var nameOf = function(c) { return (c.name === undefined || c.name === null || c.name === '' ? c.value : String(c.name)) + (c.sub ? ' (' + c.sub + ')' : ''); };
     var add = function(v, t, off) { var op = el(doc, 'option', '', t); op.value = v; if (off) op.disabled = true; sel.appendChild(op); };
+    // o.groups (1.6.3; Fulllion, of the sheet's Add effect: "A search, grouped"): [[key, heading], ...]. A choice names its group by c.group,
+    // and the choices stand in the order the groups are listed, each keeping its own order within its group; one that names no listed group
+    // stands last, under o.other (absent: Other). With no groups the order is the choices' own, as it always was. Enter picks the first shown
+    var grp = Array.isArray(o.groups) && o.groups.length ? o.groups.filter(function(g) { return Array.isArray(g) && typeof g[0] === 'string'; }) : null;
+    var rank = function(c) { if (!grp) return 0; for (var k = 0; k < grp.length; k++) if (grp[k][0] === c.group) return k; return grp.length; };
+    var ordered = function(list) { return !grp ? list : list.map(function(c, i) { return { c: c, i: i }; }).sort(function(a, b) { return rank(a.c) - rank(b.c) || a.i - b.i; }).map(function(x) { return x.c; }); };
     var show = function() {
         while (sel.firstChild) sel.removeChild(sel.firstChild);
         var mine = null; for (var i = 0; i < ch.length; i++) if (ch[i].value === cur) { mine = ch[i]; break; }
         if (typeof o.blank === 'string') add('', o.blank);
         if (cur && mine) add(cur, nameOf(mine)); else if (cur) add(cur, typeof o.gone === 'string' ? o.gone : cur);   // the pick first, in sight whatever is typed
-        var hits = ch.filter(function(c) { return c !== mine && findMatch(c, q.value); });
-        hits.slice(0, max).forEach(function(c) { add(c.value, nameOf(c)); });
+        var hits = ordered(ch.filter(function(c) { return c !== mine && findMatch(c, q.value); }));
+        if (grp) {   // 1.6.3 (o.groups): the matches stand under their group's heading, a group with no match left out
+            var into = null, at = -1;
+            hits.slice(0, max).forEach(function(c) {
+                var r = rank(c); if (r !== at) { at = r; into = el(doc, 'optgroup', ''); into.label = r < grp.length ? String(grp[r][1]) : (typeof o.other === 'string' ? o.other : 'Other'); sel.appendChild(into); }
+                var op = el(doc, 'option', '', nameOf(c)); op.value = c.value; into.appendChild(op);
+            });
+        } else hits.slice(0, max).forEach(function(c) { add(c.value, nameOf(c)); });
         if (hits.length > max) add(MORE, (hits.length - max) + ' more. Search to narrow them', true);
         sel.value = cur;
     };
@@ -180,7 +192,7 @@ function find(o, doc) {
     q.addEventListener('input', show);
     q.addEventListener('keydown', function(ev) {
         if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
-        if (ev.key === 'Enter') { var first = ch.filter(function(c) { return findMatch(c, q.value); })[0]; ev.preventDefault(); ev.stopPropagation(); if (first && q.value) go(first.value); }
+        if (ev.key === 'Enter') { var first = ordered(ch.filter(function(c) { return findMatch(c, q.value); }))[0]; ev.preventDefault(); ev.stopPropagation(); if (first && q.value) go(first.value); }
         else if (ev.key === 'ArrowDown') { ev.preventDefault(); ev.stopPropagation(); sel.focus(); }
         else if (ev.key === 'Escape' && q.value) { ev.preventDefault(); ev.stopPropagation(); q.value = ''; show(); }
     });

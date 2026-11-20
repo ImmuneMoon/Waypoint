@@ -566,11 +566,13 @@ export function wbBlast() {   // [split:glue]
       }
       return out;
   }
-  function torsoOf(sys, ch, want) {   // the damage step's default location: the first row of the location list named Torso, else one that holds the word, else the first. 1.6.2 (11): want, the location a blast names, first: a row of that name or entry key, else one that holds the word
+  function torsoOf(sys, ch, want) {   // the damage step's default location: the first row of the location list named Torso, else one that holds the word, else the first. 1.6.2 (11): want, the location a blast names, first: a row of that name or entry key, else one that holds the word. 1.6.3: then the system's Unaimed blows land at (locs.at), by the same rule
       var S = window.wpSystemCore, d = sys && sys.combat && sys.combat.damage, lf = d && d.locs && S ? S.fieldById(sys, d.locs.list) : null; if (!lf) return '';
       var rows = (ch.values && Array.isArray(ch.values[lf.id]) ? ch.values[lf.id] : []).filter(function(r) { return r && r.hid !== 1; }).map(function(r) { var rd = S.rowDef(sys, r); return { id: S.rowIdOf(r), name: rd && rd.def && typeof rd.def.name === 'string' ? rd.def.name : '' }; }).filter(function(x) { return x.id; });
-      var wl = typeof want === 'string' ? want.trim().toLowerCase() : '', keyOf = function(x) { var rw = (ch.values[lf.id] || []).filter(function(r) { return r && S.rowIdOf(r) === x.id; })[0], rd = rw ? S.rowDef(sys, rw) : null; return rd && rd.def && typeof rd.def.key === 'string' ? rd.def.key.toLowerCase() : ''; };
-      var wHit = wl ? rows.filter(function(x) { return x.name.toLowerCase() === wl || keyOf(x) === wl; })[0] || rows.filter(function(x) { return x.name.toLowerCase().indexOf(wl) >= 0; })[0] : null; if (wHit) return wHit.id;
+      var keyOf = function(x) { var rw = (ch.values[lf.id] || []).filter(function(r) { return r && S.rowIdOf(r) === x.id; })[0], rd = rw ? S.rowDef(sys, rw) : null; return rd && rd.def && typeof rd.def.key === 'string' ? rd.def.key.toLowerCase() : ''; };
+      var named = function(w) { var wl = typeof w === 'string' ? w.trim().toLowerCase() : ''; return wl ? rows.filter(function(x) { return x.name.toLowerCase() === wl || keyOf(x) === wl; })[0] || rows.filter(function(x) { return x.name.toLowerCase().indexOf(wl) >= 0; })[0] : null; };
+      var wHit = named(want); if (wHit) return wHit.id;
+      var aHit = named(d.locs.at); if (aHit) return aHit.id;   // 1.6.3 (finding 27): the Taking damage rules' Unaimed blows land at, read by the same rule, as sheets.js dmgLocAt reads it for the Take damage window
       var hit = rows.filter(function(x) { return /^torso$/i.test(x.name); })[0] || rows.filter(function(x) { return /torso/i.test(x.name); })[0] || rows[0];
       return hit ? hit.id : '';
   }

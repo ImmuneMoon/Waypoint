@@ -12,7 +12,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, errorCell, fieldWord, fxTargets, grantEntries, input, labeledNum, labeledSelect, lineUnder, markDirty, numField, numInput, patchErrors, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
+import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, entryNames, entryPick, errorCell, fieldWord, fxTargets, getActiveCampaign, grantEntries, input, labeledNum, labeledSelect, lineUnder, markDirty, numField, numInput, patchErrors, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
 export function sysedRules() {   // [split:glue]
 // [split:body-start]
 // 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): Keeps paying, under a list's switch: a row switched on pays an amount, a formula of the
@@ -593,6 +593,16 @@ function majRowsOf(om) { return Array.isArray(om) ? om.filter(dbxObj) : dbxObj(o
 function majWrite(d, rows) { if (rows.length > 1) d.onMajor = rows; else if (rows.length === 1 && Object.keys(rows[0]).length) d.onMajor = rows[0]; else delete d.onMajor; }
 function majAt(t) { var rw = t && t.closest ? t.closest('.sys-dmgr-onmajor') : null, i = rw ? Number(rw.dataset.mi) : 0, d = dbxDraft(), rows = majRowsOf(d.onMajor); if (!(i >= 0 && Math.floor(i) === i)) return null; if (i === 0 && !rows.length) rows.push({}); return i < rows.length ? { d: d, rows: rows, row: rows[i] } : null; }
 function dbxHas(c, k) { return typeof c === 'string' && (' ' + c + ' ').indexOf(' ' + k + ' ') >= 0; }
+// 1.6.3 (finding 27): the locations Unaimed blows land at offers, as [key, name]: the entries the System editor holds for the list (entryNames)
+// and those of the campaign's library packs, each in the list's categories, each key once, by name. Only read here to offer them; a pack
+// still loading offers what it has, and Another entry takes any name
+function dbxLocNames(listId) {
+    var out = typeof entryNames === 'function' ? entryNames(draft, listId) : [], seen = Object.create(null); out.forEach(function(o) { seen[o[0]] = 1; });
+    var f = (draft.fields || []).filter(function(x) { return !!x && x.id === listId && x.list; })[0], cats = f && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(s) { return String(s).toLowerCase(); }) : null;
+    var LB = window.wpLibrary, cp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, packs = cp && cp.library && Array.isArray(cp.library.packs) ? cp.library.packs : [];
+    if (LB && typeof LB.entriesOf === 'function') packs.forEach(function(p) { if (p && typeof p.id === 'string') (LB.entriesOf(p.id) || []).forEach(function(e) { if (!e || typeof e.key !== 'string' || !e.key || seen[e.key] || (cats && cats.indexOf(String(e.category || '').toLowerCase()) < 0)) return; seen[e.key] = 1; out.push([e.key, typeof e.name === 'string' && e.name ? e.name : e.key]); }); });
+    return out.sort(function(a, b) { return String(a[1]).localeCompare(String(b[1])); });
+}
 function dbxCm() { return draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); }
 function dbxDraft() { var cm = dbxCm(); return dbxObj(cm.damage) ? cm.damage : (cm.damage = {}); }
 function dbxTidy() { var cm = dbxCm(); if (dbxObj(cm.damage) && !Object.keys(cm.damage).length) delete cm.damage; }
@@ -677,6 +687,7 @@ function damageBox(box, cm) {
     if (lc.list) {
         dbxCap(r2, 'DR'); r2.appendChild(select('sys-dmgr-locdr', dbxOpts(['', 'No DR'], lkeys, lc.dr), dbxStr(lc.dr), 'The stat or column of that list that is the DR at a location. A column may read the kind and the type of the part of the blow it is judged for'));
         dbxCap(r2, 'Side'); r2.appendChild(select('sys-dmgr-locside', dbxOpts(['', 'No sides'], dbxKeys(lc.list, true), lc.side), dbxStr(lc.side), 'A number stat of that list naming each row’s side: 0 none, 1 left, 2 right. Rules can then read the side struck, and each side’s rows added up. The window names the side beside the location'));   // 1.6.0
+        dbxCap(r2, 'Unaimed blows land at'); var lat = input('sys-dmgr-locat field', dbxStr(lc.at), 'Where a blow lands when nothing aimed it: the Take damage window opens on it, and a blast lands there. The usual one: a location named Torso, else the first', 'A location’s name'); lat.maxLength = 60; r2.appendChild(typeof entryPick === 'function' && typeof entryNames === 'function' ? entryPick(lat, dbxLocNames(lc.list), 'The usual one') : lat);   // 1.6.3 (finding 27; Fulllion: "A system setting"): picked by name among the list's entries, Another entry for one a pack holds; cleaned by damagecore cleanDamageRules as locs.at
         dbxCap(r2, 'Cripple above'); r2.appendChild(select('sys-dmgr-loccrip', dbxOpts(['', 'Never'], lkeys, lc.crip), dbxStr(lc.crip), 'The stat or column whose figure a wound must pass to cripple the location. 0 or unset never cripples'));
         dbxCap(r2, 'Vital where'); var vt = input('sys-dmgr-locvital field', dbxStr(lc.vital), 'True at a vital location. It reads the location row as Row', 'e.g. Row.loc = 8'); vt.maxLength = LIMITS.formula; r2.appendChild(vt);
         dbxCap(r2, 'Times there'); var lmx = input('sys-dmgr-locmult field', dbxStr(lc.mult), 'The location\u2019s own multiplier for a wound to the main pool, whatever the type. 0 for none. It reads the location row as Row and the character\u2019s own names', 'e.g. if(Row.loc = 1, 4, 0)'); lmx.maxLength = LIMITS.formula; r2.appendChild(lmx);   // 1.5.6: the skull's x4
@@ -806,6 +817,7 @@ function onDamageInput(t) {
     else if (dbxHas(c, 'sys-dmgr-locvital')) { var d = dbxDraft(); if (!dbxObj(d.locs)) return true; dbxSet(d.locs, 'vital', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locmult')) { var dM = dbxDraft(); if (!dbxObj(dM.locs)) return true; dbxSet(dM.locs, 'mult', txt.trim() ? txt : ''); }
     else if (dbxHas(c, 'sys-dmgr-locdie')) { var dD = dbxDraft(); if (!dbxObj(dD.locs)) return true; dbxSet(dD.locs, 'die', txt.trim() ? txt : ''); }   // 1.6.0
+    else if (dbxHas(c, 'sys-dmgr-locat')) { var dA = dbxDraft(); if (!dbxObj(dA.locs)) return true; dbxSet(dA.locs, 'at', txt.trim().slice(0, 60)); }   // 1.6.3 (finding 27): Unaimed blows land at, a location's name or entry key
     else if (dbxHas(c, 'sys-dmgr-mjcripby')) { var dB = majAt(t); if (!dB || !dB.row.crip) return true; dbxSet(dB.row, 'cripBy', txt.trim() ? txt : ''); majWrite(dB.d, dB.rows); }   // 1.6.0 (the core's ruling on gap 7)
     else if (dbxHas(c, 'sys-dmgr-mjif')) { var dW = majAt(t); if (!dW) return true; dbxSet(dW.row, 'if', txt.trim() ? txt : ''); majWrite(dW.d, dW.rows); }   // 1.6.0: a Major Wound row's where
     else if (dbxHas(c, 'sys-dmgr-ocripby')) { var oB = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oB) return true; dbxSet(oB, 'cripBy', txt.trim() ? txt : ''); }

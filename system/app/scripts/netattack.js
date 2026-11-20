@@ -441,7 +441,7 @@ function attemptByIf(camp, text, row, ch, tc) {
 }
 // [netcheck:thru-start] 1.6.2 (CORE Ch14; the owner, by prompt: "On the parry roll"): a list's roll ticked Takes the blow on this row that resists an
 // attempt: the host keeps which row took it, for two minutes, in its memory alone, and the Take damage window on this machine names that row and
-// ticks What is over its Dur goes on (sheets.js takeDamage through net.thruOf). The GM is told
+// ticks What is over its durability goes on, in the weapon list's own word (sheets.js takeDamage through net.thruOf). The GM is told
 var _thru = Object.create(null);
 function thruNote(camp, ch, row, force) {   // force (1.6.3, defense fold 3): true where a line of When it answers an attack says Takes it on this row, false where the line picked says otherwise; absent, the list roll's own tick decides, as before
     if (force === false) return false;
@@ -449,7 +449,9 @@ function thruNote(camp, ch, row, force) {   // force (1.6.3, defense fold 3): tr
     var f = (Array.isArray(camp.system.fields) ? camp.system.fields : []).filter(function(x) { return x && x.id === row.f; })[0], rr = f && f.list && Array.isArray(f.list.rolls) && typeof row.i === 'number' ? f.list.rolls[row.i] : null; if (force !== true && (!rr || rr.thru !== true)) return false; if (!f) return false;
     var S = SC(), rw = (ch.values && Array.isArray(ch.values[f.id]) ? ch.values[f.id] : []).filter(function(r) { return S && S.rowIdOf(r) === row.r; })[0], rd = rw && S ? S.rowDef(camp.system, rw) : null, nm = rd && rd.def && rd.def.name ? String(rd.def.name).slice(0, 60) : 'a row';
     _thru[ch.id] = { r: row.r, at: Date.now() };
-    var words = String(ch.name || 'A character').slice(0, 60) + ' took the blow on ' + nm + '. Apply its damage from Take damage: what is over its Dur goes on.';
+    var dmR = camp.system.combat && camp.system.combat.damage && Array.isArray(camp.system.combat.damage.weapons) ? camp.system.combat.damage.weapons : [], wpR = dmR.filter(function(w) { return w && w.list === f.id; })[0];   // 1.6.3 (finding 27): the weapon list's own word for its durability, as the Take damage window says it
+    var dwR = wpR && typeof window !== 'undefined' && window.wpSheets && typeof window.wpSheets.durWord === 'function' ? window.wpSheets.durWord(camp.system, wpR) : 'durability';
+    var words = String(ch.name || 'A character').slice(0, 60) + ' took the blow on ' + nm + '. Apply its damage from Take damage: what is over its ' + dwR + ' goes on.';
     if (typeof logEvent === 'function') logEvent('table', words); if (typeof toast === 'function') toast(words); return true;
 }
 net.thruOf = function(charId) { var t = typeof charId === 'string' && _thru[charId] ? _thru[charId] : null; return t && Date.now() - t.at < 120000 ? t.r : null; };

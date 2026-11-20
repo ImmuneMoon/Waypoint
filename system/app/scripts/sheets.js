@@ -5152,6 +5152,19 @@ function autoFxInto(wrap, f, c, rows, sys, labels) {
     });
 }
 // [sinkcheck:autofx-end]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 19; Fulllion: "A search, grouped"): the sheet's + Add effect. A search box
+// and a list of the system's effects (uiparts.js find, the app's own choice of many with a search), the list grouped as each effect's tone says:
+// Helpful (buff), Harmful (debuff), then Other, each in the library's own order. A pick hands the effect's id to pick, which makes the very commit
+// the plain list made, and the control shows + Add effect... again at once, so the same effect may be added twice. A closed list changes its pick
+// at every arrow key, so a key step on it opens the list instead (whiteboard.js texListKeys, as the plain list had). Answers null where the
+// app's own parts are not at hand (a suite's page of plain objects), and effectsInto then draws the plain list as before
+function fxAddFind(defs, pick) {
+    var U = window.wpUi; if (!U || typeof U.find !== 'function' || !Array.isArray(defs) || !defs.length) return null;
+    var choices = defs.filter(function(d) { return d && typeof d.id === 'string' && d.id; }).map(function(d) { var ic = iconText(d.icon); return { value: d.id, name: (ic ? ic + ' ' : '') + (d.name || 'Effect'), group: d.tone === 'buff' || d.tone === 'debuff' ? d.tone : '' }; });
+    var w = U.find({ cls: 'sheet-fx-add', label: 'Add effect', blank: '+ Add effect…', placeholder: 'Find an effect', groups: [['buff', 'Helpful'], ['debuff', 'Harmful']], other: 'Other', choices: choices, set: function(v) { pick(v); if (w && typeof w.setValue === 'function') w.setValue(''); } });
+    if (window.wpTexList && w.select) window.wpTexList.keys(w.select);
+    return w;
+}
 function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the sheet's lock): may an effect be MADE here (New…); editable is what play needs: one applied from the system's list, switched, timed and ended
     editable = editable && _fxLive;
     var mk = edit === undefined ? editable : !!edit && _fxLive;
@@ -5184,7 +5197,9 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
     if (!wrap.childNodes.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No effects.'));
     if (!editable) return;
     var bar = el('div', 'sheet-fx-add-row'), defs = (sys && sys.effects) || [];
-    if (defs.length) {
+    var fxFind = defs.length && typeof fxAddFind === 'function' ? fxAddFind(defs, function(ref) { commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: ref }); }) : null;   // 1.6.3: a search, grouped (finding 19); the plain list below where the app's own parts are not at hand
+    if (fxFind) bar.appendChild(fxFind);
+    else if (defs.length) {
         var add = el('select', 'field sheet-fx-add'); add.appendChild(opt('', '+ Add effect\u2026', true)); if (window.wpTexList) window.wpTexList.keys(add);
         defs.forEach(function(d2) { add.appendChild(opt(d2.id, (iconText(d2.icon) ? iconText(d2.icon) + ' ' : '') + d2.name + (d2.tone ? ' (' + d2.tone + ')' : ''))); });
         add.addEventListener('change', function() { if (add.value) commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: add.value }); });
@@ -8426,6 +8441,30 @@ function dmgRowsOf(sys, c, listId) {   // [{ id, name }]: a list's rows the wind
     return out;
 }
 function dmgWhy(r) { return !r ? 'It cannot be worked out here.' : r.reason === 'error' ? (r.message || 'A figure could not be worked out.') : r.reason === 'missing' ? 'That location or weapon is not on the character now.' : r.reason === 'value' ? 'Check the damage and its type.' : 'This character cannot take damage that way.'; }
+// [damagecheck:dmgloc-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 27; Fulllion: "A system setting"): where a blow lands in the Take damage window
+// when nothing aimed it. The Taking damage rules' Unaimed blows land at (locs.at, a location's name or entry key): the first row whose entry is
+// named so or has that key, else one whose name holds it; with none set, or none found, the usual rule, a row named Torso, else one whose name
+// holds the word, else the first. wbblast.js torsoOf reads the same for a blast's shares, so the window and a blast land alike. rows: the window's
+// [{ id, name }] (dmgRowsOf); a row is read by its entry's own name, never the side the window writes beside it. Answers a row's id, or ''
+function dmgLocAt(sys, c, rules, rows) {
+    var SCd = window.wpSystemCore, lf = rules && rules.locs && sys ? fieldById(sys, rules.locs.list) : null, src = lf && c && c.values && Array.isArray(c.values[lf.id]) ? c.values[lf.id] : [];
+    var own = (Array.isArray(rows) ? rows : []).map(function(l) { var r = SCd ? src.filter(function(x) { return dmgObj(x) && SCd.rowIdOf(x) === l.id; })[0] : null, d = r ? SCd.rowDef(sys, r) : null; return { id: l.id, name: (d && d.def && typeof d.def.name === 'string' ? d.def.name : String(l.name || '')).toLowerCase(), key: d && d.def && typeof d.def.key === 'string' ? d.def.key.toLowerCase() : '' }; });
+    var at = rules && rules.locs && typeof rules.locs.at === 'string' ? rules.locs.at.trim().toLowerCase() : '';
+    var hit = at ? own.filter(function(x) { return x.name === at || x.key === at; })[0] || own.filter(function(x) { return x.name.indexOf(at) >= 0; })[0] : null;
+    hit = hit || own.filter(function(x) { return x.name === 'torso'; })[0] || own.filter(function(x) { return x.name.indexOf('torso') >= 0; })[0] || own[0];
+    return hit ? hit.id : '';
+}
+// 1.6.3 (finding 27): what the window calls a weapon's durability, in the system's own words: the label of the stat or column of the weapon list
+// that its Dur formula reads, where that formula is one name of the row (Row.<key>), else plain durability. A player's view of the rules keeps
+// no formula, so a player's window says durability. wp: one of the Taking damage rules' weapons. Published as wpSheets.durWord for net.js
+function dmgDurWord(sys, wp) {
+    var m = wp && typeof wp.dur === 'string' ? /^\s*Row\.([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(wp.dur) : null, f = m && sys ? fieldById(sys, wp.list) : null, sp = f && dmgObj(f.list) ? f.list : null;
+    var all = sp ? (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []) : [], hit = m ? all.filter(function(s) { return dmgObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === m[1].toLowerCase(); })[0] : null;
+    var lb = hit && typeof hit.label === 'string' ? hit.label.trim() : '';
+    return lb ? lb.slice(0, 40) : 'durability';
+}
+// [damagecheck:dmgloc-end]
 var _dmgWin = null;
 function dmgClose() { if (_dmgWin && _dmgWin.parentNode) _dmgWin.parentNode.removeChild(_dmgWin); _dmgWin = null; }
 // [systemcheck:dmgfollow-start]
@@ -8444,10 +8483,28 @@ function takeDamage(charId, pre) {
     dmgClose();
     var box = el('div', 'dmg-win'); box.id = 'dmgWin'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
     var card = el('div', 'dmg-card'); box.appendChild(card);
-    card.appendChild(el('h3', 'dmg-title', 'Take damage \u2014 ' + (c.name || 'Unnamed')));
+    var whoL = Array.isArray(pre.who) ? pre.who.filter(function(x) { return dmgObj(x) && typeof x.id === 'string' && x.id; }) : [], whoOpen = pre.whoOpen === true && whoL.length > 0;   // 1.6.3 (finding 29): a card's window, with who it may land on (damageFromRoll dmgWhoList); whoOpen, nobody picked yet
+    card.appendChild(el('h3', 'dmg-title', whoOpen ? 'Take damage' : 'Take damage \u2014 ' + (c.name || 'Unnamed')));
     var row = function(label, ctl, line) { var r = el('label', 'dmg-row'), nm = el('span', 'dmg-name', label); r.appendChild(nm); r.appendChild(ctl); if (line) r.appendChild(el('small', 'dmg-line', line)); card.appendChild(r); return ctl; };
     var amt = el('input', 'dmg-amt'); amt.type = 'number'; amt.min = '0'; amt.step = '1'; amt.value = typeof pre.amt === 'number' && isFinite(pre.amt) ? String(Math.max(0, Math.floor(pre.amt))) : '';
+    var who = null;
+    if (whoL.length) {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 29; Fulllion: "Open with a Who list"): pick who the hit lands on. A pick draws the window again for that character, keeping the damage typed
+        who = el('select', 'dmg-who'); if (whoOpen) who.appendChild(new Option('Pick who it lands on', ''));
+        whoL.forEach(function(x) { who.appendChild(new Option(String(x.name || 'Unnamed'), x.id)); }); who.value = whoOpen ? '' : charId;
+        row('Who', who, 'The characters on the map on screen. The roller\u2019s target comes first, then the token you selected.');
+        who.addEventListener('change', function() { if (!who.value || (!whoOpen && who.value === charId)) return; var av = Number(amt.value), np = Object.assign({}, pre, { whoOpen: false }); if (amt.value !== '' && isFinite(av) && av >= 0) np.amt = av; takeDamage(who.value, np); });
+    }
     row('Damage', amt, 'The damage rolled, before DR.');
+    if (whoOpen) {   // nobody picked: the rest of the window is drawn for the character picked, since its locations, weapons and pools are its own
+        card.appendChild(el('div', 'dmg-preview dmg-hint', 'Pick who it lands on.'));
+        var wBar = el('div', 'dmg-btns'), wCancel = el('button', 'tool ghost', 'Cancel'), wGo = el('button', 'tool', 'Apply'); wCancel.type = 'button'; wGo.type = 'button'; wBar.appendChild(wCancel); wBar.appendChild(wGo); card.appendChild(wBar);
+        wCancel.addEventListener('click', dmgClose); wGo.addEventListener('click', function() { toast('Pick who it lands on first.'); try { who.focus(); } catch (e) {} });
+        box.addEventListener('keydown', function(e) { if (e.key === 'Escape') { e.preventDefault(); dmgClose(); } else if (e.key === 'Enter' && e.target && e.target.tagName !== 'BUTTON' && e.target !== who) { e.preventDefault(); wGo.click(); } e.stopPropagation(); });   // the window's keys are its own, as below
+        box.addEventListener('mousedown', function(e) { if (e.target === box) dmgClose(); });
+        document.body.appendChild(box); _dmgWin = box;
+        try { who.focus(); } catch (e) {}
+        return true;
+    }
     var types = Array.isArray(rules.types) ? rules.types : [], tsel = el('select', 'dmg-type');
     types.forEach(function(t) { tsel.appendChild(new Option(t.label, t.key)); }); if (typeof pre.type === 'string') tsel.value = pre.type;
     if (types.length) row('Type', tsel, 'How the blow wounds. It sets the multiplier and which DR counts.');
@@ -8455,21 +8512,25 @@ function takeDamage(charId, pre) {
     if (kinds.length) { kindSel(ksel, 'None', pre.kind); row('Kind', ksel, 'What kind of blow it is. DR and a layer may stop one kind and not another.'); }
     var locs = rules.locs ? dmgRowsOf(sys, c, rules.locs.list) : [], lsel = el('select', 'dmg-loc');
     lsel.appendChild(new Option('No location', '')); locs.forEach(function(l) { lsel.appendChild(new Option(l.name, l.id)); });
-    var dl = locs.filter(function(l) { return /^torso$/i.test(l.name); })[0] || locs.filter(function(l) { return /torso/i.test(l.name); })[0] || locs[0]; if (dl) lsel.value = dl.id;
+    var dl = typeof dmgLocAt === 'function' ? dmgLocAt(sys, c, rules, locs) : ((locs.filter(function(l) { return /^torso$/i.test(l.name); })[0] || locs.filter(function(l) { return /torso/i.test(l.name); })[0] || locs[0]) || {}).id; if (dl) lsel.value = dl;   // 1.6.3 (finding 27): the system's Unaimed blows land at first, else the usual rule
     if (typeof pre.loc === 'string' && locs.some(function(l) { return l.id === pre.loc; })) lsel.value = pre.loc;   // 1.6.0 (B5): where its roll was aimed, a row of this very character
     if (locs.length) row('Location', lsel, 'Where the blow lands. Its DR is taken off first.');
     var ad = el('input', 'dmg-ad'); ad.type = 'number'; ad.min = '0.1'; ad.step = '0.5'; ad.value = typeof pre.ad === 'number' && isFinite(pre.ad) && pre.ad > 0 ? String(pre.ad) : '1';   // 1.6.0: a card's roll may fill it in
     row('Armor divisor', ad, '1 for none. DR is divided by it.');
     var diceOn = rules.dice === true || (typeof SCd.dmgDiceRead === 'function' && SCd.dmgDiceRead(rules)), dce = el('input', 'dmg-dice'); dce.type = 'number'; dce.min = '0'; dce.max = '100'; dce.step = '1'; dce.value = typeof pre.dice === 'number' && isFinite(pre.dice) && pre.dice > 0 ? String(Math.min(100, Math.floor(pre.dice))) : '';   // 1.6.0: the dice the blow rolled, asked only where the rules read them
     if (diceOn) row('Dice rolled', dce, 'How many dice the damage rolled. Some types and locations count a figure for each.');
-    var wps = []; (Array.isArray(rules.weapons) ? rules.weapons : []).forEach(function(w) { wps = wps.concat(dmgRowsOf(sys, c, w.list)); });
+    var wps = [], durOf = {}, durAll = []; (Array.isArray(rules.weapons) ? rules.weapons : []).forEach(function(w) { var rs = dmgRowsOf(sys, c, w.list), dw = typeof dmgDurWord === 'function' ? dmgDurWord(sys, w) : 'durability'; rs.forEach(function(r) { durOf[r.id] = dw; }); if (rs.length && durAll.indexOf(dw) < 0) durAll.push(dw); wps = wps.concat(rs); });   // 1.6.3 (finding 27): each weapon list's own word for its durability
+    var durNow = function() { return durOf[wsel.value] || (durAll.length === 1 ? durAll[0] : 'durability'); };   // the weapon picked, else the one word every list shares
     var wsel = el('select', 'dmg-weapon'), only = el('input', 'dmg-only'), thru = el('input', 'dmg-thru'); only.type = 'checkbox'; thru.type = 'checkbox';
     if (wps.length) {
         wsel.appendChild(new Option('None', '')); wps.forEach(function(w) { wsel.appendChild(new Option(w.name, w.id)); });
-        row('Weapon tested', wsel, 'A weapon targeted, or one held on a hard hit. Its Dur is tested.');
+        row('Weapon tested', wsel, 'A weapon targeted, or one held on a hard hit. Its ' + durNow() + ' is tested.');
+        var wLine = wsel.parentNode && wsel.parentNode.lastChild && wsel.parentNode.lastChild !== wsel ? wsel.parentNode.lastChild : null;
         var ol = el('label', 'dmg-tick'); ol.appendChild(only); ol.appendChild(document.createTextNode(' Only the weapon was hit')); card.appendChild(ol);
-        var tl = el('label', 'dmg-tick'); tl.appendChild(thru); tl.appendChild(document.createTextNode(' What is over its Dur goes on')); tl.title = 'A blade or a shield took the blow: its listed Dur stops that much, and the rest hits as a normal blow'; card.appendChild(tl);   // 1.6.2
-        var thruR = typeof pre.thru === 'string' && pre.thru ? pre.thru : pre.noThru !== true && window.wpNet && typeof window.wpNet.thruOf === 'function' ? window.wpNet.thruOf(charId) : null;   /* 1.6.3 (defense fold 3): a landing's damage names the parrying row from its record alone (noThru), never the defender's last parry */ if (thruR && wps.some(function(w) { return w.id === thruR; })) { wsel.value = thruR; thru.checked = true; }   // a parry that took the blow, on the host; 1.6.3 (the review of defense fold 1): a landed attack's card names the row itself, however late it is pressed
+        var tl = el('label', 'dmg-tick'), tlT = document.createTextNode(' What is over its ' + durNow() + ' goes on'); tl.appendChild(thru); tl.appendChild(tlT); tl.title = 'A blade or a shield took the blow: its listed ' + durNow() + ' stops that much, and the rest hits as a normal blow'; card.appendChild(tl);   // 1.6.2
+        var durSay = function() { var dw = durNow(); if (wLine) wLine.textContent = 'A weapon targeted, or one held on a hard hit. Its ' + dw + ' is tested.'; tlT.textContent = ' What is over its ' + dw + ' goes on'; tl.title = 'A blade or a shield took the blow: its listed ' + dw + ' stops that much, and the rest hits as a normal blow'; };   // the words follow the weapon picked
+        wsel.addEventListener('change', durSay);
+        var thruR = typeof pre.thru === 'string' && pre.thru ? pre.thru : pre.noThru !== true && window.wpNet && typeof window.wpNet.thruOf === 'function' ? window.wpNet.thruOf(charId) : null;   /* 1.6.3 (defense fold 3): a landing's damage names the parrying row from its record alone (noThru), never the defender's last parry */ if (thruR && wps.some(function(w) { return w.id === thruR; })) { wsel.value = thruR; thru.checked = true; durSay(); }   // a parry that took the blow, on the host; 1.6.3 (the review of defense fold 1): a landed attack's card names the row itself, however late it is pressed
     }
     var p2p = dmgObj(pre.part2) && typeof pre.part2.amt === 'number' && isFinite(pre.part2.amt) && pre.part2.amt >= 0 ? pre.part2 : null, p2amt = el('input', 'dmg-amt2'), p2sel = el('select', 'dmg-type2'), p2ad = el('input', 'dmg-ad2'), p2kd = el('select', 'dmg-kind2');   // 1.6.0 (B3): a card's second part, of another type, the same blow
     if (p2p) {
@@ -8574,11 +8635,16 @@ function aimNext(id) { _aimNext = typeof id === 'string' && /^w_[A-Za-z0-9_]{1,2
 function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, called once the window applies it; type, the damage type the roll names; more (1.6.0): { dice, ad }, the dice it rolled and the armor divisor its row names; more.aim (1.6.3, the review of defense fold 0): a called damage roll stamped as landing on nobody, so the selected token alone is read and never the pointer of the one who rolled it
     var n = net(), camp = getActiveCampaign(), onC = dmgObj(more) && typeof more.on === 'string' ? charById(more.on, camp) : null, aimS = dmgObj(more) && more.aim === true, t = !onC && !aimS && n && dmgObj(n.targets) && typeof fromId === 'string' && Object.prototype.hasOwnProperty.call(n.targets, fromId) ? n.targets[fromId] : null;
     var mp = t && camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, t.mapId) ? camp.items[t.mapId] : null, tok = mp && Array.isArray(mp.whiteboard) ? mp.whiteboard.find(function(w) { return w && w.id === t.id; }) : null;
-    if (!tok && !onC) { var am = camp && camp.items ? camp.items[camp.activeItemId] : null, sel = state.selWbIds && state.selWbIds.length === 1 ? state.selWbIds[0] : state.selWbId; if (am && Array.isArray(am.whiteboard) && sel) tok = am.whiteboard.find(function(w) { return w && w.id === sel; }); }
+    var tokT = tok, am = camp && camp.items ? camp.items[camp.activeItemId] : null, sel = state.selWbIds && state.selWbIds.length === 1 ? state.selWbIds[0] : state.selWbId, tokS = am && Array.isArray(am.whiteboard) && sel ? am.whiteboard.find(function(w) { return w && w.id === sel; }) : null;   // the roller's target, and the one token selected here
+    if (!tok && !onC) tok = tokS;
     var aimD = _aimNext; _aimNext = '';
     if (!onC && tok && tok.fly && typeof tok.fly === 'object' && typeof window.wpFlyHit === 'function') { var fhD = window.wpFlyHit(tok, { amt: total, type: typeof type === 'string' ? type : '', ad: dmgObj(more) && typeof more.ad === 'number' ? more.ad : 1 }); if (fhD && typeof done === 'function') done(); return !!fhD; }   // 1.6.2 (vehicles, fold (d)): a thing in flight, shot at (the core's D7)
-    if (!onC && (!tok || typeof tok.charId !== 'string' || !tok.charId)) { toast(aimS ? 'Select the token this damage lands on, then press Apply again.' : 'Target a character first, or select its token, then press Apply to target again.'); return false; }
-    var pre = { amt: total }; if (aimD) pre.loc = aimD; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type; if (dmgObj(more) && typeof more.kind === 'string' && more.kind) pre.kind = more.kind;
+    var cidD = onC ? onC.id : tok && typeof tok.charId === 'string' && tok.charId ? tok.charId : '';
+    var whoD = !onC && typeof dmgWhoList === 'function' ? dmgWhoList(camp, [tokT && tokT.charId, tokS && tokS.charId]) : null;   // 1.6.3 (finding 29): who else it may land on, the roller's target first, then the selection
+    if (!cidD && !(whoD && whoD.length)) { toast(aimS ? 'Select the token this damage lands on, then press Apply again.' : 'Target a character first, or select its token, then press Apply to target again.'); return false; }   // no character on the map on screen, so there is nobody to pick
+    var pre = { amt: total };
+    if (whoD && whoD.length) { pre.who = whoD; if (!cidD) { pre.whoOpen = true; cidD = whoD[0].id; } }   // nobody targeted or selected: the window asks who before anything else
+    if (aimD) pre.loc = aimD; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type; if (dmgObj(more) && typeof more.kind === 'string' && more.kind) pre.kind = more.kind;
     if (dmgObj(more) && typeof more.thru === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(more.thru)) pre.thru = more.thru;   // 1.6.3 (the review of defense fold 1): the row a parry took the blow on, from the landing's record
     if (dmgObj(more) && more.noThru === true) pre.noThru = true;   // 1.6.3 (defense fold 3): a damage roll a defense judged names its row itself or none
     if (dmgObj(more) && typeof more.tb === 'number' && isFinite(more.tb) && Math.abs(more.tb) <= 180) pre.tb = Math.round(more.tb);   // 1.6.2 (13): where the attacker stood
@@ -8586,7 +8652,18 @@ function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, cal
     if (dmgObj(more) && dmgObj(more.part2) && typeof more.part2.amt === 'number' && isFinite(more.part2.amt) && more.part2.amt >= 0) { var p2m = { amt: Math.floor(more.part2.amt) }; if (typeof more.part2.type === 'string' && more.part2.type) p2m.type = more.part2.type; if (typeof more.part2.ad === 'number' && isFinite(more.part2.ad) && more.part2.ad > 0) p2m.ad = more.part2.ad; if (typeof more.part2.dice === 'number' && isFinite(more.part2.dice) && more.part2.dice > 0) p2m.dice = more.part2.dice; if (typeof more.part2.kind === 'string' && more.part2.kind) p2m.kind = more.part2.kind; pre.part2 = p2m; }   // 1.6.0 (B3): the blow's second part, of another type
     [3, 4, 5].forEach(function(k) { var mk = dmgObj(more) ? more['part' + k] : null; if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFinite(mk.amt) || mk.amt < 0) return; var pm = { amt: Math.floor(mk.amt) }; if (typeof mk.type === 'string' && mk.type) pm.type = mk.type; if (typeof mk.ad === 'number' && isFinite(mk.ad) && mk.ad > 0) pm.ad = mk.ad; if (typeof mk.dice === 'number' && isFinite(mk.dice) && mk.dice > 0) pm.dice = mk.dice; if (typeof mk.kind === 'string' && mk.kind) pm.kind = mk.kind; pre['part' + k] = pm; });   // 1.6.0: a third and a fourth part, alike
     if (dmgObj(more) && Array.isArray(more.hits)) { var hsM = []; more.hits.forEach(function(h) { var hp = dmgPartPre(h); if (!hp) return; if (h.major === true) hp.major = true; [2, 3, 4, 5].forEach(function(k) { var pk = dmgPartPre(h['part' + k]); if (pk) hp['part' + k] = pk; }); hsM.push(hp); }); if (hsM.length) pre.hits = hsM; }   // 1.6.0 A burst: the hits after the first
-    return takeDamage(onC ? onC.id : tok.charId, pre);
+    return takeDamage(cidD, pre);
+}
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 29; Fulllion: "Open with a Who list"): who a damage card's window may land
+// on. firsts (the roller's target's character, then the selected token's) stand first, wherever they are; then the characters of every other
+// character token on the map on screen (never a waiting token), each once, by name. Only a character this screen may damage (canDamage) and
+// one still in the campaign. [{ id, name }]: names are a sheet's own and are set as an option's text by takeDamage
+function dmgWhoList(camp, firsts) {
+    var am = camp && camp.items ? camp.items[camp.activeItemId] : null, seen = Object.create(null), out = [];
+    var put = function(cid) { if (typeof cid !== 'string' || !cid || seen[cid]) return; var ch = typeof charById === 'function' ? charById(cid, camp) : null; if (!ch || (typeof canDamage === 'function' && !canDamage(cid))) return; seen[cid] = 1; out.push({ id: cid, name: String(ch.name || 'Unnamed').slice(0, 60) }); };
+    (Array.isArray(firsts) ? firsts : []).forEach(put); var lead = out.length;
+    (am && Array.isArray(am.whiteboard) ? am.whiteboard : []).forEach(function(w) { if (w && !w.waiting && typeof w.charId === 'string') put(w.charId); });
+    return out.slice(0, lead).concat(out.slice(lead).sort(function(a, b) { return a.name.localeCompare(b.name); }));
 }
 function dmgPartPre(mk) { if (!dmgObj(mk) || typeof mk.amt !== 'number' || !isFinite(mk.amt) || mk.amt < 0) return null; var pm = { amt: Math.floor(mk.amt) }; if (typeof mk.type === 'string' && mk.type) pm.type = mk.type; if (typeof mk.ad === 'number' && isFinite(mk.ad) && mk.ad > 0) pm.ad = mk.ad; if (typeof mk.dice === 'number' && isFinite(mk.dice) && mk.dice > 0) pm.dice = mk.dice; if (typeof mk.kind === 'string' && mk.kind) pm.kind = mk.kind; return pm; }
 function damageOn() { var sys = systemOf(); return !!dmgRules(sys) && !isClient() && canWrite(); }   // the cards' Apply to target: the GM's own machine
@@ -8600,7 +8677,7 @@ window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, re
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by
-Object.assign(window.wpSheets, { facingTarget: facingTarget, dueBlock: dueBlock, takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext });   // 1.5.6, the damage step
+Object.assign(window.wpSheets, { facingTarget: facingTarget, dueBlock: dueBlock, takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext, durWord: dmgDurWord });   // 1.5.6, the damage step; 1.6.3: a weapon's durability in the system's words (net.js thruNote)
 Object.assign(window.wpSheets, { glyphButton: glyphButton, closeGlyphPicker: closeGlyphPicker });   // 1.6.3 (the editor coverage audit, gap 10): the Library window's Icon is picked by sight with the Items tab's own picker
 
 // An outside sheet reader (2026-10-18): a module of the GM's own may stand beside the app, in the repository's private/ folder, which only the

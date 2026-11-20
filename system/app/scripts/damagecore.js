@@ -58,6 +58,8 @@ export function damageCore() {   // [split:glue]
 //           A layer wears only where the damage rolled is more than its figure as it stands (the listed figure less its wear, never below 0).
 //           1.6.0 (the v2 combat module): 8 layers at most, and a layer may wear another stat by location: wears, up to 8 number stats of its list,
 //           and pick, a formula read as at is that gives the place in wears of the stat worn there, 1 for the first; any other figure wears wear.
+//           locs.at (1.6.3): where a blow lands when nothing aimed it, a location's name or entry key (absent: a row named Torso, else one
+//           that holds the word, else the first row), read by the Take damage window and a blast's shares alike
 //           locs.die (1.6.0): a formula of the location's names and the character's, added to a wound that gets through for each die the blow rolled
 //   weapons [{ list, dur, wear, cond }]: a weapon tested by a blow: its listed Dur (a formula of Row.), its stat of wear and its stat of condition
 // The players' view keeps what the window asks (the pool, the types by name, the location list) and no formula: the host works the blow out.
@@ -162,6 +164,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
         var lc = { list: d.locs.list };
         if (!pl) { var dr = dmgNameOk(fl, lc.list, d.locs.dr); if (dr) lc.dr = dr; var cr = dmgNameOk(fl, lc.list, d.locs.crip); if (cr) lc.crip = cr; var vt = fx(d.locs.vital); if (vt) lc.vital = vt; var lm = fx(d.locs.mult); if (lm) lc.mult = lm; var ldi = fx(d.locs.die); if (ldi) lc.die = ldi; }
         var lsd = dmgStatOk(fl, lc.list, d.locs.side); if (lsd) lc.side = lsd;   // 1.6.0 Sides of a location, in both views: a player's own sheet reads <Locs>.Left.<w>
+        var lat = typeof d.locs.at === 'string' ? cutText(d.locs.at, 60) : ''; if (lat) lc.at = lat;   // 1.6.3 (finding 27; Fulllion: "A system setting"): Unaimed blows land at, a location by its name or entry key, cleaned as a blast area's loc is, the same in both views (a player's own Take damage window opens on it too). Read by sheets.js dmgLocAt and wbblast.js torsoOf; absent, the usual rule
         out.locs = lc;
     }
     if (mj && !pl && Array.isArray(d.onMajor)) {   // 1.6.0: a list of rows, the first that holds is what a Major Wound does

@@ -31,7 +31,7 @@ function open(opts) {
     buildAll();
     var head = el('div', 'lib-pick-head'); head.appendChild(el('b', null, opts.title || 'Add from the library'));
     var x = el('button', 'tool ghost lib-pick-x', '×'); x.type = 'button'; x.title = 'Close (Esc)'; x.addEventListener('click', close); head.appendChild(x); pop.appendChild(head);
-    var search = el('input', 'field lib-pick-search'); search.type = 'text'; search.maxLength = 120; search.placeholder = 'Search names, keys, categories, tags…'; pop.appendChild(search);
+    var search = el('input', 'field lib-pick-search'); search.type = 'text'; search.maxLength = 120; search.placeholder = 'Search names, categories, tags…';   /* 1.6.3 (finding 40): no builder's word; the search still finds an entry by its short name */ pop.appendChild(search);
     var chips = el('div', 'lib-pick-chips'); pop.appendChild(chips);
     var body = el('div', 'lib-pick-body'), list = el('div', 'lib-pick-list'), spacer = el('div', 'lib-spacer'), prev = el('div', 'lib-pick-prev');
     list.appendChild(spacer); body.appendChild(list); body.appendChild(prev); pop.appendChild(body);
@@ -159,6 +159,12 @@ function move(d) {
     if (y < list.scrollTop) list.scrollTop = y; else if (y + ROW_H > list.scrollTop + list.clientHeight) list.scrollTop = y + ROW_H - list.clientHeight;
     draw(); preview();
 }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 40): a note that is only the description's own beginning (white space aside, and
+// the dots a cut note ends with), by the sheet's own rule (sheets.js noteInDesc), so the preview says it once
+function noteBegins(note, desc) {
+    var n = String(note || '').replace(/\s+/g, ' ').trim().replace(/(\.\.\.|…)$/, '').trim(), d = typeof desc === 'string' ? desc.replace(/\s+/g, ' ').trim() : '';
+    return !!n && !!d && d.indexOf(n) === 0;
+}
 function line(box, label, value) { if (value === undefined || value === null || value === '') return; var r = el('div', 'lib-pick-line'); r.appendChild(el('span', 'lib-pick-k', label)); r.appendChild(el('span', 'lib-pick-v', value)); box.appendChild(r); }
 function preview() {
     if (typeof rollState === 'function') rollState();
@@ -185,7 +191,7 @@ function preview() {
     if (Array.isArray(e.lvlOnly) && e.lvlOnly.length) line(box, 'Levels it may be', e.lvlOnly.map(function(t) { return Array.isArray(t) ? t[0] + ' to ' + t[1] : String(t); }).join(', '));   // 1.6.0
     if (e.area && e.area.ft) line(box, 'Blast', e.area.ft + ' ft');
     if (st.opts.gm) { line(box, 'Damage', e.damage); line(box, 'Cost', e.cost); }
-    if (e.notes) box.appendChild(el('div', 'lib-pick-notes', e.notes));
+    if (e.notes && !noteBegins(e.notes, e.desc)) box.appendChild(el('div', 'lib-pick-notes', e.notes));   // 1.6.3 (finding 40): a note that is only the description's own cut beginning is not said twice
     if (e.desc) box.appendChild(el('div', 'lib-pick-desc', e.desc));
     if (Array.isArray(e.lvls) && e.lvls.length) { var lt = el('div', 'lib-pick-lvls'); e.lvls.forEach(function(r) { if (!r || typeof r.text !== 'string') return; var ln = el('div', 'lib-pick-lvl'); ln.appendChild(el('b', null, String(r.lvl) + (typeof r.tag === 'string' && r.tag ? ' (' + r.tag + ')' : ''))); ln.appendChild(el('span', null, r.text)); lt.appendChild(ln); }); box.appendChild(lt); }   // 1.5.4: what each level gives
     if (Array.isArray(e.tags) && e.tags.length) line(box, 'Tags', e.tags.join(', '));

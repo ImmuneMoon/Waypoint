@@ -6,7 +6,7 @@
      page), the sheet walked as it is laid out: the header, the dashboard, the band as one line, every tab, every section.
    fileBase(name): a character's name as a file name. isCharFile(j): a character file. The caller (sheets.js) picks the view, works out
    `all` (resolveAll) on that same view and saves the file. */
-import { partsSrcs, partsFromHas, LIMITS as SYS_LIMITS, STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, partsOf, partsSrc, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords, rowLookShown, finishWords, workWords } from './systemcore.js';
+import { partsSrcs, partsFromHas, LIMITS as SYS_LIMITS, STORED, fmtNum, headerEntry, autoLayout, catPlace, placeVal, setsOf, partsOf, partsSrc, rowDef, rowIdOf, rowLvl, rowOn, rowStat, plusText, rowPaid, showsIf, postureAt, ownPostures, lookOf, unitWords, textWords, listWords, rowLookShown, finishWords, workWords, nameWord } from './systemcore.js';
 import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
@@ -190,7 +190,16 @@ function statText(st, v) { if (typeof v === 'string') return v || '—'; var L =
 function statShown(st, v, metric) { var t = statText(st, v); return st && typeof st.unit === 'string' && st.unit && typeof v === 'number' && t === statFmt(v) ? listWords(st, v, t, metric) : t; }
 function colShown(c, v, metric) { var t = String(v.text == null ? '' : v.text); if (!c.unit || !v.text) return t; return typeof v.value === 'number' && t === statFmt(v.value) ? listWords(c, v.value, t, metric) : t + ' ' + c.unit; }
 // An effect's change as short text ("ST +2", "HP max +5", "Prone on"; sheets.js fxChangeText)
-function fxChangeText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '−') + fmtNum(Math.abs(m.v)); }
+// The review of words (the improvement week's review of sheets and rolls): the page says an effect's change as the sheet does (sheets.js fxChangeText).
+// A change worked out by a formula (m.vf) was written "+0", its v; it is said in words now (amountWords), never the formula, and a floor or a
+// ceiling (op max, min) as at least or at most. sys: the system the page is written from, whose labels name what the formula reads
+function amountWords(sys, text) {
+    var t = String(text === null || text === undefined ? '' : text).trim(); if (!t) return 'an amount';
+    var FC = typeof window !== 'undefined' ? window.wpFormCore : null, r = null; try { r = FC ? FC.read(t) : null; } catch (err) { r = null; }
+    if (!r || !r.ok) return /^[+\-]?\d+(\.\d+)?$/.test(t) ? t : 'an amount';
+    try { return FC.says(r.form, { name: function(n) { return nameWord(sys, n); } }) || 'an amount'; } catch (err) { return 'an amount'; }
+}
+function fxChangeText(m, labels, sys) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + amountWords(sys, m.vf); if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : ' at most ') + fmtNum(m.v); return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '−') + fmtNum(Math.abs(m.v)); }
 function valueText(f, e, metric) {   // metric (1.5.4): the viewer's setting, true for Metric and false for Imperial; absent, as stored
     if (!e) return '—';
     if (e.error) return gmOnlyError(String(e.error)) ? 'GM only' : '—';
@@ -342,7 +351,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         var items = (Array.isArray(vals[f.id]) ? vals[f.id] : []).map(function(r) {
             if (!isObj(r)) return '';
             var d = typeof r.ref === 'string' ? lib[r.ref] : r; if (!isObj(d)) return '';
-            var ch = (Array.isArray(d.mods) ? d.mods : []).filter(isObj).map(function(m) { return fxChangeText(m, labels); }).join(' · ');
+            var ch = (Array.isArray(d.mods) ? d.mods : []).filter(isObj).map(function(m) { return fxChangeText(m, labels, sys); }).join(' · ');
             return '<li>' + esc(plain(String(d.name || 'Effect') + (ch ? ' — ' + ch : '') + (r.on === false ? ' (suspended)' : ''))) + '</li>';
         }).filter(Boolean);
         var label = plain(f.label || f.key || 'Effects');

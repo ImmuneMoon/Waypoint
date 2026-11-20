@@ -51,6 +51,29 @@ function page() {
     check('a counter that may not be changed is read only, its buttons off', off.input.readOnly === true && off.less.disabled && off.more.disabled);
     const dec = []; const sp = U.step({ value: 1, min: 0.5, max: 2, step: 0.1, dec: 2, set: n => dec.push(n) }, page()); sp.more.fire('click'); sp.input.value = '1.234'; sp.input.fire('change');
     check('a counter of decimals steps by its own step and rounds to its places', J(dec) === J([1.1, 1.23]) && sp.input.step === '0.01', J(dec));
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 4): a figure typed and not yet handed on, then another button pressed
+    const fl = [], fc = U.step({ value: 0, min: -99, max: 99, set: n => fl.push(n) }, page());
+    fc.input.value = '3'; fc.flush(); fc.flush(); fc.input.value = 'x'; fc.flush(); const flX = fc.input.value; fc.input.value = '120'; fc.flush();
+    const dsrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8'), bsrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'boxes.js'), 'utf8');
+    check('1.6.3 (finding 4): flush() hands on what the box holds now, once, held to its bounds, a figure that is no number left as it is; the \u00b1 window\'s Roll and a container\'s Take ask it first, and Enter in the modifier rolls',
+        J(fl) === J([3, 99]) && flX === 'x' && dsrc.includes("go.addEventListener('click', function() { if (numEl && typeof numEl.flush === 'function') numEl.flush(); var r = applied();")
+        && dsrc.includes("if (numEl.input) numEl.input.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.isComposing) go.click(); });")
+        && bsrc.includes("if (card.step && typeof card.step.flush === 'function') card.step.flush(); take({ fid: sel.fid, rowId: sel.rowId, qty: Math.max(1, Math.min(sel.qty, _box.qty | 0 || q)) });"), J(fl));
+    {   // 1.6.3 (the review of input): the real order of a press after a figure typed. A private copy of the module is loaded with a document of the suite's
+        // own, so its pointer listeners are there: the pointer goes down on Roll, the box's change is queued (later), Roll's click asks flush, the press lands
+        const L = {}, gd = Object.getOwnPropertyDescriptor(global, 'document'), gw = Object.getOwnPropertyDescriptor(global, 'window');
+        global.document = { addEventListener(t, f) { L[t] = f; } }; global.window = { addEventListener() {} };
+        const U2 = await import(url('uiparts.js') + '?down');
+        if (gd) Object.defineProperty(global, 'document', gd); else delete global.document; if (gw) Object.defineProperty(global, 'window', gw); else delete global.window;
+        const g2 = [], c2 = U2.step({ value: 0, min: -99, max: 99, set: n => g2.push(n) }, page());
+        c2.input.value = '4'; L.pointerdown(); c2.input.fire('change'); const queued = g2.slice(); c2.flush(); const flushed = g2.slice(); L.pointerup(); await new Promise(r => setTimeout(r, 5)); const landed = g2.slice();
+        // and a figure handed on by the counter itself (Enter, an arrow key, − and +) takes off the mark a view of the sheet keeps on a box being typed in
+        const marks = []; c2.input._wpTyped = true; c2.input.value = '6'; c2.input.fire('keydown', { key: 'Enter' }); marks.push(c2.input._wpTyped);
+        c2.input._wpTyped = true; c2.input.fire('keydown', { key: 'ArrowUp' }); marks.push(c2.input._wpTyped); c2.input._wpTyped = true; c2.more.fire('click'); marks.push(c2.input._wpTyped);
+        c2.input._wpTyped = true; c2.input.value = 'x'; c2.input.fire('keydown', { key: 'Enter' }); marks.push(c2.input._wpTyped, c2.input.value);
+        check('1.6.3 (the review of input): a figure typed and then another button pressed: the change of the box waits while the pointer is down, the click of that button asks flush, which hands the figure on at once, and the press landing hands on nothing again; a figure the counter hands on itself (Enter, an arrow key, +, one that is no number put back) takes off the mark the sheet keeps on a box being typed in',
+            J(queued) === J([]) && J(flushed) === J([4]) && J(landed) === J([4]) && J(g2) === J([4, 6, 7, 8]) && J(marks) === J([false, false, false, false, '8']), J({ queued, flushed, landed, g2, marks }));
+    }
     // the review of the sweep: + read as a number, the arrow keys, a box found again, a change the caller did not make put back, a press landing first
     const plus = [], pd = page(), pc = U.step({ value: 0, min: -99, max: 99, set: n => plus.push(n) }, pd), pin = pc.input;
     pin.value = '+3'; pin.fire('change'); pin.fire('keydown', { key: 'ArrowUp' }); pin.fire('keydown', { key: 'ArrowDown' }); pin.fire('keydown', { key: 'ArrowDown' });

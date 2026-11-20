@@ -60,6 +60,13 @@ function slice(text, name) { const a = text.indexOf('// [togmcheck:' + name + '-
     check('Decide closes the choice, and the card then offers nothing more', text(c2.children[0]) === 'You decide.' && !c3.children[0].children.some(b => b.tag === 'button'));
     const c4 = { children: [], appendChild(c) { this.children.push(c); return c; } }; H.net.toGmButtons(c4, { id: 'r_none' }); H.net.role = 'client'; H.net.toGmButtons(c4, { id: 'r_two' });
     check('a roll the host does not keep, and a player’s app, draw no buttons', !c4.children.length);
+    {   // the review of the speed fold: net.toGmSig says, as text, what the GM's buttons read for a roll, so Table Chat draws its card again when it moves
+        const G = mkHost(), sg = id => G.net.toGmSig(id); G.api.keep('r_s', { wait: true, crit: 'fumble', S, D, F, camp: { system: gm }, ch: { id: 'c_a', name: 'Ava', values: { f_str: 10 } }, q: { act: 'r_craft', charId: 'c_a' }, view: pv, act: craft, res: resP, rule: '', mf: null, vars: S.makeResolver(gm, ch, F), tc: null, big: false, band: '', label: 'Craft', as: 'Ava', from: { id: 'u_a', name: 'Ava' }, expr: '3d6 <= 12' });
+        const s0 = sg('r_s'); G.api.all.r_s.ran = 'skip'; const s1 = sg('r_s'); G.api.all.r_s.decided = true; const s2 = sg('r_s'); const s3 = sg('r_nope');
+        for (let i = 0; i < 60; i++) G.api.keep('r_g' + i, { wait: false }); const s4 = sg('r_s'); G.net.role = 'client'; const s5 = sg('r_g59');
+        check('the review of the speed fold: net.toGmSig says what the GM\'s buttons read of a roll (waits, what was done, decided, a critical failure), a different text after Skip and after Decide, and nothing for a roll the host does not keep (one past the newest 50) or on a player\'s app',
+            s0 === '1||0|fumble' && s1 === '1|skip|0|fumble' && s2 === '1|skip|1|fumble' && s3 === '' && s4 === '' && s5 === '', J([s0, s1, s2, s3, s4, s5]));
+    }
     for (let i = 0; i < 60; i++) keep('r_k' + i);
     check('the host keeps the newest 50', Object.keys(H.api.all).length === 50 && !('r_one' in H.api.all) && 'r_k59' in H.api.all);
     // the wiring and the words

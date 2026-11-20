@@ -137,11 +137,36 @@ const j = v => JSON.stringify(v);
         const feK = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined ? '' : String(text), children: [], title: '', type: '', value: '', disabled: false, dataset: {}, classList: { add() {} }, appendChild(x) { this.children.push(x); return x; }, addEventListener() {} });
         const fieldNodeK = new Function('el', 'F', 'fxText', 'fmtNum', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', fxSrcK + fnSrcK + '\nreturn fieldNode;')(feK, () => F, S.fxText, S.fmtNum, () => true, () => {}, () => {}, S.valueTone, {});
         const rowK = (sy, all, key, gm, own) => { const f = fK(sy, key), row = fieldNodeK(f, chK, all[f.id], gm, own, sy).children[1], inp = row.children[0], tot = row.children[1]; return [inp.value, inp.disabled, tot.textContent, tot.className, tot.title]; };
-        check('derived GM-only values: the sheet row such a skill draws on the players\' view (fieldNode, run for real — the band and the sheet\'s and the HUD\'s sections draw through it): the ranks box keeps the player\'s ranks, theirs to edit, and the total is an em dash marked as an error with "GM only" as its title; a skill with no base, or a visible one, shows its total; the GM\'s row shows the whole total',
-            j(rowK(pK, allPK, 'Sk', false, true)) === j(['3', false, '\u2014', 'sheet-total sheet-err', 'GM only']) && j(rowK(pK, allPK, 'SE', false, true)) === j(['2', false, '= 2', 'sheet-total', 'ranks'])
-            && j(rowK(pK, allPK, 'SA', false, true)) === j(['1', false, '= 4', 'sheet-total', 'ranks + A - 1']) && j(rowK(gK, allGK, 'Sk', true, false)) === j(['3', false, '= 15', 'sheet-total', 'ranks + GMFig'])
+        check('derived GM-only values: the sheet row such a skill draws on the players\' view (fieldNode, run for real — the band and the sheet\'s and the HUD\'s sections draw through it): the ranks box keeps the player\'s ranks, theirs to edit, and the total is an em dash marked as an error with "GM only" as its title; a skill with no base, or a visible one, shows its total; the GM\'s row shows the whole total (1.6.3, finding 10, moved on purpose: the total\'s tooltip says its base in words through amountSays, never the formula; this harness has no form reader, so an amount, and loadcheck runs the reader for real)',
+            j(rowK(pK, allPK, 'Sk', false, true)) === j(['3', false, '\u2014', 'sheet-total sheet-err', 'GM only']) && j(rowK(pK, allPK, 'SE', false, true)) === j(['2', false, '= 2', 'sheet-total', 'Its ranks'])
+            && j(rowK(pK, allPK, 'SA', false, true)) === j(['1', false, '= 4', 'sheet-total', 'Its ranks plus an amount']) && j(rowK(gK, allGK, 'Sk', true, false)) === j(['3', false, '= 15', 'sheet-total', 'Its ranks plus an amount'])
             && /var node = \(q\.id && byId\[q\.id\]\) \? fieldNode\(byId\[q\.id\], c, all\[q\.id\], gm, own, sys\)/.test(shD) && /node = fieldNode\(byId\[pl\.id\], c, all\[pl\.id\], gm, own, sys, all\.vars, pl\)/.test(shD),
             j([rowK(pK, allPK, 'Sk', false, true), rowK(pK, allPK, 'SE', false, true), rowK(pK, allPK, 'SA', false, true), rowK(gK, allGK, 'Sk', true, false)]));
+        // the review of words: the same fieldNode with the real form reader (formcore) and the real nameWord in reach, so a tooltip is said as a player reads
+        // it: a skill's total names its base by the base's label, a pool's maximum names what it is worked out from, and an overridden number names what it
+        // is taken from and while what, each in the sheet's words and never its formula; a pool with no maximum says so
+        {
+            const FCw = await import(url('formcore.js'));
+            const fieldNodeW = new Function('el', 'F', 'fxText', 'fmtNum', 'canRoll', 'sheetRoll', 'commit', 'valueTone', 'TONE_CLASS', 'window', 'nameWord', 'getActiveCampaign', 'systemOf', fxSrcK + fnSrcK + '\nreturn fieldNode;')((tag, cls, text) => Object.assign(feK(tag, cls, text), { style: {}, setAttribute() {}, removeAttribute() {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } } }), () => F, S.fxText, S.fmtNum, () => true, () => {}, () => {}, S.valueTone, {}, { wpFormCore: FCw }, S.nameWord, () => null, () => null);
+            const sysW = cleanSystem({ v: 1, name: 'W', rolls: [], fields: [
+                { id: 'f_agi', key: 'Agi', label: 'Agility', kind: 'number', def: 3, vis: 'all', edit: 'owner' },
+                { id: 'f_cl', key: 'Climb', label: 'Climbing', kind: 'skill', base: 'Agi + 1', def: 2, vis: 'all', edit: 'owner' },
+                { id: 'f_hp', key: 'HP', label: 'Health', kind: 'resource', maxFormula: 'Agi * 2', vis: 'all', edit: 'owner' },
+                { id: 'f_ep', key: 'EP', label: 'Energy', kind: 'resource', vis: 'all', edit: 'owner' },
+                { id: 'f_rg', key: 'Rage', label: 'Raging', kind: 'toggle', vis: 'all', edit: 'owner' },
+                { id: 'f_fy', key: 'Fy', label: 'Fury', kind: 'number', def: 1, vis: 'all', edit: 'owner', override: { when: 'Rage', value: 'Agi + 5' } }] }, { F, gmView: true });
+            const chW = { id: 'c_w', name: 'W', ownerId: 'u_a', values: { f_rg: true } }, allW = S.resolveAll(sysW, chW, F);
+            const walkW = (n, p, acc) => { if (n && typeof n === 'object') { if (p(n)) acc.push(n); (n.children || []).forEach(k => walkW(k, p, acc)); } return acc; };
+            const nodeW = id => fieldNodeW(sysW.fields.filter(f => f.id === id)[0], chW, allW[id], true, true, sysW);
+            const skT = walkW(nodeW('f_cl'), x => /sheet-total/.test(x.className) && /^= /.test(x.textContent), []).map(x => x.title)[0] || '';
+            const hpT = walkW(nodeW('f_hp'), x => /sheet-total/.test(x.className) && /^\/ /.test(x.textContent), []).map(x => x.title)[0] || '';
+            const epT = walkW(nodeW('f_ep'), x => /sheet-total/.test(x.className) && /^\/ /.test(x.textContent), []).map(x => x.title)[0] || '';
+            const ovT = walkW(nodeW('f_fy'), x => /sheet-over/.test(x.className), []).map(x => x.title)[0] || '';
+            const noF = t => !/Agi \+|Agi \*|\bAgi\b|\bRage\b/.test(t);
+            check('the review of words: with the real form reader a skill\'s total says its base by the base\'s label, a pool\'s maximum says what it is worked out from, a pool with no maximum says so, and an overridden number says what it is taken from and while what, in the sheet\'s words and never the formula',
+                allW.f_fy.over === true && /^Its ranks plus /.test(skT) && /Agility/.test(skT) && noF(skT) && /Agility/.test(hpT) && noF(hpT) && epT === 'It has no maximum'
+                && /Agility/.test(ovT) && / while /.test(ovT) && /Raging/.test(ovT) && /It cannot be changed until then\.$/.test(ovT) && noF(ovT), j([skT, hpT, epT, ovT]));
+        }
         const parK = parityD(kRaw, chK);
         check('derived GM-only values: on this system too, gmDerivedNames lists a visible name exactly when the players\' view reads it as an error — SZ included, a skill over a GM-only field that is 0, whose ranks + 0 was the GM\'s very total',
             parK.length === 0 && j(S.gmDerivedNames(gK, F, ND(['SZ', 'SZ.base', 'SZ.ranks', 'SE']))) === j(['SZ', 'SZ.base']), j(parK));
@@ -190,7 +215,7 @@ const j = v => JSON.stringify(v);
         check('GM-only rolls: the hint reaches net.diceRoll unchanged — sheetRoll hands it to a plain roll and to the modifier popover (whose Roll passes it on), and dice.js\'s rollFor and roll (run for real) give net.diceRoll gmOnly beside priv; a roll without it asks gmOnly false',
             j(viaG) === j([['plain', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }], ['mod', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }]])
             && j(askedG) === j([['d100', { priv: false, gmOnly: true, charId: 'c_d', label: 'Hidden Sanity' }], ['d6', { priv: false, gmOnly: false, charId: 'c_d', label: 'Luck' }], ['d6', { priv: true, gmOnly: true, charId: 'c_d', label: 'Both' }]])
-            && dkG.includes("closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef, modD)); });") && dkG.includes("    return named ? Object.assign({}, o, { mod: mod || undefined, modD: md || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined }) : opts;"), j([viaG, askedG]));   /* 1.6.2: and the dice the window adds (moved on purpose) */
+            && dkG.includes("closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef, modD)); });") && dkG.includes("    if (named) return Object.assign({}, o, { mod: mod || undefined, modD: md || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined });"), j([viaG, askedG]));   /* 1.6.2: and the dice the window adds (moved on purpose); the review of words: an unnamed roll goes on with hm after it (moved on purpose) */
         /* 1.5.9 (the owner, at the table: "theres no way to add modifiers to rolls in the character sheet"; by prompt: "A ± button on each roll"):
            a small ± beside each roll button the sheet and the HUD draw (rollNode, a list row's rolls, a field's own die, the Custom roller) opens
            the very popover shift-click opens, for that very roll, anchored to the ± itself; disabled with its roll; none on paper. All run for real */

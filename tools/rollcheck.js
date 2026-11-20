@@ -115,6 +115,16 @@ const j = v => JSON.stringify(v);
             api.applyAction(rA(id), ch, rA(id).label); out.ch = ch; out.last = api.last(); out.api = api; return out;
         };
         const sW = runSheetA('r_wound', { host: true }), sC = runSheetA('r_cost', { host: true }), sOff = runSheetA('r_wound'), sCl = runSheetA('r_cost', { client: true }), sNone = runSheetA('r_wound', { host: true, ch: chZero });
+        // the review of words: the GM's own press of an apply action names the GM-only values that keep its card private in the sheet's words (privWordsS,
+        // in the slice, with the real nameWord), never their keys; a name it cannot say stays, and one said twice (the label's and the amount's) is said once
+        {
+            const pwS = new Function('nameWord', apSrcA.slice(apSrcA.indexOf('function privWordsS('), apSrcA.indexOf('function canApply(')) + NL + 'return privWordsS;')(S.nameWord);
+            const sysP = S.cleanSystem({ v: 1, name: 'P', fields: [{ id: 'f_dr', key: 'DR', label: 'Damage resistance', kind: 'number', vis: 'gm' }] }, { F, gmView: true }), drF = { label: 'Damage resistance' };
+            check('the review of words: a Kept private notice of the GM\'s own apply action names a GM-only value by the sheet\'s words (its label), never its key; labelSecret\'s joined names are said one by one, each once',
+                drF && pwS(sysP, ['DR']) === 'Damage resistance' && pwS(sysP, 'DR, DR') === 'Damage resistance' && pwS(sysP, ['Zork']) === 'Zork' && pwS(sysP, []) === '' && /\(typeof privWordsS === 'function' \? privWordsS\(sys, hit\.join\(', '\)\)/.test(apSrcA)
+                && /if \(why\) toast\('Kept private: its label shows a GM-only value \(' \+ \(typeof privWordsS === 'function' \? privWordsS\(sys, why\) : why\)/.test(shA) && /if \(whyI\) toast\('Kept private: its label shows a GM-only value \(' \+ \(typeof privWordsS === 'function' \? privWordsS\(sys, whyI\) : whyI\)/.test(shA),
+                j([drF && drF.label, pwS(sysP, ['DR'])]));
+        }
         check('H7 applyAction (run for real): the GM\'s press stores every value as ONE change (one Revert brings them all back: lastChange + extra), posts the card by applyScope, and a hosting GM\'s card that read a GM-only value (DR) is kept private with one toast; offline nothing is private; a player asks the host with the label and stores nothing; nothing to apply stores and posts nothing',
             j(sW.ch.values.f_hp) === j({ cur: 5 }) && j(sW.after) === j([{ f_hp: { cur: 5 } }]) && j(sW.last) === j({ charId: 'c_a', fieldId: 'f_hp', extra: null }) && sW.cards.length === 1 && sW.cards[0][3] === 'gm' && j(sW.cards[0][2]) === j([{ f: 'f_hp', n: 'Hit points', d: -5, v: 5 }]) && j(sW.toasts) === j(['Kept private: that amount uses a GM-only value (DR).'])
             && j(sC.last) === j({ charId: 'c_a', fieldId: 'f_fp', prev: { cur: 2 }, extra: {} }) && sC.cards[0][3] === 'owner' && sC.toasts.length === 0

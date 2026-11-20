@@ -244,14 +244,29 @@ function giveTo(cid, pid) {   // the same step and the same question as the part
     if (c.ownerId && c.ownerId !== pid) showConfirm('Give ' + name + (pid ? ' to ' + (namesOf(camp)[pid] || 'this player') + '? ' : ' up? ') + 'Their current player loses it: its sheet closes for them' + (pid ? ', and its tokens go to the new player.' : '.'), function(yes) { if (yes) go(); });
     else go();
 }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 43): the gray line under a player in the Give menu, as the Same person as
+// question says one: the character they play, then here now (on the table's roster) or the day they were last seen; '' where nothing is known.
+// Two players of one name were two rows alike, and the GM could not tell which would get the sheet. Text only
+function giveLine(camp, pid) {
+    var W = typeof window !== 'undefined' && window ? window : {}, w = [], S = W.wpSystemCore, n = W.wpNet, rec =camp && camp.players && typeof camp.players === 'object' ? camp.players[pid] : null;
+    var plays = ''; try { plays = S && typeof S.playsAs === 'function' ? String(S.playsAs(camp, pid) || '') : ''; } catch (e) { plays = ''; }
+    if (plays) w.push('plays ' + charText(plays, CHAR_NAME));
+    var here = !!(n && n.roster && typeof n.roster === 'object' && Object.keys(n.roster).some(function(k) { var p = n.roster[k]; return p && p.id === pid; }));
+    var seen = rec && typeof rec === 'object' ? Number(rec.lastSeen) || 0 : 0;
+    if (here) w.push('here now'); else if (seen > 1e11) w.push('last seen ' + new Date(seen).toLocaleDateString());
+    return w.join(' · ');
+}
 function giveMenu(id, x, y) {   // the players this campaign knows, by name: a row for each, and one to take it from the player who has it
     var S = sheets(), camp = getActiveCampaign(), c = camp && S ? S.charById(id, camp) : null; if (!c || !_menu) return;
     var names = namesOf(camp), pids = Object.keys(names).sort(function(a, b) { return String(names[a]).localeCompare(String(names[b])); });
     if (!pids.length && !c.ownerId) { toast('No player has joined this campaign yet. Host a table, and they can join from the Multiplayer window.'); return; }
     while (_menu.firstChild) _menu.removeChild(_menu.firstChild);
     _menu.dataset.char = id;
+    if (pids.length) { var hdG = document.createElement('div'); hdG.className = 'char-menu-head'; hdG.textContent = 'Give to'; _menu.appendChild(hdG); }   // 1.6.3 (finding 43): what the list is for
     pids.forEach(function(pid) {
-        var d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitem'); d.dataset.give = pid; d.textContent = charText(names[pid], CHAR_NAME) + (pid === c.ownerId ? ' (has it now)' : ''); d.disabled = pid === c.ownerId; _menu.appendChild(d);
+        var d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitem'); d.dataset.give = pid; d.textContent = charText(names[pid], CHAR_NAME) + (pid === c.ownerId ? ' (has it now)' : ''); d.disabled = pid === c.ownerId;
+        var gl = giveLine(camp, pid); if (gl) { var sm = document.createElement('small'); sm.className = 'char-menu-sub'; sm.textContent = gl; d.appendChild(sm); }   // 1.6.3 (finding 43): which player this is, so two of one name are told apart
+        _menu.appendChild(d);
     });
     if (c.ownerId) { var dv = document.createElement('div'); dv.className = 'menu-divider'; _menu.appendChild(dv); var no = document.createElement('button'); no.type = 'button'; no.setAttribute('role', 'menuitem'); no.dataset.give = ''; no.textContent = 'No player'; _menu.appendChild(no); }
     var others = pids.filter(function(p) { return p !== c.ownerId; });   // 1.6.2 (G8): who else may use this sheet. It keeps its one owner for tokens and turns

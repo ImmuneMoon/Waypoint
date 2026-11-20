@@ -348,7 +348,18 @@ const j = v => JSON.stringify(v);
         // the formatters the page shares with the sheet: alike (sheets.js statFmt / statText / fxChangeText, sliced and run)
         const shX = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), lineOf = name => { const a = shX.indexOf('function ' + name + '('); return shX.slice(a, shX.indexOf(NL, a)); };
         const SH = new Function('fmtNum', lineOf('statFmt') + NL + lineOf('statText') + NL + lineOf('fxChangeText') + NL + 'return { statFmt, statText, fxChangeText };')(S.fmtNum);
-        const nums = [0.0001, 1234567.891, -0.5, 12.5, 1 / 3, 0, -2, 7, NaN, 'x'], sts = [{ labels: ['E', 'A', 'H'] }, null, { labels: [] }], mods = [{ f: 'f_a', op: 'add', v: 2 }, { f: 'f_a', op: 'add', v: -1.5, part: 'max' }, { f: 'f_b', op: 'on' }, { f: 'zz', op: 'add', v: 0 }];
+        const nums = [0.0001, 1234567.891, -0.5, 12.5, 1 / 3, 0, -2, 7, NaN, 'x'], sts = [{ labels: ['E', 'A', 'H'] }, null, { labels: [] }], mods = [{ f: 'f_a', op: 'add', v: 2 }, { f: 'f_a', op: 'add', v: -1.5, part: 'max' }, { f: 'f_b', op: 'on' }, { f: 'zz', op: 'add', v: 0 }, { f: 'f_a', op: 'max', v: 3 }, { f: 'f_a', op: 'min', v: 1, part: 'max' }, { f: 'f_a', op: 'add', v: 0, vf: '2 * Keen' }];   // the review of words: a floor, a ceiling and a change worked out by a formula too
+        // the review of words: the readable page said a change worked out by a formula as +0 (its v); it says it in words now, the sheet's own labels
+        // naming what it reads (sheetexport amountWords through the form core and nameWord), never the formula, and with no form core at hand an amount
+        const gw = global.window, keenSys = { fields: [{ id: 'f_k', key: 'Keen', label: 'Keenness', kind: 'number' }] };
+        let vfWords = '', vfBare = '', vfMax = '';
+        try {
+            vfBare = X.fxChangeText({ f: 'f_a', op: 'add', v: 0, vf: '2 * Keen' }, { f_a: 'ST' }, keenSys);
+            global.window = { wpFormCore: { read: t => ({ ok: true, form: t }), says: (form, o) => 'twice ' + o.name('Keen') } };
+            vfWords = X.fxChangeText({ f: 'f_a', op: 'add', v: 0, vf: '2 * Keen' }, { f_a: 'ST' }, keenSys); vfMax = X.fxChangeText({ f: 'f_a', op: 'max', v: 0, vf: 'Keen', part: 'max' }, { f_a: 'ST' }, keenSys);
+        } finally { if (gw === undefined) delete global.window; else global.window = gw; }
+        check('the review of words: the readable page says an effect\'s change worked out by a formula in words (never +0, never the formula), a floor as at least, with no form core at hand an amount',
+            vfBare === 'ST by an amount' && vfWords === 'ST by twice Keenness' && vfMax === 'ST max at least twice Keenness', j([vfBare, vfWords, vfMax]));
         check('F2a the page\'s formatters are the sheet\'s: a list stat and an effect\'s change read the same in the file as on the sheet',
             nums.every(v => X.statFmt(v) === SH.statFmt(v)) && sts.every(st => [0, 1, 2, 5, 0.5, '', 'Big'].every(v => X.statText(st, v) === SH.statText(st, v))) && mods.every(m => X.fxChangeText(m, { f_a: 'ST', f_b: 'Prone' }) === SH.fxChangeText(m, { f_a: 'ST', f_b: 'Prone' })));
         // the sheet's export view (sheets.js exportView, run for real): the GM's players'-view file is the owner's projection over the players' view

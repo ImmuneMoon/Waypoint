@@ -57,7 +57,7 @@ function readableInto(brk, res, parts, expr) {
         brk.appendChild(document.createTextNode(']'));
     });
     (Array.isArray(b.reads) ? b.reads : []).forEach(function(r) { var w = readWords(r); if (w) brk.appendChild(document.createTextNode(' \u00b7 ' + w)); });
-    if (!top && groups.length && typeof res.value === 'number' && isFinite(res.value) && !/[*\/%(]/.test(String(expr || ''))) {   // 1.6.0: dice and adds, a sheet's value among them: the add said, or the sum after it reads as a slip. A formula that does more than add says its total alone
+    if (!top && groups.length && typeof res.value === 'number' && isFinite(res.value) && dicePlainAdd(expr)) {   // 1.6.0: dice and adds, a sheet's value among them: the add said, or the sum after it reads as a slip. A formula that does more than add says its total alone (1.6.3: judged by where its dice stand, so brackets around the add no longer hide it)
         plusInto(brk, plus, expr, ' + '); plus = [];
         var diceSum = all.reduce(function(n, p) { return n + (p.die && typeof p.die.total === 'number' ? p.die.total * plusSign(p.die, expr) : NaN); }, 0), addN = res.value - diceSum;
         if (isFinite(addN) && addN !== 0) brk.appendChild(document.createTextNode((addN > 0 ? ' + ' : ' \u2212 ') + fmtNum(Math.abs(addN))));
@@ -71,6 +71,25 @@ function readableInto(brk, res, parts, expr) {
     var Fw = F();   // 1.6.2: a formula that reads the sheet keeps its names off the card, and renderCard says them in words
     brk.title = Fw && Fw.plainDice && !Fw.plainDice(String(expr || '')) ? '' : String(expr || '').replace(/@_bonus/g, '') + (full ? '\n' + full : '');
 }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 12): whether a card may say "+ N" after its dice, N being the total less
+// what the dice came to. That holds only where every die is simply added to the total: each dice term stands in the formula's top sum (any
+// depth of brackets, which the parser keeps as a sum of their own), taken away only where it is a bonus die the ± window added (its sign
+// said by plusSign), and never inside a product, a division, a function, a minus sign of its own or another die's count. A damage roll
+// written 5d6 + (Row.Bonus) once said 27 under dice that came to 22, since any bracket used to hide the add. A formula that cannot be read
+// here falls back to the old rule (no *, /, % or bracket anywhere). Read by readableInto alone
+function dicePlainAdd(expr) {
+    var s = String(expr || ''), Fm = typeof F === 'function' ? F() : null, p = null;
+    try { p = Fm && typeof Fm.parse === 'function' ? Fm.parse(s) : null; } catch (e) { p = null; }
+    if (!p || !p.ok || !p.ast || typeof p.ast !== 'object') return !/[*\/%(]/.test(s);
+    var all = 0, lin = 0;
+    (function count(n) { if (!n || typeof n !== 'object') return; if (n.t === 'dice') all++; Object.keys(n).forEach(function(k) { var v = n[k]; if (Array.isArray(v)) v.forEach(count); else if (v && typeof v === 'object') count(v); }); })(p.ast.body || p.ast);   // every die, those rolled to read aside (with) among them
+    (function walk(n, sign) {   // the dice the top sum adds, each counted once
+        if (!n || typeof n !== 'object') return;
+        if (n.t === 'dice') { if (sign === 1 || n.as === '_bonus') lin++; return; }
+        if (n.t === 'sum' && Array.isArray(n.items)) n.items.forEach(function(it) { if (it && typeof it === 'object') walk(it.node, it.op === '-' ? -sign : sign); });
+    })(p.ast.top || p.ast.body, 1);
+    return all > 0 && lin === all;
+}
 // 1.6.2: an added die's sign, read from the formula just before it (composeModifier writes ' - 1d4@_bonus' for one taken away), and the dice said
 function plusSign(d, expr) { if (!d || !d.plus || typeof d.pos !== 'number') return 1; return /-\s*$/.test(String(expr || '').slice(0, d.pos)) ? -1 : 1; }
 function plusInto(brk, plus, expr, first) {
@@ -79,7 +98,21 @@ function plusInto(brk, plus, expr, first) {
         brk.appendChild(document.createTextNode(d.count + 'd' + d.faces + ' [')); brk.appendChild(el('span', 'roll-die', p.text)); brk.appendChild(document.createTextNode(']'));
     });
 }
-function namesHover(rec) { var w = window.wpSheets && typeof window.wpSheets.nameWord === 'function' ? window.wpSheets.nameWord : null; return w && Array.isArray(rec.names) ? rec.names.map(function(n) { return w(n.name) + ': ' + n.value; }).join('\n') : ''; }
+// A card's hover, what the roll read, a name a line in words. 1.6.3 (finding 32): a name that read 0 or nothing is left out, since it said
+// nothing about this roll and hid the one or two figures that did, and a yes or no reads as yes or no, never as true or false
+function namesHover(rec) {
+    var w = window.wpSheets && typeof window.wpSheets.nameWord === 'function' ? window.wpSheets.nameWord : null; if (!w || !Array.isArray(rec.names)) return '';
+    return rec.names.filter(function(n) { return n && n.value !== 0 && n.value !== false && n.value !== null && n.value !== undefined && n.value !== ''; }).map(function(n) { return w(n.name) + ': ' + (typeof n.value === 'boolean' ? (n.value ? 'yes' : 'no') : typeof n.value === 'number' ? fmtNum(n.value) : n.value); }).join('\n');
+}
+// 1.6.3 (finding 9): a value a card names, in the sheet's own words (wpSheets.nameWord, the System editor's labels), never its formula name.
+// A row's own figure reads as the figure alone (this row's Damage is Damage on a card about that row). With no sheets module, as before:
+// the name with a leading Row. taken off
+function modWord(n) {
+    var s = String(n == null ? '' : n), W = typeof window !== 'undefined' && window && window.wpSheets && typeof window.wpSheets.nameWord === 'function' ? window.wpSheets.nameWord : null;
+    if (!W) return s.replace(/^Row\./i, '');
+    var w = ''; try { w = String(W(s) || ''); } catch (e) { w = ''; } if (!w) return s.replace(/^Row\./i, '');
+    w = w.replace(/^this row’s /, ''); return w.charAt(0).toUpperCase() + w.slice(1);
+}
 // 1.5.8 (handoff 90 Part B): what changed the values the roll read, under its dice: each value's name and its figure, before and after where
 // effects on it changed it, then each change by its source, and each effect on a value it is worked out from by what it changed, as text
 // nodes; nothing where the host named none
@@ -89,12 +122,14 @@ function modsInto(wrap, mods) {
     mods.forEach(function(e) {
         if (!e || typeof e !== 'object') return;
         var row = el('div', 'chat-mod'), mm = Array.isArray(e.m) ? e.m : [], ww = Array.isArray(e.w) ? e.w : [];
-        row.appendChild(el('span', 'chat-mod-n', String(e.n).replace(/^Row\./i, '')));
+        if (!mm.length && e.a === 0) return;   // 1.6.3 (finding 9): a value no effect moved that adds nothing to the roll says nothing of what is inside it ("Conditions 0, already in 0: +2 Tough", found live)
+        row.appendChild(el('span', 'chat-mod-n', typeof modWord === 'function' ? modWord(e.n) : String(e.n).replace(/^Row\./i, '')));   // 1.6.3 (finding 9): by its label, never its key
         row.appendChild(document.createTextNode(' ' + (mm.length ? fmtNum(e.b) + ' \u2192 ' : '') + fmtNum(e.a)));
         box.appendChild(row); any = true;
         var sg = function(v) { return (v > 0 ? '+' : '\u2212') + fmtNum(Math.abs(v)); };
         mm.forEach(function(x) { if (x && typeof x === 'object') box.appendChild(el('div', 'chat-mod-src', sg(x.v) + ' ' + x.s)); });
-        ww.forEach(function(x) { if (x && typeof x === 'object') box.appendChild(el('div', 'chat-mod-src', sg(x.v) + ' ' + x.s + ' on ' + String(x.t).replace(/^Row\./i, ''))); });
+        // an effect on a value this one is worked out from is inside the figure already: said so, so that it never reads as one more change to this roll
+        ww.forEach(function(x) { if (x && typeof x === 'object') box.appendChild(el('div', 'chat-mod-src chat-mod-via', 'already in ' + fmtNum(e.b) + ': ' + sg(x.v) + ' ' + x.s + ' on ' + (typeof modWord === 'function' ? modWord(x.t) : String(x.t).replace(/^Row\./i, '')))); });
     });
     if (any) wrap.appendChild(box);
 }
@@ -106,10 +141,22 @@ function swInto(wrap, sw) {
     sw.forEach(function(x) { if (x && typeof x === 'object' && typeof x.v === 'number') box.appendChild(el('div', 'chat-mod-src', bonusWords(x.v, x.d) + ' ' + x.n + ', added')); });
     if (box.firstChild) wrap.appendChild(box);
 }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 13): what the roller added by hand in the ± window, said on the card for the
+// whole table, as the host recorded it (rec.hmod, dicecore cleanHmod: a figure and advantage; dice added already show through plusInto). A
+// roll with a hand modifier once read only "needs 18", with nothing to say why it no longer matched the line above it. Text nodes only
+function hmodInto(wrap, hm) {
+    if (!hm || typeof hm !== 'object') return; var w = [];
+    if (typeof hm.v === 'number' && isFinite(hm.v) && hm.v) w.push((hm.v > 0 ? '+' : '−') + Math.abs(hm.v) + ' added by hand');
+    if (hm.adv === 'adv' || hm.adv === 'dis') w.push(hm.adv === 'adv' ? 'with advantage' : 'with disadvantage');
+    if (!w.length) return; var box = el('div', 'chat-mods chat-hmod'); box.appendChild(el('div', 'chat-mod-src', w.join(', '))); wrap.appendChild(box);
+}
 // 1.6.0 Specialties: the case each reference the roll read used, such as as Blade (Longsword) \u22122, as text nodes; nothing where it read none
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 9): as a short sentence, "Rolled as Blade (Longsword)" and "Odd Anatomy, rolled
+// untrained (−5)", where the host's words alone ("untrained Odd Anatomy") said nothing of what happened; words of the reference's own are as written
 function refsInto(wrap, refs) {
     if (!Array.isArray(refs) || !refs.length) return; var box = el('div', 'chat-mods chat-refs');
-    refs.forEach(function(x) { if (x && typeof x === 'object' && typeof x.s === 'string' && x.s) box.appendChild(el('div', 'chat-mod-src', x.s)); });
+    var say = function(s) { var u = /^untrained (.+?)( \([^()]*\))?$/.exec(s); if (u) return u[1] + ', rolled untrained' + (u[2] || ''); return /^as /.test(s) ? 'Rolled ' + s : s; };
+    refs.forEach(function(x) { if (x && typeof x === 'object' && typeof x.s === 'string' && x.s) box.appendChild(el('div', 'chat-mod-src', say(x.s))); });
     if (box.firstChild) wrap.appendChild(box);
 }
 // 1.6.2, backlog 35: a card's "as" or "for" and the character's name, the name in its personal look where the card carries one
@@ -158,10 +205,12 @@ function renderCard(m) {
     if ((!hmC.length || mf) && !coin) wrap.appendChild(brk);   // the live test, 2026-10-30: several hits show their dice on their own lines, and this line was only the first's
     if (typeof modsInto === 'function') modsInto(wrap, rec.mods);
     if (typeof refsInto === 'function') refsInto(wrap, rec.refs);   // 1.6.0 Specialties: which row a reference read
-    if (typeof swInto === 'function') swInto(wrap, rec.sw);   // 1.6.0: the roll switches it was rolled with   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
+    if (typeof swInto === 'function') swInto(wrap, rec.sw);   // 1.6.0: the roll switches it was rolled with
+    if (typeof hmodInto === 'function') hmodInto(wrap, rec.hmod);   // 1.6.3 (finding 13): and what was added by hand   // 1.5.8: what changed the values it read (asked through typeof for a suite that slices the card alone)
     wrap.className += mf ? ' card-malf' : v && v.kind === 'check' ? (v.pass ? ' card-ok' : ' card-fail') : rec.dmg === 1 ? ' card-dmg' : '';   // chat cards: the left stripe — a malfunction, the check's outcome, else a damage roll, else plain
     var csAll = !!v && v.kind === 'value' && typeof v.value === 'number' && Math.floor(v.value) === v.value && !!res && !!res.breakdown && Array.isArray(res.breakdown.dice) && res.breakdown.dice.some(function(d) { return !!d && !d.aside; }) && res.breakdown.dice.every(function(d) { return !d || d.aside || !!d.cs; });   // 1.6.2 (the builder trial): a roll that only counts hits says how many
-    var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? malfWords(rec) : v ? (v.kind === 'check' ? v.text : hmC.length ? (hmC.length + 1) + ' hits' : csAll ? v.value + (v.value === 1 ? ' hit' : ' hits') : '= ' + v.text) : '');
+    var lastPt = !named && parts.length && typeof parts[parts.length - 1] === 'string' ? parts[parts.length - 1] : '', saidTot = !!v && v.kind === 'value' && rec.dmg !== 1 && !!lastPt && lastPt.slice(-(' = ' + v.text).length) === ' = ' + v.text;   // 1.6.3 (finding 39): a typed roll's working already ends in its total, so the line under it does not say it twice (the line stays for a critical, a band or a tier; a damage roll keeps its total in sight, the figure Apply takes)
+    var total = el('div', 'roll-total' + (mf ? ' roll-fail roll-malf' : v && v.kind === 'check' ? (v.pass ? ' roll-ok' : ' roll-fail') : rec.dmg === 1 ? ' roll-dmg' : ''), mf ? malfWords(rec) : v ? (v.kind === 'check' ? v.text : hmC.length ? (hmC.length + 1) + ' hits' : csAll ? v.value + (v.value === 1 ? ' hit' : ' hits') : saidTot ? '' : '= ' + v.text) : '');
     if (coin) total.textContent = res.value === 1 ? 'Heads' : 'Tails';
     if (crit) total.appendChild(el('span', 'roll-' + crit, v && v.crit ? (crit === 'crit' ? 'critical success' : 'critical failure') : crit === 'crit' ? 'natural 20' : 'natural 1'));
     var tierC = sy && sy.combat && sy.combat.tier && typeof sy.combat.tier === 'object' ? sy.combat.tier : null;   // 1.6.0: a success at or past the Combat tab's margin wears its name
@@ -317,7 +366,7 @@ function renderDue(m) {
     wrap.appendChild(el('br'));
     var whD = rec.why === 'called' && rec.lnd === 1 ? (typeof landWhy === 'function' ? landWhy(rec) : 'the attack landed') : rec.why === 'called' ? (rec.by ? 'called for by ' + rec.by : 'called for') : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'resist' ? (typeof resistWhy === 'function' ? resistWhy(rec) : 'resisting an attempt') : rec.why === 'send' ? (typeof sendWhy === 'function' ? sendWhy(rec) : 'your defense stopped the attack') : rec.why === 'major' ? (typeof dueMajor === 'function' ? dueMajor(rec) : 'a Major Wound') : rec.why === 'wound' ? 'a wound' : rec.hold === 1 ? 'waiting for their roll' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round;
     wrap.appendChild(el('div', 'roll-expr chat-due-what', (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (whD ? ' \u2014 ' + whD : '')));   // 1.6.0 (B2): an attempt to resist   // 1.6.0 (the core's gap 6): or a wound
-    if (m.over) wrap.appendChild(el('div', 'chat-due-note', m.overSay === 'land' ? 'The attack landed, so this roll is over.' : m.overSay === 'rolled' ? 'Its damage was rolled.' : m.overSay === 'gone' ? 'That attack did not land, so this card is over.' : m.overSay === 'sent' ? 'It was sent on.' : m.overSay === 'aside' ? 'It was turned aside.' : m.overSay === 'missed' ? 'It was sent on, and missed.' : rec.hold === 1 ? (m.rolled ? 'Their roll is in.' : 'Applied.') : rec.why === 'resist' ? 'The GM applied it, so this roll is over.' : 'The blast went off, so this roll is over.'));   // 1.6.3 (defense fold 1): why a landing's card is over, in the host's fixed word
+    if (m.over) wrap.appendChild(el('div', 'chat-due-note', m.overSay === 'land' ? 'The attack landed, so this roll is over.' : m.overSay === 'rolled' ? 'Its damage was rolled.' : m.overSay === 'gone' ? 'That attack did not land, so this card is over.' : m.overSay === 'sent' ? 'It was sent on.' : m.overSay === 'aside' ? 'It was turned aside.' : m.overSay === 'missed' ? 'It was sent on, and missed.' : m.overSay === 'reload' ? 'The GM’s Waypoint reloaded, so this card is over.' : rec.hold === 1 ? (m.rolled ? 'Their roll is in.' : 'Applied.') : rec.why === 'resist' ? 'The GM applied it, so this roll is over.' : 'The blast went off, so this roll is over.'));   // 1.6.3 (defense fold 1): why a landing's card is over, in the host's fixed word
     else if (rec.theirs) { wrap.appendChild(el('div', 'chat-due-note', 'Its player presses it.')); if (rec.lnd === 1 && !window.wpPopout) landBtns(wrap, rec, m, [], true); if (rec.tnow === 1 && !window.wpPopout) testNowBtn(wrap, rec, m); if (rec.why === 'send' && !window.wpPopout) sendBtns(wrap, rec, m, true); }   /* 1.6.3 (defense fold 4): and Turn it aside on a card to send an attack on */   // 1.6.3 (defense fold 1): the GM's copy of a player's card offers No defense, or Roll it now
     else if (m.done) wrap.appendChild(el('div', 'chat-due-note', 'Pressed.'));
     else if (!window.wpPopout) {
@@ -333,13 +382,13 @@ function renderDue(m) {
             var picks = [{ act: rec.act, label: rec.label || 'Roll' }].concat(rec.or), bs = []; if (rec.nm === 1) picks.shift();   // 1.6.0: nm, only the rows it offers
             picks.forEach(function(p) {
                 var pb = el('button', 'tool chat-due-run', p.label || 'Roll'); pb.type = 'button'; pb.title = 'Resist with ' + (p.label || 'this roll') + ', as its button on the sheet rolls it'; bs.push(pb);
-                pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row, undefined, p.w) : false;   /* 1.6.3 (defense fold 2): p.w, the row a roll answered with a row is pressed with */ if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
+                pb.addEventListener('click', function() { if (m.done) return; m.done = true; bs.forEach(function(x) { x.disabled = true; }); var ok = (typeof duePress === 'function' ? duePress : function(rq, f) { return f(); })(rec, function() { return window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, p.act, rec.att, p.row, undefined, p.w) : false; });   /* 1.6.3 (defense fold 2): p.w, the row a roll answered with a row is pressed with; the review of input: duePress knows the card by its own id */ if (!ok) { m.done = false; bs.forEach(function(x) { x.disabled = false; }); } });   // done first: the press's own card redraws the chat
                 wrap.appendChild(pb); wrap.appendChild(document.createTextNode(' '));
             });
             if (rec.lnd === 1) landBtns(wrap, rec, m, bs, false); return wrap;   // 1.6.3 (defense fold 1): and Take it, or No defense
         }
         var runW = rec.roll === 1 ? 'Roll' : 'Run', b = el('button', 'tool chat-due-run', runW); b.type = 'button'; b.title = rec.roll === 1 ? 'Roll it now, as its button on the sheet does' : 'Apply it now, as its button on the sheet does';   // 1.5.9: a roll that is due
-        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = rec.lnd === 1 && rec.why === 'called' && window.wpSheets && window.wpSheets.runLand ? window.wpSheets.runLand(rec.charId, rec.act, rec.att, rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined, rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : false; if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
+        b.addEventListener('click', function() { if (m.done) return; m.done = true; b.disabled = true; b.textContent = 'Pressed'; var ok = (typeof duePress === 'function' ? duePress : function(rq, f) { return f(); })(rec, function() { return rec.lnd === 1 && rec.why === 'called' && window.wpSheets && window.wpSheets.runLand ? window.wpSheets.runLand(rec.charId, rec.act, rec.att, rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : window.wpSheets && window.wpSheets.runDue ? window.wpSheets.runDue(rec.charId, rec.act, typeof rec.att === 'string' ? rec.att : undefined, rec.why === 'called' && rec.nm === 1 && Array.isArray(rec.or) && rec.or[0] ? rec.or[0].row : undefined) : false; }); if (!ok) { m.done = false; b.disabled = false; b.textContent = runW; } });   // 1.6.0 (the core's gaps 6 and 7): a blow's card names its record too   // done first: the press's own card redraws the chat
         wrap.appendChild(b); if (rec.lnd === 1 && rec.why === 'resist') landBtns(wrap, rec, m, [b], false);   // 1.6.3 (defense fold 1): and Take it, or No defense
     }
     return wrap;
@@ -528,10 +577,41 @@ function rollFor(charId, expr, label, opts) {
     opts = opts || {};
     var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
     _rollMore = opts.range || opts.blast || opts.used === true || opts.cross ? { range: opts.range || undefined, blast: opts.blast || undefined, used: opts.used === true ? true : undefined, usedWait: opts.usedWait === true ? true : undefined, cross: opts.cross && typeof opts.cross === 'object' ? opts.cross : undefined } : null;   // 1.5.8 explosives: a throw's range to its aim, the blast a damage roll is for (this machine's own words); 1.5.9: a damage roll already applied as it is rolled (a blast's fragmentation)
-    var r = roll(expr, { aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: typeof opts.by === 'string' && opts.by ? opts.by : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: charId, label: label, source: opts.source || 'sheet', src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined });   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)   // 1.5.9: on, the token of the adjacent character it is used on
+    var cardF = typeof dueTake === 'function' ? dueTake(charId) : '';   // the review of input: the card whose press this roll is (duePress), so a roll refused or never answered makes that card live again
+    var r = roll(expr, { card: cardF || undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: typeof opts.by === 'string' && opts.by ? opts.by : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: charId, label: label, source: opts.source || 'sheet', src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, modD: typeof opts.modD === 'string' && opts.modD ? opts.modD : undefined, adv: opts.adv || undefined, hm: opts.hm && typeof opts.hm === 'object' ? opts.hm : undefined, dmg: opts.dmg === true ? true : undefined });   // the review of words: hm, what was added by hand to a roll that is not named, words for its card alone   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)   // 1.5.9: on, the token of the adjacent character it is used on
     if (r.error) toast(r.error);
+    _rollSeq++; _rollLast = r;   // 1.6.3 (finding 6): what the last roll asked for answered, for a card that pressed a sheet's button (lastRoll)
+    if (cardF && r && r.error) { var nC = net(); if (nC && typeof nC.dueLive === 'function') nC.dueLive(cardF); }   // refused here, after its card's press: the card is live again
     return r;
 }
+var _rollSeq = 0, _rollLast = null;
+function lastRoll() { return { n: _rollSeq, r: _rollLast }; }
+// [netrollcheck:duecard-start]
+// 1.6.3 (the review of input): a card pressed whose roll never happens is live again, whatever card it is. A defense card names its attempt, but a reminder
+// (its turn, a round, an effect's end) names none, so a card is known by its own id (rec.id). duePress runs a card's press with the card noted as the
+// one under way (_dueCard); the first roll this machine makes for that character takes it (dueTake, from rollFor) and carries it to net.diceRoll as card,
+// which keeps it with the request, so the host's refusal or no answer at all makes that card live again (net.js dueLive). A press that rolled nothing yet
+// because its button asks first (a location, a level, what a roll asks, an aim on the map: sheets.js runDue answers 'wait') is watched: once nothing is
+// asked any more (sheets.js rollAsking) and no roll came, or after DUE_WAIT_MS, the card is live again. Nothing of it is sent
+var _dueCard = null, DUE_WAIT_MS = 120000, DUE_LOOK_MS = 400;
+function duePress(rec, call) {
+    var dc = { id: rec && typeof rec.id === 'string' ? rec.id : '', charId: rec ? rec.charId : '', took: false, at: Date.now() }; _dueCard = dc;
+    var ok = false; try { ok = call(); } catch (e) { ok = false; }
+    if (ok === 'wait' && !dc.took && _dueCard === dc && dc.id) { dueWatch(dc); return true; }   // its roll comes later: the card stays pressed while it is asked
+    if (_dueCard === dc) _dueCard = null;
+    return !!ok;
+}
+function dueWatch(dc) {
+    var look = function() {
+        if (_dueCard !== dc || dc.took) return;   // its roll came, or another card was pressed since
+        var sh = typeof window !== 'undefined' ? window.wpSheets : null, asking = !!(sh && typeof sh.rollAsking === 'function' && sh.rollAsking());
+        if (asking && Date.now() - dc.at < DUE_WAIT_MS) { setTimeout(look, DUE_LOOK_MS); return; }
+        _dueCard = null; var n = net(); if (n && typeof n.dueLive === 'function') n.dueLive(dc.id);   // put away with no roll: the card is live again
+    };
+    setTimeout(look, DUE_LOOK_MS);
+}
+function dueTake(charId) { var dc = _dueCard; if (!dc || dc.took || !dc.id || dc.charId !== charId) return ''; dc.took = true; _dueCard = null; return dc.id; }
+// [netrollcheck:duecard-end]
 /* ---------- Stage 5a: the situational-modifier popover (shift/alt-click a sheet roll button) ---------- */
 var modPop = null;
 function closeModPop() { if (!modPop) return; modPop.remove(); modPop = null; document.removeEventListener('pointerdown', onModOutside, true); document.removeEventListener('keydown', onModKey, true); }
@@ -542,11 +622,18 @@ function clampMod(v) { return v > 99 ? 99 : v < -99 ? -99 : v; }
 // and on Roll we send the composed formula down the normal wire path. Falls back to a plain roll if the engine is absent.
 // What the ± window's Roll sends: a named roll (a system roll, a list's roll by its index, and since 1.6.0 a field's own roll) its modifier,
 // advantage and roll switches as data, which the host rebuilds the formula from; a roll that is not named and has a switch ticked is named by
-// the roll's swRef first (act, row with its index, fr); any other its formula alone, as before
+// the roll's swRef first (act, row with its index, fr); any other its formula alone, as before.
+// The review of words (the improvement week's review of sheets and rolls): a roll changed by hand is NOT named for that alone. Naming it made the
+// host judge it as its entry (Off a character's turn refusing or reporting it, card actions holding it for Accept) where the same roll pressed
+// plainly went through, since a plain roll's button names nothing. Such a roll still goes as its formula alone, which already holds the change,
+// and what was added by hand rides beside it as hm, words for its card alone ({ v, adv }, cleaned by dicecore cleanHmod on both machines), which
+// the host puts on the record as hmod and no rule reads. Dice added show in the formula itself, so they are not in hm
 function modOpts(opts, mod, advMode, pk, rf, md) {   // rf: the roll's swRef; md (1.6.2): the dice the window adds
     var o = opts, named = !!(opts && (opts.act || opts.fr || (opts.row && typeof opts.row.i === 'number')));
     if (pk && pk.length && !named && rf && typeof rf === 'object') { o = Object.assign({}, opts || {}); if (typeof rf.r === 'string') o.act = rf.r; else if (typeof rf.f === 'string') o.fr = rf.f; else if (typeof rf.l === 'string' && typeof rf.row === 'string' && typeof rf.i === 'number') o.row = { f: rf.l, r: rf.row, i: rf.i }; named = !!(o.act || o.fr || o.row); }
-    return named ? Object.assign({}, o, { mod: mod || undefined, modD: md || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined }) : opts;
+    if (named) return Object.assign({}, o, { mod: mod || undefined, modD: md || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined });
+    var hm = mod || (advMode && advMode !== 'normal') ? { v: mod || undefined, adv: advMode && advMode !== 'normal' ? advMode : undefined } : null;
+    return hm ? Object.assign({}, opts || {}, { hm: hm }) : opts;
 }
 function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6.0): which roll this is ({ f } | { r } | { l, row, i }), for its roll switches
     var Fm = F(); closeModPop();
@@ -591,7 +678,7 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     pop.appendChild(chips);
     var numRow = el('div', 'dice-modpop-num');
     var Ud = (typeof window !== 'undefined' && window.wpUi && window.wpUi.step ? window.wpUi : null);   // 1.6.2: the app's own counter, the modifier typed
-    if (Ud) { numEl = Ud.step({ value: 0, min: -99, max: 99, label: 'Modifier', lessTip: 'One less', moreTip: 'One more', valCls: 'dice-modpop-in', set: function(n) { mod = clampMod(n); refresh(); } }); numRow.appendChild(numEl); }
+    if (Ud) { numEl = Ud.step({ value: 0, min: -99, max: 99, label: 'Modifier', lessTip: 'One less', moreTip: 'One more', valCls: 'dice-modpop-in', set: function(n) { mod = clampMod(n); refresh(); } }); numRow.appendChild(numEl); if (numEl.input) numEl.input.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.isComposing) go.click(); }); }   // 1.6.3 (finding 4): Enter in the modifier rolls, as Enter in Dice to add does (the counter's own Enter has handed the figure on first)
     else {
     var minus = el('button', 'tool ghost dice-modpm', '−'); minus.title = 'One less'; minus.addEventListener('click', function() { mod = clampMod(mod - 1); refresh(); });
     numEl = el('span', 'dice-modpop-val', '0');
@@ -606,7 +693,7 @@ function rollWithMod(charId, expr, label, opts, anchor, swRef) {   // swRef (1.6
     dIn.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
     dRow.appendChild(dIn); pop.appendChild(dRow); dSay = el('div', 'dice-moddice-say', ''); dSay.setAttribute('aria-live', 'polite'); pop.appendChild(dSay);
     prevEl = el('div', 'dice-modpop-prev', ''); pop.appendChild(prevEl);
-    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { var r = applied(); if (dIn && cleanDiceBonus(dIn.value) === null) { toast('Write the dice to add as 1d6, or +1d6 \u2212 1d4.'); dIn.focus(); return; } if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef, modD)); });   // R1: a roll with consequences sends its modifier and advantage as data
+    var go = el('button', 'tool dice-modpop-go', 'Roll'); go.addEventListener('click', function() { if (numEl && typeof numEl.flush === 'function') numEl.flush(); var r = applied();   /* 1.6.3 (finding 4): the modifier typed and not yet handed on counts */ if (dIn && cleanDiceBonus(dIn.value) === null) { toast('Write the dice to add as 1d6, or +1d6 \u2212 1d4.'); dIn.focus(); return; } if (!r.ok) { toast('That roll cannot take that change.'); return; } closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef, modD)); });   // R1: a roll with consequences sends its modifier and advantage as data
     pop.appendChild(go);
     document.body.appendChild(pop);
     var rct = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 120, top: 120, bottom: 140 };
@@ -637,7 +724,7 @@ function roll(expr, opts) {
     lastSource = opts.source || 'panel';
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr.toLocaleString('en-US') + ' characters).' };
-    var r = n.diceRoll(clean, { hide: opts.hide === true && (isClient() || opts.source === 'chat') ? true : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, adv: opts.adv || undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
+    var r = n.diceRoll(clean, { card: typeof opts.card === 'string' && opts.card ? opts.card : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, modD: typeof opts.modD === 'string' && opts.modD ? opts.modD : undefined, adv: opts.adv || undefined, hm: opts.hm && typeof opts.hm === 'object' ? opts.hm : undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined, hide: opts.hide === true && (isClient() || opts.source === 'chat') ? true : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
     if (!r.error && !opts.row && !opts.coin) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
 }
@@ -704,4 +791,4 @@ function sync() {
 })();
 window.wpDiceSync = sync;
 setTimeout(sync, 0);
-window.wpDice = { hidden: hidden, setHidden: setHidden, hideSync: hideSync, hideClean: hideClean, waits: waits, roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, renderHelp: renderHelp, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };
+window.wpDice = { hidden: hidden, setHidden: setHidden, hideSync: hideSync, hideClean: hideClean, waits: waits, roll: roll, rollFor: rollFor, rollWithMod: rollWithMod, syncChars: syncChars, renderCard: renderCard, renderApply: renderApply, renderDue: renderDue, renderHelp: renderHelp, line: line, landed: landed, onDeny: onDeny, onRolled: onRolled, lastRoll: lastRoll, openPanel: openPanel, closePanel: closePanel, sync: sync, LIMITS: LIMITS, history: function() { return history.slice(); } };

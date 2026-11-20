@@ -2248,7 +2248,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         amts.push({ f: f, ctr: ctr, rq: rq, all: !!lfA, st: stQ || stA, lf: lfC || lfQ || lfA, amt: c.set === true || (f && TRACK_MARKS[c.mark] === 1) ? v : (v > 0 ? v : 0), add: c.add === true, set: c.set === true, mark: f && TRACK_MARKS[c.mark] === 1 ? c.mark : '', loss: c.loss === true, roll: rolled && res.diceRolled > 0 ? rollWords(res) : '' });   // R1: Set to takes the amount as it is; 1.5.9: what a Rolled amount drew
     }
     if (!tagMoves.length && !amts.some(function(a) { return a.allSw || a.say || a.launch || a.setOff || a.rand || a.discard || a.deckD || a.shared || a.table || a.fire || a.feed || a.off || a.fx || a.set || a.amt > 0 || (a.money && a.amt !== 0) || (!!a.per && Object.keys(a.per).some(function(k) { return a.per[k].amt > 0; })); })) return { ok: false, reason: 'none' };
-    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], asIs = same === true, fired = null, burst = false, shotsA = null, launches = [], lkWs = map(), lkOut = map(), setOffs = [], soLine = null;   // asIs: work still as char stands; burst: a fire with How many went, so its card says how many
+    var work = Object.assign({}, char, { values: JSON.parse(JSON.stringify(char.values || {})) }), out = {}, lines = [], still = [], asIs = same === true, fired = null, burst = false, shotsA = null, launches = [], lkWs = map(), lkOut = map(), setOffs = [], soLine = null;   // asIs: work still as char stands; burst: a fire with How many went, so its card says how many
     var onW = isObj(on) && isObj(on.char) ? Object.assign({}, on.char, { values: JSON.parse(JSON.stringify(on.char.values || {})) }) : null, onTc = onW ? (on.tctx || null) : null, onOut = {}, onLines = [], sameFx = '', gone = [], paidM = false, shortM = null, valMoves = map(), deckMoves = map();   // gone (1.6.0): the rows a quantity used up took out, each as it was   // 1.5.9 (book es/et plan, section 3): the character it is used on, on a working copy of its own
     for (var j = 0; j < amts.length; j++) {
         var a = amts[j]; if (a.money) {   // 1.6.0: too little money refuses the whole change for a player; the GM's hand (fxo.gmHand) takes what is held and is told
@@ -2387,7 +2387,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
                     var ggQ = grantsKept(sys, work.values, rowCtx.r); if (ggQ) { goQ.grants = ggQ; var gcQ = map(); ggQ.rows.forEach(function(p) { gcQ[p.f + '|' + rowIdOf(p.row)] = 1; }); itemListIds(sys).forEach(function(fid) { var lsG = Array.isArray(work.values[fid]) ? work.values[fid] : null; if (!lsG || !lsG.some(function(r) { return gcQ[fid + '|' + rowIdOf(r)] === 1; })) return; var kpG = lsG.filter(function(r) { return gcQ[fid + '|' + rowIdOf(r)] !== 1; }); lsG.length = 0; kpG.forEach(function(r) { lsG.push(r); }); out[fid] = lsG; }); }   // 1.6.0 (v2, B4): what it granted goes with it, kept for its Undo
                     if (gpQ) partsKeptAll(gpQ).forEach(function(kp) { var lsP = kp.f === a.lf.id ? rowsQ : (work.values[kp.f] = JSON.parse(JSON.stringify(Array.isArray(work.values[kp.f]) ? work.values[kp.f] : []))), gidQ = map(); kp.rows.forEach(function(p) { gidQ[rowIdOf(p.row)] = 1; }); var keepQ = lsP.filter(function(r) { return !(isObj(r) && gidQ[rowIdOf(r)] === 1); }); lsP.length = 0; keepQ.forEach(function(r) { lsP.push(r); }); if (kp.f !== a.lf.id) out[kp.f] = lsP; });   // 1.6.2: of every list they come from
                 } else rwQ.qty = nxQ;
-                out[a.lf.id] = rowsQ; var lnQ = { f: a.lf.id, n: nmQ, d: nxQ - curQ, v: nxQ }; if (a.roll) lnQ.roll = a.roll; lines.push(lnQ);
+                out[a.lf.id] = rowsQ; var lnQ = { f: a.lf.id, n: nmQ, d: nxQ - curQ, v: nxQ }; if (a.roll) lnQ.roll = a.roll; lines.push(lnQ); if (nxQ === curQ && !a.roll) still.push(lnQ);
                 continue;
             }
             var spQ = isObj(a.lf.list) ? a.lf.list : null, curS = rowStat(spQ, rdQ ? rdQ.def : null, a.st.key); curS = typeof curS === 'number' && fin(curS) ? curS : 0;
@@ -2395,7 +2395,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             if (typeof rwQ.defId === 'string') { rwQ.ov = isObj(rwQ.ov) ? rwQ.ov : {}; rwQ.ov.stats = Object.assign({}, isObj(rwQ.ov.stats) ? rwQ.ov.stats : {}); rwQ.ov.stats[a.st.key] = nxS; }   // a library row: its own figure over the entry's
             else if (isObj(rwQ.def)) { rwQ.def = Object.assign({}, rwQ.def); rwQ.def.stats = Object.assign({}, isObj(rwQ.def.stats) ? rwQ.def.stats : {}); rwQ.def.stats[a.st.key] = nxS; }   // a row of its own: its own copy
             else return { ok: false, reason: 'missing' };
-            out[a.lf.id] = rowsQ; var lnS = { f: a.lf.id, n: a.st.label || a.st.key, d: nxS - curS, v: nxS }; if (a.roll) lnS.roll = a.roll; lines.push(lnS);
+            out[a.lf.id] = rowsQ; var lnS = { f: a.lf.id, n: a.st.label || a.st.key, d: nxS - curS, v: nxS }; if (a.roll) lnS.roll = a.roll; lines.push(lnS); if (nxS === curS && !a.roll) still.push(lnS);
             continue;
         }
         if (a.fire) {   // 1.5.9 Chambers from: the first chambered round leaves the chamber and is kept on the row as the round last fired (one copy, replaced at each shot). Nothing chambered: nothing fires. 1.6.0: How many (a.n) takes that many in order, stopping when the chamber is empty, each a shot as one press would make it: fd is the last that went
@@ -2429,7 +2429,7 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
             var curC = rowCt(rwC, a.ctr), nxC = Math.max(0, Math.min(1e6, Math.round(a.set ? a.amt : a.add ? curC + a.amt : curC - a.amt))), mxC = makeResolver(sys, work, F, tctx || null).ctMax(a.lf, rwC, a.ctr.key);
             if (typeof mxC === 'number') nxC = Math.min(nxC, mxC);
             rwC.ct = Object.assign({}, isObj(rwC.ct) ? rwC.ct : {}); rwC.ct[a.ctr.key] = nxC; out[a.lf.id] = rowsC;
-            var lnC = { f: a.lf.id, n: a.ctr.label || a.ctr.key, d: a.set ? nxC - curC : a.add ? a.amt : -a.amt, v: nxC }; if (a.roll) lnC.roll = a.roll; lines.push(lnC);   // 1.5.9: and what a Rolled amount drew
+            var lnC = { f: a.lf.id, n: a.ctr.label || a.ctr.key, d: a.set ? nxC - curC : a.add ? a.amt : -a.amt, v: nxC }; if (a.roll) lnC.roll = a.roll; lines.push(lnC); if (nxC === curC && !a.roll) still.push(lnC);   // 1.5.9: and what a Rolled amount drew
             continue;
         }
         var lkW = null; if (a.lk) { if (!lkWs[a.lk]) { var lk0 = null; try { lk0 = _linkCharSrc ? _linkCharSrc(a.lk) : null; } catch (e) { lk0 = null; } if (isObj(lk0) && _linkOver && isObj(_linkOver[a.lk])) lk0 = Object.assign({}, lk0, { values: Object.assign({}, lk0.values || {}, _linkOver[a.lk]) }); if (isObj(lk0)) lkWs[a.lk] = Object.assign({}, lk0, { values: JSON.parse(JSON.stringify(lk0.values || {})) }); } lkW = lkWs[a.lk] || null; if (!lkW) { lines.push({ n: a.f.label || a.f.key, say: 'The linked sheet is not here, so nothing moves.' }); continue; } }   // 1.6.2 (12): a copy of the linked sheet, read and moved in its own names
@@ -2450,11 +2450,16 @@ function applyAct(sys, char, act, vars, F, tctx, rowCtx, same, D, on, fxo) {   /
         tw.values[a.f.id] = ed.value; if (lkW) (lkOut[a.lk] = lkOut[a.lk] || {})[a.f.id] = ed.value; else if (onW) onOut[a.f.id] = ed.value; else { out[a.f.id] = ed.value; asIs = false; }
         var nv = a.f.kind === 'resource' ? ed.value.cur : a.f.kind === 'toggle' ? (ed.value ? 1 : 0) : ed.value;
         var lnF = { f: a.f.id, n: a.f.label || a.f.key, d: a.set || mkR ? nv - cur : a.add ? a.amt : -a.amt, v: nv }; if (mkR) lnF.say = mkR.say; if (scS > 0) lnF.sur = scS; if (a.roll) lnF.roll = a.roll; if (lkW) { delete lnF.f; lnF.n = cutText(lkW.name || 'The linked sheet', 40) + ': ' + lnF.n; lnF.lk = 1; lines.push(lnF); } else { if (onW && a.set) lnF.set = true; (onW ? onLines : lines).push(lnF); }
+        if (nv === cur && !mkR && !scS && !a.roll) still.push(lnF);   // 1.6.3 (finding 38): a value the change left where it stood, put aside below
         if (a.f.kind === 'resource' && !a.set && !a.add && isObj(a.f.spill)) {   // 1.6.0 Spills into: a Subtract past the pool's spill point goes on into another pool, in this one change
             var spA = poolSpill(sys, tw, a.f, cur, a.amt, F, ttc); if (spA.error) return { ok: false, reason: 'error', message: spA.error };
             spA.steps.forEach(function(s) { if (lkW) { (lkOut[a.lk] = lkOut[a.lk] || {})[s.f] = s.value; lines.push({ n: cutText(lkW.name || 'The linked sheet', 40) + ': ' + s.label, d: -s.amt, v: s.v, lk: 1 }); return; } if (onW) onOut[s.f] = s.value; else out[s.f] = s.value; (onW ? onLines : lines).push({ f: s.f, n: s.label, d: -s.amt, v: s.v }); });
         }   // a Set's line says what it moved; 1.5.9: and what a Rolled amount drew; a Set on another says so, for the card its user's player gets with no figure
     }
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 38): a value, a counter, a row's stat or its quantity that the change left
+    // where it stood (a Set to what it already was, an Add of 0, a Subtract at its least) is no line of the card ("Bleeding +0 → 0"), so long
+    // as anything else is said. Where nothing moved at all every line stays, so a press that changed nothing still answers as it always did
+    if (still.length && lines.concat(onLines).some(function(l) { return still.indexOf(l) < 0; })) { lines = lines.filter(function(l) { return still.indexOf(l) < 0; }); onLines = onLines.filter(function(l) { return still.indexOf(l) < 0; }); }
     tagMoves.forEach(function(t) { lines.push({ n: t.n, fx: t.put ? 1 : 0 }); });   // 1.6.2 (vehicles, fold (c)): a mark on or off, said as an effect is
     if (!lines.length && !onLines.length) return sameFx ? { ok: false, reason: 'none', message: sameFx } : { ok: false, reason: 'none' };   // 1.5.9: a Then that only fires, with nothing chambered
     var doneA = { ok: true, values: out, lines: lines, names: names }; if (paidM) doneA.paid = true; if (shortM) doneA.short = shortM; if (fired && !shotsA) doneA.fired = fired; if (burst) doneA.burst = true; if (shotsA) doneA.shots = shotsA; if (gone.length) doneA.gone = gone;   // 1.6.0: the rows used up, for their Undo   // 1.5.9: the round it fired, for the blast it places
@@ -7963,18 +7968,41 @@ function tokenEffects(sys, char, gm, F) {   // conditions C4: F (the formula eng
 // compares what each token was last sent with, so a list kept from before a change would hide the change). A kept list is also
 // passed over where the system, the values object, the sheet's stamp or the formula engine is another. The list handed back is shared:
 // its callers only read it (the token's effect marks, its card, the copy a token is sent with)
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 2: one character's change redrew the board, and every token's list was
+// worked out again, some 115 ms on a map of 47 character tokens): a list is ALSO kept from one pass to the next, by its CONTENT KEY, the text
+// a caller hands in as key (sheets.js keptKey: the character's whole stored self as JSON, what systemcore outsideKey reads through the
+// sources a resolver asks, the library a row's entry comes from and the system's shape), by the rule fog.js keeps a token's senses by
+// (CLAUDE.md, "A new source a resolver asks joins outsideKey"). A kept list is handed back only where that key, the system object, its
+// stamp and the formula engine are the very ones it was worked out with and it is younger than FX_KEPT_MS, which bounds what the key may
+// miss (a part of the system changed in place). So nothing has to be forgotten by hand: a character that changed, one it links to, a shared
+// value or the library each give another key, and only that list is worked out again. With no key (a caller that cannot make one, a suite)
+// nothing is kept past the pass, exactly as before. _fxKept holds no source for a resolver: fog.js's tripwire passes it by its shape
+var _fxKept = typeof WeakMap === 'function' ? new WeakMap() : null, FX_KEPT_MS = 30000;
+// The review of the speed fold: each kept list lives 30 to 45 seconds by a hash of its character's id (sheets.js keptLife is the same rule), so lists
+// worked out on one draw do not all run out on one later draw and bring back, every 30 seconds, the cost keeping them took away
+function fxLife(id) { var s = String(id === undefined || id === null ? '' : id), h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return FX_KEPT_MS + ((h >>> 0) % 15000); }   // FNV-1a, so ids that differ in one character still fall far apart
 var _fxPass = null;
-function tokenEffectsPass(sys, char, gm, F) {
+function tokenEffectsPass(sys, char, gm, F, key) {
     if (!isObj(char) || typeof WeakMap !== 'function') return tokenEffects(sys, char, gm, F);
     if (!_fxPass) { var mine = _fxPass = new WeakMap(), clear = function() { if (_fxPass === mine) _fxPass = null; }; if (typeof queueMicrotask === 'function') queueMicrotask(clear); else Promise.resolve().then(clear); }
     var slot = _fxPass.get(char); if (!slot) { slot = {}; _fxPass.set(char, slot); }
     var k = gm === true ? 'g' : 'p', hit = slot[k];
     if (hit && hit.sys === sys && hit.vals === char.values && hit.upd === char.updated && hit.F === F) return hit.out;
-    var out = tokenEffects(sys, char, gm, F);
+    var out = null, now = Date.now(), keyed = typeof key === 'string' && !!_fxKept;
+    if (keyed) {   // across passes: the list kept for this very content, if it is still young
+        var kept = _fxKept.get(char), kh = kept ? kept[k] : null;
+        if (kh && kh.key === key && kh.sys === sys && kh.sysUpd === (isObj(sys) ? sys.updated : undefined) && kh.F === F && now >= kh.born && now - kh.born < kh.life) out = kh.out;
+    }
+    if (!out) {
+        out = tokenEffects(sys, char, gm, F);
+        if (keyed) { var kp = _fxKept.get(char); if (!kp) { kp = {}; _fxKept.set(char, kp); } kp[k] = { key: key, sys: sys, sysUpd: isObj(sys) ? sys.updated : undefined, F: F, born: now, life: fxLife(char.id), out: out }; }
+    }
     slot[k] = { sys: sys, vals: char.values, upd: char.updated, F: F, out: out };
     return out;
 }
-function tokenEffectsForget() { _fxPass = null; }
+// The pass's lists are let go (every funnel of a character change asks this first). With all true (a suite, or a change no key can see),
+// every list kept across passes goes too
+function tokenEffectsForget(all) { _fxPass = null; if (all === true && typeof WeakMap === 'function') _fxKept = new WeakMap(); }
 // [systemcheck:fxpass-end]
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md; the owner's O6: "An effect can set posture"): the effects on a character that set its token's posture, by
 // their id: { p: the posture's id, back: true where it is put back when the effect ends } — the rows switched on of a library effect and the
@@ -8090,14 +8118,18 @@ function cleanBarFigs(list) {
 function barFill(e) { return isObj(e) && typeof e.m === 'number' && e.m > 0 && typeof e.v === 'number' ? Math.max(0, Math.min(1, e.v / e.m)) : 0; }
 function barTip(e) { return isObj(e) ? (e.n || 'Bar') + ' ' + fmtNum(e.v) + ' / ' + fmtNum(e.m) : ''; }
 // 5h: a value's breakdown as plain text — "12 = 10 base · Rage +2", and on a derived value "· Rage +2 on ST"
-function fxText(e, max) {
-    var base = max ? e.maxBase : e.base, mods = (max ? e.maxMods : e.mods) || [], via = (max ? e.maxVia : e.via) || [];
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 32): a change of +0 says nothing and is left out, and with the system handed
+// in (sys, the sheet's own) a derived value names the value it moved by its label (nameWord), never its key: "Tough +2 on Toughness"
+function fxText(e, max, sys) {
+    var zero = function(m) { return !!m && (m.op === undefined || m.op === 'add') && m.v === 0; };
+    var base = max ? e.maxBase : e.base, mods = ((max ? e.maxMods : e.mods) || []).filter(function(m) { return !zero(m); }), via = ((max ? e.maxVia : e.via) || []).filter(function(m) { return !zero(m); });
     if (!mods.length && !via.length) return '';
+    var thru = function(t) { if (!sys || typeof nameWord !== 'function') return t; try { return nameWord(sys, t) || t; } catch (x) { return t; } };
     var amt = function(m) { return m.op === 'max' ? 'at least ' + fmtNum(m.v) : m.op === 'min' ? 'at most ' + fmtNum(m.v) : (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); };   // 1.6.0: a floor and a ceiling said as such
     var parts = [];
     if (typeof base === 'number') parts.push(fmtNum(base) + ' base');   // the value with no effect at all, so the parts add up to what is shown
     mods.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (on)' : m.name + ' ' + amt(m)); });
-    via.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (' + m.through + ' on)' : m.name + ' ' + amt(m) + ' on ' + m.through); });
+    via.forEach(function(m) { parts.push(m.op === 'on' ? m.name + ' (' + thru(m.through) + ' on)' : m.name + ' ' + amt(m) + ' on ' + thru(m.through)); });
     return parts.slice(0, 13).join(' \u00b7 ');
 }
 function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (typeof v !== 'number' || !isFinite(v)) return v === null || v === undefined ? '' : String(v); if (Math.floor(v) === v) return String(v); return String(Number(v.toFixed(2))); }
@@ -8105,7 +8137,8 @@ function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (ty
 // to leave it out. A toggle shows as a chip only while on; an error prints '—' with the message as a title (as the field itself does
 // below); a negative number marks itself so the figure can read red. Stage 5g: an empty text/select keeps its place as a dash (a row
 // that vanished read as a missing field), the field's unit follows the value, and a field colored by sign marks a positive too.
-function headerEntry(f, e, metric) {   // metric (1.5.4): the viewer's Measurement system, true for Metric and false for Imperial; absent, the field as stored (an export)
+// sys (the review of words): the sheet's system, handed to fxText so that a value an effect moves is named by its label, never its key (absent: as before)
+function headerEntry(f, e, metric, sys) {   // metric (1.5.4): the viewer's Measurement system, true for Metric and false for Imperial; absent, the field as stored (an export)
     if (!f || !e) return null;
     if (f.kind === 'toggle') return e.value === true ? { chip: true, text: f.label } : null;
     if (e.error) return { text: '\u2014', error: String(e.error) };
@@ -8114,7 +8147,7 @@ function headerEntry(f, e, metric) {   // metric (1.5.4): the viewer's Measureme
     var ht = f.kind === 'text' && !!cleanFieldUnit(f.unit, 'text');   // 1.5.4: a height or a weight, by the half of the viewer's setting (with none told, as stored)
     var out = { text: ht ? (metric === true || metric === false ? textWords(f, String(e.text), metric) : e.text) : f.unit && !e.label ? (f.kind === 'resource' ? e.text + ' ' + f.unit + unitTail(f, e.value, e.text, metric, e.max, typeof e.max === 'number' ? fmtNum(e.max) : '') : unitWords(f, e.value, e.text, metric)) : e.text };   // Stage 6: a named value is a word (no unit); 1.5.4: a measure in metric too under Metric, in the field's own form
     if (numeric && e.value < 0) out.neg = true; else if (numeric && f.sign && e.value > 0) out.pos = true;
-    var why = fxText(e) || (f.kind === 'resource' ? fxText(e, true) : ''); if (why) out.why = why;   // 5h: where the number came from
+    var why = fxText(e, false, sys) || (f.kind === 'resource' ? fxText(e, true, sys) : ''); if (why) out.why = why;   // 5h: where the number came from
     return out;
 }
 // "HP 7 / 14 · Prone" — the hover card and the party strip; a field that errors here is skipped, never printed as an error

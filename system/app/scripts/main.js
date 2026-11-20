@@ -293,7 +293,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   export function render() {
 
-      if (window.wpHideTooltip) window.wpHideTooltip();   // a re-render never leaves a stale hover card behind
+      if (window.wpHideTooltip) window.wpHideTooltip(); window.wpRenderN = (window.wpRenderN | 0) + 1;   // a re-render never leaves a stale hover card behind; 1.6.3 (finding 2): wpRenderN counts the whole draws, which sheets.js boardRedraw reads to know the screen still shows what it last drew
       if (window.wpNet && window.wpNet.renderWhere) window.wpNet.renderWhere();
       if (window.wpCalendar && window.wpCalendar.refresh) window.wpCalendar.refresh();   // item 20 K2: the header's clock (before the no-map return: a map-less campaign has a date too)   // a joined player's campaign › map in the top bar (net.js): before the no-map return, so a map-less table clears it
       if (window.wpVideo && window.wpVideo.refresh) window.wpVideo.refresh();   // item 21: the Video panel follows a campaign switch, a feature switched, a table joined

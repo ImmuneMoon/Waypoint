@@ -108,7 +108,7 @@ pendingChecks.push((async () => {
         const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
         const msg = Object.assign({ type: 'roll-req', rid: 'q1', expr: 'd20 + RoundNow', charId: 'c_a', label: 'Attack (+5)' }, o.msg || {});
-        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', (o.pre || '') + 'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + rqSrc)(
             msg, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope, x) => out.pushed.push([scope, x && x.cid]), () => {});
         return out;
     };
@@ -120,6 +120,19 @@ pendingChecks.push((async () => {
         && e.table.length === 0 && e.sent.length === 1 && e.sent[0].priv === 'gm' && rd(e.sent[0], 'RoundNow') === 3
         && g.table.length === 0 && g.sent.length === 1 && g.sent[0].type === 'roll-deny' && g.sent[0].reason === 'error',
         j([a, b.table, c.table, d.table, f.table, e.sent, g.sent]));
+    // the review of words (the improvement week's review of sheets and rolls): a roll changed by hand in the ± window that its button does not name goes
+    // as its formula alone, as the plain press does, so the host's rules judge it as the plain press. Run with the real offTurnBar under Refuse (its
+    // offTurnOf answering refuse, the real systemcore offTurnFree): a named chosen roll is refused off the character's turn, the same roll unnamed
+    // with +2 added by hand goes through exactly as the plain press does, and its card says the +2 (hmod, from the request's hm)
+    const otBar = src.slice(src.indexOf('function offTurnBar('), src.indexOf('function offTurnWarn('));
+    const otPre = 'function offTurnOf() { return "refuse"; }\nfunction offTurnTell() {}\n' + otBar + '\n';
+    const atkId = (gmSys.rolls || []).filter(r => r.label && /^Attack/.test(r.label))[0].id;
+    const onNamed = run({ pre: otPre, msg: { expr: 'd20 + 2', act: atkId, mod: 2 } }), onHand = run({ pre: otPre, msg: { expr: 'd20 + 2', hm: { v: 2 } } }), onPlain = run({ pre: otPre, msg: { expr: 'd20 + 2' } });
+    check('the review of words: a roll changed by hand that is not named goes as the plain press does: under Off a character\'s turn: Refuse the named roll is refused, the same roll unnamed with +2 by hand and the plain press both go through, and only the one changed by hand says +2 on its card',
+        otBar.length > 0 && onNamed.table.length === 0 && onNamed.sent.length === 1 && onNamed.sent[0].type === 'roll-deny'
+        && onHand.table.length === 1 && j(onHand.table[0].hmod) === j({ v: 2 }) && !onHand.table[0].act
+        && onPlain.table.length === 1 && !('hmod' in onPlain.table[0]),
+        j([onNamed.sent, onHand.table, onPlain.table]));
 })());
 
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a player's roll with bonuses ticked in its ± window — the real roll-req branch
@@ -258,7 +271,7 @@ pendingChecks.push((async () => {
         out.ret = dr(expr, Object.assign({ charId: 'c_a' }, o || {})); return out; };
     const priv = r => !!r.ret && r.ret.ok === true && r.ret.priv === true && r.table.length === 0 && r.target.length === 0 && j(r.pushed.map(p => p.slice(0, 2))) === j([['whisper', 'gm']]) && r.toasts.length === 1;
     const pub = r => !!r.ret && r.ret.ok === true && r.ret.priv === false && r.table.length === 1 && !r.table[0].priv && r.target.length === 0 && j(r.pushed.map(p => p.slice(0, 2))) === j([['global', '']]) && r.toasts.length === 0;
-    const toastOf = n => 'Kept private: that roll uses a GM-only value (' + n + ').';
+    const toastOf = n => 'Kept private: that roll uses a GM-only value (' + Sx.nameWord(sysD, n) + ').';   // 1.6.3 (finding 42), moved on purpose: the notice names each value in the sheet's words (net.js privWords), so HP.max reads "HP when full"
     const dG = run('d6 + GMFig'), dB = run('d6 + Bonus', { label: 'Attack (13)' }), dAt = run('d6 + Atk'), dHm = run('d6 + HP.max'), dHf = run('d6 + HP'), dHs = run('d6 + HP', {}, { values: { f_hp: { cur: 5 } } }), dSk = run('d6 + Sk'), dSr = run('d6 + Sk.ranks'), dA = run('d6 + A');
     check('derived GM-only values: the GM\'s own public roll (net.diceRoll, run for real) goes to the GM alone with the toast when it reads a GM-only value or one worked out from it — a formula, a formula over it, a pool whose max is one (its max; the pool full or stored), a skill — and stays public for a skill\'s ranks and a plain number; every message packs',
         [dG, dB, dAt, dHm, dHf, dHs, dSk].every(priv) && [dSr, dA].every(pub) && dG.toasts[0] === toastOf('GMFig') && dB.toasts[0] === toastOf('Bonus') && dAt.toasts[0] === toastOf('Atk') && dHm.toasts[0] === toastOf('HP.max') && dHf.toasts[0] === toastOf('HP') && dHs.toasts[0] === toastOf('HP') && dSk.toasts[0] === toastOf('Sk')
@@ -677,7 +690,8 @@ pendingChecks.push((async () => {
             { id: 'r_d20', label: 'Adv', formula: 'd20 >= 1', then: [{ f: 'f_hits', formula: '2', add: true, when: 'hit' }] },
             { id: 'r_plain', label: 'Plain', formula: 'd6' },
             { id: 'r_sec', label: 'Sec', formula: '3d6 <= 30', then: [{ f: 'f_hits', formula: 'GMFig', add: true }] },
-            { id: 'r_gm', label: 'GM', formula: '3d6 <= 30', vis: 'gm', then: [{ f: 'f_hits', formula: '1', add: true }] }] }, { F: Fx, gmView: true });
+            { id: 'r_gm', label: 'GM', formula: '3d6 <= 30', vis: 'gm', then: [{ f: 'f_hits', formula: '1', add: true }] },
+            { id: 'r_same', label: 'Same', formula: '3d6 <= 30', then: [{ f: 'f_hits', formula: '3', set: true }] }] }, { F: Fx, gmView: true });
     const START = { f_hits: 3 };
     const runQ = (msg, o) => { o = o || {}; const out = { table: [], sent: [], deltas: [], saves: 0 };
         const camp = { id: 'k', activeItemId: 'm1', system: sysT, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(START)) } }, items: { m1: { type: 'map', whiteboard: [] } } };
@@ -698,6 +712,13 @@ pendingChecks.push((async () => {
         qMod.table.length === 1 && qMod.table[0].expr === wMod && j(qMod.vals.f_hits) === '4' && qAdv.table.length === 1 && qAdv.table[0].expr === aAdv && j(qAdv.vals.f_hits) === '5' && [qFake, qFakeMod, qNoAdv].every(refused),
         j([qMod.table.map(r => r.expr), qAdv.table.map(r => r.expr), qFake.sent, qFakeMod.sent, qNoAdv.sent]));
     const qGm = runQ({ act: 'r_gm', expr: '3d6 <= 30' }), qSec = runQ({ act: 'r_sec', expr: '3d6 <= 30' }), qPlain = runQ({ act: 'r_plain', expr: 'd6' });
+    {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 1): a Then that lands lines but moves no stored value (a Set to the figure
+        // already held) is not stored, saved, sent or drawn: the roll still goes to the table; and the GM's own roll (net.diceRoll's restR) asks the same
+        const qSame = runQ({ act: 'r_same', expr: '3d6 <= 30' }), drS = between('// [netcheck:diceroll-start]', '// [netcheck:diceroll-end]', 'diceroll');
+        check('1.6.3 (finding 1) a roll whose Then moves nothing (a Set to the figure already held) goes to the table and stores, saves and sends nothing (the host\'s roll-req branch, run for real); the GM\'s own roll judges what moved the same way before it saves',
+            qSame.table.length === 1 && qSame.deltas.length === 0 && qSame.saves === 0 && j(qSame.vals) === j(START) && qWin.saves === 1
+                && /var mvR = !!taR && taR\.ok && \(!!taR\.gone \|\| Object\.keys\(taR\.values\)\.some\(/.test(drS) && /if \(taR && taR\.ok && mvR && \(!onR \|\| Object\.keys\(taR\.values\)\.length\)\) \{/.test(drS), j([qSame.table.length, qSame.deltas, qSame.saves]));
+    }
     check('R1 an entry the player\'s view does not have (a GM-only roll) is refused; one whose consequences name a GM-only value rolls with none (their view dropped them); a roll with none changes nothing',
         refused(qGm) && qSec.table.length === 1 && qSec.deltas.length === 0 && j(qSec.vals) === j(START) && qPlain.table.length === 1 && qPlain.deltas.length === 0, j([qGm.sent, qSec.deltas, qPlain.deltas]));
     // the player's side: net.diceRoll's client branch sends the entry, its modifier and advantage as data (never with a row)
@@ -723,6 +744,29 @@ pendingChecks.push((async () => {
         gWin.ret.ok && j(gWin.vals.f_hits) === '4' && j(gWin.deltas) === j([['c_a', { f_hits: 4 }]]) && gWin.saves === 1 && j(gWin.changed) === j(['c_a'])
         && gOff.ret.ok && j(gOff.vals) === j({ f_hits: 0, f_fp: { cur: 9 } }) && gOff.deltas.length === 0 && gOff.saves === 1 && gNo.ret.ok && j(gNo.vals) === j(START) && gNo.saves === 0,
         j([gWin.vals, gWin.deltas, gOff.vals, gNo.vals]));
+    {   // the review of the speed fold: the GM's own roll (net.diceRoll's restR) run for real, as the host's branch for a player's roll is above: a Then
+        // that sets a value already held stores, saves, sends and draws nothing; one that moves a value, and one that uses a row up (taR.gone), store,
+        // save, send and draw as before (the row's own list moves too, so a row used up is stored whether or not its list's text would compare equal)
+        const runGs = (sys, vals, expr, o) => { const out = { deltas: [], saves: 0, changed: [] };
+            const camp = { id: 'k', system: sys, chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: JSON.parse(JSON.stringify(vals)) } } };
+            const net = { active: true, role: 'host', stream: false, conns: [], roster: {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
+            const win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { tokenCtxFor: () => null, charChanged: id => out.changed.push(id), goneLocal: () => {} } };
+            const dr = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'getProfile', 'toast', 'ui', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'save', 'var _dicePending = null;\n' + helpers + drSrc + '\nreturn net.diceRoll;')(
+                net, () => Dx, () => Sx, win, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => {}, () => null, e => { throw e; }, () => {}, () => {}, () => {}, () => { out.saves++; });
+            out.ret = dr(expr, Object.assign({ charId: 'c_a' }, o || {})); out.vals = camp.chars.c_a.values; out.stamp = camp.chars.c_a.updated; return out; };
+        const gSame = runGs(sysT, START, '3d6 <= 30', { act: 'r_same' }), gMove = runGs(sysT, START, '3d6 <= 30', { act: 'r_win' });
+        const sysU = Sx.cleanSystem({ v: 1, name: 'U', fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner',
+            list: { rolls: [{ label: 'Use', formula: '3d6 <= 30', then: [{ q: true, formula: '1' }] }, { label: 'Keep', formula: '3d6 <= 30', then: [{ q: true, formula: '1', set: true }] }] } }],
+            items: [{ id: 'i_k', name: 'Kit', vis: 'all' }], sheet: { sections: [] } }, { F: Fx, gmView: true });
+        const ROWS = { f_g: [{ id: 'w_1', defId: 'i_k', qty: 1 }] };
+        const gGone = runGs(sysU, ROWS, '3d6 <= 30', { row: { f: 'f_g', r: 'w_1', i: 0 } }), gKeep = runGs(sysU, ROWS, '3d6 <= 30', { row: { f: 'f_g', r: 'w_1', i: 1 } });
+        check('the review of the speed fold (finding 1, the GM\'s side run for real): the GM\'s own roll whose Then sets a value already held saves, sends and draws nothing and leaves the sheet\'s stamp; one that moves a value saves once, sends one delta and draws; one that uses a row up (its quantity to 0) stores the list without it, saves, sends and draws; one that sets the quantity it already has does none of it',
+            gSame.ret.ok && gSame.saves === 0 && gSame.deltas.length === 0 && gSame.changed.length === 0 && gSame.stamp === undefined && j(gSame.vals) === j(START)
+                && gMove.ret.ok && gMove.saves === 1 && j(gMove.deltas) === j([['c_a', { f_hits: 4 }]]) && j(gMove.changed) === j(['c_a'])
+                && gGone.ret.ok && gGone.saves === 1 && gGone.deltas.length === 1 && j(gGone.changed) === j(['c_a']) && j(gGone.vals.f_g) === j([])
+                && gKeep.ret.ok && gKeep.saves === 0 && gKeep.deltas.length === 0 && gKeep.changed.length === 0 && j(gKeep.vals) === j(ROWS),
+            j([gSame.saves, gSame.deltas, gMove.saves, gGone.saves, gGone.deltas, gGone.vals, gKeep.saves, gKeep.deltas]));
+    }
 })());
 
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md section 1, the book's (es)): a round fired by a roll's Then lands by the roll's verdict. The host's roll-req branch
@@ -1856,5 +1900,65 @@ pendingChecks.push((async () => {
         && okK17 === true && K17.out.toasts.indexOf('No player is at the table now, so nobody was sent it.') >= 0
         && K18.out.toasts.length === 0 && K18.rolls('pA').length === 1 && K18.out.steps.some(s => s[1] === 'shown' && s[2].sent === 2), j([K16.out.toasts, K17.out.toasts, K18.out.toasts, K16.out.steps]));
 })());
+
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 6, and the review of input): a defense or reminder card pressed whose roll never happened is live again
+{
+    const dlSrc = fnSrc('function dueLive(att, card) {', '\nnet.dueLive = function', 'dueLive');
+    const mkLog = () => [{ due: { id: 'd1', att: 'a_aaaaaaaa' }, done: true }, { due: { id: 'd2', att: 'a_aaaaaaaa' }, done: true, over: 1 }, { due: { id: 'd3', att: 'a_bbbbbbbb' }, done: true }, { roll: { id: 'r' } }, { due: { id: 'd5' }, done: true }];
+    let log = mkLog(), drawn = 0;
+    const DL = new Function('chatLog', 'renderChatSoon', dlSrc + '\nreturn dueLive;')(log, () => { drawn++; });
+    const r1 = DL('a_aaaaaaaa'), state1 = log.map(m => [!!m.done, !!m.over]), r2 = DL('a_aaaaaaaa'), r3 = DL(''), r4 = DL(7);
+    const rc = DL('', 'd5'), rcState = !!log[4].done, rc2 = DL('', 'd5'), rc9 = DL('', 'd9'), rcWins = DL('a_bbbbbbbb', 'd1');   // a reminder found by its own id; the card's id wins over an attempt named beside it
+    const shS = fs.readFileSync(path.join(kit.APP, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), diS = fs.readFileSync(path.join(kit.APP, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n');
+    check('1.6.3 (finding 6 and the review of input): a card pressed and not over is live again (dueLive: its buttons drawn again, once; a card that is over or another card stays as it is), found by its own id where the press named it (a reminder names no attempt) and by its attempt otherwise, on a player\'s app at the host\'s roll-deny and at the request\'s own timeout, the pending request keeping the card\'s attempt and its id (this machine\'s own word, never sent)',
+        r1 === true && j(state1) === j([[false, false], [true, true], [true, false], [false, false], [true, false]]) && drawn === 2 && r2 === false && r3 === false && r4 === false
+        && rc === true && rcState === false && rc2 === false && rc9 === false && rcWins === false && log[2].done === true
+        && src.includes("if ((pend.att || pend.card) && typeof dueLive === 'function') dueLive(pend.att, pend.card);") && src.includes("if ((attP || cardP) && typeof dueLive === 'function') dueLive(attP, cardP); }, D.LIMITS.timeoutMs), att: attP, card: cardP };")
+        && src.includes("cardP = typeof o.card === 'string' ? o.card : '';") && src.includes("net.dueLive = function(card) { return dueLive('', card); };")
+        && /try \{ net\.conns\[0\]\.send\(req\); \}/.test(src) && !/card: cardP[^\n]*\n[^\n]*req\.card/.test(src), j([r1, state1, drawn, rc, rc2, rc9, rcWins]));
+    // dice.js: the press of a card under way, its first roll taking it (dueTake), and a press that rolls later watched
+    const dcSrc = diS.slice(diS.indexOf('// [netrollcheck:duecard-start]'), diS.indexOf('// [netrollcheck:duecard-end]'));
+    const lived = [], timers = []; let asking = false, clock = 0;
+    const DC = new Function('net', 'window', 'setTimeout', 'Date', dcSrc + '\nreturn { duePress, dueTake, cur: function() { return _dueCard; } };')(() => ({ dueLive: id => { lived.push(id); return true; } }), { wpSheets: { rollAsking: () => asking } }, f => { timers.push(f); }, { now: () => clock });
+    const tick = () => timers.splice(0).forEach(f => f());
+    const rec = id => ({ id, charId: 'c_a' });
+    let took = ''; const a = DC.duePress(rec('d1'), () => { took = DC.dueTake('c_a'); return true; }); const aCur = DC.cur();
+    const b = DC.duePress(rec('d2'), () => false), bCur = DC.cur(), bOther = DC.duePress(rec('d2b'), () => { took += '|' + DC.dueTake('c_b'); return true; });
+    asking = true; const c = DC.duePress(rec('d3'), () => 'wait'); tick(); const cWait = [timers.length, lived.slice()]; const cTook = DC.dueTake('c_a'); tick(); const cAfter = lived.slice();
+    asking = false; const d = DC.duePress(rec('d4'), () => 'wait'); tick(); const dLived = lived.slice(), dCur = DC.cur();
+    asking = true; DC.duePress(rec('d5'), () => 'wait'); clock += 120001; tick(); const eLived = lived.slice();
+    const thrown = DC.duePress(rec('d6'), () => { throw new Error('x'); }), tCur = DC.cur();
+    check('1.6.3 (the review of input): dice.js duePress runs a card\'s press with the card noted, its first roll for that character takes it (dueTake, never a roll for another character), a press that rolled nothing yet (\'wait\') leaves the card pressed while its button still asks something and makes it live again by its own id once nothing is asked and no roll came, or after two minutes; a press that throws or is refused leaves nothing noted',
+        a === true && took === 'd1|' && aCur === null && b === false && bCur === null && bOther === true && c === true && j(cWait) === j([1, []]) && cTook === 'd3' && j(cAfter) === j([])
+        && d === true && j(dLived) === j(['d4']) && dCur === null && j(eLived) === j(['d4', 'd5']) && thrown === false && tCur === null
+        && diS.includes("var cardF = typeof dueTake === 'function' ? dueTake(charId) : '';") && diS.includes("var r = roll(expr, { card: cardF || undefined, aim:")
+        && diS.includes("if (cardF && r && r.error) { var nC = net(); if (nC && typeof nC.dueLive === 'function') nC.dueLive(cardF); }")
+        && diS.includes("var r = n.diceRoll(clean, { card: typeof opts.card === 'string' && opts.card ? opts.card : undefined, aim:")
+        && diS.split("var ok = (typeof duePress === 'function' ? duePress : function(rq, f) { return f(); })(rec, function() {").length === 3, j({ a, took, b, c, cWait, cTook, cAfter, d, dLived, eLived }));
+    // sheets.js runDue and runLand, run on stand-ins with rollFor answering a refusal, then a roll
+    const rdSrc = shS.slice(shS.indexOf('// [netrollcheck:rundue-start]'), shS.indexOf('// [netrollcheck:rundue-end]'));
+    const sys = { rolls: [{ id: 'r_def', formula: '3d6', label: 'Defend', withRow: 'f_w' }, { id: 'r_dmg', formula: '2d6', label: 'Damage' }, { id: 'r_app', label: 'Mend', apply: [] }], fields: [{ id: 'f_w', kind: 'item-list', list: { rolls: [{ formula: '1d6', label: 'Parry' }] } }] };
+    const ch = { id: 'c_a', values: { f_w: [{ id: 'w_1' }] } }, camp = { chars: { c_a: ch } };
+    let answer = { error: 'refused' }, seq = 0, last = null, btnRolls = true, btnOff = false, askE = null, ldPop = null, placing = false; const toasts = [], applied = [], nn = { _attNext: null };
+    const winR = { wpDice: { rollFor: () => { seq++; last = answer; return answer; }, lastRoll: () => ({ n: seq, r: last }) } };
+    const btn = { get disabled() { return btnOff; }, title: 'Not now', click() { if (btnRolls) winR.wpDice.rollFor(); } };
+    const docR = { activeElement: null, body: { classList: { contains: k => k === 'placing' && placing } } };
+    const RD = new Function('getActiveCampaign', 'systemOf', 'charById', 'canRoll', 'toast', 'net', 'rowIdOf', 'askEntry', 'askThen', 'rollNode', 'canApply', 'applyAction', 'document', 'window', 'getPop',
+        'var _askNext = null; var _ldPop = null;\n' + rdSrc + '\nreturn { runDue, runLand, rollAsking: function() { _ldPop = getPop(); return rollAsking(); }, hitWait: function(t) { _hitWaitAt = t; } };')(
+        () => camp, () => sys, id => camp.chars[id] || null, () => true, t => toasts.push(t), () => nn, x => x.id, () => askE, () => {}, () => ({ querySelector: () => btn }), () => true, (r, c2) => applied.push(r.id), docR, winR, () => ldPop);
+    const both = f => { answer = { error: 'refused' }; const no = f(); answer = { ok: true, pending: true }; const yes = f(); return [no, yes]; };
+    const wrP = both(() => RD.runDue('c_a', 'r_def', 'a_x', undefined, null, { f: 'f_w', r: 'w_1' }));
+    const rowP = both(() => RD.runDue('c_a', 'r_def', 'a_x', { f: 'f_w', r: 'w_1', i: 0 }, null));
+    const btnP = both(() => RD.runDue('c_a', 'r_dmg', undefined, undefined, null));
+    const landP = both(() => RD.runLand('c_a', 'r_dmg', 'a_x'));
+    btnRolls = false; const btnWait = RD.runDue('c_a', 'r_dmg', undefined, undefined, null); btnRolls = true; btnOff = true; const btnOffR = RD.runDue('c_a', 'r_dmg', undefined, undefined, null); btnOff = false;
+    askE = { asks: [] }; const askWait = RD.runDue('c_a', 'r_dmg', undefined, undefined, undefined); askE = null;
+    const appR = RD.runDue('c_a', 'r_app', undefined, undefined, null), attLeft = nn._attNext;
+    const asks = [RD.rollAsking()]; ldPop = {}; asks.push(RD.rollAsking()); ldPop = null; RD.hitWait(Date.now()); asks.push(RD.rollAsking()); RD.hitWait(Date.now() - 16000); asks.push(RD.rollAsking()); RD.hitWait(0); placing = true; asks.push(RD.rollAsking()); placing = false;
+    check('1.6.3 (the review of input): runDue\'s three roll paths (a roll answered with a row, a list\'s roll on one row, the sheet\'s own button) and runLand, run on stand-ins: a roll refused on this machine answers false, so its card is live again, and a roll made answers true; a button that rolled nothing yet, or a roll that asks first, answers \'wait\'; a button that cannot be pressed answers false; an action answers true; the attempt handed to the roll is let go after it; rollAsking says a menu of the sheet\'s own, the host asked for the locations (15 seconds at most) and an aim on the map',
+        j(wrP) === j([false, true]) && j(rowP) === j([false, true]) && j(btnP) === j([false, true]) && j(landP) === j([false, true]) && btnWait === 'wait' && btnOffR === false && askWait === 'wait' && appR === true && j(applied) === j(['r_app']) && attLeft === null
+        && j(asks) === j([false, true, true, false, true]) && shS.includes('window.wpSheets = {') && shS.includes('runDue: runDue, runLand: runLand, rollAsking: rollAsking,')
+        && shS.includes("if (typeof _hitWaitAt === 'number') _hitWaitAt = Date.now(); n.hitRows(need.c.id, function(rows) { if (typeof _hitWaitAt === 'number') _hitWaitAt = 0; show(rows); }); return; }"), j({ wrP, rowP, btnP, landP, btnWait, btnOffR, askWait, appR, asks }));
+}
 
 T.finish();

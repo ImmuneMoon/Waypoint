@@ -232,7 +232,7 @@ const j = v => JSON.stringify(v);
         const commits = ['function commit(c, f, value) {', 'function commitEffect(c, f, q) {', 'function commitItem(c, f, q) {'].map(body);
         check('HUD frame HF2a: one refresh path — no sheetOpen guard wraps a repaint any more; a change, an Undo expiring, a result, a save, a pin in another window, the feature and the campaign reach the HUDs with or without a sheet; a lost or deleted character closes its HUD (one notice)',
             !/sheetOpen[^;\n]{0,40}\)\s*(renderViews|renderSheet)\(/.test(sh2.replace(/function renderViews[\s\S]*?\n\}\n/, '')) && commits.every(b => b.length > 100 && !/renderSheet\(\)/.test(b) && /renderViews\(c\.id\)/.test(b))
-            && /if \(window\.appRender\) window\.appRender\(\);\n    renderViews\(c\.id\);/.test(body('function afterCharChange(')) && /delete _undo\[k\]; renderViews\(c\.id\);/.test(sh2)
+            && /if \(window\.appRender\) boardRedraw\(c\.id, whole \|\| posA\.length > 0 \|\| ownM > 0\);[^\n]*\n    renderViews\(c\.id\);/.test(body('function afterCharChange(')) && /delete _undo\[k\]; renderViews\(c\.id\);/.test(sh2)
             && /'That value was not accepted\.'\); renderViews\(null\); \}/.test(sh2) && /renderAll\(\); renderViews\(null\);/.test(sh2) && /if \(!e \|\| e\.key !== PIN_KEY\) return; renderViews\(null\);/.test(sh2)
             && /if \(!featureOn\(\)\) \{ if \(sheetOpen\) closeSheet\(\); closeHuds\(\); \}/.test(sh2) && /if \(_lastCamp !== null && id !== _lastCamp\) \{ if \(sheetOpen\) closeSheet\(\); closeHuds\(\); \}/.test(sh2)
             && /if \(sheetOpen === id\) closeSheet\(\);\n    closeHud\(id\);/.test(sh2) && /if \(typeof id === 'string' && huds\[id\]\) \{ closeHud\(id\); shown = true; \}/.test(sh2)
@@ -595,8 +595,8 @@ const j = v => JSON.stringify(v);
         cb.values = { f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 0 } }; PB.noteHostCopy('c_d', cb.values); PB.reapplyPending('c_d');   // a newer copy: everything still waiting is laid over it
         const midB = j(cb.values); PB.charPendingDone('b1', false, 'slow'); const afterB = j(cb.values);
         pendB.b2 = { charId: 'c_d', fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 5 }, batch: [{ fieldId: 'f_hp', value: { cur: 10 }, prev: { cur: 5 } }], timer: null }; PB.charPendingDone('b2', true);
-        check('HUD frame HF4b: a player\'s batch (the real pending code) — a newer host copy gets every waiting value laid over it again; a refused batch takes ALL its values back to the host\'s last copy (never the one it was made on), the other changes still waiting kept; one answer for the batch',
-            midB === j({ f_hp: { cur: 10 }, f_dsv: 0, f_sl1: { cur: 1 } }) && afterB === j({ f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 1 } }) && !pendB.b1 && !!pendB.v2 && !pendB.b2 && j(seenB) === j([['b1', false, 'slow'], ['ok', 'c_d']]), j([midB, afterB, seenB]));
+        check('HUD frame HF4b: a player\'s batch (the real pending code) — a newer host copy gets every waiting value laid over it again; a refused batch takes ALL its values back to the host\'s last copy (never the one it was made on), the other changes still waiting kept; one answer for the batch; an ok answer draws nothing (1.6.3, finding 23: nothing in the copy moved, and the delta that follows draws), moved on purpose',
+            midB === j({ f_hp: { cur: 10 }, f_dsv: 0, f_sl1: { cur: 1 } }) && afterB === j({ f_hp: { cur: 5 }, f_dsv: 1, f_sl1: { cur: 1 } }) && !pendB.b1 && !!pendB.v2 && !pendB.b2 && j(seenB) === j([['b1', false, 'slow']]), j([midB, afterB, seenB]));
         check('HUD frame HF4b: the chip — drawn only behind sec.resetAll === true, in the header after the Pin; live decided when drawn (the real sheet or HUD, never the Layout preview or a pop-out), inert with nothing to reset; the client sends ONE char-edits message and keeps ONE pending entry for the batch',
             /var rsCh = !printV && sec\.resetAll === true \? resetChip\(sec, pctx\) : null;/.test(sh7) && /if \(pinCh\) head\.appendChild\(pinCh\);\n            if \(rsCh\) head\.appendChild\(rsCh\);/.test(sh7) && /\|\| chipNode \|\| pinCh \|\| rsCh \|\| cntN !== null \|\| \(sec\.explain && !printV\)\) \{/.test(sh7)   /* 1.6.0, backlog 180 R9: a count alone also draws the header; 1.6.2 (backlog 218 fold 3) and an (i), both moved on purpose */
             && /var live = _fxLive && !\(ctx\.vctx && ctx\.vctx\.preview\) && !window\.wpPopout, targets = rt\.targets, barred = typeof fillBarred === 'function' && fillBarred\(\), on = live && targets\.length > 0 && !barred;/.test(sh7)
@@ -922,6 +922,123 @@ const j = v => JSON.stringify(v);
             check('1.6.3 a token\'s effects kept for one pass (systemcore tokenEffectsPass, run for real): what tokenEffects gives, for the GM and for the players apart, the very list asked again in the same pass; new values, a new stamp, tokenEffectsForget, the next pass and another system read it afresh',
                 same && p1 === p2 && pl !== p1 && j(p3) === j([]) && p3 !== p1 && p4 !== p3 && p5 === p4 && p6 !== p5 && p7 !== p6 && p8 !== p7, j([p1, pl, p3]));
         }
+        {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 2): a token's effects also kept from one pass to the next by the content key
+            // its caller hands in (systemcore tokenEffectsPass's fifth argument, run for real): the very list while the key, the system and its stamp
+            // are the same and it is young; another key, a new system stamp, tokenEffectsForget(true) or age past FX_KEPT_MS work it out again; with no
+            // key nothing is kept past the pass, as before; the GM's and the players' lists are kept apart
+            const sysK = cleanSystem({ v: 1, name: 'K', fields: [{ id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_a', name: 'Blessed', tone: 'buff', vis: 'all', mods: [] }] }, GVR);
+            const chK = { id: 'c_k', updated: 1, values: { f_fx: [{ id: 'r1', ref: 'e_a', on: true }] } }, tick = () => Promise.resolve();
+            S.tokenEffectsForget(true);
+            const k1 = S.tokenEffectsPass(sysK, chK, true, F, 'K1'); await tick(); const k2 = S.tokenEffectsPass(sysK, chK, true, F, 'K1'); await tick();
+            const k3 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick(); const k4 = S.tokenEffectsPass(sysK, chK, true, F); await tick(); const k5 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
+            const kp = S.tokenEffectsPass(sysK, chK, false, F, 'K2'); await tick(); const kp2 = S.tokenEffectsPass(sysK, chK, false, F, 'K2'); await tick();
+            sysK.updated = 99; const k6 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick(); const k6b = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
+            S.tokenEffectsForget(true); const k7 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); await tick();
+            // the review of the speed fold: each kept list lives 30 to 45 s by a hash of its character's id (systemcore fxLife; sheets.js keptLife is the
+            // same rule, written out here as the suite's own reading), so lists worked out on one draw do not all run out on one later draw
+            const lifeOf = id => { const s = String(id); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return 30000 + ((h >>> 0) % 15000); };
+            const realNow = Date.now; let k8, k8a; try { Date.now = () => realNow() + lifeOf('c_k') - 2000; k8a = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); } finally { Date.now = realNow; } await tick();
+            try { Date.now = () => realNow() + lifeOf('c_k') + 50; k8 = S.tokenEffectsPass(sysK, chK, true, F, 'K2'); } finally { Date.now = realNow; } await tick();
+            const idB = Array.from({ length: 200 }, (x, i) => 'c_' + i).find(id => Math.abs(lifeOf(id) - lifeOf('c_k')) > 6000), chQ = { id: idB, updated: 1, values: chK.values };
+            S.tokenEffectsForget(true); const q1 = S.tokenEffectsPass(sysK, chK, true, F, 'K9'), q2 = S.tokenEffectsPass(sysK, chQ, true, F, 'K9'); await tick();
+            const tMid = (lifeOf('c_k') + lifeOf(idB)) / 2; let q3, q4; try { Date.now = () => realNow() + tMid; q3 = S.tokenEffectsPass(sysK, chK, true, F, 'K9'); q4 = S.tokenEffectsPass(sysK, chQ, true, F, 'K9'); } finally { Date.now = realNow; } await tick();
+            const lives50 = Array.from({ length: 50 }, (x, i) => lifeOf('c_' + i)), spread = new Set(lives50).size > 40 && lives50.every(v => v >= 30000 && v < 45000) && Math.max(...lives50) - Math.min(...lives50) > 10000;
+            check('1.6.3 (finding 2) a token\'s effects kept across passes by their content key (systemcore tokenEffectsPass, run for real): the same key the next pass hands back the very list; another key, no key, a new system stamp, tokenEffectsForget(true) and an age past its life work it out again; the players\' list kept apart from the GM\'s; and (the review of the speed fold) each list lives 30 to 45 s by a hash of its character\'s id, so two lists worked out together run out apart',
+                j(k1) === j(S.tokenEffects(sysK, chK, true, F)) && k2 === k1 && k3 !== k2 && k4 !== k3 && k5 === k3 && kp !== k5 && kp2 === kp && k6 !== k5 && k6b === k6 && k7 !== k6b && k8a === k7 && k8 !== k7
+                    && !!idB && (lifeOf('c_k') < lifeOf(idB) ? (q3 !== q1 && q4 === q2) : (q3 === q1 && q4 !== q2)) && spread, j([k1, kp, idB, lifeOf('c_k'), idB && lifeOf(idB)]));
+        }
+        {   // 1.6.3 (findings 2 and 14): the content key (sheets.js keptKey, in the hlpass slice, with the real outsideKey) and what it keeps, run for real:
+            // tokenFx hands the key to tokenEffectsPass, so the next pass gives the very list until the sheet, a sheet it links to, the campaign's library
+            // or the library's state moves; the party strip's lines (hlKept) are kept across passes by the same key with the token as self and their context
+            const shK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const hlK = shK.slice(shK.indexOf('function hoverLinesForToken(w, camp'), shK.indexOf('/* ---------- the facing dial'));
+            const sysL = cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number', hover: true }, { id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }], rolls: [], effects: [] }, GVR);
+            const chA = { id: 'c_a', name: 'A', updated: 1, values: { f_hp: 3 }, links: { k_m: 'c_b' } }, chB = { id: 'c_b', name: 'B', updated: 1, values: { f_hp: 9 } };
+            const campL = { id: 'k', activeItemId: 'm', system: sysL, library: { packs: [] }, chars: { c_a: chA, c_b: chB }, items: { m: { type: 'map', whiteboard: [{ id: 't_a', isChar: true, charId: 'c_a', x: 0, y: 0 }] } } };
+            let hlN = 0; const libW = { st: 1 }, winL = { wpSystemCore: S, wpLibrary: { state: () => libW.st, size: () => 0 } };
+            const API = new Function('featureOn', 'F', 'getActiveCampaign', 'systemOf', 'charById', 'isClient', 'hoverLines', 'withRound', 'tokenCtx', 'tokenFlags', 'combatOn', 'withRange', 'rangeFor', 'window', hlK + '\nreturn { fx: tokenFx, byId: hoverLinesForTokenId, key: keptKey, forget: passForget };')(
+                () => true, () => F, () => campL, c => c.system, (id, c) => (c.chars[id] || null), () => false, function() { hlN++; return S.hoverLines.apply(null, arguments); }, S.withRound, S.tokenCtx, () => ({ turning: true, posture: true, elevation: true }), () => null, S.withRange, () => null, winL);
+            S.setLinkSource((id) => campL.chars[id] || null); const tick = () => Promise.resolve(), w = campL.items.m.whiteboard[0];
+            try {
+                S.tokenEffectsForget(true);
+                const f1 = API.fx(w); await tick(); const f2 = API.fx(w); const kA = API.key(sysL, chA, campL, ''); await tick();
+                chB.values = { f_hp: 4 }; const kB = API.key(sysL, chA, campL, ''); const f3 = API.fx(w); await tick();
+                campL.library = { packs: [{ id: 'p1' }] }; const f4 = API.fx(w); await tick();
+                libW.st = 2; const f5 = API.fx(w); await tick(); const f6 = API.fx(w); await tick();
+                chA.values = { f_hp: 2 }; const f7 = API.fx(w); await tick();
+                const h1 = API.byId(campL, 't_a'), n1 = hlN; await tick(); const h2 = API.byId(campL, 't_a'), n2 = hlN; await tick();
+                chB.values = { f_hp: 5 }; API.byId(campL, 't_a'); const n3 = hlN; await tick();
+                const lifeT = (s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return 30000 + ((h >>> 0) % 15000); })('t_a');   // the review of the speed fold: its life by the token's id (keptLife)
+                const realNow = Date.now; try { Date.now = () => realNow() + lifeT - 2000; API.byId(campL, 't_a'); } finally { Date.now = realNow; } const n3b = hlN; await tick();
+                try { Date.now = () => realNow() + 46000; API.byId(campL, 't_a'); } finally { Date.now = realNow; } const n4 = hlN; await tick();
+                check('1.6.3 (findings 2 and 14) the content key (sheets.js keptKey, with the real outsideKey): tokenFx hands it on, and the next pass gives the very list until a linked sheet, the campaign\'s library, the library\'s state or the sheet itself moves; the party strip\'s lines are kept across passes the same way, worked out again when a linked sheet moves and when they are older than 30 s',
+                    typeof kA === 'string' && f2 === f1 && kB !== kA && f3 !== f2 && f4 !== f3 && f5 !== f4 && f6 === f5 && f7 !== f6 && j(h1) === j(h2) && n2 === n1 && n3 === n2 + 1 && n3b === n3 && n4 === n3 + 1, j([n1, n2, n3, n3b, n4, h1]));
+            } finally { S.setLinkSource(null); }
+        }
+        {   // 1.6.3 (finding 14): a tab press hands back the figures worked out for the draw before (sheets.js allFor, sliced by its allkept markers and run
+            // for real with a counting resolveAll and a key of the test's own): only while a tab press draws, and only where the key, the context, the
+            // system, the character and the formula engine are the same; any other draw works them out afresh, and no key keeps nothing
+            const shT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const akS = shT.slice(shT.indexOf('// [systemcheck:allkept-start]'), shT.indexOf('// [systemcheck:allkept-end]'));
+            let rN = 0, keyNow = 'k1'; const T = new Function('F', 'resolveAll', 'keptKey', 'KEPT_MS', akS + '\nreturn { allFor: allFor, tab: function(v) { _sheetTabPress = v; } };')(() => F, () => ({ n: ++rN }), () => keyNow, 30000);
+            const sysT = { fields: [] }, cT = { id: 'c' }, ctxA = { self: 't', facing: { deg: 0 } };
+            const a1 = T.allFor('sheet', sysT, cT, {}, ctxA), a2 = T.allFor('sheet', sysT, cT, {}, ctxA); T.tab(1); const a3 = T.allFor('sheet', sysT, cT, {}, ctxA), a3b = T.allFor('sheet', sysT, cT, {}, ctxA); T.tab(1);
+            const a4 = T.allFor('sheet', sysT, cT, {}, { self: 't', facing: { deg: 90 } }); keyNow = 'k2'; const a5 = T.allFor('sheet', sysT, cT, {}, { self: 't', facing: { deg: 90 } });
+            const a6 = T.allFor('sheet', sysT, { id: 'c' }, {}, { self: 't', facing: { deg: 90 } }); const a7 = T.allFor('h:c', sysT, cT, {}, ctxA); keyNow = null; const a8 = T.allFor('h:c', sysT, cT, {}, ctxA), a9 = T.allFor('h:c', sysT, cT, {}, ctxA); T.tab(0);
+            check('1.6.3 (finding 14) a sheet\'s tab press reuses the figures worked out for the draw before (sheets.js allFor, run for real): only for the draw a tab press asks for (the next draw works them out again) and only for the same key, context, system and character; a draw that is no tab press, another context, key or character, another view and no key work them out afresh',
+                a2 !== a1 && a3 === a2 && a3b !== a3 && a4 !== a3b && a5 !== a4 && a6 !== a5 && a7 !== a6 && a8 !== a7 && a9 !== a8 && rN === 9, j([rN]));
+        }
+        {   // the review of the speed fold (its findings 4 and 6): what allFor and boardRedraw keep goes once it can no longer be asked for (sheets.js keptDrop,
+            // run for real with the allkept and boardskip slices: a HUD's slot when it closes, the sheet's when the sheet closes, everything of a character
+            // that is gone, and boardRedraw's notes when another campaign is drawn), and a kept answer lives its own life (keptLife), not a fixed 30 s
+            const shD = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const cut = (a, b) => shD.slice(shD.indexOf(a), shD.indexOf(b));
+            const akD = cut('// [systemcheck:allkept-start]', '// [systemcheck:allkept-end]'), bsD = cut('// [systemcheck:boardskip-start]', '// [systemcheck:boardskip-end]');
+            const kdD = shD.slice(shD.indexOf('function keptDrop(id, what) {'), shD.indexOf('\n}\n', shD.indexOf('function keptDrop(id, what) {')) + 3);
+            let campNow = { id: 'k1', activeItemId: 'm', system: { fields: [] }, chars: { c_b: { id: 'c_b', name: 'B', values: {} } }, items: { m: { type: 'map', whiteboard: [{ id: 't_b', charId: 'c_b' }] } } }, rN = 0, lifeNow = 1000;
+            const winD = { wpRenderN: 0, appRender() { winD.wpRenderN++; }, wpSystemCore: { sheetsAny: () => false } };
+            const D = new Function('F', 'resolveAll', 'keptKey', 'KEPT_MS', 'keptLife', 'state', 'getActiveCampaign', 'systemOf', 'charById', 'tokenFx', 'tokenBars', 'tokenEnv', 'window', akD + bsD + kdD
+                + '\nreturn { allFor: allFor, tab: function(v) { _sheetTabPress = v; }, drop: keptDrop, kept: function() { return Object.keys(_allKept).sort(); }, seen: function() { return Object.keys(_boardSeen).sort(); }, redraw: boardRedraw };')(
+                () => F, () => ({ n: ++rN }), () => 'k', 30000, () => lifeNow, { viewMode: 'visual', selWbIds: [] }, () => campNow, c => c.system, (id, c) => (c.chars[id] || null), () => [], () => [], () => null, winD);
+            const sysD = { fields: [] }, cC = { id: 'c' }, cE = { id: 'e' }, ctxD = { self: 't' };
+            D.allFor('sheet', sysD, cC, {}, ctxD); D.allFor('h:c', sysD, cC, {}, ctxD); D.allFor('h:e', sysD, cE, {}, ctxD); const k0 = D.kept();
+            D.drop('c', 'hud'); const k1 = D.kept(); D.drop(null, 'sheet'); const k2 = D.kept();
+            D.allFor('sheet', sysD, cC, {}, ctxD); D.allFor('h:c', sysD, cC, {}, ctxD); D.drop('c'); const k3 = D.kept(); D.drop('e'); const k4 = D.kept();
+            D.redraw('c_b'); const s1 = D.seen(); D.drop('c_b'); const s2 = D.seen(); D.redraw('c_b'); const s3 = D.seen();
+            campNow = { id: 'k2', activeItemId: 'm', system: { fields: [] }, chars: { c_x: { id: 'c_x', name: 'X', values: {} } }, items: { m: { type: 'map', whiteboard: [{ id: 't_x', charId: 'c_x' }] } } }; D.redraw('c_x'); const s4 = D.seen();
+            // the life: a tab press within the slot's life hands back what was kept, one past it works it out again
+            const realNow = Date.now; let l1, l2, l3; l1 = D.allFor('sheet', sysD, cC, {}, ctxD);
+            try { Date.now = () => realNow() + 500; D.tab(1); l2 = D.allFor('sheet', sysD, cC, {}, ctxD); Date.now = () => realNow() + 1600; D.tab(1); l3 = D.allFor('sheet', sysD, cC, {}, ctxD); } finally { Date.now = realNow; }
+            const callers = [/clearTimeout\(v\.redraw\); if \(typeof keptDrop === 'function'\) keptDrop\(charId, 'hud'\); delete huds\[charId\];/, /if \(typeof keptDrop === 'function'\) keptDrop\(null, 'sheet'\); var p = ui\('sheetPanel'\);/,
+                /function charGone\(id\) \{ if \(typeof keptDrop === 'function'\) keptDrop\(id\);/, /delete charsOf\(camp\)\[id\]; if \(typeof keptDrop === 'function'\) keptDrop\(id\);/].map(re => re.test(shD));
+            check('the review of the speed fold (findings 4 and 6): what allFor and boardRedraw keep goes once it can no longer be asked for (sheets.js keptDrop, run for real): a HUD that closes takes its slot, the sheet that closes its own, a character that is gone its HUD\'s slot, the sheet\'s where it shows it and its board note; another campaign drawn empties the board notes; a kept answer lives its own life (keptLife), so a tab press within it reuses and one past it works out again; closeHud, closeSheet, charGone and deleteCharacter ask it',
+                j(k0) === j(['h:c', 'h:e', 'sheet']) && j(k1) === j(['h:e', 'sheet']) && j(k2) === j(['h:e']) && j(k3) === j(['h:e']) && j(k4) === j([]) && j(s1) === j(['c_b']) && j(s2) === j([]) && j(s3) === j(['c_b']) && j(s4) === j(['c_x'])
+                    && l2 === l1 && l3 !== l1 && callers.every(Boolean), j([k0, k1, k2, k3, k4, s1, s2, s3, s4, l2 === l1, l3 !== l1, callers]));
+        }
+        {   // 1.6.3 (finding 2): one character's change draws the whole app only where the board draws something of it that moved (sheets.js boardRedraw,
+            // sliced by its boardskip markers and run for real with stubs): the light path only where the key is the one last drawn whole and no whole draw
+            // happened since; a change of its marks, a whole draw in between, a selected token of it, a sheet tied to it, another view and force draw whole
+            const shB = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+            const bsS = shB.slice(shB.indexOf('// [systemcheck:boardskip-start]'), shB.indexOf('// [systemcheck:boardskip-end]'));
+            const sysB = { fields: [], links: [] }, cB = { id: 'c_b', name: 'B', values: { hp: 3 } }, cO = { id: 'c_o', name: 'O', values: {} };
+            const campB = { id: 'k', activeItemId: 'm', system: sysB, chars: { c_b: cB, c_o: cO }, items: { m: { type: 'map', whiteboard: [{ id: 't_b', charId: 'c_b' }, { id: 't_o', charId: 'c_o' }] } } };
+            const st = { viewMode: 'visual', selWbId: null, selWbIds: [] }, fxNow = { t_b: ['Hurt'] }, ev = [];
+            const winB = { wpRenderN: 0, appRender() { winB.wpRenderN++; ev.push('whole'); }, wpHideTooltip() { ev.push('tip'); }, wpRenderPartyStrip() { ev.push('party'); }, wpRenderCombatStrip() { ev.push('strip'); }, wpCharList: { sync() { ev.push('chars'); } }, wpPills: { sync() {} }, wpTrackers: { draw() {} }, wpSystemCore: { sheetsAny: () => false } };
+            const B = new Function('state', 'getActiveCampaign', 'systemOf', 'charById', 'tokenFx', 'tokenBars', 'tokenEnv', 'window', bsS + '\nreturn { redraw: boardRedraw };')(
+                st, () => campB, c => c.system, (id, c) => (c.chars[id] || null), w => fxNow[w.id] || [], () => [], () => null, winB);
+            const run = (id, force) => { ev.length = 0; B.redraw(id, force); return ev.join(','); };
+            const r1 = run('c_b'), r2 = run('c_b'); cB.values = { hp: 2 }; const r3 = run('c_b');
+            fxNow.t_b = ['Hurt', 'Down']; const r4 = run('c_b'), r5 = run('c_b');
+            winB.appRender(); const r6 = run('c_b'), r7 = run('c_b');
+            st.selWbId = 't_b'; const r8 = run('c_b'), r9 = run('c_b'); st.selWbId = null; run('c_b');
+            cB.name = 'Bee'; const r10 = run('c_b'), r11 = run('c_b', true), r12 = run('c_b');
+            cO.links = { k_m: 'c_b' }; sysB.links = [{ id: 'k_m', kind: 'mount' }]; const r13 = run('c_b'), r14 = run('c_b'); delete cO.links; sysB.links = [];
+            st.viewMode = 'data'; const r15 = run('c_b'), r16 = run('c_b'); st.viewMode = 'visual'; run('c_b'); const r17 = run(null), r18 = run('c_b'), r19 = run('c_b'); campB.items.m.whiteboard[0].ownerId = 'u_x'; const r20 = run('c_b'), r21 = run('c_b');
+            const LIGHT = 'tip,party,strip,chars';
+            check('1.6.3 (finding 2) a character\'s change draws the whole app only where the board draws something of it that moved (sheets.js boardRedraw, run for real): its values alone take the light path once the board was drawn whole; a change of its marks, a whole draw since, a selected token of it, its name, a token of it changed (its owner), force, a sheet tied to it, another view and every character draw whole',
+                r1 === 'whole' && r2 === LIGHT && r3 === LIGHT && r4 === 'whole' && r5 === LIGHT && r6 === 'whole' && r7 === LIGHT && r8 === 'whole' && r9 === 'whole' && r10 === 'whole' && r11 === 'whole' && r12 === LIGHT
+                    && r13 === 'whole' && r14 === 'whole' && r15 === 'whole' && r16 === 'whole' && r17 === 'whole' && r18 === 'whole' && r19 === LIGHT && r20 === 'whole' && r21 === LIGHT, j([r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r21]));
+        }
         // a GM-only name anywhere in a label: the host's check fails closed exactly where the players' view scrubs
         const lgSys = cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_g', key: 'GMFig', kind: 'number', def: 1, vis: 'gm' }, { id: 'f_a', key: 'A', kind: 'number', def: 1 }, { id: 'f_hp', key: 'HP', kind: 'resource', maxFormula: '5', def: 'max', vis: 'gm' }], rolls: [] }, GVR);
         const E8R = Array.from({ length: 8 }, () => '{A}').join('');
@@ -1002,6 +1119,79 @@ const j = v => JSON.stringify(v);
             sh9.includes("    if (body.scrollTop !== st0) body.scrollTop = st0;   // a redraw never moves the sheet: where it was read is where it stays\n    restoreFocus(body, fk);")
             && sh9.includes("    if (v.body.scrollTop !== stH) v.body.scrollTop = stH;   // as the sheet: a redraw never moves the HUD\n    restoreFocus(v.body, fk);")
             && sh9.includes("fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0;") && sh9.includes("fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient()"));
+    }
+
+    /* ---- 1.6.3 (the improvement week's review of sheets and rolls, findings 3 and 17): a redraw keeps what is typed, and waits for a press ---- */
+    {
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const tkSrc = shT.slice(shT.indexOf('// [systemcheck:typedkeep-start]'), shT.indexOf('// [systemcheck:typedkeep-end]'));
+        const fkSrc = (shT.match(/function focusKeyOf\(root\) \{[^\n]*/) || [''])[0], rfSrc = (shT.match(/function restoreFocus\(root, k\) \{[^\n]*/) || [''])[0];
+        const docT = { activeElement: null, lis: [], addEventListener(k, f, cap) { this.lis.push([k, f, cap]); } };
+        class Ev { constructor(t, o) { this.type = t; this.bubbles = !!(o && o.bubbles); } }
+        const TK = new Function('document', 'PIN_GID', 'Event', tkSrc + '\n' + fkSrc + '\n' + rfSrc + '\nreturn { focusKeyOf, restoreFocus, typedBack, typedMark };')(docT, /^g_[A-Za-z0-9_]{1,24}$/, Ev);
+        const inPanel = s => (/#sheetPanel/.test(s) ? {} : null);
+        const box = (val, extra) => Object.assign({ tagName: 'INPUT', type: 'text', value: val, dataset: { fid: 'f_str' }, closest: inPanel, isConnected: true, selectionStart: val.length, selectionEnd: val.length, lis: {}, fired: [],
+            addEventListener(k, f) { (this.lis[k] = this.lis[k] || []).push(f); }, dispatchEvent(e) { this.fired.push(e.type); }, focus() { docT.activeElement = this; }, setSelectionRange(a, b) { this.sel = [a, b]; } }, extra || {});
+        // typing marks the box, its change takes the mark off; a box outside the sheet and a tick are never marked
+        const lisIn = docT.lis.filter(x => x[0] === 'input' && x[2] === true).length, lisCh = docT.lis.filter(x => x[0] === 'change' && x[2] === true).length;
+        const a = box('14'); TK.typedMark({ type: 'input', target: a }); const marked = a._wpTyped; TK.typedMark({ type: 'change', target: a }); const cleared = a._wpTyped;
+        const out = box('3', { closest: () => null }); TK.typedMark({ type: 'input', target: out }); const tick = box('', { type: 'checkbox' }); TK.typedMark({ type: 'input', target: tick });
+        // the box being typed in is drawn again from the stored figure (10): the new box holds the 14 typed, its caret where it was, and says its change once as it is left
+        TK.typedMark({ type: 'input', target: a }); docT.activeElement = a; const k = TK.focusKeyOf({ contains: () => true });
+        const nb = box('10'); TK.restoreFocus({ querySelector: q => (q.indexOf('[data-fid="f_str"]') === 0 ? nb : null) }, k);
+        const back = [k.val, nb.value, nb._wpTyped, nb.sel, docT.activeElement === nb];
+        (nb.lis.blur || []).forEach(f => f()); (nb.lis.blur || []).forEach(f => f()); const said = nb.fired.slice();
+        const nb2 = box('10'); TK.restoreFocus({ querySelector: () => nb2 }, k); TK.typedMark({ type: 'change', target: nb2 }); (nb2.lis.blur || []).forEach(f => f()); const native = nb2.fired.slice();   // a native change came: nothing said again
+        // a box not typed in keeps nothing: the stored figure is drawn
+        const c = box('5'); docT.activeElement = c; const k2 = TK.focusKeyOf({ contains: () => true }); const nb3 = box('6'); TK.restoreFocus({ querySelector: () => nb3 }, k2);
+        check('1.6.3 (finding 3): a figure typed into a box of the sheet or a HUD and not yet stored survives a redraw from the table: typing marks the box (one capture listener for input and one for change on the document, a tick or a box outside the sheet never marked, the box\'s change taking the mark off), focusKeyOf keeps what it holds, restoreFocus puts it into the box drawn in its place with its caret, and that box says its change once as it is left where no change of its own came; a box not typed in is drawn from what is stored',
+            lisIn === 1 && lisCh === 1 && marked === true && cleared === false && out._wpTyped === undefined && tick._wpTyped === undefined
+            && j(back) === j(['14', '14', true, [2, 2], true]) && j(said) === j(['change']) && j(native) === j([]) && k2.val === undefined && nb3.value === '6' && nb3._wpTyped === undefined,
+            j({ back, said, native, k2 }));
+        // the review of input: a counter of the sheet (uiparts.js step) commits by Enter, which fires no change: the mark comes off all the same, so a redraw
+        // with another stored figure (the host refused 5 and still holds 3) shows that figure, never the 5 typed again; and a figure typed for one character
+        // is never put back into the same field of another character's view (root._wpFor, set by renderSheet and renderHud)
+        const UQ = await import(url('uiparts.js'));
+        const mkDoc = () => { const d = { activeElement: null }; d.createElement = tag => { const e = { tagName: tag.toUpperCase(), children: [], attrs: {}, on: {}, style: {}, dataset: {}, value: '', className: '', textContent: '', isConnected: true,
+            appendChild(ch) { e.children.push(ch); return ch; }, setAttribute(k, v) { e.attrs[k] = String(v); }, addEventListener(t, f) { (e.on[t] = e.on[t] || []).push(f); },
+            fire(t, ev) { (e.on[t] || []).forEach(f => f(Object.assign({ type: t, target: e, preventDefault() {}, stopPropagation() {} }, ev || {}))); }, closest: inPanel, focus() { d.activeElement = e; }, select() {} }; return e; }; return d; };
+        const sets = [], cq = UQ.step({ value: 3, min: 0, data: { fid: 'f_str', part: 'q-w_1' }, set: n => sets.push(n) }, mkDoc()), qi = cq.input;
+        qi.value = '5'; TK.typedMark({ type: 'input', target: qi }); const typedQ = qi._wpTyped; qi.fire('keydown', { key: 'Enter' }); const afterEnter = qi._wpTyped;
+        docT.activeElement = qi; const kq = TK.focusKeyOf({ contains: () => true });
+        const nq = box('3', { dataset: { fid: 'f_str', part: 'q-w_1' } }); TK.restoreFocus({ querySelector: () => nq }, kq);
+        const a2 = box('9'); TK.typedMark({ type: 'input', target: a2 }); docT.activeElement = a2; const kc = TK.focusKeyOf({ contains: () => true, _wpFor: 'c_a' });
+        const other = box('2'); TK.restoreFocus({ querySelector: () => other, _wpFor: 'c_b' }, kc); const same = box('2'); TK.restoreFocus({ querySelector: () => same, _wpFor: 'c_a' }, kc);
+        check('1.6.3 (the review of input): a counter of the sheet that hands its figure on by Enter takes the mark off its box, so a redraw from the table shows the stored figure (a refusal, a correction) and says no change again; a figure typed is put back only into the view of the very character it was typed for, another character\'s view getting the focus and its own figure',
+            j(sets) === j([5]) && typedQ === true && afterEnter === false && kq.val === undefined && nq.value === '3' && nq._wpTyped === undefined
+            && kc.val === '9' && kc.cid === 'c_a' && other.value === '2' && other._wpTyped === undefined && docT.activeElement === same && same.value === '9' && same._wpTyped === true
+            && shT.includes("fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0; if (body && c) body._wpFor = c.id;") && shT.includes("fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient(), own = !!(c.ownerId && c.ownerId === myId()); v.body._wpFor = c.id;"),
+            j({ sets, typedQ, afterEnter, kq, nq: nq.value, kc, other: other.value, same: same.value }));
+        // finding 17: renderViews waits while a press that began in the sheet panel or the HUDs' layer is down, and draws once it has landed
+        const rvSrcT = shT.slice(shT.indexOf('var _chgNow = 0, _chgWait = null;'), shT.indexOf('// A token turned (tokenTurned)'));
+        const holds = {}, mkHold = () => ({ down: false, todo: null, busy() { return this.down; }, then(f) { this.todo = f; } });
+        const els = {}, elT = id => els[id] || (els[id] = { id, lis: [], addEventListener(t, f, cap) { this.lis.push([t, f, cap]); } }), docP = { addEventListener() {}, getElementById: id => (id === 'sheetPanel' || id === 'hudLayer' ? elT(id) : null) };
+        const asked = [], drawn = [], timers = []; let clock = 1000;
+        const RVP = new Function('document', 'window', 'setTimeout', 'pressHold', 'ui', 'huds', 'drawn', 'Date', '"use strict";' + NL + 'var sheetOpen = "c_a"; function renderSheet() { drawn.push("sheet"); } function renderHud(id) { drawn.push(id); }' + NL + rvSrcT + NL + 'return renderViews;')(
+            docP, { addEventListener() {} }, (f, ms) => { if (!ms) f(); else timers.push(f); }, (el, win) => { asked.push(el.id); return holds[el.id] || (holds[el.id] = mkHold()); }, () => ({ n: 'sheetBody' }), { c_a: { body: { n: 'b' } } }, drawn, { now: () => clock });
+        const press = (id, onBtn) => els[id].lis.filter(x => x[0] === 'pointerdown' && x[2] === true).forEach(x => x[1]({ target: { closest: s => (onBtn && /button/.test(s) ? {} : null) } }));   // a press begun on a button, or on something else (a list)
+        const atLoad = asked.slice().sort();
+        RVP('c_a'); const free = drawn.splice(0);
+        press('sheetPanel', true); holds.sheetPanel.down = true; RVP('c_a'); RVP('c_a'); const whileDown = drawn.length;
+        holds.sheetPanel.down = false; holds.sheetPanel.todo(); const landed = drawn.splice(0); timers.splice(0).forEach(f => f()); const lateTimer = drawn.splice(0);
+        press('hudLayer', true); holds.hudLayer.down = true; RVP(null); holds.hudLayer.down = false; holds.hudLayer.todo(); const hudPress = drawn.splice(0); timers.splice(0);
+        // the review of input: a press on a list (the browser's own drop-down may take its release) holds nothing; a press whose release never comes lets its
+        // redraws go once PRESS_HOLD_MS is up, and a redraw past that time draws at once; the press listener is put on each place once
+        press('sheetPanel', false); holds.sheetPanel.down = true; RVP('c_a'); const onList = drawn.splice(0); holds.sheetPanel.down = false;
+        press('sheetPanel', true); holds.sheetPanel.down = true; RVP('c_a'); const stuck = drawn.length; timers.splice(0).forEach(f => f()); const timeUp = drawn.splice(0);
+        clock += 1600; RVP('c_a'); const pastTime = drawn.splice(0); holds.sheetPanel.down = false; holds.sheetPanel.todo(); const afterLand = drawn.splice(0);
+        const marksOnce = ['sheetPanel', 'hudLayer'].map(id => els[id].lis.filter(x => x[0] === 'pointerdown' && x[2] === true).length);
+        check('1.6.3 (the review of input): a press holds the redraws only where it began on a button: a press on a list (a choice field, whose drop-down may keep its release) holds nothing, a press whose release never comes lets them go once the time is up and holds no later redraw, the time of a hold already landed draws nothing again, and the listener that notes where a press began is put on each place once',
+            j(lateTimer) === j([]) && j(onList) === j(['sheet', 'c_a']) && stuck === 0 && j(timeUp) === j(['sheet', 'c_a']) && j(pastTime) === j(['sheet', 'c_a']) && j(afterLand) === j([]) && j(marksOnce) === j([1, 1]),
+            j({ lateTimer, onList, stuck, timeUp, pastTime, afterLand, marksOnce }));
+        check('1.6.3 (finding 17): a redraw of the sheet or a HUD waits while a press that began in the sheet panel or the HUDs\' layer is down (io.js pressHold, one hold for each, made at load so a press is known from its start) and is made once that press has landed, each character once, so the button pressed right after a box was typed in keeps its click; with no press down it draws at once',
+            j(atLoad) === j(['hudLayer', 'sheetPanel']) && j(free) === j(['sheet', 'c_a']) && whileDown === 0 && j(landed) === j(['sheet', 'c_a']) && j(hudPress) === j(['sheet', 'c_a'])
+            && /\{ chgDefer\(charId, skip\); return; \} if \(typeof pressBusy === 'function' && pressBusy\(charId, skip\)\) return;/.test(shT),
+            j({ atLoad, free, whileDown, landed, hudPress }));
     }
 
     await T.finish();

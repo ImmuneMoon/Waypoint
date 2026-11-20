@@ -1721,4 +1721,57 @@ pendingChecks.push((async () => {
         /        delete camp\.music;[^\n]*\n        delete camp\.library;/.test(require('./checkkit').part('netfog.js')));
 }
 
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 24): the GM's Table Chat comes back with a reload
+{
+    const ckSrc = between('// [netcheck:chatkeep-start]', '// [netcheck:chatkeep-end]', 'chatkeep');
+    const hoAt = src.indexOf('function chatHistoryOf(log) {'), hoSrc = src.slice(hoAt, src.indexOf('\n', hoAt));
+    let drawn = 0; const held = { a_kkkkkkkk: {} };
+    const mk = log => new Function('chatLog0', 'DC', 'window', 'renderChatSoon', 'attemptRec', 'figOf', '_npcCards', 'var chatLog = chatLog0;\n' + ckSrc + '\n' + hoSrc + '\nreturn { out: chatKeepOut, back: chatKeepIn, settle: chatKeptSettle, hist: chatHistoryOf, log: function() { return chatLog; } };')(
+        log, () => ({ replay: rec => (rec.bad ? { ok: false, reason: 'version' } : { ok: true, result: { v: rec.v } }) }), { wpFormula: { VERSION: 1 } }, () => { drawn++; }, id => held[id] || null, undefined, null);
+    const from = { id: 'gm', name: 'GM', gm: true };
+    const gm = [
+        { from, text: 'hello', scope: 'global', ts: 1 },
+        { from, text: '', scope: 'global', ts: 2, roll: { id: 'r1', v: 7, dmgUsed: true }, res: { v: 7, big: 'x' } },
+        { from, text: '', scope: 'whisper', ts: 3, due: { att: 'a_kkkkkkkk', label: 'Defend' } },
+        { from, text: '', scope: 'whisper', ts: 4, due: { att: 'a_gggggggg', label: 'Dodge' } },
+        { from, text: '', scope: 'whisper', ts: 5, due: { att: 'b_ssssssss', label: 'Shock' } },
+        { from, text: '', scope: 'whisper', ts: 6, due: { label: 'Each round' } },
+        { from, text: '', scope: 'global', ts: 7, help: { id: 'h1' } },
+        { from, text: '', scope: 'global', ts: 8, roll: { id: 'r2', v: 3, pend: true } }
+    ];
+    const A = mk(gm), txt = A.out(), kept = JSON.parse(txt);
+    const B = mk([{ from, text: 'after', scope: 'global', ts: 9 }]); const nBack = B.back(txt), log = B.log();
+    const before = log.map(m => m.over ? 'over' : 'live'); B.settle(); const after = log.map(m => (m.over ? m.overSay : 'live'));
+    const roll = log.find(m => m.roll), hist = B.hist(log);
+    const big = mk(Array.from({ length: 220 }, (x, i) => ({ from, text: 'x'.repeat(10000), scope: 'global', ts: i }))).out();
+    const bad = [mk([]).back('not json'), mk([]).back('{"a":1}'), mk([]).back(JSON.stringify([7, null, { text: 'no from' }, { from, help: {} }]))];
+    check('1.6.3 (finding 24): the GM\'s Table Chat is kept in this tab\'s session storage as the page goes (refreshMark, beside wp_rehost) and laid back before the table opens again: a help card and a roll held for its card actions are left out, a roll\'s worked-out result made again from its record with its marks (Applied) kept, at most 200 messages and 1.5 MB, the newest kept; each message comes back marked kept and never rides in a latecomer\'s history; once the table has opened a kept card whose attempt the host no longer holds is over (a soft record\'s and a reminder\'s stay live); a text that is no list of messages lays nothing back',
+        kept.length === 6 && !kept.some(m => m.help || (m.roll && m.roll.pend)) && kept[1].res === undefined && nBack === 6 && log.length === 7 && log[6].text === 'after' && log.slice(0, 6).every(m => m.kept === 1) && !log[6].kept
+        && roll.res && roll.res.v === 7 && roll.roll.dmgUsed === true && j(before) === j(['live', 'live', 'live', 'live', 'live', 'live', 'live']) && j(after) === j(['live', 'live', 'live', 'reload', 'live', 'live', 'live']) && drawn >= 2
+        && hist.length === 1 && hist[0].text === 'after' && JSON.parse(big).length < 200 && big.length <= 1500000 && JSON.parse(big).pop().ts === 219 && j(bad) === j([0, 0, 0])
+        && src.includes("else if (net.active && net.role === 'host') { sessionStorage.setItem('wp_rehost', '1'); var ckM = typeof chatKeepOut === 'function' ? chatKeepOut() : ''; if (ckM) sessionStorage.setItem(CHAT_KEEP, ckM); }")
+        && src.includes("ck = sessionStorage.getItem(CHAT_KEEP);") && src.includes("sessionStorage.removeItem(CHAT_KEEP);") && /if \(ck\) net\._chatBack = ck;[^\n]*\n\s*startHosting\(false\);/.test(src) && /diceSessionReset\(true\); if \(typeof net\._chatBack === 'string'\) \{ var cbH = net\._chatBack; net\._chatBack = null; if \(typeof chatKeepIn === 'function'\) chatKeepIn\(cbH\); \}/.test(src)
+        && /fightsBack\(\);   \/\/ 1\.6\.0: a fight its campaign kept comes back with the table\n\s*if \(typeof chatKeptSettle === 'function'\) chatKeptSettle\(\);/.test(src)
+        && fs.readFileSync(path.join(kit.APP, 'scripts', 'dice.js'), 'utf8').includes("m.overSay === 'reload' ?"), j({ kept: kept.length, nBack, before, after, hist: hist.length, bad }));
+}
+
+// 1.6.3 (the review of input): chatKeepOut writes each message out once, never every tail of the list again, and keeps the very text it kept before
+{
+    const ckSrc = between('// [netcheck:chatkeep-start]', '// [netcheck:chatkeep-end]', 'chatkeep');
+    let calls = 0; const JC = { stringify: v => { calls++; return JSON.stringify(v); }, parse: JSON.parse };
+    const mkO = log => new Function('chatLog', 'DC', 'window', 'renderChatSoon', 'attemptRec', 'JSON', ckSrc + '\nreturn chatKeepOut;')(log, () => null, {}, () => {}, () => null, JC);
+    function oldOut(chatLog) {   // the text kept before, written out the old way: the longest tail of the list that fits
+        var list = chatLog.filter(function(m) { return m && typeof m === 'object' && !m.help && !(m.roll && m.roll.pend); }).slice(-200).map(function(m) { if (!m.roll) return m; var o = Object.assign({}, m); delete o.res; return o; }), txt = '';
+        for (var i = 0; i <= list.length; i++) { txt = JSON.stringify(list.slice(i)); if (txt.length <= 1500000) return txt; }
+        return '';
+    }
+    const from = { id: 'gm', name: 'GM', gm: true }; let seed = 7; const rnd = n => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+    const lists = [[], [{ from, text: 'one', ts: 1 }], [{ from, text: 'x'.repeat(1600000), ts: 1 }], [{ from, text: 'x'.repeat(1600000), ts: 1 }, { from, text: 'last', ts: 2 }]];
+    for (let s = 0; s < 6; s++) lists.push(Array.from({ length: 150 + rnd(120) }, (x, i) => ({ from, text: 'y'.repeat(rnd(30000)), ts: i, roll: rnd(3) ? undefined : { id: 'r' + i, v: i, pend: !rnd(9) }, res: { v: i }, help: !rnd(17) ? { id: 'h' } : undefined })));
+    const same = lists.map(l => mkO(l)() === oldOut(l));
+    const big = lists[lists.length - 1]; calls = 0; const outB = mkO(big)(); const callsB = calls, keptB = JSON.parse(outB).length;
+    check('1.6.3 (the review of input): the GM\'s chat kept as the page goes is the very text it was (the newest messages that fit in 1.5 MB, as JSON of that list), each message written out once and no more (it was every tail of the list again, some 300 MB of work on a long chat)',
+        same.every(Boolean) && callsB <= Math.min(200, big.length) && keptB > 0 && outB.length <= 1500000 && mkO(lists[2])() === '[]' && JSON.parse(mkO(lists[3])()).length === 1, j({ same, callsB, keptB }));
+}
+
 T.finish();

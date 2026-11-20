@@ -82,7 +82,10 @@ function step(o, doc) {
     v.inp.value = cur === null ? '' : String(roundTo(cur, dec)); fit();
     mi.disabled = !!o.off || (cur !== null && lo !== null && cur <= lo); pl.disabled = !!o.off || (cur !== null && hi !== null && cur >= hi); v.inp.readOnly = !!o.off;
     var ends = function() { mi.disabled = !!o.off || (cur !== null && lo !== null && cur <= lo); pl.disabled = !!o.off || (cur !== null && hi !== null && cur >= hi); };
-    var go = function(n) { pend = null; var c = clampTo(n, lo, hi); if (c === null) { v.inp.value = cur === null ? '' : String(roundTo(cur, dec)); fit(); return; } c = roundTo(c, dec); v.inp.value = String(c); fit(); if (c === cur) return; cur = c; ends(); if (typeof o.set === 'function') o.set(c);
+    // 1.6.3 (the review of input): a counter hands its figure on here (Enter, the arrow keys, − and +, flush), never by a change event, so the mark a
+    // view of the sheet keeps on a box being typed in (_wpTyped, sheets.js typedMark) is taken off here too: the figure is with the caller now, and a
+    // redraw must show what is stored (a refusal, a correction), never the figure typed again
+    var go = function(n) { pend = null; v.inp._wpTyped = false; var c = clampTo(n, lo, hi); if (c === null) { v.inp.value = cur === null ? '' : String(roundTo(cur, dec)); fit(); return; } c = roundTo(c, dec); v.inp.value = String(c); fit(); if (c === cur) return; cur = c; ends(); if (typeof o.set === 'function') o.set(c);
         if (typeof o.truth === 'function') setTimeout(function() { if (!w.isConnected) return; var t = num(o.truth()); if (t !== null && t !== cur) w.setValue(t); }, 450);   // a change the caller did not make (a price window cancelled, a refusal) puts the true figure back
     };
     var pend = null;
@@ -95,6 +98,10 @@ function step(o, doc) {
     w.appendChild(mi); w.appendChild(v.box); w.appendChild(pl);
     w.less = mi; w.more = pl; w.input = v.inp;
     w.setValue = function(n) { var c = num(n); cur = c === null ? null : roundTo(c, dec); if (doc.activeElement !== v.inp) { v.inp.value = cur === null ? '' : String(cur); fit(); } ends(); };   // a figure that changed without the counter being made again
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 4): a figure typed and then a press of another button (the ± window's Roll, Take in a
+    // container) lost the figure: the box's change waits for that press to land (later), and the button's own click came first and read the old figure.
+    // flush() hands on what the box holds now, at once, so a caller that acts on the counter asks it first. A figure that is no number is left as it is
+    w.flush = function() { if (pend) { pend(); return; } var n = num(v.inp.value); if (n !== null && n !== cur) go(n); };
     return w;
 }
 var _pickN = 0, PICK_KEYS = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };

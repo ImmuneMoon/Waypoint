@@ -2616,6 +2616,7 @@
   .tb-menu .menu-divider { height: 1px; margin: 4px 0; background: var(--edge); }   /* 1.6.2: the table cell menu's rule between a cell's two rows and the row's */
   .char-menu button.danger { color: var(--red); }
   .char-menu .char-menu-head { padding: 4px 12px 2px; font-size: 11px; color: var(--muted); }
+  .char-menu button .char-menu-sub { display: block; font-size: 11px; color: var(--muted); pointer-events: none; }   /* 1.6.3 (finding 43): the gray line under a player in Give to */
   .section-title:hover { color: var(--ink); }
   /* the section's action buttons live in a right-click popup, so the header title has full room */
   .section-actions { display: none; }
@@ -6121,6 +6122,9 @@
   .chat-mod { color: var(--ink); }
   .chat-mod-n { font-weight: 600; }
   .chat-mod-src { padding-left: 10px; }
+  .chat-mod-src.chat-mod-via { font-style: italic; opacity: .8; }   /* 1.6.3 (finding 9): an effect on a value the figure is worked out from, already inside it */
+  .chat-hmod .chat-mod-src { padding-left: 0; color: var(--ink); }   /* 1.6.3 (finding 13): what the roller added by hand, said to the table */
+  #chatNewBtn.chat-new { margin: 0 8px 6px; font-size: 12px; padding: 3px 8px; }   /* 1.6.3 (finding 16): the way back down to the newest line */
   .combat-strip-move { font-size: 12px; color: var(--muted); white-space: nowrap; }   /* 1.5.7: the turn's move */
   .player-pick { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; text-align: left; }   /* 1.5.7: a known player picked from one list */
   .player-pick-cap { font-size: 12px; color: var(--muted); }

@@ -8,7 +8,10 @@
 import { toast } from './io.js';
 
 // [dicecheck:inline-start]
-var DIE = '(?:\\d{1,3})?[dD](?:\\d{1,4}|F|%)';
+// A die as text: 1.6.3 (the improvement week's review of sheets and rolls, finding 15) an upper-case D only after a count (1D6 is a die, while D4,
+// a room's key D1 to D12, a grid reference and Vitamin D3 are words), a lower-case d alone as ever (d20), and never a die of one face (d1, D1),
+// which no table rolls and a key often names. 2d6 x 10 still makes 2d6 alone a button
+var DIE = '(?:\\d{1,3}[dD]|d)(?:[2-9]|[1-9]\\d{1,3}|F|%)';
 var DICE_RE = new RegExp('(^|[^\\w.])(' + DIE + '(?:\\s*[+\\-\\u2212]\\s*(?:' + DIE + '|\\d{1,4}))*)(?![\\w%]|\\.\\d)', 'g');
 var MAX_RUNS = 40, MAX_EXPR = 60;
 var SKIP = 'a, button, input, select, textarea, script, style, code, pre, svg, [contenteditable], .inline-dice, .mermaid, .ts-box, .ts-bar';

@@ -750,6 +750,23 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('1.6.3 the cleaners keep a named row whose name makes no short name of its own (another script, a leading digit, a long name), under one made for it that never takes a row\u2019s own; a row with no name still goes',
             J(ck) === J([{ key: 'Kind2', label: '\u0627\u0644\u0633\u0641\u064a\u0646\u0629' }, { key: 'AVeryLongNameThatGoesOnA', label: 'A very long name that goes on and on forever' }, { key: 'Ship', label: 'Ship', factors: [{ key: 'Factor', label: '\u0663', v: 2 }, { key: 'Speed', label: 'Speed', v: 1 }] }, { key: 'Kind', label: 'Taken' }])
             && J(S.cleanDarkSteps([{ label: '1st' }, { label: '' }])) === J([{ key: 'Step', label: '1st', pen: 0 }]) && J(S.cleanTravel([{ label: '9 lives', n: 2 }], [])) === J([{ key: 'Mode', label: '9 lives', n: 2, u: 'mi', t: 'hour' }]) && J(S.cleanArcs([{ label: '\u0663', all: true }, { label: '', all: true }])) === J([{ key: 'Arc', label: '\u0663', all: true }]), J(ck));
+        // 1.6.3 (the review of combat): a made short name never takes the one a LATER row's own name makes, which then dropped that row as a second
+        // of the same short name (cleanArcs([9 lives, Arc]) kept only the first, and cleanMapKinds([\u0663, Kind]) the same)
+        const fb = {
+            arcs: S.cleanArcs([{ label: '9 lives', all: true }, { label: 'Arc', all: true }]),
+            kinds: S.cleanMapKinds([{ label: '\u0663' }, { label: 'Kind' }]),
+            facs: (S.cleanMapKinds([{ label: 'Ship', factors: [{ label: '\u0663', v: 2 }, { label: 'Factor', v: 3 }] }]) || [{}])[0].factors,
+            steps: S.cleanDarkSteps([{ label: '1st' }, { label: 'Step' }]),
+            modes: S.cleanTravel([{ label: '9 lives', n: 2 }, { label: 'Mode', n: 1 }], []),
+            terr: S.cleanTerrainKinds([{ label: '\u0663', cost: 2 }, { label: 'Kind', cost: 3 }])
+        };
+        check('1.6.3 the review of combat: a row whose name makes no short name of its own takes the next free word, never the one a later row\u2019s own name makes, so that later row is kept (arcs, map kinds, factors, darkness steps, travel modes, kinds of terrain)',
+            J(fb.arcs) === J([{ key: 'Arc2', label: '9 lives', all: true }, { key: 'Arc', label: 'Arc', all: true }])
+            && J(fb.kinds) === J([{ key: 'Kind2', label: '\u0663' }, { key: 'Kind', label: 'Kind' }])
+            && J(fb.facs) === J([{ key: 'Factor2', label: '\u0663', v: 2 }, { key: 'Factor', label: 'Factor', v: 3 }])
+            && J(fb.steps) === J([{ key: 'Step2', label: '1st', pen: 0 }, { key: 'Step', label: 'Step', pen: 0 }])
+            && fb.modes.length === 2 && fb.modes[0].key === 'Mode2' && fb.modes[1].key === 'Mode'
+            && J(fb.terr) === J([{ key: 'Kind2', label: '\u0663', cost: 2 }, { key: 'Kind', label: 'Kind', cost: 3 }]), J(fb));
     }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

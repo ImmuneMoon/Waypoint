@@ -375,12 +375,12 @@ function boxIn(scope, prop) {
         var bxs = scope.querySelectorAll('.sys-answers'), bx = null; for (var k = 0; k < bxs.length && !bx; k++) if (an[1] === undefined || (bxs[k].dataset && bxs[k].dataset.ri === an[1])) bx = bxs[k];
         var rws = bx ? bx.querySelectorAll('.sys-ans-row') : [], rw = rws[+an[2]] || null, hitA = rw ? rw.querySelector('.sys-ans-' + an[3]) : null; if (hitA) return hitA; if (bx) return bx;
     }
-    // 1.6.3 (the review of the Lists tab's fix, 2026-11-20): a list roll's Damage type, Kind, Rolls by and its figure are drawn on only some rolls, so
-    // the nth box of the class is not the nth roll. The box whose data-ri is the roll's place, else that roll's needs row, which every roll draws
     // 1.6.3 (lane B, the Combat tab): a band's Noticed by, Sneaking where and its sneak roll stand only in a band of side vision, so the nth box of the class is
     // not the nth sense. The box in the notice row whose data-si is the sense's place, else that row. Fixed class names alone: the place is compared
     var snN = /^sense\.(\d+)\.(nkcheck|nksneak|nkroll)$/.exec(prop);
     if (snN) { var nrs = scope.querySelectorAll('.sys-sense-nrow'); for (var nq = 0; nq < nrs.length; nq++) if (nrs[nq].dataset && nrs[nq].dataset.si === snN[1]) return nrs[nq].querySelector('.sys-sense-' + snN[2]) || nrs[nq]; }
+    // 1.6.3 (the review of the Lists tab's fix, 2026-11-20): a list roll's Damage type, Kind, Rolls by and its figure are drawn on only some rolls, so
+    // the nth box of the class is not the nth roll. The box whose data-ri is the roll's place, else that roll's needs row, which every roll draws
     var lr = /^list\.(dtype|dkind|rolltest|rollof)\.(\d+)$/.exec(prop);
     if (lr) {
         var lrCls = { dtype: ['sys-list-rolldtype'], dkind: ['sys-list-rolldkind'], rolltest: ['sys-list-rolltest'], rollof: ['sys-list-rollof', 'sys-list-rolltest'] }[lr[1]].concat(['sys-list-needsrow']);

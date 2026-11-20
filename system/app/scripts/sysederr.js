@@ -894,6 +894,9 @@ function refreshErrors() {
             var tkE = typeof svE.table === 'string' ? svE.table.trim() : '', stE = typeof svE.stat === 'string' ? svE.stat.trim() : '';
             if (!tkE || !stE) iErr.push({ prop: !tkE ? 'init.sevtable' : 'init.sevstat', message: 'Several turns a round by a table needs its table and the number it reads, or Save goes back to Once a round.' + (!tbsE.length ? ' Make a table first, in the Rules tab.' : '') });
             else if (!tbsE.some(function(t) { return !!t && t.key === tkE; })) iErr.push({ prop: 'init.sevtable', message: 'Several turns a round: its table is no longer here, so each character acts once a round. Pick another.' });
+            // 1.6.3 (the review of combat): the number it reads is gone. The cleaner keeps the stat's text, so Save keeps the setting, and with no such
+            // number every character acts once a round, as with a table that is gone. The list stores a field's key, so keys are compared, as it offers them
+            else if (!(Array.isArray(draft.fields) ? draft.fields : []).some(function(f) { return !!f && f.key === stE && (f.kind === 'number' || f.kind === 'formula'); })) iErr.push({ prop: 'init.sevstat', message: 'Several turns a round: the number it reads is no longer here, so each character acts once a round. Pick another.' });
         } else if (!wholeIn(svE.minus, 1, 1000)) iErr.push({ prop: 'init.sevminus', message: 'Several turns a round needs what each pass takes away, a whole number from 1 to 1000, or Save goes back to Once a round.' });
     }
     else if (shE === 'sides' && !sdE) iErr.push({ prop: 'init.side', message: 'Sides roll: Sides take turns needs the roll each side makes, or Save goes back to Once a round.' });
@@ -906,7 +909,11 @@ function refreshErrors() {
     if (shE !== 'draw' && shE !== 'clock') {   // How turns are ordered: the row stands under every other shape
         if (irE && irE.by === 'figure') {
             var okFE = (Array.isArray(draft.fields) ? draft.fields : []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); });
-            if (!(typeof irE.fig === 'string' && okFE.some(function(f) { return f.id === irE.fig; }))) iErr.push({ prop: 'init.byfig', message: okFE.length ? 'How turns are ordered: pick the figure, or Save goes back to By a roll.' : 'How turns are ordered: no figure is picked, so Save goes back to By a roll. Make a number field first, or pick another way.' });
+            // 1.6.3 (the review of combat): two cases. With no figure picked (or one the cleaner cannot keep) Save goes back to By a roll. With a figure
+            // whose field is gone the cleaner keeps it all the same, and a fight then gets no order at all, which is said apart
+            var figKeptE = typeof irE.fig === 'string' && /^[A-Za-z0-9_]{1,80}$/.test(irE.fig);
+            if (!figKeptE) iErr.push({ prop: 'init.byfig', message: okFE.length ? 'How turns are ordered: pick the figure, or Save goes back to By a roll.' : 'How turns are ordered: no figure is picked, so Save goes back to By a roll. Make a number field first, or pick another way.' });
+            else if (!okFE.some(function(f) { return f.id === irE.fig; })) iErr.push({ prop: 'init.byfig', message: 'How turns are ordered: its figure is no longer here, so fights get no order. Pick another.' });
         } else if (!(irE && irE.by === 'gm') && !(Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && r.init; }) && (Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && !Array.isArray(r.apply); })) {
             // By a roll with rolls to pick from and none picked. A system with no roll at all says nothing yet: a new system is no fault, and the box itself
             // says to make a roll first, in the Rolls tab

@@ -1364,12 +1364,16 @@ var ARC_MAX = 32;
 // kind costs now (fogcore terrainOf, handed terrainCosts). A kind with no name or no cost is no kind. A name that makes no short name (one in
 // another script, or one that begins with a digit) gets one made for it, Kind and the first free number, so no named kind is dropped for its letters
 var TERRAIN_MAX = 48, TERRAIN_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+// 1.6.3 (the review of combat): the short names a made one must never take. A row that names its own short name gives that one, and a row that names
+// none but whose name makes one gives the one its name makes, so a row named Kind or Arc keeps its name though an earlier row's name made none and
+// would have taken that word (it was then dropped as a second row of the same short name). re: the short names the list keeps
+function arcLabelOf(a) { return typeof a.label === 'string' ? a.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, LIMITS.label) : ''; }
+function madeKeysTaken(rows, re) { var t = map(); rows.forEach(function(a) { if (!isObj(a)) return; if (typeof a.key === 'string' && re.test(a.key)) { t[lower(a.key)] = 1; return; } var own = arcKey(arcLabelOf(a)); if (own) t[lower(own)] = 1; }); return t; }
 function terrainKeyFor(lb, taken) { var k = arcKey(lb), n = 2; if (k || !lb) return k; k = 'Kind'; while (taken[lower(k)] === 1) k = 'Kind' + (n++); return k; }
 function cleanTerrainKinds(v) {
-    if (!Array.isArray(v)) return null; var out = [], seen = map(), taken = map(), rows = v.slice(0, TERRAIN_MAX * 2);
-    rows.forEach(function(a) { if (isObj(a) && typeof a.key === 'string' && TERRAIN_KEY.test(a.key)) taken[lower(a.key)] = 1; });   // a made short name never takes one a row names itself
+    if (!Array.isArray(v)) return null; var out = [], seen = map(), rows = v.slice(0, TERRAIN_MAX * 2), taken = madeKeysTaken(rows, TERRAIN_KEY);   // a made short name never takes one a row names or makes itself
     rows.forEach(function(a) {
-        if (!isObj(a) || out.length >= TERRAIN_MAX) return; var lb = typeof a.label === 'string' ? a.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, LIMITS.label) : '';
+        if (!isObj(a) || out.length >= TERRAIN_MAX) return; var lb = arcLabelOf(a);
         var k = typeof a.key === 'string' && TERRAIN_KEY.test(a.key) ? a.key : terrainKeyFor(lb, taken), c = typeof a.cost === 'number' && isFinite(a.cost) ? Math.round(a.cost) : 0;
         if (!k || !lb || c < 2 || seen[lower(k)] === 1) return; seen[lower(k)] = 1; taken[lower(k)] = 1;
         out.push({ key: k, label: lb, cost: Math.min(c, 10) });
@@ -1384,10 +1388,9 @@ function arcKey(s) { var w = String(s || '').replace(/[^A-Za-z0-9]+/g, ' ').trim
 // themselves, so a made one never takes one of theirs. An arc whose name makes one is cleaned exactly as before
 function arcKeyFor(lb, taken) { var k = arcKey(lb), n = 2; if (k || !lb) return k; k = 'Arc'; while (taken[lower(k)] === 1) k = 'Arc' + (n++); return k; }
 function cleanArcs(v) {
-    if (!Array.isArray(v)) return null; var out = [], seen = map(), taken = map(), rows = v.slice(0, ARC_MAX * 2);
-    rows.forEach(function(a) { if (isObj(a) && typeof a.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(a.key)) taken[lower(a.key)] = 1; });
+    if (!Array.isArray(v)) return null; var out = [], seen = map(), rows = v.slice(0, ARC_MAX * 2), taken = madeKeysTaken(rows, /^[A-Za-z][A-Za-z0-9_]{0,39}$/);   // as a kind of terrain's
     rows.forEach(function(a) {
-        if (!isObj(a) || out.length >= ARC_MAX) return; var lb = typeof a.label === 'string' ? a.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, LIMITS.label) : '';
+        if (!isObj(a) || out.length >= ARC_MAX) return; var lb = arcLabelOf(a);
         var k = typeof a.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(a.key) ? a.key : arcKeyFor(lb, taken); if (!k || !lb || seen[lower(k)] === 1) return; seen[lower(k)] = 1; taken[lower(k)] = 1;
         if (a.all === true) { out.push({ key: k, label: lb, all: true }); return; }
         var f = arcDeg(a.f), t = arcDeg(a.t); if (f !== null && t !== null) out.push({ key: k, label: lb, f: f, t: t });

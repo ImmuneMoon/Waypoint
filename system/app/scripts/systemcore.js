@@ -5499,7 +5499,9 @@ var MAPKIND_MAX = 8, MAPKIND_FAC = 8, MAPKIND_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}
 // names the rows name themselves (shortKeysTaken), so a made one never takes one of theirs. A row whose name makes a short name of 24 or fewer is cleaned
 // exactly as before
 function shortKeyFor(lb, taken, word) { var k = arcKey(lb).slice(0, 24), n = 2; if (k || !lb) return k; k = word; while (taken[lower(k)] === 1) k = word + (n++); return k; }
-function shortKeysTaken(rows) { var t = map(); (Array.isArray(rows) ? rows : []).forEach(function(m) { if (isObj(m) && typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim())) t[lower(m.key.trim())] = 1; }); return t; }
+// 1.6.3 (the review of combat): a row that names no short name of its own but whose name makes one gives that one too, so a made fallback (Kind,
+// Factor and the rest) never takes the name a later row would make for itself, which was then dropped as a second row of the same short name
+function shortKeysTaken(rows) { var t = map(); (Array.isArray(rows) ? rows : []).forEach(function(m) { if (!isObj(m)) return; if (typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim())) { t[lower(m.key.trim())] = 1; return; } var own = arcKey(cutText(m.label, LIMITS.label)).slice(0, 24); if (own) t[lower(own)] = 1; }); return t; }
 function cleanMapKinds(raw) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map(), rows = raw.slice(0, MAPKIND_MAX * 4), taken = shortKeysTaken(rows);
     rows.forEach(function(m) {

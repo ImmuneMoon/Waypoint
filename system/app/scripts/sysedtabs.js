@@ -315,7 +315,6 @@ function standSays(st, cs, Fm, diceIn, okG) {
     };
     bad('fits', 'Fits where', ' A row then fits anywhere.'); bad('reach', 'Reaches', ' A row then covers only where it stands.'); bad('counts', 'Counts where', ' Every placed row then counts.');
     if (cs.fits && !okG(cs.fits)) out.push('Fits where reads a GM-only value, here or through what it reads, so your players\u2019 sheets keep none of it and their own moves are not refused by it. You are told when one breaks it.');
-    if (typeof st.counts === 'string' && st.counts.trim() && !(typeof st.offWord === 'string' && st.offWord.trim())) out.push('Counts where: Otherwise it says is empty. Name what a placed row says while it does not count, such as Not worn.');   // 1.6.3 (Fulllion's rulings of 2026-11-20): a required box, said without holding Save
     return out;
 }
 // [bodycheck:standsays-end]

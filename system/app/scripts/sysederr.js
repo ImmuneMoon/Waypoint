@@ -283,8 +283,9 @@ function refreshErrors() {
             if (!chSrc || chSrc.kind !== 'item-list') errs.push({ message: 'Chambers from names no item list. Save drops it.' });
             else if (chSrc.vis === 'gm' && f.vis !== 'gm') (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'Chambers from a GM-only list: players see no Chamber on their sheet.' });
             var cBy = typeof chr.by === 'string' ? chr.by.trim().toLowerCase() : '', cTo = typeof chr.to === 'string' ? chr.to.trim() : '';
-            if ((cBy && !cTo) || (!cBy && cTo)) errs.push({ message: 'Matched by needs a stat of this list and a stat of the round\u2019s list. Save drops it.' });
-            else if (cBy && !stsC.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === cBy; })) errs.push({ message: 'Matched by names no stat of this list. Save drops it.' });
+            // 1.6.3 (the review of the Lists tab's fix, 2026-11-20): each lands on Chambers from's own Matched by box (sysui.js PROP_BOX list.chambermatch), and says what the row then chambers
+            if ((cBy && !cTo) || (!cBy && cTo)) errs.push({ prop: 'list.chambermatch', message: 'Chambers from: Matched by needs a stat of this list and a stat of the round\u2019s list. Save drops it, and the row chambers anything its categories take.' });
+            else if (cBy && !stsC.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === cBy; })) errs.push({ prop: 'list.chambermatch', message: 'Chambers from: Matched by names no stat of this list. Save drops it, and the row chambers anything its categories take.' });
             var cCb = typeof chr.capBy === 'string' ? chr.capBy.trim().toLowerCase() : '';   // the review of fold 2, as the cleaner reads it
             if (cCb && !stsC.some(function(x) { return x && typeof x.key === 'string' && x.kind !== 'pick' && x.key.toLowerCase() === cCb; })) errs.push({ message: 'The row\u2019s Holds names no number stat of this list. Save drops it.' });
             if (Array.isArray(chr.cats) && chr.cats.length > LIMITS.listCats) errs.push({ message: 'Chambers from takes at most ' + LIMITS.listCats + ' categories. Save keeps the first ' + LIMITS.listCats + '.' });
@@ -897,20 +898,22 @@ function listReqSays(f, dr) {
     var statOf = function(k) { var l = low(k); return l ? stats.filter(function(s) { return s.key.toLowerCase() === l; })[0] || null : null; };
     var numOf = function(k) { var s = statOf(k); return s && s.kind !== 'pick' && s.set !== true ? s : null; };   // a number stat, as Holds by kind and When traded read one
     var on = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null;
-    if (on && has(on, 'needs') && !has(on, 'needsText')) say('list.swwords', 'Needs to switch on: Its words is empty. Say in plain words why a row cannot be switched on now, or a player is told only Not now.');
+    if (on && has(on, 'needs') && !has(on, 'needsText')) say('list.swwords', 'Needs to switch on has no words. Say in plain words why a row cannot be switched on now, or a player is told only Not now.');
     if (on && has(on, 'icon') && !has(on, 'offLabel')) say('list.swicon', 'The switch’s icon shows only with a word while off, so Save drops the icon. Write a word while off to keep it.');
     [['load', 'Loads only where', 'a load', 'list.loadwords'], ['chamber', 'Chambers only where', 'a chamber', 'list.chamberwords']].forEach(function(p) {   // the words beside a load's and a chamber's needs
         var o = sp[p[0]]; if (!o || typeof o !== 'object') return;
         if (has(o, 'needsText') && !has(o, 'needs')) say(p[3], p[1] + ' has words but no test beside them, so Save drops its words.');
-        else if (has(o, 'needs') && !has(o, 'needsText')) say(p[3], p[1] + ': Its words is empty. Say in plain words why ' + p[2] + ' is refused, or a player is told only Not now.');
+        else if (has(o, 'needs') && !has(o, 'needsText')) say(p[3], p[1] + ' has no words. Say in plain words why ' + p[2] + ' is refused, or a player is told only Not now.');
     });
-    var matchSay = function(o, who, prop) {   // Matched by: a stat of this list and a stat of the list it loads from, as the cleaner keeps the pair
+    // Matched by: a stat of this list and a stat of the list it takes from, as the cleaner keeps the pair. verb is what the row does with what it takes,
+    // loads for Loads from and a feed. Chambers from's pair, which the cleaner keeps the same way, is said with the rest of Chambers from in refreshErrors
+    var matchSay = function(o, who, prop, verb) {
         if (!o || typeof o !== 'object') return; var by = has(o, 'by'), to = has(o, 'to');
-        if (by !== to) say(prop, who + 'Matched by needs a stat of this list and a stat of the list it loads from. Save drops it, and the row loads anything its categories take.');
-        else if (by && !statOf(o.by)) say(prop, who + 'Matched by names no stat of this list. Save drops it, and the row loads anything its categories take.');
+        if (by !== to) say(prop, who + 'Matched by needs a stat of this list and a stat of the list it ' + verb + ' from. Save drops it, and the row ' + verb + ' anything its categories take.');
+        else if (by && !statOf(o.by)) say(prop, who + 'Matched by names no stat of this list. Save drops it, and the row ' + verb + ' anything its categories take.');
     };
-    matchSay(sp.load, '', 'list.loadmatch');
-    (Array.isArray(sp.feeds) ? sp.feeds : []).forEach(function(fd, fi) { matchSay(fd, 'Feed ' + (fi + 1) + ': ', 'list.feedmatch.' + fi); });
+    matchSay(sp.load, '', 'list.loadmatch', 'loads');
+    (Array.isArray(sp.feeds) ? sp.feeds : []).forEach(function(fd, fi) { matchSay(fd, 'Feed ' + (fi + 1) + ': ', 'list.feedmatch.' + fi, 'loads'); });
     var figs = stats.filter(function(s) { return s.kind !== 'pick' && s.kind !== 'text'; }).map(function(s) { return s.key; }).concat((Array.isArray(sp.cols) ? sp.cols : []).filter(function(c) { return c && typeof c.key === 'string' && c.key; }).map(function(c) { return c.key; }));
     var tests = dr && Array.isArray(dr.tests) ? dr.tests : [];
     (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) {
@@ -920,13 +923,14 @@ function listReqSays(f, dr) {
         else if (nd && !has(rr, 'needsText')) say('list.needstext.' + ri, nm + ': the words for the grayed button are empty. Say in plain words why it cannot be used now, or a player is told only Not now.');
         if (rr.hideOff === true && !nd && !why) say('list.hideoff.' + ri, nm + ': Hidden until it can be used needs Needs beside it, so Save drops the tick.');
         if (act) return;
-        if (rr.dmg !== true && has(rr, 'dtype')) say('', nm + ': a damage type needs Damage ticked, so Save drops it.');
-        if (rr.dmg !== true && has(rr, 'dkind')) say('', nm + ': a kind of blow needs Damage ticked, so Save drops it.');
+        // These four name their roll by its place, ri: the boxes are drawn on only some rolls, so sysui.js finds the box whose data-ri is that place
+        if (rr.dmg !== true && has(rr, 'dtype')) say('list.dtype.' + ri, nm + ': a damage type needs Damage ticked, so Save drops it.');
+        if (rr.dmg !== true && has(rr, 'dkind')) say('list.dkind.' + ri, nm + ': a kind of blow needs Damage ticked, so Save drops it.');
         if (has(rr, 'test')) {   // Rolls by: a test of the Rules tab, made with a figure of the row
-            if (!tests.some(function(x) { return x && x.key === rr.test; })) say('', nm + ': Rolls by names a test that is gone. Save drops it, and the roll keeps its own formula.');
-            else if (!figs.length) say('', nm + ': Rolls by needs a figure of the row, and this list has no number stat or column. Give it one, or Save drops the test.');
-            else if (!has(rr, 'of')) say('', nm + ': Rolls by needs the row’s figure it is made with. Pick it, or Save drops the test and the roll keeps its own formula.');
-            else if (!figs.some(function(k) { return k.toLowerCase() === low(rr.of); })) say('', nm + ': Rolls by is made with a figure this list no longer has, so it reads nothing. Pick another.');
+            if (!tests.some(function(x) { return x && x.key === rr.test; })) say('list.rolltest.' + ri, nm + ': Rolls by names a test that is gone. Save drops it, and the roll keeps its own formula.');
+            else if (!figs.length) say('list.rollof.' + ri, nm + ': Rolls by needs a figure of the row, and this list has no number stat or column. Give it one, or Save drops the test.');
+            else if (!has(rr, 'of')) say('list.rollof.' + ri, nm + ': Rolls by needs the row’s figure it is made with. Pick it, or Save drops the test and the roll keeps its own formula.');
+            else if (!figs.some(function(k) { return k.toLowerCase() === low(rr.of); })) say('list.rollof.' + ri, nm + ': Rolls by is made with a figure this list no longer has, so it reads nothing. Pick another.');
         }
     });
     var ly = sp.lay && typeof sp.lay === 'object' ? sp.lay : null, rules = ly && Array.isArray(ly.rules) ? ly.rules : [];   // Laid from, By category: a rule with no category lays nothing and is dropped
@@ -936,6 +940,8 @@ function listReqSays(f, dr) {
         if (bad.length === rules.length) say('list.layrcats.0', 'By category: no rule names a category, so Save drops them all and this list lays a row for every row of ' + srcNm + '.');
         else rules.forEach(function(ru, i) { if (noCat(ru)) say('list.layrcats.' + i, 'By category: rule ' + (i + 1) + (ru && has(ru, 'name') ? ', ' + ru.name.trim() : '') + ' names no category, so Save drops it and all set on it.'); });
     }
+    var sd = sp.stand && typeof sp.stand === 'object' ? sp.stand : null;   // Rows stand at a row of: Counts where needs the word a placed row says while it does not count
+    if (sd && has(sd, 'counts') && !has(sd, 'offWord')) say('list.standoff', 'Counts where: Otherwise it says is empty. Name what a placed row says while it does not count, such as Not worn.');
     var pt = sp.parts && typeof sp.parts === 'object' ? sp.parts : null;
     if (pt) {
         if (has(pt, 'fitIf') && !has(pt, 'fitIfSays')) say('list.fitwords', 'Fits where: Refused with is empty. A player it stops is told only that the part does not fit.');
@@ -962,7 +968,7 @@ function listReqSays(f, dr) {
     (Array.isArray(sp.onTrade) ? sp.onTrade : []).forEach(function(t, i) {   // When traded, as the cleaner keeps a line
         if (!t || typeof t !== 'object') return; var nmT = 'When traded, line ' + (i + 1), s = numOf(t.s);
         if (!s) say('list.trade', nmT + ' names no number stat of this list, so Save drops it.');
-        else if (typeof t.to === 'string') { var d = numOf(t.to); if (!d || d === s) say('list.trade', nmT + ' moves its stat to nothing. Pick another number stat it moves to, or Save drops the line.'); }
+        else if (typeof t.to === 'string') { var d = numOf(t.to); if (!d || d === s) say('list.trade', stats.some(function(x) { var n = numOf(x.key); return n && n !== s; }) ? nmT + ' moves its stat to nothing. Pick another number stat it moves to, or Save drops the line.' : nmT + ' moves its stat, but this list has no other number stat to move it to. Add one, or have the line clear the stat or set it to a figure, or Save drops the line.'); }   // where the list has no other number stat, the target list offers nothing to pick
     });
     return out;
 }

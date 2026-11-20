@@ -357,7 +357,7 @@ var PROP_BOX = [[/^loot$/, ['sys-loot-if']], [/^(?:apply|then)\.(\d+)$/, ['sys-a
     // 1.6.3 (Fulllion's rulings of 2026-11-20): a box of the Lists tab that another box depends on, said empty under the list's card, lands on its own box. A
     // number is the place among the list's rolls, rules, feeds, badges or lines, and each of those draws its one box of the class named, in that order
     [/^list\.swwords$/, ['sys-list-swwords']], [/^list\.swicon$/, ['sys-swicon']], [/^list\.loadwords$/, ['sys-list-loadneedstext']], [/^list\.chamberwords$/, ['sys-list-chamberneedstext']], [/^list\.needstext\.(\d+)$/, ['sys-list-needstext']], [/^list\.hideoff\.(\d+)$/, ['sys-list-hideoff']],
-    [/^list\.layrcats\.(\d+)$/, ['sys-list-layrcats']], [/^list\.loadmatch$/, ['sys-list-loadby']], [/^list\.chambermatch$/, ['sys-list-chamberby']], [/^list\.feedmatch\.(\d+)$/, ['sys-list-feedby']], [/^list\.badgewords\.(\d+)$/, ['sys-badge-words']], [/^list\.badge\.(\d+)$/, ['sys-badge-if']],
+    [/^list\.layrcats\.(\d+)$/, ['sys-list-layrcats']], [/^list\.standoff$/, ['sys-list-standoff']], [/^list\.loadmatch$/, ['sys-list-loadby']], [/^list\.chambermatch$/, ['sys-list-chamberby']], [/^list\.feedmatch\.(\d+)$/, ['sys-list-feedby']], [/^list\.badgewords\.(\d+)$/, ['sys-badge-words']], [/^list\.badge\.(\d+)$/, ['sys-badge-if']],
     [/^list\.fitwords$/, ['sys-list-partsfitwords']], [/^list\.pfitwords\.(\d+)$/, ['sys-pfit-says']], [/^list\.pfit\.(\d+)$/, ['sys-pfit-if']], [/^list\.pcap\.(\d+)$/, ['sys-pcap-row']], [/^list\.uppool$/, ['sys-list-uppool']], [/^list\.lkshades$/, ['sys-list-lkshades', 'sys-list-lkby']], [/^list\.trade$/, ['sys-traderules']]];
 // The box a word names in what holds it, the nth of its class where the word says which. Found by comparing, so nothing of a system file reaches a selector
 function formToo(b) { if (b && b.hidden && window.wpFormBox && typeof window.wpFormBox.openFor === 'function') window.wpFormBox.openFor(b); return b; }
@@ -370,6 +370,13 @@ function boxIn(scope, prop) {
     if (an) {
         var bxs = scope.querySelectorAll('.sys-answers'), bx = null; for (var k = 0; k < bxs.length && !bx; k++) if (an[1] === undefined || (bxs[k].dataset && bxs[k].dataset.ri === an[1])) bx = bxs[k];
         var rws = bx ? bx.querySelectorAll('.sys-ans-row') : [], rw = rws[+an[2]] || null, hitA = rw ? rw.querySelector('.sys-ans-' + an[3]) : null; if (hitA) return hitA; if (bx) return bx;
+    }
+    // 1.6.3 (the review of the Lists tab's fix, 2026-11-20): a list roll's Damage type, Kind, Rolls by and its figure are drawn on only some rolls, so
+    // the nth box of the class is not the nth roll. The box whose data-ri is the roll's place, else that roll's needs row, which every roll draws
+    var lr = /^list\.(dtype|dkind|rolltest|rollof)\.(\d+)$/.exec(prop);
+    if (lr) {
+        var lrCls = { dtype: ['sys-list-rolldtype'], dkind: ['sys-list-rolldkind'], rolltest: ['sys-list-rolltest'], rollof: ['sys-list-rollof', 'sys-list-rolltest'] }[lr[1]].concat(['sys-list-needsrow']);
+        for (var lc = 0; lc < lrCls.length; lc++) { var lrB = scope.querySelectorAll('.' + lrCls[lc]); for (var lk = 0; lk < lrB.length; lk++) if (lrB[lk].dataset && lrB[lk].dataset.ri === lr[2]) return lrB[lk]; }
     }
     for (var i = 0; i < PROP_BOX.length; i++) {
         var m = PROP_BOX[i][0].exec(prop); if (!m) continue;

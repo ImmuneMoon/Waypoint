@@ -389,6 +389,20 @@ const kids = n => n.childNodes.slice();
         && require('./checkkit').part('sysedlist.js').includes('var ansBx = answersBox(rr, typeof draft !== \'undefined\' ? draft : null, f); ansBx.dataset.ri = String(ri); cb2.appendChild(ansBx);'));
 }
 
+/* ---------- 1.6.3 (the review of the Lists tab's fix, 2026-11-20): a list roll's box drawn on only some rolls is found by its roll's place ---------- */
+{
+    // the errors slice of sysui.js run for real on a list card whose roll 0 has no Damage type box and roll 2 has one, roll 1 a Rolls by and no figure yet,
+    // so the nth box of a class is not the nth roll; a fault lands on the box whose data-ri is its roll's place, else on that roll's needs row
+    const d = makeDom(), m = d.mk, boxIn = new Function(src.slice(src.indexOf('// [sysuicheck:errors-start]'), src.indexOf('// [sysuicheck:errors-end]')) + '\nreturn boxIn;')();
+    const card = m('div', 'sys-list-card'), nr = [0, 1, 2].map(i => m('div', 'sys-flags sys-list-needsrow', { ri: String(i) }));
+    const dt2 = m('input', 'sys-list-rolldtype field', { ri: '2' }), dk2 = m('input', 'sys-list-rolldkind field', { ri: '2' }), rt1 = m('select', 'sys-list-rolltest', { ri: '1' }), rt2 = m('select', 'sys-list-rolltest', { ri: '2' }), ro2 = m('select', 'sys-list-rollof', { ri: '2' });
+    const off = m('input', 'field sys-list-standoff'), chb = m('input', 'sys-list-chamberby field');
+    [nr[0], nr[1], rt1, nr[2], rt2, ro2, dt2, dk2, off, chb].forEach(x => card.appendChild(x));
+    check('a list roll\'s Damage type, Kind, Rolls by and its figure land on the box of their own roll by its place, else on its needs row; Otherwise it says and Chambers from\'s Matched by land on their boxes',
+        boxIn(card, 'list.dtype.2') === dt2 && boxIn(card, 'list.dkind.2') === dk2 && boxIn(card, 'list.dtype.0') === nr[0] && boxIn(card, 'list.rolltest.1') === rt1 && boxIn(card, 'list.rollof.1') === rt1
+        && boxIn(card, 'list.rollof.2') === ro2 && boxIn(card, 'list.rolltest.2') === rt2 && boxIn(card, 'list.dkind.7') === null && boxIn(card, 'list.standoff') === off && boxIn(card, 'list.chambermatch') === chb);
+}
+
 /* ---------- nothing removed, in the page ---------- */
 {
     // every id the editor's page held before this work, and every tooltip it held (the owner: "lets not remove functionality with these updates, thats critical")

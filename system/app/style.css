@@ -5374,8 +5374,9 @@
   .sheet-fx-mods { flex: 1 1 100%; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .sheet-fx-add-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .sheet-fx-add { flex: 1 1 auto; }
-  .ui-find.sheet-fx-add > .ui-find-q { flex: 1 1 9em; max-width: none; width: auto; }   /* 1.6.3 (finding 19): the effect search has the room to read what is typed, beside its list */
-  .ui-find.sheet-fx-add > .ui-find-sel { flex: 2 1 12em; max-width: none; }
+  .ui-find.sheet-fx-add { flex-wrap: wrap; }   /* the review of damage: in a narrow HUD or window the list goes under its search, each the frame's whole width */
+  .ui-find.sheet-fx-add > .ui-find-q { flex: 1 1 8em; max-width: none; width: auto; box-shadow: 1px 0 0 var(--edge), 0 1px 0 var(--edge); }   /* 1.6.3 (finding 19): the effect search has the room to read what is typed, beside its list */
+  .ui-find.sheet-fx-add > .ui-find-sel { flex: 2 1 10em; max-width: none; }
   .sheet-fx-form { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px dashed var(--edge); border-radius: 6px; }
   .sheet-fx-form input.sheet-fx-fname, .sheet-fx-form input.sheet-fx-fdur { flex: 1 1 140px; width: auto; }
   .sheet-fx-flines { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; }
@@ -6116,6 +6117,9 @@
   .dmg-row input, .dmg-row select { min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 5px 7px; font: inherit; font-size: 13px; color-scheme: dark; outline: none; }
   .dmg-row input:hover, .dmg-row select:hover { border-color: var(--dim); }
   .dmg-row input:focus, .dmg-row select:focus { border-color: var(--gold); }
+  .ui-find.dmg-who { display: flex; }   /* 1.6.3 (the review of damage): the Take damage window's Who search reads what is typed, beside its list */
+  .ui-find.dmg-who > .ui-find-q { flex: 1 1 7em; width: auto; max-width: none; }
+  .ui-find.dmg-who > .ui-find-sel { flex: 1.4 1 9em; max-width: none; }
   .dmg-tick input { accent-color: var(--gold); }
   .dmg-line { grid-column: 2; color: var(--dim); font-size: 11px; }
   .dmg-tick { display: block; margin: -2px 0 10px 130px; font-size: 12px; }

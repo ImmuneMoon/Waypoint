@@ -450,7 +450,7 @@ function thruNote(camp, ch, row, force) {   // force (1.6.3, defense fold 3): tr
     var S = SC(), rw = (ch.values && Array.isArray(ch.values[f.id]) ? ch.values[f.id] : []).filter(function(r) { return S && S.rowIdOf(r) === row.r; })[0], rd = rw && S ? S.rowDef(camp.system, rw) : null, nm = rd && rd.def && rd.def.name ? String(rd.def.name).slice(0, 60) : 'a row';
     _thru[ch.id] = { r: row.r, at: Date.now() };
     var dmR = camp.system.combat && camp.system.combat.damage && Array.isArray(camp.system.combat.damage.weapons) ? camp.system.combat.damage.weapons : [], wpR = dmR.filter(function(w) { return w && w.list === f.id; })[0];   // 1.6.3 (finding 27): the weapon list's own word for its durability, as the Take damage window says it
-    var dwR = wpR && typeof window !== 'undefined' && window.wpSheets && typeof window.wpSheets.durWord === 'function' ? window.wpSheets.durWord(camp.system, wpR) : 'durability';
+    var dwR = wpR && S && typeof S.dmgDurWord === 'function' ? S.dmgDurWord(camp.system, wpR) : 'durability';   // the review of damage: the core's one reader (damagecore.js dmgDurWord), as the damage step's own line says it
     var words = String(ch.name || 'A character').slice(0, 60) + ' took the blow on ' + nm + '. Apply its damage from Take damage: what is over its ' + dwR + ' goes on.';
     if (typeof logEvent === 'function') logEvent('table', words); if (typeof toast === 'function') toast(words); return true;
 }

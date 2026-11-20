@@ -593,15 +593,29 @@ function majRowsOf(om) { return Array.isArray(om) ? om.filter(dbxObj) : dbxObj(o
 function majWrite(d, rows) { if (rows.length > 1) d.onMajor = rows; else if (rows.length === 1 && Object.keys(rows[0]).length) d.onMajor = rows[0]; else delete d.onMajor; }
 function majAt(t) { var rw = t && t.closest ? t.closest('.sys-dmgr-onmajor') : null, i = rw ? Number(rw.dataset.mi) : 0, d = dbxDraft(), rows = majRowsOf(d.onMajor); if (!(i >= 0 && Math.floor(i) === i)) return null; if (i === 0 && !rows.length) rows.push({}); return i < rows.length ? { d: d, rows: rows, row: rows[i] } : null; }
 function dbxHas(c, k) { return typeof c === 'string' && (' ' + c + ' ').indexOf(' ' + k + ' ') >= 0; }
-// 1.6.3 (finding 27): the locations Unaimed blows land at offers, as [key, name]: the entries the System editor holds for the list (entryNames)
-// and those of the campaign's library packs, each in the list's categories, each key once, by name. Only read here to offer them; a pack
-// still loading offers what it has, and Another entry takes any name
-function dbxLocNames(listId) {
-    var out = typeof entryNames === 'function' ? entryNames(draft, listId) : [], seen = Object.create(null); out.forEach(function(o) { seen[o[0]] = 1; });
-    var f = (draft.fields || []).filter(function(x) { return !!x && x.id === listId && x.list; })[0], cats = f && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(s) { return String(s).toLowerCase(); }) : null;
-    var LB = window.wpLibrary, cp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, packs = cp && cp.library && Array.isArray(cp.library.packs) ? cp.library.packs : [];
-    if (LB && typeof LB.entriesOf === 'function') packs.forEach(function(p) { if (p && typeof p.id === 'string') (LB.entriesOf(p.id) || []).forEach(function(e) { if (!e || typeof e.key !== 'string' || !e.key || seen[e.key] || (cats && cats.indexOf(String(e.category || '').toLowerCase()) < 0)) return; seen[e.key] = 1; out.push([e.key, typeof e.name === 'string' && e.name ? e.name : e.key]); }); });
+// 1.6.3 (finding 27): the locations Unaimed blows land at offers, as [key, name]: the system's own entries (its items and core) and those of the
+// campaign's library packs, each in the list's categories, each key once, by name. A GM-only entry, or one of a GM-only pack, is offered with
+// (GM only) after its name (the review of damage): it still works for the GM, and a player's own Take damage window then starts on the usual
+// location, since the system's cleaner keeps a GM-only name out of the players' view. A pack still loading offers what it has, and Another entry
+// takes any name. sys: the system read (absent: the editor's draft). any (dbxLocFinds): every entry of the list's categories, one with no key
+// too, as [key or '', its plain name], for the warning below
+function dbxLocNames(listId, sys, any) {
+    sys = sys || draft; var out = [], seen = Object.create(null);
+    var f = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return !!x && x.id === listId && x.list; })[0], cats = f && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(s) { return String(s).toLowerCase(); }) : null;
+    var put = function(e, gmPack) { if (any) { if (e && (!cats || cats.indexOf(String(e.category || '').toLowerCase()) >= 0)) out.push([typeof e.key === 'string' ? e.key : '', typeof e.name === 'string' ? e.name : '']); return; } if (!e || typeof e.key !== 'string' || !e.key || seen[e.key] || (cats && cats.indexOf(String(e.category || '').toLowerCase()) < 0)) return; seen[e.key] = 1; out.push([e.key, (typeof e.name === 'string' && e.name ? e.name : e.key) + (gmPack || e.vis === 'gm' ? ' (GM only)' : '')]); };
+    ((sys && sys.items) || []).concat((sys && sys.core) || []).forEach(function(e) { put(e, false); });
+    var LB = typeof window !== 'undefined' ? window.wpLibrary : null, cp = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, packs = cp && cp.library && Array.isArray(cp.library.packs) ? cp.library.packs : [];
+    if (LB && typeof LB.entriesOf === 'function') packs.forEach(function(p) { if (p && typeof p.id === 'string') (LB.entriesOf(p.id) || []).forEach(function(e) { put(e, p.vis === 'gm'); }); });
     return out.sort(function(a, b) { return String(a[1]).localeCompare(String(b[1])); });
+}
+// 1.6.3 (the review of damage): whether Unaimed blows land at (at) can find a location of the list, by the rule the Take damage window (sheets.js) and a
+// blast's shares (wbblast.js) read it with: an entry whose key or name is that, else one whose name holds it. null where it cannot be told yet (a library pack the
+// campaign lists is not read), so the editor says nothing then. A character's own row of that name would still be found
+function dbxLocFinds(listId, at, sys) {
+    var LB = typeof window !== 'undefined' ? window.wpLibrary : null; if (LB && typeof LB.whole === 'function' && !LB.whole()) return null;
+    var w = String(at || '').trim().toLowerCase(); if (!w) return true;
+    var nm = function(o) { return String(o[1]).trim().toLowerCase(); }, all = dbxLocNames(listId, sys, true);
+    return all.some(function(o) { return (!!o[0] && String(o[0]).toLowerCase() === w) || nm(o) === w; }) || all.some(function(o) { return !!nm(o) && nm(o).indexOf(w) >= 0; });
 }
 function dbxCm() { return draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); }
 function dbxDraft() { var cm = dbxCm(); return dbxObj(cm.damage) ? cm.damage : (cm.damage = {}); }
@@ -990,6 +1004,7 @@ function damageSays(d, sys, Fx) {
             if (typeof d.locs.dr === 'string' && d.locs.dr && !lk.dr) say('Hit locations: the DR is no stat or column of the list, so Save drops it.');
             if (typeof d.locs.crip === 'string' && d.locs.crip && !lk.crip) say('Hit locations: Cripple above is no stat or column of the list, so Save drops it.');
             if (typeof d.locs.side === 'string' && d.locs.side && !lk.side) say('Hit locations: Side is no number stat of the list, so Save drops it.');   // 1.6.0
+            if (typeof lk.at === 'string' && lk.at && dbxLocFinds(lk.list, lk.at, sys) === false) warn('Unaimed blows land at: no location of that list is named “' + lk.at + '”, so a blow lands on the usual one, a location named Torso, else the first. A character’s own row of that name still counts.');   // 1.6.3 (the review of damage): a typo, or an entry removed, never falls back in silence
             if (typeof d.locs.vital === 'string' && d.locs.vital.trim()) { if (!lk.vital) say('Hit locations: the vital formula is too long or not on one line, so Save drops it.'); else reads(d.locs.vital, 'Vital where'); }
             if (typeof d.locs.mult === 'string' && d.locs.mult.trim()) { if (!lk.mult) say('Hit locations: the Times there formula is too long or not on one line, so Save drops it.'); else reads(d.locs.mult, 'Times there'); }
             if (typeof d.locs.die === 'string' && d.locs.die.trim()) { if (!lk.die) say('Hit locations: the A die there adds formula is too long or not on one line, so Save drops it.'); else reads(d.locs.die, 'A die there adds'); }   // 1.6.0

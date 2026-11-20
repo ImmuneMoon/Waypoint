@@ -54,7 +54,7 @@ function crossRow(r) {
     if (!cr) return row;
     row.appendChild(select('sys-roll-xsd', [['down', 'falling to'], ['up', 'rising to']], cr.dir === 'up' ? 'up' : 'down', 'Falling: from above a step to at or below it. Rising: from below to at or above'));
     var at = input('sys-roll-xsat field', cr.at || '', 'The first step, a formula with no dice, such as -HP.max', 'First at'); at.maxLength = LIMITS.formula; row.appendChild(at);
-    var st = input('sys-roll-xsstep field', cr.step || '', 'How far apart the next steps are, such as HP.max. Steps says how many. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
+    var st = input('sys-roll-xsstep field', cr.step || '', 'How far apart the next steps are, such as the pool\u2019s max. \u201cSteps\u201d beside it says how many. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
     if (cr.step) { var cn = input('sys-roll-xsn field', cr.count ? String(cr.count) : '', 'How many steps in all, 2 to 20', 'Steps'); cn.type = 'number'; row.appendChild(cn); var ol = el('label', 'sys-hover'), oc = el('input', 'sys-roll-xsone'); oc.type = 'checkbox'; oc.checked = cr.one === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Once however many')); ol.title = 'Runs once when one change passes several steps, not once a step'; row.appendChild(ol); }
     row.appendChild(select('sys-roll-xsby', [['', 'runs at once'], ['owner', 'reminds its player'], ['gm', 'reminds me']], cr.by === 'owner' || cr.by === 'gm' ? cr.by : '', 'At once, as your own press of it, or as a reminder in chat with its button'));
     if (!Array.isArray(r.apply)) {   // 1.6.2 (backlog 242; the CORE Master: a hit's own effects do not apply to the rolls the same hit calls for): a roll's alone
@@ -73,7 +73,7 @@ function listCrossRow(rr, ri, cts) {
     if (!cr) return row;
     row.appendChild(select('sys-list-xsd', [['up', 'rising to'], ['down', 'falling to']], cr.dir === 'up' ? 'up' : 'down', 'Rising: from below a step to at or above it. Falling: from above to at or below'));
     var at = input('sys-list-xsat field', cr.at || '', 'The first step, a formula with no dice, such as 1 or Row.Grace', 'First at'); at.maxLength = LIMITS.formula; row.appendChild(at);
-    var st = input('sys-list-xsstep field', cr.step || '', 'How far apart the next steps are, such as 1. Steps says how many. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
+    var st = input('sys-list-xsstep field', cr.step || '', 'How far apart the next steps are, such as 1. \u201cSteps\u201d beside it says how many. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
     if (cr.step) { var cn = input('sys-list-xsn field', cr.count ? String(cr.count) : '', 'How many steps in all, 2 to 20', 'Steps'); cn.type = 'number'; row.appendChild(cn); var ol = el('label', 'sys-hover'), oc = el('input', 'sys-list-xsone'); oc.type = 'checkbox'; oc.checked = cr.one === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Once however many')); ol.title = 'One change that passes several steps runs it once'; row.appendChild(ol); }
     return row;
 }

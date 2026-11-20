@@ -561,8 +561,8 @@ function needsBox(form, e) {
     dim = function() {
         var rl = String(ruleIn.value).trim() !== '', has = st.fn.length > 0 || rl, fr = String(fromIn.value).trim();
         fade(warnIn, has); fade(msgIn, has); fade(fromIn, rl);
-        put(fromSay, fr && !isFinite(Number(fr)) ? 'Write Rule from level as a number, such as 3. Save drops it otherwise.' : fr && !rl ? 'Rule from level counts only beside a rule. Save drops it while there is no rule.' : '');
-        put(needSay, !has && (warnIn.value === 'warn' || String(msgIn.value).trim()) ? 'When it isn\u2019t met and its Message count only once this entry needs something. Save drops them while it needs nothing.' : '');
+        put(fromSay, fr && !isFinite(Number(fr)) ? 'The level its rule applies from must be a number, such as 3, or Save drops it.' : fr && !rl ? 'The level a rule applies from counts only beside a rule, and there is none, so Save drops it.' : '');
+        put(needSay, !has && (warnIn.value === 'warn' || String(msgIn.value).trim()) ? 'What happens when its needs aren\u2019t met, and the message for it, count only once it needs something. Save drops them while it needs nothing.' : '');
     };
     [[ruleIn, 'input'], [fromIn, 'input'], [warnIn, 'change'], [msgIn, 'input']].forEach(function(p) { if (p[0] && p[0].addEventListener) p[0].addEventListener(p[1], function() { dim(); }); });
     dim();
@@ -809,15 +809,15 @@ function fliesLibBox(form, f) {
     field(form, 'flyPath', 'It flies', f.path === 'line' ? 'line' : '', { pairs: [['', 'Homing on its target'], ['line', 'Straight on']], title: 'Homing: each step goes to the cell nearest its target as it now stands. Straight: it keeps to the line it was launched on' });
     field(form, 'flyRoll', 'On arrival', typeof f.roll === 'string' ? f.roll : '', { pairs: [['', 'It strikes']].concat(rl), title: 'A roll made as the launcher\u2019s attack as it reaches its target, which the target may resist. On a hit its blast or damage lands. With none it strikes' });
     field(form, 'flyEnd', 'Out of rounds', f.end === 'off' ? 'off' : '', { pairs: [['', 'It is gone'], ['off', 'It goes off where it stands']], title: 'When its rounds run out before it arrives. Going off needs a blast of its own' });
-    if (typeof warnLine === 'function') warnLine(form, function() { return libVal('flySpeed') && libVal('flyEnd') === 'off' && !(/^\d+$/.test(libVal('areaFt')) && Number(libVal('areaFt')) > 0) ? 'Out of rounds it goes off where it stands only with a blast of its own. Fill in Blast (ft), or when its rounds run out it is simply gone.' : ''; });   // 1.6.3: going off needs a blast
+    if (typeof warnLine === 'function') warnLine(form, function() { return libVal('flySpeed') && libVal('flyEnd') === 'off' && !(/^\d+$/.test(libVal('areaFt')) && Number(libVal('areaFt')) > 0) ? 'It can go off when its rounds run out only with a blast of its own. Fill in its blast radius, or it is simply gone.' : ''; });   // 1.6.3: going off needs a blast
 }
 // what Flies once launched needs: a Speed the cleaner can keep (systemcore cleanFlies), and rounds of 1 or more, which it reads as 1 where none
 // is given. '' while no Speed is typed, since the fly boxes count only beside one
 function flySays() {
     var sp = libVal('flySpeed'); if (!sp) return '';
     var CF = typeof cleanFlies === 'function' ? cleanFlies : (typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore.cleanFlies : null);
-    if (CF && !CF({ speed: sp, rounds: 1 })) return 'Its Speed cannot be kept as a formula, so Save drops what it is once launched.';
-    return Number(libVal('flyRounds')) >= 1 ? '' : 'Flies for (rounds) needs 1 or more, so it flies for 1 round. Fill it in.';
+    if (CF && !CF({ speed: sp, rounds: 1 })) return 'How far it flies each round cannot be worked out, so Save drops its flight.';
+    return Number(libVal('flyRounds')) >= 1 ? '' : 'How many rounds it flies is empty or under 1, so it flies for 1 round. Fill in \u201cFlies for (rounds)\u201d.';
 }
 function blastBox(form, a) {
     a = a && typeof a === 'object' ? a : {}; var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; };
@@ -888,9 +888,9 @@ function locPick(inp, ps) {
 // what Strikes at depends on: a hit location list on the Combat tab, and a location of that list by the name typed
 function locSays() {
     var v = libVal('areaLoc'); if (!v) return ''; var ls = locList();
-    if (!ls) return 'Strikes at: this system names no hit locations, on the Combat tab under Taking damage, so it does nothing.';
+    if (!ls) return 'Where its blast strikes does nothing, since this system names no hit locations. Name them on the Combat tab under Taking damage.';
     var WS = typeof window !== 'undefined' ? window.wpSheets : null, cp = camp();
-    return WS && typeof WS.locFinds === 'function' && WS.locFinds(ls, v, cp && cp.system) === false ? 'Strikes at: no hit location is called \u201c' + v + '\u201d, so the blast strikes the usual one.' : '';
+    return WS && typeof WS.locFinds === 'function' && WS.locFinds(ls, v, cp && cp.system) === false ? 'No hit location is called \u201c' + v + '\u201d, so its blast strikes where unaimed blows land. Pick one of the system\u2019s locations.' : '';
 }
 // 1.6.2: the cloud it leaves where it goes off, as systemcore cleanCloud keeps it
 function cloudRows(form, cl) {
@@ -907,7 +907,7 @@ function cloudRows(form, cl) {
     field(form, 'areaCloudSmoke', 'Cloud is smoke', o.smoke === true ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, it blocks sight']], title: 'It blocks sight as smoke does, for the eyes and every sense that does not see through smoke' });
     field(form, 'areaCloudFx', 'While in the cloud', typeof o.fx === 'string' ? o.fx : '', { pairs: fxP, title: 'An effect put on whoever stands in it, and taken off as they leave' });
     field(form, 'areaCloudRoll', 'Roll for those in the cloud', typeof o.roll === 'string' ? o.roll : '', { pairs: rlP, title: 'A roll its right-click menu makes for everyone standing in it' });
-    if (typeof warnLine === 'function') warnLine(form, function() { return libVal('areaCloud') !== 'yes' && cloudSet() ? 'The cloud\u2019s settings count only when it leaves a cloud. Pick Yes, or Save drops them.' : ''; });   // 1.6.3: the cloud's boxes depend on Leaves a cloud
+    if (typeof warnLine === 'function') warnLine(form, function() { return libVal('areaCloud') !== 'yes' && cloudSet() ? 'The cloud\u2019s settings count only when it leaves a cloud. Set \u201cLeaves a cloud\u201d to Yes, or Save drops them.' : ''; });   // 1.6.3: the cloud's boxes depend on Leaves a cloud
 }
 // any cloud box but its unit holds something (the unit always holds one)
 function cloudSet() { return ['areaCloudN', 'areaCloudR', 'areaCloudSmoke', 'areaCloudFx', 'areaCloudRoll'].some(function(k) { var n = ui('libF_' + k); return !!(n && String(n.value).trim()); }); }
@@ -938,9 +938,9 @@ function affLibSays(i) {
     if (!effs.some(function(d) { return d && d.id === fx; })) return 'Save drops it: it needs an effect it puts on.';
     var CA = typeof cleanAffs === 'function' ? cleanAffs : (typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore.cleanAffs : null); if (!CA) return '';
     var a = { vs: vs, fx: fx }; if (nd) a.needs = nd; if (lt) a.lasts = { n: lt, u: libVal(p + 'Unit') || 'minutes' };
-    var k = CA([a]); if (!k || !k[0]) return 'Save drops it: what it is resisted against must be a formula.';
-    if (nd && !k[0].needs) return 'Save drops its Only where: it must be a formula.';
-    if (lt && !k[0].lasts) return 'Save drops its Lasts: it must be a formula with a unit.';
+    var k = CA([a]); if (!k || !k[0]) return 'Save drops it: what it is resisted against cannot be worked out.';
+    if (nd && !k[0].needs) return 'Save drops when it applies: that cannot be worked out.';
+    if (lt && !k[0].lasts) return 'Save drops how long it lasts: it needs a figure that can be worked out and a unit.';
     return '';
 }
 // what the cleaner left out of the blast's extras, said in fixed words (an empty text: nothing)
@@ -959,9 +959,9 @@ function blastDrops(raw, c) {
         // 1.6.3: read from the rows' own boxes where the form has them, so a row with an effect and no resisted against, which entryFromForm
         // already left out, is said too. A row is matched with what the cleaner kept by its resisted against and its effect, as before
         var rowsA = [0, 1].map(function(xi) { var p = 'areaAff' + xi; return ui('libF_' + p + 'Vs') ? { vs: g(p + 'Vs'), fx: g(p + 'Fx'), needs: g(p + 'Needs'), lasts: g(p + 'Lasts') } : (fA[xi] ? { vs: fA[xi].vs, fx: fA[xi].fx, needs: fA[xi].needs, lasts: fA[xi].lasts } : null); });
-        rowsA.forEach(function(x, xi) { if (!x || !(x.vs || x.fx || x.needs || x.lasts)) return; var y = x.vs ? kA.filter(function(z) { return z && z.vs === String(x.vs).trim() && z.fx === x.fx; })[0] : null; if (!y) out.push('affliction ' + (xi + 1) + ', which needs a formula it is resisted against and an effect of the system'); else { if (x.needs && !y.needs) out.push('the Only where of affliction ' + (xi + 1) + ', which must be a formula'); if (x.lasts && !y.lasts) out.push('the Lasts of affliction ' + (xi + 1) + ', which must be a formula'); } });
-        if (g('areaCloud') !== 'yes' && clAny) out.push('the cloud\u2019s settings, which need Leaves a cloud');   // 1.6.3: the cloud's boxes depend on Leaves a cloud
-        else if (g('areaCloud') === 'yes') { var kc = k && k.cloud ? k.cloud : null; if (g('areaCloudN') && !(kc && kc.n)) out.push('the cloud\u2019s Lasts, which must be a formula'); if (g('areaCloudR') && !(kc && kc.r)) out.push('the cloud\u2019s radius, which must be a number above 0'); }
+        rowsA.forEach(function(x, xi) { if (!x || !(x.vs || x.fx || x.needs || x.lasts)) return; var y = x.vs ? kA.filter(function(z) { return z && z.vs === String(x.vs).trim() && z.fx === x.fx; })[0] : null; if (!y) out.push('affliction ' + (xi + 1) + ', which needs what it is resisted against and an effect it puts on'); else { if (x.needs && !y.needs) out.push('when affliction ' + (xi + 1) + ' applies, which cannot be worked out'); if (x.lasts && !y.lasts) out.push('how long affliction ' + (xi + 1) + ' lasts, which cannot be worked out'); } });
+        if (g('areaCloud') !== 'yes' && clAny) out.push('the cloud\u2019s settings, which count only when it leaves a cloud');   // 1.6.3: the cloud's boxes depend on Leaves a cloud
+        else if (g('areaCloud') === 'yes') { var kc = k && k.cloud ? k.cloud : null; if (g('areaCloudN') && !(kc && kc.n)) out.push('how long the cloud lasts, which cannot be worked out'); if (g('areaCloudR') && !(kc && kc.r)) out.push('the cloud\u2019s radius, which must be a number above 0'); }
     }
     return out.length ? 'Not kept: ' + out.join(', ') + '.' : '';
 }
@@ -975,10 +975,10 @@ function entryNotes(raw) {
     if (ftOn && [0, 1].some(function(i) { return g('areaAff' + i + 'Vs'); }) && !(typeof bl.resist === 'string' && bl.resist.trim())) out.push('The Combat tab has no resist roll, so its afflictions are never rolled.');
     if (ftOn && g('areaPlace') === 'yes' && !g('areaTrig')) out.push('Its trigger radius is empty, so the mine goes off within 2 yards.');
     if (ftOn && !g('throwSkill') && g('areaFlight') !== 'scatter' && g('areaFlight') !== 'line' && typeof bl.roll === 'string' && bl.roll.trim()) out.push('It has no throw skill, so no throw roll is made for it: it lands where it is aimed.');
-    if (ftOn && g('areaLoc') && !(sys.combat && sys.combat.damage && sys.combat.damage.locs && sys.combat.damage.locs.list)) out.push('Strikes at does nothing, since this system names no hit locations.');
+    if (ftOn && g('areaLoc') && !(sys.combat && sys.combat.damage && sys.combat.damage.locs && sys.combat.damage.locs.list)) out.push('Where its blast strikes does nothing, since this system names no hit locations.');
     var CFn = typeof cleanFlies === 'function' ? cleanFlies : (typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore.cleanFlies : null);   // 1.6.3: the cleaner reads no rounds as 1 round
-    if (g('flySpeed') && CFn && !CFn({ speed: g('flySpeed'), rounds: 1 })) out.push('Its Speed cannot be kept as a formula, so what it is once launched is not kept.');
-    else if (g('flySpeed') && !(Number(g('flyRounds')) >= 1)) out.push('Flies for (rounds) is empty or under 1, so it flies for 1 round.');
+    if (g('flySpeed') && CFn && !CFn({ speed: g('flySpeed'), rounds: 1 })) out.push('How far it flies each round cannot be worked out, so its flight is not kept.');
+    else if (g('flySpeed') && !(Number(g('flyRounds')) >= 1)) out.push('How many rounds it flies is empty or under 1, so it flies for 1 round.');
     if (g('flySpeed') && g('flyEnd') === 'off' && !ftOn) out.push('It has no blast, so it cannot go off when its rounds run out.');
     if (g('rmMsg') && g('rm') !== 'bound' && g('rm') !== 'curse') out.push('Its removal message is kept only when it is Bound or Curse on contact.');
     if (g('eqMsg') && g('eq') !== 'bound' && g('eq') !== 'curse') out.push('Its switch-off message is kept only when it is Bound or Curse on contact.');
@@ -986,12 +986,12 @@ function entryNotes(raw) {
     var dtys = sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
     if (ftOn && dmgOn && dtys.length && !g('areaType')) out.push('Its blast\u2019s damage has no type, so it takes no type\u2019s multiplier or DR.');
     var lkN = sys.combat && sys.combat.damage && sys.combat.damage.locs && sys.combat.damage.locs.list, WSn = typeof window !== 'undefined' ? window.wpSheets : null;
-    if (ftOn && g('areaLoc') && lkN && WSn && typeof WSn.locFinds === 'function' && WSn.locFinds(lkN, g('areaLoc'), sys) === false) out.push('Strikes at names no hit location of that list, so the blast strikes the usual one.');
+    if (ftOn && g('areaLoc') && lkN && WSn && typeof WSn.locFinds === 'function' && WSn.locFinds(lkN, g('areaLoc'), sys) === false) out.push('Where its blast strikes names no hit location of the system, so it strikes where unaimed blows land.');
     // 1.6.3: What it needs. Rule from level counts only beside a rule and as a number, When it isn't met and its Message only once it needs something
     var nfT = g('needsFrom'), rlS = g('needsIf'), hasNd = !!(raw && Array.isArray(raw.needs) && raw.needs.length);
-    if (nfT && !rlS) out.push('Rule from level counts only beside a rule, so it is not kept.');
-    else if (nfT && !isFinite(Number(nfT))) out.push('Rule from level must be a number, such as 3, so it is not kept.');
-    if (!hasNd && !rlS && (g('needsWarn') === 'warn' || g('needsMsg'))) out.push('When it isn\u2019t met and its Message count only once it needs something, so they are not kept.');
+    if (nfT && !rlS) out.push('The level its rule applies from has no rule beside it, so it is not kept.');
+    else if (nfT && !isFinite(Number(nfT))) out.push('The level its rule applies from must be a number, such as 3, so it is not kept.');
+    if (!hasNd && !rlS && (g('needsWarn') === 'warn' || g('needsMsg'))) out.push('What happens when its needs aren\u2019t met, and the message for it, count only once it needs something, so they are not kept.');
     // 1.6.3: each roll bonus Save leaves out, by its place, in the words said under it
     (raw && Array.isArray(raw.rollSw) ? raw.rollSw : []).forEach(function(s, i) { var t = typeof swLibSays === 'function' ? swLibSays(s) : ''; if (t) out.push('Roll bonus ' + (i + 1) + ': ' + t); });
     return out.join(' ');

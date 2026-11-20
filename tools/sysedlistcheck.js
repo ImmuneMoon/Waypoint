@@ -926,7 +926,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
                 boxR = drawR(draftR.combat); FR.change({ className: 'sys-combat-beach field', value: 'BlastDice' }); const rStay = rendersR - r0 - rIn;
                 // In the hand needs a Throw roll. Scatter on a miss never says so: a launched round that scatters reads it with no Throw roll at all
                 // (wbblast.js), so the line it had there was untrue (the review of damage, 2026-11-20: the two Scatter pins moved on purpose to '')
-                const H = 'Natural >= 18', SC = 'min(Margin, ThrowDistance / 2)', R = '3d6 <= ThrowSkill + RangeMod', NEED = 'Counts only with a Throw roll. Fill Throw roll above.';
+                const H = 'Natural >= 18', SC = 'min(Margin, ThrowDistance / 2)', R = '3d6 <= ThrowSkill + RangeMod', NEED = 'This counts only when a throw is rolled. Fill in the throw roll above.';
                 const bNoRoll = drawR({ blast: { hand: H, scatter: SC } }), bRoll = drawR({ blast: { hand: H, scatter: SC, roll: R } });
                 draftR = { combat: { blast: { hand: H, scatter: SC } } }; boxR = drawR(draftR.combat); FR.input({ className: 'sys-combat-broll field', value: R, dataset: { bk: 'roll' } }); const typed = [lineR(boxR, 'hand'), lineR(boxR, 'scatter')];
                 FR.input({ className: 'sys-combat-broll field', value: '', dataset: { bk: 'roll' } }); const emptied = [lineR(boxR, 'hand'), lineR(boxR, 'scatter')];
@@ -939,9 +939,9 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
                     nr: [lineR(bNoRoll, 'hand'), lineR(bNoRoll, 'scatter'), lineR(bRoll, 'hand'), lineR(bRoll, 'scatter')], typed: typed, emptied: emptied, NEED: NEED,
                     gone: [optOf(bGone, 'sys-combat-bkind', 'gone'), lineR(bGone, 'kind', 'gk'), optOf(bGone, 'sys-combat-fgtype', 'heat'), lineR(bGone, 'fragtype', 'gk')], held: [lineR(bHeld, 'kind', 'gk'), lineR(bHeld, 'fragtype', 'gk')], rK: rK };
             }
-            const DROP1 = 'Save drops Each victim\u2019s dice rolled by until Each victim\u2019s dice holds a formula.', DROP2 = 'Save drops A die each victim loses and Each victim\u2019s dice rolled by until Each victim\u2019s dice holds a formula.';
+            const DROP1 = 'Save drops \u201cEach victim\u2019s dice rolled by\u201d until \u201cHow many dice does each victim roll?\u201d is filled in.', DROP2 = 'Save drops \u201cA die each victim loses\u201d and \u201cEach victim\u2019s dice rolled by\u201d until \u201cHow many dice does each victim roll?\u201d is filled in.';   // moved on purpose: the wording pass of 2026-11-20
             check('1.6.3 the Blasts part’s boxes that others depend on (sysedlist.js blastBox, onBlastInput and onBlastChange, run for real): the two lists of Each victim’s dice stand only beside it or a pick of theirs, and while it is empty or does not clean its line names the picks Save drops, following each pick; leaving it draws them in only where that changes; In the hand says it needs a Throw roll until one is kept, and typing or emptying Throw roll says it again under it, while Scatter on a miss never says so, since a launched round reads it with none; a kind of blow or a fragmentation type gone from Taking damage is shown as gone and said under its list, a pick draws the box again',
-                !frErr && !!out && j(out.e0) === j([0, 0]) && j(out.eE) === j([1, 1]) && j(out.eBy) === j([1, 1]) && j(out.lE) === j(['', DROP1, DROP2, 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the center, with no dice.']) && out.lnAfter === 'Save drops A die each victim loses until Each victim\u2019s dice holds a formula.'
+                !frErr && !!out && j(out.e0) === j([0, 0]) && j(out.eE) === j([1, 1]) && j(out.eBy) === j([1, 1]) && j(out.lE) === j(['', DROP1, DROP2, 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the center, with no dice.']) && out.lnAfter === 'Save drops \u201cA die each victim loses\u201d until \u201cHow many dice does each victim roll?\u201d is filled in.'
                 && out.rIn === 1 && out.rStay === 0 && j(out.nr) === j([out.NEED, '', '', '']) && j(out.typed) === j(['', '']) && j(out.emptied) === j([out.NEED, ''])
                 && j(out.gone) === j(['A kind that is gone', FR.KIND, 'A type that is gone', FR.TYPE]) && j(out.held) === j(['', '']) && out.rK === 1, frErr || j(out));
             {   // 1.6.3 (the review of damage, 2026-11-20): leaving Each victim's dice asks for a redraw of the Combat box from its change event, which fires
@@ -1110,35 +1110,36 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const outQ = runQ({ name: 'D', rolls: [], items: [], tests: [{ key: 'T1', label: 'Check', shape: 'under', dice: '3d6' }], sheet: { sections: [] }, fields: [mag, gun] }), says = (outQ.e['list:f_gun'] || []).map(x => [x.prop || '', x.message]);
         const want = [
             // 1.6.3 (the review of the Lists tab's fix): the words read as a sentence, has no words, where they read Its words is empty before
-            ['list.swwords', 'Needs to switch on has no words. Say in plain words why a row cannot be switched on now, or a player is told only Not now.'],
+            ['list.swwords', 'The switch says when a row can be switched on, but not why it cannot. Give it its words, or a player is told only Not now.'],
             ['list.swicon', 'The switch’s icon shows only with a word while off, so Save drops the icon. Write a word while off to keep it.'],
-            ['list.loadwords', 'Loads only where has no words. Say in plain words why a load is refused, or a player is told only Not now.'],
-            ['list.chamberwords', 'Chambers only where has words but no test beside them, so Save drops its words.'],
-            ['list.loadmatch', 'Matched by needs a stat of this list and a stat of the list it loads from. Save drops it, and the row loads anything its categories take.'],
-            ['list.feedmatch.0', 'Feed 1: Matched by names no stat of this list. Save drops it, and the row loads anything its categories take.'],
+            // moved on purpose (the wording pass of 2026-11-20): each line says what is missing by what it does, never a box's caption as a noun
+            ['list.loadwords', 'Nothing tells a player why a load is refused. Give it its words, or they are told only Not now.'],
+            ['list.chamberwords', 'There are words for a refused chamber, but nothing says when it is refused, so Save drops the words.'],
+            ['list.loadmatch', 'What a row loads is matched to it by a stat of each, and one of the two is not picked. Pick both in \u201cMatched by\u201d, or the row loads anything its categories take.'],
+            ['list.feedmatch.0', 'Feed 1: the stat of this list that matches what it loads is gone. Pick another in \u201cMatched by\u201d, or the row loads anything its categories take.'],
             // the review of the Lists tab's fix: Chambers from's Matched by, kept by the cleaner as a load's is, lands on its own box and says what the row then chambers
-            ['list.chambermatch', 'Chambers from: Matched by needs a stat of this list and a stat of the round’s list. Save drops it, and the row chambers anything its categories take.'],
+            ['list.chambermatch', 'A round is matched to its row by a stat of each, and one of the two is not picked. Pick both in “Matched by”, or any round of its categories fits.'],
             // ... and Counts where's Otherwise it says lands on its own box (it was a line of standSays with no box of its own)
-            ['list.standoff', 'Counts where: Otherwise it says is empty. Name what a placed row says while it does not count, such as Not worn.'],
+            ['list.standoff', 'Nothing says what a placed row shows while it does not count. Fill in “Otherwise it says”, such as Not worn.'],
             ['list.needstext.0', 'Roll 1, Shoot: the words for the grayed button are empty. Say in plain words why it cannot be used now, or a player is told only Not now.'],
             // the review of the Lists tab's fix: these name their roll by its place, which sysui.js reads from each box's data-ri
             ['list.dtype.0', 'Roll 1, Shoot: a damage type needs Damage ticked, so Save drops it.'],
             ['list.dkind.0', 'Roll 1, Shoot: a kind of blow needs Damage ticked, so Save drops it.'],
-            ['list.rollof.0', 'Roll 1, Shoot: Rolls by needs the row’s figure it is made with. Pick it, or Save drops the test and the roll keeps its own formula.'],
-            ['list.rolltest.2', 'Roll 3, Aim: Rolls by names a test that is gone. Save drops it, and the roll keeps its own formula.'],
-            ['list.needstext.1', 'Action 2, Fix: the words for the grayed button need Needs beside them, so Save drops the words.'],
-            ['list.hideoff.1', 'Action 2, Fix: Hidden until it can be used needs Needs beside it, so Save drops the tick.'],
-            ['list.layrcats.0', 'By category: no rule names a category, so Save drops them all and this list lays a row for every row of Mags.'],
-            ['list.fitwords', 'Fits where: Refused with is empty. A player it stops is told only that the part does not fit.'],
-            ['list.pfitwords.0', 'Fits where, rule 2: Refused with is empty. A player it stops is told only that the part does not fit.'],
-            ['list.pfit.1', 'Fits where, rule 3 has words but no test, so Save drops it.'],
+            ['list.rollof.0', 'Roll 1, Shoot: the test it rolls needs the row\u2019s figure it is made with. Pick it beside the test, or Save drops the test.'],
+            ['list.rolltest.2', 'Roll 3, Aim: the test it rolls is gone, so Save drops it and the roll is made as written.'],
+            ['list.needstext.1', 'Action 2, Fix: nothing says when it can be used, so Save drops the words for its grayed button.'],
+            ['list.hideoff.1', 'Action 2, Fix: nothing says when it can be used, so Save drops the tick \u201cHidden until it can be used\u201d. Fill in \u201cWhen can they use this?\u201d.'],
+            ['list.layrcats.0', 'No rule of how rows are laid names a category, so Save drops them all and this list lays a row for every row of Mags.'],
+            ['list.fitwords', 'Nothing tells a player why a part does not fit. Fill in “Refused with”, or they are told only that it does not fit.'],
+            ['list.pfitwords.0', 'Rule 2 of where a part fits: nothing tells a player why a part does not fit. Fill in \u201cRefused with\u201d, or they are told only that it does not fit.'],
+            ['list.pfit.1', 'Rule 3 of where a part fits has words, but nothing says when a part fits, so Save drops it.'],
             ['list.pcap.0', 'Holds by kind, line 1 counts nothing yet. Name its categories, or pick the value it counts, or Save drops the line.'],
-            ['list.pcap.0', 'Holds by kind, line 1 says no how many yet. Pick the row’s stat or write a formula, or Save drops the line.'],
-            ['list.badge.0', 'Badge 1 (Jammed) has no Shown where, so it never shows and Save drops it. Say when it shows.'],
+            ['list.pcap.0', 'Holds by kind, line 1 does not say how many it holds. Pick the row\u2019s stat, or fill in \u201cHow many does it hold?\u201d, or Save drops the line.'],
+            ['list.badge.0', 'Badge 1 (Jammed) never shows, since nothing says when. Fill in \u201cWhen does this badge show?\u201d, or Save drops it.'],
             ['list.badgewords.1', 'Badge 2 says nothing, so Save drops it. Give it words.'],
             ['list.trade', 'When traded, line 1 moves its stat to nothing. Pick another number stat it moves to, or Save drops the line.'],
             ['list.trade', 'When traded, line 2 names no number stat of this list, so Save drops it.']];
-        const cleanSaid = [['list.badge.2', 'Badge 3’s Shown where rolls dice, and it is read with none, so Save drops the badge.'], ['list.lkshades', 'Shade by is picked, but Shades holds no line Save keeps, so no row takes a shade. Give each value of that stat a line, such as Steel = #8a8f99.']];
+        const cleanSaid = [['list.badge.2', 'When badge 3 shows rolls dice, and it must come out the same each time, so Save drops the badge.'], ['list.lkshades', 'Rows are shaded by a stat, but no shade is set for its values, so no row takes one. In “Shades”, give each value a line, such as Steel = #8a8f99.']];
         check('1.6.3 refreshErrors says each emptied box another box depends on, under the list, in plain words and on the box it names (the switch’s words and icon, a load’s and a chamber’s words, Matched by, a roll’s and an action’s words and Hidden tick, a damage type off Damage, Rolls by, a rule with no category, Fits where’s words, Holds by kind, badges, When traded, Shade by)',
             want.every(w => says.some(s => s[0] === w[0] && s[1] === w[1])) && cleanSaid.every(w => says.some(s => s[0] === w[0] && s[1] === w[1])), J(says));
         // a list that names everything its boxes depend on is said nothing of them
@@ -1146,18 +1147,18 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         fl.lay.rules[0].cats = ['Mag']; fl.parts.fitIfSays = 'It does not fit.'; fl.parts.fitMore = [{ 'if': 'Row.Cal > 0', says: 'Too small.' }]; fl.parts.caps = [{ cats: ['Mag'], by: 'Slots' }]; fl.badges = [{ words: 'Jammed', 'if': 'Row.ch = 0' }]; fl.onTrade = [{ s: 'Cal', to: 'Slots' }]; fl.look = { by: 'Tone', shades: [{ v: 'Steel', c: '#8a8f99' }] };
         const outF = runQ({ name: 'D', rolls: [], items: [], tests: [{ key: 'T1', label: 'Check', shape: 'under', dice: '3d6' }], sheet: { sections: [] }, fields: [mag, fullG] }), saysF = (outF.e['list:f_gun'] || []).map(x => x.message);
         check('1.6.3 ... and a list whose every such box is filled is said none of them, and the cleaner keeps what each one fills',
-            !saysF.some(m => /is empty|need Needs|needs Needs|Matched by|Damage ticked|Rolls by|names no category|says nothing|has no Shown where|counts nothing|no how many|moves its stat to nothing|holds no line Save keeps|icon shows only/.test(m)), J(saysF));
+            !saysF.some(m => /is empty|need Needs|needs Needs|Matched by|Damage ticked|Rolls by|names no category|says nothing|has no Shown where|counts nothing|no how many|moves its stat to nothing|holds no line Save keeps|icon shows only|nothing says when|not picked|is gone|[Nn]othing tells|never shows|does not say how many|no shade is set|words for a refused/.test(m))   /* the wording pass of 2026-11-20: and each new line's words */, J(saysF));
         // the review of the Lists tab's fix: a When traded line that moves its stat, on a list with no other number stat, says so, since the target list offers nothing to pick
         const oneN = { id: 'f_one', key: 'Ones', label: 'Ones', kind: 'item-list', list: { stats: [{ key: 'Cal', label: 'Caliber' }, { key: 'Kind', label: 'Kind', kind: 'pick', opts: [{ label: 'A' }] }], onTrade: [{ s: 'Cal', to: 'Cal' }] } };
         const oneS = (runQ({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: [oneN] }).e['list:f_one'] || []).filter(x => x.prop === 'list.trade').map(x => x.message);
         check('1.6.3 When traded on a list of one number stat says there is no other stat to move it to, and how to keep the line',
             J(oneS) === J(['When traded, line 1 moves its stat, but this list has no other number stat to move it to. Add one, or have the line clear the stat or set it to a figure, or Save drops the line.']), J(oneS));
         // Keeps paying, which Save drops whole, says its first cause (listCleanSays, run in the real refreshErrors)
-        const upOf = up => { const g = { id: 'f_up', key: 'Gear', label: 'Gear', kind: 'item-list', list: { on: { label: 'On' }, upkeep: up } }, o = runQ({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10' }, g] }); return (o.e['list:f_up'] || []).filter(x => /Keeps paying/.test(x.message)).map(x => [x.prop, x.message]); };
+        const upOf = up => { const g = { id: 'f_up', key: 'Gear', label: 'Gear', kind: 'item-list', list: { on: { label: 'On' }, upkeep: up } }, o = runQ({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10' }, g] }); return (o.e['list:f_up'] || []).filter(x => /[Kk]eeps paying/.test(x.message))   /* the wording pass of 2026-11-20: the lines say what a row keeps paying */.map(x => [x.prop, x.message]); };
         const upS = [upOf({ pool: 'f_gone', amt: '1', each: 'turn' }), upOf({ pool: 'f_hp', amt: '', each: 'turn' }), upOf({ pool: 'f_hp', amt: '1d6', each: 'turn' }), upOf({ pool: 'f_hp', amt: '2', each: 'turn' })];
         check('1.6.3 Keeps paying, dropped whole by Save, says why under the list: no pool, no amount, an amount with dice; and nothing where it is kept',
-            J(upS[0]) === J([['list.uppool', 'Keeps paying needs a pool to pay from. Pick one, or Save drops Keeps paying.']]) && J(upS[1]) === J([['list.upamt', 'Keeps paying needs what it pays, a figure with no dice such as 3. Save drops Keeps paying.']])
-            && J(upS[2]) === J([['list.upamt', 'Keeps paying pays a figure with no dice, so Save drops Keeps paying.']]) && upS[3].length === 0, J(upS));
+            J(upS[0]) === J([['list.uppool', 'A row that keeps paying needs a pool to pay from. Pick one, or Save drops what it keeps paying.']]) && J(upS[1]) === J([['list.upamt', 'A row that keeps paying needs how much it pays, a plain figure such as 3, or Save drops what it keeps paying.']])
+            && J(upS[2]) === J([['list.upamt', 'What a row keeps paying rolls dice, and it must be a plain figure, so Save drops it.']]) && upS[3].length === 0, J(upS));
         // (d) the boxes start filled: + Kind takes the first number stat, + Badge has words, a further Fits where rule's Refused with follows its test, and When traded offers no move to the line's own stat
         const mkD = (tag, cls) => { const e = { tag, className: cls || '', kids: [], title: '', value: '', placeholder: '', disabled: false, on: {}, appendChild(k) { e.kids.push(k); return k; }, addEventListener(t, fn) { e.on[t] = fn; }, focus() { e.focused = true; }, select() { e.picked = true; }, click() { if (e.on.click) e.on.click({ stopPropagation() {} }); },
             querySelectorAll(sel) { const c = sel.replace(/^\./, ''), acc = [], w = n => (n.kids || []).forEach(k => { if ((' ' + k.className + ' ').includes(' ' + c + ' ')) acc.push(k); w(k); }); w(e); return acc; } };

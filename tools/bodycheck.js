@@ -171,14 +171,14 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         // empty box is said by sysederr.js listReqSays, with its own box as its prop (sysedlistcheck holds it), so standSays says nothing of it
         const offSaid = says({ from: 'f_t', counts: 'At.N > 0' }, { from: 'f_t', counts: 'At.N > 0' }, F, dice, ok), offKept = says({ from: 'f_t', counts: 'At.N > 0', offWord: 'Stowed' }, { from: 'f_t', counts: 'At.N > 0', offWord: 'Stowed' }, F, dice, ok);
         check('1.6.3 Counts where with Otherwise it says empty is said, in plain words, and none where it is filled; the sheet says Not worn where a list names no word',
-            offSaid.length === 0 && offKept.length === 0 && require('./checkkit').part('sysederr.js').includes("say('list.standoff', 'Counts where: Otherwise it says is empty.")
+            offSaid.length === 0 && offKept.length === 0 && require('./checkkit').part('sysederr.js').includes("say('list.standoff', 'Nothing says what a placed row shows while it does not count.")   /* moved on purpose: the wording pass of 2026-11-20 */
             && sh2.includes("if (st && st.off) box.appendChild(el('span', 'sheet-chip', sp.offWord || 'Not worn'));"), J([offSaid, offKept]));
         // a state of a tile with no When never holds: the validator warns, and Save still keeps it
         const stV = (S2, w) => { const sy = S2.cleanSystem({ v: 1, name: 'B', rolls: [], fields: [{ id: 'f_b', key: 'Body', kind: 'item-list', label: 'Body', list: { multi: true, tiles: { states: [{ key: 'state1', label: 'Severed' }, { key: 'state2', label: 'Hurt', 'if': 'Row.lvl > 0' }] } } },
             { id: 'f_w', key: 'Wear', kind: 'item-list', label: 'Wear', list: { stand: { from: 'f_b', then: w } } }] }, { F, gmView: true }); return [sy.fields[0].list.tiles.states.length, S2.validateSystem(sy, F).warnings.filter(x => x.prop === 'list' && /When/.test(x.message)).map(x => x.message)]; };
         const stA = stV(S, []), stB = stV(S, [{ state: 'state1', does: 'stays' }]);
         check('1.6.3 a state of a tile with no When is said as a warning under its list, naming it and, where a line of When its place changes state names it, that the line never runs; a state with a When is said nothing',
-            stA[0] === 2 && J(stA[1]) === J(['A tile’s state: Severed has no When, so no tile is ever in it. Give it a When.']) && J(stB[1]) === J(['A tile’s state: Severed has no When, so no tile is ever in it, and the lines of When its place changes state that name it never run. Give it a When.']), J([stA, stB]));
+            stA[0] === 2 && J(stA[1]) === J(['A tile’s state: Severed never applies, since nothing says when a tile is in it. Fill in “When is a tile in this state?”.']) && J(stB[1]) === J(['A tile’s state: Severed never applies, since nothing says when a tile is in it, and the lines of When its place changes state that name it never run. Fill in “When is a tile in this state?”.']), J([stA, stB]));
     }
     /* ---- fold 3: tiles ---- */
     {

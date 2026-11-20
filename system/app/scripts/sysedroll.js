@@ -599,9 +599,9 @@ function affSays(a, it) {
     var SCa = window.wpSystemCore; if (!a || typeof a !== 'object' || !SCa || typeof SCa.cleanAffs !== 'function') return '';
     if (!(typeof a.vs === 'string' && a.vs.trim())) return 'Save drops it: it needs what it is resisted against.';
     if (!(draft.effects || []).some(function(d) { return d && d.id === a.fx; })) return 'Save drops it: it needs an effect it puts on.';
-    var c = SCa.cleanAffs([a]); if (!c) return 'Save drops it: what it is resisted against must be a formula.';
-    if (typeof a.needs === 'string' && a.needs.trim() && !c[0].needs) return 'Save drops its Only where: it must be a formula.';
-    if (a.lasts && typeof a.lasts.n === 'string' && a.lasts.n.trim() && !c[0].lasts) return 'Save drops its Lasts: it must be a formula with a unit.';
+    var c = SCa.cleanAffs([a]); if (!c) return 'Save drops it: what it is resisted against cannot be worked out.';
+    if (typeof a.needs === 'string' && a.needs.trim() && !c[0].needs) return 'Save drops when it applies: that cannot be worked out.';
+    if (a.lasts && typeof a.lasts.n === 'string' && a.lasts.n.trim() && !c[0].lasts) return 'Save drops how long it lasts: it needs a figure that can be worked out and a unit.';
     if (it && typeof it === 'object' && a.who !== 'all' && !(typeof it.damage === 'string' && it.damage.trim())) return 'This item has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands. Give it Damage, or set it to reach everyone in the blast.';
     return '';
 }

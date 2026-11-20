@@ -2087,7 +2087,10 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const kit2 = { id: 'f_kit', key: 'Kit', label: 'Kit', kind: 'item-list', list: { cols: [{ key: 'c', label: 'C', formula: '1' }] } }, locs = { id: 'f_loc', key: 'Locs', label: 'Locations', kind: 'item-list', list: {} };
         const drI = (combat, extraItems) => ({ name: 'D', rolls: [], sheet: { sections: [] }, fields: [hp, sk, kit2, locs], combat: combat || {},
             effects: [{ id: 'e_n', name: '  ', mods: [] }, { id: 'e_ok', name: 'Stunned', mods: [{ f: 'f_kit', op: 'add', v: 1, key: '', col: 'c' }], end: [{ f: '', formula: '1' }, { f: 'f_gone', formula: '1' }, { f: 'f_hp', formula: '1' }, { fx: 'e_ok', on: false }] },
-                { id: 'e_k', name: 'Keyed', mods: [{ f: 'f_kit', op: 'add', v: 1, key: 'Legs', col: 'c' }] }],
+                { id: 'e_k', name: 'Keyed', mods: [{ f: 'f_kit', op: 'add', v: 1, key: 'Legs', col: 'c' }] },
+                // 1.6.3 (the review of items): When it ends lines the cleaner drops before the validator counts them: a switch of an effect that is gone, a second
+                // switch of one effect, a second change of one pool. Its line 3 reads a name the sheet has not, which the validator says on the cleaned end.1
+                { id: 'e_dup', name: 'Dup', end: [{ fx: 'e_gone' }, { fx: 'e_k', on: true }, { fx: 'e_k', on: false }, { f: 'f_hp', formula: 'Nope + 1' }, { f: 'f_hp', formula: '2' }] }],
             items: [{ id: 'i_n', name: '', mods: [{ f: 'f_kit', op: 'add', v: 1, key: '', col: 'c' }] }, { id: 'i_legs', name: 'Legs', key: 'Legs' },
                 { id: 'i_ft0', name: 'Ft0', area: { ft: 0, shape: 'circle' } }, { id: 'i_ftE', name: 'FtE', area: { ft: '', shape: 'circle' } }, { id: 'i_ft12', name: 'Ft12', area: { ft: 12, shape: 'circle' } },
                 { id: 'i_fr', name: 'Frag', area: { ft: 6, frag: '1d6' } }, { id: 'i_frd', name: 'FragDmg', damage: '2d6', area: { ft: 6, frag: '1d6' } },
@@ -2100,13 +2103,24 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && j(saidI(rA, 'i_n', /^label$/)) === j(['label: It has no name, so Save calls it Item, and every list that picks it says the same as any other item with no name. Give it a name.']) && saidI(rA, 'e_ok', /^label$/).length === 0 && saidI(rA, 'i_ft12', /^label$/).length === 0;
         check('1.6.3 an effect and an item need a name (refreshErrors, run for real): one with none is said under its name box, and a named one says nothing',
             nmI, j([saidI(rA, 'e_n'), saidI(rA, 'i_n')]));
-        const oneI = saidI(rA, 'e_ok').indexOf(': Change 1: pick the entry it changes, or Save drops this change.') >= 0 && saidI(rA, 'i_n').indexOf(': Change 1: pick the entry it changes, or Save drops this change.') >= 0 && !saidI(rA, 'e_k').some(m => /pick the entry/.test(m))
+        // 1.6.3 (the review of items, moved on purpose): the fault names its own change's Entry box, mods.<line>.key, where it named no box before
+        const oneI = saidI(rA, 'e_ok').indexOf('mods.0.key: Change 1: pick the entry it changes, or Save drops this change.') >= 0 && saidI(rA, 'i_n').indexOf('mods.0.key: Change 1: pick the entry it changes, or Save drops this change.') >= 0 && !saidI(rA, 'e_k').some(m => /pick the entry/.test(m))
             && !(S.cleanSystem(drI({}), { F, gmView: true }).effects.find(x => x.id === 'e_ok').mods || []).length;
         check('1.6.3 a change on one entry of a list needs its entry (refreshErrors, run for real): one with no entry is said under its effect or its item, since the cleaner drops it, and one with its entry says nothing',
             oneI, j([saidI(rA, 'e_ok'), saidI(rA, 'i_n'), saidI(rA, 'e_k')]));
         const endI = j(saidI(rA, 'e_ok', /^end\./).filter(m => /When it ends/.test(m))) === j(['end.0: When it ends: pick the pool or number this changes, or Save drops it.', 'end.1: When it ends: the pool or number this changed is gone, so Save drops this change.']);
         check('1.6.3 an effect\'s When it ends needs what each change moves (refreshErrors, run for real): a change with no pool or number, and one whose pool is gone, are said under their own line, and one that moves a pool or switches an effect says nothing',
             endI && saidI(rA, 'e_ok', /^end\.3$/).length === 1, j(saidI(rA, 'e_ok', /^end\./)));   // the validator's own word on the effect it switches lands on that change's own line, end.3, though the cleaned effect counts it as end.1
+        {   // 1.6.3 (the review of items): the lines the cleaner drops as said twice, or as switching an effect that is gone, are said under their own line,
+            // and the validator's word on a later line still lands on that line (endRe through endPlan): here the cleaned end.1 is the draft's line 3
+            const dS = saidI(rA, 'e_dup', /^end\./), cE = (S.cleanSystem(drI({}), { F, gmView: true }).effects.find(x => x.id === 'e_dup').end || []);
+            check('1.6.3 an effect\'s When it ends says the lines Save drops as said twice or as switching an effect that is gone, and the validator\'s word on a later line lands on that line (refreshErrors, run for real, against the real cleaner)',
+                dS.includes('end.0: When it ends: the effect this switched is gone, so Save drops this change.') && dS.includes('end.2: When it ends: a line above already switches this effect, so Save drops this change.')
+                && dS.includes('end.4: When it ends: a line above already changes this pool or number, so Save drops this change.') && dS.filter(m => /^end\.1:/.test(m)).every(m => /status effects list/.test(m))
+                && dS.some(m => /^end\.3:/.test(m) && !/^end\.3: When it ends/.test(m)) && !dS.some(m => /^end\.[024]:/.test(m) && !/When it ends/.test(m))
+                && j(cE.map(c => c.fx || c.f)) === j(['e_k', 'f_hp']),
+                j([dS.map(m => m.slice(0, 90)), cE]));
+        }
         const ftI = j(saidI(rA, 'i_ft0', /^ft$/)) === j(['ft: A blast needs a radius of 1 ft or more. Without one, Save drops the blast with all that is set beside it: its damage type, fragmentation, afflictions and cloud.']) && j(saidI(rA, 'i_ftE', /^ft$/)) === j(saidI(rA, 'i_ft0', /^ft$/)) && saidI(rA, 'i_ft12', /^ft$/).length === 0
             && !S.cleanSystem(drI({}), { F, gmView: true }).items.find(x => x.id === 'i_ft0').area;
         check('1.6.3 a blast needs its radius (refreshErrors, run for real): a radius of 0 or an empty box is said under the radius, since Save drops the whole blast, and a radius of 1 or more says nothing',
@@ -2146,6 +2160,12 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         addRun('sysAddItem'); addRun('sysAddEffect');
         const shQ = blockI("        if (c.indexOf('sys-item-shape') >= 0) {"), shRun = (iit, dr, v) => new Function('c', 't', 'iit', 'draft', 'markDirty', 'renderAll', '(function() {' + shQ + NL + '})();')('sys-item-shape', { value: v }, iit, dr, () => {}, () => {});
         const drT = { fields: [hp, sk], combat: { blast: { roll: '3d6 <= ThrowSkill' } } }, itT = { area: null }, itU = { area: null, throwSkill: 'HP' }, itV = { area: null }; shRun(itT, drT, 'circle'); shRun(itU, drT, 'circle'); shRun(itV, { fields: [hp, sk], combat: {} }, 'circle');
+        // 1.6.3 (the review of items): a throw skill starts filled only where the choice is clear, a skill that reads as throwing or the only skill there is
+        const acro = { id: 'f_ac', key: 'Acrobatics', label: 'Acrobatics', kind: 'skill', base: '10' }, stl = { id: 'f_st', key: 'Stealth', label: 'Stealth', kind: 'skill', base: '10' }, toss = { id: 'f_to', key: 'Toss', label: 'Grenade throwing', kind: 'skill', base: '10' };
+        const thW = { area: null }, thX = { area: null }, thY = { area: null }, thZ = { area: null }, cbT = { blast: { roll: '3d6 <= ThrowSkill' } };
+        shRun(thW, { fields: [hp, acro, sk], combat: cbT }, 'circle'); shRun(thX, { fields: [hp, acro, stl], combat: cbT }, 'circle'); shRun(thY, { fields: [hp, acro], combat: cbT }, 'circle'); shRun(thZ, { fields: [acro, stl, toss], combat: cbT }, 'circle');
+        check('1.6.3 (the review of items) a blast new on an item starts with a throw skill only where the choice is clear (the real line of sysedtabs.js): the skill whose name or short name reads as throwing, else the system\'s only skill, and with two skills neither of which reads as throwing it starts empty, for the validator\'s word to ask',
+            thW.throwSkill === 'Throwing' && !thX.throwSkill && thX.area && thY.throwSkill === 'Acrobatics' && thZ.throwSkill === 'Toss', j([thW, thX, thY, thZ]));
         const plQ = lineI("        if (c.indexOf('sys-item-aplace') >= 0) {"), plRun = (iit, on) => new Function('c', 't', 'iit', 'markDirty', 'renderAll', '(function() {' + plQ + NL + '})();')('sys-item-aplace', { checked: on }, iit, () => {}, () => {});
         const itP = { area: { ft: 6 } }, itP2 = { area: { ft: 6, trig: 5 } }; plRun(itP, true); plRun(itP2, true);
         const afQ = blockI("        else if (iact === 'affadd') {"), afRun = it => new Function('iact', 'iitem', 'draft', 'LIMITS', 'toast', '(function() {' + afQ + NL + '})();')('affadd', it, { effects: [{ id: 'e_s', name: 'Stunned' }] }, S.LIMITS, () => {});

@@ -515,7 +515,8 @@ function itemRow(it) {
     // 1.6.3 (Fulllion's rulings of 2026-11-20): the throw skill is what the Combat tab's throw roll reads as ThrowSkill, so it is no longer (optional), and
     // with none no throw roll is made (the validator says so under it). It stays a box: what it names is often a column of one entry of a list, such as a
     // skill's Target, which no list of fields could offer
-    flags.appendChild(input('sys-item-throw field', it.throwSkill, 'What the Combat tab’s throw roll reads as ThrowSkill when it is thrown or placed, such as a skill’s target. With none, no throw roll is made: it lands where it is aimed', it.area && it.area.place === true ? 'Placing skill' : 'Throw skill'));
+    // 1.6.3 (the review of items): only an item with a blast is thrown or placed, so the box says it is needed there alone, and optional on any other item
+    flags.appendChild(input('sys-item-throw field', it.throwSkill, 'What the Combat tab’s throw roll is made against when it is thrown or placed, such as a skill’s target. With none, no throw roll is made: it lands where it is aimed', it.area ? (it.area.place === true ? 'Placing skill' : 'Throw skill') : 'Throw skill (optional)'));
     var iIcoIn = input('sys-item-icon field', it.icon, 'An emoji or a bundled icon shown on the row', 'Icon'); flags.appendChild(iIcoIn); flags.appendChild(glyphButton(iIcoIn));
     var iPicIn = el('input', 'sys-item-pic'); iPicIn.type = 'hidden'; iPicIn.value = typeof it.pic === 'string' ? it.pic : ''; flags.appendChild(iPicIn); if (typeof picPicker === 'function') flags.appendChild(picPicker(iPicIn));   // 1.6.2 (backlog 42): its own picture
     flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: kept out of the players\u2019 list. One you give a character reaches its owner (name, icon, category and notes); its formulas never leave your machine'));

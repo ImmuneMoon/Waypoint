@@ -611,19 +611,45 @@ function refreshErrors() {
     var oneEntry = function(id, mods) {   // a change aimed at one entry of a list keeps only beside the entry's key (systemcore rowModAim)
         (Array.isArray(mods) ? mods : []).forEach(function(m, mi) {
             if (!m || typeof m !== 'object' || m.op === 'on' || m.part === 'max' || !(typeof m.col === 'string' || itFk[m.f] === 'item-list')) return;
-            if (!m.key || cleanItemKey(String(m.key)) !== m.key) itPush(errorsById, id, '', 'Change ' + (mi + 1) + ': pick the entry it changes, or Save drops this change.');
+            // 1.6.3 (the review of items): said under the change's own Entry box, which sysui.js boxIn finds by the line's own place (mods.<line>.key)
+            if (!m.key || cleanItemKey(String(m.key)) !== m.key) itPush(errorsById, id, 'mods.' + mi + '.key', 'Change ' + (mi + 1) + ': pick the entry it changes, or Save drops this change.');
         });
     };
     var nmOf = function(x) { return typeof x.name === 'string' ? x.name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim() : ''; };
+    // 1.6.3 (the review of items): which line of an effect's When it ends Save keeps, and its place among the lines kept, read as the cleaner reads
+    // them. systemcore cleanApplyChanges keeps a field once for each sheet a line lands on, and an effect switched once whichever way, before any line
+    // is judged. cleancore cleanEffectDef then keeps a line only where it switches an effect or moves a pool, a number or a toggle of the system, and
+    // cleanSystem drops one that switches an effect that is gone. For each line of the draft it answers { at: its place among the kept lines }, or
+    // { why } saying why Save drops it ('none', 'gone', 'fxgone', 'dup' or 'dupfx'), or null for a line that is no change at all or past the most
+    // a list holds, which the cleaner passes over too. endRe below and the effects loop both read it, so the two cannot disagree
+    var fxIds = Object.create(null); (draft.effects || []).forEach(function(x) { if (x && typeof x.id === 'string') fxIds[x.id] = 1; });
+    var endPlan = function(d) {
+        var seen = Object.create(null), out = [], kept = 0, pushed = 0;
+        (Array.isArray(d.end) ? d.end : []).forEach(function(c) {
+            if (pushed >= LIMITS.applyChanges || !c || typeof c !== 'object') { out.push(null); return; }
+            if (typeof c.fx === 'string') {
+                if (!/^e_[A-Za-z0-9_]{1,24}$/.test(c.fx)) { out.push({ why: 'fxgone' }); return; }
+                pushed++; var xk = 'fx:' + c.fx, xDup = seen[xk] === 1; seen[xk] = 1;
+                out.push(fxIds[c.fx] !== 1 ? { why: 'fxgone' } : xDup ? { why: 'dupfx' } : { at: kept++ }); return;
+            }
+            pushed++;
+            var f = typeof c.f === 'string' && /^f_[A-Za-z0-9_]{1,24}$/.test(c.f) ? c.f : '', lk = typeof c.link === 'string' && /^lk_[A-Za-z0-9_]{1,24}$/.test(c.link) && typeof c.f === 'string' ? c.link : '', sk = lk + '|' + f, fDup = !!f && seen[sk] === 1;
+            if (f) seen[sk] = 1;
+            out.push(!(f && APPLY_KINDS[itFk[f]] === 1) ? { why: c.f ? 'gone' : 'none' } : fDup ? { why: 'dup' } : { at: kept++ });
+        });
+        return out;
+    };
+    var END_SAYS = { none: 'When it ends: pick the pool or number this changes, or Save drops it.', gone: 'When it ends: the pool or number this changed is gone, so Save drops this change.',
+        fxgone: 'When it ends: the effect this switched is gone, so Save drops this change.', dup: 'When it ends: a line above already changes this pool or number, so Save drops this change.',
+        dupfx: 'When it ends: a line above already switches this effect, so Save drops this change.' };
+    var endPlans = Object.create(null);
     (draft.effects || []).forEach(function(d) {
         if (!d || typeof d !== 'object' || typeof d.id !== 'string') return;
         if (!nmOf(d)) itPush(warningsById, d.id, 'label', 'It has no name, so Save calls it Effect, and every list that picks it says the same as any other effect with no name. Give it a name.');
         oneEntry(d.id, d.mods);
-        // When it ends: the cleaner keeps a change only where it switches an effect or moves a pool, a number or a toggle of the system
-        (Array.isArray(d.end) ? d.end : []).forEach(function(c, i) {
-            if (!c || typeof c !== 'object' || typeof c.fx === 'string' || (typeof c.f === 'string' && APPLY_KINDS[itFk[c.f]] === 1)) return;
-            itPush(errorsById, d.id, 'end.' + i, c.f ? 'When it ends: the pool or number this changed is gone, so Save drops this change.' : 'When it ends: pick the pool or number this changes, or Save drops it.');
-        });
+        // When it ends: each line Save drops is said under its own line, by endPlan's reading of the cleaner
+        var epD = endPlans[d.id] = endPlan(d);
+        epD.forEach(function(p, i) { if (p && p.why) itPush(errorsById, d.id, 'end.' + i, END_SAYS[p.why]); });
     });
     var lkE = draft.combat && draft.combat.damage && draft.combat.damage.locs && typeof draft.combat.damage.locs === 'object' ? draft.combat.damage.locs : null;
     (draft.items || []).forEach(function(it) {
@@ -684,9 +710,11 @@ function refreshErrors() {
     var fillRe = function(e) { var m = e && typeof e.prop === 'string' ? /^fill\.(\d+)$/.exec(e.prop) : null, fd = m ? (draft.fields || []).filter(function(x) { return x && x.id === e.id; })[0] : null, at = fd ? fillDraftAt(fd, +m[1]) : -1; if (m) e.prop = at >= 0 ? 'fill.' + at : 'fills'; };
     // 1.6.3: the validator counts an effect's When it ends in the CLEANED effect, which has left out the changes Save drops (one that switches no effect and moves
     // no pool, number or toggle of the system), so its end.N is turned back into the line's place in the draft, where sysui.js PROP_BOX finds its box
+    // 1.6.3 (the review of items): through endPlan, which mirrors the cleaner, so a line Save drops for being said twice, or for switching an effect
+    // that is gone, no longer moves every later message onto the line above its own
     var endRe = function(e) {
-        var m = e && typeof e.prop === 'string' ? /^end\.(\d+)$/.exec(e.prop) : null, d = m ? (draft.effects || []).filter(function(x) { return x && x.id === e.id; })[0] : null; if (!d || !Array.isArray(d.end)) return;
-        var n = -1; for (var i = 0; i < d.end.length; i++) { var c = d.end[i]; if (c && typeof c === 'object' && (typeof c.fx === 'string' || (typeof c.f === 'string' && APPLY_KINDS[itFk[c.f]] === 1)) && ++n === +m[1]) { e.prop = 'end.' + i; return; } }
+        var m = e && typeof e.prop === 'string' ? /^end\.(\d+)$/.exec(e.prop) : null, pl = m ? endPlans[e.id] : null; if (!pl) return;
+        for (var i = 0; i < pl.length; i++) if (pl[i] && pl[i].at === +m[1]) { e.prop = 'end.' + i; return; }
     };
     v.errors.forEach(function(e) { whyRe(e); fillRe(e); endRe(e); var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
     v.warnings.forEach(function(w) { whyRe(w); fillRe(w); endRe(w); var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });

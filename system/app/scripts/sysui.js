@@ -370,6 +370,19 @@ function boxIn(scope, prop) {
         var bxs = scope.querySelectorAll('.sys-answers'), bx = null; for (var k = 0; k < bxs.length && !bx; k++) if (an[1] === undefined || (bxs[k].dataset && bxs[k].dataset.ri === an[1])) bx = bxs[k];
         var rws = bx ? bx.querySelectorAll('.sys-ans-row') : [], rw = rws[+an[2]] || null, hitA = rw ? rw.querySelector('.sys-ans-' + an[3]) : null; if (hitA) return hitA; if (bx) return bx;
     }
+    // 1.6.3 (the review of items): a change on one entry of a list (mods.<line>.key) lands on its own Entry box in its own change line, the line found by
+    // its data-mi, since only the lines that aim at one entry carry that box, so the nth box of its class is not the nth change. It is the list of entries
+    // where the typed box is put away, else the typed box, else the line's own target. The roll bonuses and afflictions of the same row carry no data-mi
+    var mk = /^mods\.(\d+)\.key$/.exec(prop);
+    if (mk) {
+        var mls = scope.querySelectorAll('.sys-fx-mod'), ml = null; for (var q = 0; q < mls.length && !ml; q++) if (mls[q].dataset && mls[q].dataset.mi === mk[1]) ml = mls[q];
+        if (ml) {
+            var ky = ml.querySelector('.sys-fx-mkey') || ml.querySelector('.sys-item-mkey'), pk = ml.querySelector('.sys-entrypick');
+            if (ky && !(ky.style && ky.style.display === 'none')) return ky; if (pk) return pk;
+            return ml.querySelector('.sys-fx-target') || ml.querySelector('.sys-item-mtarget') || ml;
+        }
+        return null;
+    }
     for (var i = 0; i < PROP_BOX.length; i++) {
         var m = PROP_BOX[i][0].exec(prop); if (!m) continue;
         for (var j = 0; j < PROP_BOX[i][1].length; j++) { var l = scope.querySelectorAll('.' + PROP_BOX[i][1][j]), hit = l[m[1] ? Math.min(+m[1], l.length - 1) : 0]; if (hit) return hit; }

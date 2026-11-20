@@ -844,10 +844,15 @@ function onChange(e) {
         if (c.indexOf('sys-item-shape') >= 0) {
             var wasA = !!iit.area; if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' };
             // 1.6.3 (Fulllion's rulings of 2026-11-20: a box others depend on is required, and starts filled where a value makes sense): where the
-            // Combat tab names a throw roll, a blast new on an item starts with the system's first skill as its throw skill, since with none no throw
-            // roll is made for it at all
+            // Combat tab names a throw roll, a blast new on an item starts with a throw skill, since with none no throw roll is made for it at all. The
+            // review of items: only where the choice is clear, a skill whose name or short name reads as throwing, else the system's only skill. Any
+            // other pick would be a guess, and a wrong one also quiets the validator's word that asks for one, so the box then starts empty and that
+            // word, under the box, asks for it
             var trS = draft.combat && draft.combat.blast && typeof draft.combat.blast.roll === 'string' && draft.combat.blast.roll.trim();
-            if (!wasA && iit.area && trS && !iit.throwSkill) { var sk0 = (draft.fields || []).filter(function(f) { return f && f.kind === 'skill' && typeof f.key === 'string' && f.key; })[0]; if (sk0) iit.throwSkill = sk0.key; }
+            if (!wasA && iit.area && trS && !iit.throwSkill) {
+                var sks = (draft.fields || []).filter(function(f) { return f && f.kind === 'skill' && typeof f.key === 'string' && f.key; });
+                var sk0 = sks.filter(function(f) { return /throw/i.test(String(f.label || '')) || /throw/i.test(f.key); })[0] || (sks.length === 1 ? sks[0] : null); if (sk0) iit.throwSkill = sk0.key;
+            }
             markDirty(); renderAll(); return;
         }
         if (c.indexOf('sys-item-cat') >= 0) { var nsc = itemStatDefs(iit).map(function(s) { return s.key.toLowerCase(); }).join(','); if (nsc !== (t.dataset.scope || '')) { markDirty(); renderAll(); } return; }   // F4c1: a category that changes which lists it can be on redraws its stat boxes

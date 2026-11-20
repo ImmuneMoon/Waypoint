@@ -458,7 +458,7 @@ function onSwChange(t) {
 function onSwClick(b) {
     var a = b.dataset ? b.dataset.act : ''; if (a !== 'swadd' && a !== 'swdel' && a !== 'swtoadd' && a !== 'swtodel') return false;
     var h = swHolder(b); if (!h) return true;
-    if (a === 'swadd') { var t0 = swTargets()[0], o0 = t0 ? swToOf(t0[0]) : null; if (!o0) return true; h.rollSw = Array.isArray(h.rollSw) ? h.rollSw : []; if (h.rollSw.length >= LIMITS.rollSw) { toast('At most ' + LIMITS.rollSw + ' roll bonuses each.'); return true; } h.rollSw.push({ name: '', v: 1, to: [o0] }); }
+    if (a === 'swadd') { var t0 = swTargets()[0], o0 = t0 ? swToOf(t0[0]) : null; if (!o0) return true; h.rollSw = Array.isArray(h.rollSw) ? h.rollSw : []; if (h.rollSw.length >= LIMITS.rollSw) { toast('At most ' + LIMITS.rollSw + ' roll bonuses each.'); return true; } h.rollSw.push({ name: String((typeof h.name === 'string' && h.name.trim()) || 'Bonus').slice(0, 60), v: 1, to: [o0] }); }   // 1.6.3 (Fulllion's rulings of 2026-11-20): it starts with a name, since Save keeps none without one
     else if (a === 'swdel') { var L = swLine(b, h); if (L) { h.rollSw.splice(+L.ln.dataset.si, 1); if (!h.rollSw.length) delete h.rollSw; } }
     else if (a === 'swtoadd') { var L2 = swLine(b, h), t1 = swTargets()[0], o1 = t1 ? swToOf(t1[0]) : null; if (L2 && o1) { L2.s.to = Array.isArray(L2.s.to) ? L2.s.to : []; if (L2.s.to.length < LIMITS.swTo) L2.s.to.push(o1); } }
     else { var L3 = swLine(b, h), tw = b.closest ? b.closest('.sys-sw-to') : null; if (L3 && tw && Array.isArray(L3.s.to)) L3.s.to.splice(+tw.dataset.ti, 1); }

@@ -8764,6 +8764,9 @@ window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, re
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by
 Object.assign(window.wpSheets, { facingTarget: facingTarget, dueBlock: dueBlock, takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext, durWord: dmgDurWord });   // 1.5.6, the damage step; 1.6.3: a weapon's durability in the system's words (net.js thruNote)
 Object.assign(window.wpSheets, { glyphButton: glyphButton, closeGlyphPicker: closeGlyphPicker });   // 1.6.3 (the editor coverage audit, gap 10): the Library window's Icon is picked by sight with the Items tab's own picker
+// 1.6.3 (Fulllion's rulings of 2026-11-20): and the Library window's Strikes at picks a blast's hit location by name from the very list the Items tab
+// offers, the Taking damage locations, and says where a name finds none, by the same two readers
+Object.assign(window.wpSheets, { locNames: function(list, sys) { return dbxLocNames(list, sys); }, locFinds: function(list, at, sys) { return dbxLocFinds(list, at, sys); } });
 
 // An outside sheet reader (2026-10-18): a module of the GM's own may stand beside the app, in the repository's private/ folder, which only the
 // development server serves (none ships with the app). It is asked for once, after the page has drawn and never in the stream window; it

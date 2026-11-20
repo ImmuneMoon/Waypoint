@@ -487,9 +487,11 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     /* ---- fold (d): things in flight ---- */
     {
         const BC = await import(url.pathToFileURL(app('scripts/blastcore.js')).href);
-        check('what flies keeps its own figures, no sheet: a Speed formula and its rounds, HP of at least 1, Protection, Size, straight or homing, a roll on arrival and going off when spent; nothing without a Speed or rounds; held to their bounds',
+        // 1.6.3 (Fulllion's rulings of 2026-11-20, the cleaner never drops what was saved for lacking a box): rounds that are missing or under 1 read
+        // as 1 round, where they dropped what it is once launched before (moved on purpose)
+        check('what flies keeps its own figures, no sheet: a Speed formula and its rounds, HP of at least 1, Protection, Size, straight or homing, a roll on arrival and going off when spent; nothing without a Speed, and rounds missing or under 1 read as 1 round; held to their bounds',
             J(S.cleanFlies({ speed: ' 2 * MapFactor.Speed ', rounds: 3.4, hp: 0, pro: 2.5, size: -2, path: 'line', roll: 'r_hit', end: 'off', junk: 1 })) === J({ speed: '2 * MapFactor.Speed', rounds: 3, hp: 1, pro: 2.5, size: -2, path: 'line', roll: 'r_hit', end: 'off' })
-            && S.cleanFlies({ speed: '', rounds: 2 }) === null && S.cleanFlies({ speed: '2', rounds: 0 }) === null && S.cleanFlies('x') === null && S.cleanFlies({ speed: '2', rounds: 500, hp: 5e7, size: 90, path: 'zig', end: 'boom' }).rounds === 99
+            && S.cleanFlies({ speed: '', rounds: 2 }) === null && J(S.cleanFlies({ speed: '2', rounds: 0 })) === J({ speed: '2', rounds: 1, hp: 1 }) && J(S.cleanFlies({ speed: '2' })) === J({ speed: '2', rounds: 1, hp: 1 }) && S.cleanFlies('x') === null && S.cleanFlies({ speed: '2', rounds: 500, hp: 5e7, size: 90, path: 'zig', end: 'boom' }).rounds === 99
             && J(S.cleanFlies({ speed: '2', rounds: 500, hp: 5e7, size: 90, path: 'zig', end: 'boom' })) === J({ speed: '2', rounds: 99, hp: 1e6, size: 20 }));
         const FR = { v: 1, name: 'Flight', rolls: [{ id: 'r_hit', label: 'Strike', formula: '3d6 <= 12' }],
             fields: [{ id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', list: { chamber: { from: 'f_ammo', cats: ['Round'], cap: 2 } } }, { id: 'f_ammo', key: 'Ammo', label: 'Ammo', kind: 'item-list', list: {} }, { id: 'f_dr', key: 'Drones', label: 'Drones', kind: 'item-list', list: {} }],

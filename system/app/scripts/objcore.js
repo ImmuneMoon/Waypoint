@@ -71,7 +71,7 @@ export function objWords(o) {
     var c = cleanObj(o); if (!c) return '';
     var w = [c.sight ? 'Blocks sight' : c.cover ? GRADE_WORDS[c.cover] : 'No cover'];
     if (c.furn) w.unshift('Rules for ' + furnKind(c.furn).label);
-    if (c.pro) w.push('Protection ' + c.pro);
+    if (c.pro && (c.sight || c.cover)) w.push('Protection ' + c.pro);   // 1.6.3: Protection counts only beside cover or Blocks sight, so a row never says it beside No cover
     if (c.stops) w.push('Stops tokens');
     if ((c.w || 1) > 1 || (c.h || 1) > 1) w.push((c.w || 1) + ' by ' + (c.h || 1) + ' cells');
     return w.join(' · ');

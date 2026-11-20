@@ -671,7 +671,12 @@ function refreshErrors() {
         }
         // what it is once launched is kept only with a Speed Save can keep and at least 1 round
         var ciF = cleanById[it.id];
-        if (it.flies && typeof it.flies === 'object' && ciF && !ciF.flies) itPush(errorsById, it.id, 'flies', 'Flies once launched needs a Speed Save can keep and at least 1 round, or Save drops what it is once launched.');
+        if (it.flies && typeof it.flies === 'object' && ciF && !ciF.flies) itPush(errorsById, it.id, 'flies', 'Flies once launched needs a Speed Save can keep, or Save drops what it is once launched.');
+        // 1.6.3: rounds that are empty or under 1 are read as 1 round by the core's cleaner, a figure no box shows, so it is said under the box
+        else if (it.flies && typeof it.flies === 'object' && !(typeof it.flies.rounds === 'number' && it.flies.rounds >= 1)) itPush(warningsById, it.id, 'flyRounds', 'Flies for (rounds) is empty, so it flies for 1 round. Fill it in.');
+        // 1.6.3 (Fulllion's rulings of 2026-11-20): a blast's damage with no type takes no type's multiplier or DR, where the Combat tab names types
+        var dtE = draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) ? draft.combat.damage.types : [];
+        if (ar && dmgOn && dtE.length && !(typeof ar.type === 'string' && ar.type)) itPush(warningsById, it.id, 'atype', 'The blast\u2019s damage has no type, so it takes no type\u2019s multiplier or DR. Pick its damage type.');
         // a removal or switch-off message is shown only beside Bound or Curse on contact, and kept only there
         if (String(it.rmMsg || '').trim() && it.rm !== 'bound' && it.rm !== 'curse') itPush(warningsById, it.id, 'rmMsg', 'Message on removal is shown only when it is Bound or Curse on contact, so Save drops it.');
         if (String(it.eqMsg || '').trim() && it.eq !== 'bound' && it.eq !== 'curse') itPush(warningsById, it.id, 'eqMsg', 'Message on switching off is shown only when it is Bound or Curse on contact, so Save drops it.');

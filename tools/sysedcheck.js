@@ -2133,8 +2133,10 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && j(saidI(rB, 'i_loc2', /^loc$/)) === j(['loc: Strikes at: this system names no hit locations, on the Combat tab under Taking damage, so it does nothing.']) && saidI(runI(drI({ damage: { locs: { list: 'f_loc' } } }), false), 'i_loc', /^loc$/).length === 0;
         check('1.6.3 Strikes at needs the Combat tab\'s hit locations (refreshErrors, run for real with the real dbxLocNames and dbxLocFinds): a name no location holds is said under it, a name one holds in any case says nothing, a system with no hit locations is said, and with no judge at hand nothing is said',
             lcI, j([saidI(rA, 'i_loc'), saidI(rA, 'i_loc2'), saidI(rB, 'i_loc2')]));
-        const flI = j(saidI(rA, 'i_fl1', /^flies$/)) === j(['flies: Flies once launched needs a Speed Save can keep and at least 1 round, or Save drops what it is once launched.']) && j(saidI(rA, 'i_fl2', /^flies$/)) === j(saidI(rA, 'i_fl1', /^flies$/)) && saidI(rA, 'i_fl3', /^flies$/).length === 0;
-        check('1.6.3 what flies needs its Speed and rounds (refreshErrors, run for real): with either missing it is said under the Speed, since Save drops it, and with both nothing is said',
+        // 1.6.3, the library batch (moved on purpose): the cleaner now reads rounds of 0 as 1 round, so with rounds missing what flies is kept and the
+        // empty box is said under the rounds, while a Speed missing is still said under the Speed
+        const flI = j(saidI(rA, 'i_fl1', /^fl/)) === j(['flies: Flies once launched needs a Speed Save can keep, or Save drops what it is once launched.']) && j(saidI(rA, 'i_fl2', /^fl/)) === j(['flyRounds: Flies for (rounds) is empty, so it flies for 1 round. Fill it in.']) && saidI(rA, 'i_fl3', /^fl/).length === 0;
+        check('1.6.3 what flies needs its Speed and rounds (refreshErrors, run for real): a Speed missing is said under the Speed, since Save drops it; rounds missing are said under the rounds, since Save reads them as 1 round; with both nothing is said',
             flI, j([saidI(rA, 'i_fl1'), saidI(rA, 'i_fl2'), saidI(rA, 'i_fl3')]));
         const rmI = j(saidI(rA, 'i_rm', /Msg$/)) === j(['rmMsg: Message on removal is shown only when it is Bound or Curse on contact, so Save drops it.', 'eqMsg: Message on switching off is shown only when it is Bound or Curse on contact, so Save drops it.']) && saidI(rA, 'i_rm2', /Msg$/).length === 0;
         check('1.6.3 a removal or switch-off message needs Bound or Curse on contact (refreshErrors, run for real): beside A player may remove it or switch it off it is said under the message, and beside a lock nothing is said',
@@ -2175,6 +2177,23 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && itT.area && itT.throwSkill === 'Throwing' && itU.throwSkill === 'HP' && !itV.throwSkill && itP.area.trig === 2 && itP.area.place === true && itP2.area.trig === 5
             && j(itA.area.aff) === j([{ vs: '', fx: 'e_s', who: 'all' }]) && j(itA2.area.aff) === j([{ vs: '', fx: 'e_s' }]),
             j([drIt, boxIt, itT, itU, itV, itP, itP2, itA, itA2]));
+        {   // 1.6.3, the library batch (Fulllion's rulings of 2026-11-20: a box others depend on starts filled, and none is no good default): a blast new
+            // on an item starts on the Combat tab's first damage type (the real shape line of sysedtabs.js), never over a blast it had, never with no
+            // types; an empty type is said under the item where it has Damage (refreshErrors, run for real), and a new roll bonus starts named after
+            // what holds it (sysedroll.js onSwClick, run for real), Bonus where that has no name
+            const cbTy = { damage: { types: [{ key: 'cr', label: 'Crushing' }, { key: 'cut', label: 'Cutting' }] } }, tyN = { area: null }, tyE = { area: { ft: 6 } }, tyX = { area: null };
+            shRun(tyN, { fields: [hp], combat: cbTy }, 'circle'); shRun(tyE, { fields: [hp], combat: cbTy }, 'circle'); shRun(tyX, { fields: [hp], combat: {} }, 'circle');
+            const tyItems = [{ id: 'i_ty0', name: 'Ty0', damage: '2d6', area: { ft: 6 } }, { id: 'i_ty1', name: 'Ty1', damage: '2d6', area: { ft: 6, type: 'cr' } }, { id: 'i_ty2', name: 'Ty2', area: { ft: 6 } }];
+            const rTy = runI(drI({ damage: { types: cbTy.damage.types } }, tyItems)), rTn = runI(drI({}, tyItems));
+            const swQ = fnI('onSwClick'), swRun = h => { new Function('swHolder', 'swTargets', 'swToOf', 'swLine', 'LIMITS', 'toast', 'markDirty', 'renderAll', swQ + '\nreturn onSwClick;')(() => h, () => [['r|r_x', 'Roll']], () => ({ r: 'r_x' }), () => null, S.LIMITS, () => {}, () => {}, () => {})({ dataset: { act: 'swadd' } }); return h.rollSw[0]; };
+            const swA = swRun({ name: 'Scope' }), swB = swRun({ name: '  ' });
+            check('1.6.3 (the library batch) a blast new on an item starts on the Combat tab\'s first damage type, and an empty type is said under an item with Damage; a new roll bonus starts named after what holds it',
+                tyN.area.type === 'cr' && !('type' in tyE.area) && tyX.area && !('type' in tyX.area)
+                && j(saidI(rTy, 'i_ty0', /^atype$/)) === j(['atype: The blast\u2019s damage has no type, so it takes no type\u2019s multiplier or DR. Pick its damage type.']) && saidI(rTy, 'i_ty1', /^atype$/).length === 0 && saidI(rTy, 'i_ty2', /^atype$/).length === 0 && saidI(rTn, 'i_ty0', /^atype$/).length === 0
+                && swA.name === 'Scope' && swA.v === 1 && j(swA.to) === j([{ r: 'r_x' }]) && swB.name === 'Bonus'
+                && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("[/^flyRounds$/, ['sys-fly-rounds']], [/^atype$/, ['sys-item-atype']]"),
+                j([tyN, tyE, tyX, saidI(rTy, 'i_ty0'), swA, swB]));
+        }
         // affSays reads the item's Damage, and Damage typed says each affliction again; the throw skill's choices; the resist roll counts what waits on it
         const elQ = (tag, cls, txt) => ({ tag, className: cls || '', textContent: txt || '', dataset: {}, kids: [], appendChild(k) { this.kids.push(k); return k; } });
         const afsQ = fnI('affSays') + NL + fnI('affSaysAt'), dI = { effects: [{ id: 'e_s', name: 'Stunned' }] };

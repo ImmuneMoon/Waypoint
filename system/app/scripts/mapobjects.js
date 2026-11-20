@@ -66,7 +66,12 @@ function formInto(box, o, kind, list, acts) {
     sel.addEventListener('change', function() { commit({ cover: sel.value || undefined }); draw(); });
     row('Cover', sel);
     var pro = el('input'); pro.type = 'number'; pro.min = 0; pro.max = 999; pro.step = 1; pro.placeholder = 'None'; pro.value = o.pro || '';
-    pro.dataset.tip = 'How much it stops of a blow that passes through it, where your system reads it in a roll. Empty for none.';
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: a box that depends on another follows it): Protection is read only where the object gives cover or
+    // blocks sight (objcore objProps writes cover 'no' otherwise, and coverRole then reads nothing of it). So with No cover and no Blocks sight the
+    // box stands greyed, its figure still shown and kept by the cleaner, as Cover stands greyed under Blocks sight, and its tip says why. The
+    // Cover list's and the Blocks sight tick's changes draw the form again, so the box follows at once
+    pro.disabled = !o.sight && !o.cover;
+    pro.dataset.tip = pro.disabled ? 'Protection counts only for an object that gives cover or blocks sight. Pick a Cover first.' : 'How much it stops of a blow that passes through it, where your system reads it in a roll. Leave it empty if it stops nothing.';
     pro.addEventListener('change', function() { commit({ pro: Number(pro.value) || undefined }); draw(); });
     row('Protection', pro);
     // 1.6.3 (the editor coverage audit, gap 5: the live system's eight objects each name a color that only a file could set). An object with no

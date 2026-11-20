@@ -11,7 +11,7 @@ import { toast } from './io.js';
 import { showPrompt, showConfirm } from './dialogs.js';
 import { searchEntries, entryFromForm, newEntryId, keyClashes, cleanLibEntry, libCtx, LIB, packFile, readPackImport, packImportPlan, bulkSet, bulkMove, lvlsToText, lvlsFromBox } from './librarycore.js';
 import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTarget, bestList, csvEntries, csvPreview, csvCats } from './csvcore.js';
-import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear, LIMITS } from './systemcore.js';
+import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear, LIMITS, cleanRollSw, swDice, cleanAffs, cleanFlies } from './systemcore.js';
 
 var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'pic', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'flies', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsWarn', 'needsMsg'];
 var NEED_MAX = 80, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
@@ -344,10 +344,19 @@ function pickRow(e, ev) {
 }
 function pickAll() { st.sel = map(); st.shown.forEach(function(x) { st.sel[x.id] = 1; }); afterPick(); }
 function current() { if (st.draftNew) return st.draftNew; if (!st.entryId) return null; var list = st.packId ? workOf(st.packId) : []; return list.filter(function(e) { return e.id === st.entryId; })[0] || null; }
+// 1.6.3: the category a new entry starts on: of the categories the item lists take, the one most of this pack's entries hold, else the first a
+// list names, else none. So a new entry in a pack of skills starts as a skill
+function newCat() {
+    var opts = catOptions(), low = map(), n = map(), best = ''; opts.forEach(function(c) { low[c.toLowerCase()] = c; });
+    (st.packId ? workOf(st.packId) : []).forEach(function(e) { var k = e && typeof e.category === 'string' ? e.category.toLowerCase() : ''; if (low[k]) n[k] = (n[k] || 0) + 1; });
+    Object.keys(n).forEach(function(k) { if (!best || n[k] > n[best]) best = k; });
+    return best ? low[best] : opts[0] || '';
+}
 function newEntry() {
     if (!st.packId) { toast('Make a pack first.'); return; } if (!ready(st.packId)) return;
     var id = newEntryId(taken()); if (!id) return;
-    st.draftNew = { id: id, name: '', category: '', vis: 'all' }; st.entryId = id; st.sel = map(); st.imp = null; guideAt('entry'); drawRows(); renderForm(); guideSync(); var n = ui('libF_name'); if (n) try { n.focus(); } catch (e) {}
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): a list offers only the categories it names, so a new entry starts on one a list takes (newCat)
+    st.draftNew = { id: id, name: '', category: newCat(), vis: 'all' }; st.entryId = id; st.sel = map(); st.imp = null; guideAt('entry'); drawRows(); renderForm(); guideSync(); var n = ui('libF_name'); if (n) try { n.focus(); } catch (e) {}
 }
 // 1.6.0 O1: a stat read as a set of places takes a tick a place under its box, which the ticks write as its number (place i is bit i)
 function placeTicks(form, inp, names) {
@@ -390,6 +399,7 @@ function renderForm() {
     if (typeof glyphClose === 'function') glyphClose();   // 1.6.3 (the review of the audit's gaps 5 to 10): an icon picker left open belongs to the form it was opened from, as the Items tab closes it at every redraw
     var form = ui('libForm'); if (!form) return; form.textContent = '';
     st.fs = null; st.fsFor = null;   // 1.6.0: and of its roll bonuses
+    st.warns = [];   // 1.6.3: the lines under a box that say what another box needs (warnLine), made again with the form
     if (typeof csvWide === 'function') csvWide(!!(st.imp && st.imp.csv));   // 1.6.2
     st.fm = null; st.fmFor = null; st.fn = null; st.fnFor = null; st.fo = null; st.foFor = null; st.fg = null; st.fgFor = null;   // 1.6.0 (v2, B4): and of what it grants   // 1.5.8: and of what it opens   // the owed review, 2026-10-09: the form is filled from the entry as it is stored, every box of it. The working copies of its changes and its needs outlived the form (a close, an import, another campaign), and Save entry wrote stale ones back
     if (st.imp) { renderImport(form); return; }
@@ -414,6 +424,7 @@ function renderForm() {
     var clash = keyClashes(allEntries().concat(sysItems()), e); if (clash.length) form.appendChild(el('div', 'lib-warn lib-keyclash', 'Also the key of ' + clash.slice(0, 3).map(function(c) { return c.name; }).join(', ') + (clash.length > 3 ? '…' : '') + ' (an item of the system wins in formulas).'));
     catList(form);
     field(form, 'category', 'Category', e.category, { max: 40, list: 'libCats', title: 'Which item lists offer it (a list names the categories it draws on)' });
+    if (typeof warnLine === 'function') warnLine(form, function() { return catSays(libVal('category')); });   // 1.6.3: a category no list takes is said under it as it is typed
     iconField(form, e.icon || '');   // 1.6.3 (the editor coverage audit, gap 10): picked by sight, as an item's on the Items tab
     if (typeof picField === 'function') picField(form, e.pic || '');   // 1.6.2 (backlog 42): its own picture
     field(form, 'vis', 'Who sees it', e.vis === 'gm' ? 'gm' : 'all', { pairs: VIS, title: 'A GM-only entry stays out of the players’ lists (one you give a character reaches its owner by name and notes)' });
@@ -434,6 +445,7 @@ function renderForm() {
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
     fliesLibBox(form, e.flies);   // 1.6.2 (vehicles, fold (d)): what it is once launched
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'Such as a skill’s target', title: 'What the Combat tab’s throw roll reads as ThrowSkill when it is thrown or placed. With none, no throw roll is made: it lands where it is aimed' });   // 1.6.3: what it is for, in words
+    if (typeof warnLine === 'function') warnLine(form, throwSays);   // 1.6.3 (Fulllion's rulings of 2026-11-20): a blast thrown with no skill is said under the box as it is typed
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
     modsBox(form, e);   // Stage 6 F6
     swLibBox(form, e);   // 1.6.0: its roll bonuses
@@ -442,12 +454,45 @@ function renderForm() {
     grantsBox(form, e);   // 1.6.0 (v2, B4)
     form.appendChild(el('div', 'lib-fsub', 'Locks (yours alone)'));
     field(form, 'again', 'Held again', e.again === 'name' ? 'name' : '', { pairs: [['', 'Held once'], ['name', 'Held again under another name']], title: 'On a list that holds each entry once, a character may hold this one again as another row. Each copy is asked for a name of its own' });   // 1.6.0
-    field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
-    field(form, 'rmMsg', 'Message', e.rmMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player (optional)' });   // what the cleaner keeps, LIMITS.rmMsg
+    var rmSel = field(form, 'rm', 'When removed', e.rm === 'bound' || e.rm === 'curse' ? e.rm : '', { pairs: [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], title: 'When a player removes it from their character. Bound: it stays, with your message. Curse on contact: it leaves their sheet but you keep it on the character, out of their sight' });
+    var rmIn = field(form, 'rmMsg', 'Message', e.rmMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player (with a lock)' });   // what the cleaner keeps, LIMITS.rmMsg
+    if (typeof lockMsg === 'function') lockMsg(form, rmSel, rmIn, 'This message is shown only when the lock is Bound or Curse on contact. Save entry leaves it out otherwise.');   // 1.6.3: dimmed and said while no lock is set
     if (itemLists().some(function(f) { return f.list && f.list.on; })) {   // only once a list has a switch (Readied, Equipped…)
-        field(form, 'eq', 'When switched off', e.eq === 'bound' || e.eq === 'curse' ? e.eq : '', { pairs: [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], title: 'When a player switches it off. Bound: it stays on, with your message. Curse on contact: it looks off to them and stays on' });
-        field(form, 'eqMsg', 'Message', e.eqMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player (optional)' });   // 1.6.3 (the review of the audit's gaps 5 to 10): the cleaner keeps a switch-off message to LIMITS.rmMsg, as the Items tab's sys-item-eqtext does (200 before)
+        var eqSel = field(form, 'eq', 'When switched off', e.eq === 'bound' || e.eq === 'curse' ? e.eq : '', { pairs: [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], title: 'When a player switches it off. Bound: it stays on, with your message. Curse on contact: it looks off to them and stays on' });
+        var eqIn = field(form, 'eqMsg', 'Message', e.eqMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player (with a lock)' });   // 1.6.3 (the review of the audit's gaps 5 to 10): the cleaner keeps a switch-off message to LIMITS.rmMsg, as the Items tab's sys-item-eqtext does (200 before)
+        if (typeof lockMsg === 'function') lockMsg(form, eqSel, eqIn, 'This message is shown only when the lock is Bound or Curse on contact. Save entry leaves it out otherwise.');
     }
+    if (typeof warnSync === 'function') {   // 1.6.3: the lines said once as the form is drawn, and again as anything in it is typed or picked
+        warnSync();
+        if (!form._wpWarn && form.addEventListener) { form._wpWarn = true; form.addEventListener('input', function() { warnSync(); }); form.addEventListener('change', function() { warnSync(); }); }   // the form is one element at every draw, so its listener is put on once
+    }
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20: a box other boxes depend on is required, and what it misses is said under it in plain words). A line
+// under a box, kept with the function that says its words: renderForm empties the list (st.warns) as it draws, says each once at its end, and
+// says them all again at every input or change anywhere in the form, through one listener put on the form once. A line never holds Save entry:
+// what it says is said again at Save (entryNotes, blastDrops), and the cleaner keeps what it always kept. A function that says nothing hides it
+function warnLine(form, say) { var w = el('div', 'lib-warn lib-req'); w.hidden = true; form.appendChild(w); (st.warns = st.warns || []).push({ el: w, say: say }); return w; }
+function warnSync() { (st.warns || []).forEach(function(x) { var t = ''; try { t = x.say() || ''; } catch (er) { t = ''; } if (x.el.textContent !== t) x.el.textContent = t; x.el.hidden = !t; }); }
+function libVal(id) { var n = ui('libF_' + id); return n ? String(n.value).trim() : ''; }   // a box of the form as it now reads, trimmed
+// what a lock's Message depends on: the lock. Its row is dimmed while no lock is set, as the Items tab dims its own, and a line says so while it
+// holds words. sel is the lock's list, inp its Message box; the dimming rides on the line's own say, which the form's listener runs
+function lockMsg(form, sel, inp, words) {
+    warnLine(form, function() { var on = sel.value === 'bound' || sel.value === 'curse', r = inp.parentNode; if (r && r !== form && r.style) r.style.opacity = on ? '' : '0.5'; return !on && String(inp.value).trim() ? words : ''; });
+}
+// what Category depends on being: one a list takes, where any list names its categories (csvcore csvCats, the spreadsheet import's own judge).
+// '' where every list takes it, or none names categories
+function catSays(c) {
+    var cp = camp(), sy = cp && cp.system; if (!sy) return '';
+    var cc = typeof csvCats === 'function' ? csvCats(sy, '', [{ category: c }]) : null; if (!cc || (!cc.none && !cc.off.length)) return '';
+    var nr = c && typeof catNear === 'function' ? catNear(sy, c) : ''; if (nr) return 'Its category \u201c' + c + '\u201d is not quite \u201c' + nr + '\u201d, the one a list takes, so that list does not take it.';
+    if (!c) return 'No category, so a list that names categories will not offer it. Pick one a list takes.';
+    return 'No list that names categories takes \u201c' + c + '\u201d, so those lists will not offer it.';
+}
+// what Thrown with depends on: a blast thrown by the Combat tab's throw roll reads its skill, so with none it is never rolled. Not for a round
+// that scatters or flies straight on a miss, which a throw roll never lands
+function throwSays() {
+    var cp = camp(), bl = cp && cp.system && cp.system.combat && cp.system.combat.blast, fl = libVal('areaFlight');
+    return libVal('areaFt') && !libVal('throwSkill') && fl !== 'scatter' && fl !== 'line' && bl && typeof bl.roll === 'string' && bl.roll.trim() ? 'This blast is thrown with no roll, so it lands where it is aimed. Fill in the skill the Combat tab\u2019s throw roll reads.' : '';
 }
 // 1.6.3 (the editor coverage audit, gap 10; Fulllion's rule that no key or internal name is ever typed or read by a user). An entry's Icon is
 // picked by sight, with the very picker the System editor's Items tab gives an item (sheets.js glyphButton, published on window.wpSheets): the
@@ -472,6 +517,7 @@ function glyphClose() { var WS = typeof window !== 'undefined' ? window.wpSheets
 // working copy while the form is open (Save entry keeps it). An entry's name is a text node
 function needsBox(form, e) {
     if (st.fnFor !== e.id || !st.fn) { st.fn = clone(Array.isArray(e.needs) ? e.needs : []); st.fnFor = e.id; }
+    var dim = function() {};   // 1.6.3: set below, once the boxes it reads stand; draw() asks it as a need is added or taken off
     form.appendChild(el('div', 'lib-fsub', 'What it needs'));
     form.appendChild(el('div', 'lib-note', 'A player may take this only while their character carries every entry listed here. Their picker grays it out until then and says why. You may always give it.'));
     var box = el('div', 'lib-mods lib-needs'); form.appendChild(box);
@@ -495,15 +541,31 @@ function needsBox(form, e) {
         var sel = select(opts, ''); sel.title = 'Pick an entry a character must carry before it may take this one'; sel.disabled = st.fn.length >= NEED_MAX;
         sel.addEventListener('change', function() { if (!sel.value || st.fn.length >= NEED_MAX) return; st.fn.push({ id: sel.value }); draw(); });
         box.appendChild(sel);
+        dim();
     };
     draw();
-    field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
+    var ruleIn = field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
     form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));
-    field(form, 'needsFrom', 'Rule from level', e.needsFrom, { max: 8, ph: 'The level of this entry from which the rule applies (optional)', title: 'Leave it empty for a rule that must be true to take the entry at all' });
+    var fromIn = field(form, 'needsFrom', 'Rule from level', e.needsFrom, { max: 8, ph: 'The level of this entry from which the rule applies', title: 'Leave it empty for a rule that must be true to take the entry at all. It counts only beside a rule' });
+    var fromSay = el('div', 'lib-warn lib-req'); fromSay.hidden = true; form.appendChild(fromSay);   // 1.6.3: what Rule from level needs, said as it is typed
     form.appendChild(el('div', 'lib-note', 'A need or a rule with a From level counts only once the row of this entry is at that level. A player who raises a level is judged as when they take the entry.'));
     var rsN = LB() && LB().needRuleShown ? LB().needRuleShown : null; if (typeof e.needsIf === 'string' && e.needsIf && rsN && rsN(e.needsIf) !== true) form.appendChild(el('div', 'lib-warn', LB().whole && LB().whole() !== true ? 'A pack of this campaign is not read, so no rule is shown to players for now. Your machine judges it alone.' : 'This rule reads something players may not read. They are not shown it, and your machine judges it alone.'));   // the owed review, 2026-10-09: while a pack is unread no rule is shown, whatever it reads: the reason said is the true one
-    field(form, 'needsWarn', 'When it isn’t met', e.needsWarn === true ? 'warn' : '', { pairs: [['', 'Refuse: a player cannot take it'], ['warn', 'Warn: a player may take it, and you are told']], title: 'What happens when a player takes this entry, or raises its level, without what it needs. You can always give it yourself' });
-    field(form, 'needsMsg', 'Message', e.needsMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player in place of what it needs (optional)' });   // 1.6.3 (the audit, gap 9): what the cleaner keeps, LIMITS.rmMsg (200 before, so a message of 219 could not be typed)
+    var warnIn = field(form, 'needsWarn', 'When it isn\u2019t met', e.needsWarn === true ? 'warn' : '', { pairs: [['', 'Refuse: a player cannot take it'], ['warn', 'Warn: a player may take it, and you are told']], title: 'What happens when a player takes this entry, or raises its level, without what it needs. You can always give it yourself' });
+    var msgIn = field(form, 'needsMsg', 'Message', e.needsMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player in place of what it needs (optional)' });   // 1.6.3 (the audit, gap 9): what the cleaner keeps, LIMITS.rmMsg (200 before, so a message of 219 could not be typed)
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): When it isn't met and its Message count only once the entry needs something (an entry above, or a
+    // Rule), and Rule from level only beside a Rule, so librarycore entryFromForm drops them otherwise. Their rows are dimmed while what they
+    // depend on is empty, as the Items tab dims a removal message with no lock, and a line says what Save will drop while one holds something.
+    // Nothing is greyed: the level may be typed before the rule. Run as each of these boxes changes and as a need is added or taken off
+    var needSay = el('div', 'lib-warn lib-req'); needSay.hidden = true; form.appendChild(needSay);
+    var put = function(w, t) { if (w.textContent !== t) w.textContent = t; w.hidden = !t; }, fade = function(x, on) { var r = x && x.parentNode; if (r && r !== form && r.style) r.style.opacity = on ? '' : '0.5'; };
+    dim = function() {
+        var rl = String(ruleIn.value).trim() !== '', has = st.fn.length > 0 || rl, fr = String(fromIn.value).trim();
+        fade(warnIn, has); fade(msgIn, has); fade(fromIn, rl);
+        put(fromSay, fr && !isFinite(Number(fr)) ? 'Write Rule from level as a number, such as 3. Save drops it otherwise.' : fr && !rl ? 'Rule from level counts only beside a rule. Save drops it while there is no rule.' : '');
+        put(needSay, !has && (warnIn.value === 'warn' || String(msgIn.value).trim()) ? 'When it isn\u2019t met and its Message count only once this entry needs something. Save drops them while it needs nothing.' : '');
+    };
+    [[ruleIn, 'input'], [fromIn, 'input'], [warnIn, 'change'], [msgIn, 'input']].forEach(function(p) { if (p[0] && p[0].addEventListener) p[0].addEventListener(p[1], function() { dim(); }); });
+    dim();
 }
 // 1.5.8 (book handoff 90, a Form opens techniques, the website's way: "shows by itself ... while the Form holds"): what this entry opens. While a
 // row of it is on (or on a list with no switch) and at the From level or above, each entry listed here shows by itself as a row of the list
@@ -571,9 +633,10 @@ function swLibBox(form, e) {
         st.fs.forEach(function(s, si) {
             if (!s || typeof s !== 'object') return; if (!Array.isArray(s.to)) s.to = [];
             var ln = el('div', 'lib-ctl lib-mod lib-sw');
-            var nmI = el('input', 'field lib-sw-name'); nmI.type = 'text'; nmI.placeholder = 'Name'; nmI.value = typeof s.name === 'string' ? s.name : ''; nmI.maxLength = 60; nmI.title = 'Its name in the roll\u2019s \u00b1 window and on the card, such as Aimed shot'; nmI.addEventListener('input', function() { s.name = nmI.value; }); ln.appendChild(nmI);
-            var am = el('input', 'field lib-mod-amt'); am.type = 'number'; am.step = '1'; am.value = typeof s.v === 'number' ? String(s.v) : ''; am.title = 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way'; am.addEventListener('input', function() { s.v = am.value === '' ? 0 : Number(am.value); }); ln.appendChild(am);
-            var dk = el('input', 'field lib-sw-d'); dk.type = 'text'; dk.placeholder = 'Dice it adds'; dk.maxLength = 40; dk.value = typeof s.d === 'string' ? s.d : ''; dk.title = 'Dice it adds to the roll, such as +1d6 or +1d6 \u2212 1d4: up to 4, each up to 20 dice. They add to the total and never make a critical. Blank: none'; dk.addEventListener('input', function() { var dv = dk.value.trim(); if (dv) s.d = dv; else delete s.d; }); ln.appendChild(dk);   // 1.6.2
+            var er = el('div', 'lib-warn lib-sw-err'), say = function() { var t = swLibSays(s); if (er.textContent !== t) er.textContent = t; er.hidden = !t; };   // 1.6.3: what this bonus misses, said under it as it is typed
+            var nmI = el('input', 'field lib-sw-name'); nmI.type = 'text'; nmI.placeholder = 'Name'; nmI.value = typeof s.name === 'string' ? s.name : ''; nmI.maxLength = 60; nmI.title = 'Its name in the roll\u2019s \u00b1 window and on the card, such as Aimed shot. It needs one'; nmI.addEventListener('input', function() { s.name = nmI.value; say(); }); ln.appendChild(nmI);
+            var am = el('input', 'field lib-mod-amt'); am.type = 'number'; am.step = '1'; am.value = typeof s.v === 'number' ? String(s.v) : ''; am.title = 'How much it helps the roll, as the \u00b1 window\u2019s modifier does. A negative one hinders. Whole, 1 to 99 either way'; am.addEventListener('input', function() { s.v = am.value === '' ? 0 : Number(am.value); say(); }); ln.appendChild(am);
+            var dk = el('input', 'field lib-sw-d'); dk.type = 'text'; dk.placeholder = 'Dice it adds'; dk.maxLength = 40; dk.value = typeof s.d === 'string' ? s.d : ''; dk.title = 'Dice it adds to the roll, such as +1d6 or +1d6 \u2212 1d4: up to 4, each up to 20 dice. They add to the total and never make a critical. Blank: none'; dk.addEventListener('input', function() { var dv = dk.value.trim(); if (dv) s.d = dv; else delete s.d; say(); }); ln.appendChild(dk);   // 1.6.2
             s.to.forEach(function(t, ti) {
                 var v = toVal(t), opts = targets.slice(); if (v && !opts.some(function(o) { return o[0] === v; })) opts.unshift([v, '(a roll that is gone)']);
                 var sel = select(opts, v); sel.title = 'A roll it offers itself to'; sel.addEventListener('change', function() { var nt = toOf(sel.value); if (nt) { s.to[ti] = nt; draw(); } }); ln.appendChild(sel);
@@ -586,14 +649,29 @@ function swLibBox(form, e) {
             });
             var ta = el('button', 'tool ghost', '+ Another roll'); ta.type = 'button'; ta.title = 'Another roll it offers itself to'; ta.disabled = !targets.length || s.to.length >= 8; ta.addEventListener('click', function() { var o = toOf(targets[0][0]); if (o) { s.to.push(o); draw(); } }); ln.appendChild(ta);
             var x = el('button', 'tool ghost', '\u00d7'); x.type = 'button'; x.title = 'Remove this bonus'; x.addEventListener('click', function() { st.fs.splice(si, 1); draw(); }); ln.appendChild(x);
-            box.appendChild(ln);
+            box.appendChild(ln); box.appendChild(er); say();
         });
         var add = el('button', 'tool ghost', '+ Roll bonus'); add.type = 'button'; add.title = targets.length ? 'A bonus a roller may add to some rolls, ticked in the roll\u2019s \u00b1 window' : 'The system has no roll to offer it to yet'; add.disabled = !targets.length || st.fs.length >= swMax;
-        add.addEventListener('click', function() { if (st.fs.length >= swMax) return; var o = toOf(targets[0][0]); if (o) { st.fs.push({ name: '', v: 1, to: [o] }); draw(); } });
+        add.addEventListener('click', function() { if (st.fs.length >= swMax) return; var o = toOf(targets[0][0]); if (o) { st.fs.push({ name: swLibName(e), v: 1, to: [o] }); draw(); } });   // 1.6.3: it starts with a name, as Save keeps none without one
         box.appendChild(add);
     };
     draw();
 }
+// 1.6.3 (Fulllion's rulings of 2026-11-20: a box others depend on is required). What one roll bonus misses, in the words the Items tab's own box
+// says it (the System editor's swSays): a name, how much it helps or dice it adds, and a roll it offers itself to, each judged as systemcore
+// cleanRollSw judges it. '' where Save keeps it. Said under the bonus as it is typed, and again at Save entry (entryNotes)
+function swLibSays(s) {
+    if (!s || typeof s !== 'object') return '';
+    if (!(typeof s.name === 'string' && s.name.trim())) return 'Save drops it: it needs a name.';
+    var SCs = typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore : null, swD = typeof swDice === 'function' ? swDice : SCs && SCs.swDice, swC = typeof cleanRollSw === 'function' ? cleanRollSw : SCs && SCs.cleanRollSw;
+    var n = typeof s.v === 'number' && isFinite(s.v) ? Math.round(s.v) : 0, dz = swD ? swD(s.d) : '';
+    if (dz === null) return 'Save drops its dice: write them as 1d6, or +1d6 \u2212 1d4, up to 4, each up to 20 dice of up to 1000 sides.';
+    if ((!n && !dz && s.tiers === undefined) || n < -99 || n > 99) return 'Save drops it: how much it helps must be a whole number from 1 to 99, or from \u22121 to \u221299, or it must add dice.';
+    if (!(Array.isArray(s.to) && s.to.length) || (swC && !swC([s]))) return 'Save drops it: it needs a roll it offers itself to.';
+    return '';
+}
+// the name a new roll bonus starts with: the entry's own as the form now reads it, else as stored, else Bonus. Held to the 60 its box takes
+function swLibName(e) { var n = typeof ui === 'function' && ui('libF_name') ? String(ui('libF_name').value).trim() : ''; return (n || (e && typeof e.name === 'string' ? e.name.trim() : '') || 'Bonus').slice(0, 60); }
 function modsBox(form, e) {
     if (st.fmFor !== e.id || !st.fm) { st.fm = clone(Array.isArray(e.mods) ? e.mods : []); st.fmFor = e.id; }
     var anyL = itemLists().some(function(f) { return f.list && f.list.lvl; }), anyO = itemLists().some(function(f) { return f.list && f.list.on; }), targets = modTargets();
@@ -723,28 +801,74 @@ function fliesLibBox(form, f) {
     var rl = (c && c.system && Array.isArray(c.system.rolls) ? c.system.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, typeof r.label === 'string' && r.label ? r.label : 'A roll']; });
     if (typeof f.roll === 'string' && f.roll && !rl.some(function(o) { return o[0] === f.roll; })) rl.push([f.roll, 'A roll that is gone']);
     field(form, 'flySpeed', 'Flies once launched, cells a round', typeof f.speed === 'string' ? f.speed : '', { max: 10000, title: 'How many cells it flies each round once a change launches it, worked out from the launcher\u2019s sheet. Blank: it does not fly' });
-    field(form, 'flyRounds', 'Flies for (rounds)', num(f.rounds), { max: 2, title: 'How many rounds it flies before it is spent' });
+    field(form, 'flyRounds', 'Flies for (rounds)', num(f.rounds) || 1, { max: 2, title: 'How many rounds it flies before it is spent, 1 or more. Empty: 1 round' });   // 1.6.3: it starts at 1 round (the fly boxes count only beside a Speed)
+    if (typeof warnLine === 'function') warnLine(form, flySays);   // 1.6.3 (Fulllion's rulings of 2026-11-20): what the Speed and rounds need, said as they are typed
     field(form, 'flyHp', 'In flight, HP', num(f.hp), { max: 7, title: 'Its HP in flight. A hit takes a wound off it, worked out by your damage rules against its Protection' });
     field(form, 'flyPro', 'In flight, Protection', num(f.pro), { max: 7, title: 'Taken off a hit before the wound. Blank: none' });
     field(form, 'flySize', 'In flight, Size', num(f.size), { max: 3, title: 'Its Size. Blank: none' });
     field(form, 'flyPath', 'It flies', f.path === 'line' ? 'line' : '', { pairs: [['', 'Homing on its target'], ['line', 'Straight on']], title: 'Homing: each step goes to the cell nearest its target as it now stands. Straight: it keeps to the line it was launched on' });
     field(form, 'flyRoll', 'On arrival', typeof f.roll === 'string' ? f.roll : '', { pairs: [['', 'It strikes']].concat(rl), title: 'A roll made as the launcher\u2019s attack as it reaches its target, which the target may resist. On a hit its blast or damage lands. With none it strikes' });
     field(form, 'flyEnd', 'Out of rounds', f.end === 'off' ? 'off' : '', { pairs: [['', 'It is gone'], ['off', 'It goes off where it stands']], title: 'When its rounds run out before it arrives. Going off needs a blast of its own' });
+    if (typeof warnLine === 'function') warnLine(form, function() { return libVal('flySpeed') && libVal('flyEnd') === 'off' && !(/^\d+$/.test(libVal('areaFt')) && Number(libVal('areaFt')) > 0) ? 'Out of rounds it goes off where it stands only with a blast of its own. Fill in Blast (ft), or when its rounds run out it is simply gone.' : ''; });   // 1.6.3: going off needs a blast
+}
+// what Flies once launched needs: a Speed the cleaner can keep (systemcore cleanFlies), and rounds of 1 or more, which it reads as 1 where none
+// is given. '' while no Speed is typed, since the fly boxes count only beside one
+function flySays() {
+    var sp = libVal('flySpeed'); if (!sp) return '';
+    var CF = typeof cleanFlies === 'function' ? cleanFlies : (typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore.cleanFlies : null);
+    if (CF && !CF({ speed: sp, rounds: 1 })) return 'Its Speed cannot be kept as a formula, so Save drops what it is once launched.';
+    return Number(libVal('flyRounds')) >= 1 ? '' : 'Flies for (rounds) needs 1 or more, so it flies for 1 round. Fill it in.';
 }
 function blastBox(form, a) {
     a = a && typeof a === 'object' ? a : {}; var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; };
-    field(form, 'areaType', 'Blast damage type', typeof a.type === 'string' ? a.type : '', { pairs: dmgTypePairs(a.type), title: 'The type of the damage it does, one of the Combat tab\u2019s damage types' });
+    var tyS = field(form, 'areaType', 'Blast damage type', typeof a.type === 'string' ? a.type : '', { pairs: dmgTypePairs(a.type), title: 'The type of the damage it does, one of the Combat tab\u2019s damage types. A blast with none deals damage of no type' });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: none is no good default): a blast's damage takes its type's multiplier and DR, so where the Combat
+    // tab names types an empty type is said under the list, and a blast new on the entry (its radius typed where it stored none) starts on the
+    // first type. None stays offered, and a blast saved with none keeps none: the form is never filled as it is drawn
+    var tys = dmgTypePairs(a.type).slice(1), ftI = typeof ui === 'function' ? ui('libF_areaFt') : null, ftWas = ftI ? String(ftI.value).trim() : '';
+    if (typeof warnLine === 'function') warnLine(form, function() { return tys.length && libVal('areaFt') && libVal('damage') && !libVal('areaType') ? 'The blast\u2019s damage has no type, so it takes no type\u2019s multiplier or DR. Pick its damage type.' : ''; });
+    if (ftI && ftI.addEventListener && tys.length && !(a && a.ft)) ftI.addEventListener('input', function() { var now = String(ftI.value).trim(); if (!ftWas && now && tyS && !tyS.value) tyS.value = tys[0][0]; ftWas = now; });
     field(form, 'areaUse', 'Uses one up', a.use === true ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, going off uses one up']], title: 'Going off uses one up, as a grenade is used up' });
-    field(form, 'areaPlace', 'Placed', a.place === true ? 'yes' : '', { pairs: [['', 'Thrown'], ['yes', 'Placed, not thrown']], title: 'Placed, not thrown: a mine. It goes off when a token comes within its trigger radius' });
-    field(form, 'areaTrig', 'Trigger radius (yd)', num(a.trig), { max: 6, title: 'For a placed blast only: it goes off when a token comes this many yards from it' });
+    var plS = field(form, 'areaPlace', 'Placed', a.place === true ? 'yes' : '', { pairs: [['', 'Thrown'], ['yes', 'Placed, not thrown']], title: 'Placed, not thrown: a mine. It goes off when a token comes within its trigger radius' });
+    // 1.6.3: a placed blast goes off within 2 yards where its trigger radius is empty (blastcore cleanMine), a figure the box now shows: a placed
+    // blast with none is drawn at 2, Placed picked fills an empty box with 2, and an emptied box is said under it
+    var trI = field(form, 'areaTrig', 'Trigger radius (yd)', num(a.trig) !== '' ? num(a.trig) : (a.place === true ? 2 : ''), { max: 6, title: 'For a placed blast only: it goes off when a token comes this many yards from it. Empty: 2 yards' });
+    if (plS && plS.addEventListener) plS.addEventListener('change', function() { if (plS.value === 'yes' && trI && !String(trI.value).trim()) trI.value = '2'; });
+    if (typeof warnLine === 'function') warnLine(form, function() { return libVal('areaFt') && libVal('areaPlace') === 'yes' && !libVal('areaTrig') ? 'Trigger radius is empty, so this mine goes off when a character comes within 2 yards. Fill it in to set its own.' : ''; });
     field(form, 'areaAd', 'Armor divisor', num(a.ad), { max: 6, title: 'Armor is divided by this number against its damage. Blank or 1: none' });
     field(form, 'areaFlight', 'On a miss, launched', a.flight === 'scatter' || a.flight === 'line' ? a.flight : '', { pairs: [['', 'You place it'], ['scatter', 'It scatters, as a throw'], ['line', 'It flies straight']], title: 'How a round fired from a launcher lands when the roll misses. One that scatters lands as a missed throw does. One that flies straight goes off on the first wall or character in its path, or at its farthest' });   // 1.5.9 (es)
     field(form, 'areaFrag', 'Fragmentation', typeof a.frag === 'string' ? a.frag : '', { title: 'Its fragmentation, a dice roll such as 1d6. When the blast goes off the host rolls it for the characters it reaches, as the Combat tab says. Blank: none' });   // 1.5.9 (es)
     field(form, 'areaFragType', 'Fragmentation type', typeof a.fragType === 'string' ? a.fragType : '', { pairs: [['', 'As the Combat tab says']].concat(dmgTypePairs(a.fragType).slice(1)), title: 'The damage type of its fragmentation, one of the Combat tab\u2019s damage types' });
     var afs = Array.isArray(a.aff) ? a.aff.filter(function(x) { return x && typeof x === 'object'; }).slice(0, 2) : [];   // 1.5.9 (es): its afflictions, a second drawn once the first is kept
     for (var ai = 0; ai < Math.min(2, afs.length + 1); ai++) affRows(form, ai, afs[ai] || {});
-    field(form, 'areaLoc', 'Strikes at', typeof a.loc === 'string' ? a.loc : '', { title: 'The hit location its blast strikes, by the name of a location, such as Legs for a mine underfoot. Blank: the usual one' });   // 1.6.2 (11): last, so the places of the boxes before it stand
+    var lcP = typeof locPairs === 'function' ? locPairs(a.loc) : null;   // 1.6.3: picked by name from the hit locations, where the system names them
+    field(form, 'areaLoc', 'Strikes at', lcP ? locPick(a.loc, lcP) : (typeof a.loc === 'string' ? a.loc : ''), lcP ? { pairs: lcP, title: 'The hit location its blast strikes, such as Legs for a mine underfoot. The usual one: where unaimed blows land' } : { title: 'The hit location its blast strikes, by the name of a location, such as Legs for a mine underfoot. Blank: the usual one' });   // 1.6.2 (11): last, so the places of the boxes before it stand
+    if (typeof warnLine === 'function') warnLine(form, locSays);
     cloudRows(form, a.cloud && typeof a.cloud === 'object' ? a.cloud : null);   // 1.6.2: after it, for the same reason
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20): Strikes at names one of the Combat tab's hit locations, which a list of the system holds, so where the
+// system names that list the box is a pick of its entries by name (the System editor's own list, published on window.wpSheets as locNames),
+// The usual one first. A stored name kept is the entry it names (by its short name or its name, as the blast reads it); one that names none is
+// kept as its own choice, marked. null where the system names no list, or the editor is not at hand: the box stays one to type in
+function locList() { var cp = camp(), lk = cp && cp.system && cp.system.combat && cp.system.combat.damage && cp.system.combat.damage.locs; return lk && typeof lk.list === 'string' && lk.list ? lk.list : ''; }
+function locPairs(cur) {
+    var WS = typeof window !== 'undefined' ? window.wpSheets : null, ls = locList(); if (!ls || !WS || typeof WS.locNames !== 'function') return null;
+    var out = [['', 'The usual one']].concat((WS.locNames(ls, camp().system) || []).filter(function(p) { return p && p[0]; })), c = typeof cur === 'string' ? cur.trim() : '';
+    if (c && !out.some(function(p) { return p[0] && (p[0].toLowerCase() === c.toLowerCase() || String(p[1]).toLowerCase() === c.toLowerCase()); })) out.push([c, c + ' (no such location now)']);
+    return out;
+}
+// the choice a stored name stands for in those pairs: its own short name where it is one, else the entry whose name it is, else itself
+function locPick(cur, ps) {
+    var c = typeof cur === 'string' ? cur.trim() : ''; if (!c) return '';
+    var hit = ps.filter(function(p) { return p[0] === c; })[0] || ps.filter(function(p) { return p[0] && (p[0].toLowerCase() === c.toLowerCase() || String(p[1]).toLowerCase() === c.toLowerCase()); })[0];
+    return hit ? hit[0] : c;
+}
+// what Strikes at depends on: a hit location list on the Combat tab, and a location of that list by the name typed
+function locSays() {
+    var v = libVal('areaLoc'); if (!v) return ''; var ls = locList();
+    if (!ls) return 'Strikes at: this system names no hit locations, on the Combat tab under Taking damage, so it does nothing.';
+    var WS = typeof window !== 'undefined' ? window.wpSheets : null, cp = camp();
+    return WS && typeof WS.locFinds === 'function' && WS.locFinds(ls, v, cp && cp.system) === false ? 'Strikes at: no hit location is called \u201c' + v + '\u201d, so the blast strikes the usual one.' : '';
 }
 // 1.6.2: the cloud it leaves where it goes off, as systemcore cleanCloud keeps it
 function cloudRows(form, cl) {
@@ -761,7 +885,10 @@ function cloudRows(form, cl) {
     field(form, 'areaCloudSmoke', 'Cloud is smoke', o.smoke === true ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, it blocks sight']], title: 'It blocks sight as smoke does, for the eyes and every sense that does not see through smoke' });
     field(form, 'areaCloudFx', 'While in the cloud', typeof o.fx === 'string' ? o.fx : '', { pairs: fxP, title: 'An effect put on whoever stands in it, and taken off as they leave' });
     field(form, 'areaCloudRoll', 'Roll for those in the cloud', typeof o.roll === 'string' ? o.roll : '', { pairs: rlP, title: 'A roll its right-click menu makes for everyone standing in it' });
+    if (typeof warnLine === 'function') warnLine(form, function() { return libVal('areaCloud') !== 'yes' && cloudSet() ? 'The cloud\u2019s settings count only when it leaves a cloud. Pick Yes, or Save drops them.' : ''; });   // 1.6.3: the cloud's boxes depend on Leaves a cloud
 }
+// any cloud box but its unit holds something (the unit always holds one)
+function cloudSet() { return ['areaCloudN', 'areaCloudR', 'areaCloudSmoke', 'areaCloudFx', 'areaCloudRoll'].some(function(k) { var n = ui('libF_' + k); return !!(n && String(n.value).trim()); }); }
 // 1.5.9 (the book's (es)): one affliction's rows, as systemcore cleanAffs keeps one: what it is resisted against, the effect a failure puts on (the
 // system's effects by name), whom it reaches, Only where and how long it lasts
 function affRows(form, i, a) {
@@ -776,11 +903,29 @@ function affRows(form, i, a) {
     field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 10000, ph: 'e.g. not Robot', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
     field(form, 'areaAff' + i + 'Lasts', n + 'lasts', typeof ls.n === 'string' ? ls.n : '', { max: 10000, ph: 'e.g. 1d6', title: 'How long the effect lasts, a formula that may roll dice. Blank: the effect\u2019s own duration' });
     field(form, 'areaAff' + i + 'Unit', n + 'lasts in', typeof ls.u === 'string' && ls.u ? ls.u : 'minutes', { pairs: uP, title: 'The unit of its Lasts' });
+    if (typeof warnLine === 'function') warnLine(form, function() { return affLibSays(i); });   // 1.6.3: what this affliction misses, said as it is typed
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20): what one affliction row misses, read from its own boxes, in the words the Items tab says it (the
+// System editor's affSays): what it is resisted against first, since librarycore entryFromForm keeps no row without one, then an effect of the
+// system, then what systemcore cleanAffs keeps of its formulas. A row counts as filled where its resisted against, effect, Only where or Lasts
+// holds something; its reach and unit always hold a word. '' for an empty row or one Save keeps whole
+function affLibSays(i) {
+    var p = 'areaAff' + i, vs = libVal(p + 'Vs'), fx = libVal(p + 'Fx'), nd = libVal(p + 'Needs'), lt = libVal(p + 'Lasts'); if (!vs && !fx && !nd && !lt) return '';
+    if (!vs) return 'Save drops it: it needs what it is resisted against.';
+    var cp = camp(), effs = cp && cp.system && Array.isArray(cp.system.effects) ? cp.system.effects : [];
+    if (!effs.some(function(d) { return d && d.id === fx; })) return 'Save drops it: it needs an effect it puts on.';
+    var CA = typeof cleanAffs === 'function' ? cleanAffs : (typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore.cleanAffs : null); if (!CA) return '';
+    var a = { vs: vs, fx: fx }; if (nd) a.needs = nd; if (lt) a.lasts = { n: lt, u: libVal(p + 'Unit') || 'minutes' };
+    var k = CA([a]); if (!k || !k[0]) return 'Save drops it: what it is resisted against must be a formula.';
+    if (nd && !k[0].needs) return 'Save drops its Only where: it must be a formula.';
+    if (lt && !k[0].lasts) return 'Save drops its Lasts: it must be a formula with a unit.';
+    return '';
 }
 // what the cleaner left out of the blast's extras, said in fixed words (an empty text: nothing)
 function blastDrops(raw, c) {
     var f = raw && raw.area, k = c && c.area, out = [], g = function(id) { var n = ui('libF_' + id); return n ? String(n.value).trim() : ''; };
-    if (!f) { if (g('areaType') || g('areaUse') || g('areaPlace') || g('areaTrig') || g('areaAd') || g('areaLoc') || g('areaFlight') || g('areaFrag') || g('areaFragType') || g('areaAff0Vs') || g('areaAff1Vs')) out.push('the blast\u2019s other settings, which need a blast radius'); }
+    var clAny = ['areaCloudN', 'areaCloudR', 'areaCloudSmoke', 'areaCloudFx', 'areaCloudRoll'].some(function(id) { return !!g(id); });   // 1.6.3: the cloud's boxes but its unit, which always holds one
+    if (!f) { if (g('areaType') || g('areaUse') || g('areaPlace') || g('areaTrig') || g('areaAd') || g('areaLoc') || g('areaFlight') || g('areaFrag') || g('areaFragType') || g('areaAff0Vs') || g('areaAff1Vs') || g('areaCloud') === 'yes' || clAny) out.push('the blast\u2019s other settings, which need a blast radius'); }
     else {
         if (f.type && !(k && k.type)) out.push('the damage type');
         if (g('areaTrig') && !(k && k.trig)) out.push(f.place === true ? 'the trigger radius, which must be a number above 0' : 'the trigger radius, which needs Placed, not thrown');
@@ -789,7 +934,12 @@ function blastDrops(raw, c) {
         if (g('areaFrag') && !(k && k.frag)) out.push('the fragmentation, which must be a formula');   // 1.5.9 (es)
         if (g('areaFragType') && !(k && k.fragType)) out.push(g('areaFrag') ? 'the fragmentation type' : 'the fragmentation type, which needs a fragmentation');
         var kA = k && Array.isArray(k.aff) ? k.aff : [], fA = Array.isArray(f.aff) ? f.aff : [];   // 1.5.9 (es): an affliction the cleaner left out, or its Only where or Lasts
-        fA.forEach(function(x, xi) { var y = x ? kA.filter(function(z) { return z && z.vs === x.vs && z.fx === x.fx; })[0] : null; if (!y) out.push('affliction ' + (xi + 1) + ', which needs a formula it is resisted against and an effect of the system'); else { if (x.needs && !y.needs) out.push('the Only where of affliction ' + (xi + 1) + ', which must be a formula'); if (x.lasts && !y.lasts) out.push('the Lasts of affliction ' + (xi + 1) + ', which must be a formula'); } });
+        // 1.6.3: read from the rows' own boxes where the form has them, so a row with an effect and no resisted against, which entryFromForm
+        // already left out, is said too. A row is matched with what the cleaner kept by its resisted against and its effect, as before
+        var rowsA = [0, 1].map(function(xi) { var p = 'areaAff' + xi; return ui('libF_' + p + 'Vs') ? { vs: g(p + 'Vs'), fx: g(p + 'Fx'), needs: g(p + 'Needs'), lasts: g(p + 'Lasts') } : (fA[xi] ? { vs: fA[xi].vs, fx: fA[xi].fx, needs: fA[xi].needs, lasts: fA[xi].lasts } : null); });
+        rowsA.forEach(function(x, xi) { if (!x || !(x.vs || x.fx || x.needs || x.lasts)) return; var y = x.vs ? kA.filter(function(z) { return z && z.vs === String(x.vs).trim() && z.fx === x.fx; })[0] : null; if (!y) out.push('affliction ' + (xi + 1) + ', which needs a formula it is resisted against and an effect of the system'); else { if (x.needs && !y.needs) out.push('the Only where of affliction ' + (xi + 1) + ', which must be a formula'); if (x.lasts && !y.lasts) out.push('the Lasts of affliction ' + (xi + 1) + ', which must be a formula'); } });
+        if (g('areaCloud') !== 'yes' && clAny) out.push('the cloud\u2019s settings, which need Leaves a cloud');   // 1.6.3: the cloud's boxes depend on Leaves a cloud
+        else if (g('areaCloud') === 'yes') { var kc = k && k.cloud ? k.cloud : null; if (g('areaCloudN') && !(kc && kc.n)) out.push('the cloud\u2019s Lasts, which must be a formula'); if (g('areaCloudR') && !(kc && kc.r)) out.push('the cloud\u2019s radius, which must be a number above 0'); }
     }
     return out.length ? 'Not kept: ' + out.join(', ') + '.' : '';
 }
@@ -804,10 +954,24 @@ function entryNotes(raw) {
     if (ftOn && g('areaPlace') === 'yes' && !g('areaTrig')) out.push('Its trigger radius is empty, so the mine goes off within 2 yards.');
     if (ftOn && !g('throwSkill') && g('areaFlight') !== 'scatter' && g('areaFlight') !== 'line' && typeof bl.roll === 'string' && bl.roll.trim()) out.push('It has no throw skill, so no throw roll is made for it: it lands where it is aimed.');
     if (ftOn && g('areaLoc') && !(sys.combat && sys.combat.damage && sys.combat.damage.locs && sys.combat.damage.locs.list)) out.push('Strikes at does nothing, since this system names no hit locations.');
-    if (g('flySpeed') && !(Number(g('flyRounds')) >= 1)) out.push('Flies once launched needs at least 1 round, so it is not kept.');
+    var CFn = typeof cleanFlies === 'function' ? cleanFlies : (typeof window !== 'undefined' && window.wpSystemCore ? window.wpSystemCore.cleanFlies : null);   // 1.6.3: the cleaner reads no rounds as 1 round
+    if (g('flySpeed') && CFn && !CFn({ speed: g('flySpeed'), rounds: 1 })) out.push('Its Speed cannot be kept as a formula, so what it is once launched is not kept.');
+    else if (g('flySpeed') && !(Number(g('flyRounds')) >= 1)) out.push('Flies for (rounds) is empty, so it flies for 1 round.');
     if (g('flySpeed') && g('flyEnd') === 'off' && !ftOn) out.push('It has no blast, so it cannot go off when its rounds run out.');
     if (g('rmMsg') && g('rm') !== 'bound' && g('rm') !== 'curse') out.push('Its removal message is kept only when it is Bound or Curse on contact.');
     if (g('eqMsg') && g('eq') !== 'bound' && g('eq') !== 'curse') out.push('Its switch-off message is kept only when it is Bound or Curse on contact.');
+    // 1.6.3: a blast's damage with no type where the Combat tab names types, and Strikes at naming no location of the list
+    var dtys = sys.combat && sys.combat.damage && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
+    if (ftOn && dmgOn && dtys.length && !g('areaType')) out.push('Its blast\u2019s damage has no type, so it takes no type\u2019s multiplier or DR.');
+    var lkN = sys.combat && sys.combat.damage && sys.combat.damage.locs && sys.combat.damage.locs.list, WSn = typeof window !== 'undefined' ? window.wpSheets : null;
+    if (ftOn && g('areaLoc') && lkN && WSn && typeof WSn.locFinds === 'function' && WSn.locFinds(lkN, g('areaLoc'), sys) === false) out.push('Strikes at names no hit location of that list, so the blast strikes the usual one.');
+    // 1.6.3: What it needs. Rule from level counts only beside a rule and as a number, When it isn't met and its Message only once it needs something
+    var nfT = g('needsFrom'), rlS = g('needsIf'), hasNd = !!(raw && Array.isArray(raw.needs) && raw.needs.length);
+    if (nfT && !rlS) out.push('Rule from level counts only beside a rule, so it is not kept.');
+    else if (nfT && !isFinite(Number(nfT))) out.push('Rule from level must be a number, such as 3, so it is not kept.');
+    if (!hasNd && !rlS && (g('needsWarn') === 'warn' || g('needsMsg'))) out.push('When it isn\u2019t met and its Message count only once it needs something, so they are not kept.');
+    // 1.6.3: each roll bonus Save leaves out, by its place, in the words said under it
+    (raw && Array.isArray(raw.rollSw) ? raw.rollSw : []).forEach(function(s, i) { var t = typeof swLibSays === 'function' ? swLibSays(s) : ''; if (t) out.push('Roll bonus ' + (i + 1) + ': ' + t); });
     return out.join(' ');
 }
 function saveEntry() {

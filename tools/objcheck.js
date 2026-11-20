@@ -78,10 +78,18 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
         const chair = swatchOf('chair'), drawn = [chair.type, chair.value, chair.attrs['aria-label'], !!chair.dataset.tip];
         chair.value = '#12ABEF'; chair.on.change(); const picked = stored[stored.length - 1].find(o => o.id === 'chair');
         oc = { drawn, picked, plain: swatchOf('plain').value, pic: swatchOf('pic'), furn: swatchOf('seat'), others: J(stored[stored.length - 1].filter(o => o.id !== 'chair').slice(0, 7)) === J(LIVE.slice(1)) };
+        // 1.6.3 (Fulllion's rulings of 2026-11-20): Protection follows Cover. With No cover and no Blocks sight its box stands greyed, its figure still
+        // shown, and its tip says why; with a grade or Blocks sight it is live
+        const proOf = o => { const box = mkE('div'); formInto(box, o, 'own', camp.objects); return walk(box, n => n.tag === 'input' && n.type === 'number')[0] || null; };
+        const pNone = proOf({ id: 'p1', name: 'Rug', pro: 3 }), pHalf = proOf({ id: 'p2', name: 'Crate', cover: 'half', pro: 3 }), pSight = proOf({ id: 'p3', name: 'Pillar', sight: true, pro: 3 });
+        oc.pro = [pNone.disabled, pNone.value, pNone.dataset.tip, pHalf.disabled, /stops nothing/.test(pHalf.dataset.tip), pSight.disabled];
     } catch (e) { ocErr = String(e && e.stack || e).slice(0, 600); }
     check('1.6.3 (the audit, gap 5) a map object\'s color is picked in its row\'s editor: a swatch of the app\'s own color input for an object with no picture alone, set to its color or else the plain land color objcore draws, a pick kept by the cleaner in lower case and nothing else changed; an object with a picture, or one that names a furnishing, has none',
         !!oc && J(oc.drawn) === J(['color', '#c0392b', 'Its color', true]) && J(oc.picked) === J({ id: 'chair', name: 'Chair', cover: 'half', color: '#12abef' }) && oc.plain === '#6b5b45' && oc.pic === null && oc.furn === null && oc.others === true
         && /var LAND_COLOR = '#6b5b45';/.test(read('scripts/objcore.js')) && src.includes("var OBJ_LAND = '#6b5b45';") && read('style.css').includes('.obj-form input.obj-color {'), ocErr || oc);
+    check('1.6.3 (Fulllion\'s rulings of 2026-11-20) an object\'s Protection counts only beside a Cover or Blocks sight: with neither its box stands greyed with its figure and says to pick a Cover first, and its words never say Protection beside No cover; with a grade or Blocks sight the box is live (mapobjects.js formInto run for real, objcore objWords)',
+        !!oc && J(oc.pro) === J([true, 3, 'Protection counts only for an object that gives cover or blocks sight. Pick a Cover first.', false, true, false])
+        && O.objWords({ id: 'a', name: 'x', pro: 3 }) === 'No cover' && O.objWords({ id: 'a', name: 'x', sight: true, pro: 3 }) === 'Blocks sight · Protection 3' && O.objWords({ id: 'a', name: 'x', cover: 'half', pro: 4 }) === 'Half cover · Protection 4', ocErr || oc);
     // the wiring
     const ix = read('index.html'), net = fs.readFileSync(app('scripts/net.js'), 'latin1'), cln = read('scripts/cleanup.js'), io = read('scripts/io.js'), esc = read('scripts/esckey.js'), fog = read('scripts/fog.js'), ins = read('scripts/inspector.js'), wb = read('scripts/whiteboard.js');
     check('the window: its row in Add the GM\'s alone, its box, its script, Escape; words as text alone, no markup written', /id="addObjectsBtn"/.test(ix) && /body\.net-client #addObjectsBtn/.test(read('style.css')) && /id="objModal"/.test(ix) && /src="scripts\/mapobjects\.js"/.test(ix) && esc.includes("['objModal', 'objClose']") && !/innerHTML|insertAdjacentHTML|outerHTML/.test(src) && wb.includes('window.wpArmPlacement = armPlacement;'));

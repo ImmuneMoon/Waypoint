@@ -843,6 +843,10 @@ function onChange(e) {
         if (c.indexOf('sys-item-aflight') >= 0) { if (iit.area) { if (t.value === 'scatter' || t.value === 'line') iit.area.flight = t.value; else delete iit.area.flight; } markDirty(); patchErrors(); return; }   // 1.5.9 (es)
         if (c.indexOf('sys-item-shape') >= 0) {
             var wasA = !!iit.area; if (t.value === '') iit.area = null; else iit.area = { ft: iit.area ? iit.area.ft : 12, shape: 'circle', name: iit.area ? iit.area.name : '' };
+            // 1.6.3 (Fulllion's rulings of 2026-11-20: none is no good default): a blast's damage takes its type's multiplier and DR, so a blast new on
+            // an item starts on the Combat tab's first damage type where it names any. Damage type: none stays offered
+            var dtN = draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) ? draft.combat.damage.types.filter(function(y) { return y && typeof y.key === 'string' && y.key; }) : [];
+            if (!wasA && iit.area && dtN.length) iit.area.type = dtN[0].key;
             // 1.6.3 (Fulllion's rulings of 2026-11-20: a box others depend on is required, and starts filled where a value makes sense): where the
             // Combat tab names a throw roll, a blast new on an item starts with a throw skill, since with none no throw roll is made for it at all. The
             // review of items: only where the choice is clear, a skill whose name or short name reads as throwing, else the system's only skill. Any

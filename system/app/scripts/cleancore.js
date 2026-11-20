@@ -213,8 +213,10 @@ function cleanReach(text, F) { return blastFormula(text, F, null, false); }
 // as the launcher's attack (roll, a roll's id; absent: its blast alone), and end 'off' where running out of rounds sets it off where it stands
 // (absent: it is gone). The same in both views. null without a Speed or rounds
 function cleanFlies(v) {
-    if (!isObj(v)) return null; var sp = cleanFormulaText(v.speed), rd = typeof v.rounds === 'number' && fin(v.rounds) ? Math.round(v.rounds) : 0; if (!sp || rd < 1) return null;
-    var o = { speed: sp, rounds: Math.min(99, rd), hp: typeof v.hp === 'number' && fin(v.hp) && v.hp >= 1 ? Math.min(1e6, Math.round(v.hp)) : 1 };
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: the cleaner never drops what was saved for lacking a box, and falls back to a plain figure): rounds
+    // that are missing, no number or under 1 read as 1 round. Only a Speed that cannot be kept still drops what it is once launched
+    if (!isObj(v)) return null; var sp = cleanFormulaText(v.speed), rd = typeof v.rounds === 'number' && fin(v.rounds) ? Math.round(v.rounds) : 1; if (!sp) return null;
+    var o = { speed: sp, rounds: Math.max(1, Math.min(99, rd)), hp: typeof v.hp === 'number' && fin(v.hp) && v.hp >= 1 ? Math.min(1e6, Math.round(v.hp)) : 1 };
     if (typeof v.pro === 'number' && fin(v.pro) && v.pro > 0) o.pro = Math.min(1e6, Math.round(v.pro * 100) / 100);
     if (typeof v.size === 'number' && fin(v.size) && v.size !== 0) o.size = Math.max(-20, Math.min(20, Math.round(v.size)));
     if (v.path === 'line') o.path = 'line'; if (typeof v.roll === 'string' && ROLL_ID.test(v.roll)) o.roll = v.roll; if (v.end === 'off') o.end = 'off';

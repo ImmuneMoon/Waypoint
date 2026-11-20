@@ -62,6 +62,8 @@ export function damageCore() {   // [split:glue]
 //           that holds the word, else the first row), read by the Take damage window and a blast's shares alike
 //           locs.die (1.6.0): a formula of the location's names and the character's, added to a wound that gets through for each die the blow rolled
 //   weapons [{ list, dur, wear, cond }]: a weapon tested by a blow: its listed Dur (a formula of Row.), its stat of wear and its stat of condition
+//           word (1.6.3, Fulllion's ruling of 2026-11-20): what the damage line calls its durability, the box Called (Dur, say). Kept in both
+//           views, since a player's own Take damage window says it too; absent where empty, so a system with none cleans as before
 // The players' view keeps what the window asks (the pool, the types by name, the location list) and no formula: the host works the blow out.
 // 1.6.0 (the core's armor rule, asked by the campaign build's session): a layer may say by formula what a hit wears. majorWear on a Major
 // Wound in place of a quarter of its listed figure; brokenWear and brokenMajorWear once its figure there is used up (Broken), for an
@@ -145,11 +147,14 @@ function dmgNameOk(fl, listId, key) {   // a stat or a column of that list
 function dmgNum(v, lo, hi, d) { return typeof v === 'number' && fin(v) ? Math.round(clampNum(v, lo, hi) * 100) / 100 : d; }
 var DMG_DIE = Object.freeze([['dieDr', -10], ['dieWound', -10], ['dieVital', -10], ['dieWear', 0]]);   // 1.6.0: a type's figures a die, and each one's least
 // 1.6.3 (the improvement week's review of sheets and rolls, finding 27, and the review of damage): what a weapon's durability is called, in the
-// system's own words. The label of the stat or column of the weapon list that its Dur formula reads, where that formula is one name of the row
-// (Row.<key>), else the plain word durability. The ONE reader of that word: the damage step's own weapon line below, the Take damage window
-// (sheets.js dmgDurWord asks it) and the host's note when a parry took the blow (netattack.js thruNote). A player's view of the rules keeps no
-// formula, so a player's own window says durability. wp: one of the Taking damage rules' weapons ({ list, dur, ... })
+// system's own words. First the rule's own word, its Called box (1.6.3, Fulllion's ruling of 2026-11-20: weapon durability is his system's
+// mechanic and must not be hard-coded, and his system says Dur). Else the label of the stat or column of the weapon list that its Dur formula
+// reads, where that formula is one name of the row (Row.<key>). Else the plain word durability, never nothing (Fulllion: "none isn't a good
+// default substitution"). The ONE reader of that word: the damage step's own weapon line below, the Take damage window (sheets.js dmgDurWord
+// asks it) and the host's note when a parry took the blow (netattack.js thruNote). A player's view of the rules keeps the word but no formula,
+// so a player's own window says the rule's word, else durability. wp: one of the Taking damage rules' weapons ({ list, dur, word, ... })
 function dmgDurWord(sys, wp) {
+    var own = isObj(wp) && typeof wp.word === 'string' ? wp.word.trim() : ''; if (own) return own.slice(0, LIMITS.label);
     var m = isObj(wp) && typeof wp.dur === 'string' ? /^\s*Row\.([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(wp.dur) : null, f = m && isObj(sys) ? fieldById(sys, wp.list) : null, sp = f && isObj(f.list) ? f.list : null;
     var all = sp ? (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []) : [], hit = m ? all.filter(function(s) { return isObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === m[1].toLowerCase(); })[0] : null;
     var lb = hit && typeof hit.label === 'string' ? hit.label.trim() : '';
@@ -246,10 +251,11 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
         var wps = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) {
             if (wps.length >= DMG_LIM.weapons || !isObj(l) || !isList(l.list)) return;
             var du = cleanFormulaText(l.dur), w = dmgStatOk(fl, l.list, l.wear), c = dmgStatOk(fl, l.list, l.cond); if (!du || !w || !c) return;
-            var wo = { list: l.list, dur: du, wear: w, cond: c }; if (l.test === 'listed') wo.test = 'listed'; if (l.heavy === 'zero') wo.heavy = 'zero'; wps.push(wo);   // 1.6.0 (asked by a campaign build's session): how a blow is judged, each absent as before
+            var wo = { list: l.list, dur: du, wear: w, cond: c }; if (l.test === 'listed') wo.test = 'listed'; if (l.heavy === 'zero') wo.heavy = 'zero';   // 1.6.0 (asked by a campaign build's session): how a blow is judged, each absent as before
+            var wwd = cutText(l.word, LIMITS.label); if (wwd) wo.word = wwd; wps.push(wo);   // 1.6.3: what the damage line calls its durability (Called), absent where empty
         }); if (wps.length) out.weapons = wps;
     } else {   // the window offers the weapons the blow may test; the host reads their Dur
-        var wpl = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) { if (wpl.length < DMG_LIM.weapons && isObj(l) && isList(l.list)) wpl.push({ list: l.list }); }); if (wpl.length) out.weapons = wpl;
+        var wpl = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) { if (wpl.length < DMG_LIM.weapons && isObj(l) && isList(l.list)) { var wpo = { list: l.list }, wpw = cutText(l.word, LIMITS.label); if (wpw) wpo.word = wpw; wpl.push(wpo); } }); if (wpl.length) out.weapons = wpl;   // 1.6.3: its Called word too, which a player's own Take damage window says
         if (dmgDiceRead(d)) out.dice = true;   // 1.6.0: the window asks a player for the dice the blow rolled, and the host works out what they do
     }
     return out.pool || out.types || out.locs || out.onWound ? out : null;

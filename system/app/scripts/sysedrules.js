@@ -803,6 +803,7 @@ function damageBox(box, cm) {
         var w = dbxObj(w0) ? w0 : {}, rw = el('div', 'sys-flags sys-dmgr-weapon'), nk = dbxKeys(w.list, true); rw.dataset.wi = String(i);
         rw.appendChild(select('sys-dmgr-wlist', dbxOpts(['', 'Pick a list'], lists, w.list), dbxStr(w.list), 'A list of weapons a blow may test'));
         var du = input('sys-dmgr-wdur field', dbxStr(w.dur), 'The weapon’s listed Dur. It reads the row as Row', 'Dur, e.g. Row.dur'); du.maxLength = LIMITS.formula; rw.appendChild(du);
+        dbxCap(rw, 'Called'); var wwd = input('sys-dmgr-wword field', dbxStr(w.word), 'What the damage line calls this weapon’s durability, such as Dur. The Take damage window says it too. It must be filled in', 'Dur'); wwd.maxLength = LIMITS.label; rw.appendChild(wwd);   // 1.6.3 (Fulllion, 2026-11-20): a required box, said under the box when empty
         dbxCap(rw, 'Worn in'); rw.appendChild(select('sys-dmgr-wwear', dbxOpts(['', 'Pick a stat'], nk, w.wear), dbxStr(w.wear), 'The number stat that holds the Dur worn off'));
         dbxCap(rw, 'Condition in'); rw.appendChild(select('sys-dmgr-wcond', dbxOpts(['', 'Pick a stat'], nk, w.cond), dbxStr(w.cond), 'The number stat that holds its condition: 0 Fine, 1 Damaged, 2 Broken, 3 Destroyed'));
         var wt = el('span', 'sys-dmgr-wpair'), wh = el('span', 'sys-dmgr-wpair');   // a caption and its list wrap together
@@ -814,6 +815,21 @@ function damageBox(box, cm) {
     wrap.appendChild(dbxBtn('dmgrwadd', '+ Weapon', wps.length >= DBX_LIM.weapons ? 'At most ' + DBX_LIM.weapons : 'A list of weapons whose Dur a blow tests', wps.length >= DBX_LIM.weapons));
     var err = errorCell('damage'); err.dataset.errFor = 'damage'; wrap.appendChild(err);
     box.appendChild(wrap);
+}
+// 1.6.3 (Fulllion's ruling of 2026-11-20, "it makes sense to have fields be required when other fields depend on them"): the word a new weapon
+// rule's Called box starts with. Where its Dur formula reads one stat or column of its list (Row.<key>), that stat's or column's label, else
+// Durability. A new rule carries the mark _new (which the cleaner never keeps), and while it does the box follows the Dur and the list as they
+// are picked; once the Called box itself is typed in, the mark goes and the word stays as typed. The core reads a saved rule the same way
+// when it has no word at all (the damage step's own reader of that word)
+function dbxWordOf(w) {
+    var m = dbxObj(w) && typeof w.dur === 'string' ? /^\s*Row\.([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(w.dur) : null, f = m ? dbxField(w.list) : null, sp = f && dbxObj(f.list) ? f.list : null;
+    var hit = sp ? (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).filter(function(s) { return dbxObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === m[1].toLowerCase(); })[0] : null;
+    var lb = hit && typeof hit.label === 'string' ? hit.label.trim() : '';
+    return lb ? lb.slice(0, LIMITS.label) : 'Durability';
+}
+function dbxWordFollow(w, t) {   // a new rule's Called box follows its Dur and its list, in the draft and in the row's own box (t: a control of that row)
+    if (!dbxObj(w) || !w._new) return; w.word = dbxWordOf(w);
+    var rw = t && t.closest ? t.closest('.sys-dmgr-weapon') : null, bx = rw && rw.querySelector ? rw.querySelector('.sys-dmgr-wword') : null; if (bx) bx.value = w.word;
 }
 function dbxRow(t, cls, key, arrKey) {   // the draft's row a control stands in, by its row's index
     var rw = t.closest ? t.closest('.' + cls) : null, i = rw ? Number(rw.dataset[key]) : -1, d = dbxCm().damage, arr = dbxObj(d) && Array.isArray(d[arrKey]) ? d[arrKey] : [];
@@ -851,7 +867,8 @@ function onDamageInput(t) {
         else if (dbxHas(c, 'sys-dmgr-yvital')) dbxSet(y, 'vital', dbxNumOf(t));
         else { var al = dbxAltOf(y, t); if (!al) return true; if (dbxHas(c, 'sys-dmgr-aif')) dbxSet(al, 'if', txt.trim() ? txt : ''); else dbxSet(al, 'mult', dbxNumOf(t)); dbxAltTidy(y); }
     } else if (dbxHas(c, 'sys-dmgr-lat')) { var l = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!l) return true; dbxSet(l, 'at', txt.trim() ? txt : ''); }
-    else if (dbxHas(c, 'sys-dmgr-wdur')) { var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true; dbxSet(w, 'dur', txt.trim() ? txt : ''); }
+    else if (dbxHas(c, 'sys-dmgr-wdur')) { var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true; dbxSet(w, 'dur', txt.trim() ? txt : ''); dbxWordFollow(w, t); }
+    else if (dbxHas(c, 'sys-dmgr-wword')) { var wW = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!wW) return true; delete wW._new; dbxSet(wW, 'word', txt.trim() ? txt.slice(0, LIMITS.label) : ''); }   // 1.6.3: what the damage line calls its durability; typed, it no longer follows the Dur
     else return true;   // a select or a tick: its change event does the work
     markDirty(); patchErrors(); return true;
 }
@@ -905,7 +922,7 @@ function onDamageChange(t) {
         if (wantW.length) lW.wears = wantW; else delete lW.wears;
     } else if (dbxHas(c, 'sys-dmgr-wlist') || dbxHas(c, 'sys-dmgr-wwear') || dbxHas(c, 'sys-dmgr-wcond') || dbxHas(c, 'sys-dmgr-wtest') || dbxHas(c, 'sys-dmgr-wheavy')) {
         var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true;
-        if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : dbxHas(c, 'sys-dmgr-wtest') ? 'test' : dbxHas(c, 'sys-dmgr-wheavy') ? 'heavy' : 'cond', v);
+        if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); dbxWordFollow(w, t); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : dbxHas(c, 'sys-dmgr-wtest') ? 'test' : dbxHas(c, 'sys-dmgr-wheavy') ? 'heavy' : 'cond', v);
     } else return true;   // a text box: its input event did the work
     markDirty(); if (redraw) renderAll(); else patchErrors(); return true;
 }
@@ -931,7 +948,7 @@ function damageClick(b) {
     if (m[2] === 'add') {
         var d = dbxDraft(), arr = Array.isArray(d[key]) ? d[key] : (d[key] = []);
         if (arr.length >= cap) { toast('At most ' + cap + ' ' + words + '.'); return true; }
-        arr.push(m[1] === 'y' || m[1] === 'k' ? { key: '', label: '' } : {});
+        arr.push(m[1] === 'y' || m[1] === 'k' ? { key: '', label: '' } : m[1] === 'w' ? { word: dbxWordOf({}), _new: true } : {});   // 1.6.3: a new weapon rule starts with its required Called box filled
     } else {   // a remove: only a row the draft holds
         var dd = dbxCm().damage, ar = dbxObj(dd) && Array.isArray(dd[key]) ? dd[key] : [], cls = m[1] === 'y' ? 'sys-dmgr-type' : m[1] === 'k' ? 'sys-dmgr-kind' : m[1] === 'l' ? 'sys-dmgr-layer' : m[1] === 'o' ? 'sys-dmgr-onwound' : 'sys-dmgr-weapon', ix = m[1] === 'y' ? 'yi' : m[1] === 'k' ? 'ki' : m[1] === 'l' ? 'li' : m[1] === 'o' ? 'oi' : 'wi';
         var rw = b.closest ? b.closest('.' + cls) : null, i = rw ? Number(rw.dataset[ix]) : -1; if (!(i >= 0 && i < ar.length && Math.floor(i) === i)) return true;
@@ -1060,6 +1077,9 @@ function damageSays(d, sys, Fx) {
             else if (g[4].some(function(k) { return !numStat(l.list, l[k]); })) say(nm + ': pick a number stat of that list for each stat, so Save drops it.');
             else say(nm + ': ' + g[3] + ' is too long or not on one line, so Save drops it.');
         });
+    });
+    (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l, i) {   // 1.6.3 (Fulllion, 2026-11-20): Called is required. Save keeps the rule all the same, and the damage line then says the stat's name, else durability
+        if (dbxObj(l) && !(typeof l.word === 'string' && l.word.trim())) say('Weapon list ' + (i + 1) + ': Called is empty. Name what the damage line calls its durability, such as Dur.');
     });
     (Array.isArray(d.layers) ? d.layers : []).forEach(function(l, i) {   // 1.6.0: a layer's stat worn by location, as the cleaner reads it
         if (!dbxObj(l) || !((Array.isArray(l.wears) && l.wears.length) || (typeof l.pick === 'string' && l.pick.trim()))) return;

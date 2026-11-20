@@ -54,7 +54,20 @@ function mouseClean(v, ids) {
         var p = c[id]; if (p === '' || (typeof p === 'string' && MOUSE_RE.test(p))) out.cmds[id] = p;
     });
     GESTURE_IDS.forEach(function(g) { var w = v[g]; if (typeof w === 'string' && GESTURES[g].some(function(o) { return o[0] === w; }) && w !== GESTURES[g][0][0]) out[g] = w; });
-    return out;
+    // 1.6.3, the review of links: two link gestures never share one press, however they were kept. Settings never lets them (linkClash), but a
+    // profile pack or a wp_mouse from another computer may name one press twice (linkTab: 'ctrl' beside linkWin left at its own Ctrl + click), and
+    // then Settings showed both rows as that press while linkPress let only the first do anything. So the clash is settled here, once, in
+    // LINK_WAYS order, the same order linkPress judges a press in: a later gesture whose press an earlier one already holds is turned Off.
+    // What a gesture holds is read through gestureOf on what is kept so far, so a gesture left at its default (kept as nothing) counts too.
+    // Settings, the link menu's gray words and linkPress all read the cleaned record, so they agree
+    var held = {};
+    LINK_WAYS.forEach(function(x) {
+        var g = x[0], w = gestureOf(out, g); if (w === 'off' || !LINK_PRESSES[w]) return;
+        if (held[w]) out[g] = 'off'; else held[w] = g;
+    });
+    var kept = { cmds: out.cmds };   // in GESTURE_IDS order whatever was turned Off, so the same choices are always kept as the same text
+    GESTURE_IDS.forEach(function(g) { if (g in out) kept[g] = out[g]; });
+    return kept;
 }
 // A gesture as it is now: the kept word, else the first of its list
 function gestureOf(m, g) { var w = m && typeof m === 'object' ? m[g] : null; return GESTURES[g] && typeof w === 'string' && GESTURES[g].some(function(o) { return o[0] === w; }) ? w : (GESTURES[g] ? GESTURES[g][0][0] : ''); }

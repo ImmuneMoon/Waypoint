@@ -59,6 +59,18 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('1.6.3 linkClash names the other link gesture that holds a press, so that picking it takes it from that one, and a map gesture never clashes with one (the pan on the middle button leaves the middle click on a link alone): the middle click from a new tab, Ctrl + click from an external window; Off and a word that is no press clash with nothing, and a gesture never clashes with itself',
         M.linkClash({}, 'linkWin', 'middle') === 'linkTab' && M.linkClash({}, 'linkTab', 'ctrl') === 'linkWin' && M.linkClash({}, 'linkPanel', 'alt') === '' && M.linkClash({}, 'linkTab', 'off') === '' && M.linkClash({}, 'linkTab', 'middle') === '' && M.linkClash({}, 'linkTab', 'nope') === '' && M.linkClash({}, 'pan', 'middle') === '' && M.linkClash({}, 'pan', 'right') === ''
         && J(M.mouseClean({ linkMenu: 'shiftright', linkTab: 'off', linkWin: 'ctrl', linkPanel: 'x' })) === J({ cmds: {}, linkMenu: 'shiftright', linkTab: 'off' }));
+    {   // 1.6.3, the review of links: a store or a pack that names one press for two link gestures is settled as it is cleaned, in the order
+        // menu, tab, window, panel (linkPress's own order), so Settings, the menu's words and the press agree. Before, mouseClean kept both
+        const cl = (v) => M.mouseClean(v), gw = (m, g) => M.gestureOf(m, g);
+        const a = cl({ linkTab: 'ctrl' }), b = cl({ linkPanel: 'middle' }), c2 = cl({ linkMenu: 'off', linkTab: 'off', linkWin: 'middle', linkPanel: 'middle' }), d = cl({ linkTab: 'alt', linkWin: 'alt', linkPanel: 'alt' });
+        const presses = m => ['linkMenu', 'linkTab', 'linkWin', 'linkPanel'].map(g => gw(m, g)).filter(w => w !== 'off');
+        const once = [a, b, c2, d].every(m => new Set(presses(m)).size === presses(m).length);
+        const again = [a, b, c2, d].every(m => J(cl(m)) === J(m));
+        check('1.6.3 the review of links: two link gestures never keep one press, however they were stored: the earlier in the order menu, tab, window, panel keeps it and the later is Off, a gesture left at its default counting as its press (a new tab on Ctrl + click turns the external window Off, the panel on the middle click goes Off beside a new tab still on it); a press freed by Off may be taken; cleaning twice changes nothing; and linkPress then does what each kept row says',
+            J(a) === J({ cmds: {}, linkTab: 'ctrl', linkWin: 'off' }) && J(b) === J({ cmds: {}, linkPanel: 'off' }) && J(c2) === J({ cmds: {}, linkMenu: 'off', linkTab: 'off', linkWin: 'middle', linkPanel: 'off' })
+            && J(d) === J({ cmds: {}, linkTab: 'alt', linkWin: 'off', linkPanel: 'off' }) && once && again
+            && lp(0, { ctrlKey: true }, a) === 'tab' && lp(1, {}, c2) === 'window' && lp(0, { shiftKey: true }, d) === '' && lp(0, { altKey: true }, d) === 'tab', [a, b, c2, d]);
+    }
     // what is kept
     const raw = { cmds: { 'map.last': 'Back', 'tool.pen': 'Ctrl+Middle', 'page.scene': '', 'tool.x': 'Wheel', '__proto__': 'Back', 'constructor': 'Back', 'Not.an.id': 'Back', 'a.b': 7 }, pan: 'right', zoom: 'wheel', ping: 'shout', open: 'shiftdbl', extra: 1 };
     const c = M.mouseClean(raw);
@@ -160,6 +172,13 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('your mouse goes with your profile, cleaned, and a computer that keeps its own keys keeps its own mouse (the owner: "Yes, like keys")',
         !!pk && J(pk.mouse) === J({ cmds: { 'map.last': 'Back' }, pan: 'right' }) && w1 && w1.wp_mouse === J(pk.mouse) && w2 && !('wp_mouse' in w2)
         && !('mouse' in (pc.packOf({ wp_profile: store2.wp_profile }, {}, 1) || { mouse: 1 })), pk && pk.mouse);
+    {   // 1.6.3, the review of links: a profile from another computer that names one press for two link gestures comes in settled
+        const pk2 = pc.packOf({ wp_profile: store2.wp_profile, wp_mouse: JSON.stringify({ linkTab: 'ctrl', linkPanel: 'ctrl' }) }, {}, 1);
+        const fromFile = pc.fromFile(JSON.stringify({ kind: pk2 && pk2.kind, v: pk2 && pk2.v, at: 1, profile: pk2 && pk2.profile, mouse: { linkTab: 'ctrl', linkPanel: 'ctrl', linkWin: 'ctrl' } }), {});
+        const wr = pk2 ? pc.openWrites({}, pk2) : null;
+        check('1.6.3 the review of links: a profile pack, made here or read from a file, never carries two link gestures on one press: the new tab keeps Ctrl + click, the external window and the panel go Off, and that is what opening it writes',
+            !!pk2 && J(pk2.mouse) === J({ linkTab: 'ctrl', linkWin: 'off', linkPanel: 'off' }) && !!fromFile && J(fromFile.mouse) === J({ linkTab: 'ctrl', linkWin: 'off', linkPanel: 'off' }) && !!wr && wr.wp_mouse === J(pk2.mouse), [pk2 && pk2.mouse, fromFile && fromFile.mouse]);
+    }
     check('Restore default keys says it puts the mouse back too: the line under it, its tooltip, and what it says once pressed where the mouse was put back (the owner, 2026-11-05: "lets fix that gap")',
         html.includes('<div class="set-line tight">Every command gets the key it came with again, and the mouse goes back as it came. Your keys are kept on this computer.</div>') && html.includes('and puts the mouse and the map gestures back as they came, here on this computer">Restore default keys</button>')
         && cmd.includes("window.wpMouse.reset(); gesturesShow(doc); mouseBack = true; }") && cmd.includes("'Every command has the key it came with again' + (mouseBack ? ', and the mouse is back as it came.' : '.')"));

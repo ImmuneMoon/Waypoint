@@ -175,6 +175,7 @@ function pageMenu(win) {
         if (!pg && !mnP) return;
         var c = linkWhere(a, win); if (c.editing !== false || c.held === true) return;
         if (e && e.button === 2 && linkWayOf(win, e) !== 'menu') return;
+        if (mnP && typeof lmRows === 'function' && !lmRows(win, a, mnP).length) return;   // 1.6.3, the review of links: a mention with nothing to offer here takes no press
         e.preventDefault(); e.stopPropagation();
         var d = win && win.document, b = d && d.body;
         if (b && b.classList && b.classList.contains('stream-mode')) return;
@@ -423,7 +424,18 @@ function peekWire(win, doc) {
 var LM_ID = 'pageLinkMenu';
 function lmRows(win, a, mn) {
     var nav = win && win.wpPageNav, root = null, w = pageHost(win), rows = [];
-    if (mn) { if (w) rows.push(['here', mn.kind === 'map' ? 'Go to this map' : mn.kind === 'char' ? 'Open the sheet' : 'Open']); return rows; }
+    if (mn) {
+        if (!w) return rows;
+        // 1.6.3, the review of links: a player's app offers only what it can do. Only the GM moves anyone to another map (pageshelf.js mentionGo
+        // refuses it there), so a map's mention holds no row; a character's holds Open the sheet only for a sheet the sheet module lets them
+        // open (wpSheets.canOpen: their own, or one shared with them). With no row the menu stays down and the right click goes on as it did
+        // before mentions had a menu (pageMenu asks lmRows before it takes the press)
+        if (atTable(win) === true) {
+            if (mn.kind === 'map') return rows;
+            if (mn.kind === 'char') { var ok = false; try { ok = !!(w.wpSheets && typeof w.wpSheets.canOpen === 'function' && w.wpSheets.canOpen(mn.id)); } catch (e) { ok = false; } if (!ok) return rows; }
+        }
+        rows.push(['here', mn.kind === 'map' ? 'Go to this map' : mn.kind === 'char' ? 'Open the sheet' : 'Open']); return rows;
+    }
     try { root = nav && typeof nav.placeOf === 'function' ? nav.placeOf(a) : null; } catch (e) { root = null; }
     if (root || w) rows.push(['here', root ? 'Open here' : 'Open']);
     if (atTable(win) === true || !w) return rows;

@@ -5583,6 +5583,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             J(rPanel) === J([['here', 'Open here' + W], ['tab', 'Open in a new tab' + W], ['window', 'Open in an external window' + W]]) && J(rPlayer) === J([['here', 'Open here' + W]]) && J(rLone) === J([['here', 'Open here' + W]]) && dHead === 'A page'
             && J(rOut) === J([['here', 'Open' + W], ['tab', 'Open in a new tab' + W], ['panel', 'Open in a new window inside Waypoint' + W], ['window', 'Open in an external window' + W]])
             && fe.defaultPrevented && F.doc.getElementById('pageLinkMenu') === null && F.calls.length === 0 && !ge.defaultPrevented && Gw.doc.getElementById('pageLinkMenu') === null && !he.defaultPrevented && Hw.doc.getElementById('pageLinkMenu') === null, J([rPanel, rPlayer, rLone, rOut]));
+        {   // 1.6.3, the review of links: on a player's app a mention's menu offers only what that app can do. Only the GM moves anyone to another
+            // map, so a map's mention has no menu at all, and a character's offers Open the sheet only for a sheet they may open (wpSheets.canOpen)
+            const Pl = mkWorld({ player: true }); Pl.win.wpSheets = { canOpen: id => id === 'c1' };
+            const pz = Pl.zone('docReaderBody'), pm = Pl.link(pz, '#wp:@:map:m1'), mE2 = Pl.dom.fire(pm, 'contextmenu', { button: 2 }), mMenu = Pl.doc.getElementById('pageLinkMenu');
+            const mineA = Pl.link(pz, '#wp:@:char:c1'), mineE = Pl.dom.fire(mineA, 'contextmenu', { button: 2 }), mineRows = rowsOf(Pl.doc.getElementById('pageLinkMenu'));
+            Pl.doc.getElementById('pageLinkMenu').hidden = true;
+            const theirA = Pl.link(pz, '#wp:@:char:c2'), theirE = Pl.dom.fire(theirA, 'contextmenu', { button: 2 }), theirShown = Pl.doc.getElementById('pageLinkMenu').hidden === false;
+            const noS = mkWorld({ player: true }), nA = noS.link(noS.zone('docReaderBody'), '#wp:@:char:c1'), nE = noS.dom.fire(nA, 'contextmenu', { button: 2 });
+            const rowsP = Pl.G.lmRows(Pl.win, pm, { kind: 'map', id: 'm1', at: '' }), rowsGm = A.G.lmRows(A.win, a1, { kind: 'map', id: 'm1', at: '' });
+            check('1.6.3 the review of links: on the app of a player a mention of a map holds no row, so no menu comes up and the right click is not taken (the GM still has Go to this map); a mention of a character holds Open the sheet only for a sheet the sheet module lets them open, and none for the sheet of another or with no sheet module at hand; nothing is opened by the press itself',
+                !mE2.defaultPrevented && mMenu === null && J(rowsP) === '[]' && J(rowsGm) === J([['here', 'Go to this map']])
+                && mineE.defaultPrevented && J(mineRows) === J([['here', 'Open the sheet' + W]]) && !theirE.defaultPrevented && !theirShown && !nE.defaultPrevented && noS.doc.getElementById('pageLinkMenu') === null
+                && Pl.calls.length === 0 && noS.calls.length === 0, J([mE2.defaultPrevented, mineRows, theirE.defaultPrevented, theirShown, nE.defaultPrevented, rowsP, rowsGm, Pl.calls]));
+        }
         // the button beside a page link
         const P = mkWorld(), p1 = P.link(P.zone('plannerPreview'), '#wp:page:p1:b_q'), up = P.G.popShow(P.win, P.doc, p1), pop = P.doc.getElementById('pageLinkPop');
         const shape = [up, pop && pop.tagName, pop && pop.type, pop && pop.hidden, pop && pop.tabIndex, pop && pop.title, pop && pop.childNodes.length === 1 && pop.childNodes[0].tagName, pop && pop.childNodes[0].namespaceURI, pop && pop.childNodes[0].childNodes.map(x => x.tagName + ':' + x.attrs.d.length).join(), pop && pop.style.left, pop && pop.style.top];

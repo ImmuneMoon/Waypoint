@@ -12,7 +12,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, entryNames, entryPick, errorCell, fieldWord, fxTargets, getActiveCampaign, grantEntries, input, labeledNum, labeledSelect, lineUnder, markDirty, numField, numInput, patchErrors, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
+import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, entryNames, entryPick, errorCell, fieldWord, fxTargets, getActiveCampaign, grantEntries, input, labeledNum, labeledSelect, lineUnder, markDirty, numField, numInput, patchErrors, pressHold, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
 export function sysedRules() {   // [split:glue]
 // [split:body-start]
 // 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): Keeps paying, under a list's switch: a row switched on pays an amount, a formula of the
@@ -691,6 +691,7 @@ function dbxNum(cls, v, title, ph) { var n = el('input', 'field ' + cls); n.type
 function kindsNamed() { return typeof draft !== 'undefined' && !!draft && !!draft.combat && !!draft.combat.damage && Array.isArray(draft.combat.damage.kinds) && draft.combat.damage.kinds.length > 0; }   // 1.6.0: whether the draft names kinds of blow, so that the roll's Kind boxes come up
 function dbxBtn(act, text, title, off) { var b = el('button', 'tool ghost sys-btn', text); b.dataset.act = act; b.title = title; if (off) b.disabled = true; return b; }
 function damageBox(box, cm) {
+    dmgHold();   // 1.6.3 (the review of damage): the System editor's window hears a press from its start, so the redraw a Wound by box asks for as it is left waits for it
     var d = dbxObj(cm.damage) ? cm.damage : {}, pools = dbxPools(), lists = dbxLists(), wrap = el('div', 'sys-dmgr');
     wrap.appendChild(el('div', 'sys-light-head', 'Taking damage'));
     wrap.appendChild(el('div', 'sys-note', 'How a hit is taken in the Take damage window. It goes through DR at the hit location, comes off a pool, and wears armor and weapons.'));
@@ -951,6 +952,11 @@ function onDamageInput(t) {
     else return true;   // a select or a tick: its change event does the work
     markDirty(); patchErrors(); return true;
 }
+// 1.6.3 (the review of damage, 2026-11-20): a Wound by box's change event fires as the pointer goes down on another control and the box loses the
+// focus. Drawing the tab again right then takes that control off the page under the pointer, so its press is lost. dmgHold is the System editor's
+// window held by io.js pressHold (the house rule that a press survives a redraw): damageBox asks it as it draws, so the window hears every press
+// from its start, and the redraw waits until the press has landed. null where there is no page to hold
+function dmgHold() { var w = typeof document !== 'undefined' && document && typeof document.getElementById === 'function' ? document.getElementById('systemModal') : null; return w && typeof w.addEventListener === 'function' && typeof pressHold === 'function' && typeof window !== 'undefined' && window && typeof window.addEventListener === 'function' ? pressHold(w, window) : null; }
 function onDamageChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var v = typeof t.value === 'string' ? t.value : '', on = t.checked === true, redraw = false;
@@ -1003,7 +1009,8 @@ function onDamageChange(t) {
         var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true;
         if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); dbxWordFollow(w, t); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : dbxHas(c, 'sys-dmgr-wtest') ? 'test' : dbxHas(c, 'sys-dmgr-wheavy') ? 'heavy' : 'cond', v);
     } else if (dbxHas(c, 'sys-dmgr-woundf') || dbxHas(c, 'sys-dmgr-ywf')) {   // 1.6.3: a Wound by box left; the A wound of 0 list and Its multiplier follow it
-        if (dbxShowSig(dbxCm().damage) === _dbxSig) return true; redraw = true;
+        if (dbxShowSig(dbxCm().damage) === _dbxSig) return true;
+        markDirty(); var hW = dmgHold(); if (hW && hW.busy()) hW.then(renderAll); else renderAll(); return true;   // a press elsewhere lands first
     } else return true;   // a text box: its input event did the work
     markDirty(); if (redraw) renderAll(); else patchErrors(); return true;
 }
@@ -1112,7 +1119,7 @@ function damageSays(d, sys, Fx) {
     }
     var seen = {}, kept = 0, yVital = false;
     (Array.isArray(d.types) ? d.types : []).forEach(function(y, i) {
-        var nm = 'Damage type ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : dbxObj(y) && typeof y.key === 'string' && y.key ? ', ' + y.key : '');
+        var nm = 'Damage type ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : '');   // 1.6.3 (the review of damage): its name, never its short name, which a user never reads
         if (!dbxObj(y)) { say(nm + ': Save cannot read it, so it drops it.'); return; }
         var k = typeof y.key === 'string' ? y.key.toLowerCase() : '';
         var yNamed = typeof y.label === 'string' && !!y.label.trim();   // 1.6.3: the Name is required (Fulllion's rulings of 2026-11-20)
@@ -1151,7 +1158,7 @@ function damageSays(d, sys, Fx) {
     if (lk && lk.vital && !yVital) warn('Vital where: no damage type has Vital times or a vital wound a die, so it changes nothing.', 'dmgr.locvital');   // 1.6.3: the other way round
     var kSeen = Object.create(null), kKept = 0;   // 1.6.0: the kinds of blow, as the cleaner reads them
     (Array.isArray(d.kinds) ? d.kinds : []).forEach(function(y, i) {
-        var nm = 'Kind ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : dbxObj(y) && typeof y.key === 'string' && y.key ? ', ' + y.key : '');
+        var nm = 'Kind ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : '');   // 1.6.3 (the review of damage): its name, never its short name
         if (!dbxObj(y)) { say(nm + ': Save cannot read it, so it drops it.'); return; }
         var k = typeof y.key === 'string' ? y.key.toLowerCase() : '';
         var kNamed = typeof y.label === 'string' && !!y.label.trim();   // 1.6.3: the Name is required (Fulllion's rulings of 2026-11-20)

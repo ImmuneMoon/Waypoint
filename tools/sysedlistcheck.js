@@ -901,7 +901,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && radOut.every.length === 8 && radOut.every.every(e => e[1] === '2') && FQ.keys.indexOf('radius') >= 0, fqErr || J(radOut));
         {   // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): the Blasts part's boxes that others depend on (sysedlist.js blastBox,
             // onBlastInput and onBlastChange, run for real on a page of plain objects that finds its own boxes): the two lists that count beside Each
-            // victim's dice stand only beside it and say what Save drops, In the hand and Scatter on a miss say they need a Throw roll, and a kind of blow or
+            // victim's dice stand only beside it and say what Save drops, In the hand says it needs a Throw roll, and a kind of blow or
             // a fragmentation type removed from Taking damage is said, never shown as its short name
             let draftR = { combat: {} }, rendersR = 0, boxR = null;
             const elR = (tag, cls, txt) => ({ tag: tag, className: cls || '', textContent: txt || '', title: '', kids: [], dataset: {}, appendChild(k) { this.kids.push(k); return k; },
@@ -924,7 +924,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
                 // leaving Each victim's dice draws the two lists in only where that changes
                 draftR = { combat: { blast: {} } }; boxR = drawR(draftR.combat); draftR.combat.blast.each = 'BlastDice'; const r0 = rendersR; FR.change({ className: 'sys-combat-beach field', value: 'BlastDice' }); const rIn = rendersR - r0;
                 boxR = drawR(draftR.combat); FR.change({ className: 'sys-combat-beach field', value: 'BlastDice' }); const rStay = rendersR - r0 - rIn;
-                // In the hand and Scatter on a miss need a Throw roll
+                // In the hand needs a Throw roll. Scatter on a miss never says so: a launched round that scatters reads it with no Throw roll at all
+                // (wbblast.js), so the line it had there was untrue (the review of damage, 2026-11-20: the two Scatter pins moved on purpose to '')
                 const H = 'Natural >= 18', SC = 'min(Margin, ThrowDistance / 2)', R = '3d6 <= ThrowSkill + RangeMod', NEED = 'Counts only with a Throw roll. Fill Throw roll above.';
                 const bNoRoll = drawR({ blast: { hand: H, scatter: SC } }), bRoll = drawR({ blast: { hand: H, scatter: SC, roll: R } });
                 draftR = { combat: { blast: { hand: H, scatter: SC } } }; boxR = drawR(draftR.combat); FR.input({ className: 'sys-combat-broll field', value: R, dataset: { bk: 'roll' } }); const typed = [lineR(boxR, 'hand'), lineR(boxR, 'scatter')];
@@ -939,10 +940,31 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
                     gone: [optOf(bGone, 'sys-combat-bkind', 'gone'), lineR(bGone, 'kind', 'gk'), optOf(bGone, 'sys-combat-fgtype', 'heat'), lineR(bGone, 'fragtype', 'gk')], held: [lineR(bHeld, 'kind', 'gk'), lineR(bHeld, 'fragtype', 'gk')], rK: rK };
             }
             const DROP1 = 'Save drops Each victim\u2019s dice rolled by until Each victim\u2019s dice holds a formula.', DROP2 = 'Save drops A die each victim loses and Each victim\u2019s dice rolled by until Each victim\u2019s dice holds a formula.';
-            check('1.6.3 the Blasts part’s boxes that others depend on (sysedlist.js blastBox, onBlastInput and onBlastChange, run for real): the two lists of Each victim’s dice stand only beside it or a pick of theirs, and while it is empty or does not clean its line names the picks Save drops, following each pick; leaving it draws them in only where that changes; In the hand and Scatter on a miss say they need a Throw roll until one is kept, and typing or emptying Throw roll says it again under both; a kind of blow or a fragmentation type gone from Taking damage is shown as gone and said under its list, a pick draws the box again',
+            check('1.6.3 the Blasts part’s boxes that others depend on (sysedlist.js blastBox, onBlastInput and onBlastChange, run for real): the two lists of Each victim’s dice stand only beside it or a pick of theirs, and while it is empty or does not clean its line names the picks Save drops, following each pick; leaving it draws them in only where that changes; In the hand says it needs a Throw roll until one is kept, and typing or emptying Throw roll says it again under it, while Scatter on a miss never says so, since a launched round reads it with none; a kind of blow or a fragmentation type gone from Taking damage is shown as gone and said under its list, a pick draws the box again',
                 !frErr && !!out && j(out.e0) === j([0, 0]) && j(out.eE) === j([1, 1]) && j(out.eBy) === j([1, 1]) && j(out.lE) === j(['', DROP1, DROP2, 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the center, with no dice.']) && out.lnAfter === 'Save drops A die each victim loses until Each victim\u2019s dice holds a formula.'
-                && out.rIn === 1 && out.rStay === 0 && j(out.nr) === j([out.NEED, out.NEED, '', '']) && j(out.typed) === j(['', '']) && j(out.emptied) === j([out.NEED, out.NEED])
+                && out.rIn === 1 && out.rStay === 0 && j(out.nr) === j([out.NEED, '', '', '']) && j(out.typed) === j(['', '']) && j(out.emptied) === j([out.NEED, ''])
                 && j(out.gone) === j(['A kind that is gone', FR.KIND, 'A type that is gone', FR.TYPE]) && j(out.held) === j(['', '']) && out.rK === 1, frErr || j(out));
+            {   // 1.6.3 (the review of damage, 2026-11-20): leaving Each victim's dice asks for a redraw of the Combat box from its change event, which fires
+                // as the pointer goes down on another control. The redraw waits until that press has landed (io.js pressHold, the real slice, on the
+                // System editor's window, which blastBox asks as it draws), else the box was drawn again under the pointer and the press was lost
+                const ioH = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, NLx), phH = ioH.slice(ioH.indexOf('// [lookcheck:presshold-start]'), ioH.indexOf('// [lookcheck:presshold-end]')).replace('export function', 'function');
+                const PHh = new Function(phH + NLx + 'return pressHold;')();
+                const lsH = {}, wlH = {}, tmH = [], modalH = { addEventListener: (k, fn) => { (lsH[k] = lsH[k] || []).push(fn); } }, winH = { wpSystemCore: S, addEventListener: (k, fn) => { (wlH[k] = wlH[k] || []).push(fn); }, setTimeout: fn => tmH.push(fn) };
+                const docH = { getElementById: id => id === 'systemModal' ? modalH : null }, fireH = (m, k) => (m[k] || []).forEach(fn => fn());
+                let hOut = null, hErr = '';
+                try {
+                    const FH = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', 'LIMITS', 'renderCombat', 'document', 'pressHold', "'use strict';" + NLx + 'var draft = getDraft();' + NLx + bbSrcQ + NLx
+                        + 'return { box: blastBox, change: function(t) { draft = getDraft(); return onBlastChange(t); } };')(
+                        elR, inpR, () => {}, selR, () => boxR, () => F, () => {}, () => draftR, winH, LIMITS, () => { rendersR++; }, docH, PHh);
+                    draftR = { combat: { blast: {} } }; boxR = elR('div'); FH.box(boxR, draftR.combat); const heard = (lsH.pointerdown || []).length;
+                    draftR.combat.blast.each = 'BlastDice'; fireH(lsH, 'pointerdown'); const h0 = rendersR; FH.change({ className: 'sys-combat-beach field', value: 'BlastDice' }); const held = rendersR - h0;
+                    fireH(wlH, 'pointerup'); const upped = rendersR - h0; tmH.splice(0).forEach(fn => fn()); const landed = rendersR - h0;
+                    draftR = { combat: { blast: {} } }; boxR = elR('div'); FH.box(boxR, draftR.combat); draftR.combat.blast.each = 'BlastDice'; const q0 = rendersR; FH.change({ className: 'sys-combat-beach field', value: 'BlastDice' }); const atOnce = rendersR - q0;
+                    hOut = [heard, held, upped, landed, atOnce];
+                } catch (e) { hErr = String(e); }
+                check('1.6.3 the review of damage: leaving Each victim’s dice draws the Combat box again only once a press on another control that began meanwhile has landed (io.js pressHold, the real slice, on the System editor’s window, heard from the box’s first draw), and at once where no press is down',
+                    !hErr && j(hOut) === j([1, 0, 0, 1, 1]), hErr || j(hOut));
+            }
         }
         // gaps 2 and 3: the Lists tab's change rows (sysedlist.js listApplyEditor, with renderLists' own line of targets and sheets.js fxHolds), and the
         // input handler of the number an effect goes on with (sysedtabs.js onInput, its sys-list-applyfxn line)

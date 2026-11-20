@@ -11,7 +11,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { APPLY_KINDS, CHAMBER_CAP, COVER_HIT_ROWS, F, FEEDS_MAX, LIMITS, ROW_LOOK, altBox, answersBox, badgeBox, bandWhens, callsBox, capInline, charsOf, cleanCover, cleanListSpec, clockBox, costHow, dbxBtn, dbxCap, dieSel, draft, el, errorCell, explainBox, fxHolds, getActiveCampaign, helpBox, input, kindSel, kindsNamed, labeledNum, labeledSelect, landDmgSel, lineUnder, listCrossRow, lossOpts, markDirty, markOpts, markVal, metricSel, numField, numInput, onRemoveBox, opVal, open, ownSwBox, partCapsBox, partFitsBox, patchErrors, pickOne, placeSel, refreshErrors, renderAll, renderCombat, resistBySel, resistOrBox, rollExtras, rolled, segPut, select, standThenBox, startsBox, statKey, state, swWordsBox, switchChangesBox, tab, tileBoxesBox, tileStatesBox, toast, toneRow, tradeRulesBox, ui, unitWordsOn, upkeepBox, whyBox } from './sheets.js';   // [split:glue]
+import { APPLY_KINDS, CHAMBER_CAP, COVER_HIT_ROWS, F, FEEDS_MAX, LIMITS, ROW_LOOK, altBox, answersBox, badgeBox, bandWhens, callsBox, capInline, charsOf, cleanCover, cleanListSpec, clockBox, costHow, dbxBtn, dbxCap, dieSel, draft, el, errorCell, explainBox, fxHolds, getActiveCampaign, helpBox, input, kindSel, kindsNamed, labeledNum, labeledSelect, landDmgSel, lineUnder, listCrossRow, lossOpts, markDirty, markOpts, markVal, metricSel, numField, numInput, onRemoveBox, opVal, open, ownSwBox, partCapsBox, partFitsBox, patchErrors, pickOne, placeSel, pressHold, refreshErrors, renderAll, renderCombat, resistBySel, resistOrBox, rollExtras, rolled, segPut, select, standThenBox, startsBox, statKey, state, swWordsBox, switchChangesBox, tab, tileBoxesBox, tileStatesBox, toast, toneRow, tradeRulesBox, ui, unitWordsOn, upkeepBox, whyBox } from './sheets.js';   // [split:glue]
 export function sysedList() {   // [split:glue]
 // [split:body-start]
 // Stage 6 F4b: the Lists tab — one card per item-list field: the categories its picker offers, the same item more than once, no quantity, a
@@ -799,13 +799,15 @@ function fragSays(v) {   // what Save does with Fragmentation reaches: '' where 
 }
 // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): what a blast formula's line says beyond Save's reading of the formula itself, where it
 // depends on another box. A die each victim loses and Each victim's dice rolled by count only beside Each victim's dice, and Save keeps them only there,
-// so the line under that box names the picks Save then drops. In the hand and Scatter on a miss are read only after a Throw roll, so while Save keeps
-// no Throw roll each says it counts only with one. bl: the draft's blast rules. '' where nothing depends on a missing box. Save is as it was
+// so the line under that box names the picks Save then drops. In the hand is read only after a Throw roll (wbblast.js, inside the throw), so while
+// Save keeps no Throw roll it says it counts only with one. Scatter on a miss says nothing of the kind: a launched round whose item says On a miss,
+// launched: scatter reads it with no Throw roll at all (wbblast.js window.wpLaunchMiss), so a system with launchers and no thrown grenades uses it
+// (the review of damage, 2026-11-20). bl: the draft's blast rules. '' where nothing depends on a missing box. Save is as it was
 function blastDepSays(k, bl) {
     var SCb = window.wpSystemCore; if (!bl || typeof bl !== 'object' || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
     var kept = function(key) { var v = typeof bl[key] === 'string' ? bl[key].trim() : '', o = {}; if (!v) return false; o[key] = v; var c = SCb.cleanBlastRules(o, F()); return !!(c && c[key]); };
     if (k === 'each' && !kept('each')) { var on = []; if (bl.eachAdd === true) on.push('A die each victim loses'); if (bl.eachBy === 'victim') on.push('Each victim\u2019s dice rolled by'); return on.length ? 'Save drops ' + on.join(' and ') + ' until Each victim\u2019s dice holds a formula.' : ''; }
-    if ((k === 'hand' || k === 'scatter') && kept(k) && !kept('roll')) return 'Counts only with a Throw roll. Fill Throw roll above.';
+    if (k === 'hand' && kept('hand') && !kept('roll')) return 'Counts only with a Throw roll. Fill Throw roll above.';
     return '';
 }
 // 1.6.3: the whole line under a blast formula's box, Save's reading of it first, then what it depends on; and that line set again in the box on screen
@@ -857,6 +859,7 @@ function blastParts(box) {
 }
 function blastEachShown(bl) { return !!bl && ((typeof bl.each === 'string' && !!bl.each.trim()) || bl.eachAdd === true || bl.eachBy === 'victim'); }   // 1.6.3: whether the two lists that count beside Each victim's dice stand
 function blastBox(box, cm) {
+    blastHold();   // 1.6.3 (the review of damage): the System editor's window hears a press from its start, so a redraw that a text box's change asks for waits for it
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {};
     box.appendChild(el('div', 'sys-combat-head', 'Blasts and throws'));
     var PB = blastParts(box), outer = box;
@@ -979,10 +982,15 @@ var BLAST_KIND_LINE = 'The kind of blow a blast\u2019s shares and its fragmentat
 // A blast then carries no kind, and fragmentation takes the blast's own type (fragPass in wbblast.js passes over a type that is gone)
 var BLAST_KIND_GONE = 'That kind of blow is gone from Taking damage, so blasts carry no kind until one is picked here.';
 var FRAG_TYPE_GONE = 'That damage type is gone from Taking damage, so fragmentation takes the blast\u2019s own type until one is picked here.';
+// 1.6.3 (the review of damage, 2026-11-20): a text box's change event fires as the pointer goes down on another control and the box loses the
+// focus. Drawing the Combat box again right then takes that control off the page under the pointer, so its press is lost. blastHold is the
+// System editor's window held by io.js pressHold (the house rule that a press survives a redraw): blastBox asks it as it draws, so the window
+// hears every press from its start, and a redraw asked for meanwhile waits until the press has landed. null where there is no page to hold
+function blastHold() { var w = typeof document !== 'undefined' && document && typeof document.getElementById === 'function' ? document.getElementById('systemModal') : null; return w && typeof w.addEventListener === 'function' && typeof pressHold === 'function' && typeof window !== 'undefined' && window && typeof window.addEventListener === 'function' ? pressHold(w, window) : null; }
 function onBlastChange(t) {   // the lists of the Blasts and throws part
     if (t && /(^| )sys-combat-beach( |$)/.test(t.className || '')) {   // 1.6.3 (lane B batch "damage"): Each victim's dice left. Its input event wrote it; the two lists that count beside it are drawn in or out, only where that changes
         var cmE = draft.combat, blE = cmE && cmE.blast && typeof cmE.blast === 'object' && !Array.isArray(cmE.blast) ? cmE.blast : null, boxE = typeof ui === 'function' ? ui('sysCombatBox') : null, hasE = !!(boxE && boxE.querySelector && boxE.querySelector('.sys-combat-beachadd'));
-        if (blastEachShown(blE) !== hasE && typeof renderCombat === 'function') renderCombat(); return true;
+        if (blastEachShown(blE) !== hasE && typeof renderCombat === 'function') { var hE = blastHold(); if (hE && hE.busy()) hE.then(renderCombat); else renderCombat(); } return true;   // a press elsewhere lands first
     }
     var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c), ak = /(^| )sys-combat-beachadd( |$)/.test(c), kk = /(^| )sys-combat-bkind( |$)/.test(c), sk = /(^| )sys-combat-b(fills|fillcover|nodrop|itemscale)( |$)/.exec(c), yk = /(^| )sys-combat-bflying( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek && !ak && !kk && !sk && !yk) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {});
@@ -1057,7 +1065,7 @@ function onBlastInput(t) {
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {}), v = String(t.value || '').trim();
     if (v) bl[k] = v.slice(0, LIMITS.formula); else delete bl[k];
     if (!Object.keys(bl).length) delete cm.blast;
-    (k === 'roll' ? ['roll', 'hand', 'scatter'] : [k]).forEach(function(dk) { blastLineSet(dk, bl); });   // 1.6.3: a Throw roll filled or emptied says again under In the hand and Scatter on a miss
+    (k === 'roll' ? ['roll', 'hand'] : [k]).forEach(function(dk) { blastLineSet(dk, bl); });   // 1.6.3: a Throw roll filled or emptied says again under In the hand
     markDirty(); return true;
 }
 // [systemcheck:blastbox-end]

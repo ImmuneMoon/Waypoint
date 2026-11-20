@@ -1887,5 +1887,71 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
                 J([picks(gP), picks(pP), offL, offN, offBare, eg, msgs('errors'), msgs('warnings'), wL, wN]));
         }
     }
+    {   // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", and "none isn't a good
+        // default substitution"): the Fields tab's boxes others depend on. refreshErrors is run for real (sysederr.js, read by its own name), the adders and the
+        // Shows as handler are the real lines of sysedtabs.js, and the cleaner is the real one, so each line said agrees with what Save does
+        const reQ = kit.cutEnd('sysederr.js', '\nfunction refreshErrors() {').replace(/\n$/, '');
+        const runQ = fields => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'cleanFieldUnit', 'unitOf', 'cleanFormulaText', 'hasDice',
+            'var errorsById = {}, warningsById = {};\n' + reQ + '\nrefreshErrors(); return { e: errorsById, w: warningsById };')({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: fields }, () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => ({ chars: {} }), () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS, S.cleanFieldUnit, S.unitOf, S.cleanFormulaText, S.hasDice);
+        const said = (r, id, re) => ((r.e[id] || []).concat(r.w[id] || [])).filter(x => !re || re.test(x.prop || '')).map(x => (x.prop || '') + ': ' + x.message);
+        const tgt = { id: 'f_t', key: 'Weight', label: 'Weight', kind: 'number' };
+        // a number taken from a formula: one formula alone is said under the other's box, both say nothing
+        const rOv = runQ([{ id: 'f_a', key: 'A', label: 'A', kind: 'number', override: { value: 'Chassis + 1' } }, { id: 'f_b', key: 'B', label: 'B', kind: 'number', override: { when: 'A > 0' } }, { id: 'f_c', key: 'C', label: 'C', kind: 'number', override: { value: 'A', when: 'A > 0' } }]);
+        const ovOk = j(said(rOv, 'f_a', /^override/)) === j(['override.when: Taken from needs a While. Until one is written, Save drops Taken from and the number is what is typed.'])
+            && j(said(rOv, 'f_b', /^override/)) === j(['override.value: While needs a Taken from. Until one is written, Save drops While.']) && said(rOv, 'f_c').length === 0
+            && S.fieldById(cleanSystem({ v: 1, name: 'D', fields: [{ id: 'f_a', key: 'A', kind: 'number', override: { value: 'Chassis + 1' } }] }, { F, gmView: true }), 'f_a').override === undefined;
+        check('1.6.3 a number Taken from a formula needs its While and a While its Taken from (refreshErrors, run for real): one alone is said under the other box, as the cleaner drops it, and both say nothing',
+            ovOk, j([said(rOv, 'f_a'), said(rOv, 'f_b'), said(rOv, 'f_c')]));
+        // Typing it fills: each line by its place, as the cleaner reads the lines
+        const rFl = runQ([tgt, { id: 'f_h', key: 'Height', label: 'Height', kind: 'number', fills: [{ f: '', formula: '1' }, { f: 'f_t', formula: '' }, { f: 'f_t', formula: '1d6' }, { f: 'f_t', formula: 'Height * 2' }, { f: 'f_t', formula: '3' }] }]);
+        const flOk = j(said(rFl, 'f_h', /^fill/)) === j(['fillTo.0: Typing it fills: pick the field it fills, or Save drops this line.', 'fill.1: Typing it fills: write what it writes there, or Save drops this line.', 'fill.2: Typing it fills: what it writes rolls dice, so Save drops this line.', 'fillTo.4: Another line already fills this field, so Save drops this one.'])
+            && j(S.fieldById(cleanSystem({ v: 1, name: 'D', fields: [tgt, { id: 'f_h', key: 'Height', kind: 'number', fills: [{ f: '', formula: '1' }, { f: 'f_t', formula: '' }, { f: 'f_t', formula: '1d6' }, { f: 'f_t', formula: 'Height * 2' }, { f: 'f_t', formula: '3' }] }] }, { F, gmView: true }), 'f_h').fills) === j([{ f: 'f_t', formula: 'Height * 2' }]);
+        check('1.6.3 each line of Typing it fills needs the field it fills and what it writes (refreshErrors, run for real): a line with no field, no figure, dice, or a field another line already fills is said under its own box as the cleaner drops it (a field that is gone the validator says itself)',
+            flOk, j(said(rFl, 'f_h')));
+        // Worked out until typed on a field that can no longer keep it
+        const rAu = runQ([{ id: 'f_x', key: 'X', label: 'X', kind: 'text', auto: 'Size * 2' }, { id: 'f_y', key: 'Y', label: 'Y', kind: 'formula', formula: '1', fills: [{ f: 'f_t', formula: '2' }] }, { id: 'f_z', key: 'Z', label: 'Z', kind: 'text', unit: 'height', auto: '60' }, tgt]);
+        const auOk = j(said(rAu, 'f_x', /^(unit|kind)$/)) === j(['unit: Worked out until typed and Typing it fills need Unit: height or weight, so Save drops them.'])
+            && j(said(rAu, 'f_y', /^(unit|kind)$/)) === j(['kind: Only a number, a toggle, or a text with Unit: height or weight is worked out until typed, so Save drops Worked out until typed and Typing it fills.']) && said(rAu, 'f_z').length === 0;
+        check('1.6.3 Worked out until typed and Typing it fills on a field that cannot keep them (refreshErrors, run for real): a text with no Unit of height or weight is told under its Unit, another kind under its Kind, and a height says nothing',
+            auOk, j([said(rAu, 'f_x'), said(rAu, 'f_y'), said(rAu, 'f_z')]));
+        // a track with nothing to count
+        const rTk = runQ([{ id: 'f_e', key: 'E', label: 'E', kind: 'number', track: { shape: 'boxes', each: true } }, { id: 'f_d', key: 'D1', label: 'D1', kind: 'number', track: { shape: 'dots' } }, { id: 'f_r', key: 'R', label: 'R', kind: 'number', min: 0, max: 5, track: { shape: 'dots' } }, { id: 'f_o', key: 'O', label: 'O', kind: 'number', track: { shape: 'boxes', each: true, of: '4' } }]);
+        const tkOk = j(said(rTk, 'f_e', /^track$/)) === j(['track: Boxes marked one by one need Out of: how many boxes. Until it is filled in, the sheet shows a plain box.'])
+            && j(said(rTk, 'f_d', /^track$/)) === j(['track: Dots, boxes or a clock need a Min and a Max, or an Out of. Until one is set, the sheet shows a plain box.']) && said(rTk, 'f_r').length === 0 && said(rTk, 'f_o').length === 0
+            && S.trackMarks(S.fieldById(cleanSystem({ v: 1, name: 'D', fields: [{ id: 'f_e', key: 'E', kind: 'number', track: { shape: 'boxes', each: true } }] }, { F, gmView: true }), 'f_e'), {}) === 0;
+        check('1.6.3 a number shown as a track needs something to count (refreshErrors, run for real): boxes marked one by one with no Out of, and dots with no Min and Max and no Out of, are said under Out of, since the sheet then draws a plain box; a range or an Out of says nothing',
+            tkOk, j([said(rTk, 'f_e'), said(rTk, 'f_d'), said(rTk, 'f_r'), said(rTk, 'f_o')]));
+        // a choice's options and its default
+        const rSel = runQ([{ id: 'f_s0', key: 'S0', label: 'S0', kind: 'select', options: [] }, { id: 'f_s1', key: 'S1', label: 'S1', kind: 'select', options: ['Fighter', 'Rogue'], def: 'Rouge' }, { id: 'f_s2', key: 'S2', label: 'S2', kind: 'select', options: ['Fighter', 'Rogue'], def: ' rogue' }, { id: 'f_s3', key: 'S3', label: 'S3', kind: 'select', options: ['Fighter', 'Rogue'], def: '' }, { id: 'f_s4', key: 'S4', label: 'S4', kind: 'select', options: ['Fighter', 'Rogue'], def: 'Rogue' }]);
+        const selOk = j(said(rSel, 'f_s0')) === j(['options: A choice needs at least one option. Type them in Options, separated by commas.'])
+            && j(said(rSel, 'f_s1')) === j(['def: \u201cRouge\u201d is not one of the options, so Save starts it on the first.']) && j(said(rSel, 'f_s2')) === j(['def: Write it as \u201cRogue\u201d, or Save starts it on the first option.'])
+            && said(rSel, 'f_s3').length === 0 && said(rSel, 'f_s4').length === 0 && S.fieldById(cleanSystem({ v: 1, name: 'D', fields: [{ id: 'f_s1', key: 'S1', kind: 'select', options: ['Fighter', 'Rogue'], def: 'Rouge' }] }, { F, gmView: true }), 'f_s1').def === 'Fighter';
+        check('1.6.3 a choice needs its options, and its default must be one of them (refreshErrors, run for real): no options is said under Options, a default that is no option under Default option, one in another case or with spaces told how to write it, and an empty or matching default says nothing',
+            selOk, j([said(rSel, 'f_s0'), said(rSel, 'f_s1'), said(rSel, 'f_s2'), said(rSel, 'f_s3'), said(rSel, 'f_s4')]));
+        // a field with no name, which Save drops whole
+        const rNm = runQ([{ id: 'f_n0', key: '', label: '', kind: 'number', formula: 'x' }, { id: 'f_n1', key: '', label: '\u0421\u0438\u043b\u0430', kind: 'number' }, { id: 'f_n2', key: 'Str', label: 'Strength', kind: 'number' }, { id: 'f_n3', key: '', label: '', kind: 'number' }]);
+        const nmOk = j(said(rNm, 'f_n0')) === j(['label: Give it a name, or Save drops this field.']) && j(said(rNm, 'f_n3')) === j(['label: Give it a name, or Save drops this field.'])
+            && j(said(rNm, 'f_n1')) === j(['label: Its name makes no short name, so Save drops this field. Name it in letters, or tick Short names below and type one.']) && said(rNm, 'f_n2').length === 0;
+        check('1.6.3 a field needs a name (refreshErrors, run for real): one with no name is said under its Label, every bare row alike and never as two fields sharing a key, one whose name makes no short name says so, and a named field says nothing',
+            nmOk, j([said(rNm, 'f_n0'), said(rNm, 'f_n1'), said(rNm, 'f_n2'), said(rNm, 'f_n3')]));
+        // the adders start a field and a list named, and Shows as: boxes marked one by one starts at 4 (the real lines of sysedtabs.js)
+        const tabsQ = kit.part('sysedtabs.js').replace(/\r\n/g, NL), layQ = kit.part('sysedlayout.js').replace(/\r\n/g, NL);
+        const lineQ = (src, a) => { const i = src.indexOf(a); if (i < 0 || src.indexOf(a, i + 1) >= 0) throw new Error('1.6.3 line: ' + a); return src.slice(i, src.indexOf(NL, i)); };
+        const keySrc = layQ.slice(layQ.indexOf('var _keyAuto = new WeakSet();'), layQ.indexOf('function arrSet('));
+        const addQ = (id, dr) => { const box = { focused: 0, selected: 0, focus() { this.focused++; }, select() { this.selected++; } }, row = { querySelector: () => box, scrollIntoView() {} };
+            const api = new Function('b', 'draft', 'LIMITS', 'toast', 'uid', 'markDirty', 'renderAll', 'ui', 'validKey', 'F', 'window', keySrc + NL + '(function() {' + lineQ(tabsQ, "    if (b.id === '" + id + "') {") + NL + '})(); return { keyFollows: keyFollows };')({ id }, dr, S.LIMITS, () => {}, p => p + 'new' + dr.fields.length, () => {}, () => {}, () => ({ lastElementChild: row, querySelector: () => box }), S.validKey, () => F, {});
+            return { box, api }; };
+        const drA = { fields: [{ id: 'f_old', key: 'NewField', label: 'Old' }] }, aF = addQ('sysAddField', drA), nf = drA.fields[1];
+        const nfKey0 = nf.key; nf.label = 'Strength'; aF.api.keyFollows(nf, { closest: () => null });
+        const drL = { fields: [] }, aL = addQ('sysAddList', drL), nl = drL.fields[0];
+        const shapeQ = lineQ(tabsQ, "        else if (c.indexOf('sys-trackshape') >= 0) {").replace(/^\s*else /, '');
+        const pickQ = (f, v) => { new Function('c', 't', 'f', 'markDirty', 'renderAll', '(function() {' + shapeQ + NL + '})();')('sys-trackshape', { value: v }, f, () => {}, () => {}); return f.track; };
+        const tEach = pickQ({ kind: 'number' }, 'each'), tKeep = pickQ({ kind: 'number', track: { shape: 'dots', of: '6' } }, 'each'), tDots = pickQ({ kind: 'number' }, 'dots');
+        check('1.6.3 the required boxes start filled (the real adders and Shows as handler of sysedtabs.js): + Field starts as New field with a short name of its own that follows the name as it is typed, and its name selected, + New list starts as New list, and boxes marked one by one start Out of 4 where none was set, keeping one that was',
+            nf.label === 'Strength' && nfKey0 === 'NewField2' && nf.key === 'Strength' && aF.box.focused === 1 && aF.box.selected === 1 && nl.label === 'New list' && nl.key === 'NewList' && aL.box.selected === 1
+            && j(tEach) === j({ shape: 'boxes', each: true, of: '4' }) && j(tKeep) === j({ shape: 'boxes', each: true, of: '6' }) && j(tDots) === j({ shape: 'dots' })
+            && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("[/^override\\.when$/, ['sys-ovr-when']], [/^override\\.value$/, ['sys-ovr-value']], [/^fill\\.(\\d+)$/, ['sys-tfill-f']], [/^fillTo\\.(\\d+)$/, ['sys-tfill-to']], [/^options$/, ['sys-options']], [/^def$/, ['sys-def-text']]"),
+            j([nf, nfKey0, aF.box, nl, aL.box, tEach, tKeep, tDots]));
+    }
     await T.finish();
 })();

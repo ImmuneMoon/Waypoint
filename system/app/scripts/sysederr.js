@@ -123,7 +123,10 @@ function refreshErrors() {
     var seenKey = Object.create(null);
     draft.fields.forEach(function(f) {
         var errs = [];
-        if ((f.key || f.label) && !validKey(f.key || '', F())) errs.push({ prop: 'key', message: !f.key ? 'A key is needed.' : 'Not a usable key: letters, digits, _ and dots; no spaces; not a function, reserved word or dice.' });
+        // 1.6.3 (Fulllion's rulings of 2026-11-20: a box other boxes depend on is required): a field with no short name is dropped whole at Save, with
+        // everything typed in its other boxes, so its name is said to be needed under the Label box (the short name follows the name and stays out of sight)
+        if (!f.key) errs.push({ prop: 'label', message: typeof f.label === 'string' && f.label.trim() ? 'Its name makes no short name, so Save drops this field. Name it in letters, or tick Short names below and type one.' : 'Give it a name, or Save drops this field.' });
+        else if (!validKey(f.key, F())) errs.push({ prop: 'key', message: 'Not a usable key: letters, digits, _ and dots; no spaces; not a function, reserved word or dice.' });
         else { var l = String(f.key).toLowerCase(); if (seenKey[l]) errs.push({ prop: 'key', message: 'Another field has this key.' }); seenKey[l] = 1; }
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
         if (errs.length) errorsById[f.id] = errs;
@@ -154,6 +157,65 @@ function refreshErrors() {
         if (f.kind === 'formula' || f.kind === 'item-list' || f.kind === 'effects') say = 'Only a field someone types in can be locked, so Save drops Locked while.';
         else if (typeof cleanFieldLock === 'function' && !cleanFieldLock(lk, F())) { var pk = null; try { pk = F().parse(typeof cleanFormulaText === 'function' ? (cleanFormulaText(t) || t) : t); } catch (er) { pk = null; } say = (pk && pk.ok ? 'Locked while rolls dice' : 'Locked while is no test Save can keep') + ', so Save drops it. The field is then never locked.'; }
         if (say) (errorsById[f.id] = errorsById[f.id] || []).push({ prop: 'lock', message: say });
+    });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", and "none isn't a good
+    // default substitution"): the boxes of a field that other boxes of it depend on, read as the cleaner in systemcore reads the field, so what Save
+    // would drop, or what the sheet would never draw, is said under the row. Nothing here holds Save, and the cleaner keeps what it always kept.
+    // Each line names the box it is about (sysui.js PROP_BOX turns the word into that box), so a press on it in the foot's list lands there
+    draft.fields.forEach(function(f) {
+        if (!f || typeof f !== 'object' || typeof f.id !== 'string') return;
+        var err = function(prop, message) { (errorsById[f.id] = errorsById[f.id] || []).push({ prop: prop, message: message }); };
+        var trimmed = function(v) { return typeof v === 'string' ? v.trim() : ''; };
+        // A number taken from a formula keeps the two formulas only together: one alone is dropped, and the GM's formula with it
+        if (f.kind === 'number' && f.override && typeof f.override === 'object') {
+            var ovV = trimmed(f.override.value), ovW = trimmed(f.override.when);
+            if (ovV && !ovW) err('override.when', 'Taken from needs a While. Until one is written, Save drops Taken from and the number is what is typed.');
+            else if (ovW && !ovV) err('override.value', 'While needs a Taken from. Until one is written, Save drops While.');
+            else if (ovV && ovW && typeof cleanFormulaText === 'function' && (!cleanFormulaText(ovV) || !cleanFormulaText(ovW))) err(cleanFormulaText(ovV) ? 'override.when' : 'override.value', 'Taken from and While must each be a formula Save can keep, so Save drops both.');
+        }
+        // Worked out until typed and Typing it fills stand only on a number, a toggle, or a text read as a height or a weight (the cleaner's own test)
+        var hasAuto = !!trimmed(f.auto) || (Array.isArray(f.fills) && f.fills.length > 0);
+        var measured = f.kind === 'text' && (typeof cleanFieldUnit === 'function' ? !!cleanFieldUnit(f.unit, 'text') : (f.unit === 'height' || f.unit === 'weight'));
+        var autoOk = f.kind === 'number' || f.kind === 'toggle' || measured;
+        if (hasAuto && !autoOk) {
+            if (f.kind === 'text') err('unit', 'Worked out until typed and Typing it fills need Unit: height or weight, so Save drops them.');
+            else err('kind', 'Only a number, a toggle, or a text with Unit: height or weight is worked out until typed, so Save drops Worked out until typed and Typing it fills.');
+        }
+        // Each line of Typing it fills needs the field it fills and what it writes there. Save drops a line with either missing, as it drops a second
+        // line for a field already filled (only a line Save keeps counts as filling it)
+        if (autoOk && Array.isArray(f.fills)) {
+            var filled = Object.create(null);
+            f.fills.forEach(function(x, i) {
+                if (!x || typeof x !== 'object') return;
+                var to = typeof x.f === 'string' ? x.f : '', raw = trimmed(x.formula);
+                if (!to) { err('fillTo.' + i, 'Typing it fills: pick the field it fills, or Save drops this line.'); return; }
+                if (filled[to]) { err('fillTo.' + i, 'Another line already fills this field, so Save drops this one.'); return; }
+                if (!raw) { err('fill.' + i, 'Typing it fills: write what it writes there, or Save drops this line.'); return; }
+                var ft = typeof cleanFormulaText === 'function' ? cleanFormulaText(raw) : raw, pf = null; try { pf = ft ? F().parse(ft) : null; } catch (er) { pf = null; }
+                if (!pf || !pf.ok || !pf.ast) { err('fill.' + i, 'Typing it fills: what it writes is no figure Save can keep, so Save drops this line.'); return; }
+                if (typeof hasDice === 'function' && hasDice(pf.ast.body)) { err('fill.' + i, 'Typing it fills: what it writes rolls dice, so Save drops this line.'); return; }
+                filled[to] = 1;   // a field that is gone, or no longer one a fill writes, the validator says itself
+            });
+        }
+        // A number shown as dots, boxes or a clock counts its marks from Out of, else from its Min to its Max. Boxes marked one by one count only
+        // from Out of. With nothing to count, the sheet draws its plain box (a track is never kept beside value names or a slider)
+        var tk = f.track && typeof f.track === 'object' ? f.track : null;
+        if (tk && f.kind === 'number' && !(Array.isArray(f.labels) && f.labels.some(function(x) { return !!trimmed(x); })) && !f.slider && !trimmed(tk.of)) {
+            var hasNum = function(v) { return typeof v === 'number' && isFinite(v); };
+            if (tk.each === true) err('track', 'Boxes marked one by one need Out of: how many boxes. Until it is filled in, the sheet shows a plain box.');
+            else if (!hasNum(f.min) || !hasNum(f.max)) err('track', 'Dots, boxes or a clock need a Min and a Max, or an Out of. Until one is set, the sheet shows a plain box.');
+        }
+        // A choice needs its options, and its default must be one of them as the cleaner keeps them (cut to an option's length, trimmed, once each)
+        if (f.kind === 'select') {
+            var seenO = Object.create(null), opts = [], cap = LIMITS.optionChars || 60;
+            (Array.isArray(f.options) ? f.options : []).forEach(function(o) { if (typeof o !== 'string') return; o = o.slice(0, cap).replace(/[\u0000-\u001f\u007f]/g, '').trim(); if (!o || seenO[o.toLowerCase()]) return; seenO[o.toLowerCase()] = 1; opts.push(o); });
+            var d = typeof f.def === 'string' ? f.def : '', loose = function(s) { return s.toLowerCase().replace(/\s+/g, ' ').trim(); };
+            if (!opts.length) err('options', 'A choice needs at least one option. Type them in Options, separated by commas.');
+            else if (d && opts.indexOf(d) < 0) {
+                var near = opts.filter(function(o) { return loose(o) === loose(d); })[0];
+                err('def', near ? 'Write it as \u201c' + near + '\u201d, or Save starts it on the first option.' : '\u201c' + d.trim() + '\u201d is not one of the options, so Save starts it on the first.');
+            }
+        }
     });
     draft.fields.forEach(function(f) {   // 1.6.0: a pool down to minus its max, as the cleaner reads it
         if (!f || f.minNeg !== true) return;

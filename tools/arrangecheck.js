@@ -146,7 +146,8 @@ const R = 1;
     check('it follows the label, and the box shows it', k1st === 'Speed' && fA.key === 'SpeedRun' && kb.value === 'SpeedRun');
     kit.auto.delete(fA); fA.label = 'Other words'; kit.keyFollows(fA, tBox);
     check('a key typed by hand stands', fA.key === 'SpeedRun');
-    check('typing in the key box ends it, and a new row says nothing until something is typed', /f\.key = t\.value\.trim\(\); _keyAuto\.delete\(f\);/.test(require('./checkkit').part('sysedtabs.js')) && /if \(\(f\.key \|\| f\.label\) && !validKey\(f\.key \|\| '', F\(\)\)\)/.test(require('./checkkit').part('sysederr.js')));
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): moved on purpose. A new row starts named (New field), so it is never bare, and a name emptied is said under Label
+    check('typing in the key box ends it, a new row starts named, and a row with no name is said to be dropped', /f\.key = t\.value\.trim\(\); _keyAuto\.delete\(f\);/.test(require('./checkkit').part('sysedtabs.js')) && require('./checkkit').part('sysederr.js').includes("'Give it a name, or Save drops this field.'") && require('./checkkit').part('sysedtabs.js').includes("label: 'New field', kind: 'number'"));
     check('an empty system says what a field is', /A field is one thing on a sheet: a number, a pool such as hit points, a choice or a list of gear\./.test(require('./checkkit').part('sysedtabs.js')));
     const prev = { fields: [{ id: 'f_m', key: 'Mods', kind: 'item-list', list: { stats: [{ key: 'Slot', kind: 'pick', opts: [{ label: 'Overlay' }, { label: 'Rig' }] }] } }, { id: 'f_h', key: 'Host', kind: 'item-list', list: { parts: { from: 'f_m', caps: [{ slot: 'Slot', is: 'Overlay', by: 'N' }, { slot: 'Slot', is: ['Overlay', 'Rig'], by: 'N' }, { slot: 'Other', is: 'Overlay', by: 'N' }] } } }] };
     const next = JSON.parse(j(prev)); next.fields[0].list.stats[0].opts[0].label = 'Plate';
@@ -155,7 +156,8 @@ const R = 1;
     check('a line of Holds by kind follows a value renamed in its parts\' list, alone or among several, and a line of another stat stays', lines[0].is === 'Plate' && j(lines[1].is) === '["Plate","Rig"]' && lines[2].is === 'Overlay', j(lines));
     const ixP = readU('index.html'), sbP = readU('scripts/sidebar.js');
     check('the empty sections say press +, and a + is in sight on each, pressing the control that makes one', ['newDocBtn', 'newPlannerBtn', 'newMapSidebarBtn'].every(id => ixP.includes('section-plus" data-press="' + id + '"') && ixP.split('id="' + id + '"').length === 2) && sbP.includes("querySelectorAll('.section-plus')") && sbP.includes('document.getElementById(b.dataset.press)'));
-    check('+ Field puts the cursor in Label, and a key with no label is a name', require('./checkkit').part('sysedtabs.js').includes("var k = last.querySelector('input.sys-label'); if (k) k.focus();") && readU('scripts/sysui.js').includes("nm = r.name || r.key || 'No name yet';"));
+    // 1.6.3: moved on purpose. The new name is selected too, so what is typed replaces it
+    check('+ Field puts the cursor in Label, and a key with no label is a name', require('./checkkit').part('sysedtabs.js').includes("var k = last.querySelector('input.sys-label'); if (k) { k.focus(); if (k.select) k.select(); }") && readU('scripts/sysui.js').includes("nm = r.name || r.key || 'No name yet';"));
     check('the Reader mark stands aside where there is no reader and no mark', require('./checkkit').part('sysedbox.js').includes('mkR.hidden = !draft.mark && !sysReaders();'));
     const su = readU('scripts/sysui.js');
     check('a time rule\'s unit with no number beside it sets nothing, so its group is not in use', /hasClass\(n, 'sys-roll-evu'\)[^\n]*\.sys-roll-evn[^\n]*!every\.value\) return false/.test(su));

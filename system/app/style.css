@@ -4520,7 +4520,8 @@
   .sheet-fx-left { font-size: 11px; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }   /* turn-based combat T5a: what a timed effect has left */
   .chat-due .chat-due-run { margin-top: 4px; padding: 2px 12px; }   /* turn-based combat T2b: a reminder's Run */
   .chat-due .chat-due-note { margin-top: 2px; color: var(--dim); font-size: 11.5px; }
-  .chat-due .chat-due-what { white-space: normal; overflow: visible; }   /* the live test, 2026-10-30: a Due card's line is read whole, never cut off with dots */
+  .chat-due .chat-due-what { white-space: normal; overflow: visible; }
+  .chat-due .chat-due-what, .chat-help .chat-help-what, .chat-apply > .roll-expr { font-family: inherit; }   /* 1.6.3 (found by hand on 2026-11-20): a reminder's, a help card's and an apply card's line holds words (what is due, what was applied), not a formula, so it is set in the app's own text font; .roll-expr keeps its code font for a typed roll's formula alone */   /* the live test, 2026-10-30: a Due card's line is read whole, never cut off with dots */
   .chat-due-spent .chat-due-run { opacity: .55; }   /* none left to pay for it: the host would refuse the press */
   .combat-strip-btn.combat-strip-endturn, .notepad-btn.sheet-endturn { width: auto; padding: 0 8px; font-size: 11.5px; font-weight: 600; color: var(--gold); white-space: nowrap; }   /* turn-based combat T2: End turn */
   .sys-turn .sys-combat-item, .sys-turn .sys-turn-add { align-self: flex-start; }
@@ -5222,6 +5223,7 @@
   #popoutBody.sheet-view { max-width: 720px; margin: 0 auto; width: 100%; box-sizing: border-box; padding: 18px 22px 48px; display: flex; flex-direction: column; gap: 10px; }
   #sheetPanel .field, #sysLayoutPreview .field, #popoutBody.sheet-view .field, #sheetPrint .field { margin-bottom: 0; }   /* the sheet uses grid gaps for spacing; the base .field margin shifted inputs off the −/+ baseline */
   .sheet-num { width: 64px; }
+  :is(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint) input.sheet-num { min-width: calc(3ch + 16px); }   /* 1.6.3 (found by hand on 2026-11-20): on the sheet a number box never shrinks under three digits and its padding (a narrow panel cut a Might of 10 to "1"); the ids win over every narrower width of a counter or a column, and the HUD, which is none of these places, keeps its own sizes */
   .sheet-field:not(.sheet-tile) > .sheet-ctl > input.field.sheet-num:has(+ .sheet-total) { width: 64px; flex: 0 0 auto; }   /* 1.6.0 (the owner, 2026-10-28, of a skill’s row: "whats with all the blank space here?"): a box with its total after it keeps the 64 px .sheet-num means, which input.field’s 100% outranked, so the total stands beside it */
   .sheet-band .sheet-field:not(.sheet-tile) > .sheet-ctl > input.field.sheet-num:has(+ .sheet-total) { width: 56px; }
   .sheet-ctl .sheet-cur { width: 46px; height: 28px; flex: 0 0 auto; text-align: center; box-sizing: border-box; }   /* the resource current value: a compact, roughly square box between − and + */
@@ -5369,6 +5371,8 @@
   .sheet-fx-name { font-weight: 600; }
   .sheet-fx-tone { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
   .sheet-fx-dur { font-size: 11px; color: var(--dim); font-style: italic; }
+  .sheet-fx-cards .sheet-fx-auto > .sheet-fx-autotag { margin-left: 6px; }   /* 1.6.3 (found by hand on 2026-11-20): in the card look an automatic effect's row is a block, not a row with a gap, so its name ran straight into its AUTOMATIC tag */
+  .sheet-fx-cards .sheet-fx-auto > .sheet-fx-icon { margin-right: 5px; }
   .sheet-fx-autotag { font-size: 9px; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; }   /* conditions C4: an automatic effect's row */
   .sheet-fx-rm { margin-left: auto; }
   .sheet-fx-mods { flex: 1 1 100%; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
@@ -5858,6 +5862,8 @@
   .sheet-stance.sheet-row { grid-column: 1 / -1; }
   .sheet-stance-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .sheet-stance-row > .sheet-label { min-width: 64px; }
+  .sheet-stance-row:has(> input.sheet-num) { flex-wrap: nowrap; }   /* 1.6.3 (found by hand on 2026-11-20): the Elevation row keeps its label, minus, box, plus and unit on one line; its box took the whole width (input.field is 100%) and pushed them onto three lines in a HUD */
+  .sheet-stance-row > input.sheet-num { flex: 0 1 4.5em; width: 4.5em; min-width: 3em; text-align: center; }
   .sheet-dial.sheet-row { grid-column: 1 / -1; }
   .sheet-dial-svg { width: 132px; height: 132px; flex: none; }
   .sheet-dial-svg:focus-visible, .sheet-dial-seg:focus-visible { outline: 2px solid var(--sheet-accent, var(--gold)); outline-offset: 1px; }

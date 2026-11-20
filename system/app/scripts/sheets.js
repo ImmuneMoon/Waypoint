@@ -2178,6 +2178,22 @@ function renderSheetInto(container, charId, camp) {
     syncFramePad(container);   // measured in the look's own font
     return { title: c.name || 'Character' };
 }
+// [hudcheck:popkeep-start]
+// 1.6.3 (found by hand on 2026-11-20): a sheet in a window of its own (popout.js tickSheet) is drawn again whenever the main window sends it
+// anew, and after a pick in + Add effect the focus fell from the search to the page, where the next arrow key could move a selected token.
+// What popout.js asks for under wpSheets.renderSheetInto is this, which keeps the focus as the panel's and a HUD's redraws do: focusKeyOf
+// notes the control that holds it before the draw, and restoreFocus finds the same control in the new view after it (fxAddFind gives its
+// search box and list a field id and parts of their own, which is what is found). It stands apart from renderSheetInto on purpose, since a
+// sysedcheck pin holds the length of renderSheetInto before its buildSections call. The view is marked as this character's first, so a
+// figure typed and not yet stored comes back only into the same character's view, as on the panel.
+function renderSheetIntoKept(container, charId, camp) {
+    if (!container || typeof focusKeyOf !== 'function' || typeof restoreFocus !== 'function') return renderSheetInto(container, charId, camp);
+    container._wpFor = charId;
+    var fk = focusKeyOf(container), r = renderSheetInto(container, charId, camp);
+    restoreFocus(container, fk);
+    return r;
+}
+// [hudcheck:popkeep-end]
 // [systemcheck:hud-start]
 /* ---------- the HUD (Stage 6 HUD frame, HF2a): a second window per character, drawn from the system's HUD layout (sys.sheet.hud, through
    hudView) by the same section renderer as the sheet — the reference's Tactical HUD made generic. One window per character, several at
@@ -8717,7 +8733,7 @@ window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, re
     keptKey: keptKey, keptForget: keptForget, goneFire: goneFire,   // 1.6.3: a character's content key (net.js fxbOf hands it to tokenEffectsPass) and a used-up row's Undo on a delta that draws nothing (findings 2 and 23)
     charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
-    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetInto, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
+    openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetIntoKept, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by
 Object.assign(window.wpSheets, { facingTarget: facingTarget, dueBlock: dueBlock, takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext, durWord: dmgDurWord });   // 1.5.6, the damage step; 1.6.3: a weapon's durability in the system's words (net.js thruNote)
 Object.assign(window.wpSheets, { glyphButton: glyphButton, closeGlyphPicker: closeGlyphPicker });   // 1.6.3 (the editor coverage audit, gap 10): the Library window's Icon is picked by sight with the Items tab's own picker

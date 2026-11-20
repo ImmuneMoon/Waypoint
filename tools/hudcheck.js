@@ -220,6 +220,40 @@ const j = v => JSON.stringify(v);
             && /\nfunction dialSigFor\(charId, camp\) \{ var c = charById\(charId, camp\); return c \? dialSigOf\(c, camp\) : ''; \}/.test(sh2) && /tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, /.test(sh2) && /, typeof unitSig === 'function' \? unitSig\(\) : ''\]\.join\('#'\);   \/\/ 1\.5\.4: the viewer's Measurement system/.test(sh2)
             && /fc \? fc\.deg \+ '\|' \+ fc\.sides \+ '\|' \+ fc\.threats\.join\(','\) : '', st \? st\.posture \+ '\|' \+ st\.elevation : ''/.test(sh2),
             j({ popR, popOld, slice: tickSrc.length }));
+        // 1.6.3, found by hand on 2026-11-20: a sheet in a window of its own kept the focus nowhere after a pick in + Add effect, since
+        // popout.js tickSheet draws it again and nothing kept the focus. What it asks for under wpSheets.renderSheetInto is renderSheetIntoKept
+        // (sliced by its popkeep markers and run for real with the real focusKeyOf and restoreFocus on a page of plain objects): the search box
+        // that held the focus before the draw holds it in the new view after it, the view is marked as the character's, the draw's answer is
+        // handed back, and with no container the draw is asked as before
+        const fkLine = sh2.slice(sh2.indexOf('\nfunction focusKeyOf(root) {') + 1, sh2.indexOf('\n', sh2.indexOf('\nfunction focusKeyOf(root) {') + 1));
+        const rfLine = sh2.slice(sh2.indexOf('\nfunction restoreFocus(root, k) {') + 1, sh2.indexOf('\n', sh2.indexOf('\nfunction restoreFocus(root, k) {') + 1));
+        const pkA = sh2.indexOf('// [hudcheck:popkeep-start]'), pkZ = sh2.indexOf('// [hudcheck:popkeep-end]'), pkSrc = pkA > 0 && pkZ > pkA ? sh2.slice(pkA, pkZ) : '';
+        const pkDoc = { activeElement: null }, pkDraws = [];
+        const pkInput = id => { const o = { id, dataset: { fid: 'f_fx', part: 'fx-addq' }, selectionStart: 0, selectionEnd: 0, closest: () => null, getAttribute: () => null, focus() { pkDoc.activeElement = o; } }; return o; };
+        const pkBox = { kids: [], contains(x) { return this.kids.indexOf(x) >= 0; }, querySelector(sel) { const m = /^\[data-fid="([^"]+)"\](?:\[data-part="([^"]+)"\])?/.exec(sel); return m ? this.kids.find(k => k.dataset.fid === m[1] && (!m[2] || k.dataset.part === m[2])) || null : null; } };
+        const pkOld = pkInput('old'); pkBox.kids = [pkOld]; pkDoc.activeElement = pkOld;
+        const pkDraw = (cont, charId, camp) => { pkDraws.push([cont === pkBox, charId, camp]); if (cont) cont.kids = [pkInput('new')]; return { title: 'Bren' }; };
+        let pkKept = null, pkRes = null, pkNone = null;
+        try {
+            pkKept = new Function('document', 'renderSheetInto', 'PIN_GID', 'typedBack', fkLine + '\n' + rfLine + '\n' + pkSrc + '\nreturn renderSheetIntoKept;')(pkDoc, pkDraw, /^g_/, () => {});
+            pkRes = pkKept(pkBox, 'c_a', 'k1'); pkNone = pkKept(null, 'c_b', 'k1');
+        } catch (e) { pkRes = String(e); }
+        const poK = fs.readFileSync(path.join(app, 'scripts', 'popout.js'), 'latin1');
+        check('1.6.3 (found by hand on 2026-11-20): a sheet in a window of its own keeps the focus in + Add effect\'s search over the redraw a pick makes (sheets.js renderSheetIntoKept, sliced and run for real with focusKeyOf and restoreFocus on a page of plain objects): the new view\'s search holds it, the view is marked as the character\'s, the draw\'s answer is handed back, no container draws as before; it is what wpSheets publishes as renderSheetInto, which popout.js tickSheet asks',
+            !!pkKept && j(pkRes) === j({ title: 'Bren' }) && pkDoc.activeElement && pkDoc.activeElement.id === 'new' && pkBox._wpFor === 'c_a' && j(pkDraws) === j([[true, 'c_a', 'k1'], [false, 'c_b', 'k1']]) && j(pkNone) === j({ title: 'Bren' })
+            && /renderSheetInto: renderSheetIntoKept,/.test(sh2) && /WS\.renderSheetInto\(body, charId, camp\)/.test(poK),
+            j({ pkRes, active: pkDoc.activeElement && pkDoc.activeElement.id, draws: pkDraws, slice: pkSrc.length }));
+        // 1.6.3, found by hand on 2026-11-20, four looks read from the style sheet: an automatic effect's name stands apart from its AUTOMATIC
+        // tag in the card look (a row there is a block, with no gap); a reminder's, a help card's and an apply card's line of words is set in
+        // the app's own text font, never the code font a formula wears; the Elevation row keeps its label, minus, box, plus and unit on one
+        // line, its box a few figures wide; and on the sheet (the panel, the Layout preview, a window of its own, a print) a number box never
+        // shrinks under three digits, while the HUD, which is none of those places, keeps its own sizes
+        const lk1 = /\n  \.sheet-fx-cards \.sheet-fx-auto > \.sheet-fx-autotag \{ margin-left: 6px; \}/.test(css2) && /\n  \.sheet-fx-cards \.sheet-fx-auto > \.sheet-fx-icon \{ margin-right: 5px; \}/.test(css2);
+        const lk2 = /\n  \.chat-due \.chat-due-what, \.chat-help \.chat-help-what, \.chat-apply > \.roll-expr \{ font-family: inherit; \}/.test(css2) && /\n  \.roll-expr \{ font-family: ui-monospace/.test(css2);
+        const lk3 = /\n  \.sheet-stance-row:has\(> input\.sheet-num\) \{ flex-wrap: nowrap; \}/.test(css2) && /\n  \.sheet-stance-row > input\.sheet-num \{ flex: 0 1 4\.5em; width: 4\.5em; min-width: 3em; text-align: center; \}/.test(css2);
+        const lk4m = /\n  ([^\n{]*) input\.sheet-num \{ min-width: calc\(3ch \+ 16px\); \}/.exec(css2), lk4 = !!lk4m && lk4m[1] === ':is(#sheetPanel, #sysLayoutPreview, #popoutBody.sheet-view, #sheetPrint)' && !/hud/i.test(lk4m[1]);
+        check('1.6.3 (found by hand on 2026-11-20), the style sheet: an automatic effect\'s name and icon stand apart from its AUTOMATIC tag in the card look; a reminder\'s, a help card\'s and an apply card\'s words are in the app\'s own text font, the formula line keeping its code font; the Elevation row stays on one line with a box a few figures wide; a number box on the sheet is never under three digits wide, by a rule that names no HUD',
+            lk1 && lk2 && lk3 && lk4, j({ lk1, lk2, lk3, lk4, sel: lk4m && lk4m[1] }));
         // renderViews, run for real
         const rvSrc = sh2.slice(sh2.indexOf('function renderViews(charId, skip) {'), sh2.indexOf('// A token turned (tokenTurned)'));
         const painted = [], sb = { n: 'sheetBody' }, hb1 = { n: 'b1' }, hb2 = { n: 'b2' }, hudsV = Object.create(null); hudsV.c_a = { body: hb1 }; hudsV.c_b = { body: hb2 };

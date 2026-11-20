@@ -1019,7 +1019,7 @@ function onChange(e) {
     var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r;
     if (f) {
-        if (c.indexOf('sys-kind') >= 0) { f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; if (f.unit === 'height' || f.unit === 'weight' ? f.kind !== 'text' : f.kind === 'text') delete f.unit; if (f.kind !== 'number' && f.kind !== 'formula' && f.kind !== 'skill') { delete f.unitShow; delete f.decMin; delete f.decMax; delete f.group; } if (f.kind !== 'formula' && f.kind !== 'resource') { delete f.round; delete f.roundTo; delete f.roundAt; } f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; markDirty(); renderAll(); return; }
+        if (c.indexOf('sys-kind') >= 0) { f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; if (f.unit === 'height' || f.unit === 'weight' ? f.kind !== 'text' : f.kind === 'text') delete f.unit; if (f.kind !== 'number' && f.kind !== 'formula' && f.kind !== 'skill') { delete f.unitShow; delete f.decMin; delete f.decMax; delete f.group; } if (f.kind !== 'formula' && f.kind !== 'resource') { delete f.round; delete f.roundTo; delete f.roundAt; } f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; if (f.kind === 'resource') hpPoolFill(f.id); markDirty(); renderAll(); return; }
         if (c.indexOf('sys-edit') >= 0) f.edit = t.value;
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
@@ -1320,9 +1320,18 @@ function starterSaved() {   // after Save: the waiting packs written, and said
     }).catch(function() { toast('The starter\u2019s packs could not be added.'); });
 }
 // [systemcheck:starters-end]
+// 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): Damage subtracts from (the Combat tab's hpResource) is required, since Full auto
+// blasts and the Take damage window take damage off it. So it starts filled: the first pool the draft gets fills it while it is empty (id, the field
+// just made a pool), and a starter that holds a pool and names none starts on its first pool (no id). A pick already made is never changed, and a
+// system as it was saved is never touched here. An empty one is said under the Taking damage box
+function hpPoolFill(id) {
+    if (!draft) return; var cm = draft.combat && typeof draft.combat === 'object' && !Array.isArray(draft.combat) ? draft.combat : null; if (cm && cm.hpResource) return;
+    var pool = id || ((draft.fields || []).filter(function(f) { return !!f && f.kind === 'resource' && typeof f.id === 'string' && !!f.id; })[0] || {}).id; if (!pool) return;
+    if (!cm) cm = draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; cm.hpResource = pool;
+}
 function startFrom(id) {
     if (!draft) return;
-    var apply = function(sys, packs) { draftSet(clone(sys)); draft.updated = 0; starterPacksSet(packs || null); ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };
+    var apply = function(sys, packs) { draftSet(clone(sys)); draft.updated = 0; hpPoolFill(''); starterPacksSet(packs || null); ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };
     var go = function() {
         if (id === 'blank') { apply(emptySystem()); return; }
         var st = starterOf(id);

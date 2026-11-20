@@ -899,6 +899,51 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 gap 1, the Combat tab’s Blast radius (sysedlist.js blastBox and onBlastInput, run for real): the box shows the live system’s stored radius, what is typed there reaches the draft trimmed and Save keeps it, an emptied box takes it away, and every box of BLAST_BOXES reaches the draft',
             !fqErr && !!radOut && J(radOut.drawn) === J([RAD, 'radius']) && radOut.took === true && radOut.stored === RAD && radOut.kept === RAD && radOut.cleared === J({})
             && radOut.every.length === 8 && radOut.every.every(e => e[1] === '2') && FQ.keys.indexOf('radius') >= 0, fqErr || J(radOut));
+        {   // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): the Blasts part's boxes that others depend on (sysedlist.js blastBox,
+            // onBlastInput and onBlastChange, run for real on a page of plain objects that finds its own boxes): the two lists that count beside Each
+            // victim's dice stand only beside it and say what Save drops, In the hand and Scatter on a miss say they need a Throw roll, and a kind of blow or
+            // a fragmentation type removed from Taking damage is said, never shown as its short name
+            let draftR = { combat: {} }, rendersR = 0, boxR = null;
+            const elR = (tag, cls, txt) => ({ tag: tag, className: cls || '', textContent: txt || '', title: '', kids: [], dataset: {}, appendChild(k) { this.kids.push(k); return k; },
+                querySelectorAll(sel) { const c = sel.replace(/^\./, ''); return flatKids(this).filter(k => typeof k.className === 'string' && k.className.split(' ').indexOf(c) >= 0); }, querySelector(sel) { return this.querySelectorAll(sel)[0] || null; } });
+            const inpR = (cls, v, title, ph) => { const i = elR('input', cls); i.value = v; i.title = title; i.placeholder = ph; return i; };
+            const selR = (cls, cap, opts, val, title) => { const l = elR('label', 'sys-combat-item'), s = elR('select', cls); s.value = val; s.opts = opts; l.appendChild(s); l.sel = { cls: cls, cap: cap, opts: opts, val: val }; return l; };
+            let FR = null, frErr = '';
+            try {
+                FR = new Function('el', 'input', 'lineUnder', 'labeledSelect', 'ui', 'F', 'markDirty', 'getDraft', 'window', 'LIMITS', 'renderCombat', "'use strict';" + NLx + 'var draft = getDraft();' + NLx + bbSrcQ + NLx
+                    + 'return { box: blastBox, input: function(t) { draft = getDraft(); return onBlastInput(t); }, change: function(t) { draft = getDraft(); return onBlastChange(t); }, KIND: BLAST_KIND_GONE, TYPE: FRAG_TYPE_GONE };')(
+                    elR, inpR, () => {}, selR, () => boxR, () => F, () => {}, () => draftR, { wpSystemCore: S }, LIMITS, () => { rendersR++; });
+            } catch (e) { frErr = String(e); }
+            const drawR = cm => { const b = elR('div'); FR.box(b, cm); return b; }, lineR = (b, k, at) => { const e = flatKids(b).filter(x => x.className === 'sys-blast-err' && x.dataset[at || 'bk'] === k)[0]; return e ? e.textContent : null; };
+            const eachSel = b => [byCls(b, 'sys-combat-beachadd').length, byCls(b, 'sys-combat-beachby').length];
+            let out = null;
+            if (FR) {
+                const b0 = drawR({ blast: {} }), bE = drawR({ blast: { each: 'BlastDice - floor(BlastDistance)' } }), bBy = drawR({ blast: { eachBy: 'victim' } }), bBoth = drawR({ blast: { eachAdd: true, eachBy: 'victim' } }), bBad = drawR({ blast: { each: '3d6', eachBy: 'victim' } });
+                // a pick of the two lists follows to the line under Each victim's dice
+                draftR = { combat: { blast: { eachBy: 'victim', eachAdd: true } } }; boxR = drawR(draftR.combat); FR.change({ className: 'sys-combat-beachby', value: '' }); const lnAfter = lineR(boxR, 'each');
+                // leaving Each victim's dice draws the two lists in only where that changes
+                draftR = { combat: { blast: {} } }; boxR = drawR(draftR.combat); draftR.combat.blast.each = 'BlastDice'; const r0 = rendersR; FR.change({ className: 'sys-combat-beach field', value: 'BlastDice' }); const rIn = rendersR - r0;
+                boxR = drawR(draftR.combat); FR.change({ className: 'sys-combat-beach field', value: 'BlastDice' }); const rStay = rendersR - r0 - rIn;
+                // In the hand and Scatter on a miss need a Throw roll
+                const H = 'Natural >= 18', SC = 'min(Margin, ThrowDistance / 2)', R = '3d6 <= ThrowSkill + RangeMod', NEED = 'Counts only with a Throw roll. Fill Throw roll above.';
+                const bNoRoll = drawR({ blast: { hand: H, scatter: SC } }), bRoll = drawR({ blast: { hand: H, scatter: SC, roll: R } });
+                draftR = { combat: { blast: { hand: H, scatter: SC } } }; boxR = drawR(draftR.combat); FR.input({ className: 'sys-combat-broll field', value: R, dataset: { bk: 'roll' } }); const typed = [lineR(boxR, 'hand'), lineR(boxR, 'scatter')];
+                FR.input({ className: 'sys-combat-broll field', value: '', dataset: { bk: 'roll' } }); const emptied = [lineR(boxR, 'hand'), lineR(boxR, 'scatter')];
+                // a kind of blow and a fragmentation type gone from Taking damage
+                const dmgR = { kinds: [{ key: 'close', label: 'Close' }], types: [{ key: 'cut', label: 'Cutting' }] };
+                const bGone = drawR({ damage: dmgR, blast: { kind: 'gone', frag: { type: 'heat' } } }), bHeld = drawR({ damage: dmgR, blast: { kind: 'close', frag: { type: 'cut' } } });
+                const optOf = (b, cls, v) => { const s = byCls(b, cls)[0]; const o = s ? s.opts.filter(x => x[0] === v)[0] : null; return o ? o[1] : null; };
+                draftR = { combat: { damage: dmgR, blast: { kind: 'gone' } } }; const rK0 = rendersR; FR.change({ className: 'sys-combat-bkind', value: 'close' }); const rK = rendersR - rK0;
+                out = { e0: eachSel(b0), eE: eachSel(bE), eBy: eachSel(bBy), lE: [lineR(bE, 'each'), lineR(bBy, 'each'), lineR(bBoth, 'each'), lineR(bBad, 'each')], lnAfter: lnAfter, rIn: rIn, rStay: rStay,
+                    nr: [lineR(bNoRoll, 'hand'), lineR(bNoRoll, 'scatter'), lineR(bRoll, 'hand'), lineR(bRoll, 'scatter')], typed: typed, emptied: emptied, NEED: NEED,
+                    gone: [optOf(bGone, 'sys-combat-bkind', 'gone'), lineR(bGone, 'kind', 'gk'), optOf(bGone, 'sys-combat-fgtype', 'heat'), lineR(bGone, 'fragtype', 'gk')], held: [lineR(bHeld, 'kind', 'gk'), lineR(bHeld, 'fragtype', 'gk')], rK: rK };
+            }
+            const DROP1 = 'Save drops Each victim\u2019s dice rolled by until Each victim\u2019s dice holds a formula.', DROP2 = 'Save drops A die each victim loses and Each victim\u2019s dice rolled by until Each victim\u2019s dice holds a formula.';
+            check('1.6.3 the Blasts part’s boxes that others depend on (sysedlist.js blastBox, onBlastInput and onBlastChange, run for real): the two lists of Each victim’s dice stand only beside it or a pick of theirs, and while it is empty or does not clean its line names the picks Save drops, following each pick; leaving it draws them in only where that changes; In the hand and Scatter on a miss say they need a Throw roll until one is kept, and typing or emptying Throw roll says it again under both; a kind of blow or a fragmentation type gone from Taking damage is shown as gone and said under its list, a pick draws the box again',
+                !frErr && !!out && j(out.e0) === j([0, 0]) && j(out.eE) === j([1, 1]) && j(out.eBy) === j([1, 1]) && j(out.lE) === j(['', DROP1, DROP2, 'Save drops it: it may read only the blast\u2019s dice, its distance and its fill, and whether the hit was direct or at the center, with no dice.']) && out.lnAfter === 'Save drops A die each victim loses until Each victim\u2019s dice holds a formula.'
+                && out.rIn === 1 && out.rStay === 0 && j(out.nr) === j([out.NEED, out.NEED, '', '']) && j(out.typed) === j(['', '']) && j(out.emptied) === j([out.NEED, out.NEED])
+                && j(out.gone) === j(['A kind that is gone', FR.KIND, 'A type that is gone', FR.TYPE]) && j(out.held) === j(['', '']) && out.rK === 1, frErr || j(out));
+        }
         // gaps 2 and 3: the Lists tab's change rows (sysedlist.js listApplyEditor, with renderLists' own line of targets and sheets.js fxHolds), and the
         // input handler of the number an effect goes on with (sysedtabs.js onInput, its sys-list-applyfxn line)
         const laSrcQ = kit.cut('sysedlist.js', NLx + 'function listApplyEditor(box, rr, ri, key, sp, targets, row) {', NLx + '// [systemcheck:blastbox-start]');

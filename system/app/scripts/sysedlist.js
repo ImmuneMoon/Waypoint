@@ -797,6 +797,20 @@ function fragSays(v) {   // what Save does with Fragmentation reaches: '' where 
     var SCf = window.wpSystemCore; if (!v || !SCf || typeof SCf.cleanBlastRules !== 'function') return '';
     var c = SCf.cleanBlastRules({ frag: { reach: v } }, F()); return c && c.frag && c.frag.reach ? '' : 'Save drops it: it may read only the dice of the fragments and of the blast, with no dice.';
 }
+// 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): what a blast formula's line says beyond Save's reading of the formula itself, where it
+// depends on another box. A die each victim loses and Each victim's dice rolled by count only beside Each victim's dice, and Save keeps them only there,
+// so the line under that box names the picks Save then drops. In the hand and Scatter on a miss are read only after a Throw roll, so while Save keeps
+// no Throw roll each says it counts only with one. bl: the draft's blast rules. '' where nothing depends on a missing box. Save is as it was
+function blastDepSays(k, bl) {
+    var SCb = window.wpSystemCore; if (!bl || typeof bl !== 'object' || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
+    var kept = function(key) { var v = typeof bl[key] === 'string' ? bl[key].trim() : '', o = {}; if (!v) return false; o[key] = v; var c = SCb.cleanBlastRules(o, F()); return !!(c && c[key]); };
+    if (k === 'each' && !kept('each')) { var on = []; if (bl.eachAdd === true) on.push('A die each victim loses'); if (bl.eachBy === 'victim') on.push('Each victim\u2019s dice rolled by'); return on.length ? 'Save drops ' + on.join(' and ') + ' until Each victim\u2019s dice holds a formula.' : ''; }
+    if ((k === 'hand' || k === 'scatter') && kept(k) && !kept('roll')) return 'Counts only with a Throw roll. Fill Throw roll above.';
+    return '';
+}
+// 1.6.3: the whole line under a blast formula's box, Save's reading of it first, then what it depends on; and that line set again in the box on screen
+function blastLine(k, bl) { var v = bl && typeof bl[k] === 'string' ? bl[k] : ''; return blastSays(k, v) || blastDepSays(k, bl); }
+function blastLineSet(k, bl) { var box = typeof ui === 'function' ? ui('sysCombatBox') : null, er = box && box.querySelectorAll ? Array.prototype.filter.call(box.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.bk === k; })[0] : null; if (er) er.textContent = blastLine(k, bl); }
 function blastSays(k, v) {   // what Save does with one formula: '' where it keeps it
     var SCb = window.wpSystemCore; if (!v || !SCb || typeof SCb.cleanBlastRules !== 'function') return '';
     var o = {}; o[k] = v; var c = SCb.cleanBlastRules(o, F());
@@ -841,6 +855,7 @@ function blastParts(box) {
     });
     return P;
 }
+function blastEachShown(bl) { return !!bl && ((typeof bl.each === 'string' && !!bl.each.trim()) || bl.eachAdd === true || bl.eachBy === 'victim'); }   // 1.6.3: whether the two lists that count beside Each victim's dice stand
 function blastBox(box, cm) {
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {};
     box.appendChild(el('div', 'sys-combat-head', 'Blasts and throws'));
@@ -850,7 +865,7 @@ function blastBox(box, cm) {
         var l = el('label', 'sys-combat-item'); l.appendChild(el('span', 'sys-num-cap', d[1]));
         var i = input('sys-combat-b' + d[0] + ' field', typeof bl[d[0]] === 'string' ? bl[d[0]] : '', d[2], d[3] ? 'e.g. ' + d[3] : 'A formula'); i.dataset.bk = d[0]; l.appendChild(i); box.appendChild(l);
         lineUnder(box, d[2]);
-        var er = el('div', 'sys-blast-err'); er.dataset.bk = d[0]; er.textContent = blastSays(d[0], bl[d[0]]); box.appendChild(er);
+        var er = el('div', 'sys-blast-err'); er.dataset.bk = d[0]; er.textContent = blastLine(d[0], bl); box.appendChild(er);   // 1.6.3: and what it depends on
     });
     box = PB.dist;
     {   // 1.6.0: an item that fills its area, and one no drop answers: a number stat of its list, read by the falloff
@@ -863,8 +878,10 @@ function blastBox(box, cm) {
     }
     if (typeof blastScaleInto === 'function') blastScaleInto(box, cm, bl);   // 1.6.2 (vehicles, fold (e))
     { box.appendChild(labeledSelect('sys-combat-bflying', 'Things in flight', [['', 'A blast passes them by'], ['hit', 'A blast hurts them as any token']], bl.flying === true ? 'hit' : '', FLYING_LINE)); lineUnder(box, FLYING_LINE); }   // 1.6.2 (vehicles, fold (d))
-    { box.appendChild(labeledSelect('sys-combat-beachadd', 'A die each victim loses', [['', 'Leaves the adds whole'], ['go', 'Takes its add with it']], bl.eachAdd === true ? 'go' : '', EACH_ADD_LINE)); lineUnder(box, EACH_ADD_LINE); }   // 1.6.0 (the core's rule on gap 8)
-    { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); }   // 1.6.0 (the core's gap 8)
+    // 1.6.3 (lane B batch "damage"): the two lists count only beside Each victim's dice, so they stand only while it holds a formula, or while a pick of
+    // theirs is stored, so a stored pick stays in sight until it is put right. Leaving Each victim's dice draws them in or out (onBlastChange)
+    if (blastEachShown(bl)) { { box.appendChild(labeledSelect('sys-combat-beachadd', 'A die each victim loses', [['', 'Leaves the adds whole'], ['go', 'Takes its add with it']], bl.eachAdd === true ? 'go' : '', EACH_ADD_LINE)); lineUnder(box, EACH_ADD_LINE); }   // 1.6.0 (the core's rule on gap 8)
+    { box.appendChild(labeledSelect('sys-combat-beachby', 'Each victim\u2019s dice rolled by', [['', 'The GM, each at once'], ['victim', 'The victim, from a card']], bl.eachBy === 'victim' ? 'victim' : '', EACH_BY_LINE)); lineUnder(box, EACH_BY_LINE); } }   // 1.6.0 (the core's gap 8)
     box = PB.throw;
     box.appendChild(labeledSelect('sys-combat-bways', 'Ways a miss goes', [['6', 'Six, a d6 (the sides of a hex)'], ['8', 'Eight']], bl.ways === 8 ? '8' : '6', 'How many ways a miss may scatter from its aim, rolled as a die'));
     box.appendChild(labeledSelect('sys-combat-bfuse', 'A thrown explosive goes off', [['', 'At once, where it lands'], ['turn', 'At the start of the next turn in a fight']], bl.fuse === 'turn' ? 'turn' : '', 'With a fight on its map, a fused explosive lies there until the next turn starts. Outside a fight it goes off at once'));
@@ -878,16 +895,19 @@ function blastBox(box, cm) {
     var stE = el('div', 'sys-blast-err'); stE.dataset.sk = 'stray'; stE.textContent = straySays(stV); box.appendChild(stE);
     box = PB.dist;
     var kdB = cm.damage && Array.isArray(cm.damage.kinds) ? cm.damage.kinds.filter(function(y) { return y && typeof y.key === 'string' && y.key; }) : [];   // 1.6.0: the kind of blow its shares and fragmentation carry, where the system names kinds
-    if (kdB.length || bl.kind) { var kdO = [['', 'None']].concat(kdB.map(function(y) { return [y.key, y.label || y.key]; })); if (typeof bl.kind === 'string' && bl.kind && !kdO.some(function(o) { return o[0] === bl.kind; })) kdO.push([bl.kind, bl.kind]); box.appendChild(labeledSelect('sys-combat-bkind', 'A blast\u2019s kind of blow', kdO, typeof bl.kind === 'string' ? bl.kind : '', BLAST_KIND_LINE)); lineUnder(box, BLAST_KIND_LINE); }
+    if (kdB.length || bl.kind) { var kdO = [['', 'None']].concat(kdB.map(function(y) { return [y.key, y.label || y.key]; })); var kdGone = typeof bl.kind === 'string' && !!bl.kind && !kdB.some(function(y) { return y.key.toLowerCase() === bl.kind.toLowerCase(); }); if (typeof bl.kind === 'string' && bl.kind && !kdO.some(function(o) { return o[0] === bl.kind; })) kdO.push([bl.kind, kdGone ? 'A kind that is gone' : (kdB.filter(function(y) { return y.key.toLowerCase() === bl.kind.toLowerCase(); })[0] || {}).label || bl.kind]); box.appendChild(labeledSelect('sys-combat-bkind', 'A blast\u2019s kind of blow', kdO, typeof bl.kind === 'string' ? bl.kind : '', BLAST_KIND_LINE)); lineUnder(box, BLAST_KIND_LINE);
+        var kdE = el('div', 'sys-blast-err'); kdE.dataset.gk = 'kind'; kdE.textContent = kdGone ? BLAST_KIND_GONE : ''; box.appendChild(kdE); }   // 1.6.3 (lane B batch "damage"): a kind removed from Taking damage is said, never shown as its short name
     box = PB.frag;
     var fgC = bl.frag && typeof bl.frag === 'object' && !Array.isArray(bl.frag) ? bl.frag : {}, fgV = typeof fgC.reach === 'string' ? fgC.reach : '';   // 1.5.9 (es): fragmentation
     var fl = el('label', 'sys-combat-item'); fl.appendChild(el('span', 'sys-num-cap', 'Fragmentation reaches')); var fi = input('sys-combat-fgreach field', fgV, FRAG_REACH_LINE, 'e.g. 5 * FragDice'); fi.dataset.fk = 'reach'; fl.appendChild(fi); box.appendChild(fl);
     lineUnder(box, FRAG_REACH_LINE);
     var fe = el('div', 'sys-blast-err'); fe.dataset.fk = 'reach'; fe.textContent = fragSays(fgV); box.appendChild(fe);
     var dtF = cm.damage && Array.isArray(cm.damage.types) ? cm.damage.types.filter(function(y) { return y && typeof y.key === 'string'; }) : [], tyF = [['', 'The blast\u2019s own type']].concat(dtF.map(function(y) { return [y.key, y.label || y.key]; }));
-    if (typeof fgC.type === 'string' && fgC.type && !tyF.some(function(o) { return o[0] === fgC.type; })) tyF.push([fgC.type, fgC.type]);   // a stored type the card no longer lists stays as it is
+    var tyGone = typeof fgC.type === 'string' && !!fgC.type && !dtF.some(function(y) { return y.key.toLowerCase() === fgC.type.toLowerCase(); });   // 1.6.3 (lane B batch "damage"): a type removed from Taking damage
+    if (typeof fgC.type === 'string' && fgC.type && !tyF.some(function(o) { return o[0] === fgC.type; })) tyF.push([fgC.type, tyGone ? 'A type that is gone' : (dtF.filter(function(y) { return y.key.toLowerCase() === fgC.type.toLowerCase(); })[0] || {}).label || fgC.type]);   // a stored type the card no longer lists stays as it is, said as gone
     box.appendChild(labeledSelect('sys-combat-fgtype', 'Fragmentation type', tyF, typeof fgC.type === 'string' ? fgC.type : '', 'The damage type of fragmentation whose item names none'));
     lineUnder(box, FRAG_TYPE_LINE);
+    var tyE = el('div', 'sys-blast-err'); tyE.dataset.gk = 'fragtype'; tyE.textContent = tyGone ? FRAG_TYPE_GONE : ''; box.appendChild(tyE);   // 1.6.3
     FRAG_LISTS.forEach(function(d) {
         var on = d[0] === 'cover' ? (fgC.cover === 'total' ? 'total' : '') : d[0] === 'each' ? (fgC.each === true ? 'each' : '') : d[0] === 'direct' ? (fgC.direct === true ? 'own' : '') : (fgC.ad === true ? 'yes' : '');
         box.appendChild(labeledSelect('sys-combat-fg' + d[0], d[1], d[2], on, d[3])); lineUnder(box, d[3]);
@@ -955,7 +975,15 @@ function resistSays(v) {   // what Save does with the Resist roll: '' where it k
 var FLYING_LINE = 'A missile or anything else in flight inside a blast takes its share at its distance, less its Protection. Cover and fragmentation count as for any token.';
 var FRAG_TYPE_LINE = 'The damage type of fragmentation whose item names none. With none, the blast\u2019s own type.';
 var BLAST_KIND_LINE = 'The kind of blow a blast\u2019s shares and its fragmentation carry. With none, they carry no kind.';   // 1.6.0
+// 1.6.3 (lane B batch "damage"): said under the list where the stored pick names a kind of blow or a damage type that Taking damage no longer holds.
+// A blast then carries no kind, and fragmentation takes the blast's own type (fragPass in wbblast.js passes over a type that is gone)
+var BLAST_KIND_GONE = 'That kind of blow is gone from Taking damage, so blasts carry no kind until one is picked here.';
+var FRAG_TYPE_GONE = 'That damage type is gone from Taking damage, so fragmentation takes the blast\u2019s own type until one is picked here.';
 function onBlastChange(t) {   // the lists of the Blasts and throws part
+    if (t && /(^| )sys-combat-beach( |$)/.test(t.className || '')) {   // 1.6.3 (lane B batch "damage"): Each victim's dice left. Its input event wrote it; the two lists that count beside it are drawn in or out, only where that changes
+        var cmE = draft.combat, blE = cmE && cmE.blast && typeof cmE.blast === 'object' && !Array.isArray(cmE.blast) ? cmE.blast : null, boxE = typeof ui === 'function' ? ui('sysCombatBox') : null, hasE = !!(boxE && boxE.querySelector && boxE.querySelector('.sys-combat-beachadd'));
+        if (blastEachShown(blE) !== hasE && typeof renderCombat === 'function') renderCombat(); return true;
+    }
     var c = t && t.className || '', lk = /(^| )sys-combat-bl(fuse|fumble|stop|glance)( |$)/.exec(c), fk = /(^| )sys-combat-fg(type|cover|each|direct|ad)( |$)/.exec(c), hk = /(^| )sys-combat-affhurt( |$)/.test(c), ek = /(^| )sys-combat-beachby( |$)/.test(c), ak = /(^| )sys-combat-beachadd( |$)/.test(c), kk = /(^| )sys-combat-bkind( |$)/.test(c), sk = /(^| )sys-combat-b(fills|fillcover|nodrop|itemscale)( |$)/.exec(c), yk = /(^| )sys-combat-bflying( |$)/.test(c); if (c.indexOf('sys-combat-bways') < 0 && c.indexOf('sys-combat-bfuse') < 0 && !lk && !fk && !hk && !ek && !ak && !kk && !sk && !yk) return false;
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {});
     if (sk) { var skK = sk[2] === 'fills' ? 'fills' : sk[2] === 'nodrop' ? 'noDrop' : sk[2] === 'itemscale' ? 'itemScale' : 'fillCover'; if (t.value) bl[skK] = String(t.value).slice(0, 24); else delete bl[skK]; if (skK === 'fills' && !bl.fills) delete bl.fillCover; if (!Object.keys(bl).length) delete cm.blast; markDirty(); patchErrors(); if (skK === 'fills') renderCombat(); return true; }   // 1.6.0: the stats an item fills and refuses a drop by
@@ -978,7 +1006,9 @@ function onBlastChange(t) {   // the lists of the Blasts and throws part
     }
     else if (c.indexOf('sys-combat-bways') >= 0) { if (t.value === '8') bl.ways = 8; else delete bl.ways; } else { if (t.value === 'turn') bl.fuse = 'turn'; else delete bl.fuse; }
     if (!Object.keys(bl).length) delete cm.blast;
-    markDirty(); return true;
+    if (ak || ek) blastLineSet('each', bl);   // 1.6.3: the line under Each victim's dice follows the two picks it names
+    markDirty(); if ((kk || (fk && fk[2] === 'type')) && typeof renderCombat === 'function') renderCombat();   // 1.6.3: a pick made drops the option of a kind or type that is gone, and its line
+    return true;
 }
 function bodyBox(box, cm) {
     var bdL = el('label', 'sys-combat-item'); bdL.appendChild(el('span', 'sys-num-cap', 'A body in the way hides'));
@@ -1027,7 +1057,7 @@ function onBlastInput(t) {
     var bl = cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : (cm.blast = {}), v = String(t.value || '').trim();
     if (v) bl[k] = v.slice(0, LIMITS.formula); else delete bl[k];
     if (!Object.keys(bl).length) delete cm.blast;
-    var box = ui('sysCombatBox'), er = box ? Array.prototype.filter.call(box.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.bk === k; })[0] : null; if (er) er.textContent = blastSays(k, v);
+    (k === 'roll' ? ['roll', 'hand', 'scatter'] : [k]).forEach(function(dk) { blastLineSet(dk, bl); });   // 1.6.3: a Throw roll filled or emptied says again under In the hand and Scatter on a miss
     markDirty(); return true;
 }
 // [systemcheck:blastbox-end]

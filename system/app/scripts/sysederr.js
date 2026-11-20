@@ -949,6 +949,13 @@ function refreshErrors() {
     if (typeof defendSays === 'function') { var dfS = defendSays(draft.combat && draft.combat.blast && draft.combat.blast.defend, draft.rolls, draft.combat, draft.fields); if (dfS.errs.length) errorsById.blastdefend = dfS.errs; if (dfS.warns.length) warningsById.blastdefend = dfS.warns; }   // 1.6.0: what Save drops of a blast's own Defense roll, as the cleaner reads it
     if (typeof coverHitSays === 'function') { var cvS = coverHitSays(draft.combat && draft.combat.cover, draft.combat, F()); if (cvS.errs.length) errorsById.coverhit = cvS.errs; if (cvS.warns.length) warningsById.coverhit = cvS.warns; }   // 1.6.0: what Save drops of where a hit behind cover lands, as the cleaner reads it
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): the pool damage comes off is required. Wounds come off under Taking damage, else
+    // Damage subtracts from: with neither, every Take damage finds no pool and changes nothing, and a Full auto blast applies nothing. So it is said under
+    // the Taking damage box wherever damage rules stand, or Full auto is picked while the system holds a pool. A system with no pool and no damage rules
+    // takes no damage at all and is left alone. Read on the cleaned GM view, so a pool that is gone counts as none. It does not hold Save
+    {   var cmP = clean && clean.combat && typeof clean.combat === 'object' ? clean.combat : null, dmP = cmP && cmP.damage && typeof cmP.damage === 'object' ? cmP.damage : null, resP = (draft.fields || []).some(function(f) { return !!f && f.kind === 'resource'; });
+        if (cmP && !((dmP && dmP.pool) || cmP.hpResource) && (dmP || (cmP.blastAuto === 'full' && resP))) (errorsById.damage = errorsById.damage || []).push({ message: resP ? 'Damage has no pool to come off. Pick one in Damage subtracts from, or in Wounds come off under Taking damage.' : 'Damage has no pool to come off. Add a pool field, then pick it in Damage subtracts from.', prop: 'damage.pool' });
+    }
     if (typeof refWarns === 'function') refWarns(saved, clean, camp0);   // 1.6.2 (backlog 208)
 }
 // 1.6.3 (Fulllion's rulings of 2026-11-20: "if there's other gaps where a ruling or field is dependent on another, and the system doesn't require that

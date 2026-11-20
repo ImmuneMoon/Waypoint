@@ -700,7 +700,11 @@ function damageBox(box, cm) {
     if (d.first) r1.appendChild(dbxTick('sys-dmgr-soak', d.firstSoaks === true, 'Not a wound', 'Ticked: what it takes is no wound. A Major Wound, the rows On a wound and the blow\u2019s wound read only what gets past it, and a blow it takes whole runs none of them. Unticked: they read the whole wound'));   // 1.6.2 (the CORE session)
     dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice. It may read the hit location as Hit. and a name, 0 where no location was struck', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
     dbxCap(r1, 'Wound by'); var wfI = input('sys-dmgr-woundf field', dbxStr(d.woundF), 'How large a wound is, worked out from what got through and the character\u2019s sheet, for every damage type. 0 is no wound. Empty: what gets through, times the type\u2019s multiplier', 'What gets through'); wfI.maxLength = LIMITS.formula; r1.appendChild(wfI);   // 1.6.2
-    r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armor layers still wear as for a hit, or nothing happens at all'));
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): A wound of 0 is read only where a Wound by formula gives 0, so the list stands only
+    // while one is set, here or on a damage type, or while it is already set to does nothing, so a stored choice is never hidden. dbxShowSig says what
+    // is drawn, so leaving a Wound by box draws the box again only where that changes
+    if (dbxAnyWF(d) || d.zero === 'none') r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armor layers still wear as for a hit, or nothing happens at all'));
+    _dbxSig = dbxShowSig(d);
     dbxCap(r1, 'Called'); var mjw = input('sys-dmgr-mjword field', dbxStr(d.majorWord), 'What your game calls this step. The damage lines and the Take damage window say it in place of A Major Wound', 'A Major Wound'); mjw.maxLength = LIMITS.label; r1.appendChild(mjw);
     wrap.appendChild(r1);
     {   // 1.6.0 (B3): what a Major Wound does (kept by Save only beside its formula)
@@ -764,12 +768,12 @@ function damageBox(box, cm) {
     types.forEach(function(y0, i) {
         var y = dbxObj(y0) ? y0 : {}, tw = el('div', 'sys-dmgr-type'); tw.dataset.yi = String(i);
         var a = el('div', 'sys-flags');
-        var k = input('sys-dmgr-ykey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _', 'Key'); k.maxLength = 24; a.appendChild(k);
+        var k = input('sys-dmgr-ykey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _', 'Key'); k.maxLength = 24; if (y._new && k.dataset) k.dataset.follow = '1'; a.appendChild(k);   // 1.6.3: a new type's short name follows its name until it is saved
         var lb = input('sys-dmgr-ylabel field', dbxStr(y.label), 'Its name in the Take damage window', 'Name'); lb.maxLength = LIMITS.label; a.appendChild(lb);
         dbxCap(a, 'Times'); a.appendChild(dbxNum('sys-dmgr-ymult', y.mult, 'What gets through is multiplied by this, 0 to 10. Unset is 1', '1'));
         dbxCap(a, 'Vital times'); a.appendChild(dbxNum('sys-dmgr-yvital', y.vital, 'Its multiplier at a vital location. Unset or 0 is as anywhere', ''));
         dbxCap(a, 'Wound by'); var ywI = input('sys-dmgr-ywf field', dbxStr(y.woundF), 'This type\u2019s own wound formula, in place of the one under Taking damage. Empty: that one, or its multiplier where Its multiplier is ticked', 'As the system'); ywI.maxLength = LIMITS.formula; a.appendChild(ywI);   // 1.6.2
-        if (!dbxStr(y.woundF)) a.appendChild(dbxTick('sys-dmgr-ybymult', y.byMult, 'Its multiplier', 'Ticked: this type wounds by its multiplier even where the system has a wound formula'));
+        if (!dbxStr(y.woundF) && (dbxStr(d.woundF).trim() || y.byMult === true)) a.appendChild(dbxTick('sys-dmgr-ybymult', y.byMult, 'Its multiplier', 'Ticked: this type wounds by its multiplier, not by the Wound by formula under Taking damage'));   // 1.6.3: it only ever overrides that formula, so it stands only while that formula does, or while it is ticked
         a.appendChild(select('sys-dmgr-ypool', dbxOpts(['', 'The main pool'], pools, y.pool), dbxStr(y.pool), 'The pool this type comes off, where not the main one'));
         a.appendChild(dbxTick('sys-dmgr-ynodr', y.noDr, 'Ignores DR', 'Ticked: DR stops none of it'));
         a.appendChild(dbxTick('sys-dmgr-ynowear', y.noWear, 'Wears nothing', 'Ticked: it wears no armor'));
@@ -804,7 +808,7 @@ function damageBox(box, cm) {
     wrap.appendChild(el('span', 'sys-num-cap', 'Kinds of blow'));
     kindsD.forEach(function(y0, i) {
         var y = dbxObj(y0) ? y0 : {}, kw = el('div', 'sys-flags sys-dmgr-kind'); kw.dataset.ki = String(i);
-        var kk = input('sys-dmgr-kkey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _. A formula reads its place as Kind. and this key', 'Key'); kk.maxLength = 24; kw.appendChild(kk);
+        var kk = input('sys-dmgr-kkey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _. A formula reads its place as Kind. and this key', 'Key'); kk.maxLength = 24; if (y._new && kk.dataset) kk.dataset.follow = '1'; kw.appendChild(kk);   // 1.6.3: a new kind's short name follows its name until it is saved
         var kl = input('sys-dmgr-klabel field', dbxStr(y.label), 'Its name in the Take damage window', 'Name'); kl.maxLength = LIMITS.label; kw.appendChild(kl);
         kw.appendChild(dbxBtn('dmgrkdel', '\u00d7', 'Remove this kind'));
         wrap.appendChild(kw);
@@ -882,10 +886,34 @@ function dbxWordFollow(w, t) {   // a new rule's Called box follows its Dur and 
     if (!dbxObj(w) || !w._new) return; w.word = dbxWordOf(w);
     var rw = t && t.closest ? t.closest('.sys-dmgr-weapon') : null, bx = rw && rw.querySelector ? rw.querySelector('.sys-dmgr-wword') : null; if (bx) bx.value = w.word;
 }
+// 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): a damage type's and a kind of blow's Name is required, since players read it in the
+// damage lines and the Take damage window, and with none the cleaner shows the short name there. So a new one starts named, Damage type 2 or Kind 2
+// with its short name made from that name (DamageType2), at the first number that no row of the list already names or holds as its short name. It
+// carries the mark _new (which the cleaner never keeps), and while it does its hidden short name follows the Name as it is typed
+function dbxNewNamed(arr, word) {
+    var taken = {}; (Array.isArray(arr) ? arr : []).forEach(function(y) { if (!dbxObj(y)) return; if (typeof y.key === 'string') taken['k' + y.key.toLowerCase()] = 1; if (typeof y.label === 'string') taken['l' + y.label.trim().toLowerCase()] = 1; });
+    for (var n = (Array.isArray(arr) ? arr.length : 0) + 1; n < 100000; n++) {
+        var lb = word + ' ' + n, ky = lb.split(' ').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('');
+        if (!taken['k' + ky.toLowerCase()] && !taken['l' + lb.toLowerCase()]) return { key: ky, label: lb, _new: true };
+    }
+    return { key: '', label: '' };
+}
+// 1.6.3: whether a Wound by formula stands, under Taking damage or on any damage type. A wound of 0 and Its multiplier count only beside one
+function dbxAnyWF(d) { return dbxObj(d) && (!!dbxStr(d.woundF).trim() || (Array.isArray(d.types) ? d.types : []).some(function(y) { return dbxObj(y) && !!dbxStr(y.woundF).trim(); })); }
+// 1.6.3: what the Taking damage box draws by its Wound by formulas: the A wound of 0 list, and each type's Its multiplier tick. damageBox notes it as it
+// draws, and leaving a Wound by box draws the box again only where this has changed, so a press elsewhere is never lost to a redraw it did not need
+var _dbxSig = '';
+function dbxShowSig(d) {
+    if (!dbxObj(d)) return '';
+    return (dbxAnyWF(d) || d.zero === 'none' ? 'z' : '-') + (Array.isArray(d.types) ? d.types : []).map(function(y) { return dbxObj(y) && !dbxStr(y.woundF) && (dbxStr(d.woundF).trim() || y.byMult === true) ? 'm' : '-'; }).join('');
+}
 function dbxRow(t, cls, key, arrKey) {   // the draft's row a control stands in, by its row's index
     var rw = t.closest ? t.closest('.' + cls) : null, i = rw ? Number(rw.dataset[key]) : -1, d = dbxCm().damage, arr = dbxObj(d) && Array.isArray(d[arrKey]) ? d[arrKey] : [];
     return i >= 0 && i < arr.length && Math.floor(i) === i && dbxObj(arr[i]) ? arr[i] : null;
 }
+// 1.6.3: a short name typed by hand (the box stands only under Short names) stops following the Name. The follow itself writes the box from the Name
+// box, which then holds the focus, so only a box that holds the focus as it changes was typed in
+function dbxKeyTyped(y, t) { if (typeof document !== 'undefined' && document.activeElement === t) { delete y._new; if (t.dataset) delete t.dataset.follow; } }
 function dbxSet(o, k, v) { if (v === '' || v === undefined || v === null || v === false) delete o[k]; else o[k] = v; }
 function dbxNumOf(t) { var s = String(t.value === undefined ? '' : t.value).trim(), n = Number(s); return s && isFinite(n) ? n : undefined; }
 function onDamageInput(t) {
@@ -905,14 +933,14 @@ function onDamageInput(t) {
     else if (dbxHas(c, 'sys-dmgr-ohat') || dbxHas(c, 'sys-dmgr-ohto')) { var oHt = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oHt || !dbxObj(oHt.held)) return true; dbxSet(oHt.held, dbxHas(c, 'sys-dmgr-ohat') ? 'at' : 'to', txt.trim() ? txt : ''); }   // 1.6.0: what stands where the blow lands
     else if (dbxHas(c, 'sys-dmgr-oif')) { var oI = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oI) return true; dbxSet(oI, 'if', txt.trim() ? txt : ''); }   // 1.6.0 (the core's gap 6)
     else if (DBX_DIE.some(function(g) { return dbxHas(c, g[0]); })) { var yD = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yD) return true; DBX_DIE.forEach(function(g) { if (dbxHas(c, g[0])) dbxSet(yD, g[1], dbxNumOf(t)); }); }   // 1.6.0: a figure a die
-    else if (dbxHas(c, 'sys-dmgr-kkey') || dbxHas(c, 'sys-dmgr-klabel')) { var kR = dbxRow(t, 'sys-dmgr-kind', 'ki', 'kinds'); if (!kR) return true; if (dbxHas(c, 'sys-dmgr-kkey')) kR.key = txt.slice(0, 24); else dbxSet(kR, 'label', txt.slice(0, LIMITS.label)); }   // 1.6.0: a kind of blow
+    else if (dbxHas(c, 'sys-dmgr-kkey') || dbxHas(c, 'sys-dmgr-klabel')) { var kR = dbxRow(t, 'sys-dmgr-kind', 'ki', 'kinds'); if (!kR) return true; if (dbxHas(c, 'sys-dmgr-kkey')) { kR.key = txt.slice(0, 24); dbxKeyTyped(kR, t); } else dbxSet(kR, 'label', txt.slice(0, LIMITS.label)); }   // 1.6.0: a kind of blow
     else if (dbxHas(c, 'sys-dmgr-lpick')) { var lP = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lP) return true; dbxSet(lP, 'pick', txt.trim() ? txt : ''); }   // 1.6.0
     else if (dbxHas(c, 'sys-dmgr-ltplus')) { var lY = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lY) return true; var tyI = dbxObj(lY.typed) ? lY.typed : (lY.typed = {}); dbxSet(tyI, 'plus', txt.trim() ? txt : ''); if (!Object.keys(tyI).length) delete lY.typed; }   // 1.6.0: Type named by
     else if (dbxHas(c, 'sys-dmgr-ladby')) { var lA = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lA) return true; dbxSet(lA, 'adBy', txt.trim() ? txt : ''); }   // 1.6.2 (9)
     else if (dbxHas(c, 'sys-dmgr-lmajw') || dbxHas(c, 'sys-dmgr-lbrkw') || dbxHas(c, 'sys-dmgr-lbrkm') || dbxHas(c, 'sys-dmgr-lwcap') || dbxHas(c, 'sys-dmgr-lhitw')) { var lQ = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lQ) return true; dbxSet(lQ, dbxHas(c, 'sys-dmgr-lhitw') ? 'hitWear' : dbxHas(c, 'sys-dmgr-lmajw') ? 'majorWear' : dbxHas(c, 'sys-dmgr-lbrkw') ? 'brokenWear' : dbxHas(c, 'sys-dmgr-lwcap') ? 'wearCap' : 'brokenMajorWear', txt.trim() ? txt : ''); }   // 1.6.0: what a hit wears
     else if (dbxHas(c, 'sys-dmgr-ykey') || dbxHas(c, 'sys-dmgr-ylabel') || dbxHas(c, 'sys-dmgr-ymult') || dbxHas(c, 'sys-dmgr-yvital') || dbxHas(c, 'sys-dmgr-aif') || dbxHas(c, 'sys-dmgr-amult')) {
         var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;
-        if (dbxHas(c, 'sys-dmgr-ykey')) y.key = txt.slice(0, 24);
+        if (dbxHas(c, 'sys-dmgr-ykey')) { y.key = txt.slice(0, 24); dbxKeyTyped(y, t); }
         else if (dbxHas(c, 'sys-dmgr-ylabel')) dbxSet(y, 'label', txt.slice(0, LIMITS.label));
         else if (dbxHas(c, 'sys-dmgr-ymult')) dbxSet(y, 'mult', dbxNumOf(t));
         else if (dbxHas(c, 'sys-dmgr-yvital')) dbxSet(y, 'vital', dbxNumOf(t));
@@ -974,6 +1002,8 @@ function onDamageChange(t) {
     } else if (dbxHas(c, 'sys-dmgr-wlist') || dbxHas(c, 'sys-dmgr-wwear') || dbxHas(c, 'sys-dmgr-wcond') || dbxHas(c, 'sys-dmgr-wtest') || dbxHas(c, 'sys-dmgr-wheavy')) {
         var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true;
         if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); dbxWordFollow(w, t); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : dbxHas(c, 'sys-dmgr-wtest') ? 'test' : dbxHas(c, 'sys-dmgr-wheavy') ? 'heavy' : 'cond', v);
+    } else if (dbxHas(c, 'sys-dmgr-woundf') || dbxHas(c, 'sys-dmgr-ywf')) {   // 1.6.3: a Wound by box left; the A wound of 0 list and Its multiplier follow it
+        if (dbxShowSig(dbxCm().damage) === _dbxSig) return true; redraw = true;
     } else return true;   // a text box: its input event did the work
     markDirty(); if (redraw) renderAll(); else patchErrors(); return true;
 }
@@ -999,7 +1029,7 @@ function damageClick(b) {
     if (m[2] === 'add') {
         var d = dbxDraft(), arr = Array.isArray(d[key]) ? d[key] : (d[key] = []);
         if (arr.length >= cap) { toast('At most ' + cap + ' ' + words + '.'); return true; }
-        arr.push(m[1] === 'y' || m[1] === 'k' ? { key: '', label: '' } : m[1] === 'w' ? { word: dbxWordOf({}), _new: true } : {});   // 1.6.3: a new weapon rule starts with its required Called box filled
+        arr.push(m[1] === 'y' ? dbxNewNamed(arr, 'Damage type') : m[1] === 'k' ? dbxNewNamed(arr, 'Kind') : m[1] === 'w' ? { word: dbxWordOf({}), _new: true } : {});   // 1.6.3: a new weapon rule starts with its required Called box filled, and a new type or kind with its required Name
     } else {   // a remove: only a row the draft holds
         var dd = dbxCm().damage, ar = dbxObj(dd) && Array.isArray(dd[key]) ? dd[key] : [], cls = m[1] === 'y' ? 'sys-dmgr-type' : m[1] === 'k' ? 'sys-dmgr-kind' : m[1] === 'l' ? 'sys-dmgr-layer' : m[1] === 'o' ? 'sys-dmgr-onwound' : 'sys-dmgr-weapon', ix = m[1] === 'y' ? 'yi' : m[1] === 'k' ? 'ki' : m[1] === 'l' ? 'li' : m[1] === 'o' ? 'oi' : 'wi';
         var rw = b.closest ? b.closest('.' + cls) : null, i = rw ? Number(rw.dataset[ix]) : -1; if (!(i >= 0 && i < ar.length && Math.floor(i) === i)) return true;
@@ -1010,7 +1040,7 @@ function damageClick(b) {
 // What Save drops of the damage rules, said under the box: each part judged by the cleaner itself (cleanDamageRules, with the cleaned GM view's
 // fields), so the words agree with Save. A formula Save keeps but cannot read is a warning: it never holds. Returns { errs, warns }
 function damageSays(d, sys, Fx) {
-    var errs = [], warns = [], say = function(m) { errs.push({ message: m }); }, warn = function(m) { warns.push({ message: m }); };
+    var errs = [], warns = [], say = function(m, p) { errs.push(p ? { message: m, prop: p } : { message: m }); }, warn = function(m, p) { warns.push(p ? { message: m, prop: p } : { message: m }); };   // 1.6.3: p, the box a press on the line lands on (sysui.js PROP_BOX)
     if (!dbxObj(d) || typeof cleanDamageRules !== 'function' || !sys || !Array.isArray(sys.fields)) return { errs: errs, warns: warns };
     var kinds = {}, res = {}, byId = {}; sys.fields.forEach(function(f) { if (!f || typeof f.id !== 'string') return; kinds[f.id] = f.kind; byId[f.id] = f; if (f.kind === 'resource') res[f.id] = 1; });
     var fl = function(id) { return Object.prototype.hasOwnProperty.call(byId, id) ? byId[id] : null; };
@@ -1025,6 +1055,7 @@ function damageSays(d, sys, Fx) {
     if (typeof d.major === 'string' && d.major.trim()) { if (!piece({ major: d.major }).major) say('Major Wound: the formula is too long or not on one line, so Save drops it.'); else reads(d.major, 'Major Wound'); }
     if (typeof d.woundF === 'string' && d.woundF.trim()) { if (!piece({ woundF: d.woundF }).woundF) say('Wound by: the formula is too long or not on one line, so Save drops it.'); else reads(d.woundF, 'Wound by'); }   // 1.6.2
     (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y) && typeof y.woundF === 'string' && y.woundF.trim()) reads(y.woundF, 'Wound by of ' + (y.label || y.key || 'a type')); });
+    if (d.zero === 'none' && !dbxAnyWF(d)) warn('A wound of 0 does nothing: it counts only with a Wound by formula, under Taking damage or on a damage type, and none is set.', 'dmgr.zero');   // 1.6.3: Save keeps it, and it does nothing
     if (Array.isArray(d.onMajor)) {   // 1.6.0: onMajor's rows, as the cleaner reads them
         if (d.onMajor.some(function(w) { return dbxObj(w) && (w.fx || w.roll); }) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
         d.onMajor.forEach(function(w, i) {
@@ -1039,6 +1070,7 @@ function damageSays(d, sys, Fx) {
         });
     }
     if (dbxObj(d.onMajor)) {   // 1.6.0 (B3): kept only beside the formula; an effect or a roll that is gone does nothing
+        if (!(typeof d.onMajor.fx === 'string' && d.onMajor.fx) && !(typeof d.onMajor.roll === 'string' && d.onMajor.roll)) say('A Major Wound: it switches nothing on and asks for nothing, so Save drops it.', 'dmgr.mjfx.0');   // 1.6.3: a where typed alone, as the list's rows say it
         if (typeof d.onMajor.if === 'string' && d.onMajor.if.trim()) reads(d.onMajor.if, 'A Major Wound, where');   // 1.6.0
         if ((d.onMajor.fx || d.onMajor.roll) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
         if (typeof d.onMajor.fx === 'string' && d.onMajor.fx && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(e) { return dbxObj(e) && e.id === d.onMajor.fx; })) warn('A Major Wound switches on: that effect is gone, so it switches nothing on.');
@@ -1078,15 +1110,19 @@ function damageSays(d, sys, Fx) {
             if (typeof d.locs.die === 'string' && d.locs.die.trim()) { if (!lk.die) say('Hit locations: the A die there adds formula is too long or not on one line, so Save drops it.'); else reads(d.locs.die, 'A die there adds'); }   // 1.6.0
         }
     }
-    var seen = {}, kept = 0;
+    var seen = {}, kept = 0, yVital = false;
     (Array.isArray(d.types) ? d.types : []).forEach(function(y, i) {
         var nm = 'Damage type ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : dbxObj(y) && typeof y.key === 'string' && y.key ? ', ' + y.key : '');
         if (!dbxObj(y)) { say(nm + ': Save cannot read it, so it drops it.'); return; }
         var k = typeof y.key === 'string' ? y.key.toLowerCase() : '';
-        if (!k || !(piece({ types: [{ key: y.key }] }).types || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
+        var yNamed = typeof y.label === 'string' && !!y.label.trim();   // 1.6.3: the Name is required (Fulllion's rulings of 2026-11-20)
+        if (!k && !yNamed) { say(nm + ': it needs a name, or Save drops it.', 'dmgr.ylabel.' + i); return; }
+        if (!k) { say(nm + ': its name makes no short name, so Save drops it. Use a letter A to Z in its name.', 'dmgr.ylabel.' + i); return; }
+        if (!(piece({ types: [{ key: y.key }] }).types || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
         if (seen[k]) { say(nm + ': another type has this key, so Save drops it.'); return; }
         if (kept >= DBX_LIM.types) { say(nm + ': at most ' + DBX_LIM.types + ' types, so Save drops it.'); return; }
         seen[k] = 1; kept++;
+        if (!yNamed) say(nm + ': Name is empty. Name it, such as Cutting, since players read it in the damage lines and the Take damage window.', 'dmgr.ylabel.' + i);
         var cy = (piece({ locs: d.locs, types: [y] }).types || [])[0] || {};
         if (y.mult !== undefined) { if (typeof y.mult !== 'number' || !isFinite(y.mult)) say(nm + ': its multiplier is no number, so Save takes 1.'); else if (cy.mult !== y.mult) say(nm + ': a multiplier is 0 to 10 to the hundredth, so Save keeps ' + cy.mult + '.'); }
         if (y.vital !== undefined && y.vital !== 0) { if (typeof y.vital !== 'number' || !isFinite(y.vital)) say(nm + ': its vital multiplier is no number, so Save drops it.'); else if (!cy.vital) say(nm + ': a vital multiplier is above 0 and at most 10, so Save drops it.'); else if (cy.vital !== y.vital) say(nm + ': a vital multiplier is at most 10 to the hundredth, so Save keeps ' + cy.vital + '.'); }
@@ -1100,21 +1136,32 @@ function damageSays(d, sys, Fx) {
             else if (cy[g[1]] !== v) say(nm + ': ' + g[5] + ' is ' + g[4] + ' to 10 to the hundredth, so Save keeps ' + (cy[g[1]] || 0) + '.');
         });
         if (!lk && ((typeof y.dieDr === 'number' && y.dieDr) || (typeof y.dieVital === 'number' && y.dieVital) || (typeof y.dieWear === 'number' && y.dieWear))) warn(nm + ': its DR, vital wound and wear a die count only at a hit location, so they do nothing here.');
+        // 1.6.3 (lane B batch "damage"): Vital times and its vital wound a die count only where Vital where holds at the location struck. Read on the
+        // cleaned type, so only figures Save keeps are said. Warnings: Save keeps them, and they do nothing
+        if (cy.vital || cy.dieVital) yVital = true;
+        if (lk && !lk.vital && (cy.vital || cy.dieVital)) warn(nm + ': Vital times and its vital wound a die count only at a vital location, and Vital where under Hit locations is empty, so they do nothing. Fill Vital where.', 'dmgr.locvital');
+        if (!lk && cy.vital) warn(nm + ': Vital times counts only at a hit location, so it does nothing here.');
+        if (y.byMult === true && !dbxStr(d.woundF).trim() && !dbxStr(y.woundF).trim()) warn(nm + ': Its multiplier counts only with a Wound by formula under Taking damage, and that is empty.');
         if (dbxObj(y.alt) && Object.keys(y.alt).length) {
             if (!cy.alt) say(nm + ': Instead, if needs a formula Save can keep, so Save drops what it changes.');
             else { if (typeof y.alt.pool === 'string' && y.alt.pool && !cy.alt.pool) say(nm + ': the pool for Instead, if is gone, so Save drops it.'); if (y.alt.mult !== undefined && cy.alt.mult === undefined) say(nm + ': the multiplier for Instead, if is no number, so Save drops it.'); reads(y.alt.if, nm + ', Instead, if'); }
         }
         if (Array.isArray(y.alts)) y.alts.forEach(function(x, xk) { if (!dbxObj(x) || !Object.keys(x).length) return; var cx = cy.alts && cy.alts.filter(function(z) { return z.if === x.if; })[0]; if (!cx) say(nm + ': Or else, if ' + (xk + 2) + ' needs a formula Save can keep, beside an Instead, if, so Save drops it.'); else reads(x.if, nm + ', Or else, if'); });   // 1.6.2
     });
+    if (lk && lk.vital && !yVital) warn('Vital where: no damage type has Vital times or a vital wound a die, so it changes nothing.', 'dmgr.locvital');   // 1.6.3: the other way round
     var kSeen = Object.create(null), kKept = 0;   // 1.6.0: the kinds of blow, as the cleaner reads them
     (Array.isArray(d.kinds) ? d.kinds : []).forEach(function(y, i) {
         var nm = 'Kind ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : dbxObj(y) && typeof y.key === 'string' && y.key ? ', ' + y.key : '');
         if (!dbxObj(y)) { say(nm + ': Save cannot read it, so it drops it.'); return; }
         var k = typeof y.key === 'string' ? y.key.toLowerCase() : '';
-        if (!k || !(piece({ kinds: [{ key: y.key }] }).kinds || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
+        var kNamed = typeof y.label === 'string' && !!y.label.trim();   // 1.6.3: the Name is required (Fulllion's rulings of 2026-11-20)
+        if (!k && !kNamed) { say(nm + ': it needs a name, or Save drops it.', 'dmgr.klabel.' + i); return; }
+        if (!k) { say(nm + ': its name makes no short name, so Save drops it. Use a letter A to Z in its name.', 'dmgr.klabel.' + i); return; }
+        if (!(piece({ kinds: [{ key: y.key }] }).kinds || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
         if (kSeen[k]) { say(nm + ': another kind has this key, so Save drops it.'); return; }
         if (kKept >= DBX_LIM.kinds) { say(nm + ': at most ' + DBX_LIM.kinds + ' kinds, so Save drops it.'); return; }
         kSeen[k] = 1; kKept++;
+        if (!kNamed) say(nm + ': Name is empty. Name it, such as Melee, since the Take damage window and a blast’s kind of blow show it.', 'dmgr.klabel.' + i);
     });
     [['layers', 'Layer', 'at', 'its figure', ['wear']], ['weapons', 'Weapon list', 'dur', 'its Dur', ['wear', 'cond']]].forEach(function(g) {
         var n = 0;

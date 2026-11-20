@@ -30,7 +30,7 @@ function combatBody() {
     lineUnder(box, 'Who makes a thrown blast\u2019s rolls.');
     var resFields = (draft.fields || []).filter(function(f) { return f.kind === 'resource'; });
     if (typeof tp === 'function') tp('damage');
-    box.appendChild(labeledSelect('sys-combat-hp', 'Damage subtracts from', [['', resFields.length ? '— none —' : '— add a resource field —']].concat(resFields.map(function(f) { return [f.id, f.label || f.key]; })), cm.hpResource, 'Which resource full-auto damage reduces (the "health" resource).'));
+    box.appendChild(labeledSelect('sys-combat-hp', 'Damage subtracts from', [['', resFields.length ? 'Pick a pool' : 'Add a pool field first']].concat(resFields.map(function(f) { return [f.id, f.label || f.key]; })), cm.hpResource, 'Which resource full-auto damage reduces (the "health" resource).'));
     lineUnder(box, 'The pool that Full auto damage is taken from.');
     if (typeof tp === 'function') tp('cover');
     box.appendChild(labeledSelect('sys-combat-cover-on', 'Cover from blockers', [['off', 'Off'], ['on', 'On — the ruler, blasts and target marks']], cm.cover.on ? 'on' : 'off', 'When on, the ruler between two character tokens, a blast\'s labels and target marks show cover, read from the map\'s pieces: its sight-blockers (walls, pillars, closed doors, filled cells) and pieces set to give cover you can see over (a crate, a low wall). It changes no roll; with Full auto, the settings below say what a blast does behind each grade of cover, and a blast thrown into a wall or a closed door goes off in front of it.'));

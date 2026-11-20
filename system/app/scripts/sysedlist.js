@@ -984,15 +984,22 @@ function bodyBox(box, cm) {
     var bdL = el('label', 'sys-combat-item'); bdL.appendChild(el('span', 'sys-num-cap', 'A body in the way hides'));
     var bdI = input('sys-combat-cover-body field', typeof cm.cover.body === 'string' ? cm.cover.body : '', BODY_LINE, 'A formula'); bdI.dataset.vk = 'body'; bdL.appendChild(bdI); box.appendChild(bdL);
     lineUnder(box, BODY_LINE);
-    var bdE = el('div', 'sys-blast-err'); bdE.dataset.vk = 'body'; bdE.textContent = bodySays(cm.cover.body); box.appendChild(bdE);
+    var bdE = el('div', 'sys-blast-err'); bdE.dataset.vk = 'body'; bdE.textContent = bodySays(cm.cover.body, cm); box.appendChild(bdE);
 }
 var BODY_LINE = 'How much a character on the line between a roll and its target hides the target, from the two Sizes. A roll reads it, and a miss by no more than it hits that body. Empty: a body hides nothing.';
-function bodySays(v) { var SCb = window.wpSystemCore; return !v || !SCb || typeof SCb.cleanBodyCover !== 'function' || SCb.cleanBodyCover(v, F()) ? '' : 'Save drops it: it may read only the two Sizes, with no dice.'; }   // what Save does with it: '' where it keeps it
+function bodySays(v, cm) {   // what Save does with it: '' where it keeps it
+    var SCb = window.wpSystemCore; if (!v || !SCb || typeof SCb.cleanBodyCover !== 'function') return '';
+    if (!SCb.cleanBodyCover(v, F())) return 'Save drops it: it may read only the two Sizes, with no dice.';
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): the two Sizes come from Target size reads (or A body in the way reads), under Range. With neither picked every
+    // size reads 0, so the rule hides nothing. Kept as typed all the same, and said under Range too, where the pick is made
+    var P = F() ? F().parse(v) : null, rd = P && P.ok && (P.names || []).some(function(n) { var l = String(n).toLowerCase(); return l === 'targetsize' || l === 'bodysize'; });
+    return rd && cm && typeof cm === 'object' && !cm.targetSize && !cm.bodySize ? 'Pick which number is a character\u2019s size in Target size reads, under Range, or every size reads 0.' : '';
+}
 function onBlastInput(t) {
     if (t && t.dataset && t.dataset.vk === 'body' && /(^| )sys-combat-cover-body( |$)/.test(t.className || '')) {   // 1.6.2: a body in the way, and what Save does with it
         var cmB = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }), cvB = draft.combat.cover || (cmB.cover = { on: false, style: 'graded' }), vB = String(t.value || '').trim();
         if (vB) cvB.body = vB.slice(0, LIMITS.formula); else delete cvB.body;
-        var boxB = ui('sysCombatBox'), erB = boxB ? Array.prototype.filter.call(boxB.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.vk === 'body'; })[0] : null; if (erB) erB.textContent = bodySays(vB);
+        var boxB = ui('sysCombatBox'), erB = boxB ? Array.prototype.filter.call(boxB.querySelectorAll('.sys-blast-err'), function(x) { return x.dataset.vk === 'body'; })[0] : null; if (erB) erB.textContent = bodySays(vB, draft.combat);
         markDirty(); return true;
     }
     if (t && t.dataset && t.dataset.sk === 'stray' && /(^| )sys-combat-blstray( |$)/.test(t.className || '')) {   // 1.6.0 A burst: how far a stray round lands, and what Save does with it

@@ -1379,11 +1379,16 @@ function cleanTerrainKinds(v) {
 function terrainKinds(sys) { return isObj(sys) && isObj(sys.combat) ? cleanTerrainKinds(sys.combat.terrain) || [] : []; }
 function terrainCosts(sys) { var o = map(); terrainKinds(sys).forEach(function(k) { o[lower(k.key)] = k.cost; }); return o; }
 function arcKey(s) { var w = String(s || '').replace(/[^A-Za-z0-9]+/g, ' ').trim().split(' ').filter(function(x) { return !!x; }), k = w.map(function(x, i) { return i ? x.charAt(0).toUpperCase() + x.slice(1) : x; }).join(''); return /^[A-Za-z]/.test(k) ? k.slice(0, 40) : ''; }
+// 1.6.3 (lane B; Fulllion's rulings of 2026-11-20): an arc whose name makes no short name (one in another script, or one that begins with a digit) gets one
+// made for it, Arc and the first free number, as a kind of terrain does, so no named arc is dropped for its letters. taken: the short names the arcs name
+// themselves, so a made one never takes one of theirs. An arc whose name makes one is cleaned exactly as before
+function arcKeyFor(lb, taken) { var k = arcKey(lb), n = 2; if (k || !lb) return k; k = 'Arc'; while (taken[lower(k)] === 1) k = 'Arc' + (n++); return k; }
 function cleanArcs(v) {
-    if (!Array.isArray(v)) return null; var out = [], seen = map();
-    v.slice(0, ARC_MAX * 2).forEach(function(a) {
+    if (!Array.isArray(v)) return null; var out = [], seen = map(), taken = map(), rows = v.slice(0, ARC_MAX * 2);
+    rows.forEach(function(a) { if (isObj(a) && typeof a.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(a.key)) taken[lower(a.key)] = 1; });
+    rows.forEach(function(a) {
         if (!isObj(a) || out.length >= ARC_MAX) return; var lb = typeof a.label === 'string' ? a.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, LIMITS.label) : '';
-        var k = typeof a.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(a.key) ? a.key : arcKey(lb); if (!k || !lb || seen[lower(k)] === 1) return; seen[lower(k)] = 1;
+        var k = typeof a.key === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(a.key) ? a.key : arcKeyFor(lb, taken); if (!k || !lb || seen[lower(k)] === 1) return; seen[lower(k)] = 1; taken[lower(k)] = 1;
         if (a.all === true) { out.push({ key: k, label: lb, all: true }); return; }
         var f = arcDeg(a.f), t = arcDeg(a.t); if (f !== null && t !== null) out.push({ key: k, label: lb, f: f, t: t });
     });

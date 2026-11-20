@@ -586,6 +586,10 @@ function refreshErrors() {
     }
     var thE = draft.combat && typeof draft.combat.targetHit === 'string' ? draft.combat.targetHit : '';   // 1.6.0 (B5): the list of hit locations, judged as the cleaner judges it
     if (thE) { var thFe = (draft.fields || []).find(function(f) { return f && f.id === thE; }); if (!thFe || thFe.kind !== 'item-list') rErr.push({ message: 'Called shots read: that list is gone or is no list, so Save drops it.' }); }
+    // 1.6.3 (lane B): A body in the way hides reads TargetSize and BodySize through Target size reads (or A body in the way reads). With neither picked every
+    // size reads 0, so the formula hides nothing. Said here, where the pick is made; the cleaner keeps the formula as it is
+    var cvBE = draft.combat && draft.combat.cover && typeof draft.combat.cover === 'object' ? draft.combat.cover : null, bdT = cvBE && cvBE.on === true && typeof cvBE.body === 'string' ? cvBE.body.trim() : '';
+    if (bdT && !tszE && !bszE && F()) { var bdP = F().parse(bdT); if (bdP && bdP.ok && (bdP.names || []).some(function(n) { var l = String(n).toLowerCase(); return l === 'targetsize' || l === 'bodysize'; })) rErr.push({ prop: 'range.size', message: 'A body in the way hides reads the sizes, but no number is picked as a character\u2019s size. Pick one in Target size reads, or every size reads 0.' }); }
     if (rErr.length) errorsById.range = (errorsById.range || []).concat(rErr);
     // item 19 H2: what Save drops of the height modifier, said under the Height box — read as the cleaner reads it
     var hgE = draft.combat && draft.combat.height && typeof draft.combat.height === 'object' && !Array.isArray(draft.combat.height) ? draft.combat.height : null, hErr = [];
@@ -750,6 +754,24 @@ function refreshErrors() {
     }
     if (snO && snO.view && typeof snO.view === 'object' && snO.view.mode === 'arc' && !(typeof snO.view.arc === 'number' && isFinite(snO.view.arc) && Math.round(snO.view.arc) >= 1)) sErr.push({ message: 'A map with no Vision: an arc needs its degrees, 1 to 360. Save leaves it out.' });   // 1.6.0: as the cleaner reads it
     if (snE) snE.forEach(function(s, i) { if (s && typeof s === 'object' && typeof s.arc === 'number' && !(Math.round(s.arc) >= 1)) sErr.push({ message: 'Sense ' + (i + 1) + ': an arc is 1 to 360 degrees. Save gives it the eyes’ arc.' }); else if (s && s.arc && typeof s.arc === 'object') { var af = senseArcOf(s.arc); if (!af) sErr.push({ message: 'Sense ' + (i + 1) + ': its arc names no number or formula field here. Save gives it the eyes’ arc.' }); else if (!secS || secS[af.id]) sErr.push({ message: 'Sense ' + (i + 1) + ': its arc reads ' + (af.label || af.key) + ', which its owner cannot read. Save gives it the eyes’ arc.' }); } });   // 1.6.0: its own arc, as the cleaner reads it
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them"): a band of side vision that notices
+    // by a roll. Noticed by is what Loud by, Sneaking where and the sneak roll depend on, and Sneaking where is what its roll depends on. Judged beside what Save
+    // keeps of the band (the cleaned system's band by its id), so a line says only what the cleaner really does. A band Save drops whole is said above
+    if (snE) {
+        var kSnL = clean && clean.combat && clean.combat.senses && Array.isArray(clean.combat.senses.list) ? clean.combat.senses.list : [];
+        snE.forEach(function(s, i) {
+            if (!s || typeof s !== 'object' || s.shows !== 'side' || !s.notice || typeof s.notice !== 'object') return;
+            var nD = s.notice, ckT = typeof nD.check === 'string' ? nD.check.trim() : '', skT = typeof nD.sneak === 'string' ? nD.sneak.trim() : '', kS = kSnL.filter(function(x) { return x && x.id === s.id; })[0];
+            if (!kS || kS.shows !== 'side') return;
+            var nmS = 'Sense ' + (i + 1) + (typeof s.name === 'string' && s.name.trim() ? ' (' + s.name.trim() + ')' : '') + ': ', hasSt = !!(nD.stealth && typeof nD.stealth === 'object' && (nD.stealth.r || nD.stealth.l));
+            if (!ckT) { if (skT || hasSt || nD.noise) sErr.push({ prop: 'sense.' + i + '.nkcheck', message: nmS + 'Noticed by is empty, so Save drops this band\u2019s noticing, with Loud by, Sneaking where and its roll.' }); return; }
+            var kN = kS.notice && typeof kS.notice === 'object' ? kS.notice : null;
+            if (!kN) { sErr.push({ prop: 'sense.' + i + '.nkcheck', message: nmS + 'Noticed by cannot be read, so Save drops this band\u2019s noticing, with Loud by, Sneaking where and its roll.' }); return; }
+            if (skT && !kN.sneak) { sErr.push({ prop: 'sense.' + i + '.nksneak', message: nmS + 'Sneaking where cannot be read, or it rolls dice, so Save drops it and its roll.' }); return; }
+            var stGone = !!(kN.stealth && typeof kN.stealth.r === 'string' && !(Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && r.id === kN.stealth.r; }));   // a system roll the cleaner keeps by its id, though it is gone
+            if (kN.sneak && (!kN.stealth || stGone)) sErr.push({ prop: 'sense.' + i + '.nkroll', message: nmS + (hasSt ? 'Its sneak roll is no longer here, so nothing sneaks past this band until one is picked.' : 'Sneaking where needs the roll a sneak makes. Until one is picked, nothing sneaks past this band.') });
+        });
+    }
     if (sErr.length) errorsById.senses = sErr;
     // conditions C4: what Save drops of an automatic effect's formula, under the effect's row — read as the cleaner reads it (systemcore
     // cleanEffectDef and the public rule: the owner's "Only public ones"); a token's name read there is 0, a warning
@@ -837,6 +859,12 @@ function refreshErrors() {
     if (draft.combat && draft.combat.postureOnAttack === true && !(psE && psE.length)) pErr.push({ message: 'An attack reads its target\u2019s posture, but this system lists no postures, so it reads none.' });   // 1.6.0
     var cmRaw = draft.combat && draft.combat.cover && typeof draft.combat.cover === 'object' && draft.combat.cover.mods && typeof draft.combat.cover.mods === 'object' ? draft.combat.cover.mods : null;
     if (cmRaw && typeof cleanCover === 'function') { var cmKeep = cleanCover(draft.combat.cover).mods || {}; Object.keys(cmRaw).forEach(function(k) { if (!Object.prototype.hasOwnProperty.call(cmKeep, k)) pErr.push({ message: 'What cover takes off an attack is a whole number from \u221220 to 20, not 0, so Save drops ' + cmRaw[k] + '.' }); }); }   // 1.6.0, as the cleaner reads it
+    // 1.6.3 (lane B): a posture's Gives cover, and what each grade of cover takes off an attack, depend on Cover from blockers being on (fog.js reads no cover
+    // while it is off). Both are kept as set and work once it is on, so this only says that they do nothing yet
+    if (!(draft.combat && draft.combat.cover && draft.combat.cover.on === true)) {
+        if (psE && psE.some(function(p, i) { return i > 0 && p && typeof p === 'object' && p.cover && typeof p.cover === 'object' && [1, 2, 3].indexOf(p.cover.g) >= 0; })) pErr.push({ prop: 'posture.cover', message: 'A posture gives cover, but Cover from blockers is off, so that cover does nothing. Turn Cover from blockers on under Cover.' });
+        if (draft.combat && draft.combat.postureOnAttack === true && cmRaw && Object.keys(cmRaw).some(function(k) { return typeof cmRaw[k] === 'number' && cmRaw[k] !== 0; })) pErr.push({ prop: 'posture.covmod', message: 'What cover takes off an attack does nothing while Cover from blockers is off. Turn it on under Cover.' });
+    }
     if (pErr.length) errorsById.postures = pErr;
     // initiative O2: what Save drops of the tie steps, under the Initiative box — read as the cleaner reads them (a step that reads, of 300
     // characters at most, reading only what players can read)
@@ -853,6 +881,38 @@ function refreshErrors() {
     else if (sdE && (!paS || !paS.ok)) iErr.push({ message: 'Sides roll: ' + (paS && paS.error && paS.error.message ? paS.error.message : 'the formula cannot be read.') + ' Save drops it.' });
     else if (sdE && Array.isArray(paS.names) && paS.names.length) iErr.push({ message: 'Sides roll: it reads ' + paS.names[0] + ', but a side rolls it as one, never as one character: Save drops it.' });
     else if (sdE && irE.chosen === true) iErr.push({ message: 'Sides roll: Next is chosen takes the place of sides, so Save drops it. Untick Next is chosen to keep it.' });   // initiative O5, as the cleaner reads it
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them"): what How turns go and How turns
+    // are ordered still need, said under the Initiative box. The shape is read as the box reads it, the draft's pick word first, else the keys the system holds;
+    // each box is judged as the cleaner judges it (systemcore's initiative rules), inline, so this part needs nothing new from its root. Nothing holds Save:
+    // a shape whose box is empty is a system that saves as Once a round, and an order with no roll asks the GM for each number at the table
+    var shE = irE && typeof irE.pick === 'string' && /^(?:once|sides|chosen|draw|several|clock)$/.test(irE.pick) ? irE.pick : !irE ? 'once' : irE.clock ? 'clock' : irE.several ? 'several' : irE.chosen === true ? 'chosen' : irE.deck ? 'draw' : sdE ? 'sides' : 'once';
+    var wholeIn = function(v, lo, hi) { return typeof v === 'number' && v === Math.floor(v) && v >= lo && v <= hi; };
+    if (shE === 'clock') { var ckE = irE && irE.clock && typeof irE.clock === 'object' ? irE.clock : {}; if (!wholeIn(ckE.cost, 1, 999)) iErr.push({ prop: 'init.ckcost', message: 'A counting clock needs what an action costs, a whole number from 1 to 999. Left empty, Save drops the clock and fights go back to Once a round.' }); }
+    else if (shE === 'several') {
+        var svE = irE && irE.several && typeof irE.several === 'object' ? irE.several : {}, tbsE = Array.isArray(draft.tables) ? draft.tables : [];
+        if (svE.by === 'table') {
+            var tkE = typeof svE.table === 'string' ? svE.table.trim() : '', stE = typeof svE.stat === 'string' ? svE.stat.trim() : '';
+            if (!tkE || !stE) iErr.push({ prop: !tkE ? 'init.sevtable' : 'init.sevstat', message: 'Several turns a round by a table needs its table and the number it reads, or Save goes back to Once a round.' + (!tbsE.length ? ' Make a table first, in the Rules tab.' : '') });
+            else if (!tbsE.some(function(t) { return !!t && t.key === tkE; })) iErr.push({ prop: 'init.sevtable', message: 'Several turns a round: its table is no longer here, so each character acts once a round. Pick another.' });
+        } else if (!wholeIn(svE.minus, 1, 1000)) iErr.push({ prop: 'init.sevminus', message: 'Several turns a round needs what each pass takes away, a whole number from 1 to 1000, or Save goes back to Once a round.' });
+    }
+    else if (shE === 'sides' && !sdE) iErr.push({ prop: 'init.side', message: 'Sides roll: Sides take turns needs the roll each side makes, or Save goes back to Once a round.' });
+    else if (shE === 'draw') {
+        var dkE = irE && irE.deck && typeof irE.deck === 'object' && typeof irE.deck.key === 'string' ? irE.deck.key : '', dksE = Array.isArray(draft.decks) ? draft.decks.filter(function(d) { return !!d && typeof d.key === 'string'; }) : [];
+        if (!dksE.length) iErr.push({ prop: 'init.deck', message: 'From a draw needs a deck. Make a deck first, in the Rules tab. Until then, Save goes back to Once a round.' });
+        else if (!dkE) iErr.push({ prop: 'init.deck', message: 'From a draw needs a deck. Pick one, or Save goes back to Once a round.' });
+        else if (!dksE.some(function(d) { return d.key === dkE; })) iErr.push({ prop: 'init.deck', message: 'From a draw: its deck is no longer here. Pick another, or the order cannot be drawn.' });
+    }
+    if (shE !== 'draw' && shE !== 'clock') {   // How turns are ordered: the row stands under every other shape
+        if (irE && irE.by === 'figure') {
+            var okFE = (Array.isArray(draft.fields) ? draft.fields : []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); });
+            if (!(typeof irE.fig === 'string' && okFE.some(function(f) { return f.id === irE.fig; }))) iErr.push({ prop: 'init.byfig', message: okFE.length ? 'How turns are ordered: pick the figure, or Save goes back to By a roll.' : 'How turns are ordered: no figure is picked, so Save goes back to By a roll. Make a number field first, or pick another way.' });
+        } else if (!(irE && irE.by === 'gm') && !(Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && r.init; }) && (Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && !Array.isArray(r.apply); })) {
+            // By a roll with rolls to pick from and none picked. A system with no roll at all says nothing yet: a new system is no fault, and the box itself
+            // says to make a roll first, in the Rolls tab
+            iErr.push({ prop: 'init.byroll', message: 'How turns are ordered: pick the roll that orders a fight, or pick Set by the GM. Until then the GM types each number in the roster.' });
+        }
+    }
     if (iErr.length) errorsById.initiative = iErr;
     // 126: what Save drops of the point budgets, under their box, read as the cleaner reads them: a budget with no name, a formula that is
     // missing, too long, unreadable or rolls dice, one that reads what players cannot read, and any budget past the eighth

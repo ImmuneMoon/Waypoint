@@ -1286,5 +1286,44 @@ const j = v => JSON.stringify(v);
             ixC.includes('Right-click a token &#9656; <b>Effects&hellip;</b> to add or end an effect without opening the sheet') && ixC.includes('A token with <b>no character sheet</b> keeps effects of its own') && ixC.includes('A player gets <b>Effects&hellip;</b> on their own character&rsquo;s token wherever its sheet lets them change its effects.') && giC.includes('A token with no character sheet may carry `fx`, its own effects: up to 12 rows'));
     }
 
+    /* ---- 1.6.3 (lane B, the Combat tab; Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them"): a
+       box another depends on, said under its topic when it is empty or would be dropped (refreshErrors, run for real against the cleaner). A band's Noticed by,
+       Sneaking where and its sneak roll; a posture's cover and what cover takes off an attack while Cover from blockers is off; the size A body in the way reads ---- */
+    {
+        const reR = require('./checkkit').cutEnd('sysederr.js', 'function refreshErrors(');   // refreshErrors to its part's end, read by the part's name
+        const J = j;
+        const snBoxR = kit.cut('sysedcal.js', '// [sinkcheck:sensesbox-start]', '// [sinkcheck:sensesbox-end]');   // the Senses box's own helpers, which refreshErrors asks, as S2a hands them
+        const errsR = dr => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'secretFieldIds', 'gmViewFields', 'LIGHT_UNITS', 'uid', 'var errorsById = {}, warningsById = {};' + NL + snBoxR + NL + reR + NL + 'refreshErrors(); return errorsById;')(dr, () => F, S.validKey, S.KINDS, S.cleanItemKey, cleanSystem, validateSystem, S.statKey, S.LIMITS, () => null, c => c && c.system && typeof c.system === 'object' ? c.system : null, S.secretFieldIds, S.gmViewFields, S.LIGHT_UNITS, p => p + 'aaaaaaaa');
+        const sysR = cm => { const s = emptySystem(); s.name = 'R'; s.fields = [{ id: 'f_sz', key: 'Size', label: 'Size', kind: 'number', def: 0 }, { id: 'f_sn', key: 'Sneaky', label: 'Sneaky', kind: 'toggle' }]; s.rolls = [{ id: 'r_st', label: 'Stealth', formula: '3d6 <= 12' }]; s.combat = Object.assign({}, s.combat, cm); return s; };
+        const band = n => ({ senses: { list: [{ id: 'sn_aaaaaaaa', name: 'Side', range: { by: 'eyes' }, grade: 'full', shows: 'side', notice: n }] } });
+        const sayN = n => (errsR(sysR(band(n))).senses || []).map(e => e.prop + '|' + e.message);
+        const good = sayN({ check: '3d6 <= 12', sneak: 'Sneaky', stealth: { r: 'r_st' } }), noRoll = sayN({ check: '3d6 <= 12', sneak: 'Sneaky' }), gone = sayN({ check: '3d6 <= 12', sneak: 'Sneaky', stealth: { r: 'r_gone' } });
+        const badCk = sayN({ check: '3d6 <= ((', sneak: 'Sneaky', stealth: { r: 'r_st' } }), dice = sayN({ check: '3d6 <= 12', sneak: '1d6 > 3', stealth: { r: 'r_st' } }), noCk = sayN({ sneak: 'Sneaky', stealth: { r: 'r_st' } }), bare = sayN({ check: '3d6 <= 12' });
+        check('1.6.3 a band\u2019s noticing is said under the Senses box where Save drops part of it, landing on its own box: Sneaking where with no sneak roll, or one that is gone, sneaks nothing past it; a Noticed by that cannot be read, or one emptied while the rest stays, drops the whole of it; a Sneaking where that rolls dice drops it and its roll; a band fully set, or one with Noticed by alone, says nothing',
+            J(good) === '[]' && J(bare) === '[]' && J(noRoll) === J(['sense.0.nkroll|Sense 1 (Side): Sneaking where needs the roll a sneak makes. Until one is picked, nothing sneaks past this band.']) && J(gone) === J(['sense.0.nkroll|Sense 1 (Side): Its sneak roll is no longer here, so nothing sneaks past this band until one is picked.'])
+            && J(badCk) === J(['sense.0.nkcheck|Sense 1 (Side): Noticed by cannot be read, so Save drops this band\u2019s noticing, with Loud by, Sneaking where and its roll.']) && J(noCk) === J(['sense.0.nkcheck|Sense 1 (Side): Noticed by is empty, so Save drops this band\u2019s noticing, with Loud by, Sneaking where and its roll.'])
+            && J(dice) === J(['sense.0.nksneak|Sense 1 (Side): Sneaking where cannot be read, or it rolls dice, so Save drops it and its roll.'])
+            && !cleanSystem(sysR(band({ check: '3d6 <= ((', sneak: 'Sneaky' })), { F, gmView: true }).combat.senses.list[0].notice && !cleanSystem(sysR(band({ check: '3d6 <= 12', sneak: 'Sneaky' })), { F, gmView: true }).combat.senses.list[0].notice.stealth, J([good, noRoll, gone, badCk, noCk, dice]));
+        const sel = kit.part('sysedcal.js');
+        check('1.6.3 the band\u2019s editor keeps what depends on Noticed by when that box is emptied, shows it while it stands so the line under the box can say what Save drops, and says a sneak roll picked at once',
+            sel.includes("if (c.indexOf('sys-sense-nkcheck') >= 0) { if (tv.trim()) nk.check = tv; else { delete nk.check; if (!Object.keys(nk).length) delete atN.s.notice; } }") && sel.includes('if (!has && !sk) return rw;') && /else delete atR\.s\.notice\.stealth; markDirty\(\); patchErrors\(\); if \(wasL === isL\) return true;/.test(sel)
+            && /var snN = \/\^sense\\\.\(\\d\+\)\\\.\(nkcheck\|nksneak\|nkroll\)\$\/\.exec\(prop\);/.test(fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8')));
+        // a posture's cover, and what cover takes off an attack, with Cover from blockers off and on
+        const pst = (on, mods) => ({ cover: Object.assign({ on: on, style: 'graded' }, mods ? { mods: mods } : {}), postureOnAttack: !!mods, postures: [{ id: 'p_stand', name: 'Standing' }, { id: 'p_low', name: 'Low', cover: { g: 2 } }] });
+        const sayP = cm => (errsR(sysR(cm)).postures || []).map(e => e.prop + '|' + e.message);
+        const pOff = sayP(pst(false, { half: -2 })), pOn = sayP(pst(true, { half: -2 })), pNone = sayP({ cover: { on: false, style: 'graded' }, postures: [{ id: 'p_stand', name: 'Standing' }, { id: 'p_low', name: 'Low' }] });
+        check('1.6.3 a posture that gives cover, and what cover takes off an attack, are said under the Postures box while Cover from blockers is off, since then they do nothing; with cover on, or with neither set, nothing is said, and the cleaner keeps both as set',
+            J(pOff) === J(['posture.cover|A posture gives cover, but Cover from blockers is off, so that cover does nothing. Turn Cover from blockers on under Cover.', 'posture.covmod|What cover takes off an attack does nothing while Cover from blockers is off. Turn it on under Cover.']) && J(pOn) === '[]' && J(pNone) === '[]'
+            && cleanSystem(sysR(pst(false, { half: -2 })), { F, gmView: true }).combat.postures[1].cover.g === 2, J([pOff, pOn, pNone]));
+        // the size A body in the way reads
+        const bdy = (sz, body) => Object.assign({ cover: { on: true, style: 'graded', body: body === undefined ? 'BodySize - TargetSize' : body } }, sz || {});
+        const sayB = cm => (errsR(sysR(cm)).range || []).map(e => e.prop + '|' + e.message);
+        const bNone = sayB(bdy()), bT = sayB(bdy({ targetSize: 'f_sz' })), bB = sayB(bdy({ bodySize: 'f_sz' })), bNo = sayB(bdy(null, '')), bOff = sayB(Object.assign(bdy(), { cover: { on: false, style: 'graded', body: 'BodySize - TargetSize' } }));
+        const blS = kit.part('sysedlist.js'), bsA = blS.indexOf('function bodySays(v, cm) {'), bsSrc = blS.slice(bsA, blS.indexOf('\n}\n', bsA) + 3), bSays = new Function('window', 'F', bsSrc + '\nreturn bodySays;')({ wpSystemCore: S }, () => F);
+        check('1.6.3 A body in the way hides, with no number picked as a character\u2019s size, is said under Range where the pick is made and on its own line, since every size then reads 0; a size picked either way, no rule or cover off says nothing, and a rule Save cannot keep still says that first',
+            J(bNone) === J(['range.size|A body in the way hides reads the sizes, but no number is picked as a character\u2019s size. Pick one in Target size reads, or every size reads 0.']) && J(bT) === '[]' && J(bB) === '[]' && J(bNo) === '[]' && J(bOff) === '[]'
+            && bSays('BodySize - TargetSize', {}) === 'Pick which number is a character\u2019s size in Target size reads, under Range, or every size reads 0.' && bSays('BodySize - TargetSize', { targetSize: 'f_sz' }) === '' && bSays('1d6', {}) === 'Save drops it: it may read only the two Sizes, with no dice.' && bSays('', {}) === '', J([bNone, bT, bB]));
+    }
+
     await T.finish();
 })();

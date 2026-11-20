@@ -358,6 +358,10 @@ var PROP_BOX = [[/^loot$/, ['sys-loot-if']], [/^(?:apply|then)\.(\d+)$/, ['sys-a
     // number is the place among the list's rolls, rules, feeds, badges or lines, and each of those draws its one box of the class named, in that order
     [/^list\.swwords$/, ['sys-list-swwords']], [/^list\.swicon$/, ['sys-swicon']], [/^list\.loadwords$/, ['sys-list-loadneedstext']], [/^list\.chamberwords$/, ['sys-list-chamberneedstext']], [/^list\.needstext\.(\d+)$/, ['sys-list-needstext']], [/^list\.hideoff\.(\d+)$/, ['sys-list-hideoff']],
     [/^list\.layrcats\.(\d+)$/, ['sys-list-layrcats']], [/^list\.standoff$/, ['sys-list-standoff']], [/^list\.loadmatch$/, ['sys-list-loadby']], [/^list\.chambermatch$/, ['sys-list-chamberby']], [/^list\.feedmatch\.(\d+)$/, ['sys-list-feedby']], [/^list\.badgewords\.(\d+)$/, ['sys-badge-words']], [/^list\.badge\.(\d+)$/, ['sys-badge-if']],
+    // 1.6.3 (lane B, the Combat tab): a box of the Combat tab that another depends on, said empty under its topic, lands on its own box. Initiative's shapes
+    // and its order, the size a body in the way reads, and a posture's cover or what cover takes off an attack while Cover from blockers is off
+    [/^init\.ckcost$/, ['sys-init-ckcost']], [/^init\.sevminus$/, ['sys-init-sevminus']], [/^init\.sevtable$/, ['sys-init-sevtable', 'sys-init-sevby']], [/^init\.sevstat$/, ['sys-init-sevstat', 'sys-init-sevby']], [/^init\.side$/, ['sys-init-side']], [/^init\.deck$/, ['sys-init-deck', 'sys-init-shape']], [/^init\.byroll$/, ['sys-init-byroll', 'sys-init-by']], [/^init\.byfig$/, ['sys-init-byfig', 'sys-init-by']],
+    [/^range\.size$/, ['sys-range-size']], [/^posture\.cover$/, ['sys-posture-cover']], [/^posture\.covmod$/, ['sys-combat-covmod', 'sys-combat-postatk']],
     [/^list\.fitwords$/, ['sys-list-partsfitwords']], [/^list\.pfitwords\.(\d+)$/, ['sys-pfit-says']], [/^list\.pfit\.(\d+)$/, ['sys-pfit-if']], [/^list\.pcap\.(\d+)$/, ['sys-pcap-row']], [/^list\.uppool$/, ['sys-list-uppool']], [/^list\.lkshades$/, ['sys-list-lkshades', 'sys-list-lkby']], [/^list\.trade$/, ['sys-traderules']]];
 // The box a word names in what holds it, the nth of its class where the word says which. Found by comparing, so nothing of a system file reaches a selector
 function formToo(b) { if (b && b.hidden && window.wpFormBox && typeof window.wpFormBox.openFor === 'function') window.wpFormBox.openFor(b); return b; }
@@ -373,6 +377,10 @@ function boxIn(scope, prop) {
     }
     // 1.6.3 (the review of the Lists tab's fix, 2026-11-20): a list roll's Damage type, Kind, Rolls by and its figure are drawn on only some rolls, so
     // the nth box of the class is not the nth roll. The box whose data-ri is the roll's place, else that roll's needs row, which every roll draws
+    // 1.6.3 (lane B, the Combat tab): a band's Noticed by, Sneaking where and its sneak roll stand only in a band of side vision, so the nth box of the class is
+    // not the nth sense. The box in the notice row whose data-si is the sense's place, else that row. Fixed class names alone: the place is compared
+    var snN = /^sense\.(\d+)\.(nkcheck|nksneak|nkroll)$/.exec(prop);
+    if (snN) { var nrs = scope.querySelectorAll('.sys-sense-nrow'); for (var nq = 0; nq < nrs.length; nq++) if (nrs[nq].dataset && nrs[nq].dataset.si === snN[1]) return nrs[nq].querySelector('.sys-sense-' + snN[2]) || nrs[nq]; }
     var lr = /^list\.(dtype|dkind|rolltest|rollof)\.(\d+)$/.exec(prop);
     if (lr) {
         var lrCls = { dtype: ['sys-list-rolldtype'], dkind: ['sys-list-rolldkind'], rolltest: ['sys-list-rolltest'], rollof: ['sys-list-rollof', 'sys-list-rolltest'] }[lr[1]].concat(['sys-list-needsrow']);

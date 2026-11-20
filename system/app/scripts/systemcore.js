@@ -5493,13 +5493,20 @@ function cleanRestSkip(v, rests) { if (v === 'rest') return 'rest'; return typeo
 // name and a plain number. A map's kind is meta.kind, a short name; no kind is the personal scale. Formulas read MapKind.<kind> (1 on a map of that
 // kind) and MapFactor.<factor> (the factor of the map's kind, 1 where it names none) through the token context
 var MAPKIND_MAX = 8, MAPKIND_FAC = 8, MAPKIND_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
+// 1.6.3 (lane B; Fulllion's rulings of 2026-11-20): the short name a map kind, a factor, a darkness step, a scene channel or a travel mode is given where it
+// names none of its own: made from its name and cut to the 24 characters a short name holds, else the word handed in (Kind, Factor, Step, Channel, Mode)
+// and the first free number. So a name in another script, one that begins with a digit, or a long one is no reason to drop the row. taken: the short
+// names the rows name themselves (shortKeysTaken), so a made one never takes one of theirs. A row whose name makes a short name of 24 or fewer is cleaned
+// exactly as before
+function shortKeyFor(lb, taken, word) { var k = arcKey(lb).slice(0, 24), n = 2; if (k || !lb) return k; k = word; while (taken[lower(k)] === 1) k = word + (n++); return k; }
+function shortKeysTaken(rows) { var t = map(); (Array.isArray(rows) ? rows : []).forEach(function(m) { if (isObj(m) && typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim())) t[lower(m.key.trim())] = 1; }); return t; }
 function cleanMapKinds(raw) {
-    if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, MAPKIND_MAX * 4).forEach(function(m) {
-        if (out.length >= MAPKIND_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb);
-        if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var o = { key: k, label: lb };
+    if (!Array.isArray(raw)) return null; var out = [], ks = map(), rows = raw.slice(0, MAPKIND_MAX * 4), taken = shortKeysTaken(rows);
+    rows.forEach(function(m) {
+        if (out.length >= MAPKIND_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Kind');
+        if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; taken[lower(k)] = 1; var o = { key: k, label: lb };
         if (isObj(m.scale) && typeof m.scale.per === 'number' && fin(m.scale.per) && m.scale.per > 0 && m.scale.per <= 1e6 && typeof m.scale.unit === 'string' && hasOwn(MAP_UNITS, m.scale.unit)) o.scale = { per: Math.round(m.scale.per * 1e4) / 1e4, unit: m.scale.unit };
-        var fs = [], fk = map(); (Array.isArray(m.factors) ? m.factors : []).slice(0, MAPKIND_FAC * 4).forEach(function(x) { if (fs.length >= MAPKIND_FAC || !isObj(x) || typeof x.v !== 'number' || !fin(x.v) || Math.abs(x.v) > 1e6) return; var fl = cutText(x.label, LIMITS.label), fkk = typeof x.key === 'string' && MAPKIND_KEY.test(x.key.trim()) ? x.key.trim() : arcKey(fl); if (!fl || !fkk || !MAPKIND_KEY.test(fkk) || fk[lower(fkk)]) return; fk[lower(fkk)] = 1; fs.push({ key: fkk, label: fl, v: Math.round(x.v * 1e4) / 1e4 }); });
+        var fs = [], fk = map(), fRows = (Array.isArray(m.factors) ? m.factors : []).slice(0, MAPKIND_FAC * 4), fTaken = shortKeysTaken(fRows); fRows.forEach(function(x) { if (fs.length >= MAPKIND_FAC || !isObj(x) || typeof x.v !== 'number' || !fin(x.v) || Math.abs(x.v) > 1e6) return; var fl = cutText(x.label, LIMITS.label), fkk = typeof x.key === 'string' && MAPKIND_KEY.test(x.key.trim()) ? x.key.trim() : shortKeyFor(fl, fTaken, 'Factor'); if (!fl || !fkk || !MAPKIND_KEY.test(fkk) || fk[lower(fkk)]) return; fk[lower(fkk)] = 1; fTaken[lower(fkk)] = 1; fs.push({ key: fkk, label: fl, v: Math.round(x.v * 1e4) / 1e4 }); });
         if (fs.length) o.factors = fs; if (m.travel === true) o.travel = true; out.push(o);   // 1.6.2 (backlog 166 a): Ruler shows travel time, true only
     });
     return out.length ? out : null;
@@ -5535,12 +5542,14 @@ var SCENE_MAX = 8;
 var DARK_MAX = 8;
 function cleanDarkSteps(raw) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, DARK_MAX * 4).forEach(function(m) { if (out.length >= DARK_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var pen = typeof m.pen === 'number' && fin(m.pen) ? Math.max(-99, Math.min(99, Math.round(m.pen))) : 0; out.push({ key: k, label: lb, pen: pen }); });
+    var rows = raw.slice(0, DARK_MAX * 4), taken = shortKeysTaken(rows);   // 1.6.3: a name with no short name of its own gets one (shortKeyFor)
+    rows.forEach(function(m) { if (out.length >= DARK_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Step'); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; taken[lower(k)] = 1; var pen = typeof m.pen === 'number' && fin(m.pen) ? Math.max(-99, Math.min(99, Math.round(m.pen))) : 0; out.push({ key: k, label: lb, pen: pen }); });
     return out.length ? out : null;
 }
 function cleanScenes(raw) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, SCENE_MAX * 4).forEach(function(m) { if (out.length >= SCENE_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; out.push({ key: k, label: lb }); });
+    var rows = raw.slice(0, SCENE_MAX * 4), taken = shortKeysTaken(rows);   // 1.6.3: a name with no short name of its own gets one (shortKeyFor)
+    rows.forEach(function(m) { if (out.length >= SCENE_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Channel'); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; taken[lower(k)] = 1; out.push({ key: k, label: lb }); });
     return out.length ? out : null;
 }
 function sceneByKey(sys, key) { var k = lower(String(key || '')); return k ? (isObj(sys) && Array.isArray(sys.scenes) ? sys.scenes : []).filter(function(m) { return isObj(m) && lower(m.key) === k; })[0] || null : null; }
@@ -5553,11 +5562,12 @@ var TRAVEL_MAX = 8, TRAVEL_UNITS = Object.freeze(['ft', 'yd', 'm', 'mi', 'km']),
 function cleanTravel(raw, fields) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
     var fOk = function(id) { return typeof id === 'string' && (Array.isArray(fields) ? fields : []).some(function(f) { return isObj(f) && f.id === id && (f.kind === 'number' || f.kind === 'formula'); }); };
-    raw.slice(0, TRAVEL_MAX * 4).forEach(function(m) {
-        if (out.length >= TRAVEL_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb);
+    var rows = raw.slice(0, TRAVEL_MAX * 4), taken = shortKeysTaken(rows);   // 1.6.3: a name with no short name of its own gets one (shortKeyFor)
+    rows.forEach(function(m) {
+        if (out.length >= TRAVEL_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Mode');
         if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return;
         var n = typeof m.n === 'number' && fin(m.n) && m.n > 0 && m.n <= 1e6 ? Math.round(m.n * 1e4) / 1e4 : null, f = fOk(m.f) ? m.f : '';
-        if (n === null && !f) return; ks[lower(k)] = 1;
+        if (n === null && !f) return; ks[lower(k)] = 1; taken[lower(k)] = 1;
         var o = { key: k, label: lb }; if (n !== null) o.n = n; if (f) o.f = f; o.u = TRAVEL_UNITS.indexOf(m.u) >= 0 ? m.u : 'mi'; o.t = TRAVEL_PER.indexOf(m.t) >= 0 ? m.t : 'hour'; out.push(o);
     });
     return out.length ? out : null;

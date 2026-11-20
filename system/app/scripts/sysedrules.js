@@ -183,28 +183,42 @@ function postureDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 
 // new arc's short name follows its name until the editor is closed, and stays after, so a formula that reads it keeps it
 function arcsBox(box, cm) {
     var wrap = el('div', 'sys-holds sys-arcsbox'), list = Array.isArray(cm.arcs) ? cm.arcs : null, SCa = window.wpSystemCore || {}, max = SCa.ARC_MAX || 32, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCa.arcKey === 'function' ? SCa.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { var k = (typeof SCa.arcKey === 'function' ? SCa.arcKey(lb) : '') || (String(lb || '').trim() ? 'Arc' : ''), base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };   // 1.6.3: a name in another script still gets a short name, Arc and a number, as the cleaner makes one
     wrap.appendChild(el('div', 'sys-light-head', 'Arcs'));
     wrap.appendChild(el('div', 'sys-note', 'Each covers the bearings from its From to its To, clockwise from straight ahead: 0 is ahead, 90 the right, 180 behind and -90 the left. Arcs may overlap. With none named, a token reads the front, side and rear its grid gives.'));
     (list || []).forEach(function(a, i) {
-        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-arc-label field', a.label || '', 'Its name, such as Front or Turret', 'Front');
-        nm.addEventListener('input', function() { a.label = nm.value.slice(0, LIMITS.label); if (a._new || !a.key) a.key = keyFor(a, a.label); ch(); });
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-arc-label field', a.label || '', 'Its name, such as Front or Turret', 'Front'), says = el('span', 'sys-note sys-arc-says'), say = function() { says.textContent = arcSays(a); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { a.label = nm.value.slice(0, LIMITS.label); if (a._new || !a.key) a.key = keyFor(a, a.label); say(); ch(); });
         rw.appendChild(nm);
         [['sys-arc-f', 'From', 'f', 'Where the arc begins, in degrees from straight ahead'], ['sys-arc-t', 'To', 't', 'Where the arc ends, clockwise from where it begins']].forEach(function(p) {
             var w = el('label', 'sys-check'), ip = el('input', 'field sys-num ' + p[0]); ip.type = 'number'; ip.min = '-180'; ip.max = '180'; ip.step = '1'; if (typeof a[p[2]] === 'number') ip.value = String(a[p[2]]); ip.disabled = a.all === true;
-            ip.addEventListener('input', function() { var v = ip.value === '' ? NaN : Number(ip.value); if (isFinite(v)) a[p[2]] = Math.max(-180, Math.min(180, Math.round(v))); else delete a[p[2]]; ch(); });
+            ip.addEventListener('input', function() { var v = ip.value === '' ? NaN : Number(ip.value); if (isFinite(v)) a[p[2]] = Math.max(-180, Math.min(180, Math.round(v))); else delete a[p[2]]; say(); ch(); });
             w.appendChild(document.createTextNode(p[1] + ' ')); w.appendChild(ip); w.title = p[3]; rw.appendChild(w);
         });
         var al = checkLabel('sys-arc-all', a.all === true, 'All round', 'It holds every bearing, as a turret does'), alI = al.querySelector('input');
         if (alI) alI.addEventListener('change', function() { if (alI.checked) a.all = true; else delete a.all; ch(true); });
         rw.appendChild(al);
-        var rm = el('button', 'tool ghost sys-btn sys-arc-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this arc'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete cm.arcs; ch(true); }); rw.appendChild(rm);
+        var rm = el('button', 'tool ghost sys-btn sys-arc-rm', '×'); rm.type = 'button'; rm.title = 'Remove this arc'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete cm.arcs; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-arc-add', '+ Arc'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'An arc a hit can come from or a gun can fire into';
-    add.addEventListener('click', function() { if (!Array.isArray(cm.arcs)) cm.arcs = []; list = cm.arcs; if (list.length >= max) return; list.push({ label: '', f: -60, t: 60, _new: true }); ch(true); });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): a new arc starts named, ahead from -60 to 60, so a system saved at once keeps it; its name is ready to type over
+    add.addEventListener('click', function() { if (!Array.isArray(cm.arcs)) cm.arcs = []; list = cm.arcs; if (list.length >= max) return; var nw = { label: ROW_NEW.arc, f: -60, t: 60, _new: true }; nw.key = keyFor(nw, nw.label); list.push(nw); ch(true); rowNewFocus('.sys-arc-label'); });
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
+}
+// 1.6.3 (lane B, the Combat tab; Fulllion's rulings of 2026-11-20: "if there's other gaps where a ruling or field is dependent on another, and the system
+// doesn't require that other field to be filled then that should be fixed", and "none isn't a good default substitution"): the name a new row of the
+// Combat tab's own lists starts with, and the line each row says under it while Save would drop it. What a row reads (its arc, its cell, its speed, its
+// penalty) depends on its name: the cleaner keeps no row without one. A new row's short name is made from this name and follows it while it is new
+var ROW_NEW = { arc: 'New arc', kind: 'New map kind', factor: 'New factor', travel: 'New travel mode', dark: 'New step', scene: 'New channel' };
+function rowNewFocus(cls) { if (typeof setTimeout !== 'function') return; setTimeout(function() { var nb = typeof document !== 'undefined' && document.querySelectorAll ? document.querySelectorAll('#systemModal ' + cls) : []; var b = nb.length ? nb[nb.length - 1] : null; if (b && b.focus) { b.focus(); if (b.select) b.select(); } }, 0); }   // the new row's name takes the focus, selected, so typing replaces it
+function arcSays(a) {   // what Save does with an arc of the draft: '' where it keeps it
+    if (!String(a && a.label || '').trim()) return 'Needs a name, or Save drops it.';
+    if (a.all !== true && !(typeof a.f === 'number' && isFinite(a.f) && typeof a.t === 'number' && isFinite(a.t))) return 'From and To are needed, or tick All round, or Save drops it.';
+    return '';
 }
 // 1.6.2 (backlog 57): Save settles the campaign's maps where the kinds changed (fogcore terrainSettle): a piece of a kind takes the kind's cost as its
 // own stored cost, and a piece whose kind is gone keeps the cost that kind last had and names none. Answers the ids of the maps that changed, which
@@ -264,34 +278,48 @@ var MAPKIND_UNITS = [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['km', 'k
 // 1.6.2 (the CORE session's answer 7): darkness steps past lit, each a name and its penalty, lightest first
 function darkBox(box) {
     var wrap = el('div', 'sys-holds sys-dark'), list = Array.isArray(draft.dark) ? draft.dark : null, SCk = window.wpSystemCore || {}, max = SCk.DARK_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { return rowKeyFor(list, a, lb, 'Step'); };
     wrap.appendChild(el('div', 'sys-light-head', 'Darkness steps'));
-    wrap.appendChild(el('div', 'sys-note', 'Steps of darkness past lit, lightest first, each with its penalty. You set a map\u2019s step from its right-click menu, and a shape can set its own. A cell a light lights is lit. A roll reads the target\u2019s step as TargetDarkPen.'));
+    wrap.appendChild(el('div', 'sys-note', 'Steps of darkness past lit, lightest first, each with its penalty. You set a map’s step from its right-click menu, and a shape can set its own. A cell a light lights is lit. A roll reads the target’s step as TargetDarkPen.'));
     (list || []).forEach(function(s, i) {
-        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-dark-label field', s.label || '', 'Its name, such as A moonless night', 'Dark');
-        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); ch(); }); rw.appendChild(nm);
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-dark-label field', s.label || '', 'Its name, such as A moonless night', 'Dark'), says = el('span', 'sys-note sys-dark-says'), say = function() { says.textContent = rowNameSays(s, 'Save drops it, and every step after it moves up one place.'); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); say(); ch(); }); rw.appendChild(nm);
         var pn = el('input', 'field sys-num sys-dark-pen'); pn.type = 'number'; pn.step = '1'; pn.value = typeof s.pen === 'number' ? String(s.pen) : '0'; pn.title = 'Its penalty, such as -2'; pn.addEventListener('input', function() { var v = Number(pn.value); s.pen = isFinite(v) ? Math.round(v) : 0; ch(); }); rw.appendChild(pn);
-        var rm = el('button', 'tool ghost sys-btn sys-dark-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this step'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.dark; ch(true); }); rw.appendChild(rm);
+        var rm = el('button', 'tool ghost sys-btn sys-dark-rm', '×'); rm.type = 'button'; rm.title = 'Remove this step'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.dark; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-dark-add', '+ Step'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A step of darkness, darker than the one before';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.dark)) draft.dark = []; list = draft.dark; if (list.length >= max) return; list.push({ label: '', pen: 0, _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-dark-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    add.addEventListener('click', function() { if (!Array.isArray(draft.dark)) draft.dark = []; list = draft.dark; if (list.length >= max) return; var nw = { label: ROW_NEW.dark, pen: 0, _new: true }; nw.key = keyFor(nw, nw.label); list.push(nw); ch(true); rowNewFocus('.sys-dark-label'); });   // 1.6.3: a new step starts named
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
+// 1.6.3 (lane B): the short name a row of the Combat tab's darkness steps, scene channels, map kinds, their factors and travel modes is made from its name.
+// It always gives one the cleaner keeps (a letter, then letters, digits or _, 24 at most): a name in another script, or one that begins with a digit, gets
+// the word handed in (Step, Channel, Kind, Factor, Mode), and one taken by another row of the same list takes the first free number, cut to fit
+function rowKeyFor(arr, a, lb, word) {
+    var SCk = window.wpSystemCore || {}, k0 = (typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '') || (String(lb || '').trim() ? word : ''), k = k0.slice(0, 24), base = k0.slice(0, 22), n = 2;
+    while (k && (arr || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++);
+    return k;
+}
+// The line a row of those lists says while it has no name, which Save would drop it for: '' once it has one
+function rowNameSays(r, what) { return String(r && r.label || '').trim() ? '' : 'Needs a name, or ' + (what || 'Save drops it.'); }
 function scenesBox(box) {
     var wrap = el('div', 'sys-holds sys-scenes'), list = Array.isArray(draft.scenes) ? draft.scenes : null, SCk = window.wpSystemCore || {}, max = SCk.SCENE_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { return rowKeyFor(list, a, lb, 'Channel'); };
     wrap.appendChild(el('div', 'sys-light-head', 'Scene channels'));
-    wrap.appendChild(el('div', 'sys-note', 'How a scene reaches the one listening, such as In person, Seen, Heard or Written. You pick it from a map\u2019s right-click menu, and a roll reads it. A roll ticked Kept for the scene keeps what it came to on the one it was rolled at, for later rolls.'));
+    wrap.appendChild(el('div', 'sys-note', 'How a scene reaches the one listening, such as In person, Seen, Heard or Written. You pick it from a map’s right-click menu, and a roll reads it. A roll ticked Kept for the scene keeps what it came to on the one it was rolled at, for later rolls.'));
     (list || []).forEach(function(s, i) {
-        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-scene-label field', s.label || '', 'Its name, such as In person', 'In person');
-        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); ch(); }); rw.appendChild(nm);
-        var rm = el('button', 'tool ghost sys-btn sys-scene-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this channel'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.scenes; ch(true); }); rw.appendChild(rm);
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-scene-label field', s.label || '', 'Its name, such as In person', 'In person'), says = el('span', 'sys-note sys-scene-says'), say = function() { says.textContent = rowNameSays(s); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); say(); ch(); }); rw.appendChild(nm);
+        var rm = el('button', 'tool ghost sys-btn sys-scene-rm', '×'); rm.type = 'button'; rm.title = 'Remove this channel'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.scenes; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-scene-add', '+ Channel'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way a scene reaches the one listening, such as Heard only';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.scenes)) draft.scenes = []; list = draft.scenes; if (list.length >= max) return; list.push({ label: '', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-scene-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    add.addEventListener('click', function() { if (!Array.isArray(draft.scenes)) draft.scenes = []; list = draft.scenes; if (list.length >= max) return; var nw = { label: ROW_NEW.scene, _new: true }; nw.key = keyFor(nw, nw.label); list.push(nw); ch(true); rowNewFocus('.sys-scene-label'); });   // 1.6.3: a new channel starts named
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
@@ -329,34 +357,39 @@ function mapStartBox(box) {
 function mapKindsBox(box) {
     if (typeof mapStartBox === 'function') mapStartBox(box);   // 1.6.3: the scale a new map starts at, above the map kinds
     var wrap = el('div', 'sys-holds sys-mapkinds'), list = Array.isArray(draft.mapKinds) ? draft.mapKinds : null, SCk = window.wpSystemCore || {}, max = SCk.MAPKIND_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(arr, a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (arr || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(arr, a, lb, word) { return rowKeyFor(arr, a, lb, word || 'Kind'); };   // 1.6.3: always a short name the cleaner keeps
     wrap.appendChild(el('div', 'sys-light-head', 'Map kinds'));
     wrap.appendChild(el('div', 'sys-note', 'Such as Vehicle or Space. Each sets the cell a map starts at when it is picked, and names factors a rule can read on that map, such as a Speed of 10. A map with no kind is at the personal scale, and every factor reads 1 there.'));
     (list || []).forEach(function(k, i) {
-        var card = el('div', 'sys-mapkind'), rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-mk-label field', k.label || '', 'Its name, such as Vehicle', 'Vehicle');
-        nm.addEventListener('input', function() { k.label = nm.value.slice(0, LIMITS.label); if (k._new || !k.key) k.key = keyFor(list, k, k.label); ch(); }); rw.appendChild(nm);
+        var card = el('div', 'sys-mapkind'), rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-mk-label field', k.label || '', 'Its name, such as Vehicle', 'Vehicle'), says = el('span', 'sys-note sys-mk-says'), say = function() { says.textContent = rowNameSays(k, 'Save drops it with its cell and its factors.'); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { k.label = nm.value.slice(0, LIMITS.label); if (k._new || !k.key) k.key = keyFor(list, k, k.label, 'Kind'); say(); ch(); }); rw.appendChild(nm);
         var sc = k.scale && typeof k.scale === 'object' ? k.scale : null, pw = el('label', 'sys-check'), pi = el('input', 'field sys-num sys-mk-per'); pi.type = 'number'; pi.min = '0'; pi.step = 'any'; if (sc && typeof sc.per === 'number') pi.value = String(sc.per);
         pi.addEventListener('input', function() { var v = pi.value === '' ? NaN : Number(pi.value); if (isFinite(v) && v > 0) { k.scale = Object.assign({ unit: 'yd' }, k.scale || {}, { per: v }); } else delete k.scale; ch(); });
         pw.appendChild(document.createTextNode('A cell is ')); pw.appendChild(pi); pw.title = 'The cell a map starts at when it is switched to this kind. Empty: the map keeps its own'; rw.appendChild(pw);
         var us = select('sys-mk-unit', MAPKIND_UNITS, sc && sc.unit ? sc.unit : 'yd', 'The unit of that cell'); us.addEventListener('change', function(e) { e.stopPropagation(); if (k.scale) k.scale.unit = us.value; ch(); }); rw.appendChild(us);
-        var tw = el('label', 'sys-check'), tc = el('input', 'sys-mk-travel'); tc.type = 'checkbox'; tc.checked = k.travel === true; tc.addEventListener('change', function(e) { e.stopPropagation(); if (tc.checked) k.travel = true; else delete k.travel; ch(); }); tw.appendChild(tc); tw.appendChild(document.createTextNode(' Ruler shows travel time')); tw.title = 'On a map of this kind the ruler says how long the trip takes by each travel mode'; rw.appendChild(tw);   // 1.6.2 (backlog 166 a)
-        var rm = el('button', 'tool ghost sys-btn sys-mk-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this map kind'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.mapKinds; ch(true); }); rw.appendChild(rm);
+        var tw = el('label', 'sys-check'), tc = el('input', 'sys-mk-travel'); tc.type = 'checkbox'; tc.checked = k.travel === true; tc.addEventListener('change', function(e) { e.stopPropagation(); if (tc.checked) k.travel = true; else delete k.travel; ch(true); }); tw.appendChild(tc); tw.appendChild(document.createTextNode(' Ruler shows travel time')); tw.title = 'On a map of this kind the ruler says how long the trip takes by each travel mode'; rw.appendChild(tw);   // 1.6.2 (backlog 166 a); 1.6.3: drawn again, so the travel modes' line follows the tick
+        var rm = el('button', 'tool ghost sys-btn sys-mk-rm', '×'); rm.type = 'button'; rm.title = 'Remove this map kind'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.mapKinds; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         card.appendChild(rw);
         var fs = Array.isArray(k.factors) ? k.factors : null;
         (fs || []).forEach(function(f, j) {
-            var fr = el('div', 'sys-flags sys-arcrow sys-mk-frow'), fn = input('sys-mk-flabel field', f.label || '', 'The factor\u2019s name, such as Speed', 'Speed');
-            fn.addEventListener('input', function() { f.label = fn.value.slice(0, LIMITS.label); if (f._new || !f.key) f.key = keyFor(fs, f, f.label); ch(); }); fr.appendChild(fn);
-            var fv = el('input', 'field sys-num sys-mk-fv'); fv.type = 'number'; fv.step = 'any'; if (typeof f.v === 'number') fv.value = String(f.v); fv.title = 'The number a rule reads on a map of this kind';
-            fv.addEventListener('input', function() { var v = fv.value === '' ? NaN : Number(fv.value); if (isFinite(v)) f.v = v; else delete f.v; ch(); }); fr.appendChild(fv);
-            var fx = el('button', 'tool ghost sys-btn sys-mk-frm', '\u00d7'); fx.type = 'button'; fx.title = 'Remove this factor'; fx.addEventListener('click', function() { fs.splice(j, 1); if (!fs.length) delete k.factors; ch(true); }); fr.appendChild(fx);
+            var fr = el('div', 'sys-flags sys-arcrow sys-mk-frow'), fn = input('sys-mk-flabel field', f.label || '', 'The factor’s name, such as Speed', 'Speed'), fsays = el('span', 'sys-note sys-mk-fsays');
+            var fsay = function() { fsays.textContent = !String(f.label || '').trim() ? 'Needs a name, or Save drops this factor.' : !(typeof f.v === 'number' && isFinite(f.v)) ? 'Needs its number, or Save drops this factor.' : ''; };   // 1.6.3: a factor needs both
+            fn.maxLength = LIMITS.label;
+            fn.addEventListener('input', function() { f.label = fn.value.slice(0, LIMITS.label); if (f._new || !f.key) f.key = keyFor(fs, f, f.label, 'Factor'); fsay(); ch(); }); fr.appendChild(fn);
+            var fv = el('input', 'field sys-num sys-mk-fv'); fv.type = 'number'; fv.step = 'any'; if (typeof f.v === 'number') fv.value = String(f.v); fv.title = 'The number a rule reads on a map of this kind. It must be filled in';
+            fv.addEventListener('input', function() { var v = fv.value === '' ? NaN : Number(fv.value); if (isFinite(v)) f.v = v; else delete f.v; fsay(); ch(); }); fr.appendChild(fv);
+            var fx = el('button', 'tool ghost sys-btn sys-mk-frm', '×'); fx.type = 'button'; fx.title = 'Remove this factor'; fx.addEventListener('click', function() { fs.splice(j, 1); if (!fs.length) delete k.factors; ch(true); }); fr.appendChild(fx);
+            fr.appendChild(fsays); fsay();
             card.appendChild(fr);
         });
         var fa = el('button', 'tool ghost sys-btn sys-mk-fadd', '+ Factor'); fa.type = 'button'; fa.disabled = !!fs && fs.length >= 8; fa.title = 'A number a rule reads on a map of this kind, such as a Speed factor of 10';
-        fa.addEventListener('click', function() { if (!Array.isArray(k.factors)) k.factors = []; if (k.factors.length >= 8) return; k.factors.push({ label: '', v: 1, _new: true }); ch(true); var ki = i; setTimeout(function() { var cs = document.querySelectorAll('#systemModal .sys-mapkind'), fl = cs[ki] ? cs[ki].querySelectorAll('.sys-mk-flabel') : []; if (fl.length) fl[fl.length - 1].focus(); }, 0); }); card.appendChild(fa);
+        fa.addEventListener('click', function() { if (!Array.isArray(k.factors)) k.factors = []; if (k.factors.length >= 8) return; var nf = { label: ROW_NEW.factor, v: 1, _new: true }; nf.key = keyFor(k.factors, nf, nf.label, 'Factor'); k.factors.push(nf); ch(true); var ki = i; if (typeof setTimeout === 'function') setTimeout(function() { var cs = document.querySelectorAll('#systemModal .sys-mapkind'), fl = cs[ki] ? cs[ki].querySelectorAll('.sys-mk-flabel') : []; if (fl.length) { fl[fl.length - 1].focus(); if (fl[fl.length - 1].select) fl[fl.length - 1].select(); } }, 0); }); card.appendChild(fa);   // 1.6.3: a new factor starts named, at 1
         wrap.appendChild(card);
     });
     var add = el('button', 'tool ghost sys-btn sys-mk-add', '+ Map kind'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A scale a map can be switched to, such as Vehicle';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.mapKinds)) draft.mapKinds = []; list = draft.mapKinds; if (list.length >= max) return; list.push({ label: '', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-mk-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });   // the new kind's name takes the focus
+    add.addEventListener('click', function() { if (!Array.isArray(draft.mapKinds)) draft.mapKinds = []; list = draft.mapKinds; if (list.length >= max) return; var nw = { label: ROW_NEW.kind, _new: true }; nw.key = keyFor(list, nw, nw.label, 'Kind'); list.push(nw); ch(true); rowNewFocus('.sys-mk-label'); });   // the new kind's name takes the focus; 1.6.3: it starts named
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
@@ -364,26 +397,44 @@ function mapKindsBox(box) {
 // 1.6.2 (backlog 166 a): the travel modes. A row each: its name, its speed, the unit and the time it counts in, and a sheet's own number field
 // read in its place where the ruler starts on a token; then + Travel mode. Names as values and text nodes only
 var TRAVEL_PERS = [['round', 'a round'], ['minute', 'a minute'], ['hour', 'an hour'], ['day', 'a day']];
+// 1.6.3 (lane B; Fulllion's rulings of 2026-11-20): what Save does with a travel mode of the draft, said under its row: '' where it keeps it. A mode needs
+// its name, and a speed above 0 or a number of the sheet read in its place
+function travelSays(m, nums) {
+    if (!String(m && m.label || '').trim()) return 'Needs a name, or Save drops it.';
+    var fOk = typeof m.f === 'string' && m.f && (nums || []).some(function(f) { return f.id === m.f; });
+    return (typeof m.n === 'number' && isFinite(m.n) && m.n > 0) || fOk ? '' : 'Needs a speed, or a number of the sheet, or Save drops it.';
+}
+// ... and the line under every mode, from what the map kinds tick: modes no kind shows, or a kind that shows modes there are none of. '' where all is well
+function travelKindSays(kinds, modes) {
+    var ticks = (Array.isArray(kinds) ? kinds : []).some(function(k) { return !!k && k.travel === true; }), has = Array.isArray(modes) && modes.length > 0;
+    if (has && !ticks) return 'No map kind ticks Ruler shows travel time, so these modes show nowhere yet.';
+    if (ticks && !has) return 'A map kind ticks Ruler shows travel time, but there is no travel mode yet, so its ruler shows nothing.';
+    return '';
+}
 function travelBox(box) {
     var wrap = el('div', 'sys-holds sys-travel'), list = Array.isArray(draft.travel) ? draft.travel : null, SCk = window.wpSystemCore || {}, max = SCk.TRAVEL_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { return rowKeyFor(list, a, lb, 'Mode'); };   // 1.6.3: always a short name the cleaner keeps
     var nums = (draft.fields || []).filter(function(f) { return f && (f.kind === 'number' || f.kind === 'formula'); });
     wrap.appendChild(el('div', 'sys-light-head', 'Travel modes'));
     wrap.appendChild(el('div', 'sys-note', 'Such as On foot at 3 miles an hour, or By ship at 100 miles a day. On a map whose kind ticks Ruler shows travel time, the ruler says how long the trip takes by each. A mode may read a number on the sheet instead, so a ruler started on a vehicle or a mount uses its own Speed.'));
+    var kSays = travelKindSays(draft.mapKinds, list); if (kSays) wrap.appendChild(el('div', 'sys-note sys-tv-kinds', kSays));
     (list || []).forEach(function(m, i) {
-        var rw = el('div', 'sys-flags sys-arcrow sys-tv-row'), nm = input('sys-tv-label field', m.label || '', 'Its name, such as On foot', 'On foot');
-        nm.addEventListener('input', function() { m.label = nm.value.slice(0, LIMITS.label); if (m._new || !m.key) m.key = keyFor(m, m.label); ch(); }); rw.appendChild(nm);
-        var nw = el('label', 'sys-check'), ni = el('input', 'field sys-num sys-tv-n'); ni.type = 'number'; ni.min = '0'; ni.step = 'any'; if (typeof m.n === 'number') ni.value = String(m.n); ni.title = 'How far it goes, in the unit beside it';
-        ni.addEventListener('input', function() { var v = ni.value === '' ? NaN : Number(ni.value); if (isFinite(v) && v > 0) m.n = v; else delete m.n; ch(); }); nw.appendChild(document.createTextNode('Speed ')); nw.appendChild(ni); rw.appendChild(nw);
+        var rw = el('div', 'sys-flags sys-arcrow sys-tv-row'), nm = input('sys-tv-label field', m.label || '', 'Its name, such as On foot', 'On foot'), says = el('span', 'sys-note sys-tv-says'), say = function() { says.textContent = travelSays(m, nums); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { m.label = nm.value.slice(0, LIMITS.label); if (m._new || !m.key) m.key = keyFor(m, m.label); say(); ch(); }); rw.appendChild(nm);
+        var nw = el('label', 'sys-check'), ni = el('input', 'field sys-num sys-tv-n'); ni.type = 'number'; ni.min = '0'; ni.step = 'any'; if (typeof m.n === 'number') ni.value = String(m.n); ni.title = 'How far it goes, in the unit beside it. It needs a speed, or a number of the sheet';
+        ni.addEventListener('input', function() { var v = ni.value === '' ? NaN : Number(ni.value); if (isFinite(v) && v > 0) m.n = v; else delete m.n; say(); ch(); }); nw.appendChild(document.createTextNode('Speed ')); nw.appendChild(ni); rw.appendChild(nw);
         var us = select('sys-tv-u', MAPKIND_UNITS, m.u || 'mi', 'The unit of its speed'); us.addEventListener('change', function(e) { e.stopPropagation(); m.u = us.value; ch(); }); rw.appendChild(us);
         var ts = select('sys-tv-t', TRAVEL_PERS, m.t || 'hour', 'The time its speed counts in'); ts.addEventListener('change', function(e) { e.stopPropagation(); m.t = ts.value; ch(); }); rw.appendChild(document.createTextNode(' each ')); rw.appendChild(ts);
-        var fw = el('label', 'sys-check'), fs = select('sys-tv-f', [['', 'None']].concat(nums.map(function(f) { return [f.id, typeof fieldWord === 'function' ? fieldWord(f) : (f.label || f.key)]; })), m.f || '', 'A number on the sheet read as this speed where the ruler starts on a token, such as a vehicle\u2019s Speed. The speed beside it stands where none can be read');
-        fs.addEventListener('change', function(e) { e.stopPropagation(); if (fs.value) m.f = fs.value; else delete m.f; ch(); }); fw.appendChild(document.createTextNode('Or the sheet\u2019s ')); fw.appendChild(fs); rw.appendChild(fw);
-        var rm = el('button', 'tool ghost sys-btn sys-tv-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this travel mode'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.travel; ch(true); }); rw.appendChild(rm);
+        var fw = el('label', 'sys-check'), fs = select('sys-tv-f', [['', 'None']].concat(nums.map(function(f) { return [f.id, typeof fieldWord === 'function' ? fieldWord(f) : (f.label || f.key)]; })), m.f || '', 'A number on the sheet read as this speed where the ruler starts on a token, such as a vehicle’s Speed. The speed beside it stands where none can be read');
+        fs.addEventListener('change', function(e) { e.stopPropagation(); if (fs.value) m.f = fs.value; else delete m.f; say(); ch(); }); fw.appendChild(document.createTextNode('Or the sheet’s ')); fw.appendChild(fs); rw.appendChild(fw);
+        var rm = el('button', 'tool ghost sys-btn sys-tv-rm', '×'); rm.type = 'button'; rm.title = 'Remove this travel mode'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.travel; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-tv-add', '+ Travel mode'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way of traveling, such as On foot, Mounted or By ship';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.travel)) draft.travel = []; list = draft.travel; if (list.length >= max) return; list.push({ label: '', u: 'mi', t: 'hour', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-tv-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): a new mode starts named, at 3 miles an hour, so a system saved at once keeps it
+    add.addEventListener('click', function() { if (!Array.isArray(draft.travel)) draft.travel = []; list = draft.travel; if (list.length >= max) return; var nm0 = { label: ROW_NEW.travel, n: 3, u: 'mi', t: 'hour', _new: true }; nm0.key = keyFor(nm0, nm0.label); list.push(nm0); ch(true); rowNewFocus('.sys-tv-label'); });
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
@@ -1286,8 +1337,8 @@ function onRangeInput(t) {
 }
 function onRangeChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
-    if (c.indexOf('sys-range-bodysize') >= 0) { var cmB = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmB.bodySize = t.value; else delete cmB.bodySize; markDirty(); patchErrors(); return true; }   // 1.6.2
-    if (c.indexOf('sys-range-size') >= 0) { var cmZ = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmZ.targetSize = t.value; else delete cmZ.targetSize; markDirty(); patchErrors(); return true; }   // 1.6.0: TargetSize's field
+    if (c.indexOf('sys-range-bodysize') >= 0) { var cmB = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmB.bodySize = t.value; else delete cmB.bodySize; markDirty(); patchErrors(); renderCombat(); return true; }   // 1.6.2; 1.6.3: drawn again, so A body in the way hides says at once whether a size is picked
+    if (c.indexOf('sys-range-size') >= 0) { var cmZ = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmZ.targetSize = t.value; else delete cmZ.targetSize; markDirty(); patchErrors(); renderCombat(); return true; }   // 1.6.0: TargetSize's field; 1.6.3: drawn again, as A body in the way reads is
     if (c.indexOf('sys-range-hit') >= 0) { var cmH = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmH.targetHit = t.value; else delete cmH.targetHit; markDirty(); patchErrors(); return true; }   // 1.6.0 (B5): the list of hit locations
     if (c.indexOf('sys-range-by') < 0 && c.indexOf('sys-range-unit') < 0) return true;   // the boxes' change events (their input events did the work)
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });

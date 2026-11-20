@@ -89,11 +89,17 @@ function F() { return window.wpFormula || null; }
 function net() { return window.wpNet || null; }
 function featureOn() { return window.wpVtt ? !!window.wpVtt.on('sheets') : true; }
 function canWrite() { return !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream; }
-function isClient() { var n = net(); return !!(n && n.active && n.role === 'client' && !n.stream); }
+function isClient() { var P = popAs(); if (P) return P.gm !== true; var n = net(); return !!(n && n.active && n.role === 'client' && !n.stream); }   // 1.6.3 (finding 25): a sheet's window of its own is the player's it was opened for (popAs)
+// 1.6.3 (finding 25): who a sheet in a window of its own speaks for, as its main window said in its last word (popout.js puts it on
+// window.wpPopoutAs: { gm, me }), or null: the main window, the stream window, and a sheet's window the main window does not answer, read only
+function popAs() { var W = typeof window !== 'undefined' && window ? window : null; return W && W.wpPopout && W.wpPopoutAs && typeof W.wpPopoutAs === 'object' ? W.wpPopoutAs : null; }
+// A change or a roll pressed on a sheet in a window of its own goes to the main window, which makes it as its own press (popSheetDo): answers
+// true there, where the caller does nothing more. Everywhere else false
+function popFwd(op, args) { var W = typeof window !== 'undefined' && window ? window : null, P = W && W.wpPopout ? W.wpPopoutSheet : null; return !!(P && typeof P.send === 'function' && P.send(op, args)); }
 // Item 20 K5b ("reset drained attributes if the GM allows"): at a table whose GM fills pools themselves (camp.turnRules.fill: 'gm'), a player's
 // Fill button and a section's Reset all stay inert — their pools still move by − and + as the system lets them
 function fillBarred() { var camp = getActiveCampaign(); return isClient() && !!camp && !!camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.fill === 'gm'; }
-function myId() { var n = net(); return n ? n.myId : null; }
+function myId() { var P = popAs(); if (P) return P.me || null; var n = net(); return n ? n.myId : null; }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function opt(value, text, selected) { var o = el('option', null, text); o.value = value; if (selected) o.selected = true; return o; }
@@ -520,7 +526,7 @@ var _followQuiet = 0;
 function followQuiet(on) { _followQuiet = Math.max(0, _followQuiet + (on ? 1 : -1)); }
 function followIsQuiet() { return _followQuiet > 0; }
 function afterCharChange(c, whole, values) {
-    var camp = getActiveCampaign(); if (!camp) return; if (typeof openSync === 'function' && !isClient() && camp.system) { var opA = openSync(camp.system, c); if (opA.length && values && typeof values === 'object') opA.forEach(function(fid) { values[fid] = c.values[fid]; }); } if (typeof laySync === 'function' && !isClient() && camp.system) { var lyA = laySync(camp.system, c, F(), layKeep(c.id)); if (lyA.length && values && typeof values === 'object') lyA.forEach(function(fid) { values[fid] = c.values[fid]; }); }   // 1.5.8 and 1.6.2 Laid from: the rows other rows open, and the rows another list's rows lay, kept in step before the save and the sync
+    var camp = getActiveCampaign(); if (!camp) return; if (typeof openSync === 'function' && !isClient() && camp.system) { var opA = openSync(camp.system, c); if (opA.length && values && typeof values === 'object') opA.forEach(function(fid) { values[fid] = c.values[fid]; }); } if (typeof laySync === 'function' && !isClient() && camp.system) { var lyA = laySync(camp.system, c, F(), layKeep(c.id)); if (lyA.length && values && typeof values === 'object') lyA.forEach(function(fid) { values[fid] = c.values[fid]; }); } if (typeof revNote === 'function' && !isClient()) revNote(c);   /* 1.6.3 (finding 34): the change Revert takes back, kept as one of this sheet's steps once the rows laid from others are in step */   // 1.5.8 and 1.6.2 Laid from: the rows other rows open, and the rows another list's rows lay, kept in step before the save and the sync
     c.updated = Date.now();
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget();   // the fog's kept senses are read again from the sheet
     if (typeof lookPrune === 'function') lookPrune(c);   // item 35: a look whose text is no longer its own goes before the save
@@ -1728,11 +1734,13 @@ function restAtOf(v) {
 function restRevLive() { return !!_restRev && !!lastChange && _restRev.key === lastChange; }
 function revOf(charId) {   // the change Revert takes back on that character's sheet, or none
     if (lastChange && lastChange.charId === charId) return lastChange;
-    return restRevLive() && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(_restRev.by, charId) ? _restRev.by[charId] : null;
+    if (restRevLive()) return typeof charId === 'string' && Object.prototype.hasOwnProperty.call(_restRev.by, charId) ? _restRev.by[charId] : null;
+    var st = typeof revStack === 'function' ? revStack(charId) : []; return st.length ? st[st.length - 1].rec : null;   // 1.6.3 (finding 34): an earlier step of this very sheet
 }
 function restRevKeep(recs, ats) {   // asked by restDoes once it is through: by character id, each the very object the last change was when that character was done, and what its fields then held
     var by = Object.create(null), at = Object.create(null), n = 0; Object.keys(recs && typeof recs === 'object' ? recs : {}).forEach(function(id) { if (recs[id] && typeof recs[id] === 'object' && recs[id].charId === id) { by[id] = recs[id]; if (ats && ats[id] && typeof ats[id] === 'object') at[id] = ats[id]; n++; } });
     _restRev = n && lastChange ? { key: lastChange, by: by, at: at } : null;
+    if (typeof revForget === 'function') revForget(Object.keys(by));   // 1.6.3: a rest is where the earlier steps of a rested sheet end; its own record is taken back as above
 }
 // The review of 2026-11-11: a change that assigns no last change (a player's own edit on the host, a time rule, a roll's own changes) does not let the
 // records go, so a record is taken back field by field: a field that no longer holds what the rest left it holding was changed since, and is LEFT as
@@ -1765,6 +1773,69 @@ function restRevTake(openId) {   // what Revert takes back on the open sheet aft
     return { rec: rec, next: next, rest: !!mine, at: at };
 }
 // [systemcheck:restrev-end]
+// [hudcheck:revstack-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 34; Fulllion's pick): Revert keeps a few steps of each sheet. The GM's: each
+// change this machine makes to a character leaves its record (lastChange) and, here, that record with what its fields held once it was made (at,
+// as text, restAtOf), at most REV_STEPS a sheet. afterCharChange notes the record (revNote), once. Revert takes back the last change where it is
+// this sheet's, as ever, and then this sheet's earlier steps, newest first. An earlier step is taken back field by field, as a rest's record is
+// (restRevFit): a field changed since by anything that leaves no record (a player's own edit on the host, a time rule) is left as it is and
+// named. A step that moved another character too (also) takes back its own sheet's part alone. A rest, a Review applied and a sheet that is
+// gone end a sheet's steps (revForget). Nothing of it is stored or sent
+var REV_STEPS = 5, _revBy = Object.create(null), _revSeen = typeof WeakSet === 'function' ? new WeakSet() : null;
+function revStack(id) { return typeof id === 'string' && Object.prototype.hasOwnProperty.call(_revBy, id) ? _revBy[id] : []; }
+function revNote(c) {
+    var lc = lastChange; if (!lc || !c || lc.charId !== c.id || !_revSeen || _revSeen.has(lc) || typeof lc.fieldId !== 'string') return;
+    _revSeen.add(lc);
+    var vals = c.values && typeof c.values === 'object' ? c.values : {}, at = {}, ks = [lc.fieldId].concat(lc.extra && typeof lc.extra === 'object' ? Object.keys(lc.extra) : []);
+    ks.forEach(function(k) { at[k] = restAtOf(Object.prototype.hasOwnProperty.call(vals, k) ? vals[k] : undefined); });
+    var st = _revBy[c.id] || (_revBy[c.id] = []); st.push({ rec: lc, at: at }); while (st.length > REV_STEPS) st.shift();
+}
+function revDrop(id, rec) { var st = revStack(id); for (var i = st.length - 1; i >= 0; i--) if (st[i].rec === rec) st.splice(i, 1); if (!st.length) delete _revBy[id]; }
+function revForget(ids) { (Array.isArray(ids) ? ids : [ids]).forEach(function(id) { if (typeof id === 'string') delete _revBy[id]; }); }
+// The step Revert takes back on the open sheet where the last change is not this sheet's: its newest earlier step, fitted to what its fields hold
+// now. Answers { rec, left, was } (rec null where nothing of it can go back), or null where the sheet has no earlier step
+function revEarlier(openId, values, afNow) {
+    var st = revStack(openId); if (!st.length) return null;
+    var top = st[st.length - 1], ft = restRevFit(top.rec, top.at, values, afNow), rec = ft.rec ? Object.assign({}, ft.rec) : null;
+    if (rec) delete rec.also;   // the other sheet's part of an earlier step is not judged here, so it stays
+    revDrop(openId, top.rec);
+    return { rec: rec, left: ft.left, was: top.rec };
+}
+function revLeftWords(sys, ids) {   // "Hit Points changed since and was left as it is"
+    var nm = (Array.isArray(ids) ? ids : []).map(function(id) { var f = sys ? fieldById(sys, id) : null, w = f && typeof (f.label || f.key) === 'string' ? String(f.label || f.key).trim() : ''; return w || 'A value'; });
+    return nm.join(', ') + ' changed since and ' + (nm.length === 1 ? 'was' : 'were') + ' left as ' + (nm.length === 1 ? 'it is' : 'they are');
+}
+// A player's own Revert (the same pick): their last few edits of their own sheet's values (commit and commitMany on a player's app), each what its
+// fields held before (prev). Revert sends those values back as an ordinary change (commit, commitMany), which the host judges as any edit of
+// theirs; a field that already holds its old value is passed over. Nothing of it is sent but the edit itself
+var _myRev = Object.create(null), _myRevBusy = false;
+function myRevNote(charId, list) {
+    if (_myRevBusy || typeof charId !== 'string' || !Array.isArray(list) || !list.length) return;
+    var st = _myRev[charId] || (_myRev[charId] = []); st.push(list.map(function(x) { return { fieldId: x.fieldId, prev: x.prev === undefined ? undefined : JSON.parse(JSON.stringify(x.prev)) }; })); while (st.length > REV_STEPS) st.shift();
+}
+function myRevOf(charId) { return typeof charId === 'string' && Object.prototype.hasOwnProperty.call(_myRev, charId) && _myRev[charId].length > 0; }
+// What a field's old value is sent as: the value it held, or, where it held none, its worked-out figure (auto), a pool's full figure, else its default
+function myRevValue(sys, c, f, prev) {
+    if (prev !== undefined) return prev;
+    if (f.auto !== undefined) return null;
+    if (f.kind === 'resource') { var mx = null; try { var R = makeResolver(sys, c, F(), null); mx = R(f.key + '.max'); } catch (e) { mx = null; } return typeof mx === 'number' && isFinite(mx) ? { cur: mx } : undefined; }
+    if (f.def !== undefined) return f.def;
+    return f.kind === 'toggle' ? false : f.kind === 'number' ? 0 : f.kind === 'text' || f.kind === 'notes' ? '' : undefined;
+}
+function myRevert(charId) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), st = _myRev[charId]; if (!c || !sys || !st || !st.length) return false;
+    while (st.length) {
+        var step = st.pop(), send = [];
+        step.forEach(function(x) { var f = fieldById(sys, x.fieldId), cur = c.values && Object.prototype.hasOwnProperty.call(c.values, x.fieldId) ? c.values[x.fieldId] : undefined; if (!f || JSON.stringify(cur) === JSON.stringify(x.prev)) return; var v = myRevValue(sys, c, f, x.prev); if (v !== undefined) send.push({ f: f, value: v }); });
+        if (!send.length) continue;   // already back as it was: the step before it
+        _myRevBusy = true;
+        try { if (send.length === 1) commit(c, send[0].f, send[0].value); else commitMany(c, send.map(function(s) { return { fieldId: s.f.id, value: s.value }; })); } finally { _myRevBusy = false; }
+        if (!st.length) delete _myRev[charId];
+        return true;
+    }
+    delete _myRev[charId]; toast('Nothing to take back: those values are already as they were.'); return false;
+}
+// [hudcheck:revstack-end]
 function canOpen(charId) {
     if (!featureOn()) return false;
     var c = charById(charId); if (!c) return false;
@@ -1980,7 +2051,7 @@ function renderSheet() {
     if (gm && Array.isArray(c.shareWith) && c.shareWith.length) sub.textContent += ' · shared with ' + c.shareWith.length;   // 1.6.2 (G8)
     var giveS = gm && !c.partial && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !window.wpStream && !!window.wpCharList; if (sub.classList) sub.classList.toggle('sheet-sub-give', giveS); if (sub.setAttribute) { if (giveS) { sub.setAttribute('role', 'button'); sub.tabIndex = 0; sub.title = 'Press to give this character to a player'; } else { sub.removeAttribute('role'); sub.removeAttribute('tabindex'); sub.removeAttribute('title'); } }   // 1.6.0: who has it is said here, so it is changed here
     // Onboarding F3: its state
-    var revert = ui('sheetRevert'); if (revert) revert.style.display = gm && (typeof revOf === 'function' ? revOf(c.id) : lastChange && lastChange.charId === c.id) ? '' : 'none';   // 1.6.2: after a rest, each rested character's sheet has its own
+    var revert = ui('sheetRevert'); if (revert) revert.style.display = (gm ? (typeof revOf === 'function' ? revOf(c.id) : lastChange && lastChange.charId === c.id) : own && typeof myRevOf === 'function' && myRevOf(c.id)) ? '' : 'none';   // 1.6.2: after a rest, each rested character's sheet has its own. 1.6.3 (finding 34): a player's own last edits too
     var pick = ui('sheetPick'); if (pick) { pick.textContent = ''; var pickL = gm ? charList(camp) : charList(camp).filter(function(x) { return !x.partial && x.ownerId === myId(); }); if (gm || pickL.length > 1) { pickL.forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : '') + (x.making === 1 ? ' (being made)' : ''), x.id === c.id)); }); pick.style.display = ''; } else pick.style.display = 'none'; }
     var por = ui('sheetPortrait'); if (por) { if (c.portrait) { por.src = imgSrc(c.portrait); por.style.display = ''; } else por.style.display = 'none'; }
     var upB = ui('sheetUpload'); if (upB) { var upOn = gm ? canWrite() && !c.partial : isClient() && own && !c.partial && (c.making !== 1 || fillOk()), rdG = upOn && gm ? gmReader() : null, outF = !gm && sheetFilesOk(); upB.style.display = upOn ? '' : 'none'; upB.title = gm ? 'Upload: pick a Waypoint character file (.wpchar.json)' + (rdG ? ' or a ' + rdG.name + ' file' : '') + '. You review what changes before anything is applied' : c.making === 1 ? 'Upload: fill this character from a file, your own sheet download (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads' : '') : 'Upload: send a Waypoint character file (.wpchar.json)' + (outF ? ', or a sheet file your GM\u2019s Waypoint reads,' : '') + ' to your GM, who approves what changes'; }   // 1.6.0: always on the sheet, for the GM on any character and for a player on their own; while making, where the table lets a file fill it
@@ -2003,7 +2074,7 @@ function renderSheet() {
     if (typeof sheetMoreWire === 'function') { sheetMoreWire(); sheetMoreSync(); }   // 1.6.2: the second row's ⋯ menu
     renderReviewBar(c, camp, gm);
     var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';   // 126: the point budgets, under the head
-    var plB = ui('sheetPlook'); if (plB) plB.style.display = !c.partial && typeof lookBar === 'function' && lookBar(plB, c, gm, own) ? '' : 'none';   // 1.6.2, backlog 35: its personal look
+    var plB = ui('sheetPlook'); if (plB) plB.style.display = !c.partial && !lockedS && typeof lookBar === 'function' && lookBar(plB, c, gm, own) ? '' : 'none';   // 1.6.2, backlog 35: its personal look. 1.6.3 (the review of sheets and rolls, finding 37; Fulllion's pick): only while the sheet is unlocked (Edit sheet), so a sheet in play opens on the character and not on its name's look; nothing of it is taken away
     var dtB = ui('sheetDebts'); if (dtB) dtB.style.display = !c.partial && typeof debtBar === 'function' && debtBar(dtB, c, gm, camp) ? '' : 'none';   // 157 M1h: its debts, under the budgets
     var lkB = ui('sheetLinks'); if (lkB) lkB.style.display = linkBar(lkB, sys, c, camp, lockedS) ? '' : 'none';   // 1.6.0: the linked sheets, under the budgets
     if (typeof renderStaleBar === 'function') renderStaleBar(c, camp, gm, own);   // 1.6.0 (backlog 190): an out-of-date sheet says so
@@ -2072,12 +2143,19 @@ function renderSheetInto(container, charId, camp) {
     // so every sink below (the look's accent, section colors, icons, the portrait) sees validated values
     var sys = cleanSystem(raw, { F: F(), gmView: true }), c = sys ? cleanChar(c0, sys) : null;
     if (!sys || !c) return null;
-    _fxLive = false; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), true, false, function() { renderSheetInto(container, charId, camp); }, { campId: camp.id, view: 'sheet', preview: false }); } finally { _fxLive = true; }   // 5h: a pop-out's effect controls act on nothing
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 25; Fulllion: "Make it live"): where the main window answers (popAs), the
+    // window draws the sheet as that window would, the GM's or its player's, with every control live: each press goes to the main window
+    // (popFwd), which makes it as its own, so the host judges it as before. With no answer it is read only, as it always was, and says so
+    var PA = typeof popAs === 'function' ? popAs() : null, gmP = PA ? PA.gm === true : true, ownP = !!PA && !gmP && !!c0.ownerId && c0.ownerId === PA.me;
+    _fxLive = !!PA; try { buildSections(container, sys, c, resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)), gmP, ownP, function() { renderSheetInto(container, charId, camp); }, { campId: camp.id, view: 'sheet', preview: false }); } finally { _fxLive = true; }   // 5h: a read-only window's effect controls act on nothing
     var lkP = el('div', 'sheet-lks'); if (linkBar(lkP, sys, c, camp, true)) container.insertBefore(lkP, container.firstChild);   // 1.6.0: its linked sheets, by name
     var bdP = el('div', 'sheet-budgets'); if (budgetBar(bdP, sys, c)) container.insertBefore(bdP, container.firstChild);   // 126: a sheet in a window of its own shows its point budgets too, at its top
-    container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
-    container.querySelectorAll('[data-part="up"], [data-part="down"]').forEach(function(el) { el.disabled = true; });   // Stage 6 look fold (L8): arrows inside a box look live otherwise
-    container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
+    if (!PA) {
+        container.querySelectorAll('input, select, textarea').forEach(function(el) { el.disabled = true; });
+        container.querySelectorAll('[data-part="up"], [data-part="down"]').forEach(function(el) { el.disabled = true; });   // Stage 6 look fold (L8): arrows inside a box look live otherwise
+        container.querySelectorAll('[contenteditable]').forEach(function(el) { el.setAttribute('contenteditable', 'false'); });
+        container.insertBefore(el('div', 'sheet-pop-note', 'Read only here: the main Waypoint window is not answering. Use the sheet there.'), container.firstChild);   // 1.6.3: what a dead control would not say
+    }
     container.classList.toggle('sheet-has-table', !!container.querySelector('.sheet-itemtable'));
     applySheetLookTo(container, sheetLook(camp, sys));
     syncFramePad(container);   // measured in the look's own font
@@ -3834,11 +3912,36 @@ function needBits(host, sys, c, entry, rd, gm) {
     var nd = rd.src === 'inline' ? entry.needs : rd.src === 'lib' && rd.base ? rd.base.needs : null, rl = rd.src === 'inline' ? entry.needsIf : rd.src === 'lib' && rd.base ? rd.base.needsIf : null;
     nd = Array.isArray(nd) ? nd : []; rl = typeof rl === 'string' ? rl : ''; if (!nd.length && !rl) return;   // its needed entries, and its rule
     var rf = rd.src === 'inline' ? entry.needsFrom : rd.src === 'lib' && rd.base ? rd.base.needsFrom : undefined;   // a level's own needs: the rule's from-level, and the row judged at the level it has
-    var nm = needsMet(sys, c, { needs: nd, needsIf: rl, needsFrom: typeof rf === 'number' ? rf : undefined }, !gm, typeof F === 'function' ? F() : null, null, typeof entry.lvl === 'number' ? entry.lvl : undefined); if (nm.ok) return;
+    var nm = needsMet(sys, typeof needsAsTaken === 'function' ? needsAsTaken(sys, c, entry) : c, { needs: nd, needsIf: rl, needsFrom: typeof rf === 'number' ? rf : undefined }, !gm, typeof F === 'function' ? F() : null, null, typeof entry.lvl === 'number' ? entry.lvl : undefined); if (nm.ok) return;   // 1.6.3 (finding 11): judged as when it was taken
     var chip = el('span', 'sheet-chip sheet-item-unmet', 'needs not met');
-    chip.title = 'This character does not meet what it needs. ' + needsSays(null, nm.missing, function(id) { for (var i = 0; i < nd.length; i++) if (nd[i] && nd[i].id === id && typeof nd[i].name === 'string' && nd[i].name) return nd[i].name; return typeof needName === 'function' ? needName(sys, id, gm) : null; });   // the name an owner's copy carries, else what this app can read
+    var dfN = rd.src === 'inline' ? entry : rd.base, own = dfN && typeof dfN.needsMsg === 'string' && dfN.needsMsg.trim() ? dfN.needsMsg.trim().slice(0, 400) : '';   // the GM's own words for it, where the entry has them
+    var byName = nm.missing.filter(function(m) { return !(m && m.rule !== undefined); }), ruleOut = nm.missing.length > byName.length;
+    var said = own || (byName.length ? needsSays(null, byName, function(id) { for (var i = 0; i < nd.length; i++) if (nd[i] && nd[i].id === id && typeof nd[i].name === 'string' && nd[i].name) return nd[i].name; return typeof needName === 'function' ? needName(sys, id, gm) : null; }) : '');   // the name an owner's copy carries, else what this app can read
+    if (!own && ruleOut) said += (said ? ' ' : '') + (typeof needsRuleWords === 'function' ? needsRuleWords(sys, rl) : 'A rule of the GM\u2019s for it does not hold.');   // 1.6.3 (finding 11): a rule in words, never its formula
+    chip.title = 'This character does not meet what it needs. ' + said;
     host.appendChild(chip);
 }
+// [needcheck:astaken-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 11; Fulllion: "Judge it as when taken"): a row already held is judged by its needs
+// as it was when it was taken. A rule such as Making = 1 (only while the character is being made) and not Advantages.sensitive.has (not beside
+// another) can never hold once the row is held and the character done, and every character made with it wore needs not met for good. So the
+// character is read as one in the making (Making reads 1) and with this very row off its own list (its own has reads 0). Answers a copy:
+// the character itself is never changed. Asked by needBits alone; the host's judge of a pick (applyRowOp) is not touched
+function needsAsTaken(sys, c, entry) {
+    if (!c || typeof c !== 'object') return c;
+    var vals = c.values && typeof c.values === 'object' ? c.values : {}, out = {};
+    Object.keys(vals).forEach(function(k) { out[k] = vals[k]; });
+    (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && Array.isArray(vals[f.id]) && vals[f.id].indexOf(entry) >= 0) out[f.id] = vals[f.id].filter(function(r) { return r !== entry; }); });
+    return Object.assign({}, c, { making: 1, values: out });
+}
+// The words for a rule that does not hold: what it reads, through the form's reader with every name as the sheet says it (nameWord); a rule the
+// reader cannot put in words is said as the GM's rule. Never the formula itself
+function needsRuleWords(sys, rule) {
+    var FC = typeof window !== 'undefined' && window ? window.wpFormCore : null, w = '';
+    try { var r = FC && typeof rule === 'string' && rule ? FC.readCond(rule) : null; if (r && r.ok) w = FC.saysCond(r.cond, { name: function(n) { return typeof nameWord === 'function' ? nameWord(sys, n) : n; } }) || ''; } catch (e) { w = ''; }
+    return w ? 'It holds only while ' + w + '.' : 'A rule of the GM\u2019s for it does not hold.';
+}
+// [needcheck:astaken-end]
 // 1.5.8 Counted once: a row of a group says so in one chip. The row that applies names the others; a row that does not names the one that
 // applies. Grouped over the whole stored list, as the resolver's Row.once reads it (a placement may show some of it). Names as text
 function onceBits(host, sys, c, f, carried, entry) {
@@ -5181,6 +5284,21 @@ function inlineRow(node, f) {
     var cap = null; Array.prototype.forEach.call(node.children, function(k) { if (!cap && k.classList.contains('sheet-caption')) cap = k; });
     rb.textContent = 'Roll'; if (typeof dieFor === 'function' && f.roll) rb.insertBefore(dieFor(f.rollDie, f.roll), rb.firstChild); rb.classList.add('sheet-inline-roll'); var pmI = rb.nextElementSibling && rb.nextElementSibling.classList && rb.nextElementSibling.classList.contains('sheet-roll-mod') ? rb.nextElementSibling : null; node.insertBefore(rb, cap); if (pmI) node.insertBefore(pmI, cap);   // 1.5.8: its die before the word (1.5.9: its ± goes with it)
 }
+// [hudcheck:pooltyped-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 18; Fulllion's pick): what is typed into a pool's box. A typed -7 takes 7 off
+// and +3 adds 3, from the figure the box showed (cur); a plain number sets it; =-3 sets it below zero (a pool that goes down to minus its max).
+// A long dash or the minus sign reads as -. Anything else, an empty box among it, answers null, and the box then puts the old figure back:
+// a box left empty was read as 0 before, which emptied the pool. The caller commits the answer through commit, which clamps it as ever
+function poolTyped(text, cur) {
+    var t = String(text === null || text === undefined ? '' : text).trim().replace(/[\u2212\u2012\u2013\u2014]/g, '-').replace(/\s+/g, '');
+    var n = typeof cur === 'number' && isFinite(cur) ? cur : 0, m;
+    if ((m = /^=([+-]?\d+(?:\.\d+)?)$/.exec(t))) return { value: Number(m[1]), how: 'set' };
+    if ((m = /^([+-])(\d+(?:\.\d+)?)$/.exec(t))) { var d = Number(m[2]); return { value: +(m[1] === '-' ? n - d : n + d).toFixed(6), how: m[1] === '-' ? 'off' : 'on', by: d }; }
+    if (/^\d+(?:\.\d+)?$/.test(t)) return { value: Number(t), how: 'set' };
+    return null;
+}
+var POOL_TIP = 'Type a number to set it, -7 to take 7 off or +3 to add 3. Type =-3 to set it below zero. An empty box keeps what it had';
+// [hudcheck:pooltyped-end]
 // Stage 6 look fold (L8): a number box with its up and down arrows inside its right edge. The box changes at once; one commit goes about 200 ms
 // after the last click, none when the value is back where it started (unbatched clicks would hit the host's rate gate), as the slider does.
 // HUD frame (HF4a, H8) flank: a counter — minus and plus either side of the box (span.sheet-counter: [down, box, up]), the same single commit.
@@ -5399,12 +5517,12 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         if (f.icon) r.appendChild(iconNode(f.icon, 'sheet-pool-icon'));   // Fold B (Stage 6: or a bundled glyph)
         if (f.icon || f.reset) r.classList.add('sheet-ctl-wrap');   // the extra controls wrap to a second line in a narrow cell, never into the next column
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
-        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'number'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true ? max !== null : f.min !== undefined) ci.min = String(f.minNeg === true ? -max : f.min); if (max !== null) ci.max = String(max);   // 1.6.0: a pool that goes down to minus its max
+        var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'text'; ci.inputMode = 'decimal'; ci.autocomplete = 'off'; ci.spellcheck = false; ci.title = typeof POOL_TIP === 'string' ? POOL_TIP : ''; ci.ariaLabel = (f.label || 'Pool') + ': type a number, or -7 or +3 to change it'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true ? max !== null : f.min !== undefined) ci.min = String(f.minNeg === true ? -max : f.min); if (max !== null) ci.max = String(max);   // 1.6.0: a pool that goes down to minus its max. 1.6.3 (finding 18): a text box, so -7 and +3 can be typed (poolTyped); its min and max are kept as words of its range, commit clamps
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
         var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : f.maxFormula ? ((typeof formulaSays === 'function' ? formulaSays(sysArg, f.maxFormula) : '') || 'Its maximum is worked out by a rule') : 'It has no maximum';   /* 1.6.3 (finding 10): in words, never the formula */ if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
-        ci.addEventListener('change', function() { commit(c, f, { cur: Number(ci.value) }); });
+        ci.addEventListener('change', function() { var pt = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null; if (!pt || pt.value === cur) { ci.value = String(cur); return; } commit(c, f, { cur: pt.value }); });   // 1.6.3 (finding 18): -7 and +3 change it, a plain number sets it, an empty or unreadable box puts the old figure back, never 0
         r.appendChild(minus); r.appendChild(ci); r.appendChild(plus); r.appendChild(mx);
         if (f.reset) {   // Fold B: fill back to the max (the host clamps it like any edit)
             var rs = el('button', 'tool ghost sheet-pm sheet-reset', '\u21bb'); rs.dataset.fid = f.id; rs.dataset.part = 'reset';
@@ -6056,6 +6174,7 @@ function applyNode(r, c, sys, vars) {
 // works it out here with the saved system (the sheet's own resolver, token and round included), stores it as ONE change (one Revert brings
 // every value back) and posts the card to whoever may see it (applyScope); a card that would carry a GM-only value is kept private, with a toast
 function applyAction(r, c, label, row, on, cx, ask) {   // cx (1.6.0): a crossing's run, { step, n }, read as CrossStep and Crossed   // row (H7b): { f, r, i } — a list's action on one of the character's rows; on (1.5.9): the token of the adjacent character it is used on
+    if (typeof popFwd === 'function' && popFwd('applyAction', [r && typeof r.id === 'string' ? r.id : null, label, row || null, on || null, cx || null, ask || null])) return;   // 1.6.3 (finding 25)
     var n = net(), camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !F()) return;
     if (isClient()) { if (!n || !n.charApply) return; var q = ask ? n.charApply(c.id, row ? null : r.id, label, row, on, ask) : row ? (on ? n.charApply(c.id, null, label, row, on) : n.charApply(c.id, null, label, row)) : on ? n.charApply(c.id, r.id, label, undefined, on) : n.charApply(c.id, r.id, label); if (q && q.error) toast(q.error); return; }
     if (!canWrite()) return;
@@ -6267,11 +6386,13 @@ function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the
 var _sheetLink = sheetLink(), charCatNow = _sheetLink.charCatNow, charCatSet = _sheetLink.charCatSet, linkBar = _sheetLink.linkBar, linkRiders = _sheetLink.linkRiders, linkValuesWrite = _sheetLink.linkValuesWrite, shareToggle = _sheetLink.shareToggle, valuesMoved = _sheetLink.valuesMoved;   // [split:glue]
 // One value changed on the open sheet: the GM applies it here; a player asks the host and shows it meanwhile
 function commit(c, f, value) {
+    if (typeof popFwd === 'function' && popFwd('commit', [f.id, value])) return;   // 1.6.3 (finding 25): pressed in a sheet's window of its own, made by the main window
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
     if (isClient()) {
         var n = net(); if (!n || !n.charEdit) return;
+        var prevP = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined;   // 1.6.3 (finding 34): what a player's own Revert sends back
         var r = n.charEdit(c.id, f.id, value);
-        if (r && r.error) toast(r.error);
+        if (r && r.error) toast(r.error); else if (typeof myRevNote === 'function') myRevNote(c.id, [{ fieldId: f.id, prev: prevP }]);
         renderViews(c.id);
         return;
     }
@@ -6638,9 +6759,10 @@ function styleResult(rid, ok, reason, msg) { if (ok) return; var w = lookSays(re
 // HUD frame (HF4b): several values of one character as ONE change (a section's Reset all). The GM's is one delta, and one Revert undoes it all
 // (lastChange.extra); a player's is one char-edits message the host judges all-or-nothing. At most LIMITS.editBatch values
 function commitMany(c, list) {
+    if (typeof popFwd === 'function' && popFwd('commitMany', [list])) return;   // 1.6.3 (finding 25)
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys || !Array.isArray(list) || !list.length) return;
     list = list.slice(0, LIMITS.editBatch);
-    if (isClient()) { var n = net(); if (!n || !n.charEdits) return; var r = n.charEdits(c.id, list); if (r && r.error) toast(r.error); renderViews(c.id); return; }
+    if (isClient()) { var n = net(); if (!n || !n.charEdits) return; var prevM = list.filter(function(q) { return q && typeof q.fieldId === 'string'; }).map(function(q) { return { fieldId: q.fieldId, prev: c.values && Object.prototype.hasOwnProperty.call(c.values, q.fieldId) ? clone(c.values[q.fieldId]) : undefined }; }); var r = n.charEdits(c.id, list); if (r && r.error) toast(r.error); else if (typeof myRevNote === 'function') myRevNote(c.id, prevM); renderViews(c.id); return; }   // 1.6.3 (finding 34): a player's own Revert
     if (!canWrite()) return;
     var work = Object.assign({}, c, { values: clone(c.values || {}), af: c.af ? clone(c.af) : undefined }), d = {}, prevs = {}, ids = [], af0 = c.af ? clone(c.af) : null;   // judged in order on a working copy, all or none (1.6.2: its marks with it)
     var lkM = { hand: true, lockChar: c }, lkCtxDone = false;   // 1.6.3 (the review of backlog 170): a lock is judged on the character as it stood BEFORE the batch (c), so the batch never hangs on its order, in the sheet's token context, worked out once and only where a field can meet a lock
@@ -6667,6 +6789,7 @@ function commitMany(c, list) {
 // 5h: one change to a character's status effects: a player asks the host (shown at once, undone on a refusal); the GM applies it here,
 // with any pool an effect's end brought down to its new max in the same change
 function commitEffect(c, f, q) {
+    if (typeof popFwd === 'function' && popFwd('commitEffect', [f.id, q])) return;   // 1.6.3 (finding 25)
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
     if (isClient()) { var n = net(); if (!n || !n.charEffect) return; var r = n.charEffect(c.id, f.id, q); if (r && r.error) toast(r.error); renderViews(c.id); return; }
     if (!canWrite()) return;
@@ -6782,6 +6905,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|setQty|keep|undo, defId?, rowId, qty? }; F4b set (facts: lvl, on, note; F4c1 paid); F4c2 ov (a copy's own values); F4c3 custom (def: a custom row's patch)
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
     if (!q.priced && typeof priceAsk === 'function' && priceAsk(c, f, q)) return;   // 1.5.6: a priced row bought or sold asks its price first
+    if (typeof popFwd === 'function' && popFwd('commitItem', [f.id, q])) return;   // 1.6.3 (finding 25): asked here, made by the main window, which asks no price again (priced)
     if (q.priced) { q = Object.assign({}, q); delete q.priced; }
     var goneB = typeof goneOf === 'function' ? goneOf(c, f, q) : null;   // 1.5.8: the row as it stood, for the Undo its removal offers
     var before = q.rowId ? rowQty(c, f, q.rowId) : 0;
@@ -6872,9 +6996,17 @@ function ownerSeesSame(camp, sys, a, b, fid) {
 }
 function revertLast() {
     var rr = typeof restRevTake === 'function' && typeof sheetOpen !== 'undefined' && !isClient() ? restRevTake(sheetOpen) : null, after = rr ? rr.next : null;   // 1.6.2: after a rest the open sheet takes back its own character's part, and the others keep theirs
+    if (isClient() && typeof myRevert === 'function' && typeof sheetOpen === 'string') { myRevert(sheetOpen); return; }   // 1.6.3 (finding 34): a player's own last edits, sent as ordinary changes the host judges
     if (rr) lastChange = rr.rec; else if (typeof restRevLive === 'function' && restRevLive()) return;   // while the rest's records hold, a sheet the rest gave nothing takes nothing back, and never another sheet's part
+    var leftO = null, wasR = lastChange;   // 1.6.3 (finding 34): an earlier step of the open sheet, where the last change is another sheet's or none
+    if (!rr && !isClient() && typeof revEarlier === 'function' && typeof sheetOpen === 'string' && sheetOpen && !(lastChange && lastChange.charId === sheetOpen)) {
+        var cE = charById(sheetOpen, getActiveCampaign()), eE = cE ? revEarlier(sheetOpen, cE.values, cE.af) : null; if (!eE) return;
+        if (!eE.rec) { toast('Nothing was put back: ' + revLeftWords(systemOf(getActiveCampaign()), eE.left) + '.'); if (typeof renderSheet === 'function') renderSheet(); return; }
+        after = lastChange; lastChange = eE.rec; leftO = eE.left; wasR = null;   // the last change stays as it was, another sheet's
+    }
     if (!lastChange || isClient()) return;
     var camp = getActiveCampaign(), c = charById(lastChange.charId, camp); if (!c) { lastChange = after; return; }
+    if (wasR && typeof revDrop === 'function') revDrop(c.id, wasR);   // the last change taken back is no earlier step of its sheet any more
     var leftR = [];   // 1.6.2: of a rest's record, the fields changed since the rest are left as they are, and named
     if (rr && rr.rest && typeof restRevFit === 'function') { var ftR = restRevFit(lastChange, rr.at, c.values, c.af); leftR = ftR.left; if (!ftR.rec) { lastChange = after; toast('Nothing was put back: ' + restLeftWords(systemOf(camp), leftR) + '.'); if (typeof renderSheet === 'function') renderSheet(); return; } lastChange = ftR.rec; }
     var d = {}, fidR = lastChange.fieldId, sysR = systemOf(camp), fR = sysR ? fieldById(sysR, fidR) : null, curR = c.values && Object.prototype.hasOwnProperty.call(c.values, fidR) ? clone(c.values[fidR]) : undefined;
@@ -6895,7 +7027,7 @@ function revertLast() {
         afterCharChange(c2, d2[Object.keys(d2)[0]] === null, d2);
         if (rr && typeof restRevRekey === 'function') restRevRekey(after);
     }
-    toast(leftR.length ? 'Reverted. ' + restLeftWords(systemOf(camp), leftR) + '.' : 'Reverted.');
+    toast(leftR.length ? 'Reverted. ' + restLeftWords(systemOf(camp), leftR) + '.' : leftO && leftO.length ? 'Reverted. ' + revLeftWords(systemOf(camp), leftO) + '.' : 'Reverted.');
 }
 function restLeftWords(sys, ids) {   // "Hit Points changed since the rest and was left as it is"
     var nm = (Array.isArray(ids) ? ids : []).map(function(id) { var f = sys ? fieldById(sys, id) : null, w = f && typeof (f.label || f.key) === 'string' ? String(f.label || f.key).trim() : ''; return w || 'A value'; });
@@ -7746,7 +7878,7 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         var cmp = getActiveCampaign(), sys = systemOf(cmp), ch2 = charById(up.charId, cmp); if (!sys || !ch2 || !F() || noRd || stale(cmp)) return;
         var acc = {}; Object.keys(ticks).forEach(function(k) { if (ticks[k]) acc[k] = true; });
         var r = applyProposal(sys, ch2, up, acc, F(), rdA ? { rowOp: rdA.rowOp } : {});
-        ch2.values = r.values; lastChange = null;
+        ch2.values = r.values; lastChange = null; if (typeof revForget === 'function') revForget(ch2.id);   // 1.6.3: a Review applied ends the sheet's earlier steps
         var SCj = typeof window !== 'undefined' ? window.wpSystemCore : null, jr = Array.isArray(up.joined) && up.joined.length && SCj && typeof SCj.applyJoined === 'function' ? SCj.applyJoined(sys, charsOf(cmp), ch2, up, acc, F(), rdA ? { rowOp: rdA.rowOp } : {}, function() { var nid = uid('c_'), csN = charsOf(cmp); while (Object.prototype.hasOwnProperty.call(csN, nid)) nid = uid('c_'); return nid; }) : null;   // 1.6.2: then the sheets its rows own
         if (jr) {
             ch2.values = jr.values;
@@ -8471,7 +8603,7 @@ Object.assign(window.wpSheets, { glyphButton: glyphButton, closeGlyphPicker: clo
 (function wireSheetPopout() {
     var pop = document.getElementById('sheetPop');
     if (pop) pop.addEventListener('click', function() {
-        var camp = getActiveCampaign(); if (!camp || !sheetOpen || isClient()) return;   // it reads this machine's save: at someone else's table there is nothing to show
+        var camp = getActiveCampaign(); if (!camp || !sheetOpen || !canOpen(sheetOpen)) return;   // 1.6.3 (finding 25): a player's own sheet too: this window sends it what it shows (popSheetPush), so the table's save is never read
         window.open(location.origin + '/?popout=sheet:' + encodeURIComponent(camp.id) + '/' + encodeURIComponent(sheetOpen), 'wpPopout_sheet_' + sheetOpen, 'width=840,height=1000');
         closeSheet();
     });
@@ -8479,3 +8611,69 @@ Object.assign(window.wpSheets, { glyphButton: glyphButton, closeGlyphPicker: clo
         if (e.data && e.data.type === 'dock' && e.data.kind === 'sheet') { var a = e.data.arg || ''; openSheet(a.slice(a.indexOf('/') + 1)); }
     }); } catch (e) {}
 })();
+// [hudcheck:popsheetlive-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 25; Fulllion: "Make it live"): the main window's half of a sheet in a window of its
+// own. That window asks for its sheet (sheetWant, again every 20 s to say it is still there) and sends each press (sheetDo); this window, the one
+// that holds the campaign, answers with what the sheet reads (sheetData: the campaign without its other characters, its maps but those that hold
+// the character's token, and the system only when it is another object than the one last sent) and makes each press as its own (popSheetDo), so the
+// GM's goes as the GM's and a player's to the host, judged there as ever. It sends again when the character, the system or what the sheet reads of
+// its token changes (popSheetWatch, once a second while a window is there). Over the app's own channel alone; never in a window of its own or the
+// stream window; nothing is stored
+var _popWant = Object.create(null), _popBC = null, _popTimer = null, POP_GONE_MS = 60000, POP_ID = /^p[a-z0-9]{1,16}$/, _popSelf = 'm' + Math.random().toString(36).slice(2, 12);   // _popSelf: this window, so that where two app windows hold the campaign a sheet's window speaks to the one it chose and a press is made once
+// The campaign a sheet's window is sent: every key but the other characters and the maps the character has no token on, and none of the GM's own
+// stores that nothing on a sheet reads (the fog the players have explored, containers, the Cast, groups, the uploads waiting for review)
+function popCampOf(camp, c) {
+    var out = {}, SKIP = { items: 1, chars: 1, system: 1, fogMem: 1, boxes: 1, cast: 1, groups: 1, uploads: 1 };
+    Object.keys(camp).forEach(function(k) { if (!SKIP[k]) out[k] = camp[k]; });
+    out.items = {}; Object.keys(camp.items || {}).forEach(function(id) { var m = camp.items[id]; if (m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { return !!w && w.charId === c.id; })) out.items[id] = m; });
+    var ids = {}; ids[c.id] = 1; (JSON.stringify(c).match(/c_[A-Za-z0-9_]{1,24}/g) || []).forEach(function(x) { ids[x] = 1; });   // the sheets it names (its links, a row's sheet)
+    var cs = camp.chars && typeof camp.chars === 'object' ? camp.chars : {}; Object.keys(cs).forEach(function(id) { var o = cs[id]; if (o && JSON.stringify(o.links || null).indexOf(c.id) >= 0) ids[id] = 1; });   // and those that name it (its crew, its rider)
+    out.chars = {}; Object.keys(ids).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(cs, id)) out.chars[id] = cs[id]; });
+    return out;
+}
+function popSigOf(w, camp, c) { return JSON.stringify(c) + '\n' + (typeof dialSigFor === 'function' ? dialSigFor(c.id, camp) : '') + '\n' + (w.sys === camp.system ? 's' : 'S') + '\n' + (isClient() ? 'p' : 'g'); }
+function popSheetPush(id, fresh) {
+    var w = _popWant[id], camp = getActiveCampaign(); if (!w || !_popBC || !camp || camp.id !== w.camp) return false;
+    var c = charById(w.char, camp); if (!c || !canOpen(c.id)) return false;
+    var sig = popSigOf(w, camp, c); if (!fresh && sig === w.sig) return false;
+    var msg = { type: 'sheetData', to: id, from: _popSelf, gm: !isClient(), me: String(myId() || ''), camp: popCampOf(camp, c) };
+    if (fresh || w.sys !== camp.system) { msg.system = camp.system; w.sys = camp.system; }
+    try { _popBC.postMessage(msg); } catch (e) { return false; }
+    w.sig = popSigOf(w, camp, c); return true;
+}
+// A press made in a sheet's window, made here as this window's own: the campaign on screen and the character it names alone, by the sheet's own
+// functions, which judge who may (canOpen, then each function's own rights). args are data, as the window sent them
+function popSheetDo(m) {
+    var camp = getActiveCampaign(), sys = systemOf(camp), a = Array.isArray(m.args) ? m.args : []; if (!camp || !sys || m.camp !== camp.id) return false;
+    var c = charById(m.char, camp); if (!c || !canOpen(c.id)) return false;
+    var fOf = function(id) { return typeof id === 'string' ? fieldById(sys, id) : null; }, f;
+    if (m.op === 'commit') { if ((f = fOf(a[0]))) commit(c, f, a[1]); }
+    else if (m.op === 'commitMany') { if (Array.isArray(a[0])) commitMany(c, a[0]); }
+    else if (m.op === 'commitItem') { if ((f = fOf(a[0])) && a[1] && typeof a[1] === 'object') commitItem(c, f, a[1]); }
+    else if (m.op === 'commitEffect') { if ((f = fOf(a[0])) && a[1] && typeof a[1] === 'object') commitEffect(c, f, a[1]); }
+    else if (m.op === 'applyAction') applyAction({ id: typeof a[0] === 'string' ? a[0] : '' }, c, typeof a[1] === 'string' ? a[1] : '', a[2] || undefined, a[3] || undefined, a[4] || undefined, a[5] || undefined);
+    else if (m.op === 'roll') { if (a[0] === c.id && typeof a[1] === 'string' && window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(c.id, a[1], typeof a[2] === 'string' ? a[2] : '', a[3] && typeof a[3] === 'object' ? a[3] : {}); }
+    else return false;
+    if (window.wpStepLog) window.wpStepLog('popsheet v1', 'press', { op: m.op });
+    setTimeout(function() { popSheetPush(m.id, false); }, 120);
+    return true;
+}
+function popSheetWatch() {
+    var now = Date.now(), any = false;
+    Object.keys(_popWant).forEach(function(id) { if (now - _popWant[id].at > POP_GONE_MS) delete _popWant[id]; else { any = true; popSheetPush(id, false); } });
+    if (!any && _popTimer) { clearInterval(_popTimer); _popTimer = null; }
+}
+(function popSheetWire() {
+    if (typeof window === 'undefined' || window.wpPopout || window.wpStream || typeof BroadcastChannel !== 'function') return;
+    try { _popBC = new BroadcastChannel('waypoint'); } catch (e) { _popBC = null; return; }
+    _popBC.addEventListener('message', function(e) {
+        if (window.wpPopout || window.wpStream || (typeof location !== 'undefined' && /[?&](stream=1|popout=)/.test(String(location.search || '')))) return;   // judged at each word too: a window of its own or the stream window may set its mark after this module loaded, and it is never the app window
+        var m = e.data; if (!m || typeof m !== 'object' || typeof m.id !== 'string' || !POP_ID.test(m.id) || typeof m.camp !== 'string' || typeof m.char !== 'string') return;
+        if (m.type === 'sheetWant') {
+            var w = _popWant[m.id] || (_popWant[m.id] = { camp: m.camp, char: m.char, sig: '', sys: null }); w.at = Date.now(); w.camp = m.camp; w.char = m.char;
+            popSheetPush(m.id, m.fresh === true);
+            if (!_popTimer) _popTimer = setInterval(popSheetWatch, 1000);
+        } else if (m.type === 'sheetDo' && _popWant[m.id] && m.to === _popSelf) popSheetDo(m);   // a press made by the one window it was meant for
+    });
+})();
+// [hudcheck:popsheetlive-end]

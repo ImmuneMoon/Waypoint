@@ -99,7 +99,7 @@ const j = v => JSON.stringify(v);
         const iHa = clickH.indexOf("if (b.id === 'sysLayoutAuto' && layoutView === 'hud')"), iHc = clickH.indexOf("if (b.id === 'sysLayoutClear' && layoutView === 'hud')"), iSa = clickH.indexOf("if (b.id === 'sysLayoutAuto') {"), iSc = clickH.indexOf("if (b.id === 'sysLayoutClear') {");
         check('HUD frame HF1: buildSections draws the HUD without an automatic-layout fallback; a Pin in either view drives the band (vctx.targets, else both layouts); the sheet\'s regexes and counts still hold',
             /var sheet = \(hudV \|\| \(sys\.sheet && sys\.sheet\.sections && sys\.sheet\.sections\.length\)\) \? sys\.sheet : autoLayout\(sys\);/.test(shH1) && /targets: \(vctx && vctx\.targets\) \|\| pinTargetsAll\(sys\.sheet\), vctx: vctx,/.test(shH1)
-            && (shH1.match(/(?:_fxLive = false|fxLiveSet\(false\)); try \{ buildSections\(/g) || []).length === 2 && (shH1.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars, pl)?\)/g) || []).length === 2
+            && (shH1.match(/(?:_fxLive = false|_fxLive = !!PA|fxLiveSet\(false\)); try \{ buildSections\(/g) || []).length === 2   /* 1.6.3 (finding 25, moved on purpose): a sheet's window of its own draws live where its main window answers */ && (shH1.match(/fieldNode\([^)]*, gm, own, sys(, all\.vars, pl)?\)/g) || []).length === 2
             && /var secKey = \(hudV \? 'h:' : ''\) \+ sec\.id;/.test(shH1) && /if \(\(_fxForm\.view \|\| 'sheet'\) === fxV\)/.test(shH1)
             && /import \{[^}]*pinTargetsAll, hudView, hudHasContent[, A-Za-z]* \} from '\.\/systemcore\.js';/.test(shH1));
         check('HUD frame HF1: the Layout tab — layoutRoot routes the sections, the tabs and the band / ledger boxes; the switch never dirties the draft; the HUD\'s Copy / Remove come before the sheet\'s Auto / Clear, which keep the HUD; deleteGroup cleans both layouts; the HUD title is handled before the section lookup; the Identity box is the sheet\'s alone; the preview draws hudView',
@@ -1192,6 +1192,102 @@ const j = v => JSON.stringify(v);
             j(atLoad) === j(['hudLayer', 'sheetPanel']) && j(free) === j(['sheet', 'c_a']) && whileDown === 0 && j(landed) === j(['sheet', 'c_a']) && j(hudPress) === j(['sheet', 'c_a'])
             && /\{ chgDefer\(charId, skip\); return; \} if \(typeof pressBusy === 'function' && pressBusy\(charId, skip\)\) return;/.test(shT),
             j({ atLoad, free, whileDown, landed, hudPress }));
+    }
+
+    /* ---- 1.6.3, Fulllion's picks from the improvement week's review of sheets and rolls: a pool's box, Revert's steps, the Text style line,
+       and a sheet in a window of its own made live ---- */
+    {
+        const shP = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), poP = fs.readFileSync(path.join(app, 'scripts', 'popout.js'), 'latin1');
+        const dcP = fs.readFileSync(path.join(app, 'scripts', 'dice.js'), 'utf8').replace(/\r\n/g, '\n'), cssP = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+        const cutP = (s, n) => { const a = s.indexOf('// [hudcheck:' + n + '-start]'), z = s.indexOf('// [hudcheck:' + n + '-end]'); return a > 0 && z > a ? s.slice(a, z) : ''; };
+        // finding 18: what is typed into a pool's box (poolTyped, sliced and run for real)
+        const ptSrc = cutP(shP, 'pooltyped'), PT = new Function(ptSrc + '\nreturn { poolTyped: poolTyped, POOL_TIP: POOL_TIP };')();
+        const pt = (t, c) => { const r = PT.poolTyped(t, c); return r ? r.value : null; };
+        check('1.6.3 (finding 18, Fulllion\'s pick): a pool\'s box reads what is typed: -7 takes 7 off and +3 adds 3 from the figure it showed, a long dash or the minus sign reads as -, a plain number sets it, =-3 sets it below zero; an empty box, words, a lone sign or two figures answer nothing, and the box then puts the old figure back (never 0); its tooltip says so; the box is a text box and its change commits only a figure that differs',
+            ptSrc.length > 200 && pt('-7', 23) === 16 && pt('+3', 23) === 26 && pt(' − 4 ', 10) === 6 && pt('–2', 5) === 3 && pt('12', 23) === 12 && pt('0', 23) === 0 && pt('=-3', 23) === -3 && pt('=5', 23) === 5 && pt('-1.5', 2) === 0.5
+            && pt('', 23) === null && pt('   ', 23) === null && pt('ten', 23) === null && pt('-', 23) === null && pt('5-2', 23) === null && pt('+-3', 23) === null && pt(null, 4) === null && pt('-2', undefined) === -2
+            && PT.poolTyped('-7', 23).how === 'off' && PT.poolTyped('+3', 1).how === 'on' && PT.poolTyped('9', 1).how === 'set' && /-7 to take 7 off or \+3 to add 3/.test(PT.POOL_TIP) && /An empty box keeps what it had/.test(PT.POOL_TIP)
+            && shP.includes("ci.type = 'text'; ci.inputMode = 'decimal';") && shP.includes("ci.title = typeof POOL_TIP === 'string' ? POOL_TIP : '';") && shP.includes("ci.addEventListener('change', function() { var pt = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null; if (!pt || pt.value === cur) { ci.value = String(cur); return; } commit(c, f, { cur: pt.value }); });")
+            && !shP.includes("commit(c, f, { cur: Number(ci.value) })") && shP.includes("ci.min = String(f.minNeg === true ? -max : f.min)") && shP.includes("ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true"),   /* found live: a comment set inside the line once hid the box's own figure */
+            j([pt('-7', 23), pt('+3', 23), pt('=-3', 23), pt('', 23)]));
+        // finding 37: the Text style line only while the sheet is unlocked
+        check('1.6.3 (finding 37, Fulllion\'s pick): the Text style line stands under the sheet\'s head only while the sheet is unlocked (Edit sheet, or a character being made), read from the sheet\'s own lock; nothing of it is taken away',
+            shP.includes("var plB = ui('sheetPlook'); if (plB) plB.style.display = !c.partial && !lockedS && typeof lookBar === 'function' && lookBar(plB, c, gm, own) ? '' : 'none';") && /\nfunction lookBar\(box, c, gm, own\) \{/.test(shP));
+        // finding 34: Revert keeps a few steps of each sheet (the restrev and revstack slices and revertLast, run for real on a GM and on a player)
+        const rrA = shP.indexOf('// [systemcheck:restrev-start]'), rrZ = shP.indexOf('// [systemcheck:restrev-end]'), rvFn = (shP.match(/function revertLast\(\) \{[\s\S]*?\n\}/) || [''])[0], lwFn = (shP.match(/function restLeftWords\(sys, ids\) \{[\s\S]*?\n\}/) || [''])[0];
+        const sysR = { fields: [{ id: 'f_hp', key: 'HP', label: 'Hit Points', kind: 'number' }, { id: 'f_st', key: 'ST', label: 'Strength', kind: 'number' }, { id: 'f_pl', key: 'Pool', label: 'Pool', kind: 'resource' }, { id: 'f_nt', key: 'Note', label: 'Note', kind: 'text', def: 'x' }] };
+        const mkR = client => {
+            const camp = { system: sysR, chars: { c_a: { id: 'c_a', values: { f_hp: 10, f_st: 5 } }, c_b: { id: 'c_b', values: { f_hp: 3 } } } }, said = [], sent = [];
+            const H = {};
+            H.api = new Function('getActiveCampaign', 'systemOf', 'charById', 'fieldById', 'isClient', 'toast', 'afterCharChange', 'ownerSeesSame', 'clone', 'renderSheet', 'commit', 'commitMany', 'makeResolver', 'F', 'window',
+                'var lastChange = null, sheetOpen = null;\n' + shP.slice(rrA, rrZ) + '\n' + cutP(shP, 'revstack') + '\n' + lwFn + '\n' + rvFn + '\nreturn { revertLast: revertLast, revOf: revOf, revNote: revNote, revStack: revStack, myRevNote: myRevNote, myRevOf: myRevOf, restRevKeep: restRevKeep, open: function(id) { sheetOpen = id; }, set: function(v) { lastChange = v; }, last: function() { return lastChange; } };')(
+                () => camp, c => c.system, (id, c) => (c || camp).chars[id] || null, (sy, id) => sy.fields.find(f => f.id === id) || null, () => client, m => said.push(m), c => H.api.revNote(c), () => false, v => JSON.parse(JSON.stringify(v)), () => {},
+                (c, f, v) => sent.push([c.id, f.id, v]), (c, list) => sent.push([c.id, list]), () => k => (k === 'Pool.max' ? 9 : 0), () => ({}), {});
+            const change = (id, fid, v) => { const c = camp.chars[id], had = Object.prototype.hasOwnProperty.call(c.values, fid); H.api.set({ charId: id, fieldId: fid, prev: had ? c.values[fid] : undefined }); c.values[fid] = v; H.api.revNote(c); };
+            return { camp, api: H.api, said, sent, change, v: id => j(camp.chars[id].values) };
+        };
+        const g = mkR(false);
+        g.change('c_a', 'f_hp', 8); g.change('c_a', 'f_st', 6); g.change('c_b', 'f_hp', 1); g.api.open('c_a');
+        const r0 = [g.api.revOf('c_a') && g.api.revOf('c_a').fieldId, g.api.revStack('c_a').length];
+        g.api.revertLast(); const r1 = [g.v('c_a'), g.v('c_b'), g.api.last() && g.api.last().charId, g.api.revOf('c_a') && g.api.revOf('c_a').fieldId];
+        g.api.revertLast(); const r2 = [g.v('c_a'), g.api.revOf('c_a'), g.api.revStack('c_a').length];
+        g.api.revertLast(); const r3 = [g.v('c_a'), g.said.slice()];
+        g.change('c_a', 'f_hp', 7); g.camp.chars.c_a.values.f_hp = 4; g.change('c_b', 'f_hp', 2); g.said.length = 0; g.api.revertLast(); const r4 = [g.v('c_a'), g.said.slice()];
+        g.change('c_a', 'f_st', 9); g.api.revertLast(); const r5 = [g.v('c_a'), g.api.revStack('c_a').length];
+        for (let i = 0; i < 7; i++) g.change('c_a', 'f_st', 20 + i); const r6 = g.api.revStack('c_a').length;
+        g.api.set({ charId: 'c_a', fieldId: 'f_hp', prev: 4 }); g.api.restRevKeep({ c_a: g.api.last() }, {}); const r7 = g.api.revStack('c_a').length;
+        check('1.6.3 (finding 34, Fulllion\'s pick): Revert keeps a few steps of each sheet: the GM\'s Revert takes back the open sheet\'s steps newest first and leaves another sheet\'s last change as it was; an earlier step is taken back field by field, a field changed since by something that left no record is left and named; the last change taken back is no earlier step any more; five steps a sheet at most; a rest ends a rested sheet\'s steps',
+            j(r0) === j(['f_st', 2]) && j(r1) === j(['{"f_hp":8,"f_st":5}', '{"f_hp":1}', 'c_b', 'f_hp']) && j(r2) === j(['{"f_hp":10,"f_st":5}', null, 0]) && j(r3) === j(['{"f_hp":10,"f_st":5}', ['Reverted.', 'Reverted.']])
+            && j(r4) === j(['{"f_hp":4,"f_st":5}', ['Nothing was put back: Hit Points changed since and was left as it is.']]) && j(r5) === j(['{"f_hp":4,"f_st":5}', 0]) && r6 === 5 && r7 === 0,
+            j({ r0, r1, r2, r3, r4, r5, r6, r7 }));
+        const p = mkR(true); p.api.open('c_a');
+        p.api.myRevNote('c_a', [{ fieldId: 'f_hp', prev: 10 }]); p.camp.chars.c_a.values.f_hp = 6; p.api.myRevNote('c_a', [{ fieldId: 'f_pl', prev: undefined }, { fieldId: 'f_nt', prev: undefined }]); p.camp.chars.c_a.values.f_pl = { cur: 2 }; p.camp.chars.c_a.values.f_nt = 'y';
+        const m0 = p.api.myRevOf('c_a'); p.api.revertLast(); const m1 = j(p.sent.splice(0)); p.api.revertLast(); const m2 = j(p.sent.splice(0)), m3 = p.api.myRevOf('c_a');
+        p.api.myRevNote('c_a', [{ fieldId: 'f_st', prev: 5 }]); p.api.revertLast(); const m4 = [j(p.sent.splice(0)), p.said.slice(-1)[0]];
+        check('1.6.3 (finding 34): a player\'s own Revert sends their last edits back as ordinary changes (commit, commitMany), which the host judges: newest first, a pool that held nothing back at its full figure, a text at its default, a field already back as it was passed over and said; the GM\'s Revert asks none of it; the sheet\'s head shows Revert to a player for their own sheet',
+            m0 === true && m1 === j([['c_a', [{ fieldId: 'f_pl', value: { cur: 9 } }, { fieldId: 'f_nt', value: 'x' }]]]) && m2 === j([['c_a', 'f_hp', 10]]) && m3 === false && j(m4) === j(['[]', 'Nothing to take back: those values are already as they were.'])
+            && shP.includes(": own && typeof myRevOf === 'function' && myRevOf(c.id)) ? '' : 'none';") && shP.includes("if (typeof revNote === 'function' && !isClient()) revNote(c);"),
+            j({ m0, m1, m2, m3, m4 }));
+        // finding 25: a sheet in a window of its own is live (popout.js popsheetwin, sheets.js popsheetlive, each sliced and run for real over a channel of the suite's own)
+        const bus = [], chans = [];
+        class BC { constructor() { this.ls = []; chans.push(this); } addEventListener(t, f) { this.ls.push(f); } postMessage(m) { bus.push(m); const d = JSON.parse(JSON.stringify(m)); chans.filter(x => x !== this).forEach(x => x.ls.forEach(f => f({ data: d }))); } }
+        const winW = { wpPopout: true, appToast: m => toasts.push(m) }, toasts = [], drawn = [], ticks = { n: 0 }, timers = [];
+        const PW = new Function('arg', 'window', 'BroadcastChannel', 'setInterval', 'setTimeout', 'clearInterval', 'tickSheet', 'tick', "var lastSig = 'x';\n" + cutP(poP, 'popsheetwin') + '\nreturn { go: popSheetLive, sig: function() { return lastSig; } };')(
+            'k1/c_a', winW, BC, (f, ms) => { timers.push([f, ms]); return timers.length; }, (f, ms) => { timers.push([f, ms]); return 0; }, () => {}, d => drawn.push(d), () => { ticks.n++; });
+        const campM = { id: 'k1', system: { v: 1 }, chars: { c_a: { id: 'c_a', ownerId: 'u1', values: { f_hp: 3 } }, c_b: { id: 'c_b', values: {} }, c_r: { id: 'c_r', links: { mount: 'c_a' }, values: {} } }, items: { m1: { id: 'm1', type: 'map', whiteboard: [{ id: 't1', charId: 'c_a' }] }, m2: { id: 'm2', type: 'map', whiteboard: [{ id: 't2', charId: 'c_b' }] } }, fogMem: { big: 1 }, docStyle: { a: 1 } };
+        const done = [], roleM = { client: false };
+        const MW = new Function('window', 'BroadcastChannel', 'setInterval', 'clearInterval', 'setTimeout', 'getActiveCampaign', 'systemOf', 'charById', 'fieldById', 'canOpen', 'isClient', 'myId', 'dialSigFor', 'commit', 'commitMany', 'commitItem', 'commitEffect', 'applyAction',
+            cutP(shP, 'popsheetlive') + '\nreturn { campOf: popCampOf, wants: function() { return _popWant; } };')(
+            { wpDice: { rollFor: (id, e, l, o) => done.push(['roll', id, e, l, o]) } }, BC, () => 1, () => {}, f => f(), () => campM, c => c.system, (id, c) => c.chars[id] || null, (s, id) => ({ id }), id => id === 'c_a', () => roleM.client, () => 'u1', () => 'dial',
+            (c, f, v) => done.push(['commit', c.id, f.id, v]), (c, l) => done.push(['many', c.id, l]), (c, f, q) => done.push(['item', c.id, f.id, q]), (c, f, q) => done.push(['fx', c.id, f.id, q]), (r, c, l, row) => done.push(['act', r.id, c.id, l, row]));
+        const slim = MW.campOf(campM, campM.chars.c_a);
+        PW.go(); const want0 = bus.filter(m => m.type === 'sheetWant').map(m => [m.camp, m.char, m.fresh]), data0 = bus.filter(m => m.type === 'sheetData'), as0 = j(winW.wpPopoutAs), drew0 = drawn.length, drewCamp = drawn[0] && Object.keys(drawn[0].campaigns);
+        winW.wpPopoutSheet.send('commit', ['f_hp', { cur: 2 }]); winW.wpPopoutSheet.send('roll', ['c_a', '3d6', 'Hit', { act: 'r1' }]); winW.wpPopoutSheet.send('commitItem', ['f_kit', { op: 'add', defId: 'i_a', priced: true }]); winW.wpPopoutSheet.send('applyAction', ['r_heal', 'Heal', null, null, null, null]);
+        const did = j(done.splice(0));
+        roleM.client = true; chans[1].postMessage({ type: 'sheetWant', id: bus[0].id, camp: 'k1', char: 'c_a', fresh: false }); const asP = j(winW.wpPopoutAs);
+        const mainBC = chans.find((x, i) => i > 0 && x.ls.length); mainBC.postMessage({ type: 'sheetDo', id: 'pzzz', camp: 'k1', char: 'c_a', op: 'commit', args: ['f_hp', 1] }); mainBC.postMessage({ type: 'sheetDo', id: bus[0].id, camp: 'k2', char: 'c_a', op: 'commit', args: ['f_hp', 1] }); mainBC.postMessage({ type: 'sheetDo', id: bus[0].id, camp: 'k1', char: 'c_b', op: 'commit', args: ['f_hp', 1] }); const refused = j(done.splice(0));
+        check('1.6.3 (finding 25, Fulllion: "Make it live"): a sheet in a window of its own asks the main window for its sheet over the app\'s own channel and draws what it is sent, as the GM\'s sheet or the player\'s own (wpPopoutAs); the system goes with the first answer alone; what it is sent is the campaign with only its own maps and the sheets it names or that name it, never the GM\'s other stores; each press (a value, a roll, a row with its price asked, an action) goes to the main window and is made there as its own press by the sheet\'s own function; a press from a window that never asked, for another campaign or a sheet that window may not open is made by nobody',
+            j(want0) === j([['k1', 'c_a', true]]) && data0.length === 1 && !!data0[0].system && as0 === j({ gm: true, me: 'u1' }) && drew0 === 1 && j(drewCamp) === j(['k1'])
+            && j(Object.keys(slim.items)) === j(['m1']) && j(Object.keys(slim.chars).sort()) === j(['c_a', 'c_r']) && !('fogMem' in slim) && !('system' in slim) && slim.docStyle.a === 1
+            && did === j([['commit', 'c_a', 'f_hp', { cur: 2 }], ['roll', 'c_a', '3d6', 'Hit', { act: 'r1' }], ['item', 'c_a', 'f_kit', { op: 'add', defId: 'i_a', priced: true }], ['act', 'r_heal', 'c_a', 'Heal', undefined]])
+            && asP === j({ gm: false, me: 'u1' }) && refused === '[]',
+            j({ want0, n: data0.length, as0, drew0, did, asP, refused }));
+        const toMain = bus.filter(m => m.type === 'sheetDo').slice(0, 4).map(m => m.to), fromMain = data0[0] && data0[0].from;
+        mainBC.postMessage({ type: 'sheetDo', id: bus[0].id, to: 'mother1', camp: 'k1', char: 'c_a', op: 'commit', args: ['f_hp', 1] }); const otherMain = j(done.splice(0));
+        check('1.6.3 (finding 25, found live with two app windows on one campaign): a sheet\'s window speaks to the one app window it chose, the first that answered, and a press addressed to another is made by nobody, so it is made once',
+            typeof fromMain === 'string' && /^m[a-z0-9]+$/.test(fromMain) && toMain.length === 4 && toMain.every(t => t === fromMain) && otherMain === '[]'
+            && cutP(shP, 'popsheetlive').includes("m.type === 'sheetDo' && _popWant[m.id] && m.to === _popSelf") && cutP(poP, 'popsheetwin').includes("if (mainId && m.from !== mainId && live()) return;"),
+            j({ fromMain, toMain, otherMain }));
+        const noMain = { wpPopout: true, appToast: m => toasts.push(m) }, tk = { n: 0 }, tm = [], posted = [];
+        new Function('arg', 'window', 'BroadcastChannel', 'setInterval', 'setTimeout', 'clearInterval', 'tickSheet', 'tick', "var lastSig = '';\n" + cutP(poP, 'popsheetwin') + '\nreturn popSheetLive;')('k1/c_a', noMain, class { addEventListener() {} postMessage(m) { posted.push(m.type); } }, (f, ms) => { tm.push(ms); return 1; }, (f, ms) => { if (ms === 4000) f(); }, () => {}, () => {}, () => { tk.n++; })();
+        const gone = [noMain.wpPopoutSheet.send('commit', ['f_hp', 1]), posted.indexOf('sheetDo') < 0, toasts.slice(-1)[0]];
+        check('1.6.3 (finding 25): with no main window answering a sheet\'s window says so at a press and makes nothing, reads the save once and then at most every 30 s (read only, as it always was), never every second; renderSheetInto draws it read only and says so where nothing answers; dice.js rollFor and the five changes of the sheet hand a press to the window\'s sender first; a player\'s own sheet may be popped out',
+            gone[0] === true && gone[1] && /not answering/.test(gone[2]) && tk.n === 1 && tm.includes(30000) && !tm.includes(1000) && noMain.wpPopoutAs === undefined
+            && shP.includes("container.insertBefore(el('div', 'sheet-pop-note', 'Read only here: the main Waypoint window is not answering. Use the sheet there.'), container.firstChild);") && /\n  \.sheet-pop-note \{/.test(cssP)
+            && dcP.includes("if (popS && typeof popS.send === 'function' && popS.send('roll', [charId, expr, label, opts])) return { ok: true, sent: true };")
+            && ['commit', 'commitMany', 'commitItem', 'commitEffect', 'applyAction'].every(op => shP.includes("popFwd('" + op + "', ["))
+            && shP.includes("if (!camp || !sheetOpen || !canOpen(sheetOpen)) return;") && /\} else if \(kind === 'sheet'\) \{\n        popSheetLive\(\);/.test(poP),
+            j({ gone, tk: tk.n, tm }));
     }
 
     await T.finish();

@@ -1690,8 +1690,38 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
     var _cmdkEntries = [], _cmdkShown = [], _cmdkIdx = 0;
 
+    // [shelfcheck:cmdkchars-start]
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 30; Fulllion's pick): character sheets in quick jump, so one sheet among
+    // hundreds of NPCs is found by name. The campaign on screen only: the GM finds every sheet of it, a player at someone else's table the sheets
+    // that are their own (a copy held for its hover is nobody's). A row waits for a word, as a planner's card does. Enter opens the sheet, and
+    // Shift+Enter its HUD where the sheet has one (cmdkChar). Names reach the list as text (cmdkRender escapes every label). client: whether this is a
+    // player's app at someone else's table, me: their id there
+    function cmdkCharRows(camp, client, me) {
+        var out = [], cs = camp && camp.chars && typeof camp.chars === 'object' ? camp.chars : {};
+        Object.keys(cs).forEach(function(id) {
+            var c = cs[id]; if (!c || typeof c !== 'object' || c.partial || c.id !== id || !/^c_[A-Za-z0-9_]{1,24}$/.test(id)) return;
+            if (client && (c.ownerId !== me || c.template === true)) return;
+            var nm = String(c.name || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 80) || 'Unnamed';
+            var sub = c.template === true ? 'Template' : c.npc ? 'NPC sheet' : c.making === 1 ? 'Character being made' : 'Character sheet';
+            out.push({ kind: 'char', label: nm, sub: sub, icon: 'person', campId: camp.id, charId: id });
+        });
+        out.sort(function(a, b) { return a.label.localeCompare(b.label); });
+        return out;
+    }
+    function cmdkClient() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen
+    // A sheet's row picked: the sheet, or with Shift its HUD, as the sheet module judges who may open it (wpSheets.canOpen, openSheet, openHud)
+    function cmdkChar(en, ev) {
+        var S = window.wpSheets; if (!S || !en || typeof en.charId !== 'string') return false;
+        if (!S.canOpen || !S.canOpen(en.charId)) { if (window.appToast) window.appToast('That sheet cannot be opened here.'); return false; }
+        if (ev && ev.shiftKey && S.hudFor && S.hudFor(en.charId) && S.openHud) S.openHud(en.charId); else S.openSheet(en.charId);
+        return true;
+    }
+    // [shelfcheck:cmdkchars-end]
     function cmdkBuild() {
         _cmdkEntries = [];
+        var cliK = cmdkClient(), campK = state.appState.campaigns[state.appState.activeCampaignId];   // 1.6.3 (finding 30)
+        if (campK) _cmdkEntries = _cmdkEntries.concat(cmdkCharRows(campK, cliK, cliK && window.wpNet ? String(window.wpNet.myId || '\u0000') : ''));
+        if (cliK) return;   // at someone else's table a player's quick jump holds their own sheets alone: the maps, pages and commands are the GM's campaign
         Object.values(state.appState.campaigns).forEach(function(c) {
             Object.values(c.items).forEach(function(it) {
                 var title = (it.meta && it.meta.title) || it.id;
@@ -1732,6 +1762,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                 if (jm === 'name') s = 1;
                 else if (jm) { scored.push([2, Object.assign({}, en, { sub: en.sub + (jm === 'notes' ? ', in its notes' : ', by who is there') })]); return; }
             }
+            if (!ql && en.kind === 'char' && !(typeof cmdkSolo === 'function' && cmdkSolo())) s = -1;   // 1.6.3 (finding 30): a sheet waits for a word too, but on a player's app, where their sheets are all the list holds
             if (s >= 0) scored.push([s, en]);
         });
         scored.sort(function(a, b) { return a[0] - b[0]; });
@@ -1749,7 +1780,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         }
         _cmdkShown = shown.slice(0, 50);
         _cmdkIdx = 0;
-        var icons = { map: 'map', planner: 'page', doc: 'book', room: 'marker', cmd: 'wrench', set: 'cog' };
+        var icons = { map: 'map', planner: 'page', doc: 'book', room: 'marker', cmd: 'wrench', set: 'cog', 'char': 'person' };
         var list = document.getElementById('cmdkList');
         list.innerHTML = _cmdkShown.length
             ? _cmdkShown.map(function(en, i) {
@@ -1761,6 +1792,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         cmdkHintSync();
     }
     // [shelfcheck:cmdkrows-end]
+    function cmdkSolo() { return typeof cmdkClient === 'function' && cmdkClient(); }   // 1.6.3: the list holds sheets alone (a player's app at someone else's table)
 
     function cmdkOpen() {
         cmdkBuild();
@@ -1786,6 +1818,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     function cmdkHint(en) {
         if (!en) return '';
         if (en.kind === 'cmd' || en.kind === 'set') return window.wpCommands && typeof window.wpCommands.act === 'function' ? window.wpCommands.act(en) : '';   // 1.6.0: a command says what it does
+        if (en.kind === 'char') return 'Enter opens the sheet.' + (window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(en.charId) ? ' Shift+Enter opens its HUD.' : '');   // 1.6.3 (finding 30)
         if (cmdkWay(en, { shiftKey: true }) === 'go') return 'Enter goes there.';
         return cmdkWay(en, null) === 'panel' ? 'Enter opens it over the map. Ctrl+Enter opens a new window. Alt+Enter opens the page itself.' : 'Enter opens the page. Shift+Enter opens it in a panel here. Ctrl+Enter opens a new window.';
     }
@@ -1805,7 +1838,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     function cmdkGo(en, ev) {
         if (!en) return;
         cmdkClose();
-        if (en.kind === 'cmd' || en.kind === 'set') { if (window.wpCommands && typeof window.wpCommands.go === 'function') window.wpCommands.go(en); return; }   // 1.6.0, backlog 33: a command runs, a Settings option opens Settings there
+        if (en.kind === 'cmd' || en.kind === 'set') { if (window.wpCommands && typeof window.wpCommands.go === 'function') window.wpCommands.go(en); return; } if (en.kind === 'char') { if (typeof cmdkChar === 'function') cmdkChar(en, ev); return; }   /* 1.6.3 (finding 30): a sheet, or its HUD with Shift */   // 1.6.0, backlog 33: a command runs, a Settings option opens Settings there
         var way = cmdkWay(en, ev);
         if (way !== 'go') { window.wpPageShelf.open(en.itemId, way, cmdkLand(en)); return; }   // 1.5.4: over the map or in a window of its own, and the map stays on screen; a row found by a page's words opens at them
         // A jump into another campaign while hosting is a campaign switch: the session ends first (asked)
@@ -1867,7 +1900,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         modal.addEventListener('pointerdown', function(e) { if (e.target === modal) cmdkClose(); });
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-                if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
+                // 1.6.3 (finding 30): at someone else's table quick jump opens too, holding the player's own sheets alone (cmdkBuild)
                 if (window.wpWebMode && typeof window.wpWebMode.joinOnly === 'function' && window.wpWebMode.joinOnly() === true) return;   // 1.5.5: a website's plan that joins tables alone has no map, page or room of the player's own to jump to (webmode.js), at a table or on the join page
                 e.preventDefault();
                 cmdkOpen();

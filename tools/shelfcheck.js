@@ -1884,6 +1884,23 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && ixS.indexOf('<li><b>Mentioned in</b>:') > ixS.indexOf('<li><b>Contents</b>: a page with two sections')
         && wnS.every(t => t.includes('- Mentioned in: a Person card and a Place card end in a Mentioned in\n  button.') && t.indexOf('- Mentioned in: a Person card') < t.indexOf('WAYPOINT 1.6.1')));
 }
+{   // 1.6.3 (the improvement week's review of sheets and rolls, finding 30; Fulllion's pick): character sheets in quick jump (main.js cmdkchars slice,
+    // run for real, with the cmdkrows slice ranking them and cmdkGo handing a picked sheet to cmdkChar)
+    const mj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n');
+    const opened = [], toasts = [], WQ = { wpSheets: { canOpen: id => id !== 'c_no', hudFor: id => id === 'c_1', openHud: id => opened.push(['hud', id]), openSheet: id => opened.push(['sheet', id]) }, appToast: t => toasts.push(t) };
+    const K = new Function('window', sliceOf(mj, 'cmdkchars') + '\nreturn { rows: cmdkCharRows, go: cmdkChar, client: cmdkClient };')(WQ);
+    const campQ = { id: 'k1', chars: { c_1: { id: 'c_1', name: 'Kael', ownerId: 'u1' }, c_2: { id: 'c_2', name: 'Hraak Tarn 2', npc: true }, c_3: { id: 'c_3', name: 'Tpl', template: true }, c_4: { id: 'c_4', name: 'Bren', ownerId: 'u2', making: 1 }, c_5: { id: 'c_5', name: 'Hover', partial: true, ownerId: 'u1' }, c_x: { id: 'c_y', name: 'Liar' }, bad: { id: 'bad', name: 'No id' } } };
+    const gmR = K.rows(campQ, false, ''), plR = K.rows(campQ, true, 'u1');
+    K.go({ charId: 'c_1' }, { shiftKey: false }); K.go({ charId: 'c_1' }, { shiftKey: true }); K.go({ charId: 'c_2' }, { shiftKey: true }); const noOpen = K.go({ charId: 'c_no' }, null);
+    const rank = (q, solo) => { const list = { innerHTML: '' }, st = { appState: { campaigns: {} } }, ents = gmR.concat([{ kind: 'map', label: 'Docks', sub: 'Camp', campId: 'k1', itemId: 'm1' }]);
+        return new Function('state', 'window', 'document', 'esc', 'cmdkHintSync', 'cmdkSolo', 'var _cmdkEntries = ' + JSON.stringify(ents) + ', _cmdkShown = [], _cmdkIdx = 0;\n' + sliceOf(mj, 'cmdkrows') + '\nreturn function(q) { cmdkRender(q); return _cmdkShown.map(function(e) { return e.label; }); };')(st, {}, { getElementById: () => list }, s => String(s), () => {}, () => solo)(q); };
+    check('1.6.3 (finding 30) character sheets in quick jump: the campaign on screen\'s sheets, the GM every one but a hover copy and a sheet under another id, a player their own and never a template; each says what it is; a sheet waits for a word on the GM\'s list and stands with nothing typed on a player\'s; Enter opens the sheet, Shift+Enter its HUD where it has one, and a sheet that cannot be opened here is said; at someone else\'s table quick jump opens with the player\'s sheets alone',
+        JSON.stringify(gmR.map(r => [r.label, r.sub, r.charId])) === JSON.stringify([['Bren', 'Character being made', 'c_4'], ['Hraak Tarn 2', 'NPC sheet', 'c_2'], ['Kael', 'Character sheet', 'c_1'], ['Tpl', 'Template', 'c_3']]) && JSON.stringify(plR.map(r => r.charId)) === JSON.stringify(['c_1'])
+        && JSON.stringify(opened) === JSON.stringify([['sheet', 'c_1'], ['hud', 'c_1'], ['sheet', 'c_2']]) && noOpen === false && toasts[0] === 'That sheet cannot be opened here.'
+        && JSON.stringify(rank('', false)) === JSON.stringify(['Docks']) && JSON.stringify(rank('tarn', false)) === JSON.stringify(['Hraak Tarn 2']) && rank('', true).indexOf('Kael') >= 0
+        && mj.includes("if (cliK) return;   // at someone else's table") && !mj.includes("if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;") && mj.includes("if (en.kind === 'char') { if (typeof cmdkChar === 'function') cmdkChar(en, ev); return; }") && mj.includes("if (en.kind === 'char') return 'Enter opens the sheet.'"),
+        JSON.stringify([gmR.map(r => r.label), plR.map(r => r.label), opened, rank('', false), rank('tarn', false)]));
+}
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

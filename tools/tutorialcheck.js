@@ -225,7 +225,7 @@ for (const t of targets) {
         try { new Function('document', 'window', 'cmdkOpen', kSrc)({ addEventListener: (t, f) => { if (t === 'keydown') fn = f; } }, win, () => opened.push('open')); } catch (e) { return 'threw: ' + e.message; }
         if (!fn) return 'no listener'; fn({ ctrlKey: true, metaKey: false, key: 'K', preventDefault() { prevented++; } }); return opened.length + ':' + prevented; };
     const keys = kSrc ? [kRun({}), kRun({ wpWebMode: { joinOnly: () => true } }), kRun({ wpWebMode: { joinOnly: () => false } }), kRun({ wpWebMode: { joinOnly: () => 1 } }), kRun({ wpNet: { active: true, role: 'client' } }), kRun({ wpWebMode: { joinOnly: () => true }, wpNet: { active: false } })] : ['no slice'];
-    const keyOk = JSON.stringify(keys) === JSON.stringify(['1:1', '0:0', '1:1', '1:1', '0:0', '0:0']);
+    const keyOk = JSON.stringify(keys) === JSON.stringify(['1:1', '0:0', '1:1', '1:1', '1:1', '0:0']);   // 1.6.3 (finding 30, moved on purpose): at someone else's table quick jump opens, holding the player's own sheets alone
     // the style sheet: the welcome's other choices and the GM's and the save's parts of Settings put away under the body's one word, every id it names in
     // the page; no :has() in it, which a browser that does not know it would drop with the whole rule, so a row of Settings is put away by a class of its
     // own; the relay is a GM's part; and while the join page is up the app behind it is put away

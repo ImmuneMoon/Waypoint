@@ -608,6 +608,8 @@ function syncChars() {
 var _rollMore = null;   // 1.5.8 explosives: what rollFor hands the next roll beside its own words, taken once
 function rollFor(charId, expr, label, opts) {
     opts = opts || {};
+    var popS = typeof window !== 'undefined' && window && window.wpPopout ? window.wpPopoutSheet : null;   // 1.6.3 (finding 25): a sheet in a window of its own: the main window rolls it as its own press (sheets.js popSheetDo)
+    if (popS && typeof popS.send === 'function' && popS.send('roll', [charId, expr, label, opts])) return { ok: true, sent: true };
     var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
     _rollMore = opts.range || opts.blast || opts.used === true || opts.cross ? { range: opts.range || undefined, blast: opts.blast || undefined, used: opts.used === true ? true : undefined, usedWait: opts.usedWait === true ? true : undefined, cross: opts.cross && typeof opts.cross === 'object' ? opts.cross : undefined } : null;   // 1.5.8 explosives: a throw's range to its aim, the blast a damage roll is for (this machine's own words); 1.5.9: a damage roll already applied as it is rolled (a blast's fragmentation)
     var cardF = typeof dueTake === 'function' ? dueTake(charId) : '';   // the review of input: the card whose press this roll is (duePress), so a roll refused or never answered makes that card live again

@@ -1120,8 +1120,8 @@ const j = v => JSON.stringify(v);
             && !/Settings &#9656; System &#9656; Items/.test(ixH + tuH) && /Cover from blockers<\/b> for your system\. It is on the Combat tab of the <b>System<\/b> editor&rsquo;s <b>Items<\/b> tab\./.test(ixH)
             && labels.length === 17 && labels.every(l => tourVtt.toLowerCase().indexOf(l.toLowerCase()) >= 0) && /Fog of war, token facing, lighting, turn-based combat and table trackers are the exception: they are yours alone\./.test(ixH) && /Fog of war, token facing, lighting, turn-based combat and table trackers are the GM's alone\./.test(ixH) && /fog of war, lighting, turn-based combat, the calendar, video, table trackers, and the VTT integration master/.test(ixH) && /token facing, the minimap, sound, music, dice and character sheets\. The others are visual effects, fog of war, lighting, turn-based combat, the calendar, video, table trackers, personal looks and turn to movement\./.test(ixH)
             && /item\('Character file \(\.wpchar\.json\)'/.test(shH), JSON.stringify(labels.filter(l => tourVtt.toLowerCase().indexOf(l.toLowerCase()) < 0)));
-        check('the sheet\'s pop-out is not offered at someone else\'s table (it reads this machine\'s save, where a joined player has none of the GM\'s characters)',
-            /body\.net-client #sheetPop \{ display: none; \}/.test(cssH) && /var camp = getActiveCampaign\(\); if \(!camp \|\| !sheetOpen \|\| isClient\(\)\) return;/.test(shH));
+        check('1.6.3 (finding 25, moved on purpose): the sheet\'s pop-out is offered to a player for a sheet of their own too: the window is sent what it shows by the main window (sheets.js popSheetPush), so no save is read',
+            !/body\.net-client #sheetPop \{ display: none; \}/.test(cssH) && /var camp = getActiveCampaign\(\); if \(!camp \|\| !sheetOpen \|\| !canOpen\(sheetOpen\)\) return;/.test(shH));
     }
     {   // 1.6.0, backlog 190 (the owner: "a general contingency for if a gm changes their system"; by prompt "Also chat and read pages"): the sheet revision
         const J = JSON.stringify;

@@ -1010,6 +1010,11 @@
   .prep-find .ico { width: 13px; height: 13px; flex: none; }
   .prep-find input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--ink); font: inherit; font-size: 12px; padding: 3px 0; }
   .prep-find input::placeholder { color: var(--dim); }
+  /* 1.6.3 (the review of sheets and rolls, finding 30): Find a sheet by name, the Characters section's own, in Find a card's look */
+  .ch-find { margin: 2px 6px 6px; }
+  .ch-find[hidden] { display: none; }
+  /* 1.6.3 (finding 25): a sheet in a window of its own that the main window does not answer says it is read only */
+  .sheet-pop-note { margin: 6px 8px; padding: 6px 10px; border: 1px solid var(--edge); border-radius: 6px; color: var(--dim); font-size: 12px; }
   .prep-k { flex: none; font-size: 10px; border: 1px solid var(--edge); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
   #prepBody { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 30px 16px; }
   #prepGrip { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; touch-action: none; }
@@ -2765,7 +2770,6 @@
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item.image:not(.tok-pic-hexagon):is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.sel):not(.wb-hidden-gm):not(.wb-trap):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.wb-door-near) > img { filter: var(--imgf, none); }
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item:is(.image, .wb-hextok):is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.sel):not(.wb-hidden-gm):not(.wb-trap):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.wb-door-near) > .tok-selring { display: none; }
   /* The token creator (owner, 2026-09-27): a picture framed to a square — drag, zoom, the grid's outline previewed over it */
-  body.net-client #sheetPop { display: none; }   /* the sheet pop-out reads this machine's save: not at someone else's table */
   .frame-modal { position: fixed; inset: 0; z-index: 100006; background: var(--overlay); display: flex; align-items: center; justify-content: center; }
   .frame-box { width: min(380px, 94vw); max-height: 94vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.5); }
   .frame-head { display: flex; align-items: center; gap: 8px; }

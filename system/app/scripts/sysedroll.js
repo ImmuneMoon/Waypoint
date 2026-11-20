@@ -12,7 +12,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { APPLY_KINDS, F, LIMITS, NEEDS_WHY, STAT_KEY, _asPlayer, activeCharOf, answersBox, areaBox, askRow, asksBox, bandBox, bandWhens, btnRow, callsBox, cardBox, checkLabel, cleanListSpec, cleanNeedsWhy, cleanRollSw, clockBox, costHow, costOptions, crossRow, dieSel, draft, drawHow, el, entryNames, entryPick, errorCell, everyRow, explainBox, fieldOf, fightRow, fxHolds, fxTargets, glyphButton, grantBox, handKept, helpBox, hudFor, input, itemOfRow, keepPlace, kindsNamed, labeledSelect, landDmgSel, lazySelect, lossOpts, lvlOnlyText, markDirty, markOpts, markVal, modHowSel, modTiersText, modVal, needsGmBox, noteRow, numField, numInput, opVal, open, patchErrors, picPicker, playableChars, playerNames, postureList, renderAll, resistBySel, resistOrBox, rollNeedsFails, rollStationBox, rolled, rowAimInto, rowFocusOf, segPut, select, swDice, swGone, tab, toast, turnActs, ui, withRowSel } from './sheets.js';   // [split:glue]
+import { APPLY_KINDS, F, LIMITS, NEEDS_WHY, STAT_KEY, _asPlayer, activeCharOf, answersBox, areaBox, askRow, asksBox, bandBox, bandWhens, btnRow, callsBox, cardBox, checkLabel, cleanListSpec, cleanNeedsWhy, cleanRollSw, clockBox, costHow, costOptions, crossRow, dbxLocNames, dieSel, draft, drawHow, el, entryNames, entryPick, errorCell, everyRow, explainBox, fieldOf, fightRow, fxHolds, fxTargets, glyphButton, grantBox, handKept, helpBox, hudFor, input, itemOfRow, keepPlace, kindsNamed, labeledSelect, landDmgSel, lazySelect, lossOpts, lvlOnlyText, markDirty, markOpts, markVal, modHowSel, modTiersText, modVal, needsGmBox, noteRow, numField, numInput, opVal, open, patchErrors, picPicker, playableChars, playerNames, postureList, renderAll, resistBySel, resistOrBox, rollNeedsFails, rollStationBox, rolled, rowAimInto, rowFocusOf, segPut, select, swDice, swGone, tab, toast, turnActs, ui, withRowSel } from './sheets.js';   // [split:glue]
 export function sysedRoll() {   // [split:glue]
 // [split:body-start]
 // Clarity package: how a formula's value is rounded, picked from a list so a GM never writes the arithmetic (systemcore roundBy works it, so
@@ -479,7 +479,7 @@ function fliesBox(it) {
     var rl = (typeof draft !== 'undefined' && draft && Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, 'On arrival: roll ' + (r.label || 'a roll')]; });
     if (typeof fl.roll === 'string' && fl.roll && !rl.some(function(o) { return o[0] === fl.roll; })) rl.push([fl.roll, 'On arrival: a roll that is gone']);
     box.appendChild(select('sys-fly-roll', [['', 'On arrival: it strikes']].concat(rl), fl.roll || '', 'What happens as it reaches its target. A roll is made as the launcher\u2019s attack, which the target may resist: on a hit its blast or damage lands. With no roll it strikes'));
-    box.appendChild(select('sys-fly-end', [['', 'Out of rounds: it is gone'], ['off', 'Out of rounds: it goes off where it stands']], fl.end === 'off' ? 'off' : '', 'What happens when its rounds run out before it arrives. Going off needs a blast of its own'));
+    box.appendChild(select('sys-fly-end', [['', 'Out of rounds: it is gone'], ['off', 'Out of rounds: it goes off where it stands']], fl.end === 'off' ? 'off' : '', 'What happens when its rounds run out before it arrives. It can go off only where the item has a blast of its own'));
     return box;
 }
 // [vehiclecheck:fliesbox-end]
@@ -495,29 +495,36 @@ function itemRow(it) {
     if (it.area) {   // 1.5.8 explosives: its blast's damage type, whether going off uses one up, and whether it is placed, not thrown, with its trigger radius
         var dtys = draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) ? draft.combat.damage.types : [];
         if (dtys.length) area.appendChild(select('sys-item-atype', [['', 'Damage type: none']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Damage type: ' + (y.label || y.key)]; })), it.area.type || '', 'The damage type of its blast, as the damage step reads it'));
-        area.appendChild(input('sys-item-aloc field', typeof it.area.loc === 'string' ? it.area.loc : '', 'The hit location its blast strikes, by the name of a location, such as Legs for a mine underfoot. Blank: the usual one', 'Strikes at'));   // 1.6.2 (the CORE session, 11)
+        // 1.6.2 (the CORE session, 11); 1.6.3 (Fulllion's rulings of 2026-11-20: a box others depend on is required): Strikes at reads the Combat
+        // tab's hit locations (Taking damage), so it is picked by name among that list's entries, Another entry for one a pack holds, as Unaimed
+        // blows land at is. Where the system names no locations it has nothing to read: drawn only to show and clear a name already stored
+        var lkI = draft.combat && draft.combat.damage && draft.combat.damage.locs && typeof draft.combat.damage.locs === 'object' ? draft.combat.damage.locs : null, alc = typeof it.area.loc === 'string' ? it.area.loc : '';
+        if ((lkI && lkI.list) || alc) { var aloc = input('sys-item-aloc field', alc, 'The hit location its blast strikes, such as Legs for a mine underfoot. The usual one: where Unaimed blows land, else a location named Torso, else the first', 'Strikes at'); aloc.maxLength = 60; area.appendChild(lkI && lkI.list && typeof dbxLocNames === 'function' ? entryPick(aloc, dbxLocNames(lkI.list), 'Strikes at: the usual one') : aloc); }
         area.appendChild(numField('sys-item-aad', it.area.ad || '', 'Its armor divisor: DR is divided by it (2 for a (2) after the damage). Blank for none', 'divisor', '0.5'));
         area.appendChild(checkLabel('sys-item-ause', it.area.use === true, 'Uses one up', 'Going off takes one off the row it was thrown or placed from, and the row goes at none'));
         area.appendChild(checkLabel('sys-item-aplace', it.area.place === true, 'Placed, not thrown', 'A mine: its button places it on the map, hidden from players. It goes off only when a character steps into it, or by your hand'));
         area.appendChild(input('sys-item-afrag field', typeof it.area.frag === 'string' ? it.area.frag : '', 'Its fragmentation, a dice roll such as 1d6. When the blast goes off the host rolls it for the characters it reaches, as the Combat tab says. Blank: none', 'Fragmentation (optional)'));   // 1.5.9 (es)
         if (dtys.length) area.appendChild(select('sys-item-afragtype', [['', 'Fragmentation type: as the Combat tab says']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Fragmentation type: ' + (y.label || y.key)]; })), typeof it.area.fragType === 'string' ? it.area.fragType : '', 'The damage type of its fragmentation, as the damage step reads it'));
-        if (it.area.place === true) area.appendChild(numField('sys-item-atrig', it.area.trig || '', 'Trigger radius in yards: a character whose center comes this near sets it off', 'trigger yd', '0.5'));
+        if (it.area.place === true) area.appendChild(numField('sys-item-atrig', it.area.trig || '', 'Trigger radius in yards: a character whose center comes this near sets it off. Fill it in: when it is empty the mine goes off within 2 yards', 'trigger yd', '0.5'));
         else area.appendChild(select('sys-item-aflight', [['', 'On a miss, launched: you place it'], ['scatter', 'On a miss, launched: it scatters, as a throw'], ['line', 'On a miss, launched: it flies straight']], it.area.flight === 'scatter' || it.area.flight === 'line' ? it.area.flight : '', 'How a round fired from a launcher lands when the roll misses. One that scatters lands as a missed throw does. One that flies straight goes off on the first wall or character in its path, or at its farthest'));   // 1.5.9 (es)
     }
     top.appendChild(area);
-    top.appendChild(input('sys-item-damage field', it.damage, 'The damage in dice, such as 2d6 + 3', 'Damage (optional)'));
+    top.appendChild(input('sys-item-damage field', it.damage, 'The damage in dice, such as 2d6 + 3', it.area && typeof it.area.frag === 'string' && it.area.frag.trim() ? 'Damage' : 'Damage (optional)'));   // 1.6.3: fragmentation rides on the damage, so with one it is no longer optional
     var flags = el('div', 'sys-flags');
     flags.appendChild(input('sys-item-cost field', it.cost, 'Point/credit cost (a formula, no dice) — used by budgets in a later slice', 'Cost (optional)'));
-    flags.appendChild(input('sys-item-throw field', it.throwSkill, 'Optional: a field whose roll is posted as the to-hit', 'Throw skill (optional)'));
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): the throw skill is what the Combat tab's throw roll reads as ThrowSkill, so it is no longer (optional), and
+    // with none no throw roll is made (the validator says so under it). It stays a box: what it names is often a column of one entry of a list, such as a
+    // skill's Target, which no list of fields could offer
+    flags.appendChild(input('sys-item-throw field', it.throwSkill, 'What the Combat tab’s throw roll reads as ThrowSkill when it is thrown or placed, such as a skill’s target. With none, no throw roll is made: it lands where it is aimed', it.area && it.area.place === true ? 'Placing skill' : 'Throw skill'));
     var iIcoIn = input('sys-item-icon field', it.icon, 'An emoji or a bundled icon shown on the row', 'Icon'); flags.appendChild(iIcoIn); flags.appendChild(glyphButton(iIcoIn));
     var iPicIn = el('input', 'sys-item-pic'); iPicIn.type = 'hidden'; iPicIn.value = typeof it.pic === 'string' ? it.pic : ''; flags.appendChild(iPicIn); if (typeof picPicker === 'function') flags.appendChild(picPicker(iPicIn));   // 1.6.2 (backlog 42): its own picture
     flags.appendChild(select('sys-item-vis', [['all', 'Visible to players'], ['gm', 'GM only']], it.vis || 'all', 'GM only: kept out of the players\u2019 list. One you give a character reaches its owner (name, icon, category and notes); its formulas never leave your machine'));
     flags.appendChild(select('sys-item-rmmode', [['', 'A player may remove it'], ['bound', 'Bound: only the GM removes it'], ['curse', 'Curse on contact: you keep it']], it.rm || '', 'When a player removes it from their character. Bound: it stays on their sheet and they see your message. Curse on contact: it leaves their sheet but stays on the character, out of their sight, until you remove it. Players never see this setting.'));   // Stage 6
-    var rmIn = input('sys-item-rmtext field', it.rmMsg || '', 'Shown to the player when they try to remove it (optional)', 'Message on removal'); rmIn.maxLength = LIMITS.rmMsg; if (!it.rm) rmIn.style.opacity = '0.5'; flags.appendChild(rmIn);
+    var rmIn = input('sys-item-rmtext field', it.rmMsg || '', 'Shown to the player when they try to remove it', 'Shown when it is Bound or Curse on contact'); rmIn.maxLength = LIMITS.rmMsg; if (!it.rm) rmIn.style.opacity = '0.5'; flags.appendChild(rmIn);
     var anyL = (draft.fields || []).some(function(x) { return x.kind === 'item-list' && x.list && x.list.lvl; }), anyO = (draft.fields || []).some(function(x) { return x.kind === 'item-list' && x.list && x.list.on; });   // Stage 6 F4b
     if (anyO) {
         flags.appendChild(select('sys-item-eqmode', [['', 'A player may switch it off'], ['bound', 'Bound: it stays on'], ['curse', 'Curse on contact: you keep it on']], it.eq || '', 'When a player switches it off (Readied, Equipped\u2026). Bound: it stays on and they see your message; just after it goes on, it still comes off. Curse on contact: it looks off to them but stays on, out of their sight, until you switch it off. Players never see this setting.'));
-        var eqIn = input('sys-item-eqtext field', it.eqMsg || '', 'Shown to the player when they try to switch it off (optional)', 'Message on switching off'); eqIn.maxLength = LIMITS.rmMsg; if (!it.eq) eqIn.style.opacity = '0.5'; flags.appendChild(eqIn);
+        var eqIn = input('sys-item-eqtext field', it.eqMsg || '', 'Shown to the player when they try to switch it off', 'Shown when it is Bound or Curse on contact'); eqIn.maxLength = LIMITS.rmMsg; if (!it.eq) eqIn.style.opacity = '0.5'; flags.appendChild(eqIn);
     }
     flags.appendChild(select('sys-item-again', [['', 'Held once'], ['name', 'Held again under another name']], it.again === 'name' ? 'name' : '', 'On a list that holds each item once, a character may hold this one again as another row. Each copy is asked for a name of its own, and two copies of one name are refused'));   // 1.6.0
     flags.appendChild(input('sys-item-key field', it.key || '', 'A short fixed name for it, once in each list it can be on: a letter, then letters, digits and _. Formulas read its row by it: List.key.lvl, List.key.qty', 'Key (optional)'));
@@ -548,7 +555,7 @@ function affBox(it) {
         if (!a || typeof a !== 'object') return;
         var ln = el('div', 'sys-fx-mod sys-item-aff'); ln.dataset.ai = String(ai);
         ln.appendChild(input('sys-item-affvs field', typeof a.vs === 'string' ? a.vs : '', 'What it is resisted against, read with the character it reaches, such as HT-2. The Combat tab’s resist roll reads it as Resist', 'Resist against, e.g. HT-2'));
-        var fxO = [['', 'On a failure: pick an effect']].concat(effs.map(function(d) { return [d.id, 'On a failure: ' + (d.name || d.id)]; }));
+        var fxO = [['', 'On a failure: pick an effect']].concat(effs.map(function(d) { return [d.id, 'On a failure: ' + (d.name || 'An effect with no name')]; }));
         if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxO.push([a.fx, 'On a failure: an effect that is gone']);
         ln.appendChild(select('sys-item-afffx', fxO, typeof a.fx === 'string' ? a.fx : '', 'The effect put on a character that fails to resist'));
         ln.appendChild(select('sys-item-affwho', AFF_WHO, a.who === 'all' ? 'all' : '', 'Whom it reaches: those the blast or its fragmentation hurt, or everyone in the blast’s radius'));
@@ -559,7 +566,7 @@ function affBox(it) {
         ln.appendChild(select('sys-item-affunit', uO, typeof ls.u === 'string' && ls.u ? ls.u : 'minutes', 'The unit of its Lasts'));
         ln.appendChild(btnRow([['affdel', 'Remove this affliction', '&times;']]));
         box.appendChild(ln);
-        var er = el('div', 'sys-err sys-item-afferr'); er.dataset.ai = String(ai); er.textContent = affSays(a); box.appendChild(er);
+        var er = el('div', 'sys-err sys-item-afferr'); er.dataset.ai = String(ai); er.textContent = affSays(a, it); box.appendChild(er);
     });
     if (affs.length < (LIMITS.areaAffs || 2)) { var add = el('button', 'tool ghost sys-btn', '+ Affliction'); add.dataset.act = 'affadd'; add.title = effs.length ? 'A resist roll each character it reaches makes, and an effect put on at a failure' : 'Add an effect in the Effects tab first'; if (!effs.length) add.disabled = true; box.appendChild(add); }
     return box;
@@ -576,7 +583,7 @@ function cloudBox(it) {
     box.appendChild(select('sys-cloud-u', uO, typeof cl.u === 'string' && cl.u ? cl.u : 'turns', 'The unit of its Lasts. Rounds count the fight on its map, and the game\u2019s time out of one'));
     box.appendChild(numField('sys-cloud-r', cl.r || '', 'Its radius in yards. Blank: the blast\u2019s own', 'cloud yd', '0.5'));
     box.appendChild(checkLabel('sys-cloud-smoke', cl.smoke === true, 'Smoke', 'It blocks sight as smoke does, for the eyes and every sense that does not see through smoke'));
-    var effs = (draft.effects || []).filter(function(d) { return d && typeof d.id === 'string'; }), fxO = [['', 'While in it: no effect']].concat(effs.map(function(d) { return [d.id, 'While in it: ' + (d.name || d.id)]; }));
+    var effs = (draft.effects || []).filter(function(d) { return d && typeof d.id === 'string'; }), fxO = [['', 'While in it: no effect']].concat(effs.map(function(d) { return [d.id, 'While in it: ' + (d.name || 'An effect with no name')]; }));
     if (typeof cl.fx === 'string' && cl.fx && !effs.some(function(d) { return d.id === cl.fx; })) fxO.push([cl.fx, 'While in it: an effect that is gone']);
     box.appendChild(select('sys-cloud-fx', fxO, typeof cl.fx === 'string' ? cl.fx : '', 'An effect put on whoever stands in it, and taken off as they leave'));
     var rl = (Array.isArray(draft.rolls) ? draft.rolls : []).filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }).map(function(r) { return [r.id, 'Roll for those in it: ' + (r.label || 'a roll')]; });
@@ -584,20 +591,30 @@ function cloudBox(it) {
     box.appendChild(select('sys-cloud-roll', [['', 'No roll for those in it']].concat(rl), typeof cl.roll === 'string' ? cl.roll : '', 'A roll its right-click menu makes for everyone standing in it, as a hazard\u2019s'));
     return box;
 }
-function affSays(a) {   // what Save does with one affliction: '' where it keeps it whole
+// what Save does with one affliction: '' where it keeps it whole. it (1.6.3, Fulllion's rulings of 2026-11-20: a box others depend on is required),
+// the item that holds it, where it is handed in: an affliction set to reach those it hurts needs the item's Damage, since "those it hurts" are those
+// its blast's shares and fragmentation wounded, and with no Damage nothing is rolled (fragmentation rides on the damage), so it never lands
+function affSays(a, it) {
     var SCa = window.wpSystemCore; if (!a || typeof a !== 'object' || !SCa || typeof SCa.cleanAffs !== 'function') return '';
     if (!(typeof a.vs === 'string' && a.vs.trim())) return 'Save drops it: it needs what it is resisted against.';
     if (!(draft.effects || []).some(function(d) { return d && d.id === a.fx; })) return 'Save drops it: it needs an effect it puts on.';
     var c = SCa.cleanAffs([a]); if (!c) return 'Save drops it: what it is resisted against must be a formula.';
     if (typeof a.needs === 'string' && a.needs.trim() && !c[0].needs) return 'Save drops its Only where: it must be a formula.';
     if (a.lasts && typeof a.lasts.n === 'string' && a.lasts.n.trim() && !c[0].lasts) return 'Save drops its Lasts: it must be a formula with a unit.';
+    if (it && typeof it === 'object' && a.who !== 'all' && !(typeof it.damage === 'string' && it.damage.trim())) return 'This item has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands. Give it Damage, or set it to reach everyone in the blast.';
     return '';
 }
 function affOfRow(t, it) {   // the affliction a control of the Items tab stands in, or null
     var ln = t && t.closest ? t.closest('.sys-item-aff') : null, ai = ln ? Number(ln.dataset.ai) : -1, A = it && it.area && Array.isArray(it.area.aff) ? it.area.aff : null;
     return A && ai >= 0 && ai < A.length && A[ai] && typeof A[ai] === 'object' ? { a: A[ai], ai: ai, ln: ln } : null;
 }
-function affSaysAt(t, it, a) { var box = t && t.closest ? t.closest('.sys-item-affs') : null, ln = t && t.closest ? t.closest('.sys-item-aff') : null, er = box && ln ? Array.prototype.filter.call(box.querySelectorAll('.sys-item-afferr'), function(x) { return x.dataset.ai === ln.dataset.ai; })[0] : null; if (er) er.textContent = affSays(a); }
+// what Save does with one affliction said again under it. A control outside every affliction's line (1.6.3: the item's Damage, which an affliction
+// that reaches those it hurts needs) says each affliction of the item's row again
+function affSaysAt(t, it, a) {
+    var box = t && t.closest ? t.closest('.sys-item-affs') : null, ln = t && t.closest ? t.closest('.sys-item-aff') : null;
+    if (!ln) { var rw = t && t.closest ? t.closest('.sys-item-row') : null, A = it && it.area && Array.isArray(it.area.aff) ? it.area.aff : []; if (rw && rw.querySelectorAll) Array.prototype.forEach.call(rw.querySelectorAll('.sys-item-afferr'), function(x) { var y = A[+x.dataset.ai]; if (y && typeof y === 'object') x.textContent = affSays(y, it); }); return; }
+    var er = box ? Array.prototype.filter.call(box.querySelectorAll('.sys-item-afferr'), function(x) { return x.dataset.ai === ln.dataset.ai; })[0] : null; if (er) er.textContent = affSays(a, it);
+}
 // Stage 6 F6: an item's changes to the character carrying it — a status effect's kind of change (a number, skill or formula up or down, a
 // pool's max, a toggle switched on); per level once a list has levels, "only while switched on" once a list has a switch
 function itemModsBox(it, anyL, anyO) {

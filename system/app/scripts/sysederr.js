@@ -11,7 +11,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CAL_LIMITS, F, FEEDS_MAX, KINDS, LIMITS, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTier, cleanTurn, clone, coverHitSays, crewDrops, crossFollow, damageSays, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, itemReach, keyFromLabel, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
+import { APPLY_KINDS, CAL_LIMITS, F, FEEDS_MAX, KINDS, LIMITS, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTier, cleanTurn, clone, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, itemReach, keyFromLabel, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
 export function sysedErr() {   // [split:glue]
 // [split:body-start]
 function saveDraft() {
@@ -602,6 +602,54 @@ function refreshErrors() {
         big.forEach(function(k) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: '“' + k + '” is past ±1,000,000,000: Save drops it.' }); });
         if (over.length) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'stats', message: 'At most ' + LIMITS.entryStats + ' stats an item: Save drops ' + over.map(function(k) { return '“' + k + '”'; }).join(', ') + ' (the first ' + LIMITS.entryStats + ' are kept; clear the ones it does not need).' });
     });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", and "none isn't a good
+    // default substitution"): the Items tab's boxes others depend on, read from the draft as the cleaner reads them, each said under its own box
+    // (sysui.js PROP_BOX). Nothing here holds Save, and the cleaner keeps what it always kept. An error is something Save drops; a warning is
+    // something Save keeps that does nothing, or does it by a figure no box shows
+    var itPush = function(bag, id, p, m) { (bag[id] = bag[id] || []).push(p ? { prop: p, message: m } : { message: m }); };
+    var itFk = Object.create(null); (draft.fields || []).forEach(function(f) { if (f && typeof f.id === 'string') itFk[f.id] = f.kind; });
+    var oneEntry = function(id, mods) {   // a change aimed at one entry of a list keeps only beside the entry's key (systemcore rowModAim)
+        (Array.isArray(mods) ? mods : []).forEach(function(m, mi) {
+            if (!m || typeof m !== 'object' || m.op === 'on' || m.part === 'max' || !(typeof m.col === 'string' || itFk[m.f] === 'item-list')) return;
+            if (!m.key || cleanItemKey(String(m.key)) !== m.key) itPush(errorsById, id, '', 'Change ' + (mi + 1) + ': pick the entry it changes, or Save drops this change.');
+        });
+    };
+    var nmOf = function(x) { return typeof x.name === 'string' ? x.name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim() : ''; };
+    (draft.effects || []).forEach(function(d) {
+        if (!d || typeof d !== 'object' || typeof d.id !== 'string') return;
+        if (!nmOf(d)) itPush(warningsById, d.id, 'label', 'It has no name, so Save calls it Effect, and every list that picks it says the same as any other effect with no name. Give it a name.');
+        oneEntry(d.id, d.mods);
+        // When it ends: the cleaner keeps a change only where it switches an effect or moves a pool, a number or a toggle of the system
+        (Array.isArray(d.end) ? d.end : []).forEach(function(c, i) {
+            if (!c || typeof c !== 'object' || typeof c.fx === 'string' || (typeof c.f === 'string' && APPLY_KINDS[itFk[c.f]] === 1)) return;
+            itPush(errorsById, d.id, 'end.' + i, c.f ? 'When it ends: the pool or number this changed is gone, so Save drops this change.' : 'When it ends: pick the pool or number this changes, or Save drops it.');
+        });
+    });
+    var lkE = draft.combat && draft.combat.damage && draft.combat.damage.locs && typeof draft.combat.damage.locs === 'object' ? draft.combat.damage.locs : null;
+    (draft.items || []).forEach(function(it) {
+        if (!it || typeof it !== 'object' || typeof it.id !== 'string') return;
+        if (!nmOf(it)) itPush(warningsById, it.id, 'label', 'It has no name, so Save calls it Item, and every list that picks it says the same as any other item with no name. Give it a name.');
+        oneEntry(it.id, it.mods);
+        var dmgOn = typeof it.damage === 'string' && !!it.damage.trim(), ar = it.area && typeof it.area === 'object' ? it.area : null;
+        // its blast is kept only with a radius of 1 ft or more, and everything set beside it goes with it
+        if (ar && !((Number(ar.ft) | 0) > 0)) itPush(errorsById, it.id, 'ft', 'A blast needs a radius of 1 ft or more. Without one, Save drops the blast with all that is set beside it: its damage type, fragmentation, afflictions and cloud.');
+        // fragmentation comes with the blast's damage, so with no Damage there is none
+        if (ar && typeof ar.frag === 'string' && ar.frag.trim() && !dmgOn) itPush(warningsById, it.id, 'damage', 'Its fragmentation comes with its damage, so with no Damage there is no fragmentation. Give it a Damage roll.');
+        // a mine with no trigger radius goes off within 2 yards, a figure no box shows
+        if (ar && ar.place === true && !(typeof ar.trig === 'number' && ar.trig > 0)) itPush(warningsById, it.id, 'trig', 'Trigger radius is empty, so this mine goes off when a character comes within 2 yards. Fill it in to set its own.');
+        // Strikes at names one of the Combat tab's hit locations; dbxLocFinds answers null while a pack is still loading, and then nothing is said
+        var alE = ar && typeof ar.loc === 'string' ? ar.loc.trim() : '';
+        if (alE) {
+            if (!(lkE && lkE.list)) itPush(warningsById, it.id, 'loc', 'Strikes at: this system names no hit locations, on the Combat tab under Taking damage, so it does nothing.');
+            else if (typeof dbxLocFinds === 'function' && dbxLocFinds(lkE.list, alE, draft) === false) itPush(warningsById, it.id, 'loc', 'Strikes at: no hit location is called \u201c' + alE + '\u201d, so the blast strikes the usual one.');
+        }
+        // what it is once launched is kept only with a Speed Save can keep and at least 1 round
+        var ciF = cleanById[it.id];
+        if (it.flies && typeof it.flies === 'object' && ciF && !ciF.flies) itPush(errorsById, it.id, 'flies', 'Flies once launched needs a Speed Save can keep and at least 1 round, or Save drops what it is once launched.');
+        // a removal or switch-off message is shown only beside Bound or Curse on contact, and kept only there
+        if (String(it.rmMsg || '').trim() && it.rm !== 'bound' && it.rm !== 'curse') itPush(warningsById, it.id, 'rmMsg', 'Message on removal is shown only when it is Bound or Curse on contact, so Save drops it.');
+        if (String(it.eqMsg || '').trim() && it.eq !== 'bound' && it.eq !== 'curse') itPush(warningsById, it.id, 'eqMsg', 'Message on switching off is shown only when it is Bound or Curse on contact, so Save drops it.');
+    });
     var v = validateSystem(clean, F());
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.6.0: a change on every row of a list, as the cleaner reads it (systemcore applyTargets): a list that is gone, or a stat that is no number stat of it, leaves the amount with nothing to change
         if (!r || typeof r !== 'object') return;
@@ -634,8 +682,14 @@ function refreshErrors() {
         return -1;
     };
     var fillRe = function(e) { var m = e && typeof e.prop === 'string' ? /^fill\.(\d+)$/.exec(e.prop) : null, fd = m ? (draft.fields || []).filter(function(x) { return x && x.id === e.id; })[0] : null, at = fd ? fillDraftAt(fd, +m[1]) : -1; if (m) e.prop = at >= 0 ? 'fill.' + at : 'fills'; };
-    v.errors.forEach(function(e) { whyRe(e); fillRe(e); var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
-    v.warnings.forEach(function(w) { whyRe(w); fillRe(w); var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
+    // 1.6.3: the validator counts an effect's When it ends in the CLEANED effect, which has left out the changes Save drops (one that switches no effect and moves
+    // no pool, number or toggle of the system), so its end.N is turned back into the line's place in the draft, where sysui.js PROP_BOX finds its box
+    var endRe = function(e) {
+        var m = e && typeof e.prop === 'string' ? /^end\.(\d+)$/.exec(e.prop) : null, d = m ? (draft.effects || []).filter(function(x) { return x && x.id === e.id; })[0] : null; if (!d || !Array.isArray(d.end)) return;
+        var n = -1; for (var i = 0; i < d.end.length; i++) { var c = d.end[i]; if (c && typeof c === 'object' && (typeof c.fx === 'string' || (typeof c.f === 'string' && APPLY_KINDS[itFk[c.f]] === 1)) && ++n === +m[1]) { e.prop = 'end.' + i; return; } }
+    };
+    v.errors.forEach(function(e) { whyRe(e); fillRe(e); endRe(e); var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
+    v.warnings.forEach(function(w) { whyRe(w); fillRe(w); endRe(w); var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
     var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat tab
     if (tnE) {
         var KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;

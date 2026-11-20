@@ -1398,7 +1398,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && S.cleanReach('Row.Far + 1d6', F) === '' && S.cleanReach('Row.Far', F) === 'Row.Far'
             && require('./checkkit').part('sysedlist.js').includes("crw.appendChild(input('sys-list-chamberreach field', typeof chS.reach === 'string' ? chS.reach : ''") && require('./checkkit').part('sysedtabs.js').includes("else if (lcc.indexOf('sys-list-chamberreach') >= 0) { if (!lsp.chamber || typeof lsp.chamber !== 'object') return; if (t.value.trim()) lsp.chamber.reach = t.value.slice(0, LIMITS.formula); else delete lsp.chamber.reach; }")
             && require('./checkkit').part('sysedroll.js').includes("else area.appendChild(select('sys-item-aflight', [['', 'On a miss, launched: you place it'], ['scatter', 'On a miss, launched: it scatters, as a throw'], ['line', 'On a miss, launched: it flies straight']], it.area.flight === 'scatter' || it.area.flight === 'line' ? it.area.flight : ''")
-            && require('./checkkit').part('sysedtabs.js').includes("if (c.indexOf('sys-item-aflight') >= 0) { if (iit.area) { if (t.value === 'scatter' || t.value === 'line') iit.area.flight = t.value; else delete iit.area.flight; }") && require('./checkkit').part('sysedtabs.js').includes("if (t.checked) { iit.area.place = true; delete iit.area.flight; }"),
+            && require('./checkkit').part('sysedtabs.js').includes("if (c.indexOf('sys-item-aflight') >= 0) { if (iit.area) { if (t.value === 'scatter' || t.value === 'line') iit.area.flight = t.value; else delete iit.area.flight; }") && require('./checkkit').part('sysedtabs.js').includes("if (t.checked) { iit.area.place = true; delete iit.area.flight; if (!(typeof iit.area.trig === 'number' && iit.area.trig > 0)) iit.area.trig = 2; }"),   // 1.6.3 (Fulllion's rulings of 2026-11-20): a mine now starts with a trigger radius of 2 yards (moved on purpose)
             jm([msgR('Row.Far + 1d6'), msgR('Row.Far')]));
     }
     // 1.6.0 (the campaign build: Down lays a token prone unless it already lies face up): an effect's postureKeep, the postures it leaves alone,
@@ -2072,6 +2072,105 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && rN.needs === 'HP > 0' && rN.needsText === 'Not now' && txN.value === 'Not now' && rN2.needsText === undefined && lsN.rolls[0].needs === 'Row.ch > 0' && lsN.rolls[0].needsText === 'Not now' && txL.value === 'Not now'
             && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("[/^cross\\.count$/, ['sys-roll-xsn']], [/^needsText$/, ['sys-roll-needstext']]"),
             j([drR.rolls, boxR, rK, rArr, rN, txN, rN2, lsN.rolls, txL]));
+    }
+    {   // 1.6.3 (Fulllion's rulings of 2026-11-20: a box other boxes depend on is required, it starts filled where a value makes sense, and none is no
+        // good default): the Items tab's boxes others depend on. refreshErrors is run for real (sysederr.js, read by its own name), the rows, the boxes
+        // and the handlers are the real code of their parts, and the cleaner and the validator are the real ones
+        const fnI = name => { const sx = kit.defOf('sheets.js', name) || '', a = sx.indexOf('\nfunction ' + name + '('); if (a < 0) throw new Error('1.6.3 items: no ' + name); const line = sx.slice(a + 1, sx.indexOf('\n', a + 1)); if (/\}\s*(\/\/.*)?$/.test(line) && (line.match(/\{/g) || []).length === (line.match(/\}/g) || []).length) return line; const m = /\n\}/g; m.lastIndex = a + 1; return sx.slice(a + 1, m.exec(sx).index + 2); };
+        const reI = kit.cutEnd('sysederr.js', '\nfunction refreshErrors() {').replace(/\n$/, '');
+        const locQ = fnI('dbxLocNames') + NL + fnI('dbxLocFinds');
+        const locApi = dr => new Function('draft', 'getActiveCampaign', 'window', locQ + '\nreturn { dbxLocNames: dbxLocNames, dbxLocFinds: dbxLocFinds };')(dr, () => null, {});
+        const runI = (dr, withLoc) => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'cleanFieldUnit', 'unitOf', 'cleanFormulaText', 'hasDice', 'cleanNeedsWhy', 'APPLY_KINDS', 'dbxLocFinds',
+            'var errorsById = {}, warningsById = {};\n' + reI + '\nrefreshErrors(); return { e: errorsById, w: warningsById };')(dr, () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => ({ chars: {} }), () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS, S.cleanFieldUnit, S.unitOf, S.cleanFormulaText, S.hasDice, S.cleanNeedsWhy, S.APPLY_KINDS, withLoc === false ? undefined : locApi(dr).dbxLocFinds);
+        const saidI = (r, id, re) => ((r.e[id] || []).concat(r.w[id] || [])).filter(x => !re || re.test(x.prop || '')).map(x => (x.prop || '') + ': ' + x.message);
+        const hp = { id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10' }, sk = { id: 'f_th', key: 'Throwing', label: 'Throwing', kind: 'skill', base: '10' };
+        const kit2 = { id: 'f_kit', key: 'Kit', label: 'Kit', kind: 'item-list', list: { cols: [{ key: 'c', label: 'C', formula: '1' }] } }, locs = { id: 'f_loc', key: 'Locs', label: 'Locations', kind: 'item-list', list: {} };
+        const drI = (combat, extraItems) => ({ name: 'D', rolls: [], sheet: { sections: [] }, fields: [hp, sk, kit2, locs], combat: combat || {},
+            effects: [{ id: 'e_n', name: '  ', mods: [] }, { id: 'e_ok', name: 'Stunned', mods: [{ f: 'f_kit', op: 'add', v: 1, key: '', col: 'c' }], end: [{ f: '', formula: '1' }, { f: 'f_gone', formula: '1' }, { f: 'f_hp', formula: '1' }, { fx: 'e_ok', on: false }] },
+                { id: 'e_k', name: 'Keyed', mods: [{ f: 'f_kit', op: 'add', v: 1, key: 'Legs', col: 'c' }] }],
+            items: [{ id: 'i_n', name: '', mods: [{ f: 'f_kit', op: 'add', v: 1, key: '', col: 'c' }] }, { id: 'i_legs', name: 'Legs', key: 'Legs' },
+                { id: 'i_ft0', name: 'Ft0', area: { ft: 0, shape: 'circle' } }, { id: 'i_ftE', name: 'FtE', area: { ft: '', shape: 'circle' } }, { id: 'i_ft12', name: 'Ft12', area: { ft: 12, shape: 'circle' } },
+                { id: 'i_fr', name: 'Frag', area: { ft: 6, frag: '1d6' } }, { id: 'i_frd', name: 'FragDmg', damage: '2d6', area: { ft: 6, frag: '1d6' } },
+                { id: 'i_mine', name: 'Mine', area: { ft: 6, place: true } }, { id: 'i_mine2', name: 'Mine2', area: { ft: 6, place: true, trig: 2 } },
+                { id: 'i_loc', name: 'Loc', area: { ft: 6, loc: 'Lefs' } }, { id: 'i_loc2', name: 'Loc2', area: { ft: 6, loc: 'legs' } },
+                { id: 'i_fl1', name: 'Fl1', flies: { speed: '', rounds: 1 } }, { id: 'i_fl2', name: 'Fl2', flies: { speed: '2', rounds: 0 } }, { id: 'i_fl3', name: 'Fl3', flies: { speed: '1', rounds: 1 } },
+                { id: 'i_rm', name: 'Rm', rmMsg: 'Stuck', eqMsg: 'Still on' }, { id: 'i_rm2', name: 'Rm2', rm: 'bound', rmMsg: 'Stuck', eq: 'curse', eqMsg: 'Still on' }].concat(extraItems || []) });
+        const rA = runI(drI({ damage: { locs: { list: 'f_loc' } } })), rB = runI(drI({}));
+        const nmI = j(saidI(rA, 'e_n', /^label$/)) === j(['label: It has no name, so Save calls it Effect, and every list that picks it says the same as any other effect with no name. Give it a name.'])
+            && j(saidI(rA, 'i_n', /^label$/)) === j(['label: It has no name, so Save calls it Item, and every list that picks it says the same as any other item with no name. Give it a name.']) && saidI(rA, 'e_ok', /^label$/).length === 0 && saidI(rA, 'i_ft12', /^label$/).length === 0;
+        check('1.6.3 an effect and an item need a name (refreshErrors, run for real): one with none is said under its name box, and a named one says nothing',
+            nmI, j([saidI(rA, 'e_n'), saidI(rA, 'i_n')]));
+        const oneI = saidI(rA, 'e_ok').indexOf(': Change 1: pick the entry it changes, or Save drops this change.') >= 0 && saidI(rA, 'i_n').indexOf(': Change 1: pick the entry it changes, or Save drops this change.') >= 0 && !saidI(rA, 'e_k').some(m => /pick the entry/.test(m))
+            && !(S.cleanSystem(drI({}), { F, gmView: true }).effects.find(x => x.id === 'e_ok').mods || []).length;
+        check('1.6.3 a change on one entry of a list needs its entry (refreshErrors, run for real): one with no entry is said under its effect or its item, since the cleaner drops it, and one with its entry says nothing',
+            oneI, j([saidI(rA, 'e_ok'), saidI(rA, 'i_n'), saidI(rA, 'e_k')]));
+        const endI = j(saidI(rA, 'e_ok', /^end\./).filter(m => /When it ends/.test(m))) === j(['end.0: When it ends: pick the pool or number this changes, or Save drops it.', 'end.1: When it ends: the pool or number this changed is gone, so Save drops this change.']);
+        check('1.6.3 an effect\'s When it ends needs what each change moves (refreshErrors, run for real): a change with no pool or number, and one whose pool is gone, are said under their own line, and one that moves a pool or switches an effect says nothing',
+            endI && saidI(rA, 'e_ok', /^end\.3$/).length === 1, j(saidI(rA, 'e_ok', /^end\./)));   // the validator's own word on the effect it switches lands on that change's own line, end.3, though the cleaned effect counts it as end.1
+        const ftI = j(saidI(rA, 'i_ft0', /^ft$/)) === j(['ft: A blast needs a radius of 1 ft or more. Without one, Save drops the blast with all that is set beside it: its damage type, fragmentation, afflictions and cloud.']) && j(saidI(rA, 'i_ftE', /^ft$/)) === j(saidI(rA, 'i_ft0', /^ft$/)) && saidI(rA, 'i_ft12', /^ft$/).length === 0
+            && !S.cleanSystem(drI({}), { F, gmView: true }).items.find(x => x.id === 'i_ft0').area;
+        check('1.6.3 a blast needs its radius (refreshErrors, run for real): a radius of 0 or an empty box is said under the radius, since Save drops the whole blast, and a radius of 1 or more says nothing',
+            ftI, j([saidI(rA, 'i_ft0'), saidI(rA, 'i_ftE'), saidI(rA, 'i_ft12')]));
+        const frI = j(saidI(rA, 'i_fr', /^damage$/)) === j(['damage: Its fragmentation comes with its damage, so with no Damage there is no fragmentation. Give it a Damage roll.']) && saidI(rA, 'i_frd', /^damage$/).length === 0
+            && j(saidI(rA, 'i_mine', /^trig$/)) === j(['trig: Trigger radius is empty, so this mine goes off when a character comes within 2 yards. Fill it in to set its own.']) && saidI(rA, 'i_mine2', /^trig$/).length === 0;
+        check('1.6.3 fragmentation needs Damage and a mine its trigger radius (refreshErrors, run for real): each is said under the box to fill, and filled says nothing',
+            frI, j([saidI(rA, 'i_fr'), saidI(rA, 'i_mine'), saidI(rA, 'i_mine2')]));
+        const lcI = j(saidI(rA, 'i_loc', /^loc$/)) === j(['loc: Strikes at: no hit location is called “Lefs”, so the blast strikes the usual one.']) && saidI(rA, 'i_loc2', /^loc$/).length === 0
+            && j(saidI(rB, 'i_loc2', /^loc$/)) === j(['loc: Strikes at: this system names no hit locations, on the Combat tab under Taking damage, so it does nothing.']) && saidI(runI(drI({ damage: { locs: { list: 'f_loc' } } }), false), 'i_loc', /^loc$/).length === 0;
+        check('1.6.3 Strikes at needs the Combat tab\'s hit locations (refreshErrors, run for real with the real dbxLocNames and dbxLocFinds): a name no location holds is said under it, a name one holds in any case says nothing, a system with no hit locations is said, and with no judge at hand nothing is said',
+            lcI, j([saidI(rA, 'i_loc'), saidI(rA, 'i_loc2'), saidI(rB, 'i_loc2')]));
+        const flI = j(saidI(rA, 'i_fl1', /^flies$/)) === j(['flies: Flies once launched needs a Speed Save can keep and at least 1 round, or Save drops what it is once launched.']) && j(saidI(rA, 'i_fl2', /^flies$/)) === j(saidI(rA, 'i_fl1', /^flies$/)) && saidI(rA, 'i_fl3', /^flies$/).length === 0;
+        check('1.6.3 what flies needs its Speed and rounds (refreshErrors, run for real): with either missing it is said under the Speed, since Save drops it, and with both nothing is said',
+            flI, j([saidI(rA, 'i_fl1'), saidI(rA, 'i_fl2'), saidI(rA, 'i_fl3')]));
+        const rmI = j(saidI(rA, 'i_rm', /Msg$/)) === j(['rmMsg: Message on removal is shown only when it is Bound or Curse on contact, so Save drops it.', 'eqMsg: Message on switching off is shown only when it is Bound or Curse on contact, so Save drops it.']) && saidI(rA, 'i_rm2', /Msg$/).length === 0;
+        check('1.6.3 a removal or switch-off message needs Bound or Curse on contact (refreshErrors, run for real): beside A player may remove it or switch it off it is said under the message, and beside a lock nothing is said',
+            rmI, j([saidI(rA, 'i_rm'), saidI(rA, 'i_rm2')]));
+        // the validator: an item's afflictions with no resist roll, a throw with no throw skill, and Out of rounds going off with no blast
+        const vI = cm => { const v = S.validateSystem(S.cleanSystem({ v: 1, name: 'D', fields: [hp, sk], rolls: [], combat: cm || {}, effects: [{ id: 'e_s', name: 'Stunned' }],
+            items: [{ id: 'i_a', name: 'Gas', damage: '1d6', throwSkill: 'Throwing', area: { ft: 6, aff: [{ vs: 'HP', fx: 'e_s' }] } }, { id: 'i_t', name: 'Pot', damage: '1d6', area: { ft: 6 } }, { id: 'i_t2', name: 'Shell', damage: '1d6', area: { ft: 6, flight: 'scatter' } }, { id: 'i_m', name: 'Dart', flies: { speed: '1', rounds: 1, end: 'off' } }] }, { F, gmView: true }), F);
+            const w = id => v.warnings.filter(x => x.id === id && /^(aff|throwSkill|flies)$/.test(x.prop || '')).map(x => x.prop + ': ' + x.message); return [w('i_a'), w('i_t'), w('i_t2'), w('i_m')]; };
+        const v0 = vI({}), v1 = vI({ blast: { resist: '3d6 <= Resist', roll: '3d6 <= ThrowSkill' } });
+        check('1.6.3 the validator says what an item\'s blast depends on (validcore, run for real on the cleaned system): afflictions with no resist roll on the Combat tab, a blast with no throw skill where the Combat tab names a throw roll, never on a round that scatters or flies straight, and Out of rounds going off with no blast; each goes once what it needs is set',
+            j(v0[0]) === j(['aff: The Combat tab has no resist roll, so its afflictions are never rolled: you are only told who must resist. Set one on the Combat tab under Blasts.']) && v0[1].length === 0 && j(v0[3]) === j(['flies: It has no blast, so it cannot go off when its rounds run out. Give it a blast, or set Out of rounds to it is gone.'])
+            && v1[0].length === 0 && j(v1[1]) === j(['throwSkill: It has no throw skill, so the Combat tab’s throw roll is never made for it when it is thrown or placed: it lands where it is aimed, with no scatter and no critical failure.']) && v1[2].length === 0,
+            j([v0, v1]));
+        // the boxes start filled: a change on one entry, + Item, + Effect, a blast's throw skill, a mine's trigger radius and a new affliction
+        const aimQ = fnI('entryNames') + NL + fnI('rowAimSet'), aim = new Function(aimQ + '\nreturn rowAimSet;')();
+        const sysA = { fields: [kit2], items: [{ key: 'Rope', name: 'Rope' }, { key: 'Axe', name: 'Axe' }] }, mA = {}; aim(mA, sysA, 'f_kit|row'); const mB = {}; aim(mB, { fields: [kit2], items: [] }, 'f_kit|row'); const mC = { key: 'Axe', col: 'c' }; aim(mC, sysA, 'f_hp|add');
+        check('1.6.3 a change on one entry starts on the list\'s first entry by name (sheets.js rowAimSet with the real entryNames): the first in the order the list shows, and its first column; a list that offers none starts empty, which refreshErrors says; any other target takes both off',
+            mA.key === 'Axe' && mA.col === 'c' && mB.key === '' && mB.col === 'c' && !('key' in mC) && !('col' in mC), j([mA, mB, mC]));
+        const tabsI = kit.part('sysedtabs.js').replace(/\r\n/g, NL), lineI = a => { const i = tabsI.indexOf(a); if (i < 0 || tabsI.indexOf(a, i + 1) >= 0) throw new Error('1.6.3 items line: ' + a); return tabsI.slice(i, tabsI.indexOf(NL, i)); };
+        const blockI = a => { const i = tabsI.indexOf(a); if (i < 0) throw new Error('1.6.3 items block: ' + a); return tabsI.slice(i, tabsI.indexOf(NL + '        }' + NL, i) + 10).replace(/^\s*else /, ''); };
+        const boxIt = { focused: 0, selected: 0, focus() { this.focused++; }, select() { this.selected++; } }, drIt = { items: [], effects: [] };
+        const addRun = id => new Function('b', 'draft', 'uid', 'markDirty', 'renderAll', 'ui', 'LIMITS', 'toast', '(function() {' + lineI("    if (b.id === '" + id + "') {") + NL + '})();')({ id: id }, drIt, p => p + '1', () => {}, () => {}, () => ({ lastElementChild: { querySelector: () => boxIt, scrollIntoView() {} } }), S.LIMITS, () => {});
+        addRun('sysAddItem'); addRun('sysAddEffect');
+        const shQ = blockI("        if (c.indexOf('sys-item-shape') >= 0) {"), shRun = (iit, dr, v) => new Function('c', 't', 'iit', 'draft', 'markDirty', 'renderAll', '(function() {' + shQ + NL + '})();')('sys-item-shape', { value: v }, iit, dr, () => {}, () => {});
+        const drT = { fields: [hp, sk], combat: { blast: { roll: '3d6 <= ThrowSkill' } } }, itT = { area: null }, itU = { area: null, throwSkill: 'HP' }, itV = { area: null }; shRun(itT, drT, 'circle'); shRun(itU, drT, 'circle'); shRun(itV, { fields: [hp, sk], combat: {} }, 'circle');
+        const plQ = lineI("        if (c.indexOf('sys-item-aplace') >= 0) {"), plRun = (iit, on) => new Function('c', 't', 'iit', 'markDirty', 'renderAll', '(function() {' + plQ + NL + '})();')('sys-item-aplace', { checked: on }, iit, () => {}, () => {});
+        const itP = { area: { ft: 6 } }, itP2 = { area: { ft: 6, trig: 5 } }; plRun(itP, true); plRun(itP2, true);
+        const afQ = blockI("        else if (iact === 'affadd') {"), afRun = it => new Function('iact', 'iitem', 'draft', 'LIMITS', 'toast', '(function() {' + afQ + NL + '})();')('affadd', it, { effects: [{ id: 'e_s', name: 'Stunned' }] }, S.LIMITS, () => {});
+        const itA = { area: { ft: 6 } }, itA2 = { damage: '2d6', area: { ft: 6 } }; afRun(itA); afRun(itA2);
+        check('1.6.3 the Items tab\'s required boxes start filled (the real lines of sysedtabs.js): + Item starts as New item and + Effect as New effect, each with its name selected; a blast new on an item starts with the system\'s first skill as its throw skill where the Combat tab names a throw roll, never over one set and never with no throw roll; Placed, not thrown starts its trigger radius at 2, never over one set; and a new affliction on an item with no Damage starts reaching everyone in the blast',
+            drIt.items[0] && drIt.items[0].name === 'New item' && drIt.effects[0] && drIt.effects[0].name === 'New effect' && boxIt.focused === 2 && boxIt.selected === 2
+            && itT.area && itT.throwSkill === 'Throwing' && itU.throwSkill === 'HP' && !itV.throwSkill && itP.area.trig === 2 && itP.area.place === true && itP2.area.trig === 5
+            && j(itA.area.aff) === j([{ vs: '', fx: 'e_s', who: 'all' }]) && j(itA2.area.aff) === j([{ vs: '', fx: 'e_s' }]),
+            j([drIt, boxIt, itT, itU, itV, itP, itP2, itA, itA2]));
+        // affSays reads the item's Damage, and Damage typed says each affliction again; the throw skill's choices; the resist roll counts what waits on it
+        const elQ = (tag, cls, txt) => ({ tag, className: cls || '', textContent: txt || '', dataset: {}, kids: [], appendChild(k) { this.kids.push(k); return k; } });
+        const afsQ = fnI('affSays') + NL + fnI('affSaysAt'), dI = { effects: [{ id: 'e_s', name: 'Stunned' }] };
+        const afA = new Function('draft', 'window', afsQ + '\nreturn { says: affSays, at: affSaysAt };')(dI, { wpSystemCore: S });
+        const errs = [{ dataset: { ai: '0' }, textContent: 'x' }, { dataset: { ai: '1' }, textContent: 'x' }], rowQ = { querySelectorAll: () => errs }, tQ = { closest: s => s === '.sys-item-row' ? rowQ : null };
+        const itS = { damage: '', area: { ft: 6, aff: [{ vs: 'HP', fx: 'e_s' }, { vs: 'HP', fx: 'e_s', who: 'all' }] } };
+        afA.at(tQ, itS, null); const e0 = errs.map(x => x.textContent); itS.damage = '1d6'; afA.at(tQ, itS, null); const e1 = errs.map(x => x.textContent);
+        check('1.6.3 an affliction that reaches those it hurts needs the item\'s Damage (sheets.js affSays and affSaysAt, run for real): on an item with no Damage it is said under it, one that reaches everyone in the blast says nothing, and Damage typed says each affliction of the row again; asked with no item it says what it always said',
+            e0[0] === 'This item has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands. Give it Damage, or set it to reach everyone in the blast.' && e0[1] === '' && j(e1) === j(['', '']) && afA.says({ vs: 'HP', fx: 'e_s' }) === ''
+            && require('./checkkit').part('sysedtabs.js').includes("else if (ic.indexOf('sys-item-damage') >= 0) { it.damage = t.value; affSaysAt(t, it, null); }"),
+            j([e0, e1]));
+        const rsQ = fnI('resistSays'), rs = items => new Function('draft', 'window', 'F', rsQ + '\nreturn resistSays;')({ items: items }, { wpSystemCore: S }, () => F);
+        check('1.6.3 the Combat tab\'s resist roll, left empty, counts the items whose afflictions wait on it (sheets.js resistSays, run for real)',
+            rs([{ area: { aff: [{ vs: 'HP' }] } }, { area: { aff: [{ vs: 'HP' }] } }, { area: {} }])('') === 'No resist roll: the afflictions of 2 items are never rolled, only said.' && rs([{ area: { aff: [{}] } }])('') === 'No resist roll: the afflictions of one item are never rolled, only said.' && rs([])('') === '' && rs([{ area: { aff: [{}] } }])('3d6 <= Resist') === ''
+            && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("[/^ft$/, ['sys-item-ft']], [/^frag$/, ['sys-item-afrag']], [/^aff$/, ['sys-item-affs']], [/^flies$/, ['sys-fly-speed', 'sys-fly-rounds']], [/^end\\.(\\d+)$/, ['sys-apply-target']], [/^rmMsg$/, ['sys-item-rmtext']], [/^eqMsg$/, ['sys-item-eqtext']], [/^loc$/, ['sys-item-aloc']], [/^trig$/, ['sys-item-atrig']]"),
+            'the resist roll\'s words or the PROP_BOX lines');
     }
     await T.finish();
 })();

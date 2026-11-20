@@ -363,11 +363,11 @@ function renderTags() {
             wh.title = 'When out of sight and Kept while are read. At the end of a move or a turn, the mark goes only if the rule still fails then'; wh.addEventListener('change', function() { if (wh.value) t.check = wh.value; else delete t.check; ch(); }); r2.appendChild(wh);
         }
         wrap.appendChild(r2);
-        var r3 = el('div', 'sys-flags'), fxL = Array.isArray(draft.effects) ? draft.effects.filter(function(x) { return !!x && typeof x.id === 'string'; }) : [], fxN = function(id) { var x = fxL.filter(function(y) { return y.id === id; })[0]; return x ? (x.name || x.id) : 'An effect no longer here'; };
+        var r3 = el('div', 'sys-flags'), fxL = Array.isArray(draft.effects) ? draft.effects.filter(function(x) { return !!x && typeof x.id === 'string'; }) : [], fxN = function(id) { var x = fxL.filter(function(y) { return y.id === id; })[0]; return x ? (x.name || 'An effect with no name') : 'An effect no longer here'; };
         r3.appendChild(el('span', 'sys-num-cap', 'Ends when either token has on'));
         (Array.isArray(t.endFx) ? t.endFx : []).forEach(function(id, j) { var cp = el('button', 'tool ghost sys-btn sys-tag-fxrm', fxN(id) + ' \u00d7'); cp.type = 'button'; cp.title = 'No longer ends it'; cp.addEventListener('click', function() { t.endFx.splice(j, 1); if (!t.endFx.length) delete t.endFx; ch(true); }); r3.appendChild(cp); });
         var fxS = el('select', 'field sys-tag-fx'), fxH = el('option', null, fxL.length ? '+ An effect' : 'No effects yet'); fxH.value = ''; fxS.appendChild(fxH);
-        fxL.forEach(function(x) { if ((t.endFx || []).indexOf(x.id) >= 0) return; var op = el('option', null, x.name || x.id); op.value = x.id; fxS.appendChild(op); });
+        fxL.forEach(function(x) { if ((t.endFx || []).indexOf(x.id) >= 0) return; var op = el('option', null, x.name || 'An effect with no name'); op.value = x.id; fxS.appendChild(op); });
         fxS.title = 'An effect that ends this mark the moment it is on for the holder or for the token it is held on'; fxS.disabled = !fxL.length || (t.endFx || []).length >= 8;
         fxS.addEventListener('change', function() { if (!fxS.value) return; t.endFx = Array.isArray(t.endFx) ? t.endFx : []; if (t.endFx.indexOf(fxS.value) < 0) t.endFx.push(fxS.value); ch(true); });
         if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(fxS);

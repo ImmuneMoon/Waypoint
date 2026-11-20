@@ -433,7 +433,7 @@ function renderForm() {
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
     fliesLibBox(form, e.flies);   // 1.6.2 (vehicles, fold (d)): what it is once launched
-    field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'A skill key', title: 'The skill a throw of it rolls' });
+    field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'Such as a skill’s target', title: 'What the Combat tab’s throw roll reads as ThrowSkill when it is thrown or placed. With none, no throw roll is made: it lands where it is aimed' });   // 1.6.3: what it is for, in words
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
     modsBox(form, e);   // Stage 6 F6
     swLibBox(form, e);   // 1.6.0: its roll bonuses
@@ -752,7 +752,7 @@ function cloudRows(form, cl) {
     var effs = Array.isArray(sys.effects) ? sys.effects.filter(function(d) { return d && typeof d.id === 'string'; }) : [], rolls = Array.isArray(sys.rolls) ? sys.rolls.filter(function(r) { return r && typeof r.id === 'string' && typeof r.formula === 'string' && !Array.isArray(r.apply); }) : [];
     var tu = sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units.filter(function(u) { return u && typeof u.key === 'string'; }) : [];
     var uP = [['turns', 'Rounds'], ['seconds', 'Seconds'], ['minutes', 'Minutes'], ['hours', 'Hours'], ['days', 'Days']].concat(tu.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })); if (typeof o.u === 'string' && o.u && !uP.some(function(p) { return p[0] === o.u; })) uP.push([o.u, o.u]);
-    var fxP = [['', 'No effect']].concat(effs.map(function(d) { return [d.id, typeof d.name === 'string' && d.name ? d.name : d.id]; })); if (typeof o.fx === 'string' && o.fx && !effs.some(function(d) { return d.id === o.fx; })) fxP.push([o.fx, 'An effect that is gone']);
+    var fxP = [['', 'No effect']].concat(effs.map(function(d) { return [d.id, typeof d.name === 'string' && d.name ? d.name : 'An effect with no name']; })); if (typeof o.fx === 'string' && o.fx && !effs.some(function(d) { return d.id === o.fx; })) fxP.push([o.fx, 'An effect that is gone']);
     var rlP = [['', 'No roll']].concat(rolls.map(function(r) { return [r.id, typeof r.label === 'string' && r.label ? r.label : 'A roll']; })); if (typeof o.roll === 'string' && o.roll && !rolls.some(function(r) { return r.id === o.roll; })) rlP.push([o.roll, 'A roll that is gone']);
     field(form, 'areaCloud', 'Leaves a cloud', cl ? 'yes' : '', { pairs: [['', 'No'], ['yes', 'Yes, where it goes off']], title: 'Where it goes off it leaves a cloud, a round area that stays put. In a fight it counts rounds of that fight, out of one the game\u2019s time' });
     field(form, 'areaCloudN', 'Cloud lasts', typeof o.n === 'string' ? o.n : '', { max: 10000, ph: 'e.g. 1d6+2', title: 'How long the cloud stays, a formula that may roll dice. Blank: until you clear it' });
@@ -766,12 +766,13 @@ function cloudRows(form, cl) {
 // system's effects by name), whom it reaches, Only where and how long it lasts
 function affRows(form, i, a) {
     var c = camp(), effs = c && c.system && Array.isArray(c.system.effects) ? c.system.effects.filter(function(d) { return d && typeof d.id === 'string'; }) : [], n = 'Affliction ' + (i + 1) + ': ';
-    var fxP = [['', 'Pick an effect']].concat(effs.map(function(d) { return [d.id, typeof d.name === 'string' && d.name ? d.name : d.id]; })); if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxP.push([a.fx, 'An effect that is gone']);
+    var fxP = [['', 'Pick an effect']].concat(effs.map(function(d) { return [d.id, typeof d.name === 'string' && d.name ? d.name : 'An effect with no name']; })); if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxP.push([a.fx, 'An effect that is gone']);
     var tu = c && c.system && c.system.combat && c.system.combat.turn && Array.isArray(c.system.combat.turn.units) ? c.system.combat.turn.units.filter(function(u) { return u && typeof u.key === 'string'; }) : [], ls = a.lasts && typeof a.lasts === 'object' ? a.lasts : {};
     var uP = [['turns', 'Turns'], ['seconds', 'Seconds'], ['minutes', 'Minutes'], ['hours', 'Hours'], ['days', 'Days']].concat(tu.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; })); if (typeof ls.u === 'string' && ls.u && !uP.some(function(o) { return o[0] === ls.u; })) uP.push([ls.u, ls.u]);
     field(form, 'areaAff' + i + 'Vs', n + 'resisted against', typeof a.vs === 'string' ? a.vs : '', { max: 10000, ph: 'e.g. HT-2', title: 'What a character it reaches rolls the Combat tab\u2019s resist roll against, read with their own names. Blank: no affliction' });
     field(form, 'areaAff' + i + 'Fx', n + 'on a failure', typeof a.fx === 'string' ? a.fx : '', { pairs: fxP, title: 'The effect put on a character that fails to resist, one of the system\u2019s effects' });
-    field(form, 'areaAff' + i + 'Who', n + 'reaches', a.who === 'all' ? 'all' : '', { pairs: [['', 'Those it hurts'], ['all', 'Everyone in the blast']], title: 'Whom it reaches: those the blast or its fragmentation hurt, or everyone in the blast\u2019s radius' });
+    var cE = typeof current === 'function' ? current() || {} : {}, noDmg = !(typeof cE.damage === 'string' && cE.damage.trim()), whoV = a.who === 'all' || (!a.vs && !a.fx && noDmg) ? 'all' : '';   // 1.6.3: with no damage it hurts no one, so an empty slot starts reaching everyone
+    field(form, 'areaAff' + i + 'Who', n + 'reaches', whoV, { pairs: [['', 'Those it hurts'], ['all', 'Everyone in the blast']], title: 'Whom it reaches: those the blast or its fragmentation hurt, or everyone in the blast\u2019s radius' });
     field(form, 'areaAff' + i + 'Needs', n + 'only where', typeof a.needs === 'string' ? a.needs : '', { max: 10000, ph: 'e.g. not Robot', title: 'A formula of the character it reaches that must hold for it to touch them at all. Blank: everyone it reaches' });
     field(form, 'areaAff' + i + 'Lasts', n + 'lasts', typeof ls.n === 'string' ? ls.n : '', { max: 10000, ph: 'e.g. 1d6', title: 'How long the effect lasts, a formula that may roll dice. Blank: the effect\u2019s own duration' });
     field(form, 'areaAff' + i + 'Unit', n + 'lasts in', typeof ls.u === 'string' && ls.u ? ls.u : 'minutes', { pairs: uP, title: 'The unit of its Lasts' });
@@ -792,6 +793,23 @@ function blastDrops(raw, c) {
     }
     return out.length ? 'Not kept: ' + out.join(', ') + '.' : '';
 }
+// 1.6.3 (Fulllion's rulings of 2026-11-20: a box others depend on is required): what an entry keeps that does nothing, or does it by a figure no
+// box shows, said in plain words once it is saved. Never refuses the save, since the cleaner keeps it all as it always did
+function entryNotes(raw) {
+    var g = function(id) { var n = ui('libF_' + id); return n ? String(n.value).trim() : ''; }, out = [], c = camp(), sys = c && c.system ? c.system : {};
+    var dmgOn = !!g('damage'), ftOn = !!g('areaFt'), bl = sys.combat && sys.combat.blast && typeof sys.combat.blast === 'object' ? sys.combat.blast : {};
+    if (ftOn && g('areaFrag') && !dmgOn) out.push('Its fragmentation is rolled with its damage, so with no Damage it is never rolled.');
+    if (ftOn && !dmgOn && [0, 1].some(function(i) { return g('areaAff' + i + 'Vs') && g('areaAff' + i + 'Who') !== 'all'; })) out.push('It has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands.');
+    if (ftOn && [0, 1].some(function(i) { return g('areaAff' + i + 'Vs'); }) && !(typeof bl.resist === 'string' && bl.resist.trim())) out.push('The Combat tab has no resist roll, so its afflictions are never rolled.');
+    if (ftOn && g('areaPlace') === 'yes' && !g('areaTrig')) out.push('Its trigger radius is empty, so the mine goes off within 2 yards.');
+    if (ftOn && !g('throwSkill') && g('areaFlight') !== 'scatter' && g('areaFlight') !== 'line' && typeof bl.roll === 'string' && bl.roll.trim()) out.push('It has no throw skill, so no throw roll is made for it: it lands where it is aimed.');
+    if (ftOn && g('areaLoc') && !(sys.combat && sys.combat.damage && sys.combat.damage.locs && sys.combat.damage.locs.list)) out.push('Strikes at does nothing, since this system names no hit locations.');
+    if (g('flySpeed') && !(Number(g('flyRounds')) >= 1)) out.push('Flies once launched needs at least 1 round, so it is not kept.');
+    if (g('flySpeed') && g('flyEnd') === 'off' && !ftOn) out.push('It has no blast, so it cannot go off when its rounds run out.');
+    if (g('rmMsg') && g('rm') !== 'bound' && g('rm') !== 'curse') out.push('Its removal message is kept only when it is Bound or Curse on contact.');
+    if (g('eqMsg') && g('eq') !== 'bound' && g('eq') !== 'curse') out.push('Its switch-off message is kept only when it is Bound or Curse on contact.');
+    return out.join(' ');
+}
 function saveEntry() {
     var e = current(); if (!e || !st.packId || !ready(st.packId)) return;
     var raw = readForm(); if (!raw.name.trim()) { toast('Give the entry a name.'); return; }
@@ -808,7 +826,7 @@ function saveEntry() {
     var rt = was ? reachOf([was], [c]) : '';   // L4
     var kgS = was && typeof was.key === 'string' && was.key && was.key.toLowerCase() !== (typeof c.key === 'string' ? c.key : '').toLowerCase() ? keyGoneSays(was.key, '') : '';   // 1.6.2 (backlog 208): a key renamed
     var nrC = c.category && camp() ? catNear(camp().system, c.category) : '', ctS = nrC ? 'Its category \u201c' + c.category + '\u201d is not quite \u201c' + nrC + '\u201d, the one a list takes, so that list does not take it.' : '';
-    var tellE = [rt, kgS, ctS].filter(Boolean).join(' '); if (tellE) toast(tellE);
+    var tellE = [rt, kgS, ctS, entryNotes(raw)].filter(Boolean).join(' '); if (tellE) toast(tellE);   // 1.6.3: and what it keeps that does nothing
     st.draftNew = null; st.entryId = c.id; st.sel = map(); st.sel[c.id] = 1; st.anchor = c.id; schedule(st.packId); renderPacks(); renderList(); renderForm(); guideAt('saved');
 }
 function duplicateEntry() { var e = current(); if (!e || st.draftNew) return; var id = newEntryId(taken()); if (!id) return; var d = clone(e); d.id = id; d.name = (e.name + ' (copy)').slice(0, 60); delete d.key; st.draftNew = d; st.entryId = id; st.sel = map(); drawRows(); renderForm(); }

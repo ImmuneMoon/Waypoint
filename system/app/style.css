@@ -4986,7 +4986,7 @@
   #sysCombatBox { align-items: flex-start; }   /* a line makes some lists taller than others: they stand in their row by their tops */
   #sysCombatBox { min-height: 0; overflow-y: auto; align-content: flex-start; border-bottom: none; margin-bottom: 0; padding-top: 2px; }   /* 1.6.2: the right side of the Combat tab scrolls by itself */
   #sysCombatBox > .sys-combat-note { flex: 0 0 100%; }
-  .sys-item-area { display: inline-flex; gap: 5px; align-items: flex-end; }
+  .sys-item-area { display: flex; flex-wrap: wrap; gap: 5px; align-items: flex-end; }   /* 1.6.3: a blast's boxes wrap to the next line, where a long row squeezed its fragmentation box to nothing */
   .sys-fly { display: flex; flex-wrap: wrap; gap: 5px; align-items: flex-end; margin: 4px 0; }
   .sys-item-notes-row { margin-top: 5px; }
   .sys-item-notes-row input { width: 100%; box-sizing: border-box; }

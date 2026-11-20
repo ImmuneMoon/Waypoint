@@ -805,7 +805,7 @@ function crossSays(sys, c, r, step, vars, toOwner) {
     var out = {}, cr = r && r.cross, S = window.wpSystemCore, Fm = F(); if (!cr || !sys) return out;
     var fd = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.id === cr.f; })[0];
     if (!fd || (toOwner && fd.vis === 'gm')) return out;
-    out.xf = String(fd.label || fd.key || '').slice(0, 60); if (!out.xf) return {};
+    out.xf = String(fd.label || '').slice(0, 60); if (!out.xf) return {};   // the review of rolls (finding 5): a field with no label is never named by its key: the card says a value crossed a step
     if (cr.dir === 'up') out.xd = 'up';
     var steps = S && typeof S.crossSteps === 'function' && Fm ? S.crossSteps(r, vars, Fm) : [], sv = typeof step === 'number' ? steps[step - 1] : undefined;
     if (typeof sv !== 'number' || !isFinite(sv)) return out;

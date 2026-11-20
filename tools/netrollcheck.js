@@ -153,8 +153,8 @@ pendingChecks.push((async () => {
         const gmSys = Sx.cleanSystem(Object.assign({}, fix, o.sys || {}), { F: Fx, gmView: true });
         const ch = Object.assign({ id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_str: 14, f_dex: 12, f_level: 5 } }, o.ch || {});
         const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: { c_a: ch }, items: { m1: { type: 'map', whiteboard: [] } }, turnRules: o.tr };
-        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, conns: [] };
-        const out = { table: [], sent: [], pushed: [], logged: [] };
+        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, conns: [], soundAfter: () => { out.sounds++; } };   // soundAfter: the review of rolls (finding 7) counts a sound on a roll
+        const out = { table: [], sent: [], pushed: [], logged: [], sounds: 0 };
         const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
         const msg = Object.assign({ type: 'roll-req', rid: 'q1abcdef', expr: 'd20 + 3', charId: 'c_a' }, o.msg || {});
@@ -192,6 +192,18 @@ pendingChecks.push((async () => {
     check('1.6.3 (finding 22) the system\'s Rolls while making is kept in both views as one of its two words, and nothing else',
         Sx.cleanSystem(Object.assign({}, fix, { makeRolls: 'gm' }), { F: Fx, gmView: false }).makeRolls === 'gm' && Sx.cleanSystem(Object.assign({}, fix, { makeRolls: 'self' }), { F: Fx, gmView: true }).makeRolls === 'self'
         && !('makeRolls' in Sx.cleanSystem(Object.assign({}, fix, { makeRolls: 'all' }), { F: Fx, gmView: true })) && !('makeRolls' in Sx.cleanSystem(fix, { F: Fx, gmView: true })));
+    // the review of rolls (finding 7): while a character is made, a roll the system sends to the GM (To the GM, toGm) still goes to the GM under 'the player
+    // alone', its roller told only that it went, so its outcome never reaches them; and a roll only its player sees makes no sound on the GM's machine
+    const tgRolls = fix.rolls.map(r => r.id === 'r_atk' ? Object.assign({}, r, { toGm: 'run' }) : r);
+    const mTg = run({ ch: { making: 1 }, sys: { makeRolls: 'self', rolls: tgRolls }, msg: { act: 'r_atk', expr: 'd20 + STRmod + Prof' } });
+    const mSnd = run({ ch: { making: 1 }, sys: { makeRolls: 'self' }, msg: { fr: 'f_strmod', expr: 'd20 + STRmod' } }), mSndGm = run({ ch: { making: 1 }, sys: { makeRolls: 'gm' }, msg: { fr: 'f_strmod', expr: 'd20 + STRmod' } });
+    check('1.6.3 (the review of rolls, finding 7) under Rolls while making, the player alone: a roll the system sends to the GM still goes to the GM (its roller told only that it went, the GM\'s card not marked only you, and logged); a roll its player alone sees makes no sound on the GM\'s machine, one the GM sees does',
+        mTg.table.length === 0 && mTg.sent.length === 1 && mTg.sent[0].hid === 'gm' && mTg.sent[0].expr === '0' && mTg.pushed.length === 1 && mTg.pushed[0][1].mk === 1 && mTg.logged.length === 1
+        && mSnd.sounds === 0 && mSndGm.sounds === 1, j([mTg.sent, mTg.pushed, mTg.logged, mSnd.sounds, mSndGm.sounds]));
+    const ixh = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
+    check('1.6.3 (the review of rolls, finding 7) Rolls while making says where its rolls go: to the GM and the player rolling it, never the table; a roll the system sends to the GM still comes to the GM; Help puts it and Reader mark on the Rules tab under Sheets and readers',
+        ixh.includes('Seen by you: each such roll goes to you and the player rolling it, never the table, saying what it was for.') && ixh.includes('A roll the system sends to the GM still comes to you.')
+        && ixh.includes('<b>Reader mark</b>, on the System editor&rsquo;s Rules tab under Sheets and readers,') && ixh.includes('Each such roll goes to you and to the player rolling it, never the table, saying what it was for.') && !ixh.includes('Reader mark</b>, in the System editor&rsquo;s Characters tab'));
 })());
 
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a player's roll with bonuses ticked in its ± window — the real roll-req branch
@@ -1854,6 +1866,15 @@ pendingChecks.push((async () => {
         && HO.out.dues.length === 1 && HO.out.dues[0].to === true && typeof HO.out.dues[0].m === 'number'
         && HG.out.dues.length === 1 && HG.out.dues[0].to === false
         && HD.W.privAt({ priv: 'gm' }, true) === 'hid' && HD.W.privAt({ priv: 'gm' }, undefined) === true && HD.W.privAt({ priv: 'gm', to: 'pA' }, true) === true && HD.W.privAt({}, true) === false, j([HD.out.dues, HO.out.dues, HG.out.dues]));
+    // the review of rolls (finding 2): a roll a PLAYER makes on a sheet the GM ticked Hide rolls (roll-req's hidQ; here Kael by the judge's word, as a crew press
+    // on an NPC vehicle would be) is hidden by that choice alone, as on the GM's path: the attacked player, Sela, still gets their Defend card, with no margin on
+    // it, while the roll itself reaches no one but its roller; the same press with no tick sends Sela the card with its margin
+    const withSela = w => { w.camp.chars.c_b = { id: 'c_b', name: 'Sela', ownerId: 'u_b', npc: false, values: {} }; w.camp.items.m1.whiteboard.push({ id: 't_b', charId: 'c_b', ownerId: 'u_b', isChar: true, x: 50, y: 0 }); w.aim.u_a = 't_b'; return w; };
+    const HP = withSela(mk({ judge: 'c_a' })); HP.roll(HP.cA, 'c_a', { act: 'r_st', label: 'Strike' }, '3d6 <= 13', [2, 3, 4]);
+    const HQ = withSela(mk()); HQ.roll(HQ.cA, 'c_a', { act: 'r_st', label: 'Strike' }, '3d6 <= 13', [2, 3, 4]);
+    check('1.6.3 (the review of rolls, finding 2) a player\'s roll on a sheet the GM ticked Hide rolls is hidden by that choice alone (roll-req): the attacked player still gets their Defend card, with no margin on it, and nobody but the roller gets the roll; with no tick the card names its margin',
+        HP.out.dues.length === 1 && HP.out.dues[0].ch === 'c_b' && HP.out.dues[0].to === true && HP.out.dues[0].m === undefined && HP.rolls('pB').length === 0 && HP.rolls('pA').length === 1 && HP.lastRoll('pA').priv === 'gm'
+        && HQ.out.dues.length === 1 && HQ.out.dues[0].to === true && typeof HQ.out.dues[0].m === 'number', j([HP.out.dues, HP.rolls('pA'), HQ.out.dues]));
     A.net.roster.pB.location = 'm_other';
     const okA = A.net.revealRoll(gA.id), sA = A.lastRoll('pA'), nB = A.rolls('pB').length, again = A.net.revealRoll(gA.id);
     check('1.6.3 Show to the table: the roll goes to the table once, as it was rolled, with no mark of its privacy and the small mark rev, passing a player\'s cleaner and replaying there; a card made as an NPC still reaches only a player who can see it; a second press sends nothing',

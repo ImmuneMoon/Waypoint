@@ -322,6 +322,9 @@ const j = v => JSON.stringify(v);
         const sGm = CS(sysX, chX, rA, 2, vX, false), sOwn = CS(sysX, chX, rA, 1, vX, true), sSec = CS(sysX, chX, rB, 1, vX, true), sSecGm = CS(sysX, chX, rB, 1, vX, false), sHid = CS(sysX, chX, rC, 1, vX, true), sHidGm = CS(sysX, chX, rC, 1, vX, false);
         check('1.6.3 (finding 36) a crossing\'s card names the field and the step it crossed: the GM\'s card the label and the figure (the second step of three, -5); its player\'s card the same where all is theirs to see, no figure where the step reads a GM-only value, nothing at all of a GM-only field',
             J(sGm) === J({ xf: 'Hit Points', xs: -5 }) && J(sOwn) === J({ xf: 'Hit Points', xs: 0 }) && J(sSec) === J({ xf: 'Hit Points' }) && J(sSecGm) === J({ xf: 'Hit Points', xs: -4 }) && J(sHid) === J({}) && J(sHidGm) === J({ xf: 'Secret', xd: 'up', xs: 0 }), J([sGm, sOwn, sSec, sSecGm, sHid, sHidGm]));
+        // the review of rolls (finding 5): a field with no label of its own (a system handed in uncleaned) is never named by its key: the card says a value crossed a step
+        const sysNl = { v: 1, name: 'X', fields: [{ id: 'f_g', key: 'Grit', kind: 'number', vis: 'all', def: 3 }], rolls: [] }, sNl = CS(sysNl, { id: 'c_a', values: { f_g: 3 } }, { id: 'r_g', cross: { f: 'f_g', at: '0' } }, 1, vX, false);
+        check('1.6.3 (the review of rolls, finding 5) a crossing\'s card never names a field by its key: a field with no label gives the card nothing to name', J(sNl) === J({}), J(sNl));
     }
     // The review of folds 4a and 6b (1.5.9): a load seeds what the posture rule last saw, as it seeds the crossings, so the first change after it
     // lays a token down; the crossings' seed reads a value in its token's context as crossFollow does; and a time rule's run and a round's or a

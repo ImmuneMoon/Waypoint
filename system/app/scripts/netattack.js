@@ -512,7 +512,7 @@ function areaAfter(camp, entry, vd, malf, aim, ch, priv, vars, row, map, tok, fr
     if (!map || !tok) { if (window.wpStepLog) window.wpStepLog('line v1', 'no-token', {}); return null; }
     var q = null; try { q = F.evaluate(ar.reach, { vars: vars, random: function() { throw new Error('no dice'); } }); } catch (e) { q = null; } var reach = q && q.ok && typeof q.value === 'number' && isFinite(q.value) ? Math.max(0, Math.min(100000, q.value)) : 0;
     var ids = reach > 0 ? areaTokens(camp, map, tok, aim, ar.width, reach) : [], mapId = typeof map.id === 'string' ? map.id : tok.mapId, by = { by: ch.id, dmg: ar.dmg, fx: ar.fx, row: row && typeof row.r === 'string' ? { f: row.f, r: row.r } : null, label: String(entry.label || 'Line').split('{')[0].trim().slice(0, 50), gm: entry.vis === 'gm' }; if (from) by.from = from;   // from: the player who pressed, whose card the damage is
-    if (priv === true) by.priv = true;   // a line rolled in private stays private: its damage cards with it
+    if (priv === true || priv === 'hid') by.priv = true;   // a line rolled in private stays private: its damage cards with it (the review of rolls: one hidden by the GM's choice alone too, though its targets still get their Defend cards)
     ids.forEach(function(tid) {
         var w = map.whiteboard.filter(function(x) { return !!x && x.id === tid; })[0], tc = w && camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null; if (!tc || tc.id === ch.id) return;
         var hit = Object.assign({}, by, { to: tc.id, nm: w.charName || w.name || tc.name });
@@ -709,6 +709,10 @@ function landAfter(camp, entry, pass, tc, ch, priv, rowRef, att, from, hit, big,
     if (!landDmgOf(camp, rec)) { landLog('no damage roll', {}); return ''; }
     if (typeof hit === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(hit)) rec.hit = hit;
     if (big === true) rec.big = true; if (priv) rec.priv = true;
+    // the review of rolls (finding 1): priv may be 'hid', an attack hidden by the GM's choice alone (the hiderolls slice of net.js). The landing is private all the same, so its
+    // damage card goes to the GM, a damage rolled at once (landRoll hands net.diceRoll priv) stays private, and so does an attack sent on; hid says the defender
+    // was still given their Defend card, so they are given the card to send it on too (sendOnOffer), and the next defender theirs (sendOnGo)
+    if (priv === 'hid') rec.hid = true;
     if (from && typeof from === 'object') { var D = DC(), fr = D && typeof D.cleanFrom === 'function' ? D.cleanFrom(from) : null; if (fr) rec.from = fr; }
     var fid = tc && typeof tc.selfMap === 'string' && typeof tc.self === 'string' && typeof fightOfTok === 'function' ? fightOfTok(tc.selfMap, tc.self) : null; rec.fid = typeof fid === 'string' ? fid : '';
     if (typeof camp.id === 'string') rec.cid = camp.id;
@@ -882,7 +886,7 @@ function landRead(r, camp) {
     } else if (typeof out.dmg === 'number') return null;
     if (!landDmgOf(camp, out)) return null;
     if (typeof r.hit === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(r.hit)) out.hit = r.hit;
-    if (r.big === true) out.big = true; if (r.priv === true) out.priv = true;
+    if (r.big === true) out.big = true; if (r.priv === true) out.priv = true; if (r.hid === true && out.priv) out.hid = true;   // the review of rolls: hidden by the GM's choice alone, read back only beside priv
     if ((out.st === 'wait' || out.st === 'send') && typeof r.until === 'number' && isFinite(r.until)) out.until = r.until;
     if (typeof sendOnRead === 'function' && !sendOnRead(r, out, camp)) return null;   // 1.6.3 (defense fold 4): the attack itself, its frozen kind, who sent it on, and what a card to send it on waits with
     if (typeof r.thru === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(r.thru)) out.thru = r.thru; if (typeof camp.id === 'string') out.cid = camp.id;
@@ -992,7 +996,7 @@ function sendOnOffer(camp, id, pick) {
     if (pick.row && typeof pick.row.f === 'string' && typeof pick.row.r === 'string') snd.row = { f: pick.row.f, r: pick.row.r };
     rec.st = 'send'; rec.snd = snd; delete rec.until; delete rec.card;
     var w = landRule(camp).wait; if (w) rec.until = Date.now() + w * 1000;
-    var toO = !rec.priv && !tch.npc && !!tch.ownerId, sby = typeof rec.sby === 'string' && rec.sby ? rec.sby : rec.by, sc = camp.chars && own(camp.chars, sby) ? camp.chars[sby] : null, sn = rec.sbyName || rec.byName || '';
+    var toO = (!rec.priv || rec.hid === true) && !tch.npc && !!tch.ownerId, sby = typeof rec.sby === 'string' && rec.sby ? rec.sby : rec.by, sc = camp.chars && own(camp.chars, sby) ? camp.chars[sby] : null, sn = rec.sbyName || rec.byName || '';
     if (typeof net.postSendOn === 'function') net.postSendOn(tch, id, toO && sc ? landSeenBy(camp, sc, tch.ownerId, sn) : sn, toO);
     landCardKeep(rec); landLog('send offered', { hops: rec.hops || 0, roll: snd.noRoll !== true }); landArm(); landKeepSoon();
     return true;
@@ -1036,10 +1040,10 @@ function sendOnPress(camp, id, how, pid, from) {
         var ndS = sendOnNeeds(camp, snd.roll, sr, tch, pid, tcS); if (ndS !== true) return ndS;   // its own needs, a rank or once a round, judged as its press would be (by the presser's own view: the review of fold 4, finding 3)
         var ex = sr.ent.formula; if (snd.mod && D && typeof D.composeModifier === 'function' && Fc) { var cm = D.composeModifier(ex, snd.mod, Fc.parse); if (!cm || !cm.ok) return 'Its modifier cannot be added to that roll.'; ex = cm.expr; }
         var o = { charId: tch.id, label: (String(sr.ent.label || 'Roll').split('{')[0].trim().slice(0, 40) || 'Roll') + ', sending it on', range: rg, called: true };   // called: no press its owner chose, so nothing is spent and Off a character's turn says nothing (the core's answer 6)
-        if (sr.row) o.row = { f: sr.row.f, r: sr.row.r }; if (rec.priv) o.priv = true; if (from && typeof from === 'object') o.from = from;
+        if (sr.row) o.row = { f: sr.row.f, r: sr.row.r }; if (rec.priv) { if (rec.hid === true) o.hide = true; else o.priv = true; } if (from && typeof from === 'object') o.from = from;   // the review of rolls: an attack hidden by the GM's choice alone is sent on as hidden by choice (hide), so a secret reason of the roll's own still counts apart
         if (sendOnGmRoll(camp, sr)) o.gmOnly = true;   // the review of fold 4 (finding 2): a roll the GM keeps (a GM-only roll, or a roll of a GM-only list or one ticked GM only) is posted to the GM alone, its label and formula with it
-        net.rollVerdict = null; var r = typeof net.diceRoll === 'function' ? net.diceRoll(ex, o) : { error: SEND_NOT }; if (r && r.error) return r.error;
-        vd = net.rollVerdict; net.rollVerdict = null; privS = !!(r && r.priv);
+        net.rollVerdict = null; net.rollChose = false; var r = typeof net.diceRoll === 'function' ? net.diceRoll(ex, o) : { error: SEND_NOT }; if (r && r.error) return r.error;
+        vd = net.rollVerdict; net.rollVerdict = null; privS = !!(r && r.priv) && net.rollChose !== true; net.rollChose = false;   // the review of rolls: a roll private only by the GM's choice (a hidden attack sent on) leaves what follows hidden by choice, its defender still given their card
         if (!vd || vd.kind !== 'check') { sendOnEnd(id, 'aside', 'no check'); sendOnSay('The roll ' + String(tch.name || 'the defender').slice(0, 60) + ' sent it on with is no check, so ' + sendOnNames(rec) + ' was turned aside.'); return true; }
     }
     if (vd.pass !== true) { sendOnEnd(id, 'missed', 'missed'); landLog('send missed', {}); sendOnSay(String(tch.name || 'The defender').slice(0, 60) + ' sent ' + (rec.byName || 'an attacker') + '’s attack on at ' + String(w.charName || w.name || ch2.name || 'someone').slice(0, 60) + ', and it missed.'); return true; }
@@ -1082,9 +1086,9 @@ function sendOnGo(camp, old, tch, tok, rg, w, ch2, vd, privS) {   // privS (the 
     if (!ent) { sendOnEnd(old.id, 'aside', 'no attack'); sendOnSay('The roll ' + sendOnNames(old) + ' was made with is not there now, so it was turned aside.'); return ''; }   // the review of fold 4 (finding 5): never on to a new target undefended
     var kn = oc && old.ak && ent && typeof attKindWord === 'function' ? attKindWord(camp, ent, Object.assign({}, oc, { values: landVals(oc, old) }), old.row) : '';
     var att = '';
-    if (typeof ent.resistBy === 'string' && typeof attemptMake === 'function') att = attemptMake(camp, ent, vd, false, rg, tch, pv, null, snd.row || null, { kon: !!old.ak, k: old.ak ? old.ak.k : 0, t: old.ak ? old.ak.t : undefined, kn: kn }) || '';
+    if (typeof ent.resistBy === 'string' && typeof attemptMake === 'function') att = attemptMake(camp, ent, vd, false, rg, tch, pv ? (old.hid === true && old.priv === true && privS !== true ? 'hid' : true) : false, null, snd.row || null, { kon: !!old.ak, k: old.ak ? old.ak.k : 0, t: old.ak ? old.ak.t : undefined, kn: kn }) || '';
     var rec = { st: 'wait', at: Date.now(), by: old.by, byName: old.byName, to: ch2.id, toTok: w.id, toName: typeof tokNameOf === 'function' ? tokNameOf(camp, old.map, ch2, w.id) : String(ch2.name || '').slice(0, 60), map: old.map, range: rgc, dmg: old.dmg, hops: (old.hops || 0) + 1, atk: 1, sby: tch.id, sbyName: typeof tokNameOf === 'function' ? tokNameOf(camp, old.map, tch, tok.id) : String(tch.name || '').slice(0, 60) };
-    ['ent', 'row', 'rowCopy', 'big', 'priv', 'from', 'cid'].forEach(function(k) { if (old[k] !== undefined) rec[k] = JSON.parse(JSON.stringify(old[k])); }); if (old.ak) rec.ak = JSON.parse(JSON.stringify(old.ak)); if (pv) rec.priv = true;
+    ['ent', 'row', 'rowCopy', 'big', 'priv', 'from', 'cid'].forEach(function(k) { if (old[k] !== undefined) rec[k] = JSON.parse(JSON.stringify(old[k])); }); if (old.ak) rec.ak = JSON.parse(JSON.stringify(old.ak)); if (pv) rec.priv = true; if (old.hid === true && old.priv === true && privS !== true) rec.hid = true;   // the review of rolls: an attack the GM hid by choice alone stays so when sent on, unless the roll that sent it was kept private itself
     var fid = typeof fightOfTok === 'function' ? fightOfTok(old.map, tok.id) : null; rec.fid = typeof fid === 'string' && fid ? fid : old.fid || '';
     sendOnEnd(old.id, 'sent', 'sent on');
     var waits = typeof att === 'string' && att && Object.prototype.hasOwnProperty.call(_attempts, att), id = waits ? att : landNewId(); rec.id = id;

@@ -273,7 +273,7 @@ function rollRow(r) {
     if (r.every || r.inFight || r.notes) row.appendChild(noteRow(r));   // 1.6.0, backlog 173: where its runs are said, for a time rule
     if (typeof crossRow === 'function') row.appendChild(crossRow(r));   // 1.5.9 (book es/et plan 4a): when a value crosses a step
     if (typeof asksBox === 'function') row.appendChild(asksBox(r));   // 1.6.2: what it asks when pressed
-    if (!isApply && typeof cardBox === 'function') row.appendChild(cardBox(function() { return r.cardActs; }, function(l) { if (l) r.cardActs = l; else delete r.cardActs; }, r));   // 1.6.2: and what its card offers
+    if (!isApply && typeof cardBox === 'function') row.appendChild(cardBox(function() { return r.cardActs; }, function(l) { if (l) r.cardActs = l; else delete r.cardActs; }, r, 'roll'));   // 1.6.2: and what its card offers
     if (!isApply && r.init !== true && typeof helpBox === 'function') row.appendChild(helpBox(r));   // 1.6.2 Assist: and whether others may help
     if (typeof callsBox === 'function') row.appendChild(callsBox(r, typeof draft !== 'undefined' ? draft : null, isApply));   // 1.6.0: Calls for
     if (!isApply && !r.init && r.resist === true && typeof answersBox === 'function') row.appendChild(answersBox(r, typeof draft !== 'undefined' ? draft : null, typeof r.withRow === 'string' ? (draft.fields || []).filter(function(f) { return f && f.id === r.withRow && f.kind === 'item-list'; })[0] || null : null));   // 1.6.3 (defense fold 3): When it answers an attack

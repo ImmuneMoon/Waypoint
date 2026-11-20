@@ -960,7 +960,10 @@ function rollNeedsOk(entry, vars, F, more) { return rollNeedsFails(entry, vars, 
 function rollNeedsSays(entry, vars, F, more) {
     if (isObj(entry) && typeof vars === 'function') { var fl = rollNeedsFails(entry, vars, F, more); if (fl && fl.at >= 0) return fl.says; }
     if (isObj(entry) && !(typeof entry.needs === 'string' && entry.needs) && Array.isArray(entry.needsWhy) && entry.needsWhy.length && isObj(entry.needsWhy[0]) && entry.needsWhy[0].says) return entry.needsWhy[0].says;
-    return (isObj(entry) && typeof entry.needsText === 'string' && entry.needsText) || ('Not now: it needs ' + (isObj(entry) ? entry.needs : ''));
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: no formula or key on the user side, and none is no good default): with no words of its own a refusal
+    // says the generic Not now., never the needs formula, which went to the player whose press the host refused. The System editor starts the
+    // words filled and says under the box where they are empty, so this is only the net under a system saved before
+    return (isObj(entry) && typeof entry.needsText === 'string' && entry.needsText) || 'Not now.';
 }   // the words a refusal says, as a list roll's
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md section 3; the book: medical items are applied "to oneself or an adjacent ally"): a roll or an apply action, the
 // system's or a list's, may carry to: 'near', Applies to: The user or an adjacent character. Only that word, the same in both views, never on the

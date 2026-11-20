@@ -54,7 +54,7 @@ function crossRow(r) {
     if (!cr) return row;
     row.appendChild(select('sys-roll-xsd', [['down', 'falling to'], ['up', 'rising to']], cr.dir === 'up' ? 'up' : 'down', 'Falling: from above a step to at or below it. Rising: from below to at or above'));
     var at = input('sys-roll-xsat field', cr.at || '', 'The first step, a formula with no dice, such as -HP.max', 'First at'); at.maxLength = LIMITS.formula; row.appendChild(at);
-    var st = input('sys-roll-xsstep field', cr.step || '', 'How far apart the next steps are, such as HP.max. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
+    var st = input('sys-roll-xsstep field', cr.step || '', 'How far apart the next steps are, such as HP.max. Steps says how many. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
     if (cr.step) { var cn = input('sys-roll-xsn field', cr.count ? String(cr.count) : '', 'How many steps in all, 2 to 20', 'Steps'); cn.type = 'number'; row.appendChild(cn); var ol = el('label', 'sys-hover'), oc = el('input', 'sys-roll-xsone'); oc.type = 'checkbox'; oc.checked = cr.one === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Once however many')); ol.title = 'Runs once when one change passes several steps, not once a step'; row.appendChild(ol); }
     row.appendChild(select('sys-roll-xsby', [['', 'runs at once'], ['owner', 'reminds its player'], ['gm', 'reminds me']], cr.by === 'owner' || cr.by === 'gm' ? cr.by : '', 'At once, as your own press of it, or as a reminder in chat with its button'));
     if (!Array.isArray(r.apply)) {   // 1.6.2 (backlog 242; the CORE Master: a hit's own effects do not apply to the rolls the same hit calls for): a roll's alone
@@ -73,7 +73,7 @@ function listCrossRow(rr, ri, cts) {
     if (!cr) return row;
     row.appendChild(select('sys-list-xsd', [['up', 'rising to'], ['down', 'falling to']], cr.dir === 'up' ? 'up' : 'down', 'Rising: from below a step to at or above it. Falling: from above to at or below'));
     var at = input('sys-list-xsat field', cr.at || '', 'The first step, a formula with no dice, such as 1 or Row.Grace', 'First at'); at.maxLength = LIMITS.formula; row.appendChild(at);
-    var st = input('sys-list-xsstep field', cr.step || '', 'How far apart the next steps are, such as 1. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
+    var st = input('sys-list-xsstep field', cr.step || '', 'How far apart the next steps are, such as 1. Steps says how many. Empty: one step', 'Then every'); st.maxLength = LIMITS.formula; row.appendChild(st);
     if (cr.step) { var cn = input('sys-list-xsn field', cr.count ? String(cr.count) : '', 'How many steps in all, 2 to 20', 'Steps'); cn.type = 'number'; row.appendChild(cn); var ol = el('label', 'sys-hover'), oc = el('input', 'sys-list-xsone'); oc.type = 'checkbox'; oc.checked = cr.one === true; ol.appendChild(oc); ol.appendChild(document.createTextNode(' Once however many')); ol.title = 'One change that passes several steps runs it once'; row.appendChild(ol); }
     return row;
 }
@@ -83,7 +83,8 @@ function listCrossEdit(rr, c, t) {
     if (!cr) return '';
     if (c.indexOf('sys-list-xsd') >= 0) { cr.dir = t.value === 'up' ? 'up' : 'down'; return 'one'; }
     if (c.indexOf('sys-list-xsat') >= 0) { cr.at = String(t.value).slice(0, LIMITS.formula); return 'one'; }
-    if (c.indexOf('sys-list-xsstep') >= 0) { var sv = String(t.value).slice(0, LIMITS.formula), had = !!cr.step; if (sv.trim()) cr.step = sv; else { delete cr.step; delete cr.count; delete cr.one; } return had !== !!cr.step ? 'all' : 'one'; }
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): Then every means nothing without Steps, so a step filled where none was starts at 20 steps where no count is set
+    if (c.indexOf('sys-list-xsstep') >= 0) { var sv = String(t.value).slice(0, LIMITS.formula), had = !!cr.step; if (sv.trim()) { cr.step = sv; if (!had && cr.count === undefined) cr.count = 20; } else { delete cr.step; delete cr.count; delete cr.one; } return had !== !!cr.step ? 'all' : 'one'; }
     if (c.indexOf('sys-list-xsn') >= 0) { var nv = Number(t.value); if (String(t.value).trim() && isFinite(nv)) cr.count = nv; else delete cr.count; return 'one'; }
     if (c.indexOf('sys-list-xsone') >= 0) { if (t.checked) cr.one = true; else delete cr.one; return 'one'; }
     return '';
@@ -95,7 +96,8 @@ function crossEdit(r, c, t) {
     if (c.indexOf('sys-roll-xsblow') >= 0) { if (t.checked) cr.asAt = true; else delete cr.asAt; return 'one'; }   // 1.6.2 (242): Reads the sheet as the blow left it
     if (c.indexOf('sys-roll-xsd') >= 0) { cr.dir = t.value === 'up' ? 'up' : 'down'; return 'one'; }
     if (c.indexOf('sys-roll-xsat') >= 0) { cr.at = String(t.value).slice(0, LIMITS.formula); return 'one'; }
-    if (c.indexOf('sys-roll-xsstep') >= 0) { var sv = String(t.value).slice(0, LIMITS.formula), had = !!cr.step; if (sv.trim()) cr.step = sv; else { delete cr.step; delete cr.count; delete cr.one; } return had !== !!cr.step ? 'all' : 'one'; }
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): Then every means nothing without Steps, so a step filled where none was starts at 20 steps, as a list's crossing starts
+    if (c.indexOf('sys-roll-xsstep') >= 0) { var sv = String(t.value).slice(0, LIMITS.formula), had = !!cr.step; if (sv.trim()) { cr.step = sv; if (!had && cr.count === undefined) cr.count = 20; } else { delete cr.step; delete cr.count; delete cr.one; } return had !== !!cr.step ? 'all' : 'one'; }
     if (c.indexOf('sys-roll-xsn') >= 0) { var nv = Number(t.value); if (String(t.value).trim() && isFinite(nv)) cr.count = nv; else delete cr.count; return 'one'; }
     if (c.indexOf('sys-roll-xsone') >= 0) { if (t.checked) cr.one = true; else delete cr.one; return 'one'; }
     if (c.indexOf('sys-roll-xsby') >= 0) { if (t.value === 'owner' || t.value === 'gm') cr.by = t.value; else delete cr.by; return 'one'; }

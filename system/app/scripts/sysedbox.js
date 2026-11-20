@@ -13,7 +13,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { ALT_MAX, ANS_HALF, ANS_MAX, BADGE_MAX, F, LIMITS, SEND_HOPS_MAX, START_MAX, STORED, _sidePrev, ansShareWord, asksBox, canWrite, charById, charList, charsOf, checkLabel, cleanLooks, cleanRowDef, cleanSystem, cleanValue, clone, crewPick, deckTrial, deckTrialRead, dirty, dirtySet, draft, draftSet, el, emptySystem, errGo, fieldById, getActiveCampaign, glyphButton, grantEntries, grantName, input, isClient, labeledSelect, layKeep, laySync, layoutViewSet, makeResolver, nameAsks, nameWord, needsGmBox, net, numField, numInput, openSync, pageOptions, patchErrors, rangeUnitWord, readsOf, refreshErrors, renderAll, renderPreview, rollName, rollStationBox, rolled, save, select, showConfirm, sidePrevSet, startRows, starterPacksSet, startersFill, startersLoad, state, sysReaders, systemOf, tab, tabSet, toast, ui, valueOpts } from './sheets.js';   // [split:glue]
+import { ALT_MAX, ANS_HALF, ANS_MAX, BADGE_MAX, F, LIMITS, SEND_HOPS_MAX, START_MAX, STORED, _sidePrev, ansShareWord, asksBox, canWrite, cleanBands, charById, charList, charsOf, checkLabel, cleanLooks, cleanRowDef, cleanSystem, cleanValue, clone, crewPick, deckTrial, deckTrialRead, dirty, dirtySet, draft, draftSet, el, emptySystem, errGo, fieldById, getActiveCampaign, glyphButton, grantEntries, grantName, input, isClient, labeledSelect, layKeep, laySync, layoutViewSet, makeResolver, nameAsks, nameWord, needsGmBox, net, numField, numInput, openSync, pageOptions, patchErrors, rangeUnitWord, readsOf, refreshErrors, renderAll, renderPreview, rollName, rollStationBox, rolled, save, select, showConfirm, sidePrevSet, startRows, starterPacksSet, startersFill, startersLoad, state, sysReaders, systemOf, tab, tabSet, toast, ui, valueOpts } from './sheets.js';   // [split:glue]
 export function sysedBox() {   // [split:glue]
 // [split:body-start]
 var KIND_LABEL = { number: 'Number', formula: 'Derived', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' };
@@ -185,9 +185,14 @@ function altBox(obj, tip) {
 // [systemcheck:altbox-end]
 // [systemcheck:bandbox-start] 1.6.2 (backlog 210 (a)): result bands, a name and a formula a row, on the Combat tab's Roll outcomes and on one roll in place of those. Edited in place on the
 // list it is handed, with listeners of its own and class names no handler of the Rolls tab reads. get and put read and set the list where it lives, and what Save drops is said by refreshErrors
+// 1.6.3 (Fulllion's rulings of 2026-11-20): only the bands the roll will read once saved are offered, as the core reads a roll's bands: the bands Save
+// keeps (a name and a test, each name once), the roll's own where it keeps any, else the Combat tab's, and none on a damage roll. A list's roll (r null) reads
+// the Combat tab's. A change already set to a band stays offered, so its select still shows it, and the validator says where it never happens
 function bandWhens(r, ch) {
     var seen = {}, o = [], put = function(n) { var k = String(n).trim(); if (k && !seen[k.toLowerCase()]) { seen[k.toLowerCase()] = 1; o.push(['band:' + k, 'On ' + k]); } };
-    [typeof draft !== 'undefined' && draft && draft.combat ? draft.combat.bands : null, r ? r.bands : null].forEach(function(l) { (Array.isArray(l) ? l : []).forEach(function(b) { if (b && typeof b.name === 'string') put(b.name); }); });
+    var kept = function(l) { var v = typeof cleanBands === 'function' ? cleanBands(l) : []; return Array.isArray(v) ? v : []; }, own = kept(r ? r.bands : null);
+    var read = r && r.dmg === true ? [] : own.length ? own : kept(typeof draft !== 'undefined' && draft && draft.combat ? draft.combat.bands : null);
+    read.forEach(function(b) { if (b && typeof b.name === 'string') put(b.name); });
     if (ch && typeof ch.band === 'string' && ch.band) put(ch.band);
     return o;
 }
@@ -195,16 +200,22 @@ function bandBox(get, put, own, redraw) {
     var box = el('div', 'sys-alt sys-bands'), rows = Array.isArray(get()) ? get() : [];
     box.appendChild(el('div', 'sys-num-cap', own ? 'This roll\u2019s own result bands' : 'Result bands'));
     box.appendChild(el('small', 'sys-line', own ? 'In place of the Combat tab\u2019s, for this roll alone.' : 'Each has a name and a test. The first that holds names the roll on its card, and a change can hang on it.'));
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: a band's name and its test each need the other): each row's note says what Save does with it, read by the
+    // band cleaner over the rows up to it, so a name another band already holds is said too. Every note follows any name typed, since a later row may then clash
+    var notes = [], noteAll = function() { notes.forEach(function(n) { n(); }); };
+    var bandSays = function(i) { var k = function(l) { var v = typeof cleanBands === 'function' ? cleanBands(l) : null; return Array.isArray(v) ? v.length : -1; }, upTo = k(rows.slice(0, i + 1)), before = k(rows.slice(0, i)); if (upTo < 0 || upTo > before) return ''; return k([rows[i]]) > 0 ? 'Save leaves this band out: another band already has this name.' : 'Save leaves this band out until it has a name and a test.'; };
     rows.forEach(function(b, i) {
         var row = el('div', 'sys-flags sys-band-row'), n = input('sys-band-name field', b && typeof b.name === 'string' ? b.name : '', 'What the card calls a roll in this band', 'Name'), f = input('sys-band-if field', b && typeof b.if === 'string' ? b.if : '', 'A formula with no dice that holds for this band. It reads RollTotal, Natural, RollMargin, RollCrit and RollBig beside the roller\u2019s names', 'Such as RollTotal >= 10'), x = el('button', 'tool ghost sys-btn sys-band-rm', '\u00d7');
         n.maxLength = 30; f.maxLength = LIMITS.formula; x.type = 'button'; x.title = 'Take this band away';
-        n.addEventListener('input', function() { rows[i].name = n.value; markDirty(); patchErrors(); });
-        f.addEventListener('input', function() { rows[i].if = f.value; markDirty(); patchErrors(); });
+        var nt = el('div', 'sys-ask-note sys-band-note'), note = function() { nt.textContent = bandSays(i); }; notes.push(note);
+        n.addEventListener('input', function() { rows[i].name = n.value; markDirty(); patchErrors(); noteAll(); });
+        f.addEventListener('input', function() { rows[i].if = f.value; markDirty(); patchErrors(); note(); });
         x.addEventListener('click', function() { rows.splice(i, 1); if (!rows.length) put(null); markDirty(); redraw(); });
-        row.appendChild(n); row.appendChild(f); row.appendChild(x); box.appendChild(row);
+        row.appendChild(n); row.appendChild(f); row.appendChild(x); box.appendChild(row); box.appendChild(nt); note();
     });
     var add = el('button', 'tool ghost sys-band-add', '+ Band'); add.type = 'button'; add.title = 'Add a result band, eight at most'; add.disabled = rows.length >= 8;
-    add.addEventListener('click', function() { var l = Array.isArray(get()) ? get() : []; l.push({ name: '', if: '' }); put(l); markDirty(); redraw(); });
+    // 1.6.3: a new band starts with a plain name no other band of the list holds (Band 1, Band 2), which a Then's On <band> names; its test is the GM's to write
+    add.addEventListener('click', function() { var l = Array.isArray(get()) ? get() : [], taken = {}, k = l.length + 1; l.forEach(function(x) { if (x && typeof x.name === 'string') taken[x.name.trim().toLowerCase()] = 1; }); while (taken[('band ' + k)]) k++; l.push({ name: 'Band ' + k, if: '' }); put(l); markDirty(); redraw(); });
     box.appendChild(add);
     return box;
 }

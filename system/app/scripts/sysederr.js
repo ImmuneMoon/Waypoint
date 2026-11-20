@@ -284,6 +284,22 @@ function refreshErrors() {
             if (capKept.length < capOk) errs.push({ message: 'At most: a level is capped once, and or higher once, ' + LIMITS.lvlCaps + ' caps at most, so Save keeps ' + capKept.length + '.' });
         }
         if (typeof startsSay === 'function') startsSay(f).forEach(function(m) { errs.push({ message: m }); });   // 1.6.0 Starts with, as the cleaner reads it
+        // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", and "none isn't a good
+        // default substitution"): a list's rolls and actions, each box that others depend on, read as the cleaner reads it. Said on the list's card, never
+        // holding Save: a roll with no name (its button and card say Roll or Apply), needs with no words for the grayed button (a refused press says only
+        // Not now), words with no needs and the two ticks with neither needs nor a reason (Save drops them), and Then every with no Steps (only the first runs)
+        (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rq, rqi) {
+            if (!rq || typeof rq !== 'object') return;
+            var isAp = Array.isArray(rq.apply), nmQ = typeof rq.label === 'string' ? rq.label.trim() : '', who = 'Roll ' + (rqi + 1) + (nmQ ? ', \u201c' + nmQ + '\u201d' : '');
+            var ndRaw = typeof rq.needs === 'string' && !!rq.needs.trim(), ndK = typeof cleanFormulaText === 'function' ? !!cleanFormulaText(rq.needs) : ndRaw, whyK = typeof cleanNeedsWhy === 'function' && !!cleanNeedsWhy(rq.needsWhy), words = typeof rq.needsText === 'string' && !!rq.needsText.trim();
+            if (!nmQ && (isAp ? rq.apply.length > 0 : (typeof rq.formula === 'string' && !!rq.formula.trim()))) errs.push({ message: who + ': it has no name, so its button and its card say ' + (isAp ? 'Apply' : 'Roll') + '. Give it a name.' });
+            if (ndK && !words) errs.push({ message: who + ': the words for its grayed button are empty, so a refused press says only Not now. Give the button its words.' });
+            if (!ndRaw && words) errs.push({ message: who + ': its Needs are empty, so Save drops the words for its grayed button. Write what it needs, or clear those words.' });
+            if (!ndRaw && !whyK && rq.hideOff === true) errs.push({ message: who + ': Hidden until it can be used needs Needs or a reason, so Save drops the tick.' });
+            if (!ndRaw && !whyK && rq.needsGm === true) errs.push({ message: who + ': The GM may press past it needs Needs or a reason, so Save drops the tick.' });
+            var xq = rq.cross && typeof rq.cross === 'object' ? rq.cross : null, nq = xq ? xq.count : undefined;
+            if (xq && typeof xq.step === 'string' && xq.step.trim() && !(typeof nq === 'number' && Math.floor(nq) === nq && nq >= 2 && nq <= 20)) errs.push({ message: who + ': When a counter crosses, Steps needs a whole number from 2 to 20, or only the first step runs.' });
+        });
         if (Array.isArray(sp.rolls) && typeof cleanListSpec === 'function') sp.rolls.forEach(function(rj) { if (!rj || typeof rj !== 'object' || !rj.job || typeof rj.job !== 'object') return; var jk = (cleanListSpec({ counters: sp.counters, rolls: [{ label: 'x', formula: '1', job: rj.job }] }, true, F()) || {}).rolls; if (!(jk && jk[0] && jk[0].job)) errs.push({ message: 'Roll \u201c' + (rj.label || 'Roll') + '\u201d: a job needs its turns and a counter of this list, so Save drops it.' }); });   // 1.6.0, as the cleaner reads it
         if (Array.isArray(sp.subject) && typeof cleanListSpec === 'function') { var sjKept = ((cleanListSpec({ subject: sp.subject }, true, F()) || {}).subject || []).length; if (sjKept < sp.subject.length) errs.push({ message: 'Subjects: a word needs a letter or a digit, goes once ignoring case and spaces, and ' + LIMITS.subjects + ' is the most, so Save keeps ' + sjKept + ' of ' + sp.subject.length + '.' }); }   // 1.6.0 Subjects, as the cleaner reads it
         if (sp.once && typeof sp.once === 'object' && typeof cleanListSpec === 'function') {   // 1.5.8 Counted once, as the cleaner reads it
@@ -468,6 +484,26 @@ function refreshErrors() {
         if (!r || typeof r !== 'object' || typeof r.needs !== 'string' || !r.needs.trim()) return;
         var cr = (clean.rolls || []).filter(function(x) { return x && x.id === r.id; })[0]; if (cr && !cr.needs) (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'needs', message: 'This is no formula Save can keep, so Save drops it.' });
     });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", and "none isn't a good default
+    // substitution"): a roll's or an apply action's boxes that others depend on, read as the cleaner reads them, each said under its own box (sysui.js
+    // PROP_BOX). Nothing here holds Save, and the cleaner keeps what it always kept. A roll nobody has typed in (no name and nothing to roll) says nothing
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {
+        if (!r || typeof r !== 'object' || typeof r.id !== 'string') return;
+        var push = function(p, m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: p, message: m }); };
+        var isAp = Array.isArray(r.apply), named = typeof r.label === 'string' && !!r.label.trim(), ndRaw = typeof r.needs === 'string' && !!r.needs.trim();
+        var ndK = typeof cleanFormulaText === 'function' ? !!cleanFormulaText(r.needs) : ndRaw, whyK = typeof cleanNeedsWhy === 'function' && !!cleanNeedsWhy(r.needsWhy), words = typeof r.needsText === 'string' && !!r.needsText.trim();
+        // its name is its button, its card and its place in every list that picks it; with none the cleaner writes the generic Roll or Apply
+        if (!named && (isAp ? r.apply.length > 0 : (typeof r.formula === 'string' && !!r.formula.trim()))) push('label', 'It is empty, so its button, its card in Table Chat and every list that picks it say ' + (isAp ? 'Apply' : 'Roll') + '. Give it a name.');
+        // the words for the grayed button are what a refused press says, to the player too; with none it says only Not now
+        if (ndK && !words) push('needsText', 'The words for the grayed button are empty, so a refused press says only Not now. Give the button its words.');
+        // the words, Hidden until it can be used and The GM may press past it are kept only beside needs (the two ticks beside a reason too)
+        if (!ndRaw && words) push('needs', 'It is empty, so Save drops the words for the grayed button. Write what it needs, or clear those words.');
+        if (!ndRaw && !whyK && r.hideOff === true) push('needs', 'It is empty and there is no reason below, so Save drops Hidden until it can be used.');
+        if (!ndRaw && !whyK && r.needsGm === true) push('needs', 'It is empty and there is no reason below, so Save drops The GM may press past it.');
+        // a crossing's Then every counts only with Steps, a whole number from 2 to 20 (the cleaner drops any other, and only the first step runs)
+        var xc = r.cross && typeof r.cross === 'object' ? r.cross : null, xn = xc ? xc.count : undefined;
+        if (xc && typeof xc.step === 'string' && xc.step.trim() && !(typeof xn === 'number' && Math.floor(xn) === xn && xn >= 2 && xn <= 20)) push('cross.count', 'Steps needs a whole number from 2 to 20, or only the first step runs.');
+    });
     if (typeof callDrops === 'function') {   // 1.6.0: a call's Read on the one who resisted that Save cannot keep, as the cleaner reads it (the validator says the rest)
         (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { callDrops(r).forEach(function(m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'byIf', message: m }); }); });
         if (typeof crewDrops === 'function') (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) { crewDrops(r).forEach(function(m) { (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'calls', message: m }); }); });   // 1.6.2 (fold (f))
@@ -495,6 +531,11 @@ function refreshErrors() {
             else if (has(tk) && cr[dk] && !cr[tk]) push(dk, 'Its type is no formula Save can keep, so Save drops it.');
             if (has(ak) && cr[dk] && !cr[ak]) push(ak, 'This is no formula Save can keep, so Save drops it.');
         });
+        // 1.6.3 (Fulllion's rulings of 2026-11-20: a box others depend on is required): a part kept with no type is read by the Take damage window as
+        // the first type the Combat tab names, with no word of it, so where types are named its type is asked for under the part. The cleaner keeps it.
+        // draft is asked through typeof, since a suite runs this helper alone
+        var tyN = !!(typeof draft !== 'undefined' && draft && draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) && draft.combat.damage.types.length);
+        if (tyN) [2, 3, 4, 5].forEach(function(k) { if (has('dmg' + k) && cr['dmg' + k] && !has('dtype' + k)) push('dmg' + k, 'It has no type, so the Take damage window gives it the first type in the list. Pick its type.'); });
     };
     var arSays = function(r, cr, push) {   // 1.6.0: a line Save cannot keep, as the cleaner reads it
         if (!r || typeof r !== 'object' || !r.area) return;

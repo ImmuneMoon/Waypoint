@@ -303,7 +303,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
         }
         orow.appendChild(input('sys-list-swshow field', typeof sw.showIf === 'string' ? sw.showIf : '', 'Shown only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Elsewhere the row has no switch', 'Shown where (optional)'));   // 1.6.0
         orow.appendChild(input('sys-list-swneeds field', typeof sw.needs === 'string' ? sw.needs : '', 'A formula that must be true before a row is switched on, such as Row.Charge > 0. Row names are read. No dice. A player is refused while it does not hold. You may still switch it on, and are told', 'Needs to switch on'));   // 1.5.8
-        orow.appendChild(input('sys-list-swwords field', typeof sw.needsText === 'string' ? sw.needsText : '', 'What a refused switch says (blank: Not now: it needs and the formula)', 'Its words'));
+        orow.appendChild(input('sys-list-swwords field', typeof sw.needsText === 'string' ? sw.needsText : '', 'What a refused switch says. Blank: Not now.', 'Its words'));
     }
     card.appendChild(orow);
     if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);   // 1.6.0 (CORE gap 13) (a suite's slice of the card holds no box)
@@ -606,7 +606,7 @@ function listNamesText(key, sp, isParts) {
 }
 function lookShadesOf(text) { var out = []; String(text || '').split(/\r?\n/).forEach(function(ln) { var i = ln.lastIndexOf('='); if (i < 1) return; var v = ln.slice(0, i).trim(), c = ln.slice(i + 1).trim().toLowerCase(); if (v && /^#[0-9a-f]{6}$/.test(c)) out.push({ v: v.slice(0, 60), c: c }); }); return out.slice(0, ROW_LOOK.shades); }   // 1.6.0, backlog 206: the Lists card's Shades box
 // 1.6.0 Its crew may press this sheet's rolls: which stations may press a roll, shown where a Crew link lets its crew press and names stations
-function needsGmBox(r) { var l = checkLabel('sys-needsgmtick', r.needsGm === true, 'The GM may press past it', 'What it needs holds players back and not the GM, as a limit the GM can overrule'), cb = l.firstChild; cb.addEventListener('change', function(e) { e.stopPropagation(); if (cb.checked) r.needsGm = true; else delete r.needsGm; markDirty(); patchErrors(); }); return l; }
+function needsGmBox(r) { var l = checkLabel('sys-needsgmtick', r.needsGm === true, 'The GM may press past it', 'What it needs holds players back and not the GM, as a limit the GM can overrule. Only beside needs or a reason'), cb = l.firstChild; cb.addEventListener('change', function(e) { e.stopPropagation(); if (cb.checked) r.needsGm = true; else delete r.needsGm; markDirty(); patchErrors(); }); return l; }
 function rollStationBox(r) {
     var has = (draft && Array.isArray(draft.links) ? draft.links : []).some(function(k) { return k && k.kind === 'crew' && k.press === true && Array.isArray(k.stations) && k.stations.length; }); if (!has) return null;
     var l = el('label', 'sys-check'), i = input('sys-crewstn field', Array.isArray(r.stations) ? r.stations.join(', ') : '', 'Which stations of a Crew link may press this roll, separated by commas. Empty: any crew member', 'Any station');

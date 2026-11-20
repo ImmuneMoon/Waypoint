@@ -314,7 +314,7 @@ const kids = n => n.childNodes.slice();
     E.errGo('i'); E.errGo('damage'); E.errGo('nothing');
     check('going there opens the tab and the row or topic, and draws it once', J(Ug.calls) === J([['pick', 'items', 'i'], ['topic', 'combat', 'damage']]) && E.tabNow() === 'combat' && E.drew() === 2 && E.errSay({ prop: 'turn.move', message: 'Bad' }) === 'Move per turn: Bad');
     const mapped = src.slice(src.indexOf('var GROUPS = {'), src.indexOf('var VALUE_TITLE')) + src.slice(src.indexOf('var PROP_BOX = ['), src.indexOf('// The box a word names'));
-    const missing = (mapped.match(/'sys-[a-z0-9-]+'/g) || []).map(s => s.slice(1, -1)).filter(c => !sh.includes(c) && !/^sys-roll-p[345]f$/.test(c));
+    const missing = (mapped.match(/'sys-[a-z0-9-]+'/g) || []).map(s => s.slice(1, -1)).filter(c => !sh.includes(c) && !/^sys-roll-p[345][ft]$/.test(c));   // moved on purpose (the review of rolls): a part's Type box, sys-roll-p3t to p5t, is made as 'sys-roll-p' + k + 't', as its formula box is
     check('every class the groups and the map of boxes name is one the editor really has', missing.length === 0, J(missing));
 
     /* ---------- the notes that fold ---------- */

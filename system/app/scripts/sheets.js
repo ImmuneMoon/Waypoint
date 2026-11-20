@@ -5980,6 +5980,9 @@ function cardBox(get, put, hold, whose) {
         return out.join(' ');
     };
     var noteAll = function() { notes.forEach(function(n) { n(); }); };
+    // 1.6.3 (the review of rolls): a note that names the bands goes stale while a band's name or test is typed, since the band box beside this one draws
+    // nothing again. The box keeps its notes on its own element, and the band box asks every box of this kind on the page to say its notes again
+    box._wpCardNotes = noteAll;
     var ch = function(redraw) { markDirty(); if (redraw) draw(); if (typeof patchErrors === 'function') patchErrors(); };
     var pays = function() { return (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return r && Array.isArray(r.apply); }); };
     var draw = function() {

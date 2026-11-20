@@ -533,9 +533,10 @@ function refreshErrors() {
         });
         // 1.6.3 (Fulllion's rulings of 2026-11-20: a box others depend on is required): a part kept with no type is read by the Take damage window as
         // the first type the Combat tab names, with no word of it, so where types are named its type is asked for under the part. The cleaner keeps it.
-        // draft is asked through typeof, since a suite runs this helper alone
+        // draft is asked through typeof, since a suite runs this helper alone. 1.6.3 (the review of rolls): said under the part's own Type box (dtype2 to
+        // dtype5, sysui.js PROP_BOX), the box that is required, not under its formula
         var tyN = !!(typeof draft !== 'undefined' && draft && draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) && draft.combat.damage.types.length);
-        if (tyN) [2, 3, 4, 5].forEach(function(k) { if (has('dmg' + k) && cr['dmg' + k] && !has('dtype' + k)) push('dmg' + k, 'It has no type, so the Take damage window gives it the first type in the list. Pick its type.'); });
+        if (tyN) [2, 3, 4, 5].forEach(function(k) { if (has('dmg' + k) && cr['dmg' + k] && !has('dtype' + k)) push('dtype' + k, 'It has no type, so the Take damage window gives it the first type in the list. Pick its type.'); });
     };
     var arSays = function(r, cr, push) {   // 1.6.0: a line Save cannot keep, as the cleaner reads it
         if (!r || typeof r !== 'object' || !r.area) return;
@@ -613,7 +614,9 @@ function refreshErrors() {
         }); });
     });
     (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(function(r) {   // 1.6.2 (found building a system by hand): a roll you named but left with nothing to roll is said, since Save leaves it out; one nobody has typed in says nothing
-        if (!r || typeof r !== 'object' || Array.isArray(r.apply) || typeof r.label !== 'string' || !r.label.trim() || (typeof r.formula === 'string' && r.formula.trim())) return;
+        // 1.6.3 (the review of rolls): + Roll starts named New roll, so a roll that still wears that very starting name and has nothing to roll is one
+        // nobody has typed in yet, and says nothing until its name or its formula is written
+        if (!r || typeof r !== 'object' || Array.isArray(r.apply) || typeof r.label !== 'string' || !r.label.trim() || r.label === 'New roll' || (typeof r.formula === 'string' && r.formula.trim())) return;
         (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'formula', message: 'It has nothing to roll yet, so Save leaves it out.' });
     });
     var whyRe = function(e) { var m = e && typeof e.prop === 'string' ? /^needsWhy\.(\d+)$/.exec(e.prop) : null, rr = m && typeof whyDraftAt === 'function' ? (draft.rolls || []).filter(function(x) { return x && x.id === e.id; })[0] : null; if (rr) e.prop = 'needsWhy.' + whyDraftAt(rr, +m[1]); };   // 1.6.2: a reason the validator read in the cleaned roll, named by its line in the draft

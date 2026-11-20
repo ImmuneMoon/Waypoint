@@ -203,13 +203,17 @@ function bandBox(get, put, own, redraw) {
     // 1.6.3 (Fulllion's rulings of 2026-11-20: a band's name and its test each need the other): each row's note says what Save does with it, read by the
     // band cleaner over the rows up to it, so a name another band already holds is said too. Every note follows any name typed, since a later row may then clash
     var notes = [], noteAll = function() { notes.forEach(function(n) { n(); }); };
+    // 1.6.3 (the review of rolls): what the card offers, drawn beside this box, says whether a roll has two bands to take a result up through. Typing
+    // a band's name or test draws nothing again, so each edit asks every such box on the page (sys-cardacts, which keeps its notes on its element) to say
+    // them again. document is asked through typeof, since a suite runs this box on a page of plain objects
+    var cardsMoved = function() { if (typeof document === 'undefined' || !document || typeof document.querySelectorAll !== 'function') return; Array.prototype.forEach.call(document.querySelectorAll('.sys-cardacts'), function(c) { if (c && typeof c._wpCardNotes === 'function') c._wpCardNotes(); }); };
     var bandSays = function(i) { var k = function(l) { var v = typeof cleanBands === 'function' ? cleanBands(l) : null; return Array.isArray(v) ? v.length : -1; }, upTo = k(rows.slice(0, i + 1)), before = k(rows.slice(0, i)); if (upTo < 0 || upTo > before) return ''; return k([rows[i]]) > 0 ? 'Save leaves this band out: another band already has this name.' : 'Save leaves this band out until it has a name and a test.'; };
     rows.forEach(function(b, i) {
         var row = el('div', 'sys-flags sys-band-row'), n = input('sys-band-name field', b && typeof b.name === 'string' ? b.name : '', 'What the card calls a roll in this band', 'Name'), f = input('sys-band-if field', b && typeof b.if === 'string' ? b.if : '', 'A formula with no dice that holds for this band. It reads RollTotal, Natural, RollMargin, RollCrit and RollBig beside the roller\u2019s names', 'Such as RollTotal >= 10'), x = el('button', 'tool ghost sys-btn sys-band-rm', '\u00d7');
         n.maxLength = 30; f.maxLength = LIMITS.formula; x.type = 'button'; x.title = 'Take this band away';
         var nt = el('div', 'sys-ask-note sys-band-note'), note = function() { nt.textContent = bandSays(i); }; notes.push(note);
-        n.addEventListener('input', function() { rows[i].name = n.value; markDirty(); patchErrors(); noteAll(); });
-        f.addEventListener('input', function() { rows[i].if = f.value; markDirty(); patchErrors(); note(); });
+        n.addEventListener('input', function() { rows[i].name = n.value; markDirty(); patchErrors(); noteAll(); cardsMoved(); });
+        f.addEventListener('input', function() { rows[i].if = f.value; markDirty(); patchErrors(); note(); cardsMoved(); });
         x.addEventListener('click', function() { rows.splice(i, 1); if (!rows.length) put(null); markDirty(); redraw(); });
         row.appendChild(n); row.appendChild(f); row.appendChild(x); box.appendChild(row); box.appendChild(nt); note();
     });

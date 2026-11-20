@@ -15,7 +15,7 @@ var TOPICS = {
     layout: [['sections', 'Sections', 'The sheet\u2019s sections, and what stands in each.'], ['tabs', 'Tabs', 'A tab strip that groups the sections.'], ['look', 'Sheet look', 'The font, colors, titles and labels of the whole sheet.'], ['header', 'Header', 'What stands under the name.'], ['band', 'Pinned band', 'Figures and rolls kept in view on every tab.']]
 };
 // Which topic a word of the editor's error boxes stands in
-var ERR_TOPIC = { bodies: ['combat', 'bodies'], combat: ['combat', 'turns'], initiative: ['combat', 'initiative'], checks: ['combat', 'outcomes'], damage: ['combat', 'damage'], coverhit: ['combat', 'cover'], blastdefend: ['combat', 'blasts'], range: ['combat', 'range'], height: ['combat', 'height'], light: ['combat', 'light'], senses: ['combat', 'senses'], postures: ['combat', 'postures'], holds: ['combat', 'holds'], budgets: ['rules', 'budgets'], env: ['rules', 'env'], links: ['rules', 'links'], tables: ['rules', 'tables'] };
+var ERR_TOPIC = { bodies: ['combat', 'bodies'], combat: ['combat', 'turns'], initiative: ['combat', 'initiative'], checks: ['combat', 'outcomes'], damage: ['combat', 'damage'], coverhit: ['combat', 'cover'], blastdefend: ['combat', 'blasts'], range: ['combat', 'range'], height: ['combat', 'height'], light: ['combat', 'light'], senses: ['combat', 'senses'], postures: ['combat', 'postures'], holds: ['combat', 'holds'], budgets: ['rules', 'budgets'], env: ['rules', 'env'], links: ['rules', 'links'], tables: ['rules', 'tables'], results: ['rules', 'results'], values: ['rules', 'values'], tags: ['rules', 'tags'], money: ['rules', 'money'], charcats: ['rules', 'cats'] };   // 1.6.3 (lane B batch "rules"): the Rules tab's names and result tables
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 function topicIn(set, id) { var l = own(TOPICS, set) ? TOPICS[set] : []; for (var i = 0; i < l.length; i++) if (l[i][0] === id) return true; return false; }
 // The topics in view, as this computer kept them: only a topic of its set
@@ -357,7 +357,23 @@ var PROP_BOX = [[/^loot$/, ['sys-loot-if']], [/^(?:apply|then)\.(\d+)$/, ['sys-a
     [/^list\.tile(if|taken)$/, ['sys-tboxes']], [/^list\.colshow$/, ['sys-list-colshow']], [/^list\.throwif$/, ['sys-list-throwif']], [/^list\.tradeif$/, ['sys-trade-if']], [/^list\.tilestate$/, ['sys-tstates']], [/^list\.sthen$/, ['sys-sthen']], [/^list\.standfits$/, ['sys-list-standfits']], [/^list\.standreach$/, ['sys-list-standreach']], [/^list\.standcounts$/, ['sys-list-standcounts']], [/^list\.modsif$/, ['sys-list-modsif']], [/^list\.fitif$/, ['sys-list-partsfitif']], [/^list\.capf$/, ['sys-pcaps']], [/^list\.subjectif$/, ['sys-list-sjif']], [/^list\.upamt$/, ['sys-list-upamt']], [/^list\.onneeds$/, ['sys-list-swneeds']], [/^list\.onshow$/, ['sys-list-swshow']], [/^list\.chneeds$/, ['sys-list-chamberneeds']], [/^list\.feedturns/, ['sys-list-feedturns']], [/^list\.feedif/, ['sys-list-feedif']], [/^list\.unheld$/, ['sys-list-unheldlvl']],
     // 1.6.3 (Fulllion's rulings of 2026-11-20): the Items tab's required boxes, and an effect's When it ends by its line
     [/^ft$/, ['sys-item-ft']], [/^frag$/, ['sys-item-afrag']], [/^aff$/, ['sys-item-affs']], [/^flies$/, ['sys-fly-speed', 'sys-fly-rounds']], [/^end\.(\d+)$/, ['sys-apply-target']], [/^rmMsg$/, ['sys-item-rmtext']], [/^eqMsg$/, ['sys-item-eqtext']], [/^loc$/, ['sys-item-aloc']], [/^trig$/, ['sys-item-atrig']], [/^flyRounds$/, ['sys-fly-rounds']], [/^atype$/, ['sys-item-atype']],
-    [/^turn\.move$/, ['sys-turn-mvf']], [/^turn\.run$/, ['sys-turn-runf']], [/^turn\.face$/, ['sys-turn-facef']], [/^turn\.holdLost$/, ['sys-turn-lostf']], [/^has$/, ['sys-bud-has']], [/^spent$/, ['sys-bud-spent']]];
+    [/^turn\.move$/, ['sys-turn-mvf']], [/^turn\.run$/, ['sys-turn-runf']], [/^turn\.face$/, ['sys-turn-facef']], [/^turn\.holdLost$/, ['sys-turn-lostf']], [/^has$/, ['sys-bud-has']], [/^spent$/, ['sys-bud-spent']],
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): a box of the Lists tab that another box depends on, said empty under the list's card, lands on its own box. A
+    // number is the place among the list's rolls, rules, feeds, badges or lines, and each of those draws its one box of the class named, in that order
+    [/^list\.swwords$/, ['sys-list-swwords']], [/^list\.swicon$/, ['sys-swicon']], [/^list\.loadwords$/, ['sys-list-loadneedstext']], [/^list\.chamberwords$/, ['sys-list-chamberneedstext']], [/^list\.needstext\.(\d+)$/, ['sys-list-needstext']], [/^list\.hideoff\.(\d+)$/, ['sys-list-hideoff']],
+    [/^list\.layrcats\.(\d+)$/, ['sys-list-layrcats']], [/^list\.standoff$/, ['sys-list-standoff']], [/^list\.loadmatch$/, ['sys-list-loadby']], [/^list\.chambermatch$/, ['sys-list-chamberby']], [/^list\.feedmatch\.(\d+)$/, ['sys-list-feedby']], [/^list\.badgewords\.(\d+)$/, ['sys-badge-words']], [/^list\.badge\.(\d+)$/, ['sys-badge-if']],
+    // 1.6.3 (lane B, the Combat tab): a box of the Combat tab that another depends on, said empty under its topic, lands on its own box. Initiative's shapes
+    // and its order, the size a body in the way reads, and a posture's cover or what cover takes off an attack while Cover from blockers is off
+    [/^init\.ckcost$/, ['sys-init-ckcost']], [/^init\.sevminus$/, ['sys-init-sevminus']], [/^init\.sevtable$/, ['sys-init-sevtable', 'sys-init-sevby']], [/^init\.sevstat$/, ['sys-init-sevstat', 'sys-init-sevby']], [/^init\.side$/, ['sys-init-side']], [/^init\.deck$/, ['sys-init-deck', 'sys-init-shape']], [/^init\.byroll$/, ['sys-init-byroll', 'sys-init-by']], [/^init\.byfig$/, ['sys-init-byfig', 'sys-init-by']],
+    // 1.6.3 (lane B batch "damage"): the pool damage comes off, a damage type's and a kind's Name by their place, the Major Wound row's effect, Vital where,
+    // and A wound of 0. A line under the box finds a box inside it, so the pool's lands on Wounds come off, the pick it names beside Damage subtracts from
+    [/^damage\.pool$/, ['sys-dmgr-pool', 'sys-combat-hp']], [/^dmgr\.ylabel\.(\d+)$/, ['sys-dmgr-ylabel']], [/^dmgr\.klabel\.(\d+)$/, ['sys-dmgr-klabel']], [/^dmgr\.mjfx\.(\d+)$/, ['sys-dmgr-mjfx']], [/^dmgr\.locvital$/, ['sys-dmgr-locvital', 'sys-dmgr-loclist']], [/^dmgr\.zero$/, ['sys-dmgr-zero', 'sys-dmgr-woundf']],
+    // 1.6.3 (lane B batch "rules"): a name a box of the Rules or Layout tab needs, by its place: a result table's name and its dice, a shared value's, a
+    // mark's, a currency's and a sheet category's name, a tab's label and a band group's name. The line stands under each box, so a press finds it there
+    [/^results\.label\.(\d+)$/, ['sys-res-label']], [/^results\.dice\.(\d+)$/, ['sys-res-dice']], [/^results\.rows\.(\d+)$/, ['sys-res-label']], [/^values\.label\.(\d+)$/, ['sys-val-label']], [/^tags\.label\.(\d+)$/, ['sys-tag-label']], [/^money\.label\.(\d+)$/, ['sys-cur-label']], [/^charcats\.label\.(\d+)$/, ['sys-cc-label']],
+    [/^tab\.label\.(\d+)$/, ['sys-tab-label']], [/^group\.label\.(\d+)$/, ['sys-bgrp-label']],
+    [/^range\.size$/, ['sys-range-size']], [/^posture\.cover$/, ['sys-posture-cover']], [/^posture\.covmod$/, ['sys-combat-covmod', 'sys-combat-postatk']],
+    [/^list\.fitwords$/, ['sys-list-partsfitwords']], [/^list\.pfitwords\.(\d+)$/, ['sys-pfit-says']], [/^list\.pfit\.(\d+)$/, ['sys-pfit-if']], [/^list\.pcap\.(\d+)$/, ['sys-pcap-row']], [/^list\.uppool$/, ['sys-list-uppool']], [/^list\.lkshades$/, ['sys-list-lkshades', 'sys-list-lkby']], [/^list\.trade$/, ['sys-traderules']]];
 // The box a word names in what holds it, the nth of its class where the word says which. Found by comparing, so nothing of a system file reaches a selector
 function formToo(b) { if (b && b.hidden && window.wpFormBox && typeof window.wpFormBox.openFor === 'function') window.wpFormBox.openFor(b); return b; }
 function boxIn(scope, prop) {
@@ -382,6 +398,31 @@ function boxIn(scope, prop) {
             return ml.querySelector('.sys-fx-target') || ml.querySelector('.sys-item-mtarget') || ml;
         }
         return null;
+    }
+    // 1.6.3 (lane B, the Combat tab): a band's Noticed by, Sneaking where and its sneak roll stand only in a band of side vision, so the nth box of the class is
+    // not the nth sense. The box in the notice row whose data-si is the sense's place, else that row. Fixed class names alone: the place is compared
+    var snN = /^sense\.(\d+)\.(nkcheck|nksneak|nkroll)$/.exec(prop);
+    if (snN) { var nrs = scope.querySelectorAll('.sys-sense-nrow'); for (var nq = 0; nq < nrs.length; nq++) if (nrs[nq].dataset && nrs[nq].dataset.si === snN[1]) return nrs[nq].querySelector('.sys-sense-' + snN[2]) || nrs[nq]; }
+    // 1.6.3 (the review of the Lists tab's fix, 2026-11-20): a list roll's Damage type, Kind, Rolls by and its figure are drawn on only some rolls, so
+    // the nth box of the class is not the nth roll. The box whose data-ri is the roll's place, else that roll's needs row, which every roll draws
+    var lr = /^list\.(dtype|dkind|rolltest|rollof)\.(\d+)$/.exec(prop);
+    if (lr) {
+        var lrCls = { dtype: ['sys-list-rolldtype'], dkind: ['sys-list-rolldkind'], rolltest: ['sys-list-rolltest'], rollof: ['sys-list-rollof', 'sys-list-rolltest'] }[lr[1]].concat(['sys-list-needsrow']);
+        for (var lc = 0; lc < lrCls.length; lc++) { var lrB = scope.querySelectorAll('.' + lrCls[lc]); for (var lk = 0; lk < lrB.length; lk++) if (lrB[lk].dataset && lrB[lk].dataset.ri === lr[2]) return lrB[lk]; }
+    }
+    // 1.6.3 (lane B batch "rules"): a fault of a linked sheet names its link by its place and, for Who may sit at, its station. The box in the link's own
+    // row (its data-ki), the fit box whose data-st is that station; else the row. Fixed class names alone: the place and the station are compared
+    var lkP = /^link\.(\d+)\.(stations|most|pressnamed|fit)(?:\.(.+))?$/.exec(prop);
+    if (lkP) {
+        var lkR = scope.querySelectorAll('.sys-link-row'), lkRow = null; for (var lq = 0; lq < lkR.length && !lkRow; lq++) if (lkR[lq].dataset && lkR[lq].dataset.ki === lkP[1]) lkRow = lkR[lq];
+        if (lkRow) { var lkB = lkRow.querySelectorAll('.sys-link-' + lkP[2]); for (var lb = 0; lb < lkB.length; lb++) if (lkP[3] === undefined || (lkB[lb].dataset && lkB[lb].dataset.st === lkP[3])) return lkB[lb]; return lkRow; }
+    }
+    // 1.6.3 (lane B batch "rules"): a fault of a row of a result table names the table and the row by their places, since the nth box of a class is not the
+    // nth row of a table. The table's block, then its row, then the box. Fixed class names alone
+    var rsP = /^results\.(\d+)\.(\d+)\.(lo|hi|addstat)$/.exec(prop);
+    if (rsP) {
+        var rsB = scope.querySelectorAll('.sys-tbl')[+rsP[1]], rsR = rsB ? rsB.querySelectorAll('.sys-res-row')[+rsP[2]] : null, rsX = rsR ? rsR.querySelector('.sys-res-' + rsP[3]) : null;
+        if (rsX) return rsX; if (rsR) return rsR; if (rsB) return rsB;
     }
     for (var i = 0; i < PROP_BOX.length; i++) {
         var m = PROP_BOX[i][0].exec(prop); if (!m) continue;

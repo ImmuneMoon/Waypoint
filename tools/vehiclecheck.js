@@ -245,8 +245,10 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             { id: 'f_gh', key: 'Gh', label: 'Gh', kind: 'formula', formula: 'Arc.Ghost' }],
             items: [{ id: 'i_las', key: 'Laser', name: 'Laser', category: '', stats: { Mount: 'Front' } }, { id: 'i_tur', key: 'Turret', name: 'Turret gun', category: '', stats: { Mount: 'Turret' } }, { id: 'i_rr', key: 'Tail', name: 'Tail gun', category: '', stats: { Mount: 'Rear' } }, { id: 'i_bow', key: 'BowGun', name: 'Bow gun', category: '', stats: { Mount: 'Bow' } }, { id: 'i_lft', key: 'Port', name: 'Port gun', category: '', stats: { Mount: 'Left' } }, { id: 'i_none', key: 'Loose', name: 'Loose', category: '' }] };
         const AS = S.cleanSystem(ARAW, { F, gmView: true }), AV = S.cleanSystem(ARAW, { F, gmView: false }), gl = s => s.fields.find(f => f.id === 'f_gun').list;
-        const wantArcs = [{ key: 'Front', label: 'Front', f: -60, t: 60 }, { key: 'Right', label: 'Right', f: 30, t: 150 }, { key: 'Rear', label: 'Rear', f: 120, t: -120 }, { key: 'Turret', label: 'Turret', all: true }, { key: 'Bow', label: 'Bow guns', f: -30, t: 30 }, { key: 'Wide', label: 'Wide', f: -81, t: 179 }];
-        check('the system names its own arcs, each a name and whole degrees or all round, a short name made from its name where none is given, the same in both views; one with no name, no To, a short name taken or one that cannot begin with a letter goes',
+        // 1.6.3 (lane B; Fulllion's rulings of 2026-11-20), this pin moved on purpose: an arc whose name cannot begin a short name ('9 lives') is no longer
+        // dropped. It is kept under a short name made for it, Arc and the first free number, as a kind of terrain is
+        const wantArcs = [{ key: 'Front', label: 'Front', f: -60, t: 60 }, { key: 'Right', label: 'Right', f: 30, t: 150 }, { key: 'Rear', label: 'Rear', f: 120, t: -120 }, { key: 'Turret', label: 'Turret', all: true }, { key: 'Bow', label: 'Bow guns', f: -30, t: 30 }, { key: 'Arc', label: '9 lives', f: 0, t: 9 }, { key: 'Wide', label: 'Wide', f: -81, t: 179 }];
+        check('the system names its own arcs, each a name and whole degrees or all round, a short name made from its name where none is given (Arc and a number where its name cannot begin one), the same in both views; one with no name, no To or a short name taken goes',
             J(AS.combat.arcs) === J(wantArcs) && J(AV.combat.arcs) === J(wantArcs) && !('arcs' in S.cleanSystem({ v: 1, name: 'B', fields: [] }, { F, gmView: true }).combat) && S.cleanArcs([]) === null && S.cleanArcs('x') === null
             && S.cleanArcs(Array.from({ length: 50 }, (_, i) => ({ label: 'A' + i, all: true }))).length === S.ARC_MAX && S.arcKey('bow guns') === 'bowGuns' && S.arcKey('9 lives') === '', J([AS.combat.arcs]));
         check('an arc is found by its short name, else by its name, either ignoring case', S.arcNamed(AS.combat.arcs, 'bow').label === 'Bow guns' && S.arcNamed(AS.combat.arcs, 'BOW GUNS').key === 'Bow' && S.arcNamed(AS.combat.arcs, 'Nose') === null && S.arcNamed(null, 'Front') === null);
@@ -696,6 +698,91 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('166 a wired (pinned): the map kind\u2019s tick and the travel modes box beside the map kinds, its rows a name, a speed, a unit, a time and a sheet\u2019s own number; the ruler draws each line as text under the others; Help says it',
             require('./checkkit').part('sysedrules.js').includes("tc = el('input', 'sys-mk-travel')") && require('./checkkit').part('sysedcombat.js').includes("mapKindsBox(box); if (typeof travelBox === 'function') travelBox(box);") && ['sys-tv-label', 'sys-tv-n', 'sys-tv-u', 'sys-tv-t', 'sys-tv-f', 'sys-tv-rm', 'sys-tv-add'].every(c => shT.includes("'" + c) || shT.includes(' ' + c + "'"))
             && wbT.includes("rulerTravel(amR, m, all).forEach(function(s, k) { html += '<text x=\"' + (mx + 8) + '\" y=\"' + (tvY + k * 19) + '\">' + esc(s) + '</text>'; });") && ixT.includes('<b>Ruler shows travel time</b>') && ixT.includes('<b>Travel modes</b>'));
+    }
+    /* ---- 1.6.3 (lane B, the Combat tab; Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them", and
+       "none isn't a good default substitution"): a new row of the Combat tab's arcs, darkness steps, scene channels, map kinds, factors and travel modes starts
+       filled, so Save keeps it; a row Save would drop says why under it; and a name that makes no short name of its own gets one, in the editor and in the
+       cleaner, so no named row is dropped for its letters. The boxes run on a page of plain objects ---- */
+    {
+        const rlS = require('./checkkit').part('sysedrules.js'), sl = (a, b) => { const i = rlS.indexOf(a), k = rlS.indexOf(b, i + 1); return i >= 0 && k > i ? rlS.slice(i, k) : ''; };
+        const boxPart = 'sysedrules.js', boxSrc = sl('function arcsBox(box, cm) {', '// 1.6.2 (backlog 57): Save settles') + NL + sl('function darkBox(box) {', '// [vehiclecheck:mapstart-start]') + NL + sl('function mapKindsBox(box) {', '// [vehiclecheck:travelbox-end]');
+        const page = () => {
+            const made = [], mk = (tag, cls, txt) => { const L = {}; const n = { tag, className: cls || '', children: [], textContent: txt || '', value: '', type: '', disabled: false, title: '', checked: false, listeners: L, dataset: {}, style: {}, appendChild(c) { this.children.push(c); return c; }, addEventListener(t, f) { L[t] = f; }, querySelector(s) { const c = s.replace(/^\./, ''); const w = x => (x.children || []).reduce((r, k) => r || ((k.tag === c || String(k.className).split(' ').includes(c)) ? k : w(k)), null); return w(this); } }; made.push(n); return n; };
+            const input = (cls, v, title, ph) => { const n = mk('input', cls); n.value = v; n.title = title; n.placeholder = ph; return n; };
+            const select = (cls, opts, v, title) => { const n = mk('select', cls); n.options = opts; n.value = v; n.title = title; return n; };
+            const checkLabel = (cls, on, text, title) => { const l = mk('label', 'sys-check'), c = mk('input', cls); c.type = 'checkbox'; c.checked = on; l.appendChild(c); l.title = title; return l; };
+            return { made, mk, input, select, checkLabel, of: c => made.filter(n => String(n.className).split(' ').includes(c)) };
+        };
+        const run = (draft, fn, cm) => { const P = page(), box = P.mk('div', 'box'); let redrawn = 0; const api = new Function('draft', 'el', 'input', 'select', 'checkLabel', 'markDirty', 'renderCombat', 'patchErrors', 'LIMITS', 'MAPKIND_UNITS', 'fieldWord', 'window', 'document', 'setTimeout', '"use strict";' + boxSrc + '\nreturn { arcsBox, darkBox, scenesBox, mapKindsBox, travelBox, rowKeyFor, travelKindSays };')
+            (draft, P.mk, P.input, P.select, P.checkLabel, () => 0, () => redrawn++, () => 0, S.LIMITS, [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['km', 'kilometers'], ['mi', 'miles']], f => f.label, { wpSystemCore: S }, { createTextNode: t => ({ text: t }), querySelectorAll: () => [] }, () => 0);
+            api[fn](box, cm); return { P, api, box, redraws: () => redrawn }; };
+        // arcs
+        const cmA = {}, a1 = run({}, 'arcsBox', cmA); a1.P.of('sys-arc-add')[0].listeners.click();
+        const a2 = run({}, 'arcsBox', cmA), aSay0 = a2.P.of('sys-arc-says')[0].textContent, aNm = a2.P.of('sys-arc-label')[0];
+        aNm.value = ''; aNm.listeners.input(); const aSay1 = a2.P.of('sys-arc-says')[0].textContent; aNm.value = '9 lives'; aNm.listeners.input(); const aKey9 = cmA.arcs[0].key;
+        const aF = a2.P.of('sys-arc-f')[0]; aF.value = ''; aF.listeners.input(); const aSay2 = a2.P.of('sys-arc-says')[0].textContent;
+        check('1.6.3 + Arc starts a row named New arc, ahead from -60 to 60, which Save keeps; emptied, its name says Save drops it; a From emptied with All round unticked says From and To are needed; a name that makes no short name gets Arc',
+            J(cmA.arcs[0]) === J({ label: '9 lives', f: undefined, t: 60, _new: true, key: 'Arc' }) && aSay0 === '' && aSay1 === 'Needs a name, or Save drops it.' && aKey9 === 'Arc' && aSay2 === 'From and To are needed, or tick All round, or Save drops it.'
+            && J(S.cleanArcs([{ label: 'New arc', f: -60, t: 60, _new: true, key: 'NewArc' }])) === J([{ key: 'NewArc', label: 'New arc', f: -60, t: 60 }]), J([cmA.arcs, aSay0, aSay1, aSay2]));
+        // darkness steps and scene channels
+        const dD = {}, d1 = run(dD, 'darkBox'); d1.P.of('sys-dark-add')[0].listeners.click(); const d2 = run(dD, 'darkBox'), dNm = d2.P.of('sys-dark-label')[0], dSay0 = d2.P.of('sys-dark-says')[0].textContent, dKept = J(S.cleanDarkSteps(dD.dark)); dNm.value = ''; dNm.listeners.input(); const dSay1 = d2.P.of('sys-dark-says')[0].textContent;
+        const dS = {}, s1 = run(dS, 'scenesBox'); s1.P.of('sys-scene-add')[0].listeners.click(); const s2 = run(dS, 'scenesBox'), sNm = s2.P.of('sys-scene-label')[0]; sNm.value = ''; sNm.listeners.input();
+        const rk = d1.api.rowKeyFor, longN = 'A very long name that goes on and on', twin = [{ key: 'AVeryLongNameThatGoesOnA' }];
+        check('1.6.3 + Step and + Channel start a row named New step and New channel, which Save keeps; emptied, each says Save drops it (a step that every step after it moves up); a short name is always one the cleaner keeps: cut to 24, the word for one with no letters to make it from, numbered where it is taken',
+            dKept === J([{ key: 'NewStep', label: 'New step', pen: 0 }]) && dSay0 === '' && dSay1 === 'Needs a name, or Save drops it, and every step after it moves up one place.' && s2.P.of('sys-scene-says')[0].textContent === 'Needs a name, or Save drops it.'
+            && J(S.cleanSystem({ v: 1, name: 'S', fields: [], scenes: [{ label: 'New channel', key: 'NewChannel' }] }, { F, gmView: true }).scenes) === J([{ key: 'NewChannel', label: 'New channel' }])
+            && rk([], {}, longN, 'Step') === 'AVeryLongNameThatGoesOnA' && rk(twin, {}, longN, 'Step') === 'AVeryLongNameThatGoesO2' && rk([], {}, '\u0645\u062d\u0631\u0627\u0628', 'Step') === 'Step' && rk([{ key: 'Step' }], {}, '7', 'Step') === 'Step2' && rk([], {}, '  ', 'Step') === '', J([dD.dark, dSay1]));
+        // map kinds and their factors
+        const dK = {}, k1 = run(dK, 'mapKindsBox'); k1.P.of('sys-mk-add')[0].listeners.click(); const k2 = run(dK, 'mapKindsBox'); k2.P.of('sys-mk-fadd')[0].listeners.click(); const k3 = run(dK, 'mapKindsBox');
+        const kSay0 = k3.P.of('sys-mk-says')[0].textContent, fSay0 = k3.P.of('sys-mk-fsays')[0].textContent, fV = k3.P.of('sys-mk-fv')[0]; fV.value = ''; fV.listeners.input(); const fSay1 = k3.P.of('sys-mk-fsays')[0].textContent;
+        const fN = k3.P.of('sys-mk-flabel')[0]; fN.value = ''; fN.listeners.input(); const fSay2 = k3.P.of('sys-mk-fsays')[0].textContent; const kN = k3.P.of('sys-mk-label')[0]; kN.value = ''; kN.listeners.input(); const kSay1 = k3.P.of('sys-mk-says')[0].textContent;
+        const kNew = JSON.parse(J(dK.mapKinds)); kNew[0].label = 'New map kind'; kNew[0].factors[0].label = 'New factor'; kNew[0].factors[0].v = 1;
+        check('1.6.3 + Map kind and + Factor start rows named New map kind and New factor, the factor at 1, which Save keeps; emptied, a kind\u2019s name says Save drops it with its cell and factors, a factor\u2019s name or its number says Save drops the factor',
+            kSay0 === '' && fSay0 === '' && fSay1 === 'Needs its number, or Save drops this factor.' && fSay2 === 'Needs a name, or Save drops this factor.' && kSay1 === 'Needs a name, or Save drops it with its cell and its factors.'
+            && J(S.cleanMapKinds(kNew)) === J([{ key: 'NewMapKind', label: 'New map kind', factors: [{ key: 'NewFactor', label: 'New factor', v: 1 }] }]), J([dK.mapKinds, kSay1, fSay1, fSay2]));
+        // travel modes, and the line under them that follows the map kinds' tick
+        const dT = {}, t1 = run(dT, 'travelBox'); t1.P.of('sys-tv-add')[0].listeners.click(); const t2 = run(dT, 'travelBox'), tSay0 = t2.P.of('sys-tv-says')[0].textContent, tKind0 = (t2.P.of('sys-tv-kinds')[0] || {}).textContent;
+        const tN = t2.P.of('sys-tv-n')[0]; tN.value = ''; tN.listeners.input(); const tSay1 = t2.P.of('sys-tv-says')[0].textContent; const tNm = t2.P.of('sys-tv-label')[0]; tNm.value = ''; tNm.listeners.input(); const tSay2 = t2.P.of('sys-tv-says')[0].textContent;
+        const tk = t1.api.travelKindSays, t3 = run({ mapKinds: [{ label: 'World', travel: true }] }, 'travelBox');
+        check('1.6.3 + Travel mode starts a row named New travel mode at 3 miles an hour, which Save keeps; emptied, its speed or its name says Save drops it; the line under the modes says when no map kind shows them, or a kind shows modes there are none of, and nothing when both stand',
+            J(S.cleanTravel([{ label: 'New travel mode', key: 'NewTravelMode', n: 3, u: 'mi', t: 'hour' }], [])) === J([{ key: 'NewTravelMode', label: 'New travel mode', n: 3, u: 'mi', t: 'hour' }]) && dT.travel.length === 1 && tSay0 === '' && tSay1 === 'Needs a speed, or a number of the sheet, or Save drops it.' && tSay2 === 'Needs a name, or Save drops it.'
+            && tKind0 === 'No map kind ticks Ruler shows travel time, so these modes show nowhere yet.' && (t3.P.of('sys-tv-kinds')[0] || {}).textContent === 'A map kind ticks Ruler shows travel time, but there is no travel mode yet, so its ruler shows nothing.' && tk([{ travel: true }], [{}]) === '' && tk([], null) === '', J([dT.travel, tSay1, tKind0]));
+        // the cleaners keep a named row whose name makes no short name, and clean every other row as before
+        const ck = S.cleanMapKinds([{ label: '\u0627\u0644\u0633\u0641\u064a\u0646\u0629' }, { label: 'A very long name that goes on and on forever' }, { label: 'Ship', factors: [{ label: '\u0663', v: 2 }, { label: 'Speed', v: 1 }] }, { key: 'Kind', label: 'Taken' }]);
+        check('1.6.3 the cleaners keep a named row whose name makes no short name of its own (another script, a leading digit, a long name), under one made for it that never takes a row\u2019s own; a row with no name still goes',
+            J(ck) === J([{ key: 'Kind2', label: '\u0627\u0644\u0633\u0641\u064a\u0646\u0629' }, { key: 'AVeryLongNameThatGoesOnA', label: 'A very long name that goes on and on forever' }, { key: 'Ship', label: 'Ship', factors: [{ key: 'Factor', label: '\u0663', v: 2 }, { key: 'Speed', label: 'Speed', v: 1 }] }, { key: 'Kind', label: 'Taken' }])
+            && J(S.cleanDarkSteps([{ label: '1st' }, { label: '' }])) === J([{ key: 'Step', label: '1st', pen: 0 }]) && J(S.cleanTravel([{ label: '9 lives', n: 2 }], [])) === J([{ key: 'Mode', label: '9 lives', n: 2, u: 'mi', t: 'hour' }]) && J(S.cleanArcs([{ label: '\u0663', all: true }, { label: '', all: true }])) === J([{ key: 'Arc', label: '\u0663', all: true }]), J(ck));
+        // 1.6.3 (the review of combat): a made short name never takes the one a LATER row's own name makes, which then dropped that row as a second
+        // of the same short name (cleanArcs([9 lives, Arc]) kept only the first, and cleanMapKinds([\u0663, Kind]) the same)
+        const fb = {
+            arcs: S.cleanArcs([{ label: '9 lives', all: true }, { label: 'Arc', all: true }]),
+            kinds: S.cleanMapKinds([{ label: '\u0663' }, { label: 'Kind' }]),
+            facs: (S.cleanMapKinds([{ label: 'Ship', factors: [{ label: '\u0663', v: 2 }, { label: 'Factor', v: 3 }] }]) || [{}])[0].factors,
+            steps: S.cleanDarkSteps([{ label: '1st' }, { label: 'Step' }]),
+            modes: S.cleanTravel([{ label: '9 lives', n: 2 }, { label: 'Mode', n: 1 }], []),
+            terr: S.cleanTerrainKinds([{ label: '\u0663', cost: 2 }, { label: 'Kind', cost: 3 }])
+        };
+        check('1.6.3 the review of combat: a row whose name makes no short name of its own takes the next free word, never the one a later row\u2019s own name makes, so that later row is kept (arcs, map kinds, factors, darkness steps, travel modes, kinds of terrain)',
+            J(fb.arcs) === J([{ key: 'Arc2', label: '9 lives', all: true }, { key: 'Arc', label: 'Arc', all: true }])
+            && J(fb.kinds) === J([{ key: 'Kind2', label: '\u0663' }, { key: 'Kind', label: 'Kind' }])
+            && J(fb.facs) === J([{ key: 'Factor2', label: '\u0663', v: 2 }, { key: 'Factor', label: 'Factor', v: 3 }])
+            && J(fb.steps) === J([{ key: 'Step2', label: '1st', pen: 0 }, { key: 'Step', label: 'Step', pen: 0 }])
+            && fb.modes.length === 2 && fb.modes[0].key === 'Mode2' && fb.modes[1].key === 'Mode'
+            && J(fb.terr) === J([{ key: 'Kind2', label: '\u0663', cost: 2 }, { key: 'Kind', label: 'Kind', cost: 3 }]), J(fb));
+    }
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules"): a mark's name is what the map and cards show, so a new one starts named and an emptied one
+    // is said under the Marks box (refreshErrors, run for real); the cleaner shows A mark, never the key
+    {
+        const reRu = require('./checkkit').cutEnd('sysederr.js', 'function refreshErrors('), errsRu = more => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'var errorsById = {}, warningsById = {};\n' + reRu + '\nrefreshErrors(); return errorsById;')(Object.assign(S.emptySystem(), { name: 'E', fields: [], items: [], effects: [] }, more), () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => null, c => c && c.system && typeof c.system === 'object' ? c.system : null);
+        const sayRu = (id, more) => (errsRu(more)[id] || []).map(e => e.prop + '|' + e.message), nameRu = new Function(require('./checkkit').cut('sysedcombat.js', 'function ruleName(', 'function tableBtn(') + '\nreturn ruleName;')();
+        const sT = sayRu('tags', { tags: [{ key: 'M1', label: '' }, { key: 'M2', label: 'Hound' }] });
+        check('1.6.3 a mark with no name is said under the Marks box and lands on its name; a named one says nothing; + Mark starts named; the cleaner names one with none A mark',
+            J(sT) === J(['tags.label.0|Mark 1: it needs a name, which the map and cards show. Until it has one, they show A mark.']) && J(sayRu('tags', { tags: [{ key: 'M1', label: 'Hound' }] })) === '[]'
+            && nameRu([{ label: 'Mark 1' }], 'Mark') === 'Mark 2' && S.cleanTags([{ key: 'M1', label: '' }], true)[0].label === 'A mark' && require('./checkkit').part('sysedcombat.js').includes("draft.tags.push({ key: 'M' + n, label: ruleName(draft.tags, 'Mark') })") && read('scripts/sysui.js').includes("tags: ['rules', 'tags']"), J(sT));
+        // 1.6.3 (the review of rules): a mark saved with an emptied name holds its short name (M2) or, since 1.6.3, A mark: each is said under the box
+        const sT2 = sayRu('tags', { tags: [{ key: 'M1', label: 'm1' }, { key: 'M2', label: 'A mark' }, { key: 'M3', label: 'Hound' }] });
+        check('1.6.3 a mark whose name is still its short name, or the word the cleaner gave it, is said under the Marks box',
+            J(sT2) === J(['tags.label.0|Mark 1: Save named it m1 for want of a name. Give it a name of your own, which the map and cards show.', 'tags.label.1|Mark 2: Save named it A mark for want of a name. Give it a name of your own, which the map and cards show.']), J(sT2));
     }
     summed = true; console.log(pass + ' passed, ' + fail + ' failed.'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.log('FAIL      the suite stopped: ' + (e && e.stack || e)); process.exit(1); });

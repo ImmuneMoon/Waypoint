@@ -596,7 +596,10 @@ export function wbBlast() {   // [split:glue]
       var dfF = b.defended || null; if (dfF) dr = dr.filter(function(r) { return !(dfF[r.tok.id] && dfF[r.tok.id].nf === true); });   // 1.6.0: a Defense that succeeded
       var who = BC.fragTargets(dr.map(function(r) { return { id: r.tok.id, d: r.d + (dfF && dfF[r.tok.id] && dfF[r.tok.id].d > 0 ? dfF[r.tok.id].d : 0) }; }), reach, { direct: typeof b.direct === 'string' ? b.direct : null, own: fr.direct === true, each: fr.each === true });
       var dstep = !!(sys.combat && sys.combat.damage && typeof S.damageStep === 'function'), types = dstep && Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [];
-      var ty = [fg.type, fr.type, b.dtype].filter(function(t) { return typeof t === 'string' && t; })[0] || '', tyOk = !!(ty && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === ty.toLowerCase(); }));
+      // 1.6.3 (lane B batch "damage"): the first of the item's type, the Combat tab's Fragmentation type and the blast's own that the damage rules still
+      // hold. A type removed from Taking damage is passed over, so fragmentation falls back to the blast's own type, as the editor says under the list,
+      // where before the first type named won and then counted as none
+      var ty = [fg.type, fr.type, b.dtype].filter(function(t) { return typeof t === 'string' && t && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === t.toLowerCase(); }); })[0] || '', tyOk = !!ty;
       var label = (b.name || 'Blast') + ' fragmentation', shared, rollOne = function() { var r = window.wpDice.rollFor(fg.by, fg.expr, label, { gmOnly: fg.gm === true, dmg: true, used: true }); return r && r.ok && typeof r.value === 'number' && isFinite(r.value) ? r.value : null; };
       var elevOn = stanceOn('elevation'), hit = 0, shielded = 0;
       who.forEach(function(w) {

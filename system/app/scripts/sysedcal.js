@@ -686,7 +686,7 @@ function noticeRow(s, i) {
     var n = s.notice && typeof s.notice === 'object' ? s.notice : {}, rw = el('div', 'sys-flags sys-light-row sys-sense-row sys-sense-nrow'), has = typeof n.check === 'string' && !!n.check.trim(), sk = typeof n.sneak === 'string' && !!n.sneak.trim(); rw.dataset.si = String(i);
     rw.appendChild(el('span', 'sys-num-cap', 'Noticed by'));
     var ck = input('sys-sense-nkcheck field', typeof n.check === 'string' ? n.check : '', 'A check on the viewer\u2019s sheet, rolled in secret by the GM\u2019s machine. It may read TargetSize, TargetDistance, RangeMod, TargetLight (0 dark, 1 dim, 2 clear), TargetLoud (with Loud by), TargetCover (0 none, 1 some, 2 no clear line) and AttemptMargin. Blank: a creature in the band is noticed unless you tick it in its Properties', 'A check on the viewer\u2019s sheet'); ck.maxLength = LIMITS.formula; rw.appendChild(ck);
-    if (!has) return rw;
+    if (!has && !sk) return rw;   // 1.6.3: a Sneaking where kept while Noticed by is emptied stays in sight, and the Senses box says that Save drops it
     rw.appendChild(el('span', 'sys-num-cap', 'Loud by'));   // 1.6.0: a roll of a row with this stat marks its token loud
     var nzC = typeof n.noise === 'string' ? n.noise : '', nzs = [], nzSeen = Object.create(null); (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(f) { if (f && f.kind === 'item-list' && f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { var k = x && typeof x.key === 'string' ? x.key : '', lk = k.toLowerCase(); if (k && x.kind !== 'pick' && (x.vis !== 'gm' || k === nzC) && !nzSeen[lk]) { nzSeen[lk] = 1; nzs.push([k, (x.label || k) + ' (' + (f.label || f.key || 'a list') + ')']); } }); });
     var nzO = [['', 'No roll is loud']].concat(nzs); if (nzC && !nzO.some(function(o) { return o[0] === nzC; })) nzO.push([nzC, 'A stat no longer here']);
@@ -713,7 +713,7 @@ function onSensesInput(t) {
         if (c.indexOf('sys-sense-nkroll') >= 0 || c.indexOf('sys-sense-nknoise') >= 0) return true;
         var atN = senseAt(t); if (!atN) return true;
         var nk = atN.s.notice && typeof atN.s.notice === 'object' ? atN.s.notice : (atN.s.notice = {}), tv = t.value;
-        if (c.indexOf('sys-sense-nkcheck') >= 0) { if (tv.trim()) nk.check = tv; else delete atN.s.notice; }
+        if (c.indexOf('sys-sense-nkcheck') >= 0) { if (tv.trim()) nk.check = tv; else { delete nk.check; if (!Object.keys(nk).length) delete atN.s.notice; } }   // 1.6.3: emptied, the rest stays to be said (Save drops it), never taken away unseen
         else if (c.indexOf('sys-sense-nksneak') >= 0) { if (tv.trim()) nk.sneak = tv; else { delete nk.sneak; delete nk.stealth; } }
         else if (nk.stealth && typeof nk.stealth === 'object') { if (tv.trim()) nk.stealth.key = tv.trim(); else delete nk.stealth.key; }
         markDirty(); patchErrors(); return true;
@@ -728,7 +728,7 @@ function onSensesInput(t) {
 }
 function onSensesChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-sense-') < 0) return false;
-    if (c.indexOf('sys-sense-nkroll') >= 0) { var atR = senseAt(t); if (!atR || !atR.s.notice) return true; var rv = t.value; var wasL = !!(atR.s.notice.stealth && atR.s.notice.stealth.l), isL = rv.slice(0, 2) === 'l:', siR = atR.rw.dataset.si; if (rv.slice(0, 2) === 'r:') atR.s.notice.stealth = { r: rv.slice(2) }; else if (isL) atR.s.notice.stealth = { l: rv.slice(2) }; else delete atR.s.notice.stealth; markDirty(); if (wasL === isL) return true; renderAll(); var nrR = document.querySelector('.sys-sense-nrow[data-si="' + siR + '"] .sys-sense-nkroll'); if (nrR) nrR.focus(); return true; }   // the list keeps the keys: only the key box comes or goes
+    if (c.indexOf('sys-sense-nkroll') >= 0) { var atR = senseAt(t); if (!atR || !atR.s.notice) return true; var rv = t.value; var wasL = !!(atR.s.notice.stealth && atR.s.notice.stealth.l), isL = rv.slice(0, 2) === 'l:', siR = atR.rw.dataset.si; if (rv.slice(0, 2) === 'r:') atR.s.notice.stealth = { r: rv.slice(2) }; else if (isL) atR.s.notice.stealth = { l: rv.slice(2) }; else delete atR.s.notice.stealth; markDirty(); patchErrors(); if (wasL === isL) return true; renderAll(); var nrR = document.querySelector('.sys-sense-nrow[data-si="' + siR + '"] .sys-sense-nkroll'); if (nrR) nrR.focus(); return true; }   // the list keeps the keys: only the key box comes or goes
     if (c.indexOf('sys-sense-nkcheck') >= 0 || c.indexOf('sys-sense-nksneak') >= 0) { var atB = senseAt(t), siB = atB ? atB.rw.dataset.si : '', isCk = c.indexOf('sys-sense-nkcheck') >= 0, nextC = isCk ? 'sys-sense-nksneak' : 'sys-sense-nkroll', rowB = atB ? atB.rw : null, had = !!(rowB && rowB.querySelector('.' + nextC)), goes = !!t.value.trim(); markDirty(); if (had === goes) return true; renderAll(); if (goes && siB) { var nrB = document.querySelector('.sys-sense-nrow[data-si="' + siB + '"] .' + nextC); if (nrB) nrB.focus(); } return true; }   // the box after it comes or goes, and the keys stay in the row
     if (c.indexOf('sys-sense-nkkey') >= 0) return true;
     if (c.indexOf('sys-sense-nknoise') >= 0) { var atZ = senseAt(t); if (atZ && atZ.s.notice) { if (t.value) atZ.s.notice.noise = t.value; else delete atZ.s.notice.noise; markDirty(); patchErrors(); } return true; }   // 1.6.0

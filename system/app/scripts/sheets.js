@@ -3569,7 +3569,7 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
         box.appendChild(sel);
     } else if (cur) { var ch = el('span', 'sheet-chip', 'At ' + nameOf(cur)); if (auto) ch.title = 'Not placed yet. It stands at the first place it fits.'; box.appendChild(ch); }
     else if (st && typeof st.r === 'string' && st.r.slice(0, 2) === 'b_') { var tfR = (Array.isArray(sysI.fields) ? sysI.fields : []).filter(function(x) { return x && x.id === sp.from; })[0], bxR = tfR && tfR.list && tfR.list.tiles && Array.isArray(tfR.list.tiles.boxes) ? tfR.list.tiles.boxes.filter(function(b) { return !!b && 'b_' + b.key === st.r; })[0] : null; if (bxR) box.appendChild(el('span', 'sheet-chip', 'At ' + bxR.label)); }   // 1.6.2 (body fold 9): a box of the strip is a place too
-    if (st && st.off && sp.offWord) box.appendChild(el('span', 'sheet-chip', sp.offWord));
+    if (st && st.off) box.appendChild(el('span', 'sheet-chip', sp.offWord || 'Not worn'));   // 1.6.3: a row that does not count always says so, with a generic word where the list names none
     return box.firstChild ? box : null;
 }
 // [bodycheck:tileview-start]

@@ -1652,7 +1652,7 @@ pendingChecks.push((async () => {
     const fOwn = runFi(sysFi, { op: 'custom', rowId: 'w_o', in: 'w_c', def: { name: 'Own scope', category: 'Mod', stats: { Grip: 4 } } }), fGm = runFi(sysFg, { op: 'add', defId: 'i_hi', rowId: 'w_h', in: 'w_c' });
     check('1.6.0 Fits where (the core handbook session\'s ask 18; char-item, run for real): a player\'s add of a part its host\'s list says does not fit, read with the part\'s own names and its host\'s, is answered char-deny with the reason value in the list\'s own words, else words naming the part, the host and the formula, nothing stored, sent or saved; one that fits is added, stored, sent and saved; a row of their own made as a part is judged alike; a formula that reads a GM-only value is not in their view, so it never holds them back on the host',
         J(fBig.answer) === J([{ type: 'char-deny', rid: 'f1', reason: 'value', msg: 'Too big for that grip.' }]) && fBig.rows === J(['w_s:1:w_c']) && fBig.owner.length === 0 && fBig.saves === 0
-        && J(fWords.answer) === J([{ type: 'char-deny', rid: 'f1', reason: 'value', msg: 'Big scope does not fit Sling: it needs Row.Grip <= Host.Grip.' }]) && fWords.saves === 0
+        && J(fWords.answer) === J([{ type: 'char-deny', rid: 'f1', reason: 'value', msg: 'Big scope does not fit Sling.' }])   /* 1.6.3: never the formula, moved on purpose */ && fWords.saves === 0
         && J(fOk.answer) === J([{ type: 'char-ack', rid: 'f1' }]) && fOk.rows === J(['w_s:2:w_c']) && fOk.owner.length === 1 && fOk.saves === 1
         && J(fOwn.answer) === J(fBig.answer) && fOwn.rows === fBig.rows && fOwn.saves === 0
         && J(fGm.answer) === J([{ type: 'char-ack', rid: 'f1' }]) && fGm.rows === J(['w_s:1:w_c', 'w_h:1:w_c']) && fGm.saves === 1

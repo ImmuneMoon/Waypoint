@@ -12,7 +12,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, entryNames, entryPick, errorCell, fieldWord, fxTargets, getActiveCampaign, grantEntries, input, labeledNum, labeledSelect, lineUnder, markDirty, numField, numInput, patchErrors, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
+import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, entryNames, entryPick, errorCell, fieldWord, fxTargets, getActiveCampaign, grantEntries, input, labeledNum, labeledSelect, lineUnder, markDirty, numField, numInput, patchErrors, pressHold, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
 export function sysedRules() {   // [split:glue]
 // [split:body-start]
 // 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): Keeps paying, under a list's switch: a row switched on pays an amount, a formula of the
@@ -183,28 +183,42 @@ function postureDraft() { var cm = draft.combat || (draft.combat = { blastAuto: 
 // new arc's short name follows its name until the editor is closed, and stays after, so a formula that reads it keeps it
 function arcsBox(box, cm) {
     var wrap = el('div', 'sys-holds sys-arcsbox'), list = Array.isArray(cm.arcs) ? cm.arcs : null, SCa = window.wpSystemCore || {}, max = SCa.ARC_MAX || 32, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCa.arcKey === 'function' ? SCa.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { var k = (typeof SCa.arcKey === 'function' ? SCa.arcKey(lb) : '') || (String(lb || '').trim() ? 'Arc' : ''), base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };   // 1.6.3: a name in another script still gets a short name, Arc and a number, as the cleaner makes one
     wrap.appendChild(el('div', 'sys-light-head', 'Arcs'));
     wrap.appendChild(el('div', 'sys-note', 'Each covers the bearings from its From to its To, clockwise from straight ahead: 0 is ahead, 90 the right, 180 behind and -90 the left. Arcs may overlap. With none named, a token reads the front, side and rear its grid gives.'));
     (list || []).forEach(function(a, i) {
-        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-arc-label field', a.label || '', 'Its name, such as Front or Turret', 'Front');
-        nm.addEventListener('input', function() { a.label = nm.value.slice(0, LIMITS.label); if (a._new || !a.key) a.key = keyFor(a, a.label); ch(); });
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-arc-label field', a.label || '', 'Its name, such as Front or Turret', 'Front'), says = el('span', 'sys-note sys-arc-says'), say = function() { says.textContent = arcSays(a); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { a.label = nm.value.slice(0, LIMITS.label); if (a._new || !a.key) a.key = keyFor(a, a.label); say(); ch(); });
         rw.appendChild(nm);
         [['sys-arc-f', 'From', 'f', 'Where the arc begins, in degrees from straight ahead'], ['sys-arc-t', 'To', 't', 'Where the arc ends, clockwise from where it begins']].forEach(function(p) {
             var w = el('label', 'sys-check'), ip = el('input', 'field sys-num ' + p[0]); ip.type = 'number'; ip.min = '-180'; ip.max = '180'; ip.step = '1'; if (typeof a[p[2]] === 'number') ip.value = String(a[p[2]]); ip.disabled = a.all === true;
-            ip.addEventListener('input', function() { var v = ip.value === '' ? NaN : Number(ip.value); if (isFinite(v)) a[p[2]] = Math.max(-180, Math.min(180, Math.round(v))); else delete a[p[2]]; ch(); });
+            ip.addEventListener('input', function() { var v = ip.value === '' ? NaN : Number(ip.value); if (isFinite(v)) a[p[2]] = Math.max(-180, Math.min(180, Math.round(v))); else delete a[p[2]]; say(); ch(); });
             w.appendChild(document.createTextNode(p[1] + ' ')); w.appendChild(ip); w.title = p[3]; rw.appendChild(w);
         });
         var al = checkLabel('sys-arc-all', a.all === true, 'All round', 'It holds every bearing, as a turret does'), alI = al.querySelector('input');
         if (alI) alI.addEventListener('change', function() { if (alI.checked) a.all = true; else delete a.all; ch(true); });
         rw.appendChild(al);
-        var rm = el('button', 'tool ghost sys-btn sys-arc-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this arc'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete cm.arcs; ch(true); }); rw.appendChild(rm);
+        var rm = el('button', 'tool ghost sys-btn sys-arc-rm', '×'); rm.type = 'button'; rm.title = 'Remove this arc'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete cm.arcs; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-arc-add', '+ Arc'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'An arc a hit can come from or a gun can fire into';
-    add.addEventListener('click', function() { if (!Array.isArray(cm.arcs)) cm.arcs = []; list = cm.arcs; if (list.length >= max) return; list.push({ label: '', f: -60, t: 60, _new: true }); ch(true); });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): a new arc starts named, ahead from -60 to 60, so a system saved at once keeps it; its name is ready to type over
+    add.addEventListener('click', function() { if (!Array.isArray(cm.arcs)) cm.arcs = []; list = cm.arcs; if (list.length >= max) return; var nw = { label: ROW_NEW.arc, f: -60, t: 60, _new: true }; nw.key = keyFor(nw, nw.label); list.push(nw); ch(true); rowNewFocus('.sys-arc-label'); });
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
+}
+// 1.6.3 (lane B, the Combat tab; Fulllion's rulings of 2026-11-20: "if there's other gaps where a ruling or field is dependent on another, and the system
+// doesn't require that other field to be filled then that should be fixed", and "none isn't a good default substitution"): the name a new row of the
+// Combat tab's own lists starts with, and the line each row says under it while Save would drop it. What a row reads (its arc, its cell, its speed, its
+// penalty) depends on its name: the cleaner keeps no row without one. A new row's short name is made from this name and follows it while it is new
+var ROW_NEW = { arc: 'New arc', kind: 'New map kind', factor: 'New factor', travel: 'New travel mode', dark: 'New step', scene: 'New channel' };
+function rowNewFocus(cls) { if (typeof setTimeout !== 'function') return; setTimeout(function() { var nb = typeof document !== 'undefined' && document.querySelectorAll ? document.querySelectorAll('#systemModal ' + cls) : []; var b = nb.length ? nb[nb.length - 1] : null; if (b && b.focus) { b.focus(); if (b.select) b.select(); } }, 0); }   // the new row's name takes the focus, selected, so typing replaces it
+function arcSays(a) {   // what Save does with an arc of the draft: '' where it keeps it
+    if (!String(a && a.label || '').trim()) return 'Needs a name, or Save drops it.';
+    if (a.all !== true && !(typeof a.f === 'number' && isFinite(a.f) && typeof a.t === 'number' && isFinite(a.t))) return 'From and To are needed, or tick All round, or Save drops it.';
+    return '';
 }
 // 1.6.2 (backlog 57): Save settles the campaign's maps where the kinds changed (fogcore terrainSettle): a piece of a kind takes the kind's cost as its
 // own stored cost, and a piece whose kind is gone keeps the cost that kind last had and names none. Answers the ids of the maps that changed, which
@@ -264,34 +278,48 @@ var MAPKIND_UNITS = [['yd', 'yards'], ['ft', 'feet'], ['m', 'meters'], ['km', 'k
 // 1.6.2 (the CORE session's answer 7): darkness steps past lit, each a name and its penalty, lightest first
 function darkBox(box) {
     var wrap = el('div', 'sys-holds sys-dark'), list = Array.isArray(draft.dark) ? draft.dark : null, SCk = window.wpSystemCore || {}, max = SCk.DARK_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { return rowKeyFor(list, a, lb, 'Step'); };
     wrap.appendChild(el('div', 'sys-light-head', 'Darkness steps'));
-    wrap.appendChild(el('div', 'sys-note', 'Steps of darkness past lit, lightest first, each with its penalty. You set a map\u2019s step from its right-click menu, and a shape can set its own. A cell a light lights is lit. A roll reads the target\u2019s step as TargetDarkPen.'));
+    wrap.appendChild(el('div', 'sys-note', 'Steps of darkness past lit, lightest first, each with its penalty. You set a map’s step from its right-click menu, and a shape can set its own. A cell a light lights is lit. A roll reads the target’s step as TargetDarkPen.'));
     (list || []).forEach(function(s, i) {
-        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-dark-label field', s.label || '', 'Its name, such as A moonless night', 'Dark');
-        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); ch(); }); rw.appendChild(nm);
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-dark-label field', s.label || '', 'Its name, such as A moonless night', 'Dark'), says = el('span', 'sys-note sys-dark-says'), say = function() { says.textContent = rowNameSays(s, 'Save drops it, and every step after it moves up one place.'); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); say(); ch(); }); rw.appendChild(nm);
         var pn = el('input', 'field sys-num sys-dark-pen'); pn.type = 'number'; pn.step = '1'; pn.value = typeof s.pen === 'number' ? String(s.pen) : '0'; pn.title = 'Its penalty, such as -2'; pn.addEventListener('input', function() { var v = Number(pn.value); s.pen = isFinite(v) ? Math.round(v) : 0; ch(); }); rw.appendChild(pn);
-        var rm = el('button', 'tool ghost sys-btn sys-dark-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this step'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.dark; ch(true); }); rw.appendChild(rm);
+        var rm = el('button', 'tool ghost sys-btn sys-dark-rm', '×'); rm.type = 'button'; rm.title = 'Remove this step'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.dark; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-dark-add', '+ Step'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A step of darkness, darker than the one before';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.dark)) draft.dark = []; list = draft.dark; if (list.length >= max) return; list.push({ label: '', pen: 0, _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-dark-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    add.addEventListener('click', function() { if (!Array.isArray(draft.dark)) draft.dark = []; list = draft.dark; if (list.length >= max) return; var nw = { label: ROW_NEW.dark, pen: 0, _new: true }; nw.key = keyFor(nw, nw.label); list.push(nw); ch(true); rowNewFocus('.sys-dark-label'); });   // 1.6.3: a new step starts named
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
+// 1.6.3 (lane B): the short name a row of the Combat tab's darkness steps, scene channels, map kinds, their factors and travel modes is made from its name.
+// It always gives one the cleaner keeps (a letter, then letters, digits or _, 24 at most): a name in another script, or one that begins with a digit, gets
+// the word handed in (Step, Channel, Kind, Factor, Mode), and one taken by another row of the same list takes the first free number, cut to fit
+function rowKeyFor(arr, a, lb, word) {
+    var SCk = window.wpSystemCore || {}, k0 = (typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '') || (String(lb || '').trim() ? word : ''), k = k0.slice(0, 24), base = k0.slice(0, 22), n = 2;
+    while (k && (arr || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++);
+    return k;
+}
+// The line a row of those lists says while it has no name, which Save would drop it for: '' once it has one
+function rowNameSays(r, what) { return String(r && r.label || '').trim() ? '' : 'Needs a name, or ' + (what || 'Save drops it.'); }
 function scenesBox(box) {
     var wrap = el('div', 'sys-holds sys-scenes'), list = Array.isArray(draft.scenes) ? draft.scenes : null, SCk = window.wpSystemCore || {}, max = SCk.SCENE_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { return rowKeyFor(list, a, lb, 'Channel'); };
     wrap.appendChild(el('div', 'sys-light-head', 'Scene channels'));
-    wrap.appendChild(el('div', 'sys-note', 'How a scene reaches the one listening, such as In person, Seen, Heard or Written. You pick it from a map\u2019s right-click menu, and a roll reads it. A roll ticked Kept for the scene keeps what it came to on the one it was rolled at, for later rolls.'));
+    wrap.appendChild(el('div', 'sys-note', 'How a scene reaches the one listening, such as In person, Seen, Heard or Written. You pick it from a map’s right-click menu, and a roll reads it. A roll ticked Kept for the scene keeps what it came to on the one it was rolled at, for later rolls.'));
     (list || []).forEach(function(s, i) {
-        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-scene-label field', s.label || '', 'Its name, such as In person', 'In person');
-        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); ch(); }); rw.appendChild(nm);
-        var rm = el('button', 'tool ghost sys-btn sys-scene-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this channel'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.scenes; ch(true); }); rw.appendChild(rm);
+        var rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-scene-label field', s.label || '', 'Its name, such as In person', 'In person'), says = el('span', 'sys-note sys-scene-says'), say = function() { says.textContent = rowNameSays(s); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { s.label = nm.value.slice(0, LIMITS.label); if (s._new || !s.key) s.key = keyFor(s, s.label); say(); ch(); }); rw.appendChild(nm);
+        var rm = el('button', 'tool ghost sys-btn sys-scene-rm', '×'); rm.type = 'button'; rm.title = 'Remove this channel'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.scenes; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-scene-add', '+ Channel'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way a scene reaches the one listening, such as Heard only';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.scenes)) draft.scenes = []; list = draft.scenes; if (list.length >= max) return; list.push({ label: '', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-scene-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    add.addEventListener('click', function() { if (!Array.isArray(draft.scenes)) draft.scenes = []; list = draft.scenes; if (list.length >= max) return; var nw = { label: ROW_NEW.scene, _new: true }; nw.key = keyFor(nw, nw.label); list.push(nw); ch(true); rowNewFocus('.sys-scene-label'); });   // 1.6.3: a new channel starts named
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
@@ -329,34 +357,39 @@ function mapStartBox(box) {
 function mapKindsBox(box) {
     if (typeof mapStartBox === 'function') mapStartBox(box);   // 1.6.3: the scale a new map starts at, above the map kinds
     var wrap = el('div', 'sys-holds sys-mapkinds'), list = Array.isArray(draft.mapKinds) ? draft.mapKinds : null, SCk = window.wpSystemCore || {}, max = SCk.MAPKIND_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(arr, a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (arr || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(arr, a, lb, word) { return rowKeyFor(arr, a, lb, word || 'Kind'); };   // 1.6.3: always a short name the cleaner keeps
     wrap.appendChild(el('div', 'sys-light-head', 'Map kinds'));
     wrap.appendChild(el('div', 'sys-note', 'Such as Vehicle or Space. Each sets the cell a map starts at when it is picked, and names factors a rule can read on that map, such as a Speed of 10. A map with no kind is at the personal scale, and every factor reads 1 there.'));
     (list || []).forEach(function(k, i) {
-        var card = el('div', 'sys-mapkind'), rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-mk-label field', k.label || '', 'Its name, such as Vehicle', 'Vehicle');
-        nm.addEventListener('input', function() { k.label = nm.value.slice(0, LIMITS.label); if (k._new || !k.key) k.key = keyFor(list, k, k.label); ch(); }); rw.appendChild(nm);
+        var card = el('div', 'sys-mapkind'), rw = el('div', 'sys-flags sys-arcrow'), nm = input('sys-mk-label field', k.label || '', 'Its name, such as Vehicle', 'Vehicle'), says = el('span', 'sys-note sys-mk-says'), say = function() { says.textContent = rowNameSays(k, 'Save drops it with its cell and its factors.'); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { k.label = nm.value.slice(0, LIMITS.label); if (k._new || !k.key) k.key = keyFor(list, k, k.label, 'Kind'); say(); ch(); }); rw.appendChild(nm);
         var sc = k.scale && typeof k.scale === 'object' ? k.scale : null, pw = el('label', 'sys-check'), pi = el('input', 'field sys-num sys-mk-per'); pi.type = 'number'; pi.min = '0'; pi.step = 'any'; if (sc && typeof sc.per === 'number') pi.value = String(sc.per);
         pi.addEventListener('input', function() { var v = pi.value === '' ? NaN : Number(pi.value); if (isFinite(v) && v > 0) { k.scale = Object.assign({ unit: 'yd' }, k.scale || {}, { per: v }); } else delete k.scale; ch(); });
         pw.appendChild(document.createTextNode('A cell is ')); pw.appendChild(pi); pw.title = 'The cell a map starts at when it is switched to this kind. Empty: the map keeps its own'; rw.appendChild(pw);
         var us = select('sys-mk-unit', MAPKIND_UNITS, sc && sc.unit ? sc.unit : 'yd', 'The unit of that cell'); us.addEventListener('change', function(e) { e.stopPropagation(); if (k.scale) k.scale.unit = us.value; ch(); }); rw.appendChild(us);
-        var tw = el('label', 'sys-check'), tc = el('input', 'sys-mk-travel'); tc.type = 'checkbox'; tc.checked = k.travel === true; tc.addEventListener('change', function(e) { e.stopPropagation(); if (tc.checked) k.travel = true; else delete k.travel; ch(); }); tw.appendChild(tc); tw.appendChild(document.createTextNode(' Ruler shows travel time')); tw.title = 'On a map of this kind the ruler says how long the trip takes by each travel mode'; rw.appendChild(tw);   // 1.6.2 (backlog 166 a)
-        var rm = el('button', 'tool ghost sys-btn sys-mk-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this map kind'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.mapKinds; ch(true); }); rw.appendChild(rm);
+        var tw = el('label', 'sys-check'), tc = el('input', 'sys-mk-travel'); tc.type = 'checkbox'; tc.checked = k.travel === true; tc.addEventListener('change', function(e) { e.stopPropagation(); if (tc.checked) k.travel = true; else delete k.travel; ch(true); }); tw.appendChild(tc); tw.appendChild(document.createTextNode(' Ruler shows travel time')); tw.title = 'On a map of this kind the ruler says how long the trip takes by each travel mode'; rw.appendChild(tw);   // 1.6.2 (backlog 166 a); 1.6.3: drawn again, so the travel modes' line follows the tick
+        var rm = el('button', 'tool ghost sys-btn sys-mk-rm', '×'); rm.type = 'button'; rm.title = 'Remove this map kind'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.mapKinds; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         card.appendChild(rw);
         var fs = Array.isArray(k.factors) ? k.factors : null;
         (fs || []).forEach(function(f, j) {
-            var fr = el('div', 'sys-flags sys-arcrow sys-mk-frow'), fn = input('sys-mk-flabel field', f.label || '', 'The factor\u2019s name, such as Speed', 'Speed');
-            fn.addEventListener('input', function() { f.label = fn.value.slice(0, LIMITS.label); if (f._new || !f.key) f.key = keyFor(fs, f, f.label); ch(); }); fr.appendChild(fn);
-            var fv = el('input', 'field sys-num sys-mk-fv'); fv.type = 'number'; fv.step = 'any'; if (typeof f.v === 'number') fv.value = String(f.v); fv.title = 'The number a rule reads on a map of this kind';
-            fv.addEventListener('input', function() { var v = fv.value === '' ? NaN : Number(fv.value); if (isFinite(v)) f.v = v; else delete f.v; ch(); }); fr.appendChild(fv);
-            var fx = el('button', 'tool ghost sys-btn sys-mk-frm', '\u00d7'); fx.type = 'button'; fx.title = 'Remove this factor'; fx.addEventListener('click', function() { fs.splice(j, 1); if (!fs.length) delete k.factors; ch(true); }); fr.appendChild(fx);
+            var fr = el('div', 'sys-flags sys-arcrow sys-mk-frow'), fn = input('sys-mk-flabel field', f.label || '', 'The factor’s name, such as Speed', 'Speed'), fsays = el('span', 'sys-note sys-mk-fsays');
+            var fsay = function() { fsays.textContent = !String(f.label || '').trim() ? 'Needs a name, or Save drops this factor.' : !(typeof f.v === 'number' && isFinite(f.v)) ? 'Needs its number, or Save drops this factor.' : ''; };   // 1.6.3: a factor needs both
+            fn.maxLength = LIMITS.label;
+            fn.addEventListener('input', function() { f.label = fn.value.slice(0, LIMITS.label); if (f._new || !f.key) f.key = keyFor(fs, f, f.label, 'Factor'); fsay(); ch(); }); fr.appendChild(fn);
+            var fv = el('input', 'field sys-num sys-mk-fv'); fv.type = 'number'; fv.step = 'any'; if (typeof f.v === 'number') fv.value = String(f.v); fv.title = 'The number a rule reads on a map of this kind. It must be filled in';
+            fv.addEventListener('input', function() { var v = fv.value === '' ? NaN : Number(fv.value); if (isFinite(v)) f.v = v; else delete f.v; fsay(); ch(); }); fr.appendChild(fv);
+            var fx = el('button', 'tool ghost sys-btn sys-mk-frm', '×'); fx.type = 'button'; fx.title = 'Remove this factor'; fx.addEventListener('click', function() { fs.splice(j, 1); if (!fs.length) delete k.factors; ch(true); }); fr.appendChild(fx);
+            fr.appendChild(fsays); fsay();
             card.appendChild(fr);
         });
         var fa = el('button', 'tool ghost sys-btn sys-mk-fadd', '+ Factor'); fa.type = 'button'; fa.disabled = !!fs && fs.length >= 8; fa.title = 'A number a rule reads on a map of this kind, such as a Speed factor of 10';
-        fa.addEventListener('click', function() { if (!Array.isArray(k.factors)) k.factors = []; if (k.factors.length >= 8) return; k.factors.push({ label: '', v: 1, _new: true }); ch(true); var ki = i; setTimeout(function() { var cs = document.querySelectorAll('#systemModal .sys-mapkind'), fl = cs[ki] ? cs[ki].querySelectorAll('.sys-mk-flabel') : []; if (fl.length) fl[fl.length - 1].focus(); }, 0); }); card.appendChild(fa);
+        fa.addEventListener('click', function() { if (!Array.isArray(k.factors)) k.factors = []; if (k.factors.length >= 8) return; var nf = { label: ROW_NEW.factor, v: 1, _new: true }; nf.key = keyFor(k.factors, nf, nf.label, 'Factor'); k.factors.push(nf); ch(true); var ki = i; if (typeof setTimeout === 'function') setTimeout(function() { var cs = document.querySelectorAll('#systemModal .sys-mapkind'), fl = cs[ki] ? cs[ki].querySelectorAll('.sys-mk-flabel') : []; if (fl.length) { fl[fl.length - 1].focus(); if (fl[fl.length - 1].select) fl[fl.length - 1].select(); } }, 0); }); card.appendChild(fa);   // 1.6.3: a new factor starts named, at 1
         wrap.appendChild(card);
     });
     var add = el('button', 'tool ghost sys-btn sys-mk-add', '+ Map kind'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A scale a map can be switched to, such as Vehicle';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.mapKinds)) draft.mapKinds = []; list = draft.mapKinds; if (list.length >= max) return; list.push({ label: '', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-mk-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });   // the new kind's name takes the focus
+    add.addEventListener('click', function() { if (!Array.isArray(draft.mapKinds)) draft.mapKinds = []; list = draft.mapKinds; if (list.length >= max) return; var nw = { label: ROW_NEW.kind, _new: true }; nw.key = keyFor(list, nw, nw.label, 'Kind'); list.push(nw); ch(true); rowNewFocus('.sys-mk-label'); });   // the new kind's name takes the focus; 1.6.3: it starts named
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
@@ -364,26 +397,44 @@ function mapKindsBox(box) {
 // 1.6.2 (backlog 166 a): the travel modes. A row each: its name, its speed, the unit and the time it counts in, and a sheet's own number field
 // read in its place where the ruler starts on a token; then + Travel mode. Names as values and text nodes only
 var TRAVEL_PERS = [['round', 'a round'], ['minute', 'a minute'], ['hour', 'an hour'], ['day', 'a day']];
+// 1.6.3 (lane B; Fulllion's rulings of 2026-11-20): what Save does with a travel mode of the draft, said under its row: '' where it keeps it. A mode needs
+// its name, and a speed above 0 or a number of the sheet read in its place
+function travelSays(m, nums) {
+    if (!String(m && m.label || '').trim()) return 'Needs a name, or Save drops it.';
+    var fOk = typeof m.f === 'string' && m.f && (nums || []).some(function(f) { return f.id === m.f; });
+    return (typeof m.n === 'number' && isFinite(m.n) && m.n > 0) || fOk ? '' : 'Needs a speed, or a number of the sheet, or Save drops it.';
+}
+// ... and the line under every mode, from what the map kinds tick: modes no kind shows, or a kind that shows modes there are none of. '' where all is well
+function travelKindSays(kinds, modes) {
+    var ticks = (Array.isArray(kinds) ? kinds : []).some(function(k) { return !!k && k.travel === true; }), has = Array.isArray(modes) && modes.length > 0;
+    if (has && !ticks) return 'No map kind ticks Ruler shows travel time, so these modes show nowhere yet.';
+    if (ticks && !has) return 'A map kind ticks Ruler shows travel time, but there is no travel mode yet, so its ruler shows nothing.';
+    return '';
+}
 function travelBox(box) {
     var wrap = el('div', 'sys-holds sys-travel'), list = Array.isArray(draft.travel) ? draft.travel : null, SCk = window.wpSystemCore || {}, max = SCk.TRAVEL_MAX || 8, ch = function(re) { markDirty(); if (re) renderCombat(); if (typeof patchErrors === 'function') patchErrors(); };
-    var keyFor = function(a, lb) { var k = typeof SCk.arcKey === 'function' ? SCk.arcKey(lb) : '', base = k, n = 2; while (k && (list || []).some(function(b) { return b !== a && b && typeof b.key === 'string' && b.key.toLowerCase() === k.toLowerCase(); })) k = base + (n++); return k; };
+    var keyFor = function(a, lb) { return rowKeyFor(list, a, lb, 'Mode'); };   // 1.6.3: always a short name the cleaner keeps
     var nums = (draft.fields || []).filter(function(f) { return f && (f.kind === 'number' || f.kind === 'formula'); });
     wrap.appendChild(el('div', 'sys-light-head', 'Travel modes'));
     wrap.appendChild(el('div', 'sys-note', 'Such as On foot at 3 miles an hour, or By ship at 100 miles a day. On a map whose kind ticks Ruler shows travel time, the ruler says how long the trip takes by each. A mode may read a number on the sheet instead, so a ruler started on a vehicle or a mount uses its own Speed.'));
+    var kSays = travelKindSays(draft.mapKinds, list); if (kSays) wrap.appendChild(el('div', 'sys-note sys-tv-kinds', kSays));
     (list || []).forEach(function(m, i) {
-        var rw = el('div', 'sys-flags sys-arcrow sys-tv-row'), nm = input('sys-tv-label field', m.label || '', 'Its name, such as On foot', 'On foot');
-        nm.addEventListener('input', function() { m.label = nm.value.slice(0, LIMITS.label); if (m._new || !m.key) m.key = keyFor(m, m.label); ch(); }); rw.appendChild(nm);
-        var nw = el('label', 'sys-check'), ni = el('input', 'field sys-num sys-tv-n'); ni.type = 'number'; ni.min = '0'; ni.step = 'any'; if (typeof m.n === 'number') ni.value = String(m.n); ni.title = 'How far it goes, in the unit beside it';
-        ni.addEventListener('input', function() { var v = ni.value === '' ? NaN : Number(ni.value); if (isFinite(v) && v > 0) m.n = v; else delete m.n; ch(); }); nw.appendChild(document.createTextNode('Speed ')); nw.appendChild(ni); rw.appendChild(nw);
+        var rw = el('div', 'sys-flags sys-arcrow sys-tv-row'), nm = input('sys-tv-label field', m.label || '', 'Its name, such as On foot', 'On foot'), says = el('span', 'sys-note sys-tv-says'), say = function() { says.textContent = travelSays(m, nums); };
+        nm.maxLength = LIMITS.label;
+        nm.addEventListener('input', function() { m.label = nm.value.slice(0, LIMITS.label); if (m._new || !m.key) m.key = keyFor(m, m.label); say(); ch(); }); rw.appendChild(nm);
+        var nw = el('label', 'sys-check'), ni = el('input', 'field sys-num sys-tv-n'); ni.type = 'number'; ni.min = '0'; ni.step = 'any'; if (typeof m.n === 'number') ni.value = String(m.n); ni.title = 'How far it goes, in the unit beside it. It needs a speed, or a number of the sheet';
+        ni.addEventListener('input', function() { var v = ni.value === '' ? NaN : Number(ni.value); if (isFinite(v) && v > 0) m.n = v; else delete m.n; say(); ch(); }); nw.appendChild(document.createTextNode('Speed ')); nw.appendChild(ni); rw.appendChild(nw);
         var us = select('sys-tv-u', MAPKIND_UNITS, m.u || 'mi', 'The unit of its speed'); us.addEventListener('change', function(e) { e.stopPropagation(); m.u = us.value; ch(); }); rw.appendChild(us);
         var ts = select('sys-tv-t', TRAVEL_PERS, m.t || 'hour', 'The time its speed counts in'); ts.addEventListener('change', function(e) { e.stopPropagation(); m.t = ts.value; ch(); }); rw.appendChild(document.createTextNode(' each ')); rw.appendChild(ts);
-        var fw = el('label', 'sys-check'), fs = select('sys-tv-f', [['', 'None']].concat(nums.map(function(f) { return [f.id, typeof fieldWord === 'function' ? fieldWord(f) : (f.label || f.key)]; })), m.f || '', 'A number on the sheet read as this speed where the ruler starts on a token, such as a vehicle\u2019s Speed. The speed beside it stands where none can be read');
-        fs.addEventListener('change', function(e) { e.stopPropagation(); if (fs.value) m.f = fs.value; else delete m.f; ch(); }); fw.appendChild(document.createTextNode('Or the sheet\u2019s ')); fw.appendChild(fs); rw.appendChild(fw);
-        var rm = el('button', 'tool ghost sys-btn sys-tv-rm', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this travel mode'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.travel; ch(true); }); rw.appendChild(rm);
+        var fw = el('label', 'sys-check'), fs = select('sys-tv-f', [['', 'None']].concat(nums.map(function(f) { return [f.id, typeof fieldWord === 'function' ? fieldWord(f) : (f.label || f.key)]; })), m.f || '', 'A number on the sheet read as this speed where the ruler starts on a token, such as a vehicle’s Speed. The speed beside it stands where none can be read');
+        fs.addEventListener('change', function(e) { e.stopPropagation(); if (fs.value) m.f = fs.value; else delete m.f; say(); ch(); }); fw.appendChild(document.createTextNode('Or the sheet’s ')); fw.appendChild(fs); rw.appendChild(fw);
+        var rm = el('button', 'tool ghost sys-btn sys-tv-rm', '×'); rm.type = 'button'; rm.title = 'Remove this travel mode'; rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.travel; ch(true); }); rw.appendChild(rm);
+        rw.appendChild(says); say();
         wrap.appendChild(rw);
     });
     var add = el('button', 'tool ghost sys-btn sys-tv-add', '+ Travel mode'); add.type = 'button'; add.disabled = !!list && list.length >= max; add.title = 'A way of traveling, such as On foot, Mounted or By ship';
-    add.addEventListener('click', function() { if (!Array.isArray(draft.travel)) draft.travel = []; list = draft.travel; if (list.length >= max) return; list.push({ label: '', u: 'mi', t: 'hour', _new: true }); ch(true); setTimeout(function() { var nb = document.querySelectorAll('#systemModal .sys-tv-label'); if (nb.length) nb[nb.length - 1].focus(); }, 0); });
+    // 1.6.3 (Fulllion's rulings of 2026-11-20): a new mode starts named, at 3 miles an hour, so a system saved at once keeps it
+    add.addEventListener('click', function() { if (!Array.isArray(draft.travel)) draft.travel = []; list = draft.travel; if (list.length >= max) return; var nm0 = { label: ROW_NEW.travel, n: 3, u: 'mi', t: 'hour', _new: true }; nm0.key = keyFor(nm0, nm0.label); list.push(nm0); ch(true); rowNewFocus('.sys-tv-label'); });
     var bar = el('div', 'sys-flags'); bar.appendChild(add); wrap.appendChild(bar);
     box.appendChild(wrap);
 }
@@ -640,6 +691,7 @@ function dbxNum(cls, v, title, ph) { var n = el('input', 'field ' + cls); n.type
 function kindsNamed() { return typeof draft !== 'undefined' && !!draft && !!draft.combat && !!draft.combat.damage && Array.isArray(draft.combat.damage.kinds) && draft.combat.damage.kinds.length > 0; }   // 1.6.0: whether the draft names kinds of blow, so that the roll's Kind boxes come up
 function dbxBtn(act, text, title, off) { var b = el('button', 'tool ghost sys-btn', text); b.dataset.act = act; b.title = title; if (off) b.disabled = true; return b; }
 function damageBox(box, cm) {
+    dmgHold();   // 1.6.3 (the review of damage): the System editor's window hears a press from its start, so the redraw a Wound by box asks for as it is left waits for it
     var d = dbxObj(cm.damage) ? cm.damage : {}, pools = dbxPools(), lists = dbxLists(), wrap = el('div', 'sys-dmgr');
     wrap.appendChild(el('div', 'sys-light-head', 'Taking damage'));
     wrap.appendChild(el('div', 'sys-note', 'How a hit is taken in the Take damage window. It goes through DR at the hit location, comes off a pool, and wears armor and weapons.'));
@@ -649,7 +701,11 @@ function damageBox(box, cm) {
     if (d.first) r1.appendChild(dbxTick('sys-dmgr-soak', d.firstSoaks === true, 'Not a wound', 'Ticked: what it takes is no wound. A Major Wound, the rows On a wound and the blow\u2019s wound read only what gets past it, and a blow it takes whole runs none of them. Unticked: they read the whole wound'));   // 1.6.2 (the CORE session)
     dbxCap(r1, 'Major Wound at'); var mj = input('sys-dmgr-major field', dbxStr(d.major), 'A wound this large or larger in one blow is a Major Wound. No dice. It may read the hit location as Hit. and a name, 0 where no location was struck', 'e.g. HP.max / 2'); mj.maxLength = LIMITS.formula; r1.appendChild(mj);
     dbxCap(r1, 'Wound by'); var wfI = input('sys-dmgr-woundf field', dbxStr(d.woundF), 'How large a wound is, worked out from what got through and the character\u2019s sheet, for every damage type. 0 is no wound. Empty: what gets through, times the type\u2019s multiplier', 'What gets through'); wfI.maxLength = LIMITS.formula; r1.appendChild(wfI);   // 1.6.2
-    r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armor layers still wear as for a hit, or nothing happens at all'));
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): A wound of 0 is read only where a Wound by formula gives 0, so the list stands only
+    // while one is set, here or on a damage type, or while it is already set to does nothing, so a stored choice is never hidden. dbxShowSig says what
+    // is drawn, so leaving a Wound by box draws the box again only where that changes
+    if (dbxAnyWF(d) || d.zero === 'none') r1.appendChild(select('sys-dmgr-zero', [['', 'A wound of 0 still wears armor'], ['none', 'A wound of 0 does nothing']], d.zero === 'none' ? 'none' : '', 'When the wound formula gives 0 for damage that got through: armor layers still wear as for a hit, or nothing happens at all'));
+    _dbxSig = dbxShowSig(d);
     dbxCap(r1, 'Called'); var mjw = input('sys-dmgr-mjword field', dbxStr(d.majorWord), 'What your game calls this step. The damage lines and the Take damage window say it in place of A Major Wound', 'A Major Wound'); mjw.maxLength = LIMITS.label; r1.appendChild(mjw);
     wrap.appendChild(r1);
     {   // 1.6.0 (B3): what a Major Wound does (kept by Save only beside its formula)
@@ -713,12 +769,12 @@ function damageBox(box, cm) {
     types.forEach(function(y0, i) {
         var y = dbxObj(y0) ? y0 : {}, tw = el('div', 'sys-dmgr-type'); tw.dataset.yi = String(i);
         var a = el('div', 'sys-flags');
-        var k = input('sys-dmgr-ykey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _', 'Key'); k.maxLength = 24; a.appendChild(k);
+        var k = input('sys-dmgr-ykey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _', 'Key'); k.maxLength = 24; if (y._new && k.dataset) k.dataset.follow = '1'; a.appendChild(k);   // 1.6.3: a new type's short name follows its name until it is saved
         var lb = input('sys-dmgr-ylabel field', dbxStr(y.label), 'Its name in the Take damage window', 'Name'); lb.maxLength = LIMITS.label; a.appendChild(lb);
         dbxCap(a, 'Times'); a.appendChild(dbxNum('sys-dmgr-ymult', y.mult, 'What gets through is multiplied by this, 0 to 10. Unset is 1', '1'));
         dbxCap(a, 'Vital times'); a.appendChild(dbxNum('sys-dmgr-yvital', y.vital, 'Its multiplier at a vital location. Unset or 0 is as anywhere', ''));
         dbxCap(a, 'Wound by'); var ywI = input('sys-dmgr-ywf field', dbxStr(y.woundF), 'This type\u2019s own wound formula, in place of the one under Taking damage. Empty: that one, or its multiplier where Its multiplier is ticked', 'As the system'); ywI.maxLength = LIMITS.formula; a.appendChild(ywI);   // 1.6.2
-        if (!dbxStr(y.woundF)) a.appendChild(dbxTick('sys-dmgr-ybymult', y.byMult, 'Its multiplier', 'Ticked: this type wounds by its multiplier even where the system has a wound formula'));
+        if (!dbxStr(y.woundF) && (dbxStr(d.woundF).trim() || y.byMult === true)) a.appendChild(dbxTick('sys-dmgr-ybymult', y.byMult, 'Its multiplier', 'Ticked: this type wounds by its multiplier, not by the Wound by formula under Taking damage'));   // 1.6.3: it only ever overrides that formula, so it stands only while that formula does, or while it is ticked
         a.appendChild(select('sys-dmgr-ypool', dbxOpts(['', 'The main pool'], pools, y.pool), dbxStr(y.pool), 'The pool this type comes off, where not the main one'));
         a.appendChild(dbxTick('sys-dmgr-ynodr', y.noDr, 'Ignores DR', 'Ticked: DR stops none of it'));
         a.appendChild(dbxTick('sys-dmgr-ynowear', y.noWear, 'Wears nothing', 'Ticked: it wears no armor'));
@@ -753,7 +809,7 @@ function damageBox(box, cm) {
     wrap.appendChild(el('span', 'sys-num-cap', 'Kinds of blow'));
     kindsD.forEach(function(y0, i) {
         var y = dbxObj(y0) ? y0 : {}, kw = el('div', 'sys-flags sys-dmgr-kind'); kw.dataset.ki = String(i);
-        var kk = input('sys-dmgr-kkey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _. A formula reads its place as Kind. and this key', 'Key'); kk.maxLength = 24; kw.appendChild(kk);
+        var kk = input('sys-dmgr-kkey field', dbxStr(y.key), 'Its key: a letter, then letters, digits and _. A formula reads its place as Kind. and this key', 'Key'); kk.maxLength = 24; if (y._new && kk.dataset) kk.dataset.follow = '1'; kw.appendChild(kk);   // 1.6.3: a new kind's short name follows its name until it is saved
         var kl = input('sys-dmgr-klabel field', dbxStr(y.label), 'Its name in the Take damage window', 'Name'); kl.maxLength = LIMITS.label; kw.appendChild(kl);
         kw.appendChild(dbxBtn('dmgrkdel', '\u00d7', 'Remove this kind'));
         wrap.appendChild(kw);
@@ -831,10 +887,34 @@ function dbxWordFollow(w, t) {   // a new rule's Called box follows its Dur and 
     if (!dbxObj(w) || !w._new) return; w.word = dbxWordOf(w);
     var rw = t && t.closest ? t.closest('.sys-dmgr-weapon') : null, bx = rw && rw.querySelector ? rw.querySelector('.sys-dmgr-wword') : null; if (bx) bx.value = w.word;
 }
+// 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): a damage type's and a kind of blow's Name is required, since players read it in the
+// damage lines and the Take damage window, and with none the cleaner shows the short name there. So a new one starts named, Damage type 2 or Kind 2
+// with its short name made from that name (DamageType2), at the first number that no row of the list already names or holds as its short name. It
+// carries the mark _new (which the cleaner never keeps), and while it does its hidden short name follows the Name as it is typed
+function dbxNewNamed(arr, word) {
+    var taken = {}; (Array.isArray(arr) ? arr : []).forEach(function(y) { if (!dbxObj(y)) return; if (typeof y.key === 'string') taken['k' + y.key.toLowerCase()] = 1; if (typeof y.label === 'string') taken['l' + y.label.trim().toLowerCase()] = 1; });
+    for (var n = (Array.isArray(arr) ? arr.length : 0) + 1; n < 100000; n++) {
+        var lb = word + ' ' + n, ky = lb.split(' ').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('');
+        if (!taken['k' + ky.toLowerCase()] && !taken['l' + lb.toLowerCase()]) return { key: ky, label: lb, _new: true };
+    }
+    return { key: '', label: '' };
+}
+// 1.6.3: whether a Wound by formula stands, under Taking damage or on any damage type. A wound of 0 and Its multiplier count only beside one
+function dbxAnyWF(d) { return dbxObj(d) && (!!dbxStr(d.woundF).trim() || (Array.isArray(d.types) ? d.types : []).some(function(y) { return dbxObj(y) && !!dbxStr(y.woundF).trim(); })); }
+// 1.6.3: what the Taking damage box draws by its Wound by formulas: the A wound of 0 list, and each type's Its multiplier tick. damageBox notes it as it
+// draws, and leaving a Wound by box draws the box again only where this has changed, so a press elsewhere is never lost to a redraw it did not need
+var _dbxSig = '';
+function dbxShowSig(d) {
+    if (!dbxObj(d)) return '';
+    return (dbxAnyWF(d) || d.zero === 'none' ? 'z' : '-') + (Array.isArray(d.types) ? d.types : []).map(function(y) { return dbxObj(y) && !dbxStr(y.woundF) && (dbxStr(d.woundF).trim() || y.byMult === true) ? 'm' : '-'; }).join('');
+}
 function dbxRow(t, cls, key, arrKey) {   // the draft's row a control stands in, by its row's index
     var rw = t.closest ? t.closest('.' + cls) : null, i = rw ? Number(rw.dataset[key]) : -1, d = dbxCm().damage, arr = dbxObj(d) && Array.isArray(d[arrKey]) ? d[arrKey] : [];
     return i >= 0 && i < arr.length && Math.floor(i) === i && dbxObj(arr[i]) ? arr[i] : null;
 }
+// 1.6.3: a short name typed by hand (the box stands only under Short names) stops following the Name. The follow itself writes the box from the Name
+// box, which then holds the focus, so only a box that holds the focus as it changes was typed in
+function dbxKeyTyped(y, t) { if (typeof document !== 'undefined' && document.activeElement === t) { delete y._new; if (t.dataset) delete t.dataset.follow; } }
 function dbxSet(o, k, v) { if (v === '' || v === undefined || v === null || v === false) delete o[k]; else o[k] = v; }
 function dbxNumOf(t) { var s = String(t.value === undefined ? '' : t.value).trim(), n = Number(s); return s && isFinite(n) ? n : undefined; }
 function onDamageInput(t) {
@@ -854,14 +934,14 @@ function onDamageInput(t) {
     else if (dbxHas(c, 'sys-dmgr-ohat') || dbxHas(c, 'sys-dmgr-ohto')) { var oHt = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oHt || !dbxObj(oHt.held)) return true; dbxSet(oHt.held, dbxHas(c, 'sys-dmgr-ohat') ? 'at' : 'to', txt.trim() ? txt : ''); }   // 1.6.0: what stands where the blow lands
     else if (dbxHas(c, 'sys-dmgr-oif')) { var oI = dbxRow(t, 'sys-dmgr-onwound', 'oi', 'onWound'); if (!oI) return true; dbxSet(oI, 'if', txt.trim() ? txt : ''); }   // 1.6.0 (the core's gap 6)
     else if (DBX_DIE.some(function(g) { return dbxHas(c, g[0]); })) { var yD = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!yD) return true; DBX_DIE.forEach(function(g) { if (dbxHas(c, g[0])) dbxSet(yD, g[1], dbxNumOf(t)); }); }   // 1.6.0: a figure a die
-    else if (dbxHas(c, 'sys-dmgr-kkey') || dbxHas(c, 'sys-dmgr-klabel')) { var kR = dbxRow(t, 'sys-dmgr-kind', 'ki', 'kinds'); if (!kR) return true; if (dbxHas(c, 'sys-dmgr-kkey')) kR.key = txt.slice(0, 24); else dbxSet(kR, 'label', txt.slice(0, LIMITS.label)); }   // 1.6.0: a kind of blow
+    else if (dbxHas(c, 'sys-dmgr-kkey') || dbxHas(c, 'sys-dmgr-klabel')) { var kR = dbxRow(t, 'sys-dmgr-kind', 'ki', 'kinds'); if (!kR) return true; if (dbxHas(c, 'sys-dmgr-kkey')) { kR.key = txt.slice(0, 24); dbxKeyTyped(kR, t); } else dbxSet(kR, 'label', txt.slice(0, LIMITS.label)); }   // 1.6.0: a kind of blow
     else if (dbxHas(c, 'sys-dmgr-lpick')) { var lP = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lP) return true; dbxSet(lP, 'pick', txt.trim() ? txt : ''); }   // 1.6.0
     else if (dbxHas(c, 'sys-dmgr-ltplus')) { var lY = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lY) return true; var tyI = dbxObj(lY.typed) ? lY.typed : (lY.typed = {}); dbxSet(tyI, 'plus', txt.trim() ? txt : ''); if (!Object.keys(tyI).length) delete lY.typed; }   // 1.6.0: Type named by
     else if (dbxHas(c, 'sys-dmgr-ladby')) { var lA = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lA) return true; dbxSet(lA, 'adBy', txt.trim() ? txt : ''); }   // 1.6.2 (9)
     else if (dbxHas(c, 'sys-dmgr-lmajw') || dbxHas(c, 'sys-dmgr-lbrkw') || dbxHas(c, 'sys-dmgr-lbrkm') || dbxHas(c, 'sys-dmgr-lwcap') || dbxHas(c, 'sys-dmgr-lhitw')) { var lQ = dbxRow(t, 'sys-dmgr-layer', 'li', 'layers'); if (!lQ) return true; dbxSet(lQ, dbxHas(c, 'sys-dmgr-lhitw') ? 'hitWear' : dbxHas(c, 'sys-dmgr-lmajw') ? 'majorWear' : dbxHas(c, 'sys-dmgr-lbrkw') ? 'brokenWear' : dbxHas(c, 'sys-dmgr-lwcap') ? 'wearCap' : 'brokenMajorWear', txt.trim() ? txt : ''); }   // 1.6.0: what a hit wears
     else if (dbxHas(c, 'sys-dmgr-ykey') || dbxHas(c, 'sys-dmgr-ylabel') || dbxHas(c, 'sys-dmgr-ymult') || dbxHas(c, 'sys-dmgr-yvital') || dbxHas(c, 'sys-dmgr-aif') || dbxHas(c, 'sys-dmgr-amult')) {
         var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;
-        if (dbxHas(c, 'sys-dmgr-ykey')) y.key = txt.slice(0, 24);
+        if (dbxHas(c, 'sys-dmgr-ykey')) { y.key = txt.slice(0, 24); dbxKeyTyped(y, t); }
         else if (dbxHas(c, 'sys-dmgr-ylabel')) dbxSet(y, 'label', txt.slice(0, LIMITS.label));
         else if (dbxHas(c, 'sys-dmgr-ymult')) dbxSet(y, 'mult', dbxNumOf(t));
         else if (dbxHas(c, 'sys-dmgr-yvital')) dbxSet(y, 'vital', dbxNumOf(t));
@@ -872,6 +952,11 @@ function onDamageInput(t) {
     else return true;   // a select or a tick: its change event does the work
     markDirty(); patchErrors(); return true;
 }
+// 1.6.3 (the review of damage, 2026-11-20): a Wound by box's change event fires as the pointer goes down on another control and the box loses the
+// focus. Drawing the tab again right then takes that control off the page under the pointer, so its press is lost. dmgHold is the System editor's
+// window held by io.js pressHold (the house rule that a press survives a redraw): damageBox asks it as it draws, so the window hears every press
+// from its start, and the redraw waits until the press has landed. null where there is no page to hold
+function dmgHold() { var w = typeof document !== 'undefined' && document && typeof document.getElementById === 'function' ? document.getElementById('systemModal') : null; return w && typeof w.addEventListener === 'function' && typeof pressHold === 'function' && typeof window !== 'undefined' && window && typeof window.addEventListener === 'function' ? pressHold(w, window) : null; }
 function onDamageChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-dmgr-') < 0) return false;
     var v = typeof t.value === 'string' ? t.value : '', on = t.checked === true, redraw = false;
@@ -923,6 +1008,9 @@ function onDamageChange(t) {
     } else if (dbxHas(c, 'sys-dmgr-wlist') || dbxHas(c, 'sys-dmgr-wwear') || dbxHas(c, 'sys-dmgr-wcond') || dbxHas(c, 'sys-dmgr-wtest') || dbxHas(c, 'sys-dmgr-wheavy')) {
         var w = dbxRow(t, 'sys-dmgr-weapon', 'wi', 'weapons'); if (!w) return true;
         if (dbxHas(c, 'sys-dmgr-wlist')) { if (w.list !== v) { delete w.wear; delete w.cond; } dbxSet(w, 'list', v); dbxWordFollow(w, t); redraw = true; } else dbxSet(w, dbxHas(c, 'sys-dmgr-wwear') ? 'wear' : dbxHas(c, 'sys-dmgr-wtest') ? 'test' : dbxHas(c, 'sys-dmgr-wheavy') ? 'heavy' : 'cond', v);
+    } else if (dbxHas(c, 'sys-dmgr-woundf') || dbxHas(c, 'sys-dmgr-ywf')) {   // 1.6.3: a Wound by box left; the A wound of 0 list and Its multiplier follow it
+        if (dbxShowSig(dbxCm().damage) === _dbxSig) return true;
+        markDirty(); var hW = dmgHold(); if (hW && hW.busy()) hW.then(renderAll); else renderAll(); return true;   // a press elsewhere lands first
     } else return true;   // a text box: its input event did the work
     markDirty(); if (redraw) renderAll(); else patchErrors(); return true;
 }
@@ -948,7 +1036,7 @@ function damageClick(b) {
     if (m[2] === 'add') {
         var d = dbxDraft(), arr = Array.isArray(d[key]) ? d[key] : (d[key] = []);
         if (arr.length >= cap) { toast('At most ' + cap + ' ' + words + '.'); return true; }
-        arr.push(m[1] === 'y' || m[1] === 'k' ? { key: '', label: '' } : m[1] === 'w' ? { word: dbxWordOf({}), _new: true } : {});   // 1.6.3: a new weapon rule starts with its required Called box filled
+        arr.push(m[1] === 'y' ? dbxNewNamed(arr, 'Damage type') : m[1] === 'k' ? dbxNewNamed(arr, 'Kind') : m[1] === 'w' ? { word: dbxWordOf({}), _new: true } : {});   // 1.6.3: a new weapon rule starts with its required Called box filled, and a new type or kind with its required Name
     } else {   // a remove: only a row the draft holds
         var dd = dbxCm().damage, ar = dbxObj(dd) && Array.isArray(dd[key]) ? dd[key] : [], cls = m[1] === 'y' ? 'sys-dmgr-type' : m[1] === 'k' ? 'sys-dmgr-kind' : m[1] === 'l' ? 'sys-dmgr-layer' : m[1] === 'o' ? 'sys-dmgr-onwound' : 'sys-dmgr-weapon', ix = m[1] === 'y' ? 'yi' : m[1] === 'k' ? 'ki' : m[1] === 'l' ? 'li' : m[1] === 'o' ? 'oi' : 'wi';
         var rw = b.closest ? b.closest('.' + cls) : null, i = rw ? Number(rw.dataset[ix]) : -1; if (!(i >= 0 && i < ar.length && Math.floor(i) === i)) return true;
@@ -959,7 +1047,7 @@ function damageClick(b) {
 // What Save drops of the damage rules, said under the box: each part judged by the cleaner itself (cleanDamageRules, with the cleaned GM view's
 // fields), so the words agree with Save. A formula Save keeps but cannot read is a warning: it never holds. Returns { errs, warns }
 function damageSays(d, sys, Fx) {
-    var errs = [], warns = [], say = function(m) { errs.push({ message: m }); }, warn = function(m) { warns.push({ message: m }); };
+    var errs = [], warns = [], say = function(m, p) { errs.push(p ? { message: m, prop: p } : { message: m }); }, warn = function(m, p) { warns.push(p ? { message: m, prop: p } : { message: m }); };   // 1.6.3: p, the box a press on the line lands on (sysui.js PROP_BOX)
     if (!dbxObj(d) || typeof cleanDamageRules !== 'function' || !sys || !Array.isArray(sys.fields)) return { errs: errs, warns: warns };
     var kinds = {}, res = {}, byId = {}; sys.fields.forEach(function(f) { if (!f || typeof f.id !== 'string') return; kinds[f.id] = f.kind; byId[f.id] = f; if (f.kind === 'resource') res[f.id] = 1; });
     var fl = function(id) { return Object.prototype.hasOwnProperty.call(byId, id) ? byId[id] : null; };
@@ -974,6 +1062,7 @@ function damageSays(d, sys, Fx) {
     if (typeof d.major === 'string' && d.major.trim()) { if (!piece({ major: d.major }).major) say('Major Wound: the formula is too long or not on one line, so Save drops it.'); else reads(d.major, 'Major Wound'); }
     if (typeof d.woundF === 'string' && d.woundF.trim()) { if (!piece({ woundF: d.woundF }).woundF) say('Wound by: the formula is too long or not on one line, so Save drops it.'); else reads(d.woundF, 'Wound by'); }   // 1.6.2
     (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y) && typeof y.woundF === 'string' && y.woundF.trim()) reads(y.woundF, 'Wound by of ' + (y.label || y.key || 'a type')); });
+    if (d.zero === 'none' && !dbxAnyWF(d)) warn('A wound of 0 does nothing: it counts only with a Wound by formula, under Taking damage or on a damage type, and none is set.', 'dmgr.zero');   // 1.6.3: Save keeps it, and it does nothing
     if (Array.isArray(d.onMajor)) {   // 1.6.0: onMajor's rows, as the cleaner reads them
         if (d.onMajor.some(function(w) { return dbxObj(w) && (w.fx || w.roll); }) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
         d.onMajor.forEach(function(w, i) {
@@ -988,6 +1077,7 @@ function damageSays(d, sys, Fx) {
         });
     }
     if (dbxObj(d.onMajor)) {   // 1.6.0 (B3): kept only beside the formula; an effect or a roll that is gone does nothing
+        if (!(typeof d.onMajor.fx === 'string' && d.onMajor.fx) && !(typeof d.onMajor.roll === 'string' && d.onMajor.roll)) say('A Major Wound: it switches nothing on and asks for nothing, so Save drops it.', 'dmgr.mjfx.0');   // 1.6.3: a where typed alone, as the list's rows say it
         if (typeof d.onMajor.if === 'string' && d.onMajor.if.trim()) reads(d.onMajor.if, 'A Major Wound, where');   // 1.6.0
         if ((d.onMajor.fx || d.onMajor.roll) && !(typeof d.major === 'string' && d.major.trim())) say('A Major Wound switches on and asks for: Save keeps them only with a Major Wound formula, so it drops them.');
         if (typeof d.onMajor.fx === 'string' && d.onMajor.fx && !(Array.isArray(sys.effects) ? sys.effects : []).some(function(e) { return dbxObj(e) && e.id === d.onMajor.fx; })) warn('A Major Wound switches on: that effect is gone, so it switches nothing on.');
@@ -1027,15 +1117,19 @@ function damageSays(d, sys, Fx) {
             if (typeof d.locs.die === 'string' && d.locs.die.trim()) { if (!lk.die) say('Hit locations: the A die there adds formula is too long or not on one line, so Save drops it.'); else reads(d.locs.die, 'A die there adds'); }   // 1.6.0
         }
     }
-    var seen = {}, kept = 0;
+    var seen = {}, kept = 0, yVital = false;
     (Array.isArray(d.types) ? d.types : []).forEach(function(y, i) {
-        var nm = 'Damage type ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : dbxObj(y) && typeof y.key === 'string' && y.key ? ', ' + y.key : '');
+        var nm = 'Damage type ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : '');   // 1.6.3 (the review of damage): its name, never its short name, which a user never reads
         if (!dbxObj(y)) { say(nm + ': Save cannot read it, so it drops it.'); return; }
         var k = typeof y.key === 'string' ? y.key.toLowerCase() : '';
-        if (!k || !(piece({ types: [{ key: y.key }] }).types || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
+        var yNamed = typeof y.label === 'string' && !!y.label.trim();   // 1.6.3: the Name is required (Fulllion's rulings of 2026-11-20)
+        if (!k && !yNamed) { say(nm + ': it needs a name, or Save drops it.', 'dmgr.ylabel.' + i); return; }
+        if (!k) { say(nm + ': its name makes no short name, so Save drops it. Use a letter A to Z in its name.', 'dmgr.ylabel.' + i); return; }
+        if (!(piece({ types: [{ key: y.key }] }).types || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
         if (seen[k]) { say(nm + ': another type has this key, so Save drops it.'); return; }
         if (kept >= DBX_LIM.types) { say(nm + ': at most ' + DBX_LIM.types + ' types, so Save drops it.'); return; }
         seen[k] = 1; kept++;
+        if (!yNamed) say(nm + ': Name is empty. Name it, such as Cutting, since players read it in the damage lines and the Take damage window.', 'dmgr.ylabel.' + i);
         var cy = (piece({ locs: d.locs, types: [y] }).types || [])[0] || {};
         if (y.mult !== undefined) { if (typeof y.mult !== 'number' || !isFinite(y.mult)) say(nm + ': its multiplier is no number, so Save takes 1.'); else if (cy.mult !== y.mult) say(nm + ': a multiplier is 0 to 10 to the hundredth, so Save keeps ' + cy.mult + '.'); }
         if (y.vital !== undefined && y.vital !== 0) { if (typeof y.vital !== 'number' || !isFinite(y.vital)) say(nm + ': its vital multiplier is no number, so Save drops it.'); else if (!cy.vital) say(nm + ': a vital multiplier is above 0 and at most 10, so Save drops it.'); else if (cy.vital !== y.vital) say(nm + ': a vital multiplier is at most 10 to the hundredth, so Save keeps ' + cy.vital + '.'); }
@@ -1049,21 +1143,32 @@ function damageSays(d, sys, Fx) {
             else if (cy[g[1]] !== v) say(nm + ': ' + g[5] + ' is ' + g[4] + ' to 10 to the hundredth, so Save keeps ' + (cy[g[1]] || 0) + '.');
         });
         if (!lk && ((typeof y.dieDr === 'number' && y.dieDr) || (typeof y.dieVital === 'number' && y.dieVital) || (typeof y.dieWear === 'number' && y.dieWear))) warn(nm + ': its DR, vital wound and wear a die count only at a hit location, so they do nothing here.');
+        // 1.6.3 (lane B batch "damage"): Vital times and its vital wound a die count only where Vital where holds at the location struck. Read on the
+        // cleaned type, so only figures Save keeps are said. Warnings: Save keeps them, and they do nothing
+        if (cy.vital || cy.dieVital) yVital = true;
+        if (lk && !lk.vital && (cy.vital || cy.dieVital)) warn(nm + ': Vital times and its vital wound a die count only at a vital location, and Vital where under Hit locations is empty, so they do nothing. Fill Vital where.', 'dmgr.locvital');
+        if (!lk && cy.vital) warn(nm + ': Vital times counts only at a hit location, so it does nothing here.');
+        if (y.byMult === true && !dbxStr(d.woundF).trim() && !dbxStr(y.woundF).trim()) warn(nm + ': Its multiplier counts only with a Wound by formula under Taking damage, and that is empty.');
         if (dbxObj(y.alt) && Object.keys(y.alt).length) {
             if (!cy.alt) say(nm + ': Instead, if needs a formula Save can keep, so Save drops what it changes.');
             else { if (typeof y.alt.pool === 'string' && y.alt.pool && !cy.alt.pool) say(nm + ': the pool for Instead, if is gone, so Save drops it.'); if (y.alt.mult !== undefined && cy.alt.mult === undefined) say(nm + ': the multiplier for Instead, if is no number, so Save drops it.'); reads(y.alt.if, nm + ', Instead, if'); }
         }
         if (Array.isArray(y.alts)) y.alts.forEach(function(x, xk) { if (!dbxObj(x) || !Object.keys(x).length) return; var cx = cy.alts && cy.alts.filter(function(z) { return z.if === x.if; })[0]; if (!cx) say(nm + ': Or else, if ' + (xk + 2) + ' needs a formula Save can keep, beside an Instead, if, so Save drops it.'); else reads(x.if, nm + ', Or else, if'); });   // 1.6.2
     });
+    if (lk && lk.vital && !yVital) warn('Vital where: no damage type has Vital times or a vital wound a die, so it changes nothing.', 'dmgr.locvital');   // 1.6.3: the other way round
     var kSeen = Object.create(null), kKept = 0;   // 1.6.0: the kinds of blow, as the cleaner reads them
     (Array.isArray(d.kinds) ? d.kinds : []).forEach(function(y, i) {
-        var nm = 'Kind ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : dbxObj(y) && typeof y.key === 'string' && y.key ? ', ' + y.key : '');
+        var nm = 'Kind ' + (i + 1) + (dbxObj(y) && typeof y.label === 'string' && y.label.trim() ? ', ' + y.label.trim() : '');   // 1.6.3 (the review of damage): its name, never its short name
         if (!dbxObj(y)) { say(nm + ': Save cannot read it, so it drops it.'); return; }
         var k = typeof y.key === 'string' ? y.key.toLowerCase() : '';
-        if (!k || !(piece({ kinds: [{ key: y.key }] }).kinds || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
+        var kNamed = typeof y.label === 'string' && !!y.label.trim();   // 1.6.3: the Name is required (Fulllion's rulings of 2026-11-20)
+        if (!k && !kNamed) { say(nm + ': it needs a name, or Save drops it.', 'dmgr.klabel.' + i); return; }
+        if (!k) { say(nm + ': its name makes no short name, so Save drops it. Use a letter A to Z in its name.', 'dmgr.klabel.' + i); return; }
+        if (!(piece({ kinds: [{ key: y.key }] }).kinds || []).length) { say(nm + ': its key must be a letter, then letters, digits and _, so Save drops it.'); return; }
         if (kSeen[k]) { say(nm + ': another kind has this key, so Save drops it.'); return; }
         if (kKept >= DBX_LIM.kinds) { say(nm + ': at most ' + DBX_LIM.kinds + ' kinds, so Save drops it.'); return; }
         kSeen[k] = 1; kKept++;
+        if (!kNamed) say(nm + ': Name is empty. Name it, such as Melee, since the Take damage window and a blast’s kind of blow show it.', 'dmgr.klabel.' + i);
     });
     [['layers', 'Layer', 'at', 'its figure', ['wear']], ['weapons', 'Weapon list', 'dur', 'its Dur', ['wear', 'cond']]].forEach(function(g) {
         var n = 0;
@@ -1286,8 +1391,8 @@ function onRangeInput(t) {
 }
 function onRangeChange(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-range-') < 0) return false;
-    if (c.indexOf('sys-range-bodysize') >= 0) { var cmB = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmB.bodySize = t.value; else delete cmB.bodySize; markDirty(); patchErrors(); return true; }   // 1.6.2
-    if (c.indexOf('sys-range-size') >= 0) { var cmZ = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmZ.targetSize = t.value; else delete cmZ.targetSize; markDirty(); patchErrors(); return true; }   // 1.6.0: TargetSize's field
+    if (c.indexOf('sys-range-bodysize') >= 0) { var cmB = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmB.bodySize = t.value; else delete cmB.bodySize; markDirty(); patchErrors(); renderCombat(); return true; }   // 1.6.2; 1.6.3: drawn again, so A body in the way hides says at once whether a size is picked
+    if (c.indexOf('sys-range-size') >= 0) { var cmZ = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmZ.targetSize = t.value; else delete cmZ.targetSize; markDirty(); patchErrors(); renderCombat(); return true; }   // 1.6.0: TargetSize's field; 1.6.3: drawn again, as A body in the way reads is
     if (c.indexOf('sys-range-hit') >= 0) { var cmH = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }); if (typeof t.value === 'string' && t.value) cmH.targetHit = t.value; else delete cmH.targetHit; markDirty(); patchErrors(); return true; }   // 1.6.0 (B5): the list of hit locations
     if (c.indexOf('sys-range-by') < 0 && c.indexOf('sys-range-unit') < 0) return true;   // the boxes' change events (their input events did the work)
     var cm = draft.combat || (draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' });

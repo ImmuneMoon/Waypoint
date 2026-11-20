@@ -1786,8 +1786,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         q('sys-pcap-add')[0].on.click(evS); const slotOpts = J(q('sys-pcap-slot')[0].kids.map(o => o.value)), hasCats = q('sys-pcap-cats').length === 1;
         const slS = q('sys-pcap-slot')[0]; slS.value = 'Slot'; slS.on.change(evS); const afterSlot = J(spX.parts.caps), isOpts = J(q('sys-pcap-is')[0].kids.map(o => o.value)), noCats = q('sys-pcap-cats').length === 0;
         const isS = q('sys-pcap-is')[0]; isS.value = 'Arm'; isS.on.change(evS); const afterIs = J(spX.parts.caps);
-        const slS2 = q('sys-pcap-slot')[0]; slS2.value = ''; slS2.on.change(evS); const back = J(spX.parts.caps) === J([{ by: '', cats: [] }]) && q('sys-pcap-cats').length === 1;
-        const boxS = slotOpts === J(['', 'Slot']) && hasCats && afterSlot === J([{ by: '', slot: 'Slot', is: '' }]) && isOpts === J(['', 'Head', 'Arm']) && noCats && afterIs === J([{ by: '', slot: 'Slot', is: 'Arm' }]) && back;
+        const slS2 = q('sys-pcap-slot')[0]; slS2.value = ''; slS2.on.change(evS); const back = J(spX.parts.caps) === J([{ by: 'Arms', cats: [] }]) && q('sys-pcap-cats').length === 1;
+        const boxS = slotOpts === J(['', 'Slot']) && hasCats && afterSlot === J([{ by: 'Arms', slot: 'Slot', is: '' }])   /* 1.6.3: + Kind starts on the list's first number stat, moved on purpose */ && isOpts === J(['', 'Head', 'Arm']) && noCats && afterIs === J([{ by: 'Arms', slot: 'Slot', is: 'Arm' }]) && back;
         const sl3 = q('sys-pcap-slot')[0]; sl3.value = 'Slot'; sl3.on.change(evS); q('sys-pcap-or')[0].on.click(evS); const blankOr = q('sys-pcap-is').length === 1; const i3 = q('sys-pcap-is')[0]; i3.value = 'Head'; i3.on.change(evS); q('sys-pcap-or')[0].on.click(evS); const i4 = q('sys-pcap-is')[1]; i4.value = 'Arm'; i4.on.change(evS); const isTwo = J(spX.parts.caps[0].is), i1b = q('sys-pcap-is')[0]; i1b.value = 'Arm'; i1b.on.change(evS); const isSame = J(spX.parts.caps[0].is); const i4b = q('sys-pcap-is')[1]; i4b.value = ''; i4b.on.change(evS); const isOne = J(spX.parts.caps[0].is);
         const fI = q('sys-pcap-f')[0]; fI.value = ' Row.Wt + 1 '; fI.on.input(evS); const fSet = spX.parts.caps[0].f; fI.value = ''; fI.on.input(evS); const fGone = !('f' in spX.parts.caps[0]);
         const ifB = q('sys-pcap-if')[0], lbB = q('sys-pcap-label')[0]; ifB.value = ' Row.Wt > 0 '; ifB.on.input(evS); lbB.value = ' Frame '; lbB.on.input(evS); const ifSet = spX.parts.caps[0]['if'] === 'Row.Wt > 0' && spX.parts.caps[0].label === 'Frame'; ifB.value = ''; ifB.on.input(evS); lbB.value = ''; lbB.on.input(evS); const ifGone = !('if' in spX.parts.caps[0]) && !('label' in spX.parts.caps[0]);
@@ -2212,5 +2212,26 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("[/^ft$/, ['sys-item-ft']], [/^frag$/, ['sys-item-afrag']], [/^aff$/, ['sys-item-affs']], [/^flies$/, ['sys-fly-speed', 'sys-fly-rounds']], [/^end\\.(\\d+)$/, ['sys-apply-target']], [/^rmMsg$/, ['sys-item-rmtext']], [/^eqMsg$/, ['sys-item-eqtext']], [/^loc$/, ['sys-item-aloc']], [/^trig$/, ['sys-item-atrig']]"),
             'the resist roll\'s words or the PROP_BOX lines');
     }
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules": "it makes sense to have fields be required when other fields depend on them", "none isn't a good
+    // default substitution"): an emptied tab label and band group name are said under their box (sysedlayout.js layoutNameErrs, run for real), and a Handbook
+    // link with no page, or a page that is gone, says so on its place (linkPageSays, run for real)
+    {
+        const lyS = require('./checkkit').part('sysedlayout.js'), cutL3 = (a, b) => lyS.slice(lyS.indexOf(a), lyS.indexOf(b, lyS.indexOf(a)));
+        const nameErrs = dr => { const eb = { 'plc:x': 1, 'tablbl:sheet:old': 1 }; new Function('draft', 'errorsById', cutL3('function layoutNameErrs(', '// 1.6.3 (lane B batch "rules"): what a Handbook link') + '\nlayoutNameErrs();')(dr, eb); return eb; };
+        const eL = nameErrs({ sheet: { tabs: [{ id: 't_a', label: 'Main' }, { id: 't_b', label: '  ' }], hud: { tabs: [{ id: 't_h', label: '' }] }, bandGroups: [{ id: 'g_1', label: 'Points' }, { id: 'g_2' }] } });
+        check('1.6.3 an emptied tab label, on the sheet and on the HUD, and a band group with no name are each said under their box, landing on it; a filled one says nothing, and the old lines of the kind go first',
+            j(eL) === j({ 'plc:x': 1, 'tablbl:sheet:t_b': [{ message: 'A tab needs a label. Until it has one, the sheet shows Tab.', prop: 'tab.label.1' }], 'tablbl:hud:t_h': [{ message: 'A tab needs a label. Until it has one, the HUD shows Tab.', prop: 'tab.label.0' }], 'grplbl:g_2': [{ message: 'A group needs a name. Until it has one, its Pin button says Pin Group.', prop: 'group.label.1' }] })
+            && j(nameErrs({ sheet: { tabs: [{ id: 't_a', label: 'Main' }] } })) === j({ 'plc:x': 1 }) && j(nameErrs(null)) === j({ 'plc:x': 1 }), j(eL));
+        const pages = [['p_1', 'Rules']], lkSays = new Function('pageOptions', cutL3('function linkPageSays(', '// The ticks under a place') + '\nreturn linkPageSays;')((cur, none) => none === null ? pages : [['', none]].concat(pages));
+        check('1.6.3 a Handbook link with no page, or a page that is gone, says so on its place; one with a page says nothing, nor does any other place',
+            lkSays({ kind: 'link', page: '' }) === 'Pick a page, since until then this button shows on no sheet.' && lkSays({ kind: 'link', page: 'p_9' }) === 'This page is gone. Pick another, since until then this button shows on no sheet.' && lkSays({ kind: 'link', page: 'p_1' }) === '' && lkSays({ kind: 'roll' }) === '');
+        const tbs = require('./checkkit').part('sysedtabs.js'), uiS = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8');
+        check('1.6.3 the lines are drawn under their boxes and follow the typing, and a press on one goes to the Layout tab and its box',
+            lyS.includes("var tbErr = 'tablbl:' + layoutView + ':' + tb.id, tbEc = errorCell(tbErr); tbEc.dataset.errFor = tbErr; tmain.appendChild(tbEc);") && lyS.includes("var grErr = 'grplbl:' + g.id, grEc = errorCell(grErr); grEc.dataset.errFor = grErr; gr.appendChild(grEc);") && lyS.includes("if (lkSay) pr.appendChild(el('span', 'sys-warn-line', lkSay));")
+            && lyS.includes("if (typeof layoutNameErrs === 'function') layoutNameErrs();") && /tb0\.label = t\.value\.slice\(0, LIMITS\.label\); markDirty\(\); renderPreview\(\); if \(typeof patchErrors === 'function'\) patchErrors\(\);/.test(lyS)
+            /* 1.6.3: the pin moved on purpose (the review of rules), a place's or a tab label's fault names its Sheet or HUD view, which errGo switches to (sysuicheck runs both) */
+            && tbs.includes("if (/^(?:plc|tablbl|grplbl):/.test(id)) { var lv = /^(?:plc|tablbl):(sheet|hud):/.exec(id); return lv ? { tab: 'layout', view: lv[1], name: 'Layout' } : { tab: 'layout', name: 'Layout' }; }") && tbs.includes("layoutViewSet(p.view);") && uiS.includes("[/^tab\\.label\\.(\\d+)$/, ['sys-tab-label']], [/^group\\.label\\.(\\d+)$/, ['sys-bgrp-label']]"));
+    }
+
     await T.finish();
 })();

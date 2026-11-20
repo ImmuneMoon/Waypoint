@@ -118,6 +118,28 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
     check('a card and a number can go, and a number leaves no card holding it', list[0].cards.length === 2 && list[0].stats.length === 0 && !J(list[0].cards).includes('vals'), J(list[0]));
     press(q('.dk-add')); check('a second deck has a key of its own, and the editor shows it', list.length === 2 && list[1].key === 'D2' && q('.dk-pick').value === 'D2');
     press(q('.dk-rm')); check('Remove it takes the one on show', list.length === 1 && list[0].key === 'D1');
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules": "it makes sense to have fields be required when other fields depend on them"): a card with no
+    // name is dropped by the cleaner with all it holds, so + Card starts named and an emptied name is said under the card; a number's name is what cards show,
+    // so an unnamed number is said under it, and the cleaner shows A number, never its short name (deckui.js run for real)
+    {
+        const cards0 = list[0].cards.length; press(q('.dk-cardadd')); const nc = list[0].cards[cards0], lines = () => qa('.dk-nameneed'), lastL = () => lines()[lines().length - 1];
+        const born = nc && nc.name, shut = lastL() && lastL().hidden === true;
+        const nb = qa('.dk-name')[qa('.dk-name').length - 1]; go(nb, 'input', '  '); const open = lastL().hidden === false && /^A card needs a name\. Until it has one, Save drops it with its faces, copies, numbers and picture, and the cards after it move up\.$/.test(lastL().textContent);
+        go(nb, 'input', 'Jack'); const back = lastL().hidden === true;
+        press(q('.dk-statadd')); const sn = q('.dk-statneed'), snOpen = !!sn && sn.hidden === false && sn.textContent === 'It needs a name, which cards show. Until it has one, they say A number.'; go(q('.dk-stat'), 'change', 'Gold'); const snShut = sn.hidden === true;
+        check('1.6.3 + Card starts named (Card and its place), an emptied name is said under the card at once and goes once one is typed, and a number with no name is said under it until it has one',
+            born === 'Card ' + (cards0 + 1) && shut && open && back && snOpen && snShut && !/Number[0-9]/.test(page.textContent), J([born, shut, open, back, snOpen, snShut]));
+        check('1.6.3 the cleaner names a number with none A number, never its short name, and still drops a card with no name', K.cleanDeck({ key: 'D1', label: 'X', stats: [{ key: 'Number1', label: '' }], cards: [{ name: '' }, { name: 'Ace' }] }).stats[0].label === 'A number' && K.cleanDeck({ key: 'D1', label: 'X', stats: [], cards: [{ name: '' }, { name: 'Ace' }] }).cards.length === 1);
+        press(qa('.dk-cardrm')[qa('.dk-cardrm').length - 1]); press(q('.dk-statrm'));
+        // 1.6.3 (the review of rules): a deck saved before 1.6.3 holds a number's short name as its name (Number1), and one saved since an emptied name as A
+        // number. Neither is empty, so the line said nothing: now each is said under its box, and goes once a name of its own is typed
+        list[0].stats.push({ key: 'Number1', label: 'Number1' }, { key: 'Number2', label: 'a number' }, { key: 'Speed', label: 'Speed' }); U.edit(page, o);
+        const sns = qa('.dk-statneed'), sOld = sns[0] && sns[0].hidden === false && sns[0].textContent === 'Save named it Number1 for want of a name. Give it a name of your own, which cards show.', sGen = sns[1] && sns[1].hidden === false && sns[1].textContent === 'Save named it a number for want of a name. Give it a name of your own, which cards show.', sOwn = sns[2] && sns[2].hidden === true;
+        go(qa('.dk-stat')[0], 'input', 'Reach'); const sTyped = sns[0].hidden === true; go(qa('.dk-stat')[0], 'input', ''); const sEmpty = sns[0].hidden === false && sns[0].textContent === 'It needs a name, which cards show. Until it has one, they say A number.';
+        check('1.6.3 a number whose name is still its short name, or the word the cleaner gave it, is said under its box until a name of its own is typed',
+            sOld && sGen && sOwn && sTyped && sEmpty, J(sns.map(s => [s.hidden, s.textContent])));
+        while (q('.dk-statrm')) press(q('.dk-statrm'));
+    }
     const nt = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, NL), ix = read('index.html'), sh = read('scripts/sheets.js'), fb = readRoot('WHATSNEW.txt');
     check('a pile never leaves the host: the snapshot carries counts, and a player’s app takes counts alone from the synced host', require('./checkkit').part('netfog.js').includes("camp.pileN = typeof decksFor === 'function' ? decksFor(camp) : {}; delete camp.piles;") && nt.includes("c.send({ type: 'decks', campId: camp.id, counts: counts, decks: defs })") && nt.includes("} else if (msg.type === 'decks' && net.role === 'client') {") && nt.includes('dkCore.cleanCounts(msg.counts[d.key], d)') && !/type === 'decks'[^\n]*net\.role === 'host'/.test(nt));
     const tgtS = require('./checkkit').cut('sysedroll.js', 'function deckTargets(ch)', 'function deckBox(ch)') + require('./checkkit').cut('sysedroll.js', 'function resultTargets(ch)', 'function resultByBox(ch)'), tgtR = new Function('draft', tgtS + '\nreturn resultTargets;')({ decks: [{ key: 'D1', label: 'Rooks' }], values: [{ key: 'V1', label: 'M' }], results: [{ key: 'R1', label: 'T' }] });

@@ -275,7 +275,8 @@ function refreshErrors() {
         if (typeof sp.price === 'string' && sp.price && !mine[sp.price.toLowerCase()]) errs.push({ message: 'The price names no stat of this list: Save drops it.' });
         var onD = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null, onPer = onD && typeof onD.per === 'string' ? onD.per.trim() : '';   // 1.5.4 One at a time: a Per stat as Save reads it
         if (onPer && !keptW[onPer.toLowerCase()]) errs.push({ message: 'One at a time goes by "' + onD.per + '", which is no stat of this list. ' + (onD.one === true ? 'Save keeps one row on for the whole list.' : 'Save drops it.') });
-        if (onD && typeof onD.needsText === 'string' && onD.needsText.trim() && !(typeof onD.needs === 'string' && onD.needs.trim())) errs.push({ message: 'The switch has words but no Needs to switch on, so Save drops its words.' });   // 1.5.8: as the cleaner reads them (rollNeedsInto keeps the words only beside a formula)
+        if (onD && typeof onD.needsText === 'string' && onD.needsText.trim() && !(typeof onD.needs === 'string' && onD.needs.trim())) errs.push({ prop: 'list.swwords', message: 'The switch has words but no Needs to switch on, so Save drops its words.' });   // 1.5.8: as the cleaner reads them (rollNeedsInto keeps the words only beside a formula)
+        listReqSays(f, draft).forEach(function(e) { errs.push(e); });   // 1.6.3: a box another box depends on, left empty
         (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) { if (rr && typeof rr === 'object' && !Array.isArray(rr.apply) && typeof rr.ad === 'string' && rr.ad.trim() && rr.dmg !== true) errs.push({ message: 'Roll ' + (ri + 1) + (typeof rr.label === 'string' && rr.label.trim() ? ', ' + rr.label.trim() : '') + ': an armor divisor needs Damage ticked, so Save drops it.' }); });   // 1.6.0: as the cleaner reads it
         if (sp.lvl && typeof sp.lvl === 'object' && Array.isArray(sp.lvl.caps) && typeof cleanListSpec === 'function') {   // 1.6.0 At most at a level, as the cleaner reads it
             var capOne = function(c) { var lk = (cleanListSpec({ lvl: Object.assign({}, sp.lvl, { caps: [c] }) }, true, F()) || {}).lvl; return lk && Array.isArray(lk.caps) ? lk.caps[0] : null; }, capOk = 0;
@@ -369,8 +370,9 @@ function refreshErrors() {
             if (!chSrc || chSrc.kind !== 'item-list') errs.push({ message: 'Chambers from names no item list. Save drops it.' });
             else if (chSrc.vis === 'gm' && f.vis !== 'gm') (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ message: 'Chambers from a GM-only list: players see no Chamber on their sheet.' });
             var cBy = typeof chr.by === 'string' ? chr.by.trim().toLowerCase() : '', cTo = typeof chr.to === 'string' ? chr.to.trim() : '';
-            if ((cBy && !cTo) || (!cBy && cTo)) errs.push({ message: 'Matched by needs a stat of this list and a stat of the round\u2019s list. Save drops it.' });
-            else if (cBy && !stsC.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === cBy; })) errs.push({ message: 'Matched by names no stat of this list. Save drops it.' });
+            // 1.6.3 (the review of the Lists tab's fix, 2026-11-20): each lands on Chambers from's own Matched by box (sysui.js PROP_BOX list.chambermatch), and says what the row then chambers
+            if ((cBy && !cTo) || (!cBy && cTo)) errs.push({ prop: 'list.chambermatch', message: 'Chambers from: Matched by needs a stat of this list and a stat of the round\u2019s list. Save drops it, and the row chambers anything its categories take.' });
+            else if (cBy && !stsC.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === cBy; })) errs.push({ prop: 'list.chambermatch', message: 'Chambers from: Matched by names no stat of this list. Save drops it, and the row chambers anything its categories take.' });
             var cCb = typeof chr.capBy === 'string' ? chr.capBy.trim().toLowerCase() : '';   // the review of fold 2, as the cleaner reads it
             if (cCb && !stsC.some(function(x) { return x && typeof x.key === 'string' && x.kind !== 'pick' && x.key.toLowerCase() === cCb; })) errs.push({ message: 'The row\u2019s Holds names no number stat of this list. Save drops it.' });
             if (Array.isArray(chr.cats) && chr.cats.length > LIMITS.listCats) errs.push({ message: 'Chambers from takes at most ' + LIMITS.listCats + ' categories. Save keeps the first ' + LIMITS.listCats + '.' });
@@ -418,6 +420,10 @@ function refreshErrors() {
     });
     var clean = cleanSystem(draft, { F: F(), gmView: true });
     if (!clean) return;
+    draft.fields.forEach(function(f) {   // 1.6.3: what only the cleaner can say of a box another depends on
+        if (!f || f.kind !== 'item-list' || !f.list) return; var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf) return;
+        listCleanSays(f, cf).forEach(function(e) { (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push(e); });
+    });
     draft.fields.forEach(function(f) {   // 1.6.0 Changes apply where, as the cleaner reads it (the validator says the rest)
         if (!f || f.kind !== 'item-list' || !f.list || typeof f.list.modsIf !== 'string' || !f.list.modsIf.trim()) return;
         var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || (cf.list && cf.list.modsIf)) return;
@@ -799,6 +805,10 @@ function refreshErrors() {
     }
     var thE = draft.combat && typeof draft.combat.targetHit === 'string' ? draft.combat.targetHit : '';   // 1.6.0 (B5): the list of hit locations, judged as the cleaner judges it
     if (thE) { var thFe = (draft.fields || []).find(function(f) { return f && f.id === thE; }); if (!thFe || thFe.kind !== 'item-list') rErr.push({ message: 'Called shots read: that list is gone or is no list, so Save drops it.' }); }
+    // 1.6.3 (lane B): A body in the way hides reads TargetSize and BodySize through Target size reads (or A body in the way reads). With neither picked every
+    // size reads 0, so the formula hides nothing. Said here, where the pick is made; the cleaner keeps the formula as it is
+    var cvBE = draft.combat && draft.combat.cover && typeof draft.combat.cover === 'object' ? draft.combat.cover : null, bdT = cvBE && cvBE.on === true && typeof cvBE.body === 'string' ? cvBE.body.trim() : '';
+    if (bdT && !tszE && !bszE && F()) { var bdP = F().parse(bdT); if (bdP && bdP.ok && (bdP.names || []).some(function(n) { var l = String(n).toLowerCase(); return l === 'targetsize' || l === 'bodysize'; })) rErr.push({ prop: 'range.size', message: 'A body in the way hides reads the sizes, but no number is picked as a character\u2019s size. Pick one in Target size reads, or every size reads 0.' }); }
     if (rErr.length) errorsById.range = (errorsById.range || []).concat(rErr);
     // item 19 H2: what Save drops of the height modifier, said under the Height box — read as the cleaner reads it
     var hgE = draft.combat && draft.combat.height && typeof draft.combat.height === 'object' && !Array.isArray(draft.combat.height) ? draft.combat.height : null, hErr = [];
@@ -830,46 +840,60 @@ function refreshErrors() {
     // item 20 K1: what Save drops or changes of the calendar, said under the Calendar tab — each name read by calendarcore cleanCalendar itself
     var calE = draft.calendar && typeof draft.calendar === 'object' && !Array.isArray(draft.calendar) ? draft.calendar : null, cErr = [];
     if (calE) {
-        var cWh = function(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; }, cPs = Array.isArray(calE.periods) ? calE.periods : [], cWk = Array.isArray(calE.week) ? calE.week : [], cOkP = Object.create(null), cOkW = Object.create(null), cKp = 0, cKw = 0;
-        cPs.forEach(function(p, i) {
-            var nm = 'Period ' + (i + 1), q = p && typeof p === 'object' ? p : {};
-            if (!cleanCalendar({ periods: [{ name: q.name, days: 1 }] })) cErr.push({ message: nm + ' needs a name: Save drops it.' });
-            else if (!cWh(q.days, 1, CAL_LIMITS.periodDays)) cErr.push({ message: nm + ': its days are a whole number from 1 to ' + CAL_LIMITS.periodDays + ': Save drops it.' });
-            else if (cKp >= CAL_LIMITS.periods) cErr.push({ message: nm + ': at most ' + CAL_LIMITS.periods + ', so Save drops it.' });
-            else { cOkP[i] = 1; cKp++; }
+        var cWh = function(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; };
+        // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules"): the checks a calendar's own periods, weekdays, Day 1 and leap rules take. The
+        // cleaner reads another calendar (Calendar 2 to 5) by the very same rules, so each is judged here too, its name before every line. pre: '' for
+        // the main calendar, whose lines stay word for word; main: true for the main one alone, which has the hours of a day and the other calendars
+        // (between, run between its first leap rule and the rest, so its lines keep their old order). cOkP, cOkW and cKp are each calendar's own, so a leap
+        // rule is judged against the periods its own calendar keeps
+        var calChecks = function(c, pre, main, between) {
+            var cPs = Array.isArray(c.periods) ? c.periods : [], cWk = Array.isArray(c.week) ? c.week : [], cOkP = Object.create(null), cOkW = Object.create(null), cKp = 0, cKw = 0, say = function(m) { cErr.push({ message: pre + m }); };
+            cPs.forEach(function(p, i) {
+                var nm = 'Period ' + (i + 1), q = p && typeof p === 'object' ? p : {};
+                if (!cleanCalendar({ periods: [{ name: q.name, days: 1 }] })) say(nm + ' needs a name: Save drops it.');
+                else if (!cWh(q.days, 1, CAL_LIMITS.periodDays)) say(nm + ': its days are a whole number from 1 to ' + CAL_LIMITS.periodDays + ': Save drops it.');
+                else if (cKp >= CAL_LIMITS.periods) say(nm + ': at most ' + CAL_LIMITS.periods + ', so Save drops it.');
+                else { cOkP[i] = 1; cKp++; }
+            });
+            cWk.forEach(function(w, i) {
+                if (!cleanCalendar({ week: [w] })) say('Weekday ' + (i + 1) + ' needs a name: Save drops it.');
+                else if (cKw >= CAL_LIMITS.week) say('Weekday ' + (i + 1) + ': at most ' + CAL_LIMITS.week + ', so Save drops it.');
+                else { cOkW[i] = 1; cKw++; }
+            });
+            if (typeof c.first === 'number' && c.first > 0 && !cOkW[c.first]) say('Day 1\u2019s weekday is dropped, so Save starts the week at the first weekday it keeps.');
+            if (main) [['hours', 'Hours a day', CAL_LIMITS.hours, 24], ['minutes', 'Minutes an hour', CAL_LIMITS.minutes, 60], ['seconds', 'Seconds a minute', CAL_LIMITS.seconds, 60]].forEach(function(g) {
+                if (c[g[0]] !== undefined && !cWh(c[g[0]], 1, g[2])) say(g[1] + ': a whole number from 1 to ' + g[2] + ', so Save keeps ' + g[3] + '.');
+            });
+            if (c.one !== undefined && !cWh(c.one, -CAL_LIMITS.year, CAL_LIMITS.year)) say('Day 1\u2019s year: a whole number within 10,000,000 either way, so Save keeps 1.');
+            var cLp = c.leap && typeof c.leap === 'object' && !Array.isArray(c.leap) ? c.leap : null;
+            if (cLp) {
+                if (!cKp) say('Leap years: add a period first, or Save drops the rule.');
+                else if (!cWh(cLp.every, 2, CAL_LIMITS.leapEvery)) say('Leap years: every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops the rule.');
+                else if (!cWh(cLp.from, -CAL_LIMITS.year, CAL_LIMITS.year)) say('Leap years: the year it counts from is a whole number within 10,000,000 either way, or Save drops the rule.');
+                else if (!cWh(cLp.days, 1, CAL_LIMITS.leapDays)) say('Leap years: 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops the rule.');
+                else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) say('Leap years: the period that gains the days is dropped, so Save drops the rule.');
+            }
+            if (typeof between === 'function') between();
+            (Array.isArray(c.leaps) ? c.leaps : []).forEach(function(r0, k) {   // 1.6.2 (backlog 60): each rule beside the first, read as cleanCalendar reads it
+                var r = r0 && typeof r0 === 'object' ? r0 : {}, nm = 'Leap rule ' + (k + (cLp ? 2 : 1)), tu = Array.isArray(r.periods) ? r.periods : [];
+                if (!cKp) say(nm + ': add a period first, or Save drops it.');
+                else if (k >= CAL_LIMITS.leaps) say(nm + ': at most ' + CAL_LIMITS.leaps + ' rules beside the first, so Save drops it.');
+                else if (!cWh(r.every, 2, CAL_LIMITS.leapEvery)) say(nm + ': every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops it.');
+                else if (!cWh(r.from, -CAL_LIMITS.year, CAL_LIMITS.year)) say(nm + ': the year it counts from is a whole number within 10,000,000 either way, or Save drops it.');
+                else if (!cWh(r.days, 1, CAL_LIMITS.leapDays)) say(nm + ': 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops it.');
+                else { var kept = tu.slice(0, CAL_LIMITS.leapTurns).filter(function(p) { return typeof p === 'number' && cOkP[p]; }).length; if (!kept) say(nm + ': every period it gives its days to is dropped, so Save drops it.'); else if (kept < tu.length) say(nm + ': a period in its turns is dropped, so Save leaves it out of the turns.'); }
+            });
+        };
+        var calOthers = [];
+        calChecks(calE, '', true, function() {
+            (Array.isArray(calE.others) ? calE.others : []).forEach(function(o, k) {   // 1.6.2 (backlog 60): another calendar keeps its name, and four at most
+                var q = o && typeof o === 'object' ? o : {};
+                if (k >= CAL_LIMITS.others) cErr.push({ message: 'Calendar ' + (k + 2) + ': at most ' + CAL_LIMITS.others + ' other calendars, so Save drops it.' });
+                else if (!cleanCalendar({ others: [{ name: q.name }] })) cErr.push({ message: 'Calendar ' + (k + 2) + ' needs a name: Save drops it.' });
+                else calOthers.push([q, k]);   // a calendar Save keeps: its own periods, weekdays and leap rules are judged below
+            });
         });
-        cWk.forEach(function(w, i) {
-            if (!cleanCalendar({ week: [w] })) cErr.push({ message: 'Weekday ' + (i + 1) + ' needs a name: Save drops it.' });
-            else if (cKw >= CAL_LIMITS.week) cErr.push({ message: 'Weekday ' + (i + 1) + ': at most ' + CAL_LIMITS.week + ', so Save drops it.' });
-            else { cOkW[i] = 1; cKw++; }
-        });
-        if (typeof calE.first === 'number' && calE.first > 0 && !cOkW[calE.first]) cErr.push({ message: 'Day 1\u2019s weekday is dropped, so Save starts the week at the first weekday it keeps.' });
-        [['hours', 'Hours a day', CAL_LIMITS.hours, 24], ['minutes', 'Minutes an hour', CAL_LIMITS.minutes, 60], ['seconds', 'Seconds a minute', CAL_LIMITS.seconds, 60]].forEach(function(g) {
-            if (calE[g[0]] !== undefined && !cWh(calE[g[0]], 1, g[2])) cErr.push({ message: g[1] + ': a whole number from 1 to ' + g[2] + ', so Save keeps ' + g[3] + '.' });
-        });
-        if (calE.one !== undefined && !cWh(calE.one, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: 'Day 1\u2019s year: a whole number within 10,000,000 either way, so Save keeps 1.' });
-        var cLp = calE.leap && typeof calE.leap === 'object' && !Array.isArray(calE.leap) ? calE.leap : null;
-        if (cLp) {
-            if (!cKp) cErr.push({ message: 'Leap years: add a period first, or Save drops the rule.' });
-            else if (!cWh(cLp.every, 2, CAL_LIMITS.leapEvery)) cErr.push({ message: 'Leap years: every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops the rule.' });
-            else if (!cWh(cLp.from, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: 'Leap years: the year it counts from is a whole number within 10,000,000 either way, or Save drops the rule.' });
-            else if (!cWh(cLp.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: 'Leap years: 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops the rule.' });
-            else if (!(typeof cLp.period === 'number' && cOkP[cLp.period])) cErr.push({ message: 'Leap years: the period that gains the days is dropped, so Save drops the rule.' });
-        }
-        (Array.isArray(calE.others) ? calE.others : []).forEach(function(o, k) {   // 1.6.2 (backlog 60): another calendar keeps its name, and four at most
-            var q = o && typeof o === 'object' ? o : {};
-            if (k >= CAL_LIMITS.others) cErr.push({ message: 'Calendar ' + (k + 2) + ': at most ' + CAL_LIMITS.others + ' other calendars, so Save drops it.' });
-            else if (!cleanCalendar({ others: [{ name: q.name }] })) cErr.push({ message: 'Calendar ' + (k + 2) + ' needs a name: Save drops it.' });
-        });
-        (Array.isArray(calE.leaps) ? calE.leaps : []).forEach(function(r0, k) {   // 1.6.2 (backlog 60): each rule beside the first, read as cleanCalendar reads it
-            var r = r0 && typeof r0 === 'object' ? r0 : {}, nm = 'Leap rule ' + (k + (cLp ? 2 : 1)), tu = Array.isArray(r.periods) ? r.periods : [];
-            if (!cKp) cErr.push({ message: nm + ': add a period first, or Save drops it.' });
-            else if (k >= CAL_LIMITS.leaps) cErr.push({ message: nm + ': at most ' + CAL_LIMITS.leaps + ' rules beside the first, so Save drops it.' });
-            else if (!cWh(r.every, 2, CAL_LIMITS.leapEvery)) cErr.push({ message: nm + ': every 2 to ' + CAL_LIMITS.leapEvery + ' years, or Save drops it.' });
-            else if (!cWh(r.from, -CAL_LIMITS.year, CAL_LIMITS.year)) cErr.push({ message: nm + ': the year it counts from is a whole number within 10,000,000 either way, or Save drops it.' });
-            else if (!cWh(r.days, 1, CAL_LIMITS.leapDays)) cErr.push({ message: nm + ': 1 to ' + CAL_LIMITS.leapDays + ' days more, or Save drops it.' });
-            else { var kept = tu.slice(0, CAL_LIMITS.leapTurns).filter(function(p) { return typeof p === 'number' && cOkP[p]; }).length; if (!kept) cErr.push({ message: nm + ': every period it gives its days to is dropped, so Save drops it.' }); else if (kept < tu.length) cErr.push({ message: nm + ': a period in its turns is dropped, so Save leaves it out of the turns.' }); }
-        });
+        calOthers.forEach(function(qk) { calChecks(qk[0], (typeof qk[0].name === 'string' && qk[0].name.trim() ? qk[0].name.trim() : 'Calendar ' + (qk[1] + 2)) + ': ', false); });
     }
     if (calE) {   // 1.6.2 (backlog 147): a season and a moon, read by calendarcore cleanCalendar itself
         (Array.isArray(calE.seasons) ? calE.seasons : []).forEach(function(s, i) {
@@ -963,6 +987,24 @@ function refreshErrors() {
     }
     if (snO && snO.view && typeof snO.view === 'object' && snO.view.mode === 'arc' && !(typeof snO.view.arc === 'number' && isFinite(snO.view.arc) && Math.round(snO.view.arc) >= 1)) sErr.push({ message: 'A map with no Vision: an arc needs its degrees, 1 to 360. Save leaves it out.' });   // 1.6.0: as the cleaner reads it
     if (snE) snE.forEach(function(s, i) { if (s && typeof s === 'object' && typeof s.arc === 'number' && !(Math.round(s.arc) >= 1)) sErr.push({ message: 'Sense ' + (i + 1) + ': an arc is 1 to 360 degrees. Save gives it the eyes’ arc.' }); else if (s && s.arc && typeof s.arc === 'object') { var af = senseArcOf(s.arc); if (!af) sErr.push({ message: 'Sense ' + (i + 1) + ': its arc names no number or formula field here. Save gives it the eyes’ arc.' }); else if (!secS || secS[af.id]) sErr.push({ message: 'Sense ' + (i + 1) + ': its arc reads ' + (af.label || af.key) + ', which its owner cannot read. Save gives it the eyes’ arc.' }); } });   // 1.6.0: its own arc, as the cleaner reads it
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them"): a band of side vision that notices
+    // by a roll. Noticed by is what Loud by, Sneaking where and the sneak roll depend on, and Sneaking where is what its roll depends on. Judged beside what Save
+    // keeps of the band (the cleaned system's band by its id), so a line says only what the cleaner really does. A band Save drops whole is said above
+    if (snE) {
+        var kSnL = clean && clean.combat && clean.combat.senses && Array.isArray(clean.combat.senses.list) ? clean.combat.senses.list : [];
+        snE.forEach(function(s, i) {
+            if (!s || typeof s !== 'object' || s.shows !== 'side' || !s.notice || typeof s.notice !== 'object') return;
+            var nD = s.notice, ckT = typeof nD.check === 'string' ? nD.check.trim() : '', skT = typeof nD.sneak === 'string' ? nD.sneak.trim() : '', kS = kSnL.filter(function(x) { return x && x.id === s.id; })[0];
+            if (!kS || kS.shows !== 'side') return;
+            var nmS = 'Sense ' + (i + 1) + (typeof s.name === 'string' && s.name.trim() ? ' (' + s.name.trim() + ')' : '') + ': ', hasSt = !!(nD.stealth && typeof nD.stealth === 'object' && (nD.stealth.r || nD.stealth.l));
+            if (!ckT) { if (skT || hasSt || nD.noise) sErr.push({ prop: 'sense.' + i + '.nkcheck', message: nmS + 'Noticed by is empty, so Save drops this band\u2019s noticing, with Loud by, Sneaking where and its roll.' }); return; }
+            var kN = kS.notice && typeof kS.notice === 'object' ? kS.notice : null;
+            if (!kN) { sErr.push({ prop: 'sense.' + i + '.nkcheck', message: nmS + 'Noticed by cannot be read, so Save drops this band\u2019s noticing, with Loud by, Sneaking where and its roll.' }); return; }
+            if (skT && !kN.sneak) { sErr.push({ prop: 'sense.' + i + '.nksneak', message: nmS + 'Sneaking where cannot be read, or it rolls dice, so Save drops it and its roll.' }); return; }
+            var stGone = !!(kN.stealth && typeof kN.stealth.r === 'string' && !(Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && r.id === kN.stealth.r; }));   // a system roll the cleaner keeps by its id, though it is gone
+            if (kN.sneak && (!kN.stealth || stGone)) sErr.push({ prop: 'sense.' + i + '.nkroll', message: nmS + (hasSt ? 'Its sneak roll is no longer here, so nothing sneaks past this band until one is picked.' : 'Sneaking where needs the roll a sneak makes. Until one is picked, nothing sneaks past this band.') });
+        });
+    }
     if (sErr.length) errorsById.senses = sErr;
     // conditions C4: what Save drops of an automatic effect's formula, under the effect's row — read as the cleaner reads it (systemcore
     // cleanEffectDef and the public rule: the owner's "Only public ones"); a token's name read there is 0, a warning
@@ -1050,6 +1092,12 @@ function refreshErrors() {
     if (draft.combat && draft.combat.postureOnAttack === true && !(psE && psE.length)) pErr.push({ message: 'An attack reads its target\u2019s posture, but this system lists no postures, so it reads none.' });   // 1.6.0
     var cmRaw = draft.combat && draft.combat.cover && typeof draft.combat.cover === 'object' && draft.combat.cover.mods && typeof draft.combat.cover.mods === 'object' ? draft.combat.cover.mods : null;
     if (cmRaw && typeof cleanCover === 'function') { var cmKeep = cleanCover(draft.combat.cover).mods || {}; Object.keys(cmRaw).forEach(function(k) { if (!Object.prototype.hasOwnProperty.call(cmKeep, k)) pErr.push({ message: 'What cover takes off an attack is a whole number from \u221220 to 20, not 0, so Save drops ' + cmRaw[k] + '.' }); }); }   // 1.6.0, as the cleaner reads it
+    // 1.6.3 (lane B): a posture's Gives cover, and what each grade of cover takes off an attack, depend on Cover from blockers being on (fog.js reads no cover
+    // while it is off). Both are kept as set and work once it is on, so this only says that they do nothing yet
+    if (!(draft.combat && draft.combat.cover && draft.combat.cover.on === true)) {
+        if (psE && psE.some(function(p, i) { return i > 0 && p && typeof p === 'object' && p.cover && typeof p.cover === 'object' && [1, 2, 3].indexOf(p.cover.g) >= 0; })) pErr.push({ prop: 'posture.cover', message: 'A posture gives cover, but Cover from blockers is off, so that cover does nothing. Turn Cover from blockers on under Cover.' });
+        if (draft.combat && draft.combat.postureOnAttack === true && cmRaw && Object.keys(cmRaw).some(function(k) { return typeof cmRaw[k] === 'number' && cmRaw[k] !== 0; })) pErr.push({ prop: 'posture.covmod', message: 'What cover takes off an attack does nothing while Cover from blockers is off. Turn it on under Cover.' });
+    }
     if (pErr.length) errorsById.postures = pErr;
     // initiative O2: what Save drops of the tie steps, under the Initiative box — read as the cleaner reads them (a step that reads, of 300
     // characters at most, reading only what players can read)
@@ -1066,6 +1114,45 @@ function refreshErrors() {
     else if (sdE && (!paS || !paS.ok)) iErr.push({ message: 'Sides roll: ' + (paS && paS.error && paS.error.message ? paS.error.message : 'the formula cannot be read.') + ' Save drops it.' });
     else if (sdE && Array.isArray(paS.names) && paS.names.length) iErr.push({ message: 'Sides roll: it reads ' + paS.names[0] + ', but a side rolls it as one, never as one character: Save drops it.' });
     else if (sdE && irE.chosen === true) iErr.push({ message: 'Sides roll: Next is chosen takes the place of sides, so Save drops it. Untick Next is chosen to keep it.' });   // initiative O5, as the cleaner reads it
+    // 1.6.3 (Fulllion's rulings of 2026-11-20: "it makes sense to have fields be required when other fields depend on them"): what How turns go and How turns
+    // are ordered still need, said under the Initiative box. The shape is read as the box reads it, the draft's pick word first, else the keys the system holds;
+    // each box is judged as the cleaner judges it (systemcore's initiative rules), inline, so this part needs nothing new from its root. Nothing holds Save:
+    // a shape whose box is empty is a system that saves as Once a round, and an order with no roll asks the GM for each number at the table
+    var shE = irE && typeof irE.pick === 'string' && /^(?:once|sides|chosen|draw|several|clock)$/.test(irE.pick) ? irE.pick : !irE ? 'once' : irE.clock ? 'clock' : irE.several ? 'several' : irE.chosen === true ? 'chosen' : irE.deck ? 'draw' : sdE ? 'sides' : 'once';
+    var wholeIn = function(v, lo, hi) { return typeof v === 'number' && v === Math.floor(v) && v >= lo && v <= hi; };
+    if (shE === 'clock') { var ckE = irE && irE.clock && typeof irE.clock === 'object' ? irE.clock : {}; if (!wholeIn(ckE.cost, 1, 999)) iErr.push({ prop: 'init.ckcost', message: 'A counting clock needs what an action costs, a whole number from 1 to 999. Left empty, Save drops the clock and fights go back to Once a round.' }); }
+    else if (shE === 'several') {
+        var svE = irE && irE.several && typeof irE.several === 'object' ? irE.several : {}, tbsE = Array.isArray(draft.tables) ? draft.tables : [];
+        if (svE.by === 'table') {
+            var tkE = typeof svE.table === 'string' ? svE.table.trim() : '', stE = typeof svE.stat === 'string' ? svE.stat.trim() : '';
+            if (!tkE || !stE) iErr.push({ prop: !tkE ? 'init.sevtable' : 'init.sevstat', message: 'Several turns a round by a table needs its table and the number it reads, or Save goes back to Once a round.' + (!tbsE.length ? ' Make a table first, in the Rules tab.' : '') });
+            else if (!tbsE.some(function(t) { return !!t && t.key === tkE; })) iErr.push({ prop: 'init.sevtable', message: 'Several turns a round: its table is no longer here, so each character acts once a round. Pick another.' });
+            // 1.6.3 (the review of combat): the number it reads is gone. The cleaner keeps the stat's text, so Save keeps the setting, and with no such
+            // number every character acts once a round, as with a table that is gone. The list stores a field's key, so keys are compared, as it offers them
+            else if (!(Array.isArray(draft.fields) ? draft.fields : []).some(function(f) { return !!f && f.key === stE && (f.kind === 'number' || f.kind === 'formula'); })) iErr.push({ prop: 'init.sevstat', message: 'Several turns a round: the number it reads is no longer here, so each character acts once a round. Pick another.' });
+        } else if (!wholeIn(svE.minus, 1, 1000)) iErr.push({ prop: 'init.sevminus', message: 'Several turns a round needs what each pass takes away, a whole number from 1 to 1000, or Save goes back to Once a round.' });
+    }
+    else if (shE === 'sides' && !sdE) iErr.push({ prop: 'init.side', message: 'Sides roll: Sides take turns needs the roll each side makes, or Save goes back to Once a round.' });
+    else if (shE === 'draw') {
+        var dkE = irE && irE.deck && typeof irE.deck === 'object' && typeof irE.deck.key === 'string' ? irE.deck.key : '', dksE = Array.isArray(draft.decks) ? draft.decks.filter(function(d) { return !!d && typeof d.key === 'string'; }) : [];
+        if (!dksE.length) iErr.push({ prop: 'init.deck', message: 'From a draw needs a deck. Make a deck first, in the Rules tab. Until then, Save goes back to Once a round.' });
+        else if (!dkE) iErr.push({ prop: 'init.deck', message: 'From a draw needs a deck. Pick one, or Save goes back to Once a round.' });
+        else if (!dksE.some(function(d) { return d.key === dkE; })) iErr.push({ prop: 'init.deck', message: 'From a draw: its deck is no longer here. Pick another, or the order cannot be drawn.' });
+    }
+    if (shE !== 'draw' && shE !== 'clock') {   // How turns are ordered: the row stands under every other shape
+        if (irE && irE.by === 'figure') {
+            var okFE = (Array.isArray(draft.fields) ? draft.fields : []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill' || f.kind === 'resource'); });
+            // 1.6.3 (the review of combat): two cases. With no figure picked (or one the cleaner cannot keep) Save goes back to By a roll. With a figure
+            // whose field is gone the cleaner keeps it all the same, and a fight then gets no order at all, which is said apart
+            var figKeptE = typeof irE.fig === 'string' && /^[A-Za-z0-9_]{1,80}$/.test(irE.fig);
+            if (!figKeptE) iErr.push({ prop: 'init.byfig', message: okFE.length ? 'How turns are ordered: pick the figure, or Save goes back to By a roll.' : 'How turns are ordered: no figure is picked, so Save goes back to By a roll. Make a number field first, or pick another way.' });
+            else if (!okFE.some(function(f) { return f.id === irE.fig; })) iErr.push({ prop: 'init.byfig', message: 'How turns are ordered: its figure is no longer here, so fights get no order. Pick another.' });
+        } else if (!(irE && irE.by === 'gm') && !(Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && r.init; }) && (Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return r && !Array.isArray(r.apply); })) {
+            // By a roll with rolls to pick from and none picked. A system with no roll at all says nothing yet: a new system is no fault, and the box itself
+            // says to make a roll first, in the Rolls tab
+            iErr.push({ prop: 'init.byroll', message: 'How turns are ordered: pick the roll that orders a fight, or pick Set by the GM. Until then the GM types each number in the roster.' });
+        }
+    }
     if (iErr.length) errorsById.initiative = iErr;
     // 126: what Save drops of the point budgets, under their box, read as the cleaner reads them: a budget with no name, a formula that is
     // missing, too long, unreadable or rolls dice, one that reads what players cannot read, and any budget past the eighth
@@ -1089,13 +1176,175 @@ function refreshErrors() {
         });
     });
     if (bErr.length) errorsById.budgets = bErr;
-    var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F()) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
+    var lkS = typeof linkSays === 'function' ? linkSays(draft.links, draft.fields, F(), draft.rolls) : { errs: [], warns: [] }; if (lkS.errs.length) errorsById.links = lkS.errs; if (lkS.warns.length) warningsById.links = lkS.warns;   // 1.6.0: what Save drops of the linked sheets, as the cleaner reads them
     if (typeof envSays === 'function' && F()) { var eSy = null, eS = envSays(draft.env, draft.fields, F(), function(ns) { eSy = eSy || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }; return gmDerivedNames(eSy, F(), ns); }); if (eS.errs.length) errorsById.env = (errorsById.env || []).concat(eS.errs); if (eS.warns.length) warningsById.env = (warningsById.env || []).concat(eS.warns); }   // 1.6.0: what Save does with the environment readings
     if (typeof tableSays === 'function') { var tbSy = tableSays(draft.tables); if (tbSy.errs.length) errorsById.tables = tbSy.errs; }   // 1.6.0: what Save drops of the tables, as the cleaner reads them
+    if (typeof rulesSays === 'function') { var ruS = rulesSays(draft); Object.keys(ruS).forEach(function(id) { if (ruS[id].length) errorsById[id] = (errorsById[id] || []).concat(ruS[id]); }); }   // 1.6.3 (lane B batch "rules"): the Rules tab's names and result tables
     if (typeof defendSays === 'function') { var dfS = defendSays(draft.combat && draft.combat.blast && draft.combat.blast.defend, draft.rolls, draft.combat, draft.fields); if (dfS.errs.length) errorsById.blastdefend = dfS.errs; if (dfS.warns.length) warningsById.blastdefend = dfS.warns; }   // 1.6.0: what Save drops of a blast's own Defense roll, as the cleaner reads it
     if (typeof coverHitSays === 'function') { var cvS = coverHitSays(draft.combat && draft.combat.cover, draft.combat, F()); if (cvS.errs.length) errorsById.coverhit = cvS.errs; if (cvS.warns.length) warningsById.coverhit = cvS.warns; }   // 1.6.0: what Save drops of where a hit behind cover lands, as the cleaner reads it
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
+    // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): the pool damage comes off is required. Wounds come off under Taking damage, else
+    // Damage subtracts from: with neither, every Take damage finds no pool and changes nothing, and a Full auto blast applies nothing. So it is said under
+    // the Taking damage box wherever damage rules stand, or Full auto is picked while the system holds a pool. A system with no pool and no damage rules
+    // takes no damage at all and is left alone. Read on the cleaned GM view, so a pool that is gone counts as none. It does not hold Save
+    {   var cmP = clean && clean.combat && typeof clean.combat === 'object' ? clean.combat : null, dmP = cmP && cmP.damage && typeof cmP.damage === 'object' ? cmP.damage : null, resP = (draft.fields || []).some(function(f) { return !!f && f.kind === 'resource'; });
+        if (cmP && !((dmP && dmP.pool) || cmP.hpResource) && (dmP || (cmP.blastAuto === 'full' && resP))) (errorsById.damage = errorsById.damage || []).push({ message: resP ? 'Damage has no pool to come off. Pick one in Damage subtracts from, or in Wounds come off under Taking damage.' : 'Damage has no pool to come off. Add a pool field, then pick it in Damage subtracts from.', prop: 'damage.pool' });
+    }
     if (typeof refWarns === 'function') refWarns(saved, clean, camp0);   // 1.6.2 (backlog 208)
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20: "if there's other gaps where a ruling or field is dependent on another, and the system doesn't require that
+// other field to be filled then that should be fixed", "it makes sense to have fields be required when other fields depend on them", and "none isn't a
+// good default substitution"): what an item list's draft leaves empty that another of its boxes depends on, read from the draft alone. Each line is a
+// fault said under the list's card in plain words, with the box it names as its prop, so a press on it lands on that box (sysui.js PROP_BOX). None of
+// it holds Save, and the cleaner is as it was: each line says what Save then drops, or what a player is told in place of the missing words. The boxes
+// themselves start filled where a sensible value exists (the Lists tab's handlers), so a line here mostly speaks of a box someone emptied. Asked by
+// refreshErrors for every item list, f the draft field and dr the draft system (its tests and its fields)
+function listReqSays(f, dr) {
+    var sp = f && f.list && typeof f.list === 'object' ? f.list : {}, out = [], say = function(prop, m) { out.push(prop ? { prop: prop, message: m } : { message: m }); };
+    var has = function(o, k) { return !!o && typeof o === 'object' && typeof o[k] === 'string' && !!o[k].trim(); }, low = function(v) { return typeof v === 'string' ? v.trim().toLowerCase() : ''; };
+    var stats = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key; });
+    var statOf = function(k) { var l = low(k); return l ? stats.filter(function(s) { return s.key.toLowerCase() === l; })[0] || null : null; };
+    var numOf = function(k) { var s = statOf(k); return s && s.kind !== 'pick' && s.set !== true ? s : null; };   // a number stat, as Holds by kind and When traded read one
+    var on = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null;
+    if (on && has(on, 'needs') && !has(on, 'needsText')) say('list.swwords', 'Needs to switch on has no words. Say in plain words why a row cannot be switched on now, or a player is told only Not now.');
+    if (on && has(on, 'icon') && !has(on, 'offLabel')) say('list.swicon', 'The switch’s icon shows only with a word while off, so Save drops the icon. Write a word while off to keep it.');
+    [['load', 'Loads only where', 'a load', 'list.loadwords'], ['chamber', 'Chambers only where', 'a chamber', 'list.chamberwords']].forEach(function(p) {   // the words beside a load's and a chamber's needs
+        var o = sp[p[0]]; if (!o || typeof o !== 'object') return;
+        if (has(o, 'needsText') && !has(o, 'needs')) say(p[3], p[1] + ' has words but no test beside them, so Save drops its words.');
+        else if (has(o, 'needs') && !has(o, 'needsText')) say(p[3], p[1] + ' has no words. Say in plain words why ' + p[2] + ' is refused, or a player is told only Not now.');
+    });
+    // Matched by: a stat of this list and a stat of the list it takes from, as the cleaner keeps the pair. verb is what the row does with what it takes,
+    // loads for Loads from and a feed. Chambers from's pair, which the cleaner keeps the same way, is said with the rest of Chambers from in refreshErrors
+    var matchSay = function(o, who, prop, verb) {
+        if (!o || typeof o !== 'object') return; var by = has(o, 'by'), to = has(o, 'to');
+        if (by !== to) say(prop, who + 'Matched by needs a stat of this list and a stat of the list it ' + verb + ' from. Save drops it, and the row ' + verb + ' anything its categories take.');
+        else if (by && !statOf(o.by)) say(prop, who + 'Matched by names no stat of this list. Save drops it, and the row ' + verb + ' anything its categories take.');
+    };
+    matchSay(sp.load, '', 'list.loadmatch', 'loads');
+    (Array.isArray(sp.feeds) ? sp.feeds : []).forEach(function(fd, fi) { matchSay(fd, 'Feed ' + (fi + 1) + ': ', 'list.feedmatch.' + fi, 'loads'); });
+    var figs = stats.filter(function(s) { return s.kind !== 'pick' && s.kind !== 'text'; }).map(function(s) { return s.key; }).concat((Array.isArray(sp.cols) ? sp.cols : []).filter(function(c) { return c && typeof c.key === 'string' && c.key; }).map(function(c) { return c.key; }));
+    var tests = dr && Array.isArray(dr.tests) ? dr.tests : [];
+    (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) {
+        if (!rr || typeof rr !== 'object') return;
+        var act = Array.isArray(rr.apply), nm = (act ? 'Action ' : 'Roll ') + (ri + 1) + (has(rr, 'label') ? ', ' + rr.label.trim() : ''), nd = has(rr, 'needs'), why = Array.isArray(rr.needsWhy) && rr.needsWhy.length > 0;
+        if (has(rr, 'needsText') && !nd) say('list.needstext.' + ri, nm + ': the words for the grayed button need Needs beside them, so Save drops the words.');
+        else if (nd && !has(rr, 'needsText')) say('list.needstext.' + ri, nm + ': the words for the grayed button are empty. Say in plain words why it cannot be used now, or a player is told only Not now.');
+        if (rr.hideOff === true && !nd && !why) say('list.hideoff.' + ri, nm + ': Hidden until it can be used needs Needs beside it, so Save drops the tick.');
+        if (act) return;
+        // These four name their roll by its place, ri: the boxes are drawn on only some rolls, so sysui.js finds the box whose data-ri is that place
+        if (rr.dmg !== true && has(rr, 'dtype')) say('list.dtype.' + ri, nm + ': a damage type needs Damage ticked, so Save drops it.');
+        if (rr.dmg !== true && has(rr, 'dkind')) say('list.dkind.' + ri, nm + ': a kind of blow needs Damage ticked, so Save drops it.');
+        if (has(rr, 'test')) {   // Rolls by: a test of the Rules tab, made with a figure of the row
+            if (!tests.some(function(x) { return x && x.key === rr.test; })) say('list.rolltest.' + ri, nm + ': Rolls by names a test that is gone. Save drops it, and the roll keeps its own formula.');
+            else if (!figs.length) say('list.rollof.' + ri, nm + ': Rolls by needs a figure of the row, and this list has no number stat or column. Give it one, or Save drops the test.');
+            else if (!has(rr, 'of')) say('list.rollof.' + ri, nm + ': Rolls by needs the row’s figure it is made with. Pick it, or Save drops the test and the roll keeps its own formula.');
+            else if (!figs.some(function(k) { return k.toLowerCase() === low(rr.of); })) say('list.rollof.' + ri, nm + ': Rolls by is made with a figure this list no longer has, so it reads nothing. Pick another.');
+        }
+    });
+    var ly = sp.lay && typeof sp.lay === 'object' ? sp.lay : null, rules = ly && Array.isArray(ly.rules) ? ly.rules : [];   // Laid from, By category: a rule with no category lays nothing and is dropped
+    if (rules.length) {
+        var noCat = function(ru) { return !(ru && Array.isArray(ru.cats) && ru.cats.some(function(c) { return typeof c === 'string' && c.trim(); })); }, bad = rules.filter(noCat);
+        var src = (dr && Array.isArray(dr.fields) ? dr.fields : []).filter(function(x) { return x && x.id === ly.from; })[0], srcNm = src ? (src.label || src.key || 'that list') : 'that list';
+        if (bad.length === rules.length) say('list.layrcats.0', 'By category: no rule names a category, so Save drops them all and this list lays a row for every row of ' + srcNm + '.');
+        else rules.forEach(function(ru, i) { if (noCat(ru)) say('list.layrcats.' + i, 'By category: rule ' + (i + 1) + (ru && has(ru, 'name') ? ', ' + ru.name.trim() : '') + ' names no category, so Save drops it and all set on it.'); });
+    }
+    var sd = sp.stand && typeof sp.stand === 'object' ? sp.stand : null;   // Rows stand at a row of: Counts where needs the word a placed row says while it does not count
+    if (sd && has(sd, 'counts') && !has(sd, 'offWord')) say('list.standoff', 'Counts where: Otherwise it says is empty. Name what a placed row says while it does not count, such as Not worn.');
+    var pt = sp.parts && typeof sp.parts === 'object' ? sp.parts : null;
+    if (pt) {
+        if (has(pt, 'fitIf') && !has(pt, 'fitIfSays')) say('list.fitwords', 'Fits where: Refused with is empty. A player it stops is told only that the part does not fit.');
+        else if (has(pt, 'fitIfSays') && !has(pt, 'fitIf')) say('list.fitwords', 'Refused with has no Fits where test beside it, so Save drops the words.');
+        (Array.isArray(pt.fitMore) ? pt.fitMore : []).forEach(function(r, i) {
+            var nmR = 'Fits where, rule ' + (i + 2);
+            if (has(r, 'if') && !has(r, 'says')) say('list.pfitwords.' + i, nmR + ': Refused with is empty. A player it stops is told only that the part does not fit.');
+            else if (has(r, 'says') && !has(r, 'if')) say('list.pfit.' + i, nmR + ' has words but no test, so Save drops it.');
+            else if (!has(r, 'if')) say('list.pfit.' + i, nmR + ' has no test yet, so Save drops it.');
+        });
+        (Array.isArray(pt.caps) ? pt.caps : []).forEach(function(k, i) {   // Holds by kind: a line counts something, and says how many
+            if (!k || typeof k !== 'object') return; var nmK = 'Holds by kind, line ' + (i + 1);
+            var counts = has(k, 'slot') ? (Array.isArray(k.is) ? k.is : [k.is]).some(function(v) { return typeof v === 'string' && v.trim(); }) : Array.isArray(k.cats) && k.cats.some(function(c) { return typeof c === 'string' && c.trim(); });
+            if (!counts && !has(k, 'f')) say('list.pcap.' + i, nmK + ' counts nothing yet. Name its categories, or pick the value it counts, or Save drops the line.');
+            if (!has(k, 'f') && !numOf(k.by)) say('list.pcap.' + i, nmK + ' says no how many yet. Pick the row’s stat or write a formula, or Save drops the line.');
+        });
+    }
+    (Array.isArray(sp.badges) ? sp.badges : []).forEach(function(b, j) {   // a badge needs its words and its Shown where
+        if (!b || typeof b !== 'object') return; var w = has(b, 'words'), t = has(b, 'if'), nmB = 'Badge ' + (j + 1) + (w ? ' (' + b.words.trim() + ')' : '');
+        if (!w && !t) say('list.badgewords.' + j, nmB + ' is empty, so Save drops it.');
+        else if (!t) say('list.badge.' + j, nmB + ' has no Shown where, so it never shows and Save drops it. Say when it shows.');
+        else if (!w) say('list.badgewords.' + j, nmB + ' says nothing, so Save drops it. Give it words.');
+    });
+    (Array.isArray(sp.onTrade) ? sp.onTrade : []).forEach(function(t, i) {   // When traded, as the cleaner keeps a line
+        if (!t || typeof t !== 'object') return; var nmT = 'When traded, line ' + (i + 1), s = numOf(t.s);
+        if (!s) say('list.trade', nmT + ' names no number stat of this list, so Save drops it.');
+        else if (typeof t.to === 'string') { var d = numOf(t.to); if (!d || d === s) say('list.trade', stats.some(function(x) { var n = numOf(x.key); return n && n !== s; }) ? nmT + ' moves its stat to nothing. Pick another number stat it moves to, or Save drops the line.' : nmT + ' moves its stat, but this list has no other number stat to move it to. Add one, or have the line clear the stat or set it to a figure, or Save drops the line.'); }   // where the list has no other number stat, the target list offers nothing to pick
+    });
+    return out;
+}
+// 1.6.3: the same for what only the cleaner can say, a draft field f beside its cleaned field cf (refreshErrors, once the system is cleaned): a badge
+// whose Shown where Save cannot keep, a Keeps paying Save drops whole, and a Shade by whose Shades keep no line
+function listCleanSays(f, cf) {
+    var sp = f && f.list && typeof f.list === 'object' ? f.list : {}, cl = cf && cf.list && typeof cf.list === 'object' ? cf.list : {}, out = [], say = function(prop, m) { out.push(prop ? { prop: prop, message: m } : { message: m }); };
+    var has = function(o, k) { return !!o && typeof o === 'object' && typeof o[k] === 'string' && !!o[k].trim(); }, parsed = function(t) { var p = null; try { p = F().parse(t); } catch (e) { p = null; } return p; };
+    var keptB = Array.isArray(cl.badges) ? cl.badges : [];
+    (Array.isArray(sp.badges) ? sp.badges : []).forEach(function(b, j) {
+        if (!has(b, 'words') || !has(b, 'if') || keptB.some(function(k) { return k && k['if'] === b['if'].trim(); })) return;
+        var p = parsed(b['if'].trim());
+        say('list.badge.' + j, 'Badge ' + (j + 1) + '’s Shown where ' + (!p || !p.ok ? 'is no formula Save can keep, so Save drops the badge.' : typeof hasDice === 'function' && p.ast && hasDice(p.ast.body) ? 'rolls dice, and it is read with none, so Save drops the badge.' : 'cannot be kept, so Save drops the badge.'));
+    });
+    var up = sp.upkeep && typeof sp.upkeep === 'object' ? sp.upkeep : null;
+    if (up && sp.on && !cl.upkeep) {   // Keeps paying, as the cleaner drops it whole: the first cause found, in the order it reads them
+        var pool = (draft && Array.isArray(draft.fields) ? draft.fields : []).filter(function(x) { return x && x.id === up.pool; })[0], amt = typeof up.amt === 'string' ? up.amt.trim() : '', pa = amt ? parsed(amt) : null;
+        if (!pool || pool.kind !== 'resource') say('list.uppool', 'Keeps paying needs a pool to pay from. Pick one, or Save drops Keeps paying.');
+        else if (!pa || !pa.ok) say('list.upamt', 'Keeps paying needs what it pays, a figure with no dice such as 3. Save drops Keeps paying.');
+        else if (typeof hasDice === 'function' && pa.ast && hasDice(pa.ast.body)) say('list.upamt', 'Keeps paying pays a figure with no dice, so Save drops Keeps paying.');
+        else if (up.each === 'clock') say('list.uppool', 'Keeps paying by the clock needs an Every and a unit that is there. Save drops Keeps paying.');
+        else say('list.uppool', 'Keeps paying cannot be kept as it is, so Save drops it.');
+    }
+    var lk = sp.look && typeof sp.look === 'object' ? sp.look : null;
+    if (lk && has(lk, 'by') && cl.look && !(Array.isArray(cl.look.shades) && cl.look.shades.length)) say('list.lkshades', 'Shade by is picked, but Shades holds no line Save keeps, so no row takes a shade. Give each value of that stat a line, such as Steel = #8a8f99.');
+    return out;
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "rules": "it makes sense to have fields be required when other fields depend on them", "none
+// isn't a good default substitution"): what the Rules tab's boxes still need, read from the draft as the cleaners read it. A shared value, a mark, a
+// currency and a result table keep their name for cards, trackers, the map and the trade window, and Save shows a generic word where it is empty. A sheet
+// category with no name is dropped with its rule. A result table needs its dice and a row, and a row its From (and a To not below it); a random add
+// narrowed by a stat needs a bound. Answers { id: [{ message, prop }] } for errorsById, each prop landing on its box (sysui PROP_BOX, boxIn). Nothing here
+// holds Save, and the cleaners are as they were. Called from refreshErrors
+function rulesSays(dr) {
+    var out = { values: [], tags: [], money: [], results: [], charcats: [] }, d = dr && typeof dr === 'object' ? dr : {}, nm0 = function(x) { return !!x && typeof x === 'object' && typeof x.label === 'string' && x.label.trim() ? x.label.trim() : ''; };
+    var cft = typeof cleanFormulaText === 'function' ? cleanFormulaText : function(v) { return typeof v === 'string' ? v.trim() : ''; }, isNum = function(v) { return typeof v === 'number' && isFinite(v); };
+    // 1.6.3 (the review of rules): a name Save gave for want of one. Before this batch the cleaners fell back to the short name the box made (V2, M1, C3,
+    // R1), and since 1.6.3 they fall back to a generic word (A shared value). A system saved with an emptied name holds that as its name, which no
+    // emptiness test sees, so it is said here too: the label read as the made short name (ignoring case, only where the short name has the made form re)
+    // or as the generic word. Answers that stored name, else ''
+    var madeName = function(x, re, word) { var lb = nm0(x), k = typeof x.key === 'string' ? x.key.trim() : ''; return lb && ((k && re.test(k) && lb.toLowerCase() === k.toLowerCase()) || lb.toLowerCase() === word.toLowerCase()) ? lb : ''; };
+    [['values', d.values, 'Shared value', 'cards and trackers show', 'A shared value', /^V\d+$/i], ['tags', d.tags, 'Mark', 'the map and cards show', 'A mark', /^M\d+$/i], ['money', d.currencies, 'Currency', 'the sheet and the trade window show', 'A currency', /^C\d+$/i]].forEach(function(g) {
+        (Array.isArray(g[1]) ? g[1] : []).forEach(function(x, i) {
+            if (!x || typeof x !== 'object') return; var mdN = nm0(x) ? madeName(x, g[5], g[4]) : '';
+            if (!nm0(x)) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': it needs a name, which ' + g[3] + '. Until it has one, they show ' + g[4] + '.', prop: g[0] + '.label.' + i });
+            else if (mdN) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': Save named it ' + mdN + ' for want of a name. Give it a name of your own, which ' + g[3] + '.', prop: g[0] + '.label.' + i });
+        });
+    });
+    (Array.isArray(d.charCats) ? d.charCats : []).forEach(function(x, i) { if (x && typeof x === 'object' && !nm0(x)) out.charcats.push({ message: 'Category ' + (i + 1) + ': it needs a name. Until it has one, Save drops it and its rule, and sheets filed under it by hand go back to no category.', prop: 'charcats.label.' + i }); });
+    (Array.isArray(d.results) ? d.results : []).forEach(function(t, i) {
+        if (!t || typeof t !== 'object') return; var mdR = nm0(t) ? madeName(t, /^R\d+$/i, 'A result table') : '', nm = (!mdR && nm0(t)) || 'Result table ' + (i + 1), rows = Array.isArray(t.rows) ? t.rows.slice(0, 200) : [], kept = 0, rowSaid = false;   // 200: the rows the cleaner reads (systemcore RES_ROWS). A name Save gave is no name, so the lines below say Result table and its place
+        if (!nm0(t)) out.results.push({ message: nm + ': it needs a name, which cards show. Until it has one, they show A result table.', prop: 'results.label.' + i });
+        else if (mdR) out.results.push({ message: nm + ': Save named it ' + mdR + ' for want of a name. Give it a name of your own, which cards show.', prop: 'results.label.' + i });   // 1.6.3 (the review of rules)
+        if (!cft(t.dice)) out.results.push({ message: nm + ': What rolls on it is empty. Give it dice, such as 1d20. Until it has them, Save drops the table and every row.', prop: 'results.dice.' + i });   // 1.6.3 (the review of rules): said in the box's own words, What rolls on it
+        rows.forEach(function(r, j) {
+            if (!r || typeof r !== 'object') return; var at = nm + ', row ' + (j + 1) + ': ';
+            if (!isNum(r.lo)) { out.results.push({ message: at + 'it needs From. Until it has one, Save drops the row and what it does.', prop: 'results.' + i + '.' + j + '.lo' }); rowSaid = true; }
+            else if (isNum(r.hi) && Math.floor(r.hi) < Math.floor(r.lo)) { out.results.push({ message: at + 'To is below From, so Save drops the row and what it does.', prop: 'results.' + i + '.' + j + '.hi' }); rowSaid = true; }
+            else kept++;
+            var ad = r.add && typeof r.add === 'object' ? r.add : null;
+            if (ad && typeof ad.cat === 'string' && ad.cat.trim() && typeof ad.stat === 'string' && ad.stat && !isNum(ad.least) && !isNum(ad.most)) {
+                var lf = (Array.isArray(d.fields) ? d.fields : []).filter(function(f) { return !!f && f.id === ad.list && !!f.list; })[0], st = lf && Array.isArray(lf.list.stats) ? lf.list.stats.filter(function(s) { return !!s && s.key === ad.stat; })[0] : null;
+                out.results.push({ message: at + 'give At least or At most for Where ' + (st && st.label ? st.label : 'its stat') + ', or Save drops it and the draw takes any ' + ad.cat.trim() + '.', prop: 'results.' + i + '.' + j + '.addstat' });
+            }
+        });
+        if (!kept && !rowSaid) out.results.push({ message: nm + ': it needs a row. Until it has one, Save drops the table.', prop: 'results.rows.' + i });
+    });
+    return out;
 }
 // [split:body-end]
 return { refreshErrors: refreshErrors, saveDraft: saveDraft };   // [split:glue]

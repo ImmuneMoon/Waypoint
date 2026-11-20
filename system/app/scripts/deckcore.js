@@ -27,7 +27,7 @@ function faceWords(c, f) { if (!isObj(c)) return ''; var k = typeof f === 'numbe
 function cleanDeck(d, keyRe) {
     if (!isObj(d) || typeof d.key !== 'string' || !KEY_RE.test(d.key) || (keyRe && !keyRe.test(d.key)) || d.key in Object.prototype) return null;
     var o = { key: d.key, label: cut(d.label, 60) || 'A deck', after: AFTER.indexOf(d.after) >= 0 ? d.after : 'discard', stats: [], cards: [] }, word = cut(d.word, 24); if (word) o.word = word; if (d.vis === 'gm') o.vis = 'gm'; if (d.open === true) o.open = true;
-    var seen = Object.create(null); (Array.isArray(d.stats) ? d.stats : []).slice(0, STATS_MAX * 4).forEach(function(s) { if (o.stats.length >= STATS_MAX || !isObj(s) || typeof s.key !== 'string' || !STAT_RE.test(s.key) || s.key in Object.prototype || seen[s.key.toLowerCase()]) return; seen[s.key.toLowerCase()] = 1; o.stats.push({ key: s.key, label: cut(s.label, 40) || s.key }); });
+    var seen = Object.create(null); (Array.isArray(d.stats) ? d.stats : []).slice(0, STATS_MAX * 4).forEach(function(s) { if (o.stats.length >= STATS_MAX || !isObj(s) || typeof s.key !== 'string' || !STAT_RE.test(s.key) || s.key in Object.prototype || seen[s.key.toLowerCase()]) return; seen[s.key.toLowerCase()] = 1; o.stats.push({ key: s.key, label: cut(s.label, 40) || 'A number' }); });   // 1.6.3: a number with no name shows a generic word, never its key
     (Array.isArray(d.cards) ? d.cards : []).slice(0, CARDS_MAX * 2).forEach(function(c) { if (o.cards.length >= CARDS_MAX) return; var k = cleanCard(c, o.stats); if (k) o.cards.push(k); });
     return o;
 }

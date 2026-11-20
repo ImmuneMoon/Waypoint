@@ -318,6 +318,16 @@ const kids = n => n.childNodes.slice();
     const E = new Function('window', 'draft', 'errPrefix', rsE + "\nvar tab = 'fields', _tabPress = false, drew = 0; function tabSet(v) { tab = v; } function renderAll() { drew++; }\nreturn { errWhere, errGo, errSay, tabNow: () => tab, drew: () => drew };")({ wpSysUi: Ug }, drE, (p, w) => (p === 'turn.move' ? 'Move per turn: ' : ''));
     check('where an error stands: a row by its tab, a list by its own word, a topic by its tab and name, and what cannot be placed goes nowhere', J(E.errWhere('f')) === J({ tab: 'fields', kind: 'fields', row: 'f', name: 'Field Kit' }) && J(E.errWhere('list:l')) === J({ tab: 'lists', kind: 'lists', row: 'l', name: 'List Lst' }) && E.errWhere('r').tab === 'rolls' && E.errWhere('i').kind === 'items' && E.errWhere('e').name === 'Effect Rage' && E.errWhere('damage').topic === 'damage' && E.errWhere('calendar').tab === 'calendar' && E.errWhere('plc:x').tab === 'layout' && E.errWhere('nothing') === null && E.errWhere('list:gone') === null);
     E.errGo('i'); E.errGo('damage'); E.errGo('nothing');
+    // 1.6.3 (the review of rules): a HUD tab label's fault, and a HUD place's, is drawn only while the Layout tab shows the HUD, so it names that view and a
+    // press switches the tab's own Sheet | HUD switch to it before drawing (the preview forgetting the tab it showed); a Sheet one names the Sheet, a band
+    // group's name none
+    {
+        const pvL = { dataset: { wpTab: 't_x' } }, EL = new Function('window', 'draft', 'errPrefix', rsE + "\nvar tab = 'fields', _tabPress = false, drew = 0, layoutView = 'sheet'; function layoutViewSet(v) { layoutView = v; } function ui(id) { return id === 'sysLayoutPreview' ? pv : null; } function tabSet(v) { tab = v; } function renderAll() { drew++; }\nvar pv = window.pv; return { errWhere, errGo, viewNow: () => layoutView, tabNow: () => tab };")({ wpSysUi: Object.assign({}, Ug, { calls: [] }), pv: pvL }, drE, () => '');
+        const wH = EL.errWhere('tablbl:hud:t_h'), wP = EL.errWhere('plc:hud:s_h:0'), wS = EL.errWhere('tablbl:sheet:t_b'), wG = EL.errWhere('grplbl:g_2');
+        EL.errGo('tablbl:hud:t_h'); const goneH = EL.viewNow() === 'hud' && EL.tabNow() === 'layout' && pvL.dataset.wpTab === undefined; pvL.dataset.wpTab = 't_y'; EL.errGo('tablbl:sheet:t_b');
+        check('1.6.3 a HUD tab label\u2019s fault and a HUD place\u2019s name the HUD view, a Sheet one the Sheet, a band group\u2019s none, and pressing one switches the Layout tab to that view before it is drawn',
+            wH.view === 'hud' && wH.tab === 'layout' && wP.view === 'hud' && wS.view === 'sheet' && wG.view === undefined && goneH && EL.viewNow() === 'sheet' && pvL.dataset.wpTab === undefined, J([wH, wP, wS, wG, goneH, EL.viewNow()]));
+    }
     check('going there opens the tab and the row or topic, and draws it once', J(Ug.calls) === J([['pick', 'items', 'i'], ['topic', 'combat', 'damage']]) && E.tabNow() === 'combat' && E.drew() === 2 && E.errSay({ prop: 'turn.move', message: 'Bad' }) === 'Move per turn: Bad');
     const mapped = src.slice(src.indexOf('var GROUPS = {'), src.indexOf('var VALUE_TITLE')) + src.slice(src.indexOf('var PROP_BOX = ['), src.indexOf('// The box a word names'));
     const missing = (mapped.match(/'sys-[a-z0-9-]+'/g) || []).map(s => s.slice(1, -1)).filter(c => !sh.includes(c) && !/^sys-roll-p[345][ft]$/.test(c));   // moved on purpose (the review of rolls): a part's Type box, sys-roll-p3t to p5t, is made as 'sys-roll-p' + k + 't', as its formula box is
@@ -402,6 +412,20 @@ const kids = n => n.childNodes.slice();
     const ft = new Function('draft', 'DEF_PROP', ftSrc + '\nreturn formulaTextFor;')(draftF, { 'item-list': 'nothing' });
     check('the text under a list roll\'s line fault is that line\'s own formula (list.ans.<roll>.<line>.<box>), as a roll\'s is, and the list\'s answers box carries its roll\'s place', ft('f_b', 'list.ans.0.0.hits') === 'Wrong + 1' && ft('f_b', 'list.ans.0.1.if') === 'Bad > 2' && ft('f_b', 'list.ans.0.1.share') === 'Blow.dmg / 9' && ft('f_b', 'list.ans.3.0.if') === '' && ft('r_d', 'answers.0.hits') === 'Two'
         && require('./checkkit').part('sysedlist.js').includes('var ansBx = answersBox(rr, typeof draft !== \'undefined\' ? draft : null, f); ansBx.dataset.ri = String(ri); cb2.appendChild(ansBx);'));
+}
+
+/* ---------- 1.6.3 (the review of the Lists tab's fix, 2026-11-20): a list roll's box drawn on only some rolls is found by its roll's place ---------- */
+{
+    // the errors slice of sysui.js run for real on a list card whose roll 0 has no Damage type box and roll 2 has one, roll 1 a Rolls by and no figure yet,
+    // so the nth box of a class is not the nth roll; a fault lands on the box whose data-ri is its roll's place, else on that roll's needs row
+    const d = makeDom(), m = d.mk, boxIn = new Function(src.slice(src.indexOf('// [sysuicheck:errors-start]'), src.indexOf('// [sysuicheck:errors-end]')) + '\nreturn boxIn;')();
+    const card = m('div', 'sys-list-card'), nr = [0, 1, 2].map(i => m('div', 'sys-flags sys-list-needsrow', { ri: String(i) }));
+    const dt2 = m('input', 'sys-list-rolldtype field', { ri: '2' }), dk2 = m('input', 'sys-list-rolldkind field', { ri: '2' }), rt1 = m('select', 'sys-list-rolltest', { ri: '1' }), rt2 = m('select', 'sys-list-rolltest', { ri: '2' }), ro2 = m('select', 'sys-list-rollof', { ri: '2' });
+    const off = m('input', 'field sys-list-standoff'), chb = m('input', 'sys-list-chamberby field');
+    [nr[0], nr[1], rt1, nr[2], rt2, ro2, dt2, dk2, off, chb].forEach(x => card.appendChild(x));
+    check('a list roll\'s Damage type, Kind, Rolls by and its figure land on the box of their own roll by its place, else on its needs row; Otherwise it says and Chambers from\'s Matched by land on their boxes',
+        boxIn(card, 'list.dtype.2') === dt2 && boxIn(card, 'list.dkind.2') === dk2 && boxIn(card, 'list.dtype.0') === nr[0] && boxIn(card, 'list.rolltest.1') === rt1 && boxIn(card, 'list.rollof.1') === rt1
+        && boxIn(card, 'list.rollof.2') === ro2 && boxIn(card, 'list.rolltest.2') === rt2 && boxIn(card, 'list.dkind.7') === null && boxIn(card, 'list.standoff') === off && boxIn(card, 'list.chambermatch') === chb);
 }
 
 /* ---------- nothing removed, in the page ---------- */

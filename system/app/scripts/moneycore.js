@@ -32,7 +32,7 @@ var CUR_MAX = 12, DEVICE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 function cleanCurrencies(v) {
     var res = [], seen = map(); (Array.isArray(v) ? v : []).slice(0, CUR_MAX * 4).forEach(function(c) {
         if (res.length >= CUR_MAX || !isObj(c)) return; var key = tableKeyOk(c.key, TABLE_KEY); if (!key || seen[lower(key)]) return; seen[lower(key)] = 1;
-        var w = typeof c.worth === 'number' && fin(c.worth) && c.worth > 0 ? Math.round(clampNum(c.worth, 1e-6, 1e9) * 1e6) / 1e6 : 1, o = { key: key, label: cutText(c.label, LIMITS.label) || key, worth: w || 1e-6 };
+        var w = typeof c.worth === 'number' && fin(c.worth) && c.worth > 0 ? Math.round(clampNum(c.worth, 1e-6, 1e9) * 1e6) / 1e6 : 1, o = { key: key, label: cutText(c.label, LIMITS.label) || 'A currency', worth: w || 1e-6 };   // 1.6.3: a currency with no name shows a generic word, never its key
         if (c.sep === true) o.sep = true;
         if (c.kind === 'physical') { o.kind = 'physical'; if (typeof c.weight === 'number' && fin(c.weight) && c.weight > 0) o.weight = Math.round(clampNum(c.weight, 0, 1e6) * 1e4) / 1e4; }   // 157 M1k: what one of it weighs
         else if (c.kind === 'digital') { o.kind = 'digital'; if (typeof c.device === 'string' && DEVICE_ID.test(c.device)) { o.device = c.device; var dnm = cutText(c.deviceName, LIMITS.itemName); if (dnm) o.deviceName = dnm; } }   // 157 M1k: the device it needs

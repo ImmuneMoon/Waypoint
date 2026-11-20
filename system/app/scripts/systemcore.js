@@ -956,7 +956,8 @@ function rollNeedsFails(entry, vars, F, more, sheet) {
 }
 function rollNeedsOk(entry, vars, F, more) { return rollNeedsFails(entry, vars, F, more) === null; }
 // The words a refusal says, as a list roll's. 1.6.2: handed the names it is judged with, the words of the first that fails (a line's own words,
-// never its formula); without them, or where the single needs fails, as ever
+// never its formula); without them, or where the single needs fails, the entry's own words, else Not now. The formula is never said: a switch, a
+// load, a chamber, a roll and an action all ask this, and the System editor starts each words box filled and says an emptied one under its list
 function rollNeedsSays(entry, vars, F, more) {
     if (isObj(entry) && typeof vars === 'function') { var fl = rollNeedsFails(entry, vars, F, more); if (fl && fl.at >= 0) return fl.says; }
     if (isObj(entry) && !(typeof entry.needs === 'string' && entry.needs) && Array.isArray(entry.needsWhy) && entry.needsWhy.length && isObj(entry.needsWhy[0]) && entry.needsWhy[0].says) return entry.needsWhy[0].says;
@@ -4698,7 +4699,7 @@ function partsFullSays(rm) { return rm.cap ? rm.name + ' holds ' + rm.cap + (rm.
 // alone): a list's parts may say fitIf, a formula with no dice read with the PART's own names as Row.*, its would-be host's as Host.* (hostVal)
 // and the character's. Judged where a part comes to a host (the add, the custom op with in, a raised count), beside partsCapSays, on the host
 // and on a player's own app (partFitEntry, which a player's app and the pickers ask before the row exists, reading the part's Row.* through its
-// definition). A player is refused in fitIfSays' words, else words that name the part, its host and the formula; the GM's hand passes and is
+// definition). A player is refused in fitIfSays' words, else words that name the part and its host (1.6.3: never the formula); the GM's hand passes and is
 // told (extra.fitSays), as At most at a level tells it. A player's change is judged by their own view's fitIf (playerNeeds' rule: one that reads
 // a GM-only value is not in it, so it never holds them back); with no view, the GM's, in words that name nothing of it. '' where it fits
 // 1.6.2: Fits where may hold further rules (fitMore: { if, says }), so that each thing that stops a part is said in its own words; a part must meet them all,
@@ -4735,7 +4736,7 @@ function partFitSays(sys, char, ph, pf, prow, F, opts) {
         if (blind) return 'That part does not fit there.';
         if (rows[i].says) return rows[i].says;
         var pd = rowDef(sys, row), hd = rowDef(sys, ph.row);
-        return ((pd && pd.def && typeof pd.def.name === 'string' && pd.def.name) || 'That part') + ' does not fit ' + ((hd && hd.def && typeof hd.def.name === 'string' && hd.def.name) || 'that row') + ': it needs ' + rows[i]['if'] + '.';
+        return ((pd && pd.def && typeof pd.def.name === 'string' && pd.def.name) || 'That part') + ' does not fit ' + ((hd && hd.def && typeof hd.def.name === 'string' && hd.def.name) || 'that row') + '.';   // 1.6.3: never the formula
     }
     return '';
 }
@@ -5413,7 +5414,7 @@ var _linkSeatCore = linkSeatCore(), crewHost = _linkSeatCore.crewHost, linkedFro
 var TAG_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, TAGS_MAX = 12, TAG_FX = 8, MAP_TAGS_MAX = 200, TAG_TOK = /^[A-Za-z0-9_-]{1,64}$/, _tagSrc = null, _tagSink = null;
 function cleanTags(raw, gmView) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, TAGS_MAX * 4).forEach(function(m) { if (out.length >= TAGS_MAX || !isObj(m) || typeof m.key !== 'string') return; var k = m.key.trim(); if (!TAG_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var o = { key: k, label: cutText(m.label, LIMITS.label) || k }; if (m.fight === true) o.fight = true; if (m.turn === true) o.turn = true;
+    raw.slice(0, TAGS_MAX * 4).forEach(function(m) { if (out.length >= TAGS_MAX || !isObj(m) || typeof m.key !== 'string') return; var k = m.key.trim(); if (!TAG_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var o = { key: k, label: cutText(m.label, LIMITS.label) || 'A mark' };   /* 1.6.3: a mark with no name shows a generic word, never its key */ if (m.fight === true) o.fight = true; if (m.turn === true) o.turn = true;
         if (gmView) {
             if (m.sight === true) o.sight = true; var kp = typeof m.keep === 'string' ? m.keep.trim().slice(0, LIMITS.formula) : ''; if (kp) o.keep = kp;
             if ((o.sight || o.keep) && (m.check === 'move' || m.check === 'turn')) o.check = m.check;
@@ -5495,13 +5496,22 @@ function cleanRestSkip(v, rests) { if (v === 'rest') return 'rest'; return typeo
 // name and a plain number. A map's kind is meta.kind, a short name; no kind is the personal scale. Formulas read MapKind.<kind> (1 on a map of that
 // kind) and MapFactor.<factor> (the factor of the map's kind, 1 where it names none) through the token context
 var MAPKIND_MAX = 8, MAPKIND_FAC = 8, MAPKIND_KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
+// 1.6.3 (lane B; Fulllion's rulings of 2026-11-20): the short name a map kind, a factor, a darkness step, a scene channel or a travel mode is given where it
+// names none of its own: made from its name and cut to the 24 characters a short name holds, else the word handed in (Kind, Factor, Step, Channel, Mode)
+// and the first free number. So a name in another script, one that begins with a digit, or a long one is no reason to drop the row. taken: the short
+// names the rows name themselves (shortKeysTaken), so a made one never takes one of theirs. A row whose name makes a short name of 24 or fewer is cleaned
+// exactly as before
+function shortKeyFor(lb, taken, word) { var k = arcKey(lb).slice(0, 24), n = 2; if (k || !lb) return k; k = word; while (taken[lower(k)] === 1) k = word + (n++); return k; }
+// 1.6.3 (the review of combat): a row that names no short name of its own but whose name makes one gives that one too, so a made fallback (Kind,
+// Factor and the rest) never takes the name a later row would make for itself, which was then dropped as a second row of the same short name
+function shortKeysTaken(rows) { var t = map(); (Array.isArray(rows) ? rows : []).forEach(function(m) { if (!isObj(m)) return; if (typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim())) { t[lower(m.key.trim())] = 1; return; } var own = arcKey(cutText(m.label, LIMITS.label)).slice(0, 24); if (own) t[lower(own)] = 1; }); return t; }
 function cleanMapKinds(raw) {
-    if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, MAPKIND_MAX * 4).forEach(function(m) {
-        if (out.length >= MAPKIND_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb);
-        if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var o = { key: k, label: lb };
+    if (!Array.isArray(raw)) return null; var out = [], ks = map(), rows = raw.slice(0, MAPKIND_MAX * 4), taken = shortKeysTaken(rows);
+    rows.forEach(function(m) {
+        if (out.length >= MAPKIND_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Kind');
+        if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; taken[lower(k)] = 1; var o = { key: k, label: lb };
         if (isObj(m.scale) && typeof m.scale.per === 'number' && fin(m.scale.per) && m.scale.per > 0 && m.scale.per <= 1e6 && typeof m.scale.unit === 'string' && hasOwn(MAP_UNITS, m.scale.unit)) o.scale = { per: Math.round(m.scale.per * 1e4) / 1e4, unit: m.scale.unit };
-        var fs = [], fk = map(); (Array.isArray(m.factors) ? m.factors : []).slice(0, MAPKIND_FAC * 4).forEach(function(x) { if (fs.length >= MAPKIND_FAC || !isObj(x) || typeof x.v !== 'number' || !fin(x.v) || Math.abs(x.v) > 1e6) return; var fl = cutText(x.label, LIMITS.label), fkk = typeof x.key === 'string' && MAPKIND_KEY.test(x.key.trim()) ? x.key.trim() : arcKey(fl); if (!fl || !fkk || !MAPKIND_KEY.test(fkk) || fk[lower(fkk)]) return; fk[lower(fkk)] = 1; fs.push({ key: fkk, label: fl, v: Math.round(x.v * 1e4) / 1e4 }); });
+        var fs = [], fk = map(), fRows = (Array.isArray(m.factors) ? m.factors : []).slice(0, MAPKIND_FAC * 4), fTaken = shortKeysTaken(fRows); fRows.forEach(function(x) { if (fs.length >= MAPKIND_FAC || !isObj(x) || typeof x.v !== 'number' || !fin(x.v) || Math.abs(x.v) > 1e6) return; var fl = cutText(x.label, LIMITS.label), fkk = typeof x.key === 'string' && MAPKIND_KEY.test(x.key.trim()) ? x.key.trim() : shortKeyFor(fl, fTaken, 'Factor'); if (!fl || !fkk || !MAPKIND_KEY.test(fkk) || fk[lower(fkk)]) return; fk[lower(fkk)] = 1; fTaken[lower(fkk)] = 1; fs.push({ key: fkk, label: fl, v: Math.round(x.v * 1e4) / 1e4 }); });
         if (fs.length) o.factors = fs; if (m.travel === true) o.travel = true; out.push(o);   // 1.6.2 (backlog 166 a): Ruler shows travel time, true only
     });
     return out.length ? out : null;
@@ -5537,12 +5547,14 @@ var SCENE_MAX = 8;
 var DARK_MAX = 8;
 function cleanDarkSteps(raw) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, DARK_MAX * 4).forEach(function(m) { if (out.length >= DARK_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; var pen = typeof m.pen === 'number' && fin(m.pen) ? Math.max(-99, Math.min(99, Math.round(m.pen))) : 0; out.push({ key: k, label: lb, pen: pen }); });
+    var rows = raw.slice(0, DARK_MAX * 4), taken = shortKeysTaken(rows);   // 1.6.3: a name with no short name of its own gets one (shortKeyFor)
+    rows.forEach(function(m) { if (out.length >= DARK_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Step'); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; taken[lower(k)] = 1; var pen = typeof m.pen === 'number' && fin(m.pen) ? Math.max(-99, Math.min(99, Math.round(m.pen))) : 0; out.push({ key: k, label: lb, pen: pen }); });
     return out.length ? out : null;
 }
 function cleanScenes(raw) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
-    raw.slice(0, SCENE_MAX * 4).forEach(function(m) { if (out.length >= SCENE_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; out.push({ key: k, label: lb }); });
+    var rows = raw.slice(0, SCENE_MAX * 4), taken = shortKeysTaken(rows);   // 1.6.3: a name with no short name of its own gets one (shortKeyFor)
+    rows.forEach(function(m) { if (out.length >= SCENE_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Channel'); if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return; ks[lower(k)] = 1; taken[lower(k)] = 1; out.push({ key: k, label: lb }); });
     return out.length ? out : null;
 }
 function sceneByKey(sys, key) { var k = lower(String(key || '')); return k ? (isObj(sys) && Array.isArray(sys.scenes) ? sys.scenes : []).filter(function(m) { return isObj(m) && lower(m.key) === k; })[0] || null : null; }
@@ -5555,11 +5567,12 @@ var TRAVEL_MAX = 8, TRAVEL_UNITS = Object.freeze(['ft', 'yd', 'm', 'mi', 'km']),
 function cleanTravel(raw, fields) {
     if (!Array.isArray(raw)) return null; var out = [], ks = map();
     var fOk = function(id) { return typeof id === 'string' && (Array.isArray(fields) ? fields : []).some(function(f) { return isObj(f) && f.id === id && (f.kind === 'number' || f.kind === 'formula'); }); };
-    raw.slice(0, TRAVEL_MAX * 4).forEach(function(m) {
-        if (out.length >= TRAVEL_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : arcKey(lb);
+    var rows = raw.slice(0, TRAVEL_MAX * 4), taken = shortKeysTaken(rows);   // 1.6.3: a name with no short name of its own gets one (shortKeyFor)
+    rows.forEach(function(m) {
+        if (out.length >= TRAVEL_MAX || !isObj(m)) return; var lb = cutText(m.label, LIMITS.label), k = typeof m.key === 'string' && MAPKIND_KEY.test(m.key.trim()) ? m.key.trim() : shortKeyFor(lb, taken, 'Mode');
         if (!lb || !k || !MAPKIND_KEY.test(k) || ks[lower(k)]) return;
         var n = typeof m.n === 'number' && fin(m.n) && m.n > 0 && m.n <= 1e6 ? Math.round(m.n * 1e4) / 1e4 : null, f = fOk(m.f) ? m.f : '';
-        if (n === null && !f) return; ks[lower(k)] = 1;
+        if (n === null && !f) return; ks[lower(k)] = 1; taken[lower(k)] = 1;
         var o = { key: k, label: lb }; if (n !== null) o.n = n; if (f) o.f = f; o.u = TRAVEL_UNITS.indexOf(m.u) >= 0 ? m.u : 'mi'; o.t = TRAVEL_PER.indexOf(m.t) >= 0 ? m.t : 'hour'; out.push(o);
     });
     return out.length ? out : null;
@@ -5857,7 +5870,7 @@ function cleanResults(v, gmView) {
             }
             rows.push(x);
         });
-        if (!rows.length) return; seen[lower(key)] = 1; var o = { key: key, label: cutText(t.label, LIMITS.label) || key, dice: dice, rows: rows }; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
+        if (!rows.length) return; seen[lower(key)] = 1; var o = { key: key, label: cutText(t.label, LIMITS.label) || 'A result table', dice: dice, rows: rows }; /* 1.6.3: a table with no name shows a generic word, never its key */ if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
     });
     return res;
 }
@@ -5915,10 +5928,11 @@ function testFormula(t, key) {
     if (t.shape === 'plus') return t.dice + ' + ' + key + (t.target ? ' >= (' + t.target + ')' : '');
     return t.dice + ' <= ' + key;
 }
+// 1.6.3 (Fulllion's rulings of 2026-11-20, "none isn't a good default substitution"): a value with no name shows A shared value, never its key
 function cleanValues(v, gmView) {
     var res = [], seen = map(), num = function(x) { return typeof x === 'number' && fin(x) ? clampNum(x, -LIMITS.statAbs, LIMITS.statAbs) : undefined; }; (Array.isArray(v) ? v : []).slice(0, VALUES_MAX * 4).forEach(function(t) {
         if (res.length >= VALUES_MAX || !isObj(t) || (t.vis === 'gm' && !gmView)) return; var key = tableKeyOk(t.key, TABLE_KEY); if (!key || seen[lower(key)]) return; seen[lower(key)] = 1;
-        var o = { key: key, label: cutText(t.label, LIMITS.label) || key }, mn = num(t.min), mx = num(t.max), st = num(t.start); if (mn !== undefined) o.min = mn; if (mx !== undefined && (mn === undefined || mx >= mn)) o.max = mx; if (st !== undefined) o.start = st; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
+        var o = { key: key, label: cutText(t.label, LIMITS.label) || 'A shared value' }, mn = num(t.min), mx = num(t.max), st = num(t.start); if (mn !== undefined) o.min = mn; if (mx !== undefined && (mn === undefined || mx >= mn)) o.max = mx; if (st !== undefined) o.start = st; if (t.vis === 'gm') o.vis = 'gm'; res.push(o);
     });
     return res;
 }

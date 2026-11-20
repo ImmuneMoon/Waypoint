@@ -6650,7 +6650,9 @@ function sendRollsGone(next) {
 function namesMoved(before, after) {   // a value name that still stands, at another place
     if (!Array.isArray(before) || !Array.isArray(after)) return false;
     var la = after.map(function(x) { return typeof x === 'string' ? lower(x.trim()) : ''; });
-    return before.some(function(x, i) { var l = typeof x === 'string' ? lower(x.trim()) : '', at = l ? la.indexOf(l) : -1; return at >= 0 && at !== i; });
+    // 1.6.3 (found by hand on 2026-11-20): a name moved only where its own place now holds another name and it stands somewhere else. It
+    // compared its first place with its own, so a list that names one thing at two places (Piercing at 4 to 7) said a name moved at every Save
+    return before.some(function(x, i) { var l = typeof x === 'string' ? lower(x.trim()) : ''; return !!l && la[i] !== l && la.indexOf(l) >= 0; });
 }
 // A number's value name renamed at its own place: the old words stand nowhere after and the new words nowhere before (a name that only moved is
 // namesMoved's). The number it stands for is the same, so what names it by its words follows it

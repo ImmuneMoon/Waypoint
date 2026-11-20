@@ -251,6 +251,13 @@ const j = v => JSON.stringify(v);
         check('T5b the controls (sheets.js, run for real): a running countdown shows pause, reset, stop; a paused one resume, reset, stop; one stopped reset only; an effect with no time none; a card the same; none where the list is not changeable, nor on a player\'s machine when the campaign keeps timers the GM\'s; each press sends its op',
             tx(bRun) === 'pause refresh stop' && tx(bPau) === 'play refresh stop' && tx(bOff) === 'refresh' && bNone.length === 0 && tx(bCard) === tx(bRun) && bRO.length === 0 && bGm.length === 0 && tx(bOwn) === tx(bRun)
             && j(cmts) === j([TQ('pause'), TQ('resume'), TQ('reset'), TQ('dismiss')]), j([tx(bRun), tx(bPau), tx(bOff), bNone.length, tx(bCard), bRO.length, bGm.length, tx(bOwn), cmts]));
+        // 1.6.3, found by hand on 2026-11-20: the plain list's row draws its changes again (from 1.6.2 the statement that drew them stood inside a
+        // trailing comment of the line before, so a row showed none), and a change that Times its number says it beside the change
+        const sysM = Object.assign({}, gmT, { effects: gmT.effects.map(e => e.id === 'e_b' ? Object.assign({}, e, { mods: [{ f: 'f_hp', op: 'add', v: 1, perVal: true }] }) : e) });
+        const modsOf = w => { const out = []; const walk = n => { if (/sheet-fx-mods/.test(n.className || '')) out.push(n.textContent); (n.children || []).forEach(walk); }; walk(w); return out; };
+        check('effects list (sheets.js, run for real): a plain list row draws its changes line, a change that Times its number with its number after it; an effect with no change draws none',
+            j(modsOf(drawT([{ id: 'x_1', ref: 'e_b', on: true, v: 3 }], sysM, false))) === j(['x × 3']) && j(modsOf(drawT([{ id: 'x_1', ref: 'e_b', on: true }], sysM, false))) === j(['x']) && modsOf(drawT([{ id: 'x_1', ref: 'e_q', on: true }], sysM, false)).length === 0,
+            j([modsOf(drawT([{ id: 'x_1', ref: 'e_b', on: true, v: 3 }], sysM, false))]));
         const shT = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8'), hmT = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('T5b the option and the docs (source): Effect timers is a GM-only select writing camp.turnRules.timers (gm or owner); Help names the controls and the option',
             /<span class="set-name">Effect timers<small>Who may pause, reset or stop the countdown of a timed effect\.<\/small><\/span> <select id="setTimersMode"/.test(hmT) && /var val = _timersSel\.value === 'gm' \? 'gm' : 'owner';\s+camp\.turnRules = Object\.assign\(\{\}, camp\.turnRules && typeof camp\.turnRules === 'object' \? camp\.turnRules : \{\}, \{ timers: val \}\);/.test(shT)

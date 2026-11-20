@@ -5175,11 +5175,15 @@ function autoFxInto(wrap, f, c, rows, sys, labels) {
 // the plain list made, and the control shows + Add effect... again at once, so the same effect may be added twice. A closed list changes its pick
 // at every arrow key, so a key step on it opens the list instead (whiteboard.js texListKeys, as the plain list had). Answers null where the
 // app's own parts are not at hand (a suite's page of plain objects), and effectsInto then draws the plain list as before
-function fxAddFind(defs, pick) {
+function fxAddFind(defs, pick, fid) {
     var U = window.wpUi; if (!U || typeof U.find !== 'function' || !Array.isArray(defs) || !defs.length) return null;
     var choices = defs.filter(function(d) { return d && typeof d.id === 'string' && d.id; }).map(function(d) { var ic = iconText(d.icon); return { value: d.id, name: (ic ? ic + ' ' : '') + (d.name || 'Effect'), group: d.tone === 'buff' || d.tone === 'debuff' ? d.tone : '' }; });
-    var w = U.find({ cls: 'sheet-fx-add', label: 'Add effect', blank: '+ Add effect…', placeholder: 'Find an effect', groups: [['buff', 'Helpful'], ['debuff', 'Harmful']], other: 'Other', choices: choices, set: function(v) { pick(v); if (w && typeof w.setValue === 'function') w.setValue(''); } });
+    var w = U.find({ cls: 'sheet-fx-add', label: 'Add effect', blank: '+ Add effect…', placeholder: 'Find an effect', groups: [['buff', 'Helpful'], ['debuff', 'Harmful']], other: 'Other', choices: choices, set: function(v) { if (w && w.input) { w.input.value = ''; w.input._wpTyped = false; } pick(v); if (w && typeof w.setValue === 'function') w.setValue(''); } });   // the search emptied before the pick, so the view drawn again by it starts with an empty box (focusKeyOf would carry what was typed over)
     if (window.wpTexList && w.select) window.wpTexList.keys(w.select);
+    // 1.6.3 (found by hand on 2026-11-20): the search box and the list carry the field's id and a part of their own, so focusKeyOf and
+    // restoreFocus put the focus back on them when the view is drawn again after a pick (it fell to the page, where the next arrow key
+    // moved a selected token). fid is the effects field's id, handed in by effectsInto; with none the two are drawn as before
+    if (typeof fid === 'string' && fid) { if (w.input && w.input.dataset) { w.input.dataset.fid = fid; w.input.dataset.part = 'fx-addq'; } if (w.select && w.select.dataset) { w.select.dataset.fid = fid; w.select.dataset.part = 'fx-adds'; } }
     return w;
 }
 function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the sheet's lock): may an effect be MADE here (New…); editable is what play needs: one applied from the system's list, switched, timed and ended
@@ -5207,14 +5211,14 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
         if (r.t) line.appendChild(fxLeftChip(r.t, sys));   // T5a
         var tcL = fxTimerCtl(r, d, f, c, sys, editable); if (tcL) line.appendChild(tcL);   // T5b
         if (editable) { var rm = el('button', 'tool ghost sheet-pm sheet-fx-rm', '\u00d7'); rm.title = 'End this effect'; rm.addEventListener('click', function() { commitEffect(c, f, { op: 'remove', rowId: r.id }); }); line.appendChild(rm); }
-        var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels) + (m && m.perVal === true && typeof r.v === 'number' ? ' \u00d7 ' + r.v : ''); });   // 1.6.2: a change Times its number if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));
+        var mods = (d.mods || []).map(function(m) { return fxChangeText(m, labels) + (m && m.perVal === true && typeof r.v === 'number' ? ' \u00d7 ' + r.v : ''); }); if (mods.length) line.appendChild(el('div', 'sheet-fx-mods', mods.join(' \u00b7 ')));   // 1.6.2: a change Times its number. 1.6.3: the line that draws the changes stood inside this comment from 1.6.2 on, so a plain list's row showed none of them (found by hand on 2026-11-20)
         wrap.appendChild(line);
     });
     autoFxInto(wrap, f, c, rows, sys, labels);
     if (!wrap.childNodes.length) wrap.appendChild(el('div', 'sheet-empty-note', 'No effects.'));
     if (!editable) return;
     var bar = el('div', 'sheet-fx-add-row'), defs = (sys && sys.effects) || [];
-    var fxFind = defs.length && typeof fxAddFind === 'function' ? fxAddFind(defs, function(ref) { commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: ref }); }) : null;   // 1.6.3: a search, grouped (finding 19); the plain list below where the app's own parts are not at hand
+    var fxFind = defs.length && typeof fxAddFind === 'function' ? fxAddFind(defs, function(ref) { commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: ref }); }, f && f.id) : null;   // 1.6.3: a search, grouped (finding 19); the plain list below where the app's own parts are not at hand
     if (fxFind) bar.appendChild(fxFind);
     else if (defs.length) {
         var add = el('select', 'field sheet-fx-add'); add.appendChild(opt('', '+ Add effect\u2026', true)); if (window.wpTexList) window.wpTexList.keys(add);

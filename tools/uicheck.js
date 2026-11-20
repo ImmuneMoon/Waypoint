@@ -148,6 +148,14 @@ function page() {
             check('the sheet\u2019s + Add effect is a search grouped Helpful, Harmful and Other by each effect\u2019s tone, its first row + Add effect\u2026; a pick hands the effect to the commit and the control shows its first row again, so the same effect can be added twice; a key step on the closed list opens it; with no parts at hand, the plain list',
                 W.className === 'ui-find sheet-fx-add' && t0 === J([':+ Add effect\u2026', ['Helpful', ['e_b:* Blessed']], ['Harmful', ['e_a:Stunned']], ['Other', ['e_c:Marked']]]) && t1[0] === J(['e_a']) && t1[1] === '' && t1[2] === '' && J(picks) === J(['e_a', 'e_a']) && keyed.length === 1 && keyed[0] === ws
                 && new Function('window', 'iconText', shF.slice(fA, fZ) + '\nreturn fxAddFind;')({}, () => '')([{ id: 'e_a', name: 'A' }], () => {}) === null && shF.includes("var fxFind = defs.length && typeof fxAddFind === 'function' ? fxAddFind(defs,"), J([t0, t1, picks]));
+            // 1.6.3, found by hand on 2026-11-20: after a pick the focus fell to the page, where the next arrow key moved a selected token. The
+            // search box and the list carry the field's id and parts of their own, which focusKeyOf keeps and restoreFocus finds in the view drawn
+            // again, and the search is emptied before the pick, so that view starts with an empty box rather than the words typed carried over
+            const picks2 = [], seen = [], W2 = FX([{ id: 'e_a', name: 'Stunned', tone: 'debuff' }], v => { seen.push([W2.input.value, W2.input._wpTyped]); picks2.push(v); }, 'f_fx');
+            W2.input.value = 'stun'; W2.input._wpTyped = true; W2.input.fire('keydown', { key: 'Enter' });
+            check('the sheet’s + Add effect keeps its place over a redraw: its search box and list carry the field’s id with parts of their own, and the search is empty when the pick is made, so nothing typed is carried into the new view; with no field id handed in they carry none',
+                W2.input.dataset.fid === 'f_fx' && W2.input.dataset.part === 'fx-addq' && W2.select.dataset.fid === 'f_fx' && W2.select.dataset.part === 'fx-adds' && J(picks2) === J(['e_a']) && J(seen) === J([['', false]]) && W2.input.value === ''
+                && W.input.dataset.fid === undefined && W.select.dataset.fid === undefined && shF.includes("commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: ref }); }, f && f.id) : null;"), J([W2.input.dataset, W2.select.dataset, picks2, seen]));
         }
         const css = read('style.css'), ek = read('scripts/esckey.js');
         check('find\u2019s frame is the style sheet\u2019s, and Escape leaves a search that holds words to it', /\.ui-find \{[^}]*border: 1px solid var\(--edge\)/.test(css) && /\.ui-find > \.ui-find-q \{/.test(css) && ek.includes("t.classList.contains('ui-find-q')"));

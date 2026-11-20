@@ -11,7 +11,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CAL_LIMITS, F, FEEDS_MAX, KINDS, LIMITS, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTier, cleanTurn, clone, coverHitSays, crewDrops, crossFollow, damageSays, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, itemReach, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
+import { CAL_LIMITS, F, FEEDS_MAX, KINDS, LIMITS, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTier, cleanTurn, clone, coverHitSays, crewDrops, crossFollow, damageSays, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, itemReach, keyFromLabel, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
 export function sysedErr() {   // [split:glue]
 // [split:body-start]
 function saveDraft() {
@@ -121,11 +121,20 @@ function refreshErrors() {
     if (!draft || !F()) return;
     if (typeof placeCatErrs === 'function') placeCatErrs();   // 1.5.5: what Save does with a list's places in the Layout tab
     var seenKey = Object.create(null);
+    // 1.6.3 (the review of fields): what is said of a field with no short name, which Save drops whole. Where its name still makes one, the short name
+    // was emptied by hand under Short names, and editing the name makes it follow again; where the name makes none, it holds no letter A to Z (another
+    // script, or only marks). The words never begin with "Its name", which the line's own prefix puts before them
+    var nameSays = function(f) {
+        var lb = typeof f.label === 'string' ? f.label.trim() : '';
+        if (!lb) return 'Give it a name, or Save drops this field.';
+        var made = typeof keyFromLabel === 'function' ? keyFromLabel(lb, f) : '';
+        return made ? 'The short name is empty, so Save drops this field. Type one under Short names, or edit the name and it follows again.' : 'This name makes no short name, so Save drops this field. Use letters A to Z, or tick Short names below and type one.';
+    };
     draft.fields.forEach(function(f) {
         var errs = [];
         // 1.6.3 (Fulllion's rulings of 2026-11-20: a box other boxes depend on is required): a field with no short name is dropped whole at Save, with
         // everything typed in its other boxes, so its name is said to be needed under the Label box (the short name follows the name and stays out of sight)
-        if (!f.key) errs.push({ prop: 'label', message: typeof f.label === 'string' && f.label.trim() ? 'Its name makes no short name, so Save drops this field. Name it in letters, or tick Short names below and type one.' : 'Give it a name, or Save drops this field.' });
+        if (!f.key) errs.push({ prop: 'label', message: nameSays(f) });
         else if (!validKey(f.key, F())) errs.push({ prop: 'key', message: 'Not a usable key: letters, digits, _ and dots; no spaces; not a function, reserved word or dice.' });
         else { var l = String(f.key).toLowerCase(); if (seenKey[l]) errs.push({ prop: 'key', message: 'Another field has this key.' }); seenKey[l] = 1; }
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
@@ -358,6 +367,9 @@ function refreshErrors() {
         keptBy[f.id] = mine;
         if (errs.length) errorsById['list:' + f.id] = errs;
     });
+    // 1.6.3 (the review of fields): a list with no short name is said under its own card on the Lists tab too, since the card shows only what is filed
+    // under 'list:' and its id, so a press on the line lands on the card's name box. It comes after the loop above, which sets that entry whole
+    draft.fields.forEach(function(f) { if (f && f.kind === 'item-list' && typeof f.id === 'string' && !f.key) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ prop: 'label', message: nameSays(f) }); });
     var camp0 = getActiveCampaign(), saved = systemOf(camp0), toldI = Object.create(null), hasKey = function(m, l) { return !!m && typeof m === 'object' && !Array.isArray(m) && Object.keys(m).some(function(k) { return k.toLowerCase() === l; }); };
     var valOf = function(m, l) { var out; if (m && typeof m === 'object' && !Array.isArray(m)) Object.keys(m).forEach(function(k) { if (k.toLowerCase() === l) out = m[k]; }); return out; };
     var rnP = typeof renamesOf === 'function' ? renamesOf(saved, draft).picks : [];   // 1.6.2: a label renamed: what holds it follows at Save, and Save drops nothing
@@ -564,8 +576,22 @@ function refreshErrors() {
         (errorsById[r.id] = errorsById[r.id] || []).push({ prop: 'formula', message: 'It has nothing to roll yet, so Save leaves it out.' });
     });
     var whyRe = function(e) { var m = e && typeof e.prop === 'string' ? /^needsWhy\.(\d+)$/.exec(e.prop) : null, rr = m && typeof whyDraftAt === 'function' ? (draft.rolls || []).filter(function(x) { return x && x.id === e.id; })[0] : null; if (rr) e.prop = 'needsWhy.' + whyDraftAt(rr, +m[1]); };   // 1.6.2: a reason the validator read in the cleaned roll, named by its line in the draft
-    v.errors.forEach(function(e) { whyRe(e); var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
-    v.warnings.forEach(function(w) { whyRe(w); var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
+    // 1.6.3 (the review of fields): the validator counts a field's lines of Typing it fills in the CLEANED field, which has left out the lines Save drops, so
+    // its fill.N is turned back into the line's place in the draft by the cleaner's own rule (systemcore cleanField: a field's id that is not this field's,
+    // once each, a figure with no dice, at most AUTO_FILLS kept of the first four times that many). A line not found there falls to the row itself
+    var fillDraftAt = function(f, k) {
+        var cap = (typeof window !== 'undefined' && window.wpSystemCore && window.wpSystemCore.AUTO_FILLS) || 4, seen = Object.create(null), n = -1, ls = Array.isArray(f.fills) ? f.fills.slice(0, cap * 4) : [];
+        for (var i = 0; i < ls.length && n < cap - 1; i++) {
+            var x = ls[i]; if (!x || typeof x !== 'object' || Array.isArray(x) || typeof x.f !== 'string' || !/^f_[A-Za-z0-9_]{1,24}$/.test(x.f) || x.f === f.id || seen[x.f]) continue;
+            var ft = typeof cleanFormulaText === 'function' ? cleanFormulaText(x.formula) : '', p = null; try { p = ft ? F().parse(ft) : null; } catch (er) { p = null; }
+            if (!p || !p.ok || !p.ast || (typeof hasDice === 'function' && hasDice(p.ast.body))) continue;
+            seen[x.f] = 1; if (++n === k) return i;
+        }
+        return -1;
+    };
+    var fillRe = function(e) { var m = e && typeof e.prop === 'string' ? /^fill\.(\d+)$/.exec(e.prop) : null, fd = m ? (draft.fields || []).filter(function(x) { return x && x.id === e.id; })[0] : null, at = fd ? fillDraftAt(fd, +m[1]) : -1; if (m) e.prop = at >= 0 ? 'fill.' + at : 'fills'; };
+    v.errors.forEach(function(e) { whyRe(e); fillRe(e); var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
+    v.warnings.forEach(function(w) { whyRe(w); fillRe(w); var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
     var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat tab
     if (tnE) {
         var KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;

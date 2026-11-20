@@ -1891,8 +1891,10 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         // default substitution"): the Fields tab's boxes others depend on. refreshErrors is run for real (sysederr.js, read by its own name), the adders and the
         // Shows as handler are the real lines of sysedtabs.js, and the cleaner is the real one, so each line said agrees with what Save does
         const reQ = kit.cutEnd('sysederr.js', '\nfunction refreshErrors() {').replace(/\n$/, '');
+        // the review of fields: refreshErrors asks keyFromLabel (sysedlayout.js, by its own name) whether a name still makes a short name, so it runs beside it
+        const keyQ = (src => src.slice(src.indexOf('var _keyAuto = new WeakSet();'), src.indexOf('function arrSet(')))(kit.part('sysedlayout.js').replace(/\r\n/g, NL));
         const runQ = fields => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'cleanFieldUnit', 'unitOf', 'cleanFormulaText', 'hasDice',
-            'var errorsById = {}, warningsById = {};\n' + reQ + '\nrefreshErrors(); return { e: errorsById, w: warningsById };')({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: fields }, () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => ({ chars: {} }), () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS, S.cleanFieldUnit, S.unitOf, S.cleanFormulaText, S.hasDice);
+            'var errorsById = {}, warningsById = {};\n' + keyQ + NL + reQ + '\nrefreshErrors(); return { e: errorsById, w: warningsById };')({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: fields }, () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => ({ chars: {} }), () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS, S.cleanFieldUnit, S.unitOf, S.cleanFormulaText, S.hasDice);
         const said = (r, id, re) => ((r.e[id] || []).concat(r.w[id] || [])).filter(x => !re || re.test(x.prop || '')).map(x => (x.prop || '') + ': ' + x.message);
         const tgt = { id: 'f_t', key: 'Weight', label: 'Weight', kind: 'number' };
         // a number taken from a formula: one formula alone is said under the other's box, both say nothing
@@ -1929,11 +1931,29 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 a choice needs its options, and its default must be one of them (refreshErrors, run for real): no options is said under Options, a default that is no option under Default option, one in another case or with spaces told how to write it, and an empty or matching default says nothing',
             selOk, j([said(rSel, 'f_s0'), said(rSel, 'f_s1'), said(rSel, 'f_s2'), said(rSel, 'f_s3'), said(rSel, 'f_s4')]));
         // a field with no name, which Save drops whole
-        const rNm = runQ([{ id: 'f_n0', key: '', label: '', kind: 'number', formula: 'x' }, { id: 'f_n1', key: '', label: '\u0421\u0438\u043b\u0430', kind: 'number' }, { id: 'f_n2', key: 'Str', label: 'Strength', kind: 'number' }, { id: 'f_n3', key: '', label: '', kind: 'number' }]);
+        const rNm = runQ([{ id: 'f_n0', key: '', label: '', kind: 'number', formula: 'x' }, { id: 'f_n1', key: '', label: '\u0421\u0438\u043b\u0430', kind: 'number' }, { id: 'f_n2', key: 'Str', label: 'Strength', kind: 'number' }, { id: 'f_n3', key: '', label: '', kind: 'number' }, { id: 'f_n4', key: '', label: 'Strength', kind: 'number' }]);
         const nmOk = j(said(rNm, 'f_n0')) === j(['label: Give it a name, or Save drops this field.']) && j(said(rNm, 'f_n3')) === j(['label: Give it a name, or Save drops this field.'])
-            && j(said(rNm, 'f_n1')) === j(['label: Its name makes no short name, so Save drops this field. Name it in letters, or tick Short names below and type one.']) && said(rNm, 'f_n2').length === 0;
+            // moved on purpose (the review of fields): the words of a name in another script say A to Z, and a short name emptied by hand (f_n4) is told so;
+            // no line begins with Its name, which the line's own prefix already says
+            && j(said(rNm, 'f_n1')) === j(['label: This name makes no short name, so Save drops this field. Use letters A to Z, or tick Short names below and type one.']) && said(rNm, 'f_n2').length === 0
+            && j(said(rNm, 'f_n4')) === j(['label: The short name is empty, so Save drops this field. Type one under Short names, or edit the name and it follows again.'])
+            && ['f_n0', 'f_n1', 'f_n3', 'f_n4'].every(id => said(rNm, id).every(x => !/^label: Its name/.test(x)));
         check('1.6.3 a field needs a name (refreshErrors, run for real): one with no name is said under its Label, every bare row alike and never as two fields sharing a key, one whose name makes no short name says so, and a named field says nothing',
-            nmOk, j([said(rNm, 'f_n0'), said(rNm, 'f_n1'), said(rNm, 'f_n2'), said(rNm, 'f_n3')]));
+            nmOk, j([said(rNm, 'f_n0'), said(rNm, 'f_n1'), said(rNm, 'f_n2'), said(rNm, 'f_n3'), said(rNm, 'f_n4')]));
+        // the review of fields: a list with no short name is said under its own card on the Lists tab too (what the card draws is filed under 'list:' and its id),
+        // and the line stays though the list's own loop sets that entry whole (here it says Rolls unheld entries needs a level)
+        const rLs = runQ([{ id: 'f_L', key: '', label: 'Gear', kind: 'item-list', list: { unheld: 'Lvl' } }, { id: 'f_M', key: 'Kit', label: 'Kit', kind: 'item-list', list: {} }]);
+        const lsSaid = (rLs.e['list:f_L'] || []).map(x => (x.prop || '') + ': ' + x.message);
+        check('1.6.3 the review of fields: a list with no short name is said under its card on the Lists tab, with its prop label, so a press lands on the card\'s name box (sys-list-name), beside what the list\'s own loop says; a list with one says nothing of it',
+            lsSaid.includes('label: The short name is empty, so Save drops this field. Type one under Short names, or edit the name and it follows again.') && lsSaid.some(x => /Rolls unheld entries/.test(x))
+            && !((rLs.e['list:f_M'] || []).some(x => x.prop === 'label')) && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("'sys-item-name', 'sys-list-name']"),
+            j([lsSaid, rLs.e['list:f_M'] || []]));
+        // the review of fields: the validator counts lines of Typing it fills in the cleaned field, so its fill.N is turned back into the draft line's place
+        const rFm = runQ([{ id: 'f_w', key: 'Note', label: 'Note', kind: 'text' }, { id: 'f_h2', key: 'Height2', label: 'Height2', kind: 'number', fills: [{ f: '', formula: '1' }, { f: 'f_w', formula: '2' }] }]);
+        const fmSaid = said(rFm, 'f_h2', /^fill/);
+        check('1.6.3 the review of fields: a fault the validator finds in a line of Typing it fills lands on that line in the draft (here the second, after a line Save drops), never on the line the cleaned list counts',
+            fmSaid.includes('fillTo.0: Typing it fills: pick the field it fills, or Save drops this line.') && fmSaid.some(x => /^fill\.1: A field this fills is not a number/.test(x)) && !fmSaid.some(x => /^fill\.0:/.test(x)),
+            j(fmSaid));
         // the adders start a field and a list named, and Shows as: boxes marked one by one starts at 4 (the real lines of sysedtabs.js)
         const tabsQ = kit.part('sysedtabs.js').replace(/\r\n/g, NL), layQ = kit.part('sysedlayout.js').replace(/\r\n/g, NL);
         const lineQ = (src, a) => { const i = src.indexOf(a); if (i < 0 || src.indexOf(a, i + 1) >= 0) throw new Error('1.6.3 line: ' + a); return src.slice(i, src.indexOf(NL, i)); };

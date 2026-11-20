@@ -19,7 +19,8 @@ function saveDraft() {
     var camp = getActiveCampaign(); if (!camp) return;
     var rnS = typeof renamesCarry === 'function' ? renamesCarry(camp.system, draft) : null;   // 1.6.2 (backlog 208): an option, a station or a list's roll renamed: what names it follows
     draft.name = (ui('sysName').value || '').trim().slice(0, LIMITS.name);
-    if (ui('sysMark')) { var mkD = ui('sysMark').value.trim(); if (mkD) draft.mark = mkD; else delete draft.mark; }   // 1.6.0: a word only; the cleaner keeps it or drops it
+    if (ui('sysMark')) { var mkD = ui('sysMark').value.trim(); if (mkD) draft.mark = mkD; else delete draft.mark; }
+    if (ui('sysMakeRolls')) { var mrD = ui('sysMakeRolls').value; if (mrD === 'gm' || mrD === 'self') draft.makeRolls = mrD; else delete draft.makeRolls; }   // 1.6.3 (finding 22): Rolls while making, as the editor shows it   // 1.6.0: a word only; the cleaner keeps it or drops it
     var snD = draft.combat && draft.combat.senses && typeof draft.combat.senses === 'object' && Array.isArray(draft.combat.senses.list) ? draft.combat.senses : null, pendS = snD ? snD.list.filter(function(s) { return !!s && s.unit === '?'; }) : [], src = draft;   // senses S2a: a sense still waiting for its unit is left out (never a silent yards), and stays in the editor
     if (pendS.length) src = Object.assign({}, draft, { combat: Object.assign({}, draft.combat, { senses: Object.assign({}, snD, { list: snD.list.filter(function(s) { return !(s && s.unit === '?'); }) }) }) });
     var clean = cleanSystem(src, { F: F(), gmView: true });

@@ -4,7 +4,7 @@
    to the in-app floating panel in the opener. Read-only + live (polls the local save), like the Stream
    window; nothing here ever writes the save (io.js no-ops save while window.wpPopout is set).
      kind 'doc'   → arg = "<campId>/<itemId>"   (a planner or handbook page, rendered via docrender.js)
-     kind 'sheet' → arg = "<charId>"            (a character sheet, rendered read-only via wpSheets)
+     kind 'sheet' → arg = "<campId>/<charId>"   (a character sheet, drawn via wpSheets; 1.6.3: live, see popSheetLive below)
    1.6.2: a page's window whose address ends /table:<block id> edits that one big table (tablewin.js). It still writes nothing: each edit is
    a word to the main window, which makes it (planner.js tbEditTake).  */
 import { state } from './state.js';
@@ -249,6 +249,56 @@ if (spec) {
         document.title = 'Waypoint — ' + title; if (titleEl) titleEl.textContent = title;
     }
     // [systemcheck:popsheet-end]
+    // [hudcheck:popsheetwin-start]
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 25; Fulllion: "Make it live"): a sheet in a window of its own is live. It
+    // asks the main window for its sheet over the app's own channel (sheetWant, again every 20 s to say it is still open) and draws what it is
+    // sent (sheetData, through tickSheet as ever, as the GM's sheet or the player's own, wpPopoutAs); every press goes back to the main window
+    // (wpPopoutSheet.send, asked by sheets.js popFwd and dice.js rollFor), which makes it as its own, so the host judges it as before. It reads
+    // the save no more each second: only where no main window answers (a GM's save, at most every 30 s, read only, as it always was). A player's
+    // window has no save to read: it waits for the main window
+    function popSheetLive() {
+        var slash = arg.indexOf('/'), campId = slash >= 0 ? arg.slice(0, slash) : '', charId = slash >= 0 ? arg.slice(slash + 1) : arg;
+        var pid = 'p' + Math.random().toString(36).slice(2, 12), bc = null, seen = 0, sysC = null, fallT = null, LIVE_MS = 60000, mainId = '';   // mainId: the app window this one speaks to, the first that answered while it answers
+        try { bc = new BroadcastChannel('waypoint'); } catch (e) { bc = null; }
+        var want = function(fresh) { if (bc) try { bc.postMessage({ type: 'sheetWant', id: pid, camp: campId, char: charId, fresh: !!fresh }); } catch (e) {} };
+        var live = function() { return !!seen && Date.now() - seen < LIVE_MS; };
+        var readOnly = function() { if (window.wpPopoutAs) { window.wpPopoutAs = null; lastSig = ''; } if (!fallT) { tick(); fallT = setInterval(tick, 30000); } };
+        window.wpPopoutSheet = {
+            live: live,
+            send: function(op, args) {   // true always: nothing of a press is made here
+                if (!bc || !live()) { if (window.appToast) window.appToast('The main Waypoint window is not answering. Use the sheet there.'); return true; }
+                var a = null; try { a = JSON.parse(JSON.stringify(Array.isArray(args) ? args : [])); } catch (e) { return true; }
+                try { bc.postMessage({ type: 'sheetDo', id: pid, to: mainId, camp: campId, char: charId, op: String(op), args: a }); } catch (e) {}
+                return true;
+            }
+        };
+        // The review of the sheet picks: the main window will not answer (another campaign is open there, the character is gone, or the sheet may no
+        // longer be opened there). Said at once for a press, and on a plain ask only where the window had counted itself live; the window is then
+        // read only until the main window answers it again
+        var NO_WORDS = { camp: 'The main Waypoint window has another campaign open now, so nothing was changed. This sheet is read only here.', gone: 'This character is no longer in the campaign there, so nothing was changed. This sheet is read only here.', open: 'This sheet cannot be opened in the main window now, so nothing was changed. It is read only here.' };
+        var sheetNo = function(m) {
+            if ((mainId && m.from !== mainId) || !Object.prototype.hasOwnProperty.call(NO_WORDS, m.why)) return;
+            var was = live(); seen = 0;
+            if ((m.press === true || was) && window.appToast) window.appToast(NO_WORDS[m.why]);
+            readOnly();
+        };
+        if (bc) bc.addEventListener('message', function(e) {
+            var m = e.data; if (m && m.type === 'sheetNo' && m.to === pid && typeof m.from === 'string' && typeof m.why === 'string') { sheetNo(m); return; }
+            if (!m || m.type !== 'sheetData' || m.to !== pid || !m.camp || typeof m.camp !== 'object' || typeof m.from !== 'string') return;
+            if (mainId && m.from !== mainId && live()) return;   // two app windows hold the campaign: the one it chose speaks for it
+            if (m.from !== mainId) { mainId = m.from; if (!m.system) { sysC = null; want(true); return; } }
+            if (m.system && typeof m.system === 'object') sysC = m.system; if (!sysC) { want(true); return; }
+            var was = window.wpPopoutAs, as = { gm: m.gm === true, me: typeof m.me === 'string' ? m.me : '' };
+            if (!was || was.gm !== as.gm || was.me !== as.me) lastSig = '';   // another role draws another sheet
+            seen = Date.now(); window.wpPopoutAs = as; if (fallT) { clearInterval(fallT); fallT = null; }
+            var cp = m.camp; cp.system = sysC; var data = { activeCampaignId: cp.id, campaigns: {} }; data.campaigns[cp.id] = cp;
+            tickSheet(data);
+        });
+        want(true);
+        setInterval(function() { want(!live()); if (seen && !live()) readOnly(); }, 20000);
+        setTimeout(function() { if (!seen) readOnly(); }, 4000);   // no main window: the slow fallback
+    }
+    // [hudcheck:popsheetwin-end]
 
     async function tick() {
         var data; try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }
@@ -264,6 +314,8 @@ if (spec) {
         var reqBC = null; try { reqBC = new BroadcastChannel('waypoint'); } catch (e) {}
         var reqChat = function() { if (reqBC) try { reqBC.postMessage({ type: 'chatReq' }); } catch (e) {} };
         reqChat(); setTimeout(reqChat, 500); setTimeout(reqChat, 1600);   // ask the main window for the current log (retries if it opened after)
+    } else if (kind === 'sheet') {
+        popSheetLive();
     } else {
         setTimeout(tick, 150);
         setInterval(tick, 1000);

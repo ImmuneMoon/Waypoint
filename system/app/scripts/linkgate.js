@@ -51,6 +51,7 @@ import { showConfirm } from './dialogs.js';
 import { runsOf, SIZE_EM, fontCss } from './textfmt.js';
 import { cleanRec, ruleLinks } from './lookcore.js';
 import { pageLink, mentionLink } from './textfmt.js';   // 1.5.6: a link to a page of the campaign; 1.6.2, a mention
+import { mouseClean, linkPress, gestureOf, gestureWords } from './mousecore.js';   // 1.6.3: the presses on a page link are this computer's, as the map's gestures are
 
 // [sinkcheck:linkgate-start]
 var LINK_TARGET = '_blank', LINK_REL = 'noopener noreferrer';   // what the page sanitiser writes on every link (docrender.js aAttrs)
@@ -127,21 +128,32 @@ function pageHost(win) {
     try { var w = win && win.wpPopout ? win.opener : win; return w && !w.closed && w.wpPageShelf && typeof w.wpPageShelf.linkGo === 'function' ? w : null; }
     catch (e) { return null; }
 }
-// 1.5.8 (Back and Forward): a plain press on a page link that stands in a place a page is read (pagenav.js NAV_PLACES), and Open here, open the
-// page in that same place, which notes where it stood first (wpPageNav.follow), so Back brings the reader back to the very spot. A press with a
-// key held, and a link anywhere else, open as before. way 'here' is Open here
+// 1.5.8 (Back and Forward): Open here (way 'here', or none) opens the page in the place the link stands in, where that is a place a page is read
+// (pagenav.js NAV_PLACES), which notes where it stood first (wpPageNav.follow), so Back brings the reader back to the very spot. A link anywhere
+// else opens by the shelf's own plain way (over the map on the play map, else the page itself), or from a window of its own in a new window.
+// 1.6.3: every other way is the main window's to make, through the shelf's linkGo: 'tab' a new tab of the page panel, 'panel' the page panel in
+// front (the window inside Waypoint), 'window' an external window, 'go' the page itself. The way is always named by the caller (linkGate reads
+// the link gestures, the menu its row), so the keys held at the press no longer pick it here
 function pageGo(win, pg, way, e, a) {
     var d = win && win.document, b = d && d.body;
     if (b && b.classList && b.classList.contains('stream-mode')) return false;
     if (!pg) return false;
-    var nav = win.wpPageNav, plain = !(e && (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey)), root = null;
-    if ((way === 'here' || (!way && plain)) && a && nav && typeof nav.placeOf === 'function' && typeof nav.follow === 'function') { try { root = nav.placeOf(a); } catch (err) { root = null; } }
+    if (!way) way = 'here';
+    var nav = win.wpPageNav, root = null;
+    if (way === 'here' && a && nav && typeof nav.placeOf === 'function' && typeof nav.follow === 'function') { try { root = nav.placeOf(a); } catch (err) { root = null; } }
     if (root) { try { return !!nav.follow(root, pg.id, pg.at || ''); } catch (err) { return false; } }
     var w = pageHost(win); if (!w) return false;
-    if (way === 'here') way = '';
-    try { var sh = w.wpPageShelf; sh.linkGo(pg.id, pg.at || '', way || (win.wpPopout ? 'window' : sh.wayNow(e))); } catch (err) { return false; }
+    try { var sh = w.wpPageShelf; sh.linkGo(pg.id, pg.at || '', way === 'here' ? (win.wpPopout ? 'window' : sh.wayNow(null)) : way); } catch (err) { return false; }
     return true;
 }
+// 1.6.3: this computer's link gestures (wp_mouse, mousecore.js mouseClean), read at each press, so a pop-out window, which shares the main
+// window's storage, follows Settings at once. A store that cannot be read is the gestures as they come
+function linkGes(win) {
+    try { var ls = win && win.localStorage, raw = ls && typeof ls.getItem === 'function' ? ls.getItem('wp_mouse') : null; return typeof mouseClean === 'function' ? mouseClean(raw ? JSON.parse(raw) : {}) : { cmds: {} }; }
+    catch (e) { return { cmds: {} }; }
+}
+// what a press on a page link or a mention does: 'menu', 'tab', 'window', 'panel', or '' for none (mousecore.js linkPress)
+function linkWayOf(win, e) { return typeof linkPress === 'function' ? linkPress(e, linkGes(win)) : ''; }
 // 1.6.2 (backlog 166 f): a mention. A page opens as a page link does; a map or a character is the main window's to open (pageshelf.js mentionGo)
 function mentionGo(win, mn, way, e, a) {
     if (!mn) return false;
@@ -150,17 +162,25 @@ function mentionGo(win, mn, way, e, a) {
     var w = pageHost(win); if (!w || typeof w.wpPageShelf.mentionGo !== 'function') return false;
     try { w.wpPageShelf.mentionGo(mn.kind, mn.id, mn.at); return true; } catch (err) { return false; }
 }
-// 1.5.8: the right button on a page link shows where it may open (its own slice, below); with no menu to be had, a window of its own as before
+// 1.5.8: the right button on a page link shows where it may open (its own slice, below); with no menu to be had, a window of its own as before.
+// 1.6.3 (Fulllion, 2026-11-19): on a mention too (a map's or a character's holds Open alone), and the press that opens it is the link gesture
+// Menu of where it opens (Right click as it comes, Shift + right click, or Off), read by linkWayOf. A right click the gestures do not name for
+// the menu is left alone. The menu key on the keyboard (a contextmenu whose button is not the right one) always opens it
 function pageMenu(win) {
     return function(e) {
         var a = linkAt(e.target); if (!a) return;
-        var lk = cleanLink(linkOf(a)), mnP = typeof mentionLink === 'function' ? mentionLink(lk) : null, pg = typeof pageLink === 'function' ? pageLink(lk) : null; if (!pg && mnP && mnP.kind === 'page') pg = { id: mnP.id, at: mnP.at }; if (!pg) return;   // 1.6.2: a page's mention as a page link
+        var lk = cleanLink(linkOf(a)), mnP = typeof mentionLink === 'function' ? mentionLink(lk) : null, pg = typeof pageLink === 'function' ? pageLink(lk) : null;
+        if (!pg && mnP && mnP.kind === 'page') pg = { id: mnP.id, at: mnP.at };   // 1.6.2: a page's mention as a page link
+        if (pg) mnP = null;
+        if (!pg && !mnP) return;
         var c = linkWhere(a, win); if (c.editing !== false || c.held === true) return;
+        if (e && e.button === 2 && linkWayOf(win, e) !== 'menu') return;
+        if (mnP && typeof lmRows === 'function' && !lmRows(win, a, mnP).length) return;   // 1.6.3, the review of links: a mention with nothing to offer here takes no press
         e.preventDefault(); e.stopPropagation();
         var d = win && win.document, b = d && d.body;
         if (b && b.classList && b.classList.contains('stream-mode')) return;
-        if (typeof lmOpen === 'function' && d && typeof d.createElement === 'function' && lmOpen(win, d, a, pg, e)) return;
-        pageGo(win, pg, 'window', e, a);
+        if (typeof lmOpen === 'function' && d && typeof d.createElement === 'function' && lmOpen(win, d, a, pg, e, mnP)) return;
+        if (pg) pageGo(win, pg, 'window', e, a); else mentionGo(win, mnP, 'here', e, a);
     };
 }
 // The address an <a> carries — null where it carries none. A diagram draws its links as SVG <a> elements whose address is in
@@ -189,10 +209,21 @@ function linkGate(win, doc, ask) {
         if (a.hasAttribute('download') && /^(blob|data):/i.test(raw)) return;   // a file the app itself hands over to be saved
         e.preventDefault();   // the engine follows nothing: whatever opens is opened below
         var c = linkWhere(a, win); c.link = cleanLink(raw);
-        var pg = typeof pageLink === 'function' ? pageLink(c.link) : null;   // 1.5.6: a link to a page of the campaign opens it, with no question; the middle button, a window of its own
-        if (pg) { if (c.editing === false && c.held !== true) pageGo(win, pg, e.type === 'auxclick' ? 'window' : '', e, a); return; }
-        var mn = typeof mentionLink === 'function' ? mentionLink(c.link) : null;   // 1.6.2 (backlog 166 f): a mention opens what it names, with no question
-        if (mn) { if (c.editing === false && c.held !== true) mentionGo(win, mn, e.type === 'auxclick' ? 'window' : '', e, a); return; }
+        var pg = typeof pageLink === 'function' ? pageLink(c.link) : null;   // 1.5.6: a link to a page of the campaign opens it, with no question
+        var mn = pg ? null : typeof mentionLink === 'function' ? mentionLink(c.link) : null;   // 1.6.2 (backlog 166 f): a mention opens what it names, with no question
+        if (pg || mn) {
+            if (c.editing !== false || c.held === true) return;
+            // 1.6.3: where it opens is the press's, by this computer's link gestures (Settings, Keys, Links in pages): as they come the middle
+            // button a new tab, Ctrl + click an external window, Shift + click the page panel. A press no gesture names: a plain click (or one
+            // with keys nobody picked) follows the link where it stands, Alt + click opens the page itself as it always did, and the middle
+            // button opens nothing
+            var way = linkWayOf(win, e);
+            if (way === 'menu') return;
+            if (!way && e.type === 'auxclick') return;
+            if (!way) way = e.altKey && !(e.ctrlKey || e.metaKey || e.shiftKey) && !win.wpPopout ? 'go' : 'here';
+            if (pg) pageGo(win, pg, way, e, a); else mentionGo(win, mn, way, e, a);
+            return;
+        }
         var v = linkVerdict(c), url = v === 'none' ? null : readUrl(c.link);
         if (!url) return;   // no link, a link in a box that is being edited, or an address the parser cannot read: nothing opens
         var link = c.link;
@@ -380,20 +411,45 @@ function peekWire(win, doc) {
 // [sinkcheck:linkpeek-end]
 
 // [sinkcheck:linkmenu-start]
-// 1.5.8: where a page link may open (the owner, 2026-10-25, by prompt: "Both"). The right button on a page link shows a small menu: Open here, as
-// a press opens it; Open in a new window; Open in the panel over the map, from the main window or through it from a window of its own, and never
-// from the panel itself. A player's app opens a page in its reader alone, so there it holds Open here alone. Nothing in the stream window.
+// 1.5.8: where a page link may open (the owner, 2026-10-25, by prompt: "Both"). The right button on a page link shows a small menu.
+// 1.6.3 (Fulllion, 2026-11-19: "right click by default brings up a open in new tab, or open in new window (inside waypoint), or open in external
+// window"): Open here, as a plain click opens it; Open in a new tab, a tab of the page panel behind the page in front there (docpanel.js tab);
+// Open in a new window inside Waypoint, the page panel, the one floating window of the app that shows a page, with that page in front; and Open
+// in an external window, a window of the system's own that may go to another screen (docpanel.js popOut). Every way but Open here is the main
+// window's to make, so from a window of its own it opens there. From the panel itself there is no row for the panel. A player's app opens a page
+// in its reader alone, so there it holds Open here alone; a mention of a map or a character holds Open alone. Each row says the press that
+// does the same as it is set now (lmKey), so the menu teaches the gestures. Nothing in the stream window.
 // ONE menu a document, made here of elements and text nodes: the page's name is a text node. The arrow keys, Home and End go through its rows,
 // Enter or a press takes one, Escape and Tab put it away (esckey.js leaves it its own Escape: ESC_OWN_MENUS) and give the focus back to the link
 var LM_ID = 'pageLinkMenu';
-function lmRows(win, a) {
+function lmRows(win, a, mn) {
     var nav = win && win.wpPageNav, root = null, w = pageHost(win), rows = [];
+    if (mn) {
+        if (!w) return rows;
+        // 1.6.3, the review of links: a player's app offers only what it can do. Only the GM moves anyone to another map (pageshelf.js mentionGo
+        // refuses it there), so a map's mention holds no row; a character's holds Open the sheet only for a sheet the sheet module lets them
+        // open (wpSheets.canOpen: their own, or one shared with them). With no row the menu stays down and the right click goes on as it did
+        // before mentions had a menu (pageMenu asks lmRows before it takes the press)
+        if (atTable(win) === true) {
+            if (mn.kind === 'map') return rows;
+            if (mn.kind === 'char') { var ok = false; try { ok = !!(w.wpSheets && typeof w.wpSheets.canOpen === 'function' && w.wpSheets.canOpen(mn.id)); } catch (e) { ok = false; } if (!ok) return rows; }
+        }
+        rows.push(['here', mn.kind === 'map' ? 'Go to this map' : mn.kind === 'char' ? 'Open the sheet' : 'Open']); return rows;
+    }
     try { root = nav && typeof nav.placeOf === 'function' ? nav.placeOf(a) : null; } catch (e) { root = null; }
     if (root || w) rows.push(['here', root ? 'Open here' : 'Open']);
     if (atTable(win) === true || !w) return rows;
-    rows.push(['window', 'Open in a new window']);
-    if (!(root && root.id === 'docPanelBody')) rows.push(['panel', 'Open in the panel over the map']);
+    rows.push(['tab', 'Open in a new tab']);
+    if (!(root && root.id === 'docPanelBody')) rows.push(['panel', 'Open in a new window inside Waypoint']);
+    rows.push(['window', 'Open in an external window']);
     return rows;
+}
+// the press that does a row's way as this computer has it now, in words, or '' where none does (a gesture set Off)
+var LM_GES = { tab: 'linkTab', panel: 'linkPanel', window: 'linkWin' };
+function lmKey(win, way) {
+    if (way === 'here') return 'Click';
+    var g = LM_GES[way]; if (!g || typeof gestureOf !== 'function' || typeof gestureWords !== 'function') return '';
+    var w = gestureOf(linkGes(win), g); return w === 'off' ? '' : gestureWords(g, w);
 }
 function lmEl(doc, make) {
     var m = doc.getElementById(LM_ID); if (m || !make) return m || null;
@@ -403,7 +459,7 @@ function lmEl(doc, make) {
     m.addEventListener('click', function(e) {
         var r = e.target && e.target.closest ? e.target.closest('.linkmenu-row') : null; if (!r) return;
         e.preventDefault(); e.stopPropagation();
-        var s = m.wpAt; lmClose(doc, false); if (s) pageGo(s.win, s.pg, r.dataset.way, null, s.a);
+        var s = m.wpAt; lmClose(doc, false); if (s) { if (s.mn) mentionGo(s.win, s.mn, r.dataset.way, null, s.a); else pageGo(s.win, s.pg, r.dataset.way, null, s.a); }
     });
     m.addEventListener('keydown', function(e) {
         var rows = Array.prototype.slice.call(m.querySelectorAll('.linkmenu-row')), at = rows.indexOf(doc.activeElement), to = -1;
@@ -428,19 +484,22 @@ function lmClose(doc, refocus) {
     if (refocus && s && s.a && s.a.isConnected !== false && typeof s.a.focus === 'function') { try { s.a.focus(); } catch (e) {} }
     return true;
 }
-// the menu for a link: its heading the page's own name, then a row a way. Answers whether it is up
-function lmOpen(win, doc, a, pg, e) {
-    var rows = lmRows(win, a); if (!rows.length) return false;
+// the menu for a link: its heading the page's own name (a mention's: what it names), then a row a way, each with the press that does the same.
+// Answers whether it is up
+function lmOpen(win, doc, a, pg, e, mn) {
+    var rows = lmRows(win, a, mn); if (!rows.length) return false;
     var m = lmEl(doc, true); if (!m) return false;
     while (m.firstChild) m.removeChild(m.firstChild);
     var w = pageHost(win), words = '';
-    try { words = w ? String(w.wpPageShelf.linkWords(pg.id, pg.at) || '') : ''; } catch (err) { words = ''; }
-    var head = doc.createElement('div'); head.className = 'linkmenu-head'; head.appendChild(doc.createTextNode(words || (w ? 'A page that is not here' : 'A page'))); m.appendChild(head);
+    try { words = !w ? '' : mn ? String(typeof w.wpPageShelf.mentionWords === 'function' ? w.wpPageShelf.mentionWords(mn.kind, mn.id, mn.at) || '' : '') : String(w.wpPageShelf.linkWords(pg.id, pg.at) || ''); } catch (err) { words = ''; }
+    var head = doc.createElement('div'); head.className = 'linkmenu-head'; head.appendChild(doc.createTextNode(words || (mn ? (w ? 'Not in this campaign' : 'A mention') : w ? 'A page that is not here' : 'A page'))); m.appendChild(head);
     rows.forEach(function(r) {
         var b = doc.createElement('button'); b.type = 'button'; b.className = 'linkmenu-row'; b.setAttribute('role', 'menuitem'); b.dataset.way = r[0];
-        b.appendChild(doc.createTextNode(r[1])); m.appendChild(b);
+        b.appendChild(doc.createTextNode(r[1]));
+        var k = lmKey(win, r[0]); if (k) { var s = doc.createElement('span'); s.className = 'linkmenu-key'; s.appendChild(doc.createTextNode(k)); b.appendChild(s); }   // 1.6.3: the press that does the same
+        m.appendChild(b);
     });
-    m.wpAt = { win: win, a: a, pg: pg };
+    m.wpAt = { win: win, a: a, pg: pg, mn: mn || null };
     if (typeof peekHide === 'function') peekHide(doc);
     if (typeof popHide === 'function') popHide(doc, true);
     m.style.left = '0px'; m.style.top = '0px'; m.hidden = false;
@@ -463,7 +522,7 @@ var SVG_NS = 'http://www.w3.org/2000/svg';
 function popEl(doc, make) {
     var el = doc.getElementById(POP_ID); if (el || !make) return el || null;
     el = doc.createElement('button'); el.id = POP_ID; el.type = 'button'; el.className = 'linkpop'; el.hidden = true; el.tabIndex = -1;
-    el.title = 'Open this page in a new window'; el.setAttribute('aria-label', 'Open this page in a new window');
+    el.title = 'Open this page in an external window'; el.setAttribute('aria-label', 'Open this page in an external window');   // 1.6.3: the words the link menu uses for it
     if (typeof doc.createElementNS === 'function') {
         var svg = doc.createElementNS(SVG_NS, 'svg');
         [['viewBox', '0 0 16 16'], ['width', '12'], ['height', '12'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '1.6'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round'], ['aria-hidden', 'true']].forEach(function(x) { svg.setAttribute(x[0], x[1]); });

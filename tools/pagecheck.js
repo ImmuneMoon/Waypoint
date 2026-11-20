@@ -1018,7 +1018,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // said
         const ixH = read('index.html'), wnH = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].map(s => s.replace(/\r\n/g, '\n'));
         check('Back and Forward is said: Help names the arrows beside Outline, the keys and right-clicking a page link, and both release notes carry the same lines under 1.5.8',
-            ixH.includes('<li><b>Back and Forward.</b> After you follow a page link, the left arrow beside <b>Outline</b>') && ixH.includes('<li>Right-click a page link to choose where it opens: here, in a new window or in the panel over the map.')
+            ixH.includes('<li><b>Back and Forward.</b> After you follow a page link, the left arrow beside <b>Outline</b>') && ixH.includes('<li>Right-click a page link to choose where it opens: here, in a new tab, in a new window inside Waypoint or in an external window.')
             && wnH.every(t => t.includes('- Back and Forward: after you follow a link to another page or to a\n') && t.indexOf('- Back and Forward: after') < t.indexOf('WAYPOINT 1.5.7')) && wnH[0].slice(0, wnH[0].indexOf('WAYPOINT 1.5.7')) === wnH[1].slice(0, wnH[1].indexOf('WAYPOINT 1.5.7')));
     }
 

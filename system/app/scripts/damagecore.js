@@ -58,6 +58,8 @@ export function damageCore() {   // [split:glue]
 //           A layer wears only where the damage rolled is more than its figure as it stands (the listed figure less its wear, never below 0).
 //           1.6.0 (the v2 combat module): 8 layers at most, and a layer may wear another stat by location: wears, up to 8 number stats of its list,
 //           and pick, a formula read as at is that gives the place in wears of the stat worn there, 1 for the first; any other figure wears wear.
+//           locs.at (1.6.3): where a blow lands when nothing aimed it, a location's name or entry key (absent: a row named Torso, else one
+//           that holds the word, else the first row), read by the Take damage window and a blast's shares alike
 //           locs.die (1.6.0): a formula of the location's names and the character's, added to a wound that gets through for each die the blow rolled
 //   weapons [{ list, dur, wear, cond }]: a weapon tested by a blow: its listed Dur (a formula of Row.), its stat of wear and its stat of condition
 // The players' view keeps what the window asks (the pool, the types by name, the location list) and no formula: the host works the blow out.
@@ -142,6 +144,17 @@ function dmgNameOk(fl, listId, key) {   // a stat or a column of that list
 }
 function dmgNum(v, lo, hi, d) { return typeof v === 'number' && fin(v) ? Math.round(clampNum(v, lo, hi) * 100) / 100 : d; }
 var DMG_DIE = Object.freeze([['dieDr', -10], ['dieWound', -10], ['dieVital', -10], ['dieWear', 0]]);   // 1.6.0: a type's figures a die, and each one's least
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 27, and the review of damage): what a weapon's durability is called, in the
+// system's own words. The label of the stat or column of the weapon list that its Dur formula reads, where that formula is one name of the row
+// (Row.<key>), else the plain word durability. The ONE reader of that word: the damage step's own weapon line below, the Take damage window
+// (sheets.js dmgDurWord asks it) and the host's note when a parry took the blow (netattack.js thruNote). A player's view of the rules keeps no
+// formula, so a player's own window says durability. wp: one of the Taking damage rules' weapons ({ list, dur, ... })
+function dmgDurWord(sys, wp) {
+    var m = isObj(wp) && typeof wp.dur === 'string' ? /^\s*Row\.([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(wp.dur) : null, f = m && isObj(sys) ? fieldById(sys, wp.list) : null, sp = f && isObj(f.list) ? f.list : null;
+    var all = sp ? (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []) : [], hit = m ? all.filter(function(s) { return isObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === m[1].toLowerCase(); })[0] : null;
+    var lb = hit && typeof hit.label === 'string' ? hit.label.trim() : '';
+    return lb ? lb.slice(0, 40) : 'durability';
+}
 function dmgDiceRead(d) {   // 1.6.0: whether these rules read the dice a blow rolled (the window asks for them only then)
     if (!isObj(d)) return false;
     if (isObj(d.locs) && !!cleanFormulaText(d.locs.die)) return true;
@@ -162,6 +175,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
         var lc = { list: d.locs.list };
         if (!pl) { var dr = dmgNameOk(fl, lc.list, d.locs.dr); if (dr) lc.dr = dr; var cr = dmgNameOk(fl, lc.list, d.locs.crip); if (cr) lc.crip = cr; var vt = fx(d.locs.vital); if (vt) lc.vital = vt; var lm = fx(d.locs.mult); if (lm) lc.mult = lm; var ldi = fx(d.locs.die); if (ldi) lc.die = ldi; }
         var lsd = dmgStatOk(fl, lc.list, d.locs.side); if (lsd) lc.side = lsd;   // 1.6.0 Sides of a location, in both views: a player's own sheet reads <Locs>.Left.<w>
+        var lat = typeof d.locs.at === 'string' ? cutText(d.locs.at, 60) : ''; if (lat) lc.at = lat;   // 1.6.3 (finding 27; Fulllion: "A system setting"): Unaimed blows land at, a location by its name or entry key, cleaned as a blast area's loc is, the same in both views (a player's own Take damage window opens on it too). Read by sheets.js dmgLocAt and wbblast.js torsoOf; absent, the usual rule
         out.locs = lc;
     }
     if (mj && !pl && Array.isArray(d.onMajor)) {   // 1.6.0: a list of rows, the first that holds is what a Major Wound does
@@ -637,7 +651,7 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
         if (nc !== cond) dmgRowPut(wrow, hit.wp.cond, nc);
         if (nw2 !== wear || nc !== cond) values[hit.f.id] = wl;
         info.weapon = { list: hit.f.id, row: inp.weapon, dur: ld - nw2, cond: nc, over: over };
-        lines.push(wn + (ld > 0 ? ': Dur ' + (ld - wear) + (nw2 !== wear ? ' \u2192 ' + (ld - nw2) : '') : '') + ', ' + DMG_CONDS[nc] + (nc === cond ? ' still' : '') + '.');
+        lines.push(wn + (ld > 0 ? ': ' + dmgDurWord(sys, hit.wp) + ' ' + (ld - wear) + (nw2 !== wear ? ' \u2192 ' + (ld - nw2) : '') : '') + ', ' + DMG_CONDS[nc] + (nc === cond ? ' still' : '') + '.');
     }
     var dmgOk = { ok: true, values: values, lines: lines, info: info }, fsD = fitBroke(sys, char, values, F); if (fsD.length) dmgOk.fitSays = fsD;   // 1.6.0 Fits where, judged again after a blow
     // 1.6.2 (backlog 242, found in passing): a roll an Any wound or a Major Wound row ticked asAt posts carries the step's writes as they stood at its row
@@ -837,5 +851,5 @@ function cleanCharDamage(msg) {
 }
 // [systemcheck:damage-end]
 // [split:body-end]
-return { BLOW_NAMES: BLOW_NAMES, DMG_CONDS: DMG_CONDS, DMG_LIM: DMG_LIM, HITS_MAX: HITS_MAX, asAtCross: asAtCross, blowArcs: blowArcs, blowCripN: blowCripN, blowCripOf: blowCripOf, blowNamed: blowNamed, burstBar: burstBar, burstDice: burstDice, burstExtra: burstExtra, burstList: burstList, burstOpen: burstOpen, cleanBu: cleanBu, cleanCharDamage: cleanCharDamage, cleanCharHit: cleanCharHit, cleanDamageRules: cleanDamageRules, cleanHeld: cleanHeld, damageBurst: damageBurst, damageStep: damageStep, dmgDiceRead: dmgDiceRead, dmgRowPut: dmgRowPut, hitCount: hitCount, hitRolls: hitRolls, hitRounds: hitRounds, hitShots: hitShots, hitVars: hitVars, hitsSecret: hitsSecret, locNamed: locNamed, locSideKey: locSideKey, locSideRead: locSideRead, majPick: majPick, majorWords: majorWords, poolLeast: poolLeast, poolSpill: poolSpill, spillPast: spillPast, withBlow: withBlow, woundAdd: woundAdd };   // [split:glue]
+return { BLOW_NAMES: BLOW_NAMES, DMG_CONDS: DMG_CONDS, DMG_LIM: DMG_LIM, HITS_MAX: HITS_MAX, asAtCross: asAtCross, blowArcs: blowArcs, blowCripN: blowCripN, blowCripOf: blowCripOf, blowNamed: blowNamed, burstBar: burstBar, burstDice: burstDice, burstExtra: burstExtra, burstList: burstList, burstOpen: burstOpen, cleanBu: cleanBu, cleanCharDamage: cleanCharDamage, cleanCharHit: cleanCharHit, cleanDamageRules: cleanDamageRules, cleanHeld: cleanHeld, damageBurst: damageBurst, damageStep: damageStep, dmgDiceRead: dmgDiceRead, dmgDurWord: dmgDurWord, dmgRowPut: dmgRowPut, hitCount: hitCount, hitRolls: hitRolls, hitRounds: hitRounds, hitShots: hitShots, hitVars: hitVars, hitsSecret: hitsSecret, locNamed: locNamed, locSideKey: locSideKey, locSideRead: locSideRead, majPick: majPick, majorWords: majorWords, poolLeast: poolLeast, poolSpill: poolSpill, spillPast: spillPast, withBlow: withBlow, woundAdd: woundAdd };   // [split:glue]
 }   // [split:glue]

@@ -614,6 +614,8 @@ function syncVttPanel() {
     syncTrkHide(camp, editable, client);
     var trM = ui('setTimeRulesMode'); if (trM) { var tv0 = camp && camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules.time : ''; trM.value = tv0 === 'confirm' || tv0 === 'off' ? tv0 : 'auto'; trM.disabled = !editable; }   // item 20 K5b; 159: Run at once is the default
     var flM = ui('setFillMode'); if (flM) { flM.value = camp && camp.turnRules && camp.turnRules.fill === 'gm' ? 'gm' : 'owner'; flM.disabled = !editable; }
+    var hrM = ui('setHideRollsMode'); if (hrM) { hrM.value = camp && camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.hideRolls === true ? 'yes' : 'no'; hrM.disabled = !editable; }   // 1.6.3: Players may hide rolls (camp.turnRules.hideRolls, true only)
+    var tyM = ui('setTypedRollsMode'); if (tyM) { tyM.value = camp && camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.typedRolls === 'all' ? 'all' : 'gm'; tyM.disabled = !editable; }   // 1.6.3 (finding 26): Typed rolls in words ('all' only)
     var taM = ui('setTargetAskMode'); if (taM) { taM.value = camp && camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.targetAsk === 'off' ? 'off' : 'ask'; taM.disabled = !editable; }   // the owner's ruling of 2026-10-01
     var moS = ui('setMapOpens'); if (moS) { moS.value = camp && (camp.opensOn === 'visual' || camp.opensOn === 'data') ? camp.opensOn : ''; moS.disabled = !editable; }   // backlog 221: which view this campaign's maps open on
     var tmS = ui('setTimersMode'); if (tmS) { tmS.value = camp && camp.turnRules && camp.turnRules.timers === 'gm' ? 'gm' : 'owner'; tmS.disabled = !editable; }   // T5b
@@ -692,6 +694,23 @@ if (_fillSel) _fillSel.addEventListener('change', function() {
     var tr = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}); if (_fillSel.value === 'gm') tr.fill = 'gm'; else delete tr.fill; camp.turnRules = tr;
     if (window.wpSave) window.wpSave(true);
     toast(_fillSel.value === 'gm' ? 'Only you fill pools back to full.' : 'Players may fill their own pools back to full.');
+});
+// 1.6.3 (Fulllion, 2026-11-19, the review of sheets and rolls): the campaign's two dice settings, the GM's, kept in camp.turnRules (hideRolls true only,
+// typedRolls 'all' only, absent the default) and sent to the table with the table's other rules at the save (net.js syncTurnRules), where a player's
+// roller and \u00b1 window follow them and the host judges every roll by them
+var _hideRollsSel = ui('setHideRollsMode');
+if (_hideRollsSel) _hideRollsSel.addEventListener('change', function() {
+    var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }
+    var tr = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}); if (_hideRollsSel.value === 'yes') tr.hideRolls = true; else delete tr.hideRolls; camp.turnRules = tr;
+    if (window.wpSave) window.wpSave(true);
+    toast(_hideRollsSel.value === 'yes' ? 'Players may send a roll to you alone.' : 'Every roll a player makes goes to the table.');
+});
+var _typedRollsSel = ui('setTypedRollsMode');
+if (_typedRollsSel) _typedRollsSel.addEventListener('change', function() {
+    var v = window.wpVtt, camp = state.appState.campaigns[state.appState.activeCampaignId]; if (!camp || (v && v.locked())) { syncPanel(); return; }
+    var tr = Object.assign({}, camp.turnRules && typeof camp.turnRules === 'object' ? camp.turnRules : {}); if (_typedRollsSel.value === 'all') tr.typedRolls = 'all'; else delete tr.typedRolls; camp.turnRules = tr;
+    if (window.wpSave) window.wpSave(true);
+    toast(_typedRollsSel.value === 'all' ? 'Everyone sees what a typed roll adds up, in words.' : 'Only you see what a typed roll adds up, in words.');
 });
 var _targetAskSel = ui('setTargetAskMode');   // the owner's ruling of 2026-10-01: ask (absent) | off — whether a player targeting one of the GM's characters offers to start combat there
 if (_targetAskSel) _targetAskSel.addEventListener('change', function() {

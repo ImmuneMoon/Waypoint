@@ -52,11 +52,14 @@ function swPayDo(ch, plan) {
 }
 // [netcheck:swpay-end]
 function cardPayAct(o, a) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === a.pay && Array.isArray(r.apply)) hit = r; }); return hit; }
+// 1.6.3 (the review of Hide my rolls): o.fig, handed by roll-req where the roll answers an attempt whose figure is hidden (the hidefig slice of net.js), turns the
+// card into the copy that leaves the host (the hidefig slice's mask, its buttons kept). The table and its roller get that copy; the GM's own card (pushRoll) stays whole
 function cardSend(h, offers) {
     var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers }, ptsS = cardPoints(h); if (ptsS) rec.pts = ptsS;
     if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
     if (h.res.breakdown && h.res.breakdown.names && h.res.breakdown.names.length) { var nmH = o.D.cleanNames(h.res.breakdown.names); if (nmH && nmH.length) rec.names = nmH; }   // what its formula read, without which no other machine can draw the card
-    if (o.conn) { if (o.priv) { try { o.conn.send(rec); } catch (e) { sendFailed(e); } } else sendTable(rec, null); } else if (!o.priv) sendTable(rec, null);
+    var out = typeof o.fig === 'function' ? o.fig(rec, h.res) : rec;
+    if (o.conn) { if (o.priv) { try { o.conn.send(out); } catch (e) { sendFailed(e); } } else sendTable(out, null); } else if (!o.priv) sendTable(out, null);
     pushRoll(rec, h.res, o.priv ? 'whisper' : 'global', { cid: o.cid });
 }
 function cardClock(h) { if (h.timer) clearTimeout(h.timer); h.timer = null; if (h.away) return; h.timer = setTimeout(function() { cardSettle(h); }, h.wait * 1000); }

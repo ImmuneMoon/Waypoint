@@ -561,7 +561,7 @@ const j = v => JSON.stringify(v);
         const gvF = shF.slice(shF.indexOf('function giveCharacter('), shF.indexOf('function spotOnPlayersMap('));
         check('F3a sheets.js: a new owner gets a finished, locked character (the four marks go when the owner changes); rolls and applies wait until it is finished; the owner edits every field they can see while it is open (the three places); a deleted one in the making is gone from its player alone',
             /var prev = c\.ownerId \|\| '', was = [^\n]*\n\s*if \(prev !== pid\) \{ delete c\.making; delete c\.unlocked; delete c\.review; delete c\.made; \}/.test(gvF)
-            && (shF.match(/return !!\(c\.ownerId && c\.ownerId === myId\(\) && !c\.partial && !c\.npc && c\.making !== 1\);/g) || []).length === 2
+            && (shF.match(/return !!\(c\.ownerId && c\.ownerId === myId\(\) && !c\.partial && !c\.npc && c\.making !== 1\);/g) || []).length === 1 && shF.includes('&& !c.partial && !c.npc && (c.making !== 1 || makeRollsOn())); return true; }')   /* 1.6.3 (finding 22): a roll waits until it is finished unless the system sets Rolls while making (makeRollsOn); an apply still waits (moved on purpose) */
             && (shF.match(/own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)/g) || []).length === 3 && !/own && f\.edit === 'owner' && f\.vis === 'all'/.test(shF)
             && /n\.syncCharGone\(id, c\.making === 1 \? prev : ''\);/.test(shF));
         const rmF = shF.slice(shF.indexOf('function removeMade('), shF.indexOf('/* ---------- Onboarding F2a'));
@@ -1120,8 +1120,8 @@ const j = v => JSON.stringify(v);
             && !/Settings &#9656; System &#9656; Items/.test(ixH + tuH) && /Cover from blockers<\/b> for your system\. It is on the Combat tab of the <b>System<\/b> editor&rsquo;s <b>Items<\/b> tab\./.test(ixH)
             && labels.length === 17 && labels.every(l => tourVtt.toLowerCase().indexOf(l.toLowerCase()) >= 0) && /Fog of war, token facing, lighting, turn-based combat and table trackers are the exception: they are yours alone\./.test(ixH) && /Fog of war, token facing, lighting, turn-based combat and table trackers are the GM's alone\./.test(ixH) && /fog of war, lighting, turn-based combat, the calendar, video, table trackers, and the VTT integration master/.test(ixH) && /token facing, the minimap, sound, music, dice and character sheets\. The others are visual effects, fog of war, lighting, turn-based combat, the calendar, video, table trackers, personal looks and turn to movement\./.test(ixH)
             && /item\('Character file \(\.wpchar\.json\)'/.test(shH), JSON.stringify(labels.filter(l => tourVtt.toLowerCase().indexOf(l.toLowerCase()) < 0)));
-        check('the sheet\'s pop-out is not offered at someone else\'s table (it reads this machine\'s save, where a joined player has none of the GM\'s characters)',
-            /body\.net-client #sheetPop \{ display: none; \}/.test(cssH) && /var camp = getActiveCampaign\(\); if \(!camp \|\| !sheetOpen \|\| isClient\(\)\) return;/.test(shH));
+        check('1.6.3 (finding 25, moved on purpose): the sheet\'s pop-out is offered to a player for a sheet of their own too: the window is sent what it shows by the main window (sheets.js popSheetPush), so no save is read',
+            !/body\.net-client #sheetPop \{ display: none; \}/.test(cssH) && /var camp = getActiveCampaign\(\); if \(!camp \|\| !sheetOpen \|\| !canOpen\(sheetOpen\)\) return;/.test(shH));
     }
     {   // 1.6.0, backlog 190 (the owner: "a general contingency for if a gm changes their system"; by prompt "Also chat and read pages"): the sheet revision
         const J = JSON.stringify;

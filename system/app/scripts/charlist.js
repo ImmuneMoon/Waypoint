@@ -59,7 +59,7 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
         return d;
     };
     var cts = Array.isArray(model.cats) ? model.cats : [], tps = gm && Array.isArray(model.templates) ? model.templates : [], n = model.players.length + model.npcs.length + tps.length + cts.reduce(function(a, x) { return a + x.rows.length; }, 0);
-    if (!n) { if (model.onMap && model.anyAll) box.appendChild(el('div', 'nav-empty', 'No characters on this map')); else if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
+    if (!n) { if (model.findQ) box.appendChild(el('div', 'nav-empty', 'No sheet by that name.')); else if (model.onMap && model.anyAll) box.appendChild(el('div', 'nav-empty', 'No characters on this map')); else if (gm) box.appendChild(el('div', 'nav-empty', model.noSys ? 'No character sheets yet. Set them up first: the Campaign menu, then System.' : 'No characters yet. Press + above to make a sheet, or right-click a token.')); return 0; }   // 1.6.2 (the builder trial): a campaign with no system says where it is set up
     if (gm && model.players.length) box.appendChild(el('div', 'ch-sub', 'Players'));
     model.players.forEach(function(r) { box.appendChild(rowOf(r)); });
     cts.forEach(function(x) {   // 1.6.2 (218, fold 2): a category's fold, with how many it holds
@@ -83,7 +83,7 @@ function charDraw(doc, box, model, gm, open, shut) {   // shut (218 fold 2): the
     return n;
 }
 // What was drawn, as a text: the list is drawn again only when this changed
-function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), (model.templates || []).map(function(r) { return [r.id, r.name]; }), model.tplOpen ? 1 : 0, model.anyAll ? 1 : 0, typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : [], model.onMap || '']); }   // 1.6.2, backlog 35: and the looks; and On this map's map
+function charSig(model, gm, open, shut) { return JSON.stringify([(model.cats || []).map(function(x) { return [x.key, x.label, shut && shut[x.key] ? 1 : 0, x.rows.map(function(r) { return [r.id, r.name, r.who, r.at || '']; })]; }), gm ? 1 : 0, open ? 1 : 0, model.players.map(function(r) { return [r.id, r.name, r.who, r.at || '']; }), model.npcs.map(function(r) { return [r.id, r.name, r.at || '']; }), (model.templates || []).map(function(r) { return [r.id, r.name]; }), model.tplOpen ? 1 : 0, model.anyAll ? 1 : 0, typeof window !== 'undefined' && window.wpPlook ? model.players.concat(model.npcs).map(function(r) { return window.wpPlook.sig(window.wpPlook.ofCharId(r.id)); }) : [], model.onMap || '', model.findQ || '']); }   // 1.6.2, backlog 35: and the looks; and On this map's map; 1.6.3: and the words of Find
 // A character's token to go to: on the map on screen before any other, a shown one before one the GM hid; hidden ones only for the GM (all).
 // items: camp.items. Answers { map, tok } or null
 function charTokenOf(items, charId, activeId, all) {
@@ -110,10 +110,11 @@ function charNoToken(name, waiting, client) { return name + (waiting ? ' has a t
 // The rows of a character's menu, as the owner picked them: Sheet, HUD where the sheet has one, Find on the map, Delete sheet. Backlog 152 fold 4b (the
 // owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): after Find on the map, an NPC's Rules run as a
 // tick row where it has the switch. rules: which way it stands, true or false (calendar.js rulesRun); anything else, no row
-function charMenuRows(hud, del, rules, give, debts, unique, file, room, loot, tpl) {   /* tpl (1.6.2, backlog 227): the GM's Template tick, and New from this template under it */   /* loot (backlog 42, fold 3): an NPC's Can be looted, the GM's */   // room (backlog 45, fold 4): Find their room, the GM's   // debts (157 M1h): the GM's Debts... row; unique (backlog 31): an NPC's Unique tick; file (218 fold 2): File under…
+function charMenuRows(hud, del, rules, give, debts, unique, file, room, loot, tpl, place) {   /* place (1.6.3, finding 28): the GM's Place on this map, where a play map is on screen */   /* tpl (1.6.2, backlog 227): the GM's Template tick, and New from this template under it */   /* loot (backlog 42, fold 3): an NPC's Can be looted, the GM's */   // room (backlog 45, fold 4): Find their room, the GM's   // debts (157 M1h): the GM's Debts... row; unique (backlog 31): an NPC's Unique tick; file (218 fold 2): File under…
     var rows = [{ act: 'sheet', text: 'Sheet\u2026' }];
     if (hud) rows.push({ act: 'hud', text: 'HUD\u2026' });
     rows.push({ rule: true }, { act: 'find', text: 'Find on the map' });
+    if (place === true && tpl !== true) rows.push({ act: 'place', text: 'Place on this map' });   // 1.6.3: a template has no token
     if (room === true) rows.push({ act: 'room', text: 'Find their room' });
     if (file === true) rows.push({ act: 'file', text: 'File under\u2026' });
     if (give === true && tpl !== true) rows.push({ act: 'give', text: 'Give to a player\u2026' });   // no player plays a template
@@ -158,6 +159,19 @@ function charOnly(model, here, mapId) {
     model.onMap = String(mapId || '') || '?';
     return model;
 }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 30; Fulllion's pick): Find a sheet by name. The rows whose name holds the
+// words typed, case and accents left out, each list and category in its own order; a category left empty goes. The model is changed in place,
+// and findQ marks it as found by words: every fold it keeps is drawn open, and an empty list says no sheet goes by that name. q: the words
+function charFold(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function charFind(model, q) {
+    var w = charFold(q); if (!w) return model;
+    var keep = function(r) { return charFold(r.name).indexOf(w) >= 0; };
+    model.players = model.players.filter(keep); model.npcs = model.npcs.filter(keep); if (model.templates) model.templates = model.templates.filter(keep);
+    if (model.cats) model.cats = model.cats.filter(function(x) { x.rows = x.rows.filter(keep); return x.rows.length > 0; });
+    model.findQ = w;
+    return model;
+}
+var CH_FIND_AT = 6;   // the Find box stands over a list of this many sheets or more, and while it holds words
 // The toggle's tooltip: on, and whether a play map is on screen to filter by
 function charOnMapTip(on, shown) {
     if (!shown) return 'On this map: no play map is on screen (a page or the Data Map), so every character shows' + (on ? '. On a play map the list shows only its characters again' : '');
@@ -170,7 +184,7 @@ function charNpcsKeep(store, open) { try { if (open === true) store.setItem('wp_
 // [lookcheck:charlist-end]
 
 // [lookcheck:charwire-start]
-var _sig = null, _tplOpen = charTplRead(localStorage), _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage), _onMap = charOnMapRead(localStorage);
+var _sig = null, _tplOpen = charTplRead(localStorage), _open = charNpcsRead(localStorage), _menu = null, _menuAt = [0, 0], _shut = charCatsShutRead(localStorage), _onMap = charOnMapRead(localStorage), _find = '';   // _find (1.6.3, finding 30): the words of Find a sheet by name, this screen's alone
 // The On this map toggle as it stands: lit while on, and its tooltip says whether a play map is on screen to filter by
 function onMapShow(shown) {
     var b = document.getElementById('charOnMapBtn'); if (!b) return;
@@ -201,10 +215,12 @@ function sync() {
     // On this map (1.6.2): the count above is the whole list's, so a player whose characters are all elsewhere keeps the section and its toggle
     var here = show ? charOnMap(camp.items, camp.activeItemId, state && state.viewMode, !client) : null;
     if (on) charPlaces(charOnly(model, _onMap ? here : null, camp.activeItemId), camp.items, camp.activeItemId, !client);
+    var fr = document.getElementById('charFindRow'); if (fr) fr.hidden = !(show && (count >= CH_FIND_AT || _find));   // 1.6.3 (finding 30): Find a sheet by name, over a long list
+    if (on && _find) { charFind(model, _find); model.tplOpen = true; }   // what Find kept, in folds drawn open
     onMapShow(!!here);
     sec.hidden = !show; if (rb) rb.hidden = !show;
     var sig = show ? charSig(model, !client, _open, _shut) + (model.noSys ? '|nosys' : '') : '';
-    if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open, _shut); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }
+    if (sig !== _sig) { _sig = sig; if (show) { var KP = typeof window !== 'undefined' ? window.wpKeepPlace : null, dr = function() { charDraw(document, box, model, !client, _open || !!model.findQ, model.findQ ? {} : _shut); }; if (typeof KP === 'function') KP(box, dr); else dr(); } else while (box.firstChild) box.removeChild(box.firstChild); }
     panelJudge(show ? count : 0);   // what a player's panel holds is judged wherever the count is known: a character that arrives reaches only this (render)
     return show ? count : 0;
 }
@@ -238,6 +254,12 @@ function findOf(id) {
     toast('Found ' + charText(c.name, CHAR_NAME) + '. Its token is hidden from players.');
 }
 function menuAway() { if (_menu) _menu.style.display = 'none'; }
+// 1.6.3 (finding 28): whether a row offers Place on this map: the GM's, where the campaign can be written and a play map is on screen, for a
+// sheet that is no template. whiteboard.js charPlace judges it again at the press
+function placeMay(c, client) {
+    if (client || !c || c.partial || c.template === true || !window.wpCharPlace || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) return false;
+    var am = getActiveMap(); return !!am && am.type === 'map' && state && state.viewMode === 'visual';
+}
 function giveTo(cid, pid) {   // the same step and the same question as the party chip's Give a character
     var S = sheets(), camp = getActiveCampaign(), c = camp && S ? S.charById(cid, camp) : null; if (!c || !S.giveCharacter) return;
     var name = charText(c.name, CHAR_NAME) || 'Unnamed', go = function() { if (S.giveCharacter(pid, cid)) toast(pid ? name + ' given.' : name + ' has no player now.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
@@ -292,7 +314,7 @@ function menuFor(id, x, y) {
     // Delete only where the sheet module will take it: a player's own whole sheet while their link is up, the GM's where the campaign can be written
     var client = foreign(), del = client ? !!(linkUp() && c.ownerId && c.ownerId === window.wpNet.myId && !c.partial && c.shared !== 1) : !!(window.wpCanPersistLocal && window.wpCanPersistLocal());
     var Cal = window.wpCalendar, rules = !client && Cal && typeof Cal.rulesRun === 'function' ? Cal.rulesRun(id) : null;   // 152 fold 4b: the GM's alone, and only where calendar.js says the character has the switch
-    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function', !client && c.npc === true && typeof S.uniqueToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) ? c.unique === true : null, !!catMayOf(c), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && typeof S.lootOf === 'function' ? S.lootOf(id) : null, !client && typeof S.templateToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !c.ownerId && c.making !== 1 ? c.template === true : null).forEach(function(r) {
+    charMenuRows(!!(S.hudFor && S.hudFor(id)), del, rules, !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && typeof S.debtAdd === 'function', !client && c.npc === true && typeof S.uniqueToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) ? c.unique === true : null, !!catMayOf(c), !client && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()), !client && typeof S.lootOf === 'function' ? S.lootOf(id) : null, !client && typeof S.templateToggle === 'function' && !!(window.wpCanPersistLocal && window.wpCanPersistLocal()) && !c.ownerId && c.making !== 1 ? c.template === true : null, placeMay(c, client)).forEach(function(r) {
         var d = document.createElement(r.rule ? 'div' : 'button');
         if (r.rule) d.className = 'menu-divider'; else { d.type = 'button'; if (r.red) d.className = 'danger'; d.dataset.act = r.act; d.setAttribute('role', r.tick === true || r.tick === false ? 'menuitemcheckbox' : 'menuitem'); if (r.tick === true || r.tick === false) { d.setAttribute('aria-checked', r.tick ? 'true' : 'false'); d.title = r.act === 'loot' ? 'Ticked, a player next to it can search it and take what its lists ticked Tradable hold' : r.act === 'unique' ? 'Ticked, an encounter group placed with this NPC uses this one sheet. Unticked, each placing makes a fresh numbered copy' : 'Ticked, this NPC\u2019s time rules run by themselves as time passes. Unticked, they do not'; } d.appendChild(document.createTextNode((r.tick === true ? '\u2713 ' : '') + r.text)); }
         _menu.appendChild(d);
@@ -359,6 +381,7 @@ function menuPress(e) {
             if (act === 'sheet') openOf(cid);
             else if (act === 'hud') { if (!away() && S2.hudFor(cid)) S2.openHud(cid); }
             else if (act === 'find') findOf(cid);
+            else if (act === 'place') { if (!(window.wpCharPlace && window.wpCharPlace(cid))) toast('Open a play map of this campaign first.'); }   // 1.6.3 (finding 28): the Cast's own placing, at the middle of the view
             else if (act === 'room') roomOf(cid);   // backlog 45, fold 4
             else if (act === 'delete') { if (S2.askDeleteSheet) S2.askDeleteSheet(cid); }
             else if (act === 'rules') { var C2 = window.wpCalendar, now = !foreign() && C2 && typeof C2.rulesRun === 'function' ? C2.rulesRun(cid) : null; if (typeof now === 'boolean' && typeof C2.setRulesRun === 'function') C2.setRulesRun(cid, !now); }   // 152 fold 4b: the switch the other way, as it stands at the press
@@ -384,6 +407,14 @@ function wire() {
     });
     document.addEventListener('pointerdown', function(e) { if (_menu && _menu.style.display !== 'none' && !(e.target && e.target.closest && e.target.closest('#charMenu'))) menuAway(); }, true);
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && (!window.wpEsc || window.wpEsc.free(e))) menuAway(); });   // 1.5.4: esckey.js puts it away, one thing a press
+    var fb = document.getElementById('charFindBox');   // 1.6.3 (finding 30): Find a sheet by name, this screen's alone and kept nowhere
+    if (fb) {
+        fb.addEventListener('input', function() { _find = String(fb.value || '').slice(0, 80); sync(); });
+        fb.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && fb.value) { e.preventDefault(); e.stopPropagation(); fb.value = ''; _find = ''; sync(); return; }   // esckey.js leaves a Find that holds words to empty itself first
+            if (e.key === 'Enter') { e.preventDefault(); var r1 = box.querySelector('.ch-row'); if (r1 && r1.dataset.char) openOf(r1.dataset.char); }   // the first sheet it found
+        });
+    }
     var om = document.getElementById('charOnMapBtn');   // 1.6.2: On this map, kept on this computer
     if (om) om.addEventListener('click', function(e) { e.stopPropagation(); _onMap = !_onMap; charOnMapKeep(localStorage, _onMap); sync(); });
     var plus = document.getElementById('newCharBtn');

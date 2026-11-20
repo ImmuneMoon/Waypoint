@@ -1010,6 +1010,11 @@
   .prep-find .ico { width: 13px; height: 13px; flex: none; }
   .prep-find input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--ink); font: inherit; font-size: 12px; padding: 3px 0; }
   .prep-find input::placeholder { color: var(--dim); }
+  /* 1.6.3 (the review of sheets and rolls, finding 30): Find a sheet by name, the Characters section's own, in Find a card's look */
+  .ch-find { margin: 2px 6px 6px; }
+  .ch-find[hidden] { display: none; }
+  /* 1.6.3 (finding 25): a sheet in a window of its own that the main window does not answer says it is read only */
+  .sheet-pop-note { margin: 6px 8px; padding: 6px 10px; border: 1px solid var(--edge); border-radius: 6px; color: var(--dim); font-size: 12px; }
   .prep-k { flex: none; font-size: 10px; border: 1px solid var(--edge); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
   #prepBody { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 30px 16px; }
   #prepGrip { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 2; touch-action: none; }
@@ -2765,7 +2770,6 @@
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item.image:not(.tok-pic-hexagon):is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.sel):not(.wb-hidden-gm):not(.wb-trap):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.wb-door-near) > img { filter: var(--imgf, none); }
   body.blocks-quiet:not(.net-client):not(.stream-mode) .wb-item:is(.image, .wb-hextok):is(.wb-blocks-sight, .wb-door, .wb-barrier):not(.sel):not(.wb-hidden-gm):not(.wb-trap):not(.blast-hit):not(.circle-hit):not(.wb-turn):not(.wb-find-lit):not(.size-match):not(:hover):not(.wb-door-near) > .tok-selring { display: none; }
   /* The token creator (owner, 2026-09-27): a picture framed to a square — drag, zoom, the grid's outline previewed over it */
-  body.net-client #sheetPop { display: none; }   /* the sheet pop-out reads this machine's save: not at someone else's table */
   .frame-modal { position: fixed; inset: 0; z-index: 100006; background: var(--overlay); display: flex; align-items: center; justify-content: center; }
   .frame-box { width: min(380px, 94vw); max-height: 94vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.5); }
   .frame-head { display: flex; align-items: center; gap: 8px; }
@@ -4547,6 +4551,14 @@
   .dice-modadv { display: flex; gap: 4px; }
   .dice-advbtn { flex: 1 1 0; padding: 3px 0; font-size: 11px; }
   .dice-advbtn.on { border-color: var(--gold); color: var(--gold); background: rgba(212,165,79,0.12); }
+  /* 1.6.3: a player's How it goes in the \00b1 window (Everyone or To the GM), shown only where the GM allows hidden rolls: the Advantage row's own look */
+  .dice-modhow { display: flex; gap: 4px; }
+  .dice-howbtn { flex: 1 1 0; padding: 3px 0; font-size: 11px; }
+  .dice-howbtn.on { border-color: var(--gold); color: var(--gold); background: rgba(212,165,79,0.12); }
+  .dice-modhow .ui-seg > .tool:hover:not(.on) { background: rgba(255,255,255,.06); border-color: var(--edge); color: var(--ink); }
+  /* 1.6.3: a roll card's words for a roll while making (what it was for) and a typed roll's formula in words */
+  .roll-for { color: var(--dim); font-size: 11px; margin: 1px 0 2px; }
+  .chat-typedw .chat-mod-src { font-style: normal; }
   .dice-modpop-chips { display: flex; gap: 4px; }
   /* 1.6.0 roll switches: the bonuses a roll may take, each a tick, and the ± that says some are there */
   .dice-modsw { display: flex; flex-direction: column; gap: 4px; }
@@ -5362,6 +5374,9 @@
   .sheet-fx-mods { flex: 1 1 100%; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
   .sheet-fx-add-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .sheet-fx-add { flex: 1 1 auto; }
+  .ui-find.sheet-fx-add { flex-wrap: wrap; }   /* the review of damage: in a narrow HUD or window the list goes under its search, each the frame's whole width */
+  .ui-find.sheet-fx-add > .ui-find-q { flex: 1 1 8em; max-width: none; width: auto; box-shadow: 1px 0 0 var(--edge), 0 1px 0 var(--edge); }   /* 1.6.3 (finding 19): the effect search has the room to read what is typed, beside its list */
+  .ui-find.sheet-fx-add > .ui-find-sel { flex: 2 1 10em; max-width: none; }
   .sheet-fx-form { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px dashed var(--edge); border-radius: 6px; }
   .sheet-fx-form input.sheet-fx-fname, .sheet-fx-form input.sheet-fx-fdur { flex: 1 1 140px; width: auto; }
   .sheet-fx-flines { flex: 1 1 100%; display: flex; flex-direction: column; gap: 4px; }
@@ -6102,6 +6117,9 @@
   .dmg-row input, .dmg-row select { min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 5px 7px; font: inherit; font-size: 13px; color-scheme: dark; outline: none; }
   .dmg-row input:hover, .dmg-row select:hover { border-color: var(--dim); }
   .dmg-row input:focus, .dmg-row select:focus { border-color: var(--gold); }
+  .ui-find.dmg-who { display: flex; }   /* 1.6.3 (the review of damage): the Take damage window's Who search reads what is typed, beside its list */
+  .ui-find.dmg-who > .ui-find-q { flex: 1 1 7em; width: auto; max-width: none; }
+  .ui-find.dmg-who > .ui-find-sel { flex: 1.4 1 9em; max-width: none; }
   .dmg-tick input { accent-color: var(--gold); }
   .dmg-line { grid-column: 2; color: var(--dim); font-size: 11px; }
   .dmg-tick { display: block; margin: -2px 0 10px 130px; font-size: 12px; }
@@ -6174,11 +6192,14 @@
   #linkPeek[hidden] { display: none; }
   body.stream-mode #linkPeek { display: none; }
   /* 1.5.8: where a page link may open (linkgate.js): the right button's menu, and the button beside a page link that opens it in a new window */
-  #pageLinkMenu { position: fixed; z-index: 100006; min-width: 210px; max-width: min(360px, 92vw); background: var(--panel2); border: 1px solid var(--gold); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; }
+  #pageLinkMenu { position: fixed; z-index: 100006; min-width: 210px; max-width: min(460px, 92vw); background: var(--panel2); border: 1px solid var(--gold); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; }
   #pageLinkMenu[hidden] { display: none; }
   #pageLinkMenu .linkmenu-head { padding: 4px 14px 6px; margin-bottom: 3px; border-bottom: 1px solid var(--edge); color: var(--gold); font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #pageLinkMenu .linkmenu-row { display: block; width: 100%; background: none; border: none; color: var(--ink); padding: 6px 14px; text-align: left; cursor: pointer; font-size: 13px; font-family: inherit; white-space: nowrap; }
+  #pageLinkMenu .linkmenu-row { display: flex; align-items: baseline; gap: 22px; width: 100%; background: none; border: none; color: var(--ink); padding: 6px 14px; text-align: left; cursor: pointer; font-size: 13px; font-family: inherit; white-space: nowrap; }
   #pageLinkMenu .linkmenu-row:hover, #pageLinkMenu .linkmenu-row:focus-visible { background: var(--blue); color: #fff; outline: none; }
+  /* 1.6.3: the press that does the same as a row, set in Settings, Keys, Links in pages */
+  #pageLinkMenu .linkmenu-key { margin-left: auto; color: var(--dim); font-size: 11.5px; }
+  #pageLinkMenu .linkmenu-row:hover .linkmenu-key, #pageLinkMenu .linkmenu-row:focus-visible .linkmenu-key { color: rgba(255,255,255,0.8); }
   #pageLinkPop { position: fixed; z-index: 100004; width: 20px; height: 20px; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--panel2); color: var(--gold); border: 1px solid var(--gold); border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.4); cursor: pointer; }
   #pageLinkPop[hidden] { display: none; }
   #pageLinkPop:hover { background: var(--gold); color: #1a1a1a; }

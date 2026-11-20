@@ -6702,7 +6702,23 @@ function castPut(camp, am, c, x, y, count, way) {
     if (c.charId && count === 1 && window.wpSheets && window.wpSheets.syncOwners) window.wpSheets.syncOwners(camp);   // found live, 2026-10-30: a dropped character's token goes to its player by the one rule (systemcore ownedTokenPlan), as a token made any other way does
     import('./io.js').then(function(m) { m.save(true); if (window.appRender) window.appRender(); m.toast(count === 1 ? c.name + ' placed.' : count + ' × ' + c.name + ' placed.'); });
 }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 28; Fulllion's pick): Place on this map, from a character's row under
+// Characters. The same placing the Campaign Cast makes (castPut, through castPlace's own question), so the token is linked to its sheet with the
+// sheet's portrait, a sheet another token already uses asks Share stats or Its own copy (sheets.js shareAsk), and Escape places nothing. It
+// stands at the middle of the view, one cell as the map's grid has it (castPut seats it). The GM's, on the play map of a campaign this machine
+// may write; never a template, a copy held for its hover, or a sheet that is gone. Answers whether it was placed or is being asked about
+function charPlace(charId) {
+    var camp = getActiveCampaign(), am = getActiveMap();
+    if (!camp || !am || am.type !== 'map' || state.viewMode !== 'visual' || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) return false;
+    var ch = camp.chars && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null; if (!ch || ch.partial || ch.template === true) return false;
+    var pic = typeof ch.portrait === 'string' && ch.portrait ? ch.portrait : '';
+    var e = { id: '', name: String(ch.name || 'Character').slice(0, 80), src: pic, w: 60, h: 52, color: pic ? 'transparent' : '#8a8f98', kind: pic ? 'image' : 'circle', charId: charId, charStats: '' };
+    var ctr = viewCentre(), SHc = window.wpSheets;
+    if (SHc && typeof SHc.shareAsk === 'function') { SHc.shareAsk(null, charId, function(way) { if (way && getActiveMap() === am) castPut(camp, am, e, ctr.x, ctr.y, 1, way); }); return true; }
+    castPut(camp, am, e, ctr.x, ctr.y, 1, 'share'); return true;
+}
 // [systemcheck:castplace-end]
+window.wpCharPlace = charPlace;   // 1.6.3: the Characters section's Place on this map (charlist.js)
 // Cast cells at the top of the image library (new-token flow)
 function castLibraryHtml(filter) {
     var camp = getActiveCampaign(); if (!camp) return '';

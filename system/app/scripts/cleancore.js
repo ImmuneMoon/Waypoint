@@ -1771,6 +1771,16 @@ function cleanSystem(sys, opts) {
     if (out.combat && typeof out.combat.steal === 'string' && !out.rolls.some(function(r) { return r && r.id === out.combat.steal; })) delete out.combat.steal;   // fold 3b: a Pickpocket roll this view does not hold is none
     fxFirstOk(out.combat);
     if (!gmView && typeof mentions === 'function') ['critAt', 'fumbleAt'].forEach(function(k) { if (out.combat[k] && mentions(out.combat[k])) delete out.combat[k]; });   // 1.6.0: the Combat tab's critical range naming a GM-only value goes from the players' view (their rolls then read 3 and 18)
+    // 1.6.3 (the review of damage): Unaimed blows land at (damage.locs.at) names a location by its entry's name or key, and a GM-only entry's
+    // name or key never reaches a player. So the players' view keeps it only where it names an item or core entry of this very view players may
+    // see, by its name or key (fail closed; on the GM's machine sheets.js playerSystem puts back one only a library pack players see holds, by
+    // the library's own judge, locAtShown and locAtBack). A player's own app re-cleaning its host's view (needShown true) keeps what its host sent. Dropped, the
+    // players' own Take damage window opens on the usual location (a row named Torso, else the first)
+    var dmAt = out.combat && isObj(out.combat.damage) && isObj(out.combat.damage.locs) ? out.combat.damage.locs : null;
+    if (!gmView && dmAt && typeof dmAt.at === 'string' && opts.needShown !== true) {
+        var atW = lower(dmAt.at.trim()), atSeen = out.items.concat(Array.isArray(out.core) ? out.core : []).some(function(it) { return isObj(it) && it.vis !== 'gm' && ((typeof it.name === 'string' && lower(it.name.trim()) === atW) || (typeof it.key === 'string' && lower(it.key) === atW)); });
+        if (!atSeen) delete dmAt.at;
+    }
     if (F && typeof F.parse === 'function') {   // 1.6.2: a question offers nothing a player cannot read truthfully, judged over the GM's view, in both views alike
         var askEnt = function(fn) { out.rolls.forEach(fn); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && Array.isArray(f.list.rolls)) f.list.rolls.forEach(fn); }); }, askAny = false; askEnt(function(r) { if (Array.isArray(r.asks)) askAny = true; });
         if (askAny) { var sysAk = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects }, secAk = secretFieldIds(sysAk, F); askEnt(function(r) { if (!Array.isArray(r.asks)) return; var kA = asksKept(r.asks, sysAk, F, secAk); if (kA.length) r.asks = kA; else delete r.asks; }); }
@@ -1789,6 +1799,7 @@ function cleanSystem(sys, opts) {
     if (!gmView && typeof showMention === 'function' && out.combat.turn && out.combat.turn.run && (!out.combat.turn.move || showMention(out.combat.turn.run))) { delete out.combat.turn.run; delete out.combat.turn.runCost; if (!Object.keys(out.combat.turn).length) delete out.combat.turn; }   // 1.6.0: a move by giving up an action goes with its move, and where it names a GM-only value (their one allowance is then the move)
     var lr = cleanListRules(sys.listRules); if (lr) out.listRules = lr;   // Stage 6 F4c2: Setting A, in both views (absent: GM only)
     var srS = cleanSheetRev(sys.sheetRev); if (srS) out.sheetRev = srS;   // 1.6.0 (backlog 190): the sheet revision, in both views (absent: none)
+    if (sys.makeRolls === 'gm' || sys.makeRolls === 'self') out.makeRolls = sys.makeRolls;   // 1.6.3 (finding 22): Rolls while making, in both views (a player's sheet needs it to offer its rolls), only as one of its two words (absent: off)
     var bud = cleanBudgets(sys.budgets, F);   // 126: the point budgets, the same in both views (absent: none)
     if (bud) {   // one that reads a GM-only value, at any depth, goes: a player's own app must work out the very figures the host judges by. Judged over the GM's view, in both views alike
         var sysBu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };

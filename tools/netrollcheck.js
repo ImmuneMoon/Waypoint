@@ -134,6 +134,65 @@ pendingChecks.push((async () => {
         && onPlain.table.length === 1 && !('hmod' in onPlain.table[0]),
         j([onNamed.sent, onHand.table, onPlain.table]));
 })());
+// 1.6.3 (Fulllion, 2026-11-19, his picks from the review of sheets and rolls): the real roll-req branch with the campaign's two dice settings (net.js's
+// turnrulessync slice, run for real beside it). (1) "players should only be able to hide rolls when the GM allows it": a player's To the GM only is
+// refused while Players may hide rolls is off, and goes to the GM while it is on. (2) Finding 26, "these, as settings": a roll typed in the roller is
+// marked typed on its card, and tws (its formula in words for everyone) only where Typed rolls in words says everyone; typed beside a named roll is no
+// request; every field roll names its field (fr), so the host rebuilds it and refuses another formula under its label. (6) Finding 22, "a system
+// setting, and also have those building rolls only show to the gm, with info on what the roll was for": a roll on a character still being made is
+// refused unless the system's Rolls while making allows it; then it goes to the GM alone, its card saying what it was for, or ('self') to its roller
+// alone, with nothing on the GM's screen and nothing in the log
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), Dx = await import(url('dicecore.js'));
+    const rqSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq')), trS = between('// [netcheck:turnrulessync-start]', '// [netcheck:turnrulessync-end]', 'turnrulessync');
+    const helpers = ['function own(', 'function peerProfileId(', 'function fxLib(', 'function itemLib(', 'function diceFrom('].map(k => { const i = src.indexOf(k); if (i < 0) throw new Error('netcheck: ' + k + ' not found'); return src.slice(i, src.indexOf('\n', i)); }).join('\n') + '\n';
+    const fix = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'hud-d20.json'), 'utf8'));
+    const run = o => {
+        o = o || {};
+        const gmSys = Sx.cleanSystem(Object.assign({}, fix, o.sys || {}), { F: Fx, gmView: true });
+        const ch = Object.assign({ id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_str: 14, f_dex: 12, f_level: 5 } }, o.ch || {});
+        const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: { c_a: ch }, items: { m1: { type: 'map', whiteboard: [] } }, turnRules: o.tr };
+        const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, conns: [] };
+        const out = { table: [], sent: [], pushed: [], logged: [] };
+        const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
+        const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }) }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const msg = Object.assign({ type: 'roll-req', rid: 'q1abcdef', expr: 'd20 + 3', charId: 'c_a' }, o.msg || {});
+        new Function('msg', 'conn', 'net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'own', 'var diceLimit = null, _diceSlowSaid = {};\n' + trS + '\n' + helpers + rqSrc)(
+            msg, conn, net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, rec => { packCheck(rec); out.table.push(JSON.parse(JSON.stringify(rec))); }, (rec, res, scope) => out.pushed.push([scope, JSON.parse(JSON.stringify(rec))]), (k, t) => out.logged.push(k), (ob, k) => Object.prototype.hasOwnProperty.call(ob, k));
+        return out;
+    };
+    const deny = r => r.sent.length === 1 && r.sent[0].type === 'roll-deny' && r.table.length === 0 && r.pushed.length === 0;
+    // (1) hidden rolls
+    const hOff = run({ msg: { priv: 'gm' } }), hOn = run({ msg: { priv: 'gm' }, tr: { hideRolls: true } }), hJunk = run({ msg: { priv: 'gm' }, tr: { hideRolls: 'yes' } }), hOpen = run();
+    check('1.6.3 (Fulllion: "players should only be able to hide rolls when the GM allows it") a player\'s To the GM only is refused on the host while Players may hide rolls is off (any shape but true is off), in plain words, with nothing rolled; with it on it goes to the GM alone; an open roll goes to the table either way',
+        deny(hOff) && /not allowed hidden rolls/.test(hOff.sent[0].message || '') && deny(hJunk)
+        && hOn.table.length === 0 && hOn.sent.length === 1 && hOn.sent[0].type === 'roll' && hOn.sent[0].priv === 'gm' && hOn.pushed.length === 1 && hOn.pushed[0][0] === 'whisper'
+        && hOpen.table.length === 1 && !hOpen.table[0].priv, j([hOff.sent, hOn.sent, hJunk.sent, hOpen.table]));
+    // (2) typed rolls, and the field roll named by its field
+    const tGm = run({ msg: { typed: 1, expr: 'd20 + STR + 10', label: 'Typed' } }), tAll = run({ msg: { typed: 1, expr: 'd20 + STR + 10' }, tr: { typedRolls: 'all' } }), tNamed = run({ msg: { typed: 1, fr: 'f_strmod', expr: 'd20 + STRmod' } }), tPlain = run({ msg: { expr: 'd20 + STR' } });
+    check('1.6.3 (finding 26) a roll typed in the roller is marked typed on its card for the table, its formula in words for everyone (tws) only where Typed rolls in words says everyone; typed beside a named roll is no request; a roll that names nothing and is not typed carries neither mark',
+        tGm.table.length === 1 && tGm.table[0].typed === 1 && !('tws' in tGm.table[0]) && tAll.table.length === 1 && tAll.table[0].typed === 1 && tAll.table[0].tws === 1
+        && tNamed.table.length === 0 && tNamed.sent.length === 1 && tNamed.sent[0].type === 'roll-deny' && tPlain.table.length === 1 && !('typed' in tPlain.table[0]) && !('tws' in tPlain.table[0])
+        && Dx.cleanRoll(tAll.table[0]).typed === 1 && Dx.cleanRoll(tAll.table[0]).tws === 1 && !('tws' in Dx.cleanRoll(Object.assign({}, tAll.table[0], { typed: 2 }))) && !('typed' in Dx.cleanRoll(Object.assign({}, tAll.table[0], { typed: true }))),
+        j([tGm.table, tAll.table, tNamed.sent, tPlain.table]));
+    const fOk = run({ msg: { fr: 'f_strmod', expr: 'd20 + STRmod', label: 'STR modifier' } }), fFake = run({ msg: { fr: 'f_strmod', expr: 'd20 + 30', label: 'STR modifier' } });
+    check('1.6.3 (finding 26) a field roll that names its field (fr) is rebuilt from the field on the host: its own formula goes, another formula under its label is refused before anything is rolled',
+        fOk.table.length === 1 && fOk.table[0].expr === 'd20 + STRmod' && deny(fFake) && /does not match its button/.test(fFake.sent[0].message || ''), j([fOk.table, fFake.sent]));
+    // (6) rolls while making
+    const mOff = run({ ch: { making: 1 }, msg: { fr: 'f_strmod', expr: 'd20 + STRmod' } }), mGm = run({ ch: { making: 1 }, sys: { makeRolls: 'gm' }, msg: { fr: 'f_strmod', expr: 'd20 + STRmod', label: 'STR modifier' } }), mSelf = run({ ch: { making: 1 }, sys: { makeRolls: 'self' }, msg: { fr: 'f_strmod', expr: 'd20 + STRmod' } }), mJunk = run({ ch: { making: 1 }, sys: { makeRolls: 'everyone' }, msg: { fr: 'f_strmod', expr: 'd20 + STRmod' } });
+    const mDone = run({ sys: { makeRolls: 'gm' }, msg: { fr: 'f_strmod', expr: 'd20 + STRmod' } });
+    check('1.6.3 (finding 22) a roll on a character still being made is refused unless the system\'s Rolls while making allows it (a word that is neither of its two is off); seen by the GM, it goes to the GM and its roller alone, marked mk 1 with the field it is for (mkFor) and logged; the player alone, it goes to its roller alone (mk 2), with nothing on the GM\'s screen and nothing in the log; a character that is done rolls for the table as ever',
+        deny(mOff) && mOff.sent[0].reason === 'char' && deny(mJunk)
+        && mGm.table.length === 0 && mGm.sent.length === 1 && mGm.sent[0].priv === 'gm' && mGm.sent[0].mk === 1 && mGm.sent[0].mkFor === 'STR modifier' && mGm.pushed.length === 1 && mGm.pushed[0][0] === 'whisper' && mGm.logged.length === 1
+        && mSelf.table.length === 0 && mSelf.sent.length === 1 && mSelf.sent[0].mk === 2 && mSelf.pushed.length === 0 && mSelf.logged.length === 0
+        && mDone.table.length === 1 && !('mk' in mDone.table[0])
+        && Dx.cleanRoll(mGm.sent[0]).mk === 1 && Dx.cleanRoll(mGm.sent[0]).mkFor === 'STR modifier' && !('mk' in Dx.cleanRoll(Object.assign({}, mGm.sent[0], { mk: 3 }))),
+        j([mOff.sent, mGm.sent, mGm.pushed.length, mSelf.sent, mSelf.pushed, mDone.table]));
+    check('1.6.3 (finding 22) the system\'s Rolls while making is kept in both views as one of its two words, and nothing else',
+        Sx.cleanSystem(Object.assign({}, fix, { makeRolls: 'gm' }), { F: Fx, gmView: false }).makeRolls === 'gm' && Sx.cleanSystem(Object.assign({}, fix, { makeRolls: 'self' }), { F: Fx, gmView: true }).makeRolls === 'self'
+        && !('makeRolls' in Sx.cleanSystem(Object.assign({}, fix, { makeRolls: 'all' }), { F: Fx, gmView: true })) && !('makeRolls' in Sx.cleanSystem(fix, { F: Fx, gmView: true })));
+})());
 
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): a player's roll with bonuses ticked in its ± window — the real roll-req branch
 // with the real dicecore, formula engine and systemcore: the host judges each one through the player's own view (systemcore swJudge), composes it
@@ -1764,11 +1823,11 @@ pendingChecks.push((async () => {
         const camp = { id: 'k', activeItemId: 'm1', system: sys, chars: { c_a: Object.assign({ id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, values: {} }, o.pcTick ? { rollsHid: true } : {}), c_n: Object.assign({ id: 'c_n', name: 'Brannoch', ownerId: '', npc: true, values: { f_gl: [{ id: 'w_s', defId: 'i_rk', qty: 1 }], f_fx: o.veil ? [{ id: 'x_1', ref: 'e_veil', on: true }] : [] } }, o.tick ? { rollsHid: true } : {}, o.fig ? { hideFig: true } : {}), c_p: { id: 'c_p', name: 'Pebbles', ownerId: 'u_a', npc: true, rollsHid: true, values: {} } },
             items: { m1: { type: 'map', whiteboard: [{ id: 't_a', charId: 'c_a', ownerId: 'u_a', isChar: true, x: 0, y: 0 }, { id: 't_n', charId: 'c_n', isChar: true, x: 100, y: 0 }, { id: 't_p', charId: 'c_p', ownerId: 'u_a', isChar: true, x: 150, y: 0 }] } } };
         const conn = p => ({ peer: p, open: true, send(m) { packCheck(m); out.sent[p].push(JSON.parse(JSON.stringify(m))); } }), cA = conn('pA'), cB = conn('pB');
-        const net = { role: 'host', active: true, stream: false, paused: false, conns: [cA, cB], roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {}, postDue: (ch, act, kind, round, toOwner, more) => out.dues.push({ ch: ch.id, act: act.id, att: more && more.att }) };
+        const net = { role: 'host', active: true, stream: false, paused: false, conns: [cA, cB], roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, syncCharDelta() {}, postDue: (ch, act, kind, round, toOwner, more) => out.dues.push({ ch: ch.id, act: act.id, att: more && more.att, to: !!toOwner, m: more && more.m }) };
         const rng = t => t ? { mod: 0, dist: 2, tid: t, mapId: 'm1' } : null;
         const win = { wpDice: o.sw ? { hidden: () => true } : undefined, wpFormula: Fx, wpStepLog: (k, s, d) => out.steps.push([k, s, d]), wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {}, tokenCtxFor: () => aim.gm ? { range: rng(aim.gm) } : null }, wpVtt: { on: () => true, rulesOn: () => true } };
         const W = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'pushRoll', 'pushChat', 'logEvent', 'saveRemoteSoon', 'rangeTo', 'getProfile', 'toast', 'ui', 'save', 'fogDrop', 'applyLine', 'chatLog', 'renderChat', 'turnNote', 'setTimeout', 'clearTimeout', 'mapTitleOf',
-            'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\nfunction ringPush() {}\n' + prSrc + helpers + nsSrc + '\n' + stSrc + hfSrc + '\n' + hrSrc + '\n' + hdSrc + '\n' + rnSrc + '\n' + sdSrc + (o.thn ? '\nfunction targetHitIn() { return { fn: function() { return 0; }, secret: function() { return true; }, aim: function() { return null; } }; }\n' : '') + (o.judge ? '\nrollsHidOf = function(ch) { return !!ch && ch.id === ' + JSON.stringify(o.judge) + '; };\n' : '') + '\n' + paSrc + '\n' + pcSrc + '\n' + atSrc + '\n' + drSrc + '\nreturn { rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, hist: chatHistoryOf, seen: historySeen, forget: revealForget, hid: rollsHidOf, player: rollsPlayerOf, press: cardPress, held: function() { return Object.keys(_cardHeld); }, side: combatSideRoll };')(
+            'var diceLimit = null, _diceSlowSaid = {}, _dicePending = null;\nfunction ringPush() {}\n' + prSrc + helpers + nsSrc + '\n' + stSrc + hfSrc + '\n' + hrSrc + '\n' + hdSrc + '\n' + rnSrc + '\n' + sdSrc + (o.thn ? '\nfunction targetHitIn() { return { fn: function() { return 0; }, secret: function() { return true; }, aim: function() { return null; } }; }\n' : '') + (o.judge ? '\nrollsHidOf = function(ch) { return !!ch && ch.id === ' + JSON.stringify(o.judge) + '; };\n' : '') + '\n' + paSrc + '\n' + pcSrc + '\n' + atSrc + '\n' + drSrc + '\nreturn { privAt: privAtR, rq: function(msg, conn) {\ndiceLimit = null; _diceSlowSaid = {};\n' + rqSrc + '\n}, dr: net.diceRoll, hist: chatHistoryOf, seen: historySeen, forget: revealForget, hid: rollsHidOf, player: rollsPlayerOf, press: cardPress, held: function() { return Object.keys(_cardHeld); }, side: combatSideRoll };')(
             net, () => Dx, () => Sx, win, () => camp, () => false, e => { throw e; }, (rec, res, scope) => { out.log.push({ from: rec.from, text: '', scope: scope, ts: rec.ts, roll: rec, res: res }); }, m => { out.chat.push(m); out.log.push(m); }, () => {}, () => {},
             (c, m, l, tok, pid) => rng(aim[pid]), () => ({ id: 'u_gm', name: 'GM' }), t => out.toasts.push(t), () => null, () => {}, (cp, mp, pid) => (o.unseenBy || []).indexOf(pid) >= 0 ? { t_a: 1, t_n: 1, t_p: 1 } : null, () => '', out.log, () => {},
             (cn, text, cid) => out.notes.push([cn === cA ? 'pA' : cn === cB ? 'pB' : '?', text, cid]), (fn, ms) => { const t = { fn, ms }; out.timers.push(t); return t; }, () => {}, () => 'the map');
@@ -1784,6 +1843,17 @@ pendingChecks.push((async () => {
     const A = mk(); const rA = A.gm('3d6 <= 13', { charId: 'c_n', act: 'r_pk', label: 'Peek', hide: true }, [2, 3, 4]), gA = A.whole();
     check('1.6.3 Hide my rolls, the GM\'s word on the press: the roll is the GM\'s alone, sent to nobody, kept whole on the GM\'s card, and the host says its card may be shown to the table',
         rA.ok === true && rA.priv === true && gA.priv === 'gm' && A.rolls('pA').length === 0 && A.rolls('pB').length === 0 && A.net.revealOk(gA.id) === true && A.out.toasts.length === 0, j([rA, gA, A.out.toasts]));
+    // 1.6.3 (Fulllion: "Player still defends"): an NPC's attack hidden by the GM's choice alone stays hidden, but the attacked player still gets their Defend
+    // card as with an open attack (attemptMake told 'hid' by privAtR), only its margin kept off the card; an attack kept private for a reason of its own
+    // (a GM-only roll) still sends its Defend card to the GM alone; an open attack names its margin as before
+    const HD = mk(); HD.aim.gm = 't_a'; const rHD = HD.gm('3d6 <= 13', { charId: 'c_n', act: 'r_st', label: 'Strike', hide: true }, [2, 3, 4]);
+    const HO = mk(); HO.aim.gm = 't_a'; HO.gm('3d6 <= 13', { charId: 'c_n', act: 'r_st', label: 'Strike' }, [2, 3, 4]);
+    const HG = mk(); HG.aim.gm = 't_a'; HG.gm('3d6 <= 13', { charId: 'c_n', act: 'r_st', label: 'Strike', gmOnly: true }, [2, 3, 4]);
+    check('1.6.3 (Fulllion: "Player still defends") Hide my rolls on an NPC\'s attack: the roll goes to nobody, yet the attacked player\'s Defend card goes to them, with no margin on it; an open attack\'s card names its margin; a roll kept private for a reason of its own sends its card to the GM; privAtR is the one reading',
+        rHD.priv === true && HD.rolls('pA').length === 0 && HD.rolls('pB').length === 0 && HD.out.dues.length === 1 && HD.out.dues[0].ch === 'c_a' && HD.out.dues[0].to === true && HD.out.dues[0].m === undefined
+        && HO.out.dues.length === 1 && HO.out.dues[0].to === true && typeof HO.out.dues[0].m === 'number'
+        && HG.out.dues.length === 1 && HG.out.dues[0].to === false
+        && HD.W.privAt({ priv: 'gm' }, true) === 'hid' && HD.W.privAt({ priv: 'gm' }, undefined) === true && HD.W.privAt({ priv: 'gm', to: 'pA' }, true) === true && HD.W.privAt({}, true) === false, j([HD.out.dues, HO.out.dues, HG.out.dues]));
     A.net.roster.pB.location = 'm_other';
     const okA = A.net.revealRoll(gA.id), sA = A.lastRoll('pA'), nB = A.rolls('pB').length, again = A.net.revealRoll(gA.id);
     check('1.6.3 Show to the table: the roll goes to the table once, as it was rolled, with no mark of its privacy and the small mark rev, passing a player\'s cleaner and replaying there; a card made as an NPC still reaches only a player who can see it; a second press sends nothing',
@@ -1835,7 +1905,7 @@ pendingChecks.push((async () => {
     const rC = drC.dr('1d20', { hide: true }); drC.clear();
     check('1.6.3 on a player\'s app hide is their own To the GM only: the request asks the host to keep it private, and names nothing else of it', rC.ok === true && sentC.length === 1 && sentC[0].priv === 'gm' && !('hide' in sentC[0]), j(sentC));
     check('1.6.3 the wiring: a table that ends lets the notes go (diceSessionReset), /gmroll is the GM\'s choice, a latecomer\'s history reads a shown roll\'s table copy, and the host never writes rollsHid onto anything it sends',
-        src4.includes("    if (typeof revealForget === 'function') revealForget();") && src4.includes("window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll', source: 'chat' })") && src4.includes("var wr = m.shown || m.roll || m.apply;") && !/\.rollsHid\s*=[^=]/.test(src4)
+        src4.includes("    if (typeof revealForget === 'function') revealForget();") && src4.includes("window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll', typed: true, source: 'chat' })") && src4.includes("var wr = m.shown || m.roll || m.apply;") && !/\.rollsHid\s*=[^=]/.test(src4)
         && A.out.steps.some(s => s[0] === 'hiderolls v1' && s[1] === 'shown'));
 
     // The review of 2026-11-19. Finding 1: a roll with card actions sends its pending card before the secret checks of its landing, so the host asks them

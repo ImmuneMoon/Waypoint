@@ -121,6 +121,7 @@ function open(which, topic) {
     var m = ui('systemModal'); if (!m) return;
     ui('sysCampName').textContent = camp.name || 'Campaign';
     ui('sysName').value = draft.name || '';
+    if (ui('sysMakeRolls')) ui('sysMakeRolls').value = draft.makeRolls === 'gm' || draft.makeRolls === 'self' ? draft.makeRolls : '';   // 1.6.3 (finding 22): Rolls while making
     if (ui('sysMark')) { ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : ''; var mkR = ui('sysMark').closest('.sys-flags'); if (mkR) mkR.hidden = !draft.mark && !sysReaders();   // 1.6.2: a word for an outside reader, which a table without one has no use for
     }
     m.style.display = 'flex';

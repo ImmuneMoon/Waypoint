@@ -1789,6 +1789,7 @@ function cleanSystem(sys, opts) {
     if (!gmView && typeof showMention === 'function' && out.combat.turn && out.combat.turn.run && (!out.combat.turn.move || showMention(out.combat.turn.run))) { delete out.combat.turn.run; delete out.combat.turn.runCost; if (!Object.keys(out.combat.turn).length) delete out.combat.turn; }   // 1.6.0: a move by giving up an action goes with its move, and where it names a GM-only value (their one allowance is then the move)
     var lr = cleanListRules(sys.listRules); if (lr) out.listRules = lr;   // Stage 6 F4c2: Setting A, in both views (absent: GM only)
     var srS = cleanSheetRev(sys.sheetRev); if (srS) out.sheetRev = srS;   // 1.6.0 (backlog 190): the sheet revision, in both views (absent: none)
+    if (sys.makeRolls === 'gm' || sys.makeRolls === 'self') out.makeRolls = sys.makeRolls;   // 1.6.3 (finding 22): Rolls while making, in both views (a player's sheet needs it to offer its rolls), only as one of its two words (absent: off)
     var bud = cleanBudgets(sys.budgets, F);   // 126: the point budgets, the same in both views (absent: none)
     if (bud) {   // one that reads a GM-only value, at any depth, goes: a player's own app must work out the very figures the host judges by. Judged over the GM's view, in both views alike
         var sysBu = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };

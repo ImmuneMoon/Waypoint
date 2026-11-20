@@ -182,8 +182,8 @@ const j = v => JSON.stringify(v);
             const fnb = new Function('el', 'canRoll', 'sheetRoll', 'signTone', 'valueTone', 'TONE_CLASS', 'fxMark', fbSrcG + '\nreturn fieldNodeBody;')(feG, () => true, (e, cid, expr, label, opts) => sent.push([cid, expr, label, opts]), () => '', () => '', {}, () => null);
             const box = fnb(f, chE, { value: 1, text: '1' }, true, true, gRG), rb = box.children[0].children[0]; rb.on.click({}); return { sent, f }; };
         const fHs = fieldG('Sanity'), fLk = fieldG('Luck');
-        check('GM-only rolls: a GM-only field\'s own roll button (fieldNodeBody, run for real) tells the dice path the roll is GM-only, with the field\'s label; a visible field\'s asks nothing',
-            fHs.f.vis === 'gm' && fHs.f.roll === 'd100' && j(fHs.sent) === j([['c_d', 'd100', 'Hidden Sanity', { gmOnly: true }]]) && j(fLk.sent) === j([['c_d', 'd6 + Luck', 'Luck', undefined]]), j([fHs.f, fHs.sent, fLk.sent]));
+        check('GM-only rolls: a GM-only field\'s own roll button (fieldNodeBody, run for real) tells the dice path the roll is GM-only, with the field\'s label; a visible field\'s asks nothing of that; both name their field (fr), so the host rebuilds the roll from it (1.6.3, finding 26, moved on purpose)',
+            fHs.f.vis === 'gm' && fHs.f.roll === 'd100' && j(fHs.sent) === j([['c_d', 'd100', 'Hidden Sanity', { gmOnly: true, fr: 'f_hs' }]]) && j(fLk.sent) === j([['c_d', 'd6 + Luck', 'Luck', { fr: 'f_lk' }]]), j([fHs.f, fHs.sent, fLk.sent]));
         const varsG = S.resolveAll(gRG, chE, F, null).vars, rollG = id => gRG.rolls.find(r => r.id === id);
         const clickG = (id, o) => { const api = mkD(Object.assign({ camp: { chars: { c_d: chE } } }, o || {})); api.rollNode(rollG(id), chE, gRG, varsG).children[0].on.click({}); return api; };
         const rGs = clickG('r_gs'), rGsOff = clickG('r_gs', { net: null }), rOp = clickG('r_op'), rGv = clickG('r_gv');
@@ -215,7 +215,7 @@ const j = v => JSON.stringify(v);
         check('GM-only rolls: the hint reaches net.diceRoll unchanged — sheetRoll hands it to a plain roll and to the modifier popover (whose Roll passes it on), and dice.js\'s rollFor and roll (run for real) give net.diceRoll gmOnly beside priv; a roll without it asks gmOnly false',
             j(viaG) === j([['plain', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }], ['mod', 'c_d', 'd100', 'Hidden Sanity', { gmOnly: true }]])
             && j(askedG) === j([['d100', { priv: false, gmOnly: true, charId: 'c_d', label: 'Hidden Sanity' }], ['d6', { priv: false, gmOnly: false, charId: 'c_d', label: 'Luck' }], ['d6', { priv: true, gmOnly: true, charId: 'c_d', label: 'Both' }]])
-            && dkG.includes("closeModPop(); rollFor(charId, r.expr, label, modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef, modD)); });") && dkG.includes("    if (named) return Object.assign({}, o, { mod: mod || undefined, modD: md || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined });"), j([viaG, askedG]));   /* 1.6.2: and the dice the window adds (moved on purpose); the review of words: an unnamed roll goes on with hm after it (moved on purpose) */
+            && dkG.includes("closeModPop(); var moR = modOpts(opts, mod, advMode, swAv.filter(function(w) { return swOn[w.s + '#' + w.i]; }).map(function(w) { return { s: w.s, i: w.i }; }), swRef, modD); rollFor(charId, r.expr, label, toGm ? Object.assign({}, moR || {}, { hide: true }) : moR); });") && dkG.includes("    if (named) return Object.assign({}, o, { mod: mod || undefined, modD: md || undefined, adv: advMode !== 'normal' ? advMode : undefined, sw: pk && pk.length ? pk : undefined });"), j([viaG, askedG]));   /* 1.6.2: and the dice the window adds (moved on purpose); the review of words: an unnamed roll goes on with hm after it (moved on purpose) */
         /* 1.5.9 (the owner, at the table: "theres no way to add modifiers to rolls in the character sheet"; by prompt: "A ± button on each roll"):
            a small ± beside each roll button the sheet and the HUD draw (rollNode, a list row's rolls, a field's own die, the Custom roller) opens
            the very popover shift-click opens, for that very roll, anchored to the ± itself; disabled with its roll; none on paper. All run for real */
@@ -230,7 +230,7 @@ const j = v => JSON.stringify(v);
                 o.classList = { contains: c => o.className.split(/\s+/).includes(c), add(c) { if (!o.classList.contains(c)) o.className = (o.className + ' ' + c).trim(); }, remove(c) { o.className = o.className.split(/\s+/).filter(x => x !== c).join(' '); } };
                 return o; };
             const PM8 = String.fromCharCode(0xB1), hP = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
-            const isPm = x => !!x && x.classList.contains('sheet-roll-mod'), PM_TIP = 'Add a modifier, or roll twice and keep the better or worse';
+            const isPm = x => !!x && x.classList.contains('sheet-roll-mod'), PM_TIP = 'Add a modifier to this roll';   // 1.6.3 (finding 31, moved on purpose): with no dice core at hand nothing better or worse is promised (advOffered)
             // rollNode with the ± maker beside it
             const rnSrcP = shD.slice(shD.indexOf('var LABEL_CTRL_G = '), shD.indexOf('// A roll from this character\'s sheet: the dice feature on'));
             const nodeP = (r, o) => { o = o || {}; const sent = [];
@@ -280,9 +280,16 @@ const j = v => JSON.stringify(v);
             const rbI = labI.appendChild(feP('button', 'tool ghost sheet-field-roll', 'die')), pmI = labI.appendChild(feP('button', 'tool ghost sheet-roll-mod', PM8)); boxI.appendChild(feP('div', 'sheet-value')); boxI.appendChild(feP('div', 'sheet-caption'));
             irP(boxI, { kind: 'formula', roll: 'd6' });
             check('1.5.9 the roll ±: a field\'s own die (fieldNodeBody, run for real) has its ± beside it in the label, sending the field\'s roll with shift from the ±, disabled where dice are off; inlineRow (run for real) moves the ± with the roll, before the caption',
-                isPm(fPm) && labP.children.length === 2 && fP.sent.length === 2 && fP.sent[1].shift && fP.sent[1].at === fPm && j(fP.sent[0].args) === j(fP.sent[1].args) && j(fP.sent[1].args) === j(['c_p', 'd6 + Luck', 'Luck', undefined])
+                isPm(fPm) && labP.children.length === 2 && fP.sent.length === 2 && fP.sent[1].shift && fP.sent[1].at === fPm && j(fP.sent[0].args) === j(fP.sent[1].args) && j(fP.sent[1].args) === j(['c_p', 'd6 + Luck', 'Luck', { fr: 'f_lk' }])
                 && fOff.box.children[0].children[1].disabled === true
                 && j(boxI.children.map(x => x.className.split(' ').pop())) === j(['sheet-label', 'sheet-value', 'sheet-inline-roll', 'sheet-roll-mod', 'sheet-caption']) && boxI.children[3] === pmI && labI.children.length === 0, j([labP.children.map(x => x.className), fP.sent.map(x => x.args), boxI.children.map(x => x.className)]));
+            // 1.6.3 (finding 31): the ±'s tooltip promises better or worse only where the window offers Advantage, by the very check it makes
+            {
+                const DCA = await import(url('dicecore.js')), advP = new Function('el', 'window', 'F', pmSrc + '\nreturn rollModBtn;')(feP, { wpDiceCore: DCA, wpPrintCopy: false }, () => F);
+                const bA = feP('button', 'tool sheet-roll'), tD20 = advP(bA, () => {}, 0, 'd20 + 3').title, t3d6 = advP(bA, () => {}, 0, '3d6 <= 12').title, tNone = advP(bA, () => {}, 0).title, tSw = advP(bA, () => {}, 2, '3d6').title, tFn = advP(bA, () => {}, 0, () => 'd20').title;
+                check('1.6.3 (finding 31) the ±\'s tooltip says better or worse only where the window offers Advantage (a lone die, d20 + 3, or a formula read through a function), never on 3d6 or with no formula; with bonuses it names them either way',
+                    tD20 === 'Add a modifier, or roll twice and keep the better or worse' && t3d6 === 'Add a modifier to this roll' && tNone === t3d6 && tFn === tD20 && tSw === 'Add a bonus you have (2) or a modifier', j([tD20, t3d6, tNone, tSw, tFn]));
+            }
             // the Custom roller
             const rlSrcP = shD.slice(shD.indexOf('var _rl = Object.create(null);'), shD.indexOf('// A handbook link placement'));
             const viaP = [], rlP = new Function('el', 'input', 'LIMITS', 'canRoll', 'toast', 'window', rlSrcP + pmSrc + '\nreturn rollerNode;')(feP, (cls, v) => Object.assign(feP('input', cls), { value: v, dataset: {} }), { formula: 200, label: 60 }, () => true, () => {},

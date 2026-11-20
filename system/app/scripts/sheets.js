@@ -310,7 +310,7 @@ function rollerNode(pl, c, key) {
     go.addEventListener('click', doRoll);
     fx.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doRoll(e); } });
     row.appendChild(fx); row.appendChild(lb); row.appendChild(go);
-    var pmR = typeof rollModBtn === 'function' ? rollModBtn(go, doRoll) : null; if (pmR) row.appendChild(pmR);   // 1.5.9: its ±
+    var pmR = typeof rollModBtn === 'function' ? rollModBtn(go, doRoll, 0, function() { return st.expr; }) : null; if (pmR) row.appendChild(pmR);   // 1.5.9: its ±
     box.appendChild(row);
     return box;
 }
@@ -798,6 +798,20 @@ function crossSeed() {
     });
     return n;
 }   // the review of fold 4a: the value is read in its token's context, as crossFollow reads it, so a value that reads its token never crosses at its first change
+// 1.6.3 (finding 36): what a crossing's reminder card says of it: the watched field's label (xf), the figure of the step it crossed (xs) and its way
+// (xd 'up'), for net.postDue. A card that goes to the character's player names neither where the field is GM-only, and gives no figure where the
+// step reads a GM-only value (systemcore gmOnlyNames, gmDerivedNames); the GM's own card names both. Pure but for the core it asks
+function crossSays(sys, c, r, step, vars, toOwner) {
+    var out = {}, cr = r && r.cross, S = window.wpSystemCore, Fm = F(); if (!cr || !sys) return out;
+    var fd = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.id === cr.f; })[0];
+    if (!fd || (toOwner && fd.vis === 'gm')) return out;
+    out.xf = String(fd.label || fd.key || '').slice(0, 60); if (!out.xf) return {};
+    if (cr.dir === 'up') out.xd = 'up';
+    var steps = S && typeof S.crossSteps === 'function' && Fm ? S.crossSteps(r, vars, Fm) : [], sv = typeof step === 'number' ? steps[step - 1] : undefined;
+    if (typeof sv !== 'number' || !isFinite(sv)) return out;
+    if (toOwner && S && Fm && typeof Fm.names === 'function') { var nms = [].concat(cr.at ? Fm.names(String(cr.at)) : [], cr.step ? Fm.names(String(cr.step)) : []).map(function(n) { return { name: n }; }); if (nms.length && ((typeof S.gmOnlyNames === 'function' && S.gmOnlyNames(sys, nms).length) || (typeof S.gmDerivedNames === 'function' && S.gmDerivedNames(sys, Fm, nms).length))) return out; }
+    out.xs = sv; return out;
+}
 function crossFollow(c, camp) {
     if (!c || typeof c.id !== 'string' || !camp || !camp.system || !crossOk() || typeof crossings !== 'function' || typeof makeResolver !== 'function') return 0;
     var sys = camp.system, rules = crossRules(sys), lrs = rowCrossRules(sys); if (!rules.length && !lrs.length) return 0;
@@ -826,7 +840,7 @@ function crossFollow(c, camp) {
         runs.forEach(function(x) {
             var r = x.r, lb = String(r.label || (Array.isArray(r.apply) ? 'Apply' : 'Roll')).split('{')[0].trim() || (Array.isArray(r.apply) ? 'Apply' : 'Roll');
             if (x.at) { if (off) return; var cR = charById(c.id, camp); if (!cR) return; if (Array.isArray(r.apply)) applyAction(r, cR, lb, x.at, undefined, x.cx); else if (window.wpDice && window.wpDice.rollFor) window.wpDice.rollFor(cR.id, r.formula, lb, { row: x.at, cross: x.cx }); return; }   // 1.6.0: on its row, as the GM's own press; an NPC whose rules are off runs nothing
-            if (r.cross.by || off) { var attP = x.bh ? blowAtt(c, r, x.bh) : ''; if (n && n.postDue) n.postDue(c, r, 'cross', 1, !off && r.cross.by === 'owner' && r.vis !== 'gm', attP ? { att: attP } : undefined); return; }   // 1.6.2 (242): its card names the blow's record, which the host works its roll out on
+            if (r.cross.by || off) { var attP = x.bh ? blowAtt(c, r, x.bh) : '', toOP = !off && r.cross.by === 'owner' && r.vis !== 'gm', mxP = typeof crossSays === 'function' ? crossSays(sys, c, r, x.cx && x.cx.step, vars, toOP) : {}; if (attP) mxP.att = attP; if (n && n.postDue) n.postDue(c, r, 'cross', 1, toOP, mxP); return; }   // 1.6.2 (242): its card names the blow's record, which the host works its roll out on
             var cN = charById(c.id, camp); if (!cN) return;
             if (Array.isArray(r.apply)) applyAction(r, cN, lb, undefined, undefined, x.cx);   // 1.6.0: with CrossStep and Crossed
             else if (window.wpDice && window.wpDice.rollFor) {
@@ -4192,7 +4206,7 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         };
         b.addEventListener('click', goL);
         var mpS = null, mpH = host; if (mpW && mpW.may && !b.disabled) { mpS = el('span', 'sheet-item-moneywarn', mpW.may); mpS.title = mpC ? 'If the roll asks for more than you hold, nothing of it lands.' : (mpW.no ? mpW.no + ' ' : '') + 'Your press goes through and takes what is held.'; mpH = el('span', 'sheet-item-moneyroll'); host.appendChild(mpH); }   // 1.6.0: said in sight before the press, a roll the GM may press past as much as one that hangs on the dice; in one group with its button, so that a row that wraps never leaves the words beside the next roll
-        mpH.appendChild(b); var pmL = typeof rollModBtn === 'function' ? rollModBtn(b, goL, typeof swCount === 'function' ? swCount(c, { l: f.id, row: rid }) : 0) : null; if (pmL) mpH.appendChild(pmL);   // 1.5.9: its ±
+        mpH.appendChild(b); var pmL = typeof rollModBtn === 'function' ? rollModBtn(b, goL, typeof swCount === 'function' ? swCount(c, { l: f.id, row: rid }) : 0, r.formula) : null; if (pmL) mpH.appendChild(pmL);   // 1.5.9: its ±
         if (mpS) mpH.appendChild(mpS);
     });
 }
@@ -5322,7 +5336,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (f.vis === 'gm') box.classList.add('sheet-gm');
     var lab = el('label', 'sheet-label', f.label); lab.title = f.vis === 'gm' ? 'Only the GM sees this' : ''; box.appendChild(lab);
     if (f.explain && typeof explainTo === 'function') explainTo(lab, f.explain, c, f.kind === 'formula' && typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : '');   // 1.6.2 (backlog 218 fold 3): its (i)
-    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.disabled = !canRoll(c); rb.title = rb.disabled ? (typeof rollWhyNot === 'function' ? rollWhyNot(c) : '(dice are off here, or this is not your character)') : 'Roll ' + (f.label || 'this field') + ' · shift-click to add a modifier'; var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || 'this field', f.vis === 'gm' ? { gmOnly: true } : undefined, { f: f.id }); }; rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF, typeof swCount === 'function' ? swCount(c, { f: f.id }) : 0) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
+    if (f.roll) { var rb = el('button', 'tool ghost sheet-field-roll', typeof dieFor === 'function' ? undefined : String.fromCharCode(55356, 57266)); if (typeof dieFor === 'function') rb.appendChild(dieFor(f.rollDie, f.roll)); rb.disabled = !canRoll(c); rb.title = rb.disabled ? (typeof rollWhyNot === 'function' ? rollWhyNot(c) : '(dice are off here, or this is not your character)') : 'Roll ' + (f.label || 'this field') + ' · shift-click to add a modifier'; var goF = function(e) { sheetRoll(e, c.id, f.roll, f.label || 'this field', f.vis === 'gm' ? { gmOnly: true, fr: f.id } : { fr: f.id }, { f: f.id }); };   /* 1.6.3 (finding 26): every field roll names its field (fr), so the host rebuilds its formula from the field and never takes a label on trust */ rb.addEventListener('click', goF); lab.appendChild(rb); var pmF = typeof rollModBtn === 'function' ? rollModBtn(rb, goF, typeof swCount === 'function' ? swCount(c, { f: f.id }) : 0, f.roll) : null; if (pmF) lab.appendChild(pmF); }   // the field's own roll (1.5.0); a GM-only field's stays the GM's
     var editable = gm || (own && f.vis === 'all' && (f.edit === 'owner' || c.making === 1 || c.unlocked === 1));
     var lk = typeof lockedNow === 'function' && lockedNow(), use = editable && (typeof fieldOpen !== 'function' || fieldOpen(f)) && !(e && e.locked);   // the sheet's lock: this field's own control in the view being drawn (locked, only what changes in play). Asked through typeof: a harness that slices this function alone draws it unlocked
     var playOk = editable && (!lk || f.live !== false), editOk = editable && (!lk || f.live === true);   // a list's two halves: what is used in play (a switch, a count, a use), and what changes the character (a level, a row, a note)
@@ -5852,14 +5866,22 @@ function pressOf(e, b) { return { shiftKey: !!(e && e.shiftKey), altKey: !!(e &&
 // small ± beside a roll button opens the very popover shift-click opens, for that very roll, anchored to the ±. go is the roll button's own
 // click handler, handed an event that says shift and names the ±, so the roll's formula, label and opts are the button's own. Pressed as the
 // roll is: disabled with it, with its reason. None on paper (a print copy), which shows no control
-function rollModBtn(b, go, nSw) {   // nSw (1.6.0): how many roll switches offer themselves to this roll; the ± is marked where any do
+function rollModBtn(b, go, nSw, expr) {   // nSw (1.6.0): how many roll switches offer themselves to this roll; the ± is marked where any do; expr (1.6.3): its formula, for what its tooltip promises
     if (!b || typeof go !== 'function' || (typeof window !== 'undefined' && window && window.wpPrintCopy === true)) return null;
-    var pm = el('button', 'tool ghost sheet-roll-mod', '\u00b1'); pm.type = 'button';
-    pm.title = 'Add a modifier, or roll twice and keep the better or worse'; if (pm.setAttribute) pm.setAttribute('aria-label', 'Roll with a modifier');
-    if (typeof nSw === 'number' && nSw > 0) { pm.classList.add('sheet-roll-mod-sw'); pm.title = 'Add a bonus you have (' + nSw + '), a modifier, or roll twice and keep the better or worse'; if (pm.setAttribute) pm.setAttribute('aria-label', 'Roll with a modifier: ' + nSw + (nSw === 1 ? ' bonus' : ' bonuses') + ' you may add'); }
+    var pm = el('button', 'tool ghost sheet-roll-mod', '\u00b1'); pm.type = 'button'; var advM = advOffered(expr);
+    pm.title = advM ? 'Add a modifier, or roll twice and keep the better or worse' : 'Add a modifier to this roll'; if (pm.setAttribute) pm.setAttribute('aria-label', 'Roll with a modifier');
+    if (typeof nSw === 'number' && nSw > 0) { pm.classList.add('sheet-roll-mod-sw'); pm.title = 'Add a bonus you have (' + nSw + ') or a modifier' + (advM ? ', or roll twice and keep the better or worse' : ''); if (pm.setAttribute) pm.setAttribute('aria-label', 'Roll with a modifier: ' + nSw + (nSw === 1 ? ' bonus' : ' bonuses') + ' you may add'); }
     if (b.disabled) { pm.disabled = true; if (b.title) pm.title = b.title; }
     pm.addEventListener('click', function() { if (pm.disabled) return; go({ shiftKey: true, altKey: false, currentTarget: pm, modAt: pm, preventDefault: function() {} }); });
     return pm;
+}
+// 1.6.3 (finding 31): whether the window offers Advantage for a formula, by the very check it makes (dicecore withAdvantage: a lone plain die), so the
+// \u00b1's tooltip promises better or worse only where it is there. expr is the roll's formula, or a function that reads it (the sheet's own roller);
+// with no formula, or none that can be read, it is not promised
+function advOffered(expr) {
+    var x = typeof expr === 'function' ? expr() : expr, D = typeof window !== 'undefined' && window ? window.wpDiceCore : null, Fm = typeof F === 'function' ? F() : null;
+    if (typeof x !== 'string' || !x || !D || typeof D.withAdvantage !== 'function' || !Fm || typeof Fm.parse !== 'function') return false;
+    try { return !!D.withAdvantage(x, 'adv', Fm.parse).ok; } catch (e) { return false; }
 }
 var ROLL_TONE_CLS = { primary: ' sheet-roll-primary', danger: ' sheet-roll-danger', neutral: ' sheet-roll-neutral', outline: ' sheet-roll-outline' };   // Stage 6 look fold: literal classes, looked up by own key
 // HUD frame (HF5a, H3): a roll's label with each {formula} worked out for this character, as a caption is (text only; a value that fails
@@ -5938,7 +5960,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     var label = rollLabel(r, sys, c, vars), b = el('button', 'tool sheet-roll' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : '')); var can = canRoll(c);
     b.appendChild(el('span', 'sheet-roll-text', label));   // 1.6.3 (the owner, 2026-11-15: "this button on scorch isnt laid out well"): the name in a box of its own, so a long one wraps beside the die and the icon, never under them, and is cut at two lines (style.css)
     if (r.icon) b.insertBefore(iconNode(r.icon, 'sheet-roll-icon'), b.firstChild); if (typeof dieFor === 'function') b.insertBefore(dieFor(r.die, r.formula, 'sheet-roll-die'), b.firstChild);   // 1.5.8: its die (the GM's pick, else its formula's); 1.6.0 (the owner, 2026-10-27: "small dice icons on, or before the dice rolling buttons ... without removing any of the current settings"): before an icon of its own too, which stays
-    b.title = can ? 'Roll ' + label + ' · shift-click to add a modifier' : 'Dice are off here, or this is not your character'; b.disabled = !can;
+    b.title = can ? 'Roll ' + label + ' · shift-click to add a modifier' : (typeof rollWhyNot === 'function' ? rollWhyNot(c) : 'Dice are off here, or this is not your character'); b.disabled = !can;   // 1.6.3 (finding 22): why not, in its own words
     var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbR) { b.disabled = true; b.title = cbR; }
     if (typeof r.withRow === 'string' && r.withRow) { var wfR = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === r.withRow; })[0]; b.disabled = true; b.title = typeof withRowTip === 'function' ? withRowTip(wfR) : 'Rolled from a defense card'; }   // 1.6.3 (defense fold 2; the review of that fold, finding 4): a press here names no row, and the host refuses a press of it that names none, so it is always off here, said why   // turn-based combat T4
     var ndF = can && (r.needs || r.needsWhy) && !(r.needsGm === true && !isClient()) && typeof rollNeedsOk === 'function' && typeof rollNeedsFails === 'function' && typeof vars === 'function' ? rollNeedsFails(r, (r.to === 'near' || r.to === 'target') && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F(), undefined, true) : null; if (ndF) { b.disabled = true; b.title = ndF.at >= 0 ? ndF.says : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }   // 1.6.2: the one judge, the first that fails; a reason says its own words   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
@@ -5950,7 +5972,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     };
     b.addEventListener('click', goN);
     var box = el('div', 'sheet-field sheet-kind-roll'); box.appendChild(b);
-    var pm = typeof rollModBtn === 'function' ? rollModBtn(b, goN, typeof swCount === 'function' ? swCount(c, { r: r.id }) : 0) : null; if (pm) { box.appendChild(pm); box.classList.add('sheet-roll-pair'); }   // 1.5.9: its ±, pressed as the roll is
+    var pm = typeof rollModBtn === 'function' ? rollModBtn(b, goN, typeof swCount === 'function' ? swCount(c, { r: r.id }) : 0, r.formula) : null; if (pm) { box.appendChild(pm); box.classList.add('sheet-roll-pair'); }   // 1.5.9: its ±, pressed as the roll is
     if (r.explain && typeof explainTo === 'function' && explainTo(box, r.explain, c)) box.classList.add('sheet-roll-explained');   // 1.6.2 (backlog 218 fold 3): its (i)
     return box;
 }
@@ -5967,13 +5989,18 @@ function dueBlock(charId, actId) {   // ... and of the roll a Due card runs (dic
     var camp = getActiveCampaign(), sys = camp ? systemOf(camp) : null, r = (sys && Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(x) { return x && x.id === actId; })[0];
     return r && r.cost ? costBlock(charById(charId, camp), r.cost, r.costN) : '';
 }
-function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && c.making !== 1); return true; }
+function canRoll(c) { if (!c || !window.wpDice || !window.wpDice.rollFor) return false; if (window.wpVtt && !window.wpVtt.on('dice')) return false; if (isClient()) return !!(c.ownerId && c.ownerId === myId() && !c.partial && !c.npc && (c.making !== 1 || makeRollsOn())); return true; }
+// 1.6.3 (finding 22; Fulllion: "a system setting, and also have those building rolls only show to the gm, with info on what the roll was for. the gm can
+// choose to only have the rolls show for the player building too and just look at the finished sheet if they prefer"): whether the system lets a player
+// roll on a character still being made, its Rolls while making (sys.makeRolls 'gm' or 'self', cleaned by cleancore in both views). The host judges it
+// again (net.js roll-req) and sends such a roll to the GM alone, or to its roller alone
+function makeRollsOn() { var sy = systemOf(getActiveCampaign()); return !!(sy && (sy.makeRolls === 'gm' || sy.makeRolls === 'self')); }
 // 1.6.3 (the improvement week's review of sheets and rolls, finding 41): why canRoll says no, in one plain sentence, for a grayed die's tooltip,
 // which greyPress says when it is pressed: dice switched off here, a character still being made, one that is not theirs
 function rollWhyNot(c) {
     if (!c || !window.wpDice || !window.wpDice.rollFor) return 'Dice are not available here.';
     if (window.wpVtt && !window.wpVtt.on('dice')) return 'Dice are off at this table.';
-    if (isClient() && c.making === 1 && c.ownerId === myId()) return 'Finish making this character first.';
+    if (isClient() && c.making === 1 && c.ownerId === myId()) return 'Rolls open once the character is done.';   // 1.6.3 (finding 22): the system's Rolls while making is off
     if (isClient()) return 'This is not your character to roll for.';
     return '(dice are off here, or this is not your character)';
 }
@@ -8193,6 +8220,7 @@ var _sysedTabs = sysedTabs(), autoBox = _sysedTabs.autoBox, clockBox = _sysedTab
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
     charsWire();   // 1.6.2 (backlog 59 f): Manage characters
     var nsB = ui('sysNewSheets'); if (nsB) nsB.addEventListener('click', askNewSheets);   // 1.6.0 (backlog 190)
+    var mrS = ui('sysMakeRolls'); if (mrS) mrS.addEventListener('change', function() { if (!draft) return; if (mrS.value === 'gm' || mrS.value === 'self') draft.makeRolls = mrS.value; else delete draft.makeRolls; markDirty(); });   // 1.6.3 (finding 22): Rolls while making
     var acB = ui('sysSheetsCurrent'); if (acB) acB.addEventListener('click', allSheetsCurrent);
     var rvBt = ui('sheetReview'); if (rvBt) rvBt.addEventListener('click', function() { if (sheetOpen) openReview(sheetOpen); });
     var rvChip = ui('reviewChip'); if (rvChip) rvChip.addEventListener('click', reviewNext);

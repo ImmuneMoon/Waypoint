@@ -327,6 +327,7 @@ function cleanRollReq(msg) {
         out.hit = msg.hit;
     }
     if (msg.src !== undefined && out.charId) { var srcC = cleanSrc(msg.src); if (srcC) out.src = srcC; }   // 1.6.2: which button it came from
+    if (msg.typed !== undefined) { if (msg.typed !== 1 || out.act || out.fr || out.row) return null; out.typed = 1; }   // 1.6.3 (finding 26): typed in the roller, only as 1 and only on a roll named by nothing (its card says so)
     return out;
 }
 // 1.6.2: which button a press came from: a system roll by its id, a list's roll by its field, its row and its place. It names no rule and the host
@@ -437,6 +438,8 @@ function cleanRoll(rec) {
     if (rec.malf !== undefined) { if (!isInt(rec.malf) || rec.malf < 1 || rec.malf > 1000000) return null; out.malf = rec.malf; if (rec.malfHid === 1) out.malfHid = 1; }   // malfHid (1.6.0): the figure is the roll's own, standing in for a Malf that reads a GM-only stat, so a card names none
     if (rec.crit !== undefined) { var crc = cleanCrit(rec.crit); if (!crc) return null; out.crit = crc.high ? [crc.at, crc.fumble, 1] : [crc.at, crc.fumble]; }   // 1.6.0: criticals at fixed rolls, the two numbers the host judged this roll by
     if (rec.rev === 1) out.rev = 1;   // 1.6.3: a roll the GM hid and then showed to the table, only as 1
+    if (rec.typed === 1) { out.typed = 1; if (rec.tws === 1) out.tws = 1; }   // 1.6.3 (finding 26): a roll typed in the roller, and tws, its formula said in words to everyone (the campaign's Typed rolls in words), each only as 1
+    if (rec.mk === 1 || rec.mk === 2) { out.mk = rec.mk; var mkf = cleanLabel(rec.mkFor); if (mkf) out.mkFor = mkf; }   // 1.6.3 (finding 22): a roll made while its character is being made: 1 the GM sees it, 2 its roller alone; mkFor the field it is for, text
     if (rec.hid === 'gm') out.hid = 'gm';   // HR1: a roll that went straight to the GM: its roller's copy holds no figure
     if (rec.hid === 'pass' || rec.hid === 'fail' || rec.hid === 'rolled') { out.hid = rec.hid; if ((rec.hidc === 'crit' || rec.hidc === 'fumble') && rec.hid !== 'rolled') out.hidc = rec.hidc; }   // 1.6.2: the host's own word for a roll whose figure is hidden (hidRoll): only these words
     if (typeof rec.card === 'string' && rec.card.trim()) out.card = rec.card.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80);   // 1.6.2: the card a roll drew as its die, text alone
@@ -517,6 +520,11 @@ function cleanDue(rec) {
     var as = cleanLabel(rec.as); if (as === null) return null; if (as) out.as = as; var plC = cleanPl(rec.pl); if (plC && as) out.pl = plC;
     if (rec.theirs !== undefined) { if (rec.theirs !== 1) return null; out.theirs = 1; }
     if (rec.roll !== undefined) { if (rec.roll !== 1) return null; out.roll = 1; }   // 1.5.9 (book es/et plan 4b): a roll that is due, whose button rolls it
+    if (rec.why === 'cross') {   // 1.6.3 (finding 36): a crossing's card says which value crossed which step: the field's name (xf, text), the step's figure (xs) and whether it rose (xd 'up'; absent, it fell)
+        var xfD = cleanLabel(rec.xf); if (xfD === null) return null; if (xfD) out.xf = xfD;
+        if (rec.xs !== undefined) { if (typeof rec.xs !== 'number' || !isFinite(rec.xs) || Math.abs(rec.xs) > 1e9) return null; out.xs = rec.xs; }
+        if (rec.xd !== undefined) { if (rec.xd !== 'up' && rec.xd !== 'down') return null; if (rec.xd === 'up') out.xd = 'up'; }
+    }
     if (rec.why === 'major' && rec.mw !== undefined) { var mwD = cleanLabel(rec.mw); if (mwD === null) return null; if (mwD) out.mw = mwD; }   // 1.6.0: the system's own word for a Major Wound
     if (rec.why === 'resist') {   // 1.6.0 (B2): the attempt it answers by its id, who made it, and how far it succeeded (the host reads the margin from its own record)
         if (out.roll !== 1 || typeof rec.att !== 'string' || !ATT_RE.test(rec.att)) return null; out.att = rec.att;
@@ -562,6 +570,13 @@ function cleanDue(rec) {
     return out;
 }
 // 1.6.0 (B2): why a resist roll is due, in words: whose attempt, and by how much it succeeded
+// 1.6.3 (finding 36): why a crossing's roll or action is due, in words: "Hit Points fell to 0 or less", "Fatigue rose to 10 or more", or with no step
+// named "Hit Points crossed a step"; with nothing named the old words
+function crossWhy(rec) {
+    if (!rec || typeof rec.xf !== 'string' || !rec.xf) return 'a value crossed a step';
+    if (typeof rec.xs !== 'number' || !isFinite(rec.xs)) return rec.xf + ' crossed a step';
+    return rec.xf + (rec.xd === 'up' ? ' rose to ' + fmtNum(rec.xs) + ' or more' : ' fell to ' + fmtNum(rec.xs) + ' or less');
+}
 function resistWhy(rec) { return !rec ? '' : 'resisting ' + (rec.by ? rec.by + '\u2019s attempt' : 'an attempt') + (typeof rec.m === 'number' ? ', made by ' + fmtNum(rec.m) : '') + (typeof rec.kn === 'string' && rec.kn ? ', ' + rec.kn : ''); }
 // 1.6.0 (the by-hand test: a card that read a heavy hit's roll as a Major Wound): what a due card says of a Major Wound, in the system's own word, and nothing where the roll's own name says it already
 function dueMajor(rec) {
@@ -571,7 +586,7 @@ function dueMajor(rec) {
 }
 // 1.6.3 (defense fold 1): why a landed attack's damage card is due, in words: the attack, on whom where the card may say it, landed
 function landWhy(rec) { return 'the attack' + (rec && typeof rec.on === 'string' && rec.on ? ' on ' + rec.on : '') + ' landed'; }
-function dueText(rec) { if (!rec) return ''; var wh = rec.why === 'called' && rec.lnd === 1 ? landWhy(rec) : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? 'a value crossed a step' : rec.why === 'end' ? 'an effect ended' : rec.why === 'resist' ? resistWhy(rec) : rec.why === 'send' ? sendWhy(rec) : rec.why === 'major' ? dueMajor(rec) : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round; return (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (rec.as ? ' for ' + rec.as : '') + ' is due' + (wh ? ' (' + wh + ')' : ''); }
+function dueText(rec) { if (!rec) return ''; var wh = rec.why === 'called' && rec.lnd === 1 ? landWhy(rec) : rec.why === 'turn' ? 'the start of its turn' : rec.why === 'turnEnd' ? 'the end of its turn' : rec.why === 'cross' ? crossWhy(rec) : rec.why === 'end' ? 'an effect ended' : rec.why === 'resist' ? resistWhy(rec) : rec.why === 'send' ? sendWhy(rec) : rec.why === 'major' ? dueMajor(rec) : rec.why === 'wound' ? 'a wound' : rec.why === 'blast' ? 'a blast' : 'round ' + rec.round; return (rec.label || (rec.roll === 1 ? 'A roll' : 'An action')) + (rec.as ? ' for ' + rec.as : '') + ' is due' + (wh ? ' (' + wh + ')' : ''); }
 // 1.6.0 (the core's gap 8): a player's press of a blast card, { type: 'blast-roll', att }: the id of the host's record alone; null otherwise
 // 1.6.3 (defense fold 4): why a card to send an attack on is due, in words: whose attack the defense stopped
 function sendWhy(rec) { return 'your defense stopped ' + (rec && typeof rec.by === 'string' && rec.by ? rec.by + '’s attack' : 'the attack'); }
@@ -838,6 +853,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { cleanHmod: cleanHmod, sendWhy: sendWhy, cleanSendOn: cleanSendOn, landWhy: landWhy, cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook, cleanDiceLook: cleanDiceLook, DICE_PATS: DICE_PATS, cleanDiceDesign: cleanDiceDesign, DICE_DESIGN_MAX: DICE_DESIGN_MAX };
+var API = { crossWhy: crossWhy, cleanHmod: cleanHmod, sendWhy: sendWhy, cleanSendOn: cleanSendOn, landWhy: landWhy, cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook, cleanDiceLook: cleanDiceLook, DICE_PATS: DICE_PATS, cleanDiceDesign: cleanDiceDesign, DICE_DESIGN_MAX: DICE_DESIGN_MAX };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { cleanHmod, sendWhy, cleanSendOn, landWhy, cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook, cleanDiceLook, DICE_PATS, cleanDiceDesign, DICE_DESIGN_MAX };
+export { crossWhy, cleanHmod, sendWhy, cleanSendOn, landWhy, cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook, cleanDiceLook, DICE_PATS, cleanDiceDesign, DICE_DESIGN_MAX };

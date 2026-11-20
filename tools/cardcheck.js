@@ -36,7 +36,7 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         const win = { wpFormula: F, wpSheets: { playerSystem: c => S.cleanSystem(c.system, { F, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
         W.setT = (fn, ms) => { const t = { fn, ms, off: false }; W.timers.push(t); return t; }; W.clearT = t => { if (t) t.off = true; };
         W.api = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'setTimeout', 'clearTimeout', 'turnNote', 'toast',
-            'var diceLimit = null, _diceSlowSaid = {};\n' + helpers + hold + '\nreturn { handle: function(msg, conn) {\n' + rq + '\n}, press: cardPress, away: cardAway, held: function() { return Object.keys(_cardHeld); } };')(
+            'var diceLimit = null, _diceSlowSaid = {};\n' + (o.pre || '') + helpers + hold + '\nreturn { handle: function(msg, conn) {\n' + rq + '\n}, press: cardPress, away: cardAway, held: function() { return Object.keys(_cardHeld); } };')(
             W.net, () => D, () => S, win, () => W.camp, () => false, e => { throw e; }, rec => W.table.push(JSON.parse(J(rec))), rec => W.pushed.push(JSON.parse(J(rec))), () => {}, () => {}, W.setT, W.clearT, (c, w) => W.notes.push(w), w => W.notes.push(w));
         W.roll = (act, expr) => W.api.handle({ type: 'roll-req', rid: 'q1abcdef', charId: 'c_a', act, expr }, W.conn);
         W.live = () => W.timers.filter(t => !t.off && !t.done); W.tick = () => { const t = W.live().slice(-1)[0]; if (t) { t.done = true; t.fn(); } };
@@ -105,6 +105,21 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         check('left alone nothing is spent, and the roll lands', w3.camp.chars.c_a.values.f_luck === 3 && w3.camp.chars.c_a.values.f_hp === 1);
         const w4 = world(); w4.camp.system = JSON.parse(J(SP)); w4.roll('r_z', SP.rolls[3].formula);
         check('with no points a roll has nothing to spend, so an action that spends leaves nothing to wait for', w4.api.held().length === 0 && !w4.table[0].pend, J(w4.table[0]));
+    }
+    // 1.6.3 (the review of Hide my rolls): a player's roll that answers an attempt whose figure is hidden (net.js figAnswers, the attempt marked hide on
+    // the host's own record) and that is held for its card actions sends its PENDING card masked, as its final card is (figMark's copy, its buttons kept,
+    // its points to spend left off); the GM's own copy stays whole. The real hidefig slice runs beside the real hold and the real roll-req branch
+    {
+        const hfS = between('// [netcheck:hidefig-start]', '// [netcheck:hidefig-end]');
+        const DGE = { id: 'r_d', label: 'Dodge', formula: '1d6 + AttemptMargin >= 1', resist: true, cardActs: [{ label: 'Again', does: 'again' }] };
+        const figW = hide => { const w = world({ pre: 'var _attS = { hide: ' + (hide ? 'true' : 'false') + ' }; function attemptRec() { return _attS; } function attemptPeek() { return 3; } function attemptDrop() {}\n' + hfS + '\n' });
+            w.camp.system.rolls.push(S.cleanSystem({ v: 1, name: 'X', fields: SYS.fields, rolls: [DGE] }, { F, gmView: true }).rolls[0]);
+            w.api.handle({ type: 'roll-req', rid: 'q1abcdef', charId: 'c_a', act: 'r_d', att: 'a_abcdefgh', expr: DGE.formula }, w.conn); return w; };
+        const fH = figW(true), fO = figW(false), tH = fH.table[0] || {}, gH = fH.pushed[0] || {}, tO = fO.table[0] || {};
+        check('1.6.3 (the review of Hide my rolls) a held roll answering a hidden figure: its pending card leaves masked (the host\'s word in place of its figures, no formula that names the attacker, no points), its buttons and wait kept; the GM\'s own copy is whole; with the figure not hidden the pending card is as before',
+            fH.api.held().length === 1 && ['pass', 'fail', 'rolled'].indexOf(tH.hid) >= 0 && !/AttemptMargin/.test(tH.expr) && tH.pend === 60 && Array.isArray(tH.offers) && tH.offers.length === 1 && !('pts' in tH)
+            && /AttemptMargin/.test(gH.expr || '') && !gH.hid && gH.pend === 60
+            && !tO.hid && /AttemptMargin/.test(tO.expr || '') && tO.pend === 60 && (() => { const r = D.cleanRoll(Object.assign({}, tH, { type: 'roll' })); return !!r && r.pend === 60 && !!r.hid; })(), J([tH, gH, tO]));
     }
     // the words and the wiring
     const ix = read('index.html'), dc = read('scripts/dice.js'), ci = readRoot('.github/workflows/checks.yml');

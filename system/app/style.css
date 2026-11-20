@@ -4547,6 +4547,14 @@
   .dice-modadv { display: flex; gap: 4px; }
   .dice-advbtn { flex: 1 1 0; padding: 3px 0; font-size: 11px; }
   .dice-advbtn.on { border-color: var(--gold); color: var(--gold); background: rgba(212,165,79,0.12); }
+  /* 1.6.3: a player's How it goes in the \00b1 window (Everyone or To the GM), shown only where the GM allows hidden rolls: the Advantage row's own look */
+  .dice-modhow { display: flex; gap: 4px; }
+  .dice-howbtn { flex: 1 1 0; padding: 3px 0; font-size: 11px; }
+  .dice-howbtn.on { border-color: var(--gold); color: var(--gold); background: rgba(212,165,79,0.12); }
+  .dice-modhow .ui-seg > .tool:hover:not(.on) { background: rgba(255,255,255,.06); border-color: var(--edge); color: var(--ink); }
+  /* 1.6.3: a roll card's words for a roll while making (what it was for) and a typed roll's formula in words */
+  .roll-for { color: var(--dim); font-size: 11px; margin: 1px 0 2px; }
+  .chat-typedw .chat-mod-src { font-style: normal; }
   .dice-modpop-chips { display: flex; gap: 4px; }
   /* 1.6.0 roll switches: the bonuses a roll may take, each a tick, and the ± that says some are there */
   .dice-modsw { display: flex; flex-direction: column; gap: 4px; }

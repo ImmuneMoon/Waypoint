@@ -561,7 +561,7 @@ const j = v => JSON.stringify(v);
         const gvF = shF.slice(shF.indexOf('function giveCharacter('), shF.indexOf('function spotOnPlayersMap('));
         check('F3a sheets.js: a new owner gets a finished, locked character (the four marks go when the owner changes); rolls and applies wait until it is finished; the owner edits every field they can see while it is open (the three places); a deleted one in the making is gone from its player alone',
             /var prev = c\.ownerId \|\| '', was = [^\n]*\n\s*if \(prev !== pid\) \{ delete c\.making; delete c\.unlocked; delete c\.review; delete c\.made; \}/.test(gvF)
-            && (shF.match(/return !!\(c\.ownerId && c\.ownerId === myId\(\) && !c\.partial && !c\.npc && c\.making !== 1\);/g) || []).length === 2
+            && (shF.match(/return !!\(c\.ownerId && c\.ownerId === myId\(\) && !c\.partial && !c\.npc && c\.making !== 1\);/g) || []).length === 1 && shF.includes('&& !c.partial && !c.npc && (c.making !== 1 || makeRollsOn())); return true; }')   /* 1.6.3 (finding 22): a roll waits until it is finished unless the system sets Rolls while making (makeRollsOn); an apply still waits (moved on purpose) */
             && (shF.match(/own && f\.vis === 'all' && \(f\.edit === 'owner' \|\| c\.making === 1 \|\| c\.unlocked === 1\)/g) || []).length === 3 && !/own && f\.edit === 'owner' && f\.vis === 'all'/.test(shF)
             && /n\.syncCharGone\(id, c\.making === 1 \? prev : ''\);/.test(shF));
         const rmF = shF.slice(shF.indexOf('function removeMade('), shF.indexOf('/* ---------- Onboarding F2a'));

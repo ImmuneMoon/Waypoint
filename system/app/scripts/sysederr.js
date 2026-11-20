@@ -136,7 +136,10 @@ function refreshErrors() {
         // everything typed in its other boxes, so its name is said to be needed under the Label box (the short name follows the name and stays out of sight)
         if (!f.key) errs.push({ prop: 'label', message: nameSays(f) });
         else if (!validKey(f.key, F())) errs.push({ prop: 'key', message: 'This short name cannot be used. Use letters, digits, _ and dots, with no spaces, and no word the dice or the sheet already use.' });
-        else { var l = String(f.key).toLowerCase(); if (seenKey[l]) errs.push({ prop: 'key', message: 'Another field has this key.' }); seenKey[l] = 1; }
+        else { var l = String(f.key).toLowerCase(); if (seenKey[l]) errs.push({ prop: 'key', message: 'Another field has this short name.' }); seenKey[l] = 1; }
+        // 1.6.3 (Fulllion, 2026-11-20: a box others depend on is required): a field that keeps its short name but whose name was emptied is drawn on the
+        // sheet, on cards and in every list by that short name, which is no word a player reads, so its empty name is said under Label (Save still keeps it)
+        if (f.key && !(typeof f.label === 'string' && f.label.trim())) (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'label', message: 'It has no name, so the sheet and its cards show its short name in its place. Give it a name.' });
         if (!KINDS[f.kind]) errs.push({ prop: 'kind', message: 'Pick a kind.' });
         if (errs.length) errorsById[f.id] = errs;
     });
@@ -388,6 +391,8 @@ function refreshErrors() {
     // 1.6.3 (the review of fields): a list with no short name is said under its own card on the Lists tab too, since the card shows only what is filed
     // under 'list:' and its id, so a press on the line lands on the card's name box. It comes after the loop above, which sets that entry whole
     draft.fields.forEach(function(f) { if (f && f.kind === 'item-list' && typeof f.id === 'string' && !f.key) (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push({ prop: 'label', message: nameSays(f) }); });
+    // 1.6.3: the same for a list whose name was emptied on the Lists tab while its short name stands: said under the card's own name box
+    draft.fields.forEach(function(f) { if (f && f.kind === 'item-list' && typeof f.id === 'string' && f.key && !(typeof f.label === 'string' && f.label.trim())) (warningsById['list:' + f.id] = warningsById['list:' + f.id] || []).push({ prop: 'label', message: 'It has no name, so the sheet and its cards show its short name in its place. Give it a name.' }); });
     var camp0 = getActiveCampaign(), saved = systemOf(camp0), toldI = Object.create(null), hasKey = function(m, l) { return !!m && typeof m === 'object' && !Array.isArray(m) && Object.keys(m).some(function(k) { return k.toLowerCase() === l; }); };
     var valOf = function(m, l) { var out; if (m && typeof m === 'object' && !Array.isArray(m)) Object.keys(m).forEach(function(k) { if (k.toLowerCase() === l) out = m[k]; }); return out; };
     var rnP = typeof renamesOf === 'function' ? renamesOf(saved, draft).picks : [];   // 1.6.2: a label renamed: what holds it follows at Save, and Save drops nothing

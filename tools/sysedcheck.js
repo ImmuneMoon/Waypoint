@@ -1948,6 +1948,14 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             lsSaid.includes('label: Its short name is empty, so Save drops this field. Type its name again and the short name follows, or tick “Short names” at the foot and type one.') && lsSaid.some(x => /Rolls unheld entries/.test(x))
             && !((rLs.e['list:f_M'] || []).some(x => x.prop === 'label')) && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("'sys-item-name', 'sys-list-name']"),
             j([lsSaid, rLs.e['list:f_M'] || []]));
+        // a field or a list whose name was emptied while its short name stands: the sheet would show the short name, so its empty name is said under Label
+        // (a warning, since Save keeps it), on the Fields tab row and under the Lists card's name box; a named one says nothing
+        const rNn = runQ([{ id: 'f_q', key: 'Might', label: '', kind: 'number' }, { id: 'f_g', key: 'Gear', label: '  ', kind: 'item-list', list: {} }, { id: 'f_k', key: 'Kit', label: 'Kit', kind: 'item-list', list: {} }]);
+        const nnW = 'label: It has no name, so the sheet and its cards show its short name in its place. Give it a name.';
+        check('1.6.3 a field or a list with a short name but no name is said under its name box (refreshErrors, run for real): the sheet would show the short name, so the field row, the list row and the Lists card each say so, and a named list says nothing',
+            j(said(rNn, 'f_q', /^label$/)) === j([nnW]) && j(said(rNn, 'f_g', /^label$/)) === j([nnW]) && ((rNn.w['list:f_g'] || []).map(x => (x.prop || '') + ': ' + x.message)).includes(nnW)
+            && said(rNn, 'f_k', /^label$/).length === 0 && !((rNn.w['list:f_k'] || []).some(x => x.prop === 'label')),
+            j([said(rNn, 'f_q'), said(rNn, 'f_g'), rNn.w['list:f_g'] || []]));
         // the review of fields: the validator counts lines of Typing it fills in the cleaned field, so its fill.N is turned back into the draft line's place
         const rFm = runQ([{ id: 'f_w', key: 'Note', label: 'Note', kind: 'text' }, { id: 'f_h2', key: 'Height2', label: 'Height2', kind: 'number', fills: [{ f: '', formula: '1' }, { f: 'f_w', formula: '2' }] }]);
         const fmSaid = said(rFm, 'f_h2', /^fill/);

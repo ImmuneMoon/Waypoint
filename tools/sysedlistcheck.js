@@ -601,14 +601,14 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         fresh(); const gmOnlyP = opF(gS, { op: 'add', defId: 'i_lo', rowId: 'w_1', in: 'w_s' }, { player: true, view: pS }); fresh(); const gmOnlyG = opF(gS, { op: 'add', defId: 'i_lo', rowId: 'w_1', in: 'w_s' });
         fresh(); const plainN = [opF(gN, { op: 'add', defId: 'i_hi', rowId: 'w_2', in: 'w_s' }, { player: true, view: pN }), opF(gN, { op: 'setQty', rowId: 'w_2', qty: 4 }, { player: true, view: pN })];
         const ops = J(stepsA) === J(['ok', 'value: Too big for that grip.', 'value: Too big for that grip.', 'ok', 'value: Too big for that grip.', 'ok told: Too big for that grip.']) && rowsA === J(['w_1:2', 'w_3:1'])
-            && knack0 === 'value: Too big for that grip.' && words === 'value: Big scope does not fit Sling: it needs Row.Grip <= Host.Grip.' && noView === 'That part does not fit there.'
+            && knack0 === 'value: Too big for that grip.' && words === 'value: Big scope does not fit Sling.'   /* 1.6.3: never the formula, moved on purpose */ && noView === 'That part does not fit there.'
             && gmOnlyP === 'ok' && gmOnlyG === 'ok told: No.' && J(plainN) === J(['ok', 'ok']);
         fresh(); const ent = (S.partFitEntry(pA, chF, 'f_m', 'w_s', { id: 'i_hi', name: 'Big scope', category: 'Mod', stats: { Grip: 3 } }, F, true) === 'Too big for that grip.') && S.partFitEntry(pA, chF, 'f_m', 'w_s', { id: 'i_lo', name: 'Small scope', stats: { Grip: 1 } }, F, true) === ''
             && S.partFitEntry(pA, chF, 'f_m', 'w_none', { id: 'i_hi', name: 'Big scope', stats: { Grip: 3 } }, F, true) === '' && S.partFitEntry(pN, chF, 'f_m', 'w_s', { id: 'i_hi', name: 'Big scope', stats: { Grip: 3 } }, F, true) === '' && S.partFitEntry(gS, chF, 'f_m', 'w_s', { id: 'i_lo', name: 'Small scope', stats: { Grip: 1 } }, F, false) === 'No.';
         const vA = S.validateSystem(gA, F), vS = S.validateSystem(gS, F), vU = S.validateSystem(cleanSystem(mkFi({ from: 'f_m', fitIf: 'Row.Grip <= Host.Nope' }), { F, gmView: true }), F);
         const val = vA.errors.length === 0 && vA.warnings.length === 0 && vS.errors.length === 0 && vS.warnings.some(w => w.prop === 'list.fitif' && /the players’ view drops it, so their parts are not judged by it/.test(w.message)) && vU.errors.some(e => e.prop === 'list.fitif' && /Unknown name "Host\.Nope"/.test(e.message));
         const shF = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), pkF = fs.readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');
-        const wired = require('./checkkit').part('sysedlist.js').includes("pfW.appendChild(document.createTextNode('Fits where ')); pfW.appendChild(pfI);") && require('./checkkit').part('sysedtabs.js').includes("else if (c.indexOf('sys-list-partsfitif') >= 0) { if (lsc.parts) { var pfv = String(t.value || '').trim(); if (pfv) lsc.parts.fitIf = pfv.slice(0, LIMITS.formula); else delete lsc.parts.fitIf; } }")
+        const wired = require('./checkkit').part('sysedlist.js').includes("pfW.appendChild(document.createTextNode('Fits where ')); pfW.appendChild(pfI);") && require('./checkkit').part('sysedtabs.js').includes("else if (c.indexOf('sys-list-partsfitif') >= 0) { if (lsc.parts) { var pfv = String(t.value || '').trim(), pfWas = typeof lsc.parts.fitIf === 'string' && !!lsc.parts.fitIf.trim(); if (pfv) lsc.parts.fitIf = pfv.slice(0, LIMITS.formula); else delete lsc.parts.fitIf; if (pfv && !pfWas && !(typeof lsc.parts.fitIfSays === 'string' && lsc.parts.fitIfSays.trim())) lsc.parts.fitIfSays = PART_FIT_WORDS;")   /* 1.6.3: its Refused with starts filled, moved on purpose */
             && shF.includes("pickerInto(add, (sysI && sysI.items) || [], fit, partsL, fitOf)") && shF.includes("if (typeof res.fitSays === 'string' && res.fitSays) toast(") && (shF.match(/fit: partIn && typeof partFitEntry === 'function' \? function\(e\)/g) || []).length === 2
             && pkF.includes("function cant(x) { return !st.opts.gm && ((missOf(x).length > 0 && !warnOf(x)) || !!fitOf(x)); }");   // 1.6.2 (167 C): needs that only warn gray nothing (moved on purpose)
         check('1.6.0 Fits where (the core handbook session\'s ask 18): a list\'s parts.fitIf, a formula with no dice read with the part\'s own names (Row.*), its would-be host\'s (Host.*) and the character\'s, trimmed and kept with its words (fitIfSays) the same in both views and a fixed point; one that rolls dice or does not parse dropped, words alone none, and one that reads a GM-only value kept for the GM and dropped from the players\' view; a list without it key for key as before. Judged where a part comes to a host: a player\'s add, a raised count and a row of their own made as a part refused in its words, else words naming the part, the host and the formula, with no view words that name nothing; the character\'s own names count; the GM\'s hand passes and is told (fitSays); a player is never held back by a formula their view does not hold; partFitEntry says the same for an entry before it is a row; the validator reads it with Row.* and Host.* and warns where it reads a GM-only value; the Lists tab\'s box, its handler, the pickers and the GM\'s notice wired',
@@ -984,6 +984,129 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('gap 4: what the option\u2019s picks write reaches the Lists tab\u2019s box, which reads every option back as it stood, the new one too, and Save keeps it',
             !!parse && J(parse({ value: text0 }, LIMITS)) === J(optsIn) && rows0[3].name === 'Skills.swim.FreeStyle.Target' && back[3].name === 'Skills.swim.FreeStyle.Target' && back[3].label === 'Iron'
             && sG2.fields[1].list.stats[0].opts[3].name === 'Skills.swim.FreeStyle.Target' && validateSystem(sG2, F).errors.length === 0 && lists.map(l => l.key).join() === 'Skills,Weapons', J([back, lists.map(l => l.key)]));
+    }
+    {   // 1.6.3 (Fulllion's rulings of 2026-11-20: "if there's other gaps where a ruling or field is dependent on another, and the system doesn't require
+        // that other field to be filled then that should be fixed", "it makes sense to have fields be required when other fields depend on them", "none isn't
+        // a good default substitution"): the Lists tab's boxes that another box depends on start filled, and an emptied one is said under the list as a
+        // fault that holds no Save. Each part below runs the real code: the input handlers' lines of sysedtabs.js, the boxes of sysedbox.js, and
+        // refreshErrors with the two helpers of sysederr.js it asks. Invented data (no game named)
+        const J = JSON.stringify, NLx = String.fromCharCode(10), tabsP = kit.part('sysedtabs.js');
+        // (a) a needs box's words start filled as the needs are first typed, and go with them where untouched (sysedtabs.js needsWordsFollow, run for real)
+        const nwSrc = kit.cut('sysedtabs.js', 'var STAND_OFF_WORD', 'function onInput(');
+        const NW = new Function(nwSrc + NLx + 'return { follow: needsWordsFollow, words: NEEDS_WORDS, figs: listRollFigs, stand: STAND_OFF_WORD, part: PART_FIT_WORDS };')();
+        const rowOf = (rowCls, boxCls) => { const bx = { value: '' }; return { bx: bx, t: { closest: s => s === rowCls ? { querySelector: q => q === '.' + boxCls ? bx : null } : null } }; };
+        const nwRun = (cls, o, was) => { const w = NW.words[cls], r = rowOf(w[1], w[0]); r.bx.value = typeof o.needsText === 'string' ? o.needsText : ''; NW.follow(o, was, r.t, cls); return [J(o), r.bx.value]; };
+        const nwOut = Object.keys(NW.words).map(cls => [cls, nwRun(cls, { needs: 'Row.Charge > 0' }, false), nwRun(cls, { needs: 'Row.Charge > 0', needsText: 'Out of fuel' }, false), nwRun(cls, { needsText: NW.words[cls][2] }, true), nwRun(cls, { needsText: 'Out of fuel' }, true), nwRun(cls, { needs: 'Row.Charge > 1' }, true)]);
+        check('1.6.3 a needs box’s words (the switch, a load, a chamber, a list roll) start filled as its needs are first typed, in the draft and in the box beside it; words typed by hand are never touched; emptied needs take the words they filled, and nothing is filled again once its words were emptied by hand',
+            nwOut.length === 4 && nwOut.every(([cls, fill, typed, gone, kept, again]) => {
+                const w = NW.words[cls][2]; return fill[0] === J({ needs: 'Row.Charge > 0', needsText: w }) && fill[1] === w && typed[0] === J({ needs: 'Row.Charge > 0', needsText: 'Out of fuel' }) && gone[0] === J({}) && gone[1] === '' && kept[0] === J({ needsText: 'Out of fuel' }) && again[0] === J({ needs: 'Row.Charge > 1' }); })
+            && J(Object.values(NW.words).map(w => w[2])) === J(['This cannot be switched on now.', 'This cannot load now.', 'This cannot take a round now.', 'This cannot be used now.']), J(nwOut));
+        // ... and the handlers' own lines ask it (each line of onInput run for real on a draft list)
+        const lineOf = start => { const a = tabsP.indexOf(start); return a < 0 ? '' : tabsP.slice(a, tabsP.indexOf(NLx, a)); };
+        const handle = (start, cls, lsp, value, rowCls, boxCls) => { const r = rowOf(rowCls, boxCls); r.t.value = value; r.t.closest = (s => s === rowCls ? { querySelector: q => q === '.' + boxCls ? r.bx : null, dataset: { ri: '0' } } : null);
+            new Function('lcc', 't', 'lsp', 'LIMITS', 'needsWordsFollow', 'if (false) {} ' + (lineOf(start) || 'else throw new Error("no line");') + NLx + 'else return;')(cls + ' field', r.t, lsp, LIMITS, NW.follow); return [J(lsp), r.bx.value]; };
+        const hOut = [
+            handle("        else if (lcc.indexOf('sys-list-swneeds') >= 0", 'sys-list-swneeds', { on: { label: 'On' } }, 'Row.Charge > 0', '.sys-list-on', 'sys-list-swwords'),
+            handle("        else if (lcc.indexOf('sys-list-loadneeds') >= 0", 'sys-list-loadneeds', { load: { from: 'f_m', ct: 'ch' } }, 'Row.Kind = 1', '.sys-list-load', 'sys-list-loadneedstext'),
+            handle("        else if (lcc.indexOf('sys-list-chamberneeds') >= 0", 'sys-list-chamberneeds', { chamber: { from: 'f_m', cap: 1 } }, 'Row.Kind = 1', '.sys-list-chamber', 'sys-list-chamberneedstext')];
+        check('1.6.3 the Lists tab’s needs handlers (sysedtabs.js onInput, the switch’s, a load’s and a chamber’s lines run for real) store the needs and fill the words beside them',
+            hOut[0][0] === J({ on: { label: 'On', needs: 'Row.Charge > 0', needsText: 'This cannot be switched on now.' } }) && hOut[0][1] === 'This cannot be switched on now.'
+            && hOut[1][0] === J({ load: { from: 'f_m', ct: 'ch', needs: 'Row.Kind = 1', needsText: 'This cannot load now.' } }) && hOut[2][0] === J({ chamber: { from: 'f_m', cap: 1, needs: 'Row.Kind = 1', needsText: 'This cannot take a round now.' } }), J(hOut));
+        // (b) a test picked for Rolls by starts on the row's first figure, so its formula is written at once (the rolltest line, run for real)
+        const rtLine = lineOf("            else if (lcc.indexOf('sys-list-rolltest') >= 0 || lcc.indexOf('sys-list-rollof') >= 0)");
+        const rtRun = (lsp, cls, value) => { new Function('lcc', 't', 'rD', 'lsp', 'draft', 'listRollFigs', 'cleanTests', 'testFormula', 'markDirty', 'renderLists', 'patchErrors', 'if (false) {} ' + (rtLine || 'else throw new Error("no line");') + NLx + 'else return;')(cls, { value: value }, lsp.rolls[0], lsp, { tests: [{ key: 'T1', label: 'Check', shape: 'under', dice: '3d6' }] }, NW.figs, S.cleanTests, S.testFormula, () => {}, () => {}, () => {}); return lsp.rolls[0]; };
+        const rt1 = rtRun({ stats: [{ key: 'Kind', kind: 'pick' }, { key: 'Skill', label: 'Skill' }], cols: [{ key: 'Total' }], rolls: [{ label: 'Use', formula: '' }] }, 'sys-list-rolltest', 'T1');
+        const rt2 = rtRun({ stats: [{ key: 'Skill' }, { key: 'Edge' }], rolls: [{ label: 'Use', test: 'T1', of: 'Edge' }] }, 'sys-list-rolltest', 'T1');
+        const rt3 = rtRun({ stats: [{ key: 'Kind', kind: 'pick' }], rolls: [{ label: 'Use' }] }, 'sys-list-rolltest', 'T1');
+        check('1.6.3 Rolls by: a test picked starts on the row’s first number stat or column, as the with list offers them, and its formula is written; a figure already picked stays; a list with none leaves it for the fault to say',
+            rt1.test === 'T1' && rt1.of === 'Skill' && /Row\.Skill/.test(rt1.formula || '') && rt2.of === 'Edge' && rt3.test === 'T1' && !('of' in rt3)
+            && J(NW.figs({ stats: [{ key: 'A', kind: 'text' }, { key: 'B' }], cols: [{ key: 'C' }] })) === J(['B', 'C']), J([rt1, rt2, rt3]));
+        // (c) what refreshErrors says of an emptied box, with the box it names (the real refreshErrors, its two helpers and the cleaner)
+        const reQ = require('./checkkit').cutEnd('sysederr.js', '\nfunction refreshErrors() {').replace(/\n$/, '');
+        const runQ = draft => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'cleanFieldUnit', 'cleanFieldLock', 'cleanFormulaText', 'hasDice', 'standSays', 'modsIfOk', 'FEEDS_MAX',
+            'var errorsById = {}, warningsById = {};\n' + reQ + '\nrefreshErrors(); return { e: errorsById, w: warningsById };')(draft, () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => ({ chars: {} }), () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS, S.cleanFieldUnit, S.cleanFieldLock, S.cleanFormulaText, S.hasDice,
+            new Function(kit.cut('sysedtabs.js', '// [bodycheck:standsays-start]', '// [bodycheck:standsays-end]') + NLx + 'return standSays;')(), S.modsIfOk, S.FEEDS_MAX);
+        const mag = { id: 'f_mag', key: 'Mags', label: 'Mags', kind: 'item-list', list: { lvl: { label: 'Rounds', min: 0 }, stats: [{ key: 'Cal', label: 'Caliber' }] } };
+        const gun = { id: 'f_gun', key: 'Guns', label: 'Guns', kind: 'item-list', list: {
+            stats: [{ key: 'Cal', label: 'Caliber' }, { key: 'Slots', label: 'Slots' }, { key: 'Tone', label: 'Tone', kind: 'pick', opts: [{ label: 'Steel' }] }], counters: [{ key: 'ch', label: 'Charge' }, { key: 'f2', label: 'Feed' }],
+            on: { label: 'On', needs: 'Row.ch > 0', icon: 'icon:bolt' },
+            load: { from: 'f_mag', ct: 'ch', needs: 'Row.ch >= 0', by: 'Cal' },
+            feeds: [{ key: 'Cell', from: 'f_mag', ct: 'f2', by: 'Nope', to: 'Cal' }],
+            chamber: { from: 'f_mag', cap: 1, needsText: 'No round fits.' },
+            rolls: [{ label: 'Shoot', formula: '3d6 <= 10', needs: 'Row.ch > 0', dtype: 'stun', test: 'T1' }, { label: 'Fix', apply: [{ s: 'Slots', formula: '1', add: true }], needsText: 'Not jammed', hideOff: true }],
+            parts: { from: 'f_mag', fitIf: 'Row.Cal = Host.Cal', fitMore: [{ 'if': 'Row.Cal > 0' }, { says: 'Too big' }], caps: [{ cats: [], by: '' }] },
+            badges: [{ words: 'Jammed', 'if': '' }, { words: '', 'if': 'Row.ch = 0' }, { words: 'Hot', 'if': '1d6 > 3' }],
+            onTrade: [{ s: 'Cal', to: 'Cal' }, { s: 'Tone' }],
+            lay: { from: 'f_mag', rules: [{ cats: [], each: 'row' }] },
+            look: { by: 'Tone' } } };
+        const outQ = runQ({ name: 'D', rolls: [], items: [], tests: [{ key: 'T1', label: 'Check', shape: 'under', dice: '3d6' }], sheet: { sections: [] }, fields: [mag, gun] }), says = (outQ.e['list:f_gun'] || []).map(x => [x.prop || '', x.message]);
+        const want = [
+            ['list.swwords', 'Needs to switch on: Its words is empty. Say in plain words why a row cannot be switched on now, or a player is told only Not now.'],
+            ['list.swicon', 'The switch’s icon shows only with a word while off, so Save drops the icon. Write a word while off to keep it.'],
+            ['list.loadwords', 'Loads only where: Its words is empty. Say in plain words why a load is refused, or a player is told only Not now.'],
+            ['list.chamberwords', 'Chambers only where has words but no test beside them, so Save drops its words.'],
+            ['list.loadmatch', 'Matched by needs a stat of this list and a stat of the list it loads from. Save drops it, and the row loads anything its categories take.'],
+            ['list.feedmatch.0', 'Feed 1: Matched by names no stat of this list. Save drops it, and the row loads anything its categories take.'],
+            ['list.needstext.0', 'Roll 1, Shoot: the words for the grayed button are empty. Say in plain words why it cannot be used now, or a player is told only Not now.'],
+            ['', 'Roll 1, Shoot: a damage type needs Damage ticked, so Save drops it.'],
+            ['', 'Roll 1, Shoot: Rolls by needs the row’s figure it is made with. Pick it, or Save drops the test and the roll keeps its own formula.'],
+            ['list.needstext.1', 'Action 2, Fix: the words for the grayed button need Needs beside them, so Save drops the words.'],
+            ['list.hideoff.1', 'Action 2, Fix: Hidden until it can be used needs Needs beside it, so Save drops the tick.'],
+            ['list.layrcats.0', 'By category: no rule names a category, so Save drops them all and this list lays a row for every row of Mags.'],
+            ['list.fitwords', 'Fits where: Refused with is empty. A player it stops is told only that the part does not fit.'],
+            ['list.pfitwords.0', 'Fits where, rule 2: Refused with is empty. A player it stops is told only that the part does not fit.'],
+            ['list.pfit.1', 'Fits where, rule 3 has words but no test, so Save drops it.'],
+            ['list.pcap.0', 'Holds by kind, line 1 counts nothing yet. Name its categories, or pick the value it counts, or Save drops the line.'],
+            ['list.pcap.0', 'Holds by kind, line 1 says no how many yet. Pick the row’s stat or write a formula, or Save drops the line.'],
+            ['list.badge.0', 'Badge 1 (Jammed) has no Shown where, so it never shows and Save drops it. Say when it shows.'],
+            ['list.badgewords.1', 'Badge 2 says nothing, so Save drops it. Give it words.'],
+            ['list.trade', 'When traded, line 1 moves its stat to nothing. Pick another number stat it moves to, or Save drops the line.'],
+            ['list.trade', 'When traded, line 2 names no number stat of this list, so Save drops it.']];
+        const cleanSaid = [['list.badge.2', 'Badge 3’s Shown where rolls dice, and it is read with none, so Save drops the badge.'], ['list.lkshades', 'Shade by is picked, but Shades holds no line Save keeps, so no row takes a shade. Give each value of that stat a line, such as Steel = #8a8f99.']];
+        check('1.6.3 refreshErrors says each emptied box another box depends on, under the list, in plain words and on the box it names (the switch’s words and icon, a load’s and a chamber’s words, Matched by, a roll’s and an action’s words and Hidden tick, a damage type off Damage, Rolls by, a rule with no category, Fits where’s words, Holds by kind, badges, When traded, Shade by)',
+            want.every(w => says.some(s => s[0] === w[0] && s[1] === w[1])) && cleanSaid.every(w => says.some(s => s[0] === w[0] && s[1] === w[1])), J(says));
+        // a list that names everything its boxes depend on is said nothing of them
+        const fullG = JSON.parse(J(gun)), fl = fullG.list; fl.on.needsText = 'No charge.'; fl.on.offLabel = 'Off'; fl.load.needsText = 'Wrong load.'; fl.load.to = 'Cal'; fl.feeds[0].by = 'Cal'; fl.chamber.needs = 'Row.ch >= 0'; fl.rolls[0].needsText = 'Empty.'; fl.rolls[0].dmg = true; fl.rolls[0].of = 'Slots'; fl.rolls[1].needs = 'Row.ch = 0';
+        fl.lay.rules[0].cats = ['Mag']; fl.parts.fitIfSays = 'It does not fit.'; fl.parts.fitMore = [{ 'if': 'Row.Cal > 0', says: 'Too small.' }]; fl.parts.caps = [{ cats: ['Mag'], by: 'Slots' }]; fl.badges = [{ words: 'Jammed', 'if': 'Row.ch = 0' }]; fl.onTrade = [{ s: 'Cal', to: 'Slots' }]; fl.look = { by: 'Tone', shades: [{ v: 'Steel', c: '#8a8f99' }] };
+        const outF = runQ({ name: 'D', rolls: [], items: [], tests: [{ key: 'T1', label: 'Check', shape: 'under', dice: '3d6' }], sheet: { sections: [] }, fields: [mag, fullG] }), saysF = (outF.e['list:f_gun'] || []).map(x => x.message);
+        check('1.6.3 ... and a list whose every such box is filled is said none of them, and the cleaner keeps what each one fills',
+            !saysF.some(m => /is empty|need Needs|needs Needs|Matched by|Damage ticked|Rolls by|names no category|says nothing|has no Shown where|counts nothing|no how many|moves its stat to nothing|holds no line Save keeps|icon shows only/.test(m)), J(saysF));
+        // Keeps paying, which Save drops whole, says its first cause (listCleanSays, run in the real refreshErrors)
+        const upOf = up => { const g = { id: 'f_up', key: 'Gear', label: 'Gear', kind: 'item-list', list: { on: { label: 'On' }, upkeep: up } }, o = runQ({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10' }, g] }); return (o.e['list:f_up'] || []).filter(x => /Keeps paying/.test(x.message)).map(x => [x.prop, x.message]); };
+        const upS = [upOf({ pool: 'f_gone', amt: '1', each: 'turn' }), upOf({ pool: 'f_hp', amt: '', each: 'turn' }), upOf({ pool: 'f_hp', amt: '1d6', each: 'turn' }), upOf({ pool: 'f_hp', amt: '2', each: 'turn' })];
+        check('1.6.3 Keeps paying, dropped whole by Save, says why under the list: no pool, no amount, an amount with dice; and nothing where it is kept',
+            J(upS[0]) === J([['list.uppool', 'Keeps paying needs a pool to pay from. Pick one, or Save drops Keeps paying.']]) && J(upS[1]) === J([['list.upamt', 'Keeps paying needs what it pays, a figure with no dice such as 3. Save drops Keeps paying.']])
+            && J(upS[2]) === J([['list.upamt', 'Keeps paying pays a figure with no dice, so Save drops Keeps paying.']]) && upS[3].length === 0, J(upS));
+        // (d) the boxes start filled: + Kind takes the first number stat, + Badge has words, a further Fits where rule's Refused with follows its test, and When traded offers no move to the line's own stat
+        const mkD = (tag, cls) => { const e = { tag, className: cls || '', kids: [], title: '', value: '', placeholder: '', disabled: false, on: {}, appendChild(k) { e.kids.push(k); return k; }, addEventListener(t, fn) { e.on[t] = fn; }, focus() { e.focused = true; }, select() { e.picked = true; }, click() { if (e.on.click) e.on.click({ stopPropagation() {} }); },
+            querySelectorAll(sel) { const c = sel.replace(/^\./, ''), acc = [], w = n => (n.kids || []).forEach(k => { if ((' ' + k.className + ' ').includes(' ' + c + ' ')) acc.push(k); w(k); }); w(e); return acc; } };
+            Object.defineProperty(e, 'textContent', { get() { return e._t || ''; }, set(v) { e._t = String(v); e.kids = []; } }); return e; };
+        const inpD = (cls, v, t, ph) => Object.assign(mkD('input', cls), { value: v, title: t, placeholder: ph });
+        const selD = (cls, opts, cur, tip) => { const s = mkD('select', cls); s.title = tip; opts.forEach(o => { const op = mkD('option'); op.value = o[0]; op.textContent = o[1]; op.selected = o[0] === cur; s.appendChild(op); }); s.value = cur; return s; };
+        const boxSrc = kit.cut('sysedbox.js', '// 1.6.2: what a trade does to a row of this list', '// [systemcheck:partcaps-end]') + NLx + kit.cut('sysedbox.js', '// [systemcheck:badgebox-start]', '// [systemcheck:badgebox-end]');
+        const BX = new Function('el', 'input', 'select', 'numInput', 'markDirty', 'patchErrors', 'LIMITS', 'PART_CAPS', 'PART_FITS', 'BADGE_MAX', 'document', 'draft', boxSrc + NLx + 'return { caps: partCapsBox, fits: partFitsBox, badges: badgeBox, trade: tradeRulesBox };')(
+            mkD, inpD, selD, (c, v) => inpD(c, v), () => {}, () => {}, LIMITS, S.PART_CAPS, S.PART_FITS, S.BADGE_MAX, { createTextNode: t => ({ textContent: t }) }, { fields: [] });
+        const spC = { stats: [{ key: 'Kind', kind: 'pick' }, { key: 'Grip', label: 'Grip' }], parts: { from: 'f_mag' } }, bC = BX.caps(spC); bC.querySelectorAll('.sys-pcap-add')[0].click();
+        const spB = { badges: [{ words: 'A', 'if': '1' }] }, bB = BX.badges(spB); bB.querySelectorAll('.sys-badge-add')[0].click(); const bW = bB.querySelectorAll('.sys-badge-words');
+        const spP = { parts: { from: 'f_mag', fitMore: [{ 'if': '' }] } }, bP = BX.fits(spP), pI = bP.querySelectorAll('.sys-pfit-if')[0], pS = bP.querySelectorAll('.sys-pfit-says')[0];
+        pI.value = 'Row.Cal > 0'; pI.on.input({ stopPropagation() {} }); const pFill = [J(spP.parts.fitMore[0]), pS.value]; pI.value = ''; pI.on.input({ stopPropagation() {} }); const pGone = [J(spP.parts.fitMore[0]), pS.value];
+        const spT = { stats: [{ key: 'Cal', label: 'Caliber' }, { key: 'Wear', label: 'Wear' }], onTrade: [{ s: 'Cal', to: '' }] }, bT = BX.trade(spT), toS = bT.querySelectorAll('.sys-trade-to')[0];
+        const spT1 = { stats: [{ key: 'Cal', label: 'Caliber' }], onTrade: [{ s: 'Cal' }] }, bT1 = BX.trade(spT1), how1 = bT1.querySelectorAll('.sys-trade-how')[0];
+        check('1.6.3 a new line or row starts filled where a sensible value exists: Holds by kind’s How many on the list’s first number stat, a badge’s words (picked, so typing replaces them), a further Fits where rule’s Refused with as its test is first typed (and gone with it); When traded never offers the line’s own stat as its target, shows an empty one as Pick a stat, and offers no move on a list of one number stat',
+            J(spC.parts.caps) === J([{ cats: [], by: 'Grip' }]) && spB.badges[1].words === 'Badge 2' && bW[1].value === 'Badge 2' && bW[1].picked === true
+            && pFill[0] === J({ 'if': 'Row.Cal > 0', says: 'That part does not fit there.' }) && pFill[1] === 'That part does not fit there.' && pGone[0] === J({}) && pGone[1] === ''
+            && J(toS.kids.map(o => o.value)) === J(['', 'Wear']) && toS.value === '' && J(how1.kids.map(o => o.value)) === J(['clear', 'v']), J([spC.parts.caps, spB.badges, pFill, pGone, toS.kids.map(o => o.value), how1.kids.map(o => o.value)]));
+        // (e) the readers: a refusal never says its formula (systemcore rollNeedsSays and partFitSays), the words boxes' tooltips no longer promise it, and the
+        // list's own card draws a damage type and a kind only beside Damage or a stray value, starts a new Laid from rule on a category, and its Help says the switch's words are required
+        const lp = kit.part('sysedlist.js');
+        check('1.6.3 a refusal with no words of its own says Not now and never its formula; the Lists tab no longer promises the formula, draws a damage type only beside Damage or a stray value, and a new rule of Laid from starts on a category',
+            S.rollNeedsSays({ needs: 'Row.ch > 0' }) === 'Not now.' && S.rollNeedsSays({ needs: 'Row.ch > 0', needsText: 'Empty.' }) === 'Empty.' && !lp.includes('blank: Not now: it needs and the formula') && !lp.includes("'Out of charges'")
+            && lp.includes("if (rr.dmg === true || (typeof rr.dtype === 'string' && rr.dtype.trim())) { var rdt = input('sys-list-rolldtype field',") && lp.includes("if ((dkLOn && rr.dmg === true) || rr.dkind) {") && lp.includes("lyS.rules.push({ cats: layCatFirst(lyS), each: 'row' })")
+            && /Its words say why not, and must be filled in\./.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')), lp.indexOf('layCatFirst'));
+        const lcLine = (lp.match(/\n\s*var layCatFirst = function\(ly\) \{[^\n]*\n[^\n]*\n/) || [''])[0];
+        const LCF = d => new Function('draft', lcLine + NLx + 'return layCatFirst;')(d);
+        check('1.6.3 a new rule of Laid from starts on the source list’s first category, else the first category an item of the system holds, else none (its fault then says so)',
+            !!lcLine && J(LCF({ fields: [{ id: 'f_s', list: { cats: [' Limb ', 'Head'] } }], items: [] })({ from: 'f_s' })) === J(['Limb']) && J(LCF({ fields: [{ id: 'f_s', list: {} }], items: [{ category: 'Gear' }] })({ from: 'f_s' })) === J(['Gear']) && J(LCF({ fields: [], items: [] })({ from: 'f_s' })) === J([]), lcLine.slice(0, 80));
     }
     await T.finish();
 })();

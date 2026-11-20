@@ -293,8 +293,8 @@ const j = v => JSON.stringify(v);
         const wPr = S.applyRowOp(wG, wc(), 'f_w', wq, F, { player: true, view: wP }), wH = S.applyRowOp(wG, wc(), 'f_w', wq, F, {});
         const saidP = [gP, gN, lPr, wPr].map(r => r.msg || '').join('|');
         check('the review of 1.5.9\'s fold, needs a player cannot read (systemcore playerNeeds, run for real with the GM\'s system as the host holds it): a player\'s own chamber, load and switch-on are judged by the needs of their own view, so Chambers only where, Loads only where and a switch\'s needs that read a GM-only value never hold them back on the host, as their own app and sheet already read it, and the GM-only formula never reaches them in a refusal; the GM\'s hand is still judged by the list\'s own needs and told them; a player with no view at hand is held back by them, fail closed, in words that name nothing of them',
-            gP.ok && !gH.ok && gH.reason === 'needs' && gH.msg === 'Not now: it needs Sec > 0' && !gN.ok && gN.reason === 'needs' && gN.msg === 'Not now.'
-            && lPr.ok && !lH.ok && lH.reason === 'needs' && lH.msg === 'Not now: it needs Sec > 0' && wPr.ok && wH.ok && wH.onNeeds === 'Not now: it needs Sec > 0' && !/Sec/.test(saidP),
+            gP.ok && !gH.ok && gH.reason === 'needs' && gH.msg === 'Not now.'   /* 1.6.3: a refusal with no words of its own never says its formula, moved on purpose */ && !gN.ok && gN.reason === 'needs' && gN.msg === 'Not now.'
+            && lPr.ok && !lH.ok && lH.reason === 'needs' && lH.msg === 'Not now.' && wPr.ok && wH.ok && wH.onNeeds === 'Not now.' && !/Sec/.test(saidP),
             j([gP, gH, gN, lPr.ok, lH, wPr.ok, wH.onNeeds, saidP]));
         const shCh = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8');
         check('1.5.9 Chambers only where on the sheet (sheets.js, pinned): the row\'s verdict is handed to chamberCtl on a list row, a print and the HUD, and in a rich table, and Loads only where\'s to loadCtl there too',

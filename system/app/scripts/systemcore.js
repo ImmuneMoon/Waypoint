@@ -956,11 +956,12 @@ function rollNeedsFails(entry, vars, F, more, sheet) {
 }
 function rollNeedsOk(entry, vars, F, more) { return rollNeedsFails(entry, vars, F, more) === null; }
 // The words a refusal says, as a list roll's. 1.6.2: handed the names it is judged with, the words of the first that fails (a line's own words,
-// never its formula); without them, or where the single needs fails, as ever
+// never its formula); without them, or where the single needs fails, the entry's own words, else Not now. The formula is never said: a switch, a
+// load, a chamber, a roll and an action all ask this, and the System editor starts each words box filled and says an emptied one under its list
 function rollNeedsSays(entry, vars, F, more) {
     if (isObj(entry) && typeof vars === 'function') { var fl = rollNeedsFails(entry, vars, F, more); if (fl && fl.at >= 0) return fl.says; }
     if (isObj(entry) && !(typeof entry.needs === 'string' && entry.needs) && Array.isArray(entry.needsWhy) && entry.needsWhy.length && isObj(entry.needsWhy[0]) && entry.needsWhy[0].says) return entry.needsWhy[0].says;
-    return (isObj(entry) && typeof entry.needsText === 'string' && entry.needsText) || ('Not now: it needs ' + (isObj(entry) ? entry.needs : ''));
+    return (isObj(entry) && typeof entry.needsText === 'string' && entry.needsText) || 'Not now.';   // 1.6.3 (Fulllion's rulings of 2026-11-20): never the formula
 }   // the words a refusal says, as a list roll's
 // 1.5.9 (docs/BOOK_ES_ET_PLAN.md section 3; the book: medical items are applied "to oneself or an adjacent ally"): a roll or an apply action, the
 // system's or a list's, may carry to: 'near', Applies to: The user or an adjacent character. Only that word, the same in both views, never on the
@@ -4695,7 +4696,7 @@ function partsFullSays(rm) { return rm.cap ? rm.name + ' holds ' + rm.cap + (rm.
 // alone): a list's parts may say fitIf, a formula with no dice read with the PART's own names as Row.*, its would-be host's as Host.* (hostVal)
 // and the character's. Judged where a part comes to a host (the add, the custom op with in, a raised count), beside partsCapSays, on the host
 // and on a player's own app (partFitEntry, which a player's app and the pickers ask before the row exists, reading the part's Row.* through its
-// definition). A player is refused in fitIfSays' words, else words that name the part, its host and the formula; the GM's hand passes and is
+// definition). A player is refused in fitIfSays' words, else words that name the part and its host (1.6.3: never the formula); the GM's hand passes and is
 // told (extra.fitSays), as At most at a level tells it. A player's change is judged by their own view's fitIf (playerNeeds' rule: one that reads
 // a GM-only value is not in it, so it never holds them back); with no view, the GM's, in words that name nothing of it. '' where it fits
 // 1.6.2: Fits where may hold further rules (fitMore: { if, says }), so that each thing that stops a part is said in its own words; a part must meet them all,
@@ -4732,7 +4733,7 @@ function partFitSays(sys, char, ph, pf, prow, F, opts) {
         if (blind) return 'That part does not fit there.';
         if (rows[i].says) return rows[i].says;
         var pd = rowDef(sys, row), hd = rowDef(sys, ph.row);
-        return ((pd && pd.def && typeof pd.def.name === 'string' && pd.def.name) || 'That part') + ' does not fit ' + ((hd && hd.def && typeof hd.def.name === 'string' && hd.def.name) || 'that row') + ': it needs ' + rows[i]['if'] + '.';
+        return ((pd && pd.def && typeof pd.def.name === 'string' && pd.def.name) || 'That part') + ' does not fit ' + ((hd && hd.def && typeof hd.def.name === 'string' && hd.def.name) || 'that row') + '.';   // 1.6.3: never the formula
     }
     return '';
 }

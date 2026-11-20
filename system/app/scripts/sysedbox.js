@@ -417,7 +417,7 @@ function swWordsBox(row, sw) {
     var ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var off = input('sys-swoff field', typeof sw.offLabel === 'string' ? sw.offLabel : '', 'Its word while off, such as Ready beside Readied. With one the switch is a button that says what the row is now, filled while on', 'Word while off (optional)'); off.maxLength = LIMITS.label;
     off.addEventListener('input', function() { var v = off.value.slice(0, LIMITS.label); if (v.trim()) sw.offLabel = v; else delete sw.offLabel; ch(); });
-    var ic = input('sys-swicon field', typeof sw.icon === 'string' ? sw.icon : '', 'An icon on the switch\u2019s button, a bundled icon or an emoji. Empty: a check. Only with a word while off', 'Icon');
+    var ic = input('sys-swicon field', typeof sw.icon === 'string' ? sw.icon : '', 'An icon on the switch\u2019s button, a bundled icon or an emoji. Empty: a check. It shows only with a word while off, and Save drops it without one', 'Icon');
     ic.addEventListener('input', function() { var v = ic.value.trim().slice(0, 32); if (v) sw.icon = v; else delete sw.icon; ch(); });
     row.appendChild(off); row.appendChild(ic); if (typeof glyphButton === 'function') row.appendChild(glyphButton(ic));
 }
@@ -483,7 +483,7 @@ function tileStatesBox(sp) {
         box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'States of a tile')); var list = sp.tiles && Array.isArray(sp.tiles.states) ? sp.tiles.states : [];
         list.forEach(function(s0, j) {
             var s = s0 && typeof s0 === 'object' ? s0 : {}, rw = el('div', 'sys-flags sys-tstate-row'), txt = function(cls, ph, k, tip) { var i = el('input', 'field ' + cls); i.type = 'text'; i.value = typeof s[k] === 'string' ? s[k] : ''; i.placeholder = ph; i.title = tip; i.spellcheck = false; i.autocomplete = 'off'; i.addEventListener('input', function() { var v = i.value.trim(); if (v) list[j][k] = v; else delete list[j][k]; ch(); }); rw.appendChild(i); };
-            txt('sys-tstate-label', 'Its name', 'label', 'What a tile in this state says, such as Severed'); txt('sys-tstate-if', 'never', 'if', 'When a tile is in this state. The first state that holds is the one it shows');
+            txt('sys-tstate-label', 'Its name', 'label', 'What a tile in this state says, such as Severed'); txt('sys-tstate-if', 'When (required)', 'if', 'When a tile is in this state. The first state that holds is the one it shows. It must be filled in: with none no tile is ever in it');
             var lk = el('select', 'field sys-tstate-look'); [['warn', 'Looks hurt'], ['bad', 'Looks broken'], ['lost', 'Looks out of play']].forEach(function(p) { var o = el('option', null, p[1]); o.value = p[0]; if ((s.shape || 'warn') === p[0]) o.selected = true; lk.appendChild(o); }); lk.title = 'How the tile is drawn beside its words'; lk.addEventListener('change', function() { list[j].shape = lk.value; ch(); }); rw.appendChild(lk);
             if (sp.hang === true) { var fl = el('label', 'sys-check'), fc = el('input'); fc.type = 'checkbox'; fc.checked = s.follows === true; fc.addEventListener('change', function() { if (fc.checked) list[j].follows = true; else delete list[j].follows; ch(); }); fl.appendChild(fc); fl.appendChild(document.createTextNode(' What hangs from it too')); fl.title = 'A tile that hangs from this one is in this state too, so a lost arm takes its hand with it'; rw.appendChild(fl); }
             var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Remove this state'; x.addEventListener('click', function() { list.splice(j, 1); if (!list.length && sp.tiles) { delete sp.tiles.states; if (!Object.keys(sp.tiles).length) delete sp.tiles; } ch(); draw(); }); rw.appendChild(x); box.appendChild(rw);
@@ -526,10 +526,14 @@ function tradeRulesBox(sp) {
     var draw = function() {
         box.textContent = ''; box.appendChild(el('span', 'sys-num-cap', 'When traded')); var list = Array.isArray(sp.onTrade) ? sp.onTrade : [];
         list.forEach(function(t, j) {
-            var rw = el('div', 'sys-flags sys-tradeline'), how = typeof t.to === 'string' ? 'to' : typeof t.v === 'number' ? 'v' : 'clear', s = select('sys-trade-s', nums, t.s, 'The stat of the row'), h = select('sys-trade-how', [['clear', 'is cleared'], ['v', 'is set to'], ['to', 'moves to']], how, 'What becomes of it as the row changes hands');
-            s.addEventListener('change', function() { t.s = s.value; ch(); }); h.addEventListener('change', function() { delete t.to; delete t.v; if (h.value === 'to') t.to = (nums.filter(function(n) { return n[0] !== t.s; })[0] || [''])[0]; if (h.value === 'v') t.v = 0; ch(); draw(); }); rw.appendChild(s); rw.appendChild(h);
+            // 1.6.3 (Fulllion's rulings of 2026-11-20): moves to needs a stat to move to, another number stat of this list. It is offered only where the list
+            // has one (a line already stored as moves to keeps it), its list never holds the line's own stat, and a target that is empty or gone shows as Pick a
+            // stat, never as a stat that only looks picked. What Save drops of a line is said under the list, as a fault of the System editor
+            var rw = el('div', 'sys-flags sys-tradeline'), how = typeof t.to === 'string' ? 'to' : typeof t.v === 'number' ? 'v' : 'clear', others = nums.filter(function(n) { return n[0] !== t.s; }), s = select('sys-trade-s', nums, t.s, 'The stat of the row'), hows = [['clear', 'is cleared'], ['v', 'is set to']]; if (others.length || how === 'to') hows.push(['to', 'moves to']);
+            var h = select('sys-trade-how', hows, how, 'What becomes of it as the row changes hands');
+            s.addEventListener('change', function() { t.s = s.value; if (typeof t.to === 'string' && t.to === t.s) t.to = (nums.filter(function(n) { return n[0] !== t.s; })[0] || [''])[0]; ch(); draw(); }); h.addEventListener('change', function() { delete t.to; delete t.v; if (h.value === 'to') t.to = (nums.filter(function(n) { return n[0] !== t.s; })[0] || [''])[0]; if (h.value === 'v') t.v = 0; ch(); draw(); }); rw.appendChild(s); rw.appendChild(h);
             if (how === 'v') { var nb = numInput('sys-trade-v', t.v, 'What it is set to', '0'); nb.addEventListener('input', function() { var n = Number(nb.value); t.v = isFinite(n) ? n : 0; ch(); }); rw.appendChild(nb); }
-            if (how === 'to') { var d = select('sys-trade-to', nums, t.to, 'The stat its figure moves to. A GM-only stat leaves the next holder unaware of it'); d.addEventListener('change', function() { t.to = d.value; ch(); }); rw.appendChild(d); }
+            if (how === 'to') { var toOk = others.some(function(n) { return n[0] === t.to; }), d = select('sys-trade-to', (toOk ? [] : [['', 'Pick a stat']]).concat(others), toOk ? t.to : '', 'The stat its figure moves to. A GM-only stat leaves the next holder unaware of it'); d.addEventListener('change', function() { t.to = d.value; ch(); }); rw.appendChild(d); }
             var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Take this off'; x.addEventListener('click', function() { list.splice(j, 1); if (!list.length) delete sp.onTrade; ch(); draw(); }); rw.appendChild(x); box.appendChild(rw);
         });
         if (nums.length) { var ad = el('button', 'tool ghost sys-btn', '+ When traded'); ad.type = 'button'; ad.title = 'What becomes of a stat of a row as it changes hands'; ad.disabled = list.length >= 4; ad.addEventListener('click', function() { sp.onTrade = Array.isArray(sp.onTrade) ? sp.onTrade : []; sp.onTrade.push({ s: nums[0][0] }); ch(); draw(); }); box.appendChild(ad); }
@@ -595,12 +599,15 @@ function partCapsBox(sp) {
             lead.concat([cI], isMore, [bS, fI, ifI, lbI, x]).forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
         });
         var ad = el('button', 'tool ghost sys-btn sys-pcap-add', '+ Kind'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' kinds a list' : 'Cap how many parts of some categories a row holds, such as 2 arms, by one of its own stats';
-        ad.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts) return; if (!Array.isArray(sp.parts.caps)) sp.parts.caps = []; if (sp.parts.caps.length >= max) return; sp.parts.caps.push({ cats: [], by: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-pcap-cats'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);
+        ad.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts) return; if (!Array.isArray(sp.parts.caps)) sp.parts.caps = []; if (sp.parts.caps.length >= max) return; var n0 = nums()[0]; sp.parts.caps.push({ cats: [], by: n0 ? n0.key : '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-pcap-cats'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);   // 1.6.3: a new line starts on the list's first number stat, its How many
     };
     draw();
     return box;
 }
 // 1.6.2: further rules of Fits where, each with its own words, so that one sentence need not cover three refusals. A part must meet them all, and the first that fails speaks
+// 1.6.3 (Fulllion's rulings of 2026-11-20): a rule's Refused with is required beside its test, so it starts filled with these words as the test is first
+// typed (the Lists tab's own Fits where starts with the same words, in sysedtabs.js), and an emptied one is said under the list
+var PFIT_WORDS = 'That part does not fit there.';
 function partFitsBox(sp) {
     var box = el('div', 'sys-badges sys-pfits'), max = typeof PART_FITS === 'number' ? PART_FITS : 240, ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var draw = function() {
@@ -608,8 +615,10 @@ function partFitsBox(sp) {
         list.forEach(function(r0, j) {
             var r = r0 && typeof r0 === 'object' ? r0 : {}, rw = el('div', 'sys-flags sys-pfit-row'), set = function(key, v) { if (!sp.parts || !Array.isArray(sp.parts.fitMore) || !sp.parts.fitMore[j]) return; if (v) sp.parts.fitMore[j][key] = v; else delete sp.parts.fitMore[j][key]; ch(); };
             var iI = input('sys-pfit-if field', typeof r['if'] === 'string' ? r['if'] : '', 'Another formula a part must meet, read as Fits where is', 'and fits where'); iI.maxLength = LIMITS.formula;
-            iI.addEventListener('input', function(e) { e.stopPropagation(); set('if', String(iI.value || '').trim()); }); iI.addEventListener('change', function(e) { e.stopPropagation(); });
-            var sI = input('sys-pfit-says field', typeof r.says === 'string' ? r.says : '', 'The words a player is told when this rule stops a part', 'Refused with'); sI.maxLength = LIMITS.needsWords;
+            iI.addEventListener('input', function(e) { e.stopPropagation(); var rj = sp.parts && Array.isArray(sp.parts.fitMore) ? sp.parts.fitMore[j] : null, was = !!(rj && typeof rj['if'] === 'string' && rj['if'].trim()), v = String(iI.value || '').trim(), sv = rj && typeof rj.says === 'string' ? rj.says : '';
+                if (rj && v && !was && !sv.trim()) { rj.says = PFIT_WORDS; sI.value = PFIT_WORDS; } else if (rj && !v && sv === PFIT_WORDS) { delete rj.says; sI.value = ''; }   // 1.6.3: its Refused with starts filled, and goes with the test it was filled for
+                set('if', v); }); iI.addEventListener('change', function(e) { e.stopPropagation(); });
+            var sI = input('sys-pfit-says field', typeof r.says === 'string' ? r.says : '', 'The words a player is told when this rule stops a part. It must be filled in while the rule has a test', 'Refused with'); sI.maxLength = LIMITS.needsWords;
             sI.addEventListener('input', function(e) { e.stopPropagation(); set('says', String(sI.value || '').trim()); }); sI.addEventListener('change', function(e) { e.stopPropagation(); });
             var x = el('button', 'tool ghost sys-btn sys-pfit-del', '\u00d7'); x.type = 'button'; x.title = 'Remove this rule';
             x.addEventListener('click', function(e) { e.stopPropagation(); if (!sp.parts || !Array.isArray(sp.parts.fitMore)) return; sp.parts.fitMore.splice(j, 1); if (!sp.parts.fitMore.length) delete sp.parts.fitMore; ch(); draw(); });
@@ -703,7 +712,7 @@ function badgeBox(sp) {
             [wI, iI, tS, kS, tt.lb, pt.lb, pI, x].forEach(function(n) { rw.appendChild(n); }); box.appendChild(rw);
         });
         var ad = el('button', 'tool ghost sys-btn sys-badge-add', '+ Badge'); ad.type = 'button'; ad.disabled = list.length >= max; ad.title = ad.disabled ? 'At most ' + max + ' badges a list' : 'Words a row shows while a test of the row holds, such as Jammed while the row is jammed';
-        ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(sp.badges)) sp.badges = []; if (sp.badges.length >= max) return; sp.badges.push({ words: '', if: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-badge-words'); if (ins.length) ins[ins.length - 1].focus(); }); box.appendChild(ad);
+        ad.addEventListener('click', function(e) { e.stopPropagation(); if (!Array.isArray(sp.badges)) sp.badges = []; if (sp.badges.length >= max) return; sp.badges.push({ words: 'Badge ' + (sp.badges.length + 1), if: '' }); ch(); draw(); var ins = box.querySelectorAll('.sys-badge-words'); if (ins.length) { ins[ins.length - 1].focus(); if (ins[ins.length - 1].select) ins[ins.length - 1].select(); } }); box.appendChild(ad);   // 1.6.3: its words start filled and picked, so typing replaces them. Shown where has no sensible start, and its fault says so at once
     };
     draw();
     return box;

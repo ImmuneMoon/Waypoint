@@ -3569,7 +3569,7 @@ function standCtl(entry, c, f, spec, can, sysI, res) {
         box.appendChild(sel);
     } else if (cur) { var ch = el('span', 'sheet-chip', 'At ' + nameOf(cur)); if (auto) ch.title = 'Not placed yet. It stands at the first place it fits.'; box.appendChild(ch); }
     else if (st && typeof st.r === 'string' && st.r.slice(0, 2) === 'b_') { var tfR = (Array.isArray(sysI.fields) ? sysI.fields : []).filter(function(x) { return x && x.id === sp.from; })[0], bxR = tfR && tfR.list && tfR.list.tiles && Array.isArray(tfR.list.tiles.boxes) ? tfR.list.tiles.boxes.filter(function(b) { return !!b && 'b_' + b.key === st.r; })[0] : null; if (bxR) box.appendChild(el('span', 'sheet-chip', 'At ' + bxR.label)); }   // 1.6.2 (body fold 9): a box of the strip is a place too
-    if (st && st.off && sp.offWord) box.appendChild(el('span', 'sheet-chip', sp.offWord));
+    if (st && st.off) box.appendChild(el('span', 'sheet-chip', sp.offWord || 'Not worn'));   // 1.6.3: a row that does not count always says so, with a generic word where the list names none
     return box.firstChild ? box : null;
 }
 // [bodycheck:tileview-start]
@@ -6440,7 +6440,7 @@ function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the
     if (!window.wpDice || !window.wpDice.rollFor) return { error: 'Dice are not available.' };
     if (window.wpVtt && !window.wpVtt.on('dice')) return { error: 'Dice are off for this campaign (Settings > VTT features).' };
     var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label) : '';   // HF5a: the label's value, and the GM's privacy rule
-    if ((r.needs || r.needsWhy) && !(allI && typeof rollNeedsOk === 'function' && rollNeedsOk(r, allI.vars, F()))) return { held: true, error: typeof rollNeedsSays === 'function' ? rollNeedsSays(r, allI ? allI.vars : undefined, F()) : (r.needsText || 'Not now: it needs ' + r.needs) };   // 1.5.4: what the initiative roll needs, before anything is rolled (the roster's Roll all and the every-round re-roll pass over a row it holds back)
+    if ((r.needs || r.needsWhy) && !(allI && typeof rollNeedsOk === 'function' && rollNeedsOk(r, allI.vars, F()))) return { held: true, error: typeof rollNeedsSays === 'function' ? rollNeedsSays(r, allI ? allI.vars : undefined, F()) : (r.needsText || 'Not now.') };   // 1.5.4: what the initiative roll needs, before anything is rolled (the roster's Roll all and the every-round re-roll pass over a row it holds back)
     if (whyI) toast('Kept private: its label shows a GM-only value (' + (typeof privWordsS === 'function' ? privWordsS(sys, whyI) : whyI) + ').');
     return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI || !!(opts && opts.priv === true), gmOnly: r.vis === 'gm' });
 }

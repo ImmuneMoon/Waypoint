@@ -204,7 +204,8 @@ function refreshErrors() {
         if (typeof sp.price === 'string' && sp.price && !mine[sp.price.toLowerCase()]) errs.push({ message: 'The price names no stat of this list: Save drops it.' });
         var onD = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null, onPer = onD && typeof onD.per === 'string' ? onD.per.trim() : '';   // 1.5.4 One at a time: a Per stat as Save reads it
         if (onPer && !keptW[onPer.toLowerCase()]) errs.push({ message: 'One at a time goes by "' + onD.per + '", which is no stat of this list. ' + (onD.one === true ? 'Save keeps one row on for the whole list.' : 'Save drops it.') });
-        if (onD && typeof onD.needsText === 'string' && onD.needsText.trim() && !(typeof onD.needs === 'string' && onD.needs.trim())) errs.push({ message: 'The switch has words but no Needs to switch on, so Save drops its words.' });   // 1.5.8: as the cleaner reads them (rollNeedsInto keeps the words only beside a formula)
+        if (onD && typeof onD.needsText === 'string' && onD.needsText.trim() && !(typeof onD.needs === 'string' && onD.needs.trim())) errs.push({ prop: 'list.swwords', message: 'The switch has words but no Needs to switch on, so Save drops its words.' });   // 1.5.8: as the cleaner reads them (rollNeedsInto keeps the words only beside a formula)
+        listReqSays(f, draft).forEach(function(e) { errs.push(e); });   // 1.6.3: a box another box depends on, left empty
         (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) { if (rr && typeof rr === 'object' && !Array.isArray(rr.apply) && typeof rr.ad === 'string' && rr.ad.trim() && rr.dmg !== true) errs.push({ message: 'Roll ' + (ri + 1) + (typeof rr.label === 'string' && rr.label.trim() ? ', ' + rr.label.trim() : '') + ': an armor divisor needs Damage ticked, so Save drops it.' }); });   // 1.6.0: as the cleaner reads it
         if (sp.lvl && typeof sp.lvl === 'object' && Array.isArray(sp.lvl.caps) && typeof cleanListSpec === 'function') {   // 1.6.0 At most at a level, as the cleaner reads it
             var capOne = function(c) { var lk = (cleanListSpec({ lvl: Object.assign({}, sp.lvl, { caps: [c] }) }, true, F()) || {}).lvl; return lk && Array.isArray(lk.caps) ? lk.caps[0] : null; }, capOk = 0;
@@ -328,6 +329,10 @@ function refreshErrors() {
     });
     var clean = cleanSystem(draft, { F: F(), gmView: true });
     if (!clean) return;
+    draft.fields.forEach(function(f) {   // 1.6.3: what only the cleaner can say of a box another depends on
+        if (!f || f.kind !== 'item-list' || !f.list) return; var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf) return;
+        listCleanSays(f, cf).forEach(function(e) { (errorsById['list:' + f.id] = errorsById['list:' + f.id] || []).push(e); });
+    });
     draft.fields.forEach(function(f) {   // 1.6.0 Changes apply where, as the cleaner reads it (the validator says the rest)
         if (!f || f.kind !== 'item-list' || !f.list || typeof f.list.modsIf !== 'string' || !f.list.modsIf.trim()) return;
         var cf = (clean.fields || []).filter(function(x) { return x && x.id === f.id; })[0]; if (!cf || (cf.list && cf.list.modsIf)) return;
@@ -877,6 +882,113 @@ function refreshErrors() {
     if (typeof coverHitSays === 'function') { var cvS = coverHitSays(draft.combat && draft.combat.cover, draft.combat, F()); if (cvS.errs.length) errorsById.coverhit = cvS.errs; if (cvS.warns.length) warningsById.coverhit = cvS.warns; }   // 1.6.0: what Save drops of where a hit behind cover lands, as the cleaner reads it
     if (typeof damageSays === 'function') { var dmS = damageSays(draft.combat && draft.combat.damage, clean, F()); if (dmS.errs.length) errorsById.damage = dmS.errs; if (dmS.warns.length) warningsById.damage = dmS.warns; }   // 1.5.6: what Save drops of the damage rules, as the cleaner reads them
     if (typeof refWarns === 'function') refWarns(saved, clean, camp0);   // 1.6.2 (backlog 208)
+}
+// 1.6.3 (Fulllion's rulings of 2026-11-20: "if there's other gaps where a ruling or field is dependent on another, and the system doesn't require that
+// other field to be filled then that should be fixed", "it makes sense to have fields be required when other fields depend on them", and "none isn't a
+// good default substitution"): what an item list's draft leaves empty that another of its boxes depends on, read from the draft alone. Each line is a
+// fault said under the list's card in plain words, with the box it names as its prop, so a press on it lands on that box (sysui.js PROP_BOX). None of
+// it holds Save, and the cleaner is as it was: each line says what Save then drops, or what a player is told in place of the missing words. The boxes
+// themselves start filled where a sensible value exists (the Lists tab's handlers), so a line here mostly speaks of a box someone emptied. Asked by
+// refreshErrors for every item list, f the draft field and dr the draft system (its tests and its fields)
+function listReqSays(f, dr) {
+    var sp = f && f.list && typeof f.list === 'object' ? f.list : {}, out = [], say = function(prop, m) { out.push(prop ? { prop: prop, message: m } : { message: m }); };
+    var has = function(o, k) { return !!o && typeof o === 'object' && typeof o[k] === 'string' && !!o[k].trim(); }, low = function(v) { return typeof v === 'string' ? v.trim().toLowerCase() : ''; };
+    var stats = (Array.isArray(sp.stats) ? sp.stats : []).filter(function(s) { return s && typeof s === 'object' && typeof s.key === 'string' && s.key; });
+    var statOf = function(k) { var l = low(k); return l ? stats.filter(function(s) { return s.key.toLowerCase() === l; })[0] || null : null; };
+    var numOf = function(k) { var s = statOf(k); return s && s.kind !== 'pick' && s.set !== true ? s : null; };   // a number stat, as Holds by kind and When traded read one
+    var on = sp.on && typeof sp.on === 'object' && !Array.isArray(sp.on) ? sp.on : null;
+    if (on && has(on, 'needs') && !has(on, 'needsText')) say('list.swwords', 'Needs to switch on: Its words is empty. Say in plain words why a row cannot be switched on now, or a player is told only Not now.');
+    if (on && has(on, 'icon') && !has(on, 'offLabel')) say('list.swicon', 'The switch’s icon shows only with a word while off, so Save drops the icon. Write a word while off to keep it.');
+    [['load', 'Loads only where', 'a load', 'list.loadwords'], ['chamber', 'Chambers only where', 'a chamber', 'list.chamberwords']].forEach(function(p) {   // the words beside a load's and a chamber's needs
+        var o = sp[p[0]]; if (!o || typeof o !== 'object') return;
+        if (has(o, 'needsText') && !has(o, 'needs')) say(p[3], p[1] + ' has words but no test beside them, so Save drops its words.');
+        else if (has(o, 'needs') && !has(o, 'needsText')) say(p[3], p[1] + ': Its words is empty. Say in plain words why ' + p[2] + ' is refused, or a player is told only Not now.');
+    });
+    var matchSay = function(o, who, prop) {   // Matched by: a stat of this list and a stat of the list it loads from, as the cleaner keeps the pair
+        if (!o || typeof o !== 'object') return; var by = has(o, 'by'), to = has(o, 'to');
+        if (by !== to) say(prop, who + 'Matched by needs a stat of this list and a stat of the list it loads from. Save drops it, and the row loads anything its categories take.');
+        else if (by && !statOf(o.by)) say(prop, who + 'Matched by names no stat of this list. Save drops it, and the row loads anything its categories take.');
+    };
+    matchSay(sp.load, '', 'list.loadmatch');
+    (Array.isArray(sp.feeds) ? sp.feeds : []).forEach(function(fd, fi) { matchSay(fd, 'Feed ' + (fi + 1) + ': ', 'list.feedmatch.' + fi); });
+    var figs = stats.filter(function(s) { return s.kind !== 'pick' && s.kind !== 'text'; }).map(function(s) { return s.key; }).concat((Array.isArray(sp.cols) ? sp.cols : []).filter(function(c) { return c && typeof c.key === 'string' && c.key; }).map(function(c) { return c.key; }));
+    var tests = dr && Array.isArray(dr.tests) ? dr.tests : [];
+    (Array.isArray(sp.rolls) ? sp.rolls : []).forEach(function(rr, ri) {
+        if (!rr || typeof rr !== 'object') return;
+        var act = Array.isArray(rr.apply), nm = (act ? 'Action ' : 'Roll ') + (ri + 1) + (has(rr, 'label') ? ', ' + rr.label.trim() : ''), nd = has(rr, 'needs'), why = Array.isArray(rr.needsWhy) && rr.needsWhy.length > 0;
+        if (has(rr, 'needsText') && !nd) say('list.needstext.' + ri, nm + ': the words for the grayed button need Needs beside them, so Save drops the words.');
+        else if (nd && !has(rr, 'needsText')) say('list.needstext.' + ri, nm + ': the words for the grayed button are empty. Say in plain words why it cannot be used now, or a player is told only Not now.');
+        if (rr.hideOff === true && !nd && !why) say('list.hideoff.' + ri, nm + ': Hidden until it can be used needs Needs beside it, so Save drops the tick.');
+        if (act) return;
+        if (rr.dmg !== true && has(rr, 'dtype')) say('', nm + ': a damage type needs Damage ticked, so Save drops it.');
+        if (rr.dmg !== true && has(rr, 'dkind')) say('', nm + ': a kind of blow needs Damage ticked, so Save drops it.');
+        if (has(rr, 'test')) {   // Rolls by: a test of the Rules tab, made with a figure of the row
+            if (!tests.some(function(x) { return x && x.key === rr.test; })) say('', nm + ': Rolls by names a test that is gone. Save drops it, and the roll keeps its own formula.');
+            else if (!figs.length) say('', nm + ': Rolls by needs a figure of the row, and this list has no number stat or column. Give it one, or Save drops the test.');
+            else if (!has(rr, 'of')) say('', nm + ': Rolls by needs the row’s figure it is made with. Pick it, or Save drops the test and the roll keeps its own formula.');
+            else if (!figs.some(function(k) { return k.toLowerCase() === low(rr.of); })) say('', nm + ': Rolls by is made with a figure this list no longer has, so it reads nothing. Pick another.');
+        }
+    });
+    var ly = sp.lay && typeof sp.lay === 'object' ? sp.lay : null, rules = ly && Array.isArray(ly.rules) ? ly.rules : [];   // Laid from, By category: a rule with no category lays nothing and is dropped
+    if (rules.length) {
+        var noCat = function(ru) { return !(ru && Array.isArray(ru.cats) && ru.cats.some(function(c) { return typeof c === 'string' && c.trim(); })); }, bad = rules.filter(noCat);
+        var src = (dr && Array.isArray(dr.fields) ? dr.fields : []).filter(function(x) { return x && x.id === ly.from; })[0], srcNm = src ? (src.label || src.key || 'that list') : 'that list';
+        if (bad.length === rules.length) say('list.layrcats.0', 'By category: no rule names a category, so Save drops them all and this list lays a row for every row of ' + srcNm + '.');
+        else rules.forEach(function(ru, i) { if (noCat(ru)) say('list.layrcats.' + i, 'By category: rule ' + (i + 1) + (ru && has(ru, 'name') ? ', ' + ru.name.trim() : '') + ' names no category, so Save drops it and all set on it.'); });
+    }
+    var pt = sp.parts && typeof sp.parts === 'object' ? sp.parts : null;
+    if (pt) {
+        if (has(pt, 'fitIf') && !has(pt, 'fitIfSays')) say('list.fitwords', 'Fits where: Refused with is empty. A player it stops is told only that the part does not fit.');
+        else if (has(pt, 'fitIfSays') && !has(pt, 'fitIf')) say('list.fitwords', 'Refused with has no Fits where test beside it, so Save drops the words.');
+        (Array.isArray(pt.fitMore) ? pt.fitMore : []).forEach(function(r, i) {
+            var nmR = 'Fits where, rule ' + (i + 2);
+            if (has(r, 'if') && !has(r, 'says')) say('list.pfitwords.' + i, nmR + ': Refused with is empty. A player it stops is told only that the part does not fit.');
+            else if (has(r, 'says') && !has(r, 'if')) say('list.pfit.' + i, nmR + ' has words but no test, so Save drops it.');
+            else if (!has(r, 'if')) say('list.pfit.' + i, nmR + ' has no test yet, so Save drops it.');
+        });
+        (Array.isArray(pt.caps) ? pt.caps : []).forEach(function(k, i) {   // Holds by kind: a line counts something, and says how many
+            if (!k || typeof k !== 'object') return; var nmK = 'Holds by kind, line ' + (i + 1);
+            var counts = has(k, 'slot') ? (Array.isArray(k.is) ? k.is : [k.is]).some(function(v) { return typeof v === 'string' && v.trim(); }) : Array.isArray(k.cats) && k.cats.some(function(c) { return typeof c === 'string' && c.trim(); });
+            if (!counts && !has(k, 'f')) say('list.pcap.' + i, nmK + ' counts nothing yet. Name its categories, or pick the value it counts, or Save drops the line.');
+            if (!has(k, 'f') && !numOf(k.by)) say('list.pcap.' + i, nmK + ' says no how many yet. Pick the row’s stat or write a formula, or Save drops the line.');
+        });
+    }
+    (Array.isArray(sp.badges) ? sp.badges : []).forEach(function(b, j) {   // a badge needs its words and its Shown where
+        if (!b || typeof b !== 'object') return; var w = has(b, 'words'), t = has(b, 'if'), nmB = 'Badge ' + (j + 1) + (w ? ' (' + b.words.trim() + ')' : '');
+        if (!w && !t) say('list.badgewords.' + j, nmB + ' is empty, so Save drops it.');
+        else if (!t) say('list.badge.' + j, nmB + ' has no Shown where, so it never shows and Save drops it. Say when it shows.');
+        else if (!w) say('list.badgewords.' + j, nmB + ' says nothing, so Save drops it. Give it words.');
+    });
+    (Array.isArray(sp.onTrade) ? sp.onTrade : []).forEach(function(t, i) {   // When traded, as the cleaner keeps a line
+        if (!t || typeof t !== 'object') return; var nmT = 'When traded, line ' + (i + 1), s = numOf(t.s);
+        if (!s) say('list.trade', nmT + ' names no number stat of this list, so Save drops it.');
+        else if (typeof t.to === 'string') { var d = numOf(t.to); if (!d || d === s) say('list.trade', nmT + ' moves its stat to nothing. Pick another number stat it moves to, or Save drops the line.'); }
+    });
+    return out;
+}
+// 1.6.3: the same for what only the cleaner can say, a draft field f beside its cleaned field cf (refreshErrors, once the system is cleaned): a badge
+// whose Shown where Save cannot keep, a Keeps paying Save drops whole, and a Shade by whose Shades keep no line
+function listCleanSays(f, cf) {
+    var sp = f && f.list && typeof f.list === 'object' ? f.list : {}, cl = cf && cf.list && typeof cf.list === 'object' ? cf.list : {}, out = [], say = function(prop, m) { out.push(prop ? { prop: prop, message: m } : { message: m }); };
+    var has = function(o, k) { return !!o && typeof o === 'object' && typeof o[k] === 'string' && !!o[k].trim(); }, parsed = function(t) { var p = null; try { p = F().parse(t); } catch (e) { p = null; } return p; };
+    var keptB = Array.isArray(cl.badges) ? cl.badges : [];
+    (Array.isArray(sp.badges) ? sp.badges : []).forEach(function(b, j) {
+        if (!has(b, 'words') || !has(b, 'if') || keptB.some(function(k) { return k && k['if'] === b['if'].trim(); })) return;
+        var p = parsed(b['if'].trim());
+        say('list.badge.' + j, 'Badge ' + (j + 1) + '’s Shown where ' + (!p || !p.ok ? 'is no formula Save can keep, so Save drops the badge.' : typeof hasDice === 'function' && p.ast && hasDice(p.ast.body) ? 'rolls dice, and it is read with none, so Save drops the badge.' : 'cannot be kept, so Save drops the badge.'));
+    });
+    var up = sp.upkeep && typeof sp.upkeep === 'object' ? sp.upkeep : null;
+    if (up && sp.on && !cl.upkeep) {   // Keeps paying, as the cleaner drops it whole: the first cause found, in the order it reads them
+        var pool = (draft && Array.isArray(draft.fields) ? draft.fields : []).filter(function(x) { return x && x.id === up.pool; })[0], amt = typeof up.amt === 'string' ? up.amt.trim() : '', pa = amt ? parsed(amt) : null;
+        if (!pool || pool.kind !== 'resource') say('list.uppool', 'Keeps paying needs a pool to pay from. Pick one, or Save drops Keeps paying.');
+        else if (!pa || !pa.ok) say('list.upamt', 'Keeps paying needs what it pays, a figure with no dice such as 3. Save drops Keeps paying.');
+        else if (typeof hasDice === 'function' && pa.ast && hasDice(pa.ast.body)) say('list.upamt', 'Keeps paying pays a figure with no dice, so Save drops Keeps paying.');
+        else if (up.each === 'clock') say('list.uppool', 'Keeps paying by the clock needs an Every and a unit that is there. Save drops Keeps paying.');
+        else say('list.uppool', 'Keeps paying cannot be kept as it is, so Save drops it.');
+    }
+    var lk = sp.look && typeof sp.look === 'object' ? sp.look : null;
+    if (lk && has(lk, 'by') && cl.look && !(Array.isArray(cl.look.shades) && cl.look.shades.length)) say('list.lkshades', 'Shade by is picked, but Shades holds no line Save keeps, so no row takes a shade. Give each value of that stat a line, such as Steel = #8a8f99.');
+    return out;
 }
 // [split:body-end]
 return { refreshErrors: refreshErrors, saveDraft: saveDraft };   // [split:glue]

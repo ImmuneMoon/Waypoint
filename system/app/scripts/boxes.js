@@ -360,7 +360,7 @@ function drawPlayer() {
             card.step.appendChild(mi); card.step.appendChild(el('span', 'box-q', q)); card.step.appendChild(pl);
             }
         } else card.step.remove();
-        var tk = el('button', 'tool box-take', 'Take'); tk.type = 'button'; tk.title = 'Put it in your own sheet'; tk.addEventListener('click', function() { take({ fid: sel.fid, rowId: sel.rowId, qty: q }); });
+        var tk = el('button', 'tool box-take', 'Take'); tk.type = 'button'; tk.title = 'Put it in your own sheet'; tk.addEventListener('click', function() { if (card.step && typeof card.step.flush === 'function') card.step.flush(); take({ fid: sel.fid, rowId: sel.rowId, qty: Math.max(1, Math.min(sel.qty, _box.qty | 0 || q)) }); });   // 1.6.3 (the review of sheets and rolls, finding 4): a count typed and not yet handed on counts (flush), read as the counter left it
         card.acts.appendChild(el('span', 'box-gap')); card.acts.appendChild(tk); body.appendChild(bar);
     }
     var all = el('button', 'tool box-all', 'Take all'); all.type = 'button'; all.title = 'Put everything in it in your own sheet'; all.addEventListener('click', function() { take({ all: true }); });

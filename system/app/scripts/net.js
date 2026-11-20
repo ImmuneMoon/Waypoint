@@ -2552,7 +2552,14 @@ net.charEdit = function(charId, fieldId, value) {
     var rid = 'e' + Math.random().toString(36).slice(2, 10);
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, fieldId) ? JSON.parse(JSON.stringify(c.values[fieldId])) : undefined;
     c.values = c.values || {}; c.values[fieldId] = res.value;
-    _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, timer: setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 7): presses that come faster than the host takes them (a pool's − six times) are one
+    // change of that field: while an edit of it waits for the host, the next is held here with the newest value (editHeldOf), and sent once the one before
+    // is answered (charPendingDone through editSend). Shown at once all the same
+    var heldE = typeof editHeldOf === 'function' ? editHeldOf(charId, fieldId) : null;
+    if (heldE) { _charPending[heldE].value = res.value; return { ok: true, pending: true }; }
+    _charPending[rid] = { charId: charId, fieldId: fieldId, value: res.value, prev: prev, edit: true, timer: null };
+    if (typeof editInFlight === 'function' && editInFlight(charId, fieldId, rid)) { _charPending[rid].held = true; return { ok: true, pending: true }; }
+    _charPending[rid].sentAt = Date.now(); _charPending[rid].timer = setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs);
     try { net.conns[0].send({ type: 'char-edit', rid: rid, charId: charId, fieldId: fieldId, value: res.value }); } catch (e) { charPendingDone(rid, false, 'value'); return { error: 'Could not reach the GM.' }; }
     return { ok: true, pending: true };
 };
@@ -2944,7 +2951,10 @@ function boxForgetConn(peer) { delete _boxTries[peer]; delete _boxSteal[peer]; O
 // [netcheck:boxhost-end]
 // [netcheck:pending-start]
 function charPendingDone(rid, ok, reason, msg) {
-    var p = Object.prototype.hasOwnProperty.call(_charPending, rid) ? _charPending[rid] : null; if (!p) return; clearTimeout(p.timer); delete _charPending[rid];   // own key only: a request id such as "constructor" names nothing
+    var p = Object.prototype.hasOwnProperty.call(_charPending, rid) ? _charPending[rid] : null; if (!p) return; clearTimeout(p.timer);
+    if (!ok && reason === 'slow' && p.edit && (p.tries | 0) < EDIT_TRIES) { editAgain(rid, p); return; }   // 1.6.3 (finding 7): an edit the host found too quick is sent again a moment later, never undone
+    delete _charPending[rid];   // own key only: a request id such as "constructor" names nothing
+    if (p.edit) editNext(p);   // 1.6.3 (finding 7): an edit of the same field held behind this one goes now
     if (!ok) {   // Stage 6: back to the host's last copy (never the one this change was made on), the changes still waiting laid over it again
         var camp = getActiveCampaign(), c = (camp && camp.chars && typeof p.charId === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, p.charId) ? camp.chars[p.charId] : null), b = Object.prototype.hasOwnProperty.call(_charHost, p.charId) ? _charHost[p.charId] : null;
         if (c) {
@@ -2981,7 +2991,32 @@ function reapplyPending(charId) {
     });
     if (typeof styleLay === 'function') styleLay(charId);   // item 35: the looks follow the text they belong to
 }
-function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(values || {})); }   // Stage 6: what the host last said this character holds
+function noteHostCopy(id, values) { _charHost[id] = JSON.parse(JSON.stringify(values || {})); }   // Stage 6: what the host last said this character holds
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 7): a player's edits of one field, one at a time. A pool's − pressed six times quickly
+// sent six edits, the host's limiter refused those within 100 ms of the one before (and said so once), and each one it said nothing of was undone five
+// seconds later with "No answer from the GM". Now an edit (net.charEdit, marked edit) waits while one of the same field is with the host (held, no timer,
+// laid over the copy by reapplyPending as any change still waiting), a newer value of it taking the held one's place, and goes once the one before is
+// answered (editNext, at least EDIT_GAP_MS after it was sent). One the host answers slow is sent again a little later (editAgain), EDIT_TRIES times
+// at most, and only then undone. Every value pressed is shown at once, and the last one is the one stored
+var EDIT_GAP_MS = 110, EDIT_TRIES = 8;
+function editHeldOf(charId, fieldId) { var hit = null; Object.keys(_charPending).forEach(function(r) { var p = _charPending[r]; if (!hit && p.edit && p.held && p.charId === charId && p.fieldId === fieldId) hit = r; }); return hit; }
+function editInFlight(charId, fieldId, but) { return Object.keys(_charPending).some(function(r) { var p = _charPending[r]; return r !== but && p.edit && !p.held && p.charId === charId && p.fieldId === fieldId; }); }
+function editSend(rid) {   // a held edit sent to the host now, its timer begun
+    var p = Object.prototype.hasOwnProperty.call(_charPending, rid) ? _charPending[rid] : null, S = SC(); if (!p || !p.held) return;
+    if (editInFlight(p.charId, p.fieldId, rid)) return;   // one of the same field went meanwhile: this one waits for it
+    var cn = net.conns && net.conns[0]; if (!S || !cn || !cn.open) { charPendingDone(rid, false, 'value'); return; }
+    p.held = false; p.sentAt = Date.now(); p.timer = setTimeout(function() { charPendingDone(rid, false, 'timeout'); }, S.LIMITS.editTimeoutMs);
+    try { cn.send({ type: 'char-edit', rid: rid, charId: p.charId, fieldId: p.fieldId, value: p.value }); } catch (e) { charPendingDone(rid, false, 'value'); }
+}
+function editNext(p) {   // the edit answered: the one of the same field held behind it goes, spaced from it
+    var nx = editHeldOf(p.charId, p.fieldId); if (!nx) return;
+    var wait = EDIT_GAP_MS - (Date.now() - (p.sentAt || 0)); if (wait > 0) setTimeout(function() { editSend(nx); }, wait); else editSend(nx);
+}
+function editAgain(rid, p) {   // refused as too quick: held again, or given up for a newer value of the same field held already, and sent a little later
+    p.tries = (p.tries | 0) + 1; p.timer = null;
+    var nx = editHeldOf(p.charId, p.fieldId); if (nx && nx !== rid) delete _charPending[rid]; else { p.held = true; nx = rid; }
+    setTimeout(function() { editSend(nx); }, Math.min(2000, EDIT_GAP_MS * 2 * p.tries));
+}
 // [netcheck:pending-end]
 // A session is exactly one campaign. Anything that would put another campaign on screen while hosting
 // asks first, and on yes ends the session for everyone before going ahead; Cancel and Esc do nothing.
@@ -6401,7 +6436,7 @@ function handleMessage(msg, conn) {
         if (net.paused || peerPaused(conn.peer)) { denyE('paused'); return; }   // frozen table (or this player is paused): no edits
         if (!charLimit && window.wpDiceCore) charLimit = window.wpDiceCore.RateLimit({ perMs: 100, burst: Se.LIMITS.editsPerWindow, windowMs: Se.LIMITS.editWindowMs, table: 400 });
         var limE = charLimit ? charLimit.allow(conn.peer, Date.now()) : true;
-        if (limE !== true) { var skE = conn.peer + '|slow'; if (!_charSlowSaid[skE] || Date.now() - _charSlowSaid[skE] > Se.LIMITS.editWindowMs) { _charSlowSaid[skE] = Date.now(); denyE('slow'); } return; }
+        if (limE !== true) { denyE('slow'); return; }   // 1.6.3 (the review of sheets and rolls, finding 7): always answered, so the player's app sends it again a moment later and never waits out its timer
         if (window.wpVtt && !window.wpVtt.on('sheets')) { denyE('off'); return; }
         var campE = getActiveCampaign(), chE = (campE && campE.chars && typeof q.charId === 'string' && Object.prototype.hasOwnProperty.call(campE.chars, q.charId) ? campE.chars[q.charId] : null);
         if (!campE || !campE.system || !chE) { denyE('missing'); return; }
@@ -7901,6 +7936,7 @@ function handleMessage(msg, conn) {
             if (dn.reason === 'paused' && net.selfHeld && !net.paused && !net.selfPaused) dn.reason = 'held';   // 1.6.0 (backlog 190): said as the hold it was
             var pend = _dicePending; clearTimeout(pend.timer); _dicePending = null;
             if (window.wpDice) window.wpDice.onDeny(dn, pend.expr);
+            if (pend.att && typeof dueLive === 'function') dueLive(pend.att);   // 1.6.3 (finding 6): a defense or reminder card whose roll the host refused is live again
             return;
         }
         var rc = Dr.cleanRoll(msg); if (!rc) return;
@@ -8452,7 +8488,7 @@ function startHosting(forceFresh) {
     fogForgetAll();   // fold M5: and from no record of what anyone's copy held
     if (window.wpFog && typeof window.wpFog.marksForget === 'function') window.wpFog.marksForget(null);   // senses S4b: and no marks held for anyone
     net._lastSnapSent = typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true;   // the snap rule: the join snapshot carries Snap as it stands
-    diceSessionReset(true);   // and from an empty chat: the last table's lines never reach the next one
+    diceSessionReset(true); if (typeof net._chatBack === 'string') { var cbH = net._chatBack; net._chatBack = null; if (typeof chatKeepIn === 'function') chatKeepIn(cbH); }   // and from an empty chat: the last table's lines never reach the next one; 1.6.3 (finding 24): but a reload's own chat comes back (net._chatBack), after that emptying and before the table opens
     if (typeof tradeForget === 'function') tradeForget();   // 1.5.6: a new table starts with no trade
     if (typeof boxForget === 'function') boxForget();   // 1.6.2 (backlog 42): and with no container open
     if (typeof window !== 'undefined' && typeof window.wpBlastsUnwire === 'function') window.wpBlastsUnwire();   // 1.6.3: and with no blast an earlier table was told of, so none is sent to a latecomer of this one (whiteboard.js)
@@ -8527,6 +8563,7 @@ function startHosting(forceFresh) {
         net._hostGen = gen;   // a later crash resumes under the generation after this one
         startHeartbeat();
         if (typeof fightsBack === 'function') fightsBack();   // 1.6.0: a fight its campaign kept comes back with the table
+        if (typeof chatKeptSettle === 'function') chatKeptSettle();   // 1.6.3 (finding 24): a kept card whose attempt did not come back is over
         setStatus(codeLine());
         var codeEl = ui('netCode');
         if (codeEl) codeEl.textContent = showCode(code);
@@ -9286,7 +9323,7 @@ net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged
         if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
-function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).filter(function(m) { return !m.help; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
+function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper'; }).filter(function(m) { return !m.help; }).filter(function(m) { return !m.kept; }).slice(-60).map(function(m) { var wr = m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
 // [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
     if (rec && typeof rec.id === 'string') for (var iR = chatLog.length - 1; iR >= 0; iR--) if (chatLog[iR] && chatLog[iR].roll && chatLog[iR].roll.id === rec.id) { chatLog[iR].roll = rec; chatLog[iR].res = res; if (!rec.pend) ringPush(chatLog[iR], opts && opts.cid); renderChat(); return; }   // 1.6.2 (G5): a held roll's card, changed or landed, takes the place of the one before it
@@ -9408,6 +9445,15 @@ function diceSessionReset(clearChat) {
 function crewVehMap(camp, charId) { var S = SC(), hit = null; if (!S || !camp || !camp.items || typeof S.charTokenOn !== 'function') return null; Object.keys(camp.items).forEach(function(id) { var m = camp.items[id]; if (!hit && m && m.type === 'map' && S.charTokenOn(m, charId, '', {})) hit = { id: id, map: m }; }); return hit; }
 // 1.6.2, backlog 212 fold 3: this computer's own dice look, which its rolls carry so that every screen draws them in it
 function rollLookOwn() { var D = DC(); return D && typeof D.cleanDiceLook === 'function' && window.wpDice3d && typeof window.wpDice3d.look === 'function' ? D.cleanDiceLook(window.wpDice3d.look()) : null; }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 6): a card pressed whose roll never happened (the host refused it, or never answered) is
+// live again, as land-deny makes a refused Take it live: the card of that attempt, pressed and not over, is drawn with its buttons. Asked on a player's
+// app by the roll-deny branch and by the request's own timeout; a refusal on this machine itself is answered by runDue's own result (sheets.js)
+function dueLive(att) {
+    if (typeof att !== 'string' || !att || typeof chatLog === 'undefined' || !Array.isArray(chatLog)) return false;
+    var live = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === att && !m.over && m.done) { m.done = false; live = true; } });
+    if (live && typeof renderChatSoon === 'function') renderChatSoon();
+    return live;
+}
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
     var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && (((o.act === atN.act || !o.act) && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) { o = Object.assign({}, o, atN.act ? { act: atN.act } : null, { att: atN.att }, atN.with && typeof atN.with === 'object' ? { with: { f: atN.with.f, r: atN.with.r } } : null); net._attNext = null; }   /* 1.6.3 (defense fold 2): and the row a roll answered with a row was pressed with */   // 1.6.0: a plain roll's button names nothing, so the card names it, and the first roll takes it: a blast its answer lets go rolls as itself   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
@@ -9433,7 +9479,8 @@ net.diceRoll = function(expr, o) {
         if (o.ask && typeof o.ask === 'object' && o.charId && (req.act || (req.row && typeof req.row.i === 'number'))) req.ask = o.ask;   // 1.6.2: what they answered (the host judges it)
         if (typeof o.hit === 'string' && o.charId && (req.act || req.fr || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.hit = o.hit;   // 1.6.0 (B5): the location row picked on their target, beside a named roll (the host judges it)
         if (o.aim && typeof o.aim === 'object' && o.charId && (req.act || (req.row && typeof req.row.i === 'number' && typeof req.row.r === 'string'))) req.aim = { x: Number(o.aim.x), y: Number(o.aim.y) };   // 1.6.0: the point a line is aimed at (the host finds who stands in it)
-        _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); }, D.LIMITS.timeoutMs) };
+        var attP = typeof req.att === 'string' ? req.att : '';   // 1.6.3 (finding 6): the card it answers, live again if no roll comes of it
+        _dicePending = { rid: rid, expr: expr, charId: o.charId || '', timer: setTimeout(function() { _dicePending = null; if (window.wpDice) window.wpDice.onDeny({ reason: 'error', message: 'No answer from the GM. Their Waypoint may not have dice yet.', pos: 0, len: 0 }, expr); if (attP && typeof dueLive === 'function') dueLive(attP); }, D.LIMITS.timeoutMs), att: attP };
         try { net.conns[0].send(req); } catch (e) { clearTimeout(_dicePending.timer); _dicePending = null; return { error: 'Could not reach the GM.' }; }
         return { ok: true, pending: true };
     }
@@ -9674,8 +9721,42 @@ function burstAfter(camp, ch, ent, row, res, rule, malf, ta, tc, persist) {
 // [netcheck:burst-end]
 
 /* ---------- table chat ---------- */
-var chatLog = [];   // {from:{id,name}, text, scope:'global'|'whisper', ts}
-var chatUnread = 0;
+var chatLog = [];   // {from:{id,name}, text, scope:'global'|'whisper', ts}
+var chatUnread = 0;
+// [netcheck:chatkeep-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 24): the GM's Table Chat comes back with a reload. It lived in this window's memory alone,
+// so a reload mid-fight lost the damage cards not yet applied (with whether each was), the GM's copies of the players' cards and the reminders due. As the
+// page goes away the host keeps it in this tab's own session storage, beside wp_rehost (refreshMark), and the rehost lays it back before the table opens,
+// marked kept. Nothing of it is sent: chatHistoryOf leaves a kept message out of a latecomer's history (the host no longer knows whom each card may reach),
+// so a player is sent no more than before the reload. What only lived in memory does not come back: a help card and a roll held for its card actions are
+// left out, and once the table has opened (and its saved fight with its landings with it) chatKeptSettle says a card is over where the host no longer
+// holds the attempt it answers. A soft record (b_) still lands on its own character, so its card stays live. 200 messages and 1.5 MB at most
+var CHAT_KEEP = 'wp_rehostChat', CHAT_KEEP_MAX = 1500000;
+function chatKeepOut() {   // what is kept as the page goes: JSON, the oldest messages let go where it would be too long
+    var list = chatLog.filter(function(m) { return m && typeof m === 'object' && !m.help && !(m.roll && m.roll.pend); }).slice(-200).map(function(m) { if (!m.roll) return m; var o = Object.assign({}, m); delete o.res; return o; }), txt = '';   // a roll's worked-out result is made again from its record as it comes back
+    for (var i = 0; i <= list.length; i++) { try { txt = JSON.stringify(list.slice(i)); } catch (e) { return ''; } if (txt.length <= CHAT_KEEP_MAX) return txt; }
+    return '';
+}
+function chatKeepIn(txt) {   // laid back in front of what the chat holds now, each message marked kept; answers how many
+    var list = null; try { list = typeof txt === 'string' && txt ? JSON.parse(txt) : null; } catch (e) { list = null; }
+    if (!Array.isArray(list)) return 0;
+    var back = list.filter(function(m) { return m && typeof m === 'object' && !Array.isArray(m) && m.from && typeof m.from === 'object' && !m.help; }).slice(-200);
+    var Dk = DC(), Fk = window.wpFormula;
+    back.forEach(function(m) { m.kept = 1; if (m.roll && typeof m.roll === 'object') { var rp = Dk && Fk && typeof Dk.replay === 'function' ? Dk.replay(m.roll, Fk, Fk.VERSION) : null; m.res = rp && rp.ok ? rp.result : null; m.rollBad = rp && rp.ok ? null : (rp && rp.reason) || 'error'; } });   // a roll drawn as pushRoll draws it
+    chatLog = back.concat(chatLog).slice(-200);
+    if (typeof renderChatSoon === 'function') renderChatSoon();
+    return back.length;
+}
+function chatKeptSettle() {   // once the table is open: a kept card whose attempt the host no longer holds is over (dice.js says why)
+    var over = false;
+    chatLog.forEach(function(m) {
+        var a = m && m.kept && m.due && !m.over ? m.due.att : null; if (typeof a !== 'string' || !/^a_/.test(a)) return;
+        if (typeof attemptRec === 'function' && attemptRec(a)) return;
+        m.over = 1; m.overSay = 'reload'; over = true;
+    });
+    if (over && typeof renderChatSoon === 'function') renderChatSoon();
+}
+// [netcheck:chatkeep-end]
 
 function escText(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -10299,7 +10380,7 @@ function refreshMark() {   // what a reload needs in order to come straight back
             if (ptM && typeof ptM.id === 'string' && typeof ptM.mapId === 'string') rjM.point = { id: ptM.id, mapId: ptM.mapId };   // 1.6.2: what this player points at comes back with them
             sessionStorage.setItem('wp_rejoin', JSON.stringify(rjM));
         }
-        else if (net.active && net.role === 'host') sessionStorage.setItem('wp_rehost', '1');
+        else if (net.active && net.role === 'host') { sessionStorage.setItem('wp_rehost', '1'); var ckM = typeof chatKeepOut === 'function' ? chatKeepOut() : ''; if (ckM) sessionStorage.setItem(CHAT_KEEP, ckM); }   // 1.6.3 (finding 24): and the GM's chat
     } catch (e) {}
 }
 var _refreshBtn = ui('refreshBtn');
@@ -10315,7 +10396,7 @@ try { net.backAt = !!(sessionStorage.getItem('wp_rejoin') || sessionStorage.getI
 // after a refresh: straight back to where you were
 setTimeout(function() {
     var rj = null, rh = null;
-    try { rj = sessionStorage.getItem('wp_rejoin'); rh = sessionStorage.getItem('wp_rehost'); sessionStorage.removeItem('wp_rejoin'); sessionStorage.removeItem('wp_rehost'); } catch (e) {}
+    var ck = null; try { rj = sessionStorage.getItem('wp_rejoin'); rh = sessionStorage.getItem('wp_rehost'); ck = sessionStorage.getItem(CHAT_KEEP); sessionStorage.removeItem('wp_rejoin'); sessionStorage.removeItem('wp_rehost'); sessionStorage.removeItem(CHAT_KEEP); } catch (e) {}
     var Wr = window.wpWebMode;   // 1.5.5: the site's word first (webmode.js)
     (Wr && Wr.ready && typeof Wr.ready.then === 'function' ? Wr.ready : Promise.resolve()).then(function() {
     if (rj) {
@@ -10333,6 +10414,7 @@ setTimeout(function() {
         } catch (e) {}
     } else if (rh) {
         toast('Refreshed. Resuming your table with the same room code…');
+        if (ck) net._chatBack = ck;   // 1.6.3 (finding 24): the GM's chat, laid back by startHosting once it has emptied the chat and before the table opens, so the saved fight's landings find their cards
         startHosting(false);
     }
     });

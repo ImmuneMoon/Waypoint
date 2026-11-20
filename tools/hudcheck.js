@@ -1121,5 +1121,50 @@ const j = v => JSON.stringify(v);
             && sh9.includes("fk = focusKeyOf(body), st0 = body ? body.scrollTop : 0;") && sh9.includes("fk = focusKeyOf(v.body), stH = v.body.scrollTop, gm = !isClient()"));
     }
 
+    /* ---- 1.6.3 (the improvement week's review of sheets and rolls, findings 3 and 17): a redraw keeps what is typed, and waits for a press ---- */
+    {
+        const shT = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        const tkSrc = shT.slice(shT.indexOf('// [systemcheck:typedkeep-start]'), shT.indexOf('// [systemcheck:typedkeep-end]'));
+        const fkSrc = (shT.match(/function focusKeyOf\(root\) \{[^\n]*/) || [''])[0], rfSrc = (shT.match(/function restoreFocus\(root, k\) \{[^\n]*/) || [''])[0];
+        const docT = { activeElement: null, lis: [], addEventListener(k, f, cap) { this.lis.push([k, f, cap]); } };
+        class Ev { constructor(t, o) { this.type = t; this.bubbles = !!(o && o.bubbles); } }
+        const TK = new Function('document', 'PIN_GID', 'Event', tkSrc + '\n' + fkSrc + '\n' + rfSrc + '\nreturn { focusKeyOf, restoreFocus, typedBack, typedMark };')(docT, /^g_[A-Za-z0-9_]{1,24}$/, Ev);
+        const inPanel = s => (/#sheetPanel/.test(s) ? {} : null);
+        const box = (val, extra) => Object.assign({ tagName: 'INPUT', type: 'text', value: val, dataset: { fid: 'f_str' }, closest: inPanel, isConnected: true, selectionStart: val.length, selectionEnd: val.length, lis: {}, fired: [],
+            addEventListener(k, f) { (this.lis[k] = this.lis[k] || []).push(f); }, dispatchEvent(e) { this.fired.push(e.type); }, focus() { docT.activeElement = this; }, setSelectionRange(a, b) { this.sel = [a, b]; } }, extra || {});
+        // typing marks the box, its change takes the mark off; a box outside the sheet and a tick are never marked
+        const lisIn = docT.lis.filter(x => x[0] === 'input' && x[2] === true).length, lisCh = docT.lis.filter(x => x[0] === 'change' && x[2] === true).length;
+        const a = box('14'); TK.typedMark({ type: 'input', target: a }); const marked = a._wpTyped; TK.typedMark({ type: 'change', target: a }); const cleared = a._wpTyped;
+        const out = box('3', { closest: () => null }); TK.typedMark({ type: 'input', target: out }); const tick = box('', { type: 'checkbox' }); TK.typedMark({ type: 'input', target: tick });
+        // the box being typed in is drawn again from the stored figure (10): the new box holds the 14 typed, its caret where it was, and says its change once as it is left
+        TK.typedMark({ type: 'input', target: a }); docT.activeElement = a; const k = TK.focusKeyOf({ contains: () => true });
+        const nb = box('10'); TK.restoreFocus({ querySelector: q => (q.indexOf('[data-fid="f_str"]') === 0 ? nb : null) }, k);
+        const back = [k.val, nb.value, nb._wpTyped, nb.sel, docT.activeElement === nb];
+        (nb.lis.blur || []).forEach(f => f()); (nb.lis.blur || []).forEach(f => f()); const said = nb.fired.slice();
+        const nb2 = box('10'); TK.restoreFocus({ querySelector: () => nb2 }, k); TK.typedMark({ type: 'change', target: nb2 }); (nb2.lis.blur || []).forEach(f => f()); const native = nb2.fired.slice();   // a native change came: nothing said again
+        // a box not typed in keeps nothing: the stored figure is drawn
+        const c = box('5'); docT.activeElement = c; const k2 = TK.focusKeyOf({ contains: () => true }); const nb3 = box('6'); TK.restoreFocus({ querySelector: () => nb3 }, k2);
+        check('1.6.3 (finding 3): a figure typed into a box of the sheet or a HUD and not yet stored survives a redraw from the table: typing marks the box (one capture listener for input and one for change on the document, a tick or a box outside the sheet never marked, the box\'s change taking the mark off), focusKeyOf keeps what it holds, restoreFocus puts it into the box drawn in its place with its caret, and that box says its change once as it is left where no change of its own came; a box not typed in is drawn from what is stored',
+            lisIn === 1 && lisCh === 1 && marked === true && cleared === false && out._wpTyped === undefined && tick._wpTyped === undefined
+            && j(back) === j(['14', '14', true, [2, 2], true]) && j(said) === j(['change']) && j(native) === j([]) && k2.val === undefined && nb3.value === '6' && nb3._wpTyped === undefined,
+            j({ back, said, native, k2 }));
+        // finding 17: renderViews waits while a press that began in the sheet panel or the HUDs' layer is down, and draws once it has landed
+        const rvSrcT = shT.slice(shT.indexOf('var _chgNow = 0, _chgWait = null;'), shT.indexOf('// A token turned (tokenTurned)'));
+        const holds = {}, mkHold = () => ({ down: false, todo: null, busy() { return this.down; }, then(f) { this.todo = f; } });
+        const elT = id => ({ id, addEventListener() {} }), docP = { addEventListener() {}, getElementById: id => (id === 'sheetPanel' || id === 'hudLayer' ? elT(id) : null) };
+        const asked = [], drawn = [];
+        const RVP = new Function('document', 'window', 'setTimeout', 'pressHold', 'ui', 'huds', 'drawn', '"use strict";' + NL + 'var sheetOpen = "c_a"; function renderSheet() { drawn.push("sheet"); } function renderHud(id) { drawn.push(id); }' + NL + rvSrcT + NL + 'return renderViews;')(
+            docP, { addEventListener() {} }, f => f(), (el, win) => { asked.push(el.id); return holds[el.id] || (holds[el.id] = mkHold()); }, () => ({ n: 'sheetBody' }), { c_a: { body: { n: 'b' } } }, drawn);
+        const atLoad = asked.slice().sort();
+        RVP('c_a'); const free = drawn.splice(0);
+        holds.sheetPanel.down = true; RVP('c_a'); RVP('c_a'); const whileDown = drawn.length;
+        holds.sheetPanel.down = false; holds.sheetPanel.todo(); const landed = drawn.splice(0);
+        holds.hudLayer.down = true; RVP(null); holds.hudLayer.down = false; holds.hudLayer.todo(); const hudPress = drawn.splice(0);
+        check('1.6.3 (finding 17): a redraw of the sheet or a HUD waits while a press that began in the sheet panel or the HUDs\' layer is down (io.js pressHold, one hold for each, made at load so a press is known from its start) and is made once that press has landed, each character once, so the button pressed right after a box was typed in keeps its click; with no press down it draws at once',
+            j(atLoad) === j(['hudLayer', 'sheetPanel']) && j(free) === j(['sheet', 'c_a']) && whileDown === 0 && j(landed) === j(['sheet', 'c_a']) && j(hudPress) === j(['sheet', 'c_a'])
+            && /\{ chgDefer\(charId, skip\); return; \} if \(typeof pressBusy === 'function' && pressBusy\(charId, skip\)\) return;/.test(shT),
+            j({ atLoad, free, whileDown, landed, hudPress }));
+    }
+
     await T.finish();
 })();

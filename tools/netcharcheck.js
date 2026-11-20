@@ -1867,4 +1867,52 @@ pendingChecks.push((async () => {
             && src.includes("inplay: 'That is the character you play: only your GM can delete it.'") && src.split("msg.type === 'char-delete'").length === 2);
     }
 
+/* ================= 1.6.3 (the improvement week's review of sheets and rolls, finding 7): a player's quick presses on one field ================= */
+{
+    // net.charEdit and the pending slice, run for real on a stub world with a clock and timers of the suite's own: six presses of a pool's − land as
+    // one edit with the host and the newest value after it, a "too quick" is sent again and never undone, and the host's char-edit answers every refusal
+    const editSrc = (() => { const i = src.indexOf('net.charEdit = function(charId, fieldId, value) {'), k = src.indexOf('\n};\n', i); return src.slice(i, k + 4); })();
+    const pendSrc = between('// [netcheck:pending-start]', '// [netcheck:pending-end]', 'pending');
+    const mkW = () => {
+        const out = { sent: [], timers: [], toasts: [], results: [], now: 1000 }, ch = { id: 'c_1', ownerId: 'p1', values: { f_hp: 10 } }, camp = { chars: { c_1: ch }, system: { fields: [] } };
+        const S = { LIMITS: { editTimeoutMs: 5000 }, applyEdit: (sys, c, f, v) => ({ ok: true, value: v }), editHasLock: () => false };
+        const net = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'H', myId: 'p1', conns: [{ peer: 'H', open: true, send: m => out.sent.push(JSON.parse(JSON.stringify(m))) }] };
+        const win = { wpVtt: null, wpFormula: {}, wpSheets: { editResult: (rid, ok, reason) => out.results.push(reason), charChanged: () => {} } };
+        const st = (f, ms) => { out.timers.push({ f, at: out.now + (ms || 0) }); return out.timers.length; }, ct = id => { if (id && out.timers[id - 1]) out.timers[id - 1].f = null; };
+        const api = new Function('getActiveCampaign', 'SC', 'net', 'toast', 'window', 'setTimeout', 'clearTimeout', 'Date',
+            'var _charPending = Object.create(null), _charHost = Object.create(null);\n' + editSrc + '\n' + pendSrc + '\nreturn { done: charPendingDone, pend: function() { return _charPending; }, noteHostCopy: noteHostCopy };')(
+            () => camp, () => S, net, t => out.toasts.push(t), win, st, ct, { now: () => out.now });
+        const tick = ms => { out.now += ms; let ran = true; while (ran) { ran = false; out.timers.forEach(t => { if (t.f && t.at <= out.now) { const f = t.f; t.f = null; f(); ran = true; } }); } };
+        api.noteHostCopy('c_1', ch.values);
+        return { out, ch, net, api, tick };
+    };
+    // six presses of − at once
+    const w1 = mkW(); for (let v = 9; v >= 4; v--) w1.net.charEdit('c_1', 'f_hp', v);
+    const first = [w1.out.sent.map(m => m.value), w1.ch.values.f_hp, Object.keys(w1.api.pend()).length];
+    w1.api.done(w1.out.sent[0].rid, true); w1.tick(0); const early = w1.out.sent.length; w1.tick(200);
+    const second = [w1.out.sent.map(m => m.value), w1.ch.values.f_hp];
+    w1.api.done(w1.out.sent[1].rid, true); w1.tick(6000);
+    const done1 = [Object.keys(w1.api.pend()).length, w1.out.results.length, w1.ch.values.f_hp, w1.out.sent.length];
+    // a "too quick" from the host: sent again a little later, the value kept on the sheet meanwhile, and no word of an undo
+    const w2 = mkW(); w2.net.charEdit('c_1', 'f_hp', 7); const r2 = w2.out.sent[0].rid; w2.api.done(r2, false, 'slow');
+    const kept2 = [w2.ch.values.f_hp, w2.out.results.length, w2.out.sent.length]; w2.tick(300); const again2 = [w2.out.sent.length, w2.out.sent[1] && w2.out.sent[1].value, w2.out.sent[1] && w2.out.sent[1].rid === r2];
+    w2.net.charEdit('c_1', 'f_hp', 6); const held2 = w2.out.sent.length; w2.api.done(r2, true); w2.tick(300);
+    const after2 = [w2.out.sent.length, w2.out.sent[w2.out.sent.length - 1].value, w2.ch.values.f_hp];
+    // a newer value held while one waits to be sent again takes its place: one edit goes, with the newer value
+    const w3 = mkW(); w3.net.charEdit('c_1', 'f_hp', 8); w3.net.charEdit('c_1', 'f_hp', 7); w3.api.done(w3.out.sent[0].rid, false, 'slow'); w3.tick(1000);
+    const one3 = [w3.out.sent.map(m => m.value), Object.keys(w3.api.pend()).length];
+    // past EDIT_TRIES it is undone as any refusal, back to the host's copy
+    const w4 = mkW(); w4.net.charEdit('c_1', 'f_hp', 3); let rr = w4.out.sent[0].rid; for (let k = 0; k < 9; k++) { w4.api.done(rr, false, 'slow'); w4.tick(2500); rr = w4.out.sent[w4.out.sent.length - 1].rid; }
+    const gave4 = [w4.ch.values.f_hp, w4.out.results.indexOf('slow') >= 0, Object.keys(w4.api.pend()).length];
+    // another field goes at once, beside one waiting
+    const w5 = mkW(); w5.ch.values.f_mp = 4; w5.net.charEdit('c_1', 'f_hp', 9); w5.net.charEdit('c_1', 'f_mp', 3); const both5 = w5.out.sent.map(m => m.fieldId + '=' + m.value);
+    const edR = between('// [netcheck:charedit-start]', '// [netcheck:charedit-end]', 'charedit');
+    check('1.6.3 (finding 7): quick presses on one field of a player\'s own sheet are one edit at a time with the host: the first goes at once, each later press is shown at once and held with the newest value, sent once the one before is answered (spaced from it), so six presses of a pool\'s \u2212 store its last value with no undo; a "too quick" answer is sent again a little later and never undone (a newer value held meanwhile goes in its place), and only past its tries is it undone as any refusal; another field goes beside one waiting; the host\'s char-edit answers every refusal by the limiter, never in silence',
+        j(first) === j([[9], 4, 2]) && early === 1 && j(second) === j([[9, 4], 4]) && j(done1) === j([0, 0, 4, 2])
+        && j(kept2) === j([7, 0, 1]) && j(again2) === j([2, 7, true]) && held2 === 2 && j(after2) === j([3, 6, 6])
+        && j(one3) === j([[8, 7], 1]) && j(gave4) === j([10, true, 0]) && j(both5) === j(['f_hp=9', 'f_mp=3'])
+        && edR.includes("if (limE !== true) { denyE('slow'); return; }") && !edR.includes('_charSlowSaid[skE]'),
+        j({ first, early, second, done1, kept2, again2, held2, after2, one3, gave4, both5 }));
+}
+
 T.finish();

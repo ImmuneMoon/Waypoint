@@ -95,6 +95,10 @@ function step(o, doc) {
     w.appendChild(mi); w.appendChild(v.box); w.appendChild(pl);
     w.less = mi; w.more = pl; w.input = v.inp;
     w.setValue = function(n) { var c = num(n); cur = c === null ? null : roundTo(c, dec); if (doc.activeElement !== v.inp) { v.inp.value = cur === null ? '' : String(cur); fit(); } ends(); };   // a figure that changed without the counter being made again
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 4): a figure typed and then a press of another button (the ± window's Roll, Take in a
+    // container) lost the figure: the box's change waits for that press to land (later), and the button's own click came first and read the old figure.
+    // flush() hands on what the box holds now, at once, so a caller that acts on the counter asks it first. A figure that is no number is left as it is
+    w.flush = function() { if (pend) { pend(); return; } var n = num(v.inp.value); if (n !== null && n !== cur) go(n); };
     return w;
 }
 var _pickN = 0, PICK_KEYS = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };

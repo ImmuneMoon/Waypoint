@@ -1780,8 +1780,26 @@ function placeSheet() { var p = ui('sheetPanel'); if (!p) return; try { var pos 
 // Fold B: the panel's own size (its corner grip), clamped to the window; the saved record keeps the position and the size together
 function sizePanel(p, w, h) { var r = p.getBoundingClientRect(); w = Math.max(360, Math.min(window.innerWidth - Math.max(0, r.left) - 8, Math.round(w))); h = Math.max(240, Math.min(window.innerHeight - Math.max(0, r.top) - 8, Math.round(h))); p.style.width = w + 'px'; p.style.height = h + 'px'; p.classList.add('sheet-sized'); }   // clamped to the room left of/below where the panel is, so the grip and the last rows stay on screen
 function panelPref() { try { var o = JSON.parse(pref('wp_sheetPanel', 'null')); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch (e) { return {}; } }
-function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae)) return null; if (ae.dataset && typeof ae.dataset.pin === 'string' && PIN_GID.test(ae.dataset.pin)) return { pin: ae.dataset.pin, where: ae.closest('.sheet-band') ? 'band' : ae.closest('.sheet-sec-title') ? 'head' : 'sec' }; if (ae.dataset && typeof ae.dataset.reset === 'string' && /^s_[A-Za-z0-9_]{1,24}$/.test(ae.dataset.reset)) return { reset: ae.dataset.reset }; var dk = ae.closest && ae.closest('.sheet-dial, .sheet-stance') && ae.getAttribute ? ae.getAttribute('data-dk') : null; if (dk && /^[a-z0-9]{1,8}$/.test(dk)) return { dk: dk }; if (!ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
-function restoreFocus(root, k) { if (!k) return; if (k.reset) { if (!/^s_[A-Za-z0-9_]{1,24}$/.test(k.reset)) return; var qx = root.querySelector('.sheet-sec-title [data-reset="' + k.reset + '"]'); if (qx) { try { qx.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.pin) { if (!PIN_GID.test(k.pin)) return; var ps = '[data-pin="' + k.pin + '"]', pp = k.where === 'band' ? '.sheet-band ' : k.where === 'head' ? '.sheet-sec-title ' : '.sheet-section .sheet-field ', qp = root.querySelector(pp + ps) || root.querySelector(ps); if (qp) { try { qp.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.dk) { var qd = root.querySelector('.sheet-dial [data-dk="' + k.dk + '"], .sheet-stance [data-dk="' + k.dk + '"]'); if (qd && qd.disabled) qd = root.querySelector('.sheet-dial [data-dk="dial"]'); if (qd) { try { qd.focus({ preventScroll: true }); } catch (e) {} } return; } var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
+// [systemcheck:typedkeep-start]
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 3): a number or a word typed into a box of the sheet or a HUD is not yet stored: it is
+// stored by the box's own change, which comes when the box is left or Enter is pressed. A change that arrives from the table meanwhile (the host's answer to
+// the box before, a GM's edit, a time rule) draws the view again from what is stored, and the digits typed so far were gone. So a box being typed in is
+// marked (_wpTyped, set by one capture listener on the document as words are typed and taken off by the box's own change), focusKeyOf keeps what it holds,
+// and restoreFocus hands it to typedBack, which puts it into the box drawn in its place. The new box has not seen the typing, so a browser could leave it
+// without a change: typedBack says the change itself as the box is left, where none has come since. Nothing of it is stored here: the box's own change
+// stores it, as ever
+function typedBack(q, val) {
+    if (!q || typeof q.value !== 'string' || q.type === 'checkbox' || q.type === 'radio') return;
+    if (q.value !== val) q.value = val;
+    q._wpTyped = true;
+    if (typeof q.addEventListener !== 'function' || q._wpTypedWatch) return; q._wpTypedWatch = true;
+    q.addEventListener('blur', function() { if (q._wpTyped !== true || !q.isConnected) return; q._wpTyped = false; try { q.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {} });   // a native change, which comes before the blur, has taken the mark off already
+}
+function typedMark(e) { var t = e && e.target; if (!t || typeof t.closest !== 'function' || !t.closest('#sheetPanel, #hudLayer')) return; if ((t.tagName === 'INPUT' && t.type !== 'checkbox' && t.type !== 'radio') || t.tagName === 'TEXTAREA') t._wpTyped = e.type === 'input'; }
+if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') { document.addEventListener('input', typedMark, true); document.addEventListener('change', typedMark, true); }
+// [systemcheck:typedkeep-end]
+function focusKeyOf(root) { var ae = document.activeElement; if (!ae || !root.contains(ae)) return null; if (ae.dataset && typeof ae.dataset.pin === 'string' && PIN_GID.test(ae.dataset.pin)) return { pin: ae.dataset.pin, where: ae.closest('.sheet-band') ? 'band' : ae.closest('.sheet-sec-title') ? 'head' : 'sec' }; if (ae.dataset && typeof ae.dataset.reset === 'string' && /^s_[A-Za-z0-9_]{1,24}$/.test(ae.dataset.reset)) return { reset: ae.dataset.reset }; var dk = ae.closest && ae.closest('.sheet-dial, .sheet-stance') && ae.getAttribute ? ae.getAttribute('data-dk') : null; if (dk && /^[a-z0-9]{1,8}$/.test(dk)) return { dk: dk }; if (!ae.dataset || !ae.dataset.fid) return null; var k = { fid: ae.dataset.fid, part: ae.dataset.part || '', band: !!ae.dataset.band }; try { k.sel = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} if (ae._wpTyped === true && typeof ae.value === 'string') k.val = ae.value; return k; }   // band: the pinned band's copy of a field, told from the section's (Stage 5c)
+function restoreFocus(root, k) { if (!k) return; if (k.reset) { if (!/^s_[A-Za-z0-9_]{1,24}$/.test(k.reset)) return; var qx = root.querySelector('.sheet-sec-title [data-reset="' + k.reset + '"]'); if (qx) { try { qx.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.pin) { if (!PIN_GID.test(k.pin)) return; var ps = '[data-pin="' + k.pin + '"]', pp = k.where === 'band' ? '.sheet-band ' : k.where === 'head' ? '.sheet-sec-title ' : '.sheet-section .sheet-field ', qp = root.querySelector(pp + ps) || root.querySelector(ps); if (qp) { try { qp.focus({ preventScroll: true }); } catch (e) {} } return; } if (k.dk) { var qd = root.querySelector('.sheet-dial [data-dk="' + k.dk + '"], .sheet-stance [data-dk="' + k.dk + '"]'); if (qd && qd.disabled) qd = root.querySelector('.sheet-dial [data-dk="dial"]'); if (qd) { try { qd.focus({ preventScroll: true }); } catch (e) {} } return; } var q = root.querySelector('[data-fid="' + k.fid + '"]' + (k.part ? '[data-part="' + k.part + '"]' : ':not([data-part])') + (k.band ? '[data-band]' : ':not([data-band])')); if (q && q.disabled && k.part) q = root.querySelector('[data-fid="' + k.fid + '"]:not([data-part])' + (k.band ? '[data-band]' : ':not([data-band])')); if (q) { try { q.focus({ preventScroll: true }); if (typeof k.val === 'string' && typeof typedBack === 'function') typedBack(q, k.val); if (k.sel && k.sel[0] != null && q.setSelectionRange) q.setSelectionRange(k.sel[0], k.sel[1]); } catch (e) {} } }
 function subGive(e) {   // the sheet's own line, as the Characters section's row: who has this character
     var s = ui('sheetSub'); if (!s || !s.classList || !s.classList.contains('sheet-sub-give') || !sheetOpen || !window.wpCharList) return;
     if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
@@ -2319,12 +2337,30 @@ function rolled(m, cid) {
 // where the press or the key sent it: focusKeyOf then finds that box and restoreFocus puts the focus back in it
 var _chgNow = 0, _chgWait = null;
 function chgDefer(charId, skip) {
-    if (!_chgWait) { _chgWait = []; setTimeout(function() { var w = _chgWait; _chgWait = null; var all = w.some(function(x) { return x[0] == null; }); if (all) renderViews(null); else { var seen = Object.create(null); w.forEach(function(x) { var k = String(x[0]); if (seen[k]) return; seen[k] = 1; renderViews(x[0], w.filter(function(y) { return String(y[0]) === k; }).every(function(y) { return y[1] === x[1]; }) ? x[1] : undefined); }); } }, 0); }
+    if (!_chgWait) { _chgWait = []; setTimeout(function() { var w = _chgWait; _chgWait = null; viewsAgain(w); }, 0); }
     _chgWait.push([charId, skip]);
 }
+// The redraws held back, each character once, its skip kept only where every redraw of it named the same one (null for all: every view)
+function viewsAgain(w) { var all = w.some(function(x) { return x[0] == null; }); if (all) renderViews(null); else { var seen = Object.create(null); w.forEach(function(x) { var k = String(x[0]); if (seen[k]) return; seen[k] = 1; renderViews(x[0], w.filter(function(y) { return String(y[0]) === k; }).every(function(y) { return y[1] === x[1]; }) ? x[1] : undefined); }); } }
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 17): a press on a roll, a ± or a pool's − and + right after a box of the same sheet
+// was typed in lost its click. The pointer going down left the box, whose change stored the value and drew the view again, before the pointer came up
+// (chgDefer's tick ends first, and on a player's app the host's answer lands in the same moment), so the button pressed was replaced and the click came
+// to nothing. pressBusy holds every redraw of a view while a press that began in the sheet panel or the HUDs' layer is down (io.js pressHold, the house
+// way, one hold for each), and makes them once it has landed, after its click; the focus is put back as ever. It answers true where it held the redraw
+var _pressWait = null;
+function sheetHolds() {   // the holds of the sheet panel and the HUDs' layer, made the first time they are asked (and at load, below), so a press is known from its start
+    if (typeof pressHold !== 'function' || typeof document === 'undefined' || !document || typeof document.getElementById !== 'function' || typeof window === 'undefined' || !window || typeof window.addEventListener !== 'function') return [];
+    return ['sheetPanel', 'hudLayer'].map(function(id) { var el = document.getElementById(id); return el && typeof el.addEventListener === 'function' ? pressHold(el, window) : null; }).filter(Boolean);
+}
+function pressBusy(charId, skip) {
+    var h = sheetHolds().filter(function(x) { return x.busy(); })[0]; if (!h) return false;
+    if (!_pressWait) { _pressWait = []; h.then(function() { var w = _pressWait; _pressWait = null; if (w) viewsAgain(w); }); }
+    _pressWait.push([charId, skip]); return true;
+}
+sheetHolds();
 if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') document.addEventListener('change', function(e) { var t = e && e.target; if (!t || typeof t.closest !== 'function' || !t.closest('#sheetPanel, #hudLayer')) return; _chgNow++; setTimeout(function() { _chgNow--; }, 0); }, true);
 function renderViews(charId, skip) {
-    if (typeof _chgNow === 'number' && _chgNow > 0 && typeof chgDefer === 'function') { chgDefer(charId, skip); return; }   // 1.5.5: drawn once the focus has moved
+    if (typeof _chgNow === 'number' && _chgNow > 0 && typeof chgDefer === 'function') { chgDefer(charId, skip); return; } if (typeof pressBusy === 'function' && pressBusy(charId, skip)) return;   // 1.5.5: drawn once the focus has moved; 1.6.3 (finding 17): and once a press in the sheet has landed
     if (typeof bellFx === 'function') { try { bellFx(charId); } catch (e) { console.error(e); } }   // the bell's effects feed: what changed since this machine last looked
     var any = charId == null, held = typeof sbxHeld === 'function' ? sbxHeld : null;   // item 35: a view whose text box must stay on the page now is drawn a moment later
     if (sheetOpen && (any || sheetOpen === charId) && ui('sheetBody') !== skip) { if (held && held(ui('sheetBody'))) sbxDefer(); else renderSheet(); }
@@ -6045,8 +6081,8 @@ function runLand(charId, actId, att, row) {
     else { (sys && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(x) { if (x && x.id === actId) ent = x; }); o = { act: actId }; }
     if (!ent || typeof ent.formula !== 'string' || !ent.formula || Array.isArray(ent.apply)) { toast('That roll is not on the sheet any more.'); return false; }
     var n = net(); if (n) n._attNext = o.row ? { att: att, charId: c.id, row: o.row } : { att: att, charId: c.id, act: actId };
-    try { window.wpDice.rollFor(c.id, ent.formula, String(ent.label || 'Damage').split('{')[0].trim() || 'Damage', o); } finally { if (n) n._attNext = null; }
-    return true;
+    var rL = null; try { rL = window.wpDice.rollFor(c.id, ent.formula, String(ent.label || 'Damage').split('{')[0].trim() || 'Damage', o); } finally { if (n) n._attNext = null; }
+    return !(rL && rL.error);   // 1.6.3 (finding 6): a roll refused here leaves the card live
 }
 function runDue(charId, actId, att, row, ask, wr) {   // wr (1.6.3, defense fold 2): the row a roll Answered with a row of a list is pressed with, { f, r }   // ask (1.6.2): what the card's press answered   // att (1.6.0, B2): the attempt a resist card answers, handed to the roll its button makes; row (1.6.0): a list's roll on one row, { f, r, i }
     if (ask === undefined && typeof askEntry === 'function') { var enD = askEntry(row ? { row: row } : { act: actId }, null), cD = enD ? charById(charId, getActiveCampaign()) : null; if (enD && cD) { askThen(enD, cD, document.activeElement, row ? { row: row } : { act: actId }, null, function(ans) { runDue(charId, actId, att, row, ans, wr); }); return true; } }   // 1.6.2: what it asks first
@@ -6058,8 +6094,8 @@ function runDue(charId, actId, att, row, ask, wr) {   // wr (1.6.3, defense fold
         if (!canRoll(cV)) { toast('That character is not yours to roll for here.'); return false; }
         if (!window.wpDice || !window.wpDice.rollFor) return false;
         var nV = net(); if (nV) nV._attNext = { att: att, charId: cV.id, act: rlV.id, with: { f: wr.f, r: wr.r } };
-        try { window.wpDice.rollFor(cV.id, rlV.formula, String(rlV.label || 'Roll').split('{')[0].trim() || 'Roll', { act: rlV.id, ask: ask || undefined, gmOnly: rlV.vis === 'gm' }); } finally { if (nV) nV._attNext = null; }
-        return true;
+        var rV = null; try { rV = window.wpDice.rollFor(cV.id, rlV.formula, String(rlV.label || 'Roll').split('{')[0].trim() || 'Roll', { act: rlV.id, ask: ask || undefined, gmOnly: rlV.vis === 'gm' }); } finally { if (nV) nV._attNext = null; }
+        return !(rV && rV.error);   // 1.6.3 (finding 6): a roll refused here (the last one still waiting, its needs) leaves the card live
     }
     if (row && typeof row === 'object') {   // a resist card's button for one row the target holds: its list's roll, made as that row's button makes it, which the host judges
         var campW = getActiveCampaign(), sysW = systemOf(campW), cW = charById(charId, campW), lfW = null;
@@ -6069,8 +6105,8 @@ function runDue(charId, actId, att, row, ask, wr) {   // wr (1.6.3, defense fold
         if (!canRoll(cW)) { toast('That character is not yours to roll for here.'); return false; }
         if (!window.wpDice || !window.wpDice.rollFor) return false;
         var nW = typeof att === 'string' ? net() : null; if (nW) nW._attNext = { att: att, charId: cW.id, row: { f: row.f, r: row.r, i: row.i } };
-        try { window.wpDice.rollFor(cW.id, lrW.formula, String(lrW.label || 'Roll').split('{')[0].trim() || 'Roll', { row: { f: row.f, r: row.r, i: row.i }, ask: ask || undefined }); } finally { if (nW) nW._attNext = null; }
-        return true;
+        var rW = null; try { rW = window.wpDice.rollFor(cW.id, lrW.formula, String(lrW.label || 'Roll').split('{')[0].trim() || 'Roll', { row: { f: row.f, r: row.r, i: row.i }, ask: ask || undefined }); } finally { if (nW) nW._attNext = null; }
+        return !(rW && rW.error);   // 1.6.3 (finding 6): as above
     }
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), r = null, rl = null;
     (sys && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(x) { if (x && x.id === actId && Array.isArray(x.apply)) r = x; else if (x && x.id === actId && typeof x.formula === 'string' && x.formula) rl = x; });
@@ -6079,8 +6115,9 @@ function runDue(charId, actId, att, row, ask, wr) {   // wr (1.6.3, defense fold
         var nodeR = rollNode(rl, c, sys, null), btR = nodeR && nodeR.querySelector ? nodeR.querySelector('button.sheet-roll') : null;
         if (!btR || btR.disabled) { toast(btR && btR.title ? btR.title : 'That roll cannot be made now.'); return false; }
         var nD = typeof att === 'string' ? net() : null; if (nD) nD._attNext = { att: att, charId: c.id, act: rl.id };   // 1.6.0 (B2): net.diceRoll takes it for this very roll, and only while the button is pressed
+        var lrD = typeof window !== 'undefined' && window.wpDice && typeof window.wpDice.lastRoll === 'function' ? window.wpDice.lastRoll : null, n0D = lrD ? lrD().n : 0;   // 1.6.3 (finding 6): what the button's own roll answered (dice.js lastRoll)
         if (ask && typeof _askNext !== 'undefined') _askNext = ask; try { btR.click(); } finally { if (typeof _askNext !== 'undefined') _askNext = null; if (nD) nD._attNext = null; }
-        return true;
+        var gotD = lrD ? lrD() : null; return !(gotD && gotD.n !== n0D && gotD.r && gotD.r.error);   // refused here: the card stays live (a button that asks first, a location or a level, rolls later and counts as pressed)
     }
     if (!c || !r) { toast('That action is not on the sheet any more.'); return false; }
     if (!canApply(c)) { toast('That character is not yours to change here.'); return false; }

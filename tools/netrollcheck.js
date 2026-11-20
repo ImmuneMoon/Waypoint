@@ -1723,4 +1723,19 @@ pendingChecks.push((async () => {
             && flat6.includes("var cardNR = cardR && cardR.done ? cardR.done() : '';") && flat6.includes('if (cardNR) rec.card = cardNR;') && flat6.split('return cardR && cardR.undo && cardR.undo(), {').length === 7, '');
     }
 
+// 1.6.3 (the improvement week's review of sheets and rolls, finding 6): a defense or reminder card pressed whose roll never happened is live again
+{
+    const dlSrc = fnSrc('function dueLive(att) {', '\nnet.diceRoll = function', 'dueLive');
+    const mkLog = () => [{ due: { att: 'a_aaaaaaaa' }, done: true }, { due: { att: 'a_aaaaaaaa' }, done: true, over: 1 }, { due: { att: 'a_bbbbbbbb' }, done: true }, { roll: { id: 'r' } }];
+    let log = mkLog(), drawn = 0;
+    const DL = new Function('chatLog', 'renderChatSoon', dlSrc + '\nreturn dueLive;')(log, () => { drawn++; });
+    const r1 = DL('a_aaaaaaaa'), state1 = log.map(m => [!!m.done, !!m.over]), r2 = DL('a_aaaaaaaa'), r3 = DL(''), r4 = DL(7);
+    const shS = fs.readFileSync(path.join(kit.APP, 'scripts', 'sheets.js'), 'utf8'), diS = fs.readFileSync(path.join(kit.APP, 'scripts', 'dice.js'), 'utf8');
+    check('1.6.3 (finding 6): a card of an attempt pressed and not over is live again (dueLive: its buttons drawn again, once; a card that is over or of another attempt stays as it is), on a player\'s app at the host\'s roll-deny and at the request\'s own timeout, the pending request keeping the card\'s attempt; on any machine runDue and runLand answer what the roll they made answered (dice.js lastRoll for a sheet button pressed for the card), so a roll refused there leaves the card live',
+        r1 === true && j(state1) === j([[false, false], [true, true], [true, false], [false, false]]) && drawn === 1 && r2 === false && r3 === false && r4 === false
+        && src.includes("if (pend.att && typeof dueLive === 'function') dueLive(pend.att);") && src.includes("if (attP && typeof dueLive === 'function') dueLive(attP); }, D.LIMITS.timeoutMs), att: attP };")
+        && shS.includes('return !(rV && rV.error);') && shS.includes('return !(rW && rW.error);') && shS.includes('return !(rL && rL.error);') && shS.includes('var gotD = lrD ? lrD() : null; return !(gotD && gotD.n !== n0D && gotD.r && gotD.r.error);')
+        && diS.includes('_rollSeq++; _rollLast = r;') && diS.includes('lastRoll: lastRoll,'), j([r1, state1, drawn]));
+}
+
 T.finish();

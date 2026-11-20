@@ -51,6 +51,14 @@ function page() {
     check('a counter that may not be changed is read only, its buttons off', off.input.readOnly === true && off.less.disabled && off.more.disabled);
     const dec = []; const sp = U.step({ value: 1, min: 0.5, max: 2, step: 0.1, dec: 2, set: n => dec.push(n) }, page()); sp.more.fire('click'); sp.input.value = '1.234'; sp.input.fire('change');
     check('a counter of decimals steps by its own step and rounds to its places', J(dec) === J([1.1, 1.23]) && sp.input.step === '0.01', J(dec));
+    // 1.6.3 (the improvement week's review of sheets and rolls, finding 4): a figure typed and not yet handed on, then another button pressed
+    const fl = [], fc = U.step({ value: 0, min: -99, max: 99, set: n => fl.push(n) }, page());
+    fc.input.value = '3'; fc.flush(); fc.flush(); fc.input.value = 'x'; fc.flush(); const flX = fc.input.value; fc.input.value = '120'; fc.flush();
+    const dsrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8'), bsrc = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'boxes.js'), 'utf8');
+    check('1.6.3 (finding 4): flush() hands on what the box holds now, once, held to its bounds, a figure that is no number left as it is; the \u00b1 window\'s Roll and a container\'s Take ask it first, and Enter in the modifier rolls',
+        J(fl) === J([3, 99]) && flX === 'x' && dsrc.includes("go.addEventListener('click', function() { if (numEl && typeof numEl.flush === 'function') numEl.flush(); var r = applied();")
+        && dsrc.includes("if (numEl.input) numEl.input.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !e.isComposing) go.click(); });")
+        && bsrc.includes("if (card.step && typeof card.step.flush === 'function') card.step.flush(); take({ fid: sel.fid, rowId: sel.rowId, qty: Math.max(1, Math.min(sel.qty, _box.qty | 0 || q)) });"), J(fl));
     // the review of the sweep: + read as a number, the arrow keys, a box found again, a change the caller did not make put back, a press landing first
     const plus = [], pd = page(), pc = U.step({ value: 0, min: -99, max: 99, set: n => plus.push(n) }, pd), pin = pc.input;
     pin.value = '+3'; pin.fire('change'); pin.fire('keydown', { key: 'ArrowUp' }); pin.fire('keydown', { key: 'ArrowDown' }); pin.fire('keydown', { key: 'ArrowDown' });

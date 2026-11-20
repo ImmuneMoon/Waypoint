@@ -2066,10 +2066,14 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const rN2 = { needs: 'HP > 0' }; new Function('c', 't', 'r', 'LIMITS', '(function() {' + ndQ + NL + '})();')('sys-roll-needs field', { value: 'HP > 1', closest: () => null }, rN2, S.LIMITS);
         const lnQ0 = tabsR.indexOf("        else if (lcc.indexOf('sys-list-needs') >= 0) {"), lnQ = tabsR.slice(lnQ0, tabsR.indexOf("        else if (lcc.indexOf('sys-list-chamberreach')", lnQ0)).replace(/^\s*else /, '');
         const lsN = { rolls: [{ label: 'Use', apply: [] }] }, txL = { value: '' };
-        new Function('lcc', 't', 'lsp', 'LIMITS', '(function() {' + lnQ + NL + '})();')('sys-list-needs field', { value: 'Row.ch > 0', closest: () => ({ dataset: { ri: '0' }, querySelector: () => txL }) }, lsN, S.LIMITS);
-        check('1.6.3 the Rolls tab\'s required boxes start filled (the real lines of sysedtabs.js): + Roll starts as New roll with its name selected, Apply turns a starting name to New action, a list\'s + Roll starts as New roll, and the words for the grayed button start as Not now, set in their box too, the first time the needs are written, a system roll\'s and a list\'s alike, never over needs already there',
+        // the merge of the two lanes (moved on purpose): a list roll's needs follow the Lists tab's own rule, sysedtabs.js needsWordsFollow with its NEEDS_WORDS,
+        // so its words start as This cannot be used now. A system roll's still start as Not now
+        const nwA = tabsR.indexOf('var NEEDS_WORDS = '), nwSrcR = tabsR.slice(nwA, tabsR.indexOf(NL + '// ', nwA)) + NL + tabsR.slice(tabsR.indexOf('function needsWordsFollow('), tabsR.indexOf(NL + 'function onInput(')) + NL + 'return needsWordsFollow;';
+        const nwF = new Function(nwSrcR)(), nwWord = new Function(nwSrcR.replace('return needsWordsFollow;', 'return NEEDS_WORDS;'))()['sys-list-needs'][2];
+        new Function('lcc', 't', 'lsp', 'LIMITS', 'needsWordsFollow', '(function() {' + lnQ + NL + '})();')('sys-list-needs field', { value: 'Row.ch > 0', closest: () => ({ dataset: { ri: '0' }, querySelector: () => txL }) }, lsN, S.LIMITS, nwF);
+        check('1.6.3 the Rolls tab\'s required boxes start filled (the real lines of sysedtabs.js): + Roll starts as New roll with its name selected, Apply turns a starting name to New action, a list\'s + Roll starts as New roll, and the words for the grayed button start filled, set in their box too, the first time the needs are written (a system roll\'s as Not now, a list\'s as the Lists tab\'s own words), never over needs already there',
             drR.rolls[0] && drR.rolls[0].label === 'New roll' && boxR.focused === 1 && boxR.selected === 1 && rK.label === 'New action' && rArr[0] && rArr[0].label === 'New roll'
-            && rN.needs === 'HP > 0' && rN.needsText === 'Not now' && txN.value === 'Not now' && rN2.needsText === undefined && lsN.rolls[0].needs === 'Row.ch > 0' && lsN.rolls[0].needsText === 'Not now' && txL.value === 'Not now'
+            && rN.needs === 'HP > 0' && rN.needsText === 'Not now' && txN.value === 'Not now' && rN2.needsText === undefined && lsN.rolls[0].needs === 'Row.ch > 0' && lsN.rolls[0].needsText === nwWord && nwWord === 'This cannot be used now.' && txL.value === nwWord
             && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("[/^cross\\.count$/, ['sys-roll-xsn']], [/^needsText$/, ['sys-roll-needstext']]"),
             j([drR.rolls, boxR, rK, rArr, rN, txN, rN2, lsN.rolls, txL]));
     }

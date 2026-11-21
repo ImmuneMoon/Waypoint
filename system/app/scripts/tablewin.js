@@ -24,7 +24,7 @@ import { cellHtml, rowJoin, headJoin, fmtHtml, fmtRich, cellFmtOf, colFmtOf, LIM
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 // The one state of the window's table (there is one table a window)
-var tw = { body: null, key: '', camp: '', item: '', block: '', b: null, rich: false, sig: '', editing: null, pending: null, hold: null, n: 0, sent: 0, menu: null, note: '', chan: null, wired: false, lastText: null, reopen: null };
+var tw = { body: null, key: '', camp: '', item: '', block: '', b: null, rich: false, sig: '', editing: null, pending: null, hold: null, n: 0, sent: 0, menu: null, note: '', chan: null, wired: false, lastText: null, reopen: null, lost: null };
 var TW_HOLD_MS = 5000;   // how long a sent edit is shown as typed while the save is on its way (a poll with the old table is passed over)
 // This window's own id, made once, which every edit carries and every answer names again (twAck passes over an answer to another window)
 var TW_ID = (function() {
@@ -131,6 +131,7 @@ function twDraw() {
     var back = fsel ? tw.body.querySelector(fsel) : null; if (back) try { back.focus({ preventScroll: true }); } catch (e) {}
     tw.pending = false;
     if (tw.reopen) { var L = tw.reopen; tw.reopen = null; twReopen(L); }   // words the main window did not take, back in their box (twLost)
+    twLostDraw();   // words that could not go back in their cell stay to copy through every later draw (twLostDraw)
 }
 
 // [pagecheck:twlost-start]
@@ -153,11 +154,26 @@ function twReopen(L) {
     var el = same ? tw.body.querySelector(head ? '.tw-grid thead th[data-ci="' + L.ci + '"]' : '.tw-grid td[data-ri="' + L.ri + '"][data-ci="' + L.ci + '"]') : null;
     if (el) { twEdit(el, L.text); return; }
     twNote('The table changed, so your words were not put back in their cell. Here they are to copy.');
+    tw.lost = L.text;   // kept in the window's state, so the next draw of the grid draws the box again (twDraw asks twLostDraw after this)
+}
+// The box of words to copy (1.6.3, the review of pages editor). The table changed because someone else is working on it, so another save
+// and another draw of the grid will come soon, and twDraw rewrites the whole window body. The words therefore live in tw.lost, and every
+// draw puts this box back under the note from that. They go only when the GM presses Close, or when the window turns to another table
+// (twTick's change of key). A box already there is filled again, never doubled
+function twLostDraw() {
+    if (!tw.body || typeof tw.lost !== 'string' || typeof document === 'undefined') return;
     var note = tw.body.querySelector('.tw-note'), head0 = note && note.parentNode;
-    if (!head0 || typeof document === 'undefined') return;
-    var box = document.createElement('div'); box.className = 'tw-lost';
-    var ta = document.createElement('textarea'); ta.readOnly = true; ta.value = L.text; ta.rows = Math.min(8, Math.max(2, L.text.split('\n').length)); ta.setAttribute('aria-label', 'Your words that were not saved');
-    box.appendChild(ta); head0.appendChild(box);
+    if (!head0) return;
+    var box = head0.querySelector ? head0.querySelector('.tw-lost') : null, ta = box && box.querySelector('textarea');
+    if (box && ta) { ta.value = tw.lost; return; }
+    box = document.createElement('div'); box.className = 'tw-lost';
+    ta = document.createElement('textarea'); ta.readOnly = true; ta.value = tw.lost; ta.rows = Math.min(8, Math.max(2, tw.lost.split('\n').length)); ta.setAttribute('aria-label', 'Your words that were not saved');
+    var close = document.createElement('button'); close.type = 'button'; close.className = 'tool ghost tw-lost-close'; close.textContent = 'Close'; close.title = 'Put these words away. Copy them first if you still want them.';
+    close.addEventListener('click', function() {
+        tw.lost = null; if (box.parentNode) box.parentNode.removeChild(box);
+        if (/Here they are to copy/.test(tw.note)) twNote('');   // the note pointed at the box, which is gone now
+    });
+    box.appendChild(ta); box.appendChild(close); head0.appendChild(box);
 }
 // [pagecheck:twlost-end]
 
@@ -173,7 +189,7 @@ function twTick(body, camp, it, blockId, pageTitle, want) {
         return null;
     }
     var key = (camp && camp.id) + '\u0000' + (it && it.id) + '\u0000' + blockId;
-    if (tw.key !== key) { tw.key = key; tw.sig = ''; tw.hold = null; tw.note = ''; }
+    if (tw.key !== key) { tw.key = key; tw.sig = ''; tw.hold = null; tw.note = ''; tw.lost = null; }   // another table: its words to copy were this table's
     tw.body = body; tw.camp = camp && typeof camp.id === 'string' ? camp.id : ''; tw.item = it && typeof it.id === 'string' ? it.id : ''; tw.block = blockId;
     twWire(body);
     var b = twBlock(it, blockId);

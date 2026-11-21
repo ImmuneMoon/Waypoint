@@ -3306,7 +3306,7 @@
   #popoutBody .tw-rowmenu:hover, #popoutBody .tw-rowmenu:focus { border-color: var(--gold); color: var(--ink); }
   #popoutBody .tw-edit textarea { width: 100%; min-width: 180px; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); border-radius: 6px; padding: 6px 8px; font: inherit; font-weight: 400; resize: vertical; }
   #popoutBody .tw-editbar { display: flex; gap: 6px; margin-top: 4px; }
-  #popoutBody .tw-lost { flex: 1 0 100%; }   /* 1.6.3 (finding 12): words the main window did not take, to copy where their cell changed meanwhile */
+  #popoutBody .tw-lost { flex: 1 0 100%; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }   /* 1.6.3 (finding 12): words the main window did not take, to copy where their cell changed meanwhile; its Close under the words (the review of pages editor) */
   #popoutBody .tw-lost textarea { width: 100%; box-sizing: border-box; background: var(--panel); color: var(--ink); border: 1px solid var(--gold); border-radius: 6px; padding: 6px 8px; font: inherit; resize: vertical; }
   .doc-view td:first-child { font-weight: 600; color: var(--ink); }
   /* Cards side by side (1.6.2, backlog 107 (a); planner.js plannerPreviewHtml, cardcore.js cleanCards): the blocks under a section heading set to

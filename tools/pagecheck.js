@@ -1255,11 +1255,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                         lit.blocks[0].rows[0][1] = 'someone else\'s words'; refuse('Refused.');   // the cell changed meanwhile
                         TWW.twTick(lb, wc, lit, 'b_l', 'P', 'c1');
                         const lost = holder.querySelector('.tw-lost'), lostTa = lost && lost.querySelector('textarea'), note2 = note.textContent;
+                        // the review of pages editor: the table changed because someone else is working on it, so another save comes and the
+                        // grid is drawn again, which rewrites the whole window body. The box must come back with the words, and stay until
+                        // the GM closes it. The test's body wipes the box at each draw as a real one does (its innerHTML is the whole body)
+                        let wipes = 0; Object.defineProperty(lb, 'innerHTML', { configurable: true, get: () => '', set: () => { wipes++; holder.querySelectorAll('.tw-lost').forEach(x => holder.removeChild(x)); } });
+                        lit.blocks[0].rows.push(['b', 'a newer row']);   // another save, and the next poll
+                        TWW.twTick(lb, wc, lit, 'b_l', 'P', 'c1');
+                        const lostA = holder.querySelectorAll('.tw-lost'), lostTaA = lostA[0] && lostA[0].querySelector('textarea');
+                        lit.blocks[0].rows.push(['c', 'one more']); TWW.twTick(lb, wc, lit, 'b_l', 'P', 'c1');   // and one more
+                        const lostB = holder.querySelectorAll('.tw-lost'), closeB = lostB[0] && lostB[0].querySelectorAll('button').filter(b => b.textContent === 'Close')[0];
+                        if (closeB) closeB.fire('click');
+                        const afterClose = holder.querySelectorAll('.tw-lost').length, noteC = note.textContent;
+                        lit.blocks[0].rows.push(['d', 'and again']); TWW.twTick(lb, wc, lit, 'b_l', 'P', 'c1');
+                        const afterRedraw = holder.querySelectorAll('.tw-lost').length;
+                        delete lb.innerHTML;
                         check('1.6.3 words a big table\'s window could not save come back (finding 12, tablewin.js twLost and twReopen, run for real): refused, the cell\'s box opens again on the next draw with the words in it and the note says to press Done, which sends them again; where the cell changed meanwhile the words stand under the note to copy and no box opens on that cell',
                             sentOp.k === 'cell' && sentOp.text === 'my long words' && back1 === 'my long words' && /The main window is on another campaign\. Your words are back in the box: press Done to try again\./.test(note1)
                             && resent.k === 'cell' && resent.text === 'my long words' && resent.was === 'old words'
                             && !!lostTa && lostTa.value === 'my long words' && lostTa.readOnly === true && !cell.querySelector('textarea') && /Here they are to copy/.test(note2),
                             J([sentOp, back1, note1, resent, lostTa && lostTa.value, note2]));
+                        check('1.6.3 the review of pages editor: words to copy in a big table\'s window outlive the grid\'s next draws (tablewin.js twLostDraw, from tw.lost): another save draws the grid again and the box comes back once with the words, it stays through one more, Close puts it away and clears the note that pointed at it, and a later draw brings nothing back',
+                            wipes >= 2 && lostA.length === 1 && !!lostTaA && lostTaA.value === 'my long words' && lostTaA.readOnly === true
+                            && lostB.length === 1 && !!closeB && afterClose === 0 && !/Here they are to copy/.test(noteC) && afterRedraw === 0,
+                            J([wipes, lostA.length, lostTaA && lostTaA.value, lostB.length, !!closeB, afterClose, noteC, afterRedraw]));
                     } finally { if (realDoc === undefined) delete globalThis.document; else globalThis.document = realDoc; }
                 }
             } finally { globalThis.BroadcastChannel = realBC; }
@@ -1688,9 +1706,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const ok = picTo(map, pic, '/saves/images/p1/a.png'), other2 = JSON.stringify(other);
             map.blocks.splice(0, 1);   // the picture block itself deleted
             const gone = picTo(map, pic, '/saves/images/p1/b.png');
+            // the review of pages editor: an Undo or a Redo while the upload runs puts every block back as a new object (io.js applyContent).
+            // The picture still lands in the block of that id, and no other block is touched; only where no picture block of that id is left
+            // is the GM told it was deleted
+            const pic2 = { id: 'b_q', type: 'image' }, map2 = { blocks: [{ id: 'b_t', type: 'text', content: 'x' }, pic2] };
+            map2.blocks = JSON.parse(JSON.stringify(map2.blocks));   // the Undo
+            const okUndo = picTo(map2, pic2, '/saves/images/p1/c.png'), landed = map2.blocks[1].src, textKept = JSON.stringify(map2.blocks[0]), toastsAfterUndo = toasts.length;
+            const map3 = { blocks: [{ id: 'b_q', type: 'text', content: 'y' }] };   // an id that now names no picture block
+            const goneUndo = picTo(map3, { id: 'b_q', type: 'image' }, '/saves/images/p1/d.png');
+            check('1.6.3 the review of pages editor: a picture uploaded across an Undo or a Redo still lands in its block (planner.js picTo, by the block\'s id where the very object was replaced): placed, saved and drawn, the other block left as it was, nothing said; a block of that id that is no picture block gets nothing and the GM is told',
+                okUndo === true && landed === '/saves/images/p1/c.png' && pic2.src === undefined && textKept === JSON.stringify({ id: 'b_t', type: 'text', content: 'x' })
+                && toastsAfterUndo === 1 && goneUndo === false && map3.blocks[0].src === undefined && toasts.length === 2 && saves.length === 2, J([okUndo, landed, toasts, saves.length]));
             check('1.6.3 a picture lands in the block it was asked for (finding 34, planner.js picTo): a block moved meanwhile still gets it, no other block is touched, and a block deleted meanwhile gets nothing and the GM is told the picture is in the Image Library',
-                ok === true && pic.src === '/saves/images/p1/a.png' && other2 === JSON.stringify({ id: 'b_o', type: 'text' }) && gone === false && saves.length === 1 && draws.length === 1
-                && toasts.length === 1 && /deleted.*Image Library/.test(toasts[0]) && plR.includes('window.wpPickImage(function(src) { picTo(map, blk, src); });') && plR.includes('.then(function(url) { picTo(map, blk, url); }'), J([ok, gone, pic, toasts]));
+                ok === true && pic.src === '/saves/images/p1/a.png' && other2 === JSON.stringify({ id: 'b_o', type: 'text' }) && gone === false && saves.length === 2 /* this one's and the Undo case's above (moved on purpose) */ && draws.length === 2
+                && toasts.length === 2 && /deleted.*Image Library/.test(toasts[0]) && plR.includes('window.wpPickImage(function(src) { picTo(map, blk, src); });') && plR.includes('.then(function(url) { picTo(map, blk, url); }'), J([ok, gone, pic, toasts]));
         }
         // ---- finding 2: the app's redraw draws the editor again only where what it shows changed, and never under the GM's hands ----
         {

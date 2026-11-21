@@ -97,10 +97,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // A picture picked or uploaded for a picture block (1.6.3, the review of pages and planners, finding 34). An upload takes a while and the
   // editor stays in use, so the block may have moved or been deleted by the time it is done: before, the picture was written to whatever
   // block then stood at the old place in the list, or was lost. picTo writes it to the very block it was asked for, only while that block is
-  // still in its page, and otherwise says where the picture is. Answers whether it was placed
+  // still in its page, and otherwise says where the picture is. Answers whether it was placed.
+  // An Undo or a Redo while the upload runs puts every block of the page back as a new object (io.js applyContent), even the ones the step
+  // did not touch, so the block is found by its own id where the very object is no longer there (the review of pages editor). Only where no
+  // picture block of that id is left was it really deleted
   function picTo(map, blk, src) {
-      if (!map || !Array.isArray(map.blocks) || !blk || map.blocks.indexOf(blk) < 0) { toast('That picture block was deleted, so the picture was not placed. It is in the Image Library.'); return false; }
-      blk.src = src; save(true); renderPlanner(); return true;
+      var at = map && Array.isArray(map.blocks) && blk ? map.blocks.indexOf(blk) : -1, to = at >= 0 ? blk : null;
+      if (!to && map && Array.isArray(map.blocks) && blk && typeof blk.id === 'string' && blk.id) {
+          for (var i = 0; i < map.blocks.length; i++) { var b = map.blocks[i]; if (b && b.id === blk.id && b.type === 'image') { to = b; break; } }
+      }
+      if (!to) { toast('That picture block was deleted, so the picture was not placed. It is in the Image Library.'); return false; }
+      to.src = src; save(true); renderPlanner(); return true;
   }
   // [pagecheck:picto-end]
   // [doccheck:fcdrop-start]

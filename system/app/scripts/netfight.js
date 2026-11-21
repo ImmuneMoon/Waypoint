@@ -389,7 +389,7 @@ function combatNewRound(mapId, c) {   // combatStep at a new round, once per rou
         var charOf = function(r) { var tk = tokOf(r); return tk && tk.isChar && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; };
         for (var i = 0, n = 0; i < c.rows.length; i++) {
             var ch = charOf(c.rows[i]); if (!ch) continue;
-            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && (tkI.hidden || (typeof net.tokUnseen === 'function' && net.tokUnseen(mapId, tkI.id)))) }); if (rr && rr.held) continue; if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): its initiative roll's needs not met, it keeps its number   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid, or one some player at the table cannot see (net.tokUnseen), rolls in private (its row reads Hidden to them, and the card would name it)
+            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && (tkI.hidden || (typeof net.tokUnseen === 'function' && net.tokUnseen(mapId, tkI.id)))), tok: tkI ? tkI.id : undefined }); if (rr && rr.held) continue; if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): its initiative roll's needs not met, it keeps its number   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid, or one some player at the table cannot see (net.tokUnseen), rolls in private (its row reads Hidden to them, and the card would name it)
             if (rr && typeof rr.value === 'number' && isFinite(rr.value)) { c.rows[i].init = Math.max(-1e6, Math.min(1e6, Math.round(rr.value * 100) / 100)); c.rows[i].rolled = 1; delete c.rows[i].tb; n++; }
         }
         if (n && S.orderByInit) c.rows = S.orderByInit(c.rows, S.initTie ? S.initTie(camp.system, window.wpFormula, charOf) : null);   // nothing rolled: the order as it was
@@ -759,7 +759,8 @@ function fightMineKey(cs, camp, mid) {
 function combatToasts(before, after) {
     var camp = getActiveCampaign(), mid = camp && camp.activeItemId, kB = fightMineKey(before, camp, mid), kA = fightMineKey(after, camp, mid);
     var cA = kA !== null ? after[kA] : null, cB = kA !== null && before && Object.prototype.hasOwnProperty.call(before, kA) ? before[kA] : null;
-    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (cA.rows[cA.turn] || {}).name + "'s turn" + ((chosenRule() ? !!cB && cB.round < cA.round : cA.round > 1 && cA.turn === 0) ? '. Round ' + cA.round : '') + '.');
+    var rT = cA ? cA.rows[cA.turn] || {} : null, rndT = cA ? (chosenRule() ? !!cB && cB.round < cA.round : cA.round > 1 && cA.turn === 0) : false;   // 1.6.3 (finding 24): a row redacted for this player is someone they cannot see
+    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (rT.hid === 1 ? 'Someone you cannot see acts' : rT.name + "'s turn") + (rndT ? '. Round ' + cA.round : '') + '.');
     else if (kB !== null && !Object.prototype.hasOwnProperty.call(after, kB)) toast('Combat is over.');
 }
 // [netcheck:orders-end]

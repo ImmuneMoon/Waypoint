@@ -2384,6 +2384,40 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const OPm = mkM({}); OPm.op('c_a', 'f_fx', { op: 'add', ref: 'e_gm' }); OPm.op('c_a', 'f_fx', { op: 'remove', rowId: 'x_1' }); OPm.op('c_a', 'f_nope', { op: 'add', ref: 'e_gm' }); OPm.op('c_a', 'f_n', { op: 'add', ref: 'e_gm' }); OPm.op('c_zz', 'f_fx', { op: 'add', ref: 'e_gm' }); OPm.op('c_a', 'f_fx', { op: 'wipe' }); OPm.op('c_a', 'f_fx', { op: 'add', ref: 5 }); OPm.op('c_a', 'f_fx', null);
         check('conditions C2: a character token\'s menu changes its effects by the sheet\'s own path — an add by the library effect with a new row, an end by its row — and nothing for a list that is no effects list, a character not there or an op it does not know',
             J(OPm.calls) === J([['c_a', 'f_fx', { op: 'add', rowId: 'x_new', ref: 'e_gm' }], ['c_a', 'f_fx', { op: 'remove', rowId: 'x_1' }]]), J(OPm.calls));
+        {   // 1.6.3 (the combat review, finding 21; Fulllion's pick of 2026-11-20): a token's Effects menu takes an optional rounds count beside each effect not on, which becomes
+            // its timer, and the hover card says the time left. sheets.js tokenFxCharOp, commitEffect (with the real applyEffectOp) and tokenFxLeft (with the real fxLeftText), and
+            // whiteboard.js fxRoundsInto, each run for real
+            const OPr = mkM({}), OPc = mkM({ client: true }), ADD = (ref, n) => ['c_a', 'f_fx', Object.assign({ op: 'add', rowId: 'x_new', ref }, n === undefined ? {} : { rounds: n })];
+            OPr.op('c_a', 'f_fx', { op: 'add', ref: 'e_gm', rounds: 3 }); [0, 100, 2.5, '3', -1].forEach(n => OPr.op('c_a', 'f_fx', { op: 'add', ref: 'e_pub', rounds: n })); OPc.op('c_a', 'f_fx', { op: 'add', ref: 'e_pub', rounds: 3 });
+            const shC = read('sheets.js').replace(/\r\n/g, '\n'), ceS = shC.slice(shC.indexOf('function commitEffect(c, f, q) {'), shC.indexOf('// 1.5.5 (the owner at the table, 2026-10-18')), fxlS = shC.slice(shC.indexOf('function fxLeftText(t, sys) {'), shC.indexOf('var _fxTicker = null;'));
+            const ceRun = (q, inCombat) => { const c = { id: 'c_a', values: { f_fx: [] } }, toasts = [];
+                new Function('getActiveCampaign', 'systemOf', 'isClient', 'net', 'canWrite', 'applyEffectOp', 'F', 'toast', 'renderViews', 'clone', 'afterCharChange', 'roundSecs', 'cA', 'fA', 'qA', "'use strict';\nvar lastChange = null;\n" + ceS + '\ncommitEffect(cA, fA, qA);')(
+                    () => ({}), () => sysM(), () => false, () => ({ charInCombat: () => inCombat }), () => true, SYc.applyEffectOp, () => null, t => toasts.push(t), () => {}, v => JSON.parse(JSON.stringify(v)), () => {}, SYc.roundSecs, c, { id: 'f_fx' }, q);
+                return { rows: c.values.f_fx, toasts }; };
+            const ce1 = ceRun({ op: 'add', rowId: 'x_9', ref: 'e_pub', rounds: 3 }, true), ce2 = ceRun({ op: 'add', rowId: 'x_9', ref: 'e_pub', rounds: 2 }, false), ce3 = ceRun({ op: 'add', rowId: 'x_9', ref: 'e_pub' }, true);
+            const FLT = new Function('roundSecs', 'fxLeftNow', "'use strict';\n" + fxlS + '\nreturn fxLeftText;')(SYc.roundSecs, SYc.fxLeftNow);
+            const campL = { system: sysM(), chars: { c_t: { id: 'c_t', values: { f_fx: [{ id: 'x_1', ref: 'e_pub', on: true, t: { left: 12, at: 0 } }, { id: 'x_2', name: 'Own', t: { left: 3600, at: 0, p: 1 } }, { id: 'x_3', ref: 'e_gm', on: false, t: { left: 6, at: 0 } }, { id: 'x_4', ref: 'e_pub', t: { left: 6, at: 0 } }, { id: 'x_5', ref: 'e_gm' }] } }, c_p: { id: 'c_p', partial: true, values: { f_fx: [{ id: 'x_1', ref: 'e_pub', t: { left: 12, at: 0 } }] } } } };
+            const LF = (on) => new Function('window', 'getActiveCampaign', 'systemOf', 'charById', 'fxLeftText', "'use strict';\n" + tlS + '\nreturn tokenFxLeft;')({ wpVtt: { on: k => k !== 'sheets' || on !== false } }, () => campL, c => c.system, id => (typeof id === 'string' && campL.chars[id]) || null, FLT);
+            const lf1 = LF()({ isChar: true, charId: 'c_t' }), lf2 = LF()({ isChar: true, charId: 'c_p' }), lf3 = LF()({ isChar: true }), lf4 = LF(false)({ isChar: true, charId: 'c_t' }), lf5 = LF()({ charId: 'c_t' });
+            const mfS = slice('whiteboard.js', 'tokenfx') + '\n' + slice('whiteboard.js', 'tokfxmenu'), mkLn = fi => ({ dataset: { fi: String(fi) }, kids: [], appendChild(c) { this.kids.push(c); return c; } });
+            const roundsRun = (m, winX) => { const lines = m.rows.map((r, k) => mkLn(k)), steps = [];
+                const FR = new Function('esc', 'window', 'uid', 'save', 'render', 'document', "'use strict';\n" + mfS + '\nreturn fxRoundsInto;')(escC, Object.assign({ wpUi: { step: o => { const s = { o, kind: 'step', typed: undefined, flush() { if (typeof this.typed === 'number') this.o.set(this.typed); } }; steps.push(s); return s; } } }, winX || {}), () => 'r', () => {}, () => {},
+                    { createElement: t => ({ tag: t, className: '', title: '', kids: [], on: {}, appendChild(c) { this.kids.push(c); return c; }, addEventListener(k, f) { (this.on[k] = this.on[k] || []).push(f); } }) });
+                return { lines, steps, rd: FR({ querySelectorAll: () => lines }, m) }; };
+            const mR = { char: 'c_a', rows: [{ ref: 'e_1', rowId: '', name: 'A' }, { ref: 'e_2', rowId: 'x_2', name: 'B', on: true }, { ref: 'e_3', rowId: '', name: 'C', auto: true }, { ref: 'e_4', rowId: '', name: '<b>D</b>' }] };
+            const r1 = roundsRun(mR); if (r1.steps[0]) r1.steps[0].o.set(4); const r1v = [r1.rd.get(0), r1.rd.get(3), r1.rd.get(1)], stopN = { n: 0 }; if (r1.lines[0].kids[0]) r1.lines[0].kids[0].on.click.forEach(f => f({ stopPropagation() { stopN.n++; } }));
+            // the review of combat damage (2026-11-20): a count typed into the box and not yet handed on (no Enter, no arrow) is read when the line is clicked, since get(k)
+            // asks that line's counter to flush first; the real counter hands a typed figure on only at the end of the press, which is the line's click itself
+            const r2 = roundsRun(mR); if (r2.steps[1]) r2.steps[1].typed = 7; const r2v = [r2.rd.get(3), r2.rd.get(0)];
+            const rNo = [roundsRun(mR, { wpNet: { active: true, role: 'client' } }), roundsRun(Object.assign({}, mR, { char: '' })), roundsRun(mR, { wpNet: { foreign: true } }), roundsRun(mR, { wpStream: true }), roundsRun(mR, { wpUi: null })].map(r => r.steps.length + r.lines.reduce((n, l) => n + l.kids.length, 0));
+            check('1.6.3 (the combat review, finding 21) a token\'s Effects menu takes a rounds count beside each effect not on, on the GM\'s own screen and a character token alone, the app\'s own counter from 0 to 99 with its words as text; the count rides on the add for the GM, a whole number from 1 to 99, never on a player\'s; the add starts the timer at that many of the system\'s rounds, stopped in a fight and running out of one, and with none the effect keeps its own time; the hover card reads the time left by name from a whole copy alone, the first row of a name, nothing for an effect off or with no timer',
+                J(OPr.calls) === J([ADD('e_gm', 3), ADD('e_pub'), ADD('e_pub'), ADD('e_pub'), ADD('e_pub'), ADD('e_pub')]) && J(OPc.calls) === J([ADD('e_pub')])
+                && J(ce1.rows.map(r => r.t)) === J([{ left: 18, at: 0 }]) && ce2.rows[0].t.left === 12 && ce2.rows[0].t.at > 0 && !('rounds' in ce1.rows[0]) && ce3.rows.length === 1 && ce3.rows[0].t === undefined && ce1.toasts.length === 0
+                && J(lf1) === J({ Blessed: '2 rounds left', Own: 'paused, 1h 0m left' }) && J([lf2, lf3, lf4, lf5]) === J([{}, {}, {}, {}])
+                && r1.steps.length === 2 && r1.lines[0].kids.length === 1 && r1.lines[3].kids.length === 1 && r1.lines[1].kids.length === 0 && r1.lines[2].kids.length === 0 && r1.steps[0].o.min === 0 && r1.steps[0].o.max === 99 && r1.steps[0].o.value === 0 && r1.steps[1].o.label === 'Rounds for <b>D</b>'
+                && J(r1v) === J([4, 0, 0]) && J(r2v) === J([7, 0]) && stopN.n === 1 && J(rNo) === J([0, 0, 0, 0, 0])
+                && read('whiteboard.js').includes("var qa = { op: 'add', ref: r.ref }, nR = fxRd.get(k); if (nR > 0) qa.rounds = nR;"), J([OPr.calls, ce1.rows, ce2.rows, lf1, rNo, r1v, r2v, stopN]));
+        }
         const mnS = slice('whiteboard.js', 'tokenfx') + '\n' + slice('whiteboard.js', 'tokfxmenu'), mnCalls = { saves: 0, renders: 0, charOps: [], n: 0 }, persist = { on: true };
         const MN = new Function('esc', 'window', 'uid', 'save', 'render', 'document', "'use strict';\n" + mnS + '\nreturn { html: tokenFxMenuHtml, op: tokenFxOp };')(escC, { wpSystemCore: SYc, wpFogCore: FCm, wpCanPersistLocal: () => persist.on, wpSheets: { tokenFxCharOp: (c, f, q) => mnCalls.charOps.push([c, f, q]) } }, () => 'r' + (++mnCalls.n), () => { mnCalls.saves++; }, () => { mnCalls.renders++; }, {});
         const mh = MN.html({ charName: '<img src=x onerror=1>' }, { char: '', rows: [{ ref: 'e_1', rowId: 'x_1', name: '<script>n</script>', icon: 'icon:bolt', gm: true, on: true }, { ref: '', rowId: 'x_2', name: 'Off"x', icon: '<b>i</b>', gm: false, on: false }, { ref: 'e_2', rowId: '', name: 'Plain', icon: '', gm: false, on: false }] }), mhC = MN.html({ charName: 'Bren' }, { char: 'c_a', rows: [] });
@@ -6014,7 +6048,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 'var _ldPop = null;\nfunction el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }\n' + shA.slice(aA, bA) + '\nreturn allyPick;')(
                 doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => ({ tok: { id: 'tk_a' }, map: {}, mapId: 'm1' }), () => ({}), () => !!client, () => (client ? 'u_a' : 'u_gm'), () => {}, () => {}, () => {});
             pick({ getBoundingClientRect() { return { left: 10, bottom: 20 }; } }, { id: 'c_a', name: '<b>Kael</b>', ownerId: 'u_a' }, on => got.push(on));
-            const pop = world.body[0] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];
+            const pop = world.body[world.body.length - 1] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];   // 1.6.3 (finding 30): the menu last put up, after a player's waiting line, moved on purpose
             return { world, got, items: items.map(b => [b.children[0].textContent, b.children[1].textContent]), click: k => items[k].listeners.click.forEach(f => f({ preventDefault() {}, stopPropagation() {} })) }; };
         const BAD = '<img src=x onerror=alert(1)>Bo';
         const r1 = runA([{ id: 'tk_b', charId: 'c_b', name: BAD }, { id: 'tk_n', charId: 'c_n', name: 'Orc' }], { u_a: { id: 'tk_n', mapId: 'm1' } }, true);
@@ -6047,15 +6081,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const n = { hitRows: (cid, cb) => { asked.push(cid); cb(answer); } };
             const api = new Function('document', 'window', 'net', 'isClient', 'toast', 'targetHitRows', 'closeLoadMenu', 'ldOutside', 'ldKey', 'getActiveCampaign', 'systemOf', 'charById', 'tokenCtxFor', 'F',
                 'var _ldPop = null;\nfunction el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }\n' + shH.slice(aH, bH) + '\nreturn { hitPick: hitPick, hitNamed: hitNamed, hitNeed: hitNeed };')(
-                doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => !!client, t => toasts.push(t), () => rowsGm, () => {}, () => {}, () => {}, () => camp, () => ({}), () => null, () => null, () => null);
+                doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => !!client, t => toasts.push(t), () => rowsGm, () => { world.body.pop(); } /* 1.6.3 (finding 30): the menu put away leaves the page, as closeLoadMenu does, moved on purpose */, () => {}, () => {}, () => camp, () => ({}), () => null, () => null, () => null);
             api.hitPick({ getBoundingClientRect() { return { left: 10, bottom: 20 }; } }, { c: { id: 'c_a' }, camp, sys: {}, tid: 't_u', mapId: 'm1' }, id => got.push(id));
-            const pop = world.body[0] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];
+            const pop = world.body[world.body.length - 1] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];   // 1.6.3 (finding 30): the menu last put up, after a player's waiting line, moved on purpose
             return { api, world, got, toasts, asked, items: items.map(b => [b.children[0].textContent, b.children[1].textContent]), click: k => items[k].listeners.click.forEach(f => f({ preventDefault() {}, stopPropagation() {} })) }; };
         const g1 = runH([{ id: 'w_srv', name: BAD }, { id: 'w_tor', name: 'Torso' }], false);
         g1.click(1);
         const g0 = runH([{ id: 'w_tor', name: 'Torso' }], false); g0.click(0);
         const p1 = runH([], true, [{ id: 'w_srv', name: BAD }]); p1.click(1);
         const pNone = runH([], true, []), pGone = runH([], true, null), gEmpty = runH([], false);
+        {   // 1.6.3 (the improvement week's combat review, batch "strip", finding 30, hitPick run for real): on a player's app the menu comes up at once with one line saying
+            // the GM's table is being asked, as text and no choice; the answer fills the menu in its place; a menu put away meanwhile is a no, and its late answer rolls nothing
+            const runW = closeFirst => { const { doc, world } = mkDoc(), got = [], toasts = []; let later = null;
+                const n = { hitRows: (cid, cb) => { later = cb; } };
+                const api = new Function('document', 'window', 'net', 'isClient', 'toast', 'targetHitRows', 'ldOutside', 'ldKey', 'getActiveCampaign', 'systemOf', 'charById', 'tokenCtxFor', 'F',
+                    'var _ldPop = null;\nfunction closeLoadMenu() { _ldPop = null; }\nfunction el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }\n' + shH.slice(aH, bH) + '\nreturn { hitPick: hitPick, close: closeLoadMenu };')(
+                    doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => true, t => toasts.push(t), () => [], () => {}, () => {}, () => camp, () => ({}), () => null, () => null, () => null);
+                api.hitPick({ getBoundingClientRect() { return { left: 10, bottom: 20 }; } }, { c: { id: 'c_a' }, camp, sys: {}, tid: 't_u', mapId: 'm1' }, id => got.push(id));
+                const w0 = world.body[0], wait = w0 ? w0.querySelector('.sheet-dl-wait') : null, waitWords = wait ? [wait.textContent, wait.attrs['aria-disabled'], w0.querySelectorAll('.sheet-dl-item').length] : null;
+                if (closeFirst) api.close(); later([{ id: 'w_srv', name: 'Servo-arm' }]);
+                const last = world.body[world.body.length - 1], items = last.querySelectorAll('.sheet-dl-item').map(b => b.children[0].textContent);
+                return { waitWords, pops: world.body.length, items, got, toasts, markup: world.markup }; };
+            const wOpen = runW(false), wShut = runW(true);
+            check('1.6.3 (the combat review, finding 30, sheets.js hitPick run for real): a player\'s press shows the menu at once with Asking the GM\'s table as text, never a choice, while the host is asked; the answer fills the menu in its place; a menu put away meanwhile is a no, and the late answer puts up nothing and rolls nothing',
+                j(wOpen.waitWords) === j(['Asking the GM’s table…', 'true', 0]) && wOpen.pops === 2 && j(wOpen.items) === j(['No called shot', 'Servo-arm']) && wOpen.got.length === 0 && wOpen.markup === 0
+                && j(wShut.waitWords) === j(wOpen.waitWords) && wShut.pops === 1 && wShut.got.length === 0 && wShut.toasts.length === 0, j([wOpen, wShut]));
+        }
         const nm1 = g1.api.hitNamed({ priv: true }, { r: 'r_aim' }, 'w_srv'), nm2 = g1.api.hitNamed(undefined, { l: 'f_gear', row: 'w_g', i: 1 }, 'w_tor'), nm3 = g1.api.hitNamed({ act: 'r_x' }, { f: 'f_y' }, 'w_tor');
         check('1.6.0 (B5) a called shot, the sheet\'s menu of where a roll is aimed (sheets.js hitPick and hitNamed, run for real on a page that refuses markup): No called shot first, then each of the target\'s own locations, every name a text node and a hostile name as the very text; a pick hands on that row\'s id and No called shot nothing; a player\'s app asks the host for its own character, and with no answer says so and rolls nothing, with no location rolls at once; the roll named for the host as its \u00b1 window names one; no markup is ever written',
             j(g1.items) === j([['No called shot', 'Aim at no one location'], [BAD, 'A location of your target'], ['Torso', 'A location of your target']]) && j(g1.got) === j(['w_srv']) && j(g0.got) === j([null])
@@ -6319,6 +6370,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const wrote = api.stripHeldNamed({ id: 'r"><b', holdFor: { text: X } }, true, 'Kael'), wroteP = api.stripHeldNamed({ id: 'r_a', hf: X }, false, 'Kael'), bare = api.stripHeldNamed({ id: 'r_a' }, false, 'Kael');
         check('1.6.0 a named hold, the strip (whiteboard.js stripHeldNamed, run for real): a hostile line and a hostile row id are escaped in the words and in their attributes, Set off is the GM\'s, and a copy with no words says none',
             got.length === 1 && got[0].text === X && got[0].roll === 'r_a' && !doc.getElementById('holdAsk') && !/<img|<b>?["\s]/.test(wrote.replace(/<span class="combat-strip-held"|<\/span>|<button class="combat-strip-btn" data-act="setoff"|<\/button>/g, '')) && wrote.indexOf(escS(X)) > 0 && /data-act="setoff"/.test(wrote) && !/setoff/.test(wroteP) && wroteP.indexOf(escS(X)) > 0 && !/:/.test(bare.replace(/data-tip="[^"]*"/, '')), wrote);
+        {   // 1.6.3 (the improvement week's combat review, batch "strip", finding 11, holdAsk run for real): pressed from the strip's menu, the anchor is the strip's own Hold
+            // button, which the compact strip puts away; its rectangle has no size, so the box stands under the strip's last button, else the strip, else the middle of the window
+            const rect = (l, t, w, h) => () => ({ left: l, top: t, right: l + w, bottom: t + h, width: w, height: h }), zero = { getBoundingClientRect: rect(0, 0, 0, 0) };
+            const place = () => { const b = doc.getElementById('holdAsk'); const at = [b.style.left, b.style.top]; api.holdClose(); return at; };
+            const strip = mkEl('div'); strip.id = 'combatStrip'; strip.getBoundingClientRect = rect(120, 40, 400, 30); let moreR = rect(480, 44, 24, 24); strip.querySelector = q => (q === '.combat-strip-morebtn' && moreR ? { getBoundingClientRect: moreR } : null); doc.body.appendChild(strip);
+            api.holdAsk(zero, {}, () => {}); const atMore = place(); moreR = null; api.holdAsk(zero, {}, () => {}); const atStrip = place(); doc.body.removeChild(strip); api.holdAsk(zero, {}, () => {}); const atMid = place();
+            api.holdAsk({ getBoundingClientRect: rect(60, 500, 40, 20) }, {}, () => {}); const atOwn = place();
+            check('1.6.3 (the combat review, finding 11, holdAsk run for real): an anchor with no size (the strip\'s own Hold, put away in the compact strip) gives way to the strip\'s last button, then the strip, then the middle of the window, never the top left corner; an anchor with a size keeps the box under it, held inside the window',
+                JSON.stringify([atMore, atStrip, atMid, atOwn]) === JSON.stringify([['480px', '74px'], ['120px', '76px'], ['300px', '250px'], ['60px', '492px']]), JSON.stringify([atMore, atStrip, atMid, atOwn]));
+        }
         const stripHd = wbH.slice(wbH.indexOf('function renderCombatStrip('), wbH.indexOf('window.wpRenderCombatStrip = renderCombatStrip;'));
         check('1.6.0 a named hold, the strip\'s other word: what it says of a row set off is fixed words and its name through the strip\'s own writer', /acts now ' \+ nameOf\(r\) \+ '<\/span>'/.test(stripHd) && !/r\.hf|holdFor/.test(stripHd.replace(/stripHeldNamed\(r, host, nameOf\(r\)\)/g, '')));
     }

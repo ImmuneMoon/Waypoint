@@ -377,9 +377,11 @@ pendingChecks.push((async () => {
         links: [{ id: 'lk_c', key: 'Ship', label: 'Ship', kind: 'crew', group: 'Crew', press: true, stations: ['Gunner', 'Engineer'], edit: 'gm' }, { id: 'lk_off', key: 'Boat', label: 'Boat', kind: 'crew', edit: 'gm' }] };
     const gmSys = Sx.cleanSystem(raw, { F: Fx, gmView: true });
     const chars = () => ({ c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_a', npc: false, links: { lk_c: 'c_v' }, stn: { lk_c: 'Gunner' }, values: { f_aim: 13 } }, c_b: { id: 'c_b', name: 'Pebbles', ownerId: 'u_a', npc: false, values: { f_aim: 9 } }, c_o: { id: 'c_o', name: 'Rook', ownerId: 'u_o', npc: false, links: { lk_c: 'c_v' }, values: { f_aim: 15 } }, c_q: { id: 'c_q', name: 'Tam', ownerId: 'u_a', npc: false, links: { lk_off: 'c_v' }, values: {} }, c_v: { id: 'c_v', name: 'Swift', ownerId: '', npc: true, values: { f_ammo: 5 } } });
-    const run = msg0 => {
+    // tn (1.6.3, the review of combat batch "strip"): a stand-in for net.tokNameOf, the name the vehicle's token reads as on the map
+    const run = (msg0, tn) => {
         const camp = { id: 'k', activeItemId: 'm1', system: gmSys, chars: chars(), items: { m1: { type: 'map', whiteboard: [] } } };
         const net = { active: true, role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' } }, combats: {}, syncCharDelta() {} };
+        if (tn) net.tokNameOf = tn;
         const out = { table: [], sent: [], camp };
         const conn = { peer: 'pA', send(m) { packCheck(m); out.sent.push(JSON.parse(JSON.stringify(m))); } };
         const win = { wpFormula: Fx, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
@@ -397,6 +399,11 @@ pendingChecks.push((async () => {
         ok.table.length === 1 && ok.table[0].as === 'Kael on Swift' && nm(ok.table[0], 'Presser.Aim') === 13 && ok.camp.chars.c_v.values.f_ammo === 6 && ok.sent.length === 0, j([ok.table, ok.sent, ok.camp.chars.c_v.values]));
     check('1.6.0 no press without the link: no sheet named, a sheet of theirs that is not linked, a sheet of another player\'s and a Crew link not ticked are each refused with nothing rolled and nothing moved; the wrong station, the initiative roll and a formula that is not the button\'s too',
         deny(noBy) && noBy.sent[0].reason === 'char' && deny(other) && /not one your character crews/.test(other.sent[0].message) && deny(theirs) && deny(off) && deny(eng) && /another station/.test(eng.sent[0].message) && deny(ini) && deny(loose) && [noBy, other, theirs, off, eng, ini, loose].every(o => o.camp.chars.c_v.values.f_ammo === 5), j([noBy.sent, other.sent, theirs.sent, off.sent, eng.sent, ini.sent, loose.sent]));
+    // 1.6.3 (the review of combat batch "strip"; Fulllion's pick of 2026-11-20: any NPC card players see names the token, never the sheet): the
+    // card a crew press posts names the vehicle by its token's own name, as net.diceRoll names a character; with no token name, the sheet's
+    const tnCalls = [], tok = run(Object.assign({ by: 'c_a' }, gun), (ch, mapId, tokId) => { tnCalls.push([ch && ch.id, mapId, tokId]); return ch && ch.id === 'c_v' ? 'Swift Two' : ''; }), tokNone = run(Object.assign({ by: 'c_a' }, gun), () => '');
+    check('1.6.3 a crew press names the vehicle by its token (roll-req run for real with a stand-in token namer): the card reads "Kael on Swift Two", asked of the vehicle; a token namer that knows no name leaves the name of the sheet, "Kael on Swift"',
+        tok.table.length === 1 && tok.table[0].as === 'Kael on Swift Two' && tnCalls.some(c => c[0] === 'c_v') && tokNone.table.length === 1 && tokNone.table[0].as === 'Kael on Swift', j([tok.table.map(r => r.as), tokNone.table.map(r => r.as), tnCalls]));
     const view = Sx.cleanSystem(raw, { F: Fx, gmView: false }), gnr = Sx.crewRollsOf(view, { values: {} }, ['Gunner'], Fx), egr = Sx.crewRollsOf(view, { values: {} }, ['Engineer'], Fx);
     const nmd = Sx.crewRollsOf(view, { values: {} }, ['Engineer'], Fx, true), nmG = Sx.crewRollsOf(view, { values: {} }, ['Gunner'], Fx, true), cln = Sx.cleanSystem(Object.assign({}, raw, { links: [Object.assign({}, raw.links[0], { pressNamed: true }), Object.assign({}, raw.links[1], { pressNamed: true })] }), { F: Fx, gmView: false });
     check('1.6.0 Only rolls that name a station: a crew member is offered those alone, and the judge agrees, a roll that names none refused; the key is kept only beside press, in both views',

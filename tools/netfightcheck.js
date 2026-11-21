@@ -136,8 +136,8 @@ pendingChecks.push((async () => {
         j([uSeen, uDropB, uDropA, uOther, uElse, uShut, uWait, uHid, uGone, uSaw, uSawA, uNone, uBad.map(u => u.got)]));
     const wbU = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
     check('secrets (source): the roster\'s Roll all and its per-row Roll (whiteboard.js) pass the judge\'s word to the sheet\'s initiative roll as priv, and the every-round re-roll asks it beside the hidden tick',
-        /var rr = window\.wpSheets\.rollInit\(r\.charId, \{ priv: combatRollPriv\(draft\.mapId, r\.tokId\) \}\);/.test(wbU) && /window\.wpSheets\.rollInit\(rows\[i\]\.charId, \{ priv: combatRollPriv\(combatDraft\.mapId, rows\[i\]\.tokId\) \}\)/.test(wbU)
-        && /rollInit\(ch\.id, \{ priv: !!\(tkI && \(tkI\.hidden \|\| \(typeof net\.tokUnseen === 'function' && net\.tokUnseen\(mapId, tkI\.id\)\)\)\) \}\)/.test(require('./checkkit').part('netfight.js')));
+        /var rr = window\.wpSheets\.rollInit\(r\.charId, \{ priv: combatRollPriv\(draft\.mapId, r\.tokId\), tok: r\.tokId \}\);/.test(wbU) && /window\.wpSheets\.rollInit\(rows\[i\]\.charId, \{ priv: combatRollPriv\(combatDraft\.mapId, rows\[i\]\.tokId\), tok: rows\[i\]\.tokId \}\)/.test(wbU)
+        && /rollInit\(ch\.id, \{ priv: !!\(tkI && \(tkI\.hidden \|\| \(typeof net\.tokUnseen === 'function' && net\.tokUnseen\(mapId, tkI\.id\)\)\)\), tok: tkI \? tkI\.id : undefined \}\)/.test(require('./checkkit').part('netfight.js')));   // 1.6.3 (the combat review, finding 3): and the token rolled for, whose name the card wears, moved on purpose
 })());
 // Range penalties R3 (the owner's answer of 2026-09-29): a public roll that reads the range goes to its roller and the GM alone while
 // another player on the target's map cannot see the target — the real roll-req branch and the GM's own net.diceRoll, with the real
@@ -350,14 +350,14 @@ pendingChecks.push((async () => {
         const rrSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
         check('initiative O1 (source): the roll request takes a player\'s own initiative roll into the fight after the roll goes out — only when the entry it was rebuilt from is the system\'s initiative roll; players never get a row\'s number or its rolled mark (combatRowOut)',
             rrSrc.includes("if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);") && rrSrc.indexOf('initIntoFight(campQ') > rrSrc.indexOf("else { sendTable(recQ, null);")
-            && src.includes("function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }") && /if \(r\.rolled === 1 \|\| r\.rolled === true\) o\.rolled = 1;/.test(src));
+            && src.includes("function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null, hid: 1 }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }") && /if \(r\.rolled === 1 \|\| r\.rolled === true\) o\.rolled = 1;/.test(src));
     }
     const teSrc = between('// [netcheck:turnend-start]', '// [netcheck:turnend-end]', 'turnend');
     const runTE = (msg, o) => {
         o = o || {}; const steps = [];
         const map = { type: 'map', whiteboard: [{ id: 't_pat', isChar: true, charId: 'c_p', ownerId: 'u_a' }, { id: 't_orc', isChar: true, charId: 'c_o' }, { id: 't_sam', isChar: true, charId: 'c_s', ownerId: 'u_b' }, { id: 't_box', isChar: false, ownerId: 'u_a' }] };
         const camp = { items: { m1: map, m2: { type: 'map', whiteboard: [] } } };
-        const net = { role: 'host', paused: !!o.paused, roster: { pA: { id: 'u_a', location: o.loc || 'm1' } }, combats: { m1: { mapId: 'm1', round: 1, turn: o.turn === undefined ? 1 : o.turn, rows: [{ id: 'r_orc', tokId: 't_orc' }, { id: 'r_pat', tokId: 't_pat' }, { id: 'r_sam', tokId: 't_sam' }, { id: 'r_box', tokId: 't_box' }, { id: 'r_trap', tokId: null }] } } };
+        const net = { role: 'host', paused: !!o.paused, roster: { pA: { id: 'u_a', location: o.loc || 'm1' } }, combats: { m1: Object.assign({ mapId: 'm1', round: 1, turn: o.turn === undefined ? 1 : o.turn, rows: [{ id: 'r_orc', tokId: 't_orc' }, { id: 'r_pat', tokId: 't_pat' }, { id: 'r_sam', tokId: 't_sam' }, { id: 'r_box', tokId: 't_box' }, { id: 'r_trap', tokId: null }] }, o.extra || {}) } };   // o.extra (1.6.3): what a turn shape keeps on a fight
         const own = (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k);
         new Function('msg', 'conn', 'net', 'window', 'getActiveCampaign', 'peerPaused', 'allow', 'own', 'toast', 'broadcastCombats', 'combatRefresh', 'roundChanged', 'turnStarted', ordersSrc + '\n' + teSrc)(Object.assign({ type: 'turn-end' }, msg), { peer: 'pA' }, net,
             { wpVtt: { on: k => k === 'turns' ? o.turns !== false : true } }, () => camp, () => !!o.peerPaused, () => o.slow !== true, own, () => {}, () => {}, () => {}, () => {}, (m) => steps.push(m + ':1'));
@@ -369,6 +369,16 @@ pendingChecks.push((async () => {
     check('turn-end: nothing for a row they did not see on turn (stale, or someone else\'s), another\'s token, a GM token, a token that is not a character, a row with no token, another map than theirs, no row, turn-based combat off, a paused table or player, past the rate',
         [runTE({ mapId: 'm1', row: 'r_orc' }), runTE(ok, { turn: 0 }), runTE({ mapId: 'm1', row: 'r_sam' }, { turn: 2 }), runTE({ mapId: 'm1', row: 'r_box' }, { turn: 3 }), runTE({ mapId: 'm1', row: 'r_trap' }, { turn: 4 }),
             runTE({ mapId: 'm2', row: 'r_pat' }), runTE(ok, { loc: 'm2' }), runTE({ mapId: 'm1' }), runTE({ mapId: 'm1', row: 5 }), runTE(ok, { turns: false }), runTE(ok, { paused: true }), runTE(ok, { peerPaused: true }), runTE(ok, { slow: true }), runTE({ mapId: {}, row: 'r_pat' })].every(s => s.length === 0));
+    {   // 1.6.3, Fulllion's ruling of 2026-11-20: "players should be able to pass their own round on their own, but not other's round. the gm is always able to pass or reverse
+        // anyones rounds however". The host judges a player's End turn by the row on turn and its token alone, whatever the fight's turn shape keeps beside it (several
+        // turns a round, a counting clock, a drawn order that ends the round at a card, a declaration under way), and a player has no way to step a fight back
+        const shapes = [{}, { seq: ['r_orc', 'r_pat', 'r_orc', 'r_sam'], sq: 1 }, { ck0: { r_orc: 5, r_pat: 4, r_sam: 2 } }, { endAt: 3 }, { dec: { round: 1, lines: {}, open: 1 } }];
+        const ruled = shapes.map(x => [j(runTE(ok, { extra: x })), runTE({ mapId: 'm1', row: 'r_orc' }, { extra: x, turn: 0 }).length, runTE(ok, { extra: x, turn: 0 }).length, runTE({ mapId: 'm1', row: 'r_sam' }, { extra: x, turn: 2 }).length]);
+        const wbR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.3 (Fulllion\'s ruling of 2026-11-20, run for real under every turn shape): a player ends their own turn, and no one else\'s (the row on turn being another\'s, or theirs named while another is on turn), under several turns a round, a counting clock, a drawn order and a declaration as with none; no message of a player\'s steps a fight back, the only steps a player reaches being their End turn and their own hold, and the strip\'s Previous and Next stand behind the host\'s own check',
+            ruled.every(r => r[0] === j(['m1:1']) && r[1] === 0 && r[2] === 0 && r[3] === 0) && require('./checkkit').familyCount('net.js', "fightStep(fidT, 1, 'player', pkT)") === 1 && require('./checkkit').familyCount('net.js', 'fightStep(') === 4
+            && require('./checkkit').familyCount('net.js', "fightHold(fidH, 'player'") === 1 && wbR.includes("if (!(n && n.role === 'host' && am)) return;\n        var fidB = stripFightId(am.id); if (!fidB) return;") && wbR.includes("if (b.dataset.act === 'next') n.fightStep(fidB, 1);\n        else if (b.dataset.act === 'prev') n.fightStep(fidB, -1);"), j(ruled));
+    }
     {   // initiative O3: holding a turn — net.combatHold / net.combatAct and the hold's end at a new round (combatStep), run for real
         const wbAll = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
         const hsSrc = fnSrc('net.combatStep = function', '// [netcheck:turnhold-start]', 'combatStep', 'netfight.js') + between('// [netcheck:turnhold-start]', '// [netcheck:turnhold-end]', 'turnhold', 'netfight.js');
@@ -726,7 +736,7 @@ pendingChecks.push((async () => {
         J(gG) === J({ host: [true, true], msgs: gG.msgs, sent: true, snap: [S5], cleaned: [[S5], [S4]] }) && gG.msgs > 20, J(gG));
     const rd3 = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n'), help3 = rd3('system/app/index.html'), notes3 = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(rd3);
     check('fold 3 (source): Help\'s combat entry says that a step back is a correction and runs nothing twice, naming the actions by the words their list shows, the Rolls entry says the round still goes back at a step back but runs an action once for each round reached, the timed effects say they count once a round, and both release notes say it under 1.5.5\'s Combat',
-        help3.includes('<li>A step back with <b>&#9664;</b> on the turn strip is a correction. Going on again runs no <b>Also each round</b>, <b>Also at its turn&rsquo;s start</b> or <b>end</b> action twice, and counts no timed effect twice.</li>')
+        help3.includes('<li>A step back with <b><i class="wib wi-nextturn wib-mirror"></i> Previous turn</b> on the turn strip is a correction. Going on again runs no <b>Also each round</b>, <b>Also at its turn&rsquo;s start</b> or <b>end</b> action twice, and counts no timed effect twice.</li>')
         && help3.includes('<b>Also each round</b> runs it on every character with a token in the fight once for each round the fight reaches. The round changes at the combat&rsquo;s start, at <b>Next turn</b> past the last and back at a step back past the first. A step back is a correction, so a round reached before runs nothing again.') && !help3.includes('runs no Each round or Each turn action')
         && help3.includes('In a combat one round passes at the start of its character&rsquo;s turn, once in each round of the fight, and a step back counts nothing again.')
         && notes3.every(t => { const a = t.indexOf('WAYPOINT 1.5.5'), b = t.indexOf('WAYPOINT 1.5.4'), c = t.indexOf('\nCombat\n', a), i = t.indexOf('- A step back on the turn strip is a correction. Going back and on\n'); return a >= 0 && c > a && i > c && i < b; }));
@@ -1604,7 +1614,7 @@ pendingChecks.push((async () => {
     const nt = mkA({ turns: false }); nt.sp('Action'); const nt2 = nt.sp('Action');
     const nk = mkA(); const nk1 = nk.sp('Nope'), nk2 = nk.sp('');
     check('The bell (Bell-b): an action\'s turn note names its character (what is left, and past it under Warn), and Warn also notes it in the GM\'s bell; a spend within the count does not',
-        w.out.sent.filter(m => m.type === 'turn-note').length === 2 && w.out.sent.filter(m => m.type === 'turn-note').every(m => m.charId === 'c_p') && j(w.out.bells) === j([['c_p', 'Turn', 'Used a Action past what a turn allows.']]), j([w.out.sent, w.out.bells]));
+        w.out.sent.filter(m => m.type === 'turn-note').length === 2 && w.out.sent.filter(m => m.type === 'turn-note').every(m => m.charId === 'c_p') && j(w.out.bells) === j([['c_p', 'Turn', 'Used Action past what a turn allows.']]) /* 1.6.3 (finding 25): no article, and a plain word for an action with no name, moved on purpose */, j([w.out.sent, w.out.bells]));
     check('T4 actSpend\'s modes and reach: Warn lets a press past the count through with a note to them and the GM (it still counts); Off neither counts nor notes; a character not in the combat, turn-based combat off, a cost naming no action or none: free',
         w2 === '' && w.net.turnSpent.c_p.Action === 2 && /used past what a turn allows/.test(w.out.notes()[1]) && w.out.toasts.length === 1 && j(w.out.left().pop()) === j('pA2:{"Action":0,"Bonus":2}:warn')
         && f1 === '' && f2 === '' && !f.out.sent.length && !('c_p' in f.net.turnSpent) && nq1 === '' && !('c_q' in nq.net.turnSpent) && nt2 === '' && !nt.out.sent.length && nk1 === '' && nk2 === '' && !nk.out.sent.length, j([w.net.turnSpent, w.out.notes(), f.out.sent]));
@@ -1633,8 +1643,8 @@ pendingChecks.push((async () => {
         const r0 = mkR(0); const pre = r0.sp('Ready'), pre2 = r0.sp('Ready'), m0 = JSON.stringify(r0.net.turnMax.c_p);
         const rE = mkR(2); rE.api.start('m1', rE.net.combats.m1); rE.api.end('m1', rE.net.combats.m1); const gone = !('c_p' in rE.net.turnMax);
         check('192 an action\'s count by formula (host, run for real): worked out at the turn\'s start over the players\' view and the owner\'s own copy (1 + ExtraReady with 2 gives 3; a count naming a GM-only value and one that rolls dice stand at their number), told as what is left, spent to 0 and then refused; a press before any turn of theirs works it out then; the combat\'s end forgets it',
-            m2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && l2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && JSON.stringify(sp2) === JSON.stringify(['', '', '', 'No Ready left this turn.'])
-            && pre === '' && pre2 === 'No Ready left this turn.' && m0 === JSON.stringify({ Ready: 1, Act: 1, Hid: 2, Dice: 3 }) && gone, j([m2, l2, sp2, pre, pre2, m0, gone]));
+            m2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && l2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && JSON.stringify(sp2) === JSON.stringify(['', '', '', 'No Action left this turn.'] /* 1.6.3 (finding 25): an action with no name is said as Action, never its key, moved on purpose */)
+            && pre === '' && pre2 === 'No Action left this turn.' && m0 === JSON.stringify({ Ready: 1, Act: 1, Hid: 2, Dice: 3 }) && gone, j([m2, l2, sp2, pre, pre2, m0, gone]));
     }
     const runAI = (msg, o) => { o = o || {}; const net = { foreign: true, syncedPeer: 'h', stream: false, actsLeft: o.had || undefined }, seen = []; new Function('msg', 'conn', 'net', 'window', aiA)(Object.assign({ type: 'acts-left' }, msg), { peer: o.peer || 'h' }, net, { wpSheets: { charChanged: id => seen.push(id) } }); return { al: net.actsLeft, seen }; };
     const ai1 = runAI({ charId: 'c_p', left: { Action: 0, Bonus: 2, 'bad key': 1, Big: 120, Mid: 12, Frac: 0.5, constructor: 1 }, mode: 'warn' }), ai2 = runAI({ charId: 'c_p', left: null }, { had: { c_p: { left: {}, mode: 'refuse' } } });
@@ -1758,7 +1768,7 @@ pendingChecks.push((async () => {
             const netP = { combats: {}, fightsOn: () => [], targets: { u_a: { id: 'o1', mapId: 'm1' } } }, mapP = { id: 'm1', whiteboard: [{ id: 'p1', isChar: true, ownerId: 'u_a', name: 'Ana' }, { id: 'o1', isChar: true, name: 'Orc' }, { id: 'o2', isChar: true, name: 'Goblin' }, { id: 'o3', isChar: true, name: 'Bat' }, { id: 'o4', isChar: true, hidden: true, name: 'Rat' }] };
             const rowsP = new Function('window', 'getActiveCampaign', fhSrc + '\n' + rowsS + '\nreturn combatRowsFor;')({ wpNet: netP }, () => ({ items: { m1: mapP } }))('m1', { pre: ['o2'] }).map(r => r.tokId + ':' + (r.on ? 'on' : 'off') + ':' + r.targeted);
             check('the roster: a token picked on the map is ticked and is not called targeted; a real target and whoever points at it keep their tags; a token nobody picked or targeted is offered unticked, after the ticked ones (found live, 2026-10-30)',
-                j(rowsP) === j(['p1:on:targeting', 'o2:on:', 'o1:on:targeted', 'o3:off:']), j(rowsP));
+                j(rowsP) === j(['p1:on:targeting', 'o2:on:', 'o1:on:targeted', 'o3:off:', 'o4:off:']), j(rowsP));   // 1.6.3 (the combat review, finding 15, a deliberate change of this pin): the hidden Rat is offered too, unticked
             const rowsA = new Function('window', 'getActiveCampaign', fhSrc + '\n' + rowsS + '\nreturn combatRowsFor;')({ wpNet: Object.assign({}, netP, { targets: { 'tk:o2': { id: 'o1', mapId: 'm1' } } }) }, () => ({ items: { m1: mapP } }))('m1', {}).filter(r => r.on).map(r => r.tokId + ':' + r.targeted);
             check('the live test, 2026-10-30: one of the GM\'s characters aiming at a target (Target as) comes ticked with it, as a player\'s token does',
                 j(rowsA.sort()) === j(['o1:targeted', 'o2:targeting']), j(rowsA));
@@ -1772,13 +1782,101 @@ pendingChecks.push((async () => {
             j(busy0) === j(['t_ana:busy:', 't_orc:busy:', 't_gob:busy:', 't_x::']) && title0 === 'Keep, another fight' && j(rowsH) === j([[true, true], [true, true], [true, true], [false, false]])
             && j(busy1) === j(['t_ana:busy:', 't_orc:busy:', 't_gob:busy:', 't_x::on']) && j(rowsB2) === j(['t_x']), j([busy0, title0, rowsH, busy1, rowsB2]));
     }
+    {   // 1.6.3 (the improvement week's combat review, findings 0, 7, 13, 15, 20, 32 and 35; Fulllion's picks of 2026-11-20): the roster of a fight (whiteboard.js
+        // combatRowsFor, rosterShape, rosterRowState, clockNeverWords, renderCombatModal, openCombatModal and the roster's Start and Update, run for real over net.js)
+        const rowsS = wbCut('function combatRowsFor(mapId, opts) {', '\nfunction combatSortByInit(rows) {', 'combatRowsFor'), rendS = wbCut('function renderCombatModal() {', '\nfunction openCombatModal(', 'renderCombatModal'), openS = wbCut('function openCombatModal(mapId, opts) {', '\nwindow.wpOpenCombat = openCombatModal;', 'openCombatModal');
+        const findS = wbCut('// [lookcheck:combatfind-start]', '// [lookcheck:combatfind-end]', 'combatfind'), escS = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'inspector.js'), 'utf8').replace(/\r\n/g, '\n')) || [])[1] || '';
+        // A roster world over a scen() table: o.roll, the system has an initiative roll; o.sys, the system the GM's copy holds
+        const mkR = (Bq, o) => {
+            o = o || {}; const els = {}, made = []; ['combatModal', 'combatRows', 'combatAddBtn', 'combatAddName', 'combatCancelBtn', 'combatCloseBtn', 'combatStartBtn', 'combatMapName', 'combatRollAllBtn', 'combatHelp', 'combatTickAllBtn'].forEach(id => { els[id] = fe(); });   // the review of the combat roster: Tick all too
+            if (o.sys) Bq.camp.system = o.sys; Bq.camp.items.m1.whiteboard.forEach(w => { w.charId = 'c' + w.id; if (!w.name) w.name = w.id.charAt(2).toUpperCase() + w.id.slice(3); });   // Orc, Ana, Gob, X
+            const doc = { getElementById: id => els[id] || null, createElement: tag => { const e = { tag, className: '', title: '', innerHTML: '' }; made.push(e); return e; } };
+            const R = new Function('document', 'window', 'toast', 'getActiveCampaign', 'getActiveMap', 'state', 'resolveImg', 'setTimeout', 'clearTimeout', 'var combatDraft = null;\n' + escS + '\n' + fhSrc + '\n' + findS + '\n' + rowsS + '\n' + sortSrc + '\n' + rendS + '\n' + openS + '\n' + wireSrc + '\nreturn { open: openCombatModal, render: renderCombatModal, draft: function() { return combatDraft; }, shape: rosterShape, never: clockNeverWords };')(
+                doc, { wpNet: Bq.net, wpSheets: { hasInitRoll: () => !!o.roll, rollInit: () => ({ ok: true, value: 7 }) } }, t => Bq.toasts.push(t), () => Bq.camp, () => Bq.camp.items.m1, { viewMode: 'visual' }, s => s, () => 0, () => {});
+            const rowHtml = rid => String(els.combatRows.innerHTML || '').split('<div class="combat-row').find(h => h.indexOf(' data-rid="' + rid + '"') >= 0) || '';
+            return { R, els, made, rowHtml };
+        };
+        // findings 0, 7, 15 and 20: a fight under way (Orc on turn, the Goblin holding its turn for "the guard moves", Ana having gone), the Orc's token then hidden
+        const Bh = scen(); Bh.start(); const fidH = Bh.net.fightsOn('m1')[0], cH = Bh.net.combats[fidH];
+        const gobH = cH.rows.find(r => r.tokId === 't_gob'); gobH.held = 1; gobH.holdFor = { text: 'the guard moves' }; cH.rh = 1; cH.th = { r_t_ana: 1, r_t_orc: 1 };
+        Bh.camp.items.m1.whiteboard.find(w => w.id === 't_orc').hidden = true;   // (what the hold names is drawn, then taken off before Update: this world has no holdOwner for the broadcast; the host's half of a named hold is the fightReachKept check below)
+        const MH = mkR(Bh); MH.R.open('m1', { fid: fidH });
+        const orcH = MH.rowHtml('r_t_orc'), gobRH = MH.rowHtml('r_t_gob'), anaH = MH.rowHtml('r_t_ana'), titleH = MH.els.combatMapName.textContent, dH = MH.R.draft().rows.filter(r => r.tokId).map(r => r.tokId + ':' + (r.on ? 'on' : 'off') + (r.hidden ? ':hidden' : '') + (r.held ? ':held' : ''));
+        delete gobH.holdFor; MH.els.combatStartBtn.on.click({}); const afterH = Bh.net.combats[fidH].rows.map(r => r.tokId + (r.held === 1 ? ':held' : ''));
+        check('1.6.3 (the combat review, findings 0, 7 and 20, run for real over net.js): a running fight\'s roster says where play stands (the round in its title, the row on turn marked now, a held row holding with what its hold names, a row that has gone this round acted), lists a token hidden since the fight began ticked and tagged hidden, and Update keeps both its row and the Goblin\'s hold, where before the hidden row was taken out and the hold wiped with nothing said',
+            titleH === 'Keep, round 1' && orcH.indexOf(' now"') === 0 && orcH.indexOf('combat-tag combat-now') > 0 && orcH.indexOf('>hidden</span>') > 0 && / checked /.test(orcH + ' ')
+            && gobRH.indexOf('title="Holding their turn until the guard moves">holding</span>') > 0 && anaH.indexOf('>acted</span>') > 0 && gobRH.indexOf('>acted<') < 0
+            && j(dH) === j(['t_orc:on:hidden', 't_ana:on', 't_gob:on:held', 't_x:off']) && j(afterH) === j(['t_orc', 't_ana', 't_gob:held', 'null']), j([titleH, orcH, gobRH, anaH, dH, afterH]));
+        // finding 15: a hidden token not in the fight is offered unticked, a hidden token picked on the map comes ticked, and Start keeps it in the fight
+        const Bp = scen(); Bp.camp.items.m1.whiteboard.find(w => w.id === 't_x').hidden = true; const MP = mkR(Bp); MP.R.open('m1', { pre: ['t_orc', 't_x'] });
+        const pRows = MP.R.draft().rows.map(r => r.tokId + ':' + (r.on ? 'on' : 'off') + (r.hidden ? ':hidden' : '')); MP.els.combatStartBtn.on.click({}); const pFight = Bp.net.combats[Bp.net.fightsOn('m1')[0]].rows.map(r => r.tokId);
+        const Bp2 = scen(); Bp2.camp.items.m1.whiteboard.find(w => w.id === 't_x').hidden = true; const MP2 = mkR(Bp2); MP2.R.open('m1', {}); const p2Rows = MP2.R.draft().rows.filter(r => r.tokId === 't_x').map(r => (r.on ? 'on' : 'off') + (r.hidden ? ':hidden' : ''));
+        check('1.6.3 (finding 15; Fulllion: a hidden token joins a fight and acts like any other): the roster lists a hidden token, unticked unless it was picked on the map, tagged hidden, and Start puts a hidden pick in the fight',
+            j(pRows) === j(['t_orc:on', 't_x:on:hidden', 't_ana:off', 't_gob:off']) && MP.rowHtml('rt_x').indexOf('>hidden</span>') > 0 && j(pFight) === j(['t_orc', 't_x']) && j(p2Rows) === j(['off:hidden']), j([pRows, pFight, p2Rows]));
+        // finding 32, under each turn shape: a deck puts the numbers, each row's roll and Roll all away and says the order is drawn; a counting clock titles the box Count
+        // and marks a ticked row at 0, which Start then says never acts (finding 13); sides say the order is grouped; an initiative is as it was
+        const Bd = scen(), MD = mkR(Bd, { roll: true, sys: { combat: { initiative: { deck: { key: 'D1' } } }, decks: [{ key: 'D1', label: 'Fate deck' }] } }); MD.R.open('m1', { pre: ['t_orc'] });
+        const dInit = (String(MD.els.combatRows.innerHTML).match(/<input type="number" class="combat-init field"[^>]*>/g) || []), dRoll = (String(MD.els.combatRows.innerHTML).match(/<button class="tool ghost combat-roll"[^>]*>/g) || []);
+        const Bc = scen(), MC = mkR(Bc, { roll: true, sys: { combat: { initiative: { clock: { cost: 3 } } } } }); MC.R.open('m1', { pre: ['t_orc'] }); Bc.net.fightSet = () => 'f_clock1';   /* the Start's own toast is what is read here, not the host's clock */ const cOrc = MC.rowHtml('rt_orc'), cAna = MC.rowHtml('rt_ana'); MC.els.combatStartBtn.on.click({});
+        const Bs = scen(), MS = mkR(Bs, { roll: true, sys: { combat: { initiative: { side: 'pc' } } } }); MS.R.open('m1', {});
+        const Bn = scen(), MN = mkR(Bn, { roll: true }); MN.R.open('m1', {});
+        check('1.6.3 (finding 32; Fulllion: the roster fits the turn shape): under a deck the number boxes, the rows\' rolls and Roll all are put away, never removed, and the help line says the order is drawn from the deck by name; under a counting clock the box is titled Count, a ticked row at 0 is marked never acts (an unticked one is not) and Start says so (finding 13); under sides a line says the order is grouped by side; with no shape the words and boxes are as they were',
+            dInit.length === 4 && dInit.every(s => /style="display:none"/.test(s)) && dRoll.length === 4 && dRoll.every(s => /style="display:none"/.test(s)) && MD.els.combatRollAllBtn.style.display === 'none'
+            && MD.els.combatHelp.textContent === 'Tick who is in the fight. The order is drawn from Fate deck at each round’s start, so no number is asked.'
+            && /aria-label="Count"/.test(cOrc) && cOrc.indexOf(' never"') === 0 && cOrc.indexOf('>never acts</span>') > 0 && cAna.indexOf('>never acts</span>') < 0 && MC.els.combatHelp.textContent === 'Tick who is in the fight and give each a count. Higher acts first. A row at 0 or less never acts.'
+            && Bc.toasts.indexOf('Orc has a count of 0 or less, so on the counting clock it never acts. Give it a count above 0 in the roster.') >= 0
+            && MS.els.combatHelp.textContent === 'Tick who is in the fight and give each an initiative. Higher goes first. The order is then grouped by side, and each side goes together.'
+            && MN.els.combatHelp.textContent === 'Tick who is in the fight and give each an initiative. Higher goes first.' && MN.els.combatRollAllBtn.style.display === '' && !/display:none/.test(String(MN.els.combatRows.innerHTML)) && /title="Initiative \u2014 higher goes first"/.test(String(MN.els.combatRows.innerHTML))
+            && MC.R.never(['A', 'B', 'C', 'D']) === 'A, B, C and 1 more have a count of 0 or less, so on the counting clock they never act. Give each a count above 0 in the roster.' && MC.R.never([]) === '',
+            j([dInit, dRoll, MD.els.combatHelp.textContent, cOrc, Bc.toasts, MS.els.combatHelp.textContent]));
+        // finding 35: a picture whose file is missing gives way to the plain face, by a listener on the picture, once
+        const Bi = scen(); Bi.camp.items.m1.whiteboard.find(w => w.id === 't_orc').src = 'gone.png'; const MI = mkR(Bi), swapped = [];
+        const img = { on: {}, addEventListener(t, f, op) { this.on[t] = [f, op]; }, parentNode: { replaceChild(n, old) { swapped.push([n, old]); } } };
+        MI.els.combatRows.querySelectorAll = sel => (sel === 'img.combat-face' ? [img] : []); MI.R.open('m1', {});
+        const imgHtml = MI.rowHtml('rt_orc'), heard = !!img.on.error; if (heard) img.on.error[0]();
+        check('1.6.3 (finding 35): a roster row\'s picture listens for its file failing, once, and gives way to the plain face a token with no picture has, said in its tooltip, never the browser\'s broken picture; the row is drawn with no handler attribute',
+            heard && img.on.error[1] && img.on.error[1].once === true && swapped.length === 1 && swapped[0][1] === img && swapped[0][0].className === 'combat-face combat-face-empty' && swapped[0][0].title === 'Its picture file is missing' && swapped[0][0].innerHTML === '<i class="wib wi-starf"></i>'
+            && imgHtml.indexOf('<img class="combat-face" src="gone.png" alt="">') > 0 && !/onerror/i.test(imgHtml), j([heard, swapped.length, imgHtml]));
+        // finding 0, the host's half: a roster edit keeps what a held row's hold names where the row still holds (net.js fightReachKept, run for real)
+        const frkS = fnSrc('function fightReachKept(had, f) {', '\n// [netcheck:turnmove-start]', 'fightReachKept'), FRK = new Function(frkS + '\nreturn fightReachKept;')();
+        const fK1 = { rows: [{ id: 'g', held: 1 }, { id: 'a' }] }, fK2 = { rows: [{ id: 'g' }] }; FRK({ rows: [{ id: 'g', held: 1, holdFor: { text: 'the guard moves' } }] }, fK1); FRK({ rows: [{ id: 'g', held: 1, holdFor: { text: 'x' } }] }, fK2);
+        check('1.6.3 (finding 0, the host\'s half, run for real): a roster edit that keeps a row held keeps what its hold names (fightReachKept), and one whose row no longer holds lets it go, which is why the roster must hand held on',
+            j(fK1.rows[0].holdFor) === j({ text: 'the guard moves' }) && fK2.rows[0].holdFor === undefined, j([fK1, fK2]));
+        // The review of the combat roster (2026-11-20), finding 1: on a counting clock a row's count runs down to 0 as it acts and goes back to where it began (ck0) at
+        // the next cycle, so in the middle of a cycle a row that acted down to 0 is no row that never acts. The roster, Update and the strip judge by where it begins
+        const sysK = { combat: { initiative: { clock: { cost: 3 } } } }, Bk = scen(); Bk.start(); const fidK = Bk.net.fightsOn('m1')[0], cK = Bk.net.combats[fidK];
+        cK.ck0 = { r_t_orc: 6, r_t_ana: 4, r_t_gob: 0, c_trap: 5 }; cK.rows.forEach(r => { r.init = { r_t_orc: 0, r_t_ana: 4, r_t_gob: 0, c_trap: 0 }[r.id]; }); cK.turn = cK.rows.findIndex(r => r.id === 'r_t_ana');
+        const MK = mkR(Bk, { sys: sysK }); MK.R.open('m1', { fid: fidK }); const kOrc = MK.rowHtml('r_t_orc'), kGob = MK.rowHtml('r_t_gob'), kTrap = MK.rowHtml('c_trap');
+        Bk.net.fightSet = f => f;   /* Update's own toast is what is read here, not the host's clock (this world has no system core) */ MK.els.combatStartBtn.on.click({});
+        const sortK = sortSrc.indexOf('function clockBegin(live, id, now) {') >= 0 ? new Function(sortSrc + '\nreturn clockBegin;')() : null;
+        const wbK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.3 (the review of the combat roster, finding 1, run for real): mid-cycle on a counting clock a row that acted down to 0 but began above 0 is not marked never acts in the running roster, nor said at Update, nor named on the strip; a row that began at 0 still is; a count the GM types above 0 wins; the strip asks the same rule with the fight the host holds',
+            !!sortK && kOrc.indexOf('>never acts</span>') < 0 && kOrc.indexOf(' never"') < 0 && kTrap.indexOf('>never acts</span>') < 0 && kGob.indexOf('>never acts</span>') > 0
+            && j(Bk.toasts.filter(t => /never act/.test(t))) === j(['Gob has a count of 0 or less, so on the counting clock it never acts. Give it a count above 0 in the roster.'])
+            && sortK({ ck0: { a: 6 } }, 'a', 0) === 6 && sortK({ ck0: { a: 0 } }, 'a', 5) === 5 && sortK(null, 'a', 0) === 0 && sortK({ ck0: { a: 6 } }, 'b', -2) === -2 && !(sortK(null, 'a', undefined) > 0)
+            && wbK.includes("c.rows.filter(function(r) { return !!r && !((typeof clockBegin === 'function' ? clockBegin(c, r.id, r.init) : Number(r.init)) > 0); })"), j([kOrc, kGob, kTrap, Bk.toasts]));
+        // Finding 4: Update reads a hold from the fight as it stands, never from the roster as it opened. The Goblin held when the roster opened, then acted from its hold
+        // while the roster was open: Update does not bring the hold back. The Orc held as the roster opened and still holds: it keeps it. A row now on turn holds nothing
+        const Bu = scen(); Bu.start(); const fidU = Bu.net.fightsOn('m1')[0], cU = Bu.net.combats[fidU]; cU.turn = cU.rows.findIndex(r => r.id === 'r_t_ana');
+        cU.rows.find(r => r.id === 'r_t_gob').held = 1; cU.rows.find(r => r.id === 'r_t_orc').held = 1; cU.rows.find(r => r.id === 'c_trap').held = 1;
+        const MU = mkR(Bu); MU.R.open('m1', { fid: fidU }); const dU = MU.R.draft().rows.filter(r => r.held).map(r => r.id).sort();
+        delete cU.rows.find(r => r.id === 'r_t_gob').held; cU.turn = cU.rows.findIndex(r => r.id === 'c_trap');   // the Goblin acted from its hold, and the trap's held turn came round
+        MU.els.combatStartBtn.on.click({}); const afU = Bu.net.combats[fidU].rows.filter(r => r.held === 1).map(r => r.id).sort();
+        check('1.6.3 (the review of the combat roster, finding 4, run for real): Update sets a hold from the fight as it stands at the press: a row that acted from its hold while the roster was open, and one whose turn has come, hold nothing after; a row that still holds keeps its hold',
+            j(dU) === j(['c_trap', 'r_t_gob', 'r_t_orc']) && j(afU) === j(['r_t_orc']), j([dU, afU]));
+        // Finding 5: Tick all passes over a hidden token, which is ticked one at a time, so no press pulls hidden ambushers into every player's order
+        const Bt = scen(); Bt.camp.items.m1.whiteboard.find(w => w.id === 't_x').hidden = true; const MT = mkR(Bt); MT.R.open('m1', {}); MT.els.combatTickAllBtn.on.click({});
+        const tRows = MT.R.draft().rows.map(r => r.tokId + ':' + (r.on ? 'on' : 'off')).sort();
+        check('1.6.3 (the review of the combat roster, finding 5, run for real): Tick all ticks every row that may join but a hidden token, and its tooltip says so',
+            j(tRows) === j(['t_ana:on', 't_gob:on', 't_orc:on', 't_x:off']) && /id="combatTickAllBtn" title="Tick every row that may join this fight but the hidden ones, which you tick one at a time"/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8')), j(tRows));
+    }
     // fog: a player who cannot see the Goblin gets a Hidden row with nothing of it (no name, token, picture, or the row id that carries its
     // token's); one who sees everything gets the plain order; a combat on an unfogged map at the same table has no number either
     const f = scen({ fog: true, drops: { u_a: { t_gob: 1 } } });
     f.rollRow('Goblin'); f.start();
     f.net.combatSet('m2', { mapId: 'm2', round: 2, turn: 1, rows: [{ id: 'c_tur', name: 'Turret', tokId: null, init: 9, src: null }, { id: 'c_gat', name: 'Gate', tokId: null, init: 4, src: null }] });
     const fA = f.last(f.conns[0]), fB = f.last(f.conns[1]), fYard = fightIn(f.net.combats, 'm2'), fYardOut = f.N.combatsFor('u_a', 'm2');
-    const hid = { id: 'h0', name: 'Hidden', tokId: null, src: null };
+    const hid = { id: 'h0', name: 'Hidden', tokId: null, src: null, hid: 1 };   // 1.6.3 (finding 24): a redacted row carries its mark, moved on purpose
     check('combat roster (fog): an unseen creature\'s row is Hidden whole — no name, token, picture or token-bearing id — in its place in the order; nor is there a number on any row, on the fogged map or an unfogged one',
         j(rowsOf(fA)) === j([hid].concat(order.slice(1))) && j(fYardOut) === j(oneFight(fYard.id, 'm2', 2, 1, [full('c_tur', 'Turret', null, null), full('c_gat', 'Gate', null, null)]))
         && noFid(fA).indexOf('gob') < 0 && noFid(fA).indexOf('Goblin') < 0 && noFid(fA).indexOf('init') < 0, j([fA, fYardOut]));
@@ -1808,7 +1906,7 @@ pendingChecks.push((async () => {
     // holds a hidden token with the Orc's id and a combat of its own: a hidden token counts on its own map only. An item whose id reads 'null'
     // (a file may hold any id) is hidden on m1: a row with no token is never touched
     const tokOf = (s, mapId, id) => s.camp.items[mapId].whiteboard.find(w => w.id === id);
-    const hidRow = i => ({ id: 'h' + i, name: 'Hidden', tokId: null, src: null });
+    const hidRow = i => ({ id: 'h' + i, name: 'Hidden', tokId: null, src: null, hid: 1 });   // 1.6.3 (finding 24): a redacted row carries its mark, moved on purpose
     const hideWorld = o => {
         const s = scen(Object.assign({ m2: true }, o)); s.rollRow('Goblin'); s.start(); fightIn(s.net.combats, 'm1').round = 3; fightIn(s.net.combats, 'm1').turn = 1;
         s.camp.items.m1.whiteboard.push({ id: 'null', hidden: true, x: 0, y: 0 });
@@ -2036,6 +2134,42 @@ pendingChecks.push((async () => {
         ran === true && j(on) === j(['t2', 't3']) && j(light) === j(['rings', 'strip', 'party', 'pills', 'trackers', 'chars', 'turned:null:true']) && j(none) === j(['render', 'strip']) && j(off) === j(['rings', 'render', 'strip']), j([ran, on, light, none, off]));
     check('finding 26 (source): the host\u2019s fight step draws only what shows whose turn it is while its round stays, and everything at a new round; a player\u2019s app still draws everything at every word of the fights',
         require('./checkkit').part('netfight.js').includes("    broadcastCombats(); if (c.round === r0 && typeof combatRefreshTurn === 'function') combatRefreshTurn(); else combatRefresh();") && wbF.includes('window.wpTurnRings = turnRings;'));
+}
+
+{   // 1.6.3 (the improvement week's combat review, batch "strip", finding 24): a redacted row is known by its mark (hid, 1), never by the name Hidden.
+    // combatToasts run for real: a player's notice for a row they cannot see says someone they cannot see acts; cleanFightBody keeps the mark only as 1;
+    // declare.js mineOf run for real: an NPC the GM really named Hidden is in the GM's Declaring box, and a redacted row is in no one's
+    const flat = src.split('\r\n').join('\n'), pf = kit.part('netfight.js').split('\r\n').join('\n');
+    const toS = pf.slice(pf.indexOf('function combatToasts(before, after) {'), pf.indexOf('// [netcheck:orders-end]')), said = [];
+    const toF = new Function('getActiveCampaign', 'fightMineKey', 'chosenRule', 'toast', toS + '\nreturn combatToasts;')(() => ({ activeItemId: 'm1' }), (o) => (o && o.f1 ? 'f1' : null), () => false, t => said.push(t));
+    const fHid = { f1: { round: 1, turn: 0, rows: [{ id: 'h0', name: 'Hidden', hid: 1 }, { id: 'r1', name: 'Hidden' }] } }, fName = { f1: { round: 1, turn: 1, rows: fHid.f1.rows } };
+    toF(null, fHid); toF(fHid, fName); toF(fName, { f1: { round: 2, turn: 0, rows: fHid.f1.rows } });
+    const cB = flat.slice(flat.indexOf('function cleanFightBody(k, mapId) {'), flat.indexOf('// [netcheck:notepad-start]')), clF = new Function(cB + '\nreturn cleanFightBody;')();
+    const kept = clF({ rows: [{ id: 'h0', name: 'Hidden', hid: 1 }, { id: 'r1', name: 'Hidden', hid: true }, { id: 'r2', name: 'B', hid: 2 }] }, 'm');
+    const dm = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'declare.js'), 'utf8').replace(/\r\n/g, '\n'), mineS = dm.slice(dm.indexOf('function own(o, k)'), dm.indexOf('function inOf(c, host)'));
+    const mineOf = new Function('window', mineS.replace(/function fightOf[^\n]*\n/, '').replace(/function declaring[^\n]*\n/, '') + '\nreturn mineOf;')({});
+    const mapD = { whiteboard: [{ id: 't_h', ownerId: '' }, { id: 't_p', ownerId: 'u_a' }] }, cD = { rows: [{ id: 'r_h', tokId: 't_h', name: 'Hidden' }, { id: 'r_p', tokId: 't_p', name: 'Pat' }, { id: 'h2', tokId: null, name: 'Hidden', hid: 1 }] };
+    check('1.6.3 (finding 24, run for real): a player\'s turn notice for a row they cannot see says someone they cannot see acts, and a row the GM named Hidden says its name; cleanFightBody keeps the mark only as 1; the GM\'s Declaring box keeps an NPC named Hidden; a redacted row is no one\'s; and combatsFor and a drawn order\'s card count shown rows by the mark',
+        j(said) === j(['Combat! Someone you cannot see acts.', "Hidden's turn.", 'Someone you cannot see acts. Round 2.']) && kept.rows[0].hid === 1 && !('hid' in kept.rows[1]) && !('hid' in kept.rows[2])
+        && j(mineOf(cD, mapD, true, 'gm').map(r => r.id)) === j(['r_h']) && j(mineOf(cD, mapD, false, 'u_a').map(r => r.id)) === j(['r_p'])
+        && flat.includes("var shownD = out[fid].rows.filter(function(r) { return r.hid !== 1; });") && flat.includes("return !!cp.rows[i] && cp.rows[i].hid !== 1; }), rec = mk(seen);") && !/name !== 'Hidden'/.test(flat) && !/name !== 'Hidden'/.test(dm),
+        j([said, kept.rows]));
+}
+
+{   // 1.6.3 (the improvement week's combat review, batch "strip", finding 23): fightNextAt run for real, who acts next by the turn shape. The plain order is the row after
+    // the one on turn, round to round; several turns a round walk the round's own turns, the same row again among them; a drawn order ends its round at its card; a counting
+    // clock and a round whose order is made again (rolled every round, sides, a drawn order) have no next; Next is chosen is the strip's own; combatsFor sends nx only where
+    // it is not the row after the one on turn; and turn notices say an action by its name, never with an article, nor its key
+    const flat = src.split('\r\n').join('\n'), nxS = flat.slice(flat.indexOf("// 1.6.3 (the combat review's batch \"strip\", finding 23)"), flat.indexOf('net.fightNextAt = function(fid) {'));
+    let IR = {}; const fna = new Function('initRulesOf', nxS + '\nreturn fightNextAt;')(() => IR), rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const at = (ir, c) => { IR = ir; return fna({}, Object.assign({ rows: rows }, c)); };
+    const got = [at({}, { turn: 0 }), at({}, { turn: 2 }), at({ every: true }, { turn: 2 }), at({ side: 'pc' }, { turn: 1 }), at({ side: 'pc' }, { turn: 2 }), at({ deck: { key: 'D1' } }, { turn: 0, endAt: 2 }), at({ deck: { key: 'D1' } }, { turn: 1, endAt: 2 }),
+        at({}, { turn: 1, endAt: 2 }), at({ clock: { cost: 3 } }, { turn: 0 }), at({ chosen: true }, { turn: 0 }), at({ several: { by: 'passes' } }, { turn: 0, seq: ['a', 'a', 'c'], sq: 0 }), at({ several: { by: 'passes' } }, { turn: 2, seq: ['a', 'a', 'c'], sq: 2 }),
+        at({ every: true }, { turn: 2, seq: ['a', 'c'], sq: 1 }), fna({}, { rows: [] })];
+    check('1.6.3 (finding 23, fightNextAt run for real): who acts next by the turn shape, -1 where it cannot be known now, null for Next is chosen; combatsFor sends it only where it is not the row after the one on turn; turn notices drop the article and never name an action by its key',
+        j(got) === j([1, 0, -1, 2, -1, 1, -1, 0, -1, null, 0, 0, -1, -1])
+        && flat.includes("var nxF = fightNextAt(camp, cmb); if (typeof nxF === 'number' && nxF !== (cmb.turn + 1) % cmb.rows.length) out[fid].nx = nxF;") && flat.includes("if (typeof k.nx === 'number' && Math.floor(k.nx) === k.nx && k.nx >= -1 && k.nx < rows.length) f.nx = k.nx;")
+        && !/ used a ' \+ lbl/.test(flat) && !/'Used a ' \+ lbl/.test(flat) && !/lbl = a\.label \|\| a\.key/.test(flat) && !/String\(a\.label \|\| a\.key\)/.test(flat), j(got));
 }
 
 T.finish();

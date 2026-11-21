@@ -46,7 +46,8 @@ function fxEnded(ch, name) {   // noted, said with the rest of its step
     if (!_fxOutT) _fxOutT = setTimeout(fxOutFlush, 0);
 }
 function fxOutWords(list) {   // "Bless ran out on Pat." for one, else "Ran out: Bless on Pat, Quick on Quin and 3 more."
-    var nm = function(x) { return String(x.ch.name || 'a character').slice(0, 60); };
+    // 1.6.3 (finding 16): a character by its token's name, as the turn strip says it (net.tokNameOf), else its sheet's name
+    var nm = function(x) { return String((typeof net.tokNameOf === 'function' ? net.tokNameOf(x.ch) : '') || x.ch.name || 'a character').slice(0, 60); };
     if (list.length === 1) return list[0].name + ' ran out on ' + nm(list[0]) + '.';
     var shown = list.slice(0, 6).map(function(x) { return x.name + ' on ' + nm(x); }), more = list.length - shown.length;
     return 'Ran out: ' + shown.join(', ') + (more > 0 ? ' and ' + more + ' more' : '') + '.';

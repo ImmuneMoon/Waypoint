@@ -1612,14 +1612,22 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
       bar.style.transformOrigin = 'top left';
       bar.style.transform = 'translate(-50%, calc(-100% - 36px))';   // clears the blue rotate dot (15px above the item, ~14px tall)
       bar.style.display = 'flex';
-      var stripEl = document.getElementById('combatStrip'), sr = stripEl ? stripEl.getBoundingClientRect() : null, br = sr && sr.width > 0 ? bar.getBoundingClientRect() : null;
-      if (br && br.left < sr.right && sr.left < br.right && br.top < sr.bottom && sr.top < br.bottom) bar.style.transform = 'translate(-50%, ' + (Math.round((maxB - minY) * z) + 12) + 'px)';   // the live test, 2026-10-30: over the turn strip it half-covered its buttons: it stands under the selection
+      if (barOverStrips(bar, ['trkStrip', 'combatStrip'])) bar.style.transform = 'translate(-50%, ' + (Math.round((maxB - minY) * z) + 12) + 'px)';   // the live test, 2026-10-30: over the turn strip it half-covered its buttons: it stands under the selection. 1.6.3 (the combat review, finding 34): the fight stands inside the trackers bar since backlog 219, so the whole bar is kept clear
       barKeepIn(bar, Math.round((maxB - minY) * z) + 12);   // 1.6.2, found by hand: a piece near the map's edge put half the bar, and its fold arrow, out of sight
   }
 
   // [lookcheck:barkeep-start]
   // The bar over a selected piece kept inside the part of the map in sight: moved back from an edge it would pass, and set under the piece
   // where there is no room above it (below: how far under the selection's top that is). A box with no size moves nothing
+  // 1.6.3 (the combat review, finding 34): whether the bar over a selected piece lies over any of the boxes named by ids that show (the trackers bar,
+  // which holds the fight, and the turn strip where it stands alone). A box with no size, or one that is not there, is passed over
+  function barOverStrips(bar, ids) {
+      var br = null;
+      return (ids || []).some(function(id) {
+          var e = document.getElementById(id), sr = e && e.getBoundingClientRect ? e.getBoundingClientRect() : null; if (!sr || !(sr.width > 0) || !(sr.height > 0)) return false;
+          br = br || bar.getBoundingClientRect(); return br.left < sr.right && sr.left < br.right && br.top < sr.bottom && sr.top < br.bottom;
+      });
+  }
   function barKeepIn(bar, below) {
       var wrap = bar && bar.parentNode, wr = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : null, br = bar.getBoundingClientRect();
       if (!wr || !(br.width > 0) || !(wr.width > 0)) return;
@@ -4293,7 +4301,8 @@ window.wpFitToGrid = fitToGrid;
       says.slice(0, 8).forEach(function(s) { out.push({ t: s, k: 'mark' }); }); if (says.length > 8) out.push({ t: (says.length - 8) + ' more target it', k: 'mark' });
       if (item.status === 'down') out.push({ t: 'Down', k: 'down' }); else if (item.status === 'dead') out.push({ t: 'Dead', k: 'down' });
       var fx = window.wpSheets && window.wpSheets.tokenFx ? window.wpSheets.tokenFx(item) : null;
-      (Array.isArray(fx) ? fx.slice(0, 8) : []).forEach(function(e) { if (e && typeof e.n === 'string' && e.n) { var c = { t: e.n, k: e.t === 'buff' ? 'buff' : e.t === 'debuff' ? 'debuff' : 'fx' }; if (e.g === 1) c.g = 1; out.push(c); } });
+      var fxL = window.wpSheets && typeof window.wpSheets.tokenFxLeft === 'function' ? window.wpSheets.tokenFxLeft(item) : null;   // 1.6.3 (the combat review, finding 21): what each timed effect has left, as this screen holds the character
+      (Array.isArray(fx) ? fx.slice(0, 8) : []).forEach(function(e) { if (e && typeof e.n === 'string' && e.n) { var lf = fxL && Object.prototype.hasOwnProperty.call(fxL, e.n) && typeof fxL[e.n] === 'string' ? fxL[e.n] : '', c = { t: lf ? e.n + ', ' + lf : e.n, n: e.n, k: e.t === 'buff' ? 'buff' : e.t === 'debuff' ? 'debuff' : 'fx' }; if (e.g === 1) c.g = 1; out.push(c); } });
       var env = window.wpSheets && window.wpSheets.tokenEnv ? window.wpSheets.tokenEnv(item) : null;
       if (env && typeof env.text === 'string' && env.text) out.push({ t: env.text, k: 'env' });
       var cpF = window.wpCompass && typeof window.wpCompass.faceWords === 'function' ? window.wpCompass.faceWords(item) : ''; if (cpF) out.push({ t: cpF, k: 'face' });   // 1.6.2, backlog 82: the way it faces by the map's compass
@@ -4301,7 +4310,7 @@ window.wpFitToGrid = fitToGrid;
   }
   function badgeLines(el, item) {   // the card's lines, one a mark, from what this screen drew; at most eight target marks and then how many more
       var out = [], fx = [];
-      badgeChips(el, item).forEach(function(c) { if (c.k === 'fx' || c.k === 'buff' || c.k === 'debuff') { if (!fx.length) out.push(fx); fx.push(c.t); } else out.push(c.t); });
+      badgeChips(el, item).forEach(function(c) { if (c.k === 'fx' || c.k === 'buff' || c.k === 'debuff') { if (!fx.length) out.push(fx); fx.push(c.n || c.t); } else out.push(c.t); });   // an effect by its name alone here: a comma would run into the list
       return out.map(function(l) { return Array.isArray(l) ? 'Effects: ' + l.join(', ') : l; });
   }
   // [lookcheck:badgesay-end]
@@ -4599,6 +4608,30 @@ window.wpFitToGrid = fitToGrid;
       if (!m.char) h += '<div class="menu-divider"></div><div class="menu-item cm-fx-new" style="gap:4px; cursor:default;"><input class="field cm-fx-name" maxlength="60" placeholder="New effect&hellip;" style="width:110px;"><select class="field cm-fx-tone"><option value="">Neutral</option><option value="buff">Buff</option><option value="debuff">Debuff</option></select><button class="tool ghost cm-fx-add" type="button">Add</button></div>';
       return h;
   }
+  // 1.6.3 (the combat review, finding 21; Fulllion's pick of 2026-11-20: a token's Effects menu gets an optional rounds box beside each effect, which
+  // becomes its timer). Beside each effect not on, on the GM's own screen and only for a character token (whose sheet keeps timers), the app's own
+  // counter (wpUi.step), 0 to 99 and 0 at first: 0 keeps the effect's own time, any other count is how many rounds it lasts, set on the add
+  // (sheets.js tokenFxCharOp, commitEffect). A press on the counter, and a key in its box, stay with it, so the line's own click never fires.
+  // Answers a reader of the counts by the line's place: get(k), 0 where nothing was set. get(k) first asks that line's counter to hand on what
+  // its box holds now (uiparts.js flush): a figure typed and not yet handed on waits for the end of the press, and the line's click is that very
+  // press, so without the flush a count typed and then clicked was read as 0 (the review of combat damage, 2026-11-20)
+  function fxRoundsGm() { var n = window.wpNet; return !(n && (n.foreign || (n.active && n.role === 'client'))) && !window.wpStream; }
+  function fxRoundsInto(menu, m) {
+      var rd = {}, steps = {}, out = { get: function(k) { var s = steps[k]; if (s && typeof s.flush === 'function') s.flush(); return typeof rd[k] === 'number' ? rd[k] : 0; } }, U = window.wpUi;
+      if (!menu || !m || !m.char || !fxRoundsGm() || !U || typeof U.step !== 'function' || typeof menu.querySelectorAll !== 'function') return out;
+      menu.querySelectorAll('.cm-fx').forEach(function(line) {
+          var k = Number(line.dataset && line.dataset.fi), r = m.rows[k]; if (!r || r.rowId || r.auto === true || !(k >= 0)) return;
+          var box = document.createElement('span'); box.className = 'cm-fx-rounds'; box.title = 'How many rounds it lasts once you tick it. 0 keeps its own time.';
+          var st = U.step({ min: 0, max: 99, value: 0, label: 'Rounds for ' + String(r.name || 'this effect'), lessTip: 'One round less', moreTip: 'One round more', set: function(n) { rd[k] = n; } });
+          steps[k] = st;   // kept by the line's place, so get(k) can flush it
+          var wd = document.createElement('span'); wd.className = 'cm-fx-rwd'; wd.textContent = 'rounds';   // the word after the counter, found live: inside its box it read "0rounds"
+          box.appendChild(st); box.appendChild(wd);
+          ['click', 'pointerdown', 'mousedown'].forEach(function(ev) { box.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+          box.addEventListener('keydown', function(e) { if (e.key !== 'Escape') e.stopPropagation(); });   // the box's keys are its own; Escape is the router's, which closes the menu
+          line.appendChild(box);
+      });
+      return out;
+  }
   function tokenFxOp(tok, m, q) {
       if (m.char) { if (window.wpSheets && window.wpSheets.tokenFxCharOp) window.wpSheets.tokenFxCharOp(m.char, m.field, q); return; }
       if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // a token with no sheet: its own effects, the GM's
@@ -4636,8 +4669,9 @@ window.wpFitToGrid = fitToGrid;
           qBox.focus({ preventScroll: true });
       }
       var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok, true); }, 0); };
+      var fxRd = fxRoundsInto(cMenu, m);   // 1.6.3 (finding 21): what was typed beside each effect, by its place in the list
       cMenu.querySelectorAll('.cm-fx').forEach(function(line) {
-          line.addEventListener('click', function(ce) { ce.stopPropagation(); var r = m.rows[Number(line.dataset.fi)]; if (!r) return; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : { op: 'add', ref: r.ref }); again(); });
+          line.addEventListener('click', function(ce) { ce.stopPropagation(); var k = Number(line.dataset.fi), r = m.rows[k]; if (!r) return; var qa = { op: 'add', ref: r.ref }, nR = fxRd.get(k); if (nR > 0) qa.rounds = nR; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : qa); again(); });
       });
       var nm = cMenu.querySelector('.cm-fx-name'), tn = cMenu.querySelector('.cm-fx-tone'), add = cMenu.querySelector('.cm-fx-add');
       [nm, tn, cMenu.querySelector('.cm-fx-new')].forEach(function(x) { if (x) x.addEventListener('click', function(ce) { ce.stopPropagation(); }); });
@@ -6805,13 +6839,20 @@ function combatRowsFor(mapId, opts) {
         var aimer = pid.indexOf('tk:') === 0 ? pid.slice(3) : '', mine = (map.whiteboard || []).find(function(w) { return w.isChar && !w.hidden && (aimer ? w.id === aimer : w.ownerId === pid); });   // tk: one of the GM's characters aiming (158, Target as; the live test, 2026-10-30: it came unticked)
         if (mine) pair[mine.id] = pair[mine.id] || 'targeting';
     });
-    var rows = (map.whiteboard || []).filter(function(w) { return w.isChar && !w.hidden; }).map(function(w) {
+    // 1.6.3 (the combat review, findings 7 and 15; Fulllion, 2026-11-20: a hidden token joins a fight and acts like any other): every character token is listed, a hidden
+    // one too, tagged hidden. A running fight's hidden row stays ticked as it was, so an unrelated roster edit never takes it out of the order and ends its holds; a hidden
+    // token not in the fight comes unticked unless it was picked on the map. A player reads a row they never saw in this fight as Hidden (the host makes each player's copy of the order), as for a token
+    // hidden once the fight began. Finding 0: a row holding its turn carries held through the edit, and the host keeps what its hold names with it (net.js fightReachKept)
+    var rows = (map.whiteboard || []).filter(function(w) { return w.isChar; }).map(function(w) {
         var was = byTok[w.id], busy = !was && elsewhere[w.id] === 1;
         var on = !busy && (!!was || !!pair[w.id] || picked[w.id] === 1);   // only a running combat's rows and the tokens in a target pair start ticked; never a token in another fight (fold 2)
-        return { id: was ? was.id : 'r' + w.id, name: typeof rowNameOf === 'function' ? rowNameOf(w, map) : w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, rolled: !!(was && was.rolled === 1), tb: was && Array.isArray(was.tb) ? was.tb.slice() : undefined, src: w.src || null, on: on, busy: busy, party: !!w.ownerId, targeted: pair[w.id] || '', charId: w.charId || null };
+        var o = { id: was ? was.id : 'r' + w.id, name: typeof rowNameOf === 'function' ? rowNameOf(w, map) : w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, rolled: !!(was && was.rolled === 1), tb: was && Array.isArray(was.tb) ? was.tb.slice() : undefined, src: w.src || null, on: on, busy: busy, party: !!w.ownerId, targeted: pair[w.id] || '', charId: w.charId || null };
+        if (w.hidden) o.hidden = true;
+        if (was && was.held === 1) o.held = true;
+        return o;
     });
-    // custom rows of a running combat (no token) stay
-    (running ? running.rows : []).forEach(function(r) { if (!r.tokId) rows.push({ id: r.id, name: r.name, tokId: null, init: r.init, rolled: r.rolled === 1, tb: Array.isArray(r.tb) ? r.tb.slice() : undefined, src: null, on: true, custom: true }); });
+    // custom rows of a running combat (no token) stay, a hold with them
+    (running ? running.rows : []).forEach(function(r) { if (!r.tokId) { var oC = { id: r.id, name: r.name, tokId: null, init: r.init, rolled: r.rolled === 1, tb: Array.isArray(r.tb) ? r.tb.slice() : undefined, src: null, on: true, custom: true }; if (r.held === 1) oC.held = true; rows.push(oC); } });
     if (running) {   // keep the running order first, newcomers after
         var order = {}; running.rows.forEach(function(r, i) { order[r.id] = i; });
         rows.sort(function(a, b) { var x = order[a.id] !== undefined ? order[a.id] : 999 + rows.indexOf(a), y = order[b.id] !== undefined ? order[b.id] : 999 + rows.indexOf(b); return x - y; });
@@ -6822,29 +6863,79 @@ function combatSortByInit(rows) {   // high to low, ties keep their place (initi
     var S = window.wpSystemCore; if (S && S.orderByInit) return S.orderByInit(rows, window.wpSheets && window.wpSheets.initTieNow ? window.wpSheets.initTieNow() : null);   // initiative O2: the system's tie steps
     return rows.map(function(r, i) { return { r: r, i: i }; }).sort(function(a, b) { return (b.r.init - a.r.init) || (a.i - b.i); }).map(function(x) { return x.r; });
 }
+// [netcheck:rostershape-start]
+// 1.6.3 (the combat review, finding 32; Fulllion, 2026-11-20: the roster fits the turn shape): which of the system's turn shapes the roster serves, read from the
+// GM's own copy of the system. 'deck' (the order is drawn, so a typed number is thrown away), 'clock' (the number is a count, and a row at 0 or less never acts),
+// 'side' (the order stands grouped by side), else '' (an initiative, higher first). deck carries the deck's own name, for the roster's help line
+function rosterShape(camp) {
+    var sy = camp && camp.system, cm = sy && sy.combat && typeof sy.combat === 'object' ? sy.combat : null, ir = cm && cm.initiative && typeof cm.initiative === 'object' ? cm.initiative : null;
+    if (!ir) return { kind: '' };
+    if (ir.deck && typeof ir.deck === 'object') { var dk = (Array.isArray(sy.decks) ? sy.decks : []).filter(function(d) { return !!d && d.key === ir.deck.key; })[0]; return { kind: 'deck', deck: dk && typeof dk.label === 'string' && dk.label.trim() ? dk.label.trim().slice(0, 60) : 'its deck' }; }
+    if (ir.clock && typeof ir.clock === 'object') return { kind: 'clock' };
+    if (typeof ir.side === 'string' && ir.side) return { kind: 'side' };
+    return { kind: '' };
+}
+// Findings 20 and 0: where play stands for one row of a running fight, from the host's own record of it (live, net.combats[fid] on the GM's machine): now, whose turn
+// it is; held, holding its turn, with the words its hold names where it names some; acted, it has had its turn this round (Next is chosen's mark, else the turns the
+// fight reached in this very round, fightReachTurn's th, whose keys are the row's id with what tells its later turns apart). A row of a fight that is not running, none
+function rosterRowState(live, rid) {
+    var o = { now: false, held: false, holdText: '', acted: false }; if (!live || !Array.isArray(live.rows) || typeof rid !== 'string') return o;
+    var row = live.rows.filter(function(r) { return !!r && r.id === rid; })[0]; if (!row) return o;
+    o.now = live.rows[live.turn] === row;
+    o.held = !o.now && row.held === 1; if (o.held && row.holdFor && typeof row.holdFor.text === 'string') o.holdText = row.holdFor.text.slice(0, 120);
+    var th = live.th && typeof live.th === 'object' && live.rh === live.round ? live.th : null;
+    o.acted = !o.now && !o.held && (row.dn === 1 || !!(th && Object.keys(th).some(function(k) { return th[k] === 1 && (k === rid || k.indexOf(rid + '#') === 0); })));
+    return o;
+}
+// 1.6.3 (the review of the combat roster): where a row begins on a counting clock, which is what says whether it ever acts. A row's count runs down to 0 as it acts and
+// goes back to where it began at the next cycle (the host's ck0, live.ck0 on the GM's machine), so the count it stands at in the middle of a cycle says nothing of that.
+// The higher of where it began and the count given wins, as clockStart keeps it: a count the GM types above 0 is where the row then begins. live: the fight as the host
+// holds it, or none for a fight not yet running; id: the row's id; now: its count as given. Asked by the roster, Update and the turn strip
+function clockBegin(live, id, now) {
+    var b = live && live.ck0 && typeof live.ck0 === 'object' && typeof id === 'string' && Object.prototype.hasOwnProperty.call(live.ck0, id) ? Number(live.ck0[id]) : NaN, n = Number(now);
+    return Math.max(isFinite(b) ? b : -Infinity, isFinite(n) ? n : -Infinity);
+}
+// Finding 13: the words for rows whose count on a counting clock is 0 or less, which never get a turn: names, three at most and how many more
+function clockNeverWords(names) {
+    if (!Array.isArray(names) || !names.length) return '';
+    var shown = names.slice(0, 3).join(', ') + (names.length > 3 ? ' and ' + (names.length - 3) + ' more' : '');
+    return shown + (names.length === 1 ? ' has' : ' have') + ' a count of 0 or less, so on the counting clock ' + (names.length === 1 ? 'it never acts' : 'they never act') + '. Give ' + (names.length === 1 ? 'it' : 'each') + ' a count above 0 in the roster.';
+}
+// [netcheck:rostershape-end]
 function renderCombatModal() {
     var m = document.getElementById('combatModal'), list = document.getElementById('combatRows'); if (!m || !list || !combatDraft) return;
     var camp = getActiveCampaign(), map = camp && camp.items[combatDraft.mapId];
     var mapNm = map && map.meta && map.meta.title || combatDraft.mapId, fidsM = fightsHere(combatDraft.mapId), atM = combatDraft.fid ? fidsM.indexOf(combatDraft.fid) : -1;
-    document.getElementById('combatMapName').textContent = mapNm + (atM >= 0 && fidsM.length > 1 ? ', fight ' + (atM + 1) + ' of ' + fidsM.length : (!combatDraft.fid && fidsM.length ? ', another fight' : ''));   // fold 2: which fight on the map
+    var nW = window.wpNet, live = combatDraft.running && combatDraft.fid && nW && nW.combats && Object.prototype.hasOwnProperty.call(nW.combats, combatDraft.fid) ? nW.combats[combatDraft.fid] : null;   // 1.6.3 (finding 20): the fight this roster edits, as the host holds it
+    document.getElementById('combatMapName').textContent = mapNm + (atM >= 0 && fidsM.length > 1 ? ', fight ' + (atM + 1) + ' of ' + fidsM.length : (!combatDraft.fid && fidsM.length ? ', another fight' : '')) + (live && typeof live.round === 'number' ? ', round ' + live.round : '');   // fold 2: which fight on the map; 1.6.3: and the round it stands in
     var running = combatDraft.running, findHere = findWho(window.wpNet, !!window.wpStream), amHere = getActiveMap();   // backlog 26: a name finds its token on this screen
-    document.getElementById('combatStartBtn').textContent = running ? 'Update Combat' : 'Start combat';
-    var rallB = document.getElementById('combatRollAllBtn'); if (rallB) rallB.style.display = window.wpSheets && window.wpSheets.hasInitRoll() ? '' : 'none';   // initiative O1: only with an initiative roll in the system
+    document.getElementById('combatStartBtn').textContent = running ? 'Update combat' : 'Start combat';   // 1.6.3 (the combat review, finding 33): sentence case, as its other words
+    // 1.6.3 (finding 32): the roster's words and boxes follow the turn shape. Under a deck the numbers, each row's roll and Roll all are put away (never removed), since the
+    // order is drawn; under a counting clock the box is a count and a row at 0 or less is marked, since it never acts; under sides a line says the order stands by side
+    var shp = typeof rosterShape === 'function' ? rosterShape(camp) : { kind: '' }, deckS = shp.kind === 'deck', clockS = shp.kind === 'clock';
+    var helpE = document.getElementById('combatHelp');
+    if (helpE) helpE.textContent = deckS ? 'Tick who is in the fight. The order is drawn from ' + shp.deck + ' at each round’s start, so no number is asked.' : clockS ? 'Tick who is in the fight and give each a count. Higher acts first. A row at 0 or less never acts.' : 'Tick who is in the fight and give each an initiative. Higher goes first.' + (shp.kind === 'side' ? ' The order is then grouped by side, and each side goes together.' : '');
+    var rallB = document.getElementById('combatRollAllBtn'); if (rallB) rallB.style.display = !deckS && window.wpSheets && window.wpSheets.hasInitRoll() ? '' : 'none';   // initiative O1: only with an initiative roll in the system; 1.6.3: and never under a deck
     var nameN = {}, nameAt = {}; combatDraft.rows.forEach(function(r) { nameN['n' + r.name] = (nameN['n' + r.name] || 0) + 1; });   // 1.6.0: rows of one name told apart by a number
     var fa = document.activeElement, fr = fa && list.contains(fa) && fa.closest ? fa.closest('.combat-row') : null, keepR = fr ? fr.dataset.rid : '', keepC = fr ? ['combat-on', 'combat-init', 'combat-roll', 'combat-up', 'combat-down'].filter(function(c) { return fa.classList.contains(c); })[0] : '';   // 1.6.0: a redraw keeps the keyboard's place in the list
     list.innerHTML = combatDraft.rows.map(function(r, i) {
         var dupT = nameN['n' + r.name] > 1 ? ' <span class="combat-tag" title="Rows of one name, numbered down the list">' + (nameAt['n' + r.name] = (nameAt['n' + r.name] || 0) + 1) + '</span>' : '';
-        return '<div class="combat-row' + (r.on ? '' : ' off') + '" draggable="true" data-i="' + i + '" data-rid="' + esc(String(r.id)) + '">'
+        var stR = typeof rosterRowState === 'function' ? rosterRowState(live, String(r.id)) : { now: false, held: false, acted: false, holdText: '' }, neverR = clockS && r.on && !r.busy && !((typeof clockBegin === 'function' ? clockBegin(live, String(r.id), r.init) : Number(r.init)) > 0);   // 1.6.3 (findings 20 and 13; the review: judged by where the row begins, so a row that acted down to 0 mid-cycle is not marked)
+        var stateT = (stR.now ? ' <span class="combat-tag combat-now" title="Whose turn it is now">now</span>' : '') + (stR.held || (!live && r.held) ? ' <span class="combat-tag" title="' + esc(stR.holdText ? 'Holding their turn until ' + stR.holdText : 'Holding their turn. The hold stays when you update the roster') + '">holding</span>' : '') + (stR.acted ? ' <span class="combat-tag" title="Has had its turn this round">acted</span>' : '')
+            + (r.hidden ? ' <span class="combat-tag" title="Hidden from players. It takes its turns as any other. A player who saw it in this fight keeps its name, and the others read Hidden">hidden</span>' : '') + (neverR ? ' <span class="combat-tag combat-never" title="On the counting clock a row at 0 or less never acts. Give it a count above 0">never acts</span>' : '');
+        return '<div class="combat-row' + (r.on ? '' : ' off') + (stR.now ? ' now' : '') + (neverR ? ' never' : '') + '" draggable="true" data-i="' + i + '" data-rid="' + esc(String(r.id)) + '">'
             + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + (r.busy ? ' disabled title="In another fight on this map: a token is in one fight at a time"' : ' title="In the fight"') + '>'
             + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty" title="' + (r.custom ? 'A row you added' : 'A token with no picture of its own') + '">' + (r.custom ? '<i class="wib wi-spark"></i>' : '<i class="wib wi-starf"></i>') + '</span>')
-            + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + '</span>'
-            + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll" title="Roll initiative from the character sheet: a table roll, or yours alone when it reads a GM-only value. Players see the order, never the number" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
-            + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '" title="Initiative — higher goes first">'
+            + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + stateT + '</span>'
+            + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll"' + (deckS ? ' style="display:none"' : '') + ' title="Roll initiative from the character sheet. A player&rsquo;s roll goes to the table. An NPC&rsquo;s goes to you alone unless NPC initiative rolls in Settings says Everyone, and so does one that reads a GM-only value. Players see the order" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
+            + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '"' + (deckS ? ' style="display:none"' : '') + (clockS ? ' title="Count. Higher acts first. A row at 0 or less never acts" aria-label="Count"' : ' title="Initiative — higher goes first"') + '>'
             + '<span class="ui-seg combat-moves"><button class="tool ghost combat-up" title="Move up">&#9650;</button><button class="tool ghost combat-down" title="Move down">&#9660;</button></span>'
             + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row">&times;</button>' : '')
             + '</div>';
     }).join('') || '<div style="color:var(--dim); padding:8px;">No character tokens on this map. Add a custom row below, or place tokens first.</div>';
+    // 1.6.3 (finding 35): a picture whose file is gone shows the plain face a token with no picture has, never the browser's broken picture. A listener, never an attribute
+    if (typeof list.querySelectorAll === 'function') Array.prototype.forEach.call(list.querySelectorAll('img.combat-face'), function(im) { im.addEventListener('error', function() { var sp = document.createElement('span'); sp.className = 'combat-face combat-face-empty'; sp.title = 'Its picture file is missing'; sp.innerHTML = '<i class="wib wi-starf"></i>'; if (im.parentNode) im.parentNode.replaceChild(sp, im); }, { once: true }); });
     m.style.display = 'flex';
     if (keepC) { var backR = [].slice.call(list.querySelectorAll('.combat-row')).filter(function(x) { return x.dataset.rid === keepR; })[0], backE = backR && backR.querySelector('.' + keepC); if (backE) backE.focus({ preventScroll: true }); }
 }
@@ -6875,7 +6966,7 @@ window.wpOpenCombat = openCombatModal;
         var rows = combatDraft.rows;
         if (e.target.closest('.combat-up') && i > 0) { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
         else if (e.target.closest('.combat-down') && i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
-        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId, { priv: combatRollPriv(combatDraft.mapId, rows[i].tokId) }) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
+        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId, { priv: combatRollPriv(combatDraft.mapId, rows[i].tokId), tok: rows[i].tokId }) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
         else if (e.target.closest('.combat-del')) { rows.splice(i, 1); renderCombatModal(); }
         else if (e.target.closest('.combat-find')) { if (combatFind(combatDraft.mapId, String(e.target.closest('.combat-find').dataset.tok || ''))) rosterPeek(m, FIND_MS + 200); }   // backlog 26: the token found on this screen, the roster faded while its ring shows
     });
@@ -6899,7 +6990,7 @@ window.wpOpenCombat = openCombatModal;
         var n = 0, held = [], heldW = ''; if (!draft || !window.wpSheets || !window.wpSheets.rollInit) return n;
         for (var k = 0; k < draft.rows.length; k++) {
             var r = draft.rows[k]; if (!r || !r.on || !r.charId || r.rolled) continue;
-            var rr = window.wpSheets.rollInit(r.charId, { priv: combatRollPriv(draft.mapId, r.tokId) }); if (rr && rr.held) { held.push(r.name || 'A character'); heldW = heldW || rr.error || ''; continue; } if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): what its initiative roll needs is not met, it is passed over
+            var rr = window.wpSheets.rollInit(r.charId, { priv: combatRollPriv(draft.mapId, r.tokId), tok: r.tokId }); if (rr && rr.held) { held.push(r.name || 'A character'); heldW = heldW || rr.error || ''; continue; } if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): what its initiative roll needs is not met, it is passed over
             if (rr && typeof rr.value === 'number') { r.init = rr.value; r.rolled = true; delete r.tb; n++; }
         }
         draft.rows = combatSortByInit(draft.rows);
@@ -6908,7 +6999,7 @@ window.wpOpenCombat = openCombatModal;
     }
     // [systemcheck:rollall-end]
     var tickAllBtn = document.getElementById('combatTickAllBtn');   // 1.6.2 (the owner: "compact rows"): every row that may join, ticked at once
-    if (tickAllBtn) tickAllBtn.addEventListener('click', function() { if (!combatDraft) return; combatDraft.rows.forEach(function(r) { if (r && !r.busy) r.on = true; }); renderCombatModal(); });
+    if (tickAllBtn) tickAllBtn.addEventListener('click', function() { if (!combatDraft) return; combatDraft.rows.forEach(function(r) { if (r && !r.busy && !r.hidden) r.on = true; }); renderCombatModal(); });   // 1.6.3 (the review of the combat roster): never a hidden token, which is ticked one at a time, so one press does not pull hidden ambushers into every player's order as Hidden rows
     var rollAllBtn = document.getElementById('combatRollAllBtn');
     if (rollAllBtn) rollAllBtn.addEventListener('click', function() { if (!combatDraft) return; var nR = combatRollAll(combatDraft); if (!nR && !combatDraft.rows.some(function(r) { return r && r.on && r.charId && !r.rolled; })) toast('Every ticked character has its initiative already.'); renderCombatModal(); });   // 1.5.4: never said while a row was passed over or a roll refused
     var addBtn = document.getElementById('combatAddBtn'), addName = document.getElementById('combatAddName');
@@ -6924,13 +7015,19 @@ window.wpOpenCombat = openCombatModal;
     document.getElementById('combatStartBtn').addEventListener('click', function() {
         var n = window.wpNet; if (!combatDraft || !n) return;
         if (combatDraft.sortDue) { combatDraft.sortDue = false; combatDraft.rows = combatSortByInit(combatDraft.rows); }
-        var rows = combatDraft.rows.filter(function(r) { return r.on && !r.busy; }).map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; return o; });   // initiative O1: whether a row has its number
-        if (!rows.length) { toast('Tick at least one combatant.'); return; }
         var was = combatDraft.fid && n.combats && Object.prototype.hasOwnProperty.call(n.combats, combatDraft.fid) ? n.combats[combatDraft.fid] : null;   // fold 2: the fight this roster edits, by its id
+        // 1.6.3 (finding 0; the review of the combat roster): a hold is taken from the fight as it stands at Update, never from the roster as it opened: the held row may
+        // have acted from its hold, or the round ended and the hold was lost, while the roster was open, and the hold must not come back. Only a fight not yet running
+        // reads the draft's own flag
+        var heldNow = function(r) { if (!was) return !!r.held; var lr = (was.rows || []).filter(function(x) { return !!x && x.id === r.id; })[0]; return !!lr && lr.held === 1 && was.rows[was.turn] !== lr; };
+        var rows = combatDraft.rows.filter(function(r) { return r.on && !r.busy; }).map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; if (heldNow(r)) o.held = 1; return o; });   // initiative O1: whether a row has its number; 1.6.3 (finding 0): and a hold it keeps
+        if (!rows.length) { toast('Tick at least one combatant.'); return; }
+        var neverS = typeof rosterShape === 'function' && rosterShape(getActiveCampaign()).kind === 'clock' ? rows.filter(function(r) { return !((typeof clockBegin === 'function' ? clockBegin(was, r.id, r.init) : Number(r.init)) > 0); }).map(function(r) { return r.name || 'Someone'; }) : [];   // 1.6.3 (finding 13): said, never refused; the review: judged by where a row begins
         var turn = 0, round = 1;
         if (was) { round = was.round; var curId = (was.rows[was.turn] || {}).id; var at = rows.findIndex(function(r) { return r.id === curId; }); turn = at >= 0 ? at : 0; }
         var midS = combatDraft.mapId, fidS = n.fightSet(was ? combatDraft.fid : null, { mapId: midS, round: round, turn: turn, rows: rows });
         if (!was && typeof fidS === 'string' && typeof stripShow === 'function') { stripShow(midS, fidS); if (typeof renderCombatStrip === 'function') renderCombatStrip(); }   // fold 2: a fight started here is the one this screen's strip shows
+        if (neverS.length && typeof fidS === 'string' && typeof clockNeverWords === 'function') toast(clockNeverWords(neverS));
         m.style.display = 'none'; combatDraft = null;
     });
 })();
@@ -6974,7 +7071,13 @@ function holdAsk(anchor, sys, done) {
     var btn = function(t, f) { var b = document.createElement('button'); b.type = 'button'; b.className = 'tool ghost'; b.textContent = t; b.addEventListener('click', f); box.appendChild(b); }; btn('Hold', go); btn('Cancel', holdClose);
     box.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); go(); } else if (e.key === 'Escape') { e.preventDefault(); holdClose(); } });
     document.body.appendChild(box);
-    var ra = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null; if (ra) { box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, ra.left)) + 'px'; box.style.top = Math.min(window.innerHeight - box.offsetHeight - 8, ra.bottom + 6) + 'px'; }
+    // 1.6.3 (the combat review's batch "strip", finding 11): the box stands by what was pressed. Pressed from the strip's menu the anchor is the strip's own Hold button, which the
+    // compact strip puts away, so its rectangle has no size and the box went to the window's top left corner, over the top row. An anchor with no size gives way to the strip's
+    // last button, the one the menu opened under, then to the strip itself, and with neither the box stands in the middle of the window
+    var sized = function(e) { var r = e && e.getBoundingClientRect ? e.getBoundingClientRect() : null; return r && (r.width > 0 || r.height > 0) ? r : null; }, stS = document.getElementById('combatStrip');
+    var ra = sized(anchor) || sized(stS && stS.querySelector ? stS.querySelector('.combat-strip-morebtn') : null) || sized(stS);
+    if (ra) { box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, ra.left)) + 'px'; box.style.top = Math.max(8, Math.min(window.innerHeight - box.offsetHeight - 8, ra.bottom + 6)) + 'px'; }
+    else { box.style.left = Math.max(8, Math.round((window.innerWidth - box.offsetWidth) / 2)) + 'px'; box.style.top = Math.max(8, Math.round((window.innerHeight - box.offsetHeight) / 2)) + 'px'; }
     inp.focus(); return box;
 }
 function stripHeldNamed(r, host, nameH) {   // a held row under holdNames: its words for the GM and its holder, in esc; the GM's Set off
@@ -6984,8 +7087,12 @@ function stripHeldNamed(r, host, nameH) {   // a held row under holdNames: its w
 // [sinkcheck:holdask-end]
 function stripMoveHtml(n, fid, c, map) {
     var mv = turnMoveOf(n, fid, c, null); if (!mv || !n.cellsText) return '';
-    var over = mv.m > mv.a + 0.05, r = Math.round(mv.m * 10) / 10;
-    return '<span class="combat-strip-move' + (over ? ' over' : '') + '" data-tip="How far the token on turn has moved, of its move this turn' + (typeof mv.w === 'number' ? '. Past ' + esc(n.cellsText(mv.w, map)) + ' it spends the action' : '') + '">Moved ' + esc(String(r)) + ' of ' + esc(n.cellsText(mv.a, map)) + '</span>';
+    var over = mv.m > mv.a + 0.05, r = Math.round(mv.m * 10) / 10, fig = function(v) { return String(Math.round(v * 10) / 10); };
+    // 1.6.3 (the combat review's batch "strip", finding 31; Fulllion's pick of 2026-11-20): the walk is the move, and the run an aside, as the turn's notice says them:
+    // "Moved 2 of 5 hexes (5 yd), 10 if you run" while a run is on offer (w, how far it goes before it spends the action), and "No move this turn" for a token that
+    // has none and has not moved (a Down character)
+    var words = mv.a <= 0 && mv.m <= 0.05 ? 'No move this turn' : 'Moved ' + fig(r) + ' of ' + n.cellsText(typeof mv.w === 'number' ? mv.w : mv.a, map) + (typeof mv.w === 'number' ? ', ' + fig(mv.a) + ' if you run' : '');
+    return '<span class="combat-strip-move' + (over ? ' over' : '') + '" data-tip="How far the token on turn has moved, of its move this turn' + (typeof mv.w === 'number' ? '. Past ' + esc(n.cellsText(mv.w, map)) + ' it spends the action' : '') + '">' + esc(words) + '</span>';
 }
 // [lookcheck:stripacts-start]
 // 1.6.0: what the character on turn has left of each action, as the strip says it. net.js actsNow says whether there is anything to say: a player's character, where actions are counted
@@ -6993,7 +7100,7 @@ function stripActsHtml(n, c, map) {
     var cur = c && c.rows ? c.rows[c.turn] : null, tok = cur && cur.tokId && map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === cur.tokId; }) : null;
     var al = tok && typeof tok.charId === 'string' && n && typeof n.actsNow === 'function' ? n.actsNow(tok.charId) : null; if (!al || !al.left) return '';
     var cp = getActiveCampaign(), tn = cp && cp.system && cp.system.combat ? cp.system.combat.turn : null, acts = tn && Array.isArray(tn.acts) ? tn.acts : [], out = true;
-    var bits = acts.filter(function(a) { return a && typeof al.left[a.key] === 'number'; }).map(function(a) { var k = al.left[a.key]; if (k > 0) out = false; return esc(a.label || a.key) + ': ' + (k > 0 ? esc(String(k)) + ' left' : 'none left'); });
+    var bits = acts.filter(function(a) { return a && typeof al.left[a.key] === 'number'; }).map(function(a) { var k = al.left[a.key]; if (k > 0) out = false; return esc(a.label || 'Action') + ': ' + (k > 0 ? esc(String(k)) + ' left' : 'none left'); });
     return bits.length ? '<span class="combat-strip-acts' + (out ? ' out' : '') + '" data-tip="What the character on turn has left of each action this turn">' + bits.join(', ') + '</span>' : '';
 }
 // [lookcheck:stripacts-end]
@@ -7020,7 +7127,11 @@ function renderCombatStrip() {
     var fidS = n && (n.active || n.solo) && am && am.type === 'map' && state.viewMode === 'visual' ? stripFightId(am.id) : null, c = fidS ? n.combats[fidS] : null;
     if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; if (typeof stripMenu === 'function') stripMenu(strip, false); if (typeof stripInBar === 'function') stripInBar(); if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync(); return; }   // backlog 219: the bar lets the fight go, and the Round pill comes back
     var idsS = fightsHere(am.id), atS = idsS.indexOf(fidS);
-    var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
+    // 1.6.3 (the combat review's batch "strip", finding 23): who acts next is the host's to work out by the turn shape (net.js fightNextAt), the GM's strip asking it
+    // and a player's reading the place it was sent (nx, -1 where it cannot be known: a counting clock, a round whose order is made again). An older host sends none,
+    // and the row after the one on turn is the guess it always was. A row redacted for this player is never named next
+    var nxAt = n.role === 'host' ? (typeof n.fightNextAt === 'function' ? n.fightNextAt(fidS) : undefined) : c.nx;
+    var cur = c.rows[c.turn] || {}, nxt = typeof nxAt === 'number' ? (nxAt >= 0 && c.rows.length > 1 ? c.rows[nxAt] || null : null) : c.rows[(c.turn + 1) % c.rows.length] || {};
     var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
     if (mine && mine.fid && mine.fid !== fidS) mine = null;   // fold 2: on the strip of the fight they are on turn in
     // initiative O5 (backlog 34): Next is chosen. Up next is the next in the standing order who has not gone this round, and Pick next lists those
@@ -7040,19 +7151,21 @@ function renderCombatStrip() {
     var who = findWho(n, !!window.wpStream), nameOf = function(r) { return findName(r.name || '', r.tokId, !!findOf(am.id, r.tokId, who, am, state.viewMode)); };   // backlog 26: a name that finds its token on this screen is a button
     var myTokIds = {}; if (!host && am && Array.isArray(am.whiteboard)) am.whiteboard.forEach(function(w) { if (w && w.isChar && w.ownerId && w.ownerId === n.myId && typeof w.id === 'string') myTokIds[w.id] = 1; });   // initiative O3: whose held rows a player may act from
     var campH = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, holdStay = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdAct === 'stay'), holdNm = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdNames === true), holdNext = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.hold === 'next');   // 1.6.0: a system that keeps its order, and one whose holds name what sets them off
+    // 1.6.3 (the combat review, finding 13): on a counting clock a row at 0 or less never gets a turn, so the GM's strip names it, in the strip's menu
+    var neverH = host && irC && irC.clock && typeof irC.clock === 'object' ? c.rows.filter(function(r) { return !!r && !((typeof clockBegin === 'function' ? clockBegin(c, r.id, r.init) : Number(r.init)) > 0); }).map(function(r) { return '<span class="combat-strip-held combat-strip-never" data-tip="On the counting clock a row at 0 or less never acts. Give it a count in the roster">never acts ' + nameOf(r) + '</span>'; }).join('') : '';
     var heldH = c.rows.map(function(r, i) { if (r && r.sf === 1) return '<span class="combat-strip-held" data-tip="Their hold was set off: they act before the turn goes on">acts now ' + nameOf(r) + '</span>'; if (holdNm && typeof stripHeldNamed === 'function') return r && r.held === 1 && i !== c.turn ? stripHeldNamed(r, host, nameOf(r)) : ''; return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="' + (holdStay ? 'Holding their turn: they may act now, and Done ends the hold' : 'Holding their turn: Act puts them right after whoever is acting') + '">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="' + (holdStay ? 'Done: the hold ends and the order stays as it is' : 'Act now: right after whoever is acting') + '">' + (holdStay ? 'Done' : 'Act') + '</button>' : '') : ''; }).join('');
     // drawn again only when it changed (found live, 2026-10-17): a redraw between a press and its click took the button pressed off the page, so
     // the press did nothing. What was written last is kept on the strip, since a hover moves each title into data-tip and the page's markup changes
     var html = (idsS.length > 1 ? '<button class="combat-strip-btn combat-strip-switch" data-act="switch" title="' + idsS.length + ' fights run on this map: show the next one. This changes nothing for anyone else">' + (atS + 1) + ' of ' + idsS.length + '</button>' : '')
         + '<span class="combat-strip-round" title="Round"><i class="wib wi-fight"></i> R' + c.round + '</span>'
         + (c.side === 'pc' || c.side === 'rest' ? '<span class="combat-strip-side" title="Side initiative: this round&rsquo;s sides roll put this side first">' + (c.side === 'pc' ? 'players first' : 'the rest first') + '</span>' : '')
-        + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
+        + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn"><i class="wib wi-nextturn wib-mirror"></i></button>' : '')   // 1.6.3 (finding 28; Fulllion's pick of 2026-11-20): Next's own drawing turned the other way, so the two arrows pair up
         + '<span class="combat-strip-cur" data-tip="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + nameOf(cur) + '</span>'
         + (typeof stripMoveHtml === 'function' ? stripMoveHtml(n, fidS, c, am) : '')   // 1.5.7: the turn's move, asked through typeof for the suites that slice the strip alone
         + (typeof stripActsHtml === 'function' ? stripActsHtml(n, c, am) : '')   // 1.6.0: its actions, the same way
-        + (nxt !== cur ? '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>' : '')   // 1.6.2: a fight of one names nobody next
+        + (nxt && (nxt !== cur || typeof nxAt === 'number') && nxt.hid !== 1 ? '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>' : '')   // 1.6.2: a fight of one names nobody next
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '"><i class="wib wi-endturn"></i> End turn</button>' : '')
-        + pickH
+        + pickH + neverH
         + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on. ' + (holdStay ? 'They act while held, and Done ends the hold.' : 'Act later puts them right after whoever is acting.') + (holdNext ? ' The hold lasts to their next turn.' : ' A hold not used by the round&rsquo;s end is lost.')) + '">Hold</button>' : '') + heldH)
         + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn"><i class="wib wi-nextturn"></i></button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
     // backlog 219 (the owner, 2026-11-10, by prompt, from the sheet docs/sheets/fight-in-bar-sheet.html: "A. A segment of the row"): the fight is a part of the trackers
@@ -7111,8 +7224,13 @@ function stripMenu(strip, open) {
             if (sp && sp.wpMoreOpen == null) renderCombatStrip();
         });
     }
-    m.textContent = ''; var heads = true;
-    stripMenuRows(strip).forEach(function(r) {
+    // 1.6.3 (the combat review's batch "strip", finding 11, found live): the strip is drawn again often (every redraw of the board asks it), and the menu's rows were made
+    // anew each time, so a row the pointer went down on could be gone by the time it came up, and the press (Hold, the roster, End combat) did nothing. The rows are made
+    // again only when what they say, or the strip they press, has changed
+    var rowsM = stripMenuRows(strip), sigM = String(strip.wpDrawn || '') + '\n' + JSON.stringify(rowsM.map(function(r) { return [r.text, !!r.b, !!r.red]; }));
+    if (m.wpSig === sigM && m.firstChild) rowsM = []; else { m.wpSig = sigM; m.textContent = ''; }
+    var heads = true;
+    rowsM.forEach(function(r) {
         if (!r.b) { var h = document.createElement('div'); h.className = 'fight-menu-word'; h.textContent = r.text; m.appendChild(h); return; }
         if (heads) { heads = false; if (m.firstChild) m.appendChild(document.createElement('hr')); }
         if (r.red && m.lastChild && m.lastChild.tagName !== 'HR') m.appendChild(document.createElement('hr'));
@@ -7471,7 +7589,7 @@ function gmFightModel(map, items, sel) {   // sel (158): the one token the GM ha
     var as = one && sel && typeof sel === 'object' && sel.isChar && !sel.waiting && sel.id !== one.id && (map.whiteboard || []).indexOf(sel) >= 0 ? sel : null, ta = as && n.targets ? n.targets['tk:' + as.id] : null;   // 158: Target as the selected character
     var clears = one && n.targets && typeof n.clearTargetOf === 'function' ? Object.keys(n.targets).filter(function(k) { var p = n.targets[k]; return k !== n.myId && !!p && typeof p === 'object' && p.id === one.id && p.mapId === map.id; }).slice(0, 12).map(function(k) { return { pid: k, name: String(n.targets[k].name || 'Player').slice(0, 40) }; }) : [];   // 1.5.9: each pointer someone else holds at it, which the GM may clear
     var hd = one && typeof n.holdsAt === 'function' ? n.holdsAt(map.id, as, one) : null;   // 1.6.0 Who holds whom: the GM's own hand on a token in a fight
-    return { holds: hd, toks: toks, running: ids.length > 0, fights: ids, add: toks.filter(function(w) { return typeof inIds[w.id] !== 'string' && !w.hidden; }), drop: toks.filter(function(w) { return typeof inIds[w.id] === 'string'; }), target: one, mine: !!(one && t && t.id === one.id && t.mapId === map.id), as: as, asMine: !!(as && ta && ta.id === one.id && ta.mapId === map.id), clears: clears };
+    return { holds: hd, toks: toks, running: ids.length > 0, fights: ids, add: toks.filter(function(w) { return typeof inIds[w.id] !== 'string'; }), drop: toks.filter(function(w) { return typeof inIds[w.id] === 'string'; }), target: one, mine: !!(one && t && t.id === one.id && t.mapId === map.id), as: as, asMine: !!(as && ta && ta.id === one.id && ta.mapId === map.id), clears: clears };
 }
 function gmEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }   // 158: a character's name, the one word of a token this menu writes
 function gmFightHtml(m) {
@@ -7502,7 +7620,7 @@ function gmFightDo(map, m, act) {
     if (act === 'targetas') { if (!m.target || !m.as || !n.setTargetAs) return false; return n.setTargetAs(m.as, m.target.id, map.id, m.target.charName || m.target.name) === true; }
     if (typeof act === 'string' && /^clear:\d{1,2}$/.test(act)) { var cl = Array.isArray(m.clears) ? m.clears[Number(act.slice(6))] : null; if (!cl || typeof n.clearTargetOf !== 'function') return false; return n.clearTargetOf(cl.pid) === true; }   // 1.5.9
     if (typeof act === 'string' && /^hold(take|pin|free|all)$/.test(act)) { if (!m.target || typeof n.holdSet !== 'function') return false; return n.holdSet(map.id, m.as || null, m.target, act.slice(4)) === true; }   // 1.6.0 Who holds whom
-    if (act === 'start') { if (m.running) return false; openCombatModal(map.id, { pre: m.toks.filter(function(w) { return !w.hidden; }).map(function(w) { return w.id; }) }); return true; }
+    if (act === 'start') { if (m.running) return false; openCombatModal(map.id, { pre: m.toks.map(function(w) { return w.id; }) }); return true; }   // 1.6.3 (finding 15): a hidden token picked comes ticked too
     if (act === 'new') { if (!m.running || !m.add.length) return false; openCombatModal(map.id, { fresh: true, pre: m.add.map(function(w) { return w.id; }) }); return true; }   // fold 2: another fight beside the one on this map
     var ids = Array.isArray(m.fights) ? m.fights.filter(function(f) { return !!(n.combats && Object.prototype.hasOwnProperty.call(n.combats, f) && n.combats[f] && Array.isArray(n.combats[f].rows)); }) : []; if (!ids.length || (act !== 'add' && act !== 'drop')) return false;
     if (act === 'add') {
@@ -7522,10 +7640,17 @@ function gmFightDo(map, m, act) {
 function gmFightPut(n, map, fid, add, out) {   // that fight with the tokens added at the end of its order (one coming back by its number), or those out taken out (its last row taken out ends it, asked first)
     var c = n.combats[fid]; if (!c || !Array.isArray(c.rows)) return false;
     var rows = c.rows.map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled === 1) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; if (r.held === 1) o.held = 1; return o; }), curId = (c.rows[c.turn] || {}).id;
-    if (add) add.forEach(function(w) { var was = typeof n.fightWas === 'function' ? n.fightWas(fid, w.id) : null, o = { id: 'r' + w.id, name: typeof rowNameOf === 'function' ? rowNameOf(w, map) : w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null }; if (was && was.rolled) o.rolled = 1; var low = was ? rows.findIndex(function(r) { return !(Number(r.init) >= o.init); }) : -1; if (low >= 0) rows.splice(low, 0, o); else rows.push(o); });   // one coming back stands where its number puts it, the row on turn kept below
+    // 1.6.3 (the combat review, finding 13): on a counting clock a row at 0 never acts, so a token added with no number of its own rolls the system's initiative roll for
+    // its count, as Roll all would (in private where a player cannot see it); one that still has none is said
+    var ckP = typeof rosterShape === 'function' && typeof getActiveCampaign === 'function' && rosterShape(getActiveCampaign()).kind === 'clock', shP = typeof window !== 'undefined' ? window.wpSheets : null, never = [];
+    if (add) add.forEach(function(w) { var was = typeof n.fightWas === 'function' ? n.fightWas(fid, w.id) : null, o = { id: 'r' + w.id, name: typeof rowNameOf === 'function' ? rowNameOf(w, map) : w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null }; if (was && was.rolled) o.rolled = 1;
+        if (ckP && !was && typeof w.charId === 'string' && shP && typeof shP.hasInitRoll === 'function' && shP.hasInitRoll() && typeof shP.rollInit === 'function') { var rrP = shP.rollInit(w.charId, { priv: !!w.hidden || (typeof n.tokUnseen === 'function' && n.tokUnseen(map.id, w.id)), tok: w.id }); if (rrP && typeof rrP.value === 'number' && isFinite(rrP.value)) { o.init = rrP.value; o.rolled = 1; } }
+        if (ckP && !(Number(o.init) > 0)) never.push(o.name);
+        var low = was ? rows.findIndex(function(r) { return !(Number(r.init) >= o.init); }) : -1; if (low >= 0) rows.splice(low, 0, o); else rows.push(o); });   // one coming back stands where its number puts it, the row on turn kept below
     if (out) { rows = rows.filter(function(r) { return !(typeof r.tokId === 'string' && out[r.tokId] === 1); }); if (!rows.length) { n.fightEnd(fid); return true; } }
     var at = rows.findIndex(function(r) { return r.id === curId; });
     n.fightSet(fid, { mapId: map.id, round: c.round, turn: at >= 0 ? at : Math.min(c.turn, rows.length - 1), rows: rows });
+    if (never.length && typeof clockNeverWords === 'function' && typeof toast === 'function') toast(clockNeverWords(never));
     return true;
 }
 // 152 fold 4b: the Rules run switch on an NPC's token (the owner's answer 1, 2026-10-19: "a Rules run switch on each NPC, on by default", placed
@@ -7614,8 +7739,9 @@ document.addEventListener('contextmenu', function(e) {
         e.preventDefault();
         
         var selectedIds = [];
+        var preSel = [];   // 1.6.3 (the combat review's batch "strip", finding 17): the selection as it stood before this right-click selected what it is on
         if (isWb) {
-            selectedIds = state.selWbIds || (state.selWbId ? [state.selWbId] : []);
+            selectedIds = state.selWbIds || (state.selWbId ? [state.selWbId] : []); preSel = selectedIds.slice();
             if (targetId && !selectedIds.includes(targetId)) { selectedIds = [targetId]; state.selWbIds = [targetId]; state.selWbId = targetId; if (window.appRender) window.appRender(); }   // 1.6.2 (the owner, 2026-11-12: "when right clicking something it should highlight like when its clicked to be selected"): a right-click selects what its menu acts on, so it is lit while the menu is up
         } else {
             selectedIds = state.selId ? [state.selId] : [];
@@ -7645,7 +7771,9 @@ document.addEventListener('contextmenu', function(e) {
             var sheetTop = !!(isWb && selectedIds.length === 1 && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets);
             if (sheetTop) { html += '<div class="menu-item cm-sheet"><i class="wib wi-clip"></i> ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>'; if (firstItem.charId && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud"><i class="wib wi-hud"></i> HUD&hellip;</div>'; }
             if (sheetTop && firstItem.charId && window.wpSheets.canDamage && window.wpSheets.canDamage(firstItem.charId)) html += '<div class="menu-item cm-dmg" title="Apply a blow to this character: its DR first, then its wounds, and the wear on what it wears"><i class="wib wi-fight"></i> Take damage&hellip;</div>';   // 1.5.6, the damage step
-            var selNow = state.selWbIds && state.selWbIds.length ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), selAs = isWb && selNow.length === 1 ? am.whiteboard.find(function(x) { return x.id === selNow[0]; }) : null;   // 158: the one token selected, which may target the token under the pointer
+            // 1.6.3 (finding 17): the one token selected BEFORE the right-click, which may target, trade as or hold the token under the pointer. The right-click selects what it
+            // is on (the owner, 2026-11-12), so read after it the selection was always that token, and Target as, Trade as and the GM's Who holds whom were never offered
+            var selNow = preSel.length ? preSel : state.selWbIds && state.selWbIds.length ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), selAs = isWb && selNow.length === 1 ? am.whiteboard.find(function(x) { return x.id === selNow[0]; }) : null;   // 158: the one token selected, which may target the token under the pointer
             var gmF = isWb ? gmFightModel(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean), selAs) : null; html += gmFightHtml(gmF);   // the GM's own Target, Start combat, Add to the fight
             var gmR = isWb ? gmRulesModel(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmRulesHtml(gmR); var gmL = isWb ? gmLootModel(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmLootHtml(gmL);   // 152 fold 4b: an NPC's Rules run switch
             var grpM = isWb ? groupRollModel(am, selectedIds) : null; html += groupRollHtml(grpM);   // 1.6.0 (v2, B7a): Group roll
@@ -7940,7 +8068,7 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-dmg')) {   // 1.5.6, the damage step
                     var itDm = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     cMenu.style.display = 'none';
-                    if (itDm && itDm.charId && window.wpSheets && window.wpSheets.takeDamage) window.wpSheets.takeDamage(itDm.charId);
+                    if (itDm && itDm.charId && window.wpSheets && window.wpSheets.takeDamage) window.wpSheets.takeDamage(itDm.charId, { tok: itDm.id });   // 1.6.3 (finding 4): the token the blow is for, which may take its own sheet first where its sheet is shared
                     return;
                 } else if (action.includes('cm-sheet')) {
                     var itS = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });

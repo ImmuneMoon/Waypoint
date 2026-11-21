@@ -5540,6 +5540,7 @@ function admitPlayer(conn, prof, provenKey) {
     prof.location = land.stage ? land.stage.itemId : null;
     prof.detached = land.detached;
     net.roster[conn.peer] = prof;
+    if (typeof satNote === 'function') satNote(prof.id);   // 1.6.3: seated this session: a later password does not keep them out of a reconnect (the hello gate's pwSat)
     renderRoster();
     toast((prof.name || 'A player') + ' joined.');
     logEvent('player', (prof.name || 'A player') + ' joined', { w: prof.name || 'A player', x: 'Joined the table', d: typeof playsOf === 'function' ? playsOf(prof.id) : '' });
@@ -5639,6 +5640,17 @@ function dupDrop(conn, id) {
     net.conns.slice().forEach(function(c) { if (c === conn || !own(net.roster, c.peer) || net.roster[c.peer].id !== id) return; delete net.roster[c.peer]; n++; denyJoin(c, DUP_WORDS); });
     return n;
 }
+// 1.6.3 (multiplayer, a password set mid-session): who has sat at this table this session. A player admitted once is noted here by profile
+// id (admitPlayer). When the GM sets a session password after they joined, a dropped link's automatic reconnect sends no password, and the
+// hello gate used to refuse every try for the five minutes of reconnecting and count each one toward the lockout on their name. Fulllion's
+// pick, by prompt: "Seated players skip it". So the gate lets such a player back in without the password, but only once they prove the table
+// key this campaign gave them over this very connection: the password is never skipped on a name alone (the gate's pwSat). Anyone new, a
+// player with no key and a failed proof are judged as before, and a failed proof counts toward the lockout. A removal takes the id off
+// (kickPlayer, which the campaign's Ban runs too, and Turn away), the record goes with the session (leaveSession) and comes back with a
+// reload or a crash beside the password (sessOut, sessIn). It is host memory alone, never sent and never saved in the campaign.
+var _satIds = Object.create(null), SAT_MAX = 500;
+function satNote(id) { if (!validProfileId(id) || own(_satIds, id)) return; var ks = Object.keys(_satIds); if (ks.length >= SAT_MAX) delete _satIds[ks[0]]; _satIds[id] = true; }   // the oldest goes first past the bound
+function satDrop(id) { if (typeof id === 'string') delete _satIds[id]; }
 // [netcheck:sessgate-end]
 // [netcheck:queue-start]
 // A join the GM must rule on: one place in line per connection, a bounded line, a 'wait' to the player.
@@ -5875,6 +5887,7 @@ function processNextApproval() {
         else {
             if (next.why === 'nokey' && typeof _noKeyOut !== 'undefined') _noKeyOut[next.prof.id] = true;   // 1.6.3 (finding 2): whoever lacked the key is kept out, never the key's owner (queueJoin)
             else bannedIds[next.prof.id] = true;   // no re-prompt spam this session
+            if (typeof satDrop === 'function') satDrop(next.prof.id);   // 1.6.3: turned away: no longer seated, so a password set later holds for them
             if (typeof outNote === 'function') outNote(next.prof.id, next.prof.name, next.why === 'nokey' ? 'nokey' : 'turned');
             denyJoin(next.conn, 'The GM declined your request to join.');
             toast((next.prof.name || 'Player') + ' was turned away. Player History can let them back in this session.');
@@ -5891,6 +5904,7 @@ net.kickPlayer = function(peerKey) {
     var p = own(net.roster, peerKey) ? net.roster[peerKey] : null;
     // fold M1: removing a player removes every admitted connection of theirs (a reconnect inside the heartbeat's grace, or a modified client,
     // can hold two); a peer not admitted is only the one clicked
+    if (p && typeof satDrop === 'function') satDrop(p.id);   // 1.6.3: removed: no longer seated, so a password set later holds for them
     var keys = p && p.id ? Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === p.id; }) : [peerKey];
     // 1.6.3 (the multiplayer review, finding 22): the one removed is noted by name for Player History's Removed this session (outNote)
     if (p) { bannedIds[p.id] = true; if (typeof outNote === 'function') outNote(p.id, p.name, 'removed'); keys.forEach(function(k) { delete net.roster[k]; }); renderRoster(); }
@@ -6217,15 +6231,30 @@ function handleMessage(msg, conn) {
         }
         var pwEl = ui('netPassInput');
         var pw = pwEl ? pwEl.value.trim() : '';
+        // pwMiss: a wrong password, or a seated player's failed proof (below), is counted toward the lockout on this name and refused. A name
+        // already at the lockout is refused in the lockout's words and not counted again, as before
+        var pwMiss = function() {
+            var nowM = Date.now(), fM = own(_pwFails, prof.id) ? _pwFails[prof.id].filter(function(t) { return nowM - t <= PW_LOCK_MS; }) : [];
+            if (fM.length >= PW_LOCK_FAILS) { _pwFails[prof.id] = fM; denyJoin(conn, 'Too many wrong passwords under that name — try again in a minute.'); return; }
+            var ksPw = Object.keys(_pwFails);
+            if (ksPw.length >= 500) { ksPw.forEach(function(k) { if (k !== prof.id && _pwFails[k].every(function(t) { return nowM - t > PW_LOCK_MS; })) delete _pwFails[k]; }); ksPw = Object.keys(_pwFails); if (ksPw.length >= 500) delete _pwFails[ksPw[0]]; }   // a guessing run under ever new names holds no more than this many records
+            fM.push(nowM); _pwFails[prof.id] = fM;
+            denyJoin(conn, 'Wrong session password.');
+        };
+        // pwSat (1.6.3, a password set mid-session): this hello gave no right password, but the name sat at this table this session and this
+        // campaign holds its table key. The password is not asked, and the lockout is not read: the key proof below decides. Proven, they come
+        // back in. Not proven (a wrong key, no answer, another connection), they are refused as a wrong password is and it counts (pwMiss).
+        // Nothing is signed for this connection until the proof has passed
+        var pwSat = false;
         if (pw) {
             var nowPw = Date.now(), failsPw = own(_pwFails, prof.id) ? _pwFails[prof.id].filter(function(t) { return nowPw - t <= PW_LOCK_MS; }) : [];
             if (failsPw.length) _pwFails[prof.id] = failsPw; else delete _pwFails[prof.id];
-            if (failsPw.length >= PW_LOCK_FAILS) { denyJoin(conn, 'Too many wrong passwords under that name — try again in a minute.'); return; }   // a guessing run under one name locks that name out, briefly; a player under another name is not kept waiting by it
-            if (String(msg.password || '').slice(0, 200).trim() !== pw) {
-                var ksPw = Object.keys(_pwFails);
-                if (ksPw.length >= 500) { ksPw.forEach(function(k) { if (k !== prof.id && _pwFails[k].every(function(t) { return nowPw - t > PW_LOCK_MS; })) delete _pwFails[k]; }); ksPw = Object.keys(_pwFails); if (ksPw.length >= 500) delete _pwFails[ksPw[0]]; }   // a guessing run under ever new names holds no more than this many records
-                failsPw.push(nowPw); _pwFails[prof.id] = failsPw;
-                denyJoin(conn, 'Wrong session password.'); return;
+            var pwRight = String(msg.password || '').slice(0, 200).trim() === pw;
+            var campSat = pwRight ? null : getActiveCampaign(), recSat = campSat && campSat.players && own(campSat.players, prof.id) ? campSat.players[prof.id] : null;
+            if (!pwRight && own(_satIds, prof.id) && recSat && typeof recSat.key === 'string' && recSat.key) pwSat = true;
+            else {
+                if (failsPw.length >= PW_LOCK_FAILS) { denyJoin(conn, 'Too many wrong passwords under that name — try again in a minute.'); return; }   // a guessing run under one name locks that name out, briefly; a player under another name is not kept waiting by it
+                if (!pwRight) { pwMiss(); return; }
             }
         }
         // Identity: a player this campaign knows proves the id is theirs with the table key the host issued them (kept per GM on
@@ -6237,8 +6266,8 @@ function handleMessage(msg, conn) {
         var camp0 = getActiveCampaign();
         var rec0 = (camp0 && camp0.players && own(camp0.players, prof.id)) ? camp0.players[prof.id] : null;
         var keyed0 = !!(rec0 && typeof rec0.key === 'string' && rec0.key);
-        if (!cm.hailed && validCn(msg.cn)) { cm.hailed = true; cm.hail = gmHail(cm, msg.cn, conn); }   // security (2026-10-01): the host proves itself early — ONE signed word per connection (gmhello) over the first nonce the player sent: begun here, after the bans, the version and the password; the challenge or the wait word below go out at once, the proof as soon as it is signed (a few milliseconds), and no timer of the gate waits for it
-        if (!cm.signed && validCn(msg.cn)) cm.signed = gmPresign(cm, msg.cn, keyed0 ? rec0.key : '', conn);   // security (2026-10-01): the snapshot this connection may be given is signed with the GM's key over the player's own nonce — made ready now (asynchronous), sent only on admission
+        if (!pwSat && !cm.hailed && validCn(msg.cn)) { cm.hailed = true; cm.hail = gmHail(cm, msg.cn, conn); }   // security (2026-10-01): the host proves itself early — ONE signed word per connection (gmhello) over the first nonce the player sent: begun here, after the bans, the version and the password; the challenge or the wait word below go out at once, the proof as soon as it is signed (a few milliseconds), and no timer of the gate waits for it
+        if (!pwSat && !cm.signed && validCn(msg.cn)) cm.signed = gmPresign(cm, msg.cn, keyed0 ? rec0.key : '', conn);   // security (2026-10-01): the snapshot this connection may be given is signed with the GM's key over the player's own nonce — made ready now (asynchronous), sent only on admission
         if (keyed0 && cm.nonce && typeof msg.proof === 'string') {
             var nonce0 = cm.nonce, key0 = rec0.key; cm.nonce = null;   // a nonce is good for one answer
             var ch0 = chanPrints(conn), fp0 = saidPrints(msg.fp) || (ch0 ? [ch0.theirs, ch0.mine] : null);   // transport: this connection's two certificates as this side reads them, and the pair the player says the proof was made over (none stated: this side's own)
@@ -6249,7 +6278,14 @@ function handleMessage(msg, conn) {
                 var dupV = liveDupOf(conn, prof.id);   // 1.6.3 (finding 17): judged with the proof below
                 var campV = getActiveCampaign(), recV = (campV && campV.players && own(campV.players, prof.id)) ? campV.players[prof.id] : null;
                 var keyOk0 = !!(want && recV && recV.key === key0 && sameStr(want, msg.proof)), bound0 = !!(ch0 && fp0 && fp0[0] === ch0.theirs && fp0[1] === ch0.mine);   // the key still the one proven (the GM may have re-issued it meanwhile) — and proven over THIS connection: the pair the proof covers is the pair this side reads
-                if (keyOk0 && bound0) { if (dupV && dupDrop(conn, prof.id)) logEvent('table', (prof.name || 'A player') + ' came back on a new connection. The old one was closed.'); admitPlayer(conn, prof, key0); }   // 1.6.3 (finding 17): the right key over this very connection: their old connection steps aside, as a reload's would
+                var inP = function() { if (liveDupOf(conn, prof.id) && dupDrop(conn, prof.id)) logEvent('table', (prof.name || 'A player') + ' came back on a new connection. The old one was closed.'); admitPlayer(conn, prof, key0); };
+                if (keyOk0 && bound0 && pwSat && validCn(msg.cn) && !cm.signed) {   // 1.6.3: a seated player proven with no password: the host's early proof and the snapshot's signature are begun now, once the key has passed
+                    if (!cm.hailed) { cm.hailed = true; cm.hail = gmHail(cm, msg.cn, conn); }
+                    cm.signed = gmPresign(cm, msg.cn, key0, conn);
+                    Promise.all([cm.hail, cm.signed]).then(function() { if (net.role !== 'host' || !conn.open || own(net.roster, conn.peer) || _connMeta[conn.peer] !== cm) return; inP(); });
+                }
+                else if (keyOk0 && bound0) inP();   // 1.6.3 (finding 17): the right key over this very connection: their old connection steps aside, as a reload's would
+                else if (pwSat) pwMiss();   // 1.6.3: a seated name that skipped the password and did not prove its key over this connection: refused as a wrong password, and it counts
                 else if (dupV) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // anything less than that proof while another connection of theirs is live is refused, as before
                 else if (keyOk0 && ch0) { denyJoin(conn, 'This table could not check your connection. Try joining again.'); unboundNotice(prof); }   // the right key, proven over another connection than the one this side reads (both ends readable, and they differ): refused — no question, no new key — and the GM told, by name
                 else queueJoin(conn, prof, 'nokey');   // a wrong key — or the right one on a connection this side cannot read (a technical hiccup never locks the table): the GM is asked, as for a name without its key
@@ -6257,7 +6293,9 @@ function handleMessage(msg, conn) {
         } else if (keyed0 && !cm.authAsked) {
             cm.authAsked = true; cm.nonce = newKey();
             try { conn.send({ type: 'auth', gmId: net.myId, nonce: cm.nonce }); } catch (e) { sendFailed(e); }
-            cm.authTimer = setTimeout(function() { cm.authTimer = null; if (!conn.open || own(net.roster, conn.peer)) return; queueJoin(conn, prof, 'nokey'); }, 2500);   // no answer came back: the GM decides
+            cm.authTimer = setTimeout(function() { cm.authTimer = null; if (!conn.open || own(net.roster, conn.peer)) return; if (pwSat) { pwMiss(); return; } queueJoin(conn, prof, 'nokey'); }, 2500);   // no answer came back: the GM decides
+        } else if (pwSat) {
+            pwMiss();   // 1.6.3: a seated name with no password that brought no proof: never put to the GM
         } else {
             queueJoin(conn, prof, rec0 ? 'nokey' : '');
         }
@@ -8887,7 +8925,8 @@ function sessOut() {
     var camp = getActiveCampaign() || {}, pwE = ui('netPassInput'), cid = typeof camp.id === 'string' ? camp.id : '';
     var pick = cid && net.stagePicked && own(net.stagePicked, cid) ? net.stagePicked[cid] : null;
     var o = { v: 1, campId: cid, pass: pwE ? String(pwE.value || '').trim().slice(0, 200) : '',
-        out: typeof outList === 'function' ? outList().map(function(x) { return { id: x.id, name: x.name, how: x.how }; }) : [],
+        out: typeof outList === 'function' ? outList().map(function(x) { return { id: x.id, name: x.name, how: x.how }; }) : [],   // sat (1.6.3): who sat at the table, so a reconnect after the GM's Refresh is judged as before it
+        sat: typeof _satIds !== 'undefined' ? Object.keys(_satIds).filter(validProfileId).slice(0, 500) : [],
         paused: !!net.paused, pausedPlayers: Object.keys(net.pausedPlayers || {}).filter(function(id) { return net.pausedPlayers[id] === true; }), travelLocked: !!net.travelLocked,
         stage: { picked: pick ? { mode: pick.mode === 'last' ? 'last' : null, fallback: typeof pick.fallback === 'string' ? pick.fallback : null } : null, over: typeof net.stageOverride === 'string' ? net.stageOverride : null } };
     if (net.notepad && net.notepad.on) o.pad = { text: String(net.notepad.text || '').slice(0, SESS_PAD_MAX), fmt: _pad.fmt && typeof _pad.fmt === 'object' ? _pad.fmt : null, font: typeof _pad.font === 'string' ? _pad.font : '' };
@@ -8898,8 +8937,9 @@ function sessOut() {
 function sessClean(o) {
     if (!o || typeof o !== 'object' || o.v !== 1) return null;
     var str = function(v, n) { return typeof v === 'string' ? v.slice(0, n) : ''; }, key = function(v) { return validKey(v) ? v : null; };
-    var r = { campId: str(o.campId, 160), pass: str(o.pass, 200).trim(), out: [], paused: o.paused === true, pausedPlayers: [], travelLocked: o.travelLocked === true, stage: null, pad: null, voice: o.voice === true };
+    var r = { campId: str(o.campId, 160), pass: str(o.pass, 200).trim(), out: [], sat: [], paused: o.paused === true, pausedPlayers: [], travelLocked: o.travelLocked === true, stage: null, pad: null, voice: o.voice === true };
     (Array.isArray(o.out) ? o.out.slice(0, 500) : []).forEach(function(x) { if (x && typeof x === 'object' && validProfileId(x.id) && (x.how === 'removed' || x.how === 'turned' || x.how === 'nokey')) r.out.push({ id: x.id, name: str(x.name, 60) || 'Player', how: x.how }); });
+    (Array.isArray(o.sat) ? o.sat.slice(0, 500) : []).forEach(function(id) { if (validProfileId(id) && r.sat.indexOf(id) < 0) r.sat.push(id); });
     (Array.isArray(o.pausedPlayers) ? o.pausedPlayers.slice(0, 500) : []).forEach(function(id) { if (validProfileId(id)) r.pausedPlayers.push(id); });
     var st = o.stage && typeof o.stage === 'object' ? o.stage : null, pk = st && st.picked && typeof st.picked === 'object' ? st.picked : null;
     if (st) r.stage = { picked: pk ? { mode: pk.mode === 'last' ? 'last' : null, fallback: key(pk.fallback) } : null, over: key(st.over) };
@@ -8915,6 +8955,7 @@ function sessIn(raw) {
     var camp = getActiveCampaign() || {}, same = !!(camp.id && camp.id === o.campId), said = [];
     var pwE = ui('netPassInput'); if (pwE && o.pass && !String(pwE.value || '').trim()) { pwE.value = o.pass; said.push('the session password'); }
     o.out.forEach(function(x) { if (x.how === 'nokey') _noKeyOut[x.id] = true; else bannedIds[x.id] = true; outNote(x.id, x.name, x.how); });
+    o.sat.forEach(function(id) { if (!own(bannedIds, id) && !own(_noKeyOut, id)) satNote(id); });   // 1.6.3: who sat at the table, said nowhere (the key proof still decides each one)
     if (o.out.length) said.push(o.out.length === 1 ? 'the player you kept out' : 'the ' + o.out.length + ' players you kept out');
     if (same) {
         if (o.paused) { setPausedLocal(true); said.push('the pause'); }
@@ -9354,6 +9395,7 @@ function leaveSession(silent) {
     setTravelLockLocal(false);
     net.pausedPlayers = {}; net.selfHeld = false; net.heldNames = []; setSelfPausedLocal(false);   // per-player pauses are per-session, like the table pause and travel lock
     bannedIds = {}; pendingJoins = []; approvalOpen = false; _unboundSaid = Object.create(null);   // bans, pending approvals and the notices of a key proven over another connection are per-session
+    if (typeof _satIds !== 'undefined') _satIds = Object.create(null);   // 1.6.3: and who sat at the table
     if (typeof _noKeyOut !== 'undefined') { _noKeyOut = Object.create(null); _outNames = Object.create(null); }   // 1.6.3 (finding 2): and so are the names turned away without their key, and the names of those kept out (a reload or a crash brings them back: sessIn)
     var hi = ui('netHostInfo');
     if (hi) hi.style.display = 'none';

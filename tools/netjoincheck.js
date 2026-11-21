@@ -1266,7 +1266,7 @@ pendingChecks.push((async () => {
             /nextGen = conn\.wpNext = function\(\) \{[^\n]*\n\s*clearTimeout\(joinTimer\);\n\s*if \(net\.peer !== peer\) return;\n\s*net\.active = false;\n\s*try \{ peer\.destroy\(\); \} catch \(e\) \{\}\n\s*if \(probe \+ 1 < ROOM_GENS\) \{ joinSession\(code, name, false, probe \+ 1\); return; \}\n\s*joinFailed\(''\);/.test(src) && /if \(rfJ\) snapAsk\(code, name\);/.test(src) && /if \(rfJ\) setStatus\(rfJ\.late \? HOST_LATE \+ ' You have not joined\.' : SNAP_REFUSED \+ ' You have not joined\.'/.test(src),
             /gmSignArm\(\);[^\n]*\n\s*var peer = new Peer\(roomPeerId\(code, gen\), peerOpts\(_hostTok \|\| undefined\)\);/.test(src),   /* 1.6.2 (backlog 220), moved on purpose */
             /rec\.key = \(provenKey && rec\.key === provenKey\) \? rec\.key : gmFreshKey\(conn\);/.test(src) && /notepad: notepadMsg\(\) \}; if \(sheetFilesHere\(\)\) snap\.sheetFiles = true; var soSnap = [^\n]*?snap\.sheetOut = soSnap; gmSignSnap\(snap, conn\); \};/.test(src),
-            /if \(!cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(cm, msg\.cn, keyed0 \? rec0\.key : '', conn\);/.test(src) && /hmacHex\(key0, fp0 \? authData\(nonce0, net\.roomPeer, fp0\[0\], fp0\[1\]\) : null\)\.then\(function\(want\) \{ return Promise\.all\(\[cm\.hail, cm\.signed\]\)\.then\(function\(\) \{ return want; \}\); \}\)\.then\(function\(want\) \{/.test(src),
+            /if \(!pwSat && !cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(cm, msg\.cn, keyed0 \? rec0\.key : '', conn\);/.test(src)   /* 1.6.3 (a password set mid-session), moved on purpose: a seated player's hello with no password is signed for only once the key has passed */ && /hmacHex\(key0, fp0 \? authData\(nonce0, net\.roomPeer, fp0\[0\], fp0\[1\]\) : null\)\.then\(function\(want\) \{ return Promise\.all\(\[cm\.hail, cm\.signed\]\)\.then\(function\(\) \{ return want; \}\); \}\)\.then\(function\(want\) \{/.test(src),
             /<li><b>Your GM, and no one else:<\/b> the first time you join a table your app remembers its GM&rsquo;s key[\s\S]{0,400}?You are asked once whether to trust the table that answered[\s\S]{0,1500}?<li>This protection begins with the first table your GM hosts on this version\.<\/li>/.test(htmlS) && /<li><b>Your table is signed:<\/b>[^\n]*\s*<ul>\s*<li>It proves itself to a returning player&rsquo;s app as soon as that app says hello[^\n]*<\/li>\s*<li><b>Settings &#9656; Reset multiplayer identity<\/b> makes a new key with your new identity\. To your players&rsquo; apps your table is then a new GM&rsquo;s\.<\/li>/.test(htmlS)
         ];
         chk('k', wired.every(Boolean), J(wired));
@@ -1474,7 +1474,7 @@ pendingChecks.push((async () => {
 
         /* ---- (s) wired ---- */
         const wiredH = [
-            /if \(!cm\.hailed && validCn\(msg\.cn\)\) \{ cm\.hailed = true; cm\.hail = gmHail\(cm, msg\.cn, conn\); \}[^\n]*\n\s*if \(!cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(/.test(gateSrc),
+            /if \(!pwSat && !cm\.hailed && validCn\(msg\.cn\)\) \{ cm\.hailed = true; cm\.hail = gmHail\(cm, msg\.cn, conn\); \}[^\n]*\n\s*if \(!pwSat && !cm\.signed && validCn\(msg\.cn\)\) cm\.signed = gmPresign\(/.test(gateSrc),   /* 1.6.3 (a password set mid-session), moved on purpose */
             /gmSignHex\(k\.priv, hostData\(cn, room, gm, bind\)\)/.test(gmSrc) && /conn\.send\(\{ type: 'gmhello', gmId: gm, gmPub: \{ kty: 'EC', crv: 'P-256', x: k\.pub\.x, y: k\.pub\.y \}, sig: s \}\);/.test(gmSrc) && nCalls(gmSrc, /type: 'gmhello'/g) === 1 && /if \(!s \|\| net\.role !== 'host' \|\| !conn\.open \|\| _connMeta\[conn\.peer\] !== cm\) return;/.test(gmSrc),
             /\} else if \(msg\.type === 'gmhello' && net\.role === 'client'\) \{\n\s*hostHail\(msg, conn\);/.test(src),
             /&& net\.role === 'client'\) \{\n\s*if \(hostDoubted\(conn\)\) return;[^\n]*\n\s*\/\/ \[netcheck:denied-start\]/.test(src) && /\} else if \(msg\.type === 'end' && net\.role === 'client'\) \{\n\s*if \(hostDoubted\(conn\)\) return;[^\n]*\n\s*\/\/ \[netcheck:end-start\]/.test(src),
@@ -1883,5 +1883,82 @@ pendingChecks.push((async () => {
     const rbOk = J(rbWith) === J(['u_rem']) && J(rbNone) === J(['u_ban', 'u_rem']) && J(rbOdd) === J(['u_ban', 'u_rem']) && olCamp === campB && !htmlB.includes('data-letin="u_ban"') && htmlB.includes('data-letin="u_rem"') && /Removed this session \(1\)/.test(htmlB) && banStill && remBack;
     check('the review of 1.6.3 (finding 22): a player the campaign bans is left out of Removed this session (outList(camp)), so no Let back in is offered that the hello gate would still refuse; a Let back in pressed on a panel drawn before the ban says they are still banned and that Unban lifts it, and lifts nothing',
         rbOk, J([rbWith, rbNone, rbOdd, olCamp === campB, banStill, remBack, letT, letLifted]));
+})());
+// 1.6.3 (multiplayer, a password set mid-session; Fulllion's pick, by prompt: "Seated players skip it"). A GM hosts with no password, a player
+// sits down, then the GM sets a session password. A seated player's dropped link reconnects with no password: the hello gate lets them back in
+// once they prove the table key over this connection, never on a name alone, and their tries never count toward the lockout. Anyone new, a
+// player with no key or a failed proof, and a removed player are judged as before. Each run on the real gate, sessgate and approval code
+pendingChecks.push((async () => {
+    const J = JSON.stringify, K32 = 'k'.repeat(32), PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room + FPTAIL);
+    const denied = (h, p) => h.sent.filter(x => x.peer === p && x.m.type === 'denied').map(x => x.m.reason), nonceOf = (h, p) => { const x = h.lastSent(p, 'auth'); return x ? x.m.nonce : 'none'; };
+    const fails = (h, id) => (h.env._pwFails[id] || []).length;
+    // a host whose campaign gave u_kay a table key, u_kay seated this session, and the password set after (the box read at each hello)
+    const world = (o) => {
+        o = o || {};
+        const h = harness({ players: { u_kay: { name: 'Kay', key: K32 }, u_new: { name: 'Neo' } } });
+        h.pw = o.pw === undefined ? 'sesame' : o.pw; h.env.ui = () => ({ value: h.pw });
+        if (o.seated !== false) h.env.satNote('u_kay');
+        h.signs = []; h.env.gmHail = (cm, cn) => { h.signs.push('hail ' + cn); return Promise.resolve(); }; h.env.gmPresign = (cm, cn, held) => { h.signs.push('sign ' + cn + ' ' + held); return Promise.resolve(); };
+        return h;
+    };
+    const cn = 'ab'.repeat(16);
+    /* a seated player with a valid key and no password is admitted after a password is set */
+    const A = world(), aC = A.conn('pA'); A.hello(aC, { id: 'u_kay', name: 'Kay' }, { cn }); await A.settle();
+    const aAsked = !!A.lastSent('pA', 'auth') && denied(A, 'pA').length === 0 && A.env.pendingJoins.length === 0 && A.signs.length === 0;   // challenged, never refused, never put to the GM, nothing signed yet
+    A.hello(aC, { id: 'u_kay', name: 'Kay' }, { cn, proof: PROOF(K32, nonceOf(A, 'pA'), 'waypoint-c1') }); await A.settle();
+    const aOk = aAsked && A.admitted.length === 1 && A.admitted[0].peer === 'pA' && A.admitted[0].key === K32 && denied(A, 'pA').length === 0 && fails(A, 'u_kay') === 0 && J(A.signs) === J(['hail ' + cn, 'sign ' + cn + ' ' + K32]);
+    const A2 = world(), a2 = A2.conn('pA2'); A2.hello(a2, { id: 'u_kay', name: 'Kay' }); await A2.settle(); A2.hello(a2, { id: 'u_kay', name: 'Kay' }, { proof: PROOF(K32, nonceOf(A2, 'pA2'), 'waypoint-c1') }); await A2.settle();
+    const a2Ok = A2.admitted.length === 1 && fails(A2, 'u_kay') === 0;   // a hello with no nonce: admitted with nothing to sign
+    // the name is locked by someone else's wrong guesses: the seated player who proves the key still comes back
+    const L = world(); for (let i = 0; i < 5; i++) { const c = L.conn('pG' + i); L.hello(c, { id: 'u_kay', name: 'Kay' }, { password: 'nope' + i }); await L.settle(); L.hello(c, { id: 'u_kay', name: 'Kay' }, { proof: 'f'.repeat(64) }); await L.settle(); }   // under a seated name a wrong word is no guess at the password: each is challenged, and each failed proof counts
+    const lLocked = fails(L, 'u_kay') === 5 && denied(L, 'pG4')[0] === 'Wrong session password.';
+    const lC = L.conn('pL'); L.hello(lC, { id: 'u_kay', name: 'Kay' }); await L.settle(); L.hello(lC, { id: 'u_kay', name: 'Kay' }, { proof: PROOF(K32, nonceOf(L, 'pL'), 'waypoint-c1') }); await L.settle();
+    const lOk = lLocked && L.admitted.length === 1 && fails(L, 'u_kay') === 5;
+    check('1.6.3 (a password set mid-session): a player seated this session whose reconnect sends no password is challenged for the table key and comes back in once the proof passes over this connection; nothing is signed for that connection until then; the try never counts toward the lockout, and a name locked by someone else\'s guesses does not keep its owner out',
+        aOk && a2Ok && lOk, J([aAsked, A.admitted.map(a => a.peer), denied(A, 'pA'), fails(A, 'u_kay'), A.signs, a2Ok, lLocked, L.admitted.map(a => a.peer), fails(L, 'u_kay')]));
+    /* a new player without the password is refused */
+    const N = world(), nC = N.conn('pN'); N.hello(nC, { id: 'u_new', name: 'Neo' }); await N.settle();
+    const nC2 = N.conn('pN2'); N.hello(nC2, { id: 'u_stranger', name: 'Str' }); await N.settle();
+    const U = world({ seated: false }), uC = U.conn('pU'); U.hello(uC, { id: 'u_kay', name: 'Kay' }); await U.settle();   // the key's owner who never sat this session
+    const nOk = J(denied(N, 'pN')) === J(['Wrong session password.']) && J(denied(N, 'pN2')) === J(['Wrong session password.']) && fails(N, 'u_new') === 1 && fails(N, 'u_stranger') === 1 && !N.lastSent('pN', 'auth') && N.env.pendingJoins.length === 0 && N.admitted.length === 0
+        && J(denied(U, 'pU')) === J(['Wrong session password.']) && !U.lastSent('pU', 'auth') && fails(U, 'u_kay') === 1 && U.admitted.length === 0;
+    const R = world(), rC = R.conn('pR'); R.hello(rC, { id: 'u_new', name: 'Neo' }, { password: 'sesame' }); await R.settle();
+    const rOk = !!R.lastSent('pR', 'wait') && R.env.pendingJoins.length === 1 && denied(R, 'pR').length === 0;   // the right word: the GM is asked as ever
+    check('1.6.3 (a password set mid-session): anyone who has not sat at the table this session still needs the password, a stranger, a known name with no key and the key\'s own owner alike: refused at once, counted toward the lockout, never challenged or put to the GM; the right word goes to the GM as before',
+        nOk && rOk, J([denied(N, 'pN'), denied(N, 'pN2'), fails(N, 'u_new'), denied(U, 'pU'), fails(U, 'u_kay'), rOk]));
+    /* a seated player with a bad proof is refused and does count toward the lockout */
+    const B = world(), bC = B.conn('pB'); B.hello(bC, { id: 'u_kay', name: 'Kay' }, { cn }); await B.settle(); B.hello(bC, { id: 'u_kay', name: 'Kay' }, { cn, proof: PROOF('w'.repeat(32), nonceOf(B, 'pB'), 'waypoint-c1') }); await B.settle();
+    const bWrong = J(denied(B, 'pB')) === J(['Wrong session password.']) && B.admitted.length === 0 && fails(B, 'u_kay') === 1 && B.env.pendingJoins.length === 0 && B.signs.length === 0;
+    const T2 = world(), tC = T2.conn('pT'); T2.hello(tC, { id: 'u_kay', name: 'Kay' }); await T2.settle(); T2.fireTimers();
+    const tSilent = J(denied(T2, 'pT')) === J(['Wrong session password.']) && fails(T2, 'u_kay') === 1 && T2.env.pendingJoins.length === 0;   // no answer to the challenge
+    const P = world(), pC = P.conn('pP'); P.hello(pC, { id: 'u_kay', name: 'Kay' }); await P.settle(); P.hello(pC, { id: 'u_kay', name: 'Kay' }); await P.settle();
+    const pNoProof = J(denied(P, 'pP')) === J(['Wrong session password.']) && fails(P, 'u_kay') === 1 && P.env.pendingJoins.length === 0 && P.admitted.length === 0;   // a second hello with no proof: no key to show
+    const O = world(), oC = O.conn('pO', pcStub('sha-256 99:99', FPP)); O.hello(oC, { id: 'u_kay', name: 'Kay' }); await O.settle(); O.hello(oC, { id: 'u_kay', name: 'Kay' }, { proof: PROOF(K32, nonceOf(O, 'pO'), 'waypoint-c1'), fp: [FPP, FPH] }); await O.settle();
+    const oOther = J(denied(O, 'pO')) === J(['Wrong session password.']) && fails(O, 'u_kay') === 1 && O.admitted.length === 0;   // the right key proven over another connection
+    const Q = world(); for (let i = 0; i < 5; i++) { const c = Q.conn('pQ' + i); Q.hello(c, { id: 'u_kay', name: 'Kay' }); await Q.settle(); Q.hello(c, { id: 'u_kay', name: 'Kay' }, { proof: 'f'.repeat(64) }); await Q.settle(); }
+    const qC = Q.conn('pQx'); Q.hello(qC, { id: 'u_kay', name: 'Kay' }); await Q.settle(); Q.hello(qC, { id: 'u_kay', name: 'Kay' }, { proof: 'f'.repeat(64) }); await Q.settle();
+    const qLock = fails(Q, 'u_kay') === 5 && /^Too many wrong passwords under that name/.test(denied(Q, 'pQx')[0] || '') && Q.admitted.length === 0;
+    const qR = Q.conn('pQr'); Q.hello(qR, { id: 'u_kay', name: 'Kay' }, { password: 'sesame' }); await Q.settle();
+    const qRight = /^Too many wrong passwords under that name/.test(denied(Q, 'pQr')[0] || '');   // five failed proofs lock the name as five wrong words do
+    check('1.6.3 (a password set mid-session): a seated name that skips the password and does not prove the key over this connection is refused as a wrong password and it counts toward the lockout: a wrong key, no answer to the challenge, a second hello with no proof, the right key proven over another connection; never put to the GM, nothing signed; five such tries lock the name for a minute as five wrong words do',
+        bWrong && tSilent && pNoProof && oOther && qLock && qRight, J([denied(B, 'pB'), fails(B, 'u_kay'), B.signs, tSilent, pNoProof, denied(O, 'pO'), fails(O, 'u_kay'), fails(Q, 'u_kay'), denied(Q, 'pQx'), denied(Q, 'pQr')]));
+    /* a removed player stays out */
+    const K = world(); K.env.bannedIds.u_kay = true; K.env.satDrop('u_kay');   // the roster's x, as kickPlayer does it
+    const kC = K.conn('pK'); K.hello(kC, { id: 'u_kay', name: 'Kay' }, { proof: PROOF(K32, 'x', 'waypoint-c1') }); await K.settle();
+    const kOut = J(denied(K, 'pK')) === J(['You were removed from this session.']) && K.admitted.length === 0;
+    K.env.letBackIn('u_kay'); const kC2 = K.conn('pK2'); K.hello(kC2, { id: 'u_kay', name: 'Kay' }); await K.settle();
+    const kBack = J(denied(K, 'pK2')) === J(['Wrong session password.']) && !K.lastSent('pK2', 'auth');   // let back in, they are no longer seated: the password holds for them
+    const W = world(); W.env.satNote('u_zed'); W.env.net.active = true;
+    const pnaSrc = (() => { const k = 'function processNextApproval() {', i = src.indexOf(k), e = src.indexOf('\n}\n', i); return src.slice(i, e + 3); })();
+    const P2 = new Function('env', pre(['processNextApproval']) + 'var approvalOpen = false;\n' + pnaSrc + '\nreturn processNextApproval;');
+    const asks = []; W.env.showConfirm = (m, cb, o) => asks.push(cb); W.env.processNextApproval = P2(W.env);
+    const wC = W.conn('pW'); W.hello(wC, { id: 'u_zed', name: 'Zed' }, { password: 'sesame' }); if (asks.length) asks[0](false);
+    const wOut = asks.length === 1 && !W.env.own(W.env._satIds, 'u_zed') && W.env.bannedIds.u_zed === true;
+    const nn = src.replace(/\r\n/g, '\n');
+    const wired = /net\.roster\[conn\.peer\] = prof;\n\s*if \(typeof satNote === 'function'\) satNote\(prof\.id\);/.test(nn)
+        && /if \(p && typeof satDrop === 'function'\) satDrop\(p\.id\);[^\n]*\n\s*var keys = p && p\.id \? Object\.keys\(net\.roster\)/.test(nn)
+        && /if \(typeof _satIds !== 'undefined'\) _satIds = Object\.create\(null\);[^\n]*\n\s*if \(typeof _noKeyOut !== 'undefined'\) \{ _noKeyOut = Object\.create\(null\);/.test(nn);
+    check('1.6.3 (a password set mid-session): a removed player stays out, the roster\'s x refusing them before any password or proof; let back in, they are no longer seated and the password holds for them; Turn away (the approval code, run for real) takes the seat off; admitPlayer notes a seat, kickPlayer drops it and the session\'s end forgets them all (wired)',
+        kOut && kBack && wOut && wired, J([denied(K, 'pK'), denied(K, 'pK2'), wOut, asks.length, wired]));
 })());
 T.finish();

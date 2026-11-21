@@ -1970,7 +1970,7 @@ pendingChecks.push((async () => { try {
             setPausedLocal: on => { net.paused = !!on; log.push('pause ' + on); }, setTravelLockLocal: on => { net.travelLocked = !!on; log.push('travel ' + on); }, refreshStageSelect: () => log.push('stage drawn'), renderNotepad: () => log.push('pad drawn'),
             setTimeout: f => f(), localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } }, window: { wpVoice: { on: () => !!o.voice } } };
         const names = Object.keys(env);
-        const api = new Function(...names, 'function rememberHostCode(code) { var recH = { code: code, ts: 1 }; recH.sess = sessOut(); localStorage.setItem("wp_lastHost", JSON.stringify(recH)); }\n' + sgSrc + '\n' + ssSrc + '\nreturn { sessOut, sessClean, sessIn, lastHostSess, sessKeepTick, noKey: function() { return _noKeyOut; }, outNote, outList, rec: net.lastHostRec };')(...names.map(n => env[n]));
+        const api = new Function(...names, 'function rememberHostCode(code) { var recH = { code: code, ts: 1 }; recH.sess = sessOut(); localStorage.setItem("wp_lastHost", JSON.stringify(recH)); }\n' + sgSrc + '\n' + ssSrc + '\nreturn { sessOut, sessClean, sessIn, lastHostSess, sessKeepTick, noKey: function() { return _noKeyOut; }, outNote, outList, rec: net.lastHostRec, sat: function() { return _satIds; }, satNote, satDrop };')(...names.map(n => env[n]));
         return { api, net, els, env, store, log, camp };
     };
     const A = world({ pass: ' mango ', paused: true, pp: { u_p: true, u_q: false }, travel: true, picked: { c1: { mode: null, fallback: 'm2' } }, over: 'm1', pad: { on: true, text: 'Clue: the bell' }, fmt: { spans: [] }, font: 'Inter', banned: { u_rm: true }, voice: true });
@@ -1985,7 +1985,7 @@ pendingChecks.push((async () => { try {
     const D = world({ pass: 'typed' }); D.api.sessIn(JSON.parse(keptText)); const typedWins = D.els.netPassInput.value === 'typed';
     const junk = [null, 7, 'x', [], { v: 2 }, { v: 1, out: [{ id: 'constructor', how: 'removed' }, { id: 'u_a', how: 'boss' }, 5], pausedPlayers: ['u_b', '__proto__', 3], stage: { picked: { mode: 'x', fallback: '__proto__' }, over: 9 }, pad: { text: 5 }, pass: { a: 1 } }];
     const cleaned = junk.map(x => J(A.api.sessClean(x)));
-    const junkOk = cleaned.slice(0, 5).every(c => c === 'null') && J(JSON.parse(cleaned[5])) === J({ campId: '', pass: '', out: [], paused: false, pausedPlayers: ['u_b'], travelLocked: false, stage: { picked: { mode: null, fallback: null }, over: null }, pad: null, voice: false });
+    const junkOk = cleaned.slice(0, 5).every(c => c === 'null') && J(JSON.parse(cleaned[5])) === J({ campId: '', pass: '', out: [], sat: [], paused: false, pausedPlayers: ['u_b'], travelLocked: false, stage: { picked: { mode: null, fallback: null }, over: null }, pad: null, voice: false });   // sat (1.6.3, a password set mid-session), moved on purpose
     const E = world({}); const noneSaid = E.api.sessIn(null) === '' && E.api.sessIn({ v: 1 }) === '';
     const F = world({ pass: 'pw' }); F.api.sessKeepTick(); const first = F.store.wp_lastHost; F.api.sessKeepTick(); const writes1 = F.store.wp_lastHost === first;
     F.els.netPassInput.value = 'other'; F.api.sessKeepTick(); const tickOk = !!first && JSON.parse(first).sess.pass === 'pw' && writes1 && JSON.parse(F.store.wp_lastHost).sess.pass === 'other' && J(F.api.lastHostSess('abcdefghjk')) === J(JSON.parse(F.store.wp_lastHost).sess) && F.api.lastHostSess('zzz') === null;
@@ -1997,6 +1997,16 @@ pendingChecks.push((async () => { try {
         && src.includes("if (typeof sessKeepTick === 'function') sessKeepTick();") && src.includes("_noKeyOut = Object.create(null); _outNames = Object.create(null);");
     check('1.6.3 (the multiplayer review, finding 1) a reload or a crash brings the table back as the GM left it (the sesskeep slice run for real): the session password, those kept out by name and why, the pause, the players paused, the travel lock, where players arrive and the table notepad with its look, kept as plain data and laid back as the table opens, said in one sentence that also says voice chat must be joined again; for another campaign only the password and those kept out; a password typed again wins; what is read back is data, junk cleaned away; the heartbeat writes the record beside the code only when it changed; a reload keeps it in session storage and a resumed code takes the crash record',
         backOk && otherOk && typedWins && junkOk && noneSaid && tickOk && recOk && wired, J([back, said, saidC, typedWins, cleaned[5], noneSaid, tickOk, recOk, wired]));
+    /* 1.6.3 (a password set mid-session): who sat at the table comes back with a reload or a crash, beside the password, and never someone kept out */
+    {
+        const SA = world({ pass: 'pw', banned: { u_rm: true } }); SA.api.satNote('u_s1'); SA.api.satNote('u_s2'); SA.api.satNote('u_s3'); SA.api.satDrop('u_s3'); SA.api.satNote('constructor');
+        const satKept = J(SA.api.sessOut().sat);
+        const SB = world({}); const satSaid = SB.api.sessIn(Object.assign(JSON.parse(J(SA.api.sessOut())), { sat: ['u_s1', 'u_s2', 'u_rm', 'u_s1', '__proto__', 7] }));
+        const satBack = J(Object.keys(SB.api.sat()).sort());
+        const SC = world({}); SC.api.sessIn({ v: 1, pass: 'pw', sat: 'u_s1' }); const satJunk = Object.keys(SC.api.sat()).length;
+        check('1.6.3 (a password set mid-session, the sesskeep and sessgate slices run for real): the players seated this session are kept as plain ids beside the password (a removed one is not, nor an id the rule refuses), laid back as the table opens, each once, never one the session keeps out, and said in no sentence; a list that is no list brings none',
+            satKept === J(['u_s1', 'u_s2']) && satBack === J(['u_s1', 'u_s2']) && satSaid === 'It came back with the session password and the player you kept out.' && satJunk === 0, J([satKept, satBack, satSaid, satJunk]));
+    }
     /* findings 6 and 15: the reconnect holds the board under a bar of its own, keeps trying slowly for five minutes, and offers Rejoin (the reconnbar slice and scheduleReconnect run for real) */
     const rbSrc = between('// [netcheck:reconnbar-start]', '// [netcheck:reconnbar-end]', 'reconnbar'), schedSrc = (() => { const i = src.indexOf('function scheduleReconnect() {'); return src.slice(i, src.indexOf('\n}\n', i) + 2); })();
     const rw = (o) => {

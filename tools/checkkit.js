@@ -268,7 +268,7 @@ function netGate(who) {
     const pcStub = (mine, theirs) => { const d = f => ({ type: 'x', sdp: 'v=0\r\ns=-\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=fingerprint:' + f + '\r\n' }); return { localDescription: d(mine), remoteDescription: d(theirs) }; };
     ENV_NAMES.push('chanPrints', 'saidPrints');
     ENV_NAMES.push('gmHail', 'unboundNotice');   // H2 (2026-10-01): the host's early proof (none in a plain harness, as its snapshot is unsigned) and the GM's notice of a right key over another connection (recorded: h.unbound)
-    const SG_NAMES = ['_noKeyOut', '_outNames', 'outNote', 'letBackIn', 'outList', 'liveDupOf', 'dupDrop'];
+    const SG_NAMES = ['_noKeyOut', '_outNames', 'outNote', 'letBackIn', 'outList', 'liveDupOf', 'dupDrop', '_satIds', 'satNote', 'satDrop'];   // 1.6.3 (a password set mid-session): and who sat at the table
     ENV_NAMES.push(...SG_NAMES);   // 1.6.3: the sessgate slice's own names, made for each harness from the real slice (below)
     const runSessGate = new Function('env', pre(SG_NAMES) + sessgateSrc + '\nreturn { ' + SG_NAMES.map(n => n + ': ' + n).join(', ') + ' };');
     const runGate = new Function('env', 'msg', 'conn', pre([]) + gateSrc + '\nreturn "ran";');

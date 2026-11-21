@@ -207,6 +207,19 @@ function badge(n) { var b = ui('journalBadge'); if (!b) return; unseen = Math.ma
 // One journal per campaign per GM: a campaign id can be copied between installs, a GM's id cannot
 // Onboarding F0: what a player plays, by id (the character in play), else their old name binding
 function playsOf(camp, pid, p) { var S = window.wpSystemCore; return (S && S.playsAs ? S.playsAs(camp, pid) : '') || (p && typeof p.charName === 'string' ? p.charName : ''); }
+// [scenecheck:playerword-start]
+// 1.6.3 (the improvement week's review of multiplayer, finding 35): the words for a player in the Handouts window (Seen by, queued for, Give to),
+// never a profile id. A handout's reveals stay under the id they were shown to, and a record merged into another or handed over leaves that
+// id behind (net.js takeOver and mergeRecords keep it in the new record's was list): such an id is named by the record that holds it in was.
+// The name is the character they play where one is known, else the record's own name; an id no record names reads "a former player"
+function playerWord(camp, pid) {
+    var P = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}, own = function(k) { return Object.prototype.hasOwnProperty.call(P, k) && P[k] && typeof P[k] === 'object'; };
+    var nameOf = function(id) { var p = P[id], nm = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return playsOf(camp, id, p) || nm; };
+    if (typeof pid === 'string' && own(pid)) { var n0 = nameOf(pid); if (n0) return n0; }
+    var by = typeof pid === 'string' ? Object.keys(P).filter(function(k) { return own(k) && Array.isArray(P[k].was) && P[k].was.indexOf(pid) >= 0; })[0] : null;
+    return (by && nameOf(by)) || 'a former player';
+}
+// [scenecheck:playerword-end]
 function journalKey(msg) { var c = safeId(msg.campId), g = safeId(msg.gmId); return c && g ? c + '__' + g : c; }
 // FNV-1a over the picture bytes: enough to tell "the same picture again" from "a new picture"
 function hashBytes(bytes) {
@@ -1445,17 +1458,17 @@ function renderHandouts() {
     // labeled by the character they play. Connected players get a handout at once; others when they join.
     var givePlayers = Object.keys(camp.players || {})
         .filter(function(pid) { return !(camp.bannedPlayers && camp.bannedPlayers[pid]); })
-        .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p); return { id: pid, label: pa ? (pa + ' — ' + (p.name || pid)) : (p.name || pid) }; })
+        .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p), pn = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return { id: pid, label: pa ? (pa + (pn ? ' — ' + pn : '')) : (pn || 'A player') }; })   // 1.6.3 (finding 35): never a profile id
         .sort(function(a, b) { return String(a.label).localeCompare(String(b.label)); });
     var giveOpts = '<option value="">Give to…</option><option value="*">Anyone (the whole table)</option>'
         + givePlayers.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.label) + '</option>'; }).join('');
     list.innerHTML = hs.map(function(h) {
         var seen = Object.keys(camp.handoutReveals).filter(function(pid) { return camp.handoutReveals[pid] && camp.handoutReveals[pid][h.id]; })
-            .map(function(pid) { var p = (camp.players || {})[pid]; return p && p.name ? p.name : pid; });
+            .map(function(pid) { return playerWord(camp, pid); }).filter(function(w, i, all) { return all.indexOf(w) === i; });   // 1.6.3 (finding 35): words, each once, never an id
         var attached = rooms.filter(function(r) { return r.hid === h.id; }).map(function(r) { return r.label; });
         var queued = Object.keys(h.giveTo || {})   // assigned to a specific player but not delivered yet
             .filter(function(pid) { return !(camp.handoutReveals[pid] && camp.handoutReveals[pid][h.id]); })
-            .map(function(pid) { var p = (camp.players || {})[pid] || {}; return playsOf(camp, pid, p) || p.name || pid; });
+            .map(function(pid) { return playerWord(camp, pid); }).filter(function(w, i, all) { return all.indexOf(w) === i; });   // 1.6.3 (finding 35)
         var thumb = h.kind === 'text'
             ? '<div class="handout-thumb handout-thumb-text" title="Preview">' + esc(String(h.text || '').slice(0, 140)) + '</div>'
             : '<img class="handout-thumb" src="' + encodeURI(picRef(h.src)) + '" alt="" title="Preview">';

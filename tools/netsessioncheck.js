@@ -1549,6 +1549,39 @@ pendingChecks.push((async () => {
         && /net\.peer = peer; net\.role = 'client'; net\.code = code;\n    if \(typeof netPaneSync === 'function'\) netPaneSync\(\);/.test(src.replace(/\r\n/g, '\n'))
         && /if \(!net\.active && net\.peer === peer\) \{ try \{ peer\.destroy\(\); \} catch \(e\) \{\} net\.peer = null; net\.role = null; net\.code = null; \}[^\n]*\n\s*if \(!net\.active && typeof netPaneSync === 'function'\) netPaneSync\(\);/.test(src.replace(/\r\n/g, '\n')), j(seen));   // found live: a code that found no table left the join's peer standing, and Join stayed off
 }
+// 1.6.3 (the improvement week's review of multiplayer, findings 30 and 34): while hosting, who is connected stands right under the room code
+// (rosterSeat in the netpane slice, run for real on a page of plain nodes), and goes back to its home before the VTT line otherwise; a player the
+// GM paused alone says Paused on their roster chip beside a resume button (renderRoster, run for real), which lets them play again
+{
+    const paneSrc = between('// [netcheck:netpane-start]', '// [netcheck:netpane-end]', 'netpane');
+    const node = id => ({ id, parentNode: null, style: {}, classList: { toggle() {} }, setAttribute() {}, get previousElementSibling() { const s = this.parentNode.kids, i = s.indexOf(this); return i > 0 ? s[i - 1] : null; }, get nextElementSibling() { const s = this.parentNode.kids, i = s.indexOf(this); return i >= 0 && i < s.length - 1 ? s[i + 1] : null; }, get nextSibling() { return this.nextElementSibling; } });
+    const box = id => { const b = node(id); b.kids = []; b.insertBefore = (n, ref) => { if (n.parentNode) n.parentNode.kids.splice(n.parentNode.kids.indexOf(n), 1); const at = ref ? b.kids.indexOf(ref) : -1; if (at < 0) b.kids.push(n); else b.kids.splice(at, 0, n); n.parentNode = b; return n; }; return b; };
+    const hostInfo = box('netHostInfo'), modal = box('netModal'), els = {};
+    ['netCode', 'netCodeWhere', 'tipLine', 'netSummonBtn'].forEach(id => { els[id] = node(id); hostInfo.insertBefore(els[id], null); });
+    ['netPaneJoin', 'netRoster', 'netVttLine', 'netPlayersBtn'].forEach(id => { els[id] = node(id); modal.insertBefore(els[id], null); });
+    const net = { active: false, role: null, peer: null, code: null };
+    const api = new Function('net', 'ui', 'showCode', paneSrc + '\nreturn { rosterSeat, netPaneSync };')(net, id => els[id] || null, c => c);
+    const order = () => [hostInfo.kids.map(n => n.id).join(','), modal.kids.map(n => n.id).join(',')].join(' | ');
+    const seen = [order()];
+    net.active = true; net.role = 'host'; api.rosterSeat(); seen.push(order()); api.rosterSeat(); seen.push(order());
+    net.role = 'client'; api.rosterSeat(); seen.push(order());
+    net.role = 'host'; api.netPaneSync(); seen.push(order());
+    net.active = false; net.role = null; api.netPaneSync(); seen.push(order());
+    // renderRoster, run for real: Mira paused alone wears Paused and a resume button; Trevor plays on with neither; a player's own app shows neither
+    const rrA = src.indexOf('function renderRoster() {'), rrSrc = rrA < 0 ? '' : src.slice(rrA, src.indexOf('\n}\n', rrA) + 2);
+    const roster = (role, paused) => { const el = { textContent: '', innerHTML: '' }; const n2 = { role, active: true, roster: { pM: { id: 'u_m', name: 'Mira' }, pT: { id: 'u_t', name: 'Trevor' } } };
+        new Function('net', 'ui', 'syncLastMaps', 'updateSidebarNav', 'rosterSeat', 'getActiveCampaign', 'own', 'escTextRoster', 'safeAvatar', 'window', 'playerHue', 'pausedById', 'renderWhere', 'document', rrSrc + '\nrenderRoster();')(
+            n2, id => id === 'netRoster' ? el : null, () => {}, () => {}, () => {}, () => null, () => false, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), () => false, {}, () => 1, id => paused.indexOf(id) >= 0, () => {}, { body: { classList: { toggle() {} } } });
+        return el.innerHTML; };
+    const hostH = roster('host', ['u_m']), noneH = roster('host', []), clientH = roster('client', ['u_m']);
+    const chips = hostH.split('<span class="roster-chip').slice(1);
+    const resumeWired = /var resumeBtn = e\.target\.closest\('\[data-resume\]'\);[^\n]*\r?\n\s+if \(resumeBtn && net\.role === 'host'\) \{\r?\n\s+e\.stopPropagation\(\);\r?\n[^\n]*\r?\n\s+if \(resP && resP\.id\) net\.pausePlayer\(resP\.id, false\);/.test(src);
+    check('1.6.3 (findings 30 and 34): while hosting, the list of who is connected stands right under the room code (rosterSeat, run for real: moved once and left where it stands, back before the VTT line for a player and after the session); a player paused alone wears Paused and a resume button on their roster chip (renderRoster, run for real), which lets them play again through net.pausePlayer; nobody else does, and a player\'s own app shows neither',
+        j(seen) === j(['netCode,netCodeWhere,tipLine,netSummonBtn | netPaneJoin,netRoster,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,netRoster,tipLine,netSummonBtn | netPaneJoin,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,netRoster,tipLine,netSummonBtn | netPaneJoin,netVttLine,netPlayersBtn',
+            'netCode,netCodeWhere,tipLine,netSummonBtn | netPaneJoin,netRoster,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,netRoster,tipLine,netSummonBtn | netPaneJoin,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,tipLine,netSummonBtn | netPaneJoin,netRoster,netVttLine,netPlayersBtn'])
+        && chips.length === 2 && /roster-held/.test(chips[0]) && /<span class="roster-paused">Paused<\/span><button class="roster-resume" data-resume="pM" title="Paused by you\. Press to let them play again\.">/.test(chips[0]) && !/roster-paused|roster-resume/.test(chips[1])
+        && !/roster-paused|roster-resume/.test(noneH) && !/roster-paused|roster-resume/.test(clientH) && resumeWired, j([seen, hostH, clientH, resumeWired]));
+}
 // 1.5.4 (found live): Leave session showed outside every session, where it did nothing (net.leaveSessionConfirm asks nothing with no table)
 {
     const ssA = src.indexOf('function syncSessionButtons() {'), ssSrc = ssA < 0 ? '' : src.slice(ssA, src.indexOf('\n}\n', ssA) + 2);

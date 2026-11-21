@@ -6855,6 +6855,40 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             same && seen > 500 && JSON.stringify(zh) === JSON.stringify([true, false, false, false, false, false, false, false]) && agree && JSON.stringify(corners) === JSON.stringify([false, false, false, true, true, false, false, false])
             && typeof Z.portalBeside === 'function' && typeof Z.zoneHolds === 'function' && typeof Z.zoneHid === 'function' && typeof Z.cleanZoneHidden === 'function', JSON.stringify([same, seen, zh, agree, corners]));
     }
+    {   // 1.6.3 (the improvement week's review of multiplayer, finding 18; Fulllion, 2026-11-21): a player's own tokens, a waiting one among them, stand
+        // over their own fog, the ground around them dark. ownClearList, ownClearShape and ownClear (the ownclear slice, run for real on a recording
+        // canvas): only the player's own character and waiting tokens, never a hidden one or another's; each cut in its own outline at its place in
+        // the board's scale, turned as the token is; a picture token with no shape cut by its picture's own pixels, fitted as the board fits it
+        const fsO = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+        const oA = fsO.indexOf('// [fogcheck:ownclear-start]'), oZ = fsO.indexOf('// [fogcheck:ownclear-end]'), oSrc = oA >= 0 && oZ > oA ? fsO.slice(oA, oZ) : 'throw new Error("markers");';
+        let oErr = '', OC = null; try { OC = new Function(oSrc + '\nreturn { ownClearList, ownClearShape, ownClear };')(); } catch (e) { oErr = String(e && e.message); }
+        const mapO = { whiteboard: [
+            { id: 'wt', waiting: 1, type: 'circle', ownerId: 'u_m', x: 100, y: 40, w: 60, h: 60 },
+            { id: 'hx', isChar: true, type: 'hexagon', ownerId: 'u_m', x: 0, y: 0, w: 60, h: 52, rot: 90 },
+            { id: 'pic', isChar: true, type: 'image', ownerId: 'u_m', x: 200, y: 0, w: 100, h: 50 },
+            { id: 'pich', isChar: true, type: 'image', shape: 'hexagon', ownerId: 'u_m', x: 300, y: 0, w: 60, h: 52 },
+            { id: 'hid', isChar: true, type: 'circle', ownerId: 'u_m', hidden: true, x: 0, y: 0, w: 60, h: 60 },
+            { id: 'oth', isChar: true, type: 'circle', ownerId: 'u_t', x: 0, y: 0, w: 60, h: 60 },
+            { id: 'wall', type: 'rect', ownerId: 'u_m', x: 0, y: 0, w: 60, h: 60 },
+            { id: 'bad', isChar: true, type: 'rect', ownerId: 'u_m', x: 'no', y: 0 } ] };
+        const rec = () => { const log = []; const c = {}; ['save', 'restore', 'beginPath', 'closePath', 'fill'].forEach(k => { c[k] = () => log.push(k); }); ['translate', 'rotate', 'moveTo', 'lineTo', 'rect', 'fillRect'].forEach(k => { c[k] = (...a) => log.push(k + '(' + a.map(v => Math.round(v * 100) / 100).join(',') + ')'); });
+            c.ellipse = (...a) => log.push('ellipse(' + a.slice(0, 4).map(v => Math.round(v * 100) / 100).join(',') + ')'); c.drawImage = (img, ...a) => log.push('drawImage(' + img.id + ',' + a.map(v => Math.round(v * 100) / 100).join(',') + ')'); c.log = log; return c; };
+        const j = JSON.stringify; let listO = null, logO = null, nO = 0, shapes = null, logUp = null;
+        if (OC) {
+            listO = OC.ownClearList(mapO, 'u_m').map(w => w.id);
+            const imgOk = { id: 'img', complete: true, naturalWidth: 200, naturalHeight: 50 }, els = { pic: { style: {}, querySelector: () => imgOk }, wt: { style: { rotate: '-30deg' }, querySelector: () => null } };
+            const ctxO = rec(); nO = OC.ownClear(ctxO, OC.ownClearList(mapO, 'u_m'), 2, 10, 20, id => els[id] || null); logO = ctxO.log.join(' ');
+            shapes = ['wt', 'hx', 'pic', 'pich'].map(id => OC.ownClearShape(mapO.whiteboard.find(w => w.id === id))).concat([OC.ownClearShape({ type: 'rect', waiting: 1 }), OC.ownClearShape({ type: 'diamond', isChar: true })]);
+            const ctxU = rec(); OC.ownClear(ctxU, [mapO.whiteboard[2]], 1, 0, 0, () => ({ style: {}, querySelector: () => ({ complete: false }) })); logUp = ctxU.log.join(' ');
+        }
+        const drawCall = fsO.includes("    fillP(pp && pp.clear);                                         // punch every clear or bright cell in one pass\n    if (isClientView() && typeof ownClear === 'function') ownClear(ctx, ownClearList(map, myId()), z, sx, sy, ownTokEl);");
+        check('1.6.3 (finding 18): a player\'s own tokens, a waiting one among them, stand over their own fog with the ground around them dark (the ownclear slice, run for real on a recording canvas): only their own character and waiting tokens, never a hidden one, another player\'s or a piece that is no token; each cut in its own outline at its place in the board\'s scale, turned by its rot and the view\'s upright turn; a picture token with no shape cut by its own pixels fitted as the board fits them, one not loaded yet by its box; draw asks it on a player\'s screen alone, right after the punches, while the canvas still cuts',
+            !oErr && j(listO) === j(['wt', 'hx', 'pic', 'pich']) && nO === 4 && j(shapes) === j(['ellipse', 'hex', 'img', 'hex', 'rect', 'diamond'])
+            && logO.indexOf('save translate(250,120) rotate(-0.52) beginPath ellipse(0,0,60,60) fill restore') === 0
+            && logO.includes('save translate(50,32) rotate(1.57) beginPath moveTo(-30,-52) lineTo(30,-52) lineTo(60,0) lineTo(30,52) lineTo(-30,52) lineTo(-60,0) closePath fill restore')
+            && logO.includes('save translate(490,30) drawImage(img,-100,-25,200,50) restore') && logO.includes('save translate(650,32) beginPath moveTo(-30,-52)')
+            && logUp === 'save translate(250,25) beginPath rect(-50,-25,100,50) fill restore' && drawCall, j([oErr, listO, nO, shapes, logO, logUp, drawCall]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

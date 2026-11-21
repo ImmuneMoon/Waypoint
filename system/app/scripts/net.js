@@ -743,6 +743,7 @@ net.playersOnMap = function(mapId) {
 function renderRoster() {
     syncLastMaps();
     updateSidebarNav();   // keep the Maps sidebar presence dots in step with the roster
+    if (typeof rosterSeat === 'function') rosterSeat();   // 1.6.3 (finding 30): under the room code while hosting
     var el = ui('netRoster');
     if (el) {
         var players = Object.values(net.roster);
@@ -769,8 +770,14 @@ function renderRoster() {
                       '<button class="roster-kick" data-kick="' + escTextRoster(peerKey) + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
                     : '';
                 var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding — will be dropped if silence continues"><i class="wib wi-hourglass"></i></span>' : '';
-                return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + '"' + jump + '>' + face +
-                    '<span>' + name + '</span>' + staleMark + sub + kick + '</span>';
+                // 1.6.3 (the improvement week's review of multiplayer, finding 34): a player the GM paused alone says so on their chip, beside a
+                // button that lets them play again (net.pausePlayer(id, false), the party chip's own Resume). Before, only the small party chip
+                // showed it, and a GM who resumed the table could forget that one player was still held
+                var pausedMark = net.role === 'host' && pausedById(p.id)
+                    ? '<span class="roster-paused">Paused</span><button class="roster-resume" data-resume="' + escTextRoster(peerKey) + '" title="Paused by you. Press to let them play again."><i class="wib wi-play"></i></button>'
+                    : '';
+                return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + (pausedMark ? ' roster-held' : '') + '"' + jump + '>' + face +
+                    '<span>' + name + '</span>' + staleMark + pausedMark + sub + kick + '</span>';
             }).join('');
         }
     }
@@ -792,6 +799,13 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
         e.stopPropagation();
         var kickKey = kickBtn.dataset.kick, kickP = own(net.roster, kickKey) ? net.roster[kickKey] : null;   // 1.6.0, found by pressing it by mistake: it asks first, by name, and Enter does not answer
         showConfirm('Remove ' + (kickP && kickP.name ? kickP.name : 'this player') + ' from the table? They stay out for the rest of the session.', function(yes) { if (yes) net.kickPlayer(kickKey); }, { noEnter: true });
+        return;
+    }
+    var resumeBtn = e.target.closest('[data-resume]');   // 1.6.3 (finding 34): the paused mark's own button lets that player play again
+    if (resumeBtn && net.role === 'host') {
+        e.stopPropagation();
+        var resP = own(net.roster, resumeBtn.dataset.resume) ? net.roster[resumeBtn.dataset.resume] : null;
+        if (resP && resP.id) net.pausePlayer(resP.id, false);
         return;
     }
     var summonBtn = e.target.closest('[data-summon]');
@@ -10694,6 +10708,29 @@ function renderPlayersPanel() {
     list.innerHTML = html;
 }
 
+// [netcheck:banask-start]
+// 1.6.3 (the improvement week's review of multiplayer, finding 31): Ban was the one action of Player History that did not ask first. It now
+// asks by name, with its buttons alone (noEnter), as removing a player from the roster and Forget do. Only a yes bans: the player's record
+// is written into camp.bannedPlayers, a player at the table right now is removed with it (net.kickPlayer) and their waiting token goes at
+// once, the campaign is saved and the panel drawn again. A no, or an answer that comes after another campaign was opened, changes nothing
+function banAsk(camp, pid) {
+    if (!camp || typeof pid !== 'string' || !pid) return;
+    var nm = (camp.players && own(camp.players, pid) && camp.players[pid] && camp.players[pid].name) || 'this player';
+    showConfirm('Ban ' + nm + ' from this campaign? They are removed now and refused in later sessions until you unban them.', function(yes) {
+        if (!yes || getActiveCampaign() !== camp) { renderPlayersPanel(); return; }
+        camp.bannedPlayers = camp.bannedPlayers || {};
+        camp.bannedPlayers[pid] = { name: (camp.players && own(camp.players, pid) && camp.players[pid] && camp.players[pid].name) || pid, bannedAt: Date.now() };
+        if (net.active && net.role === 'host') {   // at the table right now: they leave with the ban
+            var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === pid; });
+            if (key) net.kickPlayer(key);
+            dropWaitingFor(pid);   // Onboarding F1a: their waiting token goes at once, even inside the grace after they left
+        }
+        save();
+        toast((camp.bannedPlayers[pid].name || 'Player') + ' banned from this campaign.');
+        renderPlayersPanel();
+    }, { noEnter: true });
+}
+// [netcheck:banask-end]
 // [netcheck:forget-start]
 // Players panel ▸ Forget: asked first. The record goes for good — a player at the table right now plays on, but nothing brings the record
 // back this session (net.forgotten, read by syncLastMaps), so their next join waits for the GM's Allow like a stranger's.
@@ -10754,17 +10791,8 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
     var camp = getActiveCampaign();
     if (!camp) return;
     if (btn.dataset.ban) {
-        var pid = btn.dataset.ban;
-        camp.bannedPlayers = camp.bannedPlayers || {};
-        camp.bannedPlayers[pid] = { name: (camp.players[pid] || {}).name || pid, bannedAt: Date.now() };
-        // if they're at the table right now, they leave with the ban
-        if (net.active && net.role === 'host') {
-            var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === pid; });
-            if (key) net.kickPlayer(key);
-            dropWaitingFor(pid);   // Onboarding F1a: their waiting token goes at once, even inside the grace after they left
-        }
-        save();
-        toast((camp.bannedPlayers[pid].name || 'Player') + ' banned from this campaign.');
+        banAsk(camp, btn.dataset.ban);
+        return;   // 1.6.3: the panel redraws once the GM answers
     } else if (btn.dataset.unban) {
         var uid2 = btn.dataset.unban;
         var nm3 = (camp.bannedPlayers && camp.bannedPlayers[uid2] && camp.bannedPlayers[uid2].name) || 'Player';
@@ -11063,6 +11091,29 @@ function netPaneSync() {
     if (jb) jb.disabled = lockJ;
     if (ci) { ci.readOnly = lockJ; if (lockJ && net.code) ci.value = typeof showCode === 'function' ? showCode(net.code) : net.code; }
     if (at) at.style.display = lockJ ? 'block' : 'none';
+    rosterSeat();
+}
+// 1.6.3 (the improvement week's review of multiplayer, finding 30; Fulllion, 2026-11-21: "while hosting, who is connected right under the
+// room code"): the GM reopens this window mostly to see who is here and act on one player, and the list stood last, under every table
+// button and the Table options fold. While this app hosts, the one roster element (#netRoster, which renderRoster fills and whose summon,
+// kick and resume buttons keep their listener) is moved to stand right under the room code's lines in the host's part; otherwise it goes
+// back to its home before the VTT line, where a player at someone's table reads it. Asked by netPaneSync and renderRoster; it moves the
+// element only where it stands elsewhere, and does nothing on a page that lacks any of the three
+function rosterSeat() {
+    var r = ui('netRoster'), at = ui('netCodeWhere'), home = ui('netVttLine');
+    if (!r || !at || !home || !at.parentNode || !home.parentNode || typeof at.parentNode.insertBefore !== 'function') return;
+    if (net.active && net.role === 'host') { if (r.previousElementSibling !== at) at.parentNode.insertBefore(r, at.nextSibling); }
+    else if (r.nextElementSibling !== home) home.parentNode.insertBefore(r, home);
+}
+// 1.6.3 (the improvement week's review of multiplayer, finding 27): the session password is typed hidden, since GMs stream or share their
+// screen, and the eye beside it (#netPassShow) shows it so the GM can read it out, and hides it again. One press turns it: the box's type
+// between password and text, the button's pressed state, and its words, which always say what the next press does
+function passShow(btn, inp, on) {
+    if (!btn || !inp) return;
+    var show = typeof on === 'boolean' ? on : inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    var words = show ? 'Hide the password' : 'Show the password';
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false'); btn.setAttribute('aria-label', words); btn.title = words;
 }
 function joinLocked() { return net.role === 'client' && (!!net.active || !!net.peer); }   // at someone else's table, or dialing one
 net.joinLocked = joinLocked;   // the review of multiplayer chat: the welcome's Join asks it before it hands a join on (main.js), since a disabled Join button takes no press
@@ -11070,6 +11121,7 @@ function netPanePick(k) { if (net.active) return; _netPane = _netPane === k ? nu
 function netPaneShow(k) { _netPane = k; netPaneSync(); }   // the part a press of Host or Join belongs to stays shown, so a join that fails is read where it was typed
 // [netcheck:netpane-end]
 ['netPaneHostBtn', 'netPaneJoinBtn'].forEach(function(id) { var b = ui(id); if (b) b.addEventListener('click', function() { netPanePick(b.dataset.pane); }); });
+var _passShowBtn = ui('netPassShow'); if (_passShowBtn) _passShowBtn.addEventListener('click', function() { passShow(_passShowBtn, ui('netPassInput')); });   // 1.6.3 (finding 27)
 function syncSessionButtons() {
     netPaneSync();
     var cbtn = ui('chatBtn');

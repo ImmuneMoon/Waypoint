@@ -270,11 +270,15 @@ pendingChecks.push((async () => {
 {
     const js = JSON.stringify;
     const kickSrc = (() => { const k = 'net.kickPlayer = function(', i = src.indexOf(k), e = src.indexOf('\n};\n', i); if (i < 0 || e < 0 || src.indexOf(k, i + 1) >= 0) throw new Error('netcheck: net.kickPlayer not found once'); return src.slice(i, e + 4); })();
-    const banA = 'if (btn.dataset.ban) {', banB = '} else if (btn.dataset.unban) {', banI = src.indexOf(banA), banJ = src.indexOf(banB);
-    if (banI < 0 || banJ < banI || src.indexOf(banA, banI + 1) >= 0 || src.indexOf(banB, banJ + 1) >= 0) throw new Error('netcheck: the Ban branch not found once');
-    const banBody = src.slice(banI + banA.length, banJ);
+    // 1.6.3 (finding 31): the Ban branch now asks first, so what it does stands in banAsk (the banask slice), which these checks run with a
+    // question answered yes at once (banAnswer), moved on purpose; the questions asked are kept in banAsked
+    const banA = '// [netcheck:banask-start]', banB = '// [netcheck:banask-end]', banI = src.indexOf(banA), banJ = src.indexOf(banB);
+    if (banI < 0 || banJ < banI || src.indexOf(banA, banI + 1) >= 0 || src.indexOf(banB, banJ + 1) >= 0) throw new Error('netcheck: the banask slice not found once');
+    const banBody = src.slice(banI + banA.length, banJ), banAsked = []; let banAnswer = true;
+    if (!/if \(btn\.dataset\.ban\) \{\r?\n\s+banAsk\(camp, btn\.dataset\.ban\);\r?\n\s+return;/.test(src)) throw new Error('netcheck: the Ban branch does not ask banAsk');
     const buildKick = new Function('net', 'own', 'bannedIds', 'renderRoster', 'sensesForget', 'dropWaitingFor', 'sendFailed', 'setTimeout', 'toast', 'render', 'broadcastTargets', 'broadcastRoster', kickSrc + '\nreturn net.kickPlayer;');
-    const runBan = new Function('btn', 'camp', 'net', 'dropWaitingFor', 'save', 'toast', banBody);
+    const runBan = (btn, camp, net, drop, save, toast) => new Function('net', 'own', 'getActiveCampaign', 'showConfirm', 'renderPlayersPanel', 'dropWaitingFor', 'save', 'toast', banBody + '\nreturn banAsk;')(
+        net, H.own, () => camp, (q, cb, o) => { banAsked.push([q, !!(o && o.noEnter)]); cb(banAnswer); }, () => {}, drop, save, toast)(camp, btn.dataset.ban);
     // pA1 and pA2 admitted as u_a, pB as u_b, pX and pY as profiles whose ids only end or begin like u_a's, pW waiting for the GM
     const mkK = pre => {
         const h = harness(), env = h.env, ev = [];
@@ -327,7 +331,7 @@ pendingChecks.push((async () => {
         && js(fOut) === js({ threw: '', roster: ['pB', 'pX', 'pY'], kicked: ['pA2'], timers: 2, ev: ['roster', 'forget:u_a', 'drop:u_a', 'failed:boom', 'toast:Pat removed from the session.'], closed: ['pA1', 'pA2'] }), js([tOut, fOut]));
     // the Players panel's Ban branch, run for real with the real kickPlayer: one call covers the whole profile
     const banRun = (pid, pre) => { const K = mkK(pre), calls = [], real = K.env.net.kickPlayer, camp = { players: { u_a: { name: 'Pat' } } }, saves = []; K.env.net.active = true; K.env.net.kickPlayer = k => { calls.push(k); return real(k); };
-        let threw = ''; try { runBan({ dataset: { ban: pid } }, camp, K.env.net, id => K.ev.push('drop:' + id), () => saves.push(1), t => K.ev.push('toast:' + t)); } catch (e) { threw = e.message; } return { threw, calls, roster: K.rosterKeys(), kicked: K.kicked(), timers: K.timers.length, forgot: K.ev.filter(e => /^forget:/.test(e)), banned: Object.keys(camp.bannedPlayers), session: Object.keys(K.env.bannedIds), saves: saves.length }; };
+        let threw = ''; try { runBan({ dataset: { ban: pid } }, camp, K.env.net, id => K.ev.push('drop:' + id), () => saves.push(1), t => K.ev.push('toast:' + t)); } catch (e) { threw = e.message; } return { threw, calls, roster: K.rosterKeys(), kicked: K.kicked(), timers: K.timers.length, forgot: K.ev.filter(e => /^forget:/.test(e)), banned: Object.keys(camp.bannedPlayers || {}), session: Object.keys(K.env.bannedIds), saves: saves.length }; };
     const ban1 = banRun('u_a'), banAway = banRun('u_gone'), banClient = banRun('u_a', h => { h.env.net.role = 'client'; });
     const scripts = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f)), noCom = s => s.replace(/\/\/[^\n]*/g, '');
     const kickedSends = scripts.map(f => [f, (fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').match(/type: 'kicked'/g) || []).length]).filter(x => x[1]);
@@ -336,6 +340,13 @@ pendingChecks.push((async () => {
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
         && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 45 /* 1.6.3 (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+
+    // 1.6.3 (the improvement week's review of multiplayer, finding 31): Ban asks first, by name and with its buttons alone; a no bans, kicks
+    // and saves nothing (banAsk run for real with a question answered no), and the yes the checks above ran asked one question each
+    banAsked.length = 0; banAnswer = false; const banNo = banRun('u_a'); banAnswer = true; const askedNo = banAsked.slice(); banAsked.length = 0; const banYes = banRun('u_a'), askedYes = banAsked.slice();
+    check('1.6.3 (finding 31): Ban from Player History asks first, by name, answered by its buttons alone (noEnter), as removing a player and Forget do: a no writes no ban, removes nobody and saves nothing; a yes bans, removes and saves as before',
+        js(askedNo) === js([['Ban Pat from this campaign? They are removed now and refused in later sessions until you unban them.', true]]) && js(banNo.calls) === js([]) && banNo.kicked.length === 0 && js(banNo.banned) === js([]) && banNo.saves === 0
+        && askedYes.length === 1 && js(banYes.calls) === js(['pA1']) && js(banYes.banned) === js(['u_a']) && banYes.saves === 1, js([askedNo, banNo, askedYes, banYes]));
 
     /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
     const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };

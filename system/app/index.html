@@ -1405,7 +1405,7 @@
                           <li>Press <b>&minus;</b> and <b>+</b> on a counter or a clock, and the play button on a countdown. Press a tracker&rsquo;s name for its menu: Start or Pause, Reset, who sees it, the map it is on, Edit and Remove.</li>
                           <li>A tracker you keep to yourself wears a small <b>GM</b> mark. It never leaves your computer. One shown to the table reaches every player on its map, and the stream window too. Only you can change a tracker.</li>
                           <li>When a countdown runs out or a clock fills, its pill glows. Table Chat says so on every screen that sees it.</li>
-                          <li>To switch them off for the whole table, use <b>Settings &#9656; This campaign &#9656; Table trackers</b>. To keep them from one player, press <b>Who sees</b> at the end of the bar and tick that player. A player&rsquo;s menu on the party strip or their token has <b>Hide table trackers from them</b> too, and so do the ticks under the switch in Settings. That player then gets no tracker at all. It is kept with the campaign.</li>
+                          <li>To switch them off for the whole table, use <b>Settings &#9656; This campaign &#9656; Table trackers</b>. To keep them from one player, press <b>Who sees</b> at the end of the bar and tick that player. A player&rsquo;s menu on the party strip or their token has <b>Hide table trackers</b> from that player too, and so do the ticks under the switch in Settings. That player then gets no tracker at all. It is kept with the campaign.</li>
                           <li>The arrow at the start of the strip puts it away on your screen alone, leaving one small <b>Trackers</b> pill. Press it to bring the strip back. Each step is written to <b>saves/error.log</b>.</li>
                       </ul>
                       <h4>Coordinate rulers &amp; minimap</h4>
@@ -1809,8 +1809,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               </ul>
                           </li>
                           <li>The <b>Welcome</b> screen&rsquo;s <b>Host a game</b> asks which campaign to host. It opens that campaign, starts the table and shows this window with your room code.</li>
-                          <li><b>Table options</b>, under the button, folds away where players arrive, players without a character and the password. Set them before you start or at any time.</li>
-                          <li>Press <b>Start hosting this campaign</b>. A <b>room code</b> appears. Send it to your players however you like, then <b>close the window</b>. The session keeps running while you work, and the <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg> button reopens the window whenever you need the roster, pause or summon.</li>
+                          <li>The <b>Session password</b> stands above the button. It is typed hidden, and the eye beside it shows it so you can read it out.</li>
+                          <li><b>Table options</b>, under the button, folds away where players arrive and players without a character. Set them before you start or at any time.</li>
+                          <li>Press <b>Start hosting this campaign</b>. A <b>room code</b> appears. Send it to your players however you like, then <b>close the window</b>. The session keeps running while you work, and the <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg> button reopens the window whenever you need the roster, pause or summon. While you host, who is connected stands right under the room code.</li>
                           <li>Players who join appear in the roster and see the arrival map. On <b>Follow me</b>, changing maps brings them along. Otherwise they stay where they are until they travel or you <b>Summon</b> them, which moves them once. Your planners, room notes and character dossiers are <b>never sent</b> to them. <b>Handbook</b> pages you leave open to players are sent.</li>
                       </ol>
                       <h4>Give each player a token</h4>
@@ -1967,7 +1968,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <li><b>Pause the table</b> freezes players entirely: no token moves and no travel, while chat stays open. You can still move everything yourself.
                               <ul>
                                   <li>Use the <b><i class="wib wi-pause"></i></b> button in the top row, the <b><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 3.5c-4.4 4.8-4.4 12.2 0 17M12 3.5c4.4 4.8 4.4 12.2 0 17M4.6 9h14.8M4.6 15h14.8"/></svg></b> panel, or the play-map right-click menu. The button is one click from either map while you host, and all three stay in sync.</li>
-                                  <li>To freeze <b>just one player</b> and leave the rest playing, right-click their token or their party-strip chip and pick <b>Pause this player</b>. Their chip wears a blue ring until you resume them. A paused player sees a banner and can still chat.</li>
+                                  <li>To freeze <b>just one player</b> and leave the rest playing, right-click their token and pick <b>Pause this player</b>. Their party-strip chip has <b>Pause</b> with their name too. Their chip wears a blue ring until you resume them. In the roster they show <b>Paused</b>, with a button beside it that lets them play again. A paused player sees a banner and can still chat.</li>
                               </ul>
                           </li>
                           <li>Player token moves save into your campaign automatically. Nothing is stored on their machines.</li>
@@ -2014,6 +2015,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                               </ul>
                           </li>
                           <li>Optional <b>session password</b>: set one in the Host panel and the code alone isn't enough.</li>
+                          <li><b>Ban</b> in Player History asks first, by name. A banned player is removed now and refused in later sessions until you unban them.</li>
                           <li><b>Kick</b>: the &times; on a roster chip removes a player and keeps them out for the rest of the session. Denying an approval does the same.</li>
                       </ul>
                       <div class="help-tip"><b>If Waypoint crashes mid-session:</b> relaunch it and press <b>Host</b> again within 15 minutes. You get the same room code back, unless you switched <b>Own signaling server</b> on or off in between: then the code is new. Players still reconnecting reattach on their own: they keep trying for about two minutes. Anyone else rejoins with the code they already have.</div>
@@ -4665,6 +4667,13 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Campaign being hosted</div>
                 <select id="netCampSelect" style="width:100%; box-sizing:border-box;" title="The campaign players join. Changing it switches your app to that campaign."></select>
             </div>
+            <div style="margin-bottom:10px;">
+                <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>
+                <div class="net-pass-row">
+                    <input type="password" id="netPassInput" autocomplete="off" placeholder="Leave empty for code-only entry" title="If set, players must enter this along with the room code. An extra lock in case the code leaks.">
+                    <button class="tool ghost" id="netPassShow" type="button" aria-pressed="false" aria-label="Show the password" title="Show the password"><i class="wib wi-eye"></i></button>
+                </div>
+            </div>
             <button class="tool" id="netHostBtn" style="width:100%;">Start hosting this campaign</button>
             <div id="netHostInfo" style="display:none; margin-top:10px; text-align:center;">
                 <div style="color:var(--dim); font-size:12px;" title="Send this to your players. It changes every session you end on purpose.">Room code</div>
@@ -4674,7 +4683,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 </div>
                 <div id="netCodeWhere" class="set-line"></div>
                 <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;"><i class="wib wi-bulb"></i> Send this code to your players, then <b>close this window</b>. The session keeps running while you work. Reopen it any time with the <i class="wib wi-globe"></i> button to see who's here, pause, or summon.</div>
-                <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the Summon button on their name in the player list below."><i class="wib wi-summon"></i> Summon all players</button>
+                <button class="tool ghost" id="netSummonBtn" style="margin-top:8px; width:100%;" title="Bring every player back to your current map. To fetch just one, use the Summon button on their name in the player list."><i class="wib wi-summon"></i> Summon all players</button>
                 <button class="tool ghost" id="netCombatBtn" style="margin-top:8px; width:100%;" title="Start combat on the map you are on: pick who is in, give initiative, run the turns. Also on the play-map right-click menu."><i class="wib wi-fight"></i> Start combat</button>
                 <button class="tool ghost" id="netNotepadBtn" style="margin-top:8px; width:100%;" title="A disposable notepad the whole table sees as you type. Gone when you put it away or the session ends; anyone can save it to their Journal."><i class="wib wi-note"></i> Table Notepad</button>
                 <div class="set-line">A throwaway notepad the whole table sees as you type.</div>
@@ -4686,7 +4695,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             </div>
             <button class="tool ghost" id="netStreamBtn" style="margin:8px 0; width:100%;" title="A second window with only the play map, from the party's standpoint, to share your screen with someone watching without the app. The same button as in Settings, Multiplayer."><i class="wib wi-screen"></i> Open stream window</button>
             <details class="net-opts">
-                <summary title="Where players arrive, players without a character and the password. Set them before you start, or at any time.">Table options</summary>
+                <summary title="Where players arrive and players without a character. Set them before you start, or at any time.">Table options</summary>
                 <div style="margin-bottom:10px;">
                     <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Players arrive at</div>
                     <select id="netStageSelect" style="width:100%; box-sizing:border-box;" title="Where joining players land. 'Player's last location' (the default) sends each player back to the map they were last on, where they stay put until they travel or you summon: nobody is moved because you open another map. 'Follow me' makes the whole table move with you from map to map; picking a map pins the table there until you switch back."></select>
@@ -4713,10 +4722,6 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <div class="set-line">Right-click their chip for Let them make a character.</div>
                     <label style="display:flex; gap:6px; align-items:center; color:var(--dim); font-size:12px; margin-top:6px;" title="On (the default): a player making a character may fill it from a file with Import on its sheet &mdash; their own sheet download &mdash; at once, with their own rights; you review the whole character when they press Done."><input type="checkbox" id="netMakeFile"> <span class="set-name"><span>&hellip;may start it from a file</span><small>With Import on the new sheet. You review it when they press Done.</small></span></label>
                 </div>
-                <div style="margin-bottom:10px;">
-                    <div style="color:var(--dim); font-size:11px; margin-bottom:4px;">Session password (optional)</div>
-                    <input type="text" id="netPassInput" placeholder="Leave empty for code-only entry" style="width:100%; box-sizing:border-box;" title="If set, players must enter this along with the room code. An extra lock in case the code leaks.">
-                </div>
             </details>
         </div>
         <div id="netPaneJoin" style="display:none; border:1px solid var(--edge); border-radius:8px; padding:12px; margin-bottom:12px;">
@@ -4726,7 +4731,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button class="tool" id="netJoinBtn">Join</button>
             </div>
             <div id="netJoinAt" class="set-line" style="display:none;">You are at this table. To join another, leave the session first.</div>
-            <input type="text" id="netJoinPassInput" placeholder="Password, if the GM set one" style="width:100%; box-sizing:border-box;">
+            <input type="password" id="netJoinPassInput" autocomplete="off" placeholder="Password, if the GM set one" style="width:100%; box-sizing:border-box;">
             <div class="set-line">Your GM sends you the room code. Type or paste it with or without the hyphen. A code that begins with WP is found on the Waypoint server.</div>
         </div>
         <div id="netRoster" style="color:var(--dim); font-size:12px; margin-bottom:12px;">No players connected yet.</div>
@@ -4754,7 +4759,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <span id="streamIdleNow" class="stream-fight" hidden title="Whom this window follows while you are off the play map"></span>
     <span id="streamFight" class="stream-fight" hidden title="The fight on the map shown: its round, and whose turn it is where the party can see that token"></span>
 </div>
-<div id="travelLockBanner" style="display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:5000; background:var(--panel2); border:1px solid var(--gold); color:var(--ink); padding:5px 12px; border-radius:6px; font-size:12px; box-shadow:var(--shadow);"><i class="wib wi-lock"></i> Travel between maps is locked by the GM</div>
+<div id="travelLockBanner" style="display:none;"><i class="wib wi-lock"></i> Travel between maps is locked by the GM</div>
 <div id="pauseBanner" class="wib wi-pause">The GM has paused the table &mdash; chat is still open</div>
 
 <!-- An update that needs the installer: the steps, before anything downloads -->

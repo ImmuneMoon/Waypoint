@@ -6139,6 +6139,14 @@
   .dmg-preview { margin: 6px 0 12px; padding: 8px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); font-size: 13px; line-height: 1.45; }
   .dmg-hint { color: var(--dim); }
   .dmg-btns { display: flex; justify-content: flex-end; gap: 8px; }
+  /* 1.6.3 (the combat review, finding 4): the Take damage window's word that the sheet is shared, and its button to give the token its own sheet first */
+  .dmg-shared { margin: -2px 0 12px; padding: 8px 10px; border-left: 3px solid var(--gold); border-radius: 4px; background: rgba(224, 165, 79, 0.08); font-size: 12.5px; line-height: 1.45; }
+  .dmg-shared .dmg-shared-own { margin-top: 6px; font-size: 12px; }
+  /* 1.6.3 (the combat review, finding 21): a token's Effects menu, the rounds counter at the end of an effect's line */
+  .menu-item.cm-fx .cm-fx-rounds { float: right; margin-left: 10px; display: inline-flex; align-items: center; gap: 4px; cursor: default; }
+  .menu-item.cm-fx .cm-fx-rounds .ui-step { height: 24px; }
+  .menu-item.cm-fx .cm-fx-rounds .ui-step > button { flex-basis: 22px; width: 22px; }
+  .menu-item.cm-fx .cm-fx-rwd { color: var(--dim); font-size: 11px; }
   .chat-dmgapply { margin-top: 6px; font-size: 12px; }
   /* 1.6.3: Hide my rolls. The GM's Show to the table on a card of a roll they hid, the small tag a shown roll wears, and the eye the Table Chat button
      wears while the GM's rolls are hidden (dice.js hideSync), in its bottom-left corner, clear of the unread count at its top right */

@@ -1331,7 +1331,21 @@ export function wbBlast() {   // [split:glue]
   // whose center is in a wall is refused where a throw would go off in front of it. Every refusal is in fixed words. Of the token a circle
   // sat on the owner said, by prompt: "Ask each time". So the boxes hold a tick, Also hits the token at the center, shown only for a circle
   // on a token and off every time it comes up. Ticked, that one explosion spares nobody
+  // 1.6.3 (the combat review, finding 22; Fulllion's pick of 2026-11-20, which replaces "type is a word" for a system that names its types): where the
+  // system names damage types, the type is picked by name from a list of them, and the blast keeps its key (b.dtype), so applyBlastDamage takes that
+  // type's DR and multipliers for everyone it hits. A system with none keeps the typed words, named on the card and changing no number, as before
   var EXPLODE_MIN_FT = 1, EXPLODE_MAX_FT = 3000;   // a blast's radius in feet, as placeThrownBlast and a player's app bound it
+  function explodeTypes() {   // the system's damage types, [{ key, label }], each once by its key; none where the system names none
+      var camp = getActiveCampaign(), d = camp && camp.system && camp.system.combat && camp.system.combat.damage, seen = {}, out = [];
+      (d && Array.isArray(d.types) ? d.types : []).forEach(function(t) { if (!t || typeof t.key !== 'string' || !t.key || seen[t.key.toLowerCase()]) return; seen[t.key.toLowerCase()] = 1; out.push({ key: t.key, label: typeof t.label === 'string' && t.label.trim() ? t.label.trim().slice(0, 60) : t.key, mult: typeof t.mult === 'number' && isFinite(t.mult) ? t.mult : null }); });
+      // found live: a system may name several types alike (four called Piercing, each with its own multiplier), so a name two types share says its
+      // multiplier, and one still shared says its place among them, so that each row of the list is a type of its own
+      var cnt = function() { var c = {}; out.forEach(function(y) { var k = y.label.toLowerCase(); c[k] = (c[k] || 0) + 1; }); return c; };   // how many rows say each name
+      var ms = {}; out.forEach(function(t) { var k = t.label.toLowerCase(); (ms[k] = ms[k] || {})[String(t.mult)] = 1; });   // the multiplier is said only where the types that share a name have different ones
+      out.forEach(function(t) { var k = t.label.toLowerCase(); if (Object.keys(ms[k]).length > 1 && t.mult !== null) t.label = t.label + ' \u00d7' + (Math.round(t.mult * 100) / 100); });
+      var c2 = cnt(), at = {}; out.forEach(function(t) { var k = t.label.toLowerCase(); if (c2[k] > 1) { at[k] = (at[k] || 0) + 1; t.label = t.label + ' (' + at[k] + ')'; } });
+      return out.map(function(t) { return { key: t.key, label: t.label }; });
+  }
   function explodeType(v) {   // the damage type as typed: a few plain words on one line, 40 characters at most and never half a character
       if (typeof v !== 'string') return '';
       var out = '';
@@ -1361,6 +1375,12 @@ export function wbBlast() {   // [split:glue]
       var p = F && F.parse ? F.parse(expr) : null;
       if (!p || !p.ok) return { why: 'That damage does not read as a number or a roll.' };
       if (p.names && p.names.length) return { why: 'The damage is a number or a roll. It cannot name a value from a sheet.' };
+      var tys = explodeTypes();
+      if (tys.length) {   // a type of the system's, by its key (the list's value) or its name, ignoring case
+          var tk = typeof type === 'string' ? type.trim().toLowerCase() : '', hit = tk ? tys.filter(function(t) { return t.key.toLowerCase() === tk; })[0] || tys.filter(function(t) { return t.label.toLowerCase() === tk; })[0] : null;
+          if (!hit) return { why: 'Pick the damage type from the list.' };
+          return { c: q.c, ft: q.ft, expr: expr, type: hit.label, dtype: hit.key };
+      }
       var ty = explodeType(type); if (!ty) return { why: 'Type the damage type. It is a word.' };
       return { c: q.c, ft: q.ft, expr: expr, type: ty };
   }
@@ -1375,7 +1395,7 @@ export function wbBlast() {   // [split:glue]
       else if (auto !== 'measure' && diceOn) {   // the roll first: a damage that cannot be rolled sets nothing off
           if (!window.wpDice || !window.wpDice.rollFor) { toast('Dice are not available.'); return false; }
           var drX = auto === 'full' ? { dmg: true, used: true } : { dmg: true }; if (defX) drX.usedWait = true;
-          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', drX);   // the type is named on the card: it changes no number
+          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', drX);   // the type is named on the card (a type of the system's counts through b.dtype below; typed words change no number)
           if (!dr || dr.error || !dr.ok) return false;   // the roll said why
           rolled = true; total = typeof dr.value === 'number' && isFinite(dr.value) ? dr.value : null;
       }
@@ -1383,6 +1403,7 @@ export function wbBlast() {   // [split:glue]
       var b = { x: c.x, y: c.y, ft: q.ft, name: 'Explosion', elev: typeof c.elev === 'number' && isFinite(c.elev) ? c.elev : 0, autoElev: false, thrown: true, by: '' };
       if (rlX && rlX.each && typeof q.expr === 'string' && q.expr) b.eachExpr = q.expr;   // 1.6.0 (the core's gap 8): what each victim rolls at its own dice
       if (defX) b.bid = 'b_' + Math.random().toString(36).slice(2, 12);   // what waits for its Defense rolls goes by the blast's id (defendAsk), the host's alone: it is no part of what the table is shown
+      if (typeof q.dtype === 'string' && q.dtype) b.dtype = q.dtype;   // 1.6.3 (finding 22): the system's type, read by applyBlastDamage for its DR and multipliers
       if (typeof c.tok === 'string' && hitFor !== c) b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it, unless the GM ticked that it does, for this very circle
       var sent = { x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' };   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
       if (shapeOf(c.as) === 'ring' && c.inn > 0 && c.inn < c.yd) { b.shape = sent.shape = 'ring'; b.inFt = sent.inFt = c.inn * 3; }   // a ring with no hole is the whole disc
@@ -1403,6 +1424,14 @@ export function wbBlast() {   // [split:glue]
   // every time they are shown or put away, so what was typed for one explosion is never there for the next
   var _el_exBtn = document.getElementById('blastExplodeBtn'), _el_exForm = document.getElementById('blastExplodeForm'), _el_exDmg = document.getElementById('blastDmg'), _el_exType = document.getElementById('blastDmgType');
   var _el_exHitRow = document.getElementById('blastHitCentreRow'), _el_exHit = document.getElementById('blastHitCentre'), _exHitFor = null;   // the tick, and the circle it is being asked for
+  var _el_exTypeSel = document.getElementById('blastDmgTypeSel');   // 1.6.3 (finding 22): the list of the system's types, shown in place of the typed box where the system names any
+  function explodeTypeBox() { return _el_exTypeSel && _el_exTypeSel.style.display !== 'none' ? _el_exTypeSel : _el_exType; }   // the type box in use
+  function explodeTypeFill() {   // the list filled from the system's types, none picked; shown only where there are any, the typed box shown where there are none
+      var tys = explodeTypes(); if (!_el_exTypeSel) return;
+      while (_el_exTypeSel.firstChild) _el_exTypeSel.removeChild(_el_exTypeSel.firstChild);
+      if (tys.length) { var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Pick a type'; _el_exTypeSel.appendChild(o0); tys.forEach(function(t) { var o = document.createElement('option'); o.value = t.key; o.textContent = t.label; _el_exTypeSel.appendChild(o); }); }
+      _el_exTypeSel.value = ''; _el_exTypeSel.style.display = tys.length ? '' : 'none'; if (_el_exType) _el_exType.style.display = tys.length ? 'none' : '';
+  }
   // The tick under the two boxes: Also hits the token at the center. It shows only while the boxes are up and the circle that would go off
   // sits on a token. It is unticked whenever the circle it is asked for changes, so a yes for one circle is never there for another
   function explodeHitRow() {
@@ -1414,13 +1443,14 @@ export function wbBlast() {   // [split:glue]
   }
   function explodeForm(show) {
       if (_el_exDmg) _el_exDmg.value = ''; if (_el_exType) _el_exType.value = '';
+      if (show) explodeTypeFill(); else if (_el_exTypeSel) _el_exTypeSel.value = '';
       if (_el_exForm) _el_exForm.style.display = show ? '' : 'none';
       explodeHitRow();   // put away, the tick is asked for no circle, so it is unticked; it comes up again off, whatever it held
       if (show && _el_exDmg && _el_exDmg.focus) _el_exDmg.focus();
   }
   function explodeGo() {   // refused: the boxes stay as typed, to be put right
       var hitFor = _el_exHit && _el_exHit.checked === true && _el_exHitRow && _el_exHitRow.style.display !== 'none' ? _exHitFor : null;
-      if (explodeCircle(_el_exDmg ? _el_exDmg.value : '', _el_exType ? _el_exType.value : '', hitFor)) explodeForm(false);
+      var tyB = explodeTypeBox(); if (explodeCircle(_el_exDmg ? _el_exDmg.value : '', tyB ? tyB.value : '', hitFor)) explodeForm(false);
   }
   if (_el_exBtn) _el_exBtn.addEventListener('click', function() {
       if (_el_exForm && _el_exForm.style.display !== 'none') { explodeForm(false); return; }
@@ -1431,13 +1461,13 @@ export function wbBlast() {   // [split:glue]
   if (_el_exGo) _el_exGo.addEventListener('click', explodeGo);
   if (_el_exNo) _el_exNo.addEventListener('click', function() { explodeForm(false); });
   if (_el_exDmg) _el_exDmg.addEventListener('keydown', function(e) {   // Enter in the damage box goes on to the type: an explosion is never set off from the first box
-      if (e.key === 'Enter') { e.preventDefault(); if (_el_exType && _el_exType.focus) _el_exType.focus(); }
+      if (e.key === 'Enter') { e.preventDefault(); var tyF = explodeTypeBox(); if (tyF && tyF.focus) tyF.focus(); }
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); explodeForm(false); }
   });
-  if (_el_exType) _el_exType.addEventListener('keydown', function(e) {
+  [_el_exType, _el_exTypeSel].forEach(function(tyE) { if (tyE) tyE.addEventListener('keydown', function(e) {   // the list keeps its own arrow keys: Enter sets it off, Escape puts the boxes away
       if (e.key === 'Enter') { e.preventDefault(); explodeGo(); }
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); explodeForm(false); }
-  });
+  }); });
   // [systemcheck:explode-end]
   // A sheet Throw button arms a one-shot blast placement (mirrors wpArmFxBurst); the next map click throws it.
   window.wpArmBlast = function(ft, name, ctx) {

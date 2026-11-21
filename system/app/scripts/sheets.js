@@ -1329,10 +1329,27 @@ function tokenFxModel(w) {
     rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.ref !== 'string') out.push({ ref: '', rowId: r.id, name: r.name || 'Effect', icon: r.icon || '', tone: r.tone || '', gm: false, on: r.on !== false }); });
     return { char: c ? c.id : '', field: f ? f.id : '', rows: out };
 }
+// 1.6.3 (the combat review, finding 21; Fulllion: the hover card shows the time left, "Stimulated, 2 rounds left"). What each timed effect of a character
+// token has left, by the effect's name, read from the character as this screen holds it whole: the GM's from the campaign, a player's from their own
+// whole copy. A teammate's hover copy holds no rows, so it says nothing. { name: words } through fxLeftText, the sheet's own words for a timer; the first
+// row of a name wins. Nothing is sent: the card asks it as it is drawn
+function tokenFxLeft(w) {
+    var out = {}; if (!w || !w.isChar || typeof w.charId !== 'string' || (window.wpVtt && !window.wpVtt.on('sheets'))) return out;
+    var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(w.charId, camp); if (!sys || !c || c.partial || !c.values || !Array.isArray(sys.fields)) return out;
+    var lib = {}; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(d) { if (d && typeof d.id === 'string') lib[d.id] = d; });
+    sys.fields.forEach(function(f) {
+        var rows = f && f.kind === 'effects' && Array.isArray(c.values[f.id]) ? c.values[f.id] : []; rows.forEach(function(r) {
+            if (!r || r.on === false || !r.t || typeof r.t.left !== 'number') return;
+            var d = typeof r.ref === 'string' ? lib[r.ref] : r, nm = d && typeof d.name === 'string' ? d.name.trim() : ''; if (!nm || Object.prototype.hasOwnProperty.call(out, nm)) return;
+            var tx = fxLeftText(r.t, sys); if (tx) out[nm] = tx;
+        });
+    });
+    return out;
+}
 function tokenFxCharOp(charId, fieldId, q) {   // a character token's menu: the sheet's own path (the GM's edit, or the host asked)
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), f = sys && Array.isArray(sys.fields) ? sys.fields.find(function(x) { return x && x.id === fieldId && x.kind === 'effects'; }) : null;
     if (!c || !f || !q) return;
-    if (q.op === 'add' && typeof q.ref === 'string') commitEffect(c, f, { op: 'add', rowId: uid('x_'), ref: q.ref });
+    if (q.op === 'add' && typeof q.ref === 'string') { var qa = { op: 'add', rowId: uid('x_'), ref: q.ref }; if (!isClient() && typeof q.rounds === 'number' && Math.floor(q.rounds) === q.rounds && q.rounds >= 1 && q.rounds <= 99) qa.rounds = q.rounds; commitEffect(c, f, qa); }   // 1.6.3 (finding 21): the GM's rounds from the menu
     else if (q.op === 'remove' && typeof q.rowId === 'string') commitEffect(c, f, { op: 'remove', rowId: q.rowId });
 }
 // [sinkcheck:tokenfxlist-end]
@@ -6901,7 +6918,9 @@ function commitEffect(c, f, q) {
     var camp = getActiveCampaign(), sys = systemOf(camp); if (!camp || !sys) return;
     if (isClient()) { var n = net(); if (!n || !n.charEffect) return; var r = n.charEffect(c.id, f.id, q); if (r && r.error) toast(r.error); renderViews(c.id); return; }
     if (!canWrite()) return;
-    var nC = net(), res = applyEffectOp(sys, c, f.id, q, F(), { now: Date.now(), inCombat: !!(nC && nC.charInCombat && nC.charInCombat(c.id)) });   // T5a: a timed effect starts its timer
+    var nC = net(), fxOp = { now: Date.now(), inCombat: !!(nC && nC.charInCombat && nC.charInCombat(c.id)) }, qE = q;   // T5a: a timed effect starts its timer
+    if (q && q.op === 'add' && typeof q.rounds === 'number' && q.rounds >= 1 && q.rounds <= 99) { fxOp.secs = Math.floor(q.rounds) * roundSecs(sys); qE = Object.assign({}, q); delete qE.rounds; }   // 1.6.3 (the combat review, finding 21): the GM's own rounds from a token's Effects menu are its timer, a round being the system's own length (applyEffectOp's secs, the host's own word)
+    var res = applyEffectOp(sys, c, f.id, qE, F(), fxOp);
     if (!res.ok) { toast(res.reason === 'field' ? 'That list cannot be changed.' : res.reason === 'missing' ? 'That effect is gone.' : 'That change is not allowed.'); renderViews(c.id); return; }
     if (typeof res.againSays === 'string' && res.againSays) toast(res.againSays);   // 1.6.0 (a builder audit): added again while it is on, which time was kept
     var prev = c.values && Object.prototype.hasOwnProperty.call(c.values, f.id) ? clone(c.values[f.id]) : undefined, extra = null;
@@ -8554,6 +8573,43 @@ function dmgFollowWords(sys, info) {   // 1.6.2: the rolls a blow will ask for, 
     return names.length ? 'Then asks for: ' + names.join(', ') + '.' : '';
 }
 // [systemcheck:dmgfollow-end]
+// [damagecheck:dmgshare-start]
+// 1.6.3 (the combat review, finding 4; Fulllion's pick of 2026-11-20: "there should be a way to keep some tokens linked and others only used as a
+// copy that stays independent by an option upon assigning"). A wound lands on the sheet, so every token that uses one sheet takes it, on every map.
+// The Take damage window says so, and offers to give the token the hit is for its own sheet first (ownSheetFor, the token menu's own row). Asked on
+// the GM's own campaign alone (shareGm), never for a template, and never for a sheet whose first answer is to share (a character a player plays, an
+// NPC ticked Unique: systemcore shareFirst), since that is one character on every map by design. Answers null, or { n: the tokens that use the
+// sheet, m: on how many maps, tok: the token the hit is for: the one tokId names where it uses this sheet, else the first of them on the map on
+// screen, else none }
+function dmgShareInfo(camp, c, tokId) {
+    if (!camp || !c || c.template === true || shareFirst(c) || (typeof shareGm === 'function' && !shareGm())) return null;
+    var users = sheetUsers(camp, c.id, null); if (users.length < 2) return null;
+    var maps = {}; users.forEach(function(u) { maps[u.mapId] = 1; });
+    var hit = users.filter(function(u) { return typeof tokId === 'string' && u.tok.id === tokId; })[0] || users.filter(function(u) { return u.mapId === camp.activeItemId; })[0] || null;
+    return { n: users.length, m: Object.keys(maps).length, tok: hit ? hit.tok : null };
+}
+function dmgShareWords(info) { return 'This sheet is shared by ' + info.n + ' tokens on ' + (info.m === 1 ? 'one map' : info.m + ' maps') + '. A wound here wounds every one of them.'; }
+// The window's button: the token takes its own copy of the sheet (ownSheetFor, one save, said in its notice), and the window opens again for the copy
+// with what was typed, the Who list naming the copy where it named the sheet, and where the attacker stood still read on this character. True
+// where the copy was made
+function dmgOwnFirst(charId, pre, tok, typed) {
+    if (!tok || tok.charId !== charId || typeof ownSheetFor !== 'function' || !ownSheetFor([tok])) return false;
+    var nid = tok.charId; if (typeof nid !== 'string' || nid === charId) return false;
+    var np = Object.assign({}, pre, { whoOpen: false, tok: tok.id }), av = Number(typed), camp = getActiveCampaign(), nc = charById(nid, camp); if (typed !== '' && isFinite(av) && av >= 0) np.amt = av;
+    if (Array.isArray(pre.who)) np.who = pre.who.map(function(x) { return x && x.id === charId ? { id: nid, name: typeof dmgWhoName === 'function' ? dmgWhoName(camp, nid, nc) : String(nc && nc.name || 'Unnamed') } : x; });
+    if (pre.tbFor === charId) np.tbFor = nid;
+    takeDamage(nid, np); return true;
+}
+// Whether the Take damage window asks for an armor divisor (finding 33): where the system can give one, a list's damage roll naming one (any part's),
+// a damage layer with its own divisor, fragmentation that takes the item's, or an item whose blast has one. Else the row stays out of sight
+function dmgAdUsed(sys, rules) {
+    if (rules && Array.isArray(rules.layers) && rules.layers.some(function(l) { return l && typeof l.adBy === 'string' && l.adBy; })) return true;
+    var bl = sys && sys.combat && sys.combat.blast; if (bl && typeof bl === 'object' && bl.frag && bl.frag.ad === true) return true;
+    var keys = ['ad', 'ad2', 'ad3', 'ad4', 'ad5'];
+    if ((sys && Array.isArray(sys.fields) ? sys.fields : []).some(function(f) { return f && f.kind === 'item-list' && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(r) { return r && keys.some(function(k) { return r[k] !== undefined && r[k] !== '' && r[k] !== null; }); }); })) return true;
+    return (sys && Array.isArray(sys.items) ? sys.items : []).some(function(it) { return it && it.area && typeof it.area.ad === 'number' && it.area.ad !== 1; });
+}
+// [damagecheck:dmgshare-end]
 function takeDamage(charId, pre) {
     pre = dmgObj(pre) ? pre : {};
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), rules = dmgRules(sys), SCd = window.wpSystemCore;
@@ -8584,10 +8640,10 @@ function takeDamage(charId, pre) {
         if (Uw && typeof Uw.find === 'function') {
             var whoO = { cls: 'dmg-who', label: 'Who it lands on', placeholder: 'Find a character', value: whoOpen ? '' : charId, set: whoGo };
             whoO.choices = whoL.map(function(x) { return { value: x.id, name: String(x.name || 'Unnamed') }; });
-            if (whoOpen) whoO.blank = 'Pick who it lands on';
+            if (whoOpen) whoO.blank = 'Pick one';   // 1.6.3 (the combat review, finding 36): short enough for the list at the window's width; the row's name and the search already say who
             who = Uw.find(whoO);
         } else {
-            who = el('select', 'dmg-who'); if (whoOpen) who.appendChild(new Option('Pick who it lands on', ''));
+            who = el('select', 'dmg-who'); if (whoOpen) who.appendChild(new Option('Pick one', ''));
             whoL.forEach(function(x) { who.appendChild(new Option(String(x.name || 'Unnamed'), x.id)); }); who.value = whoOpen ? '' : charId;
             who.addEventListener('change', function() { whoGo(who.value); });
         }
@@ -8606,6 +8662,19 @@ function takeDamage(charId, pre) {
         try { whoIn.focus(); } catch (e) {}
         return true;
     }
+    // 1.6.3 (the combat review, finding 4): a wound lands on the sheet, so every token of a shared sheet takes it. Said here, with a way to give
+    // the token being hit its own sheet first (dmgShareInfo, dmgOwnFirst, in the dmgshare slice above)
+    var shI = typeof dmgShareInfo === 'function' ? dmgShareInfo(camp, c, pre.tok) : null;
+    if (shI) {
+        var shBox = el('div', 'dmg-shared'); shBox.appendChild(el('div', 'dmg-shared-say', dmgShareWords(shI)));
+        if (shI.tok) {
+            var shBtn = el('button', 'tool ghost dmg-shared-own', 'Give this token its own sheet first'); shBtn.type = 'button';
+            shBtn.title = 'Copies the sheet for this token alone, then opens this window again for the copy, with the damage you typed';
+            shBtn.addEventListener('click', function() { dmgOwnFirst(charId, pre, shI.tok, amt.value); });
+            shBox.appendChild(shBtn);
+        }
+        card.appendChild(shBox);
+    }
     var types = Array.isArray(rules.types) ? rules.types : [], tsel = el('select', 'dmg-type');
     types.forEach(function(t) { tsel.appendChild(new Option(t.label, t.key)); }); if (typeof pre.type === 'string') tsel.value = pre.type;
     if (types.length) row('Type', tsel, 'How the blow wounds. It sets the multiplier and which DR counts.');
@@ -8617,7 +8686,8 @@ function takeDamage(charId, pre) {
     if (typeof pre.loc === 'string' && locs.some(function(l) { return l.id === pre.loc; })) lsel.value = pre.loc;   // 1.6.0 (B5): where its roll was aimed, a row of this very character
     if (locs.length) row('Location', lsel, 'Where the blow lands. Its DR is taken off first.');
     var ad = el('input', 'dmg-ad'); ad.type = 'number'; ad.min = '0.1'; ad.step = '0.5'; ad.value = typeof pre.ad === 'number' && isFinite(pre.ad) && pre.ad > 0 ? String(pre.ad) : '1';   // 1.6.0: a card's roll may fill it in
-    row('Armor divisor', ad, '1 for none. DR is divided by it.');
+    var adOn = (typeof pre.ad === 'number' && isFinite(pre.ad) && pre.ad > 0 && pre.ad !== 1) || (typeof dmgAdUsed === 'function' ? dmgAdUsed(sys, rules) : true);   // 1.6.3 (the combat review, finding 33): asked only where the card names a divisor or the system can give one; hidden, the box still holds its 1, which the step reads as none
+    if (adOn) row('Armor divisor', ad, '1 for none. DR is divided by it.');
     var diceOn = rules.dice === true || (typeof SCd.dmgDiceRead === 'function' && SCd.dmgDiceRead(rules)), dce = el('input', 'dmg-dice'); dce.type = 'number'; dce.min = '0'; dce.max = '100'; dce.step = '1'; dce.value = typeof pre.dice === 'number' && isFinite(pre.dice) && pre.dice > 0 ? String(Math.min(100, Math.floor(pre.dice))) : '';   // 1.6.0: the dice the blow rolled, asked only where the rules read them
     if (diceOn) row('Dice rolled', dce, 'How many dice the damage rolled. Some types and locations count a figure for each.');
     var wps = [], durOf = {}, durAll = []; (Array.isArray(rules.weapons) ? rules.weapons : []).forEach(function(w) { var rs = dmgRowsOf(sys, c, w.list), dw = typeof dmgDurWord === 'function' ? dmgDurWord(sys, w) : 'durability'; rs.forEach(function(r) { durOf[r.id] = dw; }); if (rs.length && durAll.indexOf(dw) < 0) durAll.push(dw); wps = wps.concat(rs); });   // 1.6.3 (finding 27): each weapon list's own word for its durability
@@ -8637,14 +8707,14 @@ function takeDamage(charId, pre) {
     if (p2p) {
         p2amt.type = 'number'; p2amt.min = '0'; p2amt.step = '1'; p2amt.value = String(Math.floor(p2p.amt)); row('Second part', p2amt, 'Damage of another type in the same blow. Its own DR comes off, then both parts are one wound.');
         types.forEach(function(t) { p2sel.appendChild(new Option(t.label, t.key)); }); if (typeof p2p.type === 'string') p2sel.value = p2p.type; if (types.length) row('Second part type', p2sel, 'How the second part wounds.'); if (kinds.length) { kindSel(p2kd, 'As the first part', p2p.kind); row('Second part kind', p2kd, 'What kind of blow this part is.'); }
-        p2ad.type = 'number'; p2ad.min = '0.1'; p2ad.step = '0.5'; p2ad.value = typeof p2p.ad === 'number' && isFinite(p2p.ad) && p2p.ad > 0 ? String(p2p.ad) : '1'; row('Second part armor divisor', p2ad, '1 for none.');
+        p2ad.type = 'number'; p2ad.min = '0.1'; p2ad.step = '0.5'; p2ad.value = typeof p2p.ad === 'number' && isFinite(p2p.ad) && p2p.ad > 0 ? String(p2p.ad) : '1'; if (adOn || p2ad.value !== '1') row('Second part armor divisor', p2ad, '1 for none.');
     }
     var pkW = [3, 4, 5].map(function(k) {   // 1.6.0: a card's third, fourth and fifth parts, alike
         var pp = dmgObj(pre['part' + k]) && typeof pre['part' + k].amt === 'number' && isFinite(pre['part' + k].amt) && pre['part' + k].amt >= 0 ? pre['part' + k] : null, nm = k === 3 ? 'Third part' : k === 4 ? 'Fourth part' : 'Fifth part', a = el('input', 'dmg-amt' + k), s = el('select', 'dmg-type' + k), d = el('input', 'dmg-ad' + k), kp = el('select', 'dmg-kind' + k);
         if (pp) {
             a.type = 'number'; a.min = '0'; a.step = '1'; a.value = String(Math.floor(pp.amt)); row(nm, a, 'Damage of another type in the same blow. Its own DR comes off, then every part is one wound.');
             types.forEach(function(t) { s.appendChild(new Option(t.label, t.key)); }); if (typeof pp.type === 'string') s.value = pp.type; if (types.length) row(nm + ' type', s, 'How this part wounds.'); if (kinds.length) { kindSel(kp, 'As the first part', pp.kind); row(nm + ' kind', kp, 'What kind of blow this part is.'); }
-            d.type = 'number'; d.min = '0.1'; d.step = '0.5'; d.value = typeof pp.ad === 'number' && isFinite(pp.ad) && pp.ad > 0 ? String(pp.ad) : '1'; row(nm + ' armor divisor', d, '1 for none.');
+            d.type = 'number'; d.min = '0.1'; d.step = '0.5'; d.value = typeof pp.ad === 'number' && isFinite(pp.ad) && pp.ad > 0 ? String(pp.ad) : '1'; if (adOn || d.value !== '1') row(nm + ' armor divisor', d, '1 for none.');
         }
         return { k: k, p: pp, a: a, s: s, d: d, kp: kp };
     });
@@ -8744,6 +8814,7 @@ function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, cal
     var whoD = !onC && typeof dmgWhoList === 'function' ? dmgWhoList(camp, [tokT && tokT.charId, tokS && tokS.charId]) : null;   // 1.6.3 (finding 29): who else it may land on, the roller's target first, then the selection
     if (!cidD && !(whoD && whoD.length)) { toast(aimS ? 'Select the token this damage lands on, then press Apply again.' : 'Target a character first, or select its token, then press Apply to target again.'); return false; }   // no character on the map on screen, so there is nobody to pick
     var pre = { amt: total };
+    if (tok && tok.charId === cidD && typeof tok.id === 'string') pre.tok = tok.id;   // 1.6.3 (finding 4): the token the hit is for, which may take its own sheet first
     if (whoD && whoD.length) { pre.who = whoD; if (!cidD) { pre.whoOpen = true; cidD = whoD[0].id; } }   // nobody targeted or selected: the window asks who before anything else
     if (aimD) pre.loc = aimD; if (typeof done === 'function') pre.done = done; if (typeof type === 'string' && type) pre.type = type; if (dmgObj(more) && typeof more.kind === 'string' && more.kind) pre.kind = more.kind;
     if (dmgObj(more) && typeof more.thru === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(more.thru)) pre.thru = more.thru;   // 1.6.3 (the review of defense fold 1): the row a parry took the blow on, from the landing's record
@@ -8784,7 +8855,7 @@ window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, re
     gmFinder: gmFinder, uploadsChanged: uploadsChanged, approveNote: approveNote, openReview: openReview, readersChanged: readersChanged, emojiSet: EMOJI_SET, applyCharFace: applyCharFace, applyCharFrame: applyCharFrame, applyTokenFrame: applyTokenFrame, openChars: openChars, closeChars: closeChars,
     templateToggle: templateToggle, newFromTemplate: newFromTemplate, templatesOf: templatesOf, shareAsk: shareAsk, shareTake: shareTake, shareOwn: shareOwn, ownSheetCount: ownSheetCount, ownSheetFor: ownSheetFor, shareSplitCount: shareSplitCount, shareSplitAsk: shareSplitAsk, charsOf: charsOf, charList: charList, charById: charById, ownerName: ownerName, newCharacter: newCharacter, addCharacter: addCharacter, askDeleteSheet: askDeleteSheet, deleteCharacter: deleteCharacter, startsGiven: startsGiven, linkToken: linkToken, newFromToken: newFromToken, syncOwners: syncOwners, giveCharacter: giveCharacter, unbindName: unbindName, ownerFromToken: ownerFromToken,
     keptKey: keptKey, keptForget: keptForget, goneFire: goneFire,   // 1.6.3: a character's content key (net.js fxbOf hands it to tokenEffectsPass) and a used-up row's Undo on a delta that draws nothing (findings 2 and 23)
-    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
+    charSelectHtml: charSelectHtml, wireCharSelect: wireCharSelect, hoverLinesForToken: hoverLinesForToken, hoverLinesForTokenId: hoverLinesForTokenId, tokenFx: tokenFx, tokenFxLeft: tokenFxLeft, tokenBars: tokenBars, tokenEnv: tokenEnv, tokenFxModel: tokenFxModel, tokenFxCharOp: tokenFxCharOp,
     playerFinder: playerFinder, charFromJson: charFromJson, startFromFile: startFromFile,
     openSheet: openSheet, closeSheet: closeSheet, openHud: openHud, closeHud: closeHud, closeHuds: closeHuds, hudFor: hudFor, rolled: rolled, tokenTurned: tokenTurned, tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, canOpen: canOpen, renderSheet: renderViews, renderSheetInto: renderSheetIntoKept, charChanged: charChanged, charGone: charGone, editResult: editResult, styleResult: styleResult, commitLook: commitLook, sheetOpen: function() { return sheetOpen; }, canRoll: canRoll, hasInitRoll: hasInitRoll, rollInit: rollInit, initTieNow: initTieNow, LIMITS: LIMITS,
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by

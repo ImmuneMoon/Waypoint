@@ -1612,14 +1612,22 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
       bar.style.transformOrigin = 'top left';
       bar.style.transform = 'translate(-50%, calc(-100% - 36px))';   // clears the blue rotate dot (15px above the item, ~14px tall)
       bar.style.display = 'flex';
-      var stripEl = document.getElementById('combatStrip'), sr = stripEl ? stripEl.getBoundingClientRect() : null, br = sr && sr.width > 0 ? bar.getBoundingClientRect() : null;
-      if (br && br.left < sr.right && sr.left < br.right && br.top < sr.bottom && sr.top < br.bottom) bar.style.transform = 'translate(-50%, ' + (Math.round((maxB - minY) * z) + 12) + 'px)';   // the live test, 2026-10-30: over the turn strip it half-covered its buttons: it stands under the selection
+      if (barOverStrips(bar, ['trkStrip', 'combatStrip'])) bar.style.transform = 'translate(-50%, ' + (Math.round((maxB - minY) * z) + 12) + 'px)';   // the live test, 2026-10-30: over the turn strip it half-covered its buttons: it stands under the selection. 1.6.3 (the combat review, finding 34): the fight stands inside the trackers bar since backlog 219, so the whole bar is kept clear
       barKeepIn(bar, Math.round((maxB - minY) * z) + 12);   // 1.6.2, found by hand: a piece near the map's edge put half the bar, and its fold arrow, out of sight
   }
 
   // [lookcheck:barkeep-start]
   // The bar over a selected piece kept inside the part of the map in sight: moved back from an edge it would pass, and set under the piece
   // where there is no room above it (below: how far under the selection's top that is). A box with no size moves nothing
+  // 1.6.3 (the combat review, finding 34): whether the bar over a selected piece lies over any of the boxes named by ids that show (the trackers bar,
+  // which holds the fight, and the turn strip where it stands alone). A box with no size, or one that is not there, is passed over
+  function barOverStrips(bar, ids) {
+      var br = null;
+      return (ids || []).some(function(id) {
+          var e = document.getElementById(id), sr = e && e.getBoundingClientRect ? e.getBoundingClientRect() : null; if (!sr || !(sr.width > 0) || !(sr.height > 0)) return false;
+          br = br || bar.getBoundingClientRect(); return br.left < sr.right && sr.left < br.right && br.top < sr.bottom && sr.top < br.bottom;
+      });
+  }
   function barKeepIn(bar, below) {
       var wrap = bar && bar.parentNode, wr = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : null, br = bar.getBoundingClientRect();
       if (!wr || !(br.width > 0) || !(wr.width > 0)) return;
@@ -4293,7 +4301,8 @@ window.wpFitToGrid = fitToGrid;
       says.slice(0, 8).forEach(function(s) { out.push({ t: s, k: 'mark' }); }); if (says.length > 8) out.push({ t: (says.length - 8) + ' more target it', k: 'mark' });
       if (item.status === 'down') out.push({ t: 'Down', k: 'down' }); else if (item.status === 'dead') out.push({ t: 'Dead', k: 'down' });
       var fx = window.wpSheets && window.wpSheets.tokenFx ? window.wpSheets.tokenFx(item) : null;
-      (Array.isArray(fx) ? fx.slice(0, 8) : []).forEach(function(e) { if (e && typeof e.n === 'string' && e.n) { var c = { t: e.n, k: e.t === 'buff' ? 'buff' : e.t === 'debuff' ? 'debuff' : 'fx' }; if (e.g === 1) c.g = 1; out.push(c); } });
+      var fxL = window.wpSheets && typeof window.wpSheets.tokenFxLeft === 'function' ? window.wpSheets.tokenFxLeft(item) : null;   // 1.6.3 (the combat review, finding 21): what each timed effect has left, as this screen holds the character
+      (Array.isArray(fx) ? fx.slice(0, 8) : []).forEach(function(e) { if (e && typeof e.n === 'string' && e.n) { var lf = fxL && Object.prototype.hasOwnProperty.call(fxL, e.n) && typeof fxL[e.n] === 'string' ? fxL[e.n] : '', c = { t: lf ? e.n + ', ' + lf : e.n, n: e.n, k: e.t === 'buff' ? 'buff' : e.t === 'debuff' ? 'debuff' : 'fx' }; if (e.g === 1) c.g = 1; out.push(c); } });
       var env = window.wpSheets && window.wpSheets.tokenEnv ? window.wpSheets.tokenEnv(item) : null;
       if (env && typeof env.text === 'string' && env.text) out.push({ t: env.text, k: 'env' });
       var cpF = window.wpCompass && typeof window.wpCompass.faceWords === 'function' ? window.wpCompass.faceWords(item) : ''; if (cpF) out.push({ t: cpF, k: 'face' });   // 1.6.2, backlog 82: the way it faces by the map's compass
@@ -4301,7 +4310,7 @@ window.wpFitToGrid = fitToGrid;
   }
   function badgeLines(el, item) {   // the card's lines, one a mark, from what this screen drew; at most eight target marks and then how many more
       var out = [], fx = [];
-      badgeChips(el, item).forEach(function(c) { if (c.k === 'fx' || c.k === 'buff' || c.k === 'debuff') { if (!fx.length) out.push(fx); fx.push(c.t); } else out.push(c.t); });
+      badgeChips(el, item).forEach(function(c) { if (c.k === 'fx' || c.k === 'buff' || c.k === 'debuff') { if (!fx.length) out.push(fx); fx.push(c.n || c.t); } else out.push(c.t); });   // an effect by its name alone here: a comma would run into the list
       return out.map(function(l) { return Array.isArray(l) ? 'Effects: ' + l.join(', ') : l; });
   }
   // [lookcheck:badgesay-end]
@@ -4599,6 +4608,27 @@ window.wpFitToGrid = fitToGrid;
       if (!m.char) h += '<div class="menu-divider"></div><div class="menu-item cm-fx-new" style="gap:4px; cursor:default;"><input class="field cm-fx-name" maxlength="60" placeholder="New effect&hellip;" style="width:110px;"><select class="field cm-fx-tone"><option value="">Neutral</option><option value="buff">Buff</option><option value="debuff">Debuff</option></select><button class="tool ghost cm-fx-add" type="button">Add</button></div>';
       return h;
   }
+  // 1.6.3 (the combat review, finding 21; Fulllion's pick of 2026-11-20: a token's Effects menu gets an optional rounds box beside each effect, which
+  // becomes its timer). Beside each effect not on, on the GM's own screen and only for a character token (whose sheet keeps timers), the app's own
+  // counter (wpUi.step), 0 to 99 and 0 at first: 0 keeps the effect's own time, any other count is how many rounds it lasts, set on the add
+  // (sheets.js tokenFxCharOp, commitEffect). A press on the counter, and a key in its box, stay with it, so the line's own click never fires.
+  // Answers a reader of the counts by the line's place: get(k), 0 where nothing was set
+  function fxRoundsGm() { var n = window.wpNet; return !(n && (n.foreign || (n.active && n.role === 'client'))) && !window.wpStream; }
+  function fxRoundsInto(menu, m) {
+      var rd = {}, out = { get: function(k) { return typeof rd[k] === 'number' ? rd[k] : 0; } }, U = window.wpUi;
+      if (!menu || !m || !m.char || !fxRoundsGm() || !U || typeof U.step !== 'function' || typeof menu.querySelectorAll !== 'function') return out;
+      menu.querySelectorAll('.cm-fx').forEach(function(line) {
+          var k = Number(line.dataset && line.dataset.fi), r = m.rows[k]; if (!r || r.rowId || r.auto === true || !(k >= 0)) return;
+          var box = document.createElement('span'); box.className = 'cm-fx-rounds'; box.title = 'How many rounds it lasts once you tick it. 0 keeps its own time.';
+          var st = U.step({ min: 0, max: 99, value: 0, label: 'Rounds for ' + String(r.name || 'this effect'), lessTip: 'One round less', moreTip: 'One round more', set: function(n) { rd[k] = n; } });
+          var wd = document.createElement('span'); wd.className = 'cm-fx-rwd'; wd.textContent = 'rounds';   // the word after the counter, found live: inside its box it read "0rounds"
+          box.appendChild(st); box.appendChild(wd);
+          ['click', 'pointerdown', 'mousedown'].forEach(function(ev) { box.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+          box.addEventListener('keydown', function(e) { if (e.key !== 'Escape') e.stopPropagation(); });   // the box's keys are its own; Escape is the router's, which closes the menu
+          line.appendChild(box);
+      });
+      return out;
+  }
   function tokenFxOp(tok, m, q) {
       if (m.char) { if (window.wpSheets && window.wpSheets.tokenFxCharOp) window.wpSheets.tokenFxCharOp(m.char, m.field, q); return; }
       if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // a token with no sheet: its own effects, the GM's
@@ -4636,8 +4666,9 @@ window.wpFitToGrid = fitToGrid;
           qBox.focus({ preventScroll: true });
       }
       var again = function() { setTimeout(function() { if (cMenu.style.display !== 'none') showTokenFxMenu(tok, true); }, 0); };
+      var fxRd = fxRoundsInto(cMenu, m);   // 1.6.3 (finding 21): what was typed beside each effect, by its place in the list
       cMenu.querySelectorAll('.cm-fx').forEach(function(line) {
-          line.addEventListener('click', function(ce) { ce.stopPropagation(); var r = m.rows[Number(line.dataset.fi)]; if (!r) return; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : { op: 'add', ref: r.ref }); again(); });
+          line.addEventListener('click', function(ce) { ce.stopPropagation(); var k = Number(line.dataset.fi), r = m.rows[k]; if (!r) return; var qa = { op: 'add', ref: r.ref }, nR = fxRd.get(k); if (nR > 0) qa.rounds = nR; tokenFxOp(tok, m, r.rowId ? { op: 'remove', rowId: r.rowId } : qa); again(); });
       });
       var nm = cMenu.querySelector('.cm-fx-name'), tn = cMenu.querySelector('.cm-fx-tone'), add = cMenu.querySelector('.cm-fx-add');
       [nm, tn, cMenu.querySelector('.cm-fx-new')].forEach(function(x) { if (x) x.addEventListener('click', function(ce) { ce.stopPropagation(); }); });
@@ -6866,7 +6897,7 @@ function renderCombatModal() {
     var nW = window.wpNet, live = combatDraft.running && combatDraft.fid && nW && nW.combats && Object.prototype.hasOwnProperty.call(nW.combats, combatDraft.fid) ? nW.combats[combatDraft.fid] : null;   // 1.6.3 (finding 20): the fight this roster edits, as the host holds it
     document.getElementById('combatMapName').textContent = mapNm + (atM >= 0 && fidsM.length > 1 ? ', fight ' + (atM + 1) + ' of ' + fidsM.length : (!combatDraft.fid && fidsM.length ? ', another fight' : '')) + (live && typeof live.round === 'number' ? ', round ' + live.round : '');   // fold 2: which fight on the map; 1.6.3: and the round it stands in
     var running = combatDraft.running, findHere = findWho(window.wpNet, !!window.wpStream), amHere = getActiveMap();   // backlog 26: a name finds its token on this screen
-    document.getElementById('combatStartBtn').textContent = running ? 'Update Combat' : 'Start combat';
+    document.getElementById('combatStartBtn').textContent = running ? 'Update combat' : 'Start combat';   // 1.6.3 (the combat review, finding 33): sentence case, as its other words
     // 1.6.3 (finding 32): the roster's words and boxes follow the turn shape. Under a deck the numbers, each row's roll and Roll all are put away (never removed), since the
     // order is drawn; under a counting clock the box is a count and a row at 0 or less is marked, since it never acts; under sides a line says the order stands by side
     var shp = typeof rosterShape === 'function' ? rosterShape(camp) : { kind: '' }, deckS = shp.kind === 'deck', clockS = shp.kind === 'clock';
@@ -8025,7 +8056,7 @@ document.addEventListener('contextmenu', function(e) {
                 } else if (action.includes('cm-dmg')) {   // 1.5.6, the damage step
                     var itDm = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });
                     cMenu.style.display = 'none';
-                    if (itDm && itDm.charId && window.wpSheets && window.wpSheets.takeDamage) window.wpSheets.takeDamage(itDm.charId);
+                    if (itDm && itDm.charId && window.wpSheets && window.wpSheets.takeDamage) window.wpSheets.takeDamage(itDm.charId, { tok: itDm.id });   // 1.6.3 (finding 4): the token the blow is for, which may take its own sheet first where its sheet is shared
                     return;
                 } else if (action.includes('cm-sheet')) {
                     var itS = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; });

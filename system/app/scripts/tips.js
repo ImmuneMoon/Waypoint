@@ -29,6 +29,7 @@ var BY_ID = {
     blastElev: 'The height the last shape or blast is measured from. It starts at the height of the token in its cell, else the ground. Its arrows step one yard.',
     blastDmg: 'The damage of the explosion. It is a number or a roll, and you type it each time.',
     blastDmgType: 'The type of the damage, a word. It is named on the roll\'s card and changes no number.',
+    blastDmgTypeSel: 'The type of the damage, from the types your system names. Its DR and multipliers count for everyone the blast hits.',
     wbNodeLink: 'Ties this item to a data-map room: hovering shows the room, a room with a Linked Map makes this a portal, and tokens dropped on it move into that room.',
     lkType: 'How the line is drawn: a plain path, a dashed route, a dotted secret way, or a one-way arrow.',
     lkLabel: 'A short name for this connection, drawn on the line. Players see it.',

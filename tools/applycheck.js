@@ -1424,6 +1424,59 @@ const j = v => JSON.stringify(v);
             && shO.includes("if (st && st.set === true && typeof v === 'number') { var stB = [],") && require('./checkkit').part('sysedroll.js').includes("pbc = el('input', 'sys-item-placebit')") && require('./checkkit').part('sysedtabs.js').includes("var pnx = t.checked ? (pcur | (1 << pbn)) : (pcur & ~(1 << pbn));")
             && lwO.includes('function placeTicks(form, inp, names)') && require('./checkkit').part('sysedlist.js').includes("return ['over:' + s.key, 'Where ' + (s.label || s.key) + ' meet']; }))"));
     }
+    {   // 1.6.3 Layers under a list's places (the campaign build's ask of 2026-11-20, a thin garment under armor; Fulllion, by prompt: "One Layer formula",
+        // "The places covered", "Clash as today", "Yes, say it"): on.layer beside on.over, run for real through cleanSystem, applyRowOp and the resolver
+        const J = JSON.stringify;
+        const PL = ['Head', 'Torso', 'Legs', 'Feet'];
+        // a layer: 1 for armor or anything over 1 lb, 0 for a thin garment; 1 / Row.Wt cannot be worked out for a row of no weight (the Sash)
+        const LAYER = '(Row.Wt > 1 or Row.Armor = 1) + 0 * (1 / Row.Wt)';
+        const kitL = (on, more) => ({ id: 'f_kit', key: 'Kit', label: 'Kit', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ on: on, stats: [{ key: 'Covers', label: 'Covers', labels: PL }, { key: 'Wt', label: 'Weight' }, { key: 'Armor', label: 'Armor' }, { key: 'Sec', label: 'Secret', vis: 'gm' }] }, more || {}) });
+        const itemsL = [{ id: 'i_fat', name: 'Fatigues', stats: { Covers: 6, Wt: 1 }, mods: [{ f: 'f_def', op: 'add', v: 1 }] }, { id: 'i_cui', name: 'Cuirass', stats: { Covers: 2, Wt: 12, Armor: 1 } },
+            { id: 'i_grv', name: 'Greaves', stats: { Covers: 4, Wt: 6, Armor: 1 } }, { id: 'i_coat', name: 'Heavy coat', stats: { Covers: 2, Wt: 5 } }, { id: 'i_tee', name: 'Undershirt', stats: { Covers: 2, Wt: 0.5 } }, { id: 'i_sash', name: 'Sash', stats: { Covers: 2, Wt: 0 } }];
+        const sysL = (on, more) => ({ v: 1, name: 'L', rolls: [], fields: [{ id: 'f_def', key: 'Def', label: 'Defense', kind: 'number', base: 0 }, kitL(on, more)], items: itemsL, sheet: { sections: [] } });
+        const gL = cleanSystem(sysL({ label: 'Worn', over: 'covers', layer: ' ' + LAYER + ' ' }, { modsIf: 'Row.covered = 0' }), { F, gmView: true }), pL = cleanSystem(sysL({ label: 'Worn', over: 'Covers', layer: LAYER }, { modsIf: 'Row.covered = 0' }), { F, gmView: false });
+        const perL = cleanSystem(sysL({ label: 'Worn', per: 'Wt', layer: LAYER }), { F, gmView: true }).fields[1].list.on, diceL = cleanSystem(sysL({ label: 'Worn', over: 'Covers', layer: '1d6' }), { F, gmView: true }).fields[1].list.on;
+        const gmOnly = sysL({ label: 'Worn', over: 'Covers', layer: 'Row.Sec > 0' }), gmG = cleanSystem(gmOnly, { F, gmView: true }).fields[1].list.on, gmP = cleanSystem(gmOnly, { F, gmView: false }).fields[1].list.on;
+        check('1.6.3 Layers (cleanListSpec, cleanSystem): a layer is kept trimmed beside Where meet, the same in both views and a fixed point; never beside Per a stat; one that rolls dice, or reads a GM-only value on a list players see, goes in both views alike',
+            J(gL.fields[1].list.on) === J({ label: 'Worn', over: 'Covers', layer: LAYER }) && J(pL.fields[1].list.on) === J(gL.fields[1].list.on) && J(cleanSystem(gL, { F, gmView: true })) === J(gL)
+            && J(perL) === J({ label: 'Worn', per: 'Wt' }) && J(diceL) === J({ label: 'Worn', over: 'Covers' }) && J(gmG) === J({ label: 'Worn', over: 'Covers' }) && J(gmP) === J(gmG), J([gL.fields[1].list.on, perL, diceL, gmG, gmP]));
+        // the rule, applyRowOp run for real on the GM's view and on a player's own
+        const rowsL = () => ['fat', 'cui', 'grv', 'coat', 'tee', 'sash'].map(k => ({ id: 'w_' + k, defId: 'i_' + k, qty: 1 }));
+        const runL = (sys, steps, o) => { let ch = { id: 'c_l', name: 'Trooper', ownerId: 'u_p', values: { f_kit: rowsL() } }; const out = steps.map(rid => { const r = S.applyRowOp(sys, ch, 'f_kit', { op: 'set', rowId: rid, facts: { on: true } }, F, o || {}); if (r.ok) ch = Object.assign({}, ch, { values: { f_kit: r.value } }); return { ok: r.ok, on: ch.values.f_kit.filter(x => x.on === true).map(x => x.id.slice(2)), off: r.offRows || null, under: r.underRows || null }; }); return { out, ch }; };
+        const A = runL(gL, ['w_fat', 'w_cui', 'w_grv', 'w_coat', 'w_tee', 'w_sash']), P = runL(gL, ['w_fat', 'w_cui', 'w_grv', 'w_coat', 'w_tee', 'w_sash'], { player: true, view: pL });
+        check('1.6.3 Layers, the rule (applyRowOp run for real): Fatigues stay on under the Cuirass and the Greaves, each said in underSays’ words; the Heavy coat, armor’s layer, takes the Cuirass off; the Undershirt takes the Fatigues off on the torso, both thin; the Sash, whose layer cannot be worked out, takes off every row it meets; a player’s own change does the same',
+            J(A.out.map(x => x.on)) === J([['fat'], ['fat', 'cui'], ['fat', 'cui', 'grv'], ['fat', 'grv', 'coat'], ['grv', 'coat', 'tee'], ['grv', 'sash']])
+            && J(A.out[1].under) === J([{ under: 'Fatigues', over: 'Cuirass', at: 'Torso' }]) && S.underSays(A.out[1].under[0]) === 'Fatigues is worn under Cuirass on Torso.' && A.out[1].off === null
+            && J(A.out[2].under) === J([{ under: 'Fatigues', over: 'Greaves', at: 'Legs' }]) && J(A.out[3].off) === J([{ off: 'Cuirass', on: 'Heavy coat', at: 'Torso' }]) && J(A.out[3].under) === J([{ under: 'Fatigues', over: 'Heavy coat', at: 'Torso' }])
+            && J(A.out[4].off) === J([{ off: 'Fatigues', on: 'Undershirt', at: 'Torso' }]) && J(A.out[5].off) === J([{ off: 'Heavy coat', on: 'Sash', at: 'Torso' }, { off: 'Undershirt', on: 'Sash', at: 'Torso' }]) && A.out[5].under === null
+            && J(P.out) === J(A.out), J([A.out, P.out]));
+        // a list with no layer is as it was: the Cuirass takes the Fatigues off
+        const gN = cleanSystem(sysL({ label: 'Worn', over: 'Covers' }), { F, gmView: true }), N = runL(gN, ['w_fat', 'w_cui']);
+        check('1.6.3 Layers: a list that goes by where rows sit with no layer takes the Fatigues off for the Cuirass, as before, and says nothing of layers',
+            J(N.out.map(x => x.on)) === J([['fat'], ['cui']]) && J(N.out[1].off) === J([{ off: 'Fatigues', on: 'Cuirass', at: 'Torso' }]) && N.out.every(x => x.under === null), J(N.out));
+        // Row.covered and Changes apply where
+        const B = runL(gL, ['w_fat', 'w_cui', 'w_grv']).ch, rvB = S.makeResolver(gL, B, F), covB = ['fat', 'cui', 'grv', 'tee', 'sash'].map(k => rvB.row('f_kit', 'w_' + k)('Row.covered'));
+        const C1 = runL(gL, ['w_fat']).ch, defOf = ch => S.makeResolver(gL, ch, F)('Def');
+        check('1.6.3 Row.covered reads the places a higher layer covers (Fatigues on Torso and Legs under the Cuirass and the Greaves: 6), 0 for a row nothing covers and for the Sash, whose layer cannot be worked out; a row that is off reads where it would be covered (the Undershirt: 2); Row.covered = 0 in Changes apply where switches the Fatigues’ change off under armor',
+            J(covB) === J([6, 0, 0, 2, 0]) && defOf(C1) === 1 && defOf(B) === 0, J([covB, defOf(C1), defOf(B)]));
+        // a new row that starts on under another layer starts on; one on the same layer starts off
+        const gD = cleanSystem(sysL({ label: 'Worn', over: 'Covers', layer: LAYER, def: true }), { F, gmView: true });
+        const addD = (ch, def) => { const r = S.applyRowOp(gD, ch, 'f_kit', { op: 'add', defId: def, qty: 1 }, F, {}); return r.ok ? Object.assign({}, ch, { values: { f_kit: r.value } }) : null; };
+        const D0 = { id: 'c_d', name: 'D', values: { f_kit: [{ id: 'w_cui', defId: 'i_cui', qty: 1, on: true }] } }, D1 = addD(D0, 'i_fat'), D2 = addD(D0, 'i_coat');
+        check('1.6.3 Layers, onHeld: Fatigues added to a list whose rows start on come in on under the Cuirass; a Heavy coat, the Cuirass’s layer, comes in off',
+            !!D1 && !!D2 && D1.values.f_kit[1].on === true && D2.values.f_kit[1].on === false, J([D1, D2]));
+        // the validator: Row.covered is known on a list with layers alone, and a layer may not read it
+        const vOk = S.validateSystem(gL, F), vNo = S.validateSystem(cleanSystem(sysL({ label: 'Worn', over: 'Covers' }, { modsIf: 'Row.covered = 0' }), { F, gmView: true }), F);
+        const loopRaw = sysL({ label: 'Worn', over: 'Covers', layer: 'Row.Armor + Row.covered' }), loopL = cleanSystem(loopRaw, { F, gmView: true }), vLoop = S.validateSystem(loopRaw, F), L2 = runL(loopL, ['w_fat', 'w_cui']);
+        check('1.6.3 Layers, the validator: Row.covered is known on a list with layers and on no other; a layer that reads Row.covered is said, in words with no name in them, and Save drops it, so the Cuirass takes the Fatigues off',
+            !(vOk.errors || []).length && (vNo.errors || []).some(e => /Unknown name "Row.covered"/.test(e.message))
+            && (vLoop.errors || []).some(e => e.prop === 'list.layer' && e.message === 'Worn in layers: How high a row is worn cannot depend on whether it is covered, since that comes from how high the rows are worn. Take that name out, or Save drops it.')
+            && !('layer' in loopL.fields[1].list.on) && J(L2.out.map(x => x.on)) === J([['fat'], ['cui']]), J([L2.out, vOk.errors, vNo.errors, vLoop.errors]));
+        // the notices: the GM's own (sheets.js commitItem) and a player's own app (net.js charItem) say what is worn under what beside what came off
+        const shL = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), ntL = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8');
+        check('1.6.3 Layers: the GM’s notice and a player’s own app say what is worn under what in the notice that says what came off',
+            shL.includes('.concat(window.wpSystemCore.underSays && Array.isArray(res.underRows) ? res.underRows.slice(0, 4).map(window.wpSystemCore.underSays) : [])') && ntL.includes(".concat(typeof S.underSays === 'function' && Array.isArray(res.underRows) ? res.underRows.slice(0, 4).map(S.underSays) : [])"));
+    }
     {   // 1.6.0, the campaign build's three gaps: an up timer stops at its row's most; a list switch's Shown where; a file filling a character in the making sets its counters
         const J = JSON.stringify;
         const rawU = { v: 1, name: 'U', rolls: [], fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { on: { label: 'Lit', showIf: 'Row.Kind = 1' }, stats: [{ key: 'Kind' }, { key: 'Cap' }],

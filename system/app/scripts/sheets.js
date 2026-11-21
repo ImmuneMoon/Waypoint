@@ -7017,7 +7017,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     if (mvG && !mvG.ok) { toast(mvG.msg || 'Not enough money for that.'); return; }
     undoFollow(res);
     if (res.rmBack) { if (goneB) goneB.rmBack = res.rmBack; if (window.wpStepLog) window.wpStepLog('onremove v1', 'ran', { by: 'gm', fields: Object.keys(res.rmBack).length }); }   // 1.6.0: When a row is taken off: its Undo takes these back too
-    if (Array.isArray(res.offRows) && res.offRows.length && window.wpSystemCore && window.wpSystemCore.overSays) toast(res.offRows.slice(0, 4).map(window.wpSystemCore.overSays).join(' '));   // 1.6.0 O1: what came off, and where
+    if (((Array.isArray(res.offRows) && res.offRows.length) || (Array.isArray(res.underRows) && res.underRows.length)) && window.wpSystemCore && window.wpSystemCore.overSays) toast((Array.isArray(res.offRows) ? res.offRows : []).slice(0, 4).map(window.wpSystemCore.overSays).concat(window.wpSystemCore.underSays && Array.isArray(res.underRows) ? res.underRows.slice(0, 4).map(window.wpSystemCore.underSays) : []).join(' '));   // 1.6.0 O1: what came off, and where; 1.6.3 Layers: and what is worn under what (systemcore underNote), in the same notice
     if (typeof res.raised === 'string' && res.raised) toast(res.raised);   // 1.6.0 (a builder audit): a held row a grant raised, "Keen Ears raised to 4 by Amulet."
     if (typeof res.onNeeds === 'string' && res.onNeeds) toast('Switched on all the same. A player would be told: ' + res.onNeeds);   // 1.5.8: the GM's own hand passes a switch's needs, and is told
     if (typeof res.capSays === 'string' && res.capSays) toast(res.capSays + ' A player would be refused.');   // 1.6.0 At most at a level: the GM's own hand passes, and is told

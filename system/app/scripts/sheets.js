@@ -5116,15 +5116,18 @@ function modHowSel(cls, op) { return select(cls, [['add', 'Adds'], ['max', 'At l
 function fxChangeText(m, labels) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + (typeof amountSays === 'function' ? amountSays(null, m.vf) : 'an amount');   /* 1.6.3 (finding 10): a figure worked out by a formula said in words, never the formula */ if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : ' at most ') + fmtNum(m.v); return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '\u2212') + fmtNum(Math.abs(m.v)); }
 // 5h: what an effect can change, for a picker: [value, label] with value "fieldId|add" / "fieldId|max" / "fieldId|on"
 function fxTargets(sys, rows) {   // rows (1.5.8): an item list with columns as a target of its own, one entry of it by its key
-    var out = [];
-    ((sys && sys.fields) || []).forEach(function(x) {
-        var nm = x.label || x.key || '(field)';
+    // 1.6.3 (the review of the System editor speed): two fields of one name are told apart by their short names (twinNamer, counted once over
+    // every field), as the Then list does, so the effect, item and posture change lists never show the same name twice. A slice run
+    // on its own, with no twinNamer at hand, names each field by its label alone as before
+    var out = [], fsAll = (sys && sys.fields) || [], nmOf = typeof twinNamer === 'function' ? twinNamer(fsAll, function(x) { return x ? x.label || x.key || '' : ''; }, function(x) { return x ? x.key : ''; }) : function(x) { return x.label || x.key || ''; };
+    fsAll.forEach(function(x) {
+        var nm = nmOf(x) || '(field)';
         if (x.kind === 'number' || x.kind === 'formula') out.push([x.id + '|add', nm]);
         else if (x.kind === 'skill') out.push([x.id + '|add', nm + ' (total)']);
         else if (x.kind === 'resource') out.push([x.id + '|max', nm + ' max']);
         else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ' \u2014 switch on']);
     });
-    if (rows === true) ((sys && sys.fields) || []).forEach(function(x) { if (x.kind === 'item-list' && x.list && Array.isArray(x.list.cols) && x.list.cols.length) out.push([x.id + '|row', (x.label || x.key || '(list)') + ': one entry']); });
+    if (rows === true) ((sys && sys.fields) || []).forEach(function(x) { if (x.kind === 'item-list' && x.list && Array.isArray(x.list.cols) && x.list.cols.length) out.push([x.id + '|row', (nmOf(x) || '(list)') + ': one entry']); });
     return out;
 }
 // 1.5.8 (the owner, by prompt: "A change on one skill"): a change aimed at one entry of a list: its value in the target list, and the key box

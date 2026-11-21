@@ -2264,6 +2264,16 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         delete RE.e.f_b; RE.run(); n.push(cleans); const back = !!RE.e.f_b;
         check('1.6.3 (findings 1 and 2) refreshErrors, run for real, checks the draft once and does nothing while it is as it was: the second press of a redraw reads nothing again; a field added in place, another campaign object and lines emptied by someone else each check it again; what a full check cost is kept for the wait',
             J(n) === J([1, 1, 2, 2, 3, 4]) && said && back && typeof f1.ms === 'number' && !!f1.seen && typeof f1.seen.d === 'string', J({ n, said, back, ms: f1.ms }));
+        {   // 1.6.3 (the review of the System editor speed): a character changed in place at the table keeps the very same characters object; the save it
+            // makes raises window.wpSaveN, which the note keeps, so the next check reads the characters' rows again
+            let cl2 = 0; const win = { wpSaveN: 4 }, camp2 = { chars: { c1: { values: {} } } }, n2 = [];
+            const RE2 = new Function('window', 'draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'cleanFieldUnit', 'unitOf', 'cleanReach',
+                'var errorsById = {}, warningsById = {};\n' + reK + '\nreturn { run: function() { refreshErrors(); return refreshErrors; } };')(win, dr, () => F, S.validKey, S.KINDS, S.cleanItemKey, (d, o) => { cl2++; return S.cleanSystem(d, o); }, S.validateSystem, S.statKey, S.LIMITS, () => camp2, () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS, S.cleanFieldUnit, S.unitOf, S.cleanReach);
+            RE2.run(); n2.push(cl2); RE2.run(); n2.push(cl2);
+            camp2.chars.c1.values.f_a = 3; win.wpSaveN++; RE2.run(); n2.push(cl2); RE2.run(); n2.push(cl2);
+            check('1.6.3 (the review of speed) refreshErrors checks the draft again after any save on this machine (window.wpSaveN), since a character changed in place at the table keeps the same characters object while the check counts its rows; with no save it still passes over the same draft',
+                J(n2) === J([1, 1, 2, 2]), J(n2));
+        }
         // patchErrors and patchErrorsNow (sheets.js's own lines), run for real with a refreshErrors of the test's own
         const shP = kit.joined('sheets.js'), pa = shP.indexOf('var _peSlow = 0, _peT = null;'), pb = shP.indexOf('function input(cls, value', pa);
         const timers = [], rf = function() { rf.calls++; if (rf.mode === 'skip') return; const t0 = Date.now(); if (rf.mode === 'slow') while (Date.now() - t0 < 70) { /* a check that takes a while */ } rf.seen = { at: t0 }; rf.ms = Date.now() - t0; };

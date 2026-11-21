@@ -415,6 +415,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && val('3 + 4') === 7 && val('3 + 4') === 7 && again.ok && again.ast !== firstAst && F.parse(42).ok && F.parse(42).ast === F.parse('42').ast,
             j([b.ast === a.ast, c.names, e2.error, again.ast !== firstAst]));
         firstAst = null;
+        // 1.6.3 (the review of the System editor speed): a value whose text cannot be made answers that it could not be evaluated, never throws
+        let thrown = null, np = null, bad = null;
+        try { np = F.parse(Object.create(null)); bad = F.parse({ toString() { throw new Error('no'); } }); } catch (e) { thrown = e; }
+        check('1.6.3 (the review of speed) parse given an object with no prototype, or one whose toString throws, answers that it could not be evaluated, as it did before it kept its answers',
+            !thrown && np && np.ok === false && np.error.message === 'The formula could not be evaluated.' && bad && bad.ok === false && bad.error.message === 'The formula could not be evaluated.', j([thrown && thrown.message, np, bad]));
     }
 
     /* ---- group 11b: publication under a window ---- */

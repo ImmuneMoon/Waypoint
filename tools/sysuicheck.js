@@ -301,6 +301,30 @@ const kids = n => n.childNodes.slice();
             J({ before, beforeV, fbox: !!fbox, hidden: tsel && tsel.hidden, named, found: found.slice(0, 6), v: tsel && tsel.value, calls: tsel && tsel.calls, heard }));
         window.wpUi = hadUi; tgts.forEach(() => draft.fields.pop());
     }
+    {   // 1.6.3 (the review of the System editor speed): the real fxTargets, itemModsBox, randTargets and applyEditor. Two fields, two lists and two
+        // effects of one name are told apart in every list of what a change moves, and an item's long change list becomes a search as an effect's does
+        const d7 = { fields: [], effects: [{ id: 'e_1', name: 'Bleeding' }, { id: 'e_2', name: 'Bleeding' }, { id: 'e_3', name: 'Rage' }], items: [], rolls: [] };
+        for (let i = 0; i < 50; i++) d7.fields.push({ id: 'f_q' + i, key: 'Q' + i, label: i < 2 ? 'Help' : 'Thing ' + i, kind: 'number' });
+        d7.fields.push({ id: 'f_w1', key: 'Weapons', label: 'Weapons', kind: 'item-list', list: { on: { label: 'On' }, cols: [{ key: 'c', label: 'C' }] } }, { id: 'f_w2', key: 'VGuns', label: 'Weapons', kind: 'item-list', list: { on: { label: 'On' }, cols: [{ key: 'c', label: 'C' }] } });
+        const b7 = Object.assign({}, base, { draft: d7, APPLY_KINDS: { number: 1, resource: 1 }, resultTargets: () => [] });
+        const env7 = new Proxy(b7, { has: (t, k) => typeof k === 'string', get: (t, k) => (k in t ? t[k] : (k === Symbol.unscopables ? undefined : stub(k))) });
+        const T7 = new Function('env', 'with (env) {\n' + ['el', 'input', 'numInput', 'select', 'opt', 'checkLabel', 'lazySelect', 'twinNamer', 'fxTargets', 'modVal', 'itemModsBox', 'randTargets', 'allRowTargets', 'applyEditor'].map(cut).join('\n') + '\nreturn { fxTargets: fxTargets, itemModsBox: itemModsBox, applyEditor: applyEditor };\n}')(env7);
+        const hadUi7 = window.wpUi; window.wpUi = undefined;
+        const fxNames = T7.fxTargets(d7, true).map(o => o[1]);
+        const ap = T7.applyEditor({ apply: [{ fx: 'e_1' }] }, 'apply'), asel = ap.querySelector('select.sys-apply-target');
+        if (asel) d.fire(asel, 'focus', {});
+        const apNames = asel ? asel.childNodes.map(o => o.textContent) : [];
+        const Wt7 = {}; new Function('window', 'document', read('scripts/uiparts.js').replace(/^export \{[^\n]*$/m, '').replace('else typedAll(document);', ''))(Wt7, document); window.wpUi = Wt7.wpUi;
+        const ib = T7.itemModsBox({ id: 'i_7', name: 'Kit', mods: [{ f: 'f_q5', op: 'add', v: 1 }] }, false, false), isel = ib.querySelector('select.sys-item-mtarget'), iBefore = isel ? isel.childNodes.length : -1;
+        if (isel) d.fire(isel, 'pointerdown', {});
+        const ibox = isel && isel.parentNode ? isel.parentNode.querySelector('.sys-tfind') : null, ifs = ibox ? ibox.querySelector('.ui-find-sel') : null, iNames = (ifs ? ifs.childNodes : []).map(o => o.textContent);
+        window.wpUi = hadUi7;
+        check('1.6.3 (the review of speed) two fields of one name read with their short names in the effect, item and posture change lists (fxTargets), two lists of one name in a pick at random and one entry of a list, two effects of one name as Bleeding (1) and Bleeding (2) in Switch on and Switch off; an item\'s long change list holds only its pick until pressed, then a search with the twins told apart',
+            fxNames.indexOf('Help (Q0)') >= 0 && fxNames.indexOf('Help (Q1)') >= 0 && fxNames.indexOf('Thing 7') >= 0 && fxNames.indexOf('Weapons: one entry') >= 0 && fxNames.indexOf('Weapons (VGuns): one entry') >= 0
+            && ['Switch on: Bleeding (1)', 'Switch on: Bleeding (2)', 'Switch off: Bleeding (2)', 'Switch on: Rage', 'A row picked at random: Weapons', 'A row picked at random: Weapons (VGuns)'].every(w => apNames.indexOf(w) >= 0)
+            && iBefore === 1 && !!ibox && isel.hidden === true && iNames.indexOf('Help (Q0)') >= 0 && iNames.indexOf('Help (Q1)') >= 0,
+            J({ fx: fxNames.filter(w => /Help|Weapons/.test(w)), ap: apNames.filter(w => /Bleeding|Rage|random/.test(w)), iBefore, ibox: !!ibox, iNames: iNames.filter(w => /Help/.test(w)) }));
+    }
     const odd = d.mk('div', 'sys-row'), kid = d.mk('input', 'sys-never-heard-of'); odd.appendChild(d.mk('div', 'sys-row-main')); odd.firstChild.appendChild(kid); window.wpSysUi.arrange(odd, 'fields');
     check('a control the table does not know goes to More, in sight, and is never lost', odd.querySelector('.sys-grp[data-grp="fields:more"] .sys-never-heard-of') === kid && odd.querySelector('.sys-grp[data-grp="fields:more"]').open === true);
     /* ---------- the table of ticks ---------- */

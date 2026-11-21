@@ -515,7 +515,9 @@ function parseCopy(p) {
     return { ok: true, ast: p.ast, names: p.names.slice(), groups: p.groups.slice(), reads: p.reads.slice(), words: p.words.slice(), lists: p.lists.slice() };
 }
 function parse(text) {
-    if (typeof text !== 'string') text = text === undefined || text === null ? '' : String(text);
+    // 1.6.3 (the review of the System editor speed): the text is made before the kept answers are asked, outside parseNow's try, so a value
+    // whose String() throws (an object with no prototype, a toString that throws) answers that it could not be evaluated, as it always did
+    if (typeof text !== 'string') { try { text = text === undefined || text === null ? '' : String(text); } catch (e) { return { ok: false, error: { message: 'The formula could not be evaluated.', pos: 0, len: 0 } }; } }
     if (!_parsed) return parseNow(text);
     var kept = _parsed.get(text);
     if (kept) { _parsed.delete(text); _parsed.set(text, kept); return parseCopy(kept); }   // read again: it goes to the newest end, so the texts in use stay

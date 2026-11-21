@@ -12,7 +12,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, entryNames, entryPick, errorCell, fieldWord, fxTargets, getActiveCampaign, grantEntries, input, labeledNum, labeledSelect, lineUnder, markDirty, numField, numInput, patchErrors, pressHold, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
+import { CREW_NONE, DMG_LIM, F, HEIGHT_UNITS, LIGHT_UNITS, LIMITS, RANGE_UNITS, bandBox, cardBox, checkLabel, cleanDamageRules, cleanHeld, cleanOnRemove, crewPick, draft, el, entryNames, entryPick, errorCell, fieldWord, fxTargets, getActiveCampaign, grantEntries, input, labeledNum, labeledSelect, lazySelect, lineUnder, markDirty, numField, numInput, patchErrors, pressHold, refreshErrors, renderAll, renderCombat, rolled, saveDraft, segPut, select, tab, toast, uid } from './sheets.js';   // [split:glue]
 export function sysedRules() {   // [split:glue]
 // [split:body-start]
 // 1.6.0 (CORE gap 13, a power's "5, then 3 a turn"): Keeps paying, under a list's switch: a row switched on pays an amount, a formula of the
@@ -463,7 +463,7 @@ function postureBox(box, cm) {
                 var m = m0 && typeof m0 === 'object' ? m0 : {}, ln = el('div', 'sys-fx-mod sys-posture-mod'); ln.dataset.mi = String(mi);
                 var val = m.f + '|' + (m.op === 'on' ? 'on' : m.part === 'max' ? 'max' : 'add'), opts = targets.slice();
                 if (!opts.some(function(o) { return o[0] === val; })) opts.unshift([val, '(a field that is gone or changed kind)']);
-                ln.appendChild(select('sys-posture-target', opts, val, 'What this change affects'));
+                ln.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-posture-target', opts, val, 'What this change affects', 'Find what it changes'));   // 1.6.3 (the review of the System editor speed): a long list becomes a search when pressed, as an effect's and an item's do
                 if (m.op !== 'on') { var am = numInput('sys-posture-amt', m.v, 'How much it adds (negative to take away)'); am.step = 'any'; ln.appendChild(am); }
                 var db = el('button', 'tool ghost sys-btn', '\u00d7'); db.dataset.act = 'psmoddel'; db.title = 'Remove this change'; ln.appendChild(db);
                 mods.appendChild(ln);

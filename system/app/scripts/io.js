@@ -2325,10 +2325,40 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   var _el_exportPdfBtn = document.getElementById('exportPdfBtn');
 
 if(_el_exportPdfBtn) _el_exportPdfBtn.addEventListener('click', function() {
-      var nP = window.wpNet, go = function() { if (nP && nP.holdPeers) nP.holdPeers(180000); try { window.print(); } finally { if (nP && nP.heldDone) nP.heldDone(); } };   // F2b: the table waits out the print dialog (it freezes this page)
-      if (window.wpWithRenderedPlanner) window.wpWithRenderedPlanner(go);   // a planner prints as its rendered document
-      else go();
+      // [pagecheck:keptpdf-start]
+      // the review of pages reveal (finding 3): a page with a block kept back asks first (keptAsk). As players read it prints with the body's
+      // print-players word, under which the style sheet leaves every kept block off the paper; the word goes again once the dialog is closed
+      keptAsk(getActiveMap(), showConfirm, function(players) {
+          var nP = window.wpNet, go = function() { if (nP && nP.holdPeers) nP.holdPeers(180000); try { window.print(); } finally { if (nP && nP.heldDone) nP.heldDone(); } };   // F2b: the table waits out the print dialog (it freezes this page)
+          var bd = document.body, goP = function() { if (players === true && bd) bd.classList.add('print-players'); try { go(); } finally { if (players === true && bd) bd.classList.remove('print-players'); } };
+          if (window.wpWithRenderedPlanner) window.wpWithRenderedPlanner(goP);   // a planner prints as its rendered document
+          else goP();
+      });
+      // [pagecheck:keptpdf-end]
   });
+
+  // [pagecheck:keptexport-start]
+  // 1.6.3 (the review of pages reveal, finding 3): a page's Save PDF and Save HTML once saved exactly what players read. Since a block may be
+  // kept back from players, the GM's drawn page holds those blocks too, so a page that holds one asks how to save it, by its buttons alone.
+  // As players read it, the first answer, leaves every kept block out, as the stream window gets the page, so no player a block names is
+  // assumed, and keeps a link to a kept block only as its page. With what I kept back keeps them, marked on paper as on screen. A page with
+  // no kept block, a planner and a player's app, which never holds one, save as before with no question. ask is dialogs.js showConfirm, and
+  // then(players) runs the save, players true for the players' copy. main.js's Save HTML reaches these two through window.wpKeptExport
+  function keptAsk(it, ask, then) {
+      var R = typeof window !== 'undefined' ? window.wpDocRender : null;
+      if (!(it && it.type === 'doc' && R && typeof R.docKept === 'function' && R.docKept(it)) || typeof ask !== 'function') { then(false); return; }
+      ask('This page holds blocks you kept back from your players. Save it as they read it, or with everything?', function(a) { if (a === 'alt') then(false); else if (a) then(true); }, { noEnter: true, yes: 'As players read it', alt: 'With what I kept back' });
+  }
+  // the drawn page's markup as players read it: a copy of root with every kept block (its class pv-kept) taken out, and each link or mention
+  // that leads to a kept block keeping only its page (docrender.js unlinkKept, judged over the campaign's items). root itself is never changed
+  function keptCut(root, items) {
+      var c = root.cloneNode(true);
+      Array.prototype.forEach.call(c.querySelectorAll('.pv-kept'), function(x) { if (x.parentNode) x.parentNode.removeChild(x); });
+      var h = c.innerHTML, R = typeof window !== 'undefined' ? window.wpDocRender : null;
+      return R && typeof R.unlinkKept === 'function' && typeof R.keptIn === 'function' ? R.unlinkKept(h, R.keptIn(items || {})) : h;
+  }
+  // [pagecheck:keptexport-end]
+  if (typeof window !== 'undefined') window.wpKeptExport = { ask: keptAsk, cut: keptCut };
 
   
 

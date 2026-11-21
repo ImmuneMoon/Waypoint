@@ -1908,7 +1908,8 @@ pendingChecks.push((async () => {
         const lastSent = { pk: { stale: true } };
         const netK = { conns: [mkConn('pm'), mkConn('pkl'), mkConn('pw')], roster: { pm: { id: 'u_mira' }, pkl: { id: 'u_kael' } } };
         const stK = { appState: st };
-        const fnK = new Function('net', 'state', 'own', 'sanitizeItem', 'docPerReader', 'sendFailed', '_lastSent', 'mapFogged', 'itemDelta', 'broadcast', 'window', "'use strict';\n" + src.slice(siA, bfZ) + '\nreturn net;');
+        const dsSrc = between('// [netcheck:docsent-start]', '// [netcheck:docsent-end]', 'docsent');   // the review of pages reveal: each connection's own copy, which the two sends now go through
+        const fnK = new Function('net', 'state', 'own', 'sanitizeItem', 'docPerReader', 'sendFailed', '_lastSent', 'mapFogged', 'itemDelta', 'broadcast', 'window', "'use strict';\n" + dsSrc + src.slice(siA, bfZ) + '\nreturn net;');
         fnK(netK, stK, H.own, SIk, PRk, () => {}, lastSent, () => false, () => { throw new Error('no shared delta for a page with a kept block'); }, () => { throw new Error('no broadcast'); }, win);
         netK.sendItem('k', 'pk');
         const gotS = netK.conns.map(c => c.sent.map(m => m.type + ':' + ids(m.item)).join('|'));
@@ -1919,6 +1920,56 @@ pendingChecks.push((async () => {
         const gotO = netK.conns.map(c => c.sent.length).join();
         check('1.6.3 (finding 18) net.sendItem and net.broadcastItemFiltered, run for real: a page with a kept block goes to each admitted connection as its own reader\'s copy, whole, never to one not admitted, and no shared baseline is kept; one connection asked for gets its own copy alone',
             J2(gotS) === J2(['item:b_open,b_mira,b_link', 'item:b_open,b_link', '']) && J2(gotB) === J2(gotS) && gotO === '0,1,0' && !Object.prototype.hasOwnProperty.call(lastSent, 'pk'), J2({ gotS, gotB, gotO }));
+        /* ---- the review of pages reveal (finding 1, 2026-11-21): such a page went whole to every player at every save of the GM's, whatever changed.
+           Now each connection's own copy is kept (net.js docSendTo), and the next send is a delta against it, or nothing where it is unchanged.
+           The same two sends run for real with the real itemDelta (netfog.js, handed that copy as its base), on a page whose words change ---- */
+        const J = J2;
+        const qhK = new Function(fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\nreturn quickHash;')();
+        const lastSentD = {}, IDk = new Function('_lastSent', 'quickHash', lineOf('function uniqueIds(', 'netfog.js') + '\n' + fnSrc('function itemDelta(itemId, clean) {', '\nfunction applyItemDelta(', 'itemDelta', 'netfog.js') + '\nreturn itemDelta;')(lastSentD, qhK);
+        const bcD = [], netD = { conns: [mkConn('pm'), mkConn('pkl'), mkConn('pw')], roster: { pm: { id: 'u_mira' }, pkl: { id: 'u_kael' } } };
+        const fnD = new Function('net', 'state', 'own', 'sanitizeItem', 'docPerReader', 'sendFailed', '_lastSent', 'mapFogged', 'itemDelta', 'broadcast', 'window', "'use strict';\n" + dsSrc + src.slice(siA, bfZ) + '\nreturn { forget: docSentForget, held: function() { return _docSent; } };');
+        const DS = fnD(netD, stK, H.own, SIk, PRk, () => {}, lastSentD, () => false, IDk, m => bcD.push(m), win);
+        const said = m => m.type === 'item' ? 'item:' + ids(m.item) : m.type === 'itemDelta' ? 'delta:' + (m.blocks ? m.blocks.set.map(b => b.id).join() + '/' + m.blocks.del.join() : '-') : m.type;
+        const raws = [], takeD = () => { const r = netD.conns.map(c => c.sent.map(said).join('|')); raws.push(netD.conns.map(c => J(c.sent))); netD.conns.forEach(c => { c.sent.length = 0; }); return r; };
+        netD.sendItem('k', 'pk'); const d1 = takeD();
+        netD.sendItem('k', 'pk'); const d2 = takeD();   // the GM saved with nothing of the page changed: a save of anything else
+        pgK.blocks[0].content = '<p>Open words, edited</p>'; netD.sendItem('k', 'pk'); const d3 = takeD();
+        pgK.blocks[2].see = ['u_kael']; netD.sendItem('k', 'pk'); const d4 = takeD();   // the block Mira was named in now names Kael instead
+        netD.broadcastItemFiltered('k', 'pk'); const d5 = takeD();
+        DS.forget('pm'); pgK.blocks[0].content = '<p>Open words, edited again</p>'; netD.sendItem('k', 'pk'); const d6 = takeD();   // Mira's connection closed and came back: no copy of hers is kept
+        const heldBefore = Object.keys(DS.held().pk || {}).sort().join();
+        delete pgK.blocks[1].hide; delete pgK.blocks[2].hide; delete pgK.blocks[2].see; netD.sendItem('k', 'pk'); const d7 = takeD();   // nothing kept back any more: one shared copy again
+        const RD = { d1, d2, d3, d4, d5, d6, d7, heldBefore, heldAfter: Object.prototype.hasOwnProperty.call(DS.held(), 'pk'), bc: bcD.map(said) };
+        const kaelRaw = raws.slice(0, 3).map(r => r[1]).join('');
+        check('the review of pages reveal (finding 1) a page with a kept block, sent again unchanged, goes to nobody; a change goes to each connection as a delta against its own copy, never holding a block that connection may not read; a block that changes readers leaves one copy and joins the other; one asked for and every broadcast is whole; a connection that closed gets the page whole; a page that keeps nothing back any more goes as one shared copy and no copy per connection is kept',
+            J(d1) === J(['item:b_open,b_mira,b_link', 'item:b_open,b_link', '']) && J(d2) === J(['', '', '']) && J(d3) === J(['delta:b_open/', 'delta:b_open/', '']) && J(d4) === J(['delta:/b_mira', 'delta:b_mira/', ''])
+            && J(d5) === J(['item:b_open,b_link', 'item:b_open,b_mira,b_link', '']) && J(d6) === J(['item:b_open,b_link', 'delta:b_open/', '']) && RD.heldBefore === 'pkl,pm' && J(d7) === J(['', '', '']) && J(RD.bc) === J(['item:b_open,b_gm,b_mira,b_link']) && RD.heldAfter === false
+            && kaelRaw.indexOf('SECRET') < 0 && kaelRaw.indexOf('MIRA') < 0 && kaelRaw.indexOf('b_gm') < 0 && kaelRaw.indexOf('b_mira') < 0, J(RD));
+        /* ---- the review of pages reveal (finding 2): a kept block's id still reached players by a mention a player named in it relayed through the
+           host, by the join's chat history, by the GM's table notepad and by a relayed share's look. Each now keeps only the page, run for real:
+           the host's chat branch (its chat markers), chatHistoryOf, notepadMsg and relayShare (its share markers) with the real lookcore ---- */
+        pgK.blocks[1].hide = true;   // b_gm kept back again
+        const keptH = '#wp:@:page:pk:b_gm', openH = '#wp:@:page:pk:b_open', NG = kit.netGate('netpiececheck'), hC = NG.harness();
+        const runChatK = new Function('env', 'msg', 'conn', NG.pre([]) + 'var chatMen = env.chatMen, unkeepLinks = env.unkeepLinks;\n' + NG.chatSrc + '\nreturn "ran";');
+        hC.env.chatMen = men => men; hC.env.unkeepLinks = ULk; const cA = hC.conn('pA'); hC.env.net.roster.pA = { id: 'u_mira', name: 'Mira' }; hC.env.net.conns.push(cA);
+        runChatK(hC.env, { type: 'chat', text: 'look here now', men: [{ s: 0, e: 4, h: keptH }, { s: 5, e: 9, h: openH }] }, cA);
+        const relayedMen = hC.pushed.map(m => J(m.men)).concat(hC.bcast.map(b => J(b.m.men)));
+        const histIn = [{ from: { id: 'u_mira', name: 'Mira' }, text: 'look here', scope: 'global', ts: 1, men: [{ s: 0, e: 4, h: keptH }] }];
+        const histOut = new Function('unkeepLinks', lineOf('function chatHistoryOf(') + '\nreturn chatHistoryOf;')(ULk)(histIn);
+        const padLook = { fmt: { spans: [{ s: 0, e: 4, link: keptH }, { s: 5, e: 8, link: openH }] }, sig: 'x' };
+        const padM = new Function('net', 'getActiveCampaign', 'hostId', 'getProfile', 'padRec', 'unkeepLinks', fnSrc('function notepadMsg() {', '\nfunction padField(', 'notepadMsg') + '\nreturn notepadMsg;')({ notepad: { on: true, text: 'Read here' } }, () => campK, () => 'u_gm', () => ({ id: 'u_gm', name: 'Gina' }), () => JSON.parse(J2(padLook)), ULk)();
+        const LKk = await import(urlK('lookcore.js')), TS = 'Read this part';
+        const shLook = LKk.makeRec({ spans: [{ s: 0, e: 4, link: keptH }, { s: 5, e: 9, link: openH }] }, '', TS, LKk.RULES.NOTE);
+        const shSent = [], shConns = [{ peer: 'pA', open: true, send: m => shSent.push(['pA', m]) }, { peer: 'pB', open: true, send: m => shSent.push(['pB', m]) }];
+        const shEnv = { net: { myId: 'u_gm', roster: { pA: { id: 'u_mira', name: 'Mira' }, pB: { id: 'u_kael', name: 'Kael' } }, conns: shConns }, allow: () => true, _shareBytes: Object.create(null), _shareCount: Object.create(null), getActiveCampaign: () => campK, getProfile: () => ({ id: 'u_gm', name: 'Gina' }),
+            toast: () => {}, logEvent: () => {}, sendFailed: () => {}, window: { wpLook: LKk }, unkeepLinks: ULk };
+        const shNames = Object.keys(shEnv), relayK = new Function(...shNames, "'use strict';\n" + between('// [netcheck:share-start]', '// [netcheck:share-end]', 'share') + '\nreturn relayShare;')(...shNames.map(n => shEnv[n]));
+        relayK({ type: 'share', to: '*', entry: { kind: 'text', id: 'n1', title: 'A note', text: TS, look: shLook } }, shConns[0]);
+        const shOut = (shSent.find(s => s[0] === 'pB') || [])[1];
+        const R2 = { relayedMen, hist: J(histOut[0].men), histSame: histIn[0].men[0].h, pad: J(padM.look), share: shOut ? J(shOut.look) : 'none', made: J(shLook) };
+        check('the review of pages reveal (finding 2) a mention of a block kept back from players keeps only its page wherever the host sends it: a player\'s chat line it relays and keeps, the join\'s chat history (the log itself left as it was), the GM\'s table notepad and a player\'s shared note; a mention of a block players read keeps its part',
+            relayedMen.length === 2 && relayedMen.every(m => m === J([{ s: 0, e: 4, h: '#wp:@:page:pk' }, { s: 5, e: 9, h: openH }])) && R2.hist === J([{ s: 0, e: 4, h: '#wp:@:page:pk' }]) && R2.histSame === keptH
+            && R2.pad.indexOf('b_gm') < 0 && R2.pad.indexOf('"#wp:@:page:pk"') >= 0 && R2.pad.indexOf(openH) >= 0 && R2.made.indexOf('b_gm') >= 0 && R2.share !== 'none' && R2.share.indexOf('b_gm') < 0 && R2.share.indexOf('"#wp:@:page:pk"') >= 0 && R2.share.indexOf(openH) >= 0, J(R2));
     } catch (e) { check('1.6.3 (finding 18) the kept block checks ran', false, String(e && e.stack || e)); } })());
 // From netcheck.js's closing block, where these two ran after every pending check (they lean on none of them):
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */

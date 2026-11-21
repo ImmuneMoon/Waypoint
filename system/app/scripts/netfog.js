@@ -1175,7 +1175,7 @@ function quickHash(s) {
    host filters it field by field anyway. */
 function uniqueIds(list) { var seen = {}; return Array.isArray(list) && list.every(function(x) { if (!x || typeof x.id !== 'string' || !x.id || seen[x.id]) return false; seen[x.id] = 1; return true; }); }
 function itemDelta(itemId, clean) {
-    var base = _lastSent[itemId];
+    var base = arguments.length > 2 ? arguments[2] : _lastSent[itemId];   // 1.6.3 (the review of pages reveal): a page cut per reader hands the copy one connection holds as a third argument, so its delta is worked out against that copy; null there means no copy, which sends whole
     if (!base || clean.type !== base.type || (clean.type !== 'map' && clean.type !== 'doc')) return null;      // no baseline: send whole
     if (clean.type === 'doc' && !(uniqueIds(clean.blocks) && uniqueIds(base.blocks))) return null;             // block deltas key on ids
     var d = { type: 'itemDelta', itemId: itemId }, any = false;

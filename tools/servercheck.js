@@ -1456,6 +1456,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /try \{ reqguard\.appendLog\(savesDir, body\); res\.writeHead\(200\); res\.end\(\); \} catch \(e\) \{ res\.writeHead\(500\); res\.end\(\); \}/.test(main) && !/appendFileSync/.test(main) && /reqguard\.pruneRemoved\(bkDir, libstore\);/.test(main.slice(main.indexOf('function backupOnLaunch() {'), main.indexOf('backupOnLaunch();'))));
     }
 
+    {   // 1.6.3 (the multiplayer review, finding 11): the main window's close asks the page first while it hosts (shellguard.closeGuard, run for real on a stand-in window)
+        const J = JSON.stringify, sgC = require('../system/resources/app/shellguard.js'), EvC = require('events'), tick = () => new Promise(r => setImmediate(r));
+        const mkWin = (need, answer) => { const w = new EvC(), wc = new EvC(); w.webContents = wc; w.closed = 0; w.asked = []; w.close = () => { w.closed++; const e = { def: false, preventDefault() { this.def = true; } }; w.emit('close', e); w.lastPrevented = e.def; };
+            wc.executeJavaScript = code => { w.asked.push(/wpCloseAsk\(\)/.test(code) ? 'ask' : 'need'); return /wpCloseAsk\(\)/.test(code) ? answer() : need(); }; sgC.closeGuard(w, { needMs: 50, setTimeout: (f, ms) => setTimeout(f, ms) }); return w; };
+        const press = w => { const e = { def: false, preventDefault() { this.def = true; } }; w.emit('close', e); return e.def; };
+        const off = mkWin(() => Promise.resolve(false), () => Promise.resolve('close')); const offP = press(off); await tick(); await tick();
+        const cancel = mkWin(() => Promise.resolve(true), () => Promise.resolve('cancel')); const cP = press(cancel); await tick(); await tick();
+        let release; const slowAns = new Promise(r => { release = r; });
+        const go = mkWin(() => Promise.resolve(true), () => slowAns); press(go); await tick(); const second = press(go); await tick(); const before = go.closed; release('close'); await tick(); await tick();
+        const hung = mkWin(() => new Promise(() => {}), () => Promise.resolve('cancel')); press(hung); await new Promise(r => setTimeout(r, 120));
+        const broke = mkWin(() => Promise.reject(new Error('gone')), () => Promise.resolve('cancel')); press(broke); await tick(); await tick();
+        let rel2; const stale = new Promise(r => { rel2 = r; }); const reload = mkWin(() => Promise.resolve(true), () => stale); press(reload); await tick(); reload.webContents.emit('did-start-loading'); rel2('close'); await tick(); await tick(); const reloadClosed = reload.closed;
+        const mainSrcC = fs.readFileSync(path.join(__dirname, '..', 'system', 'resources', 'app', 'main.js'), 'utf8');
+        check('1.6.3 (the multiplayer review, finding 11) the main window asks before it closes while hosting (shellguard.closeGuard, run for real): every close is held while the page is asked whether it hosts; a page that is not hosting, or does not answer in time, or fails, lets it close as before; Cancel keeps it; the page\'s answer to close closes it once, a second close while the question is up does nothing, and an answer that comes after the page reloaded changes nothing; main.js wires it to its one window',
+            offP === true && off.closed === 1 && J(off.asked) === J(['need']) && cP === true && cancel.closed === 0 && J(cancel.asked) === J(['need', 'ask'])
+            && second === true && before === 0 && go.closed === 1 && go.lastPrevented === false && hung.closed === 1 && broke.closed === 1 && reloadClosed === 0
+            && /\n\s*shellguard\.closeGuard\(win\);[^\n]*\n\s*win\.loadURL\(/.test(mainSrcC.replace(/\r\n/g, '\n')) && typeof sgC.closeGuard === 'function',
+            J([offP, off.closed, off.asked, cP, cancel.closed, cancel.asked, second, before, go.closed, go.lastPrevented, hung.closed, broke.closed, reloadClosed]));
+    }
+
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -2041,7 +2041,7 @@ pendingChecks.push((async () => {
             && j(C.landNew.land) === j({ stage: { campId: 'c1', itemId: 'm2' }, detached: true }) && j(C.pinned.st) === j({ campId: 'c1', itemId: 'm1' }), j(C));
         const openAt = src.indexOf('        opened = true;\n        net.active = true;\n        if (typeof currentStage === \'function\') currentStage();');
         check('1.5.6: the map on screen as hosting begins is noted as the table\'s (currentStage asked in the peer\'s first open, once the table is active), and the Multiplayer window\'s Follow me names the map a new player would land on while the GM is on a planner',
-            openAt > 0 && openAt < src.indexOf("toast(resumed ? 'Hosting resumed")
+            openAt > 0 && openAt < src.indexOf("toast((resumed ? 'Hosting resumed") /* 1.6.3 (the multiplayer review, finding 1), moved on purpose: the toast also says what came back with a resumed table */
             && require('./checkkit').part('netfog.js').includes("    var stF = (it && it.type === 'map') ? null : currentStage();")
             && require('./checkkit').part('netfog.js').includes(": (stF && stF.campId === camp.id && camp.items[stF.itemId] && camp.items[stF.itemId].meta && camp.items[stF.itemId].meta.title) || 'your current map';"));
     }

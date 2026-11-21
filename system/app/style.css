@@ -2230,6 +2230,17 @@
   body.net-paused #whiteboard, body.net-paused #canvasWrap { filter: brightness(0.75) saturate(0.65); }
   body.net-paused #whiteboardWrap { background: color-mix(in srgb, color-mix(in srgb, var(--bg2) 65%, rgb(from var(--bg2) calc(0.213 * r + 0.715 * g + 0.072 * b) calc(0.213 * r + 0.715 * g + 0.072 * b) calc(0.213 * r + 0.715 * g + 0.072 * b)) 35%) 75%, black); }
   #netPauseBtn.paused { border-color: var(--gold); color: var(--gold); }
+  /* 1.6.3 (the multiplayer review, findings 6 and 15): a player's reconnect, where the pause banner stands: its words, Stop trying, and once this
+     app stopped trying, Rejoin and a close */
+  #reconnBar {
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 95000; display: none; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+    background: var(--panel2); border: 1px solid var(--gold); color: var(--gold); padding: 7px 10px 7px 18px; border-radius: 24px; font-size: 13.5px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5); max-width: calc(100vw - 32px); box-sizing: border-box;
+  }
+  #reconnBar .tool { padding: 3px 12px; font-size: 12px; }
+  #reconnBar .modal-close { padding: 3px 6px; }
+  #reconnBar [hidden] { display: none; }   /* a button the bar puts away (Stop trying, Rejoin, the close) is gone, whatever its own look says */
+  body.stream-mode #reconnBar { display: none !important; }
 
   /* Modal & panel text inputs (multiplayer, settings, search, chat, image library) */
   #netNameInput, #netCodeInput, #netPassInput, #netJoinPassInput, #setNameInput, #campSearchInput, #plannerSearchInput,
@@ -3115,6 +3126,10 @@
      owner, 2026-10-24: "A strip above the cards"): the bar's ground, edge, radius and buttons, in the welcome's flow, wrapping on a narrow screen */
   #wcUpdate { align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 12px 8px 14px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); font-size: 13px; color: var(--ink); }
   #wcUpdate .tool { padding: 4px 12px; font-size: 12px; }
+  /* 1.6.3 (the multiplayer review, finding 6): Resume your table, as the update strip looks */
+  #wcResume { align-items: center; flex-wrap: wrap; gap: 10px; padding: 8px 12px 8px 14px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); font-size: 13px; color: var(--ink); }
+  #wcResume .tool { padding: 4px 12px; font-size: 12px; }
+  #wcResumeText { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
   #wcUpdateText { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
   @media (max-width: 560px) { #wcUpdateText { flex-basis: 100%; } }   /* a phone: the words on a line of their own, the three buttons together under them */
   /* the notice the strip's Later says stands over the welcome screen (100000) and under every question and dialog; io.js's toast takes the class off

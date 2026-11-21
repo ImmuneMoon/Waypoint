@@ -629,5 +629,5 @@ setInterval(function() {
     render(false);
 }, 1000);
 
-window.wpVoice = { fromHost: fromHost, fromPlayer: fromPlayer, connGone: connGone, tableReady: tableReady, tableLeft: tableLeft, join: join, leave: leave, escape: escape, open: function() { var b = ui('voiceInd'); if (b && !popOpen()) b.click(); } };
+window.wpVoice = { fromHost: fromHost, fromPlayer: fromPlayer, connGone: connGone, tableReady: tableReady, tableLeft: tableLeft, join: join, leave: leave, escape: escape, open: function() { var b = ui('voiceInd'); if (b && !popOpen()) b.click(); }, on: function() { return !!me.on; } };   // on: whether this app is in voice chat now (net.js sessOut: a GM's reload ends it, and the notice says so)
 render(true);

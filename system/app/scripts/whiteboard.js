@@ -202,7 +202,7 @@ function ownTokenNow(mapId, tokId) {
     if (!map || map.type !== 'map' || !Array.isArray(map.whiteboard) || typeof tokId !== 'string') return null;
     var tok = map.whiteboard.find(function(x) { return !!x && x.id === tokId; }) || null;
     if (!tok || !n || !n.active || n.role !== 'client') return tok;
-    if (n.paused || n.selfPaused || n.selfHeld || tok.ownerId !== n.myId || tok.locked || tok.hidden || !(tok.isChar || tok.waiting)) return null;
+    if (n.paused || n.selfPaused || n.selfHeld || n.reconnecting || tok.ownerId !== n.myId || tok.locked || tok.hidden || !(tok.isChar || tok.waiting)) return null;
     return tok;
 }
 // a drag's members found again on the live map and set at the pointer's place (where the drag began plus how far it went); the ones that
@@ -2452,7 +2452,7 @@ window.wpFitToGrid = fitToGrid;
       var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return 'Turning works on the play map.';
       if (window.wpVtt && !window.wpVtt.on('turning')) return 'Token facing is switched off.';
       var n = window.wpNet, client = !!(n && n.active && n.role === 'client'), ids = (state.selWbIds && state.selWbIds.length) ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), done = 0;
-      if (client && (n.paused || n.selfPaused || n.selfHeld)) return 'The table is paused for you.';
+      if (client && (n.paused || n.selfPaused || n.selfHeld || n.reconnecting)) return n.reconnecting && !(n.paused || n.selfPaused || n.selfHeld) ? 'You are reconnecting to the GM.' : 'The table is paused for you.';   // 1.6.3 (the multiplayer review, finding 15): a reconnect holds the board as a pause does
       ids.forEach(function(id) {
           var it = am.whiteboard.find(function(x) { return x && x.id === id; }); if (!it || !it.isChar) return;
           if (client && (it.ownerId !== n.myId || it.locked)) return;
@@ -2484,7 +2484,7 @@ window.wpFitToGrid = fitToGrid;
       var tok = map.whiteboard.find(function(x) { return x && x.id === tokId; });
       if (!tok || !tok.isChar || (feature !== null && window.wpVtt && !window.wpVtt.on(feature || 'turning'))) return null;
       var n = window.wpNet;
-      if (n && n.active && n.role === 'client' && (n.paused || n.selfPaused || n.selfHeld || tok.ownerId !== n.myId || tok.locked)) return null;   // a locked token is frozen for its player (the host refuses it too)
+      if (n && n.active && n.role === 'client' && (n.paused || n.selfPaused || n.selfHeld || n.reconnecting || tok.ownerId !== n.myId || tok.locked)) return null;   // a locked token is frozen for its player (the host refuses it too)
       return { camp: camp, map: map, mapId: mapId, tok: tok, onScreen: camp.activeItemId === mapId };
   }
   function endDialTurn(t) {
@@ -2544,7 +2544,7 @@ window.wpFitToGrid = fitToGrid;
   // to what lies under it. A player's own token, not locked, the table not paused for them
   function arrowTurnable(item, net, st) {
       if (!item || !st || st.selWbId !== item.id) return false;
-      if (net && net.active && net.role === 'client') return item.ownerId === net.myId && !item.locked && !(net.paused || net.selfPaused || net.selfHeld);
+      if (net && net.active && net.role === 'client') return item.ownerId === net.myId && !item.locked && !(net.paused || net.selfPaused || net.selfHeld || net.reconnecting);
       return true;
   }
   // [systemcheck:turnable-end]
@@ -2570,7 +2570,7 @@ window.wpFitToGrid = fitToGrid;
           var am = getActiveMap(); if (!am || am.type !== 'map' || state.viewMode !== 'visual') return;
           var item = am.whiteboard.find(function(x) { return x.id === el.dataset.id; });
           if (!item || !item.isChar) return;
-          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld || item.ownerId !== window.wpNet.myId || item.locked)) return;
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld || window.wpNet.reconnecting || item.ownerId !== window.wpNet.myId || item.locked)) return;
           e.preventDefault(); e.stopPropagation();
           turning = { id: item.id, mapId: am.id, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey };   // fold M8: by id, found again at each write
           turnGesture(true);
@@ -2611,7 +2611,7 @@ window.wpFitToGrid = fitToGrid;
 
           if (!state.selWbId || state.viewMode !== 'visual') return;
 
-          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { var ownTok = getActiveMap().whiteboard.find(x => x.id === state.selWbId); if (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld || !ownTok || !ownTok.isChar || ownTok.ownerId !== window.wpNet.myId || ownTok.locked) return; }   // players may turn their own token (not one the GM locked)
+          if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') { var ownTok = getActiveMap().whiteboard.find(x => x.id === state.selWbId); if (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld || window.wpNet.reconnecting || !ownTok || !ownTok.isChar || ownTok.ownerId !== window.wpNet.myId || ownTok.locked) return; }   // players may turn their own token (not one the GM locked)
 
           item = getActiveMap().whiteboard.find(x => x.id === state.selWbId);
 
@@ -7767,7 +7767,7 @@ document.addEventListener('contextmenu', function(e) {
             if (ownEl) {
                 var amO = getActiveMap(), tokO = amO && (amO.whiteboard || []).find(function(x) { return x.id === ownEl.dataset.id; });
                 if (tokO && tokO.waiting && tokO.ownerId === window.wpNet.myId) { e.preventDefault(); if (window.wpJoinCard) window.wpJoinCard.show(); }   // Onboarding F1a: their waiting token: where they stand
-                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO) || tokenSensesLine(tokO) || (window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(tokO)))) { e.preventDefault(); showStanceMenu(e, tokO); }
+                else if (tokO && tokO.isChar && tokO.ownerId === window.wpNet.myId && !(window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld || window.wpNet.reconnecting) && (stanceOn('elevation') || stanceOn('posture') || (tokO.charId && window.wpSheets && window.wpSheets.canOpen(tokO.charId)) || ownLightHtml(tokO) || ownPicOk(tokO) || tokenSensesLine(tokO) || (window.wpSheets && window.wpSheets.tokenFxModel && window.wpSheets.tokenFxModel(tokO)))) { e.preventDefault(); showStanceMenu(e, tokO); }
                 else if (tokO && canTarget(tokO)) { e.preventDefault(); showTargetMenu(e, tokO, amO.id); }   // the owner's ruling of 2026-10-01: another's token is targeted from here, never by a plain click
             } else { e.preventDefault(); showSessionMenu(e, 'client'); }
         }

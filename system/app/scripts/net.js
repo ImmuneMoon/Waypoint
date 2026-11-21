@@ -84,6 +84,7 @@ var net = {
     paused: false,       // GM froze the WHOLE table: no token moves, no travel (chat stays open)
     pausedPlayers: {},   // host: profileId -> true, players frozen individually (composes with the table pause)
     selfPaused: false,   // client: the GM froze ME specifically (distinct from the table pause)
+    reconnecting: false, // client: the link to the GM dropped and this app is trying to get back: the board is held as a paused table's is (1.6.3, the multiplayer review, finding 15: reconnHold)
     foreign: false       // the campaign in memory came from a host: it must never reach this machine's disk
 };
 window.wpNet = net;
@@ -627,6 +628,7 @@ function hbTick() {
     if (net.role === 'host') {
         // found live, 2026-10-30: the room code was noted once, as the table opened, and a table more than 15 minutes old came back under a new code, so its players could not reattach
         if (net.code && typeof rememberHostCode === 'function' && now - (net._codeAt || 0) >= 300000) { net._codeAt = now; rememberHostCode(net.code); }
+        if (typeof sessKeepTick === 'function') sessKeepTick();   // 1.6.3 (finding 1): and the table's own state beside it, when it changed
         // every open connection, a peer still waiting for the GM's Allow too: a heartbeat carries nothing of the table, and without it a
         // waiting player takes the silence for a lost GM and reconnects every 20 s (the host keeps a waiting peer for a while: UNADMITTED_TTL)
         net.conns.forEach(function(c) { if (c.open) { try { c.send({ type: 'hb' }); } catch (e) { sendFailed(e); } } });
@@ -1428,21 +1430,23 @@ function scheduleStageFollow() {
 // (#netPauseBtn in the panel, #sessionPauseBtn in the header) stay in step here.
 function refreshPauseUi() {
     var isClient = net.role === 'client';
-    var frozenMe = (net.paused || net.selfPaused || net.selfHeld) && isClient;
+    var frozenMe = (net.paused || net.selfPaused || net.selfHeld || net.reconnecting) && isClient;
     var banner = ui('pauseBanner');
+    var reconMe = !!net.reconnecting && isClient;   // 1.6.3 (finding 15): while reconnecting, the bar of its own says so (#reconnBar, reconnDraw) in place of the pause banner
     if (banner) {
-        banner.style.display = frozenMe ? 'block' : 'none';
+        banner.style.display = frozenMe && !reconMe ? 'block' : 'none';
         if (frozenMe) banner.textContent = net.paused
             ? 'The GM paused the table — chat is still open.'
             : 'The GM paused you — chat is still open.';
     }
     if (banner && frozenMe && !net.paused && !net.selfPaused && net.selfHeld) banner.textContent = heldBanner();   // 1.6.0 (backlog 190): held for a new sheet
-    document.body.classList.toggle('net-paused', !!((net.paused || ((net.selfPaused || net.selfHeld) && isClient)) && net.active));   // always a true or a false: toggle with undefined flips the class (found live, 2026-10-30: the map dimmed with no pause)
+    document.body.classList.toggle('net-paused', !!((net.paused || ((net.selfPaused || net.selfHeld || net.reconnecting) && isClient)) && net.active));   // always a true or a false: toggle with undefined flips the class (found live, 2026-10-30: the map dimmed with no pause)
     var btn = ui('netPauseBtn');
     if (btn) { btn.innerHTML = net.paused ? '<i class="wib wi-play"></i> Resume the table' : '<i class="wib wi-pause"></i> Pause the table'; btn.classList.toggle('paused', net.paused); }
     var sb = ui('sessionPauseBtn');
     if (sb) { sb.innerHTML = net.paused ? '<i class="wib wi-play"></i>' : '<i class="wib wi-pause"></i>'; sb.title = net.paused ? 'Resume the table' : 'Pause the table (freeze everyone)'; sb.classList.toggle('paused', net.paused); }
     if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync();   // the top row's Paused pill (pills.js)
+    if (typeof reconnDraw === 'function') reconnDraw();   // 1.6.3 (finding 15): the reconnecting bar follows the same state
 }
 function setPausedLocal(on) {
     net.paused = !!on;
@@ -1498,7 +1502,9 @@ function heldSync() {
     refreshPauseUi();
     if (was && !net.selfHeld && net.reconcileLook) net.reconcileLook();   // a face picked while held goes now
 }
-function heldSay(w) { return net.selfHeld && !net.paused && !net.selfPaused ? HELD_WORDS : w; }   // a refusal a hold gave is said as one
+// 1.6.3 (the multiplayer review, finding 15): what a refusal says while this app is reconnecting and nothing else holds it
+var RECONN_SAY = 'You are reconnecting to the GM. Try again once you are back at the table.';
+function heldSay(w) { if (net.reconnecting && !net.paused && !net.selfPaused && !net.selfHeld) return RECONN_SAY; return net.selfHeld && !net.paused && !net.selfPaused ? HELD_WORDS : w; }   // a refusal a hold gave is said as one
 function heldBanner() { var h = net.heldNames || [], one = h.length === 1, nm = one ? h[0] : h.length + ' of your characters'; return nm + (one ? ' needs a new sheet before you can play. Open its sheet and press' : ' need a new sheet before you can play. Open each sheet and press') + ' Send a new sheet. Chat and pages still work.'; }
 net.heldSync = heldSync; net.isPlayerHeld = function(playerId) { return heldById(playerId); };
 // [netcheck:sheetheld-end]
@@ -3237,7 +3243,7 @@ function broadcastPos(msg, exceptConn, camp, map, w) {
 // [netcheck:bpos-end]
 net.streamPos = function(wItem, final, mapId) {   // fold M8: mapId, the map a gesture began on (else the one on screen)
     if (!net.active || !wItem) return;
-    if ((net.paused || net.selfPaused || net.selfHeld) && net.role === 'client') return;
+    if ((net.paused || net.selfPaused || net.selfHeld || net.reconnecting) && net.role === 'client') return;
     var camp = getActiveCampaign();
     if (!camp) return;
     var now = Date.now();
@@ -5335,7 +5341,7 @@ net.charPic = function(charId, face, img, done) {
     var camp = getActiveCampaign();
     if (!camp || !net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
-    if (net.paused || net.selfPaused || net.selfHeld) return { error: typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.' };
+    if (net.paused || net.selfPaused || net.selfHeld || net.reconnecting) return { error: typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.' };
     if (window.wpVtt && !window.wpVtt.on('sheets')) return { error: 'Character sheets are off here.' };
     var c = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; if (!c || c.partial || c.npc || !c.ownerId || c.ownerId !== net.myId) return { error: 'That character is not yours.' };
     var f = cleanFace(face || ''), im = typeof img === 'string' ? img : '';
@@ -5372,7 +5378,7 @@ function askStats(v) {
 function mkSend(type, m, done) {
     if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
-    if (net.paused || net.selfPaused || net.selfHeld) return { error: typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.' };
+    if (net.paused || net.selfPaused || net.selfHeld || net.reconnecting) return { error: typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.' };
     var rid = 'k' + Math.random().toString(36).slice(2, 10);
     _mkPending[rid] = { kind: type, done: done, timer: setTimeout(function() { var p = _mkPending[rid]; delete _mkPending[rid]; if (p && typeof p.done === 'function') p.done({ error: 'No answer from the GM (their Waypoint may not have this yet).' }); }, 20000) };
     m.type = type; m.rid = rid;
@@ -5400,7 +5406,7 @@ net.tokLight = function(mapId, wbId, o, done) {
 };
 // Onboarding F1b: a player's changed face reaches the host (their roster entry; everyone's view of their waiting token follows)
 net.sendMyLook = function() {
-    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || net.selfHeld || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
+    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || net.selfHeld || net.reconnecting || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return false;
     try { net.conns[0].send({ type: 'my-look', face: getProfile().face || '' }); } catch (e) { sendFailed(e); return false; }
     return true;
 };
@@ -5408,7 +5414,7 @@ net.sendMyLook = function() {
 // or one the host's limit dropped), it is sent again — a moment later, once — on every roster and when a pause lifts
 var _lookTimer = null;
 net.reconcileLook = function() {
-    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || net.selfHeld || !net.syncedPeer || _lookTimer) return;
+    if (!net.active || net.role !== 'client' || net.paused || net.selfPaused || net.selfHeld || net.reconnecting || !net.syncedPeer || _lookTimer) return;
     var differs = function() { var me = own(net.roster, net.myId) ? net.roster[net.myId] : null; return !!me && (me.face || '') !== cleanFace(getProfile().face || ''); };
     if (!differs()) return;
     _lookTimer = setTimeout(function() { _lookTimer = null; if (differs()) net.sendMyLook(); }, 1200);
@@ -5573,10 +5579,41 @@ function admitPlayer(conn, prof, provenKey) {
     broadcastRoster();
 }
 
+// [netcheck:sessgate-start]
+// 1.6.3 (the multiplayer review, findings 2, 17 and 22): who is kept out of this session and why, and a returning player who comes back on a new
+// connection while the old one still looks alive. bannedIds stays the one list the hello gate refuses before anything else: a player removed with
+// the roster's x (kickPlayer) and a stranger the GM turned away. A known name turned away WITHOUT its table key (a 'nokey' request: a fresh
+// install, or someone else using that name) is kept apart in _noKeyOut: queueJoin refuses such a request again with no question, but the player
+// who proves the table key still comes straight in, since the GM turned away whoever lacked the key and never the key's owner (a pile of stale
+// questions from a flaky link once locked a real player out for the night). _outNames keeps the name the gate saw beside each id, for Player
+// History's Removed this session list (renderPlayersPanel) and its Let back in (letBackIn). All three go with the session (leaveSession).
+var _noKeyOut = Object.create(null), _outNames = Object.create(null);
+function outNote(id, name, how) { if (typeof id !== 'string' || !id) return; _outNames[id] = { name: String(name || 'Player').slice(0, 60), how: how === 'removed' || how === 'nokey' ? how : 'turned', at: Date.now() }; }
+function letBackIn(id) { var was = own(bannedIds, id) || own(_noKeyOut, id); delete bannedIds[id]; delete _noKeyOut[id]; delete _outNames[id]; return was; }
+// The session's removals as a list, newest first: [{ id, name, how }], how 'removed' (the roster's x), 'turned' (Turn away) or 'nokey'
+// (turned away without the table key). An id kept out with no name noted (the old Ban then Unban trick never noted one) reads as Player.
+function outList() {
+    var ids = Object.keys(bannedIds).concat(Object.keys(_noKeyOut).filter(function(id) { return !own(bannedIds, id); }));
+    return ids.filter(validProfileId).map(function(id) { var r = own(_outNames, id) ? _outNames[id] : null; return { id: id, name: r ? r.name : 'Player', how: own(_noKeyOut, id) && !own(bannedIds, id) ? 'nokey' : (r && r.how !== 'nokey' ? r.how : 'removed'), at: r ? r.at : 0 }; })
+        .sort(function(a, b) { return b.at - a.at; });
+}
+// An open, admitted connection of this player id other than conn, heard within HB_STALE: a live duplicate (the hello gate, queueJoin)
+function liveDupOf(conn, id) { return net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; }) || null; }
+// A known player proved the table key over this new connection while an old connection of theirs still looks alive: a reload whose new connection
+// reached the host before the old one was seen to close (finding 17). The old ones step aside: each leaves the roster first, so that its close is
+// the close of a connection never admitted (nothing is said, saved or forgotten for the player, who is still here), and is then closed.
+function dupDrop(conn, id) {
+    var n = 0;
+    net.conns.slice().forEach(function(c) { if (c === conn || !own(net.roster, c.peer) || net.roster[c.peer].id !== id) return; delete net.roster[c.peer]; n++; try { c.close(); } catch (e) {} });
+    return n;
+}
+// [netcheck:sessgate-end]
 // [netcheck:queue-start]
 // A join the GM must rule on: one place in line per connection, a bounded line, a 'wait' to the player.
 function queueJoin(conn, prof, why) {
     if (pendingJoins.some(function(j) { return j.conn === conn; })) return;
+    if (why === 'nokey' && prof && typeof liveDupOf === 'function' && liveDupOf(conn, prof.id)) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // 1.6.3 (finding 17): a known name with no proof of its key while another connection of theirs is live: refused as before, never put to the GM
+    if (why === 'nokey' && prof && typeof _noKeyOut !== 'undefined' && own(_noKeyOut, prof.id)) { denyJoin(conn, 'The GM declined your request to join.'); return; }   // 1.6.3 (finding 2): the GM turned away this name without its key: refused again with no question (a proof of the key never comes here)
     if (pendingJoins.length >= 12) { denyJoin(conn, 'The table is busy — try again in a moment.'); return; }
     try { conn.send({ type: 'wait' }); } catch (e) { sendFailed(e); }
     pendingJoins.push({ conn: conn, prof: prof, why: why || '' });
@@ -5769,13 +5806,19 @@ function processNextApproval() {
     var campQ = getActiveCampaign();   // fold M1: removed or banned while the request waited: never put to the GM
     if (next.prof && own(bannedIds, next.prof.id)) { denyJoin(next.conn, 'You were removed from this session.'); processNextApproval(); return; }   // the words the hello gate gives, in its order
     if (next.prof && campQ && campQ.bannedPlayers && own(campQ.bannedPlayers, next.prof.id)) { denyJoin(next.conn, 'You are banned from this campaign.'); processNextApproval(); return; }
+    if (next.prof && next.why === 'nokey' && typeof _noKeyOut !== 'undefined' && own(_noKeyOut, next.prof.id)) { denyJoin(next.conn, 'The GM declined your request to join.'); processNextApproval(); return; }   // 1.6.3 (finding 2): turned away without its key while this one waited
     approvalOpen = true;
+    // 1.6.3 (the multiplayer review, finding 2): a question whose connection closes goes away by itself (showConfirm's gone), and an answer given to
+    // one that closed meanwhile decides nothing, so a pile of stale questions from a flaky link never keeps a returning player out for the night
+    var goneQ = function() { return !next.conn.open; };
+    var approvalGone = function() { toast((next.prof.name || 'A player') + ' stopped waiting, so their question went away.'); processNextApproval(); };
     var hint = next.why ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
     var who = next.prof.name || 'A player', sameOf = campQ && typeof sameCandidates === 'function' ? sameCandidates(campQ, next.prof.id, net.roster) : [];
     var askSame = function() {   // 1.5.7: the known players in one list, most recently seen first; Cancel goes back to the first question. 1.6.0: it opens on the joiner's name or on none, and lists what moves
         var pk = typeof playerPick === 'function' ? playerPick(campQ, sameOf, 'Same person as', { name: next.prof.name }) : null;
         pickLog('same-asked', { offered: sameOf.length, named: !!(pk && pk.pick()) });
         showConfirm('Who is "' + who + '"? Pick the player they were. Yes gives them the ticked characters and tokens and that player\'s place. The old name is retired unless something stays with it.', function(ans) {
+            if (ans === 'gone') { approvalOpen = false; pickLog('same-back', { picked: false }); approvalGone(); return; }
             if (ans !== true) { pickLog('same-back', { picked: false }); askMain(); return; }
             var pid = pk ? pk.pick() : null; if (!pid) { pickLog('same-back', { picked: false }); askMain(); return; }   // nothing picked moves nothing: never a default
             var recS = campQ.players[pid] || {}, nmS = String(recS.name || 'a player'), Sp = typeof SC === 'function' ? SC() : null, plays = Sp && Sp.playsAs ? Sp.playsAs(campQ, pid) : '';
@@ -5787,23 +5830,25 @@ function processNextApproval() {
             else pickLog('same-failed', { at: 'record' });
             admitPlayer(next.conn, next.prof);
             processNextApproval();
-        }, { noEnter: true, noEscape: true, yes: 'Yes, the same', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined });
+        }, { noEnter: true, noEscape: true, yes: 'Yes, the same', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined, gone: goneQ });
     };
     var askMain = function() {
     showConfirm('"' + who + '" wants to join your table' + hint + '. Let them in?' + (sameOf.length ? ' If they played here before from another app or browser, Same person as… gives them that player\'s character.' : ''), function(yes) {
+        if (yes === 'gone') { approvalOpen = false; approvalGone(); return; }
         if (yes === 'alt' && sameOf.length) { askSame(); return; }
         approvalOpen = false;
         if (!net.active || net.role !== 'host') return;
-        if (yes) {
-            if (next.conn.open) admitPlayer(next.conn, next.prof);
-            else toast((next.prof.name || 'That player') + ' had already dropped. You will be asked again when they come back.');   // security (2026-10-01): a yes is for the connection that asked; a later hello claiming that id (anyone can) is a new request, never let straight in
-        } else {
-            bannedIds[next.prof.id] = true;   // no re-prompt spam this session
+        if (!next.conn.open) { toast((next.prof.name || 'That player') + ' had already dropped, so nothing was decided. You will be asked again when they come back.'); processNextApproval(); return; }   // security (2026-10-01): a yes is for the connection that asked; a later hello claiming that id (anyone can) is a new request, never let straight in. 1.6.3 (finding 2): and a Turn away for one that closed keeps nobody out
+        if (yes) admitPlayer(next.conn, next.prof);
+        else {
+            if (next.why === 'nokey' && typeof _noKeyOut !== 'undefined') _noKeyOut[next.prof.id] = true;   // 1.6.3 (finding 2): whoever lacked the key is kept out, never the key's owner (queueJoin)
+            else bannedIds[next.prof.id] = true;   // no re-prompt spam this session
+            if (typeof outNote === 'function') outNote(next.prof.id, next.prof.name, next.why === 'nokey' ? 'nokey' : 'turned');
             denyJoin(next.conn, 'The GM declined your request to join.');
-            toast((next.prof.name || 'Player') + ' was turned away.');
+            toast((next.prof.name || 'Player') + ' was turned away. Player History can let them back in this session.');
         }
         processNextApproval();
-    }, sameOf.length ? { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away', alt: 'Same person as…' } : { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' });   // its buttons alone (the owed review, 2026-10-09): a key typed for something else let a stranger in, or turned a player away for the session
+    }, sameOf.length ? { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away', alt: 'Same person as…', gone: goneQ } : { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away', gone: goneQ });   // its buttons alone (the owed review, 2026-10-09): a key typed for something else let a stranger in, or turned a player away for the session
     };
     askMain();
 }
@@ -5815,7 +5860,8 @@ net.kickPlayer = function(peerKey) {
     // fold M1: removing a player removes every admitted connection of theirs (a reconnect inside the heartbeat's grace, or a modified client,
     // can hold two); a peer not admitted is only the one clicked
     var keys = p && p.id ? Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === p.id; }) : [peerKey];
-    if (p) { bannedIds[p.id] = true; keys.forEach(function(k) { delete net.roster[k]; }); renderRoster(); }
+    // 1.6.3 (the multiplayer review, finding 22): the one removed is noted by name for Player History's Removed this session (outNote)
+    if (p) { bannedIds[p.id] = true; if (typeof outNote === 'function') outNote(p.id, p.name, 'removed'); keys.forEach(function(k) { delete net.roster[k]; }); renderRoster(); }
     if (p && typeof fogDragSweep === 'function') fogDragSweep();   // fold M4: a drag of theirs still open goes back where it began
     if (typeof fogForgetConn === 'function') keys.forEach(fogForgetConn);   // fold M5: and nothing is kept of what their copies held
     if (p && p.id && typeof sensesForget === 'function') sensesForget(p.id);   // Senses S0: no connection of theirs is left, and the closes that follow find no roster entry to forget them by
@@ -6110,8 +6156,8 @@ function handleMessage(msg, conn) {
         prof = { id: prof.id, name: prof.name, color: prof.color, avatar: prof.avatar, face: cleanFace(prof.face) };   // only what a roster carries: nothing else a peer sends is stored or re-broadcast
         if (!prof.face) delete prof.face;   // Onboarding F1b: a face the rule refuses is dropped
         if (prof.id === net.myId) { denyJoin(conn, 'That player identity is the GM\'s own.'); return; }   // a claimed GM id would render as "You" on the GM's screen
-        var dupC = net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
-        if (dupC) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // a live duplicate would read and edit that player's sheet; a dropped one (silent past 8 s) may come back
+        var dupC = liveDupOf(conn, prof.id), campDup = dupC ? getActiveCampaign() : null, recDup = campDup && campDup.players && own(campDup.players, prof.id) ? campDup.players[prof.id] : null;
+        if (dupC && !(recDup && typeof recDup.key === 'string' && recDup.key)) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // a live duplicate would read and edit that player's sheet; a dropped one (silent past 8 s) may come back. 1.6.3 (the multiplayer review, finding 17): a name this campaign gave a table key is not refused here but challenged, since a reload's new connection can reach the host before its old one is seen to close: a proof of the key over this very connection lets the new one in and closes the old (dupDrop below), and anything less is refused as before
         // Peer-supplied avatar: accept only a small image data URL, else drop it
         if (!safeAvatar(prof.avatar)) delete prof.avatar;   // the whole data URL (a valid prefix with a quote-breaking tail used to pass)
         prof.name = cleanRosterName(prof.name);   // cap a peer-supplied name; control, bidi-override and zero-width characters out
@@ -6168,11 +6214,11 @@ function handleMessage(msg, conn) {
                 // the check ran asynchronously: judge again what may have changed meanwhile
                 if (net.role !== 'host' || !conn.open || own(net.roster, conn.peer) || _connMeta[conn.peer] !== cm) return;   // the table ended, the connection closed or was admitted, or a new connection took this peer id
                 if (pendingJoins.some(function(q) { return q.conn === conn; })) return;   // the challenge timer already put this request to the GM: the GM's word stands (a second admit would re-issue the key under the player)
-                var dupV = net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === prof.id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; });
-                if (dupV) { denyJoin(conn, 'That player identity is already at the table.'); return; }
+                var dupV = liveDupOf(conn, prof.id);   // 1.6.3 (finding 17): judged with the proof below
                 var campV = getActiveCampaign(), recV = (campV && campV.players && own(campV.players, prof.id)) ? campV.players[prof.id] : null;
                 var keyOk0 = !!(want && recV && recV.key === key0 && sameStr(want, msg.proof)), bound0 = !!(ch0 && fp0 && fp0[0] === ch0.theirs && fp0[1] === ch0.mine);   // the key still the one proven (the GM may have re-issued it meanwhile) — and proven over THIS connection: the pair the proof covers is the pair this side reads
-                if (keyOk0 && bound0) admitPlayer(conn, prof, key0);
+                if (keyOk0 && bound0) { if (dupV && dupDrop(conn, prof.id)) logEvent('table', (prof.name || 'A player') + ' came back on a new connection. The old one was closed.'); admitPlayer(conn, prof, key0); }   // 1.6.3 (finding 17): the right key over this very connection: their old connection steps aside, as a reload's would
+                else if (dupV) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // anything less than that proof while another connection of theirs is live is refused, as before
                 else if (keyOk0 && ch0) { denyJoin(conn, 'This table could not check your connection. Try joining again.'); unboundNotice(prof); }   // the right key, proven over another connection than the one this side reads (both ends readable, and they differ): refused — no question, no new key — and the GM told, by name
                 else queueJoin(conn, prof, 'nokey');   // a wrong key — or the right one on a connection this side cannot read (a technical hiccup never locks the table): the GM is asked, as for a name without its key
             });
@@ -6231,6 +6277,7 @@ function handleMessage(msg, conn) {
         // [netcheck:snapkey-end]
         if (!conn.wpSeenTaken && typeof msg.gmId === 'string') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent; once per connection and only from an id sent as text, as the key is taken, so a host cannot fill the list with names of its own
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
+        if (typeof reconnHold === 'function' && net.reconnecting) reconnHold(false);   // 1.6.3 (finding 15): back at the table, the board is let go
         syncSessionButtons();
         if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive([], 0);   // backlog 29: a whole campaign from the host: none of its trackers until it sends them
         var webJ = typeof webJoinOnly === 'function' && webJoinOnly();   // 1.5.5: a website's plan that joins tables alone has no campaign of the player's own to speak of (webmode.js)
@@ -8298,6 +8345,7 @@ function cancelReconnect() {
 
 function giveUpAndRestore(msg) {
     cancelReconnect();
+    if (typeof reconnHold === 'function') reconnHold(false);   // 1.6.3 (finding 15): the board is let go
     stopHeartbeat();
     setIndicator(null);
     setPausedLocal(false);
@@ -8313,8 +8361,9 @@ function giveUpAndRestore(msg) {
     load();
 }
 
-// Players keep trying for about two minutes — long enough for a GM whose app
-// crashed to relaunch and press Host again (which reuses the same code).
+// Players try quickly RECONNECT_TRIES times (about two minutes), then slowly until RECONN_KEEP_MS has passed since the link dropped: long
+// enough for a GM whose app crashed to relaunch and press Host again (which reuses the same code). 1.6.3 (the multiplayer review, finding 6; the
+// owner's pick of 2026-11-21: "keep trying slowly for 5 minutes, never 15")
 var RECONNECT_TRIES = 30;
 // [netcheck:rejoin-start]
 // 1.6.0: a reload at a table that finds no table is no failed join. The GM may be reloading too, so it goes on as a reconnect does, in place of
@@ -8325,14 +8374,74 @@ function rejoinDone() { _rejoinBack = null; }
 function rejoinKeep() { var b = _rejoinBack; _rejoinBack = null; if (!b) return false; reconn.code = b.code; reconn.name = b.name; reconn.tries = 0; reconn.gen = 0; scheduleReconnect(); return true; }
 // [netcheck:rejoin-end]
 function scheduleReconnect() {
-    if (reconn.tries >= RECONNECT_TRIES) { giveUpAndRestore('Could not reconnect — the GM may have ended the session.'); return; }
+    var nowR = Date.now();
+    if (!reconn.since) reconn.since = nowR;   // 1.6.3 (finding 6): when the link dropped; let go only once the reconnect is over (reconnHold), so a connection that opens and closes unproven never starts the five minutes again
+    if (typeof reconnOver === 'function' ? reconnOver(reconn.tries, reconn.since, nowR) : reconn.tries >= RECONNECT_TRIES) { var msgR = 'Could not reach the GM\u2019s table for five minutes. The GM may have ended the session.'; if (typeof reconnGiveUp === 'function') reconnGiveUp(msgR); else giveUpAndRestore(msgR); return; }
     reconn.pending = true;
+    if (!net.reconnecting && typeof reconnHold === 'function') reconnHold(true);   // 1.6.3 (finding 15): the board is held, and the bar says so, until the table is back or this app stops trying
     reconn.tries++;
-    setIndicator('warn', 'reconnecting to the GM (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')');
-    setStatus('Connection lost — reconnecting (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')… If the GM restarts Waypoint and hosts again, you will reattach automatically.');
+    var slowR = reconn.tries > RECONNECT_TRIES;
+    setIndicator('warn', slowR ? 'reconnecting to the GM, still trying' : 'reconnecting to the GM (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')');
+    setStatus(slowR ? 'Connection lost. Still trying now and then, for five minutes in all. If the GM restarts Waypoint and hosts again, you will reattach automatically.' : 'Connection lost — reconnecting (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')… If the GM restarts Waypoint and hosts again, you will reattach automatically.');
     if (reconn.tries === 1) toast('Connection lost. Reconnecting, for a few minutes if need be…');
-    reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }, reconn.tries === 1 ? 1200 : 2500);
+    reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }, typeof reconnWait === 'function' ? reconnWait(reconn.tries) : (reconn.tries === 1 ? 1200 : 2500));
 }
+// [netcheck:reconnbar-start]
+// 1.6.3 (the multiplayer review, findings 6 and 15; the owner's picks of 2026-11-21). While a player's link to the GM is down their board is held as
+// a paused table is (net.reconnecting: every gate that holds a paused player holds a reconnecting one, and the map is dimmed), under a bar of its
+// own (#reconnBar) that says so in the owner's words and offers Stop trying. The fast tries run first, then slower ones (reconnWait) until five
+// minutes have passed since the link dropped (reconnOver). Once this app gives up, or the player presses Stop trying, the bar offers a one-press
+// Rejoin that dials the same code and name (with the password typed for it). Nothing here is sent or stored.
+var RECONN_KEEP_MS = 5 * 60 * 1000, RECONN_SLOW_MS = [5000, 10000, 15000, 20000, 30000];
+var RECONN_WORDS = 'Reconnecting to the GM. What you do now will not reach the table.';
+var _rejoinOffer = null;   // { code, name, pass, why } once this app stopped trying: what the bar's Rejoin dials
+// how long to wait before try n: the first quickly, the next 29 every 2.5 s, then 5, 10, 15, 20 and 30 s
+function reconnWait(n) { return n <= RECONNECT_TRIES ? (n === 1 ? 1200 : 2500) : RECONN_SLOW_MS[Math.min(RECONN_SLOW_MS.length - 1, n - RECONNECT_TRIES - 1)]; }
+// whether the reconnect is over: the fast tries are spent and five minutes have passed since the link dropped
+function reconnOver(tries, since, now) { return tries >= RECONNECT_TRIES && now - (since || now) >= RECONN_KEEP_MS; }
+// The hold, on or off. On, a Rejoin offered before goes (a new reconnect began); off, the five minutes start again at the next drop
+function reconnHold(on) {
+    net.reconnecting = !!on;
+    if (on) _rejoinOffer = null; else reconn.since = 0;
+    refreshPauseUi();   // the board's class and the gates read net.reconnecting; refreshPauseUi draws the bar too (reconnDraw)
+}
+// The bar: while reconnecting its words and Stop trying; once this app stopped trying why, Rejoin and its close; else put away
+function reconnDraw() {
+    var bar = ui('reconnBar'); if (!bar) return;
+    var on = !!net.reconnecting, offer = !on && !!_rejoinOffer;
+    bar.style.display = on || offer ? 'flex' : 'none';
+    var pb = ui('pauseBanner'); if ((on || offer) && pb && typeof getComputedStyle === 'function') { try { bar.style.top = getComputedStyle(pb).top; } catch (e) {} }   // where the pause banner stands, under the bar of a hidden top row too (style.css)
+    var t = ui('reconnText'), stop = ui('reconnStop'), again = ui('reconnRejoin'), x = ui('reconnClose');
+    if (t) t.textContent = on ? RECONN_WORDS : offer ? _rejoinOffer.why : '';
+    if (stop) stop.hidden = !on;
+    if (again) again.hidden = !offer;
+    if (x) x.hidden = !offer;
+}
+// What Rejoin will dial: the code, the name and the password this reconnect used
+function rejoinOf(why) {
+    var code = reconn.code || net.code; if (!code) return null;
+    return { code: code, name: reconn.name || getProfile().name || '', pass: String((ui('netJoinPassInput') || {}).value || ''), why: why };
+}
+// This app gives up: the table is let go of as ever (giveUpAndRestore), and the bar offers Rejoin
+function reconnGiveUp(msg) { var b = rejoinOf(msg); giveUpAndRestore(msg); _rejoinOffer = b; reconnDraw(); }
+// The bar's Stop trying: the dial under way goes too (leaveSession, silent, as a retry leaves), then as giving up
+function reconnStop() {
+    if (!net.reconnecting && !reconn.pending) return;
+    var b = rejoinOf('You stopped trying to reach the GM\u2019s table.');
+    leaveSession(true);
+    giveUpAndRestore('You stopped trying to reach the GM\u2019s table.');
+    _rejoinOffer = b; reconnDraw();
+}
+// The bar's Rejoin: a join of the player's own, with the same code, name and password
+function rejoinGo() {
+    var b = _rejoinOffer; _rejoinOffer = null; reconnDraw(); if (!b) return;
+    var ci = ui('netCodeInput'), ni = ui('netNameInput'), pi = ui('netJoinPassInput');
+    if (ci) ci.value = typeof showCode === 'function' ? showCode(b.code) : b.code; if (ni && b.name) ni.value = b.name; if (pi) pi.value = b.pass;
+    toast('Rejoining the table…');
+    joinSession(b.code, b.name);
+}
+function rejoinDrop() { _rejoinOffer = null; reconnDraw(); }
+// [netcheck:reconnbar-end]
 
 // [netcheck:transport-start]
 // Transport (2026-10-01): what reaches this machine BELOW handleMessage. The connection library decodes every data-channel message itself and puts
@@ -8469,6 +8578,7 @@ function wireConn(conn) {
         Object.keys(_lim).forEach(function(k) { _lim[k].forget(conn.peer); });
         var cmC = _connMeta[conn.peer]; if (cmC && cmC.authTimer) clearTimeout(cmC.authTimer);
         delete _connMeta[conn.peer]; delete lastSeen[conn.peer];   // (a player's share budget is by profile id and outlives the connection)
+        if (net.role === 'host' && typeof pendingJoins !== 'undefined' && pendingJoins.length) pendingJoins = pendingJoins.filter(function(q) { return q.conn !== conn; });   // 1.6.3 (finding 2): a request whose connection closed leaves the line (the question already up goes by its own watch, showConfirm's gone)
         var p = net.roster[conn.peer];
         delete net.roster[conn.peer];
         if (p && p.id && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: their last connection: what their copies were made by is forgotten, and no send waits for them
@@ -8695,7 +8805,9 @@ net.testRelay = function() {
    else can rejoin with the code they already have. */
 var REHOST_WINDOW_MS = 15 * 60 * 1000;
 function rememberHostCode(code) {
-    try { localStorage.setItem('wp_lastHost', JSON.stringify({ code: code, ts: Date.now() })); } catch (e) {}
+    var recH = { code: code, ts: Date.now() };
+    if (typeof sessOut === 'function' && net.active && net.role === 'host' && net.code === code) { try { recH.sess = sessOut(); } catch (e) {} }   // 1.6.3 (finding 1): and the table's own state, for a crash
+    try { localStorage.setItem('wp_lastHost', JSON.stringify(recH)); } catch (e) {}
 }
 function forgetHostCode() { try { localStorage.removeItem('wp_lastHost'); } catch (e) {} }
 function recentHostCode() {
@@ -8706,6 +8818,80 @@ function recentHostCode() {
     return null;
 }
 net.recentHostCode = recentHostCode;   // sandbox testing hook
+// [netcheck:sesskeep-start]
+// 1.6.3 (the multiplayer review, finding 1): the table's own state lives in this page's memory alone, so a reload (the app's Refresh, F5) or a crash
+// brought the table back with the same room code but none of it: no session password (it lived in its box alone, so the resumed table was open to
+// anyone with the code), nobody kept out (a player removed with the roster's x proved their table key and was let straight back in), no pause, no
+// travel lock, players arriving by the default again and the table notepad gone for everyone. sessOut writes it as plain data, into this tab's
+// session storage at a reload (refreshMark, SESS_KEEP) and beside the remembered room code for a crash (rememberHostCode, kept fresh by the
+// heartbeat through sessKeepTick). startHosting takes it back into net._sessBack when the table resumes, and sessIn lays it back as the table
+// opens, before anyone can join, and says in one sentence what came back. What is read back is data: sessClean keeps each part only in its shape.
+var SESS_KEEP = 'wp_rehostSess', SESS_PAD_MAX = 20000, _sessLast = '';
+function sessOut() {
+    var camp = getActiveCampaign() || {}, pwE = ui('netPassInput'), cid = typeof camp.id === 'string' ? camp.id : '';
+    var pick = cid && net.stagePicked && own(net.stagePicked, cid) ? net.stagePicked[cid] : null;
+    var o = { v: 1, campId: cid, pass: pwE ? String(pwE.value || '').trim().slice(0, 200) : '',
+        out: typeof outList === 'function' ? outList().map(function(x) { return { id: x.id, name: x.name, how: x.how }; }) : [],
+        paused: !!net.paused, pausedPlayers: Object.keys(net.pausedPlayers || {}).filter(function(id) { return net.pausedPlayers[id] === true; }), travelLocked: !!net.travelLocked,
+        stage: { picked: pick ? { mode: pick.mode === 'last' ? 'last' : null, fallback: typeof pick.fallback === 'string' ? pick.fallback : null } : null, over: typeof net.stageOverride === 'string' ? net.stageOverride : null } };
+    if (net.notepad && net.notepad.on) o.pad = { text: String(net.notepad.text || '').slice(0, SESS_PAD_MAX), fmt: _pad.fmt && typeof _pad.fmt === 'object' ? _pad.fmt : null, font: typeof _pad.font === 'string' ? _pad.font : '' };
+    if (typeof window !== 'undefined' && window.wpVoice && typeof window.wpVoice.on === 'function' && window.wpVoice.on() === true) o.voice = true;   // the GM was in voice chat, which a reload ends
+    return o;
+}
+// What sessOut wrote, read back as data: each part only in its own shape, anything else left out
+function sessClean(o) {
+    if (!o || typeof o !== 'object' || o.v !== 1) return null;
+    var str = function(v, n) { return typeof v === 'string' ? v.slice(0, n) : ''; }, key = function(v) { return validKey(v) ? v : null; };
+    var r = { campId: str(o.campId, 160), pass: str(o.pass, 200).trim(), out: [], paused: o.paused === true, pausedPlayers: [], travelLocked: o.travelLocked === true, stage: null, pad: null, voice: o.voice === true };
+    (Array.isArray(o.out) ? o.out.slice(0, 500) : []).forEach(function(x) { if (x && typeof x === 'object' && validProfileId(x.id) && (x.how === 'removed' || x.how === 'turned' || x.how === 'nokey')) r.out.push({ id: x.id, name: str(x.name, 60) || 'Player', how: x.how }); });
+    (Array.isArray(o.pausedPlayers) ? o.pausedPlayers.slice(0, 500) : []).forEach(function(id) { if (validProfileId(id)) r.pausedPlayers.push(id); });
+    var st = o.stage && typeof o.stage === 'object' ? o.stage : null, pk = st && st.picked && typeof st.picked === 'object' ? st.picked : null;
+    if (st) r.stage = { picked: pk ? { mode: pk.mode === 'last' ? 'last' : null, fallback: key(pk.fallback) } : null, over: key(st.over) };
+    var pd = o.pad && typeof o.pad === 'object' ? o.pad : null;
+    if (pd && typeof pd.text === 'string') r.pad = { text: pd.text.slice(0, SESS_PAD_MAX), fmt: pd.fmt && typeof pd.fmt === 'object' && !Array.isArray(pd.fmt) ? pd.fmt : undefined, font: str(pd.font, 80) };
+    return r;
+}
+// Lays a kept record back on the table that has just opened, and answers the sentence that says what came back ('' for nothing). The password
+// and those kept out come back whatever campaign is hosted, since they are about the people at this code; the rest only for the campaign it was
+// kept for. The password box is filled only where it is empty, so a password the GM typed again wins
+function sessIn(raw) {
+    var o = sessClean(raw); if (!o) return '';
+    var camp = getActiveCampaign() || {}, same = !!(camp.id && camp.id === o.campId), said = [];
+    var pwE = ui('netPassInput'); if (pwE && o.pass && !String(pwE.value || '').trim()) { pwE.value = o.pass; said.push('the session password'); }
+    o.out.forEach(function(x) { if (x.how === 'nokey') _noKeyOut[x.id] = true; else bannedIds[x.id] = true; outNote(x.id, x.name, x.how); });
+    if (o.out.length) said.push(o.out.length === 1 ? 'the player you kept out' : 'the ' + o.out.length + ' players you kept out');
+    if (same) {
+        if (o.paused) { setPausedLocal(true); said.push('the pause'); }
+        if (o.pausedPlayers.length) { net.pausedPlayers = net.pausedPlayers || {}; o.pausedPlayers.forEach(function(id) { net.pausedPlayers[id] = true; }); said.push(o.pausedPlayers.length === 1 ? 'the player you paused' : 'the players you paused'); }
+        if (o.travelLocked) { setTravelLockLocal(true); said.push('the travel lock'); }
+        var items = camp.items && typeof camp.items === 'object' ? camp.items : {}, isMap = function(id) { return !!id && own(items, id) && !!items[id] && items[id].type === 'map'; };
+        if (o.stage && (o.stage.picked || isMap(o.stage.over))) {
+            var pk = o.stage.picked || { mode: null, fallback: null }, fb = isMap(pk.fallback) ? pk.fallback : null;
+            net.stagePicked[camp.id] = { mode: pk.mode, fallback: fb };
+            net.stageMode = pk.mode; net.stageFallback = fb; net.stageOverride = pk.mode !== 'last' && isMap(o.stage.over) ? o.stage.over : null;
+            if (typeof refreshStageSelect === 'function') { try { refreshStageSelect(); } catch (e) {} }
+            said.push('where players arrive');
+        }
+        if (o.pad) { net.notepad = { on: true, text: o.pad.text }; _pad.fmt = o.pad.fmt; _pad.font = o.pad.font; setTimeout(renderNotepad, 0); said.push('the table notepad'); }
+    }
+    var w = said.length ? 'It came back with ' + (said.length === 1 ? said[0] : said.slice(0, -1).join(', ') + ' and ' + said[said.length - 1]) + '.' : '';
+    if (o.voice) w += (w ? ' ' : '') + 'Voice chat did not come back. Join it again from its button.';
+    return w;
+}
+// The record kept beside the remembered room code, for that very code (a crash), or null
+function lastHostSess(code) {
+    try { var j = JSON.parse(localStorage.getItem('wp_lastHost') || 'null'); return j && j.code === code && j.sess && typeof j.sess === 'object' ? j.sess : null; } catch (e) { return null; }
+}
+// The heartbeat keeps the crash record fresh: written again only when the table's state changed
+function sessKeepTick() {
+    if (!(net.active && net.role === 'host' && net.code)) return;
+    var t = ''; try { t = JSON.stringify(sessOut()); } catch (e) { return; }
+    if (t === _sessLast) return;
+    _sessLast = t; net._codeAt = Date.now(); rememberHostCode(net.code);
+}
+// For the welcome's Resume your table (main.js): the remembered code while it is fresh, as shown, and the campaign it was hosted for
+net.lastHostRec = function() { var c = recentHostCode(); if (!c) return null; var s = lastHostSess(c); return { code: typeof showCode === 'function' ? showCode(c) : c, campId: s && typeof s.campId === 'string' ? s.campId.slice(0, 160) : '' }; };
+// [netcheck:sesskeep-end]
 
 /* A room's id on the signaling server is waypoint-<code>, or waypoint-<code>-r<n> after a crash:
    the dead session's registration can linger for minutes, so a resuming GM takes the next
@@ -8801,6 +8987,7 @@ function startHosting(forceFresh) {
     // switched Own signaling server on or off between a crash and Host, or who hosted with it on before 1.6.3, and it is said as the path of a
     // room id taken by someone else says it (the review of 241), so the GM knows to hand the players the new code
     if (resumed && codeOwn(resumed) !== ownSig) { resumed = null; toast('Your last room code could not be resumed. Starting with a new code. Players will need the new one.'); }
+    if (resumed && !net._sessBack && typeof lastHostSess === 'function') net._sessBack = lastHostSess(resumed);   // 1.6.3 (finding 1): a crash's record of the table's own state, kept beside the code (a reload's own came through SESS_KEEP)
     var code = resumed || (ownSig ? CODE_MARK : '') + makeCode();
     var gen = resumed ? net._hostGen : 0;
     gmSignArm();   // security (2026-10-01): this GM's signing key, read or made the first time, before anyone can connect
@@ -8841,6 +9028,8 @@ function startHosting(forceFresh) {
         if (typeof currentStage === 'function') currentStage();   // 1.5.6: the map on screen as hosting begins is the table's, before any save there
         if (typeof pagesSync === 'function') pagesSync(true);   // 1.5.6: the pages players may read as the table opens, noted before anyone joins
         net._hostGen = gen;   // a later crash resumes under the generation after this one
+        var sbH = net._sessBack; net._sessBack = null; _sessLast = '';
+        var sbW = sbH && typeof sessIn === 'function' ? sessIn(sbH) : '';   // 1.6.3 (finding 1): the password, those kept out, the pause, the travel lock, where players arrive and the notepad, laid back before anyone can join (the heartbeat below writes them beside the code at once)
         startHeartbeat();
         if (typeof fightsBack === 'function') fightsBack();   // 1.6.0: a fight its campaign kept comes back with the table
         if (typeof chatKeptSettle === 'function') chatKeptSettle();   // 1.6.3 (finding 24): a kept card whose attempt did not come back is over
@@ -8851,7 +9040,8 @@ function startHosting(forceFresh) {
         var hiEl = ui('netHostInfo'); if (hiEl && typeof hiEl.scrollIntoView === 'function') hiEl.scrollIntoView({ block: 'start' });   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off
         syncSessionButtons();
         renderRoster();
-        toast(resumed ? 'Hosting resumed with the same room code. Players can rejoin as before.' : 'Hosting started. Share the room code.');
+        toast((resumed ? 'Hosting resumed with the same room code. Players can rejoin as before.' : 'Hosting started. Share the room code.') + (sbW ? ' ' + sbW : ''));
+        if (sbW) logEvent('table', sbW);
         if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.start(getActiveCampaign(), showCode(code), !!resumed);   // 1.6.0: the game record opens with the table
         logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + showCode(code));
         var campH = getActiveCampaign(), Sh = SC(); if (campH && campH.system && Sh && Sh.stampRows) Sh.stampRows(campH.system, campH.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id before anything is sent
@@ -8921,7 +9111,7 @@ function joinSession(code, name, isRetry, probe) {
     if (peerLibMissing()) return;
     code = typedCode(code);   // transport: a code typed or pasted in its two groups dials the same room (hyphen and spaces out, lower case)
     probe = probe || 0;                       // which generation this attempt targets
-    if (!isRetry && !probe) cancelReconnect();
+    if (!isRetry && !probe) { cancelReconnect(); if (typeof reconnHold === 'function') reconnHold(false); if (typeof rejoinDrop === 'function') rejoinDrop(); }   // 1.6.3 (finding 15): a join of the player's own holds nothing and offers no Rejoin
     if (!isRetry && !probe && typeof rejoinDone === 'function') rejoinDone();
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
@@ -9027,7 +9217,7 @@ function leaveSession(silent) {
         forgetHostCode();                   // a deliberate end retires the code; only a crash keeps it for resume
     }
     if (!silent && wasClient) net.leaving = true;
-    if (!silent) cancelReconnect();
+    if (!silent) { cancelReconnect(); if (typeof reconnHold === 'function') reconnHold(false); }   // 1.6.3 (finding 15): a deliberate leave lets the board go
     if (window.wpVideo && window.wpVideo.tableLeft) { try { window.wpVideo.tableLeft(); } catch (e) {} }   // item 21 V2: a showing stops while the table still hears it; a player's panel closes
     net.videoStop(); videoOver();
     if (window.wpVoice) { try { window.wpVoice.tableLeft(); } catch (e) {} }   // voice chat: every voice link closes with the table
@@ -9058,6 +9248,7 @@ function leaveSession(silent) {
     setTravelLockLocal(false);
     net.pausedPlayers = {}; net.selfHeld = false; net.heldNames = []; setSelfPausedLocal(false);   // per-player pauses are per-session, like the table pause and travel lock
     bannedIds = {}; pendingJoins = []; approvalOpen = false; _unboundSaid = Object.create(null);   // bans, pending approvals and the notices of a key proven over another connection are per-session
+    if (typeof _noKeyOut !== 'undefined') { _noKeyOut = Object.create(null); _outNames = Object.create(null); }   // 1.6.3 (finding 2): and so are the names turned away without their key, and the names of those kept out (a reload or a crash brings them back: sessIn)
     var hi = ui('netHostInfo');
     if (hi) hi.style.display = 'none';
     renderRoster();
@@ -10594,6 +10785,7 @@ function renderPlayersPanel() {
                 '<div><b>' + escTextRoster(p.name || pid) + '</b>' +
                 (online[pid] ? ' <span class="player-online">● online</span>' : '') +
                 (isBanned ? ' <span class="player-bantag">BANNED</span>' : '') +
+                (!isBanned && typeof outList === 'function' && net.active && net.role === 'host' && outList().some(function(o) { return o.id === pid; }) ? ' <span class="player-bantag">REMOVED THIS SESSION</span>' : '') +   // 1.6.3 (finding 22): Let back in is under Removed this session
                 playsLabel(camp, pid, p) + '</div>' +
                 '<div class="player-meta">first ' + fmtDay(p.firstSeen) + ' · last ' + fmtDay(p.lastSeen) + ' · ' + countOf(p.joinCount) + ' join' + (countOf(p.joinCount) === 1 ? '' : 's') + '</div>' +
             '</div>' +
@@ -10605,6 +10797,23 @@ function renderPlayersPanel() {
             '</div>';
     });
 
+    // [netcheck:outlist-start]
+    // 1.6.3 (the multiplayer review, findings 2 and 22): those kept out of this session, each with Let back in. A player removed with the roster's x
+    // or turned away was kept out until the session ended, with no way back short of the Ban then Unban trick, and a stranger turned away was in
+    // no list at all. Let back in (letBackIn) lifts it: a player who holds the table key comes straight in again, and anyone else is asked about
+    var outs = net.active && net.role === 'host' && typeof outList === 'function' ? outList() : [];
+    if (outs.length) {
+        html += '<div class="players-section">Removed this session (' + outs.length + ')</div>';
+        outs.forEach(function(o) {
+            var why = o.how === 'removed' ? 'Removed from the table this session.' : o.how === 'nokey' ? 'Turned away when they asked without their table key. With the key they still come straight in.' : 'Turned away when they asked to join.';
+            html += '<div class="player-row banned">' +
+                '<span class="roster-dot" style="background:#555;">\u2715</span>' +
+                '<div class="player-info"><div><b>' + escTextRoster(o.name) + '</b></div>' +
+                '<div class="player-meta">' + escTextRoster(why) + '</div></div>' +
+                '<button class="tool ghost player-act" data-letin="' + escTextRoster(o.id) + '" title="Let them join again this session. A player who holds the table key comes straight in, anyone else is asked about first.">Let back in</button></div>';
+        });
+    }
+    // [netcheck:outlist-end]
     // bans for players no longer in (or never in) the history
     var strayBans = Object.keys(bans).filter(function(pid) { return !players[pid]; });
     if (strayBans.length) {
@@ -10698,6 +10907,9 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
         delete bannedIds[uid2];   // an explicit unban lifts the session ban too
         save();
         toast(nm3 + ' unbanned.');
+    } else if (btn.dataset.letin) {
+        var lid = btn.dataset.letin, outL = typeof outList === 'function' ? outList().filter(function(o) { return o.id === lid; })[0] : null, nmL = outL ? outL.name : ((camp.players && camp.players[lid] && camp.players[lid].name) || 'Player');
+        if (typeof letBackIn === 'function' && letBackIn(lid)) { toast(nmL + ' may join again this session.'); logEvent('table', nmL + ' may join again this session'); }   // 1.6.3 (finding 22)
     } else if (btn.dataset.forget) {
         forgetPlayer(camp, btn.dataset.forget);
         return;   // the panel redraws once the GM answers
@@ -10929,22 +11141,52 @@ function refreshMark() {   // what a reload needs in order to come straight back
             sessionStorage.setItem('wp_rejoin', JSON.stringify(rjM));
         }
         else if (net.active && net.role === 'host') { sessionStorage.setItem('wp_rehost', '1'); var ckM = typeof chatKeepOut === 'function' ? chatKeepOut() : ''; if (ckM) sessionStorage.setItem(CHAT_KEEP, ckM); }   // 1.6.3 (finding 24): and the GM's chat
+        if (net.active && net.role === 'host' && typeof sessOut === 'function') { sessionStorage.setItem(SESS_KEEP, JSON.stringify(sessOut())); if (net.code) rememberHostCode(net.code); }   // 1.6.3 (the multiplayer review, finding 1): and the table's own state, for this tab's reload and beside the code for a crash
     } catch (e) {}
 }
 var _refreshBtn = ui('refreshBtn');
 function refreshNow() { refreshMark(); location.reload(); }
 function refreshGo() {   // a running fight goes in the save first, so that it comes back with the table
+    _unloadOk = true;   // 1.6.3 (finding 11): a reload of the app's own asks nothing on its way out
     if (!(net.active && net.role === 'host' && net.combats && Object.keys(net.combats).length)) { refreshNow(); return; }
     if (typeof fightsKeep === 'function') fightsKeep();
     setTimeout(refreshNow, 800);
 }
 if (_refreshBtn) _refreshBtn.addEventListener('click', refreshGo);
 if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', refreshMark);
+// [netcheck:closeask-start]
+// 1.6.3 (the multiplayer review, finding 11; the owner's pick of 2026-11-21): closing Waypoint while hosting asks first, with three answers: Cancel,
+// End the session for everyone (the clean end players are told of, the code retired) or Close and let players wait (their apps keep trying and a
+// relaunch within 15 minutes resumes the same code, which the welcome offers). On the desktop the shell asks the page as its window is about to
+// close (shellguard.js closeGuard, through window.wpCloseNeed and window.wpCloseAsk, which answers 'close' or 'cancel'), so a reload never asks.
+// In a browser, which lets a page ask nothing of its own there, beforeunload gives the browser's generic question while hosting.
+var _unloadOk = false;
+function closeNeed() { return !!(net.active && net.role === 'host'); }
+function closeAsk() {
+    if (!closeNeed()) return Promise.resolve('close');
+    return new Promise(function(done) {
+        showConfirm('You are hosting a table. Close Waypoint?', function(ans) {
+            if (ans === true) { leaveSession(); setTimeout(function() { done('close'); }, 600); return; }   // the end goes to every player before the window closes
+            if (ans === 'alt') { if (net.code) rememberHostCode(net.code); done('close'); return; }   // the code and the table's state kept fresh beside it (sessOut)
+            done('cancel');
+        }, { noEnter: true, yes: 'End the session for everyone', alt: 'Close and let players wait', no: 'Cancel' });
+    });
+}
+if (typeof window !== 'undefined') {
+    window.wpCloseNeed = closeNeed;
+    window.wpCloseAsk = function() { return closeAsk().then(function(a) { if (a === 'close') _unloadOk = true; return a; }); };
+    if (typeof window.addEventListener === 'function') window.addEventListener('beforeunload', function(e) {
+        if (_unloadOk || !closeNeed() || /\bElectron\//.test((typeof navigator !== 'undefined' && navigator.userAgent) || '')) return;   // the desktop shell asks on its own (closeGuard), and a reload there asks nothing
+        e.preventDefault(); e.returnValue = '';
+    });
+}
+// [netcheck:closeask-end]
 try { net.backAt = !!(sessionStorage.getItem('wp_rejoin') || sessionStorage.getItem('wp_rehost')); } catch (e) {}   // on the way back to a table: said at once, since the table only answers after the page is up (tutorial.js)
 // after a refresh: straight back to where you were
 setTimeout(function() {
     var rj = null, rh = null;
     var ck = null; try { rj = sessionStorage.getItem('wp_rejoin'); rh = sessionStorage.getItem('wp_rehost'); ck = sessionStorage.getItem(CHAT_KEEP); sessionStorage.removeItem('wp_rejoin'); sessionStorage.removeItem('wp_rehost'); sessionStorage.removeItem(CHAT_KEEP); } catch (e) {}
+    var sk = null; try { sk = sessionStorage.getItem(SESS_KEEP); sessionStorage.removeItem(SESS_KEEP); } catch (e) {}   // 1.6.3 (finding 1)
     var Wr = window.wpWebMode;   // 1.5.5: the site's word first (webmode.js)
     (Wr && Wr.ready && typeof Wr.ready.then === 'function' ? Wr.ready : Promise.resolve()).then(function() {
     if (rj) {
@@ -10962,6 +11204,7 @@ setTimeout(function() {
         } catch (e) {}
     } else if (rh) {
         toast('Refreshed. Resuming your table with the same room code…');
+        if (sk) { try { net._sessBack = JSON.parse(sk); } catch (e) {} }   // 1.6.3 (finding 1): the table's own state, laid back by startHosting as the table opens (sessIn)
         if (ck) net._chatBack = ck;   // 1.6.3 (finding 24): the GM's chat, laid back by startHosting once it has emptied the chat and before the table opens, so the saved fight's landings find their cards
         startHosting(false);
     }
@@ -11233,5 +11476,22 @@ var _copyBtn = ui('netCopyBtn');
 if (_copyBtn) _copyBtn.addEventListener('click', function() {
     if (net.code && navigator.clipboard) { navigator.clipboard.writeText(showCode(net.code)); toast('Room code copied.'); }
 });
+// [netcheck:invite-start]
+// 1.6.3 (the multiplayer review, finding 13; the owner, 2026-11-21: a fresh code each session stays, "I had assumed that a new one each time was
+// best for security and safety", with a Copy invite button): one short plain line to paste to players, naming the room code. The password is
+// never in it: where one is set the line says it comes apart
+function inviteLine(code, pw) { return 'Join my Waypoint table. Press Join a game and type the room code ' + code + '.' + (pw ? ' I will send you the password.' : ''); }
+// [netcheck:invite-end]
+var _inviteBtn = ui('netInviteBtn');
+if (_inviteBtn) _inviteBtn.addEventListener('click', function() {
+    if (!net.code || net.role !== 'host') return;
+    var pwI = ui('netPassInput'), line = inviteLine(showCode(net.code), !!(pwI && String(pwI.value || '').trim()));
+    var said = function() { toast('Invite copied. Paste it to your players.'); }, failed = function() { toast('Could not copy. Your invite says: ' + line); };
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(line).then(said, failed); else failed(); } catch (e) { failed(); }
+});
+// 1.6.3 (findings 6 and 15): the reconnect bar's three buttons
+var _rcStop = ui('reconnStop'); if (_rcStop) _rcStop.addEventListener('click', reconnStop);
+var _rcAgain = ui('reconnRejoin'); if (_rcAgain) _rcAgain.addEventListener('click', rejoinGo);
+var _rcClose = ui('reconnClose'); if (_rcClose) _rcClose.addEventListener('click', rejoinDrop);
 
 export { net };

@@ -1330,6 +1330,20 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var sel = doc.getElementById('campaignSelect'); if (sel) sel.value = id;
       window.wpOpenCampaign(id, function() { if (window.wpTopRow && window.wpTopRow.sync) window.wpTopRow.sync(); leave(); wcHostLand(doc); wcHostOpen(doc, true); wcHostLog('started', {}); });
   }
+  // 1.6.3 (the multiplayer review, finding 6; the owner's pick of 2026-11-21: "the GM's welcome offers Resume your table while a crash-resume code is
+  // fresh"). wcResumeRec reads net.js lastHostRec (the room code remembered within its 15 minutes, as shown, and the campaign it was hosted for)
+  // and answers null at a table or with no such code; the campaign counts only where it is this computer's own. wcResumeDraw shows the strip with
+  // the code as text, or puts it away. A press opens that campaign and starts its table through wcHostPick, which takes the same code up again
+  function wcResumeRec(n, camps) {
+      var r = n && !n.active && typeof n.lastHostRec === 'function' ? n.lastHostRec() : null; if (!r || typeof r.code !== 'string' || !r.code) return null;
+      var c = r.campId && camps && typeof camps === 'object' && Object.prototype.hasOwnProperty.call(camps, r.campId) ? camps[r.campId] : null;
+      return { code: r.code.slice(0, 20), campId: c && typeof c === 'object' && !c._foreign ? r.campId : '' };
+  }
+  function wcResumeDraw(doc, rec) {
+      var box = doc.getElementById('wcResume'), t = doc.getElementById('wcResumeText'); if (!box) return;
+      box.style.display = rec ? 'flex' : 'none';
+      if (t) t.textContent = rec ? 'Your table with the room code ' + rec.code + ' was running a few minutes ago. Players still trying reattach when you resume it.' : '';
+  }
   // [tutorialcheck:wchost-end]
   function renderWcContinue() {
       var box = document.getElementById('wcContinue'), list = document.getElementById('wcContinueList');
@@ -1393,9 +1407,11 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       wcLaunchRow(!welcomePrefSet());   // the one-time choice: on the welcome only until it has been stored once
       if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face row
       w.style.display = 'flex';
+      if (typeof wcResumeDraw === 'function') wcResumeDraw(document, wcJoinOnly() ? null : wcResumeRec(window.wpNet, (state.appState && state.appState.campaigns) || {}));   // 1.6.3 (finding 6): a table that was running a few minutes ago
       if (wcJoinFirst(document)) return;   // 1.5.5: such a website's welcome is Join a game, and lists no campaign
       (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
           renderWcContinue();
+          if (typeof wcResumeDraw === 'function') wcResumeDraw(document, wcJoinOnly() ? null : wcResumeRec(window.wpNet, (state.appState && state.appState.campaigns) || {}));   // 1.6.3 (finding 6): asked again as the save and the multiplayer module come in (net.js may load after the welcome first comes up)
           var have = Object.keys((state.appState && state.appState.campaigns) || {}).length;
           if (!have && tries < 12 && w.style.display !== 'none') setTimeout(function() { ensureContinue(tries + 1); }, 250);
       })(0);
@@ -1441,6 +1457,13 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       // Host a game → which campaign, then that campaign's table (wcHostPick)
       var hostBtn = document.getElementById('wcHostBtn'); if (hostBtn) hostBtn.addEventListener('click', showHostView);
       var hostBack = document.getElementById('wcHostBack'); if (hostBack) hostBack.addEventListener('click', showMainView);
+      // 1.6.3 (finding 6): Resume your table, judged again at the press (the campaigns may have loaded since the welcome came up)
+      var resumeGo = document.getElementById('wcResumeGo'); if (resumeGo) resumeGo.addEventListener('click', function() {
+          var rec = wcJoinOnly() ? null : wcResumeRec(window.wpNet, (state.appState && state.appState.campaigns) || {});
+          wcHostLog('resume', { camp: rec && rec.campId ? 1 : 0 });
+          if (!rec) { wcResumeDraw(document, null); return; }
+          if (rec.campId) wcHostPick(rec.campId, document, function() { saveWcProfile(); hideWelcome(); }); else showHostView();
+      });
       var hostNew = document.getElementById('wcHostNew'); if (hostNew) hostNew.addEventListener('click', function() { showMainView(); var sb = document.getElementById('wcStartBtn'); if (sb) sb.click(); });
       var joinBack = document.getElementById('wcJoinBack'); if (joinBack) joinBack.addEventListener('click', function() { if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client' && window.wpNet.leaveSession) window.wpNet.leaveSession(true); showMainView(); });   // Back abandons any in-progress join
       var joinGo = document.getElementById('wcJoinGo');

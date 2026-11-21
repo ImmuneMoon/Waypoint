@@ -125,6 +125,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // A question without it is drawn exactly as before
       var readyFn = opts && typeof opts.ready === 'function' ? opts.ready : null, readyChk = null;
 
+      // opts.gone: a question that goes away by itself once it no longer stands (1.6.3, the multiplayer review, finding 2: a join request whose
+      // connection closed). Asked every half second while the question is up; once it answers true the question closes and answers 'gone'.
+      // A question without it is drawn exactly as before
+      var goneFn = opts && typeof opts.gone === 'function' ? opts.gone : null, goneT = null;
+
       if (p.style.display === 'flex' || layerUp('customPrompt')) { _confirmQueue.push([title, callback, opts]); return; }   // one question at a time: a second waits its turn instead of silently replacing the first (whose answer would then never arrive)
 
       document.getElementById('customConfirmTitle').textContent = title;
@@ -157,6 +162,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (careful) { clearTimeout(readyT); okBtn.disabled = false; }
           if (readyChk) { if (slot) slot.removeEventListener('change', readyChk); okBtn.disabled = false; readyChk = null; }
+          if (goneT) { clearInterval(goneT); goneT = null; }
 
           document.removeEventListener('keydown', handleKey);
 
@@ -189,6 +195,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // opts.shown: told once as the question comes up, its body in place (1.6.2, a new room's map: a question that waited behind another
       // starts on the pick the first one kept, and its body takes the focus). A question without it is drawn exactly as before
       if (opts && typeof opts.shown === 'function') { try { opts.shown(); } catch (e) {} }
+      if (goneFn) goneT = setInterval(function() { var g = false; try { g = goneFn() === true; } catch (e) {} if (g) { cleanup(); callback('gone'); } }, 500);
 
       okBtn.onclick = function(e) {
 

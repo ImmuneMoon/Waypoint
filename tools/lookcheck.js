@@ -1671,7 +1671,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
 // setup options under a Table options fold after them, so nothing but the campaign stands above the button, moved on purpose
 {
     const nA = ix.indexOf('<div id="netModal"'), nZ = ix.indexOf('<div id="streamVideo"', nA), netHtml = nA > 0 && nZ > nA ? ix.slice(nA, nZ) : '';
-    const IDS = ['netModal', 'netCloseBtn', 'netStatus', 'netJoinAvatar', 'netNameInput', 'netPaneBar', 'netPaneHostBtn', 'netPaneJoinBtn', 'netPaneHost', 'netCampSelect', 'netHostBtn', 'netHostInfo', 'netCode', 'netCopyBtn', 'netSummonBtn', 'netCombatBtn', 'netNotepadBtn', 'netLogBtn', 'netTravelLockBtn', 'netPauseBtn', 'netStreamBtn',
+    // 1.6.3 (the multiplayer review, finding 13), moved on purpose: Copy invite joins Copy code in one frame, with its own tooltip (39 ids to 40, 26 tooltips to 27)
+    const IDS = ['netModal', 'netCloseBtn', 'netStatus', 'netJoinAvatar', 'netNameInput', 'netPaneBar', 'netPaneHostBtn', 'netPaneJoinBtn', 'netPaneHost', 'netCampSelect', 'netHostBtn', 'netHostInfo', 'netCode', 'netCopyBtn', 'netInviteBtn', 'netSummonBtn', 'netCombatBtn', 'netNotepadBtn', 'netLogBtn', 'netTravelLockBtn', 'netPauseBtn', 'netStreamBtn',
         'netStageSelect', 'netStageFallbackRow', 'netStageFallbackSelect', 'newPlayersBox', 'netWaitingSelect', 'netWaitingSight', 'netMakeSelect', 'netMakeFile', 'netPassInput', 'netPaneJoin',
         'netCodeInput', 'netJoinBtn', 'netJoinPassInput', 'netRoster', 'netVttLine', 'netPlayersBtn', 'netEndBtn', 'netLeaveBtn'];
     const TICKS = [['netWaitingSight', 'Waiting tokens see around them under fog', 'Off, they see only what you have revealed.'], ['netMakeFile', '&hellip;may start it from a file', 'With Import on the new sheet. You review it when they press Done.']];
@@ -1691,10 +1692,10 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const tipOn = id => { const at = netHtml.indexOf(' id="' + id + '"'), from = netHtml.lastIndexOf('\n', at), row = netHtml.slice(from, netHtml.indexOf('\n', at)); return / title="[^"]{20,}"/.test(row); };
     const tips = read('scripts/tips.js'), netJs = read('scripts/net.js');
     check('the Multiplayer window says what its options do (the same passed mock-up): the window holds the thirty-eight ids it held and, since the viewing of 2026-11-09, Open stream window after Pause the table (the owner: "it can be in the multiplayer menu too"), in their order, each in the page once; the two ticks of Players without a character each carry one gray line under their name, and eight controls have their line under them, ten lines in all and no other: where players arrive, where a new player starts, what a waiting token is, how to ask one player to make a character, the Table Notepad, Lock Travel, Pause, and the room code; each line stands right under its own control, is plain words with no bracket, dash or semicolon, ends in a full stop and runs to no long sentence; a line above Start Hosting is one line long, so that the button stays in view; and "Every tooltip of today stays": each of those controls still has its tooltip, the room code and the password of the join part in the tips, and the window holds the twenty-three it held',
-        netHtml.length > 10000 && J((netHtml.match(/ id="[A-Za-z]+"/g) || []).map(s => s.slice(5, -1))) === J(IDS) && IDS.length === 39 && IDS.every(id => count(ix, ' id="' + id + '"') === 1)
+        netHtml.length > 10000 && J((netHtml.match(/ id="[A-Za-z]+"/g) || []).map(s => s.slice(5, -1))) === J(IDS) && IDS.length === 40 && IDS.every(id => count(ix, ' id="' + id + '"') === 1)
         && J(ticks) === J(TICKS) && J(under.map(u => u.slice(0, 2))) === J(UNDER) && under.every(u => u[2] === true) && rough.length === 0
         && count(netHtml, 'class="set-name"') === 2 && count(netHtml, 'class="set-line') === 8 && count(netHtml, '<small>') === 2 && above.length === 0 && long.length === 0
-        && count(netHtml, ' title="') === 26 && TICKS.concat(UNDER).every(r => r[0] === 'netJoinPassInput' || tipOn(r[0]))
+        && count(netHtml, ' title="') === 27 && TICKS.concat(UNDER).every(r => r[0] === 'netJoinPassInput' || tipOn(r[0]))
         && count(tips, "    netCodeInput: 'The room code your GM gave you: ten characters shown as XXXXX-XXXXX, or WP-XXXXX-XXXXX for a table on the Waypoint server. Type or paste it with or without the hyphens.',") === 1 /* 1.6.3 (the review of backlog 241): a marked code named beside the usual one, moved on purpose */ && count(tips, "    netJoinPassInput: 'Only needed if the GM set a session password.',") === 1,
         J([ticks.filter((t, i) => J(t) !== J(TICKS[i])).slice(0, 2), under.filter((u, i) => J(u.slice(0, 2)) !== J(UNDER[i]) || u[2] !== true).slice(0, 2), rough, long, count(netHtml, ' title="')]));
     check('Pause and Lock Travel keep their lines whatever they read: net.js rewrites the words of each button and nothing beside it, so each line stands after its button, begins with the state it tells of, and is true while the button says Resume or Allow as well',
@@ -4152,7 +4153,8 @@ check('a player\'s double-click on their own token opens its sheet, the first th
     && rootRead('system/app/scripts/dialogs.js').includes('if (noWas !== null) { cancelBtn.textContent = noWas; noWas = null; }'));
 
 check('the paused dim is set with a true or a false, so an unset hold never flips it on a screen with no pause (found live on a stream window and a GM not yet hosting), and with no second writer of the class',
-    /classList\.toggle\('net-paused', !!\(\(net\.paused \|\| \(\(net\.selfPaused \|\| net\.selfHeld\) && isClient\)\) && net\.active\)\);/.test(rootRead('system/app/scripts/net.js'))
+    // 1.6.3 (the multiplayer review, finding 15), moved on purpose: a player's reconnect holds the board as a pause does, so each gate below reads net.reconnecting beside the pause and the hold
+    /classList\.toggle\('net-paused', !!\(\(net\.paused \|\| \(\(net\.selfPaused \|\| net\.selfHeld \|\| net\.reconnecting\) && isClient\)\) && net\.active\)\);/.test(rootRead('system/app/scripts/net.js'))
     && rootRead('system/app/scripts/net.js').split("'net-paused'").length === 2);
 
 check('a card that names its character says so on its button and hands that character on, and the host writes the word from the entry on both roads',

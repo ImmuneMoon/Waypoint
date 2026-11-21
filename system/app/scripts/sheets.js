@@ -1619,7 +1619,7 @@ function facingNode(c, gm) {
     if (!on) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token facing is off (Settings \u25b8 This campaign).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), fc = t ? facingNow(t.map, t.tok, true) : null;
     if (!fc) { wrap.appendChild(el('div', 'sheet-dial-note', t ? 'This token\u2019s facing cannot be read.' : typeof noTokWords === 'function' ? noTokWords(c) : 'No token on this map.')); return wrap; }
-    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld))));   // a token the GM locked is frozen for its player
+    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld || n.reconnecting))));   // a token the GM locked is frozen for its player
     if (live) wrap.classList.add('sheet-dial-live');
     var N = fc.sides, step = 360 / N, half = step / 2, C0 = 66, ARC = ['front', 'side', 'rear'];
     var xy = function(deg, r) { var a = deg * Math.PI / 180; return [(C0 + r * Math.sin(a)).toFixed(2), (C0 - r * Math.cos(a)).toFixed(2)]; }, pt = function(deg, r) { return xy(deg, r).join(' '); };
@@ -1677,7 +1677,7 @@ function stanceNode(c, gm) {
     if (!pOn && !eOn) { if (!gm) { wrap.hidden = true; return wrap; } wrap.appendChild(el('div', 'sheet-dial-note', 'Token posture and elevation are off (Settings \u25b8 This campaign).')); return wrap; }
     var t = facingTarget(c, getActiveCampaign()), st = t ? stanceCtx(t.tok, tokenFlags()) : null;   // the values are the table's (a hidden row is only a display choice)
     if (!st) { wrap.appendChild(el('div', 'sheet-dial-note', typeof noTokWords === 'function' ? noTokWords(c) : 'No token on this map.')); return wrap; }
-    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld))));   // a token the GM locked is frozen for its player
+    var n = net(), live = _fxLive && (gm || (t.tok.ownerId === myId() && !t.tok.locked && !(n && (n.paused || n.selfPaused || n.selfHeld || n.reconnecting))));   // a token the GM locked is frozen for its player
     var setSt = function(v) { if (window.wpSetTokenStance) window.wpSetTokenStance(t.mapId, t.tok.id, v); };
     if (pOn) {
         var pr = el('label', 'sheet-stance-row'); pr.appendChild(el('span', 'sheet-label', 'Posture'));

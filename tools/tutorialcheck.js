@@ -544,6 +544,24 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'res
     else console.log('ok        Host a game asks which campaign: this computer\'s own, the one last open first, names as text; a pick opens it through the guard and starts the table with the window up, a refused switch starts nothing, and a table of that campaign already open is only shown');
     if (!mainFile.includes("var hostV = document.getElementById('wcHostView'); if (hostV) hostV.style.display = 'none';") || !mainFile.includes('window.wpTopRow.sync(); leave(); wcHostLand(doc); wcHostOpen(doc, true)')) { bad++; console.log('FAIL      the welcome comes up on its main view with the host view put away, and a campaign opened for a table names itself on the row, on the Play Map'); }
 }
+// 1.6.3 (the multiplayer review, finding 6): the welcome offers Resume your table while a crash-resume code is fresh (main.js's wchost slice run for real)
+{
+    const mainFile = fs.readFileSync(path.join(app, 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n'), A = mainFile.indexOf('// [tutorialcheck:wchost-start]'), Z = mainFile.indexOf('// [tutorialcheck:wchost-end]');
+    const api = new Function('window', 'state', mainFile.slice(A, Z) + '\nreturn { wcResumeRec, wcResumeDraw };')({}, { appState: {} });
+    const camps = { c1: { name: 'Keep' }, f: { name: 'Theirs', _foreign: true } }, net = (rec, active) => ({ active: !!active, lastHostRec: () => rec });
+    const recs = [api.wcResumeRec(net({ code: 'AB2CD-EF3GH', campId: 'c1' }), camps), api.wcResumeRec(net({ code: 'AB2CD-EF3GH', campId: 'gone' }), camps), api.wcResumeRec(net({ code: 'AB2CD-EF3GH', campId: 'f' }), camps),
+        api.wcResumeRec(net({ code: 'AB2CD-EF3GH', campId: 'c1' }, true), camps), api.wcResumeRec(net(null), camps), api.wcResumeRec(undefined, camps), api.wcResumeRec(net({ code: 7 }), camps), api.wcResumeRec(net({ code: 'X', campId: 'constructor' }), camps)];
+    const els = { wcResume: { style: {} }, wcResumeText: { textContent: '' } }, doc = { getElementById: id => els[id] || null };
+    api.wcResumeDraw(doc, recs[0]); const shown = [els.wcResume.style.display, els.wcResumeText.textContent];
+    api.wcResumeDraw(doc, null); const hidden = [els.wcResume.style.display, els.wcResumeText.textContent];
+    const ixR = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+    const ok = JSON.stringify(recs) === JSON.stringify([{ code: 'AB2CD-EF3GH', campId: 'c1' }, { code: 'AB2CD-EF3GH', campId: '' }, { code: 'AB2CD-EF3GH', campId: '' }, null, null, null, null, { code: 'X', campId: '' }])
+        && shown[0] === 'flex' && shown[1] === 'Your table with the room code AB2CD-EF3GH was running a few minutes ago. Players still trying reattach when you resume it.' && hidden[0] === 'none' && hidden[1] === ''
+        && /<div id="wcResume" style="display:none;">\s*<span id="wcResumeText"><\/span>\s*<button class="tool" id="wcResumeGo" title="[^"]+">Resume your table<\/button>/.test(ixR)
+        && mainFile.includes("if (rec.campId) wcHostPick(rec.campId, document, function() { saveWcProfile(); hideWelcome(); }); else showHostView();") && mainFile.includes("if (typeof wcResumeDraw === 'function') wcResumeDraw(document, wcJoinOnly() ? null : wcResumeRec(window.wpNet, (state.appState && state.appState.campaigns) || {}));");
+    if (!ok) { bad++; console.log('FAIL      Resume your table: ' + JSON.stringify({ recs, shown, hidden })); }
+    else console.log('ok        1.6.3 (the multiplayer review, finding 6) the welcome offers Resume your table while a crash-resume code is fresh: the code as text and the campaign it was hosted for where that is this computer\'s own (none for one that is gone, someone else\'s or a prototype\'s name), nothing at a table, with no code or with a code that is no text; a press opens that campaign and starts its table through wcHostPick, else the host view');
+}
 if (ver !== pkg) console.log('note      tutorial version ' + ver + ' vs app ' + pkg + ' — bump TUTORIAL_VERSION if the tour or demo changed this release');
 if (bad) { console.log('\n' + bad + ' tutorial target(s) missing.'); process.exit(1); }
 console.log('\nTutorial targets all present (' + targets.length + ' steps checked).');

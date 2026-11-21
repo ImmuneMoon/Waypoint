@@ -185,7 +185,8 @@ const j = v => JSON.stringify(v);
         const sh2 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), stSrc = sh2.slice(sh2.indexOf('function stanceNode('), sh2.indexOf('// whiteboard.js / net.js / main.js: a token turned'));
         const wb2 = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8');
         check('6 F2 UI: the stance control draws text only, is live only on the real sheet for the GM or the token\'s own unpaused player (never on a token the GM locked), sets the token through the whiteboard setter (each part only while its feature is on), and redraws in place like the dial',
-            stSrc.length > 800 && !/innerHTML/.test(stSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !t\.tok\.locked && !\(n && \(n\.paused \|\| n\.selfPaused \|\| n\.selfHeld\)\)\)\);/.test(stSrc) && /wpSetTokenStance/.test(stSrc)
+            // 1.6.3 (the multiplayer review, finding 15), moved on purpose: a player's reconnect holds the board as a pause does, so each gate below reads net.reconnecting beside the pause and the hold
+            stSrc.length > 800 && !/innerHTML/.test(stSrc) && /var n = net\(\), live = _fxLive && \(gm \|\| \(t\.tok\.ownerId === myId\(\) && !t\.tok\.locked && !\(n && \(n\.paused \|\| n\.selfPaused \|\| n\.selfHeld \|\| n\.reconnecting\)\)\)\);/.test(stSrc) && /wpSetTokenStance/.test(stSrc)
             && /if \(typeof st\.posture === 'string' && stanceOn\('posture'\)\)/.test(wb2) && /if \(st\.elevation !== undefined && stanceOn\('elevation'\) && isFinite\(Number\(st\.elevation\)\)\)/.test(wb2) && /var t = tokenOnMap\(mapId, tokId, null\);/.test(wb2)
             && /querySelectorAll\('\.sheet-dial, \.sheet-stance'\)/.test(sh2));
     }

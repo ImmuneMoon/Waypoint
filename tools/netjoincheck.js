@@ -82,7 +82,7 @@ pendingChecks.push((async () => {
         && src.includes("if (net.paused || (typeof peerGmPaused === 'function' ? peerGmPaused(conn.peer) : peerPaused(conn.peer))) { ansU({ reason: 'paused' }); return; }")
         && src.includes("var staleU = !!(typeof Su.charStale === 'function' && Su.charStale(campU.system, chU));") && !src.includes("if (isFileU && !staleU)") /* 1.6.0: a character file goes for review on a character in play too (moved on purpose) */
         && src.includes("Su.revProposal(campU.system, chU, fillR, Fu, { view: viewR, lib: pfR.lib, now: nowU })") && src.includes("if (rdU) entU.reader = rdU.id; if (staleU) entU.rev = true;")
-        && src.includes("if (msg.id && typeof peerHeld === 'function' && peerHeld(conn.peer)) return;") && src.includes("var frozenMe = (net.paused || net.selfPaused || net.selfHeld) && isClient;")
+        && src.includes("if (msg.id && typeof peerHeld === 'function' && peerHeld(conn.peer)) return;") && src.includes("var frozenMe = (net.paused || net.selfPaused || net.selfHeld || net.reconnecting) && isClient;") /* 1.6.3 (finding 15): a reconnect holds as a pause does, moved on purpose */
         && (src.match(/if \(typeof heldSync === 'function'\) heldSync\(\)/g) || []).length === 5 && src.includes("if (srD) chD.sheetRev = srD;");
     check('1.6.0, backlog 190: the host holds a player who has a character out of date (heldById over systemcore staleOf; never for a current one, an NPC or another player), composed with the GM\'s own pause at every gate (peerPaused) while a new sheet may still be sent (the upload asks the GM\'s pause alone); '
         + 'a held player points at nothing; a Waypoint file for an out-of-date character in play goes to the Review as a new sheet (rev), one a reader takes too, while for a current one it is still refused; a character finished in the making is made current; '
@@ -119,10 +119,13 @@ pendingChecks.push((async () => {
     // the check is asynchronous: what changed while it ran is judged again
     const late = async (act) => { const hl = harness({ players: { u_known: { name: 'Kay', key: K32 } } }); const cl = hl.conn('pl'); hl.hello(cl, { id: 'u_known', name: 'Kay' }); await hl.settle(); const n = hl.lastSent('pl', 'auth').m.nonce; hl.hello(cl, { id: 'u_known', name: 'Kay' }, { proof: PROOF(K32, n, 'waypoint-c1') }); act(hl, cl); await hl.settle(); return { adm: hl.admitted.length, q: hl.env.pendingJoins.length, denied: hl.sent.filter(s => s.peer === 'pl' && s.m.type === 'denied').map(s => s.m.reason) }; };
     const closed = await late((hl, cl) => { cl.open = false; }), gone = await late(hl => { hl.env.net.role = null; });
-    const dup = await late(hl => { const o = hl.conn('pOther'); hl.env.net.roster.pOther = { id: 'u_known', name: 'Kay' }; hl.env.lastSeen.pOther = Date.now(); });
+    let dupOld = null; const dup = await late(hl => { dupOld = { h: hl, c: hl.conn('pOther') }; hl.env.net.roster.pOther = { id: 'u_known', name: 'Kay' }; hl.env.lastSeen.pOther = Date.now(); });
     const rotated = await late(hl => { hl.camp.players.u_known.key = 'n'.repeat(32); });
-    check('hello: while a proof is being checked, a connection that closed or a table that ended admits nothing; the same identity admitted meanwhile on another live connection is refused as already at the table; a key the GM re-issued meanwhile makes the old proof worthless (the GM decides)',
-        j(closed) === j({ adm: 0, q: 0, denied: [] }) && j(gone) === j({ adm: 0, q: 0, denied: [] }) && dup.adm === 0 && dup.q === 0 && j(dup.denied) === j(['That player identity is already at the table.']) && rotated.adm === 0 && rotated.q === 1, j([closed, gone, dup, rotated]));
+    // 1.6.3 (the multiplayer review, finding 17), moved on purpose: the same identity admitted meanwhile on another live connection was refused as
+    // already at the table, which threw a player's F5 reload out of the session. The right key proven over this very connection now lets the new
+    // connection in, and the old one leaves the roster and is closed
+    check('hello: while a proof is being checked, a connection that closed or a table that ended admits nothing; the same identity admitted meanwhile on another live connection steps aside for a right proof over this connection (finding 17, moved on purpose: it was refused as already at the table); a key the GM re-issued meanwhile makes the old proof worthless (the GM decides)',
+        j(closed) === j({ adm: 0, q: 0, denied: [] }) && j(gone) === j({ adm: 0, q: 0, denied: [] }) && dup.adm === 1 && dup.q === 0 && j(dup.denied) === j([]) && dupOld && dupOld.c.open === false && !('pOther' in dupOld.h.env.net.roster) && rotated.adm === 0 && rotated.q === 1, j([closed, gone, dup, rotated]));
     // the player's side: the auth branch answers with a proof over the room THIS app dialed, never the key; once per connection, before the snapshot only
     const N1 = H.newKey(), N2 = H.newKey(), KA = 'a'.repeat(32), KC = 'c'.repeat(32);
     const cl = (peer, keys, pre) => { const hc = harness({ role: 'client' }); storage.clear(); Object.keys(keys).forEach(g => H.rememberTableKey(g, keys[g])); if (pre) pre(hc); const cc = hc.conn(peer); return { h: hc, c: cc, hellos: () => hc.sent.filter(s => s.m.type === 'hello').map(s => s.m) }; };
@@ -384,7 +387,7 @@ pendingChecks.push((async () => {
         && js(q1b) === js({ says: [askOf('Ann'), askOf('Bo')], waiting: 0, open: true, admitted: ['qA'], closed: ['qS', 'qC'], S: ['wait', 'denied(' + RM + ')'], C: ['wait', 'denied(' + BN + ')'], B: ['wait'] })
         && js(q1d) === js({ admitted: ['qA', 'qB'], open: false, asks: 2, roster: ['qA', 'qB'] }), js([q1a, q1b, q1d]));
     check('a join request takes its buttons alone (the owed review of 2026-10-09; processNextApproval, run for real): each request put to the GM carries the two marks that keep Enter and Escape from answering it, since a key typed for something else let a stranger in or turned a player away for the session',
-        js(Q1.asks.map(a => a.o)) === js([{ noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' }, { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' }]) && src.includes("{ noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' });"), js(Q1.asks.map(a => a.o)));
+        js(Q1.asks.map(a => a.o)) === js([{ noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' }, { noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away' }]) && Q1.asks.every(a => typeof a.o.gone === 'function') && src.includes("{ noEnter: true, noEscape: true, yes: 'Let in', no: 'Turn away', gone: goneQ });") /* 1.6.3 (finding 2): and the watch that takes it away once its connection closed, moved on purpose */, js(Q1.asks.map(a => a.o)));
     // nothing on screen: a banned request is refused at once and leaves no prompt open, so the next request is shown; a prototype name is never taken for a ban
     const Q2 = withQ(harness({ bannedPlayers: calBan() })); Q2.env.bannedIds.u_sam = true;
     Q2.env.queueJoin(Q2.conn('qS'), { id: 'u_sam', name: 'Sam' }, 'nokey'); Q2.env.queueJoin(Q2.conn('qC'), { id: 'u_cal', name: 'Cal' }, '');
@@ -1524,7 +1527,7 @@ pendingChecks.push((async () => {
             && noPick.pick() === null && noPick.ready() === false && noRows === 0
             && flat16.includes("var pid = pk ? pk.pick() : null; if (!pid) { pickLog('same-back', { picked: false }); askMain(); return; }") && flat16.includes("var kid = pk ? pk.pick() : null; if (!kid) { pickLog('merge-back', { picked: false }); renderPlayersPanel(); return; }")
             && !/sameOf\[0\]|cands\[0\]/.test(flat16.slice(flat16.indexOf('function processNextApproval()'), flat16.indexOf('// [netcheck:approval-end]')) + flat16.slice(flat16.indexOf('function mergeAsk('), flat16.indexOf('var _playersBtn')))
-            && flat16.includes("}, { noEnter: true, noEscape: true, yes: 'Yes, the same', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined });"),
+            && flat16.includes("}, { noEnter: true, noEscape: true, yes: 'Yes, the same', body: pk ? pk.el : undefined, ready: pk ? pk.ready : undefined, gone: goneQ });") /* 1.6.3 (finding 2): the watch beside it, moved on purpose */,
             J2([[A, B, C, D].map(r => r.threw), A.asks.map(q => [q.ready, q.picked, q.rows, q.after]), A.toasts, A.logs, A.steps, B.asks.map(q => [q.ready, q.picked, q.rows]), B.steps, C.toasts, C.logs, C.camp.players, D.asks.map(q => q.rows), mDef, mRows, mv, cm.players, cw.players, wb, cn.players]));
     }
 {   // 1.6.0 the host id apart from the joining id (the owner, 2026-10-29, and the website session's decision 4 of 2026-10-23): net.js hostId, run for real
@@ -1668,4 +1671,60 @@ pendingChecks.push((async () => {
     check('the review of multiplayer speed (finding 23, a pointer): a player who leaves holding a target pointer has it taken off and sent to the table at once, draws nothing inside the close event, and the app is drawn once a moment later, with the save and the roster',
         threw2 === '' && J(pointBefore) === J([0, 1, 0, 1]) && J([out.renders, out.saves, out.rosters, out.rosterDraws]) === J([1, 1, 1, 1]), J({ pointBefore, after: [out.renders, out.saves, out.rosters, out.rosterDraws], threw2 }));
 }
+// 1.6.3, the multiplayer review, lane A batch 2 (the session): findings 2, 17 and 22, each on the real gate, queue, approval and sessgate code
+pendingChecks.push((async () => {
+    const J = JSON.stringify, K32 = 'k'.repeat(32), PROOF = (key, nonce, room) => hmacRef(key, 'wp-auth|' + nonce + '|' + room + FPTAIL);
+    const pnaSrc = (() => { const k = 'function processNextApproval() {', i = src.indexOf(k), e = src.indexOf('\n}\n', i); return src.slice(i, e + 3); })();
+    const buildP = new Function('env', pre(['processNextApproval']) + 'var approvalOpen = false;\n' + pnaSrc + '\nreturn { run: processNextApproval, isOpen: function() { return approvalOpen; } };');
+    const withP = h => { h.env.net.active = true; h.asks = []; h.env.showConfirm = (m, cb, o) => h.asks.push({ m, cb, o }); h.P = buildP(h.env); h.env.processNextApproval = h.P.run; h.answer = a => h.asks[h.asks.length - 1].cb(a); return h; };
+    const keyed = () => harness({ players: { u_kay: { name: 'Kay', key: K32 } } });
+    const old = h => { const o = h.conn('pOld'); h.env.net.roster.pOld = { id: 'u_kay', name: 'Kay' }; h.env.lastSeen.pOld = Date.now(); return o; };
+    const denied = (h, p) => h.sent.filter(s => s.peer === p && s.m.type === 'denied').map(s => s.m.reason), nonceOf = (h, p) => { const x = h.lastSent(p, 'auth'); return x ? x.m.nonce : 'none'; };
+    /* finding 17: a reload's new connection while the old one still looks alive */
+    const A = keyed(), aOld = old(A), aNew = A.conn('pNew'); A.hello(aNew, { id: 'u_kay', name: 'Kay' }); await A.settle();
+    const aAsked = !!A.lastSent('pNew', 'auth') && denied(A, 'pNew').length === 0;
+    A.hello(aNew, { id: 'u_kay', name: 'Kay' }, { proof: PROOF(K32, nonceOf(A, 'pNew'), 'waypoint-c1') }); await A.settle();
+    const aOk = aAsked && A.admitted.length === 1 && A.admitted[0].peer === 'pNew' && aOld.open === false && !('pOld' in A.env.net.roster) && !!A.env.net.roster.pNew;
+    const B = keyed(); old(B); const bNew = B.conn('pNew'); B.hello(bNew, { id: 'u_kay', name: 'Kay' }); await B.settle();
+    B.hello(bNew, { id: 'u_kay', name: 'Kay' }, { proof: PROOF('x'.repeat(32), nonceOf(B, 'pNew'), 'waypoint-c1') }); await B.settle();
+    const bOk = B.admitted.length === 0 && B.env.pendingJoins.length === 0 && J(denied(B, 'pNew')) === J(['That player identity is already at the table.']) && !!B.env.net.roster.pOld;
+    const C = keyed(); old(C); const cNew = C.conn('pNew'); C.hello(cNew, { id: 'u_kay', name: 'Kay' }); await C.settle(); C.fireTimers();
+    const cOk = C.admitted.length === 0 && C.env.pendingJoins.length === 0 && J(denied(C, 'pNew')) === J(['That player identity is already at the table.']);
+    const D = harness({ players: { u_kay: { name: 'Kay' } } }); old(D); const dNew = D.conn('pNew'); D.hello(dNew, { id: 'u_kay', name: 'Kay' }); await D.settle();
+    const E = harness(); old(E); const eNew = E.conn('pNew'); E.hello(eNew, { id: 'u_kay', name: 'Kay' }); await E.settle();
+    const dOk = J(denied(D, 'pNew')) === J(['That player identity is already at the table.']) && !D.lastSent('pNew', 'auth') && J(denied(E, 'pNew')) === J(['That player identity is already at the table.']);
+    check('1.6.3 (the multiplayer review, finding 17) a player\'s reload refused as already at the table: a known player who holds the table key is challenged though an old connection of theirs still looks alive, and the right key proven over the new connection lets it in while the old one leaves the roster and is closed; a wrong proof, or no answer, while the old one is live is refused as before and never put to the GM; a name with no table key, and a stranger\'s, are refused at once as before',
+        aOk && bOk && cOk && dOk, J([aOk, bOk, cOk, dOk, A.admitted.map(a => a.peer), denied(B, 'pNew'), denied(C, 'pNew'), C.env.pendingJoins.length]));
+    /* finding 2: a stale join question */
+    const F = withP(harness()), fC = F.conn('pS'); F.hello(fC, { id: 'u_sam', name: 'Sam' }); fC.open = false; F.answer(false);
+    const fOk = F.asks.length === 1 && !F.env.bannedIds.u_sam && !F.env._noKeyOut.u_sam && /had already dropped, so nothing was decided/.test(F.toasts.join('|')) && !F.P.isOpen() && F.env.outList().length === 0;
+    const G = withP(harness()), gC = G.conn('pG'), gD = G.conn('pH'); G.hello(gC, { id: 'u_gil', name: 'Gil' }); G.hello(gD, { id: 'u_hal', name: 'Hal' });
+    const gWatchBefore = G.asks[0].o.gone(); gC.open = false; const gWatchAfter = G.asks[0].o.gone(); G.asks[0].cb('gone');
+    const gOk = gWatchBefore === false && gWatchAfter === true && /stopped waiting/.test(G.toasts.join('|')) && G.asks.length === 2 && /Hal/.test(G.asks[1].m) && !G.env.bannedIds.u_gil;
+    const N = withP(keyed()), nC = N.conn('pK1'); N.hello(nC, { id: 'u_kay', name: 'Kay' }); await N.settle(); N.fireTimers(); N.answer(false);
+    const nTurned = N.env._noKeyOut.u_kay === true && !N.env.bannedIds.u_kay && J(N.env.outList().map(o => [o.id, o.name, o.how])) === J([['u_kay', 'Kay', 'nokey']]);
+    const nC2 = N.conn('pK2'); N.hello(nC2, { id: 'u_kay', name: 'Kay' }); await N.settle(); N.fireTimers();
+    const nAgain = N.asks.length === 1 && J(denied(N, 'pK2')) === J(['The GM declined your request to join.']) && !N.lastSent('pK2', 'wait');   // refused at once, never put in line
+    const nC3 = N.conn('pK3'); N.hello(nC3, { id: 'u_kay', name: 'Kay' }); await N.settle(); N.hello(nC3, { id: 'u_kay', name: 'Kay' }, { proof: PROOF(K32, nonceOf(N, 'pK3'), 'waypoint-c1') }); await N.settle();
+    const nKey = N.admitted.length === 1 && N.admitted[0].peer === 'pK3';
+    const S = withP(harness()), sC = S.conn('pZ'); S.hello(sC, { id: 'u_zed', name: '<b>Zed</b>' }); S.answer(false);
+    const sOk = S.env.bannedIds.u_zed === true && J(S.env.outList().map(o => [o.id, o.how])) === J([['u_zed', 'turned']]) && /Player History can let them back in/.test(S.toasts.join('|'));
+    const cl = between('// [netcheck:connclose-start]', '// [netcheck:connclose-end]', 'connclose'), dl = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dialogs.js'), 'utf8');
+    const wired = cl.includes("pendingJoins = pendingJoins.filter(function(q) { return q.conn !== conn; });") && dl.includes("if (goneFn) goneT = setInterval(function() { var g = false; try { g = goneFn() === true; } catch (e) {} if (g) { cleanup(); callback('gone'); } }, 500);") && dl.includes('if (goneT) { clearInterval(goneT); goneT = null; }');
+    check('1.6.3 (the multiplayer review, finding 2) a stale join question: an answer to a question whose connection closed decides nothing (a Turn away keeps nobody out); the question watches its connection and goes away by itself once it closes, and the next comes up; a name turned away without its table key is refused again with no question while the player who proves the key still comes straight in; a stranger turned away is kept out and listed by name; a closed connection leaves the line, and showConfirm\'s gone clears its watch with the question',
+        fOk && gOk && nTurned && nAgain && nKey && sOk && wired, J([fOk, gOk, nTurned, nAgain, nKey, sOk, wired, N.asks.length, denied(N, 'pK2'), N.admitted.map(a => a.peer)]));
+    /* finding 22: Removed this session, with Let back in */
+    const R = harness(); R.env.outNote('u_a', 'Ann', 'removed'); R.env.bannedIds.u_a = true; R.env.bannedIds.u_b = true; R.env._noKeyOut.u_c = true; R.env.outNote('u_c', 'Cy', 'nokey'); R.env.bannedIds.constructor = true;
+    const rList = R.env.outList().map(o => [o.id, o.name, o.how]).sort();
+    const rBack = R.env.letBackIn('u_a'), rAgain = R.env.letBackIn('u_a'), rAfter = R.env.outList().map(o => o.id).sort();
+    const olSrc = between('// [netcheck:outlist-start]', '// [netcheck:outlist-end]', 'outlist');
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const html = new Function('net', 'outList', 'escTextRoster', 'var html = "";\n' + olSrc + '\nreturn html;')({ active: true, role: 'host' }, () => [{ id: 'u_x', name: '<img src=x onerror=1>', how: 'removed' }, { id: 'u_y', name: 'Yo', how: 'nokey' }], esc);
+    const htmlP = new Function('net', 'outList', 'escTextRoster', 'var html = "";\n' + olSrc + '\nreturn html;')({ active: false, role: null }, () => [{ id: 'u_x', name: 'X', how: 'removed' }], esc);
+    const rOk = J(rList) === J([['u_a', 'Ann', 'removed'], ['u_b', 'Player', 'removed'], ['u_c', 'Cy', 'nokey']]) && rBack === true && rAgain === false && J(rAfter) === J(['u_b', 'u_c'])
+        && /Removed this session \(2\)/.test(html) && !/<img/.test(html) && html.includes('&lt;img src=x onerror=1&gt;') && html.includes('data-letin="u_x"') && html.includes('data-letin="u_y"') && /Let back in/.test(html) && /without their table key/.test(html) && htmlP === ''
+        && src.includes("} else if (btn.dataset.letin) {") && src.includes("if (typeof letBackIn === 'function' && letBackIn(lid)) { toast(nmL + ' may join again this session.');") && src.includes("if (p) { bannedIds[p.id] = true; if (typeof outNote === 'function') outNote(p.id, p.name, 'removed');");
+    check('1.6.3 (the multiplayer review, finding 22) Player History lists those kept out of this session under Removed this session, each by the name the gate saw (a prototype key never), why in plain words and a Let back in that lifts it once; nothing is listed off a table; the roster\'s x notes the name it removes',
+        rOk, J([rList, rBack, rAgain, rAfter, html.slice(0, 400)]));
+})());
 T.finish();

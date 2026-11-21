@@ -1900,4 +1900,108 @@ pendingChecks.push((async () => { try {
     check('1.6.3 (finding 9, wired): a rejoin lists the handouts shown, one after another, and sends no picture by itself; the picture\'s bytes are made once a run (wpHandoutPayload keeps them)',
         /if \(window\.wpHandoutHave\) \{\n\s*setTimeout\(function\(\) \{\n\s*var listH = \[\], i = 0, step = function\(\) \{/.test(nw) && /conn\.send\(\{ type: 'handout-have', campId: camp\.id, gmId: /.test(nw) && /var _payKept = new Map\(\), PAY_KEPT = 64;/.test(hoT9) && /if \(_payKept\.has\(pk\)\) return _payKept\.get\(pk\);/.test(hoT9));
 } catch (e) { check('1.6.3 (finding 9) the handout checks ran', false, String(e && e.stack || e)); } })());
+// 1.6.3, the multiplayer review, lane A batch 2 (the session): findings 1, 6, 11, 13 and 15, each on the real slices
+{
+    const J = JSON.stringify;
+    /* finding 1: the table's own state over a reload and a crash (the sesskeep and sessgate slices, run for real) */
+    const ssSrc = between('// [netcheck:sesskeep-start]', '// [netcheck:sesskeep-end]', 'sesskeep'), sgSrc = between('// [netcheck:sessgate-start]', '// [netcheck:sessgate-end]', 'sessgate');
+    const world = (o) => {
+        const els = { netPassInput: { value: o.pass || '' } }, store = {}, log = [];
+        const net = { active: true, role: 'host', code: 'abcdefghjk', conns: [], roster: {}, paused: !!o.paused, pausedPlayers: o.pp || {}, travelLocked: !!o.travel, stagePicked: o.picked || {}, stageMode: null, stageFallback: null, stageOverride: o.over || null, notepad: o.pad || { on: false, text: '' } };
+        const camp = { id: o.campId || 'c1', items: { m1: { type: 'map' }, m2: { type: 'map' }, p1: { type: 'planner' } } };
+        const env = { net, ui: id => els[id] || null, getActiveCampaign: () => camp, own: (x, k) => !!x && Object.prototype.hasOwnProperty.call(x, k), validProfileId: H.validProfileId, validKey: k => typeof k === 'string' && k.length > 0 && k.length <= 160 && !(k in Object.prototype),
+            bannedIds: Object.assign({}, o.banned || {}), lastSeen: {}, HB_STALE: 8000, _pad: { fmt: o.fmt, font: o.font || '' }, recentHostCode: () => 'abcdefghjk', showCode: c => c.toUpperCase(),
+            setPausedLocal: on => { net.paused = !!on; log.push('pause ' + on); }, setTravelLockLocal: on => { net.travelLocked = !!on; log.push('travel ' + on); }, refreshStageSelect: () => log.push('stage drawn'), renderNotepad: () => log.push('pad drawn'),
+            setTimeout: f => f(), localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } }, window: { wpVoice: { on: () => !!o.voice } } };
+        const names = Object.keys(env);
+        const api = new Function(...names, 'function rememberHostCode(code) { var recH = { code: code, ts: 1 }; recH.sess = sessOut(); localStorage.setItem("wp_lastHost", JSON.stringify(recH)); }\n' + sgSrc + '\n' + ssSrc + '\nreturn { sessOut, sessClean, sessIn, lastHostSess, sessKeepTick, noKey: function() { return _noKeyOut; }, outNote, outList, rec: net.lastHostRec };')(...names.map(n => env[n]));
+        return { api, net, els, env, store, log, camp };
+    };
+    const A = world({ pass: ' mango ', paused: true, pp: { u_p: true, u_q: false }, travel: true, picked: { c1: { mode: null, fallback: 'm2' } }, over: 'm1', pad: { on: true, text: 'Clue: the bell' }, fmt: { spans: [] }, font: 'Inter', banned: { u_rm: true }, voice: true });
+    A.api.outNote('u_rm', '<b>Rex</b>', 'removed'); A.api.noKey().u_nk = true; A.api.outNote('u_nk', 'Nia', 'nokey');
+    const kept = A.api.sessOut(), keptText = J(kept);
+    const B = world({}); const said = B.api.sessIn(JSON.parse(keptText));
+    const back = [B.els.netPassInput.value, J(B.env.bannedIds), J(Object.keys(B.api.noKey())), J(B.api.outList().map(x => [x.id, x.name, x.how]).sort()), B.net.paused, J(B.net.pausedPlayers), B.net.travelLocked, J(B.net.stagePicked), B.net.stageOverride, B.net.stageFallback, J(B.net.notepad), B.env._pad.font, J(B.env._pad.fmt)];
+    const backOk = J(back) === J(['mango', '{"u_rm":true}', '["u_nk"]', J([['u_nk', 'Nia', 'nokey'], ['u_rm', '<b>Rex</b>', 'removed']]), true, '{"u_p":true}', true, '{"c1":{"mode":null,"fallback":"m2"}}', 'm1', 'm2', '{"on":true,"text":"Clue: the bell"}', 'Inter', '{"spans":[]}'])
+        && said === 'It came back with the session password, the 2 players you kept out, the pause, the player you paused, the travel lock, where players arrive and the table notepad. Voice chat did not come back. Join it again from its button.';
+    const C = world({ campId: 'c2' }); const saidC = C.api.sessIn(JSON.parse(keptText));   // another campaign hosted: the password and those kept out alone
+    const otherOk = C.els.netPassInput.value === 'mango' && C.env.bannedIds.u_rm === true && C.net.paused === false && C.net.travelLocked === false && !C.net.notepad.on && J(C.net.stagePicked) === '{}' && /^It came back with the session password and the 2 players you kept out\./.test(saidC);
+    const D = world({ pass: 'typed' }); D.api.sessIn(JSON.parse(keptText)); const typedWins = D.els.netPassInput.value === 'typed';
+    const junk = [null, 7, 'x', [], { v: 2 }, { v: 1, out: [{ id: 'constructor', how: 'removed' }, { id: 'u_a', how: 'boss' }, 5], pausedPlayers: ['u_b', '__proto__', 3], stage: { picked: { mode: 'x', fallback: '__proto__' }, over: 9 }, pad: { text: 5 }, pass: { a: 1 } }];
+    const cleaned = junk.map(x => J(A.api.sessClean(x)));
+    const junkOk = cleaned.slice(0, 5).every(c => c === 'null') && J(JSON.parse(cleaned[5])) === J({ campId: '', pass: '', out: [], paused: false, pausedPlayers: ['u_b'], travelLocked: false, stage: { picked: { mode: null, fallback: null }, over: null }, pad: null, voice: false });
+    const E = world({}); const noneSaid = E.api.sessIn(null) === '' && E.api.sessIn({ v: 1 }) === '';
+    const F = world({ pass: 'pw' }); F.api.sessKeepTick(); const first = F.store.wp_lastHost; F.api.sessKeepTick(); const writes1 = F.store.wp_lastHost === first;
+    F.els.netPassInput.value = 'other'; F.api.sessKeepTick(); const tickOk = !!first && JSON.parse(first).sess.pass === 'pw' && writes1 && JSON.parse(F.store.wp_lastHost).sess.pass === 'other' && J(F.api.lastHostSess('abcdefghjk')) === J(JSON.parse(F.store.wp_lastHost).sess) && F.api.lastHostSess('zzz') === null;
+    const recOk = J(F.api.rec()) === J({ code: 'ABCDEFGHJK', campId: 'c1' });
+    const wired = src.includes("if (net.active && net.role === 'host' && typeof sessOut === 'function') { sessionStorage.setItem(SESS_KEEP, JSON.stringify(sessOut())); if (net.code) rememberHostCode(net.code); }")
+        && src.includes("var sk = null; try { sk = sessionStorage.getItem(SESS_KEEP); sessionStorage.removeItem(SESS_KEEP); } catch (e) {}") && /if \(sk\) \{ try \{ net\._sessBack = JSON\.parse\(sk\); \} catch \(e\) \{\} \}[^\n]*\n[^\n]*if \(ck\) net\._chatBack = ck;/.test(src.replace(/\r\n/g, '\n'))
+        && src.includes("if (resumed && !net._sessBack && typeof lastHostSess === 'function') net._sessBack = lastHostSess(resumed);")
+        && /var sbH = net\._sessBack; net\._sessBack = null; _sessLast = '';\n\s*var sbW = sbH && typeof sessIn === 'function' \? sessIn\(sbH\) : '';[^\n]*\n\s*startHeartbeat\(\);/.test(src.replace(/\r\n/g, '\n'))
+        && src.includes("if (typeof sessKeepTick === 'function') sessKeepTick();") && src.includes("_noKeyOut = Object.create(null); _outNames = Object.create(null);");
+    check('1.6.3 (the multiplayer review, finding 1) a reload or a crash brings the table back as the GM left it (the sesskeep slice run for real): the session password, those kept out by name and why, the pause, the players paused, the travel lock, where players arrive and the table notepad with its look, kept as plain data and laid back as the table opens, said in one sentence that also says voice chat must be joined again; for another campaign only the password and those kept out; a password typed again wins; what is read back is data, junk cleaned away; the heartbeat writes the record beside the code only when it changed; a reload keeps it in session storage and a resumed code takes the crash record',
+        backOk && otherOk && typedWins && junkOk && noneSaid && tickOk && recOk && wired, J([back, said, saidC, typedWins, cleaned[5], noneSaid, tickOk, recOk, wired]));
+    /* findings 6 and 15: the reconnect holds the board under a bar of its own, keeps trying slowly for five minutes, and offers Rejoin (the reconnbar slice and scheduleReconnect run for real) */
+    const rbSrc = between('// [netcheck:reconnbar-start]', '// [netcheck:reconnbar-end]', 'reconnbar'), schedSrc = (() => { const i = src.indexOf('function scheduleReconnect() {'); return src.slice(i, src.indexOf('\n}\n', i) + 2); })();
+    const rw = (o) => {
+        const els = {}, el = id => els[id] || (els[id] = { id, style: {}, hidden: false, textContent: '', value: '' }), log = [];
+        els.netJoinPassInput = { value: o.pass || '' };
+        const net = { reconnecting: false, role: 'client', code: o.code || 'abcdefghjk' }, reconn = { tries: 0, timer: null, code: o.code || 'abcdefghjk', name: 'Mira', pending: false, gen: 0, since: 0 };
+        let clock = o.now || 1000000;
+        const env = { net, reconn, ui: el, RECONNECT_TRIES: 30, getProfile: () => ({ name: 'Mira' }), showCode: c => c.toUpperCase(), refreshPauseUi: () => { log.push('ui ' + net.reconnecting); if (typeof api !== 'undefined') api.draw(); },
+            giveUpAndRestore: m => { reconn.pending = false; log.push('gaveup ' + m); api.hold(false); }, leaveSession: s => log.push('leave ' + s), joinSession: (c, n, r) => log.push('join ' + c + ' ' + n + ' ' + !!r), toast: t => log.push('toast ' + t),
+            setIndicator: () => {}, setStatus: s => log.push('status ' + s.slice(0, 20)), setTimeout: (f, ms) => { log.push('wait ' + ms); return 1; }, Date: { now: () => clock }, getComputedStyle: () => ({ top: '87px' }) };
+        const names = Object.keys(env); let api;
+        api = new Function(...names, rbSrc + '\n' + schedSrc + '\nreturn { sched: scheduleReconnect, hold: reconnHold, draw: reconnDraw, stop: reconnStop, giveUp: reconnGiveUp, go: rejoinGo, drop: rejoinDrop, wait: reconnWait, over: reconnOver, WORDS: RECONN_WORDS };')(...names.map(n => env[n]));
+        return { api, els, net, reconn, log, tick: ms => { clock += ms; } };
+    };
+    const R = rw({ pass: 'pw' }); R.api.sched();
+    const held = R.net.reconnecting === true && R.els.reconnBar.style.display === 'flex' && R.els.reconnText.textContent === 'Reconnecting to the GM. What you do now will not reach the table.' && R.els.reconnStop.hidden === false && R.els.reconnRejoin.hidden === true && R.els.reconnBar.style.top === '87px';
+    const waits = [1, 2, 30, 31, 32, 35, 36, 99].map(n => R.api.wait(n));
+    const overs = [R.api.over(29, 0, 10 ** 9), R.api.over(30, 1000, 1000 + 299999), R.api.over(30, 1000, 1000 + 300000), R.api.over(45, 1, 300001)];
+    R.reconn.tries = 30; R.tick(200000); R.api.sched(); const slowGoing = R.reconn.pending === true && R.log.includes('wait 5000') && !R.log.some(l => /^gaveup/.test(l));
+    R.tick(100001); R.api.sched();
+    const gaveUp = R.log.some(l => l === 'gaveup Could not reach the GM\u2019s table for five minutes. The GM may have ended the session.') && R.net.reconnecting === false && R.els.reconnBar.style.display === 'flex' && R.els.reconnRejoin.hidden === false && R.els.reconnStop.hidden === true && /five minutes/.test(R.els.reconnText.textContent);
+    R.els.netJoinPassInput.value = ''; R.api.go();
+    const rejoined = R.log[R.log.length - 1] === 'join abcdefghjk Mira false' && R.els.netJoinPassInput.value === 'pw' && R.els.netCodeInput.value === 'ABCDEFGHJK' && R.els.reconnBar.style.display === 'none' && R.reconn.since === 0;
+    const S = rw({}); S.api.sched(); S.api.stop();
+    const stopped = J(S.log.filter(l => /^(leave|gaveup)/.test(l))) === J(['leave true', 'gaveup You stopped trying to reach the GM\u2019s table.']) && S.els.reconnRejoin.hidden === false && S.els.reconnText.textContent === 'You stopped trying to reach the GM\u2019s table.';
+    S.api.drop(); const dropped = S.els.reconnBar.style.display === 'none';
+    const Q = rw({}); Q.api.stop(); const quietStop = !Q.log.some(l => /^(leave|gaveup)/.test(l));
+    const nsrc = src.replace(/\r\n/g, '\n');
+    const gates = (nsrc.match(/\.selfPaused \|\| [\w.]+\.selfHeld \|\| [\w.]+\.reconnecting/g) || []).length === 7 && /var frozenMe = \(net\.paused \|\| net\.selfPaused \|\| net\.selfHeld \|\| net\.reconnecting\) && isClient;/.test(nsrc)
+        && /var reconMe = !!net\.reconnecting && isClient;[^\n]*\n\s*if \(banner\) \{\n\s*banner\.style\.display = frozenMe && !reconMe \? 'block' : 'none';/.test(nsrc)
+        && nsrc.includes("if (typeof reconnHold === 'function' && net.reconnecting) reconnHold(false);") && nsrc.includes("if (typeof reconnHold === 'function') reconnHold(false);   // 1.6.3 (finding 15): the board is let go")
+        && J([['whiteboard.js', 7], ['datamap.js', 1], ['sheets.js', 2]].map(([f, n]) => (fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').match(/\.selfPaused \|\| [\w.]+\.selfHeld \|\| [\w.]+\.reconnecting/g) || []).length === n)) === J([true, true, true])
+        && /<div id="reconnBar" role="status" aria-live="polite" style="display:none;"><span id="reconnText"><\/span><button class="tool ghost" id="reconnStop"/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8'));
+    check('1.6.3 (the multiplayer review, findings 6 and 15) a player\'s reconnect: the board is held as a paused table is, under a bar of its own in the owner\'s words with Stop trying, where the pause banner stands; the fast tries then slower ones (5, 10, 15, 20 and 30 s) until five minutes have passed since the link dropped, then this app gives up and the bar offers a one-press Rejoin that dials the same code, name and password; Stop trying lets the dial go and offers the same, and does nothing when nothing is under way; every client gate that holds a paused player holds a reconnecting one, the snapshot and a give-up let the board go',
+        held && J(waits) === J([1200, 2500, 2500, 5000, 10000, 30000, 30000, 30000]) && J(overs) === J([false, false, true, true]) && slowGoing && gaveUp && rejoined && stopped && dropped && quietStop && gates,
+        J([held, waits, overs, slowGoing, gaveUp, rejoined, stopped, dropped, quietStop, gates, R.log.slice(-6)]));
+    /* finding 11: closing Waypoint while hosting asks first (the closeask slice, run for real) */
+    const caSrc = between('// [netcheck:closeask-start]', '// [netcheck:closeask-end]', 'closeask');
+    const cw = (host, ua) => {
+        const log = [], asks = [], win = { addEventListener: (k, f) => { win['on' + k] = f; } };
+        const net = { active: !!host, role: host ? 'host' : 'client', code: 'abcdefghjk' };
+        const env = { net, window: win, navigator: { userAgent: ua || 'Mozilla/5.0 Chrome/140' }, showConfirm: (t, cb, o) => asks.push({ t, cb, o }), leaveSession: () => { log.push('end'); net.active = false; }, rememberHostCode: c => log.push('kept ' + c), setTimeout: f => f() };
+        const names = Object.keys(env); new Function(...names, caSrc)(...names.map(n => env[n]));
+        return { win, net, log, asks };
+    };
+    const ans = async (a) => { const W = cw(true); const p = W.win.wpCloseAsk(); W.asks[0].cb(a); return { a: await p, log: W.log, t: W.asks[0].t, o: W.asks[0].o, W }; };
+    pendingChecks.push((async () => {
+        const end = await ans(true), wait = await ans('alt'), cancel = await ans(false), off = cw(false), offA = await off.win.wpCloseAsk();
+        const be = (W, ok) => { const e = { prevented: false, preventDefault() { this.prevented = true; }, returnValue: 'x' }; W.win.onbeforeunload(e); return [e.prevented, e.returnValue]; };
+        const brow = cw(true), electron = cw(true, 'Mozilla/5.0 Waypoint Electron/37.2.0'), after = end.W;
+        const beOk = J(be(brow)) === J([true, '']) && J(be(electron)) === J([false, 'x']) && J(be(after)) === J([false, 'x']) && J(be(off)) === J([false, 'x']);
+        check('1.6.3 (the multiplayer review, finding 11) closing Waypoint while hosting asks first (the closeask slice, run for real): three answers by their buttons alone, End the session for everyone (the clean end, then the window closes), Close and let players wait (the code kept fresh beside the table\'s state) and Cancel; nothing is asked off a table; in a browser beforeunload gives the browser\'s question while hosting, never in the desktop app (its shell asks: shellguard.closeGuard), never once the answer was to close, never off a table; the app\'s own Refresh asks nothing',
+            end.a === 'close' && J(end.log) === J(['end']) && wait.a === 'close' && J(wait.log) === J(['kept abcdefghjk']) && cancel.a === 'cancel' && cancel.log.length === 0 && offA === 'close' && off.asks.length === 0
+            && end.t === 'You are hosting a table. Close Waypoint?' && J(end.o) === J({ noEnter: true, yes: 'End the session for everyone', alt: 'Close and let players wait', no: 'Cancel' }) && beOk && /function refreshGo\(\) \{[^\n]*\n\s*_unloadOk = true;/.test(nsrc),
+            J([end.a, end.log, wait.a, wait.log, cancel.a, offA, beOk, end.o]));
+    })());
+    /* finding 13: Copy invite (the invite slice, run for real) */
+    const inv = new Function(between('// [netcheck:invite-start]', '// [netcheck:invite-end]', 'invite') + '\nreturn inviteLine;')();
+    const ixh = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
+    check('1.6.3 (the multiplayer review, finding 13) Copy invite copies one short plain line that names the room code, never the password, and says one is sent apart where it is set; the button stands beside Copy code in one frame of the app\'s own parts',
+        inv('AB2CD-EF3GH', false) === 'Join my Waypoint table. Press Join a game and type the room code AB2CD-EF3GH.' && inv('WP-AB2CD-EF3GH', true) === 'Join my Waypoint table. Press Join a game and type the room code WP-AB2CD-EF3GH. I will send you the password.'
+        && /<span class="ui-seg"><button class="tool ghost" id="netCopyBtn"[^>]*>[^\n]*<\/button><button class="tool ghost" id="netInviteBtn"[^>]*>Copy invite<\/button><\/span>/.test(ixh) && src.includes("var _inviteBtn = ui('netInviteBtn');"), J([inv('X', false), inv('X', true)]));
+}
 T.finish();

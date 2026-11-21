@@ -423,6 +423,7 @@ waitForInstanceLock(8000, function() {
                 // A window that is minimized or covered keeps its timers at full pace: it holds a live table, and a GM's window held back loses its players and turns new ones away.
                 webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false, backgroundThrottling: false }
             });
+            shellguard.closeGuard(win);   // 1.6.3: closing while the page hosts a table asks first (the page's own question: shellguard.js closeGuard)
             win.loadURL(`http://localhost:${port}`);
         });
     });

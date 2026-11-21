@@ -41,6 +41,7 @@ function newContents() {
     wc.setWindowOpenHandler = fn => { wc.openHandler = fn; };
     wc.getURL = () => wc.url;
     wc.isDestroyed = () => false;
+    wc.executeJavaScript = () => Promise.resolve(false);   // 1.6.3: the page asked by closeGuard needs to ask nothing here
     wc.isDevToolsOpened = () => wc.devOpen;
     wc.closeDevTools = () => { wc.devOpen = false; wc.closed++; };
     contents.push(wc);
@@ -60,8 +61,9 @@ app.whenReady = () => Promise.resolve();
 app.quit = () => { rec.quit++; };
 app.commandLine = { appendSwitch: (...a) => { rec.unknown.push('commandLine.appendSwitch ' + a.join(' ')); } };
 
-class BrowserWindow {
+class BrowserWindow extends EventEmitter {   // 1.6.3: an emitter, since main.js asks closeGuard to hear its window's close
     constructor(opts) {
+        super();
         rec.order.push('new BrowserWindow'); rec.windows.push(opts);
         this.webContents = newContents();
         app.emit('web-contents-created', {}, this.webContents);   // as Electron does, while the window is being made

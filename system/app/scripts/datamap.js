@@ -983,7 +983,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
         // Players may only drag tokens the GM assigned to them — and nothing while paused
         if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') {
             if (modeStr !== 'visual') return;
-            if (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld) return;   // table paused, the GM paused me specifically, or held for a new sheet
+            if (window.wpNet.paused || window.wpNet.selfPaused || window.wpNet.selfHeld || window.wpNet.reconnecting) return;   // table paused, the GM paused me specifically, or held for a new sheet
             if (!((item.isChar || item.waiting) && item.ownerId === window.wpNet.myId)) {   // Onboarding F1a: their waiting token moves too
                 // Nothing else is draggable for a player, so anything covering their
                 // token (a text box, a note card, a trigger zone) must not trap it:

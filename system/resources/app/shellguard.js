@@ -314,6 +314,42 @@ function listenLoopback(s4, s6, port, done, tries) {
     }, next);
 }
 
+/* ---------- closing the main window while hosting ---------- */
+
+// 1.6.3 (the multiplayer review, finding 11; the owner's pick of 2026-11-21): closing Waypoint while it hosts a table asks first, with three answers
+// (Cancel, End the session for everyone, Close and let players wait). The question is the page's own (net.js closeask: window.wpCloseNeed and
+// window.wpCloseAsk), asked here as the main window is about to close, so a reload never asks. The page is asked first whether it needs to ask at
+// all, and a page that does not answer within needMs (busy, crashed, loading) is not waited on: the window closes as it always did. While the
+// question is up a second close does nothing, and a page that reloads or goes away meanwhile lets the next close ask again. The answer 'cancel'
+// keeps the window, anything else closes it. A window that is already let go closes at once.
+function closeGuard(win, opts) {
+    opts = opts || {};
+    const needMs = opts.needMs || 1500, later = opts.setTimeout || setTimeout;
+    let asking = false, ok = false, turn = 0;   // turn: which ask an answer belongs to, so a stale one changes nothing
+    const wc = win.webContents;
+    const reset = () => { asking = false; turn++; };
+    if (wc && typeof wc.on === 'function') { wc.on('did-start-loading', reset); wc.on('render-process-gone', reset); }
+    const run = (code) => { try { return Promise.resolve(wc.executeJavaScript(code, true)); } catch (e) { return Promise.reject(e); } };
+    const within = (p, ms) => Promise.race([p, new Promise(r => later(() => r('slow'), ms))]);
+    win.on('close', (e) => {
+        if (ok) return;
+        e.preventDefault();
+        if (asking) return;
+        asking = true;
+        const my = ++turn;
+        within(run("typeof window.wpCloseNeed === 'function' && window.wpCloseNeed() === true"), needMs)
+            .then(need => (need === true ? run("typeof window.wpCloseAsk === 'function' ? window.wpCloseAsk() : 'close'") : 'close'))
+            .catch(() => 'close')
+            .then(ans => {
+                if (!asking || my !== turn) return;   // the page went away meanwhile: the next close asks again
+                asking = false;
+                if (ans === 'cancel') return;
+                ok = true;
+                try { win.close(); } catch (err) {}
+            });
+    });
+}
+
 /* ---------- the dev server ---------- */
 
 // The folder the dev server's Update and Restore buttons may change: only one named on purpose (WAYPOINT_SYSTEM_DIR) that is
@@ -327,4 +363,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir };
+    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir, closeGuard };

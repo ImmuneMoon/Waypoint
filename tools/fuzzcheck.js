@@ -1394,8 +1394,14 @@ function mutations(tpl) {
         document.getElementById('netPassInput').value = ''; clockOff += 61000;
     }
     {   // a second connection claiming an admitted player's id while they are live
-        await resetWorld(); const cD = connect('peer_dup'); const admD = await admit(cD, { id: 'u_p1', name: 'Ayla2' }, K1);
-        check('host: a live duplicate of an admitted id is denied before any challenge (no auth sent, no proof asked), though it holds the right key', !admD.ok && !net.roster.peer_dup && cD.sent.some(m => m.type === 'denied') && !cD.sent.some(m => m.type === 'auth'), admD);
+        // 1.6.3 (the multiplayer review, finding 17), moved on purpose: a player's F5 reload reaches the host before its old connection is seen to
+        // close, and was thrown out of the session as already at the table. A live duplicate is now challenged; the right key proven over its own
+        // connection takes the old connection's place (the old one leaves the roster and is closed), and a wrong key is still denied
+        await resetWorld(); const oldK = Object.keys(net.roster).find(k => net.roster[k] && net.roster[k].id === 'u_p1'), oldC = net.conns.find(c => c.peer === oldK);
+        const cD = connect('peer_dup'); const admD = await admit(cD, { id: 'u_p1', name: 'Ayla2' }, K1);
+        check('host: a live duplicate of an admitted id that proves the right key over its own connection takes the old connection\'s place (finding 17, moved on purpose: a reload), the old one off the roster and closed', admD.ok && !!net.roster.peer_dup && !!oldK && !net.roster[oldK] && !!oldC && oldC.open === false && cD.sent.some(m => m.type === 'auth'), admD);
+        await resetWorld(); const cW = connect('peer_dupw'); const admW = await admit(cW, { id: 'u_p1', name: 'Ayla3' }, 'w'.repeat(64));
+        check('host: a live duplicate of an admitted id that cannot prove the key is denied as already at the table, never put to the GM', !admW.ok && !net.roster.peer_dupw && cW.sent.some(m => m.type === 'denied') && !cW.sent.some(m => m.type === 'wait'), admW);
     }
     {   // hold: a zombie connection kept alive; unadmitted connections uncounted
         await resetWorld(); const before = net.conns.length;

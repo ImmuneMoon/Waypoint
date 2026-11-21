@@ -250,6 +250,7 @@ function netGate(who) {
     const rosterSrc = between('// [netcheck:roster-start]', '// [netcheck:roster-end]', 'roster');
     const rosterCleanSrc = between('// [netcheck:rosterclean-start]', '// [netcheck:rosterclean-end]', 'rosterclean');
     const awaySrc = between('// [netcheck:away-start]', '// [netcheck:away-end]', 'away');
+    const sessgateSrc = between('// [netcheck:sessgate-start]', '// [netcheck:sessgate-end]', 'sessgate');   // 1.6.3 (the multiplayer review, findings 2, 17 and 22): the gate's helpers, run for real in every harness
 
     /* ---- the sliced code, built once ---- */
     const hmacRef = (key, data) => require('crypto').createHmac('sha256', key).update(data).digest('hex');   // the suite's own HMAC: the app's proof is checked against it, never against itself
@@ -267,6 +268,9 @@ function netGate(who) {
     const pcStub = (mine, theirs) => { const d = f => ({ type: 'x', sdp: 'v=0\r\ns=-\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=fingerprint:' + f + '\r\n' }); return { localDescription: d(mine), remoteDescription: d(theirs) }; };
     ENV_NAMES.push('chanPrints', 'saidPrints');
     ENV_NAMES.push('gmHail', 'unboundNotice');   // H2 (2026-10-01): the host's early proof (none in a plain harness, as its snapshot is unsigned) and the GM's notice of a right key over another connection (recorded: h.unbound)
+    const SG_NAMES = ['_noKeyOut', '_outNames', 'outNote', 'letBackIn', 'outList', 'liveDupOf', 'dupDrop'];
+    ENV_NAMES.push(...SG_NAMES);   // 1.6.3: the sessgate slice's own names, made for each harness from the real slice (below)
+    const runSessGate = new Function('env', pre(SG_NAMES) + sessgateSrc + '\nreturn { ' + SG_NAMES.map(n => n + ': ' + n).join(', ') + ' };');
     const runGate = new Function('env', 'msg', 'conn', pre([]) + gateSrc + '\nreturn "ran";');
     const runQueue = new Function('env', 'conn', 'prof', 'why', pre(['queueJoin']) + queueSrc + '\nreturn queueJoin(conn, prof, why);');
     const runBroadcast = new Function('env', 'msg', 'exceptConn', pre(['broadcast']) + broadcastSrc + '\nreturn broadcast(msg, exceptConn);');
@@ -307,6 +311,7 @@ function netGate(who) {
             validCn: HS.validCn || (() => false), gmPresign: () => null,   // security S: no signing key in a plain harness (a snapshot goes unsigned, as to an older app); the S checks give a host its real one
         };
         env.queueJoin = (conn, prof, why) => runQueue(env, conn, prof, why);
+        Object.assign(env, runSessGate(env));   // 1.6.3: liveDupOf, dupDrop and the session's removals, over this harness's own net, bannedIds and lastSeen
         env.chanPrints = HT.chanPrints || (() => null); env.saidPrints = HT.saidPrints || (() => null);   // transport T: the gate reads a connection's two fingerprints through the real helpers
         h.env = env;
         h.conn = (peer, pc) => { const c = { peer, open: true, send: m => { packCheck(m); h.sent.push({ peer, m }); }, close: () => { c.open = false; h.closed.push(peer); } }; if (pc !== null) c.peerConnection = pc || (env.net.role === 'client' ? pcStub(FPP, FPH) : pcStub(FPH, FPP)); env.net.conns.push(c); env._connMeta[peer] = { openedAt: Date.now(), hellos: 0 }; return c; };
@@ -316,7 +321,7 @@ function netGate(who) {
         h.settle = async () => { while (h.pending.length) { const ps = h.pending.splice(0); await Promise.all(ps); } await new Promise(r => setImmediate(r)); };   // every proof check the gate started has landed
         return h;
     }
-    netG = { gateSrc, queueSrc, broadcastSrc, chatSrc, rosterSrc, rosterCleanSrc, awaySrc, hmacRef, HS, RC, ENV_NAMES, pre, HT, FPP, FPH, FPTAIL, pcStub,
+    netG = { gateSrc, queueSrc, broadcastSrc, chatSrc, rosterSrc, rosterCleanSrc, awaySrc, sessgateSrc, hmacRef, HS, RC, ENV_NAMES, pre, HT, FPP, FPH, FPTAIL, pcStub,
         runGate, runQueue, runBroadcast, runChat, runRoster, runAway, versionCmp, harness };
     return netG;
 }

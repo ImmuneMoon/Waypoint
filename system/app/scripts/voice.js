@@ -277,7 +277,13 @@ function linkUp(conn) {
         srcAdd({ key: ln.peer, pid: ln.pid, name: ln.name, gm: false, track: e.track });
     };
     pc.onicecandidate = function(e) { var cd = e && e.candidate ? cleanCand(e.candidate) : null; if (cd) hubSay(ln, { act: 'ice', cand: cd }); };
-    pc.onconnectionstatechange = function() { if (linkOf(ln.peer) === ln && (pc.connectionState === 'failed' || pc.connectionState === 'closed')) linkDrop(ln.peer, true); };
+    pc.onconnectionstatechange = function() {
+        if (linkOf(ln.peer) !== ln) return;
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') { linkDrop(ln.peer, true); return; }
+        // 1.6.3 (found at the hand check of the two multiplayer lanes joined): a player who listens only sends no voice up, so no track ever
+        // comes and the list said they were connecting for as long as they stayed. A link that is up is noted, and members() then says they listen
+        if (pc.connectionState === 'connected' && !ln.up) { ln.up = true; render(true); }
+    };
     offerTo(ln);
 }
 function linkDrop(peer, tell) {
@@ -521,11 +527,11 @@ function popShut() { var p = ui('voicePop'); if (p) p.style.display = 'none'; if
 // Escape, as esckey.js (the app's one router for the key) hands it on while the popover is up: a key being picked for push to talk is let
 // go first and the popover stays; otherwise the popover is put away
 function escape() { if (binding) { binding = false; render(true); return; } popShut(); }
-function members() {   // who is listed: every voice this machine plays, then (the host) players still connecting
+function members() {   // who is listed: every voice this machine plays, then (the host) players still connecting, or listening only once their link is up
     var out = [];
     Object.keys(voices).forEach(function(pid) { var v = voices[pid]; out.push({ key: pid, pid: pid, name: v.name + (v.gm && v.name.indexOf('(GM)') < 0 ? ' (GM)' : '') }); });
     if (hosting()) Object.keys(hub.links).forEach(function(peer) {
-        var ln = hub.links[peer]; if (!voices[ln.pid]) out.push({ key: '~' + ln.pid, pid: null, name: ln.name + ' (connecting)' });
+        var ln = hub.links[peer]; if (!voices[ln.pid]) out.push({ key: '~' + ln.pid, pid: null, name: ln.name + (ln.up ? ' (listening only)' : ' (connecting)') });   // up: the link is connected and no voice came, so they listen only
     });
     return out;
 }

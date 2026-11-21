@@ -222,6 +222,17 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && j(hlIn) === j([true, true, 0, false]) && V.stateWords({ joined: true, listen: true }) === 'Listening only',
             j({ denBtns, okBtns, lIn, lLink, lWords, lOut, hlIn }));
     }
+    // 1.6.3 (found at the hand check of the two multiplayer lanes joined): a player who listens only sends no voice up, so no track comes, and the
+    // GM's list said they were connecting for as long as they stayed. Once their link is up the list says they listen only
+    {
+        const HQ = loadVoice(V, { role: 'host', dice: D, profile: { name: 'Gina' } }), aQ = HQ.conn('peerA', 'u_a', 'Ann');
+        HQ.api.join(true); await tick(); HQ.api.fromPlayer({ type: 'voice-up', act: 'join' }, aQ); await tick();
+        HQ.els.voiceInd.click(); await tick(); const before = HQ.els.voiceBody.textContent;
+        const pcQ = HQ.world.pcs[0]; pcQ.connectionState = 'connected'; if (typeof pcQ.onconnectionstatechange === 'function') pcQ.onconnectionstatechange(); await tick();
+        const after = HQ.els.voiceBody.textContent;
+        check('1.6.3 (the two multiplayer lanes joined): the GM\'s list says a player whose link is not up yet is connecting, and once it is up with no voice come, that they listen only',
+            /Ann \(connecting\)/.test(before) && /Ann \(listening only\)/.test(after) && !/Ann \(connecting\)/.test(after), j({ before, after }));
+    }
 
     /* ================= the page ================= */
     const ix = read('index.html');

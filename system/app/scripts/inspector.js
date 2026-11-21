@@ -1365,6 +1365,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbTrapPortal) _el_wbTrapPortal.addEventListener('change', function() { if (this.checked) w.trap = true; else delete w.trap; save(); render(); import('./io.js').then(function(io) { io.toast(w.trap ? 'Armed as a trap. It fires while hidden.' : 'No longer a trap. Hidden means inert again.'); }); });
             var _el_wbPagePin = document.getElementById('wbPagePin');   // 1.5.4: a pin: the id of a page that is there, or no key
             if (_el_wbPagePin) _el_wbPagePin.addEventListener('change', function() { setItemPagePin(w, this.value); });
+            if (_el_wbPagePin && window.wpPageShelf && typeof window.wpPageShelf.mapPinField === 'function') pageFindUp(_el_wbPagePin, window.wpPageShelf.mapPinField(w), 'Opens page');   // 1.6.3 (finding 14): a search beside the list
             var _el_wbPagePinAt = document.getElementById('wbPagePinAt');   // 1.6.0: where on its page the pin opens
             if (_el_wbPagePinAt) _el_wbPagePinAt.addEventListener('change', function() { setItemPagePinAt(w, this.value); });
             if (typeof boxFieldWire === 'function') boxFieldWire(w);   // 1.6.2 (backlog 42): Holds items and Open contents
@@ -1667,6 +1668,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               scenePageFieldHtml(activeMap);   // 1.6.0: the map's scene page, which P opens (the GM's alone)
             var _el_mapScenePage = document.getElementById('mapScenePage');
             if (_el_mapScenePage) _el_mapScenePage.addEventListener('change', function() { setMapScenePage(activeMap, this.value); });
+            if (_el_mapScenePage && window.wpPageShelf && typeof window.wpPageShelf.scenePageField === 'function') pageFindUp(_el_mapScenePage, window.wpPageShelf.scenePageField(activeMap), 'Scene page');   // 1.6.3 (finding 14): a search beside the list
 
         }
 
@@ -2487,6 +2489,29 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       var PS = window.wpPageShelf, did = PS && typeof PS.mapPinAtSet === 'function' ? PS.mapPinAtSet(w, at) : ''; if (!did) return;
       save(); render();
       toast(did === 'set' ? 'This piece opens its page at that part now.' : 'This piece opens its page at the top now.');
+  }
+  // 1.6.3 (the review of pages, finding 14): the list of every page by name is a choice of many, so it is the app's own search beside a list
+  // (uiparts.js find), as the house rule has it for a pick by name. The list the row writes stays in the page, hidden, with its value and its
+  // change handler: a pick sets it and says its change, so the piece keeps the page's id through setItemPagePin (or the map through
+  // setMapScenePage) exactly as before. Two pages of one name each say beside the name where they stand in the tree (pageshelf.js
+  // mapPinChoices' where), so an archive's copy is told from the page in play: as few of the names above it as tell them apart, the nearest
+  // last, since a long path is cut at its end in a narrow list. Asked for the Opens page row and the Scene page row alike
+  function pageFindUp(sel, f, label) {
+      var U = window.wpUi; if (!sel || !sel.parentNode || !f || !Array.isArray(f.choices) || !U || typeof U.find !== 'function') return null;
+      var n = Object.create(null), key = function(c) { return String(c.title).toLowerCase(); };
+      f.choices.forEach(function(c) { n[key(c)] = (n[key(c)] || 0) + 1; });
+      var segs = function(c) { return typeof c.where === 'string' && c.where ? c.where.split(' / ') : []; };
+      var tail = function(c, k) { var s = segs(c); return s.length ? s.slice(Math.max(0, s.length - k)).join(' / ') : 'at the top'; };
+      var subOf = function(c) {   // the fewest names above it, from the nearest, that no other page of its name shares
+          var same = f.choices.filter(function(o) { return o !== c && key(o) === key(c); }), most = Math.max(1, segs(c).length);
+          for (var k = 1; k < most; k++) { var t = tail(c, k); if (!same.some(function(o) { return tail(o, k) === t; })) return t; }
+          return tail(c, most);
+      };
+      var ch = f.choices.map(function(c) { return { value: c.id, name: c.title, group: c.kind, sub: n[key(c)] > 1 ? subOf(c) : '' }; });
+      var box = U.find({ choices: ch, groups: [['planner', 'Planners'], ['doc', 'Handbook']], blank: 'None', value: typeof f.cur === 'string' ? f.cur : '', label: label, placeholder: 'Find a page', cls: 'page-find',
+          set: function(v) { sel.value = v; if (typeof Event === 'function') sel.dispatchEvent(new Event('change', { bubbles: true })); } });
+      sel.parentNode.insertBefore(box, sel.nextSibling); sel.hidden = true;
+      return box;
   }
   function setItemPagePin(w, id) {
       var PS = window.wpPageShelf, did = PS && typeof PS.mapPinSet === 'function' ? PS.mapPinSet(w, id) : ''; if (!did) return;

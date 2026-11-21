@@ -511,8 +511,10 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // [shelfcheck:menuheld-start]
   // 1.6.2: a menu that holds the focus keeps its own keys. The arrows walk its rows, and neither they nor Delete nor Backspace reach what is
   // selected on the map behind it (found on the Outline menu, whose arrows moved a selected token; every menu now, by its role). Only a menu
-  // that shows holds them: the focus can still rest on a row of a menu that was put away, since the board keeps a click from moving the focus
-  function menuHeld(el) { var m = el && el.nodeType === 1 && typeof el.closest === 'function' ? el.closest('[role="menu"], [role="listbox"]') : null; return !!(m && (typeof m.getClientRects !== 'function' || m.getClientRects().length > 0)); }
+  // that shows holds them: the focus can still rest on a row of a menu that was put away, since the board keeps a click from moving the focus.
+  // 1.6.3 (the review of pages, finding 4): so does a row of the left panel's tree, which walks its rows by the arrows: Delete or Backspace on a
+  // row of it never deletes what is selected on the map
+  function menuHeld(el) { var m = el && el.nodeType === 1 && typeof el.closest === 'function' ? el.closest('[role="menu"], [role="listbox"], [role="tree"]') : null; return !!(m && (typeof m.getClientRects !== 'function' || [].some.call(m.getClientRects(), function(r) { return !!r && r.width > 0; }))); }   // shown: some box of it has a width (the review of pages finding, 4: the tree in a panel folded to its rail has a box of no width, and it held the map's keys)
   // [shelfcheck:menuheld-end]
   function askHeld() { var up = function(id) { var e = document.getElementById(id); return !!(e && e.style && e.style.display === 'flex'); }; return up('customConfirm') || up('customPrompt'); }   // the app's own question or prompt is up, as commands.js hotkeyHeld reads it ('asking')
   function canPersistLocal() {
@@ -2302,7 +2304,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   var _el_exportShareBtn = document.getElementById('exportShareBtn');
   if (_el_exportShareBtn) _el_exportShareBtn.addEventListener('click', function() { if (window.wpShare && typeof window.wpShare.open === 'function') window.wpShare.open('campaign', true); else exportScope('campaign'); });
 
-  // "Export This …" reflects whatever is open when the menu drops down
+  // "Export this …" reflects whatever is open when the menu drops down, in sentence case as every other row (1.6.3, the review of pages, finding 43)
   var _el_saveAsBtn2 = document.getElementById('saveAsBtn');
   if (_el_saveAsBtn2) _el_saveAsBtn2.addEventListener('click', function() {
       var camp = getActiveCampaign();
@@ -2310,7 +2312,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var row = document.getElementById('exportItemBtn');
       if (!row) return;
       row.style.display = it ? '' : 'none';
-      var rowName = row.querySelector('span'); if (it && rowName) rowName.textContent = 'Export This ' + (it.type === 'planner' ? 'Planner' : it.type === 'doc' ? 'Page' : 'Map');   // the row keeps its drawing: only its words change
+      var rowName = row.querySelector('span'); if (it && rowName) rowName.textContent = 'Export this ' + (it.type === 'planner' ? 'planner' : it.type === 'doc' ? 'page' : 'map');   // the row keeps its drawing: only its words change
   });
 
   

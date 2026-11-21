@@ -531,23 +531,31 @@ const drawSrc = sliceOf(ps, 'draw');
     // on a page of plain objects): a typed query's result opens at the hit, an empty query's A to Z list as before
     const dlS = read('scripts/dialogs.js'), lsSrc = sliceOf(dlS, 'listland');
     const hA = "  var _el_searchPlannersBtn = document.getElementById('searchPlannersBtn');", hZ = "  var _el_searchMapsBtn = document.getElementById('searchMapsSidebarBtn');", hdlSrc = dlS.slice(dlS.indexOf(hA), dlS.indexOf(hZ));
-    const resEl = () => { let html = ''; const btns = []; return { btns, querySelectorAll: () => btns.slice(), get innerHTML() { return html; }, set innerHTML(v) { html = v; btns.length = 0; (v.match(/data-id="[^"]*"/g) || []).forEach(m => { const b = { dataset: { id: m.slice(9, -1) }, fns: [], addEventListener(ev, fn) { if (ev === 'click') this.fns.push(fn); } }; btns.push(b); }); } }; };
+    const resEl = () => { let html = ''; const btns = []; return { btns, querySelectorAll: () => btns.slice(), get innerHTML() { return html; }, set innerHTML(v) { html = v; btns.length = 0; (v.match(/data-id="[^"]*"/g) || []).forEach(m => { const b = { dataset: { id: m.slice(9, -1) }, fns: [], addEventListener(ev, fn) { if (ev === 'click') this.fns.push(fn); }, focus() { focused.push(this.dataset.id); } }; btns.push(b); }); } }; };
+    let focused = [];   // 1.6.3 (finding 27): what the arrows gave the focus to, in order ('box' for the search box)
     const dlRun = o => {
         const R = { log: [], land: [], read: [] }, els = {}, args = a => Array.prototype.slice.call(a);
         ['searchPlannersBtn', 'searchDocsBtn', 'plannerSearchClose', 'docSearchClose'].forEach(id => { els[id] = { fn: null, addEventListener(ev, fn) { this.fn = fn; } }; });
         ['plannerSearchModal', 'docSearchModal'].forEach(id => { els[id] = { style: {} }; });
-        ['plannerSearchInput', 'docSearchInput'].forEach(id => { els[id] = { value: '', focus() {} }; });
+        ['plannerSearchInput', 'docSearchInput'].forEach(id => { els[id] = { value: '', focus() { focused.push('box'); } }; });
+        focused = []; R.searched = []; R.shelf = []; const timers = [];   // 1.6.3 (finding 28): the lists' wait runs on timers of the suite's own
         els.plannerSearchResults = resEl(); els.docSearchResults = resEl();
         const camp = { id: 'c1', activeItemId: 'm1', items: { p1: { type: 'planner', meta: { title: 'Bar' } }, p2: { type: 'planner', meta: { title: 'Alley' } }, d1: { type: 'doc', meta: { title: 'Rules' } }, m1: { type: 'map', meta: {} } } }, st = { selId: 'x', selWbId: 'y', linkStart: 'z' };
-        const win = { wpDocSearch: (q, c, types) => types[0] === 'planner' ? [{ id: 'p1', title: 'Bar', snippet: 's' }] : [{ id: 'd1', title: 'Rules', snippet: 's' }], wpNet: { foreign: !!o.foreign },
+        const win = { wpDocSearch: (q, c, types) => { R.searched.push(q); return types[0] === 'planner' ? (/alley/.test(q) ? [{ id: 'p2', title: 'Alley', snippet: 's' }, { id: 'p1', title: 'Bar', snippet: 's' }] : [{ id: 'p1', title: 'Bar', snippet: 's' }, { id: 'p2', title: 'Alley', snippet: 's' }]) : [{ id: 'd1', title: 'Rules', snippet: 's' }]; }, wpNet: { foreign: !!o.foreign },
             wpOpenDoc: function() { R.log.push('read'); R.read.push(args(arguments)); }, wpPlannerLand: function() { R.log.push('land'); R.land.push(args(arguments)); } };
         if (!o.noNav) win.wpPageNav = { landOf: landOfStand };
-        new Function('document', 'getActiveCampaign', 'esc', 'window', 'state', 'updateSidebarNav', 'render', 'save', 'setTimeout', lsSrc + hdlSrc)(
-            { getElementById: id => els[id] || null }, () => camp, s => String(s), win, st, () => { R.log.push('nav'); }, () => { R.log.push('render'); }, () => { R.log.push('save'); }, () => {});
+        if (o.shelf) win.wpPageShelf = { wayNow: e => (e && e.ctrlKey ? 'window' : e && e.altKey ? 'go' : 'panel'), open: function() { R.log.push('shelf'); R.shelf.push(args(arguments)); } };   // 1.6.3 (finding 27): the one opener of a page
+        const st0 = (fn, ms) => { timers.push({ fn, ms, on: true }); return timers.length; }, ct0 = id => { if (timers[id - 1]) timers[id - 1].on = false; }, runT = () => { for (let g = 0; g < 20; g++) { const t = timers.find(x => x.on); if (!t) break; t.on = false; t.fn(); } };
+        new Function('document', 'getActiveCampaign', 'esc', 'window', 'state', 'updateSidebarNav', 'render', 'save', 'setTimeout', 'clearTimeout', lsSrc + hdlSrc)(
+            { getElementById: id => els[id] || null }, () => camp, s => String(s), win, st, () => { R.log.push('nav'); }, () => { R.log.push('render'); }, () => { R.log.push('save'); }, st0, ct0);
         const k = o.docs ? 'doc' : 'planner', inp = els[k + 'SearchInput'], res = els[k + 'SearchResults'];
-        els[o.docs ? 'searchDocsBtn' : 'searchPlannersBtn'].fn(); inp.value = o.q || ''; inp.onkeyup();
-        const b = res.btns.find(x => x.dataset.id === o.pick); if (b) b.fns.forEach(fn => fn.call(b));
-        return Object.assign(R, { active: camp.activeItemId, sel: J([st.selId, st.selWbId, st.linkStart]), shown: res.btns.map(x => x.dataset.id), modal: els[k + 'SearchModal'].style.display }); };
+        els[o.docs ? 'searchDocsBtn' : 'searchPlannersBtn'].fn(); R.searched = []; focused = [];
+        const key = (on, kk, ev) => { const e = Object.assign({ key: kk, preventDefault() { e.prevented = true; }, stopPropagation() {} }, ev || {}); on.onkeydown(e); return e; };
+        if (o.typed) { o.typed.forEach(w => { inp.value = w; inp.oninput(); }); R.before = R.searched.length; if (o.enterNow) key(inp, 'Enter', o.ev); else runT(); }   // typed word by word: one search once they stop, or Enter before the wait is over
+        else { inp.value = o.q || ''; inp.oninput(); runT(); }
+        if (o.keys) o.keys.forEach(kk => { const tgt = focused.length && focused[focused.length - 1] !== 'box' ? res.btns.find(x => x.dataset.id === focused[focused.length - 1]) : null; if (!tgt) key(inp, kk); else key(res, kk, { target: tgt }); });
+        const b = res.btns.find(x => x.dataset.id === o.pick); if (b) b.fns.forEach(fn => fn.call(b, o.ev));
+        return Object.assign(R, { active: camp.activeItemId, sel: J([st.selId, st.selWbId, st.linkStart]), shown: res.btns.map(x => x.dataset.id), modal: els[k + 'SearchModal'].style.display, focused: focused.slice() }); };
     const QB = J([{ q: 'barkeep' }]);
     const pT = dlRun({ q: ' barkeep ', pick: 'p1' }), pE = dlRun({ q: '', pick: 'p2' }), pB = dlRun({ q: '   ', pick: 'p2' }), pN = dlRun({ q: 'barkeep', pick: 'p1', noNav: true });
     const dT = dlRun({ docs: true, q: 'barkeep', pick: 'd1' }), dE = dlRun({ docs: true, q: '', pick: 'd1' }), fT = dlRun({ docs: true, q: 'barkeep', pick: 'd1', foreign: true }), fE = dlRun({ docs: true, q: '', pick: 'd1', foreign: true });
@@ -557,6 +565,19 @@ const drawSrc = sliceOf(ps, 'draw');
         && J(dT.log) === J(['nav', 'render', 'save', 'land']) && J(dT.land) === J([['d1', { q: 'barkeep' }]]) && J(dE.log) === J(['nav', 'render', 'save']), J([pT, pE, pB, pN, dT, dE]));
     check('a joined player\'s result of Search Pages opens in the reader at the hit, and with the page alone from the A to Z list; the page itself is never opened there',
         J(fT.read) === J([['d1', { q: 'barkeep' }]]) && J(fT.log) === J(['read']) && fT.active === 'm1' && J(fE.read) === J([['d1']]) && J(fE.log) === J(['read']), J([fT, fE]));
+    // 1.6.3 (the review of pages, findings 27 and 28): the lists' keys, their wait and where a result opens
+    const w1 = dlRun({ typed: ['b', 'ba', 'bar'] }), w2 = dlRun({ typed: ['al', 'alley'], enterNow: true }), w3 = dlRun({ typed: ['alley'], enterNow: true, shelf: true, ev: { ctrlKey: true } });
+    check('1.6.3 Search Planners and Search Pages search a moment after the words stop changing, on every change of the words (a paste with the mouse too), never once a key: three changes, one search of the last words; Enter before the wait is over searches the words as they stand at once and opens the first result of those, never of the words before',
+        w1.before === 0 && J(w1.searched) === J(['bar']) && w1.log.length === 0 && w2.before === 0 && J(w2.searched) === J(['alley']) && w2.active === 'p2' && J(w2.log) === J(['nav', 'render', 'save', 'land']), J([w1, w2]));
+    const a1 = dlRun({ q: 'bar', keys: ['ArrowDown', 'ArrowDown', 'ArrowUp', 'ArrowUp'] }), a2 = dlRun({ q: 'bar', keys: ['ArrowDown', 'ArrowDown', 'Enter'] }), a3 = dlRun({ docs: true, q: 'rules', keys: ['Enter'] });
+    check('1.6.3 Down goes from the box into the results, Up and Down move through them and Up from the first goes back to the box; Enter on a result opens it, and Enter in the box opens the first',
+        J(a1.focused) === J(['p1', 'p2', 'p1', 'box']) && a1.log.length === 0 && a2.active === 'p2' && J(a2.focused) === J(['p1', 'p2']) && J(a3.log) === J(['nav', 'render', 'save', 'land']) && a3.active === 'd1', J([a1, a2, a3]));
+    const s1 = dlRun({ q: 'bar', pick: 'p1', shelf: true }), s2 = dlRun({ docs: true, q: '', pick: 'd1', shelf: true, ev: { altKey: true } }), s3 = dlRun({ docs: true, q: 'rules', pick: 'd1', shelf: true, foreign: true });
+    check('1.6.3 a result opens by the one rule every page list keeps (pageshelf.js open with wayNow and the keys held): over the map on the play map, Ctrl a window of its own, Alt the page itself, each with the landing a typed query has; the map stays on screen where it opens over it; a joined player\'s result still opens in the reader',
+        J(s1.shelf) === J([['p1', 'panel', { q: 'bar' }]]) && J(s1.log) === J(['shelf']) && s1.active === 'm1' && s1.modal === 'none' && J(s2.shelf) === J([['d1', 'go']]) && J(w3.shelf) === J([['p2', 'window', { q: 'alley' }]])
+        && J(s3.log) === J(['read']) && s3.shelf.length === 0, J([s1, s2, s3, w3]));
+    check('1.6.3 the two lists no longer search at a key that changes nothing: neither wires keyup, and both go through the one wiring',
+        !/onkeyup = updateList/.test(hdlSrc) && count(hdlSrc, 'listWire(inp, res, updateList, function(id, e) { pick(id, e); });') === 2 && /var LIST_WAIT = 120;/.test(dlS));
 }
 {
     // the page itself lands once it is drawn (planner.js, sliced by its plannerland markers and run for real on a page of plain objects, the
@@ -677,7 +698,8 @@ const drawSrc = sliceOf(ps, 'draw');
         && J(v3) === J([1, ['3'], 'guards', J([0, 0, 0, 0, 0])]) && J(v4) === J([['3'], ['3'], J([0, 0, 0, 1, 0])]), J([v1, v1b, v1c, v2, v3, v4]));
     check('the planner draws through the one word and publishes the landing once: both of the preview\'s draws say which page it now holds, and the diagram run ends in that draw\'s word, after the pass that follows it',
         count(pl, '          runPreviewMermaid(activeMap.id);\n          return;\n') === 1 && count(pl, '      preview.innerHTML = plannerPreviewHtml(activeMap, getActiveCampaign());\n      runPreviewMermaid(activeMap.id);\n') === 1 && count(pl, 'runPreviewMermaid(') === 3
-        && count(pl, "Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }") === 1 && count(pl, 'window.wpPlannerLand = plannerLand;') === 1);
+        // moved on purpose (1.6.3, the review of pages, finding 21): the settled run first puts right a diagram the library could not draw
+        && count(pl, "Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { if (typeof diagramBad === 'function') diagramBad(pane, true); pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }") === 1 && count(pl, 'window.wpPlannerLand = plannerLand;') === 1);
 }
 {
     // a player's reader lands once the page is drawn (handbook.js, sliced by its readerland markers and run for real on plain objects)
@@ -1303,8 +1325,58 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && plan.indexOf('<li>The shelf is yours alone.') < plan.indexOf('<li>A page you find opens') && plan.indexOf('<li>A page you find opens') < plan.indexOf('<li>The panel over the map holds several pages at once.')
         && wn.every(t => count(t, NOTE5) === 1));
     check('Help\'s Planners part says a click on Next scene opens it over the map; both release notes carry the line, alike; the suite is one of those CI runs',
-        plan.includes('the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>')
+        // moved on purpose (1.6.3, the review of pages, finding 16): the Status list is a whole planner's, and one sentence says how Next and a card's Tonight combine
+        plan.includes('the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a planner done. A planner marked Next says which planner, and a scene card marked Tonight says where in it Next scene opens.</li>')
+        && /title="Where this whole planner stands\. Next is the planner you play next/.test(read('index.html')) && /' is the planner you play next\.'/.test(fs.readFileSync(path.join(root, 'system/app/scripts/sidebar.js'), 'utf8'))
         && wn.every(t => count(t, NOTE) === 1) && fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n').includes('        if: ${{ !cancelled() }}\n        run: node tools/shelfcheck.js\n'));
+}
+
+/* ---------- 1.6.3, the review of pages, finding 33: Mentioned in for a whole page, from the Outline menu ---------- */
+{
+    const { makeDom } = require('./boxdom.js');
+    const dom = makeDom(), doc = dom.document, opened = [];
+    const win = { innerWidth: 800, innerHeight: 600, addEventListener() {}, wpNet: null, wpCardCore: null };
+    const camp = { items: {
+        d1: { type: 'doc', meta: { title: 'Harbour District' }, blocks: [{ id: 'b_self', type: 'text', content: '<p>The Harbour District itself.</p>' }] },
+        p1: { type: 'planner', meta: { title: 'Act one' }, blocks: [{ id: 'h_a', type: 'h2', title: 'Opening' }, { id: 'b_1', type: 'text', content: '<p>Meet in the harbour   district at dawn.</p>' }, { id: 'b_2', type: 'text', content: '<p>See <a href="#wp:page:d1">the docks</a>.</p>' }] },
+        p2: { type: 'planner', meta: { title: 'Act two' }, blocks: [{ id: 'b_3', type: 'node', title: 'A chase', tag: 'x', fmt: { spans: [{ s: 0, e: 1, link: '#wp:@:page:d1:b_self' }] } }] },
+        p3: { type: 'planner', meta: { title: 'Act three' }, blocks: [{ id: 'b_4', type: 'text', content: '<p>Districts and harbours, and <a href="#wp:page:d10">another</a>.</p>' }] },
+        m1: { type: 'map', meta: { title: 'Harbour District' } } } };
+    const N = new Function('getActiveCampaign', 'openPage', 'pageWay', 'viewNow', 'window', 'document', 'location', 'URLSearchParams', (waySrc.match(/\nfunction pageOf\(camp, id\) \{[\s\S]*?\n\}\n/) || [''])[0] + (shelfSrc.match(/\nfunction natCmp\(a, b\) \{[\s\S]*?\n\}\n/) || [''])[0] + sliceOf(ps, 'namedin') + '\nreturn { namedPageRows, namedPage, namedWire, up: function() { return _named; } };')(
+        () => camp, (id, way, land) => { opened.push([id, land]); return way; }, () => 'panel', () => 'play', win, doc, { search: '' }, URLSearchParams);
+    const rows = N.namedPageRows(camp, 'd1'), btn = doc.createElement('button'); doc.body.appendChild(btn);
+    const m = N.namedPage(btn, 'd1'), st = N.up(), again = N.namedPage(btn, 'd1');
+    const none = N.namedPageRows(camp, 'm1'), bad = N.namedPageRows(camp, 'gone');
+    const pn = read('scripts/pagenav.js');
+    check('1.6.3 Mentioned in for a whole page (pageshelf.js namedPageRows and namedPage, run for real): the others that name it by its title as a whole word, whatever its case and spaces, or hold a page link or a mention of it, a section of it too, whatever words that link shows; the page itself, a longer id and words that only begin the same are passed over; the menu comes up under the Outline button for the page and goes at its second press; a map or a page that is not here has none; the Outline menu offers it where parts open, and reads the page from its place',
+        J(rows.map(r => [r.id, r.at, r.n])) === J([['p1', 'b_1', 2], ['p2', 'b_3', 1]]) && !!m && st.whole === true && st.page === 'd1' && st.from === btn && again === null && N.up() === null && none === null && bad === null
+        && pn.includes("if (act && act.dataset.act === 'mentioned') { mentionedOpen(root, fromB); return; }") && pn.includes("pOn && typeof window.wpPageShelf.mentionedPage === 'function');") && pn.includes(".concat(ment === true ? [['mentioned', 'Mentioned in\u2026']] : [])"), J([rows, st && st.page]));
+}
+
+/* ---------- 1.6.3, the review of pages, finding 38: pages that share a title are told apart ---------- */
+{
+    const camp = { id: 'k', items: {
+        m1: { id: 'm1', type: 'map', meta: { title: 'Docking Bay' } },
+        s1: { id: 's1', type: 'planner', meta: { title: 'Session 1' } }, s2: { id: 's2', type: 'planner', meta: { title: 'Session 2' } },
+        a: { id: 'a', type: 'planner', meta: { title: 'Part 2b', parentId: 's1', status: 'played' }, blocks: [{ type: 'node', id: 'b_a', title: 'Ovesh', linkMapId: 'm1' }] },
+        b: { id: 'b', type: 'planner', meta: { title: 'part 2B', parentId: 's2' }, blocks: [{ type: 'node', id: 'b_b', title: 'Ovesh', linkMapId: 'm1' }] },
+        c: { id: 'c', type: 'planner', meta: { title: 'Alone' }, blocks: [{ type: 'node', id: 'b_c', title: 'x', linkMapId: 'm1' }] },
+        d: { id: 'd', type: 'doc', meta: { title: 'Part 2b' }, blocks: [] } } };
+    const sm = S.shelfModel(camp, 'm1', ['d']), rows = sm.where[0].rows.concat(sm.recent);
+    const subOf = id => (rows.filter(r => r.id === id)[0] || {}).sub;
+    check('1.6.3 shelf rows whose pages share a title, whatever its case, each say first in a gray line the page they stand under, at the top where none, and played or skipped where marked, before the row\'s own words; a title of its own says nothing new (shelfModel, run for real)',
+        subOf('a') === 'in Session 1, played · Ovesh' && subOf('b') === 'in Session 2 · Ovesh' && subOf('c') === 'x' && subOf('d') === 'at the top', J(rows.map(r => [r.id, r.sub])));
+    const mj = read('scripts/mention.js'), PK = new Function(sliceOf(mj, 'mentionpick') + '\nreturn { mentionAll };')(), all = PK.mentionAll(camp).filter(x => x.kind === 'page');
+    check('1.6.3 the @ list tells pages that share a title apart by the page each stands under (mentionAll, run for real), and draws it as a gray line of its own',
+        J(all.map(x => [x.label, x.sub || ''])) === J([['Session 1', ''], ['Session 2', ''], ['Part 2b', 'in Session 1, played'], ['part 2B', 'in Session 2'], ['Alone', ''], ['Part 2b', 'at the top']]) && mj.includes("sb.className = 'mention-sub'; sb.textContent = r.sub;"), J(all));
+    // the review of pages cards: a long shared title cut the gray line off. Each now stands on a line of its own under the name, the name cut
+    // with its own ellipsis: the shelf's row a grid whose second line is the gray line under the name, the @ list's name a column of its label and line
+    const cssT = read('style.css'), rule = sel => { const i = cssT.indexOf('\n  ' + sel + ' {'); return i < 0 ? '' : cssT.slice(i, cssT.indexOf('}', i)); };
+    const open = rule('.page-shelf .ps-open'), nm = rule('.page-shelf .ps-name'), sub = rule('.page-shelf .ps-sub'), mn = rule('.mention-name'), mk = rule('.mention-name > span');
+    check('1.6.3 the gray line of a shared title stands on a line of its own under the name, so a long title never pushes it out (the review of pages cards): the shelf\'s row a grid of the drawing and the words, the gray line in the words\' column under the name, neither one shrinking the other; the @ list\'s name a column of its label and its line, each cut by its own ellipsis, the label its own element',
+        /display: grid; grid-template-columns: auto minmax\(0, 1fr\)/.test(open) && !/flex/.test(nm) && /white-space: nowrap/.test(nm) && /grid-column: 2;/.test(sub) && !/flex: 1 1 0/.test(sub)
+        && /display: flex; flex-direction: column;/.test(mn) && !/white-space: nowrap/.test(mn) && /text-overflow: ellipsis; white-space: nowrap;/.test(mk)
+        && mj.includes("lab.className = 'mention-label'; lab.textContent = r.label; n.appendChild(lab);") && !mj.includes("n.className = 'mention-name'; n.textContent = r.label;"), J([open, nm, sub, mn, mk]));
 }
 
 /* ---------- the CI file ---------- */
@@ -1743,6 +1815,13 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const nS = MS.mentionPaint({ querySelectorAll: q => (q === 'a[href^="#wp:@:"]' ? Bs.slice(0, 1) : []) }, true), nK = MS.mentionPaint({ querySelectorAll: q => (q === 'a[href^="#wp:@:"]' ? Bs.slice(1) : []) }, false, true);
     check('166 f, fold 3, the paint for chat, the Journal and the pad (mentionPaint run for real): soft (a window or a Journal that may hold another campaign) never says a mention is gone; keep leaves the words as written while the chip follows (the pad counts its own words); a box editable for its caret alone (data-reads) is painted',
         nS === 1 && !Bs[0].cls.has('wp-mention-gone') && Bs[0].cls.has('wp-mention') && nK === 2 && Bs[1].text === 'kept words' && Bs[1].cls.has('wp-mention') && Bs[2].text === 'read pad' && Bs[2].cls.has('wp-mention'), J(Bs.map(a => [a.text, [...a.cls]])));
+    // 1.6.3 (the review of pages, finding 25): at someone else's table, a mention of something this app does not hold was not shared with the player
+    win.wpNet = { foreign: true, active: true, role: 'client' }; toasts.length = 0;
+    const Fs = [mk('#wp:@:char:c9', 'The Baron'), mk('#wp:@:page:p9', 'A secret page')]; Fs.forEach(a => { a.classList._s = a.cls; });
+    const nF = MS.mentionPaint({ querySelectorAll: q => (q === 'a[href^="#wp:@:"]' ? Fs : []) }); MS.mentionGo('char', 'c9', ''); MS.mentionGo('map', 'm9', '');
+    win.wpNet = null;
+    check('1.6.3 a mention at someone else\'s table (mentionPaint and mentionGo, run for real): one of an NPC or a page the player was never sent is a plain chip with the words the GM wrote, never struck through as gone, and a press says it has not been shared with you, never that it is not in this campaign',
+        nF === 2 && Fs.every(a => a.cls.has('wp-mention') && !a.cls.has('wp-mention-gone')) && Fs[0].text === 'The Baron' && J(toasts) === J(['That has not been shared with you.', 'That has not been shared with you.']), J([Fs.map(a => [a.text, [...a.cls]]), toasts]));
     const plM = read('scripts/planner.js'), lgM = read('scripts/linkgate.js'), escM = read('scripts/esckey.js');
     check('166 f wired (pinned): the editors write a mention (mentionCan, mentionAt, mention published on wpTextBox), a press goes through the link gate with no question, every read view paints its mentions before its folds, the list is heard first by Escape\u2019s own-menu rule, the module loaded after the time panel; Help says it',
         plM.includes('mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,') && lgM.includes("            if (pg) pageGo(win, pg, way, e, a); else mentionGo(win, mn, way, e, a);") && read('scripts/pagenav.js').includes("window.wpPageShelf.mentionPaint(root); } catch (e) {} }")
@@ -1851,7 +1930,8 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && count(plS, "if (!plainPv && (kdP.key === 'person' || kdP.key === 'place') && b.title && typeof b.id === 'string' && typeof activeMap.id === 'string') html += '<p class=\"pv-linkrow pv-ment-row\" data-html2canvas-ignore=\"true\"><button type=\"button\" class=\"tool ghost pv-ment\" data-page=\"' + esc(activeMap.id) + '\" data-at=\"' + esc(b.id) + '\" data-say=\"Mentioned in&hellip;\" aria-label=\"Mentioned in\" aria-haspopup=\"menu\" aria-expanded=\"false\" title=\"The pages and scenes that name this card. Press one to open it there.\"></button></p>';") === 1
         && !/addEventListener\('keydown'/.test(sliceOf(ps, 'namedin').replace("m.addEventListener('keydown', namedKey);", '')) && count(ps, "\nwindow.wpPageShelf.namedIn = function(names, self) { return namedIn(getActiveCampaign(), names, self); }; namedWire();\n") === 1
         && escS.includes("var ESC_OWN_MENUS = '#pageNavMenu, #pageLinkMenu, #namedInMenu,")
-        && count(cssS, "\n  @media screen {\n    body:not(.popout-mode):not(.stream-mode) #plannerPreview .pv-ment-row, body:not(.popout-mode):not(.stream-mode) #docPanelBody .pv-ment-row { display: block; }\n    .pv-ment::before { content: attr(data-say); }\n  }\n") === 1 && count(cssS, 'pv-ment-row') === 4 && count(cssS, "\n  .pv-ment-row { display: none; }\n  .doc-view .pv-cards > .pv-blk > .node > :nth-last-child(2):has(+ .pv-ment-row) { margin-bottom: 0; }") === 1, J([W.R.opened, wSet, wBad]));
+        // moved on purpose (1.6.3, the review of pages, finding 29): a card's Played or Found row stands under the very same rules
+        && count(cssS, "\n  @media screen {\n    body:not(.popout-mode):not(.stream-mode) #plannerPreview .pv-ment-row, body:not(.popout-mode):not(.stream-mode) #docPanelBody .pv-ment-row { display: block; }\n    body:not(.popout-mode):not(.stream-mode) #plannerPreview .pv-tick-row, body:not(.popout-mode):not(.stream-mode) #docPanelBody .pv-tick-row { display: block; }\n    .pv-ment::before, .pv-tick::before { content: attr(data-say); }\n") === 1 && count(cssS, 'pv-ment-row') === 4 && count(cssS, "\n  .pv-ment-row, .pv-tick-row { display: none; }   /* 1.6.3 (finding 29): a card's Played or Found button follows the same rule */\n  .doc-view .pv-cards > .pv-blk > .node > :nth-last-child(2):has(+ .pv-ment-row) { margin-bottom: 0; }") === 1, J([W.R.opened, wSet, wBad]));
     // what the review of the fold found, each by a case of its own
     const rv = { items: {
         a: { type: 'planner', meta: { title: 'A' }, blocks: [{ id: 'f1', type: 'flowchart', nodes: [{ id: 'n1', text: 'Meet Baron Vex' }], edges: [] }, { id: 'f2', type: 'flowchart', nodes: [{ id: 'n1', text: 'Start' }], edges: [{ from: 'n1', to: 'n1', text: 'Baron Vex agrees' }] }, { id: 'f3', type: 'flowchart', nodes: [{ id: 'n1', label: 'Baron Vex' }] }] },
@@ -1937,6 +2017,239 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     check("1.6.3 (the review of the sheet picks): at someone else's table a player's quick jump holds their own sheets alone, typed words finding no page of the host's campaign by its content (the search is not even asked); on the GM's own list a page found by its words still comes after the rows",
         JSON.stringify(plWords) === JSON.stringify([['char:Kael'], 0]) && JSON.stringify(gmWords) === JSON.stringify([['char:Kael', 'doc:Harbor gossip'], 1]),
         JSON.stringify({ plWords, gmWords }));
+}
+
+/* ---------- 1.6.3, the review of pages and planners: getting around and finding (lane B, batch 1) ---------- */
+{
+    // finding 7: quick jump's box takes the focus in the same turn as Ctrl+K (main.js cmdkOpen, run for real on plain objects)
+    const oA = mainS.indexOf('    function cmdkOpen() {'), oZ = mainS.indexOf('    window.wpCmdkOpen = cmdkOpen;');
+    const log = [], modal = { style: { display: 'none' } }, inp = { value: 'old', focus() { log.push('focus:' + modal.style.display); } }, timers = [];
+    const doc = { getElementById: id => (id === 'cmdkModal' ? modal : id === 'cmdkInput' ? inp : null), activeElement: null };
+    new Function('document', 'cmdkBuild', 'cmdkRender', 'setTimeout', mainS.slice(oA, oZ) + '\nreturn cmdkOpen;')(doc, () => log.push('build'), q => log.push('render:' + q), (fn, ms) => { timers.push(ms); })();
+    check('1.6.3 (finding 7) quick jump\'s box takes the focus at once, in the same turn as Ctrl+K, after the list is built and shown, so a key typed right after Ctrl+K lands in the box and never on the page; the late focus stays only as a second one',
+        oA > 0 && oZ > oA && J(log) === J(['build', 'render:', 'focus:flex']) && inp.value === '' && J(timers) === J([30]), J([log, timers]));
+    // finding 6: a planner opened from quick jump draws the whole app, so the party strip leaves the page (main.js cmdkGoNow, run for real)
+    const goSrc = sliceOf(mainS, 'cmdkgo'), wSrc = sliceOf(mainS, 'cmdkway');
+    const goWith = app => { const L = []; const st = { viewMode: 'visual', appState: { activeCampaignId: 'c1', campaigns: { c1: { id: 'c1', activeItemId: 'm1', items: { p1: { id: 'p1', type: 'planner', meta: {} }, m1: { id: 'm1', type: 'map', meta: {} } } } } } };
+        const win = { wpPageShelf: { wayNow: () => 'go', open() { L.push('shelf'); } }, wpNet: { foreign: false } }; if (app) win.appRender = () => L.push('app');
+        new Function('window', 'state', 'cmdkClose', 'save', 'updateCampaignSelect', 'updateSidebarNav', 'render', 'restoreCameraPosition', wSrc + '\n' + goSrc + '\nreturn cmdkGo;')(win, st, () => {}, () => L.push('save'), () => {}, () => {}, () => L.push('render'), () => {})({ kind: 'planner', campId: 'c1', itemId: 'p1' }, { altKey: true });
+        return L; };
+    check('1.6.3 (finding 6) a page quick jump opens as the page itself is drawn by the whole app\'s draw (window.appRender), which also empties the party strip off the play map, as the left panel\'s and the shelf\'s ways do; with no such draw, the old one',
+        J(goWith(true)) === J(['save', 'app']) && J(goWith(false)) === J(['save', 'render']), J([goWith(true), goWith(false)]));
+}
+{
+    // findings 4 and 36: the left panel's tree for the keyboard, and a double-click that renames (sidebar.js, its treekeys slice run for real on a
+    // page of plain objects)
+    const sbS = read('scripts/sidebar.js'), tkSrc = sliceOf(sbS, 'treekeys');
+    const T = new Function(tkSrc + '\nreturn { act: treeKeyAct, sync: treeSync, wire: treeKeysWire, focusOf: treeFocusOf, note: treeOpenNote, back: treeBackFor, rows: treeRows, shown: treeShown, away: treePressAway };')();
+    const R5 = [{ d: 0, kids: true, open: true }, { d: 1, kids: false }, { d: 1, kids: true, open: false }, { d: 0, kids: false }, { d: 0, kids: true, open: false }];
+    const acts = [['ArrowDown', 0], ['ArrowDown', 4], ['ArrowUp', 0], ['ArrowUp', 3], ['Home', 3], ['End', 1], ['ArrowRight', 0], ['ArrowRight', 2], ['ArrowRight', 1], ['ArrowLeft', 0], ['ArrowLeft', 1], ['ArrowLeft', 2], ['ArrowLeft', 3],
+        ['Enter', 2], [' ', 2], ['F2', 1], ['ContextMenu', 1], ['F10', 1, true], ['F10', 1], ['F2', 1, true], ['a', 1], ['Delete', 1]].map(a => T.act(R5, a[1], a[0], a[2]));
+    check('1.6.3 (finding 4) what a key does on a row of the tree (treeKeyAct, run for real): Up and Down move a row and stop at the ends, Home and End go to them, Right opens a closed nest and goes into an open one, Left closes an open nest or goes to the row it stands under, Enter and Space open the row, F2 renames it, the menu key and Shift+F10 open its menu, and any other key is left alone',
+        J(acts) === J([{ to: 1 }, { to: 4 }, { to: 0 }, { to: 2 }, { to: 0 }, { to: 4 }, { to: 1 }, { act: 'expand' }, { to: 1 }, { act: 'collapse' }, { to: 0 }, { to: 0 }, { to: 3 },
+            { act: 'open' }, { act: 'open' }, { act: 'rename' }, { act: 'menu' }, { act: 'menu' }, null, null, null, null]) && T.act([], 0, 'ArrowDown') === null && T.act(R5, 9, 'ArrowDown') === null && T.act(null, 0, 'Enter') === null, J(acts));
+    // a list of the tree as the panel draws it: rows that are the list's own children, a caret where a row has a nest
+    const mkTree = (id, spec, active, rects) => {
+        const doc = { activeElement: null }, log = [];
+        const nav = { id, attrs: {}, children: [], on: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); }, contains(t) { return t === this || this.children.indexOf(t) >= 0; } };
+        if (rects) nav.getClientRects = () => rects;   // a list with a layout: rects of no width are a list in a panel folded to its rail
+        spec.forEach(([rid, d, kids, open]) => {
+            const caret = kids ? { classList: { contains: c => c === 'down' && open }, click() { log.push('caret:' + rid); } } : null;
+            const row = { dataset: { id: rid, depth: String(d) }, tabIndex: -1, parentNode: nav, classList: { contains: c => c === 'sidebar-item' || (c === 'active' && rid === active) }, querySelector: s => (s === '.caret' ? caret : null),
+                click() { log.push('open:' + rid); }, focus() { doc.activeElement = this; log.push('focus:' + rid); }, blur() { if (doc.activeElement === this) doc.activeElement = null; log.push('blur:' + rid); }, scrollIntoView() {} };
+            nav.children.push(row);
+        });
+        nav.children.unshift({ classList: { contains: () => false } });   // the Maps list holds its quick chips first, which are no rows
+        const key = (rid, k, ev) => { const row = nav.children.find(r => r.dataset && r.dataset.id === rid), e = Object.assign({ key: k, target: row, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }, ev || {}); (nav.on.keydown || []).forEach(f => f(e)); return e; };
+        const press = rid => { (nav.on.pointerdown || []).forEach(f => f({})); const row = nav.children.find(r => r.dataset && r.dataset.id === rid); doc.activeElement = row; return row; };   // a pointer press on a row: the browser gives it the focus, since it has a tabindex
+        return { doc, nav, log, key, press, tabs: () => nav.children.filter(r => r.dataset).map(r => r.dataset.id + ':' + r.tabIndex).join(' ') };
+    };
+    const A = mkTree('plannerNavList', [['p1', 0, true, true], ['p2', 1, false], ['p3', 0, true, false]], 'p2'), calls = [];
+    const s0 = T.sync(A.nav, null), wired = T.wire(A.nav, { rename: id => calls.push('rename:' + id), menu: r => calls.push('menu:' + r.dataset.id) }), again = T.wire(A.nav, {});
+    const t0 = A.tabs(), eDown = A.key('p2', 'ArrowDown'), t1 = A.tabs(), eRight = A.key('p3', 'ArrowRight'), eEnter = A.key('p3', 'Enter'), eF2 = A.key('p3', 'F2'), eMenu = A.key('p3', 'F10', { shiftKey: true }), eCtrl = A.key('p3', 'ArrowUp', { ctrlKey: true }), eA = A.key('p3', 'a');
+    check('1.6.3 (finding 4) a list of the tree is a tree for the keyboard (treeSync and treeKeysWire, run for real): it says so and what it is, the row open is its one tab stop, a key moves the focus and the tab stop with it, Right on a closed nest presses its caret, Enter presses the row as a click does, F2 and Shift+F10 ask the rename and the menu the row\'s own double-click and right-click give; a key it takes goes no further (the page\'s arrows would move a selected token), a key held with Ctrl and any other key are left to the page; the listener is put on once',
+        A.nav.attrs.role === 'tree' && A.nav.attrs['aria-label'] === 'Planners' && s0 && s0.dataset.id === 'p2' && wired === true && again === false && t0 === 'p1:-1 p2:0 p3:-1'
+        && eDown.prevented && eDown.stopped && t1 === 'p1:-1 p2:-1 p3:0' && A.doc.activeElement && A.doc.activeElement.dataset.id === 'p3'
+        && J(A.log) === J(['focus:p3', 'caret:p3', 'open:p3']) && J(calls) === J(['rename:p3', 'menu:p3']) && eRight.prevented && eEnter.prevented && !eCtrl.prevented && !eA.prevented && !eA.stopped, J([t0, t1, A.log, calls]));
+    // the row that held the focus is found again after the list is drawn anew, by its list and its id
+    const B = mkTree('docNavList', [['d1', 0, false], ['d2', 0, false]], 'd1'); B.doc.activeElement = B.nav.children[2];
+    const foc = T.focusOf(B.doc), B2 = mkTree('docNavList', [['d1', 0, false], ['d2', 0, false]], 'd1'), stop = T.sync(B2.nav, foc), other = T.focusOf({ activeElement: { classList: { contains: () => true }, parentNode: { id: 'charNavList' }, dataset: { id: 'c1' } } });
+    check('1.6.3 (finding 4) the tree is drawn whole at every change, so the row the keyboard was on takes the focus back, by its list and its id, and is the tab stop; a row of another section of the panel is no row of the tree',
+        J(foc) === J({ list: 'docNavList', id: 'd2' }) && stop.dataset.id === 'd2' && B2.tabs() === 'd1:-1 d2:0' && J(B2.log) === J(['focus:d2']) && other === null && T.focusOf({}) === null, J([foc, B2.tabs(), B2.log]));
+    // the review of pages finding (4): the tree holds the keys only while the keyboard uses it. Without the fix a row a pointer pressed took
+    // the focus back after its own redraw, a folded panel's hidden tree took the arrows and Space (which opened another map) and the page's
+    // own key handler (io.js menuHeld) held the arrows, Delete and Backspace for a tree with no width
+    const C = mkTree('mapNavList', [['m1', 0, false], ['m2', 0, false]], 'm1'); T.sync(C.nav, null); T.wire(C.nav, {});
+    C.press('m2'); const cFoc = T.focusOf(C.doc); C.log.length = 0; T.sync(C.nav, cFoc); const ptrLog = C.log.slice();
+    C.key('m2', 'ArrowUp'); C.log.length = 0; const kFoc = T.focusOf(C.doc); T.sync(C.nav, kFoc); const keyLog = C.log.slice();
+    const H = mkTree('plannerNavList', [['p1', 0, false], ['p2', 0, false]], 'p1', [{ width: 0, height: 400 }]); T.sync(H.nav, null); T.wire(H.nav, {});
+    H.doc.activeElement = H.nav.children[1]; const hDown = H.key('p1', 'ArrowDown'), hFocAfter = H.doc.activeElement;
+    H.doc.activeElement = H.nav.children[1]; const hSpace = H.key('p1', ' '), hDel = H.key('p1', 'Delete');
+    H.doc.activeElement = H.nav.children[1]; const hKeyLog = H.log.slice(); H.log.length = 0; T.sync(H.nav, { list: 'plannerNavList', id: 'p1' }); const hSync = H.log.slice();
+    const shownW = [T.shown(null), T.shown({}), T.shown({ getClientRects: () => [] }), T.shown({ getClientRects: () => [{ width: 0 }] }), T.shown({ getClientRects: () => [{ width: 0 }, { width: 240 }] })];
+    const P = mkTree('docNavList', [['d1', 0, false]], 'd1'), pRow = P.press('d1'), inPress = T.away(P.doc, pRow), inKept = P.doc.activeElement === pRow, boardEl = { id: 'whiteboard' }, outPress = T.away(P.doc, boardEl), afterOut = P.doc.activeElement;
+    const notTree = T.away({ activeElement: { classList: { contains: () => true }, parentNode: { id: 'charNavList', contains: () => false }, blur() { throw new Error('blurred'); } } }, boardEl), noFocus = T.away({ activeElement: null }, boardEl);
+    const ioT = read('scripts/io.js'), tA = ioT.indexOf('  // [shelfcheck:menuheld-start]'), tZ = ioT.indexOf('  // [shelfcheck:menuheld-end]'), menuHeldT = new Function("'use strict';\n" + ioT.slice(tA, tZ) + '\nreturn menuHeld;')();
+    const treeEl = rects => ({ nodeType: 1, closest: sel => (sel.indexOf('[role="tree"]') >= 0 ? { getClientRects: () => rects } : null) });
+    const mhT = [menuHeldT(treeEl([{ width: 0, height: 400 }])), menuHeldT(treeEl([{ width: 260, height: 400 }])), menuHeldT(treeEl([])), menuHeldT(null)];   // after a board press the focus is on no row at all: null stands for the body
+    check('the review of pages finding (4) the tree holds the keys only while the keyboard uses it: a row a pointer pressed does not take the focus back after the redraw its click makes, while one the keyboard moved to does; a key in a list that is not shown (a panel folded to its rail, no width) is left to the page, presses and opens nothing, and the row lets the focus go; the page\'s own arrows, Delete and Backspace are held only by a tree with a width; and a press outside the list lets a row\'s focus go, a press inside it or a row of another section left alone',
+        J(ptrLog) === J([]) && J(keyLog) === J(['focus:m1']) && C.nav._wpTreePtr === false && C.nav.on.pointerdown && C.nav.on.pointerdown.length === 1
+        && !hDown.prevented && !hDown.stopped && hFocAfter === null && !hSpace.prevented && !hDel.prevented && J(hKeyLog) === J(['blur:p1', 'blur:p1', 'blur:p1']) && J(hSync) === J([])
+        && J(shownW) === J([false, true, false, false, true]) && inPress === false && inKept && outPress === true && afterOut === null && notTree === false && noFocus === false
+        && J(mhT) === J([false, true, false, false])
+        && count(sbS, "document.addEventListener('pointerdown', function(e) { treePressAway(document, e.target); }, true);") === 1 && sbS.indexOf("document.addEventListener('pointerdown', function(e) { treePressAway(document, e.target); }, true);") > sbS.indexOf('// [shelfcheck:treekeys-end]'),
+        J([ptrLog, keyLog, hKeyLog, hSync, shownW, [inPress, outPress, notTree, noFocus], mhT]));
+    // finding 36: a double-click that renames puts back what its first click opened over
+    const camp = { activeItemId: 'm1', items: { m1: { type: 'map' }, p1: { type: 'planner' } } };
+    const n1 = T.note(camp, 'p1', 'visual', 1000); camp.activeItemId = 'p1'; const n2 = T.note(camp, 'p1', 'visual', 1100), b1 = T.back(camp, 'p1', 1300), b2 = T.back(camp, 'p1', 1310);
+    camp.activeItemId = 'm1'; T.note(camp, 'p1', 'data', 0); camp.activeItemId = 'p1'; const late = T.back(camp, 'p1', 5000);
+    camp.activeItemId = 'm1'; T.note(camp, 'p1', 'visual', 0); camp.activeItemId = 'p1'; const wrongRow = T.back(camp, 'p9', 10);
+    camp.activeItemId = 'm1'; T.note(camp, 'p1', 'visual', 0); camp.activeItemId = 'p1'; delete camp.items.m1; const gone = T.back(camp, 'p1', 10);
+    check('1.6.3 (finding 36) a double-click on a row renames it and puts the view back where it was (treeOpenNote and treeBackFor, run for real): the first click notes what was on screen, the second click on the row already open notes nothing, and the double-click gets back the item and the view it left, once; nothing comes back after a while, for another row, or where what was on screen is no longer in the campaign',
+        n1 === true && n2 === false && J(b1) === J({ prev: 'm1', view: 'visual' }) && b2 === null && late === null && wrongRow === null && gone === null, J([n1, n2, b1, b2, late, wrongRow, gone]));
+    // the review of pages finding (36): a deliberate open, a pause, then a double-click on that very row to rename it. The double-click's
+    // first click (a click count of 1 on the row already open) is a fresh act, so the open before it is not put back; a real double-click's
+    // second click (a count of 2) keeps the note. And the time a double-click may take is about the system's own, never a second and a half
+    const c2 = { activeItemId: 'm1', items: { m1: { type: 'map' }, p1: { type: 'planner' } } };
+    T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; const fresh = T.note(c2, 'p1', 'visual', 900, 1), afterPause = T.back(c2, 'p1', 1000);
+    c2.activeItemId = 'm1'; T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; T.note(c2, 'p1', 'visual', 90, 2); const realDbl = T.back(c2, 'p1', 200);
+    c2.activeItemId = 'm1'; T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; const slow = T.back(c2, 'p1', 700);
+    c2.activeItemId = 'm1'; T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; T.note(c2, 'p1', 'visual', 50, 0); const byKey = T.back(c2, 'p1', 120);   // Enter or Space on the row: a click with a count of 0 leaves the note alone
+    check('the review of pages finding (36) a single click on the row already open lets go of the note an earlier open left, so a deliberate open, a pause and a double-click to rename does not send the GM back to the map they left on purpose; a real double-click (its second click counts 2) still puts the view back, a click made by a key changes nothing, and a double-click is about the system\'s own time (half a second), never a second and a half',
+        fresh === false && afterPause === null && J(realDbl) === J({ prev: 'm1', view: 'visual' }) && slow === null && J(byKey) === J({ prev: 'm1', view: 'visual' }) && /TREE_DBL_MS = 500;/.test(sbS),
+        J([fresh, afterPause, realDbl, slow, byKey]));
+    check('1.6.3 (findings 4 and 36) the panel wires it: each row is a treeitem with its level, its nest and whether it is open; every list is synced and wired after each draw; the click notes, the double-click puts back and then renames through the one rename F2 asks too; and the page\'s own arrows, Delete and Backspace leave a row of the tree alone (io.js menuHeld)',
+        /role="treeitem" tabindex="-1" aria-level="' \+ \(depth \+ 1\) \+ '"' \+ \(hasKids \? ' aria-expanded="/.test(sbS) && count(sbS, "TREE_LISTS.forEach(function(lid) { var nv = document.getElementById(lid); treeSync(nv, treeFoc); treeKeysWire(nv, { rename: renameTreeItem, menu: treeMenu }); });") === 1
+        && count(sbS, 'treeOpenNote(activeC, this.dataset.id, state.viewMode, Date.now(), e.detail);') === 1   /* the review of pages finding (36) moved this pin on purpose: the click hands on its own count */ && count(sbS, 'var back = treeBackFor(activeC, this.dataset.id, Date.now());') === 1 && count(sbS, 'renameTreeItem(this.dataset.id);') === 1
+        && /el\.closest\('\[role="menu"\], \[role="listbox"\], \[role="tree"\]'\)/.test(read('scripts/io.js')) && /\n  \.sidebar-item:focus-visible \{ outline: 1px solid var\(--gold\);/.test(css));
+}
+{
+    // finding 5: the reader's Find (handbook.js, its readerfind slice run for real on plain objects, with a finder of the suite's own)
+    const hbS = read('scripts/handbook.js'), rfSrc = sliceOf(hbS, 'readerfind');
+    const rf = o => { o = o || {};
+        const F = [], els = {}, timers = [], on = (el) => { el.on = {}; el.addEventListener = function(t, f) { (this.on[t] = this.on[t] || []).push(f); }; el.fire = function(t, e) { (this.on[t] || []).forEach(f => f(e)); }; return el; };
+        els.docReaderFind = on({ id: 'docReaderFind', value: '', focus() { F.push('focus'); }, select() { F.push('select'); } }); els.docReaderModal = on({}); els.docReaderFindNext = on({}); els.docReaderFindPrev = on({}); els.docReaderFindCount = { textContent: '2 / 9' }; els.docReaderBody = {};
+        const finder = { w: '', find(q, s) { this.w = q; F.push('find:' + q + ':' + !!s); }, step(n) { F.push('step:' + n); }, clear() { this.w = ''; F.push('clear'); }, words() { return this.w; } };
+        const win = o.noPanel ? {} : { wpDocPanel: { finder: (root, cnt) => { F.push('made:' + (root() === els.docReaderBody) + ':' + (cnt() === els.docReaderFindCount)); return finder; } } };
+        const api = new Function('window', 'ui', 'setTimeout', 'clearTimeout', rfSrc + '\nreturn { wire: readerFindWire, reset: readerFindReset, again: readerFindAgain };')(win, id => els[id] || null, (fn) => { timers.push(fn); return timers.length; }, id => { timers[id - 1] = null; });
+        const ev = (k, x) => Object.assign({ key: k, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }, x || {});
+        return { api, els, F, timers, ev, run: () => { const t = timers.slice(); timers.length = 0; t.forEach(f => f && f()); } }; };
+    const A = rf(), wired = A.api.wire(), box = A.els.docReaderFind;
+    box.value = 'gr'; box.fire('input'); box.value = 'grapple'; box.fire('input'); A.run();
+    const e1 = A.ev('Enter'); box.fire('keydown', e1); const e2 = A.ev('Enter', { shiftKey: true }); box.fire('keydown', e2);
+    A.els.docReaderFindNext.fire('click'); A.els.docReaderFindPrev.fire('click');
+    const e3 = A.ev('Escape'); box.fire('keydown', e3); const e4 = A.ev('Escape'); box.fire('keydown', e4);
+    const eF = A.ev('f', { ctrlKey: true }); A.els.docReaderModal.fire('keydown', eF); const eFa = A.ev('f', { ctrlKey: true, altKey: true }); A.els.docReaderModal.fire('keydown', eFa); const eG = A.ev('g', { ctrlKey: true }); A.els.docReaderModal.fire('keydown', eG);
+    check('1.6.3 (finding 5) a player\'s reader has a Find of its own, through the page panel\'s one finder on the reader\'s page and count (readerFindWire, run for real): the words are marked a moment after they stop changing, once; Enter and Shift+Enter, and the two arrows, go to the next and the one before; Esc on words clears them, and on an empty box is left to close the reader; Ctrl+F in the reader takes the box and goes no further, and no other chord does',
+        wired === true && J(A.F.slice(0, 2)) === J(['made:true:true', 'find:grapple:true']) && J(A.F.slice(2, 6)) === J(['step:1', 'step:-1', 'step:1', 'step:-1']) && e1.prevented && e2.prevented
+        && e3.prevented && box.value === '' && A.F[6] === 'clear' && !e4.prevented && eF.prevented && eF.stopped && J(A.F.slice(7)) === J(['focus', 'select']) && !eFa.prevented && !eG.prevented, J(A.F));
+    const B = rf(); B.api.wire(); const bx = B.els.docReaderFind; bx.value = 'old'; bx.fire('input'); const eB = B.ev('Enter'); bx.fire('keydown', eB); const queued = B.timers.filter(Boolean).length;
+    B.api.again(); bx.value = ''; B.api.again(); bx.value = 'x'; B.api.reset();
+    check('1.6.3 (finding 5) Enter before the wait is over marks the words at once and drops the wait; a page the GM changed keeps its words marked where the page now stands, with no jump, and nothing is asked of an empty box; another page or the reader closed clears the box, its marks and its count',
+        J(B.F) === J(['made:true:true', 'find:old:true', 'find:old:false', 'clear']) && queued === 0 && bx.value === '' && B.els.docReaderFindCount.textContent === '', J(B.F));
+    const C = rf({ noPanel: true }); C.api.wire(); C.els.docReaderFind.value = 'x'; C.els.docReaderFind.fire('input'); C.run(); C.els.docReaderFind.fire('keydown', C.ev('Enter')); C.api.again(); C.api.reset();
+    const ixF = read('index.html'), escS = read('scripts/esckey.js');
+    check('1.6.3 (finding 5) with no page panel module the box marks nothing and nothing throws; the reader\'s head holds the box, its count and the two arrows joined as one control, the page takes the focus at a click, the reader opens and closes with the box cleared, its own Esc and the Escape router let a box that holds words go first, and Help says it',
+        C.F.length === 0 && /<span id="docReaderFindRow"><input type="search" id="docReaderFind" [^>]*aria-label="Find on this page"[^>]*><span id="docReaderFindCount" class="docpanel-count"><\/span><span class="ui-seg"><button class="tool ghost icon" id="docReaderFindPrev"/.test(ixF)
+        && ixF.includes('<div id="docReaderBody" class="doc-view" tabindex="-1"></div>') && count(hbS, "if (typeof readerFindReset === 'function') readerFindReset();") === 2 && count(hbS, '    readerFindAgain();   //') === 1
+        && count(hbS, "if (e.target && e.target.id === 'docReaderFind' && e.target.value) return;") === 1 && count(escS, "t.id === 'docReaderFind'") === 1 && count(hbS, '\nreaderFindWire();\n') === 1
+        && ixF.includes('<li>The reader has a <b>Find</b> box. Press <kbd>Ctrl</kbd>+<kbd>F</kbd> while the reader has the focus to reach it.'));
+    check('1.6.3 (finding 5) a Search button stands on the Handbook title for everyone, a player too, and presses Search Pages, which before stood only behind a right-click',
+        /&#9662; Handbook<\/span> <button class="tool ghost section-plus hb-search" data-press="searchDocsBtn" type="button"[^>]*aria-label="Search Pages">/.test(ixF) && !/class="tool ghost gm-only section-plus hb-search"/.test(ixF));
+}
+{
+    // finding 14: the Opens page and Scene page lists are a search beside a list (inspector.js pageFindUp, run for real with a find of the
+    // suite's own), and a page says where it stands in the tree (pageshelf.js mapPinChoices' where)
+    const insS = read('scripts/inspector.js'), boxS = sliceOf(insS, 'pagepinbox'), got = [];
+    const U = { find: o => { got.push(o); return { kind: 'find' }; } };
+    const P = new Function('window', 'esc', 'save', 'render', 'toast', boxS + '\nreturn pageFindUp;')({ wpUi: U }, s => s, () => {}, () => {}, () => {});
+    const changes = [], sel = { hidden: false, value: 'p1', parentNode: { ins: [], insertBefore(n, ref) { this.ins.push([n, ref]); } }, nextSibling: { next: true }, dispatchEvent(e) { changes.push(e.type + ':' + this.value); } };
+    const f = { cur: 'p1', choices: [{ id: 'p1', title: '2.1 Arrest', kind: 'planner', where: 'Part 2' }, { id: 'p9', title: '2.1 arrest', kind: 'planner', where: 'Archive / Part 2' }, { id: 'p3', title: 'Docks', kind: 'planner', where: 'Part 1' }, { id: 'd1', title: 'Rules', kind: 'doc', where: '' }, { id: 'd2', title: 'Rules', kind: 'doc', where: '' }, { id: 'x1', title: 'Respite', kind: 'planner', where: 'Module 3 / Reference / Archive' }, { id: 'x2', title: 'Respite', kind: 'planner', where: 'Module 3 / Reference / Start Here' }] };
+    const w = P(sel, f, 'Opens page'), o = got[0]; o.set('p9');
+    check('1.6.3 (finding 14) the list of every page by name is the app\'s own search beside a list (uiparts.js find): the planners and the handbook pages in two groups, None first, the page in use picked; two pages of one name say beside it where each stands in the tree, by as few of the names above it as tell them apart, the nearest last, and a page of a name of its own says nothing more; the list the row writes stays in the page, hidden, and a pick sets it and says its change, so the piece keeps the page\'s id as before',
+        w.kind === 'find' && sel.hidden === true && sel.parentNode.ins[0][0] === w && sel.parentNode.ins[0][1] === sel.nextSibling && o.blank === 'None' && o.value === 'p1' && o.label === 'Opens page' && J(o.groups) === J([['planner', 'Planners'], ['doc', 'Handbook']])
+        && J(o.choices.map(c => [c.value, c.name, c.group, c.sub])) === J([['p1', '2.1 Arrest', 'planner', 'Part 2'], ['p9', '2.1 arrest', 'planner', 'Archive / Part 2'], ['p3', 'Docks', 'planner', ''], ['d1', 'Rules', 'doc', 'at the top'], ['d2', 'Rules', 'doc', 'at the top'], ['x1', 'Respite', 'planner', 'Archive'], ['x2', 'Respite', 'planner', 'Start Here']])
+        && sel.value === 'p9' && J(changes) === J(['change:p9']), J([o.choices, changes]));
+    check('1.6.3 (finding 14) where there is no search to make, the list stays as it was: no find, no field, or a list with nothing around it',
+        new Function('window', 'esc', 'save', 'render', 'toast', boxS + '\nreturn pageFindUp;')({}, s => s, () => {}, () => {}, () => {})(sel, f, 'x') === null && P(sel, null, 'x') === null && P({ parentNode: null }, f, 'x') === null && P(null, f, 'x') === null
+        && count(insS, "if (_el_wbPagePin && window.wpPageShelf && typeof window.wpPageShelf.mapPinField === 'function') pageFindUp(_el_wbPagePin, window.wpPageShelf.mapPinField(w), 'Opens page');") === 1
+        && count(insS, "if (_el_mapScenePage && window.wpPageShelf && typeof window.wpPageShelf.scenePageField === 'function') pageFindUp(_el_mapScenePage, window.wpPageShelf.scenePageField(activeMap), 'Scene page');") === 1);
+    const M = new Function(waySrc + '\n' + shelfSrc + '\nreturn { choices: mapPinChoices };')();
+    const camp = { items: { a: { type: 'planner', meta: { title: 'Archive' } }, b: { type: 'planner', meta: { title: 'Part 2', parentId: 'a' } }, c: { type: 'planner', meta: { title: '2.1 Arrest', parentId: 'b' } }, d: { type: 'doc', meta: { title: 'Rules', parentId: 'a' } },
+        l1: { type: 'planner', meta: { title: 'Loop 1', parentId: 'l2' } }, l2: { type: 'planner', meta: { title: 'Loop 2', parentId: 'l1' } }, e: { type: 'planner', meta: { title: 'Orphan', parentId: 'gone' } } } };
+    const wh = {}; M.choices(camp).forEach(c => { wh[c.id] = c.where; });
+    check('1.6.3 (finding 14) where a page stands in the tree, in words: the names above it, the farthest first; nothing at the top, under a page of another kind or one that is gone; a loop a file holds ends where it closes',
+        J(Object.keys(wh).sort().map(k => k + '=' + wh[k])) === J(['a=', 'b=Archive', 'c=Archive / Part 2', 'd=', 'e=', 'l1=Loop 2', 'l2=Loop 1']), J(wh));
+}
+{
+    // findings 22 and 32: what the searches read (docpanel.js blockText, stripMarkup and searchAll, run for real)
+    const dpS = fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'utf8');
+    const fold = dpS.slice(dpS.indexOf('// [textcheck:panelfold-start]'), dpS.indexOf('// [textcheck:panelfold-end]')), srch = dpS.slice(dpS.indexOf('function searchAll('), dpS.indexOf('function renderResults('));
+    const X = new Function('activeCamp', "var openId = '';\n" + fold + '\n' + srch + '\nreturn { blockText: blockText, searchAll: searchAll };')(() => null);
+    const camp = { items: { p1: { type: 'planner', meta: { title: 'Ship' }, blocks: [{ type: 'text', content: '<p>Power Core &amp; Engines, &lt;deck 4&gt; &#8211; &#x41;ft &nbsp;hold &bogus; done</p>' }] },
+        p2: { type: 'planner', meta: { title: 'Old notes' }, blocks: [{ type: 'raw', content: '<style>.grapple{color:red}</style><div class="x"><h2>The smuggler&#39;s den</h2><p>Grapple rules here</p></div><script>var grapple = 1;</script>' }] },
+        d1: { type: 'doc', meta: { title: 'Rules' }, blocks: [{ type: 'raw', content: '<p>Grapple in a page</p>' }] } } };
+    const amp = X.searchAll('core & engines', camp), raw = X.searchAll('grapple', camp), den = X.searchAll("smuggler's den", camp);
+    check('1.6.3 (finding 22) a stored text\'s entities are read as their characters once its tags are off, so a snippet says & once and never &amp;, a search finds a & typed, and an entity this reader does not know stays as written',
+        X.blockText(camp.items.p1.blocks[0]) === 'Power Core & Engines, <deck 4 – Aft hold &bogus; done' && amp.length === 1 && /Power <mark>Core &amp; Engines<\/mark>/.test(amp[0].snippet) && !/&amp;amp;/.test(amp[0].snippet), J([X.blockText(camp.items.p1.blocks[0]), amp]));
+    check('1.6.3 (finding 32) a planner\'s Raw HTML block is found by its words, its style sheet and its script left out; a handbook page draws no such block, so a page is never found by one',
+        J(raw.map(r => r.id)) === J(['p2']) && /<mark>Grapple<\/mark> rules/.test(raw[0].snippet) && !/color:red|var grapple/.test(raw[0].snippet) && den.length === 1 && den[0].id === 'p2'
+        && X.blockText({ type: 'raw', content: '<p>x</p>' }) === '' && X.blockText({ type: 'raw', content: '<p>x</p>' }, { type: 'planner' }) === 'x' && X.blockText({ type: 'raw' }, { type: 'planner' }) === '', J([raw, den]));
+}
+{
+    // finding 28 is above, with the two lists; finding 40: Mentioned in keeps each block's folded words (pageshelf.js namedKept, run for real)
+    const nSrc = (waySrc.match(/\nfunction pageOf\(camp, id\) \{[\s\S]*?\n\}\n/) || [''])[0] + (shelfSrc.match(/\nfunction natCmp\(a, b\) \{[\s\S]*?\n\}\n/) || [''])[0] + sliceOf(ps, 'namedin');
+    let texts = 0;
+    const N = new Function('getActiveCampaign', 'openPage', 'pageWay', 'viewNow', 'window', 'document', 'location', 'URLSearchParams', nSrc.replace('function namedText(b) {', 'function namedText(b) { if (typeof __count === "function") __count();') + '\nreturn { namedIn };')(() => null, () => '', () => '', () => '', {}, {}, {}, URLSearchParams);
+    const blocks = []; for (let i = 0; i < 60; i++) blocks.push({ id: 'b' + i, type: 'text', content: i % 7 ? '<p>Nothing of note ' + i + '</p>' : '<p>Advocate Shaelas Vro waits ' + i + '</p>' });
+    const camp = { items: { p1: { type: 'planner', meta: { title: 'Part 1' }, blocks }, d1: { type: 'doc', meta: { title: 'Rules' }, blocks: [{ type: 'h1', title: 'Shaelas Vro' }] } } };
+    globalThis.__count = () => { texts++; };
+    const r1 = J(N.namedIn(camp, ['Shaelas Vro'])), n1 = texts; const r2 = J(N.namedIn(camp, ['Shaelas Vro'])), n2 = texts - n1;
+    blocks[3].content = '<p>Shaelas Vro here now</p>'; const r3 = N.namedIn(camp, ['Shaelas Vro']), n3 = texts - n1 - n2;
+    blocks.push({ id: 'bx', type: 'text', content: 'Shaelas Vro again' }); const r4 = N.namedIn(camp, ['Shaelas Vro']);
+    delete globalThis.__count;
+    check('1.6.3 (finding 40) a second Mentioned in reads no block\'s words again: each block\'s folded words are kept with it, and what is found is the same; a block changed in place is read again, and only that one, and a block added is found',
+        n1 === 61 && n2 === 0 && r1 === r2 && n3 === 1 && r3[0] && r3[0].n === 10 && r4[0].n === 11 && J(JSON.parse(r1).map(r => r.id)) === J(['p1', 'd1']), J([n1, n2, n3, r1, r3, r4]));
+}
+{
+    // finding 46: Find words clear when another page opens (planner.js renderPlannerPreview with its Find, run for real on a page of plain objects)
+    const pl = read('scripts/planner.js'), cut = (a, z) => pl.slice(pl.indexOf(a), pl.indexOf(z, pl.indexOf(a)));
+    const pfSrc = cut('// [textcheck:find-start]', '// [textcheck:find-end]'), rppSrc = cut('  function renderPlannerPreview() {', '  function renderPlannerPreviewCore() {');
+    const dom = makeDom(), doc = dom.document;
+    dom.Text.prototype.splitText = function(at) { const rest = new dom.Text(this.nodeValue.slice(at)); this.nodeValue = this.nodeValue.slice(0, at); const l = this.parentNode.childNodes; l.splice(l.indexOf(this) + 1, 0, rest); rest.parentNode = this.parentNode; return rest; };
+    dom.El.prototype.normalize = function() { for (let i = 0; i < this.childNodes.length; i++) { const n = this.childNodes[i]; if (n.nodeType !== 3) { n.normalize(); continue; } if (!n.nodeValue) { this.childNodes.splice(i--, 1); continue; } const nx = this.childNodes[i + 1]; if (nx && nx.nodeType === 3) { n.nodeValue += nx.nodeValue; this.childNodes.splice(i + 1, 1); i--; } } };
+    const pv = dom.mk('div', '', null, 'plannerPreview'), box = dom.mk('input', '', null, 'plannerFind'), cnt = dom.mk('span', '', null, 'plannerFindCount'); [box, cnt, pv].forEach(e => doc.body.appendChild(e));
+    let active = null;
+    const draw = () => { while (pv.firstChild) pv.removeChild(pv.firstChild); active.blocks.forEach((t, i) => { const d = dom.mk('div', 'pv-blk', { blk: String(i) }), p = doc.createElement('p'); p.appendChild(doc.createTextNode(t)); d.appendChild(p); pv.appendChild(d); }); };
+    const api = new Function('window', 'document', 'getActiveMap', 'renderPlannerPreviewCore', pfSrc + '\n' + rppSrc + '\nreturn { rpp: renderPlannerPreview, apply: plannerFindApply };')({}, doc, () => active, draw);
+    const P1 = { id: 'p1', blocks: ['Fett waits at the dock.', 'Fett leaves.'] }, P2 = { id: 'p2', blocks: ['Fett is here too.'] };
+    active = P1; api.rpp(); box.value = 'fett'; api.apply(false); const a = [cnt.textContent, pv.querySelectorAll('mark.pf-hit').length];
+    api.rpp(); const b = [box.value, cnt.textContent, pv.querySelectorAll('mark.pf-hit').length];
+    active = P2; api.rpp(); const c = [box.value, cnt.textContent, pv.querySelectorAll('mark.pf-hit').length];
+    box.value = 'fett'; active = P1; api.rpp(); const d = [box.value, pv.querySelectorAll('mark.pf-hit').length];
+    check('1.6.3 (finding 46; Fulllion: "Find words clear when another page is opened, as Escape does") the words belong to the page they were looked for on: drawn again for that page they stay lit; another page opened clears the box, its count and its marks, so it opens with nothing marked and no old hit to scroll to; words put in the box with no page of their own yet are taken as the page\'s on screen',
+        J(a) === J(['1 / 2', 2]) && J(b) === J(['fett', '1 / 2', 2]) && J(c) === J(['', '', 0]) && J(d) === J(['fett', 2]), J([a, b, c, d]));
+}
+{
+    // finding 13: a page's long title never takes the map tabs' room
+    check('1.6.3 (finding 13) while a page is in front of the top row its title is held to a width, so a map tab stays in sight to go back with one click',
+        /\n  #mapTabFront\.mt-onpage \.mt-name \{ max-width: 220px; \}/.test(css) && ix.indexOf('<div id="mapTabFront" hidden>') < ix.indexOf('<div id="mapTabList"></div>'));
+    // the review of pages finding (13): the flex shrink the style sheet gives the page's tab and the map tabs, worked out as a browser does
+    // (shrinking weighted by each one's width), on the figures measured live: the map tabs' box 343 px wide, the map tabs 1,600 px of tabs,
+    // a page title 800 px long. The pin above moved on purpose: the rule that let the map tabs shrink at the page tab's rate is gone, since it
+    // left the page's tab its icon alone (51 px)
+    const ruleOf = sel => { const i = css.indexOf('\n  ' + sel + ' {'); if (i < 0) return ''; return css.slice(i, css.indexOf('}', i)); };
+    const shrinkOf = (base, over) => { const o = /flex-shrink:\s*([\d.]+)/.exec(ruleOf(over)), f = /flex:\s*[\d.]+\s+([\d.]+)/.exec(ruleOf(base)); return o ? +o[1] : f ? +f[1] : 1; };
+    const capM = /max-width:\s*(\d+)px/.exec(ruleOf('#mapTabFront.mt-onpage .mt-name')), cap = capM ? +capM[1] : Infinity;
+    const flexFit = (box, items) => {   // items: { basis, shrink }; answers each one's width, shrinking weighted by shrink times basis, none below 0
+        const w = items.map(it => it.basis); let over = w.reduce((a, b) => a + b, 0) - box;
+        for (let pass = 0; pass < 8 && over > 0.01; pass++) { const live = items.map((it, i) => (w[i] > 0 ? it.shrink * it.basis : 0)), sum = live.reduce((a, b) => a + b, 0); if (!sum) break;
+            let took = 0; items.forEach((it, i) => { const want = over * live[i] / sum, give = Math.min(w[i], want); w[i] -= give; took += give; }); over -= took; }
+        return w; };
+    const frontShrink = shrinkOf('#mapTabFront', '#mapTabFront.mt-onpage'), listShrink = shrinkOf('#mapTabList', '#mapTabFront.mt-onpage + #mapTabList');
+    const fit = flexFit(343 - 26 - 4, [{ basis: Math.min(800, cap) + 34, shrink: frontShrink }, { basis: 1600, shrink: listShrink }]);   // the plus and the two gaps take their room first
+    check('the review of pages finding (13) a page in front of the top row keeps its name readable: worked out as the browser lays the row out, its tab keeps at least 120 px and its name at least 100 px of the room the map tabs measured live, the map tabs take the rest, and no rule makes the map tabs shrink at the page tab\'s own rate',
+        fit[0] >= 120 && fit[0] - 34 >= 100 && fit[1] > 0 && listShrink >= 1000 && frontShrink <= 1 && !/#mapTabFront\.mt-onpage \+ #mapTabList \{/.test(css), J([fit, frontShrink, listShrink, cap]));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

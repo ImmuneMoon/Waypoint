@@ -582,6 +582,14 @@ function landSide(el, q) {
 var _navMenu = null, _navFrom = null, _navRoot = null;   // the menu (made at the first press), the button it is open from, and the page it lists
 // a press of the menu moves the page by the reader's own hand: a landing waiting to be made again on it is not made (docpanel.js readerHand)
 function navHand(root) { try { var dp = window.wpDocPanel, h = dp && typeof dp.hand === 'function' ? dp.hand(root) : null; if (h) h.moved(); } catch (e) {} }
+// 1.6.3 (the review of pages, finding 33): Mentioned in for the page a place shows, under that place's Outline button (pageshelf.js namedPage).
+// The page is read from the place as a part's window reads it (navKeyFor: the campaign and the page)
+function mentionedOpen(root, btn) {
+    if (!partsOn(root) || !btn) return null;
+    var k = ''; try { k = navKeyFor(root.id); } catch (e) { k = ''; }
+    var sl = typeof k === 'string' ? k.indexOf('/') : -1, id = sl >= 0 ? k.slice(sl + 1) : '';
+    return id ? window.wpPageShelf.mentionedPage(btn, id) : null;
+}
 function navMenuEl() {
     if (_navMenu) return _navMenu;
     var m = document.createElement('div'); m.id = 'pageNavMenu'; m.setAttribute('role', 'menu'); m.style.display = 'none';
@@ -590,7 +598,8 @@ function navMenuEl() {
         var win = e.target && e.target.closest ? e.target.closest('.pagenav-win') : null;
         if (win) { var rootW = _navRoot, biW = win.dataset.blk; navClose(false); if (rootW && typeof partOpen === 'function') partOpen(rootW, biW); return; }   // 1.6.2: that part in a window of its own
         var act = e.target && e.target.closest ? e.target.closest('.pagenav-act') : null, row = act ? null : (e.target && e.target.closest ? e.target.closest('.pagenav-row') : null); if (!act && !row) return;
-        var root = _navRoot; navClose(false); if (!root) return;
+        var root = _navRoot, fromB = _navFrom; navClose(false); if (!root) return;
+        if (act && act.dataset.act === 'mentioned') { mentionedOpen(root, fromB); return; }   // 1.6.3 (finding 33): the pages that name this one
         navHand(root);
         if (act) { if (act.dataset.act === 'toc') tocSet(tocOff()); else if (act.dataset.act === 'namesall') namesAll(root); else foldAll(root, act.dataset.act === 'foldall'); return; }
         var bi = row.dataset.blk, find = function() { return navOutline(root).filter(function(h) { return h.bi === bi; })[0]; }, now = find(); if (!now) return;   // read again: the page may have been drawn again since
@@ -622,7 +631,8 @@ function navClose(refocus) {
 }
 // the rows: a button each, its class by the heading's level, its words a text node; then, where the page has a part that folds, a foot
 // with Fold all and Open all
-function navFill(m, list, folds, cards, toc, parts) {   // cards: the page holds a row of cards, so the foot also offers Cards to names; toc: true or false where the page has Contents to show or put away
+// ment (1.6.3, the review of pages, finding 33): true where the foot offers Mentioned in for the whole page (the GM's own, where parts open)
+function navFill(m, list, folds, cards, toc, parts, ment) {   // cards: the page holds a row of cards, so the foot also offers Cards to names; toc: true or false where the page has Contents to show or put away
     while (m.firstChild) m.removeChild(m.firstChild);
     if (!list.length) { var none = document.createElement('div'); none.className = 'pagenav-none'; none.appendChild(document.createTextNode('This page has no headings.')); m.appendChild(none); }
     var box = m; if (parts === true && list.length) { box = document.createElement('div'); box.className = 'pagenav-parts'; m.appendChild(box); }   // 1.6.2: two columns, a row and its window button
@@ -634,14 +644,15 @@ function navFill(m, list, folds, cards, toc, parts) {   // cards: the page holds
             w.setAttribute('aria-label', 'Open ' + h.text + ' in a window of its own'); w.title = 'Open this part alone in a window of its own'; box.appendChild(w);
         }
     });
-    if (!folds) return;
+    if (!folds && ment !== true) return;
     var foot = document.createElement('div'); foot.className = 'pagenav-foot';
-    [['foldall', 'Fold all'], ['openall', 'Open all']].concat(cards === true ? [['namesall', 'Cards to names']] : []).forEach(function(a) { var b = document.createElement('button'); b.type = 'button'; b.className = 'pagenav-act'; b.dataset.act = a[0]; b.setAttribute('role', 'menuitem'); b.appendChild(document.createTextNode(a[1])); foot.appendChild(b); });
+    (folds ? [['foldall', 'Fold all'], ['openall', 'Open all']].concat(cards === true ? [['namesall', 'Cards to names']] : []) : []).concat(ment === true ? [['mentioned', 'Mentioned in…']] : []).forEach(function(a) { var b = document.createElement('button'); b.type = 'button'; b.className = 'pagenav-act'; b.dataset.act = a[0]; b.setAttribute('role', 'menuitem'); b.appendChild(document.createTextNode(a[1])); foot.appendChild(b); });
     if (toc === true || toc === false) { var tb = document.createElement('button'); tb.type = 'button'; tb.className = 'pagenav-act pagenav-tick' + (toc ? ' on' : ''); tb.dataset.act = 'toc'; tb.setAttribute('role', 'menuitemcheckbox'); tb.setAttribute('aria-checked', toc ? 'true' : 'false'); tb.appendChild(document.createTextNode('Contents')); foot.appendChild(tb); }
     m.appendChild(foot);
 }
 function navOpen(btn, root, byKey) {
-    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0, namesAny(root), tocModel(root).length >= TOC_MIN ? !tocOff() : undefined, typeof partsOn === 'function' && partsOn(root));
+    var pOn = typeof partsOn === 'function' && partsOn(root);
+    var m = navMenuEl(); navFill(m, navOutline(root), foldParts(root).parts.length > 0, namesAny(root), tocModel(root).length >= TOC_MIN ? !tocOff() : undefined, pOn, pOn && typeof window.wpPageShelf.mentionedPage === 'function');
     _navFrom = btn; _navRoot = root; btn.setAttribute('aria-expanded', 'true');
     m.style.left = '0px'; m.style.top = '0px'; m.style.display = 'block';
     var r = btn.getBoundingClientRect(), vw = window.innerWidth || 0, vh = window.innerHeight || 0, w = m.offsetWidth || 0, h = m.offsetHeight || 0;

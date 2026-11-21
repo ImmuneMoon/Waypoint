@@ -31,14 +31,27 @@ function activeCamp() { try { var s = state.appState; return s && s.campaigns ? 
 function fold(s) { return String(s == null ? '' : s).replace(/[À-ɏḀ-ỿ]/g, function(c) { return c.normalize('NFD')[0] || c; }).toLowerCase(); }
 function escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 function escHtml(s) { return String(s).replace(/[&<>"]/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-function stripMarkup(s) { return String(s || '').replace(/<[^>]*>/g, ' ').replace(/[*_`~#>\[\]()]/g, ' ').replace(/\s+/g, ' ').trim(); }
+// 1.6.3 (the review of pages, finding 22): a stored text keeps its entities (a typed & is stored as &amp;). They are read as their characters
+// once the tags are off, so a search finds "Power Core & Engines" by its &, and a snippet, which escapes what it shows once, never says &amp;
+var DP_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'" };
+function deEnt(s) {
+    return String(s).replace(/&(#x[0-9a-f]{1,6}|#[0-9]{1,7}|[a-z][a-z0-9]{1,9});/gi, function(all, k) {
+        var low = k.toLowerCase(); if (Object.prototype.hasOwnProperty.call(DP_ENT, low)) return DP_ENT[low];
+        if (k.charAt(0) !== '#') return all;   // an entity this reader does not know stays as it was written
+        var hex = /^#x/i.test(k), c = parseInt(k.slice(hex ? 2 : 1), hex ? 16 : 10);
+        try { return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : ' '; } catch (e) { return ' '; }
+    });
+}
+function stripMarkup(s) { return deEnt(String(s || '').replace(/<[^>]*>/g, ' ')).replace(/[*_`~#>\[\]()]/g, ' ').replace(/\s+/g, ' ').trim(); }
+// 1.6.3 (finding 32): a Raw HTML block's words, read as a page reads them: its style sheets and scripts are no words of it
+function rawText(s) { return stripMarkup(String(s || '').replace(/<(style|script)\b[\s\S]*?<\/\1\s*>/gi, ' ')); }
 function rowText(r) {   // a table row is an array, {cells:[…]}, or a {col1,col2,…} object — pull every string cell
     if (Array.isArray(r)) return r.filter(function(c) { return typeof c === 'string'; }).join(' ');
     if (r && Array.isArray(r.cells)) return r.cells.filter(function(c) { return typeof c === 'string'; }).join(' ');
     if (r && typeof r === 'object') { var o = ''; for (var k in r) { if (typeof r[k] === 'string') o += r[k] + ' '; } return o; }
     return typeof r === 'string' ? r : '';
 }
-function blockText(b) {
+function blockText(b, it) {
     if (!b || typeof b !== 'object') return '';
     switch (b.type) {
         case 'h1': return (b.title || '') + ' ' + (b.sub || '');
@@ -50,10 +63,13 @@ function blockText(b) {
         // that stood only in a node's table was found by no search: not quick-jump's, not the panel's, not the lists'
         case 'node': return stripMarkup([b.title, b.tag, b.must].concat(Array.isArray(b.aka) ? b.aka : [], Array.isArray(b.cols) ? b.cols : []).filter(function(s) { return typeof s === 'string'; }).join(' ') + ' ' + (Array.isArray(b.rows) ? b.rows.map(rowText).join(' ') : ''));
         case 'flowchart': return stripMarkup((Array.isArray(b.nodes) ? b.nodes : []).concat(Array.isArray(b.edges) ? b.edges : []).map(function(n) { return n && typeof n.text === 'string' ? n.text : ''; }).join(' '));
+        // 1.6.3 (the review of pages, finding 32): a planner's Raw HTML block is found by its words too (a planner brought in from elsewhere is
+        // often one); never a page's, which draws no such block
+        case 'raw': return it && it.type === 'planner' ? rawText(b.content || '') : '';
         default: return '';   // a diagram written as source: its mermaid text is skipped
     }
 }
-function docText(doc) { return (doc && Array.isArray(doc.blocks) ? doc.blocks : []).map(blockText).join('  —  ').replace(/\s+/g, ' ').trim(); }
+function docText(doc) { return (doc && Array.isArray(doc.blocks) ? doc.blocks : []).map(function(b) { return blockText(b, doc); }).join('  —  ').replace(/\s+/g, ' ').trim(); }
 // Ranges [start,end] of matches in a FOLDED string: the whole phrase; if it never appears, each word at a word start.
 function matchRanges(ft, nq, words) {
     var ranges = [], i;
@@ -368,7 +384,7 @@ function draw(force) {
     body.scrollTop = keep;
     if (window.mermaid) {
         var mnodes = Array.prototype.slice.call(body.querySelectorAll('pre.mermaid'));
-        if (mnodes.length) { try { Promise.resolve(window.mermaid.run({ nodes: mnodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { if (query.trim()) highlightBody(query); }).then(function() { landAgain(gen); }).catch(function() {}); } catch (e) {} }   // 1.5.4 (the review of step 1): a chart the library could not draw stops neither (it rejects the whole run for one)
+        if (mnodes.length) { try { Promise.resolve(window.mermaid.run({ nodes: mnodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { if (DR.diagramBad) DR.diagramBad(body, !(window.wpNet && window.wpNet.foreign)); if (query.trim()) highlightBody(query); }).then(function() { landAgain(gen); }).catch(function() {}); } catch (e) {} }   // 1.5.4 (the review of step 1): a chart the library could not draw stops neither (it rejects the whole run for one)
     }
     if (query.trim()) highlightBody(query);   // re-apply the in-page highlight after a live re-render
 }

@@ -71,6 +71,21 @@ function titleWords(s) {
     var t = s.indexOf('<') < 0 ? s : s.replace(/<\/?[a-zA-Z!?][^<>]*>/g, '');
     return t.indexOf('&') < 0 ? t : t.replace(/&(amp|lt|gt|quot|apos|#39|nbsp|#160);/gi, function(all, k) { return TITLE_ENT[k.toLowerCase()]; });
 }
+// 1.6.3 (the review of pages, finding 39; Fulllion, 2026-11-21: "untitled cards named by their tag or first cell"). The words a card goes by in
+// a list (the Story view, the Prep column): its title as words, else its tag, else the first cell of its rows that holds words; '' where it
+// has none of them. Words alone, cut as a name is (cleanName), so a list draws them as text
+function cardLabel(b) {
+    if (!b || typeof b !== 'object') return '';
+    var t = cleanName(titleWords(b.title)); if (t) return t;
+    var g = cleanName(titleWords(b.tag)); if (g) return g;
+    var rows = Array.isArray(b.rows) ? b.rows.slice(0, 200) : [];
+    for (var i = 0; i < rows.length; i++) {
+        var r = rows[i], cells = Array.isArray(r) ? r : [];
+        if (!Array.isArray(r) && r && typeof r === 'object') for (var c = 1; c <= 64; c++) if (own(r, 'col' + c)) cells.push(r['col' + c]);
+        for (var k = 0; k < cells.length; k++) { var w = cleanName(titleWords(typeof cells[k] === 'string' ? cells[k] : '')); if (w) return w; }
+    }
+    return '';
+}
 function cardNames(b) {
     if (!b || typeof b !== 'object') return [];
     var out = [], t = cleanName(titleWords(b.title));
@@ -156,7 +171,7 @@ function openThreads(camp) {
     Object.keys(items).forEach(function(id) { var it = items[id]; if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) return; it.blocks.forEach(function(b) { if (!b || b.type !== 'node') return; var k = cardKind(b), w = plainCard(b.title); if (!w || k === 'table' || k === 'place' || b.done === true) return; out.push([w, KINDS[k].word]); }); });
     return out.slice(0, 2000);
 }
-var api = { openThreads: openThreads, SPREAD_AS: SPREAD_AS, spreadCard: spreadCard, VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, CARD_SIZES: CARD_SIZES, cleanCards: cleanCards, wideMay: wideMay, wideOn: wideOn, wideSet: wideSet, cardWide: cardWide, cleanSection: cleanSection, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
+var api = { openThreads: openThreads, SPREAD_AS: SPREAD_AS, spreadCard: spreadCard, VERSION: VERSION, AKA_MAX: AKA_MAX, AKA_CHARS: AKA_CHARS, KINDS: KINDS, ORDER: ORDER, MODES: MODES, cleanMode: cleanMode, cardKind: cardKind, kindOf: kindOf, kindBy: kindBy, cleanName: cleanName, cleanAka: cleanAka, akaFrom: akaFrom, akaText: akaText, cardNames: cardNames, cardLabel: cardLabel, cleanDone: cleanDone, WHEN: WHEN, cleanWhen: cleanWhen, CUE_K: CUE_K, cleanCue: cleanCue, sessionOf: sessionOf, setSession: setSession, CARD_SIZES: CARD_SIZES, cleanCards: cleanCards, wideMay: wideMay, wideOn: wideOn, wideSet: wideSet, cardWide: cardWide, cleanSection: cleanSection, cleanSheet: cleanSheet, cleanCard: cleanCard, defaultCols: defaultCols };
 if (typeof window !== 'undefined') window.wpCardCore = api;
 
-export { openThreads, SPREAD_AS, spreadCard, CARD_SIZES, cleanCards, wideMay, wideOn, wideSet, cardWide, cleanSection, CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };
+export { cardLabel, openThreads, SPREAD_AS, spreadCard, CARD_SIZES, cleanCards, wideMay, wideOn, wideSet, cardWide, cleanSection, CUE_K, cleanCue, WHEN, cleanWhen, sessionOf, setSession, VERSION, AKA_MAX, AKA_CHARS, KINDS, ORDER, MODES, cleanMode, cardKind, kindOf, kindBy, cleanName, cleanAka, akaFrom, akaText, cardNames, cleanDone, cleanSheet, cleanCard, defaultCols };

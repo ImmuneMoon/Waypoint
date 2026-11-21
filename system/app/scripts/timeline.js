@@ -73,6 +73,12 @@ function tlTicks(cal, d0, d1, width) {
     for (var k = 0; k < 200 && dd <= d1; k++, dd += ds) out.push({ day: dd, label: c ? fmtDate(cal, dd * dl).replace(/^[^,]*, /, '').replace(/, [^,]*$/, '') : 'Day ' + (dd + 1) });
     return out;
 }
+// 1.6.3 (the review of pages, finding 23): where a note's label stands, judged by the box it is drawn in. A label is TL_LABEL px wide (the
+// style sheet's .tl-note-label width), centred on its note and held inside the ribbon, then drawn only where its box starts TL_GAP px past
+// the end of the last label drawn, so no two labels ever touch, an edge included. Answers its left edge, or null where it would touch (the
+// note's own mark and its tooltip still name it). The ribbon's paint keeps lastRight, the last label's left plus TL_LABEL.
+var TL_LABEL = 120, TL_GAP = 6;
+function tlLabelLeft(px, w, lastRight) { var left = Math.max(2, Math.min(w - TL_LABEL - 2, px - TL_LABEL / 2)); return left >= lastRight + TL_GAP ? left : null; }
 // [timelinecheck:core-end]
 
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -106,11 +112,11 @@ function draw(host, cal, ck, pick) {
             var b = el('button', 'tl-mark tl-session'); b.type = 'button'; b.style.left = x(s.day) + 'px'; var rd = realDay(s.at);
             b.title = 'A session began here, ' + fmtDate(cal, s.day * dl) + (rd ? '. Played ' + rd : '') + '. Press to open its day.'; b.dataset.day = String(Math.floor(s.day)); ribbon.appendChild(b);
         });
-        var lastLabel = -Infinity;
+        var lastRight = -Infinity;   // where the last label drawn ends (tlLabelLeft)
         tlOccur(cal, items.notes, d0, d1).forEach(function(n) {
             var px = x(n.day + 0.5), b = el('button', 'tl-mark tl-note' + (n.day < Math.floor(items.today) ? ' tl-past' : '')); b.type = 'button'; b.style.left = px + 'px';
             b.title = fmtDate(cal, n.day * dl) + ': ' + n.text + (n.yearly ? ' (every year)' : '') + '. Press to open its day.'; b.dataset.day = String(n.day); ribbon.appendChild(b);
-            if (px - lastLabel > 110) { var lb = el('span', 'tl-note-label', n.text); lb.style.left = Math.max(2, Math.min(w - 122, px - 60)) + 'px'; ribbon.appendChild(lb); lastLabel = px; }   // held inside the ribbon, never cut at an edge
+            var lx = tlLabelLeft(px, w, lastRight); if (lx !== null) { var lb = el('span', 'tl-note-label', n.text); lb.style.left = lx + 'px'; ribbon.appendChild(lb); lastRight = lx + TL_LABEL; }   // held inside the ribbon, never cut at an edge, never over another label
         });
     };
     var zoom = function(f, at) { host._tl = tlZoom(host._tl, f, at === undefined ? W() / 2 : at, W(), lim()); paint(); };

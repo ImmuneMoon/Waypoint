@@ -49,7 +49,7 @@ function prepTitle(it, word) { return prepPlain(it && it.meta && it.meta.title, 
 // the planner), what kind it is, its name and tag, a scene's session, its tick, and the map it names
 function prepCard(pl, plTitle, b, i) {
     var kind = CC.cardKind(b), kd = CC.kindOf(b);
-    return { pl: pl, plTitle: plTitle, at: typeof b.id === 'string' && PREP_ID.test(b.id) ? b.id : '', i: i, kind: kind, title: prepPlain(b.title, 120) || kd.word || 'Card', tag: prepPlain(b.tag, 40),
+    return { pl: pl, plTitle: plTitle, at: typeof b.id === 'string' && PREP_ID.test(b.id) ? b.id : '', i: i, kind: kind, title: prepPlain(b.title, 120) || (CC.cardLabel ? prepWords(CC.cardLabel(b), 120) : '') || kd.word || 'Card', tag: prepPlain(b.tag, 40),
         s: CC.sessionOf(b), done: b.done === true && !!kd.tick, map: typeof b.linkMapId === 'string' ? b.linkMapId : '' };
 }
 function prepIsCard(b) { return !!b && typeof b === 'object' && b.type === 'node' && CC.cardKind(b) !== 'table'; }

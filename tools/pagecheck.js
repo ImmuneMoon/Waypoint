@@ -800,7 +800,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const ICO = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M8 12h12M12 18h8"/></svg>';
         check('the Outline is wired: the page has its three buttons, each with the same tooltip — in the planner\'s bar before the Find box, in the reader\'s head before its close button, first in the panel\'s search row — and loads the module after the one that builds a window of its own; the module names the four places, each a button and the box its page is drawn in; the reader steps back from Escape while the menu is up',
             ix.includes('        <button class="tool ghost" id="plannerOutlineBtn" title="' + TIP + '">' + ICO + ' Outline</button>\n        <input type="search" id="plannerFind"')
-            && ix.includes('<h3 id="docReaderTitle">Page</h3><button id="docReaderOutline" class="tool ghost" title="' + TIP + '">' + ICO + ' Outline</button><button id="docReaderClose"')
+            && ix.includes('<h3 id="docReaderTitle">Page</h3><button id="docReaderOutline" class="tool ghost" title="' + TIP + '">' + ICO + ' Outline</button><span id="docReaderFindRow">') && /<\/span><\/span><button id="docReaderClose"/.test(ix)   /* 1.6.3 (the review of pages, finding 5), moved on purpose: the reader's Find row stands between its Outline and its close button, as the planner's bar has the Outline before its Find box */
             && ix.includes('    <div id="docPanelSearchRow">\n        <button class="tool ghost notepad-btn" id="docPanelOutline" title="' + TIP + '">Outline</button>\n')
             && ix.includes('<script type="module" src="scripts/popout.js"></script>\n<script type="module" src="scripts/pagenav.js"></script>\n') && ix.split('scripts/pagenav.js').length === 2 && !/id="popoutOutline"/.test(ix)
             && src.includes("var NAV_PLACES = [['plannerOutlineBtn', 'plannerPreview'], ['docPanelOutline', 'docPanelBody'], ['docReaderOutline', 'docReaderBody'], ['popoutOutline', 'popoutBody']];") && src.includes("pb.title = '" + TIP + "';")
@@ -926,7 +926,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('only the planner\'s own view has a bar over the page it scrolls: the page panel\'s search row, a page\'s own window\'s bar and the reader\'s head stand outside the box each scrolls, and no rule makes anything over a page sticky but the planner\'s Find bar, so the panel, a window of its own and the reader are left as they were',
             J(stickies) === J(['.pv-toc.pv-toc-col' /* 1.6.2 (107 (a)), added on purpose: the Contents column stands in the margin BESIDE the planner's page, under its bar, never over the page */, '.build-tabs', '.fm-era', '.fm-corner' /* 1.6.2 (backlog 222, fold 3), added on purpose: the pack maker's era headings stay over its own grid, which scrolls in a window, never over a page */, '.pbe-barslot', '.pbe-layer .planner-block-edit.pg-open > .block-head' /* 1.6.2, added on purpose (the owner: no way to leave a table being edited): the head of the block open on the page, with Done, stays in sight inside the page's box under the Find bar while a tall block scrolls */, '#popoutBody table.tw-grid thead th', '#popoutBody table.tw-grid .tw-rn' /* 1.6.2, a big table in a window of its own, added on purpose: its heads and row numbers stay in view inside the grid's own box as it scrolls, never over a page */, '.doc-view .pv-tscroll > :not(table)', '.doc-view .pv-tscroll > table th:first-child, .doc-view .pv-tscroll > table td:first-child' /* 1.6.2, wide tables, added on purpose: a wide table's first column held in view as its own box scrolls sideways, never over the page */, '.cm-fx-find', '.lib-fbtns', '.sheet-frame', '.sheet-sticky-titles > .sheet-section:not(.sheet-subsection):not(.sheet-dash) > .sheet-sec-title', '#plannerFindBar'])
             && /\n  #docPanelSearchRow \{ [^\n]*flex: none;/.test(css) && /\n  #docPanelBody \{ overflow: auto;/.test(css) && /\n  #popoutBar \{ flex: none;/.test(css) && /\n  #docReaderBody \{ flex: 1; overflow-y: auto;/.test(css)
-            && /<div id="docReaderModal" style="display:none;">\n    <div class="doc-reader-head">[^\n]*\n    <div id="docReaderBody" class="doc-view"><\/div>\n<\/div>/.test(ix) && J(B.NAV_BAR.slice(0, 2)) === J(['plannerFindBar', 'plannerPreview']), J(stickies));
+            && /<div id="docReaderModal" style="display:none;">\n    <div class="doc-reader-head">[^\n]*\n    <div id="docReaderBody" class="doc-view" tabindex="-1"><\/div>\n<\/div>/.test(ix)   /* 1.6.3 (finding 5), moved on purpose: the reader's page takes the focus at a click, so Ctrl+F reaches the reader's Find */ && J(B.NAV_BAR.slice(0, 2)) === J(['plannerFindBar', 'plannerPreview']), J(stickies));
         check('the landing clear of the bar is said: both release notes carry the line under 1.5.4\'s fixes, alike', wn.every(t => t.split("- In a planner's or a page's own view, a part the Outline jumps to, or\n  a search lands on, is no longer half hidden under the Find bar. Where\n  the bar took two rows, the top of the part stayed under it.\n").length === 2) && wn[0].indexOf("- In a planner's or a page's own view, a part the Outline jumps to, or\n  a search lands on, is no longer half hidden under the Find bar. Where\n  the bar took two rows, the top of the part stayed under it.\n") < wn[0].indexOf('WAYPOINT 1.5.3'));
     }
 
@@ -1949,6 +1949,139 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.3 the panel over the map writes the open page out as text only where something could have changed it (docpanel.js draw, run for real): an app redraw with nothing saved makes no text; a save makes it, and draws only where it differs; a page that arrives as a new object is compared; a forced draw draws',
                 J(r) === J([1, 1, 1, 1, 2, 1, 3, 2, 4, 2, 3]) && read('scripts/io.js').includes("    if (typeof window !== 'undefined') window.wpSaveN = (window.wpSaveN | 0) + 1;"), J(r));
         }
+    }
+
+    /* ---- 1.6.3, the review of pages and planners, lane B's second batch (cards, words and Markdown) ---- */
+    // a slice of any app file by its pagecheck markers
+    const sl2 = (file, n) => { const s = read(file), a = s.indexOf('// [pagecheck:' + n + '-start]'), z = s.indexOf('// [pagecheck:' + n + '-end]'); if (a < 0 || z < a) throw new Error('pagecheck: the ' + n + ' slice is not in ' + file); return s.slice(a, z); };
+    const CC2 = await import(modUrl('cardcore.js'));
+    // finding 17 (Fulllion, 2026-11-21): Hand out… on a text, callout or card block makes a text handout from its words
+    {
+        const H = new Function('plainLines', 'proseHtml', 'CC', sl2('scripts/planner.js', 'handout') + '\nreturn { handoutOk, handoutOf };')(DR.plainLines, DR.proseHtml, CC2);
+        const page = { meta: { title: 'Session &amp; Six' }, blocks: [
+            { type: 'text', content: '<p>Before any heading.</p>' },
+            { type: 'h2', title: 'The <b>letter</b>' },
+            { type: 'text', content: '<p>Dear &amp; friend,</p><p>Meet me <b>at</b>   dawn.<br>K.</p><ul><li>one</li><li>two</li></ul>' },
+            { type: 'node', mode: 'person', title: 'Mira', tag: 'Smuggler', must: 'Passage', rows: [{ col1: 'The ship', col2: 'It sails at dawn', col3: 'It is stolen' }, { col1: '', col2: '' }] },
+            { type: 'node', mode: 'table', title: 'Loot', rows: [{ col1: 'x' }] },
+            { type: 'node', rows: [{ col1: 'Go' }] },
+            { type: 'callout', content: 'Boxed <i>words</i>' },
+            { type: 'image', src: '/saves/images/a.png' }, { type: 'h3', title: 'x' }, { type: 'text', content: '' }] };
+        const got = page.blocks.map((b, i) => H.handoutOf(page, i));
+        check('1.6.3 Hand out… (planner.js handoutOk and handoutOf, run for real with docrender plainLines and the real cards): a text block becomes the words of the nearest heading above it, its paragraphs, line breaks and list items kept as plain lines, its tags gone and its entities read; one with no heading above takes the page\'s title; a person card takes its name and its lines by its kind\'s own words, each row a paragraph of "Column: words"; an untitled scene card is a Scene; a callout too; a plain table, a picture and a heading offer nothing',
+            J(got) === J([{ title: 'Session & Six', text: 'Before any heading.' }, null, { title: 'The letter', text: 'Dear & friend,\n\nMeet me at dawn.\nK.\n\n• one\n• two' },
+                { title: 'Mira', text: 'Role: Smuggler\nWants: Passage\n\nIf asked about: The ship\nSays: It sails at dawn', left: 'The truth' }, null, { title: 'Scene', text: 'Action: Go' },
+                { title: 'The letter', text: 'Boxed words' }, null, null, { title: 'x', text: '' }]), J(got));
+        // the review of pages cards: the GM's own column stays out by its place whatever the card renames it, and a card's cells and a plain-text
+        // block keep their line breaks (before, every line break of a cell or of plain text became a space)
+        const page2 = { meta: { title: 'P' }, blocks: [
+            { type: 'node', mode: 'person', title: 'Vey', cols: ['Topic', 'Answer', 'Secret'], tag: 'Captain\nof the Gull', rows: [{ col1: 'Cargo', col2: 'Grain\n- and salt', col3: 'Guns' }, { col1: 'Crew', col2: 'Six' }] },
+            { type: 'node', mode: 'person', title: 'Only', rows: [{ col3: 'A spy' }] },
+            { type: 'node', mode: 'place', title: 'Dock', rows: [{ col1: 'Look', col2: 'Rope\nand tar' }] },
+            { type: 'text', content: 'First part\n\nSecond\nline' },
+            { type: 'callout', content: 'Line one\nLine two' }] };
+        const got2 = page2.blocks.map((b, i) => H.handoutOf(page2, i));
+        check('1.6.3 Hand out… keeps the GM\'s own column and keeps line breaks (the review of pages cards; planner.js handoutOf run for real): a person card\'s third column is left out by its place whatever the card calls it, and named as left; a card whose only words are in it hands out nothing and still names it; a place card keeps every column; a card\'s tag and cells keep each line break, a cell\'s list one item a line; a plain-text block keeps its paragraphs and line breaks as the page draws them, and a callout its line breaks',
+            J(got2) === J([{ title: 'Vey', text: 'Role: Captain\nof the Gull\n\nTopic: Cargo\nAnswer: Grain\n- and salt\n\nTopic: Crew\nAnswer: Six', left: 'Secret' },
+                { title: 'Only', text: '', left: 'The truth' }, { title: 'Dock', text: 'If they: Look\nThen: Rope\nand tar' },
+                { title: 'P', text: 'First part\n\nSecond\nline' }, { title: 'P', text: 'Line one\nLine two' }])
+            && read('scripts/planner.js').includes("window.wpHandoutText(ho.title, ho.text, hoNote)") && !/Secret|Guns|A spy/.test(J(got2.map(g => g.text))), J(got2));
+        const camp = { handouts: {} }, row = { cls: [], classList: { add(c) { row.cls.push(c); } }, scrollIntoView() {}, querySelector: () => ({ focus() { row.focused = true; }, select() {} }) }, toasts = [];
+        let saves = 0, opened = 0;
+        const W = {};
+        new Function('window', 'getActiveCampaign', 'handoutsOf', 'save', 'openHandouts', 'document', 'toast', sl2('scripts/handouts.js', 'handouttext'))(W, () => camp, c => c.handouts, () => { saves++; }, () => { opened++; }, { querySelector: () => row }, m => toasts.push(m));
+        const id = W.wpHandoutText('A letter', 'Dear friend'), h = camp.handouts[id], none = W.wpHandoutText('Empty', '   ');
+        check('1.6.3 Hand out… makes the handout (handouts.js wpHandoutText, run for real): a text handout of this campaign with the title and words handed in, saved once, the Handouts window opened at its row with its title focused and the row marked, and a word that it is made; nothing is sent; words that are only spaces make none',
+            /^h/.test(id) && J([h.kind, h.title, h.text, h.caption]) === J(['text', 'A letter', 'Dear friend', '']) && saves === 1 && opened === 1 && J(row.cls) === '["handout-new"]' && row.focused === true && toasts.length === 1 && none === '' && Object.keys(camp.handouts).length === 1
+            && !/revealHandout|net\./.test(sl2('scripts/handouts.js', 'handouttext')) && /handoutOk\(b\) \? '<button type="button" class="tool ghost b-handout"/.test(read('scripts/planner.js')), J([id, h, saves, opened, row, toasts]));
+        const idN = W.wpHandoutText('Mira', 'Says: hi', 'The \u201cThe truth\u201d column was left out, since it is for you alone.');
+        check('1.6.3 Hand out… tells the GM what it kept back (the review of pages cards; handouts.js wpHandoutText run for real): the third word, a note, is said in the one notice beside the made word, and a handout with none says as before',
+            /^h/.test(idN) && toasts.length === 2 && toasts[1].includes('left out, since it is for you alone') && toasts[1].startsWith('Handout made from the block. ') && !/left out/.test(toasts[0]), J(toasts));
+    }
+
+    // finding 21: a diagram the library could not draw is one plain line for the GM and nothing for anyone else
+    {
+        const page = gm => {
+            const d = makeDom(), root = mk(d, 'div', 'page');
+            const bad = mk(d, 'pre', 'mermaid'), good = mk(d, 'pre', 'mermaid');
+            const s1 = d.document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s1.setAttribute('aria-roledescription', 'error'); s1.appendChild(d.document.createTextNode('Syntax error in text'));
+            const s2 = d.document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s2.setAttribute('aria-roledescription', 'flowchart-v2');
+            bad.appendChild(s1); good.appendChild(s2); root.appendChild(bad); root.appendChild(good);
+            const n = DR.diagramBad(root, gm, d.document);
+            return [n, bad.classList.contains('diagram-bad'), bad.textContent, good.childNodes.length, good.classList.contains('diagram-bad')];
+        };
+        const g = page(true), p = page(false), none = DR.diagramBad(null, true);
+        const pl = read('scripts/planner.js'), hb = read('scripts/handbook.js'), dp = fs.readFileSync(path.join(app, 'scripts/docpanel.js'), 'latin1'), po = fs.readFileSync(path.join(app, 'scripts/popout.js'), 'latin1'), css = read('style.css');
+        check('1.6.3 a diagram the library could not draw (docrender diagramBad, run for real): its error picture is taken out of the block, which says in one plain line that the diagram could not be drawn where the page is the GM\'s own, and holds nothing elsewhere; a diagram that was drawn is left as it is; every place that runs the library asks it once the run has settled, the planner\'s preview for the GM, the panel, a page\'s window and the reader by whether the table is someone else\'s; an empty one is put away',
+            J(g) === J([1, true, DR.DIAGRAM_BAD, 1, false]) && J(p) === J([1, true, '', 1, false]) && none === 0 && DR.DIAGRAM_BAD === 'This diagram could not be drawn. Check its code.'
+            && pl.includes('.catch(function() {}).then(function() { if (typeof diagramBad === \'function\') diagramBad(pane, true); pvLaidOut(gen); })') && hb.includes('diagramBad(body, !foreign()); readerLaidOut(gen, body, it);')
+            && dp.includes('if (DR.diagramBad) DR.diagramBad(body, !(window.wpNet && window.wpNet.foreign));') && po.includes('if (DR.diagramBad) DR.diagramBad(body, !fg); charted(gen, it);')
+            && css.includes('  .diagram-bad:empty { display: none; }'), J([g, p]));
+    }
+
+    // finding 26: a page under a GM-only page never says Players can read
+    {
+        const items = { a: { type: 'doc', meta: { title: 'Secrets', players: false } }, b: { type: 'doc', meta: { parentId: 'a' } }, c: { type: 'doc', meta: { parentId: 'b', players: true } }, d: { type: 'doc', meta: { parentId: 'a', players: false } },
+            p: { type: 'planner', meta: {} }, e: { type: 'doc', meta: { parentId: 'p' } }, x: { type: 'doc', meta: { parentId: 'y' } }, y: { type: 'doc', meta: { parentId: 'x' } }, top: { type: 'doc', meta: {} } };
+        const by = ['a', 'b', 'c', 'd', 'e', 'x', 'top', 'gone', '__proto__'].map(id => { const h = DR.pageHidBy(items, id); return h ? h.meta.title : null; });
+        const agree = Object.keys(items).every(id => items[id].type !== 'doc' || DR.pageHid(items, id) === (items[id].meta.players === false || !!DR.pageHidBy(items, id)));
+        const pl = read('scripts/planner.js'), sb = read('scripts/sidebar.js');
+        check('1.6.3 a page under a GM-only page (docrender pageHidBy, run for real): it names the nearest page above that is GM only, for a page whose own switch lets players read, however deep; a page whose own switch is off, a page under no GM-only page, one under a planner, a loop, a page that is not there and a key a prototype holds name none; it agrees with pageHid on every page; the editor\'s button then says GM only and names that page, and the tree\'s row says Hide from players too',
+            J(by) === J([null, 'Secrets', 'Secrets', null, null, null, null, null, null]) && agree && DR.pageHidBy(null, 'a') === null
+            && pl.includes("plBtnD.innerHTML = onP && !upP ? '<i class=\"wib wi-seen\"></i> Players can read' : upP ? '<i class=\"wib wi-unseen\"></i> Hidden by the page above' : '<i class=\"wib wi-unseen\"></i> GM only';") && pl.includes("plBtnD.classList.toggle('on', onP && !upP);")
+            && sb.includes("upH ? '<i class=\"wib wi-unseen\"></i> Hide from players too'") && sb.includes("plBtn.removeAttribute('title'); plBtn.setAttribute('data-tip', upH"), J(by));
+        // the review of pages cards: a press that turns a page's own switch on while a GM-only page above still keeps it never says Players can read
+        const says = ['a', 'b', 'c', 'top', 'gone'].map(id => DR.pageHidSays(items, id)), saysN = DR.pageHidSays(items, 'c', true), dg = read('scripts/dialogs.js'), css26 = read('style.css');
+        check('1.6.3 a page under a GM-only page is said as such when its switch is turned on (the review of pages cards; docrender pageHidSays run for real): it says the page\'s own switch is on and names the page above, the tree\'s row naming the page itself; a page nothing above keeps says nothing; the editor\'s press and the tree\'s row both ask it before Players can read, and the editor\'s button reads Hidden by the page above with a dashed edge while a page above keeps it',
+            J(says) === J(['', 'This page\u2019s own switch is on, but players get it only once \u201cSecrets\u201d is shared.', 'This page\u2019s own switch is on, but players get it only once \u201cSecrets\u201d is shared.', '', ''])
+            && saysN === '\u201cA page\u201d has its own switch on, but players get it only once \u201cSecrets\u201d is shared.'
+            && pl.includes("window.wpDocRender.pageHidSays(campD.items, am.id) : '') || 'Players can read this page.');") && dg.includes("window.wpDocRender.pageHidSays(camp.items, it.id, true) : '') || 'Players can read \\u201c'")
+            && pl.includes("upP ? '<i class=\"wib wi-unseen\"></i> Hidden by the page above'") && pl.includes("plBtnD.classList.toggle('above', !!upP);") && css26.includes('#docPlayersBtn.above { border-style: dashed; }'), J([says, saysN]));
+    }
+
+    // finding 29 (Fulllion, 2026-11-21): Played and Found ticked on the card itself, in the GM's own reading views
+    {
+        const T = new Function('esc', sl2('scripts/planner.js', 'cardtick') + '\nreturn { cardTickHtml, cardTickApply, cardTickBlock };')(SC.esc);
+        const scene = { type: 'node', id: 'b_s', title: 'At the inn', when: 'tonight' }, clue = { type: 'node', id: 'b_c', mode: 'clue', title: 'A key' }, person = { type: 'node', mode: 'person', title: 'Mira' }, tbl = { type: 'node', mode: 'table' };
+        const camp = { items: { p1: { id: 'p1', type: 'planner', meta: {}, blocks: [scene, clue, person, tbl, { type: 'node', mode: 'clue', title: 'No id' }] }, d1: { id: 'd1', type: 'doc', blocks: [clue] } } };
+        const h0 = T.cardTickHtml(scene, CC2.kindOf(scene), 'p1', 0, CC2), hP = T.cardTickHtml(person, CC2.kindOf(person), 'p1', 2, CC2), hC = T.cardTickHtml(clue, CC2.kindOf(clue), 'p"1', 1, CC2);
+        const was = {}, steps = [];
+        T.cardTickApply(scene, CC2, was, 'p1/b_s'); steps.push(CC2.sessionOf(scene)); const h1 = T.cardTickHtml(scene, CC2.kindOf(scene), 'p1', 0, CC2);
+        T.cardTickApply(scene, CC2, was, 'p1/b_s'); steps.push(CC2.sessionOf(scene));
+        T.cardTickApply(clue, CC2, was, 'k'); steps.push(clue.done === true); T.cardTickApply(clue, CC2, was, 'k'); steps.push('done' in clue);
+        const none = [T.cardTickApply(person, CC2, was, 'x'), T.cardTickApply(tbl, CC2, was, 'y'), T.cardTickApply(null, CC2, was, 'z')];
+        const found = [T.cardTickBlock(camp, { page: 'p1', at: 'b_c' }).b === clue, T.cardTickBlock(camp, { page: 'p1', bi: '4' }).b.title, T.cardTickBlock(camp, { page: 'd1', at: 'b_c' }), T.cardTickBlock(camp, { page: 'p9', at: 'b_c' }), T.cardTickBlock(camp, { page: '__proto__', bi: '0' })];
+        const pl = read('scripts/planner.js'), css = read('style.css');
+        check('1.6.3 Played and Found on the card itself (planner.js cardTickHtml, cardTickApply and cardTickBlock, run for real with the real cards): a scene card and a clue card carry a button in a row of their own, its words an attribute so the page\'s Find never reads them, pressed while ticked; a person card has none; a scene ticked Played and pressed again gets back the session it had, Tonight; a clue\'s Found on and off; the press finds its card by its id, else its place, in a planner of this campaign alone; the row shows only in the planner\'s own view and the panel over the map, never in a picture of the page; both places hear the press',
+            /class="tool ghost pv-tick" data-page="p1" data-at="b_s" data-bi="0" data-say="Mark played" aria-pressed="false"/.test(h0) && /data-html2canvas-ignore="true"/.test(h0) && hP === '' && /data-page="p&quot;1"[^>]*data-say="Mark found"/.test(hC)
+            && /class="tool ghost pv-tick on"[^>]*data-say="Played" aria-pressed="true"/.test(h1) && J(steps) === J(['played', 'tonight', true, false]) && J(none) === '[false,false,false]'
+            && J(found) === J([true, 'No id', null, null, null]) && pl.includes("html += cardTickHtml(b, kdP, activeMap.id, _bi, ccP);") && pl.includes("if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', pvTickGo);") && pl.includes("if (_el_docPanelBodyEl) _el_docPanelBodyEl.addEventListener('click', pvTickGo);")
+            && css.includes('    .pv-ment::before, .pv-tick::before { content: attr(data-say); }'), J([h0, h1, steps, found]));
+        // the review of pages cards: two quick presses on a tick are no double-click on the card, which would leave the Read view for the editor
+        const D = new Function(sl2('scripts/planner.js', 'pvdbl') + '\nreturn pvDblSkip;')();
+        const tgt = sel => ({ closest: s => s.split(',').map(x => x.trim()).includes(sel) ? {} : null });
+        const dbl = [D(tgt('.pv-tick')), D(tgt('.pv-ment')), D(tgt('.pv-blk')), D(null), D({})];
+        check('1.6.3 a quick second press on a card\'s tick stays in the Read view (the review of pages cards; planner.js pvDblSkip run for real): a double-click on a tick or on Mentioned in is passed over, one on the card itself is not, and the Read view\'s double-click asks it first',
+            J(dbl) === '[true,true,false,false,false]' && /addEventListener\('dblclick', function\(e\) \{\r?\n      if \(pvDblSkip\(e\.target\)\) return;/.test(pl), J(dbl));
+    }
+
+    // finding 42: a new planner or page holds no words of the app's own
+    {
+        const md = read('scripts/models.js'), fnOf = name => { const i = md.indexOf('function ' + name + '('), z = md.indexOf('\n  }\n', i); return i < 0 || z < 0 ? '' : md.slice(i, z + 4); };
+        const M = new Function('uid', fnOf('createNewPlanner') + fnOf('createNewDoc') + '\nreturn { createNewPlanner, createNewDoc };')(() => 'x');
+        const pl = M.createNewPlanner('Act'), dc = M.createNewDoc('Rules'), plS = read('scripts/planner.js');
+        check('1.6.3 a new planner and a new page start with an empty text block, so nothing the app wrote stays on the page or reaches an export; the editor\'s box shows its placeholder where it is empty, and the old seed is still read but never written again',
+            pl.blocks[1].type === 'text' && pl.blocks[1].content === '' && dc.blocks[1].type === 'text' && dc.blocks[1].content === '' && !md.includes("content: 'Start writing...'") && !plS.includes("content: 'Start writing...'")
+            && plS.includes("c.indexOf('</h1>\\n<p>Start writing...</p>') !== -1") && plS.includes('data-placeholder="Write here. Type / on an empty line for another kind of block."') && read('style.css').includes('.rte-body:empty::before { content: attr(data-placeholder);'), J([pl.blocks, dc.blocks]));
+    }
+
+    // findings 43 and 44: small words of the planner's bar, and a big table's window as wide as it is
+    {
+        const css = read('style.css'), plS = read('scripts/planner.js'), tw = read('scripts/tablewin.js'), ioS = read('scripts/io.js');
+        check('1.6.3 the planner bar\'s Undo and Redo name what they act on, this page or this planner; the Export row is in sentence case; a big table\'s window takes the whole window\'s width, the 880 px reading column kept for a page (its grid is drawn after the window\'s own .tw-head, which the rule reads)',
+            plS.includes("['Undo', 'Redo'].forEach(function(w) { var ub = document.getElementById('planner' + w + 'Btn'); if (ub) ub.title = w + ' (this ' + (isDocEd ? 'page' : 'planner') + ')'; });")
+            && ioS.includes("rowName.textContent = 'Export this ' + (it.type === 'planner' ? 'planner' : it.type === 'doc' ? 'page' : 'map');") && !ioS.includes("'Export This '")
+            && css.includes('  #popoutBody.doc-view:has(> .tw-head) { max-width: none; }') && css.includes('  #popoutBody.doc-view { max-width: 880px;') && tw.includes("var h = '<div class=\"tw-head\">") && tw.includes('tw.body.innerHTML = twHtml(tw.b, tw.rich, tw.note);'));
     }
 
     summed = true;

@@ -3,10 +3,12 @@
    in the left panel's order, a planner nested under another one step in under it, and each arc's scene cards as its beats in the order they
    stand, colored Played, Tonight or Ahead (cardcore sessionOf). A click opens the planner at that card by the page rule (pageshelf.js), a
    beat's three small buttons set its session (cardcore setSession), and a beat moves inside its planner by a drag or by Alt and an arrow key.
-   Nothing new is stored: a beat is the planner's own scene card, and a change is the planner's own change, saved as one step of the GM's undo.
+   Nothing new is stored: a beat is the planner's own scene card, and a change is the planner's own change, saved as one step of that planner's
+   undo. Since that undo is reached only where the planner is on screen, every change made here also says so in a notice with its own Undo
+   (1.6.3, the review of pages, finding 37), which takes back that very change while nothing else has changed it since.
    Drawn with elements and text nodes only. Steps log as story v1. */
 import { getActiveCampaign, getMapChildren } from './models.js';
-import { save } from './io.js';
+import { save, toast, toastAction } from './io.js';
 import * as CC from './cardcore.js';
 
 // [storycheck:core-start]
@@ -17,7 +19,8 @@ function storyBeats(pl) {
     var out = [];
     (Array.isArray(pl && pl.blocks) ? pl.blocks : []).slice(0, 2000).forEach(function(b) {
         if (out.length >= STORY_BEATS || !b || typeof b !== 'object' || b.type !== 'node' || CC.cardKind(b) !== 'scene' || typeof b.id !== 'string' || !b.id) return;
-        out.push({ id: b.id, title: storyText(b.title, 120) || 'A scene', tag: storyText(b.tag, 40), s: CC.sessionOf(b) });
+        var tg = storyText(b.tag, 40), nm = storyText(b.title, 120) || (CC.cardLabel ? storyText(CC.cardLabel(b), 120) : '');   // 1.6.3 (finding 39): an untitled card by its tag or its first cell
+        out.push({ id: b.id, title: nm || 'A scene', tag: nm && nm === tg ? '' : tg, s: CC.sessionOf(b) });
     });
     return out;
 }
@@ -36,6 +39,13 @@ function storyModel(camp, kids) {
     };
     if (camp && camp.items && typeof kids === 'function') walk(null, 0);
     return out;
+}
+// 1.6.3 (finding 39): the arcs worth showing where Only planners with scene cards is ticked: an arc that has beats, or that stands over one
+// that does (a planner nested deeper right after it), so the story's shape stays whole
+function storyKeep(model) {
+    var out = [], need = 0;   // need: the depth of the last arc kept, whose planners above it stand at a smaller depth
+    for (var i = (model || []).length - 1; i >= 0; i--) { var a = model[i]; if (a.beats.length) { out.push(a); need = a.depth; } else if (a.depth < need) { out.push(a); need = a.depth; } }
+    return out.reverse();
 }
 // How far a story has gone: { played, tonight, ahead, none }, counted over every beat
 function storyCount(model) { var c = { played: 0, tonight: 0, ahead: 0, none: 0 }; (model || []).forEach(function(a) { a.beats.forEach(function(b) { c[b.s || 'none']++; }); }); return c; }
@@ -67,7 +77,9 @@ function plannerOf(camp, id) { var it = camp && camp.items && Object.prototype.h
 function kidsOf(camp) { return function(parent) { return getMapChildren(camp, parent, 'planner'); }; }
 function draw(focusId) {
     var body = el('storyBody'), camp = getActiveCampaign(); if (!body || !camp) return;
-    var model = storyModel(camp, kidsOf(camp)), cnt = storyCount(model), sum = el('storySum');
+    var model = storyModel(camp, kidsOf(camp)), cnt = storyCount(model), sum = el('storySum'), only = onlyBeats();
+    var ob = el('storyOnlyBeats'); if (ob) ob.checked = only;
+    if (only) model = storyKeep(model);   // 1.6.3 (finding 39): the counts above stay the whole story's
     if (sum) sum.textContent = model.length ? cnt.played + ' played, ' + cnt.tonight + ' tonight, ' + cnt.ahead + ' ahead' + (cnt.none ? ', ' + cnt.none + ' not marked' : '') : '';
     body.textContent = '';
     if (!model.length) { body.appendChild(mk('div', 'sv-empty', 'No planners yet. A planner is an arc here, and its scene cards are its beats.')); return; }
@@ -89,17 +101,37 @@ function draw(focusId) {
     });
     if (focusId) { var f = body.querySelector('.sv-beat[data-b="' + (/^[A-Za-z0-9_-]{1,80}$/.test(focusId) ? focusId : '') + '"] .sv-beat-name'); if (f) try { f.focus(); } catch (e) {} }
 }
+// [storycheck:undo-start]
+// 1.6.3 (finding 39): Only planners with scene cards, this computer's own (wp_storyOnlyBeats), unticked to start
+function onlyBeats() { try { return localStorage.getItem('wp_storyOnlyBeats') === '1'; } catch (e) { return false; } }
+function onlyBeatsSet(on) { try { if (on) localStorage.setItem('wp_storyOnlyBeats', '1'); else localStorage.removeItem('wp_storyOnlyBeats'); } catch (e) {} draw(); }
 function changed(camp, pl, step, facts) { pl.meta = pl.meta || {}; pl.meta.updated = Date.now(); save(); if (typeof window.appRender === 'function') window.appRender(); log(step, facts); }   // the app's redraw draws the planner where it is open: the editor, the panel over the map
 function setSess(plId, bId, s) {
     var camp = getActiveCampaign(), pl = plannerOf(camp, plId); if (!pl) return;
     var b = (pl.blocks || []).filter(function(x) { return x && x.id === bId && x.type === 'node'; })[0]; if (!b) return;
-    CC.setSession(b, CC.sessionOf(b) === s ? '' : s); changed(camp, pl, 'session', { s: CC.sessionOf(b) || 'none' }); draw(bId);
+    var was = CC.sessionOf(b);
+    CC.setSession(b, was === s ? '' : s); var now = CC.sessionOf(b); changed(camp, pl, 'session', { s: now || 'none' }); draw(bId);
+    // 1.6.3 (finding 37): the change's own Undo, since the planner's undo is reached only where the planner is on screen. It takes back this very
+    // change while the card still stands as it left it
+    var nm = storyText(b.title, 60) || storyText(CC.cardLabel ? CC.cardLabel(b) : '', 60) || 'The scene', word = { played: 'Played', tonight: 'Tonight', ahead: 'Ahead' };
+    toastAction(nm + (now ? ' marked ' + word[now] + '.' : ' is no longer marked.'), 'Undo', function() {
+        var pl2 = plannerOf(getActiveCampaign(), plId); if (!pl2 || pl2.blocks.indexOf(b) < 0 || CC.sessionOf(b) !== now) { toast('That card has changed since, so nothing was taken back.'); return; }
+        CC.setSession(b, was); changed(getActiveCampaign(), pl2, 'undo', { s: was || 'none' }); if (shown()) draw(bId);
+    });
 }
 function move(plId, from, to, after) {
     var camp = getActiveCampaign(), pl = plannerOf(camp, plId); if (!pl) return false;
     var nb = storyMove(pl.blocks, from, to, after); if (!nb) return false;
-    pl.blocks = nb; changed(camp, pl, 'move', { after: after === true }); draw(from); return true;
+    var prev = pl.blocks; pl.blocks = nb; changed(camp, pl, 'move', { after: after === true }); draw(from);
+    // 1.6.3 (finding 37): the move's own Undo puts the planner's blocks back while nothing has changed them since
+    var mb = nb.filter(function(x) { return x && x.id === from; })[0];
+    toastAction((storyText(mb && mb.title, 60) || storyText(mb && CC.cardLabel ? CC.cardLabel(mb) : '', 60) || 'The scene') + ' moved.', 'Undo', function() {
+        var pl2 = plannerOf(getActiveCampaign(), plId); if (!pl2 || pl2.blocks !== nb) { toast('That planner has changed since, so nothing was taken back.'); return; }
+        pl2.blocks = prev; changed(getActiveCampaign(), pl2, 'undo', { move: 1 }); if (shown()) draw(from);
+    });
+    return true;
 }
+// [storycheck:undo-end]
 function open() {
     var p = P(); if (!p || !storyMay()) return false;
     p.style.display = 'flex'; if (window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
@@ -109,6 +141,7 @@ function close() { var p = P(); if (!p || p.style.display === 'none') return; p.
 function wire() {
     var p = P(), body = el('storyBody'); if (!p || !body) return;
     var c = el('storyClose'); if (c) c.addEventListener('click', close);
+    var ob = el('storyOnlyBeats'); if (ob) ob.addEventListener('change', function() { onlyBeatsSet(ob.checked); });
     var mb = el('storyCampBtn'); if (mb) mb.addEventListener('click', function() { if (!open() && typeof window.toast === 'function') window.toast('The Story view is the GM’s, on your own campaign.'); });
     body.addEventListener('click', function(e) {
         var t = e.target && e.target.closest ? e.target : null; if (!t) return;
@@ -142,4 +175,4 @@ if (typeof window !== 'undefined') {
     window.wpStory = { open: open, close: close, shown: shown, may: storyMay, redraw: function() { if (shown()) draw(); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 }
-export { storyBeats, storyModel, storyCount, storyMove, storyStep };
+export { storyBeats, storyModel, storyCount, storyMove, storyStep, storyKeep };

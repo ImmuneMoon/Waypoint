@@ -1104,6 +1104,15 @@ function renderDoc(doc, opts) {
    folded text is the same place in the text. */
 var HB_LIMIT = 60;
 function hbFold(s) { s = String(s == null ? '' : s); var out = ''; for (var i = 0; i < s.length; i++) { var c = s.charAt(i), f = (c.normalize ? c.normalize('NFD').charAt(0) : c).toLowerCase(); out += f.length === 1 ? f : c; } return out; }
+// 1.6.3 (the review of pages, finding 17): a block's markup as the plain words a text handout holds, its line breaks kept. A paragraph, a
+// heading and a box end a line with an empty line after it, a line break ends a line, a list item begins with a bullet. Tags are left out,
+// entities read as their characters, runs of spaces folded on each line, and no more than one empty line stands between two lines.
+function plainLines(html) {
+    var t = str(html, LIMITS.html).replace(/\r\n?/g, '\n').replace(/\n/g, ' ')
+        .replace(/<br\b[^>]*>/gi, '\n').replace(/<li\b[^>]*>/gi, '\n• ').replace(/<\/(p|div|h[1-6]|ul|ol|blockquote|table|tr)>/gi, '\n\n')
+        .replace(/<\/(td|th)>/gi, '  ').replace(/<[^>]*>/g, '');
+    return decodeEntities(t).split('\n').map(function(l) { return l.replace(/[ \t ]+/g, ' ').trim(); }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 function hbPlain(html) { return decodeEntities(str(html, LIMITS.html).replace(/<(br|\/p|\/li|\/div|\/h[1-6])\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim(); }
 function hbBlockText(b) {
     switch (b.type) {
@@ -1165,6 +1174,32 @@ function hbText(pages, q) {
 // is GM only (meta.players false), however each page under it is marked. The one judge: the host's sends (net.js sanitizeItem and the
 // check each save makes), the sheet's page links and the tree's lock all ask it. A parent counts only while it is a page, as the tree nests
 // (models.js getMapParentId); a loop or a chain past 200 pages stops the walk where it is. Items are read by own keys only.
+// 1.6.3 (the review of pages, finding 26): the page above id that keeps it from the players, where its own switch says they may read it.
+// The nearest page it stands under whose players switch is off, the very rule pageHid walks; null where none is, where id's own switch is
+// already off, or where id is no page. The editor's players button and the tree's right-click row ask it, so a page under a GM-only page
+// never says Players can read.
+function pageHidBy(items, id) {
+    if (!items || typeof items !== 'object' || typeof id !== 'string' || !Object.prototype.hasOwnProperty.call(items, id)) return null;
+    var me = items[id]; if (!me || me.type !== 'doc' || (me.meta && me.meta.players === false)) return null;
+    var seen = Object.create(null), cur = me.meta && me.meta.parentId, n = 0; seen[id] = 1;
+    while (typeof cur === 'string' && cur && !seen[cur] && n++ < 200) {
+        seen[cur] = 1;
+        var it = Object.prototype.hasOwnProperty.call(items, cur) ? items[cur] : null;
+        if (!it || typeof it !== 'object' || it.type !== 'doc') return null;
+        var meta = it.meta && typeof it.meta === 'object' ? it.meta : {};
+        if (meta.players === false) return it;
+        cur = meta.parentId;
+    }
+    return null;
+}
+// The review of pages cards (2026-11-21): what to say when a page's own switch is turned on while a GM-only page above still keeps it from
+// the players, or '' where nothing above keeps it. named: true names the page itself (the tree's row), else it is "This page" (the editor).
+// Asked by planner.js's Players can read button and dialogs.js's Show to players row, after the switch is turned.
+function pageHidSays(items, id, named) {
+    var up = pageHidBy(items, id); if (!up) return '';
+    var me = items[id], t = function(it) { return String((it && it.meta && it.meta.title) || 'A page').slice(0, 80); };
+    return (named ? '\u201c' + t(me) + '\u201d has its own switch on' : 'This page\u2019s own switch is on') + ', but players get it only once \u201c' + t(up) + '\u201d is shared.';
+}
 function pageHid(items, id) {
     if (!items || typeof items !== 'object') return false;
     var seen = Object.create(null), cur = id, n = 0;
@@ -1179,6 +1214,28 @@ function pageHid(items, id) {
     return false;
 }
 
-var API = { headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+/* 1.6.3 (the review of pages, finding 21): a diagram the bundled library could not draw. On a parse error the library draws its own error
+   picture into the block (an svg whose aria-roledescription is "error", with its version line) and then rejects the run. Every place that
+   runs it (the planner's preview, the panel over the map, a page's window, a player's reader) asks diagramBad on the drawn page once the run
+   has settled. It empties each such block, marks it diagram-bad, and puts in one plain line for the GM (gm true: their own page, which they
+   can fix) and nothing for anyone else, whom a broken diagram tells nothing. doc makes the text node (root's own document where it has one).
+   Answers how many blocks it put right. */
+var DIAGRAM_BAD = 'This diagram could not be drawn. Check its code.';
+function diagramBad(root, gm, doc) {
+    if (!root || typeof root.querySelectorAll !== 'function') return 0;
+    doc = doc || root.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    var n = 0;
+    Array.prototype.slice.call(root.querySelectorAll('svg')).forEach(function(svg) {
+        if (svg.getAttribute('aria-roledescription') !== 'error') return;
+        var host = svg.parentNode; if (!host || host === root || !doc) return;
+        while (host.firstChild) host.removeChild(host.firstChild);
+        host.classList.add('diagram-bad');
+        if (gm) host.appendChild(doc.createTextNode(DIAGRAM_BAD));
+        n++;
+    });
+    return n;
+}
+
+var API = { pageHidBy: pageHidBy, pageHidSays: pageHidSays, diagramBad: diagramBad, headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { pageHidBy, pageHidSays, diagramBad, DIAGRAM_BAD, plainLines, headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

@@ -402,6 +402,21 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && JSON.stringify(p.lists) === JSON.stringify(['Cultures']) && JSON.stringify(p.words) === JSON.stringify(['Culture']), JSON.stringify([asked, p.lists, p.words]));
     }
 
+    /* ---- 1.6.3 (the improvement week's review of the System editor, finding 3): what parse answers is kept by its text ---- */
+    {
+        const a = F.parse('Strength + 2'), b = F.parse('Strength + 2'), e1 = F.parse('1 +'), e2 = F.parse('1 +');
+        a.names.push('Changed'); e1.error.message = 'changed';   // a caller that changes its own answer changes no one else's
+        const c = F.parse('Strength + 2');
+        let firstAst = F.parse('KeptFirst + 1').ast; for (let i = 0; i < 4200; i++) F.parse('Other' + i + ' + 1');   // past PARSE_KEPT the oldest text goes first
+        const again = F.parse('KeptFirst + 1');
+        check('1.6.3 (finding 3) parse keeps its answer for a text: the same text twice shares one tree, each answer has lists of its own and an error of its own, names() and evaluate still read it, and past 4,000 texts the oldest is parsed again',
+            a.ok && b.ast === a.ast && c.ast === a.ast && j(c.names) === j(['Strength']) && a.names !== b.names && b.names.length === 1
+            && !e2.ok && e2.error.message !== 'changed' && j(F.names('Strength + 2')) === j(['Strength'])
+            && val('3 + 4') === 7 && val('3 + 4') === 7 && again.ok && again.ast !== firstAst && F.parse(42).ok && F.parse(42).ast === F.parse('42').ast,
+            j([b.ast === a.ast, c.names, e2.error, again.ast !== firstAst]));
+        firstAst = null;
+    }
+
     /* ---- group 11b: publication under a window ---- */
     global.window = {};
     const F2 = await import(url + '?x');

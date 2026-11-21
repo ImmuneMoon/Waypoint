@@ -34,6 +34,7 @@ var KEEPS = [['', 'Keep all'], ['kh', 'Keep the highest'], ['kl', 'Keep the lowe
 var REROLLS = [['', 'No reroll'], ['r', 'Reroll once'], ['rr', 'Reroll every time']];
 var EXPLODES = [['', 'No exploding'], ['once', 'Exploding'], ['own', 'Each its own die']];
 var FACES = ['4', '6', '8', '10', '12', '20', '100'];
+var FIG_LAZY = 40;   // 1.6.3: an option's figure list longer than this fills only when it is used (dressOpts)
 // what a roll is for (the owner, by prompt on the sheet: "C. Kind, then questions" and "Keep it, with the odds"): a form starts from what you are doing, and each part asks in plain words
 var KINDS = [['beat', 'Beat a number', 'Works or fails: a skill, a dodge, an attack.'], ['total', 'Get a total', 'Damage, initiative, a table to look up.'], ['hits', 'Count hits', 'A handful of dice, each that reaches a number counts.'], ['read', 'Read the dice', 'One handful, read more than one way.'], ['else', 'Something else', 'Build it step by step.']];
 var READS = [['high', 'The highest die'], ['low', 'The lowest die'], ['nth', 'A die by its place from the top'], ['best', 'The best few'], ['worst', 'The worst few'], ['count', 'How many reach'], ['sets', 'The most that match'], ['pairs', 'How many pairs'], ['total', 'The total']];
@@ -567,10 +568,16 @@ function dressOpts(inp) {
         rows.forEach(function(r, i) {
             r._say = null; r._specNote = null; var rw = el('div', 'fb-opt'), lb = el('input', 'field fb-optname'), sel = el('select', 'field fb-optfig'), add = function(v, t) { var o = el('option', '', t); o.value = v; sel.appendChild(o); }, rm = btn('tool ghost sys-btn fb-optrm', '\u00d7', 'Take this option away');
             lb.type = 'text'; lb.value = r.label; lb.placeholder = 'An option'; lb.title = 'What the option is called'; lb.addEventListener('input', function() { r.label = lb.value; }); lb.addEventListener('change', keep);
-            add('', 'Just this word'); figs.forEach(function(f) { add(f[0], 'Stands for ' + f[1]); });
-            lists.forEach(function(L) { add(LIST + L.key, 'Stands for a row of ' + L.label); });
-            if (!r.row && r.name && !figs.some(function(f) { return String(f[0]).toLowerCase() === r.name.toLowerCase(); })) add(r.name, 'Stands for a figure that is gone');
-            sel.value = r.row ? LIST + r.row.list : r.name || ''; sel.title = 'An option may stand for a figure of the sheet, or of one row of a list, which a formula then reads through it';
+            // 1.6.3 (the improvement week's review of the System editor, finding 14): this list names every figure of the sheet, some six
+            // hundred on a large system, once for every option of every choice stat, and a large list's card was built of them. A list longer
+            // than FIG_LAZY holds only its own pick until it is pressed or reached by the keyboard, then fills whole, so it works as before
+            var opF = [['', 'Just this word']]; figs.forEach(function(f) { opF.push([f[0], 'Stands for ' + f[1]]); });
+            lists.forEach(function(L) { opF.push([LIST + L.key, 'Stands for a row of ' + L.label]); });
+            if (!r.row && r.name && !figs.some(function(f) { return String(f[0]).toLowerCase() === r.name.toLowerCase(); })) opF.push([r.name, 'Stands for a figure that is gone']);
+            var curF = r.row ? LIST + r.row.list : r.name || '';
+            if (opF.length > FIG_LAZY) { var oneF = opF.filter(function(o) { return o[0] === curF; })[0] || opF[0], fillF = function() { if (sel.options.length > 1) return; var v0 = sel.value; while (sel.firstChild) sel.removeChild(sel.firstChild); opF.forEach(function(o) { add(o[0], o[1]); }); sel.value = v0; }; add(oneF[0], oneF[1]); sel.addEventListener('pointerdown', fillF); sel.addEventListener('focus', fillF); }
+            else opF.forEach(function(o) { add(o[0], o[1]); });
+            sel.value = curF; sel.title = 'An option may stand for a figure of the sheet, or of one row of a list, which a formula then reads through it';
             sel.addEventListener('change', function() {
                 if (sel.value.indexOf(LIST) === 0) { var L = listOf(sel.value.slice(LIST.length)); if (!L) return; r.row = { list: L.key, entry: '', known: false, spec: '', fig: figFor(L), figKnown: true }; r.held = true; r.specNo = ''; draw(); var fq = box.querySelectorAll('.fb-opt')[i]; fq = fq && fq.querySelector ? fq.querySelector('.ui-find-q') : null; if (fq && fq.focus) fq.focus(); return; }
                 var was = !!r.row; r.row = null; r.held = false; r.specNo = ''; r.name = sel.value; keep(); if (was) draw();

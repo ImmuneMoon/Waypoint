@@ -556,7 +556,14 @@ function layoutAddOpts(placed, hudOn, onSheet, grpList) {
     if (!hudOn && draftHasHud()) opts.push(['k:hud', 'HUD button']);   // HUD frame (HF2b): on the sheet, once there is a HUD to open
     return opts;
 }
+// 1.6.3 (the improvement week's review of the System editor, finding 4): what is typed in the Layout tab (a section's title, a tab's label,
+// a placement's words) drew the whole preview again at every key, a clean of the system and a whole sheet built, which held a large
+// system's editor more than a second and a half a letter. So typing asks previewSoon, which draws the preview once the keys have
+// rested for PREVIEW_WAIT, and any other call of renderPreview (a pick, a tick, Arrange) draws at once and lets a waiting one go
+var _pvT = 0, PREVIEW_WAIT = 300;
+function previewSoon() { if (_pvT) clearTimeout(_pvT); _pvT = setTimeout(function() { _pvT = 0; if (draft) renderPreview(); }, PREVIEW_WAIT); }
 function renderPreview() {
+    if (_pvT) { clearTimeout(_pvT); _pvT = 0; }
     var box = ui('sysLayoutPreview'), pick = ui('sysPreviewChar'); if (!box || !draft || !F()) return;
     var camp = getActiveCampaign();
     if (pick) { var was = _arrChar || pick.value; arrCharSet(null); pick.textContent = ''; pick.appendChild(opt('', 'Defaults')); charList(camp).forEach(function(x) { pick.appendChild(opt(x.id, x.name + (x.npc ? ' (NPC)' : ''))); }); pick.value = Array.prototype.some.call(pick.options, function(o) { return o.value === was; }) ? was : ''; }
@@ -576,14 +583,14 @@ function renderPreview() {
 }
 function onLayoutInput(t) {
     var c = t.className || '';
-    if (c.indexOf('sys-tab-icon') >= 0) { var itr = t.closest && t.closest('.sys-row.sys-tab'); if (itr) { var tbi = layoutTabs().find(function(x) { return x.id === itr.dataset.tid; }); if (tbi) { if (t.value.trim()) tbi.icon = t.value.slice(0, 32); else delete tbi.icon; markDirty(); renderPreview(); } } return true; }   // Stage 5g (Save trims it to a few code points)
-    if (c.indexOf('sys-tab-label') >= 0) { var ltr = t.closest && t.closest('.sys-tab'); if (ltr) { var tb0 = layoutTabs().find(function(x) { return x.id === ltr.dataset.tid; }); if (tb0) { tb0.label = t.value.slice(0, LIMITS.label); markDirty(); renderPreview(); if (typeof patchErrors === 'function') patchErrors(); } } return true; }   // 1.6.3: the line under the label follows it
-    if (t.classList && t.classList.contains('sys-hud-title')) { var hr = layoutRoot(); if (t.value.trim()) hr.title = t.value.slice(0, LIMITS.label); else delete hr.title; markDirty(); renderPreview(); return true; }   // HUD frame HF1 (before the section lookup: the title row is outside a section)
+    if (c.indexOf('sys-tab-icon') >= 0) { var itr = t.closest && t.closest('.sys-row.sys-tab'); if (itr) { var tbi = layoutTabs().find(function(x) { return x.id === itr.dataset.tid; }); if (tbi) { if (t.value.trim()) tbi.icon = t.value.slice(0, 32); else delete tbi.icon; markDirty(); (typeof previewSoon === 'function' ? previewSoon : renderPreview)(); } } return true; }   // Stage 5g (Save trims it to a few code points)
+    if (c.indexOf('sys-tab-label') >= 0) { var ltr = t.closest && t.closest('.sys-tab'); if (ltr) { var tb0 = layoutTabs().find(function(x) { return x.id === ltr.dataset.tid; }); if (tb0) { tb0.label = t.value.slice(0, LIMITS.label); markDirty(); (typeof previewSoon === 'function' ? previewSoon : renderPreview)(); if (typeof patchErrors === 'function') patchErrors(); } } return true; }   // 1.6.3: the line under the label follows it
+    if (t.classList && t.classList.contains('sys-hud-title')) { var hr = layoutRoot(); if (t.value.trim()) hr.title = t.value.slice(0, LIMITS.label); else delete hr.title; markDirty(); (typeof previewSoon === 'function' ? previewSoon : renderPreview)(); return true; }   // HUD frame HF1 (before the section lookup: the title row is outside a section)
     var lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;
     var sec = layoutSections().find(function(s) { return s.id === lsec.dataset.sid; }); if (!sec) return true;
     var plr = t.closest('.sys-pl');
     if (plr && c.indexOf('sys-pl-text') >= 0) { var pl = (sec.fields || [])[+plr.dataset.pi]; if (pl) pl.text = t.value.slice(0, LIMITS.label); }
-    if (plr && c.indexOf('sys-pl-tiles') >= 0) { var plT = (sec.fields || [])[+plr.dataset.pi]; if (plT) { if (t.value) plT.show = t.value; else delete plT.show; markDirty(); renderPreview(); return true; } }   // 1.6.2 (body fold 3): Shows as
+    if (plr && c.indexOf('sys-pl-tiles') >= 0) { var plT = (sec.fields || [])[+plr.dataset.pi]; if (plT) { if (t.value) plT.show = t.value; else delete plT.show; markDirty(); (typeof previewSoon === 'function' ? previewSoon : renderPreview)(); return true; } }   // 1.6.2 (body fold 3): Shows as
     if (plr && c.indexOf('sys-pl-empty') >= 0) { var ple = (sec.fields || [])[+plr.dataset.pi]; if (ple) { var pev = t.value.slice(0, LIMITS.label); if (pev.trim()) ple.empty = pev; else delete ple.empty; } }   // 191: When empty
     else if (plr && c.indexOf('sys-pl-rformula') >= 0) { var plf = (sec.fields || [])[+plr.dataset.pi]; if (plf) plf.formula = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD H9
     else if (plr && c.indexOf('sys-pl-rtext') >= 0) { var plt = (sec.fields || [])[+plr.dataset.pi]; if (plt) plt.text = t.value.slice(0, LIMITS.ruleText); }   // Stage 6 HUD H11
@@ -593,7 +600,7 @@ function onLayoutInput(t) {
     else if (t.classList.contains('sys-sec-icon')) { if (t.value.trim()) sec.icon = t.value.slice(0, 32); else delete sec.icon; }   // Stage 5g
     else if (t.classList.contains('sys-sec-resettext')) { if (t.value.trim()) sec.resetText = t.value.slice(0, LIMITS.label); else delete sec.resetText; }   // HUD frame (HF4b): the Reset all button's own words
     else return false;
-    markDirty(); renderPreview(); return true;
+    markDirty(); (typeof previewSoon === 'function' ? previewSoon : renderPreview)(); return true;
 }
 function onLayoutChange(t) {
     var c = t.className || '', lsec = t.closest && t.closest('.sys-sec'); if (!lsec) return false;

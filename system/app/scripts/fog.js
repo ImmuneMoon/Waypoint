@@ -2724,11 +2724,21 @@ function scrollMovesBoard(t, doc, wrap) {
     return t === wrap || (typeof t.contains === 'function' && t.contains(wrap));
 }
 var raf = null, lastDraw = 0;
+// 1.6.3 (the improvement week's review of the System editor, finding 41): the System editor and the Library window each cover the whole
+// window, map and all, and the overlay went on drawing under them every 60 ms, about an eighth of every second spent where no one could
+// see it. While one of them shows, tick keeps its loop but draws nothing; lastDraw stays as it was, so the first frame after the window
+// closes draws at once with whatever moved meanwhile. fogCovered reads each window's own inline display, which is how both are shown
+var FOG_COVERS = ['systemModal', 'libraryModal'];
+function fogCovered() {
+    if (typeof document === 'undefined' || !document.getElementById) return false;
+    for (var i = 0; i < FOG_COVERS.length; i++) { var m = document.getElementById(FOG_COVERS[i]); if (m && m.style && m.style.display && m.style.display !== 'none') return true; }
+    return false;
+}
 function tick() {
     raf = null;
     if (!active()) { clearCanvas(); return; }
     var now = Date.now();
-    if (now - lastDraw >= 60) { lastDraw = now; _sensesTick++; _sensesDraw = true; _dtFresh = false; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; if (_dtFresh) drawTiersSlow(Date.now() - now); } }   // a frame: the tokens' senses are kept while nothing they read changed; 1.6.3 (finding 24): a frame that worked tiers out says how long it took
+    if (now - lastDraw >= 60 && !fogCovered()) { lastDraw = now; _sensesTick++; _sensesDraw = true; _dtFresh = false; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; if (_dtFresh) drawTiersSlow(Date.now() - now); } }   // a frame: the tokens' senses are kept while nothing they read changed; 1.6.3 (finding 24): a frame that worked tiers out says how long it took
     raf = requestAnimationFrame(tick);
 }
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }

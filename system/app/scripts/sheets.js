@@ -78,7 +78,7 @@ export { CHAMBER_CAP, COVER_HIT_ROWS, ROW_LOOK, altBox, badgeBox, capInline, dbx
 export { NEEDS_WHY, STAT_KEY, _asPlayer, activeCharOf, answersBox, areaBox, askRow, bandBox, bandWhens, callsBox, cardBox, cleanRollSw, clockBox, costHow, costOptions, crossRow, dbxLocNames, dieSel, drawHow, entryNames, entryPick, everyRow, fieldOf, fightRow, fxHolds, fxTargets, grantBox, handKept, helpBox, hudFor, itemOfRow, keepPlace, kindsNamed, landDmgSel, lossOpts, lvlOnlyText, markOpts, markVal, modHowSel, modTiersText, modVal, noteRow, opVal, picPicker, playableChars, playerNames, postureList, resistBySel, resistOrBox, rollNeedsFails, rowAimInto, rowFocusOf, swDice, swGone, turnActs, withRowSel };   // [split:glue]
 export { CAL_LIMITS, FEEDS_MAX, KINDS, TIME_WORDS, callDrops, capFOk, catNear, catsGone, cleanCalendar, cleanCover, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanTier, cleanTurn, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, envSays, fitIfOk, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, itemReach, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, modsIfOk, onRemoveSays, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, secretFieldIds, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, tableSays, terrainSettleAll, turnHoldSays, turnRunSays, unheldRolls, unitOf, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll };   // [split:glue]
 export { ALT_MAX, ANS_HALF, ANS_MAX, BADGE_MAX, SEND_HOPS_MAX, START_MAX, STORED, _sidePrev, ansShareWord, asksBox, cleanBands, cleanLooks, cleanRowDef, cleanValue, crewPick, deckTrial, deckTrialRead, dirtySet, draftSet, emptySystem, errGo, fieldById, grantEntries, grantName, layKeep, laySync, nameAsks, nameWord, needsGmBox, numField, numInput, openSync, rangeUnitWord, readsOf, refreshErrors, renderAll, renderPreview, rollName, rollStationBox, sidePrevSet, starterPacksSet, startersFill, startersLoad, sysReaders, tabSet, valueOpts };   // [split:glue]
-export { BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, LOOK_PRESETS, PALETTE_KEYS, PAL_CAPS, PIN_GID, _arrChar, applySheetLookTo, arrCharSet, autoLayout, btnRow, buildSections, capBox, catChoices, catHome, catSplits, cleanPlaceCats, cleanSystem, clone, dirty, errorsById, fieldWord, fxLiveSet, glyphButton, headerEdits, hintBox, hudView, layoutView, layoutViewSet, lazySelect, pageOptions, paletteOf, pinTargetsAll, rollPick, sheetLook, showConfirm, startRows, syncFramePad, tabStandIns, tokenCtxFor, validKey, validateSystem };   // [split:glue]
+export { BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, LOOK_PRESETS, PALETTE_KEYS, PAL_CAPS, PIN_GID, _arrChar, applySheetLookTo, arrCharSet, autoLayout, btnRow, buildSections, capBox, catChoices, catHome, catSplits, cleanPlaceCats, cleanSystem, clone, dirty, errorsById, fieldWord, fxLiveSet, glyphButton, headerEdits, hintBox, hudView, layoutView, layoutViewSet, lazySelect, pageOptions, paletteOf, pinTargetsAll, rollPick, sheetLook, showConfirm, startRows, syncFramePad, tabStandIns, tokenCtxFor, twinNamer, validKey, validateSystem };   // [split:glue]
 export { LINK_NOT, checkLabel, cleanLinks, errorCell, explainBox, labeledSelect, markDirty, patchErrors, segPut, ui, uid };   // [split:glue]
 export { _ldPop, afterCharChange, askEntry, askThen, canOpen, canWrite, charCatOf, charForView, charList, closeLoadMenu, crewHost, explainTo, isClient, ldKey, ldOutside, ldPopSet, linkSet, linkedFrom, myId, open, openSheet, rowIdOf, setCrewSource, setDeckSink, setDeckSource, setGateEngine, setLaunchSink, setLinkCharSource, setLinkSource, setSetOffSink, setTagSink, setTagSource, setValueSink, setValueSource, stationFit, toast };   // [split:glue]
 export { APPLY_KINDS, F, applyAct, applyRound, applyScope, chainsShallow, charById, charsOf, combatChars, dueActs, figText, getActiveCampaign, gmOnlyNames, hasDice, lazyVars, linkValuesWrite, makeResolver, net, opt, renderViews, resolveAll, rollNeedsOk, rolled, ruleFollow, ruleRunCtx, save, state, systemOf, timeRuleRun, tokenCtx, tokenFlags, upkeepLines, withOnSelf, withRound };   // [split:glue]
@@ -8221,20 +8221,25 @@ function formulaTextFor(id, prop) {
     var it = (draft.items || []).find(function(x) { return x.id === id; });
     return it ? (prop === 'cost' ? it.cost || '' : it.damage || '') : '';
 }
-// 1.6.0: on a large system a check of the whole system takes a key step's time, so one that took long waits for the keys to stop
+// 1.6.0: on a large system a check of the whole system takes a key step's time, so one that took long waits for the keys to stop.
+// 1.6.3 (the review of the System editor, finding 1): the wait grows with what the last check cost (half again, 180 ms to 600 ms), so a
+// slow check never cuts into a word being typed, and only a check that really ran sets it: refreshErrors does nothing where the draft is
+// as it was at the last check (its note, refreshErrors.seen, is then the very same object), and that took no time worth waiting for
 var _peSlow = 0, _peT = null;
 function patchErrors() {
-    if (_peSlow > 60) { if (_peT) clearTimeout(_peT); _peT = setTimeout(function() { _peT = null; if (draft) patchErrorsNow(); }, 180); return; }
+    var slow = Math.max(_peSlow, typeof refreshErrors.ms === 'number' ? refreshErrors.ms : 0);   // the check renderAll ran at its top counts too
+    if (slow > 60) { if (_peT) clearTimeout(_peT); _peT = setTimeout(function() { _peT = null; if (draft) patchErrorsNow(); }, Math.min(600, Math.max(180, Math.round(slow * 1.5)))); return; }
     patchErrorsNow();
 }
 function patchErrorsNow() {
-    var peAt = Date.now();
+    var peAt = Date.now(), seenWas = refreshErrors.seen;
     refreshErrors();
+    var peRan = !seenWas || refreshErrors.seen !== seenWas;
     document.querySelectorAll('#systemModal [data-err-for]').forEach(function(old) { var id = old.dataset.errFor; var fresh = errorCell(id); fresh.dataset.errFor = id; old.parentNode.replaceChild(fresh, old); });
     var total = Object.keys(errorsById).reduce(function(n, k) { return n + errorsById[k].length; }, 0), warns = Object.keys(warningsById).reduce(function(n, k) { return n + warningsById[k].length; }, 0);
     if (window.wpSysUi) { window.wpSysUi.marks(errorsById, warningsById); if (window.wpSysUi.isPick(tab)) window.wpSysUi.pickDraw(tab, pickModel(tab)); }   // 1.6.2: a topic or a row that holds one says so, and a row says what was typed
     var foot = ui('sysFoot'); if (foot) foot.textContent = draft.fields.length + ' field' + (draft.fields.length === 1 ? '' : 's') + ' · ' + draft.rolls.length + ' roll' + (draft.rolls.length === 1 ? '' : 's') + (total ? ' · ' + total + ' error' + (total === 1 ? '' : 's') : ' · no errors') + (warns ? ' · ' + warns + ' warning' + (warns === 1 ? '' : 's') : '') + (dirty ? ' · unsaved changes' : '');
-    _peSlow = Date.now() - peAt;
+    if (peRan) _peSlow = Date.now() - peAt;
 }
 function input(cls, value, title, placeholder) { var i = el('input', cls); i.type = 'text'; i.value = value === undefined || value === null ? '' : String(value); if (title) i.title = title; if (placeholder) i.placeholder = placeholder; i.spellcheck = false; i.autocomplete = 'off'; return i; }
 function numInput(cls, value, title, step) { var i = el('input', cls); i.type = 'number'; i.value = value === undefined || value === null ? '' : String(value); i.title = title || ''; if (step) i.step = step; return i; }   // step (F4c1): 'any' for a stat (0.0001, -0.5)
@@ -8291,12 +8296,38 @@ function surchargeCtl(flags, f) {
 function lossOpts(ch) { var o = [['sub', 'Subtract'], ['add', 'Add'], ['set', 'Set to']]; if ((ch && ch.loss === true) || (draft.fields || []).some(function(x) { return x && x.kind === 'resource' && x.surcharge && typeof x.surcharge === 'object' && x.surcharge['if']; })) o.splice(1, 0, ['loss', 'Subtract, not a cost']); return o; }
 function opVal(ch) { return ch.set ? 'set' : ch.add ? 'add' : ch.loss === true ? 'loss' : 'sub'; }
 // 1.6.0, found on a large system: a list on every section of the Layout tab held every field, 255,000 options in all. A long one holds its own choice until it is used
-function lazySelect(cls, options, value, title) {
+// 1.6.3 (the improvement week's review of the System editor, finding 24): a long list may be searched. With search, the first press or the
+// keyboard's first visit puts a search beside it (uiparts.js find, the app's own choice of many by name) and puts the list itself away,
+// still in the page with its class and its value: a pick from the search sets the list and says its change, which bubbles to the System
+// editor's own handlers exactly as a pick from the list did. Nothing typed in the search reaches those handlers (the box stops it), so a
+// search marks nothing as changed. With no find at hand, or no search asked for, the list fills itself whole as before
+function lazySelect(cls, options, value, title, search) {
     if (options.length <= 40) return select(cls, options, value, title);
     var cur = options.find(function(o) { return o[0] === value; }) || options[0], s = select(cls, [cur], value, title), full = options;
     var fill = function() { if (!full) return; var o = full; full = null; s.textContent = ''; o.forEach(function(x) { s.appendChild(opt(x[0], x[1], x[0] === value)); }); };
+    var U = typeof window !== 'undefined' && window.wpUi && typeof window.wpUi.find === 'function' ? window.wpUi : null;
+    if (search && U) {
+        var swap = function(e) {
+            if (!full || !s.parentNode) return; var all = full; fill();
+            if (e && e.type === 'pointerdown' && e.preventDefault) e.preventDefault();   // the list's own drop-down never opens: the search stands in its place
+            var box = U.find({ choices: all.filter(function(x) { return x[0] !== ''; }).map(function(x) { return { value: x[0], name: x[1] }; }), blank: (all[0] && all[0][0] === '') ? all[0][1] : undefined, value: s.value, label: title || search, placeholder: search, cls: 'sys-find',
+                set: function(v) { s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); } });
+            ['input', 'change', 'keydown'].forEach(function(k) { box.addEventListener(k, function(ev) { if (k !== 'keydown' || ev.key !== 'Escape' || (box.input && box.input.value)) ev.stopPropagation(); }); });   // the search's own words and picks are no edit of the draft
+            s.parentNode.insertBefore(box, s.nextSibling); s.hidden = true;
+            if (box.input && box.input.focus) box.input.focus();
+        };
+        s.addEventListener('pointerdown', swap); s.addEventListener('focus', swap);
+        return s;
+    }
     s.addEventListener('pointerdown', fill); s.addEventListener('focus', fill);
     return s;
+}
+// 1.6.3 (the improvement week's review of the System editor, finding 24): names for a list of choices where two may share one. Counted once
+// for the whole list, each thing reads as its name, and as its name and its short name where another thing of the list has the same name
+// (as fieldWord does for one field, without walking every field again for each)
+function twinNamer(list, nameOf, keyOf) {
+    var n = Object.create(null); (Array.isArray(list) ? list : []).forEach(function(x) { var w = nameOf(x); if (w) n[w] = (n[w] || 0) + 1; });
+    return function(x) { var w = nameOf(x), k = keyOf(x); return n[w] > 1 && k && k !== w ? w + ' (' + k + ')' : w; };
 }
 function select(cls, options, value, title) { var s = el('select', cls); options.forEach(function(o) { s.appendChild(opt(o[0], o[1], o[0] === value)); }); if (title) s.title = title; return s; }
 // 1.6.2 (backlog 225): a row's ▲ ▼ (or ◀ ▶) stand in one frame, a .ui-seg, and its × stays apart. segPut appends a button to a row: a move

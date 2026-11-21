@@ -502,9 +502,29 @@ function diceGroups(node, made, read) {
     if (node.a) diceGroups(node.a, made, read);
     if (node.l) { diceGroups(node.l, made, read); diceGroups(node.r, made, read); }
 }
+// 1.6.3 (the improvement week's review of the System editor, finding 3): a large system's checks parse the same formula text many times
+// over (cleanSystem read each of 654 fields' formulas again for every effect, change and rule it judged), and parsing was most of a
+// check's two seconds. So what parse answers for a text is kept, the newest PARSE_KEPT texts, and handed back again for the same text.
+// The tree itself is shared, which is safe since nothing walks it to change it (the parser alone writes onto its nodes, as it builds
+// them). Each answer is a fresh object with its own copies of the lists, so a caller that sorts or adds to its names changes no one
+// else's. The answer depends on the text alone, never on a sheet or a setting, so a kept answer is always the right one.
+var PARSE_KEPT = 4000, _parsed = typeof Map === 'function' ? new Map() : null;
+function parseCopy(p) {
+    if (!p) return p;
+    if (!p.ok) return { ok: false, error: { message: p.error.message, pos: p.error.pos, len: p.error.len } };
+    return { ok: true, ast: p.ast, names: p.names.slice(), groups: p.groups.slice(), reads: p.reads.slice(), words: p.words.slice(), lists: p.lists.slice() };
+}
 function parse(text) {
+    if (typeof text !== 'string') text = text === undefined || text === null ? '' : String(text);
+    if (!_parsed) return parseNow(text);
+    var kept = _parsed.get(text);
+    if (kept) { _parsed.delete(text); _parsed.set(text, kept); return parseCopy(kept); }   // read again: it goes to the newest end, so the texts in use stay
+    var p = parseNow(text);
+    if (p) { _parsed.set(text, p); if (_parsed.size > PARSE_KEPT) _parsed.delete(_parsed.keys().next().value); }   // the oldest text read goes first
+    return parseCopy(p);
+}
+function parseNow(text) {
     try {
-        if (typeof text !== 'string') text = text === undefined || text === null ? '' : String(text);
         if (text.length > LIMITS.maxChars) fail('The formula is too long (over ' + thousands(LIMITS.maxChars) + ' characters).', LIMITS.maxChars, text.length - LIMITS.maxChars);
         if (!text.trim()) fail('Nothing to evaluate.', 0, 0);
         var p = new Parser(lex(text), text);

@@ -116,7 +116,30 @@ function refWarns(saved, clean, camp0) {
     });
 }
 // [systemcheck:refwarn-end]
+// 1.6.3 (the improvement week's review of the System editor, findings 1 and 2): every line the editor says under a row is worked out by
+// a check of the whole draft, which on a large system took seconds. A press that draws a tab again asked for it at the top of renderAll
+// and once more at its end (the later check sheets.js runs once the keys rest), and the second read the very same draft. So refreshErrors first notes what it is about to
+// read (refreshErrors.seen: the draft written out as text, the campaign, its saved system, its characters and its packs as objects, and
+// how many rows the two maps of lines hold) and does nothing where all of it is as it was at the last check: the lines it said then
+// still stand. Where anything moved it checks the draft again in full, inside one derivedScope of the system core (window.wpSystemCore),
+// so the graph of which value is worked out from a GM-only one is built once for the check, not once for every formula it judges. The
+// note is kept on the function itself, so a suite that runs this slice alone needs nothing more
 function refreshErrors() {
+    var seen = null;
+    try {
+        var cmE = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, lbE = typeof window !== 'undefined' && window.wpLibrary ? window.wpLibrary : null;
+        seen = { d: draft ? JSON.stringify(draft) : '', c: cmE, s: cmE ? cmE.system : null, h: cmE ? cmE.chars : null, p: cmE && cmE.library ? JSON.stringify(cmE.library) : '',
+            l: lbE && typeof lbE.size === 'function' ? lbE.size() + ':' + (typeof lbE.state === 'function' ? lbE.state() : '') : '', f: typeof F === 'function' ? F() : null, n: '' };
+    } catch (e) { seen = null; }
+    var was = refreshErrors.seen, nowN = Object.keys(errorsById).length + ':' + Object.keys(warningsById).length;
+    if (seen && was && was.n === nowN && ['d', 'c', 's', 'h', 'p', 'l', 'f'].every(function(k) { return was[k] === seen[k]; })) return;
+    refreshErrors.seen = null;
+    var S = typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.derivedScope === 'function' ? window.wpSystemCore : null, msAt = Date.now();
+    if (S) S.derivedScope(refreshErrorsNow); else refreshErrorsNow();
+    refreshErrors.ms = Date.now() - msAt;   // what a full check cost, which patchErrors waits for the keys by
+    if (seen) { seen.n = Object.keys(errorsById).length + ':' + Object.keys(warningsById).length; refreshErrors.seen = seen; }
+}
+function refreshErrorsNow() {
     Object.keys(errorsById).forEach(function(k) { delete errorsById[k]; }); Object.keys(warningsById).forEach(function(k) { delete warningsById[k]; });   // 1.6.3: emptied in place (a part may not assign its root's name); nothing keeps either map across this
     if (!draft || !F()) return;
     if (typeof placeCatErrs === 'function') placeCatErrs();   // 1.5.5: what Save does with a list's places in the Layout tab

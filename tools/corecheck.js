@@ -1126,5 +1126,26 @@ const { ownLines } = kit;
             && /select\('sys-item-rmmode'/.test(require('./checkkit').part('sysedroll.js')) && /input\('sys-item-rmtext field'/.test(require('./checkkit').part('sysedroll.js')) && (sh4.match(/def\.area && canThrow && \(gm \|\| def\.vis !== 'gm'\) && entry\.hid !== 1/g) || []).length === 2 && /stampRows\(clean, camp\.chars \|\| \{\}\)/.test(require('./checkkit').part('sysederr.js')) && !/canRm/.test(sh4) && /if \(r && r\.error\) toast\(r\.error\); else undoFollow\(r\);/.test(sh4) && /if \(ownerSeesSame\(camp, sys, prev, res\.value, f\.id\)\) d = \{\};/.test(sh4) && /commitItem\(c, f, \{ op: 'undo', rowId: rid, qty: n \}\)/.test(sh4) && /orphaned = orphanRows\(prevSys, clean, camp\.chars \|\| \{\}\)/.test(require('./checkkit').part('sysederr.js')) && /gmFacing\(prevSys\) !== gmFacing\(clean\)\) n\.syncChars\(\);/.test(require('./checkkit').part('sysederr.js')) && !/commitItem\(c, f, '/.test(sh4));
     }
 
+    {   // 1.6.3 (the improvement week's review of the System editor, finding 3): one run of cleanSystem builds the GM-only name graph once, and nothing is kept past it
+        const sysD = { fields: [{ id: 'f_a', key: 'A', kind: 'number', vis: 'gm' }, { id: 'f_b', key: 'B', kind: 'formula', formula: 'A + 1' }, { id: 'f_c', key: 'C', kind: 'formula', formula: '2' }], items: [], core: [] };
+        const J = JSON.stringify; let calls = 0; const Fc = Object.assign({}, F, { names: t => { calls++; return F.names(t); } });
+        const asks = [{ name: 'B' }, { name: 'C' }];
+        calls = 0; const o1 = S.gmDerivedNames(sysD, Fc, asks), out1 = calls; calls = 0; S.gmDerivedNames(sysD, Fc, asks); const out2 = calls;
+        let in1 = null, in2 = null, inA = -1, inB = -1, vf1 = null, vf2 = null;
+        S.derivedScope(() => { calls = 0; in1 = S.gmDerivedNames(sysD, Fc, asks); inA = calls; calls = 0; in2 = S.gmDerivedNames({ fields: sysD.fields, items: sysD.items, core: sysD.core }, Fc, [{ name: 'C' }, { name: 'B' }]); inB = calls; vf1 = S.gmViewFields(sysD, F); vf2 = S.gmViewFields(sysD, F); });
+        const vo1 = S.gmViewFields(sysD, F), vo2 = S.gmViewFields(sysD, F);
+        sysD.fields[2].formula = 'B * 2';   // the draft changed in place after the run: read afresh
+        const o3 = S.gmDerivedNames(sysD, Fc, asks);
+        // a system of 40 worked-out fields and 30 automatic effects: the names of every formula are read a few times a run, never once for every effect
+        const big = { fields: [{ id: 'f_g', key: 'G', kind: 'number', vis: 'gm' }].concat(Array.from({ length: 40 }, (x, i) => ({ id: 'f_x' + i, key: 'X' + i, kind: 'formula', formula: i >= 20 ? '7 + ' + i : i % 5 ? 'X' + (i - 1) + ' + 1' : 'G + 1' }))),
+            effects: Array.from({ length: 30 }, (x, i) => ({ id: 'e_' + i, name: 'E' + i, auto: 'X' + i + ' > 3', mods: [] })), rolls: [], items: [], sheet: { sections: [] } };
+        calls = 0; const cl = S.cleanSystem(big, { F: Fc, gmView: true }), bigCalls = calls;
+        check('1.6.3 (finding 3) the GM-only name graph is built once inside a derivedScope and handed to every call on the same system (another object of the same parts too, and in any order of names), the fields the GM\'s view cleans are cleaned once there and each caller gets its own list of them; outside a scope each call builds it, and a system changed in place after a run is read afresh; cleanSystem runs in one: 30 automatic effects read the names of 41 fields ' + bigCalls + ' times, not once an effect',
+            J(o1) === J(['B']) && out1 > 0 && out2 === out1 && J(in1) === J(['B']) && inA === out1 && J(in2) === J(['B']) && inB === 0
+            && vf1 !== vf2 && vf1.length === 3 && vf1.every((f, i) => f === vf2[i]) && vo1[0] !== vo2[0] && J(vo1) === J(vo2)
+            && J(o3) === J(['B', 'C']) && !!cl && bigCalls > 0 && bigCalls < 41 * 4 && cl.effects.filter(e => typeof e.auto === 'string').length === 10,
+            J([o1, out1, out2, in1, inA, in2, inB, o3, bigCalls, cl && cl.effects.filter(e => typeof e.auto === 'string').length]));
+    }
+
     await T.finish();
 })();

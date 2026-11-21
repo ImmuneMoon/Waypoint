@@ -6909,6 +6909,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.3: a token\'s sense line in words is worked out once for a whole draw of the board (fog.js senseWordsOf, run for real): three tokens asked in one task work the captions out once, a token with none and an id that is no text say nothing, the next task works them out afresh, and another map at once',
             aW > 0 && bW > aW && !swErr && JSON.stringify(out1) === JSON.stringify(['Blind', 'Hearing 30 ft', '', '']) && out2 === 1 && again === 2 && out3 === 3, JSON.stringify([swErr, out1, out2, again, out3]));
     }
+    {   // 1.6.3 (the improvement week's review of the System editor, finding 41): fog.js tick, run for real, draws nothing while the System editor or the Library window covers the map, keeps its loop, and draws at the first frame after
+        const J = JSON.stringify, fogT = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, NL);
+        const ta = fogT.indexOf('var FOG_COVERS'), tb = fogT.indexOf('function kick()', ta);
+        const modal = { sys: { style: { display: 'flex' } }, lib: { style: { display: 'none' } } }, frames = [];
+        let draws = 0, clears = 0, tErr = '', TK = null;
+        try { TK = new Function('active', 'clearCanvas', 'draw', 'drawBox', 'requestAnimationFrame', 'drawTiersSlow', 'document', 'var raf = null, lastDraw = 0, _sensesTick = 0, _sensesDraw = false, _dtFresh = true;\n' + (ta > 0 && tb > ta ? fogT.slice(ta, tb) : '') + '\nreturn { tick: tick, last: function() { return lastDraw; }, raf: function() { return raf; } };')(
+            () => true, () => { clears++; }, () => { draws++; }, () => {}, fn => { frames.push(fn); return frames.length; }, () => {}, { getElementById: id => (id === 'systemModal' ? modal.sys : id === 'libraryModal' ? modal.lib : null) }); } catch (e) { tErr = e.message; }
+        const out = [];
+        if (TK) {
+            TK.tick(); out.push(draws, TK.last(), frames.length);   // the System editor up: nothing drawn, the loop asked for its next frame
+            modal.sys.style.display = 'none'; modal.lib.style.display = 'flex'; TK.tick(); out.push(draws, frames.length);   // the Library window up
+            modal.lib.style.display = 'none'; TK.tick(); out.push(draws, clears);   // both closed: drawn at once
+        }
+        check('1.6.3 (finding 41) the fog overlay draws nothing while the System editor or the Library window covers the map, keeps asking for its next frame, and draws at the first frame after both close (fog.js tick and fogCovered, run for real)',
+            !tErr && J(out) === J([0, 0, 1, 0, 2, 1, 0]), tErr || J(out));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -2240,9 +2240,53 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const tbs = require('./checkkit').part('sysedtabs.js'), uiS = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8');
         check('1.6.3 the lines are drawn under their boxes and follow the typing, and a press on one goes to the Layout tab and its box',
             lyS.includes("var tbErr = 'tablbl:' + layoutView + ':' + tb.id, tbEc = errorCell(tbErr); tbEc.dataset.errFor = tbErr; tmain.appendChild(tbEc);") && lyS.includes("var grErr = 'grplbl:' + g.id, grEc = errorCell(grErr); grEc.dataset.errFor = grErr; gr.appendChild(grEc);") && lyS.includes("if (lkSay) pr.appendChild(el('span', 'sys-warn-line', lkSay));")
-            && lyS.includes("if (typeof layoutNameErrs === 'function') layoutNameErrs();") && /tb0\.label = t\.value\.slice\(0, LIMITS\.label\); markDirty\(\); renderPreview\(\); if \(typeof patchErrors === 'function'\) patchErrors\(\);/.test(lyS)
+            && lyS.includes("if (typeof layoutNameErrs === 'function') layoutNameErrs();") && /tb0\.label = t\.value\.slice\(0, LIMITS\.label\); markDirty\(\); \(typeof previewSoon === 'function' \? previewSoon : renderPreview\)\(\); if \(typeof patchErrors === 'function'\) patchErrors\(\);/.test(lyS)   /* 1.6.3: the pin moved on purpose (the review of the System editor, finding 4): a key in a tab's label draws the preview once the keys rest */
             /* 1.6.3: the pin moved on purpose (the review of rules), a place's or a tab label's fault names its Sheet or HUD view, which errGo switches to (sysuicheck runs both) */
             && tbs.includes("if (/^(?:plc|tablbl|grplbl):/.test(id)) { var lv = /^(?:plc|tablbl):(sheet|hud):/.exec(id); return lv ? { tab: 'layout', view: lv[1], name: 'Layout' } : { tab: 'layout', name: 'Layout' }; }") && tbs.includes("layoutViewSet(p.view);") && uiS.includes("[/^tab\\.label\\.(\\d+)$/, ['sys-tab-label']], [/^group\\.label\\.(\\d+)$/, ['sys-bgrp-label']]"));
+    }
+
+    /* ---- 1.6.3 (the improvement week's review of the System editor, findings 1, 2 and 4): the check of the whole draft runs only where something
+       it reads moved, a slow one waits for the keys by what it cost, and what is typed in the Layout tab draws the preview once the keys rest ---- */
+    {
+        const J = JSON.stringify;
+        // refreshErrors, run for real with a counting cleaner: the second check of the same draft does nothing, a draft changed in place, another
+        // campaign's characters and maps emptied by someone else each check again
+        const reK = kit.cutEnd('sysederr.js', '\nfunction refreshErrors() {').replace(/\n$/, '');
+        let cleans = 0, camp = { chars: {} };
+        const dr = { name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: [{ id: 'f_a', key: 'A', label: 'A', kind: 'number' }] };
+        const RE = new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'cleanFieldUnit', 'unitOf', 'cleanReach',
+            'var errorsById = {}, warningsById = {};\n' + reK + '\nreturn { run: function() { refreshErrors(); return refreshErrors; }, e: errorsById };')(dr, () => F, S.validKey, S.KINDS, S.cleanItemKey, (d, o) => { cleans++; return S.cleanSystem(d, o); }, S.validateSystem, S.statKey, S.LIMITS, () => camp, () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS, S.cleanFieldUnit, S.unitOf, S.cleanReach);
+        const n = [];
+        const f1 = RE.run(); n.push(cleans); RE.run(); n.push(cleans);
+        dr.fields.push({ id: 'f_b', key: '', label: '', kind: 'number' }); RE.run(); n.push(cleans); const said = !!RE.e.f_b;
+        RE.run(); n.push(cleans);
+        camp = { chars: {} }; RE.run(); n.push(cleans);
+        delete RE.e.f_b; RE.run(); n.push(cleans); const back = !!RE.e.f_b;
+        check('1.6.3 (findings 1 and 2) refreshErrors, run for real, checks the draft once and does nothing while it is as it was: the second press of a redraw reads nothing again; a field added in place, another campaign object and lines emptied by someone else each check it again; what a full check cost is kept for the wait',
+            J(n) === J([1, 1, 2, 2, 3, 4]) && said && back && typeof f1.ms === 'number' && !!f1.seen && typeof f1.seen.d === 'string', J({ n, said, back, ms: f1.ms }));
+        // patchErrors and patchErrorsNow (sheets.js's own lines), run for real with a refreshErrors of the test's own
+        const shP = kit.joined('sheets.js'), pa = shP.indexOf('var _peSlow = 0, _peT = null;'), pb = shP.indexOf('function input(cls, value', pa);
+        const timers = [], rf = function() { rf.calls++; if (rf.mode === 'skip') return; const t0 = Date.now(); if (rf.mode === 'slow') while (Date.now() - t0 < 70) { /* a check that takes a while */ } rf.seen = { at: t0 }; rf.ms = Date.now() - t0; };
+        rf.calls = 0; rf.ms = 0;
+        const PE = new Function('draft', 'refreshErrors', 'document', 'errorsById', 'warningsById', 'window', 'tab', 'ui', 'setTimeout', 'clearTimeout', 'errorCell', 'pickModel',
+            (pa > 0 && pb > pa ? shP.slice(pa, pb) : '') + '\nreturn { patchErrors: patchErrors, now: patchErrorsNow, slow: function() { return _peSlow; } };')({ fields: [], rolls: [] }, rf, { querySelectorAll: () => [] }, {}, {}, {}, 'fields', () => null, (fn, ms) => { timers.push(ms); return timers.length; }, () => {}, () => null, () => []);
+        rf.mode = 'run'; PE.patchErrors(); const c0 = rf.calls;
+        rf.mode = 'slow'; PE.now(); const slow1 = PE.slow();
+        rf.mode = 'skip'; PE.now(); const slow2 = PE.slow();
+        rf.ms = 200; PE.patchErrors(); const wait1 = timers[timers.length - 1];
+        rf.ms = 1000; PE.patchErrors(); const wait2 = timers[timers.length - 1];
+        check('1.6.3 (finding 1) patchErrors waits for the keys by what the last full check cost, half again from 180 ms to 600 ms, counting the check renderAll ran at its top; a check refreshErrors passed over sets nothing, so the next key never runs a slow check at once',
+            c0 === 1 && slow1 >= 70 && slow2 === slow1 && wait1 === 300 && wait2 === 600, J({ c0, slow1, slow2, wait1, wait2 }));
+        // onLayoutInput (sysedlayout.js), run for real: a section's title is kept at once and the preview drawn once, after the keys rest
+        const lyP = kit.part('sysedlayout.js'), soonSrc = kit.cut('sysedlayout.js', 'var _pvT = 0, PREVIEW_WAIT', 'function renderPreview() {'), inSrc = kit.cut('sysedlayout.js', 'function onLayoutInput(t) {', 'function onLayoutChange(t) {');
+        const lt = [], sec = { id: 's1', title: 'Old', fields: [] }; let drawn = 0, dirtyN = 0;
+        const LI = new Function('draft', 'renderPreview', 'markDirty', 'layoutSections', 'layoutTabs', 'layoutRoot', 'LIMITS', 'patchErrors', 'setTimeout', 'clearTimeout',
+            soonSrc + inSrc + '\nreturn { input: onLayoutInput };')({ sheet: {} }, () => { drawn++; }, () => { dirtyN++; }, () => [sec], () => [], () => ({}), S.LIMITS, () => {}, (fn, ms) => { lt.push({ fn, ms, on: true }); return lt.length; }, id => { if (lt[id - 1]) lt[id - 1].on = false; });
+        const ttl = v => ({ className: 'sys-sec-title field', value: v, classList: { contains: c => c === 'sys-sec-title' }, closest: s => (s === '.sys-sec' ? { dataset: { sid: 's1' } } : null) });
+        LI.input(ttl('Ne')); LI.input(ttl('New')); const drawnTyping = drawn, live = lt.filter(x => x.on);
+        live.forEach(x => { x.on = false; x.fn(); });
+        check('1.6.3 (finding 4) a key in a section\'s title on the Layout tab (onLayoutInput, run for real) keeps the title and marks the draft at once, and draws the preview once, 300 ms after the last key, never at each key',
+            sec.title === 'New' && dirtyN === 2 && drawnTyping === 0 && live.length === 1 && live[0].ms === 300 && drawn === 1 && /function onLayoutInput/.test(lyP), J({ title: sec.title, dirtyN, drawnTyping, live: live.length, drawn }));
     }
 
     await T.finish();

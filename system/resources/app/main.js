@@ -31,13 +31,30 @@ app.setPath('userData', path.join(rootDir, 'system', 'userdata'));
 // Newest launch wins: if this copy is already running, the running instance
 // receives 'second-instance' when we request its lock, quits, and frees the
 // lock and port for us. Instances of other installs hold different locks.
-app.on('second-instance', function() { app.quit(); });
+// The review of 1.6.3 (finding 11): a running Waypoint that hosts a table asks
+// its GM before it closes (shellguard.closeGuard). While the question is up it
+// leaves the word 'asking' in holdFile, and 'stay' if the GM keeps it; the new
+// launch reads the word at every try (shellguard.lockNext) and waits for the
+// answer, or quits, rather than start beside a hosting Waypoint on the same
+// saves. stayUntil: for a moment after a Cancel the new launch's tries still
+// on their way ask nothing again.
+const holdFile = path.join(rootDir, 'system', 'userdata', 'instance-hold.json');
+function holdWrite(what) { try { fs.writeFileSync(holdFile, shellguard.holdText(what)); } catch (e) {} }   // a folder not made yet: the new launch starts after its wait, as before
+function holdRead() { try { return shellguard.holdOf(fs.readFileSync(holdFile, 'utf8')); } catch (e) { return null; } }
+let closer = null, stayUntil = 0;
+app.on('second-instance', function() {
+    if (Date.now() < stayUntil) return;
+    if (closer && closer.asking()) holdWrite('asking');   // a question already up (the GM pressed close first): the new launch waits for it too
+    app.quit();
+});
 
 function waitForInstanceLock(timeoutMs, cb) {
-    const deadline = Date.now() + timeoutMs;
+    const started = Date.now(), deadline = started + timeoutMs;
     (function attempt() {
+        const next = shellguard.lockNext(holdRead(), started, Date.now(), deadline);   // read first: a 'stay' is never answered with one more try, which would ask the GM again
+        if (next === 'quit') return app.quit();   // the running Waypoint was kept by its GM, or is still asking: this launch goes
         if (app.requestSingleInstanceLock()) return cb(true);
-        if (Date.now() > deadline) return cb(false); // holder unresponsive — start anyway (port fallback covers us)
+        if (next === 'start') return cb(false); // holder unresponsive — start anyway (port fallback covers us)
         app.releaseSingleInstanceLock(); // discard the failed attempt so the next request is fresh
         setTimeout(attempt, 250);
     })();
@@ -423,7 +440,7 @@ waitForInstanceLock(8000, function() {
                 // A window that is minimized or covered keeps its timers at full pace: it holds a live table, and a GM's window held back loses its players and turns new ones away.
                 webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false, backgroundThrottling: false }
             });
-            shellguard.closeGuard(win);   // 1.6.3: closing while the page hosts a table asks first (the page's own question: shellguard.js closeGuard)
+            closer = shellguard.closeGuard(win, { onAsk: () => holdWrite('asking'), onCancel: () => { stayUntil = Date.now() + 3000; holdWrite('stay'); } });   // 1.6.3: closing while the page hosts a table asks first (the page's own question: shellguard.js closeGuard); a newer launch is told what the GM answered (holdFile)
             win.loadURL(`http://localhost:${port}`);
         });
     });
@@ -432,9 +449,12 @@ waitForInstanceLock(8000, function() {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
 });
-// 1.6.2: cloud saves sync once on close, waited for five seconds at most; a second quit goes at once
+// 1.6.2: cloud saves sync once on close, waited for five seconds at most; a second quit goes at once.
+// The review of 1.6.3 (finding 11): on will-quit, once every window has really closed, never on before-quit, which runs before the windows are
+// asked: a GM who answered Cancel to the hosting question was left with cloud saves stopped for the rest of the run, and the real close later
+// skipped its sync. A quit the GM cancels never reaches will-quit.
 let cloudClosed = false;
-app.on('before-quit', (e) => {
+app.on('will-quit', (e) => {
     if (cloudClosed) return;
     cloudClosed = true; e.preventDefault();
     cloudHandler.closeSync(5000).catch(() => {}).then(() => { cloudHandler.stop(); app.quit(); });

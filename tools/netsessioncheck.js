@@ -1968,6 +1968,18 @@ pendingChecks.push((async () => { try {
     const stopped = J(S.log.filter(l => /^(leave|gaveup)/.test(l))) === J(['leave true', 'gaveup You stopped trying to reach the GM\u2019s table.']) && S.els.reconnRejoin.hidden === false && S.els.reconnText.textContent === 'You stopped trying to reach the GM\u2019s table.';
     S.api.drop(); const dropped = S.els.reconnBar.style.display === 'none';
     const Q = rw({}); Q.api.stop(); const quietStop = !Q.log.some(l => /^(leave|gaveup)/.test(l));
+    /* the review of findings 6 and 15: a player whose link dropped and who then hosts. The hold and a Rejoin left behind never show on the
+       hosting screen, Stop trying there does nothing (it ended the new table and dropped every player), and startHosting lets both go beside
+       its cancelReconnect */
+    const HB = rw({}); HB.api.sched(); HB.net.role = 'host'; HB.api.draw(); const hbHidden = HB.els.reconnBar.style.display === 'none';
+    const hbLog = HB.log.length; HB.api.stop(); const hbNoStop = HB.log.length === hbLog && HB.net.reconnecting === true;
+    const HO = rw({}); HO.api.sched(); HO.api.giveUp('gone'); HO.net.role = 'host'; HO.api.draw(); const hoHidden = HO.els.reconnBar.style.display === 'none';
+    HO.net.role = 'client'; HO.api.draw(); const hoBack = HO.els.reconnBar.style.display === 'flex';   // the same offer, on a player's screen again: drawn as before
+    const shSrc = (() => { const shN = src.replace(/\r\n/g, '\n'), i = shN.indexOf('function startHosting(forceFresh) {'); return i < 0 ? '' : shN.slice(i, shN.indexOf('\n}\n', i)); })();
+    const shLets = /\n\s*cancelReconnect\(\);[^\n]*\n\s*if \(typeof reconnHold === 'function' && net\.reconnecting\) reconnHold\(false\);[^\n]*\n\s*if \(typeof rejoinDrop === 'function'\) rejoinDrop\(\);[^\n]*\n\s*if \(net\.foreign\) \{/.test(shSrc);
+    const hostSafe = hbHidden && hbNoStop && hoHidden && hoBack && shLets;
+    check('the review of 1.6.3 (findings 6 and 15): a player who hosts after their link dropped is no longer held: startHosting lets the hold and a Rejoin offer go beside cancelReconnect, before the foreign path, and a hosting screen never shows the bar nor acts on Stop trying, which ended the new table and dropped every player (the reconnbar slice run for real)',
+        hostSafe, J([hbHidden, hbNoStop, hoHidden, hoBack, shLets]));
     const nsrc = src.replace(/\r\n/g, '\n');
     const gates = (nsrc.match(/\.selfPaused \|\| [\w.]+\.selfHeld \|\| [\w.]+\.reconnecting/g) || []).length === 7 && /var frozenMe = \(net\.paused \|\| net\.selfPaused \|\| net\.selfHeld \|\| net\.reconnecting\) && isClient;/.test(nsrc)
         && /var reconMe = !!net\.reconnecting && isClient;[^\n]*\n\s*if \(banner\) \{\n\s*banner\.style\.display = frozenMe && !reconMe \? 'block' : 'none';/.test(nsrc)

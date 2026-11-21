@@ -1695,6 +1695,34 @@ pendingChecks.push((async () => {
     const dOk = J(denied(D, 'pNew')) === J(['That player identity is already at the table.']) && !D.lastSent('pNew', 'auth') && J(denied(E, 'pNew')) === J(['That player identity is already at the table.']);
     check('1.6.3 (the multiplayer review, finding 17) a player\'s reload refused as already at the table: a known player who holds the table key is challenged though an old connection of theirs still looks alive, and the right key proven over the new connection lets it in while the old one leaves the roster and is closed; a wrong proof, or no answer, while the old one is live is refused as before and never put to the GM; a name with no table key, and a stranger\'s, are refused at once as before',
         aOk && bOk && cOk && dOk, J([aOk, bOk, cOk, dOk, A.admitted.map(a => a.peer), denied(B, 'pNew'), denied(C, 'pNew'), C.env.pendingJoins.length]));
+    /* the review of finding 17: two windows of one player in one browser share the profile and the table key. The old connection is TOLD why it
+       is closed (denyJoin with the words below), and a player's app told so gives up as one turned away does: it starts no reconnect, so the two
+       windows never push each other off the table in a loop. Closed with no word, as before the review, the old app read a dropped link and
+       reconnected. Host side: the gate run for real (A above). Player side: hostDoubted, the denied branch and the close handler run for real. */
+    const DUPW = 'You joined this table again from another window.';
+    const aTold = J(denied(A, 'pOld')) === J([DUPW]) && J(denied(A, 'pNew')) === '[]';
+    const hdSrc = (() => { const i = src.indexOf('function hostDoubted(conn) {'); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i) + 3); })();
+    const dnSrc = between('// [netcheck:denied-start]', '// [netcheck:denied-end]', 'denied'), ccSrc = between('// [netcheck:connclose-start]', '// [netcheck:connclose-end]', 'connclose');
+    const twoWin = (told) => {
+        const out = { sched: 0, loads: 0, status: [], threw: '' }, timers = [];
+        const conn = { peer: 'room-1', open: true, wpRetry: true, wpHostOk: true, close() { conn.open = false; } };   // an admitted connection: its snapshot was taken (wpHostOk), and it came back once already (wpRetry)
+        const net = { role: 'client', active: true, code: 'abcdefghjk', conns: [conn], roster: Object.create(null), targets: {}, leaving: false, fromWelcome: false, peer: { destroy() {} }, notepad: { on: false, text: '' }, combats: {} };
+        const env = { net, reconn: { tries: 0, gen: 0 }, hostHeld: () => ({ gmId: 'u_gm', pub: {} }), hostWaitEnd() {}, setStatus: s => out.status.push(s), showConfirm() {}, toast() {}, ui: () => null, window: {}, setTimeout: (f, ms) => timers.push(f), updateMessage: () => '', APP_VERSION: '1.6.3',
+            assetInflight: {}, assetRefs: {}, assetBytes: {}, diceLimit: null, charLimit: null, _lim: {}, _connMeta: {}, lastSeen: {}, sensesForget() {}, fogDragSweep() {}, fogForgetConn() {}, videoHang() {}, videoTold() {}, videoOver() {}, renderRoster() {}, getActiveCampaign: () => null, logEvent() {}, startWaitGrace() {}, render() {}, broadcastTargets() {}, save() {}, broadcastRoster() {},
+            cancelReconnect() {}, setPausedLocal() {}, stopHeartbeat() {}, setIndicator() {}, load() { out.loads++; }, scheduleReconnect() { out.sched++; }, getProfile: () => ({ name: 'Kay' }), hostGone: () => false, padReset() {}, renderNotepad() {} };
+        const names = Object.keys(env);
+        try {
+            if (told) new Function('msg', 'conn', ...names, hdSrc + '\nif (hostDoubted(conn)) return;\n' + dnSrc)({ type: 'denied', reason: DUPW }, conn, ...names.map(n => env[n]));
+            else conn.open = false;   // before the review: the host closed it with no word
+            timers.splice(0).forEach(f => f());
+            new Function('conn', ...names, ccSrc)(conn, ...names.map(n => env[n]));
+        } catch (e) { out.threw = String(e && e.message); }
+        return out;
+    };
+    const wTold = hdSrc && dnSrc && ccSrc ? twoWin(true) : null, wSilent = hdSrc && dnSrc && ccSrc ? twoWin(false) : null;
+    const twoOk = !!wTold && wTold.threw === '' && wTold.sched === 0 && wTold.loads === 1 && J(wTold.status) === J([DUPW]) && wSilent.threw === '' && wSilent.sched === 1 && wSilent.loads === 0;
+    check('the review of 1.6.3 (finding 17): the connection a reload or a second window replaced is told why it closes (You joined this table again from another window.), and a player\'s app told so gives up as one turned away does and starts no reconnect, so two windows of one player never push each other off the table in a loop (closed with no word, the same app would have reconnected)',
+        aTold && twoOk, J([aTold, denied(A, 'pOld'), wTold, wSilent]));
     /* finding 2: a stale join question */
     const F = withP(harness()), fC = F.conn('pS'); F.hello(fC, { id: 'u_sam', name: 'Sam' }); fC.open = false; F.answer(false);
     const fOk = F.asks.length === 1 && !F.env.bannedIds.u_sam && !F.env._noKeyOut.u_sam && /had already dropped, so nothing was decided/.test(F.toasts.join('|')) && !F.P.isOpen() && F.env.outList().length === 0;
@@ -1719,12 +1747,26 @@ pendingChecks.push((async () => {
     const rBack = R.env.letBackIn('u_a'), rAgain = R.env.letBackIn('u_a'), rAfter = R.env.outList().map(o => o.id).sort();
     const olSrc = between('// [netcheck:outlist-start]', '// [netcheck:outlist-end]', 'outlist');
     const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    const html = new Function('net', 'outList', 'escTextRoster', 'var html = "";\n' + olSrc + '\nreturn html;')({ active: true, role: 'host' }, () => [{ id: 'u_x', name: '<img src=x onerror=1>', how: 'removed' }, { id: 'u_y', name: 'Yo', how: 'nokey' }], esc);
-    const htmlP = new Function('net', 'outList', 'escTextRoster', 'var html = "";\n' + olSrc + '\nreturn html;')({ active: false, role: null }, () => [{ id: 'u_x', name: 'X', how: 'removed' }], esc);
+    const html = new Function('net', 'outList', 'escTextRoster', 'camp', 'var html = "";\n' + olSrc + '\nreturn html;')({ active: true, role: 'host' }, () => [{ id: 'u_x', name: '<img src=x onerror=1>', how: 'removed' }, { id: 'u_y', name: 'Yo', how: 'nokey' }], esc, {});   // (camp: the slice hands the campaign on screen to outList since the review of finding 22)
+    const htmlP = new Function('net', 'outList', 'escTextRoster', 'camp', 'var html = "";\n' + olSrc + '\nreturn html;')({ active: false, role: null }, () => [{ id: 'u_x', name: 'X', how: 'removed' }], esc, {});
     const rOk = J(rList) === J([['u_a', 'Ann', 'removed'], ['u_b', 'Player', 'removed'], ['u_c', 'Cy', 'nokey']]) && rBack === true && rAgain === false && J(rAfter) === J(['u_b', 'u_c'])
         && /Removed this session \(2\)/.test(html) && !/<img/.test(html) && html.includes('&lt;img src=x onerror=1&gt;') && html.includes('data-letin="u_x"') && html.includes('data-letin="u_y"') && /Let back in/.test(html) && /without their table key/.test(html) && htmlP === ''
         && src.includes("} else if (btn.dataset.letin) {") && src.includes("if (typeof letBackIn === 'function' && letBackIn(lid)) { toast(nmL + ' may join again this session.');") && src.includes("if (p) { bannedIds[p.id] = true; if (typeof outNote === 'function') outNote(p.id, p.name, 'removed');");
     check('1.6.3 (the multiplayer review, finding 22) Player History lists those kept out of this session under Removed this session, each by the name the gate saw (a prototype key never), why in plain words and a Let back in that lifts it once; nothing is listed off a table; the roster\'s x notes the name it removes',
         rOk, J([rList, rBack, rAgain, rAfter, html.slice(0, 400)]));
+    /* the review of finding 22: a player the campaign bans (its Ban removes one at the table through kickPlayer, which notes them as removed) stands
+       under the campaign's own BANNED row and Unban, never under Removed this session with a Let back in that lifts nothing the gate still reads */
+    const RB = harness(); RB.env.bannedIds.u_ban = true; RB.env.outNote('u_ban', 'Bea', 'removed'); RB.env.bannedIds.u_rem = true; RB.env.outNote('u_rem', 'Rem', 'removed');
+    const campB = { bannedPlayers: { u_ban: { name: 'Bea', bannedAt: 1 } } };
+    const rbWith = RB.env.outList(campB).map(o => o.id), rbNone = RB.env.outList().map(o => o.id).sort(), rbOdd = RB.env.outList({ bannedPlayers: 'x' }).map(o => o.id).sort();
+    let olCamp = null; const htmlB = new Function('net', 'outList', 'escTextRoster', 'camp', 'var html = "";\n' + olSrc + '\nreturn html;')({ active: true, role: 'host' }, c => { olCamp = c; return RB.env.outList(c); }, esc, campB);
+    const letSrc = (() => { const i = src.indexOf('} else if (btn.dataset.letin) {'), e = src.indexOf('} else if (btn.dataset.forget) {', i); return i < 0 || e < 0 ? '' : src.slice(i + '} else if (btn.dataset.letin) {'.length, e); })();
+    const letT = [], letL = [], letLifted = [];
+    const runLet = (lid) => new Function('btn', 'camp', 'outList', 'letBackIn', 'toast', 'logEvent', 'own', letSrc)({ dataset: { letin: lid } }, campB, RB.env.outList, id => { letLifted.push(id); return RB.env.letBackIn(id); }, t => letT.push(t), (k, m) => letL.push(m), H.own);
+    runLet('u_ban'); const banStill = RB.env.bannedIds.u_ban === true && J(letLifted) === '[]' && /still banned from this campaign\. Unban lifts it\./.test(letT[0] || '') && letL.length === 0;
+    runLet('u_rem'); const remBack = !RB.env.bannedIds.u_rem && J(letLifted) === J(['u_rem']) && /Rem may join again this session\./.test(letT[1] || '');
+    const rbOk = J(rbWith) === J(['u_rem']) && J(rbNone) === J(['u_ban', 'u_rem']) && J(rbOdd) === J(['u_ban', 'u_rem']) && olCamp === campB && !htmlB.includes('data-letin="u_ban"') && htmlB.includes('data-letin="u_rem"') && /Removed this session \(1\)/.test(htmlB) && banStill && remBack;
+    check('the review of 1.6.3 (finding 22): a player the campaign bans is left out of Removed this session (outList(camp)), so no Let back in is offered that the hello gate would still refuse; a Let back in pressed on a panel drawn before the ban says they are still banned and that Unban lifts it, and lifts nothing',
+        rbOk, J([rbWith, rbNone, rbOdd, olCamp === campB, banStill, remBack, letT, letLifted]));
 })());
 T.finish();

@@ -322,9 +322,14 @@ function listenLoopback(s4, s6, port, done, tries) {
 // all, and a page that does not answer within needMs (busy, crashed, loading) is not waited on: the window closes as it always did. While the
 // question is up a second close does nothing, and a page that reloads or goes away meanwhile lets the next close ask again. The answer 'cancel'
 // keeps the window, anything else closes it. A window that is already let go closes at once.
+// The review of that finding: the question may be asked by a quit that did not start at the window (a newer launch of Waypoint, app.quit), so the
+// window is brought forward first (restored, shown and focused) and the GM is never asked behind another window. opts.onAsk is told when the
+// question goes up and opts.onCancel when the GM keeps the window, so that main.js can tell a newer launch to wait or to go (holdWrite below).
 function closeGuard(win, opts) {
     opts = opts || {};
     const needMs = opts.needMs || 1500, later = opts.setTimeout || setTimeout;
+    const front = () => { try { if (typeof win.isMinimized === 'function' && win.isMinimized() && typeof win.restore === 'function') win.restore(); if (typeof win.show === 'function') win.show(); if (typeof win.focus === 'function') win.focus(); } catch (e) {} };
+    const tell = (fn) => { if (typeof fn === 'function') { try { fn(); } catch (e) {} } };
     let asking = false, ok = false, turn = 0;   // turn: which ask an answer belongs to, so a stale one changes nothing
     const wc = win.webContents;
     const reset = () => { asking = false; turn++; };
@@ -338,16 +343,43 @@ function closeGuard(win, opts) {
         asking = true;
         const my = ++turn;
         within(run("typeof window.wpCloseNeed === 'function' && window.wpCloseNeed() === true"), needMs)
-            .then(need => (need === true ? run("typeof window.wpCloseAsk === 'function' ? window.wpCloseAsk() : 'close'") : 'close'))
+            .then(need => { if (need !== true) return 'close'; front(); tell(opts.onAsk); return run("typeof window.wpCloseAsk === 'function' ? window.wpCloseAsk() : 'close'"); })
             .catch(() => 'close')
             .then(ans => {
                 if (!asking || my !== turn) return;   // the page went away meanwhile: the next close asks again
                 asking = false;
-                if (ans === 'cancel') return;
+                if (ans === 'cancel') { tell(opts.onCancel); return; }
                 ok = true;
                 try { win.close(); } catch (err) {}
             });
     });
+    return { asking: () => asking };   // main.js: whether the question is up now (a newer launch then waits for it)
+}
+
+/* ---------- a newer launch while this one asks ---------- */
+
+// The newest launch of Waypoint wins: the running one hears 'second-instance' and quits, and the new one waits for the lock (main.js
+// waitForInstanceLock). The review of 1.6.3 (finding 11): while hosting, that quit asks the GM first, and a new launch that gave up after eight
+// seconds started beside the hosting one on the same saves folder. So the running one leaves a word in a small file of its own beside the lock
+// (main.js holdFile, which main.js reads and writes: this module's one read of a file stays prefsOf): 'asking' as the question goes up, 'stay'
+// when the GM keeps the window. The new launch reads it at each try (lockNext): a word written after it began counts, an older one is from
+// another time and is passed over. Nothing in the file is ever a path or a name.
+// holdText: the file's text for a word. holdOf: the word a file's text holds, or null for anything else (no file, junk, another shape).
+function holdText(what, now) { return JSON.stringify({ what: what === 'stay' ? 'stay' : 'asking', at: typeof now === 'number' && isFinite(now) ? now : Date.now() }); }
+function holdOf(text) {
+    try { const h = JSON.parse(String(text)); return h && (h.what === 'asking' || h.what === 'stay') && typeof h.at === 'number' && isFinite(h.at) ? { what: h.what, at: h.at } : null; } catch (e) { return null; }
+}
+// What the new launch does at a try. hold: holdRead's answer. started: when it began waiting. deadline: when it would have started anyway.
+// 'quit': the GM kept the running Waypoint (this launch is not wanted), or has been asked for longer than HOLD_ASK_MS (the running one is alive
+// and hosting: never start beside it). 'wait': try again shortly. 'start': before the deadline nothing said, the running one did not answer,
+// so start anyway as before.
+const HOLD_ASK_MS = 10 * 60 * 1000;
+function lockNext(hold, started, now, deadline) {
+    const fresh = !!hold && hold.at >= started;
+    if (fresh && hold.what === 'stay') return 'quit';
+    if (now <= deadline) return 'wait';
+    if (fresh && hold.what === 'asking') return now - started <= HOLD_ASK_MS ? 'wait' : 'quit';
+    return 'start';
 }
 
 /* ---------- the dev server ---------- */
@@ -363,4 +395,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, scratchSystemDir, closeGuard };
+    devModeOf, zoomOf, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };

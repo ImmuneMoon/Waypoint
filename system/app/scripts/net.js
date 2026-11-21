@@ -5592,19 +5592,28 @@ function outNote(id, name, how) { if (typeof id !== 'string' || !id) return; _ou
 function letBackIn(id) { var was = own(bannedIds, id) || own(_noKeyOut, id); delete bannedIds[id]; delete _noKeyOut[id]; delete _outNames[id]; return was; }
 // The session's removals as a list, newest first: [{ id, name, how }], how 'removed' (the roster's x), 'turned' (Turn away) or 'nokey'
 // (turned away without the table key). An id kept out with no name noted (the old Ban then Unban trick never noted one) reads as Player.
-function outList() {
+// camp, where given, is the campaign on screen: a player it bans is left out (the review of that finding: the campaign's Ban removes a player
+// at the table through kickPlayer, so they stood here too with a Let back in that lifted nothing the gate still read; its BANNED row and
+// Unban speak for them)
+function outList(camp) {
+    var cb = camp && camp.bannedPlayers && typeof camp.bannedPlayers === 'object' ? camp.bannedPlayers : null;
     var ids = Object.keys(bannedIds).concat(Object.keys(_noKeyOut).filter(function(id) { return !own(bannedIds, id); }));
-    return ids.filter(validProfileId).map(function(id) { var r = own(_outNames, id) ? _outNames[id] : null; return { id: id, name: r ? r.name : 'Player', how: own(_noKeyOut, id) && !own(bannedIds, id) ? 'nokey' : (r && r.how !== 'nokey' ? r.how : 'removed'), at: r ? r.at : 0 }; })
+    return ids.filter(validProfileId).filter(function(id) { return !(cb && own(cb, id)); }).map(function(id) { var r = own(_outNames, id) ? _outNames[id] : null; return { id: id, name: r ? r.name : 'Player', how: own(_noKeyOut, id) && !own(bannedIds, id) ? 'nokey' : (r && r.how !== 'nokey' ? r.how : 'removed'), at: r ? r.at : 0 }; })
         .sort(function(a, b) { return b.at - a.at; });
 }
 // An open, admitted connection of this player id other than conn, heard within HB_STALE: a live duplicate (the hello gate, queueJoin)
 function liveDupOf(conn, id) { return net.conns.find(function(c) { return c !== conn && c.open && own(net.roster, c.peer) && net.roster[c.peer].id === id && Date.now() - (lastSeen[c.peer] || 0) < HB_STALE; }) || null; }
 // A known player proved the table key over this new connection while an old connection of theirs still looks alive: a reload whose new connection
 // reached the host before the old one was seen to close (finding 17). The old ones step aside: each leaves the roster first, so that its close is
-// the close of a connection never admitted (nothing is said, saved or forgotten for the player, who is still here), and is then closed.
+// the close of a connection never admitted (nothing is said, saved or forgotten for the player, who is still here), and is then told why and
+// closed (denyJoin). The review of that finding: an old connection closed with no word took it as a dropped link and reconnected, and two windows
+// of one player in one browser (they share the profile and the table key) then pushed each other off the table every second or two. Told it was
+// replaced by another window, the old one gives up as a player turned away does and starts no reconnect. A reload's old page is gone and hears
+// nothing, so a real reload is as before.
+var DUP_WORDS = 'You joined this table again from another window.';
 function dupDrop(conn, id) {
     var n = 0;
-    net.conns.slice().forEach(function(c) { if (c === conn || !own(net.roster, c.peer) || net.roster[c.peer].id !== id) return; delete net.roster[c.peer]; n++; try { c.close(); } catch (e) {} });
+    net.conns.slice().forEach(function(c) { if (c === conn || !own(net.roster, c.peer) || net.roster[c.peer].id !== id) return; delete net.roster[c.peer]; n++; denyJoin(c, DUP_WORDS); });
     return n;
 }
 // [netcheck:sessgate-end]
@@ -8408,7 +8417,8 @@ function reconnHold(on) {
 // The bar: while reconnecting its words and Stop trying; once this app stopped trying why, Rejoin and its close; else put away
 function reconnDraw() {
     var bar = ui('reconnBar'); if (!bar) return;
-    var on = !!net.reconnecting, offer = !on && !!_rejoinOffer;
+    var hostH = net.role === 'host';   // the review of 1.6.3: a hosting screen never shows the player's bar, whatever a reconnect left behind
+    var on = !hostH && !!net.reconnecting, offer = !hostH && !on && !!_rejoinOffer;
     bar.style.display = on || offer ? 'flex' : 'none';
     var pb = ui('pauseBanner'); if ((on || offer) && pb && typeof getComputedStyle === 'function') { try { bar.style.top = getComputedStyle(pb).top; } catch (e) {} }   // where the pause banner stands, under the bar of a hidden top row too (style.css)
     var t = ui('reconnText'), stop = ui('reconnStop'), again = ui('reconnRejoin'), x = ui('reconnClose');
@@ -8426,7 +8436,7 @@ function rejoinOf(why) {
 function reconnGiveUp(msg) { var b = rejoinOf(msg); giveUpAndRestore(msg); _rejoinOffer = b; reconnDraw(); }
 // The bar's Stop trying: the dial under way goes too (leaveSession, silent, as a retry leaves), then as giving up
 function reconnStop() {
-    if (!net.reconnecting && !reconn.pending) return;
+    if (net.role === 'host' || (!net.reconnecting && !reconn.pending)) return;   // the review of 1.6.3: never on a hosting screen, where it would end the table
     var b = rejoinOf('You stopped trying to reach the GM\u2019s table.');
     leaveSession(true);
     giveUpAndRestore('You stopped trying to reach the GM\u2019s table.');
@@ -8970,6 +8980,8 @@ function startHosting(forceFresh) {
     }
     if (forceFresh) net._hostGen = 0;
     cancelReconnect();   // a pending retry would otherwise tear the new host down and rejoin the old table
+    if (typeof reconnHold === 'function' && net.reconnecting) reconnHold(false);   // the review of 1.6.3 (findings 6 and 15): a player whose link dropped and who now hosts is no longer held, and the bar with Stop trying goes; Stop trying pressed on the host's own screen tore the new table down
+    if (typeof rejoinDrop === 'function') rejoinDrop();   // and a Rejoin offered before is no longer offered
     if (net.foreign) {
         // the campaign on screen is a GM's: hand it back before anything can be hosted from it
         leaveSession(true);
@@ -10801,7 +10813,7 @@ function renderPlayersPanel() {
     // 1.6.3 (the multiplayer review, findings 2 and 22): those kept out of this session, each with Let back in. A player removed with the roster's x
     // or turned away was kept out until the session ended, with no way back short of the Ban then Unban trick, and a stranger turned away was in
     // no list at all. Let back in (letBackIn) lifts it: a player who holds the table key comes straight in again, and anyone else is asked about
-    var outs = net.active && net.role === 'host' && typeof outList === 'function' ? outList() : [];
+    var outs = net.active && net.role === 'host' && typeof outList === 'function' ? outList(camp) : [];   // (camp: a player the campaign bans stands under its own Unban, never here)
     if (outs.length) {
         html += '<div class="players-section">Removed this session (' + outs.length + ')</div>';
         outs.forEach(function(o) {
@@ -10909,7 +10921,8 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
         toast(nm3 + ' unbanned.');
     } else if (btn.dataset.letin) {
         var lid = btn.dataset.letin, outL = typeof outList === 'function' ? outList().filter(function(o) { return o.id === lid; })[0] : null, nmL = outL ? outL.name : ((camp.players && camp.players[lid] && camp.players[lid].name) || 'Player');
-        if (typeof letBackIn === 'function' && letBackIn(lid)) { toast(nmL + ' may join again this session.'); logEvent('table', nmL + ' may join again this session'); }   // 1.6.3 (finding 22)
+        if (camp.bannedPlayers && own(camp.bannedPlayers, lid)) { toast(nmL + ' is still banned from this campaign. Unban lifts it.'); }   // the review of 1.6.3: a session's Let back in never lifts the campaign's ban (a panel drawn before the ban)
+        else if (typeof letBackIn === 'function' && letBackIn(lid)) { toast(nmL + ' may join again this session.'); logEvent('table', nmL + ' may join again this session'); }   // 1.6.3 (finding 22)
     } else if (btn.dataset.forget) {
         forgetPlayer(camp, btn.dataset.forget);
         return;   // the panel redraws once the GM answers

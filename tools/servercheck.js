@@ -1472,8 +1472,39 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.3 (the multiplayer review, finding 11) the main window asks before it closes while hosting (shellguard.closeGuard, run for real): every close is held while the page is asked whether it hosts; a page that is not hosting, or does not answer in time, or fails, lets it close as before; Cancel keeps it; the page\'s answer to close closes it once, a second close while the question is up does nothing, and an answer that comes after the page reloaded changes nothing; main.js wires it to its one window',
             offP === true && off.closed === 1 && J(off.asked) === J(['need']) && cP === true && cancel.closed === 0 && J(cancel.asked) === J(['need', 'ask'])
             && second === true && before === 0 && go.closed === 1 && go.lastPrevented === false && hung.closed === 1 && broke.closed === 1 && reloadClosed === 0
-            && /\n\s*shellguard\.closeGuard\(win\);[^\n]*\n\s*win\.loadURL\(/.test(mainSrcC.replace(/\r\n/g, '\n')) && typeof sgC.closeGuard === 'function',
+            && /\n\s*closer = shellguard\.closeGuard\(win, \{[^\n]*\n\s*win\.loadURL\(/.test(mainSrcC.replace(/\r\n/g, '\n')) && typeof sgC.closeGuard === 'function',   // the review of finding 11 moved this pin on purpose: main.js keeps what closeGuard answers (closer) and hands it onAsk and onCancel
             J([offP, off.closed, off.asked, cP, cancel.closed, cancel.asked, second, before, go.closed, go.lastPrevented, hung.closed, broke.closed, reloadClosed]));
+        /* the review of finding 11: a quit that did not start at the window (a newer launch, app.quit) asks too. The window is brought forward
+           before the question (restored, shown, focused), onAsk is told as the question goes up and onCancel when the GM keeps the window, and
+           closeGuard answers whether the question is up now. A page that is not hosting brings nothing forward and tells nothing. */
+        const told = [];
+        const mkF = (need, answer, min) => { const w = mkWin(need, answer); w.fr = []; w.isMinimized = () => min; w.restore = () => w.fr.push('restore'); w.show = () => w.fr.push('show'); w.focus = () => w.fr.push('focus'); return w; };
+        const fw = new EvC(), fwc = new EvC(); fw.webContents = fwc; fw.fr = []; fw.isMinimized = () => true; fw.restore = () => fw.fr.push('restore'); fw.show = () => fw.fr.push('show'); fw.focus = () => fw.fr.push('focus'); fw.close = () => {};
+        let relF; const fAns = new Promise(r => { relF = r; });
+        fwc.executeJavaScript = code => /wpCloseAsk\(\)/.test(code) ? fAns : Promise.resolve(true);
+        const fg = sgC.closeGuard(fw, { needMs: 50, onAsk: () => told.push('ask'), onCancel: () => told.push('cancel') });
+        const askingBefore = fg.asking(); press(fw); await tick(); await tick(); const askingDuring = fg.asking(), frontDuring = J(fw.fr), toldDuring = J(told);
+        relF('cancel'); await tick(); await tick(); const askingAfter = fg.asking(), toldAfter = J(told);
+        const quiet = mkF(() => Promise.resolve(false), () => Promise.resolve('close'), true); const qTold = []; quiet.removeAllListeners('close'); sgC.closeGuard(quiet, { needMs: 50, onAsk: () => qTold.push('ask'), onCancel: () => qTold.push('cancel') }); press(quiet); await tick(); await tick();
+        const frontOk = askingBefore === false && askingDuring === true && frontDuring === J(['restore', 'show', 'focus']) && toldDuring === J(['ask']) && askingAfter === false && toldAfter === J(['ask', 'cancel']) && quiet.fr.length === 0 && qTold.length === 0;
+        /* the newer launch: lockNext over holdOf's word. Before its deadline it waits; a 'stay' written after it began sends it away (the GM kept
+           the hosting Waypoint, so it never starts beside it on the same saves); an 'asking' keeps it waiting past the deadline, up to HOLD_ASK_MS,
+           then it goes; a word from before it began is another time's, so a holder that never answered is started beside as before */
+        const L = sgC.lockNext, T0 = 1e6, DL = T0 + 8000;
+        const lk = [L(null, T0, T0 + 10, DL), L(null, T0, DL + 1, DL), L({ what: 'stay', at: T0 + 5 }, T0, T0 + 10, DL), L({ what: 'stay', at: T0 - 5 }, T0, DL + 1, DL),
+            L({ what: 'asking', at: T0 + 5 }, T0, DL + 1, DL), L({ what: 'asking', at: T0 + 5 }, T0, T0 + sgC.HOLD_ASK_MS, DL), L({ what: 'asking', at: T0 + 5 }, T0, T0 + sgC.HOLD_ASK_MS + 1, DL), L({ what: 'asking', at: T0 - 5 }, T0, DL + 1, DL)];
+        const ho = [sgC.holdOf(sgC.holdText('stay', 42)), sgC.holdOf(sgC.holdText('asking', 7)), sgC.holdOf(sgC.holdText('<x>', 7)), sgC.holdOf('{"what":"stay","at":"1"}'), sgC.holdOf('not json'), sgC.holdOf(''), sgC.holdOf('{"what":"go","at":1}'), sgC.holdOf(null)];
+        const lockOk = J(lk) === J(['wait', 'start', 'quit', 'start', 'wait', 'wait', 'quit', 'start']) && J(ho) === J([{ what: 'stay', at: 42 }, { what: 'asking', at: 7 }, { what: 'asking', at: 7 }, null, null, null, null, null]) && sgC.HOLD_ASK_MS === 600000;
+        /* main.js: the cloud's close sync runs once every window has really closed (will-quit), never on before-quit, which runs before the
+           hosting question: a Cancel there left cloud saves stopped for the run. The newer launch reads the word before every try for the lock;
+           the running one writes 'asking' for a question already up and stays put for a moment after a Cancel */
+        const mN = mainSrcC.replace(/\r\n/g, '\n');
+        const mainOk = !/app\.on\('before-quit'/.test(mN) && /app\.on\('will-quit', \(e\) => \{\n\s*if \(cloudClosed\) return;\n\s*cloudClosed = true; e\.preventDefault\(\);\n\s*cloudHandler\.closeSync\(5000\)/.test(mN)
+            && /app\.on\('second-instance', function\(\) \{\n\s*if \(Date\.now\(\) < stayUntil\) return;\n\s*if \(closer && closer\.asking\(\)\) holdWrite\('asking'\);[^\n]*\n\s*app\.quit\(\);\n\}\);/.test(mN)
+            && /\(function attempt\(\) \{\n\s*const next = shellguard\.lockNext\(holdRead\(\), started, Date\.now\(\), deadline\);[^\n]*\n\s*if \(next === 'quit'\) return app\.quit\(\);[^\n]*\n\s*if \(app\.requestSingleInstanceLock\(\)\) return cb\(true\);\n\s*if \(next === 'start'\) return cb\(false\);/.test(mN)
+            && mN.includes("closer = shellguard.closeGuard(win, { onAsk: () => holdWrite('asking'), onCancel: () => { stayUntil = Date.now() + 3000; holdWrite('stay'); } });");
+        check('the review of 1.6.3 (finding 11): a quit that did not start at the window asks the GM in front of everything (the window restored, shown and focused before the question; a page not hosting brings nothing forward); the cloud\'s close sync waits until every window has really closed (will-quit), so a Cancel leaves cloud saves running and the real close still syncs; a newer launch of Waypoint waits while the hosting one asks and goes away when the GM keeps it, never starting beside it on the same saves (shellguard.lockNext and holdOf, run for real; main.js pinned)',
+            frontOk && lockOk && mainOk, J([askingBefore, askingDuring, frontDuring, toldDuring, askingAfter, toldAfter, quiet.fr, qTold, lk, ho, mainOk]));
     }
 
     summed = true;

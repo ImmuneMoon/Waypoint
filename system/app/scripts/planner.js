@@ -583,13 +583,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       rest.forEach(function(e) { o[e[0]] = e[1]; });
   }
   // A column op on the whole table: op 'add' (a from 0 to the count), 'del' or 'swap' (a and a + 1). True where it changed; 'split' where a move
-  // would split a merged cell or heading, with nothing changed
+  // would split a merged cell, and 'split-head' where it would split a merged heading, with nothing changed. The two words let the menu say
+  // which one to unmerge (the review of pages tables: a heading blocked the move and the notice sent the GM looking for a cell)
   function tbColOp(b, op, a) {
       if (!tbRowsOk(b)) return false;
       var n = tbCols(b), most = typeof TABLE_COLS === 'number' ? TABLE_COLS : 64;
       if (op === 'add' ? !(a >= 0 && a <= n) || n >= most : op === 'del' ? !(a >= 0 && a < n) || n <= 1 : op === 'swap' ? !(a >= 0 && a + 1 < n) : true) return false;
       // each line worked out first, so a move a merge stands in the way of changes nothing at all
-      var head = tbLineOp(tbGroups(headJoin(b, n), n), op, a); if (!head) return 'split';
+      var head = tbLineOp(tbGroups(headJoin(b, n), n), op, a); if (!head) return 'split-head';
       var lines = [];
       for (var ri = 0; ri < b.rows.length; ri++) {
           var r = b.rows[ri]; if (!r || typeof r !== 'object' || Array.isArray(r)) { lines.push(null); continue; }
@@ -639,6 +640,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   : act === 'rabove' ? tbRowAt(b2, at.ri) : act === 'rbelow' ? tbRowAt(b2, at.ri + 1) : act === 'rup' ? tbRowMove(b2, at.ri, -1) : act === 'rdown' ? tbRowMove(b2, at.ri, 1)   // 1.6.3 (finding 15): rows and columns at a place
                   : act === 'cleft' ? tbColOp(b2, 'add', at.ci) : act === 'cright' ? tbColOp(b2, 'add', at.ci + at.k) : act === 'cmleft' ? tbColOp(b2, 'swap', at.ci - 1) : act === 'cmright' ? tbColOp(b2, 'swap', at.ci) : act === 'cdel' ? tbColOp(b2, 'del', at.ci) : false;
               if (did === 'split') { toast('A merged cell joins this column to the one beside it. Unmerge it first, then move the column.'); return; }
+              if (did === 'split-head') { toast('A merged heading joins this column to the one beside it. Unmerge it first, then move the column.'); return; }
               if (!did) return;
               save(true); renderPlanner();
               if (hides) toast('The words of the cell it now covers are kept out of sight. Unmerge shows them again.');

@@ -1140,13 +1140,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 const r = { type: 'table', cols: ['A'], rows: [{ col1: '1', merge: { col1: 1 } }, { col1: '2', full: true }, { col1: '3' }] };
                 const rowsActs = [TB.tbRowAt(r, 1), J(r.rows.map(x => x.col1 || '')), TB.tbRowMove(r, 2, -1), J(r.rows.map(x => x.col1 || '')), r.rows[0].full === true, TB.tbRowMove(r, 0, -1), TB.tbRowMove(r, 3, 1), TB.tbRowAt(r, 9)];
                 const many = { type: 'table', cols: ['A'], rows: Array.from({ length: 500 }, () => ({})) }, at500 = TB.tbRowAt(many, 0);
-                check('1.6.3 rows and columns at a place (planner.js tbColOp, run for real): a column put in moves every row\'s words and looks and every merge after it, and is named New column; one put in inside a merged cell or heading makes it take one more column; at the first place a full-width row keeps its sub-heading first; a column taken out shrinks the merge it was part of; a move that would split a merged cell is refused as split and changes nothing; a move under one merged cell leaves that row as it is; a table of one column keeps it, and one of 64 takes no more',
+                check('1.6.3 rows and columns at a place (planner.js tbColOp, run for real): a column put in moves every row\'s words and looks and every merge after it, and is named New column; one put in inside a merged cell or heading makes it take one more column; at the first place a full-width row keeps its sub-heading first; a column taken out shrinks the merge it was part of; a move that would split a merged cell is refused as split, and one that would split a merged heading as split-head, and neither changes anything; a move under one merged cell leaves that row as it is; a table of one column keeps it, and one of 64 takes no more',
                     addOk && in2 === true && SJ(t2.rows[0]) === SJ({ col1: 'a', col2: 'b', col4: 'c', col5: 'd', fmt: { col2: { b: true } }, merge: { col2: 3 } }) && SJ(t2.headMerge) === SJ({ col4: 2 })
                     && at0 === true && SJ(t3.rows[1]) === SJ({ col1: 'Sub', col3: 'x', full: true, merge: { col4: 2 } }) && t3.rows[2].col2 === 'p' && t3.cols[0] === 'New column'
                     && del1 === true && SJ(t4.rows[0]) === SJ({ col1: 'a', col2: 'c', col3: 'd' }) && J(t4.cols) === J(['A', 'C', 'D']) && t4.colFmt === undefined && SJ(t4.headMerge) === SJ({ col2: 2 })
                     && del0 === true && SJ(t5.rows[1]) === SJ({ col1: 'Sub', full: true, merge: { col2: 2 } }) && SJ(t5.rows[2]) === SJ({ col1: 'q', col2: 'r', col3: 's' })
                     && split === 'split' && same6 && sw7 === true && J(t7.cols) === J(['A', 'B', 'D', 'C']) && SJ(t7.rows[2]) === SJ({ col1: 'p', col2: 'q', col3: 's', col4: 'r' }) && SJ(t7.rows[0].merge) === SJ({ col1: 2 })
-                    && sw8 === 'split' && J(one) === J([false, false]) && full64 === false && t10.cols.length === 64,
+                    && sw8 === 'split-head' && J(one) === J([false, false]) && full64 === false && t10.cols.length === 64,
                     SJ([add1, t1, in2, t2, at0, t3, del1, t4, del0, t5, split, sw7, t7, sw8, one, full64]));
                 check('1.6.3 rows at a place (tbRowAt, tbRowMove, run for real): an empty row put in above or below, a row moved up or down taking its merges and its full-width mark with it, nothing past either end, and no row past the 500 a table holds',
                     J(rowsActs) === J([true, J(['1', '', '2', '3']), true, J(['1', '2', '', '3']), false, false, false, false]) && r.rows[1].full === true && at500 === false, J([rowsActs, at500]));
@@ -1157,6 +1157,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 TB.tbMenuFor(ti, -1, 2, 40, 50, null); menu.querySelectorAll('button').filter(x => x.dataset.act === 'cdel')[0].fire('click');
                 check('1.6.3 rows and columns at a place, from the menus: Add a row below puts an empty row under the row, Add a column right on a heading merged over two columns puts it after both, Delete this column takes it out and says Undo brings it back; each one save and the editor drawn again',
                     tm.rows.length === 2 && J(tm.cols) === J(['A', 'B', 'C']) && SJ(tm.headMerge) === SJ({ col1: 2 }) && calls.slice(c0).join('|') === 'save:true|draw|save:true|draw|save:true|draw|toast:Column deleted. Undo brings it back.', J([tm, calls.slice(c0)]));
+                // the review of pages tables: a move a merged heading stands in the way of names the heading, and one a merged cell stands in the way names
+                // the cell, each changing nothing and saving nothing (before, both said a merged cell, and the GM looked for a cell that was not there)
+                const th = { type: 'node', mode: 'table', cols: ['A', 'B', 'C', 'D'], headMerge: { col3: 2 }, rows: [{ col1: 'a', col2: 'b', merge: { col2: 2 } }] }; am.blocks.push(th); const hi = am.blocks.length - 1, thWas = SJ(th), c1 = calls.length;
+                TB.tbMenuFor(hi, -1, 1, 40, 50, null); menu.querySelectorAll('button').filter(x => x.dataset.act === 'cmright')[0].fire('click');
+                TB.tbMenuFor(hi, -1, 0, 40, 50, null); menu.querySelectorAll('button').filter(x => x.dataset.act === 'cmright')[0].fire('click');
+                check('1.6.3 a column move refused by a merge says which merge: a merged heading in the way is named a heading, a merged cell a cell, and neither move changes or saves anything',
+                    SJ(th) === thWas && calls.slice(c1).join('|') === 'toast:A merged heading joins this column to the one beside it. Unmerge it first, then move the column.|toast:A merged cell joins this column to the one beside it. Unmerge it first, then move the column.', J([th, calls.slice(c1)]));
             }
         }
         {   // 1.6.2, a big table in a window of its own (the owner, 2026-11-14, by prompt: "Edit a big table in its own window"): the main window's side,
@@ -1901,6 +1908,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.3 Export stands beside Import on the planner bar, in the same pair, a page with an arrow leaving it as Export As wears, and it runs the one Markdown export that Save Markdown runs',
                 /id="plannerExportBtn"[^>]*aria-label="Export document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"\/><\/svg><span class="pg-word">Export<\/span><\/button>/.test(bar)
                 && di.includes("var b5 = ui('plannerExportBtn'); if (b5) b5.addEventListener('click', function() { exportMarkdown(); });"));
+            // the review of pages tables: in a wide window the bar's three buttons of the pair say their words alike, Export's included
+            const css = read('style.css'), wide = (css.match(/\n  @media \(min-width: 1500px\) \{ #plannerImportBtn[^\r\n]*/) || [''])[0];
+            check('1.6.3 in a window 1500 px wide or more the planner bar says Import, Export and Appearance by name alike: one rule gives all three their width and shows all three words',
+                ['plannerImportBtn', 'plannerExportBtn', 'plannerAppearanceBtn'].every(id => wide.includes('#' + id + '.tool.icon') && wide.includes('#' + id + ' .pg-word')), wide);
         }
         // ---- finding 24: the table follow's half-second look is made only where something moved ----
         {

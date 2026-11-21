@@ -6278,8 +6278,8 @@
   #plannerFind:focus { border-color: var(--gold); }
   #plannerFindCount { color: var(--dim); font-size: 11px; min-width: 42px; text-align: center; }
   #plannerFindBar .tool.icon { width: 26px; height: 26px; font-size: 9px; }
-  .pg-word { display: none; }   /* 1.6.2 (the planner editor's sheet): the page's bar says Import and Appearance by name where the window has room */
-  @media (min-width: 1500px) { #plannerImportBtn.tool.icon, #plannerAppearanceBtn.tool.icon { width: auto; padding: 0 9px; gap: 6px; } #plannerImportBtn .pg-word, #plannerAppearanceBtn .pg-word { display: inline; font-size: 12.5px; } }   /* the find arrows and the planner's undo / redo alike */
+  .pg-word { display: none; }   /* 1.6.2 (the planner editor's sheet): the page's bar says Import, Export and Appearance by name where the window has room (Export since 1.6.3) */
+  @media (min-width: 1500px) { #plannerImportBtn.tool.icon, #plannerExportBtn.tool.icon, #plannerAppearanceBtn.tool.icon { width: auto; padding: 0 9px; gap: 6px; } #plannerImportBtn .pg-word, #plannerExportBtn .pg-word, #plannerAppearanceBtn .pg-word { display: inline; font-size: 12.5px; } }   /* the find arrows and the planner's undo / redo alike */
   #plannerUndoBtn, #plannerRedoBtn { font-size: 13px; }
   #plannerPreview mark.pf-hit { background: rgba(224,165,79,0.35); color: inherit; border-radius: 3px; padding: 0 1px; }
   #plannerPreview mark.pf-hit.pf-cur { background: var(--gold); color: #1a1408; box-shadow: 0 0 0 2px rgba(224,165,79,0.45); }

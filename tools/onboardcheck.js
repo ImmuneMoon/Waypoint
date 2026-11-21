@@ -1312,5 +1312,24 @@ const j = v => JSON.stringify(v);
             j([pr && pr.changes, ownOp, pr2 && pr2.changes, named]));
     }
 
+    // 1.6.3 (the multiplayer review, finding 5): giving a player a character drew the whole app twice, about two seconds each on a large campaign.
+    // main.js wpRenderBatch (its renderbatch slice, run for real) holds every redraw asked through window.appRender while one piece of work runs
+    // and draws once at its end; sheets.js giveCharacter runs its work so
+    {
+        const mainT5 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n');
+        const a5 = mainT5.indexOf('// [onboardcheck:renderbatch-start]'), b5 = mainT5.indexOf('// [onboardcheck:renderbatch-end]');
+        const drawn = [], win5 = { wpRenderPartyStrip() { drawn.push('strip'); } };
+        new Function('window', 'render', mainT5.slice(a5, b5))(win5, () => drawn.push('render'));
+        const out5 = {};
+        out5.plain = (win5.appRender(), drawn.splice(0).join());
+        out5.batch = win5.wpRenderBatch(() => { win5.appRender(); win5.appRender(); out5.inside = drawn.length; return 'given'; }) + ':' + drawn.splice(0).join();
+        out5.nested = (win5.wpRenderBatch(() => { win5.wpRenderBatch(() => win5.appRender()); out5.innerEnd = drawn.length; win5.appRender(); }), drawn.splice(0).join());
+        out5.none = (win5.wpRenderBatch(() => 1), drawn.splice(0).join());
+        try { win5.wpRenderBatch(() => { win5.appRender(); throw new Error('stop'); }); } catch (e) { out5.threw = e.message; } out5.afterThrow = drawn.splice(0).join(); win5.appRender(); out5.free = drawn.splice(0).join();
+        const shT5 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.3 (the multiplayer review, finding 5) a batch of redraws (main.js wpRenderBatch, run for real): every redraw asked inside it is held and the app is drawn once at its end, the party strip with it; a batch inside a batch draws at the outer end; one that asked none draws nothing; a batch that throws still draws what it owed and frees the next redraw; the work\'s answer comes back; giveCharacter runs its work in one batch',
+            a5 > 0 && b5 > a5 && out5.plain === 'render,strip' && out5.batch === 'given:render,strip' && out5.inside === 0 && out5.nested === 'render,strip' && out5.innerEnd === 0 && out5.none === '' && out5.threw === 'stop' && out5.afterThrow === 'render,strip' && out5.free === 'render,strip'
+            && /return batch\(function\(\) \{ return giveCharacterNow\(pid, charId, o\); \}\);\n\}\nfunction giveCharacterNow\(pid, charId, o\) \{/.test(shT5), j(out5));
+    }
     await T.finish();
 })();

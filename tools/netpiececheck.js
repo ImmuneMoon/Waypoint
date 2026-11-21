@@ -893,7 +893,7 @@ pendingChecks.push((async () => {
         !!stS && j(hgS) === j({ hid: ['tA+low', false, false], shown: ['tA+orcH+low+ledge', true, true] }), j(hgS));
     const sj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'stream.js'), 'utf8').replace(/\r\n/g, '\n'), ioj = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, '\n');
     check('R2 #14 wired: the stream window alone calls sanitizeAppState with no recipient (stream.js each tick, io.js at its load), and sanitizeAppState hands a map of the hosted campaign to fogPartyCopy exactly there, to fogCopyFor for a player; fogPartyCopy is published to the window nowhere (never a message)',
-        /var clean = net\.sanitizeAppState\(data\);/.test(sj) && /if \(window\.wpStream && window\.wpNet && window\.wpNet\.sanitizeAppState\) state\.appState = window\.wpNet\.sanitizeAppState\(state\.appState\);/.test(ioj)
+        /readClean = net\.sanitizeAppState\(data\);/.test(sj) /* 1.6.3 (the multiplayer review, finding 25), moved on purpose: the stream window makes its copy only when the save it read changed (streamRead) */ && /if \(window\.wpStream && window\.wpNet && window\.wpNet\.sanitizeAppState\) state\.appState = window\.wpNet\.sanitizeAppState\(state\.appState\);/.test(ioj)
         && /if \(it\.type === 'map' && recipientId && camp\.id === c\.activeCampaignId\) it = fogCopyFor\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig, recipientId\);[^\n]*\n\s*else if \(it\.type === 'map' && !recipientId && camp\.id === c\.activeCampaignId\) it = fogPartyCopy\(it, \(s\.campaigns && s\.campaigns\[camp\.id\]\) \|\| camp, orig\);/.test(require('./checkkit').part('netfog.js'))
         && require('./checkkit').familyCount('net.js', /fogPartyCopy\(/g) === 2);
     };
@@ -1895,9 +1895,11 @@ pendingChecks.push((async () => {
         const ids = d => d ? d.blocks.map(b => b.id).join() : 'none', marks = d => J2(d).indexOf('"hide"') >= 0 || J2(d).indexOf('"see"') >= 0;
         const st = { activeCampaignId: 'k', campaigns: { k: campK } };
         const snapM = SAk(st, 'u_mira', null).campaigns.k.items.pk, snapK = SAk(st, 'u_kael', null).campaigns.k.items.pk, strm = SAk(st).campaigns.k.items.pk;
-        const R = { mira: ids(snapM), kael: ids(snapK), stream: ids(strm), anyR: ids(SIk(pgK, '*any')), alone: ids(SIk(pgK)), linkK: snapK.blocks.find(b => b.id === 'b_link').content, plain: SIk(pgPlain, 'u_mira').blocks[0].content, perPk: PRk(pgK), perPp: PRk(pgPlain) };
+        const miraG = SIk(pgK, 'u_mira'), kaelG = SIk(pgK, 'u_kael');   /* 1.6.3 (the multiplayer review, finding 16), moved on purpose: a player's join snapshot holds each page as its stub, and each reader's copy is the one the host answers their needItem with */
+        const stubs = [snapM, snapK].every(d => d.stub === true && Array.isArray(d.blocks) && d.blocks.length === 0 && typeof d.rev === 'string') && snapM.rev !== snapK.rev && strm.stub === undefined;
+        const R = { mira: ids(miraG), kael: ids(kaelG), stream: ids(strm), stubs, anyR: ids(SIk(pgK, '*any')), alone: ids(SIk(pgK)), linkK: kaelG.blocks.find(b => b.id === 'b_link').content, plain: SIk(pgPlain, 'u_mira').blocks[0].content, perPk: PRk(pgK), perPp: PRk(pgPlain) };
         check('1.6.3 (finding 18) a page block kept back from players reaches only the players it names: the join snapshot gives Mira the block she is named in and not the GM-only one, Kael neither, the stream window neither, and none of their copies holds a mark, a kept block\'s words, title or id',
-            R.mira === 'b_open,b_mira,b_link' && R.kael === 'b_open,b_link' && R.stream === 'b_open,b_link' && R.anyR === 'b_open,b_mira,b_link' && R.alone === 'b_open,b_link'
+            R.mira === 'b_open,b_mira,b_link' && R.kael === 'b_open,b_link' && R.stream === 'b_open,b_link' && R.stubs === true && ![miraG, kaelG].some(marks) && J2(kaelG).indexOf('SECRET') < 0 && J2(kaelG).indexOf('b_mira') < 0 && R.anyR === 'b_open,b_mira,b_link' && R.alone === 'b_open,b_link'
             && ![snapM, snapK, strm].some(marks) && J2(snapK).indexOf('SECRET') < 0 && J2(snapK).indexOf('MIRA') < 0 && J2(snapK).indexOf('b_gm') < 0 && J2(snapK).indexOf('b_mira') < 0 && J2(strm).indexOf('b_mira') < 0 && J2(snapM).indexOf('u_gone') < 0 && J2(snapM).indexOf('SECRET') < 0, J2(R));
         check('1.6.3 (finding 18) a link or a mention that leads to a kept block keeps only its page, in the page itself and in another page, and a link to a block players read keeps its part; a page with a kept block goes to each reader apart (docPerReader), a page with none does not',
             R.linkK.indexOf('#wp:page:pk"') >= 0 && R.linkK.indexOf('#wp:page:pk:b_open') >= 0 && R.linkK.indexOf('b_gm') < 0 && R.plain.indexOf('#wp:page:pk"') >= 0 && R.plain.indexOf('b_mira') < 0
@@ -2044,4 +2046,33 @@ pendingChecks.push((async () => {
             && require('./checkkit').part('netfog.js').includes(": (stF && stF.campId === camp.id && camp.items[stF.itemId] && camp.items[stF.itemId].meta && camp.items[stF.itemId].meta.title) || 'your current map';"));
     }
 
+// 1.6.3 (the multiplayer review, findings 0 and 16): the join snapshot (the real sanitizeAppState and sanitizeItem with the real docrender).
+// Finding 0: on the GM's machine a player's copy takes the players' view sheets.js playerSystem keeps, from the GM's own campaign, and cleans
+// no system itself; the stream window cleans its own as before; the GM's own state is left exactly as it was, the map the fog judges is a copy,
+// and every number past the wire's bound is bounded in what goes. Finding 16: a page a player may read goes as its stub with the rev of that
+// player's own copy; the stream window keeps pages whole
+pendingChecks.push((async () => { try {
+    const J = JSON.stringify;
+    const urlW = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const DR0 = await import(urlW('docrender.js'));
+    const pv = [], cs = [], judged = [];
+    const camp = { id: 'k', name: 'K', activeItemId: 'm', system: { v: 1, fields: [{ id: 'f', huge: 1e20 }] },
+        items: { m: { id: 'm', type: 'map', meta: { title: 'M', sortIndex: 1e20 }, fog: { on: true }, whiteboard: [{ id: 'w1', type: 'rect', x: 1e20, y: 0, w: 10, h: 10 }], rooms: [], links: [] },
+            p: { id: 'p', type: 'doc', meta: { title: 'Gods', sortIndex: 1e20 }, blocks: [{ id: 'b1', type: 'text', content: '<p>Words</p>' }] }, q: { id: 'q', type: 'odd', n: 1e20 } } };
+    const st = { activeCampaignId: 'k', campaigns: { k: camp } }, before = J(st);
+    const win0 = { wpDocRender: DR0, wpFormula: {}, wpSystemCore: { cleanSystem: (s, o) => { cs.push(J(s)); return { v: 1, fields: [{ id: 'f', huge: s.fields[0].huge }] }; } },
+        wpSheets: { playerSystem: c => { pv.push(c); return { v: 1, fields: [{ id: 'f', huge: 1e20 }] }; }, readablePages: () => ['p'] } };
+    const saSrc0 = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
+    const SA0 = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', 'getActiveCampaign', "'use strict';\n" + saSrc0 + '\nreturn sanitizeAppState;')(H.own, win0, () => ({}), () => ({}), v => v, (it, hc, map) => { judged.push(map); map.fog.mode = 'auto'; return it; }, (it, hc, map) => { judged.push(map); map.fog.mode = 'auto'; return it; }, () => camp);
+    const snap = SA0(st, 'u_a', { m: 1 }), stream = SA0(st);
+    const sk = snap.campaigns.k, tk = stream.campaigns.k;
+    const R = { pv: pv.length, pvOwn: pv[0] === camp, cs: cs.length, sys: sk.system.fields[0].huge, streamSys: tk.system.fields[0].huge, same: J(st) === before, judgedCopy: judged.length === 2 && judged.every(m => m !== camp.items.m),
+        stub: [sk.items.p.stub, sk.items.p.blocks.length, typeof sk.items.p.rev, sk.items.p.meta.title, sk.items.p.meta.sortIndex], streamPage: [tk.items.p.stub, tk.items.p.blocks.length], odd: [sk.items.q !== camp.items.q, sk.items.q.n], mapX: sk.items.m.whiteboard[0].x, notOwn: sk.items.m !== camp.items.m };
+    const revA = sk.items.p.rev; camp.items.p.blocks[0].content = '<p>Other words</p>'; const revB = SA0(st, 'u_a', { m: 1 }).campaigns.k.items.p.rev; camp.items.p.blocks[0].content = '<p>Words</p>'; const revC = SA0(st, 'u_a', { m: 1 }).campaigns.k.items.p.rev;
+    R.revs = [revA !== revB, revA === revC];
+    check('1.6.3 (the multiplayer review, finding 0) the join snapshot (the real sanitizeAppState): a player\'s copy takes the players\' view sheets.js playerSystem keeps, asked with the GM\'s own campaign, and cleans no system itself; the stream window cleans its own as before; the GM\'s state is left exactly as it was though the fog\'s judges tidy the map they are handed (a copy each time); an item of a kind sanitizeItem hands back is a copy too; every number past the wire\'s bound is bounded, in the system, a page and a map',
+        R.pv === 1 && R.pvOwn === true && R.cs === 1 && R.sys === 1e15 && R.streamSys === 1e15 && R.same === true && R.judgedCopy === true && J(R.odd) === J([true, 1e15]) && R.mapX === 1e15 && R.notOwn === true, J(R));
+    check('1.6.3 (the multiplayer review, finding 16) the join snapshot (the real sanitizeAppState with the real docrender): a page a player may read goes as its stub, its title and place kept, no blocks, with the rev of that very copy, which changes with its words and comes back with them; the stream window keeps the page whole',
+        J(R.stub) === J([true, 0, 'string', 'Gods', 1e15]) && J(R.streamPage) === J([undefined, 1]) && J(R.revs) === J([true, true]), J(R));
+} catch (e) { check('1.6.3 (findings 0 and 16) the join snapshot checks ran', false, String(e && e.stack || e)); } })());
 T.finish();

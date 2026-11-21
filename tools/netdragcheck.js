@@ -296,7 +296,7 @@ pendingChecks.push((async () => {
     const scripts5 = fs.readdirSync(path.join(__dirname, '..', 'system', 'app', 'scripts')).filter(f => /\.js$/.test(f) && f !== 'net.js').filter(f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8').indexOf('_fogHeld') >= 0);
     check('fold M5 (source): the record is named only inside its slice and in no other script; each whole send seeds after its try (a send that throws returns first); the snapshot seeds only once it went out, after its try; the close handler, kickPlayer, itemGone, both unfogged sends and a new table forget',
         fmSrc5.indexOf('var _fogHeld') >= 0 && otherSrc5.indexOf('_fogHeld') < 0 && scripts5.length === 0
-        && (src.match(/catch \(e\) \{ sendFailed\(e\); return; \}[^\n]*\n\s*if \(typeof fogSeed === 'function' && fogSeed\(conn, itemId, out\)\) fogRoster\(conn, pr\.id, itemId\);/g) || []).length === 2
+        && (src.match(/catch \(e\) \{ sendFailed\(e\); return; \}[^\n]*\n(?:\s*var fdB = [^\n]*\n)?\s*if \(typeof fogSeed === 'function' && fogSeed\(conn, itemId, out, (fd|fdB) \? \1\.sum : null\)\) fogRoster\(conn, pr\.id, itemId\);/g) || []).length === 2   /* 1.6.3 (the multiplayer review, finding 8), moved on purpose: each whole send hands fogSeed its copy's summary (fogDeltaFor), the table's send making it on the line before */
         && /conn\.send\(snap\); snapOk = true;/.test(src) && /\n\s*if \(snapOk && typeof fogSeedSnapshot === 'function'\) fogSeedSnapshot\(conn, snap\);/.test(src)
         && /fogDragSweep\(\);[^\n]*\n\s*if \(typeof fogForgetConn === 'function'\) fogForgetConn\(conn\.peer\);/.test(src) && /if \(typeof fogForgetConn === 'function'\) keys\.forEach\(fogForgetConn\);/.test(whole4('net.kickPlayer = function('))
         && /fogForgetMap\(itemId\)/.test(whole4('net.itemGone = function(')) && /fogForgetAll\(\);/.test(fnSrc('function startHosting(forceFresh) {', '\n    diceSessionReset(true);', 'startHosting')), J(scripts5));
@@ -1464,4 +1464,42 @@ pendingChecks.push((async () => {
         j([c8.sent, h8.relayed]));
 }
 
+// 1.6.3 (the multiplayer review, finding 8): a save of the GM's on a fogged map sent each player the whole map. Each connection's copy is now summed
+// up as it goes out and the next send to it is a delta against that summary where the copy is large and the delta clearly smaller, nothing
+// where it would be the same (the fogdelta slice of netfog.js, run for real, its delta laid as a player's app lays one)
+{
+    const J = j;
+    const fdSrc = between('// [netcheck:fogdelta-start]', '// [netcheck:fogdelta-end]', 'fogdelta', 'netfog.js');
+    const qh = fnSrc('function quickHash(', '\n}\n', 'quickHash', 'netfog.js') + '\n}\n';
+    const FD = new Function('own', "'use strict';\nvar _fogHeld = Object.create(null);\n" + qh + fdSrc + '\nreturn { forDelta: fogDeltaFor, keep: function(peer, mapId, sum) { (_fogHeld[peer] = _fogHeld[peer] || Object.create(null))[mapId] = { sum: sum }; }, drop: function(peer, mapId) { delete _fogHeld[peer][mapId].sum; }, MIN: FOG_DELTA_MIN };')((o, k) => Object.prototype.hasOwnProperty.call(o, k));
+    const piece = (i, x) => ({ id: 'w' + i, type: 'rect', x: x === undefined ? i * 10 : x, y: 5, w: 40, h: 40, name: 'piece number ' + i + ' of the map, with words enough to weigh something' });
+    const mapOf = (n, more) => Object.assign({ type: 'map', id: 'm', meta: { title: 'M' }, rooms: [{ id: 'r1', name: 'Hall' }], links: [], cats: {}, fog: { on: true }, whiteboard: Array.from({ length: n }, (x, i) => piece(i)) }, more || {});
+    const lay = (copy, d) => {   // as applyItemDelta lays a delta on a player's copy (netfog.js)
+        const it = JSON.parse(J(copy));
+        ['whiteboard', 'rooms'].forEach(key => { const ch = d[key]; if (!ch) return; const list = it[key], at = Object.create(null); list.forEach((x, i) => { at[x.id] = i; });
+            ch.del.forEach(id => { if (at[id] !== undefined) list[at[id]] = null; }); ch.set.forEach(x => { if (at[x.id] !== undefined && list[at[x.id]]) list[at[x.id]] = x; else list.push(x); }); it[key] = list.filter(Boolean);
+            if (ch.order) { const pos = Object.create(null); ch.order.forEach((id, i) => { pos[id] = i; }); it[key].sort((a, b) => (pos[a.id] === undefined ? 1e9 : pos[a.id]) - (pos[b.id] === undefined ? 1e9 : pos[b.id])); } });
+        ['links', 'meta', 'cats'].forEach(k => { if (d[k] !== undefined) it[k] = d[k]; });
+        return it; };
+    const R = {};
+    const big0 = mapOf(200), first = FD.forDelta({ peer: 'pA' }, 'm', big0, new Map());   // no record yet: whole
+    R.first = [first.d, first.sum.n > FD.MIN];
+    FD.keep('pA', 'm', first.sum);
+    const same = FD.forDelta({ peer: 'pA' }, 'm', JSON.parse(J(big0)), new Map()); R.same = same.d;   // nothing changed: nothing goes
+    const big1 = JSON.parse(J(big0)); big1.whiteboard[7].x = 999; big1.whiteboard.splice(20, 1); big1.whiteboard.push(piece(500)); big1.meta = { title: 'M2' };
+    const one = FD.forDelta({ peer: 'pA' }, 'm', big1, new Map());
+    R.one = one.d ? [one.d.type, one.d.whiteboard.set.map(w => w.id).join(), one.d.whiteboard.del.join(), !!one.d.whiteboard.order, J(one.d.meta), J(lay(big0, one.d)) === J(big1)] : null;
+    const lit = JSON.parse(J(big0)); lit.fogLit = [[1, 2]]; R.lit = FD.forDelta({ peer: 'pA' }, 'm', lit, new Map()).d;   // their lit cells changed: whole
+    const small0 = mapOf(4); const s0 = FD.forDelta({ peer: 'pS' }, 'm', small0, new Map()); FD.keep('pS', 'm', s0.sum); R.small = [FD.forDelta({ peer: 'pS' }, 'm', JSON.parse(J(small0)), new Map()).d, s0.sum.n < FD.MIN];   // a small copy: whole every time, as before
+    const many = JSON.parse(J(big0)); many.whiteboard.forEach(w => { w.x += 1; }); R.many = FD.forDelta({ peer: 'pA' }, 'm', many, new Map()).d;   // everything moved: the delta is no smaller, whole
+    FD.drop('pA', 'm'); R.dropped = FD.forDelta({ peer: 'pA' }, 'm', big1, new Map()).d;   // a catch-up sent in place drops the summary: whole
+    const hm = new Map(), shared = mapOf(200); FD.forDelta({ peer: 'pB' }, 'm', shared, hm); const n1 = hm.size; FD.forDelta({ peer: 'pC' }, 'm', { type: 'map', id: 'm', whiteboard: shared.whiteboard.slice(1), rooms: shared.rooms, links: [], meta: shared.meta, cats: {} }, hm); R.memo = [n1, hm.size];   // a send's memo: a piece both copies share is hashed once
+    const only = FD.forDelta({ peer: 'pA' }, 'm', big1, new Map(), true); R.only = [only.d, typeof only.sum.n];
+    check('1.6.3 (the multiplayer review, finding 8) a fogged map\'s copy to one connection (netfog.js fogDeltaFor, run for real): the first copy goes whole and is summed up; the same copy again sends nothing; a piece moved, one taken away, one added and a new title go as a delta that, laid as a player\'s app lays one, gives that very copy; a change of their lit cells, a copy smaller than the floor, a change of every piece and a copy whose summary was dropped go whole; one send\'s memo hashes a shared piece once; a whole copy that went is only summed up',
+        J(R.first) === J([null, true]) && R.same === false && J(R.one) === J(['itemDelta', 'w7,w500', 'w20', true, J({ title: 'M2' }), true]) && R.lit === null && J(R.small) === J([null, true]) && R.many === null && R.dropped === null && J(R.memo) === J([201, 201]) && J(R.only) === J([null, 'number']), J(R));
+    const sendS = src.replace(/\r\n/g, '\n'), fogS = require('./checkkit').part('netfog.js').replace(/\r\n/g, '\n');
+    check('1.6.3 (finding 8, wired): net.sendItem sends a fogged map\'s copy as the delta fogDeltaFor makes for that connection, never for a copy asked for alone, nothing where it is the same, and records its summary with fogSeed; the table\'s whole send records it too; a catch-up sent in place drops it; the unfogged path stringifies the map once',
+        /var fd = typeof fogDeltaFor === 'function' \? fogDeltaFor\(conn, itemId, out, hm\) : null, dF = fd && !onlyConn \? fd\.d : null;[^\n]*\n\s*if \(dF === false\) return;/.test(sendS) && /fogDeltaFor\(conn, itemId, out, hmB, true\)/.test(sendS)
+        && /delete rec\.sum;/.test(fogS) && /var msg = full, cleanText = JSON\.stringify\(clean\);/.test(sendS) && /_lastSent\[itemId\] = JSON\.parse\(cleanText\);/.test(sendS));
+}
 T.finish();

@@ -335,7 +335,7 @@ pendingChecks.push((async () => {
     check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host has 31 message branches (video-up of item 21 among them, and voice-up of voice chat, 1.5.9, the newest) (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34; 1.6.0 B5, a deliberate change of this pin: hit-ask, a player asking which locations their target has, makes them 35; 1.6.0, a deliberate change of this pin: sheet-out, a player asking the host\'s reader for a file of their own character, makes them 36; 1.6.2, a deliberate change of this pin: show-ask, a player asking to put drawings on the map, makes them 37)',
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
-        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 45 /* 1.6.3 (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 46 /* 1.6.3 (the multiplayer review, finding 9): handout-want, the 46th; (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */, js([ban1, banAway, banClient, kickCalls, kickedSends]));
 
     /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
     const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };
@@ -1536,7 +1536,7 @@ pendingChecks.push((async () => {
     const first = H(); prof = { id: 'u_second' }; const after = H(); store.wp_hostId = '<bad>'; const healed = H();
     const sites = (nS.match(/gmId: \(typeof hostId === 'function' \? hostId\(\) : getProfile\(\)\.id\)/g) || []).length, gmSites = (nS.match(/gm = \(typeof hostId === 'function' \? hostId\(\) : getProfile\(\)\.id\)/g) || []).length;
     check('1.6.0 the host id (net.js hostId, run for real): made once from the profile\'s id and kept as wp_hostId, so nothing changes for anyone; a profile that later takes another id leaves it standing; one that is no id is made again from the profile; every gmId the host sends (handouts, the notepad, a scene\'s close, the snapshot) and the key proof\'s gm read it; the GM\'s own screen speaks as it, a join as the profile\'s id, and leaving a table gives it back',
-        first === 'u_first' && store.wp_hostId === 'u_second' && after === 'u_first' && healed === 'u_second' && sites === 8 && gmSites === 2 && /getProfile\(\)\.id/.test(nS.slice(i0, i1)) && (nS.match(/getProfile\(\)\.id/g) || []).length === 11
+        first === 'u_first' && store.wp_hostId === 'u_second' && after === 'u_first' && healed === 'u_second' && sites === 9 /* 1.6.3 (the multiplayer review, finding 9), moved on purpose: the rejoin's list of handouts (handout-have) names the host too */ && gmSites === 2 && /getProfile\(\)\.id/.test(nS.slice(i0, i1)) && (nS.match(/getProfile\(\)\.id/g) || []).length === 12
         && nS.includes('net.myId = hostId();') && nS.includes("    var profile = setProfileName(name || getProfile().name || 'Player');\n    net.myId = profile.id;") && nS.includes("if (!window.wpStream && !net.stream && typeof hostId === 'function') net.myId = hostId();"),
         JSON.stringify([first, after, healed, store, sites, gmSites]));
 }
@@ -1600,7 +1600,62 @@ pendingChecks.push((async () => {
             j([e1, kept1, calls1, e2, kept2, odd, e3]));
         const snapP2 = require('./checkkit').part('netfog.js'), snapAt = snapP2.indexOf('function applySnapshot(msg) {'), snapBody = snapP2.slice(snapAt, snapAt + 4000);   // in netfog.js, a part of net.js
         check('a snapshot\'s items (wired): applySnapshot hands each campaign\'s items to snapItems, the one place that keeps or drops them, before the active item is chosen; nothing else in it walks the items one by one',
-            snapAt > 0 && require('./checkkit').familyCount('net.js', 'snapItems(') === 2 && /\n        delete cS\.players;[^\n]*\n        snapItems\(cS\);[^\n]*\n        var actS = cS\.items && cS\.items\[cS\.activeItemId\];/.test(snapBody) && !/Object\.keys\(cS\.items \|\| \{\}\)\.forEach/.test(snapBody));
+            snapAt > 0 && require('./checkkit').familyCount('net.js', 'snapItems(') === 2 && /\n        delete cS\.players;[^\n]*\n        snapItems\(cS(?:, [^\n]*)?\);[^\n]*\n        var actS = cS\.items && cS\.items\[cS\.activeItemId\];/.test(snapBody) && !/Object\.keys\(cS\.items \|\| \{\}\)\.forEach/.test(snapBody));
     }
 
+// 1.6.3 (the multiplayer review, finding 16): a player's app keeps the body of a page the join snapshot names only by its stub where the page it
+// already holds from the same GM has the same rev, holds every other as its stub and asks the host for it through needItem, one at a time
+// (the snapitems and pageask slices of netfog.js, run for real); a page that arrives whole is marked with the rev it was asked for (pageGot)
+{
+    const J = j;
+    const psSrc = between('// [netcheck:pageask-start]', '// [netcheck:pageask-end]', 'pageask', 'netfog.js'), siP16 = between('// [netcheck:snapitems-start]', '// [netcheck:snapitems-end]', 'snapitems', 'netfog.js');
+    const timers = [], sent = [], net16 = { active: true, role: 'client', snapshotGen: 3 };
+    const win16 = { wpDocRender: { cleanDoc: d => ({ id: d.id, type: 'doc', meta: { title: d.meta ? d.meta.title : '' }, blocks: Array.isArray(d.blocks) ? d.blocks.slice() : [] }) } };
+    const A = new Function('window', 'cleanHostMap', 'own', 'net', 'broadcast', 'setTimeout', "'use strict';\n" + psSrc + '\n' + siP16 + '\nreturn { snapItems: snapItems, pageAsk: pageAsk, pageGot: pageGot, want: function() { return Object.keys(_pageWant); }, reset: pageWantReset };')(win16, m => m, H.own, net16, m => sent.push(m), (fn, ms) => timers.push([fn, ms]));
+    const flush = () => { let k = 0; while (timers.length && k++ < 50) timers.shift()[0](); };
+    const body = { id: 'd1', type: 'doc', meta: { title: 'Gods' }, blocks: [{ id: 'b1', type: 'text', content: 'old words' }], _rev: 'r1' };
+    const prev = { id: 'k', items: { d1: body, d2: { id: 'd2', type: 'doc', meta: { title: 'Lore' }, blocks: [{ id: 'b', type: 'text', content: 'x' }], _rev: 'r-old' }, d3: { id: 'd3', type: 'doc', stub: true, meta: { title: 'Maps' }, blocks: [], _rev: 'r3' } } };
+    const stub = (id, rev) => ({ id, type: 'doc', meta: { title: id }, blocks: [], stub: true, rev });
+    const cNew = { id: 'k', items: { d1: stub('d1', 'r1'), d2: stub('d2', 'r2'), d3: stub('d3', 'r3'), d4: stub('d4', 'r4'), d5: { id: 'd5', type: 'doc', meta: { title: 'Whole' }, blocks: [{ id: 'w', type: 'text', content: 'all here' }] } } };
+    A.reset(); A.snapItems(cNew, prev);
+    const R = { kept: cNew.items.d1 === body, d2: [cNew.items.d2.stub, cNew.items.d2.blocks.length], d3: [cNew.items.d3.stub, cNew.items.d3 === prev.items.d3], d5: [cNew.items.d5.stub, cNew.items.d5.blocks.length], want: A.want().map(k => k.split('\n')[1]) };
+    const fresh = { id: 'k', items: { d1: stub('d1', 'r1') } }; A.reset(); A.snapItems(fresh, null); R.noPrev = [fresh.items.d1.stub, A.want().length];
+    A.reset(); A.snapItems({ id: 'k', items: { d2: stub('d2', 'r2'), d4: stub('d4', 'r4'), d6: stub('d6', 'r6') } }, prev);
+    const got = { id: 'd4', type: 'doc', meta: {}, blocks: [] }; A.pageGot('k', 'd4', got);   // d4 arrives by itself before its turn: it is not asked for again
+    A.pageAsk(3); flush(); R.asked = sent.map(m => m.type + ':' + m.campId + ':' + m.itemId); R.got = got._rev;
+    sent.length = 0; A.reset(); A.snapItems({ id: 'k', items: { d7: stub('d7', 'r7'), d8: stub('d8', 'r8') } }, null); A.pageAsk(3); timers.shift()[0](); net16.snapshotGen = 4; flush(); R.stale = sent.length;
+    check('1.6.3 (the multiplayer review, finding 16) a player\'s app and the pages a join snapshot names by their stubs (netfog.js snapitems and pageask, run for real): the body it held from the same GM with the same rev stays, the very object; a page with another rev, or with none held, or held only as its stub, is kept as its stub, no blocks, and asked for; a page sent whole is kept whole; with no table before, everything is asked; the asks go one by one through needItem, a page that arrived meanwhile passed over, and a newer snapshot stops them; a page that arrives is marked with the rev asked for',
+        R.kept === true && J(R.d2) === J([true, 0]) && J(R.d3) === J([true, false]) && J(R.d5) === J([undefined, 1]) && J(R.want) === J(['d2', 'd3', 'd4']) && J(R.noPrev) === J([true, 1])
+        && J(R.asked) === J(['needItem:k:d2', 'needItem:k:d6']) && R.got === 'r4' && R.stale === 1, J(R));
+    const snapPF = require('./checkkit').part('netfog.js'), apS = snapPF.slice(snapPF.indexOf('function applySnapshot(msg) {'), snapPF.indexOf('\n}\n', snapPF.indexOf('function applySnapshot(msg) {')));
+    check('1.6.3 (finding 16, wired): applySnapshot keeps the table held before only where the same GM\'s, empties what it waits for before the new snapshot is laid, hands each campaign the one held before, and asks for the stubs once the map is up; applyItem marks a page that arrives',
+        /var prevSnap = state\.appState && state\.appState\._foreign && mark\.gm && state\.appState\._foreign\.gm === mark\.gm/.test(apS) && /if \(typeof pageWantReset === 'function'\) pageWantReset\(\);\r?\n\s*state\.appState = msg\.appState;/.test(apS)
+        && /snapItems\(cS, prevSnap && typeof cS\.id === 'string' && own\(prevSnap\.campaigns, cS\.id\) \? prevSnap\.campaigns\[cS\.id\] : null\);/.test(apS) && /if \(typeof pageAsk === 'function'\) pageAsk\(net\.snapshotGen\);/.test(apS)
+        && /camp\.items\[msg\.itemId\] = incoming;\r?\n\s*if \(incoming\.type === 'doc' && typeof pageGot === 'function'\) pageGot\(msg\.campId, msg\.itemId, incoming\);/.test(snapPF));
+}
+// 1.6.3 (the multiplayer review, finding 23): a player's connection closing froze the GM for up to two seconds inside its close event. The
+// roster drawn again, the save, the roster sent to the table and the redraw now happen once, a moment later, for every close of that moment
+// (the close handler and the closesoon slice, run for real)
+{
+    const J = j;
+    const clSrc23 = between('// [netcheck:connclose-start]', '// [netcheck:connclose-end]', 'connclose'), csSrc = between('// [netcheck:closesoon-start]', '// [netcheck:closesoon-end]', 'closesoon');
+    const out = { saves: 0, rosters: 0, renders: 0, rosterDraws: 0, toasts: [], logs: [], threw: '' }, timers = [];
+    const net23 = { role: 'host', active: true, conns: [], roster: Object.create(null), targets: {}, applyingRemote: false, leaving: false, code: 'abc' };
+    const env = { net: net23, assetInflight: {}, assetRefs: {}, assetBytes: {}, diceLimit: null, charLimit: null, _lim: {}, _connMeta: {}, lastSeen: {},
+        sensesForget() {}, fogDragSweep() {}, fogForgetConn() {}, videoHang() {}, videoTold() {}, renderRoster() { out.rosterDraws++; }, toast(m) { out.toasts.push(String(m)); }, getActiveCampaign: () => ({ items: {} }), logEvent: (k, m) => out.logs.push(m), startWaitGrace() {}, render() { out.renders++; }, broadcastTargets() {},
+        save() { out.saves++; }, broadcastRoster() { out.rosters++; }, cancelReconnect() {}, setPausedLocal() {}, stopHeartbeat() {}, setIndicator() {}, load() {}, reconn: {}, scheduleReconnect() {}, getProfile: () => ({ name: 'Me' }), window: {}, setTimeout: (fn, ms) => timers.push([fn, ms]) };
+    const names = Object.keys(env);
+    const api = new Function(...names, "'use strict';\n" + csSrc + '\nreturn { closeSoon: closeSoon, close: function(conn) {\n' + clSrc23 + '\n} };')(...names.map(n => env[n]));
+    ['pA', 'pB', 'pS'].forEach(p => net23.conns.push({ peer: p, open: false })); net23.roster.pA = { id: 'u_a', name: 'Ana' }; net23.roster.pB = { id: 'u_b', name: 'Bo' };
+    try { api.close(net23.conns[0]); api.close(net23.conns[0]); api.close(net23.conns[0]); } catch (e) { out.threw = String(e && e.message); }   // Ana, Bo and a stranger the gate never admitted, in one moment
+    const before = [out.saves, out.rosters, out.renders, out.rosterDraws, out.toasts.length, out.logs.length, timers.length];
+    timers.splice(0).forEach(t0 => t0[0]());
+    const after = [out.saves, out.rosters, out.renders, out.rosterDraws];
+    out.saves = out.rosters = out.renders = out.rosterDraws = 0; net23.conns.push({ peer: 'pZ', open: false }); api.close(net23.conns[0]); timers.splice(0).forEach(t0 => t0[0]());
+    const stranger = [out.saves, out.rosters, out.renders, out.rosterDraws];
+    net23.conns.push({ peer: 'pC', open: false }); net23.roster.pC = { id: 'u_c', name: 'Cy' }; out.saves = 0; api.close(net23.conns[0]); net23.active = false; timers.splice(0).forEach(t0 => t0[0]());
+    const ended = [out.saves, out.rosterDraws];
+    check('1.6.3 (the multiplayer review, finding 23) the close handler on the GM\'s machine (connclose and closesoon, run for real): two players and a stranger leaving in one moment are each told and logged at once, but the roster is drawn, the campaign saved, the roster sent and the app drawn ONCE, a moment later, for all of them; a stranger\'s close alone draws the roster and saves, sends and draws nothing; a table that has ended by then saves nothing',
+        out.threw === '' && J(before) === J([0, 0, 0, 0, 2, 2, 1]) && J(after) === J([1, 1, 1, 1]) && J(stranger) === J([0, 0, 0, 1]) && J(ended) === J([0, 2]), J({ before, after, stranger, ended, threw: out.threw }));
+}
 T.finish();

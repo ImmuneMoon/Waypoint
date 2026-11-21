@@ -2003,7 +2003,20 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 window.updateFocusCoord = updateFocusCoord;
 
 
-window.appRender = function() { render(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };   // the strip clears itself outside the play map
+// [onboardcheck:renderbatch-start]
+// 1.6.3 (the multiplayer review, finding 5: giving a player a character froze the GM for about four seconds, two whole redraws of the app of
+// about two seconds each on a large campaign, one asked by the character's change and one by the token it gave them). wpRenderBatch runs one
+// piece of work with every redraw it asks for through window.appRender held, and draws the app ONCE at its end where any was asked. Nothing
+// is drawn half way, so whatever the work changed is drawn as it stands at the end. A batch inside a batch draws at the outer end. A redraw
+// main.js asks of itself (render) is not held
+var _renderHeld = 0, _renderOwed = false;
+window.appRender = function() { if (_renderHeld > 0) { _renderOwed = true; return; } render(); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };   // the strip clears itself outside the play map
+window.wpRenderBatch = function(fn) {
+    _renderHeld++;
+    try { return fn(); }
+    finally { if (--_renderHeld === 0 && _renderOwed) { _renderOwed = false; window.appRender(); } }
+};
+// [onboardcheck:renderbatch-end]
 window.appRestoreCamera = restoreCameraPosition;
 
 export function restoreCameraPosition() {

@@ -175,15 +175,40 @@ if (on) {
     }
     if (hideBtn && bar) hideBtn.addEventListener('click', function() { barFold(!bar.classList.contains('folded')); });
 
+    // [videocheck:streamread-start]
+    // 1.6.3 (the multiplayer review, finding 25): this window read, parsed and drew the whole save every second, on the very machine hosting the
+    // table, and on a large save one tick could still be running when the next began. Now one tick runs at a time (tickBusy), and the save is
+    // read only when the main window says it wrote one (its 'save-done' word on the app's own channel, counted in saveSeen), when a hold of the
+    // stream changed (readNow), or at the latest every STREAM_READ_MS as a fallback. A read whose text is the very text read before is not
+    // parsed again, and the copy for players is made again only when the save changed: the tick keeps its one-second step for the idle
+    // follow and the camera, on the copy it holds. streamRead answers { data, clean, changed }, or null where there is no save to show
+    var STREAM_READ_MS = 5000, tickBusy = false, saveSeen = 0, readSeen = -1, readAt = 0, readNow = false, readText = '', readData = null, readClean = null;
+    async function streamRead(now) {
+        var due = !readData || readNow || readSeen !== saveSeen || now - readAt >= STREAM_READ_MS;
+        if (!due) return { data: readData, clean: readClean, changed: false };
+        var seenAt = saveSeen, text;
+        try { var res = await fetch('/api/data', { cache: 'no-store' }); text = await res.text(); } catch (e) { return null; }
+        readAt = now; readSeen = seenAt; readNow = false;
+        if (readData && text === readText) return { data: readData, clean: readClean, changed: false };
+        var data; try { data = JSON.parse(text); } catch (e) { return null; }
+        if (!data || !data.campaigns || !Object.keys(data.campaigns).length) return null;
+        readText = text; readData = data; readClean = net.sanitizeAppState(data);
+        return { data: readData, clean: readClean, changed: true };
+    }
     async function tick() {
+        if (tickBusy) return;   // the last tick is still reading: this one is passed over, never run beside it
+        tickBusy = true;
+        try { await tickRun(); } finally { tickBusy = false; }
+    }
+    // [videocheck:streamread-end]
+    async function tickRun() {
         if (streamWebJoin()) return;   // 1.5.5: nothing is asked of a website that joins tables alone
         if (typeof held !== 'undefined' && held === 'freeze') return;   // backlog 34: a frozen picture reads nothing of the table
-        var data;
-        try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }
-        if (!data || !data.campaigns || !Object.keys(data.campaigns).length) return;
+        var rd = await streamRead(Date.now()); if (!rd) return;
+        var data = rd.data, saveMoved = rd.changed;
         var seenBy = Object.create(null); Object.keys(data.campaigns).forEach(function(id) { seenBy[id] = lastSeen(data.campaigns[id]); });
         var rawTk = data.activeCampaignId && data.campaigns[data.activeCampaignId] ? data.campaigns[data.activeCampaignId] : null;   // backlog 29: the trackers, read before the copy for players drops them
-        var clean = net.sanitizeAppState(data);
+        var clean = rd.clean;
         var campId = clean.activeCampaignId && clean.campaigns[clean.activeCampaignId] ? clean.activeCampaignId : Object.keys(clean.campaigns)[0];
         var camp = clean.campaigns[campId];
         campName = String(camp && camp.name || '').slice(0, 80);   // backlog 34: the name a cover card shows, as text
@@ -241,11 +266,11 @@ if (on) {
             var m = camp.items[want]; m.meta = m.meta || {};
             if (camKey !== lastCam) { m.meta.lastWbX = cx; m.meta.lastWbY = cy; m.meta.lastWbZoom = FOCUS_ZOOM; }
             if (key !== lastKey) { lastKey = key; net.applyStage({ campId: campId, itemId: want }); }
-            else { if (window.appRender) window.appRender(); if (camKey !== lastCam && window.appRestoreCamera) window.appRestoreCamera(); }
+            else { if (window.appRender && (saveMoved || camKey !== lastCam)) window.appRender(); if (camKey !== lastCam && window.appRestoreCamera) window.appRestoreCamera(); }   // finding 25: drawn again only where the save or the camera moved
             lastCam = camKey;
         } else {
             if (key !== lastKey) { lastKey = key; net.applyStage({ campId: campId, itemId: want }); }
-            else { if (window.appRender) window.appRender(); if (camBack && window.appRestoreCamera) window.appRestoreCamera(); }
+            else { if (window.appRender && (saveMoved || camBack)) window.appRender(); if (camBack && window.appRestoreCamera) window.appRestoreCamera(); }
         }
         refreshSelect(camp);
         refreshCharSelect(camp);
@@ -258,6 +283,8 @@ if (on) {
     }
     try {
         var hChan = new BroadcastChannel('waypoint');
+        hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'save-done') saveSeen++; });   // finding 25: the main window wrote the save: the next tick reads it
+        hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'stream-hold') readNow = true; });   // and a hold that changed reads it afresh too
         hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'stream-hold') holdApply(e.data.mode, document, function() { tick(); try { hChan.postMessage({ type: 'video-stage-query' }); hChan.postMessage({ type: 'scene-stage-query' }); } catch (er) {} }); });
         hChan.addEventListener('message', function(e) { if (e.data && e.data.type === 'gm-view') { gmView = gmViewOf(e.data.view); gmViewAt = Date.now(); } });   // 1.6.2: which view the GM is on, for the idle follow
         hChan.postMessage({ type: 'stream-hold-query' }); hChan.postMessage({ type: 'gm-view-query' });

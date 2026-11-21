@@ -1563,6 +1563,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
             else saveNote.innerHTML = 'Error saving.';
             if (res.ok && docTold) { try { docTold(); } catch (e) {} }   // and each window whose page changed is told, once that save is on disk
+            if (res.ok && typeof saveTold === 'function') saveTold();   // 1.6.3 (the multiplayer review, finding 25): the stream window reads the save only once one is written
 
         })
 
@@ -1600,13 +1601,20 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // table's sync, the file. saveView stamps nothing, records nothing and tells no one. The view reaches the disk with the next real save, or by
   // itself a moment after it comes to rest, on a machine that owns this save; a player's app, the stream window and a pop-out write nothing.
   var viewTimeout;
+  // 1.6.3 (the multiplayer review, finding 25): every save this machine writes says so on the app's own channel ('save-done'), which the stream
+  // window reads in place of reading the whole save every second. The channel is made at the first save (declared with no value: a module io.js
+  // imports may call into io.js before its top level has run). Nothing of the save travels: only that one was written
+  var _saveChan;
+  function saveTold() {
+    try { if (!_saveChan && typeof BroadcastChannel === 'function') _saveChan = new BroadcastChannel('waypoint'); if (_saveChan) _saveChan.postMessage({ type: 'save-done' }); } catch (e) {}
+  }
 
   function saveView() {
     clearTimeout(viewTimeout);
     if (!canPersistLocal()) return;
     viewTimeout = setTimeout(function() {
         if (savePending || !canPersistLocal()) return;   // a real save is on its way and carries the view; or the table changed hands meanwhile
-        fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: typeof saveBody === 'function' ? saveBody(null) : JSON.stringify(state.appState) }).then(function() {}, function() {});   // 1.6.3 (finding 25): the same bytes, its unchanged items' parts kept
+        fetch('/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: typeof saveBody === 'function' ? saveBody(null) : JSON.stringify(state.appState) }).then(function(r) { if (r && r.ok && typeof saveTold === 'function') saveTold(); }, function() {});   // 1.6.3 (finding 25): the same bytes, its unchanged items' parts kept
     }, 2000);
   }
 

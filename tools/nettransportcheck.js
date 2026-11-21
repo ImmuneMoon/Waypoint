@@ -569,6 +569,23 @@ pendingChecks.push((async () => {
             /if \(!wireGuard\(conn\)\) \{[^\n]*try \{ conn\.close\(\); \} catch \(e\) \{\} return false; \}[^\n]*\n\s*conn\.on\('iceStateChanged'/.test(wcS) && (noCm(src).match(/wireConn\(conn\)/g) || []).length === 3
             && /peer\.on\('connection', function\(conn\) \{\s*if \(!connShapeOk\(conn\) \|\| !wireGuard\(conn\) \|\| !unadmittedRoom\(conn\)\) \{ try \{ conn\.close\(\); \} catch \(e\) \{\} return; \}[^\n]*\n\s*net\.conns\.push\(conn\);/.test(src));
     }
+    /* ---- 1.6.3 (the multiplayer review, finding 3): every piece the guard passes on a seated connection is a sign of life. A join snapshot or a
+       large picture that takes longer than the heartbeat's 20 s to arrive in pieces no longer reads as a lost GM (the transport slice, run for
+       real with a noteSeen of the suite's own) ---- */
+    {
+        const seen = [], order = [];
+        const mkTs = (role, roster) => { const net = { role, roster: roster || Object.create(null) }; return new Function('net', 'own', 'noteSeen', trSrc + '\nreturn { wireGuard: wireGuard };')(net, H.own, peer => { seen.push(peer); order.push('seen'); }); };
+        const big = tp({ type: 'snapshot', s: 'x'.repeat(16300 * 5) }), parts = piecesOf(big, 11);
+        const run = (role, roster) => { seen.length = 0; order.length = 0; const T = mkTs(role, roster), c = mkC('pX'); c.on('data', m => order.push('msg:' + m.type)); T.wireGuard(c); const each = []; parts.forEach(pc => { c.deliver(pc); each.push(seen.length); }); return { each, got: c.got.map(m => m.type), closed: c.closed, order: order.slice() }; };
+        const seatedR = () => { const ro = Object.create(null); ro.pX = { id: 'u_x', name: 'X' }; return ro; };
+        const host = run('host', seatedR()), waiting = run('host', null), client = run('client', null);
+        const hold = (() => { seen.length = 0; order.length = 0; const T = mkTs('host', seatedR()), c = mkC('pX'); c.on('data', m => order.push('msg:' + m.type)); T.wireGuard(c); c.deliver(tp({ type: 'hold', ms: 5000 })); return order.join(); })();
+        check('1.6.3 (the multiplayer review, finding 3) the guard on a connection, run for real: each piece of a large message that passes it on a seated connection counts as a sign of life (noteSeen), one piece at a time, before the message is whole, on the GM\'s side for an admitted player and on a player\'s side for the host; a connection the GM has not admitted counts nothing here; a piece is counted before it is read, so a hold word inside it still sets its wait after',
+            parts.length === 6 && J(host.each) === J([1, 2, 3, 4, 5, 6]) && J(host.got) === J(['snapshot']) && host.closed === 0 && J(client.each) === J([1, 2, 3, 4, 5, 6]) && J(client.got) === J(['snapshot']) && J(waiting.each) === J([0, 0, 0, 0, 0, 0]) && hold === 'seen,msg:hold',
+            J({ host, waiting, client, hold }));
+        check('1.6.3 (finding 3, wired): the guard counts a piece before it hands it on, only while it is not a nested whole and only on a seated connection, and asks noteSeen through typeof',
+            /if \(!nested && seated && typeof noteSeen === 'function'\) noteSeen\(conn\.peer\);\r?\n\s*depth\+\+;/.test(trSrc));
+    }
     // where the library's own file is in the repository (or named by WP_PEERJS), the same guard runs on its real connection class
     {
         const findPeer = () => { if (process.env.WP_PEERJS && fs.existsSync(process.env.WP_PEERJS)) return process.env.WP_PEERJS; const root = path.join(__dirname, '..', 'system', 'app'), stack = [root]; let n = 0;

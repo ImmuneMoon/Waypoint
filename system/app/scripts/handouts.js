@@ -1399,9 +1399,51 @@ if (_jList) {
 function handoutsOf(camp) { camp.handouts = camp.handouts || {}; camp.handoutReveals = camp.handoutReveals || {}; return camp.handouts; }
 window.wpHandoutList = function() { var c = getActiveCampaign(); return c ? Object.values(handoutsOf(c)) : []; };
 
-// Bytes for the wire: the picture resized to MAX_EDGE on its long side
+// Bytes for the wire: the picture resized to MAX_EDGE on its long side.
+// 1.6.3 (the multiplayer review, finding 9): a picture handout was decoded, drawn and encoded again for each player at every rejoin. Its bytes
+// are now kept, by the handout and its picture, for the rest of this run of the app (_payKept, the newest PAY_KEPT handouts), so a second
+// player, a rejoin or the list of what was shown (wpHandoutHave) reuses them. A handout given another picture is another key
+var _payKept = new Map(), PAY_KEPT = 64;
 window.wpHandoutPayload = function(h) {
     if (h.kind === 'text') return Promise.resolve({ kind: 'text', text: String(h.text || '').slice(0, 60000) });
+    var pk = String(h.id) + '\n' + String(h.src);
+    if (_payKept.has(pk)) return _payKept.get(pk);
+    var made = payloadPic(h);
+    _payKept.set(pk, made); while (_payKept.size > PAY_KEPT) _payKept.delete(_payKept.keys().next().value);   // the oldest goes first
+    made.catch(function() { if (_payKept.get(pk) === made) _payKept.delete(pk); });   // a picture that failed is tried afresh next time
+    return made;
+};
+// [netcheck:handoutsig-start]
+// What a player's Journal holds of one handout, as one text both sides can make (finding 9): the kind, its picture's hash (hashBytes, the very
+// hash the Journal keeps) or its words' (hashText), and its title, caption and tags as the Journal stores them. The host lists what it showed a
+// player this way on a rejoin (wpHandoutHave), and the player's app answers with the ids whose page it lacks or holds otherwise (wpHandoutWants),
+// so only those are sent again, where every picture went again before
+function hashText(s) {
+    var h = 0x811c9dc5; s = String(s || '');
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16) + '-' + s.length.toString(16);
+}
+function handoutSig(kind, hash, title, caption, tags) { return kind + '|' + hash + '|' + hashText(title) + '|' + hashText(caption) + '|' + (Array.isArray(tags) ? tags : []).join(','); }
+function entrySig(e) {   // a page of the Journal, as handoutSig reads it
+    if (!e) return '';
+    if (e.kind === 'text') return handoutSig('t', hashText(String(e.text || '')), String(e.title || ''), String(e.caption || ''), e.tags);
+    return typeof e.hash === 'string' ? handoutSig('p', e.hash, String(e.title || ''), String(e.caption || ''), e.tags) : '';   // a page from before versions has no hash: always asked for again, as its replay refreshed it
+}
+window.wpHandoutHave = function(h) {   // the host: { id, s } for one handout it showed, as the player's Journal would hold it once received
+    return window.wpHandoutPayload(h).then(function(pl) {
+        var title = String(h.title || 'Handout').slice(0, 120), caption = String(h.caption || '').slice(0, 4000), tags = tagList((h.tags || []).slice(0, 8));
+        return { id: h.id, s: pl.kind === 'text' ? handoutSig('t', hashText(String(pl.text || '').slice(0, 60000)), title, caption, tags) : handoutSig('p', hashBytes(pl.data instanceof Uint8Array ? pl.data : new Uint8Array(pl.data)), title, caption, tags) };
+    });
+};
+window.wpHandoutWants = async function(msg) {   // a player's app: of the host's list, the ids whose page this Journal lacks or holds in another form
+    var campId = journalKey(msg); if (!campId || !Array.isArray(msg.list)) return [];
+    await journalDisk();
+    var idx = await readIndex(campId), out = [];
+    msg.list.forEach(function(x) { var id = x && typeof x.id === 'string' ? safeId(x.id) : ''; if (!id || typeof x.s !== 'string') return; if (entrySig(latestOf(idx, id, '')) !== x.s) out.push(x.id); });
+    return out;
+};
+// [netcheck:handoutsig-end]
+function payloadPic(h) {
     return new Promise(function(resolve, reject) {
         var img = new Image();
         img.onload = function() {

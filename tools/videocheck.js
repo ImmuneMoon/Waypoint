@@ -370,9 +370,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const net = { sanitizeAppState(d) { const c = JSON.parse(J(d)); Object.values(c.campaigns).forEach(cp => { delete cp.players; Object.keys(cp.items).forEach(id => { const m = cp.items[id]; if (m.type === 'planner') { delete cp.items[id]; return; } if (m.meta) { delete m.meta.lastWbX; delete m.meta.lastWbY; delete m.meta.lastWbZoom; } }); const act = cp.items[cp.activeItemId]; if (!act || act.type !== 'map') cp.activeItemId = Object.keys(cp.items).find(id => cp.items[id].type === 'map') || null; }); return c; }, applyStage(st) { state.appState.campaigns[st.campId].activeItemId = st.itemId; } };
             const win = { appRender() {}, appRestoreCamera() {}, addEventListener() {} };
             let data = saveOf('mA'), tickFn = null;
-            new Function('state', 'net', 'characterList', 'locateCharacter', 'esc', 'window', 'document', 'localStorage', 'fetch', 'BroadcastChannel', 'setInterval', 'setTimeout', 'location', src)(state, net, models.characterList, models.locateCharacter, x => String(x), win, document, { getItem: k => (k in store ? store[k] : null), setItem(k, v) { store[k] = String(v); } }, async () => ({ json: async () => JSON.parse(J(data)) }), BC, fn => { tickFn = fn; }, () => {}, { search: '?stream=1', reload() {} });
+            new Function('state', 'net', 'characterList', 'locateCharacter', 'esc', 'window', 'document', 'localStorage', 'fetch', 'BroadcastChannel', 'setInterval', 'setTimeout', 'location', src)(state, net, models.characterList, models.locateCharacter, x => String(x), win, document, { getItem: k => (k in store ? store[k] : null), setItem(k, v) { store[k] = String(v); } }, async () => ({ text: async () => J(data), json: async () => JSON.parse(J(data)) }), BC, fn => { tickFn = fn; }, () => {}, { search: '?stream=1', reload() {} });
             const showing = () => { const cp = state.appState.campaigns[state.appState.activeCampaignId], m = cp.items[cp.activeItemId]; return cp.activeItemId + '@' + [m.meta && m.meta.lastWbX, m.meta && m.meta.lastWbY, m.meta && m.meta.lastWbZoom].join(','); };
-            return { els, showing, say: v => chans.forEach(c => c._l.forEach(fn => fn({ data: { type: 'gm-view', view: v } }))), setData: d => { data = d; }, tick: async tm => { nowMs = tm; await tickFn(); await new Promise(r => setImmediate(r)); },
+            return { els, showing, say: v => chans.forEach(c => c._l.forEach(fn => fn({ data: { type: 'gm-view', view: v } }))), setData: d => { data = d; chans.forEach(c => c._l.forEach(fn => fn({ data: { type: 'save-done' } }))); },   /* 1.6.3 (finding 25): a save of the main window says so */ tick: async tm => { nowMs = tm; await tickFn(); await new Promise(r => setImmediate(r)); },
                 pan(x, y, z) { const cp = state.appState.campaigns[state.appState.activeCampaignId], m = cp.items[cp.activeItemId]; m.meta = m.meta || {}; m.meta.lastWbX = x; m.meta.lastWbY = y; m.meta.lastWbZoom = z; } };
         };
         // the GM leaves the play map of A at 1 s and the main window says so every 5 s until stopAt
@@ -447,6 +447,31 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && st.includes("return gridOpacityFor(v, sg, !!window.wpStream);") && st.includes("if (e.key === 'wp_streamGrid' || e.key === 'wp_gridOpacity') applyGridOpacity();"));
     }
 
+    // 1.6.3 (the multiplayer review, finding 25): the stream window read, parsed and drew the whole save every second, and a slow tick could run
+    // beside the next. Now one tick runs at a time, the save is read only when the main window says it wrote one, a hold changed, or every 5 s,
+    // and the copy for players is made again only when what was read changed (stream.js's streamread slice, run for real on a clock of its own)
+    {
+        const sj25 = read('system/app/scripts/stream.js'), a25 = sj25.indexOf('    // [videocheck:streamread-start]'), b25 = sj25.indexOf('    // [videocheck:streamread-end]');
+        const log = { fetch: 0, made: 0, runs: 0 }; let text = '{"campaigns":{"k":{"id":"k"}}}', hold = null;
+        const api = new Function('fetch', 'net', 'tickRun', sj25.slice(a25, b25) + '\nreturn { read: streamRead, tick: tick, saved: function() { saveSeen++; }, hold: function() { readNow = true; } };')(
+            async () => { log.fetch++; return { text: async () => text }; }, { sanitizeAppState: d => { log.made++; return { copy: d }; } }, () => { log.runs++; return hold || Promise.resolve(); });
+        const steps = [];
+        await (async () => {
+            const r1 = await api.read(1000); steps.push([log.fetch, log.made, r1.changed]);
+            const r2 = await api.read(2000); steps.push([log.fetch, log.made, r2.changed, r2.clean === r1.clean]);   // nothing said: the copy held, nothing read
+            api.saved(); const r3 = await api.read(3000); steps.push([log.fetch, log.made, r3.changed]);   // a save that changed nothing: read, not made again
+            text = '{"campaigns":{"k":{"id":"k","name":"New"}}}'; api.saved(); const r4 = await api.read(4000); steps.push([log.fetch, log.made, r4.changed, r4.data.campaigns.k.name]);
+            text = '{"campaigns":{"k":{"id":"k","name":"Newer"}}}'; const r5 = await api.read(6000); const r6 = await api.read(9100); steps.push([log.fetch, log.made, r5.changed, r6.changed]);   // the 5 s fallback
+            api.hold(); await api.read(9200); steps.push([log.fetch]);   // a hold that changed reads afresh
+            text = 'not json'; api.saved(); steps.push([await api.read(9300), log.made]);
+            let release; hold = new Promise(r => { release = r; }); const t1 = api.tick(); const t2 = api.tick(); await t2; steps.push([log.runs]); release(); await t1; hold = null; await api.tick(); steps.push([log.runs]);   // a tick while one runs is passed over
+            const rd = sj25.slice(sj25.indexOf('    async function tickRun() {'));
+            check('1.6.3 (the multiplayer review, finding 25) the stream window\'s reading (stream.js streamRead and tick, run for real): the save is read once and then only once the main window says it wrote one, a hold changed or five seconds passed; a read of the same text makes no new copy; a text that is no save is none; a tick while the last one still runs is passed over; the board is drawn again only where the save or the camera moved, and the main window says each save it wrote',
+                j(steps) === j([[1, 1, true], [1, 1, false, true], [2, 1, false], [3, 2, true, 'New'], [4, 3, false, true], [5], [null, 3], [1], [2]])
+                && /if \(window\.appRender && \(saveMoved \|\| camKey !== lastCam\)\) window\.appRender\(\);/.test(rd) && /if \(window\.appRender && \(saveMoved \|\| camBack\)\) window\.appRender\(\);/.test(rd)
+                && /if \(e\.data && e\.data\.type === 'save-done'\) saveSeen\+\+;/.test(sj25) && /if \(res\.ok && typeof saveTold === 'function'\) saveTold\(\);/.test(read('system/app/scripts/io.js')), j(steps));
+        })().catch(e => check('1.6.3 (finding 25) the stream reading checks ran', false, String(e && e.stack || e)));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -484,6 +484,13 @@ function tokenSpotOf(camp, pid, charId) {
 // player's token, a new character from one, an outside sheet reader) comes here, and so does taking one away (pid ''). o: { play (default on:
 // the newly given character is the one they play, the one they played before is kept), keep (the token that wins) }. GM side only.
 function giveCharacter(pid, charId, o) {
+    // 1.6.3 (the multiplayer review, finding 5): the character's own change and the token it gives each asked for a whole redraw of the app,
+    // about two seconds each on a large campaign: the work runs with its redraws held and the app is drawn once at its end (main.js
+    // wpRenderBatch); with no batch at hand it runs as before
+    var batch = typeof window !== 'undefined' && typeof window.wpRenderBatch === 'function' ? window.wpRenderBatch : function(fn) { return fn(); };
+    return batch(function() { return giveCharacterNow(pid, charId, o); });
+}
+function giveCharacterNow(pid, charId, o) {
     var camp = getActiveCampaign(), c = charById(charId, camp); if (!camp || !c) return false;
     if (c.template === true && pid) return false;   // 1.6.2 (backlog 227): no player plays a template
     o = o || {}; pid = pid && okPid(pid) ? pid : '';

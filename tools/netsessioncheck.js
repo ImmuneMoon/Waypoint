@@ -976,8 +976,11 @@ pendingChecks.push((async () => {
         const onLine = (stJs.match(/\nconst on = [^\n]*\n/) || [''])[0];
         const onRun = (search, Wm) => { try { return new Function('window', 'location', 'URLSearchParams', swSrc + onLine + '\nreturn on;')({ wpWebMode: Wm }, { search }, URLSearchParams); } catch (e) { return 'threw: ' + e.message; } };
         const ons = [onRun('?stream=1', undefined), onRun('?stream=1', { joinOnly: () => true }), onRun('?stream=1', { joinOnly: () => false }), onRun('', undefined), onRun('', { joinOnly: () => true }), onRun('?stream=1', { joinOnly: () => 'yes' })];
-        const tkA = stJs.indexOf('    async function tick() {\n'), tkB = stJs.indexOf('        if (!data || !data.campaigns', tkA), tickHead = tkA >= 0 && tkB > tkA ? stJs.slice(tkA, tkB) : '';
-        const tickRun = async Wm => { const asked = []; try { const tk = new Function('window', 'fetch', swSrc + tickHead + "        return 'went on';\n    }\n    return tick;")({ wpWebMode: Wm }, u => { asked.push(u); return Promise.resolve({ json: () => Promise.resolve({}) }); }); const r = await tk(); return (r || 'stopped') + ':' + asked.join(); } catch (e) { return 'threw: ' + e.message; } };
+        // 1.6.3 (the multiplayer review, finding 25), moved on purpose: the tick reads the save through streamRead (its slice, with the guard that runs
+        // one tick at a time) and goes on in tickRun; the fetch hands back the save's text
+        const srA = stJs.indexOf('    // [videocheck:streamread-start]'), srB = stJs.indexOf('    // [videocheck:streamread-end]'), srSrc = srA >= 0 && srB > srA ? stJs.slice(srA, srB) : '';
+        const tkA = stJs.indexOf('    async function tickRun() {\n'), tkB = stJs.indexOf('        var data = rd.data', tkA), tickHead = tkA >= 0 && tkB > tkA ? stJs.slice(tkA, tkB) : '';
+        const tickRun = async Wm => { const asked = []; try { const tk = new Function('window', 'fetch', 'net', swSrc + srSrc + tickHead + "        return 'went on';\n    }\n    return tickRun;")({ wpWebMode: Wm }, u => { asked.push(u); return Promise.resolve({ text: () => Promise.resolve('{"campaigns":{"k":{}}}') }); }, { sanitizeAppState: d => d }); const r = await tk(); return (r || 'stopped') + ':' + asked.join(); } catch (e) { return 'threw: ' + e.message; } };
         const ticks = [await tickRun({ joinOnly: () => true }), await tickRun({ joinOnly: () => false }), await tickRun(undefined)];
         check('1.5.5 plan-aware mode, no stream window (stream.js run for real): ?stream=1 opens the GM\'s stream window on a desktop as before and none on a website whose plan joins tables alone, only an answer of true counting; a stream window opened before the site\'s answer said so asks the server for nothing at its next tick; main.js shows such a page the join page',
             !!swSrc && j(ons) === j([true, false, true, false, false, true]) && j(ticks) === j(['stopped:', 'went on:/api/data', 'went on:/api/data'])
@@ -1839,4 +1842,62 @@ pendingChecks.push((async () => {
         same.every(Boolean) && callsB <= Math.min(200, big.length) && keptB > 0 && outB.length <= 1500000 && mkO(lists[2])() === '[]' && JSON.parse(mkO(lists[3])()).length === 1, j({ same, callsB, keptB }));
 }
 
+// 1.6.3 (the multiplayer review, finding 9): a rejoin sent every picture handout a player was ever shown again. The host now lists them
+// (wpHandoutHave) and the player's app answers with the ids whose page its Journal lacks or holds otherwise (wpHandoutWants); the host sends
+// only those (the handoutsig slice of handouts.js and the handouthave and handoutwant branches of net.js, each run for real)
+pendingChecks.push((async () => { try {
+    const J = JSON.stringify;
+    const hoT9 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'handouts.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cut9 = (a, b) => { const i = hoT9.indexOf(a), k = hoT9.indexOf(b); if (i < 0 || k < i) throw new Error('handouts.js markers ' + a); return hoT9.slice(i + a.length, k); };
+    const jSrc = cut9('// [netcheck:journal-start]', '// [netcheck:journal-end]'), sigSrc = cut9('// [netcheck:handoutsig-start]', '// [netcheck:handoutsig-end]');
+    const files = new Map(), ls = new Map(), pay = Object.create(null);
+    const localStorage = { getItem: k => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => { ls.set(k, String(v)); }, removeItem: k => { ls.delete(k); } };
+    const fetch = async (u, init) => { u = String(u);
+        if (u.indexOf('/api/upload-exact?path=') === 0) { files.set(decodeURIComponent(u.slice('/api/upload-exact?path='.length)), init.body); return { ok: true }; }
+        if (u.indexOf('/saves/images/journal/') === 0) { const p = 'images/journal/' + u.slice('/saves/images/journal/'.length); if (!files.has(p)) return { ok: false, status: 404 }; const b = files.get(p); return { ok: true, headers: { get: () => String(String(b).length) }, json: async () => JSON.parse(String(b)) }; }
+        return { ok: false, status: 404 }; };
+    let now9 = 1700000000000;
+    const win9 = { wpHandoutPayload: h => Promise.resolve(pay[h.id]) };
+    const env = { fetch, localStorage, document: { getElementById: () => null }, toast() {}, esc: s => String(s), showHandout() {}, handoutPopup: () => false, window: win9, FileReader: function() {}, Blob: function() {}, Date: { now: () => (now9 += 7) } };
+    const names = Object.keys(env);
+    const api = new Function(...names, "'use strict';\n" + jSrc + '\n' + sigSrc + '\nreturn { receive: receiveHandout };')(...names.map(n => env[n]));
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4, 5, 6, 7, 8]), png2 = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9, 9]);
+    const base = { type: 'handout', campId: 'camp1', gmId: 'u_gm', campaign: 'The Camp', gm: 'Gina' };
+    await api.receive(Object.assign({}, base, { id: 'h_pic', title: 'Map of Riv', caption: 'Old', mime: 'image/png', data: png, tags: ['maps'] }));
+    await api.receive(Object.assign({}, base, { id: 'h_txt', kind: 'text', title: 'Letter', caption: '', text: 'Dear Kael', tags: [] }));
+    const H9 = (id, o) => Object.assign({ id, title: '', caption: '', tags: [] }, o);
+    pay.h_pic = { mime: 'image/png', data: png }; pay.h_txt = { kind: 'text', text: 'Dear Kael' }; pay.h_new = { kind: 'text', text: 'New' };
+    const have = async hs => Promise.all(hs.map(h => win9.wpHandoutHave(h)));
+    const list1 = await have([H9('h_pic', { title: 'Map of Riv', caption: 'Old', tags: ['maps'], src: '/x.png' }), H9('h_txt', { kind: 'text', title: 'Letter', text: 'Dear Kael' }), H9('h_new', { kind: 'text', title: 'Fresh', text: 'New' })]);
+    const want1 = await win9.wpHandoutWants({ campId: 'camp1', gmId: 'u_gm', list: list1 });
+    const list2 = await have([H9('h_pic', { title: 'Map of Riv', caption: 'New caption', tags: ['maps'], src: '/x.png' })]);
+    const want2 = await win9.wpHandoutWants({ campId: 'camp1', gmId: 'u_gm', list: list2 });
+    pay.h_pic = { mime: 'image/png', data: png2 }; const list3 = await have([H9('h_pic', { title: 'Map of Riv', caption: 'Old', tags: ['maps'], src: '/y.png' })]);
+    const want3 = await win9.wpHandoutWants({ campId: 'camp1', gmId: 'u_gm', list: list3 });
+    const want4 = await win9.wpHandoutWants({ campId: 'camp1', gmId: 'u_other', list: list1 });   // another GM's journal holds none of them
+    check('1.6.3 (the multiplayer review, finding 9) a rejoin\'s list of handouts (handouts.js wpHandoutHave and wpHandoutWants, run for real on a Journal that received a picture and a page): the player\'s app asks only for what its Journal lacks or holds in another form, a new handout, one whose caption changed, one whose picture changed, every one in another GM\'s journal, and none it holds as shown',
+        J(want1) === J(['h_new']) && J(want2) === J(['h_pic']) && J(want3) === J(['h_pic']) && J(want4) === J(['h_pic', 'h_txt', 'h_new']) && list1.every(x => typeof x.s === 'string' && x.s.length < 400), J({ want1, want2, want3, want4, list1 }));
+    // the host's handoutwant branch: only ids it showed that very player, each once, 400 ms apart
+    const hwSrc = between('// [netcheck:handoutwant-start]', '// [netcheck:handoutwant-end]', 'handoutwant');
+    const sentH = [], timers = [];
+    const campW = { id: 'camp1', handouts: { a: { id: 'a' }, b: { id: 'b' }, c: { id: 'c' } }, handoutReveals: { u_a: { a: 1, b: 1 }, u_b: { c: 1 } } };
+    const netW = { roster: { pA: { id: 'u_a', name: 'Ana' } } };
+    const runW = (msg, peer, allowOk) => new Function('msg', 'conn', 'net', 'getActiveCampaign', 'allow', 'own', 'handoutReplay', 'setTimeout', "'use strict';\n" + hwSrc)(msg, { peer }, netW, () => campW, () => allowOk !== false, H.own, (c, cp, h) => sentH.push(c.peer + ':' + h.id), (fn, ms) => timers.push([fn, ms]));
+    runW({ campId: 'camp1', ids: ['b', 'c', 'zz', 'a', 'b', 7, '__proto__'] }, 'pA'); const gaps = timers.map(x => x[1]); timers.splice(0).forEach(x => x[0]());
+    const one = sentH.splice(0);
+    runW({ campId: 'other', ids: ['a'] }, 'pA'); runW({ campId: 'camp1', ids: ['a'] }, 'pStranger'); runW({ campId: 'camp1', ids: ['a'] }, 'pA', false); runW({ campId: 'camp1', ids: 'a' }, 'pA');
+    timers.splice(0).forEach(x => x[0]());
+    check('1.6.3 (finding 9) the host\'s handout-want branch (net.js, run for real): it sends again only the handouts its own record says it showed that very player, each once, 400 ms apart; nothing for another campaign, a connection not at the table, an ask past the limit or an ask that is no list',
+        J(one) === J(['pA:b', 'pA:a']) && J(gaps) === J([0, 400]) && sentH.length === 0, J({ one, gaps, more: sentH }));
+    const hhSrc = between('// [netcheck:handouthave-start]', '// [netcheck:handouthave-end]', 'handouthave');
+    const asks = [];
+    const runH = async (msg, netO, wants) => { const out = []; new Function('msg', 'conn', 'net', 'state', 'window', 'sendFailed', "'use strict';\n" + hhSrc)(msg, { peer: 'room', open: true, send: m => out.push(m) }, netO, { appState: { activeCampaignId: 'camp1' } }, { wpHandoutWants: async m => { asks.push(m.list.length); return wants; } }, () => {}); await new Promise(r => setTimeout(r, 0)); return out.map(m => m.type + ':' + m.ids.join()); };
+    const okNet = { foreign: true, syncedPeer: 'room', stream: false, gmId: 'u_gm' }, hv = { campId: 'camp1', gmId: 'u_gm', list: [{ id: 'a', s: 'x' }, { id: 'b', s: 'y' }, { id: 7, s: 'z' }] };
+    const gate = [await runH(hv, okNet, ['a']), await runH(hv, okNet, []), await runH(hv, Object.assign({}, okNet, { syncedPeer: 'other' }), ['a']), await runH(Object.assign({}, hv, { gmId: 'u_x' }), okNet, ['a']), await runH(Object.assign({}, hv, { campId: 'nope' }), okNet, ['a']), await runH(hv, Object.assign({}, okNet, { stream: true }), ['a'])];
+    check('1.6.3 (finding 9) a player\'s handout-have branch (net.js, run for real): from the synced host, for the campaign on screen and the GM of the snapshot, it answers with the ids its Journal wants and nothing where it wants none; an entry that is no id is left out; nothing from another host, GM or campaign, nor in the stream window',
+        J(gate) === J([['handout-want:a'], [], [], [], [], []]) && J(asks) === J([2, 2]), J({ gate, asks }));
+    const nw = src.replace(/\r\n/g, '\n');
+    check('1.6.3 (finding 9, wired): a rejoin lists the handouts shown, one after another, and sends no picture by itself; the picture\'s bytes are made once a run (wpHandoutPayload keeps them)',
+        /if \(window\.wpHandoutHave\) \{\n\s*setTimeout\(function\(\) \{\n\s*var listH = \[\], i = 0, step = function\(\) \{/.test(nw) && /conn\.send\(\{ type: 'handout-have', campId: camp\.id, gmId: /.test(nw) && /var _payKept = new Map\(\), PAY_KEPT = 64;/.test(hoT9) && /if \(_payKept\.has\(pk\)\) return _payKept\.get\(pk\);/.test(hoT9));
+} catch (e) { check('1.6.3 (finding 9) the handout checks ran', false, String(e && e.stack || e)); } })());
 T.finish();

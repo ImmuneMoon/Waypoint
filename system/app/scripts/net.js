@@ -1220,7 +1220,7 @@ function tokBarsTell() {
 // through a live import: a part may not assign a name of its root.
 var _lastSent = {};   // itemId → the sanitized item as last broadcast by this host
 // [split:netfog.js]
-var _netFog = netFog(), SHOW_ASK_MOST = _netFog.SHOW_ASK_MOST, _lastPatchHash = _netFog._lastPatchHash, _sensesAt = _netFog._sensesAt, _sensesSig = _netFog._sensesSig, ackIn = _netFog.ackIn, ackSend = _netFog.ackSend, ackTook = _netFog.ackTook, actForget = _netFog.actForget, actNext = _netFog.actNext, actNote = _netFog.actNote, actPos = _netFog.actPos, activeItemPatch = _netFog.activeItemPatch, anyFog = _netFog.anyFog, applyClientItemFiltered = _netFog.applyClientItemFiltered, applyFogDiff = _netFog.applyFogDiff, applyItem = _netFog.applyItem, applyItemDelta = _netFog.applyItemDelta, applySnapshot = _netFog.applySnapshot, applyStage = _netFog.applyStage, broadcast = _netFog.broadcast, currentStage = _netFog.currentStage, defaultStageMode = _netFog.defaultStageMode, fogArm = _netFog.fogArm, fogCatchUp = _netFog.fogCatchUp, fogCopyFor = _netFog.fogCopyFor, fogDiffId = _netFog.fogDiffId, fogDragSweep = _netFog.fogDragSweep, fogDrop = _netFog.fogDrop, fogFilterClean = _netFog.fogFilterClean, fogForgetAll = _netFog.fogForgetAll, fogForgetConn = _netFog.fogForgetConn, fogForgetMap = _netFog.fogForgetMap, fogLanded = _netFog.fogLanded, fogNow = _netFog.fogNow, fogOwnLive = _netFog.fogOwnLive, fogRoster = _netFog.fogRoster, fogSeed = _netFog.fogSeed, fogSeedSnapshot = _netFog.fogSeedSnapshot, hidForgetMap = _netFog.hidForgetMap, hidNote = _netFog.hidNote, hidNoteAll = _netFog.hidNoteAll, itemDelta = _netFog.itemDelta, landingFor = _netFog.landingFor, mapForgetConn = _netFog.mapForgetConn, mapForgetMap = _netFog.mapForgetMap, mapGive = _netFog.mapGive, mapHeld = _netFog.mapHeld, mapHeldNote = _netFog.mapHeldNote, mapHeldOf = _netFog.mapHeldOf, mapLeft = _netFog.mapLeft, mapStub = _netFog.mapStub, mapStubMsg = _netFog.mapStubMsg, mapStubSend = _netFog.mapStubSend, mapStubSync = _netFog.mapStubSync, memSendTo = _netFog.memSendTo, quickHash = _netFog.quickHash, refreshStageSelect = _netFog.refreshStageSelect, sanitizeAppState = _netFog.sanitizeAppState, sendFailed = _netFog.sendFailed, strokeActsForget = _netFog.strokeActsForget, wireNum = _netFog.wireNum, withAck = _netFog.withAck;   // [split:glue]
+var _netFog = netFog(), SHOW_ASK_MOST = _netFog.SHOW_ASK_MOST, _lastPatchHash = _netFog._lastPatchHash, _sensesAt = _netFog._sensesAt, _sensesSig = _netFog._sensesSig, ackIn = _netFog.ackIn, ackSend = _netFog.ackSend, ackTook = _netFog.ackTook, actForget = _netFog.actForget, actNext = _netFog.actNext, actNote = _netFog.actNote, actPos = _netFog.actPos, activeItemPatch = _netFog.activeItemPatch, anyFog = _netFog.anyFog, applyClientItemFiltered = _netFog.applyClientItemFiltered, applyFogDiff = _netFog.applyFogDiff, applyItem = _netFog.applyItem, applyItemDelta = _netFog.applyItemDelta, applySnapshot = _netFog.applySnapshot, applyStage = _netFog.applyStage, broadcast = _netFog.broadcast, currentStage = _netFog.currentStage, defaultStageMode = _netFog.defaultStageMode, fogArm = _netFog.fogArm, fogDeltaFor = _netFog.fogDeltaFor, fogCatchUp = _netFog.fogCatchUp, fogCopyFor = _netFog.fogCopyFor, fogDiffId = _netFog.fogDiffId, fogDragSweep = _netFog.fogDragSweep, fogDrop = _netFog.fogDrop, fogFilterClean = _netFog.fogFilterClean, fogForgetAll = _netFog.fogForgetAll, fogForgetConn = _netFog.fogForgetConn, fogForgetMap = _netFog.fogForgetMap, fogLanded = _netFog.fogLanded, fogNow = _netFog.fogNow, fogOwnLive = _netFog.fogOwnLive, fogRoster = _netFog.fogRoster, fogSeed = _netFog.fogSeed, fogSeedSnapshot = _netFog.fogSeedSnapshot, hidForgetMap = _netFog.hidForgetMap, hidNote = _netFog.hidNote, hidNoteAll = _netFog.hidNoteAll, itemDelta = _netFog.itemDelta, landingFor = _netFog.landingFor, mapForgetConn = _netFog.mapForgetConn, mapForgetMap = _netFog.mapForgetMap, mapGive = _netFog.mapGive, mapHeld = _netFog.mapHeld, mapHeldNote = _netFog.mapHeldNote, mapHeldOf = _netFog.mapHeldOf, mapLeft = _netFog.mapLeft, mapStub = _netFog.mapStub, mapStubMsg = _netFog.mapStubMsg, mapStubSend = _netFog.mapStubSend, mapStubSync = _netFog.mapStubSync, memSendTo = _netFog.memSendTo, quickHash = _netFog.quickHash, refreshStageSelect = _netFog.refreshStageSelect, sanitizeAppState = _netFog.sanitizeAppState, sendFailed = _netFog.sendFailed, strokeActsForget = _netFog.strokeActsForget, wireNum = _netFog.wireNum, withAck = _netFog.withAck;   // [split:glue]
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
 // 1.6.3 (the improvement week's combat review, finding 2: an Apply in the Take damage window held the GM about 1.3 s, most of it making copies
 // of maps no player was on): true for a map no open, admitted connection holds whole (netfog.js mapHeld), so net.sendItem and
@@ -1248,12 +1248,16 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
     if (mapFogged(it)) {
         delete _lastSent[itemId];                                                     // leaving the shared-delta path: the next non-fog send is whole
         var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
+            var hm = typeof Map === 'function' ? new Map() : null;   // 1.6.3 (finding 8): this send's memo, each shared piece hashed once for all
             var sendOne = function(conn) {
                 var pr = net.roster[conn.peer]; if (!pr || !conn.open || (exceptConn && conn === exceptConn) || (typeof mapHeld === 'function' && !mapHeld(conn, itemId))) return;   // possession: only a connection holding the map whole
                 var out = fogCopyFor(clean, camp, it, pr.id);
                 if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
-                try { conn.send(ak({ type: 'item', campId: campId, itemId: itemId, item: out }, conn, at)); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
-                if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
+                var fd = typeof fogDeltaFor === 'function' ? fogDeltaFor(conn, itemId, out, hm) : null, dF = fd && !onlyConn ? fd.d : null;   // finding 8: a delta against that connection's own copy (one asked for is sent whole)
+                if (dF === false) return;   // that copy is already what it would be: nothing goes
+                if (dF) dF.campId = campId;
+                try { conn.send(ak(dF || { type: 'item', campId: campId, itemId: itemId, item: out }, conn, at)); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
+                if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out, fd ? fd.sum : null)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
                 if (typeof memSendTo === 'function') memSendTo(conn, pr.id, camp, itemId);   // 1.6.3 (finding 13): their explored ground of it, once a connection
             };
             var clean = sanitizeItem(it); if (!clean) return;
@@ -1268,10 +1272,10 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
     if (onlyConn) { if (heldOnly && !mapHeld(onlyConn, itemId)) return; try { onlyConn.send(ak(full, onlyConn, at)); } catch (e) { sendFailed(e); } return; }              // one player asked for the whole thing (or is put right after a stale patch: at) — never a map they were not given
     var d = itemDelta(itemId, clean);
     if (d === false) return;                                                          // unchanged since the last send
-    var msg = full;
-    if (d) { d.campId = campId; if (JSON.stringify(d).length < JSON.stringify(full).length * 0.9) msg = d; }
+    var msg = full, cleanText = JSON.stringify(clean);   // 1.6.3 (finding 8): the map stringified once, for the size and for the next baseline
+    if (d) { d.campId = campId; if (JSON.stringify(d).length < (JSON.stringify({ type: 'item', campId: campId, itemId: itemId, item: 0 }).length - 1 + cleanText.length) * 0.9) msg = d; }   // the whole message's very length, its item written as one character and put back
     if (typeof ackSend === 'function') ackSend(msg, heldOnly ? itemId : null); else broadcast(msg, null);   // 14c: each connection's own copy says how far it goes
-    _lastSent[itemId] = JSON.parse(JSON.stringify(clean));
+    _lastSent[itemId] = JSON.parse(cleanText);
 };
 // Host: broadcast one whole map/item to the table, fog-filtered per recipient when it is a fogged map. Used by the many
 // one-off sends (travel, summon, bring, push) that always send whole; a fogged map never leaks a creature through them.
@@ -1294,12 +1298,14 @@ net.broadcastItemFiltered = function(campId, itemId) {
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
         var clean = sanitizeItem(it); if (!clean) return;
+        var hmB = typeof Map === 'function' ? new Map() : null;
         net.conns.forEach(function(conn) {
             var pr = net.roster[conn.peer]; if (!pr || !conn.open || (typeof mapHeld === 'function' && !mapHeld(conn, itemId))) return;   // possession: only a connection holding the map whole
             var out = fogCopyFor(clean, camp, it, pr.id);
             if (typeof fogOwnLive === 'function') out = fogOwnLive(out, itemId, pr.id);
             try { conn.send(typeof withAck === 'function' ? withAck({ type: 'item', campId: campId, itemId: itemId, item: out }, conn) : { type: 'item', campId: campId, itemId: itemId, item: out }); } catch (e) { sendFailed(e); return; }   // 14c: how far that copy goes
-            if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
+            var fdB = typeof fogDeltaFor === 'function' ? fogDeltaFor(conn, itemId, out, hmB, true) : null;   // 1.6.3 (finding 8): this whole copy summed up, so the next save's send to it can be a delta
+            if (typeof fogSeed === 'function' && fogSeed(conn, itemId, out, fdB ? fdB.sum : null)) fogRoster(conn, pr.id, itemId);   // fold M5: what that copy now holds; fold R: the order and the pointers where it changed them
             if (typeof memSendTo === 'function') memSendTo(conn, pr.id, camp, itemId);   // 1.6.3 (finding 13): their explored ground of it, once a connection
         });
     };
@@ -5065,17 +5071,35 @@ function sendMissedHandouts(conn, prof) {
         setTimeout(function() { if (conn.open) net.revealHandout(h.id, [prof.id]); }, 3000 + i * 600);
     });
     if (!camp.handoutReveals || !camp.handoutReveals[prof.id]) return;
-    Object.keys(camp.handoutReveals[prof.id]).forEach(function(hid, i) {
-        var h = camp.handouts && camp.handouts[hid]; if (!h || !window.wpHandoutPayload) return;
+    // 1.6.3 (the multiplayer review, finding 9): a rejoin sent every picture this player was ever shown again, re-encoded for each, while the
+    // table was reconnecting. Now the host lists them (handout-have: each one's id and what the Journal would hold of it, handouts.js
+    // wpHandoutHave, made one after another so a first join does not encode them all at once) and sends again only what the player's app
+    // answers it lacks (handout-want). The bytes of a picture are made once a run (wpHandoutPayload keeps them)
+    var hidsH = Object.keys(camp.handoutReveals[prof.id]).filter(function(hid) { return !!(camp.handouts && own(camp.handouts, hid)); });
+    if (!hidsH.length) return;
+    if (window.wpHandoutHave) {
         setTimeout(function() {
+            var listH = [], i = 0, step = function() {
+                if (!conn.open) return;
+                if (i >= hidsH.length) { try { conn.send({ type: 'handout-have', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), list: listH }); } catch (e) { sendFailed(e); } return; }
+                var h = camp.handouts[hidsH[i++]];
+                window.wpHandoutHave(h).then(function(x) { if (x) listH.push(x); }, function() {}).then(function() { setTimeout(step, 0); });   // a picture that fails is left out, as its replay was
+            };
+            step();
+        }, 1500);
+        return;
+    }
+    hidsH.forEach(function(hid, i) { setTimeout(function() { handoutReplay(conn, camp, camp.handouts[hid]); }, 1500 + i * 400); });   // a harness with no Journal module: every one again, as before
+}
+// One handout this player was shown, sent again (a rejoin's replay: their Journal keeps one copy per handout)
+function handoutReplay(conn, camp, h) {
+    if (!h || !window.wpHandoutPayload || !conn.open) return;
             window.wpHandoutPayload(h).then(function(pl) {
                 if (!conn.open) return;
                 try { conn.send(pl.kind === 'text'
                     ? { type: 'handout', kind: 'text', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, replay: true, tags: (h.tags || []).slice(0, 8) }
                     : { type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, replay: true, tags: (h.tags || []).slice(0, 8) }); } catch (e) { sendFailed(e, 'handout'); }
             }).catch(function() {});
-        }, 1500 + i * 400);
-    });
 }
 // The room a token is standing in (its center inside a floor item linked to a room)
 function roomUnder(item, map) {
@@ -6027,6 +6051,26 @@ function hostDoubted(conn) {
     return true;
 }
 // [netcheck:snaptrust-end]
+// [netcheck:closesoon-start]
+// 1.6.3 (the multiplayer review, finding 23: each player who left or was removed froze the GM for 1.5 to 2.2 s, inside the connection's own
+// close event). What a close changes on the GM's screen and on disk is done once, a moment later, for every connection that closed in the same
+// moment: the roster drawn again (which also notes each player's last map), and for an admitted player the campaign saved, the roster sent to
+// the table and the app drawn. The bookkeeping of the close itself (the lists, the limits, the fog's and the pages' records, the toast and the
+// log line) stays in the handler, at once. A table that has ended by then saves and sends nothing
+var _closeJob = null;
+function closeSoon(left) {
+    if (!_closeJob) { _closeJob = { left: false }; setTimeout(closeRun, 0); }
+    if (left) _closeJob.left = true;
+}
+function closeRun() {
+    var j = _closeJob; _closeJob = null; if (!j) return;
+    renderRoster();
+    if (!j.left || !net.active || net.role !== 'host') return;
+    net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
+    broadcastRoster();
+    render();
+}
+// [netcheck:closesoon-end]
 function wireDeliver(d, conn) { try { handleMessage(d, conn); } catch (e) { try { console.warn('wire message failed', d && d.type, e); } catch (_) {} } finally { net.applyingRemote = false; } }   // a malformed message throws here and nowhere else; applyingRemote is never left on (it would silently stop this machine's own saves syncing)
 function handleMessage(msg, conn) {
     if (!msg || !msg.type) return;
@@ -6450,6 +6494,31 @@ function handleMessage(msg, conn) {
         if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || msg.gmId !== net.gmId) return;
         if (window.wpJournalReceive) window.wpJournalReceive(msg);
         // [netcheck:handoutmsg-end]
+    } else if (msg.type === 'handout-have' && net.role === 'client') {
+        // [netcheck:handouthave-start]
+        // 1.6.3 (finding 9): the host's list of the handouts it showed this player, gated as a handout is. The app answers with the ids whose page
+        // its Journal lacks or holds in another form; nothing is written here
+        if (!net.foreign || conn.peer !== net.syncedPeer || net.stream || !net.gmId) return;
+        if (typeof msg.campId !== 'string' || msg.campId !== state.appState.activeCampaignId || msg.gmId !== net.gmId || !Array.isArray(msg.list) || !window.wpHandoutWants) return;
+        var listHv = msg.list.slice(0, 500).filter(function(x) { return !!x && typeof x === 'object' && typeof x.id === 'string' && x.id.length >= 1 && x.id.length <= 80 && typeof x.s === 'string' && x.s.length <= 400; });
+        if (!listHv.length) return;
+        window.wpHandoutWants({ campId: msg.campId, gmId: msg.gmId, list: listHv }).then(function(ids) { if (Array.isArray(ids) && ids.length && conn.open) { try { conn.send({ type: 'handout-want', campId: msg.campId, ids: ids.slice(0, 500) }); } catch (e) { sendFailed(e); } } }, function() {});
+        // [netcheck:handouthave-end]
+    } else if (msg.type === 'handout-want' && net.role === 'host') {
+        // [netcheck:handoutwant-start]
+        // 1.6.3 (finding 9): a player's app asks again for the handouts it was shown that its Journal lacks: only ids the host's own record says
+        // it showed that very player, each once, a few seconds apart as before; a flood of asks is limited
+        var campW = getActiveCampaign(), prW = net.roster[conn.peer];
+        if (!campW || !prW || msg.campId !== campW.id || !Array.isArray(msg.ids)) return;
+        if (!allow('handout-want', { perMs: 2000, burst: 3, windowMs: 60000, table: 200 }, conn.peer)) return;
+        var revW = campW.handoutReveals && own(campW.handoutReveals, prW.id) ? campW.handoutReveals[prW.id] : null; if (!revW) return;
+        var seenW = Object.create(null), nW = 0;
+        msg.ids.slice(0, 500).forEach(function(hid) {
+            if (typeof hid !== 'string' || seenW[hid] || !own(revW, hid) || !campW.handouts || !own(campW.handouts, hid)) return;
+            seenW[hid] = 1; var hW = campW.handouts[hid];
+            setTimeout(function() { handoutReplay(conn, campW, hW); }, 400 * nW++);
+        });
+        // [netcheck:handoutwant-end]
     } else if (msg.type === 'scene-close' && net.role === 'client') {
         // [netcheck:sceneclose-start]
         // backlog 181: the GM closed a scene for everyone. Gated as a handout is: the synced host only, after its snapshot, never the stream window,
@@ -8345,6 +8414,13 @@ function wireGuard(conn) {
         if (len < 1 || (!nested && len > RAW_MAX)) { shut(); return; }
         if (!nested && !seated && (spent += len) > BYTES_PRE) { shut(); return; }
         if (!packShapeOk(data)) { shut(); return; }
+        // 1.6.3 (the multiplayer review, finding 3): every piece that passes the guard on a seated connection is a sign of life. A whole message
+        // was counted as seen only once it was put back together (handleMessage), and a join snapshot or a large picture can take longer than the
+        // heartbeat's 20 s to come in pieces on a slow or shared link, with the heartbeats queued behind it: the player's app took the silence
+        // for a lost GM, closed the link and asked for the very same snapshot again. Counted before the piece is read, so a hold word inside it
+        // (Onboarding F2b) still sets its wait after. A connection the GM has not admitted is not counted here (its own heartbeat keeps it, for
+        // a while, at the gate)
+        if (!nested && seated && typeof noteSeen === 'function') noteSeen(conn.peer);
         depth++;
         try { inner.call(conn, ev); } catch (e) { depth--; shut(); return; }
         depth--;
@@ -8402,13 +8478,14 @@ function wireConn(conn) {
         if (p && p.id && net.role === 'host' && typeof tradeConnGone === 'function' && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) tradeConnGone(p.id);   // 1.5.6: their last connection: their trades end, the other side told
         if (net.role === 'host' && typeof videoHang === 'function') { videoHang(conn.peer); videoTold(); }   // item 21 V2: and the call that showed it a video
         if (net.role === 'host' && window.wpVoice) { try { window.wpVoice.connGone(conn.peer); } catch (e) {} }   // voice chat: and its voice link, gone from everyone else's voice
-        renderRoster();
+        if (net.role === 'host' && typeof closeSoon === 'function') closeSoon(false); else renderRoster();   // finding 23: on the host the roster is drawn a moment later, once for every close of that moment
         if (net.role === 'host') {
             if (p) toast((p.name || 'A player') + ' left' + (p.location ? '. Their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
             if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''), { w: p.name || 'A player', x: 'Left the table', d: typeof playsOf === 'function' ? playsOf(p.id).replace(/^Plays/, 'Played') : '' });
             if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
             if (p && net.targets[p.id] && !net.conns.some(function(c2) { return c2.peer !== conn.peer && c2.open && net.roster[c2.peer] && net.roster[c2.peer].id === p.id; })) { delete net.targets[p.id]; render(); broadcastTargets(); }   // 1.6.2: a reload's new connection may land before the old one is seen to close, and then the pointer is the new one's. fold M0: each player the pointers they may see (a fogged table), never all of them
             if (!p) return;   // security (2026-10-01): a connection never admitted (a stranger's the gate closed, a waiting peer that gave up) was on no roster and changed nothing: its close saves nothing, tells the table nothing and redraws nothing
+            if (typeof closeSoon === 'function') { closeSoon(true); return; }   // finding 23: saved, sent and drawn a moment later, once for every close of that moment (closeRun)
             net.applyingRemote = true; save(true); net.applyingRemote = false;   // lastMap persists
             broadcastRoster();
             render();

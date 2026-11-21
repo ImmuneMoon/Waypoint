@@ -195,11 +195,43 @@ function mapLeft(conn, campId) {
 }
 // [netcheck:mapheld-end]
 function sanitizeAppState(s, recipientId, held) {   // recipientId: the player this copy is for (characters are per recipient); absent = the stream window's: the party view of every fogged map (fogPartyCopy), no characters; held: the maps this connection holds whole (mapHeldOf) — every other map of the hosted campaign goes as its stub; absent, every map whole (the stream window, an older caller)
+    // 1.6.3 (the multiplayer review, finding 0): the same bound as wireNum, laid in place on a copy that is already this send's own (a page
+    // cleanDoc made, the players' view of the system, a map's stub), so the join snapshot no longer stringifies and parses the whole campaign to
+    // bound its numbers. Bytes are left as they are, and nothing is walked deeper than 256 levels (nothing the app makes is)
+    function wireWalk(o, d) {
+        if (!o || typeof o !== 'object' || ArrayBuffer.isView(o) || (d || 0) > 256) return o;
+        var keys = Array.isArray(o) ? null : Object.keys(o), n = keys ? keys.length : o.length;
+        for (var i = 0; i < n; i++) {
+            var k = keys ? keys[i] : i, v = o[k];
+            if (typeof v === 'number') { if (v > 1e15 || v < -1e15) o[k] = v > 0 ? 1e15 : -1e15; }
+            else if (v && typeof v === 'object') wireWalk(v, (d || 0) + 1);
+        }
+        return o;
+    }
+    // 1.6.3 (the multiplayer review, finding 16): the join snapshot was 3.2 MB on a large campaign, most of it handbook pages, sent whole at every
+    // join and every reconnect. A page a player may read now goes in a player's snapshot as a STUB: its title, nesting and look (what the Handbook
+    // list and a page's chip read), no blocks, marked stub: true, and rev, a hash (FNV-1a over its text) of the very copy that player would be
+    // sent. Their app keeps a body it already holds with the same rev (a reconnect in the same run of the app) and asks the host for every other
+    // page through needItem, one at a time, after the map is up (pageAsk). The stream window, which reads its own machine's save, keeps every
+    // page whole
+    function pageStub(d) {
+        if (!d || d.type !== 'doc' || !Array.isArray(d.blocks)) return d;
+        var out = {}; for (var k in d) if (Object.prototype.hasOwnProperty.call(d, k) && k !== 'blocks') out[k] = d[k];
+        var tx = JSON.stringify(d), hv = 0x811c9dc5; for (var i = 0; i < tx.length; i++) { hv ^= tx.charCodeAt(i); hv = Math.imul(hv, 0x01000193) >>> 0; }
+        out.blocks = []; out.stub = true; out.rev = hv.toString(16) + '-' + tx.length.toString(16);
+        return out;
+    }
     // a session is one campaign (owner's answer, 2026-09-29): only the hosted campaign is copied at all — the GM's other games (their names,
     // maps and planners) never reach a player or the stream window
     var one = {}; Object.keys(s || {}).forEach(function(k) { if (k !== 'campaigns') one[k] = s[k]; });
-    one.campaigns = {}; if (s && s.campaigns && typeof s.activeCampaignId === 'string' && own(s.campaigns, s.activeCampaignId)) one.campaigns[s.activeCampaignId] = s.campaigns[s.activeCampaignId];
+    // 1.6.3 (the multiplayer review, finding 0: every join froze the GM for seconds on a large campaign): the hosted campaign is cloned WITHOUT
+    // its items and its system. Each item is copied (or rebuilt) on its own below, as it always was (sanitizeItem clones a map, cleanDoc makes a
+    // page afresh, a stub is made new), and the system is replaced by the players' view; so the whole campaign is no longer stringified and
+    // parsed for each player only to be copied again. hostCamp is the GM's own campaign: only read below, never written
+    var hostCamp = s && s.campaigns && typeof s.activeCampaignId === 'string' && own(s.campaigns, s.activeCampaignId) ? s.campaigns[s.activeCampaignId] : null;
+    one.campaigns = {}; if (hostCamp) { var lite = {}; Object.keys(hostCamp).forEach(function(k) { if (k !== 'items' && k !== 'system') lite[k] = hostCamp[k]; }); one.campaigns[s.activeCampaignId] = lite; }
     var c = JSON.parse(JSON.stringify(one), wireNum);
+    if (hostCamp) { var cH = c.campaigns[s.activeCampaignId], itH = {}; Object.keys(hostCamp.items || {}).forEach(function(id) { itH[id] = hostCamp.items[id]; }); cH.items = itH; if (hostCamp.system !== undefined) cH.system = hostCamp.system; }   // the originals, each replaced by a copy of its own in the loop below before anything is kept
     delete c.imageCats;   // the GM's picture-library categories
     delete c._foreign; delete c._cleanup; delete c._picsV;   // origin marker, cleanup notes and the picture-category migration marker stay on this machine
     Object.values(c.campaigns || {}).forEach(function(camp) {
@@ -235,7 +267,11 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         if (window.wpDocRender && window.wpDocRender.cleanDocStyle) { var _cds = window.wpDocRender.cleanDocStyle(camp.docStyle); if (_cds) camp.docStyle = _cds; else delete camp.docStyle; }   // the campaign's document appearance travels (validated: fonts from the list, hex colors) so a player's Handbook matches; the client re-validates at render too
         var libFx = fxLib(camp.system), libIt = itemLib(camp.system), fullSys = camp.system;   // 5h / Stage 6: the full libraries (and F6: the full system), before the players' view replaces the system (a GM-only effect or item reaches its owner inline)
         if (camp.id === c.activeCampaignId && camp.system && window.wpSystemCore && window.wpFormula) {   // character sheets (1.5.0): the hosted campaign's system travels as the players' view, GM-only fields gone
-            var psys = window.wpSystemCore.cleanSystem(camp.system, { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [], libCats: window.wpLibrary && window.wpLibrary.catsFor ? window.wpLibrary.catsFor() : null, needShown: window.wpLibrary && window.wpLibrary.needShown ? window.wpLibrary.needShown : null, ruleShown: window.wpLibrary && window.wpLibrary.needRuleShown ? window.wpLibrary.needRuleShown : null }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
+            // 1.6.3 (the multiplayer review, finding 0): on the GM's machine the players' view is the one sheets.js playerSystem keeps (worked out
+            // once per system, the very view the 'system' message sends), read from the GM's own campaign; it was cleaned afresh for every player at
+            // every join, about a second each on a large system. The stream window and a harness with no sheets module clean it here as before
+            var pvS = !window.wpStream && recipientId && hostCamp && window.wpSheets && typeof window.wpSheets.playerSystem === 'function' ? window.wpSheets.playerSystem(hostCamp) : undefined;
+            var psys = pvS !== undefined ? wireWalk(pvS) : window.wpSystemCore.cleanSystem(JSON.parse(JSON.stringify(camp.system), wireNum), { F: window.wpFormula, gmView: false, pages: (window.wpSheets && window.wpSheets.readablePages) ? window.wpSheets.readablePages(camp) : [], libCats: window.wpLibrary && window.wpLibrary.catsFor ? window.wpLibrary.catsFor() : null, needShown: window.wpLibrary && window.wpLibrary.needShown ? window.wpLibrary.needShown : null, ruleShown: window.wpLibrary && window.wpLibrary.needRuleShown ? window.wpLibrary.needRuleShown : null }); if (psys) camp.system = psys; else delete camp.system;   // chips/links only to pages players may read (Stage 5f; fails closed)
         } else delete camp.system;
         if (camp.id === c.activeCampaignId && recipientId && camp.chars && camp.system && window.wpSystemCore) {   // characters (1.5.0): this recipient's own in full, other PCs' hover fields, NPCs never
             var outCh = {}; Object.keys(camp.chars).forEach(function(id) { var v = (typeof withLinkFigs === 'function' ? withLinkFigs : function(v0) { return v0; })(withHoverLines(window.wpSystemCore.charFor(camp.chars[id], camp.system, recipientId, { lib: libFx, items: libIt, full: fullSys }), camp.chars[id], camp.system, libFx, libIt, fullSys), camp.system); if (v) outCh[id] = v; }); camp.chars = outCh;   // 1.6.0: an owner's copy with the figures of the sheets it links
@@ -249,9 +285,12 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
         Object.keys(camp.items).forEach(function(id) {
             var orig = camp.items[id];
             if (orig && orig.type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
-            if (orig && orig.type === 'map' && recipientId && held && typeof mapStub === 'function' && !(own(held, id) && held[id] === 1)) { camp.items[id] = mapStub(orig); return; }   // possession: a map this player has not reached travels as its stub (name, lock, nesting), nothing of what is on it
+            if (orig && orig.type === 'map' && recipientId && held && typeof mapStub === 'function' && !(own(held, id) && held[id] === 1)) { camp.items[id] = wireWalk(mapStub(orig)); return; }   // possession: a map this player has not reached travels as its stub (name, lock, nesting), nothing of what is on it
             var it = sanitizeItem(orig, recipientId);   // 1.6.3 (finding 18): a page's blocks kept back reach only the players they name, and none the stream window (no recipient)
             if (it === null) { delete camp.items[id]; return; }
+            if (it === orig) it = JSON.parse(JSON.stringify(orig), wireNum);   // a kind sanitizeItem hands back as it is: never the GM's own object (finding 0)
+            else if (it.type === 'doc') { wireWalk(it); if (recipientId && camp.id === c.activeCampaignId) it = pageStub(it); }   // cleanDoc's own copy, its numbers bounded; finding 16: a player's copy goes as its stub
+            if (it.type === 'map' && camp.id === c.activeCampaignId) orig = JSON.parse(JSON.stringify(orig), wireNum);   // finding 0: the fog's judges read this map, and one of them tidies a map's own fog in place: they are handed a copy, as they always were, never the GM's own map (a map is copied alone, where the whole campaign was)
             if (it.type === 'map' && recipientId && camp.id === c.activeCampaignId) it = fogCopyFor(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig, recipientId);   // drop the creatures this player cannot see (judged on the host's own campaign, as every later send is), with their lit cells
             else if (it.type === 'map' && !recipientId && camp.id === c.activeCampaignId) it = fogPartyCopy(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig);   // R2 #14: the stream window's copy is the party view — the creatures no player's token sees dropped, the cells the players' tokens see together on it
             camp.items[id] = it;
@@ -328,16 +367,68 @@ var _fogHeld = Object.create(null);
 // or the other way, or a pointer's target likewise; with no record before, always (the order they hold was judged on some other copy;
 // fogRoster sends nothing where the map has no fight and no pointer). The whole-copy senders then send that connection the order and the pointers again: a
 // creature the GM walks out of a player's sight loses its name there at once, not at the next turn step
-function fogSeed(conn, mapId, out) {
+function fogSeed(conn, mapId, out, sum) {   // sum (1.6.3, finding 8): what fogDeltaFor made of that very copy, kept for the next send's delta
     if (!conn || typeof conn.peer !== 'string' || typeof mapId !== 'string' || !out || !Array.isArray(out.whiteboard)) return false;
     var ids = Object.create(null); out.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string') ids[w.id] = 1; });
     var per = _fogHeld[conn.peer] || (_fogHeld[conn.peer] = Object.create(null)), was = per[mapId];
     per[mapId] = { ids: ids, lit: quickHash(JSON.stringify(out.fogLit || [])), cap: out.lightsCapped === true, mk: quickHash(JSON.stringify(out.fogMarks || [])), of: quickHash(JSON.stringify(out.fogOff || {})) };   // senses S4: its marks too; S7a: what a null area switches off
+    if (sum && typeof sum === 'object') per[mapId].sum = sum;
     if (!was) return true;
     var toks = []; fightsOn(mapId).forEach(function(fid) { net.combats[fid].rows.forEach(function(r) { if (r && r.tokId) toks.push(r.tokId); }); });   // fold 2: every fight on that map
     Object.keys(net.targets || {}).forEach(function(p) { var t = net.targets[p]; if (t && t.mapId === mapId && t.id) toks.push(t.id); });
     return toks.some(function(id) { return !was.ids[id] !== !ids[id]; });
 }
+// [netcheck:fogdelta-start]
+// 1.6.3 (the multiplayer review, finding 8): every save of the GM's on a fogged map sent each player the whole map, since each player's copy is
+// their own (the creatures they see) and there was no shared baseline to work a delta out against. Each connection's copy is now summed up as it
+// goes out (fogSum: each piece and room by its id and a hash of its text, every other key as its text), on that connection's own fogSeed
+// record, and the next send to it is a delta against that summary (fogDelta, the very shape itemDelta makes, which a player's app applies as
+// it applies any delta) where the delta is smaller, and nothing at all where the copy would be the same. Anything that changes that copy
+// otherwise forgets the summary with the record, or drops it: a catch-up sent in place (fogCatchUp), the join snapshot, a whole copy made by
+// another path (fogSeed with no summary), the connection, the map. A summary holds ids, hashes and text, never an object a player was sent.
+// hm is one send's memo (a Map): the pieces a send shares between its copies are hashed once for every connection
+var FOG_DELTA_MIN = 16384;   // characters: a copy smaller than this goes whole, as every copy did (it costs nothing, and its every piece is said afresh)
+function fogHashOf(x, hm) {
+    var e = hm ? hm.get(x) : null; if (e) return e;
+    var t = JSON.stringify(x); e = { h: quickHash(t), n: t.length }; if (hm) hm.set(x, e);
+    return e;
+}
+function fogSum(out, hm) {
+    var s = { type: out.type, wb: [], rooms: [], j: Object.create(null), n: 0 };
+    ['whiteboard', 'rooms'].forEach(function(key) { (Array.isArray(out[key]) ? out[key] : []).forEach(function(x) { if (!x || typeof x !== 'object') return; var e = fogHashOf(x, hm); (key === 'whiteboard' ? s.wb : s.rooms).push([x.id, e.h]); s.n += e.n; }); });
+    Object.keys(out).forEach(function(k) { if (k !== 'whiteboard' && k !== 'rooms') { s.j[k] = JSON.stringify(out[k]); s.n += s.j[k] ? s.j[k].length : 0; } });
+    return s;
+}
+function fogDelta(itemId, out, base, now) {   // as itemDelta: null to send whole, false where nothing changed, else the delta
+    if (!base || !now || out.type !== 'map' || base.type !== 'map' || now.n < FOG_DELTA_MIN) return null;   // a small copy goes whole at every send, as every copy did
+    var d = { type: 'itemDelta', itemId: itemId }, any = false, n = 0;
+    [['whiteboard', 'wb'], ['rooms', 'rooms']].forEach(function(kk) {
+        var key = kk[0], was = Object.create(null), seen = Object.create(null), set = [], del = [], added = false;
+        base[kk[1]].forEach(function(p) { was[p[0]] = p[1]; });
+        var list = (Array.isArray(out[key]) ? out[key] : []).filter(function(x) { return !!x && typeof x === 'object'; });
+        list.forEach(function(x, i) { var h = now[kk[1]][i][1]; seen[x.id] = 1; if (was[x.id] !== h) { set.push(x); n += fogHashOf(x, now.hm).n; if (was[x.id] === undefined) added = true; } });
+        Object.keys(was).forEach(function(id) { if (!seen[id]) del.push(id); });
+        var seq = list.map(function(x) { return x.id; }), reordered = seq.join('\n') !== base[kk[1]].map(function(p) { return p[0]; }).join('\n');
+        if (set.length || del.length || reordered) {
+            d[key] = { set: set, del: del }; n += JSON.stringify(del).length;
+            if (added || del.length || reordered) { d[key].order = seq; n += JSON.stringify(seq).length; }
+            any = true;
+        }
+    });
+    ['links', 'meta', 'cats'].forEach(function(k) { if (now.j[k] !== base.j[k]) { d[k] = out[k]; n += now.j[k] ? now.j[k].length : 0; any = true; } });
+    var known = { type: 1, id: 1, whiteboard: 1, rooms: 1, links: 1, meta: 1, cats: 1 };
+    if (Object.keys(now.j).concat(Object.keys(base.j)).some(function(k) { return !known[k] && now.j[k] !== base.j[k]; })) return null;   // an unusual key changed (their lit cells, their marks, the fog): send whole
+    if (!any) return false;
+    return n < now.n * 0.9 ? d : null;   // a delta only where it is clearly smaller than the whole copy, as the shared path judges
+}
+function fogDeltaFor(conn, mapId, out, hm, sumOnly) {   // sumOnly: a whole copy that went: only its summary is made. { d, sum }: d the delta for that connection's copy (or null, or false); sum this copy's, for fogSeed
+    var now = fogSum(out, hm); now.hm = hm;
+    var per = conn && typeof conn.peer === 'string' && own(_fogHeld, conn.peer) ? _fogHeld[conn.peer] : null, rec = per && own(per, mapId) ? per[mapId] : null;
+    var d = !sumOnly && rec && rec.sum ? fogDelta(mapId, out, rec.sum, now) : null;
+    delete now.hm;
+    return { d: d, sum: now };
+}
+// [netcheck:fogdelta-end]
 function fogSeedSnapshot(conn, snap) {   // every fogged map of the hosted campaign, as the join snapshot carried it
     var camp = getActiveCampaign(), cs = snap && snap.appState && snap.appState.campaigns, sc = camp && cs && own(cs, camp.id) ? cs[camp.id] : null;
     if (!sc || !sc.items || !camp.items) return;
@@ -491,6 +582,7 @@ function fogCatchUp(c, camp, m, pid, memo) {
     if (add.length > FOG_DIFF_ADD_MAX || long || JSON.stringify(msg).length > FOG_DIFF_BYTES) { net.sendItem(camp.id, m.id, c); return moved; }   // fold R: the whole copy sends the order and the pointers itself, where they changed
     try { c.send(msg); } catch (e) { sendFailed(e); net.sendItem(camp.id, m.id, c); return moved; }   // the whole copy instead, recorded only if it goes out
     add.forEach(function(a) { rec.ids[a.item.id] = 1; }); drop.forEach(function(id) { delete rec.ids[id]; });
+    delete rec.sum;   // 1.6.3 (finding 8): that copy is no longer the one last summed up, so the next send to it is whole
     if (msg.lit !== undefined) rec.lit = litHash;
     if (msg.capped !== undefined) rec.cap = capNow;
     if (msg.marks !== undefined) rec.mk = mkHash;
@@ -840,6 +932,7 @@ function applyItem(msg) {
     if (incoming.type === 'map' && typeof actOver === 'function') actOver(msg.itemId, incoming, ackIn(msg.ack));   // 14c: what this copy lacks of their own actions, written back
     net.applyingRemote = true;
     camp.items[msg.itemId] = incoming;
+    if (incoming.type === 'doc' && typeof pageGot === 'function') pageGot(msg.campId, msg.itemId, incoming);   // finding 16: a page asked for by its stub, marked with the rev it was asked for
     var myActive = getActiveCampaign();
     if (myActive && myActive.id === msg.campId && myActive.activeItemId === msg.itemId && incoming.type === 'map') { var gaveI = mineWas && typeof camGiven === 'function' ? camGiven(incoming, net.myId, mineWas) : null; render(); if (gaveI && window.appRestoreCamera) window.appRestoreCamera(); }
     updateSidebarNav();
@@ -1042,17 +1135,49 @@ function playerStroke(w, pid) {
     return out;
 }
 
+// [netcheck:pageask-start]
+// 1.6.3 (the multiplayer review, finding 16), a player's side: the pages a join snapshot named only by their stub (pageStub, on the host), each
+// with the rev of the copy the host would send. _pageWant holds, by campaign and page, the rev this app is waiting for: pageAsk asks the host
+// for them through needItem (the host's existing branch, rate limited there), one every PAGE_ASK_MS so a map and the heartbeats are never held
+// up behind them, and stops once another snapshot has come (its gen) or the table is gone. pageGot is asked by applyItem when a page arrives
+// whole: the body is marked with the rev it was asked for (_rev, this app's own mark, never sent), which the next snapshot's stub of that page
+// is compared with. The app's memory only
+var _pageWant = Object.create(null), PAGE_ASK_MS = 120;
+function pageKey(campId, id) { return String(campId) + '\n' + String(id); }
+function pageWant(campId, id, rev) { _pageWant[pageKey(campId, id)] = rev; }
+function pageGot(campId, id, doc) { var k = pageKey(campId, id); if (doc && own(_pageWant, k)) { doc._rev = _pageWant[k]; delete _pageWant[k]; } }
+function pageWantReset() { _pageWant = Object.create(null); }
+function pageAsk(gen) {
+    var list = Object.keys(_pageWant); if (!list.length) return;
+    var i = 0, next = function() {
+        if (!net.active || net.role !== 'client' || net.snapshotGen !== gen || i >= list.length) return;
+        var k = list[i++], cut = k.indexOf('\n'); if (!own(_pageWant, k)) { next(); return; }   // already here (a page the host sent by itself meanwhile)
+        broadcast({ type: 'needItem', campId: k.slice(0, cut), itemId: k.slice(cut + 1) }, null);
+        setTimeout(next, PAGE_ASK_MS);
+    };
+    setTimeout(next, PAGE_ASK_MS);
+}
+// [netcheck:pageask-end]
 // [netcheck:snapitems-start]
 // A snapshot's items, as a player's app keeps them: a map and a page, each cleaned as a whole item of its kind is, and NOTHING of any other
 // kind. A planner never ships, and until 1.5.4 one a host named in its snapshot was kept as sent (a whole item of another kind was already
-// refused: applyItem). No id a prototype holds; items that are no plain object are none; a prototype of the host's choosing is taken off
-function snapItems(cS) {
+// refused: applyItem). No id a prototype holds; items that are no plain object are none; a prototype of the host's choosing is taken off.
+// 1.6.3 (finding 16): a page sent as its stub keeps the body this app already holds where prev (the campaign of the table's snapshot before,
+// from the same GM) has that page with the very same rev; else it is kept as its stub, with no blocks, and waits for its body (pageWant)
+function snapItems(cS, prev) {
     if (!cS.items || typeof cS.items !== 'object' || Array.isArray(cS.items)) { cS.items = {}; return; }
     if (Object.getPrototypeOf(cS.items) !== Object.prototype) Object.setPrototypeOf(cS.items, Object.prototype);
     Object.keys(cS.items).forEach(function(id) {
         var itS = cS.items[id];
         if (id in Object.prototype) { delete cS.items[id]; return; }
-        if (itS && itS.type === 'doc') { var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(itS, { keepHidden: true }) : null; if (cd) cS.items[id] = cd; else delete cS.items[id]; }
+        if (itS && itS.type === 'doc') {
+            var revS = itS.stub === true && typeof itS.rev === 'string' && itS.rev.length > 0 && itS.rev.length <= 40 ? itS.rev : '';   // finding 16: a stub, read before the cleaner (which keeps neither key)
+            var hadS = revS && prev && prev.items && typeof prev.items === 'object' && own(prev.items, id) ? prev.items[id] : null;
+            if (hadS && hadS.type === 'doc' && hadS.stub !== true && hadS._rev === revS) { cS.items[id] = hadS; return; }   // the same page as before: its body stays, nothing is asked
+            var cd = window.wpDocRender ? window.wpDocRender.cleanDoc(itS, { keepHidden: true }) : null;
+            if (cd && revS) { cd.blocks = []; cd.stub = true; if (typeof pageWant === 'function') pageWant(cS.id, id, revS); }
+            if (cd) cS.items[id] = cd; else delete cS.items[id];
+        }
         else if (itS && itS.type === 'map') cleanHostMap(itS);
         else delete cS.items[id];
     });
@@ -1072,6 +1197,8 @@ function applySnapshot(msg) {
     var mark = { at: Date.now(), gm: validProfileId(msg.gmId) ? msg.gmId : null };   // security (2026-10-01): the origin mark carries a profile id or nothing (never a host's unbounded text)
     msg.appState._foreign = mark;
     Object.values(msg.appState.campaigns || {}).forEach(function (c) { c._foreign = mark; });
+    var prevSnap = state.appState && state.appState._foreign && mark.gm && state.appState._foreign.gm === mark.gm && state.appState.campaigns && typeof state.appState.campaigns === 'object' ? state.appState : null;   // finding 16: the table this app held before, from the same GM: its pages' bodies may stay
+    if (typeof pageWantReset === 'function') pageWantReset();
     state.appState = msg.appState;
     net.foreign = true;   // cleared only when load() brings this machine's own campaign back
     // handbook pages are normalized before anything renders them, and the active item is a map (never a page: guard 1 client-side)
@@ -1079,7 +1206,7 @@ function applySnapshot(msg) {
         if (!cS || typeof cS !== 'object') return;
         if (Object.getPrototypeOf(cS) !== Object.prototype) Object.setPrototypeOf(cS, Object.prototype);   // (see above) or the delete below is a no-op for an inherited players map
         delete cS.players;   // names and table keys are the host's (sanitizeAppState strips them); the Players panel and the owner pickers must never draw a hostile snapshot's
-        snapItems(cS);   // a map and a page, each cleaned, and nothing of any other kind
+        snapItems(cS, prevSnap && typeof cS.id === 'string' && own(prevSnap.campaigns, cS.id) ? prevSnap.campaigns[cS.id] : null);   // a map and a page, each cleaned, and nothing of any other kind
         var actS = cS.items && cS.items[cS.activeItemId];
         if (!actS || actS.type !== 'map') cS.activeItemId = Object.keys(cS.items || {}).find(function(id) { return cS.items[id].type === 'map'; }) || null;
     });
@@ -1140,6 +1267,7 @@ function applySnapshot(msg) {
     if (window.wpSettingsSync) window.wpSettingsSync();
     try { if (typeof heldSync === 'function') heldSync(); } catch (e) {}   // 1.6.0 (backlog 190): out of date as we join
     try { if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(null); } catch (e) {}   // Onboarding F0: a sheet whose character was reassigned while we were away closes now
+    if (typeof pageAsk === 'function') pageAsk(net.snapshotGen);   // finding 16: the pages this app holds only as stubs, asked for one at a time once the map is up
     if (net.fromWelcome || (typeof webJoinOnly === 'function' && webJoinOnly())) { net.fromWelcome = false; if (window.wpHideWelcome) window.wpHideWelcome(); }   // a join started from the welcome screen: its campaign is here, so leave the welcome for the table (1.5.5: and every join on a website whose plan joins tables alone, where the welcome is the only other screen)
 }
 
@@ -1285,5 +1413,5 @@ function applyFogDiff(msg) {
 }
 // [netcheck:fogdiffapply-end]
 // [split:body-end]
-return { SHOW_ASK_MOST: SHOW_ASK_MOST, _lastPatchHash: _lastPatchHash, _sensesAt: _sensesAt, _sensesSig: _sensesSig, ackIn: ackIn, ackSend: ackSend, ackTook: ackTook, actForget: actForget, actNext: actNext, actNote: actNote, actPos: actPos, activeItemPatch: activeItemPatch, anyFog: anyFog, applyClientItemFiltered: applyClientItemFiltered, applyFogDiff: applyFogDiff, applyItem: applyItem, applyItemDelta: applyItemDelta, applySnapshot: applySnapshot, applyStage: applyStage, broadcast: broadcast, currentStage: currentStage, defaultStageMode: defaultStageMode, fogArm: fogArm, fogCatchUp: fogCatchUp, fogCopyFor: fogCopyFor, fogDiffId: fogDiffId, fogDragSweep: fogDragSweep, fogDrop: fogDrop, fogFilterClean: fogFilterClean, fogForgetAll: fogForgetAll, fogForgetConn: fogForgetConn, fogForgetMap: fogForgetMap, fogLanded: fogLanded, fogNow: fogNow, fogOwnLive: fogOwnLive, fogRoster: fogRoster, fogSeed: fogSeed, fogSeedSnapshot: fogSeedSnapshot, hidForgetMap: hidForgetMap, hidNote: hidNote, hidNoteAll: hidNoteAll, itemDelta: itemDelta, landingFor: landingFor, mapForgetConn: mapForgetConn, mapForgetMap: mapForgetMap, mapGive: mapGive, mapHeld: mapHeld, mapHeldNote: mapHeldNote, mapHeldOf: mapHeldOf, mapLeft: mapLeft, mapStub: mapStub, mapStubMsg: mapStubMsg, mapStubSend: mapStubSend, mapStubSync: mapStubSync, memSendTo: memSendTo, quickHash: quickHash, refreshStageSelect: refreshStageSelect, sanitizeAppState: sanitizeAppState, sendFailed: sendFailed, strokeActsForget: strokeActsForget, wireNum: wireNum, withAck: withAck };   // [split:glue]
+return { SHOW_ASK_MOST: SHOW_ASK_MOST, _lastPatchHash: _lastPatchHash, _sensesAt: _sensesAt, _sensesSig: _sensesSig, ackIn: ackIn, ackSend: ackSend, ackTook: ackTook, actForget: actForget, actNext: actNext, actNote: actNote, actPos: actPos, activeItemPatch: activeItemPatch, anyFog: anyFog, applyClientItemFiltered: applyClientItemFiltered, applyFogDiff: applyFogDiff, applyItem: applyItem, applyItemDelta: applyItemDelta, applySnapshot: applySnapshot, applyStage: applyStage, broadcast: broadcast, currentStage: currentStage, defaultStageMode: defaultStageMode, fogArm: fogArm, fogDeltaFor: fogDeltaFor, fogCatchUp: fogCatchUp, fogCopyFor: fogCopyFor, fogDiffId: fogDiffId, fogDragSweep: fogDragSweep, fogDrop: fogDrop, fogFilterClean: fogFilterClean, fogForgetAll: fogForgetAll, fogForgetConn: fogForgetConn, fogForgetMap: fogForgetMap, fogLanded: fogLanded, fogNow: fogNow, fogOwnLive: fogOwnLive, fogRoster: fogRoster, fogSeed: fogSeed, fogSeedSnapshot: fogSeedSnapshot, hidForgetMap: hidForgetMap, hidNote: hidNote, hidNoteAll: hidNoteAll, itemDelta: itemDelta, landingFor: landingFor, mapForgetConn: mapForgetConn, mapForgetMap: mapForgetMap, mapGive: mapGive, mapHeld: mapHeld, mapHeldNote: mapHeldNote, mapHeldOf: mapHeldOf, mapLeft: mapLeft, mapStub: mapStub, mapStubMsg: mapStubMsg, mapStubSend: mapStubSend, mapStubSync: mapStubSync, memSendTo: memSendTo, quickHash: quickHash, refreshStageSelect: refreshStageSelect, sanitizeAppState: sanitizeAppState, sendFailed: sendFailed, strokeActsForget: strokeActsForget, wireNum: wireNum, withAck: withAck };   // [split:glue]
 }   // [split:glue]

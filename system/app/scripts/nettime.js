@@ -64,7 +64,9 @@ function fxOutFlush() {
         net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) { try { c.send(m); } catch (e) { sendFailed(e); } } });
     });
     var text = fxOutWords(list).slice(0, 1500), TP = window.wpTimePanel, camp = getActiveCampaign(), run = null;
-    if (TP && typeof TP.add === 'function' && camp) { try { run = TP.add(camp, camp.system, 'Effects ran out', byChar, { title: text.slice(0, 300), sub: byChar.length + (byChar.length === 1 ? ' character.' : ' characters.') }); } catch (e) { run = null; } }
+    // always: this line is posted whatever the GM's Time rule notes choice says, since that choice governs time rule runs alone (the second combat review,
+    // 2026-11-20: under Off the GM was no longer told that effects ran out)
+    if (TP && typeof TP.add === 'function' && camp) { try { run = TP.add(camp, camp.system, 'Effects ran out', byChar, { title: text.slice(0, 300), sub: byChar.length + (byChar.length === 1 ? ' character.' : ' characters.'), always: true }); } catch (e) { run = null; } }
     if (!run) pushChat({ type: 'chat', scope: 'whisper', from: from, text: text, ts: now });   // no panel here: the whole of it in one whisper
     return list.length;
 }
@@ -106,9 +108,10 @@ function timeNote(m) {
     if (!_timeTimer) _timeTimer = setTimeout(timeFlush, mode === '1h' ? 3600000 : 600000);
 }
 // Backlog 173: the GM's one chat line a run of the time rules, with Open (timepanel.js draws it): a whisper of the GM's own, so no player and no
-// join's history ever holds it; the GM's own Time rule notes choice of Off posts none
+// join's history ever holds it; the GM's own Time rule notes choice of Off posts none, but for a run marked always (effects that ran out, fxOutFlush), which
+// that choice never governed
 net.timeRunLine = function(run) {
-    if (net.role === 'client' || net.stream || !run || typeof run !== 'object' || timeNotesMode() === 'off') return false;
+    if (net.role === 'client' || net.stream || !run || typeof run !== 'object' || (timeNotesMode() === 'off' && run.always !== true)) return false;
     pushChat({ type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: String(run.text || '').slice(0, 300), ts: Date.now(), kind: 'time', trun: { id: String(run.id || '').slice(0, 40), sub: String(run.sub || '').slice(0, 200) } });
     return true;
 };

@@ -778,6 +778,15 @@ pendingChecks.push((async () => {
                     g8.endAt === 2 && g8.ckNext === 'r2' && j(g8.ckBack) === j([{ id: 'r1', was: 5 }]) && j(g8.ckUsed) === j({ n: 2, press: 1 }) && j(g8.mvUsed) === j({ r1: 1.5 }) && Object.getPrototypeOf(g8.mvUsed) === null && g8.rows.filter(r => r.hk === 1).map(r => r.id).join() === 'r2' && g8.tn === 7
                     && ['endAt', 'ckNext', 'ckBack', 'ckUsed', 'mvUsed', 'tn'].every(k => !(k in bad8)), j([g8, bad8]));
             }
+            {   // the review of combat state (2026-11-20): a fight of several turns a round may hold up to 600 rows of 12 turns each, so its order of turns comes back
+                // whole up to 7200 (at the old 2000 a large such fight lost every later turn of each row after a reload), and past that bound it is no order
+                const seqOf = n => Array.from({ length: n }, (_, i) => 'r' + (i % 2 + 1) + '#' + Math.floor(i / 2));
+                const sq3 = mkW(campF()).api.read({ list: { f_aaaaaaa1: fight({ seq: seqOf(3000) }) } }, campF()).list.f_aaaaaaa1.seq, sqMax = mkW(campF()).api.read({ list: { f_aaaaaaa1: fight({ seq: seqOf(7200) }) } }, campF()).list.f_aaaaaaa1.seq;
+                const sqOver = mkW(campF()).api.read({ list: { f_aaaaaaa1: fight({ seq: seqOf(7201) }) } }, campF()).list.f_aaaaaaa1.seq;
+                const scT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8'), sevM = /sevTurns: ([0-9]+),/.exec(scT);
+                check('1.6.3, the review of combat state: a fight read back keeps its order of turns up to 600 rows times the most turns a row has in a round (7200), so a large fight of several turns a round keeps every later turn of each row over a reload; past that bound it is no order',
+                    Array.isArray(sq3) && sq3.length === 3000 && Array.isArray(sqMax) && sqMax.length === 7200 && sqOver === undefined && !!sevM && Number(sevM[1]) * 600 === 7200, j([sq3 && sq3.length, sqMax && sqMax.length, sqOver && sqOver.length, sevM && sevM[1]]));
+            }
             {   // 1.6.3 (the combat review, finding 1; Fulllion's pick: "keep them live"): the records behind the cards in chat and what a blast still owes are kept with
                 // the fight and handed back as the table opens, before its cards are judged (fightsKeep, fightsRead, fightsBack, run for real)
                 const k1c = campF(), K1 = mkW(k1c); K1.net.combats.f_aaaaaaa1 = fight(); K1.net.fightOn = 'f_aaaaaaa1'; K1.net.attsKeep = () => [{ id: 'a_owe00001', charId: 'c_a', act: 'r_def', m: 2 }]; K1.w.wpBlastKeep = () => ({ owed: [{ id: 'a_blast001' }], def: [], kept: {} }); K1.api.keep();

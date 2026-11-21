@@ -77,7 +77,8 @@ function mapOfFn(camp) {
     };
 }
 // A run from runTimeRules (sheets.js), on the machine that owns the campaign: kept, the panel drawn again if it is up, and the chat line posted
-// opts (1.6.3, the combat review, finding 12): { title, sub }, the chat line's own words in place of the run's count, for effects that ran out (nettime.js fxOutFlush)
+// opts (1.6.3, the combat review, finding 12): { title, sub }, the chat line's own words in place of the run's count, for effects that ran out (nettime.js fxOutFlush),
+// and always, true only, handed on to the chat line so that the GM's Time rule notes choice of Off does not hold it back
 function add(camp, sys, words, chars, opts) {
     if (!camp || typeof camp.id !== 'string') return null;
     var n = window.wpNet; if (n && (n.role === 'client' || n.stream)) return null;
@@ -88,7 +89,7 @@ function add(camp, sys, words, chars, opts) {
     var CC = window.wpCalendarCore; try { run.when = CC && typeof CC.fmtWhen === 'function' ? tpText(CC.fmtWhen(sys && sys.calendar ? sys.calendar : null, camp.clock && typeof camp.clock.t === 'number' ? camp.clock.t : 0), 60) : ''; } catch (e) { run.when = ''; }   // the game date it ran at, so two runs of one hour are told apart
     var list = _tp.runs[camp.id] || (_tp.runs[camp.id] = []); list.push(run); if (list.length > TP_RUNS) list.splice(0, list.length - TP_RUNS);
     if (shown()) { _tp.pick = run.id; draw(); }
-    if (run.chat && n && typeof n.timeRunLine === 'function') { var w = tpLine(run); n.timeRunLine({ id: run.id, text: w.title, sub: w.sub }); }
+    if (run.chat && n && typeof n.timeRunLine === 'function') { var w = tpLine(run), ln = { id: run.id, text: w.title, sub: w.sub }; if (opts && typeof opts === 'object' && opts.always === true) ln.always = true; n.timeRunLine(ln); }
     if (window.wpStepLog) window.wpStepLog('timepanel v1', 'run', { chars: run.chars.length, changes: run.changes, chat: run.chat });
     return run;
 }

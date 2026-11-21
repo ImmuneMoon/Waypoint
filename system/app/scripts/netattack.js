@@ -580,12 +580,21 @@ function attemptRec(id) { return typeof id === 'string' && Object.prototype.hasO
 // landings are (fightsKeep asks net.attsKeep, fightsBack hands net.attsBack what the save held), so the GM's reload leaves every such card working. A landing's
 // own attempt is landsKeep's, and a roll held for its card actions lives in memory alone (its card is not kept either). Read back as data: an id of the
 // store's own form, a character the campaign still holds, each key of its known shape, and the whole bounded (ATT_KEEP_MAX), the newest kept first
-var ATT_KEEP_KEYS = ['charId', 'act', 'm', 'blow', 'vals', 'crip', 'cripBy', 'alts', 'rows', 'withs', 'k', 't', 'kp', 'hide', 'atk', 'atkBy', 'atkRow', 'atkPriv', 'area', 'rd', 'calls', 'callBy', 'callFrom', 'callFromName', 'callRow', 'callPriv', 'land', 'lt', 'big', 'tst', 'defend', 'ht', 'hf'], ATT_KEEP_MAX = 4000000;
+var ATT_KEEP_KEYS = ['charId', 'act', 'm', 'blow', 'vals', 'crip', 'cripBy', 'alts', 'rows', 'withs', 'k', 't', 'kp', 'hide', 'atk', 'atkBy', 'atkRow', 'atkPriv', 'area', 'rd', 'calls', 'callBy', 'callFrom', 'callFromName', 'callRow', 'callPriv', 'land', 'lt', 'big', 'tst', 'defend', 'ht', 'hf', 'htAtt'], ATT_KEEP_MAX = 4000000;
+// a thing in flight waiting for its target's resist roll (fw, net.flyWait) holds the live token on the map, so it is saved as data alone, the map, the
+// target and the token by its id (the second combat review, 2026-11-20), and attKeepRead finds that token again on the map as it then stands
+function attFwOut(fw) { return fw && typeof fw === 'object' && fw.w && typeof fw.w.id === 'string' && typeof fw.m === 'string' ? { m: fw.m, tid: typeof fw.tid === 'string' ? fw.tid : '', name: typeof fw.name === 'string' ? fw.name.slice(0, 60) : '', wid: fw.w.id } : null; }
+function attFwIn(v, camp) {   // the saved form back to the live one: null where the map, or a token of that id still in flight on it, is gone
+    if (!v || typeof v !== 'object' || typeof v.m !== 'string' || typeof v.wid !== 'string' || !camp || !camp.items || !own(camp.items, v.m)) return null;
+    var map = camp.items[v.m], wb = map && Array.isArray(map.whiteboard) ? map.whiteboard : [], w = null;
+    for (var i = 0; i < wb.length; i++) if (wb[i] && wb[i].id === v.wid && wb[i].fly && typeof wb[i].fly === 'object') { w = wb[i]; break; }
+    return w ? { m: v.m, w: w, tid: typeof v.tid === 'string' ? v.tid : '', name: typeof v.name === 'string' ? v.name.slice(0, 60) : '' } : null;
+}
 net.attsKeep = function() {
     var out = [], size = 0, ids = _attIds.concat(_callIds);
     for (var i = ids.length - 1; i >= 0; i--) {
         var id = ids[i], a = Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; if (!a || a.busy || (typeof _lands !== 'undefined' && Object.prototype.hasOwnProperty.call(_lands, id))) continue;
-        var o = { id: id, call: _callIds.indexOf(id) >= 0 ? 1 : 0 }; ATT_KEEP_KEYS.forEach(function(k) { if (a[k] !== undefined) o[k] = a[k]; });
+        var o = { id: id, call: _callIds.indexOf(id) >= 0 ? 1 : 0 }; ATT_KEEP_KEYS.forEach(function(k) { if (a[k] !== undefined) o[k] = a[k]; }); var fwO = attFwOut(a.fw); if (fwO) o.fw = fwO;
         var s = ''; try { s = JSON.stringify(o); } catch (e) { s = ''; } if (!s || s.length > 250000 || size + s.length > ATT_KEEP_MAX) continue;
         size += s.length; out.unshift(JSON.parse(s));
     }
@@ -603,6 +612,8 @@ function attKeepRead(r, camp) {   // one saved record, read back as data, or nul
     });
     if (typeof a.atkBy === 'string' && !own(camp.chars, a.atkBy)) delete a.atkBy;
     if (typeof a.callFrom === 'string' && !own(camp.chars, a.callFrom)) delete a.callFrom;
+    if (a.htAtt !== undefined && !(typeof a.htAtt === 'string' && /^a_[a-z0-9]{8}$/.test(a.htAtt))) delete a.htAtt;   // the GM's Apply now card: an attempt's own id, else nothing
+    var fwI = attFwIn(r.fw, camp); if (fwI) a.fw = fwI;
     return a;
 }
 net.attsBack = function(list, camp) {   // as the host's table opens (fightsBack): how many came back. An id the store holds already (a landing's) stays as it is

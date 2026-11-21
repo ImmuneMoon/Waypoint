@@ -6889,6 +6889,26 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && logO.includes('save translate(490,30) drawImage(img,-100,-25,200,50) restore') && logO.includes('save translate(650,32) beginPath moveTo(-30,-52)')
             && logUp === 'save translate(250,25) beginPath rect(-50,-25,100,50) fill restore' && drawCall, j([oErr, listO, nO, shapes, logO, logUp, drawCall]));
     }
+    // 1.6.3 (found timing a join on a map of 52 character tokens): a token's sense line in words is worked out once for a whole draw of the board.
+    // whiteboard.js tokMarksSync asks fog.js senseWordsOf for every token it draws, and each ask worked every token's senses out again, 2.8 s for one
+    // redraw. The block from its memo to the end of the function is run for real with stand-ins that count how often the captions are worked out
+    {
+        const fsW = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+        const aW = fsW.indexOf('var _swMemo = null;'), bW = fsW.indexOf('\n}\n', fsW.indexOf('function senseWordsOf(', aW)) + 3;
+        let nW = 0, swErr = null, out1 = null, out2 = null, out3 = null, again = null;
+        try {
+            let mapW = { id: 'm1' }; const campW = { id: 'c1' };
+            const mk = new Function('active', 'activeMap', 'activeCamp', 'drawOwner', 'blindCaptionsFor', fsW.slice(aW, bW) + '\nreturn senseWordsOf;');
+            const sw = mk(() => true, () => mapW, () => campW, () => 'u_gm', () => { nW++; return [{ id: 't1', text: 'Blind' }, { id: 't2', text: 'Hearing 30 ft' }]; });
+            out1 = [sw('t1'), sw('t2'), sw('t3'), sw(5)];
+            out2 = nW;
+            await Promise.resolve(); await Promise.resolve();
+            sw('t1'); again = nW;
+            mapW = { id: 'm2' }; sw('t1'); out3 = nW;
+        } catch (e) { swErr = e.message; }
+        check('1.6.3: a token\'s sense line in words is worked out once for a whole draw of the board (fog.js senseWordsOf, run for real): three tokens asked in one task work the captions out once, a token with none and an id that is no text say nothing, the next task works them out afresh, and another map at once',
+            aW > 0 && bW > aW && !swErr && JSON.stringify(out1) === JSON.stringify(['Blind', 'Hearing 30 ft', '', '']) && out2 === 1 && again === 2 && out3 === 3, JSON.stringify([swErr, out1, out2, again, out3]));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

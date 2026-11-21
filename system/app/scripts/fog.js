@@ -2640,8 +2640,21 @@ function capsFar() {
 function capsNear(el) { return !!el && ((el.matches && el.matches(':hover')) || (el.classList && (el.classList.contains('sel') || el.classList.contains('wb-msel')))); }
 // The words of the sense line for one token of the map on screen (Blind, then what still works, or a sense that fails), as this screen draws them, or
 // '' (whiteboard.js says them on the token's hover card and in the tooltip of its folded marks)
+// The captions are worked out once for a whole draw of the board, not once a token (1.6.3, found timing a join on a map of 52 character tokens:
+// whiteboard.js tokMarksSync asks this for every token it draws, and each ask worked out every token's senses again, 2.8 s for one redraw). What
+// blindCaptionsFor answers is kept for the map, the campaign and the owner it was asked for, and let go at the end of the task that asked, by a
+// microtask, so a later draw, a moved token or a changed sheet is always worked out afresh.
+var _swMemo = null;
 function senseWordsOf(tokId) {
-    try { if (!active() || typeof tokId !== 'string') return ''; var map = activeMap(), c = blindCaptionsFor(map, activeCamp(), drawOwner()).find(function(x) { return x.id === tokId; }); return c ? c.text : ''; } catch (e) { return ''; }
+    try {
+        if (!active() || typeof tokId !== 'string') return '';
+        var map = activeMap(), camp = activeCamp(), own = drawOwner(), m = _swMemo;
+        if (!m || m.map !== map || m.camp !== camp || m.own !== own) {
+            m = _swMemo = { map: map, camp: camp, own: own, list: blindCaptionsFor(map, camp, own) };
+            Promise.resolve().then(function() { if (_swMemo === m) _swMemo = null; });
+        }
+        var c = m.list.find(function(x) { return x.id === tokId; }); return c ? c.text : '';
+    } catch (e) { return ''; }
 }
 // drawn as drawCaptions draws a light's name, but above the token (a light's name sits under it), found by its board id
 // Each viewer's own choice (the owner, 2026-10-04: "the effects over a players head should be able to be hidden from view if they dont want to see

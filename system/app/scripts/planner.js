@@ -3223,7 +3223,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      "Selfolk" is found by "self" and "Sorrell" by "sorr". The exact phrase wins; with no phrase
      hit, every word is matched at word starts. */
   // [textcheck:find-start]
-  var pfState = { q: '', hits: [], cur: -1 };   // hits: each the list of its <mark>s — a found text may lie across several text nodes (a word styled in part is drawn as runs)
+  var pfState = { q: '', hits: [], cur: -1, item: '' };   // item (1.6.3, finding 46): the page the words were looked for on   // hits: each the list of its <mark>s — a found text may lie across several text nodes (a word styled in part is drawn as runs)
   function pfNorm(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
   function pfClear() {
       var pv = document.getElementById('plannerPreview'); if (!pv) return;
@@ -3283,6 +3283,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var wasCur = keepCur ? pfState.cur : -1;
       pfClear();
       var q = pfNorm(box.value).trim(); pfState.q = q;
+      var amF = typeof getActiveMap === 'function' ? getActiveMap() : null; pfState.item = q && amF && typeof amF.id === 'string' ? amF.id : '';   // 1.6.3 (finding 46): whose words these are
       if (!q) { if (cnt) cnt.textContent = ''; return; }
       var find = function(re) { var found = []; pfStretches(pv).forEach(function(seg) { var rs = pfRanges(seg, re); if (rs.length) found = found.concat(pfWrap(seg, rs)); }); return found; };
       var hits = find(new RegExp(pfEsc(q), 'g'));
@@ -3421,7 +3422,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       renderPlannerPreviewCore();
       if (typeof pgAfterDraw === 'function') pgAfterDraw();   // writing on the page (backlog 171): every block pressable, a + before each, the open form laid again
       var box = document.getElementById('plannerFind');
-      if (box && box.value.trim()) plannerFindApply(true);   // keep the hits lit through an edit
+      // 1.6.3 (the review of pages, finding 46; Fulllion, 2026-11-21: "Find words clear when another page is opened, as Escape does"): the words
+      // belong to the page they were looked for on (pfState.item). Drawn again for that page they stay lit through an edit; another page opened
+      // since (the tree, a link, Next scene) clears them, so it opens at its top with nothing marked and no old hit to scroll to
+      var amR = typeof getActiveMap === 'function' ? getActiveMap() : null;
+      if (box && box.value.trim()) { if (pfState.item && amR && amR.id !== pfState.item) { box.value = ''; plannerFindApply(false); } else plannerFindApply(true); }   // keep the hits lit through an edit
   }
   function renderPlannerPreviewCore() {
 

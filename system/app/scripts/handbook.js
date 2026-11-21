@@ -106,6 +106,7 @@ function openDoc(id, land) {
     if (typeof readerPlace === 'function') readerPlace(m);   // clear of the rail, the turn strip and the tool bar, once it can be measured
     document.body.classList.add('doc-reader-open');
     body.scrollTop = 0;
+    if (typeof readerFindReset === 'function') readerFindReset();   // 1.6.3 (finding 5): another page opens with no words of the last one marked
     renderInto(body, it);
     return true;
 }
@@ -115,8 +116,54 @@ function closeDoc() {
     if (body) body.innerHTML = '';
     document.body.classList.remove('doc-reader-open');
     openDocId = null; openCampId = null; openSig = '';
+    if (typeof readerFindReset === 'function') readerFindReset();
 }
 // [shelfcheck:readerland-end]
+// [shelfcheck:readerfind-start]
+/* 1.6.3 (the review of pages, finding 5; Fulllion, 2026-11-21: "The player's reader gets the same Find row the GM's panel and a page's window
+   have (Enter and Shift+Enter, Esc, Ctrl+F while the reader has the focus), through wpDocPanel.finder"). The reader's own Find box marks every
+   place its words stand on the page as drawn, through the page panel's one finder (docpanel.js hlFinder, which a page's window uses too):
+   a moment after the words stop changing it marks them and goes to the first; Enter and Shift+Enter, and the two arrows beside the box, go to
+   the next and the one before; Esc clears what is typed, and on an empty box closes the reader as ever (handbook.js's own Esc listener and
+   esckey.js escKeep let a box that holds words go first). Ctrl+F, or the command key's F, takes the box while the reader holds the focus.
+   Another page opened, the reader closed, clears it (readerFindReset); a page the GM changed keeps its words lit (readerFindAgain) */
+var _rdFinder = null, _rdFindT = null;
+function rdFinder() {
+    if (_rdFinder) return _rdFinder;
+    var dp = window.wpDocPanel; if (!dp || typeof dp.finder !== 'function') return null;
+    _rdFinder = dp.finder(function() { return ui('docReaderBody'); }, function() { return ui('docReaderFindCount'); });
+    return _rdFinder;
+}
+function readerFindReset() {
+    var box = ui('docReaderFind'), cnt = ui('docReaderFindCount');
+    if (_rdFindT !== null) { clearTimeout(_rdFindT); _rdFindT = null; }
+    if (box) box.value = '';
+    if (_rdFinder) _rdFinder.clear();
+    if (cnt) cnt.textContent = '';
+}
+function readerFindAgain() {   // the page drawn again with words in the box: they are marked again where the page now stands, with no jump
+    var box = ui('docReaderFind'), f = box && box.value.trim() ? rdFinder() : null; if (f) f.find(box.value);
+}
+function readerFindWire() {
+    var box = ui('docReaderFind'), m = ui('docReaderModal'), nx = ui('docReaderFindNext'), pv = ui('docReaderFindPrev'); if (!box || !m) return false;
+    box.addEventListener('input', function() {
+        if (_rdFindT !== null) clearTimeout(_rdFindT);
+        _rdFindT = setTimeout(function() { _rdFindT = null; var f = rdFinder(); if (f) f.find(box.value, true); }, 130);
+    });
+    box.addEventListener('keydown', function(e) {
+        var f = rdFinder(); if (!f) return;
+        if (e.key === 'Enter') { e.preventDefault(); if (_rdFindT !== null) { clearTimeout(_rdFindT); _rdFindT = null; } if (f.words() !== box.value) f.find(box.value, true); else f.step(e.shiftKey ? -1 : 1); }
+        else if (e.key === 'Escape' && box.value) { e.preventDefault(); if (_rdFindT !== null) { clearTimeout(_rdFindT); _rdFindT = null; } box.value = ''; f.clear(); }
+    });
+    if (nx) nx.addEventListener('click', function() { var f = rdFinder(); if (f) f.step(1); });
+    if (pv) pv.addEventListener('click', function() { var f = rdFinder(); if (f) f.step(-1); });
+    m.addEventListener('keydown', function(e) {   // heard first, in the reader, so the page's own Find (the planner's) never takes it
+        if (!(e.ctrlKey || e.metaKey) || e.altKey || String(e.key).toLowerCase() !== 'f') return;
+        e.preventDefault(); e.stopPropagation(); box.focus(); if (typeof box.select === 'function') box.select();
+    }, true);
+    return true;
+}
+// [shelfcheck:readerfind-end]
 // The GM's edits arrived (net.js applyItem / applyItemDelta): re-render only the page on screen,
 // only when it changed, keeping the reader's scroll position.
 function refresh(campId, itemId) {
@@ -129,6 +176,7 @@ function refresh(campId, itemId) {
     if (title) title.textContent = (it.meta && it.meta.title) || 'Page';
     renderInto(body, it);
     body.scrollTop = top;
+    readerFindAgain();   // 1.6.3 (finding 5): the reader's Find stays lit through the GM's edit
 }
 // The GM hid or deleted the page (net.js itemGone)
 function gone(campId, itemId) {
@@ -175,8 +223,10 @@ readerWatch();
 
 var closeBtn = ui('docReaderClose');
 if (closeBtn) closeBtn.addEventListener('click', closeDoc);
+readerFindWire();
 document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape' || !isOpen() || somethingAbove()) return;
+    if (e.target && e.target.id === 'docReaderFind' && e.target.value) return;   // 1.6.3: Esc in a Find box that holds words clears the words first (readerFindWire)
     e.preventDefault(); e.stopPropagation();
     closeDoc();
 }, true);

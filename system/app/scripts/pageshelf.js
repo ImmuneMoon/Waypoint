@@ -119,11 +119,24 @@ function mapPinPut(camp, w, id) {
     if (w.page === undefined) return '';
     delete w.page; if (w.pageAt !== undefined) delete w.pageAt; return 'cleared';
 }
-// The pages a pin may name, for a list: planners first, then handbook pages, each by its name
+// The pages a pin may name, for a list: planners first, then handbook pages, each by its name. where (1.6.3, the review of pages, finding 14):
+// the names of the pages it stands under in the tree, the nearest last, so two pages of one name (an archive's copy) can be told apart
 function mapPinChoices(camp) {
     var out = []; if (!camp || !camp.items) return out;
-    Object.keys(camp.items).forEach(function(id) { var it = PIN_ID.test(id) ? pageOf(camp, id) : null; if (it) out.push({ id: id, title: pageTitle(it), kind: it.type }); });
+    Object.keys(camp.items).forEach(function(id) { var it = PIN_ID.test(id) ? pageOf(camp, id) : null; if (it) out.push({ id: id, title: pageTitle(it), kind: it.type, where: pageWhere(camp, it) }); });
     return out.sort(function(a, b) { return (a.kind === b.kind ? 0 : a.kind === 'planner' ? -1 : 1) || natCmp(a.title, b.title); });
+}
+// Where a page stands in the tree, in words: the titles of the pages of its own kind above it, the farthest first, joined by a slash; '' at
+// the top. Six steps at most, and a loop a file may hold ends where it closes
+function pageWhere(camp, it) {
+    var out = [], seen = Object.create(null), cur = it;
+    for (var k = 0; k < 6; k++) {
+        var pid = cur && cur.meta && typeof cur.meta.parentId === 'string' ? cur.meta.parentId : '';
+        var up = pid && !seen[pid] && Object.prototype.hasOwnProperty.call(camp.items, pid) ? camp.items[pid] : null;
+        if (!up || up === it || up.type !== it.type) break;
+        seen[pid] = 1; out.unshift(pageTitle(up)); cur = up;
+    }
+    return out.join(' / ');
 }
 // The pages pinned to pieces of a map, each once, in the pieces' order
 function mapPinsOn(camp, mapId) {
@@ -501,6 +514,24 @@ function namedNames(names, plain) {
 // by its place in its page where that is known, since two blocks of a file may share an id
 // 1.6.3: a row whose first block has no id a landing takes (only a file makes one) also carries bi, that block's place in its page, so the row
 // opens on that very block (pagenav.js landOf's { bi }). Landing at the name as words could land on the card itself. A row with an id is as before
+// 1.6.3 (the review of pages, finding 40): a block's folded words are kept with the block between presses, so a second Mentioned in costs
+// the name's own tests alone (a press over a campaign of 14,000 blocks took about 340 ms, most of it reading and folding every block again).
+// They are kept by the block object (a WeakMap, so a block that is gone takes them with it) beside a signature of everything the block holds,
+// its JSON measured by two hashes and its length: a block the editor changed in place is read again, and what is found never changes
+var _namedKept = typeof WeakMap === 'function' ? new WeakMap() : null;
+function namedSig(b) {
+    var s; try { s = JSON.stringify(b); } catch (e) { return ''; }
+    if (typeof s !== 'string') return '';
+    var h1 = 2166136261, h2 = 5381;
+    for (var i = 0; i < s.length; i++) { var c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = (Math.imul(h2, 33) + c) | 0; }
+    return s.length + ':' + (h1 >>> 0).toString(36) + ':' + (h2 >>> 0).toString(36);
+}
+function namedKept(b) {
+    if (!_namedKept) return namedFold(namedText(b));
+    var sig = namedSig(b), k = _namedKept.get(b); if (k && sig && k.sig === sig) return k.t;
+    var t = namedFold(namedText(b)); if (sig) _namedKept.set(b, { sig: sig, t: t });
+    return t;
+}
 function namedIn(camp, names, self, plain) {
     var list = namedNames(names, plain); if (!camp || !camp.items || typeof camp.items !== 'object' || !list.length) return [];
     var out = [], si = self && typeof self.i === 'number' && self.i >= 0 ? self.i : -1;
@@ -511,7 +542,7 @@ function namedIn(camp, names, self, plain) {
             if (!b || typeof b !== 'object') return;
             if (b.type === 'h1' || b.type === 'h2') head = namedSay(b.title);
             if (mine && (si >= 0 ? bi === si : typeof self.at === 'string' && b.id === self.at)) return;
-            var t = namedFold(namedText(b)), hit = null; for (var k = 0; k < list.length && !hit; k++) if (list[k].re.test(t)) hit = list[k];
+            var t = namedKept(b), hit = null; for (var k = 0; k < list.length && !hit; k++) if (list[k].re.test(t)) hit = list[k];
             if (!hit) return;
             n++;
             if (!first) first = { at: typeof b.id === 'string' && NAMED_ID.test(b.id) ? b.id : '', bi: bi, where: (b.type === 'node' && namedSay(b.title)) || head, q: hit.say };

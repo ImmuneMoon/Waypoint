@@ -2650,6 +2650,7 @@
   .section-actions.show { display: flex; gap: 4px; position: fixed; z-index: 100000; background: var(--panel2); border: 1px solid var(--edge); border-radius: 8px; padding: 5px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
   .sidebar-item { padding: 8px 10px; border-radius: 5px; color: var(--ink); cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; margin-bottom: 3px; transition: background 0.1s; border: 1px solid transparent; }
   .sidebar-item:hover { background: rgba(255,255,255,0.06); }
+  .sidebar-item:focus-visible { outline: 1px solid var(--gold); outline-offset: -1px; }   /* 1.6.3 (finding 4): the row the keyboard is on, in the tree */
   .sidebar-item.drag-over { background: var(--blue); color: #fff; }
   .sidebar-item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
   .sidebar-del-btn { background: none; border: none; color: var(--dim); cursor: pointer; padding: 2px 5px; font-size: 16px; border-radius: 4px; display: none; line-height: 1; margin-left: auto; }
@@ -3057,6 +3058,8 @@
   #mapTabFront .mt-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   #mapTabFront.mt-onpage { background: transparent; border: 1px dashed var(--edge); }   /* 1.6.2: a page in front, so the row does not read as a map open */
   #mapTabFront.mt-onpage #mapBreadcrumb { display: none !important; }
+  #mapTabFront.mt-onpage .mt-name { max-width: 220px; }   /* 1.6.3 (the review of pages, finding 13): a page's long title never takes the map tabs' room, so one click goes back to a map */
+  #mapTabFront.mt-onpage + #mapTabList { flex-shrink: 1; }   /* and while a page is in front the map tabs give way only as much as the page's tab does */
   #mapTabList { display: flex; align-items: center; gap: 2px; flex: 0 1000000 auto; min-width: 0; overflow: hidden; }   /* the list gives way before the tab in front does, all of it: at 1000 the tab in front still gave a fraction of a pixel, and its name read "The I…" with room to spare */
   #mapTabList.clip { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); }
   .map-tab { flex: none; border: 0; background: none; color: var(--dim); cursor: pointer; font-family: inherit; }
@@ -3404,6 +3407,10 @@
   #docReaderModal .doc-reader-head h3 { margin: 0; flex: 1; min-width: 0; color: var(--gold); font-size: 14px; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #docReaderOutline { flex: none; }
   #docReaderBody { flex: 1; overflow-y: auto; padding: 20px 24px; color: var(--ink); user-select: text; }
+  #docReaderBody:focus { outline: none; }   /* 1.6.3 (finding 5): the page takes the focus at a click, so Ctrl+F reaches its Find; no ring around the whole page */
+  #docReaderModal #docReaderFindRow { flex: 0 1 260px; min-width: 0; display: flex; align-items: center; gap: 5px; }
+  #docReaderModal #docReaderFind { flex: 1; min-width: 60px; background: var(--panel); border: 1px solid var(--border); border-radius: 5px; color: var(--ink); padding: 4px 8px; font-size: 12px; }
+  #docReaderModal #docReaderFind:focus { outline: none; border-color: var(--gold); }
   #docReaderBody .diagram.fc-box { resize: none; }
   #docReaderBody .diagram.fc-box g.node { cursor: default; }   /* the reader shows the chart as arranged; nothing drags */
   body.doc-reader-open #toast { z-index: 99995; }   /* "You arrive." and chat toasts stay visible over the panel */
@@ -6144,6 +6151,9 @@
   .dmg-row input:focus, .dmg-row select:focus { border-color: var(--gold); }
   .ui-find.dmg-who { display: flex; }   /* 1.6.3 (the review of damage): the Take damage window's Who search reads what is typed, beside its list */
   .ui-find.dmg-who > .ui-find-q { flex: 1 1 7em; width: auto; max-width: none; }
+  .ui-find.page-find { display: flex; flex-wrap: wrap; }   /* 1.6.3 (finding 14): Properties' Opens page and Scene page, a search over the list, each the row's whole width */
+  .ui-find.page-find > .ui-find-q { flex: 1 1 100%; max-width: none; width: auto; box-shadow: 0 1px 0 var(--edge); }
+  .ui-find.page-find > .ui-find-sel { flex: 1 1 100%; max-width: none; }
   .ui-find.dmg-who > .ui-find-sel { flex: 1.4 1 9em; max-width: none; }
   .dmg-tick input { accent-color: var(--gold); }
   .dmg-line { grid-column: 2; color: var(--dim); font-size: 11px; }

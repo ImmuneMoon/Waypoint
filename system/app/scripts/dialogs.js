@@ -770,6 +770,40 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
       updateSidebarNav(); render(); save(true);
       if (land && typeof window.wpPlannerLand === 'function') window.wpPlannerLand(id, land);
   }
+  // 1.6.3 (the review of pages, finding 27): a result opens by the one rule every page list keeps (pageshelf.js open and wayNow): on the play map
+  // over the map, with Ctrl in a window of its own, with Alt the page itself, as quick jump and the Pages shelf open it. Where that module is
+  // not there, the page itself as before
+  function listOpen(camp, id, land, e) {
+      var ps = window.wpPageShelf;
+      if (ps && typeof ps.open === 'function' && typeof ps.wayNow === 'function') { var way = ps.wayNow(e || null); if (land) ps.open(id, way, land); else ps.open(id, way); return; }
+      listGo(camp, id, land);
+  }
+  // 1.6.3 (findings 27 and 28): the two search lists' keys and their wait. The list is searched again a moment after the words stop changing
+  // (LIST_WAIT, as the planner's own Find waits), on every change of the words, a paste with the mouse included, never on a key that changes
+  // nothing. Enter opens the first result, or the one the arrows moved to, at once (a search still waiting runs first, so Enter never opens a
+  // result of the words before). Down goes into the results and Up and Down move through them; Up from the first goes back to the box.
+  // run(): searches now. pick(id, e): opens a result, with the keys of e held
+  var LIST_WAIT = 120;
+  function listWire(inp, res, run, pick) {
+      var t = null;
+      var now = function() { if (t !== null) { clearTimeout(t); t = null; run(); } };
+      var btns = function() { return Array.prototype.slice.call(res.querySelectorAll('button[data-id]')); };
+      inp.onkeyup = null;
+      inp.oninput = function() { if (t !== null) clearTimeout(t); t = setTimeout(function() { t = null; run(); }, LIST_WAIT); };
+      inp.onkeydown = function(e) {
+          if (e.key === 'Enter') { e.preventDefault(); now(); var b = btns()[0]; if (b) pick(b.dataset.id, e); return; }
+          if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); now(); var f = btns()[0]; if (f && typeof f.focus === 'function') f.focus(); }
+      };
+      res.onkeydown = function(e) {
+          var list = btns(), at = list.indexOf(e.target); if (at < 0) return;
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault(); e.stopPropagation();
+              var to = at + (e.key === 'ArrowDown' ? 1 : -1);
+              if (to < 0) { if (typeof inp.focus === 'function') inp.focus(); } else if (list[to] && typeof list[to].focus === 'function') list[to].focus();
+          } else if (e.key === 'Enter') { e.preventDefault(); pick(list[at].dataset.id, e); }
+      };
+      return { now: now, pending: function() { return t !== null; } };
+  }
   // [shelfcheck:listland-end]
   var _el_searchPlannersBtn = document.getElementById('searchPlannersBtn');
   if(_el_searchPlannersBtn) _el_searchPlannersBtn.addEventListener('click', function() {
@@ -799,14 +833,16 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
           res.innerHTML = html;
           var land = listLand(q);   // a typed query's result opens at the hit
           res.querySelectorAll('button').forEach(btn => {
-              btn.addEventListener('click', function() {
-                  m.style.display = 'none';
-                  listGo(camp, this.dataset.id, land);
-                  setTimeout(function(){ if(document.getElementById('centerBtn')) if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
-              });
+              btn.addEventListener('click', function(e) { pick(this.dataset.id, e); });
           });
+          pick = function(id, e) {   // 1.6.3 (finding 27): over the map on the play map, as every page list opens one
+              m.style.display = 'none';
+              listOpen(camp, id, land, e);
+              setTimeout(function(){ if(document.getElementById('centerBtn')) if (window.appRestoreCamera) window.appRestoreCamera();   /* the old #centerBtn is gone: restore the map's remembered camera */ }, 10);
+          };
       }
-      inp.onkeyup = updateList;
+      var pick = function() {};
+      listWire(inp, res, updateList, function(id, e) { pick(id, e); });
       updateList();
       var closeBtn = document.getElementById('plannerSearchClose');
       if(closeBtn) closeBtn.onclick = function() { m.style.display = 'none'; };
@@ -844,14 +880,16 @@ if(_el_delItemBtn) _el_delItemBtn.addEventListener('click', function() {
           res.innerHTML = html;
           var land = listLand(q);   // a typed query's result opens at the hit, in the reader too
           res.querySelectorAll('button').forEach(btn => {
-              btn.addEventListener('click', function() {
-                  m.style.display = 'none';
-                  if (window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) { if (land) window.wpOpenDoc(this.dataset.id, land); else window.wpOpenDoc(this.dataset.id); } return; }   // a received page is read, not edited
-                  listGo(camp, this.dataset.id, land);
-              });
+              btn.addEventListener('click', function(e) { pick(this.dataset.id, e); });
           });
+          pick = function(id, e) {
+              m.style.display = 'none';
+              if (window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) { if (land) window.wpOpenDoc(id, land); else window.wpOpenDoc(id); } return; }   // a received page is read, not edited
+              listOpen(camp, id, land, e);   // 1.6.3 (finding 27): over the map on the play map, as every page list opens one
+          };
       }
-      inp.onkeyup = updateList;
+      var pick = function() {};
+      listWire(inp, res, updateList, function(id, e) { pick(id, e); });
       updateList();
       var closeBtn = document.getElementById('docSearchClose');
       if(closeBtn) closeBtn.onclick = function() { m.style.display = 'none'; };

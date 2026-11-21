@@ -376,6 +376,120 @@ function presShow(box, focus) {
 // [lookcheck:prespop-end]
 function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(document, !!(window.wpNet && window.wpNet.foreign), chN, panelHasDoc(camp && camp.items)); }
 
+// [shelfcheck:treekeys-start]
+/* 1.6.3 (the review of pages, finding 4): the left panel's three lists of the tree (Maps, Planners, the Handbook) are trees for the keyboard,
+   as a file tree is. Each list is role tree and each row a treeitem with ONE tab stop a list (a roving tabindex): Tab reaches the row last
+   used, or the one open, and the arrow keys go from there. Up and Down move a row, Home and End to the ends, Right opens a row's nest or goes
+   into it, Left closes it or goes to the row above it, Enter or Space opens the row as a click does, F2 renames it (the GM's alone, as a
+   double-click does) and Shift+F10 or the menu key opens its right-click menu. Nothing new happens: each key presses what a pointer already
+   does there (the row's click, its caret's click, its right-click), so a player's read-only tree stays read only.
+   The rows are drawn again on every change of the tree (updateSidebarNav writes each list whole), so the row that held the focus is found
+   again by its id afterwards (treeFocusOf before the draw, treeSync after it).
+   And a double-click to rename (finding 36, Fulllion, 2026-11-21: "A double-click on a tree row renames it and puts the view back where it
+   was. A single click still opens at once."): the first click of a double-click has already opened the row, so the click notes what was on
+   screen before it (treeOpenNote) and the double-click puts that back (treeBackFor) before it asks for the new name */
+var TREE_LISTS = ['mapNavList', 'plannerNavList', 'docNavList'], TREE_NAMES = { mapNavList: 'Maps', plannerNavList: 'Planners', docNavList: 'Handbook pages' }, TREE_DBL_MS = 1500;
+// What a key does on a row. rows: the rows of one list in order, each { d: depth, kids: has a nest, open: its nest is shown }. Answers
+// { to: index } to move the focus, { act } for open, expand, collapse, rename or menu, or null for a key the tree leaves alone
+function treeKeyAct(rows, i, key, shift) {
+    var n = Array.isArray(rows) ? rows.length : 0; if (!n || !(i >= 0 && i < n)) return null;
+    var r = rows[i] || {};
+    if (key === 'ArrowDown') return { to: Math.min(n - 1, i + 1) };
+    if (key === 'ArrowUp') return { to: Math.max(0, i - 1) };
+    if (key === 'Home') return { to: 0 };
+    if (key === 'End') return { to: n - 1 };
+    if (key === 'ArrowRight') { if (!r.kids) return { to: i }; if (!r.open) return { act: 'expand' }; return { to: i + 1 < n && rows[i + 1].d > r.d ? i + 1 : i }; }
+    if (key === 'ArrowLeft') { if (r.kids && r.open) return { act: 'collapse' }; for (var k = i - 1; k >= 0; k--) if (rows[k].d < r.d) return { to: k }; return { to: i }; }
+    if (key === 'Enter' || key === ' ') return { act: 'open' };
+    if (key === 'F2' && !shift) return { act: 'rename' };
+    if (key === 'ContextMenu' || (key === 'F10' && shift)) return { act: 'menu' };
+    return null;
+}
+// The rows of one list (its own children that are rows of the tree), and what treeKeyAct reads of each from the row as drawn
+function treeRows(nav) { var out = [], ch = nav && nav.children ? nav.children : []; for (var i = 0; i < ch.length; i++) if (ch[i] && ch[i].classList && ch[i].classList.contains('sidebar-item')) out.push(ch[i]); return out; }
+function treeRowInfo(row) { var c = row.querySelector ? row.querySelector('.caret') : null; return { d: parseInt(row.dataset && row.dataset.depth, 10) || 0, kids: !!c, open: !!(c && c.classList.contains('down')) }; }
+// Which row of the tree holds the focus now, by its list and its id: { list, id } or null
+function treeFocusOf(doc) {
+    var a = doc && doc.activeElement; if (!a || !a.classList || !a.classList.contains('sidebar-item') || !a.parentNode) return null;
+    var list = a.parentNode.id; return TREE_LISTS.indexOf(list) >= 0 && a.dataset && a.dataset.id ? { list: list, id: a.dataset.id } : null;
+}
+// After a list is drawn: it is a tree, and one row is its tab stop. The row that held the focus before the draw takes it back; else the
+// row last moved to, else the row open, else the first
+function treeSync(nav, foc) {
+    if (!nav) return null;
+    nav.setAttribute('role', 'tree'); if (TREE_NAMES[nav.id]) nav.setAttribute('aria-label', TREE_NAMES[nav.id]);
+    var rows = treeRows(nav); if (!rows.length) return null;
+    var want = foc && foc.list === nav.id ? foc.id : nav._wpTreeAt || '', stop = null;
+    rows.forEach(function(r) { if (!stop && want && r.dataset.id === want) stop = r; });
+    if (!stop) rows.forEach(function(r) { if (!stop && r.classList.contains('active')) stop = r; });
+    if (!stop) stop = rows[0];
+    rows.forEach(function(r) { r.tabIndex = r === stop ? 0 : -1; });
+    if (foc && foc.list === nav.id && stop.dataset.id === foc.id && typeof stop.focus === 'function') stop.focus({ preventScroll: true });
+    return stop;
+}
+// The focus to one row of a list: the one tab stop moves with it
+function treeMove(nav, row) {
+    treeRows(nav).forEach(function(r) { r.tabIndex = r === row ? 0 : -1; });
+    nav._wpTreeAt = row.dataset.id || '';
+    if (typeof row.focus === 'function') row.focus();
+    if (typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'nearest' });
+}
+// One key listener a list, put on once (the list stays; only its rows are drawn again). deps: rename(id) and menu(row), as the row's own
+// double-click and right-click do. A key held with Ctrl, Alt or the command key is left to the page, and so is a key on a control inside a
+// row (the faces of who is on a map have keys of their own)
+function treeKeysWire(nav, deps) {
+    if (!nav || nav._wpTreeKeys) return false;
+    nav._wpTreeKeys = true;
+    nav.addEventListener('keydown', function(e) {
+        var row = e.target; if (!row || !row.classList || !row.classList.contains('sidebar-item') || row.parentNode !== nav) return;
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+        var rows = treeRows(nav), i = rows.indexOf(row), a = treeKeyAct(rows.map(treeRowInfo), i, e.key, e.shiftKey); if (!a) return;
+        e.preventDefault(); e.stopPropagation();   // the page's own keys never hear it: its arrows would move a selected token, and Space would scroll the panel
+        if (typeof a.to === 'number') { if (rows[a.to]) treeMove(nav, rows[a.to]); return; }
+        nav._wpTreeAt = row.dataset.id || '';
+        if (a.act === 'open') row.click();
+        else if (a.act === 'expand' || a.act === 'collapse') { var c = row.querySelector('.caret'); if (c) c.click(); }
+        else if (a.act === 'rename' && deps && typeof deps.rename === 'function') deps.rename(row.dataset.id);
+        else if (a.act === 'menu' && deps && typeof deps.menu === 'function') deps.menu(row);
+    });
+    return true;
+}
+// What was on screen before a click opened a row: { id, prev, view, at }. A click on the row already open notes nothing, so the second click
+// of a double-click leaves the first click's note as it is
+var _treeWas = null;
+function treeOpenNote(camp, id, view, now) {
+    if (!camp || typeof id !== 'string' || camp.activeItemId === id) return false;
+    _treeWas = { id: id, prev: camp.activeItemId, view: view, at: now };
+    return true;
+}
+// For a double-click on a row: what to put back, { prev, view }, where that very row was opened by a click a moment before (TREE_DBL_MS) and
+// what was on screen then is still in the campaign; else null. The note is used once
+function treeBackFor(camp, id, now) {
+    var w = _treeWas; _treeWas = null;
+    if (!w || !camp || w.id !== id || camp.activeItemId !== id || !(now - w.at >= 0 && now - w.at < TREE_DBL_MS)) return null;
+    if (typeof w.prev !== 'string' || !camp.items || !Object.prototype.hasOwnProperty.call(camp.items, w.prev) || !camp.items[w.prev]) return null;
+    return { prev: w.prev, view: w.view };
+}
+// [shelfcheck:treekeys-end]
+// Rename a row's map, planner or page: the double-click's and F2's one way. The GM's alone: a received copy is never renamed
+function renameTreeItem(id) {
+    if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;
+    var activeC = getActiveCampaign();
+    var it = activeC && typeof id === 'string' && Object.prototype.hasOwnProperty.call(activeC.items, id) ? activeC.items[id] : null;
+    if (!it || !it.meta) return;
+    promptForItemName(it.meta.title || '', 'Rename ' + (it.type === 'planner' ? 'planner' : it.type === 'doc' ? 'page' : 'map') + ':', it.id, function(title) {
+        it.meta.title = title;
+        it.meta.updated = Date.now();
+        save(); updateSidebarNav(); render();
+        toast('Renamed to “' + title + '”.');
+    });
+}
+// A row's right-click menu from the keyboard: the row's own contextmenu, at the row's left, a little under its top
+function treeMenu(row) {
+    var r = row.getBoundingClientRect ? row.getBoundingClientRect() : { left: 0, top: 0 };
+    try { row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: Math.round(r.left + 24), clientY: Math.round(r.top + 18) })); } catch (e) {}
+}
+
   function updateSidebarNav() {
 
       var camp = getActiveCampaign();
@@ -443,7 +557,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
           var guides = '';
           for (var g = 1; g <= depth; g++) guides += '<span class="tree-guide" style="left:' + (10 + (g - 1) * 14 + 5) + 'px;"></span>';   // under the parent's caret
-          return '<div class="sidebar-item' + (isActive ? ' active' : '') + (depth === 0 ? ' tree-root' : '') + '" data-id="' + esc(item.id) + '" data-depth="' + depth + '" draggable="true"' +
+          return '<div class="sidebar-item' + (isActive ? ' active' : '') + (depth === 0 ? ' tree-root' : '') + '" data-id="' + esc(item.id) + '" data-depth="' + depth + '" draggable="true" role="treeitem" tabindex="-1" aria-level="' + (depth + 1) + '"' + (hasKids ? ' aria-expanded="' + (collapsed ? 'false' : 'true') + '"' : '') + ' aria-selected="' + (isActive ? 'true' : 'false') + '"' +   // 1.6.3 (finding 4): a row of a tree for the keyboard and a screen reader; treeSync gives one row of the list the tab stop
 
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
@@ -485,6 +599,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
       }
 
+      var treeFoc = treeFocusOf(document);   // 1.6.3 (finding 4): the row that holds the focus, found again once the lists are drawn
       pNav.innerHTML = treeHtml('planner') || '<div class="nav-empty">No planners yet — press + above to write your first session plan.</div>';
 
       var dNav = document.getElementById('docNavList');
@@ -496,6 +611,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
 
       if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened
       mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
+      TREE_LISTS.forEach(function(lid) { var nv = document.getElementById(lid); treeSync(nv, treeFoc); treeKeysWire(nv, { rename: renameTreeItem, menu: treeMenu }); });   // 1.6.3 (finding 4): each list a tree for the keyboard, with one tab stop
       if (window.wpMapTabs) window.wpMapTabs.sync();   // the top row's map tabs (maptabs.js) read the pins, the last maps opened (noted just above) and who is where
       if (window.wpPills) window.wpPills.sync();   // and its state pills (pills.js): a table opened or closed, a player come or gone
 
@@ -582,6 +698,7 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
                 var itC = activeC && activeC.items[this.dataset.id];
                 if (itC && itC.type === 'doc' && window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(this.dataset.id); return; }   // a joined player reads a page in the panel; activeItemId stays on the map
                 if (activeC && itC) {   // only an item of the campaign is opened: never an id that names nothing
+                    treeOpenNote(activeC, this.dataset.id, state.viewMode, Date.now());   // 1.6.3 (finding 36): what was on screen, for a double-click that renames
                     activeC.activeItemId = this.dataset.id;
                     state.selId = null; state.selWbId = null; state.linkStart = null;
                     if (window.wpApplyRememberedView) window.wpApplyRememberedView();
@@ -596,14 +713,15 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
                 e.preventDefault(); e.stopPropagation();
                 if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // never rename a received copy
                 var activeC = getActiveCampaign();
-                var it = activeC && activeC.items[this.dataset.id];
-                if (!it || !it.meta) return;
-                promptForItemName(it.meta.title || '', 'Rename ' + (it.type === 'planner' ? 'planner' : it.type === 'doc' ? 'page' : 'map') + ':', it.id, function(title) {
-                    it.meta.title = title;
-                    it.meta.updated = Date.now();
-                    save(); updateSidebarNav(); render();
-                    toast('Renamed to “' + title + '”.');
-                });
+                // 1.6.3 (finding 36): the double-click's first click opened this row; what was on screen before it comes back, then the name is asked
+                var back = treeBackFor(activeC, this.dataset.id, Date.now());
+                if (back) {
+                    activeC.activeItemId = back.prev;
+                    if (back.view) state.viewMode = back.view;
+                    updateSidebarNav(); render(); save(true);
+                    restoreCameraPosition();
+                }
+                renameTreeItem(this.dataset.id);
             });
         });
 

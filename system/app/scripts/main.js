@@ -1803,7 +1803,11 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var inp = document.getElementById('cmdkInput');
         inp.value = '';
         cmdkRender('');
-        setTimeout(function() { inp.focus(); }, 30);
+        // 1.6.3 (the review of pages, finding 7): the box takes the focus at once, in the same turn as Ctrl+K. A key typed while the list was
+        // being built waits in the browser's queue and goes to whatever has the focus when this turn ends: with the focus set only 30 ms later
+        // those keys went to the page, where a letter could even take a tool. The timer stays as a second focus, for a page that moved it since
+        try { inp.focus(); } catch (e) {}
+        setTimeout(function() { var mk = document.getElementById('cmdkModal'); if (mk && mk.style.display !== 'none' && document.activeElement !== inp) inp.focus(); }, 30);
     }
     window.wpCmdkOpen = cmdkOpen;
 
@@ -1868,7 +1872,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         save();
         updateCampaignSelect();
         updateSidebarNav();
-        render();
+        if (typeof window.appRender === 'function') window.appRender(); else render();   // 1.6.3 (the review of pages, finding 6): the whole app's draw, which also empties the party strip off the play map, as the left panel's and the shelf's ways do
         restoreCameraPosition();
         if (window.wpSettingsSync) window.wpSettingsSync();   // Ctrl+K works over an open Settings modal: its VTT rows follow the campaign
         var land = cmdkLand(en);

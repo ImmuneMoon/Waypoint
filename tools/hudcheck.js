@@ -762,7 +762,7 @@ const j = v => JSON.stringify(v);
             && NF(nfSys([{ label: '{Facing}' }], [{ key: 'Facing', kind: 'number' }])) === false && NF({ fields: [{ key: 'X', formula: 'Facing + 1' }], rolls: [] }) === true);
         check('HUD frame HF5a (source): both roll buttons (the band and a section) are drawn with the system and the render\'s resolver, and nothing else builds one; the initiative roll resolves its label and its privacy the same way; the privacy check is the host\'s alone; the label input says so; Help describes it',
             /rollNode\(rollById\[q\.roll\], c, sys, all\.vars\)/.test(sh8) && /rollNode\(rollById\[pl\.roll\], c, sys, all\.vars\)/.test(sh8) && (sh8.match(/rollNode\(/g) || []).length === 4 && /var nodeR = rollNode\(rl, c, sys, null\)/.test(sh8)
-            && /lbI = allI \? rollLabel\(r, sys, c, allI\.vars\) : r\.label, whyI = allI \? labelSecret\(sys, allI\.vars, r\.label\) : ''/.test(sh8) && /rollFor\(charId, r\.formula, lbI \|\| 'Initiative', \{ source: 'combat', priv: !!whyI \|\| !!\(opts && opts\.priv === true\), gmOnly: r\.vis === 'gm' \}\)/.test(sh8)
+            && /lbI = allI \? rollLabel\(r, sys, c, allI\.vars\) : r\.label, whyI = allI \? labelSecret\(sys, allI\.vars, r\.label\) : ''/.test(sh8) && /rollFor\(charId, r\.formula, lbI \|\| 'Initiative', \{ source: 'combat', priv: !!whyI \|\| !!\(opts && opts\.priv === true\) \|\| \(typeof npcInitHidden === 'function' && npcInitHidden\(camp, c\)\), gmOnly: r\.vis === 'gm', tok: /.test(sh8) /* 1.6.3 (the combat review, finding 3): an NPC's roll is the GM's by default, and the roster's token rides as tok, moved on purpose */
             && /if \(isClient\(\) \|\| !\(n && n\.active && n\.role === 'host'\)/.test(sh8) && /import \{[^}]*labelGmNames, gmEffectNames, labelNames[^}]*\} from '\.\/systemcore\.js';/.test(sh8) && sh8.indexOf('{formula} shows a value: Attack ({' + BS8 + 'u00b1AtkBonus})') > 0
             && /<b>Values in labels<\/b>: a roll&rsquo;s label can carry <code>\{formula\}<\/code> values like a caption/.test(fs.readFileSync(path.join(app, 'index.html'), 'utf8')));
     }
@@ -1121,6 +1121,21 @@ const j = v => JSON.stringify(v);
         check('HUD frame HF5 review: rollInit (run for real) sends the label as worked out ("Init (+2)" at DEX 14) from the combat roster; one naming a GM-only value goes private with one toast on a hosting GM and public offline; with no formula engine the label goes as written',
             j(iA.calls) === j([['c_i', 'd20 + DEXmod', 'Init (+2)', { source: 'combat', priv: false, gmOnly: false }]]) && iA.toasts.length === 0 && j(iG.calls[0].slice(2)) === j(['Init (0)', { source: 'combat', priv: true, gmOnly: false }]) && iG.toasts.length === 1 && /GMFig/.test(iG.toasts[0])
             && j(iOff.calls[0].slice(2)) === j(['Init (0)', { source: 'combat', priv: false, gmOnly: false }]) && iOff.toasts.length === 0 && j(iNoF.calls[0].slice(2)) === j(['Init ({' + PMR + 'DEXmod})', { source: 'combat', priv: false, gmOnly: false }]), j([iA.calls, iG.calls, iG.toasts, iOff.calls, iNoF.calls]));
+        {   // 1.6.3 (the improvement week's combat review, batch "strip", finding 3; Fulllion's pick of 2026-11-20: "optional on if its shown by a setting, recommended by default"):
+            // rollInit with npcInitHidden, run for real. An NPC's roll (no player, or ticked NPC) goes to the GM alone unless camp.turnRules.npcInit is 'all'; a player's goes to the table;
+            // the token the roster rolls for rides as tok, whose own name the card wears (net.js names it through tokNameOf)
+            const riN = shR.slice(shR.indexOf('function npcInitHidden(camp, c) {'), shR.indexOf('// One value changed on the open sheet'));
+            const runN = (ch, rules, o) => { const sysI = JSON.parse(JSON.stringify(gDR)); sysI.rolls.find(r => r.init).label = 'Init';
+                const calls = [], camp = { id: 'k', system: sysI, chars: { [ch.id]: ch }, turnRules: rules }, api = mkR({ net: { active: true, role: 'host' } });
+                const ri = new Function('getActiveCampaign', 'systemOf', 'charById', 'initRoll', 'window', 'F', 'resolveAll', 'tokenCtxFor', 'rollLabel', 'labelSecret', 'toast', riN + '\nreturn rollInit;')(
+                    () => camp, c => c.system, (id, c) => (c.chars[id] || null), S.initRoll, { wpDice: { rollFor: (...a) => { calls.push(a); return { ok: true }; } }, wpVtt: { on: () => true } }, () => F, S.resolveAll, () => null, api.rollLabel, api.labelSecret, () => {});
+                ri(ch.id, o); return calls.map(c => c[3]); };
+            const npc = { id: 'c_n', name: 'Selkath peacekeeper', values: { f_dex: 14 } }, tick = { id: 'c_t', name: 'Ward', ownerId: 'u_a', npc: true, values: { f_dex: 14 } }, pc = { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: { f_dex: 14 } };
+            const nA = runN(npc, undefined, { tok: 'tk_guard' }), nB = runN(npc, { npcInit: 'all' }, { tok: 'tk_guard' }), nC = runN(tick, {}), nD = runN(pc, {}), nE = runN(pc, { npcInit: 'all' }, { priv: true }), nF = runN(npc, { npcInit: 'yes' });
+            check('1.6.3 (the combat review, finding 3, rollInit run for real): an NPC\'s initiative roll goes to the GM alone by default, and to the table where the campaign\'s NPC initiative rolls says Everyone (only \'all\' counts); a ticked NPC with a player is an NPC; a player\'s roll goes to the table, and a private roll the roster asks for stays private; the roster\'s token rides as tok',
+                nA[0].priv === true && nA[0].tok === 'tk_guard' && nB[0].priv === false && nB[0].tok === 'tk_guard' && nC[0].priv === true && nD[0].priv === false && nD[0].tok === undefined && nE[0].priv === true && nF[0].priv === true,
+                j([nA, nB, nC, nD, nE, nF]));
+        }
         // turnView and the sheet's branch of tokenTurned, run for real: a round change marks the view stale and the final call redraws it once
         const flJ = JSON.stringify(flagsR); let rNow = '', nfR = true, swapsR = 0; const redrawsV = [], redrawsS = [];
         const tvSrc = shR.slice(shR.indexOf('function turnView(v, final) {'), shR.indexOf('// The floating panels'));

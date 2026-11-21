@@ -4140,6 +4140,7 @@ function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, ro
             if (r.rolled === 1 || r.rolled === true) o.rolled = 1;   // initiative O1: the row has its number (rolled or given); the host's own, never sent to a player (combatRowOut)
             if (r.held === 1 || r.held === true) o.held = 1;   // initiative O3: holding its turn this round (shown to the table)
             if (r.sf === 1) o.sf = 1;   // 1.6.0: its hold was set off, and it acts before the turn goes on
+            if (r.hid === 1) o.hid = 1;   // 1.6.3 (finding 24): a row redacted for this player, only as 1
             if (typeof r.hf === 'string' && r.hf) o.hf = r.hf.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').slice(0, 120);   // 1.6.0: what sets its hold off, for the holder alone; text, drawn through esc
             if (r.dn === 1 || r.dn === true) o.dn = 1;   // initiative O5: Next is chosen, it had its turn this round (shown to the table)
             if (Array.isArray(r.tb)) { var tb = r.tb.slice(0, 3).map(function(v) { return Array.isArray(v) ? v.slice(0, 8).filter(function(n) { return typeof n === 'number' && isFinite(n); }).map(function(n) { return Math.max(-1e6, Math.min(1e6, n)); }) : null; }); if (tb.some(function(v) { return v && v.length; })) o.tb = tb; }   // initiative O2: its tie rolls, each step's in order, kept so a later sort never shuffles; the host's own
@@ -4148,6 +4149,7 @@ function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, ro
     if (!rows.length) return null;
     var f = { mapId: mapId, round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
     if (k.side === 'pc' || k.side === 'rest') f.side = k.side;   // initiative O4: the side going first this round (shown to the table)
+    if (typeof k.nx === 'number' && Math.floor(k.nx) === k.nx && k.nx >= -1 && k.nx < rows.length) f.nx = k.nx;   // 1.6.3 (finding 23): who acts next by its place, -1 where it cannot be known
     if (k.dec && typeof k.dec === 'object' && Array.isArray(k.dec.in)) f.dec = { in: k.dec.in.slice(0, 60).map(function(x) { return String(x).slice(0, 40); }), n: Math.max(0, Math.min(60, Number(k.dec.n) || 0)) };   // 1.6.2 (G10): a declaration under way: who is in, and of how many
     if (k.mv && typeof k.mv === 'object' && typeof k.mv.m === 'number' && typeof k.mv.a === 'number' && isFinite(k.mv.m) && isFinite(k.mv.a)) { f.mv = { m: Math.max(0, Math.min(1e6, k.mv.m)), a: Math.max(0, Math.min(1e6, k.mv.a)) }; if (typeof k.mv.w === 'number' && isFinite(k.mv.w)) f.mv.w = Math.max(0, Math.min(1e6, k.mv.w)); }   // 1.5.7: the turn's move, this player's own; 1.6.0: w, how far it goes before it spends the action
     return f;
@@ -4174,7 +4176,9 @@ function applyNotepad(m) {
    owner's ruling of 2026-10-01): a pointer at a token the GM has hidden, or at nothing on the host's map, goes to no one on any table — hidden
    and gone answer alike, so an echo tells a player's app nothing — and the pointers go out again when a hide, a show or a deletion changes
    which are sent, as the rows are. A table without fog keeps the single broadcast, through the same judge. */
-function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }   // initiative O3: a seen row's hold too (an unseen one tells nothing)
+// 1.6.3 (the combat review's batch "strip", finding 24): a redacted row is marked hid, 1, and every reader asks that, never the word Hidden: an NPC the GM really named
+// Hidden is a row like any other (the Declaring box, the count a player is told, a drawn order's card), and a player's turn notice says someone they cannot see acts
+function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null, hid: 1 }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }   // initiative O3: a seen row's hold too (an unseen one tells nothing)
 // The owner's ruling of 2026-10-01 ("if they've already seen the character, there's no reason to exclude it from the turn order unless it's
 // left the fight"): a row a player was once sent whole in this fight keeps its name for them when its token is hidden or out of their sight;
 // only a creature they have never seen in it reads Hidden. The host's memory per fight (its own id, fold 2) and player (a profile id; '*' = everyone
@@ -4184,6 +4188,20 @@ function combatSeenKey(pid) { return typeof pid === 'string' && pid ? pid : '*';
 function combatSeen(fid, pid, tokId) { var m = typeof fid === 'string' ? _combatSeen[fid] : null; if (!m || typeof tokId !== 'string') return false; var k = combatSeenKey(pid); return !!((m[k] && m[k][tokId] === 1) || (m['*'] && m['*'][tokId] === 1)); }
 function combatSaw(fid, pid, tokId) { if (typeof fid !== 'string' || typeof tokId !== 'string') return; var m = _combatSeen[fid] || (_combatSeen[fid] = Object.create(null)), k = combatSeenKey(pid), s = m[k] || (m[k] = Object.create(null)); s[tokId] = 1; }
 function combatForget(fid) { if (fid === undefined) { _combatSeen = Object.create(null); _combatsSent = Object.create(null); } else delete _combatSeen[fid]; }   // a new table: nothing seen, and nothing sent (fold 2's review)
+// 1.6.3 (the combat review's batch "strip", finding 23): who acts next, worked out on the host by the fight's own turn shape, as the place of a row in its order
+// (the strip's "next"), or -1 where it cannot be known now: a counting clock picks the next turn only once this turn's cost is known; a round that ends under an
+// order made again each round (rolled every round, sides, a drawn order) has no next until it is made. Several turns a round walk the round's own turns (c.seq,
+// which may give the same row again); a drawn order ends its round at the card that ends it (c.endAt). null for Next is chosen, which the strip works out itself
+// (systemcore chosenNext). The answer is a place, so a row redacted for a player keeps it, and nothing of c.seq or a count leaves the host
+function fightNextAt(camp, c) {
+    if (!c || !Array.isArray(c.rows) || !c.rows.length) return -1;
+    var ir = typeof initRulesOf === 'function' ? initRulesOf(camp) || {} : {}; if (ir.chosen === true) return null; if (ir.clock) return -1;
+    var len = c.rows.length, redo = ir.every === true || (typeof ir.side === 'string' && !!ir.side) || !!ir.deck, at = function(id) { for (var i = 0; i < len; i++) if (c.rows[i] && c.rows[i].id === id) return i; return -1; };
+    if (Array.isArray(c.seq) && c.seq.length) { var sq = typeof c.sq === 'number' ? c.sq : 0; return sq + 1 < c.seq.length ? at(c.seq[sq + 1]) : redo ? -1 : at(c.seq[0]); }
+    var t = c.turn + 1; if (t >= len || (typeof c.endAt === 'number' && t >= c.endAt)) return redo ? -1 : 0;
+    return t;
+}
+net.fightNextAt = function(fid) { var c = typeof fid === 'string' && net.combats && Object.prototype.hasOwnProperty.call(net.combats, fid) ? net.combats[fid] : null; return c ? fightNextAt(getActiveCampaign(), c) : -1; };   // the GM's own strip
 // Fold 2 (backlog 152): a player is sent only the fights on the map they are on (mapId: their roster location), each under its own id. Before it every
 // player was sent every fight on every map, whole on a map with no fog. Never a fight's n, rr or a row's number (combatRowOut)
 function combatsFor(recipientId, mapId) {
@@ -4202,7 +4220,8 @@ function combatsFor(recipientId, mapId) {
             return oD;
         }) };
         if (cmb.side === 'pc' || cmb.side === 'rest') out[fid].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
-        if (cmb.dec && cmb.dec.open === 1) { var shownD = out[fid].rows.filter(function(r) { return r.name !== 'Hidden'; }); out[fid].dec = { in: shownD.map(function(r) { return r.id; }).filter(function(id) { return own(cmb.dec.lines, id); }), n: shownD.length }; }   // 1.6.2 (G10): who is in, of those they can see, and never what
+        var nxF = fightNextAt(camp, cmb); if (typeof nxF === 'number' && nxF !== (cmb.turn + 1) % cmb.rows.length) out[fid].nx = nxF;   // 1.6.3 (finding 23): who acts next, by its place, worked out here by the turn shape, sent only where it is not the row after the one on turn, which a player's strip takes where none is sent
+        if (cmb.dec && cmb.dec.open === 1) { var shownD = out[fid].rows.filter(function(r) { return r.hid !== 1; }); out[fid].dec = { in: shownD.map(function(r) { return r.id; }).filter(function(id) { return own(cmb.dec.lines, id); }), n: shownD.length }; }   // 1.6.2 (G10): who is in, of those they can see, and never what
         var stMv = net.turnMove && Object.prototype.hasOwnProperty.call(net.turnMove, fid) ? net.turnMove[fid] : null, curMv = cmb.rows[cmb.turn];   // 1.5.7: the turn's move, to the token's own player alone
         if (stMv && typeof stMv.allow === 'number' && net.turnMoveOwn && net.turnMoveOwn[fid] === recipientId && curMv && curMv.id === stMv.rowId) { out[fid].mv = { m: Math.round(stMv.moved * 100) / 100, a: Math.round(stMv.allow * 100) / 100 }; if (typeof stMv.run === 'number' && stMv.ran !== true && stMv.allow > stMv.walk) out[fid].mv.w = Math.round(stMv.walk * 100) / 100; }
     });
@@ -4471,7 +4490,7 @@ function declareIn(fid, rowId, text, pid) {   // pid: a player's own line; '' th
 function declareReveal(fid) {   // the one reveal. Those who have said nothing say nothing
     var c = orderById(fid), open = c && c.dec && c.dec.open === 1 ? c.dec : null; if (!open || net.role !== 'host') return false; c.dec = { round: open.round, lines: Object.create(null), open: 0 };
     var mk = function(rows) { var L = rows.filter(function(r) { return !!r && own(open.lines, r.id); }).map(function(r) { return { n: String(r.name || 'Someone').slice(0, 60), say: open.lines[r.id] }; }); return L.length ? { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), label: 'Declared', lines: applyLines(L), ts: Date.now() } : null; };
-    if (net.active) net.conns.forEach(function(k) { if (!k.open || !net.roster[k.peer]) return; var pid = peerProfileId(k), p = net.roster[k.peer], cp = p && p.location === c.mapId ? combatsFor(pid, c.mapId)[fid] : null; if (!cp) return; var seen = c.rows.filter(function(r, i) { return !!cp.rows[i] && cp.rows[i].name !== 'Hidden'; }), rec = mk(seen); if (rec) { try { k.send(rec); } catch (e) { sendFailed(e); } } });
+    if (net.active) net.conns.forEach(function(k) { if (!k.open || !net.roster[k.peer]) return; var pid = peerProfileId(k), p = net.roster[k.peer], cp = p && p.location === c.mapId ? combatsFor(pid, c.mapId)[fid] : null; if (!cp) return; var seen = c.rows.filter(function(r, i) { return !!cp.rows[i] && cp.rows[i].hid !== 1; }), rec = mk(seen); if (rec) { try { k.send(rec); } catch (e) { sendFailed(e); } } });
     var mine = mk(c.rows); if (mine) { pushChat({ from: mine.from, text: '', scope: 'global', ts: mine.ts, apply: mine }); logEvent('table', 'Declared on ' + mapTitleOf(c.mapId) + ', round ' + open.round); }
     broadcastCombats(); combatRefresh(); return true;
 }
@@ -4636,6 +4655,9 @@ function actsMaxOf(camp, ch, map, w, c) {   // 192: an action's count for one ch
 }
 function actMax(charId, a) { var m = net.turnMax[charId]; return m && typeof m[a.key] === 'number' ? m[a.key] : (a.n || 1); }
 function actsOf(camp) { var t = camp && camp.system && camp.system.combat && camp.system.combat.turn; return t && Array.isArray(t.acts) ? t.acts : []; }
+// 1.6.3 (the combat review's batch "strip", finding 25): an action's word in the turn's notices: its name, else the plain word Action. Its key is the builder's own
+// and never reaches a user (systemcore cleanTurn keeps a label only where one was given). whiteboard.js stripActsHtml says it the same way
+function actWord(a) { return a && typeof a.label === 'string' && a.label.trim() ? a.label.trim() : 'Action'; }   // asked through typeof below, since the suites run actSpend and runGate alone
 function actsCombat(camp, charId, pr) {
     if (!window.wpVtt || !window.wpVtt.on('turns') || !pr || typeof pr.location !== 'string') return null;
     var map = camp && camp.items && own(camp.items, pr.location) ? camp.items[pr.location] : null, S = SC();
@@ -4680,19 +4702,19 @@ function runStart(st, t, S, F, R, camp, ch, map, w, c) {   // at a turn's start:
     var rA = S.moveAllowCells(Math.max(0, r.value), t.unit, S.mapCellScale(map)); if (!(rA > st.allow)) return '';   // no further than the move: nothing to give up
     st.walk = st.allow; st.run = rA; st.act = t.runCost; st.charId = w.charId;
     var a = runAct(camp, st), mx = a ? actsMaxOf(camp, ch, map, w, c) : null; if (!a || !(mx[a.key] > 0)) return '';   // its count gives none this turn: the move alone
-    st.allow = rA; return String(a.label || a.key);
+    st.allow = rA; return typeof actWord === 'function' ? actWord(a) : String(a.label || 'Action');
 }
 function runMark(camp, st) {   // a move landed: past the move, while the action is free, it is spent; its words, else ''
     if (!st || typeof st.run !== 'number' || st.ran === true || st.moved <= st.walk + 0.05 || moveMode(camp, 'move') === 'off' || runLeft(camp, st) <= 0) return '';
     var a = runAct(camp, st), sp = net.turnSpent[st.charId] || (net.turnSpent[st.charId] = {}); st.ran = true; sp[a.key] = (sp[a.key] || 0) + 1; actsTell(camp, st.charId); runSyncOf(camp, st.charId); if (window.wpStepLog) window.wpStepLog('turn v1', 'ran', { moved: st.moved });
-    return String(a.label || a.key);
+    return typeof actWord === 'function' ? actWord(a) : String(a.label || 'Action');
 }
 function runGate(camp, charId, cost, conn, who, look, pr) {   // a press that costs the action of a turn with a run: null where this says nothing, else what actSpend answers
     var st = runOf(charId, cost), a = st ? runAct(camp, st) : null; if (!a || !actsCombat(camp, charId, pr)) return null;
-    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key;
+    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = typeof actWord === 'function' ? actWord(a) : String(a.label || 'Action');
     if (st.ran === true && used >= actMax(charId, a)) {   // it went to the move: the Move limit says what becomes of the press
         var mm = moveMode(camp, 'move'); if (mm === 'refuse') return 'You gave up your ' + lbl + ' to move further.'; if (look === true) return '';
-        if (mm === 'warn') { turnNote(conn, lbl + ': used after giving it up to move further.', charId); toast((who || 'A character') + ' used a ' + lbl + ' after giving it up to move further.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' after giving it up to move further.' }); }
+        if (mm === 'warn') { turnNote(conn, lbl + ': used after giving it up to move further.', charId); toast((who || 'A character') + ' used ' + lbl + ' after giving it up to move further.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used ' + lbl + ' after giving it up to move further.' }); }
         sp[a.key] = 1 + used; actsTell(camp, charId); return '';
     }
     if (moveMode(camp, 'acts') === 'off') { if (look !== true) { sp[a.key] = used + 1; runSyncOf(camp, charId); } return ''; }   // actions not counted: this turn's move still reads what it spent
@@ -4703,11 +4725,11 @@ function actSpend(camp, charId, pr, cost, conn, who, look, k) {   // look, only 
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
     var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === cost) a = x; }); var cbS = actsCombat(camp, charId, pr) || (typeof crewVehFight === 'function' ? crewVehFight(camp, charId) : null); if (!a || !cbS) return '';   // 1.6.2: a crew member in the vehicle's fight
     if (!net.turnMax[charId]) { var mpS = camp.items && own(camp.items, pr.location) ? camp.items[pr.location] : null, SS = SC(), twS = SS && mpS ? SS.charTokenOn(mpS, charId, pr.id, { strict: true }) : null, chS = camp.chars && own(camp.chars, charId) ? camp.chars[charId] : null; net.turnMax[charId] = actsMaxOf(camp, chS, mpS, twS, cbS); }   // 192: a press before its first turn: its counts worked out now
-    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = a.label || a.key, n = actMax(charId, a), kn = typeof k === 'number' && k >= 2 ? k : 1, noneW = used >= n || kn === 1 ? 'No ' + lbl + ' left this turn.' : 'This takes ' + kn + ' of ' + lbl + ', and ' + (n - used) + ' left this turn.';
+    var sp = net.turnSpent[charId] || (net.turnSpent[charId] = {}), used = sp[a.key] || 0, lbl = typeof actWord === 'function' ? actWord(a) : String(a.label || 'Action'), n = actMax(charId, a), kn = typeof k === 'number' && k >= 2 ? k : 1, noneW = used >= n || kn === 1 ? 'No ' + lbl + ' left this turn.' : 'This takes ' + kn + ' of ' + lbl + ', and ' + (n - used) + ' left this turn.';
     if (look === true) return used + kn > n && moveMode(camp, 'acts') === 'refuse' ? noneW : '';
     if (used + kn > n) {
         if (moveMode(camp, 'acts') === 'refuse') return noneW;
-        turnNote(conn, lbl + ': used past what a turn allows.', charId); toast((who || 'A character') + ' used a ' + lbl + ' past what a turn allows.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used a ' + lbl + ' past what a turn allows.' });
+        turnNote(conn, lbl + ': used past what a turn allows.', charId); toast((who || 'A character') + ' used ' + lbl + ' past what a turn allows.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: 'Used ' + lbl + ' past what a turn allows.' });
     } else turnNote(conn, lbl + ': ' + (n - used - kn) + ' of ' + n + ' left this turn.', charId);
     sp[a.key] = used + kn; actsTell(camp, charId); if (typeof runSyncOf === 'function') runSyncOf(camp, charId);   // 1.6.0: the turn's allowance follows
     return '';
@@ -9310,11 +9332,18 @@ function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : '
 // 1.6.3 (the combat review, finding 16): the name a card or a line gives a character, as its token reads on the map, so the GM never has to translate between the
 // turn strip's names and the sheet's. The token's own name (whiteboard.js names a fight's row the same way, window.wpRowNameOf, which falls back to the sheet's name
 // where another token on that map reads the same), looked for on the map named first, else the map on screen, then the campaign's other maps. Where its tokens there
-// read differently (one sheet shared by several tokens), or it has none, the sheet's own name. Never a waiting token's
-net.tokNameOf = function(ch, mapId) {
+// read differently (one sheet shared by several tokens), or it has none, the sheet's own name. Never a waiting token's.
+// tokId (1.6.3, the combat review's batch "strip", finding 3): the very token a roll was made for (a row of the combat roster, the token a press read its
+// names on). Where that token is one of this character's on any map, its own name is the answer, so a sheet shared by "Guard 1" and "Guard 2" never puts
+// the sheet's name on a card the table reads. Fulllion's pick of 2026-11-20: any NPC card players see names the token by the token's own name
+net.tokNameOf = function(ch, mapId, tokId) {
     var nm = ch && typeof ch.name === 'string' ? ch.name : ''; if (!ch || typeof ch.id !== 'string') return nm;
     var camp = getActiveCampaign(), rn = window.wpRowNameOf; if (!camp || !camp.items || typeof camp.items !== 'object' || typeof rn !== 'function') return nm;
     var first = typeof mapId === 'string' && own(camp.items, mapId) ? mapId : camp.activeItemId, ids = Object.keys(camp.items).sort(function(a, b) { return (b === first ? 1 : 0) - (a === first ? 1 : 0); });
+    if (typeof tokId === 'string' && tokId) for (var j = 0; j < ids.length; j++) {
+        var mT = camp.items[ids[j]], wT = mT && mT.type === 'map' && Array.isArray(mT.whiteboard) ? mT.whiteboard.filter(function(w) { return !!w && w.id === tokId && w.charId === ch.id && !w.waiting; })[0] : null;
+        if (wT) { var tT = String(rn(wT, mT, camp) || '').trim().slice(0, 60); if (tT) return tT; }
+    }
     for (var i = 0; i < ids.length; i++) {
         var m = camp.items[ids[i]]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) continue;
         var names = []; m.whiteboard.forEach(function(w) { if (!w || !w.isChar || w.waiting || w.charId !== ch.id) return; var t = String(rn(w, m, camp) || '').trim().slice(0, 60); if (t && names.indexOf(t) < 0) names.push(t); });
@@ -9387,7 +9416,7 @@ var _netAttack = netAttack(), AREA_AIM = _netAttack.AREA_AIM, ATT_GONE = _netAtt
 net.postApplyCard = function(ch, label, lines, scope, hid, asked, by) {   // hid (1.6.2): a roll whose figure is hidden: its card says what moved and no figure. by (1.6.2): who did it, where that is not the GM
     var rec = { type: 'apply', id: 'r_' + Math.random().toString(36).slice(2, 10), from: by && by.name ? by : diceFrom(getProfile(), true), lines: applyLines(lines), ts: Date.now() };
     if (label) rec.label = String(label).slice(0, 60);
-    if (ch && ch.name) { rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); }
+    if (ch && ch.name) { rec.as = String((typeof net.tokNameOf === 'function' ? net.tokNameOf(ch) : '') || ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); }   // 1.6.3 (finding 3): by its token's name (asked through typeof, since the suites run this alone)
     if (!rec.lines.length) return;
     if (Array.isArray(asked) && asked.length) rec.asked = asked;   // 1.6.2: what was answered
     if (hid === true && typeof figApply === 'function') figApply(rec);
@@ -9739,7 +9768,7 @@ net.diceRoll = function(expr, o) {
     else if (!(o.act || o.fr || (o.row && typeof o.row.i === 'number')) && o.hm) { var hmU = D.cleanHmod ? D.cleanHmod(o.hm) : null; if (hmU) rec.hmod = hmU; }
     if (o.typed === true && !(o.act || o.fr || o.row)) { rec.typed = 1; if (typeof typedRollsAll === 'function' && typedRollsAll(campR)) rec.tws = 1; }   // 1.6.3 (finding 26): the GM's own roll typed in the roller, marked as a player's is   // the review of words: the GM's own roll that is not named, changed by hand: its words alone   // 1.6.3 (finding 13): what this machine's own ± window added by hand to a named roll, said on its card
     if (o.label) rec.label = String(o.label).slice(0, D.LIMITS.label);
-    if (chR) { rec.as = String(chR.name || '').slice(0, D.LIMITS.label); if (typeof plOn === 'function') plOn(rec, chR); }
+    if (chR) { rec.as = String((typeof net.tokNameOf === 'function' ? net.tokNameOf(chR, typeof o.tok === 'string' ? null : tcR && tcR.selfMap, typeof o.tok === 'string' ? o.tok : tcR && tcR.self) : '') || chR.name || '').slice(0, D.LIMITS.label); if (typeof plOn === 'function') plOn(rec, chR); }   // 1.6.3 (finding 3): by the name on the token it was rolled for (o.tok, the roster's row, this machine's own word), else the token its names were read on
     if (rec.dmg !== 1 && chR && typeof bodySwitch === 'function' && bodySwitch(campR, chR.id, rec, res, D, mfR, tcR && tcR.range, function() { return rangeReadBy(SR, campR.system, chR, F, tcR, expr, o.row || null, 'bodyRead'); })) tcR = bodyAim(tcR, rec);   // 1.6.2: a miss within a body's cover hits the body, a full hit aimed at it
     var hosting = net.active && net.role === 'host', toName = '', gmR = [];
     var noChkR = rec.dmg === 1 && typeof D.checkOf === 'function' && !D.checkOf(res, D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '')); if (noChkR) delete rec.crit;   // 1.6.2: a damage roll with no check has no critical to read, so its range is no part of its card and keeps nothing private
@@ -9861,7 +9890,7 @@ net.diceRoll = function(expr, o) {
             return false;
         } catch (e) { return true; }
     };
-    if (chR && entR && o.used !== true && !o.blast && !o.range && !o.cross && o.called !== true && typeof cardHold === 'function' && cardHold({ dl: o.from ? null : rollLookOwn(), asked: askedR, S: SR, D: D, F: F, camp: campR, ent: entR, res: res, expr: expr, vars: varsR, tc: tcR, ch: chR, pid: '', conn: null, priv: !!(o.priv || o.gmOnly || choseR || (typeof SR.cardActsOf === 'function' && SR.cardActsOf(campR.system, entR).length && heldSecretR())), from: o.from || diceFrom(getProfile(), true), label: o.label, as: chR.name, cid: chR.id, go: function(r, e, id, st) { expr = e; if (st) varsR.bandStep = st; restR(r, id); } })) { if (typeof o.att === 'string' && typeof attemptRec === 'function') { var bzR = attemptRec(o.att); if (bzR) bzR.busy = 1; } return { ok: true, pending: true, value: res.value }; }   // 1.6.3: held until Accept, its card answers no second press meanwhile
+    if (chR && entR && o.used !== true && !o.blast && !o.range && !o.cross && o.called !== true && typeof cardHold === 'function' && cardHold({ dl: o.from ? null : rollLookOwn(), asked: askedR, S: SR, D: D, F: F, camp: campR, ent: entR, res: res, expr: expr, vars: varsR, tc: tcR, ch: chR, pid: '', conn: null, priv: !!(o.priv || o.gmOnly || choseR || (typeof SR.cardActsOf === 'function' && SR.cardActsOf(campR.system, entR).length && heldSecretR())), from: o.from || diceFrom(getProfile(), true), label: o.label, as: (typeof net.tokNameOf === 'function' ? net.tokNameOf(chR, typeof o.tok === 'string' ? null : tcR && tcR.selfMap, typeof o.tok === 'string' ? o.tok : tcR && tcR.self) : '') || chR.name, cid: chR.id, go: function(r, e, id, st) { expr = e; if (st) varsR.bandStep = st; restR(r, id); } })) { if (typeof o.att === 'string' && typeof attemptRec === 'function') { var bzR = attemptRec(o.att); if (bzR) bzR.busy = 1; } return { ok: true, pending: true, value: res.value }; }   // 1.6.3: held until Accept, its card answers no second press meanwhile
     return restR(res);
 };
 // [netcheck:diceroll-end]

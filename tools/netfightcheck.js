@@ -136,8 +136,8 @@ pendingChecks.push((async () => {
         j([uSeen, uDropB, uDropA, uOther, uElse, uShut, uWait, uHid, uGone, uSaw, uSawA, uNone, uBad.map(u => u.got)]));
     const wbU = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
     check('secrets (source): the roster\'s Roll all and its per-row Roll (whiteboard.js) pass the judge\'s word to the sheet\'s initiative roll as priv, and the every-round re-roll asks it beside the hidden tick',
-        /var rr = window\.wpSheets\.rollInit\(r\.charId, \{ priv: combatRollPriv\(draft\.mapId, r\.tokId\) \}\);/.test(wbU) && /window\.wpSheets\.rollInit\(rows\[i\]\.charId, \{ priv: combatRollPriv\(combatDraft\.mapId, rows\[i\]\.tokId\) \}\)/.test(wbU)
-        && /rollInit\(ch\.id, \{ priv: !!\(tkI && \(tkI\.hidden \|\| \(typeof net\.tokUnseen === 'function' && net\.tokUnseen\(mapId, tkI\.id\)\)\)\) \}\)/.test(require('./checkkit').part('netfight.js')));
+        /var rr = window\.wpSheets\.rollInit\(r\.charId, \{ priv: combatRollPriv\(draft\.mapId, r\.tokId\), tok: r\.tokId \}\);/.test(wbU) && /window\.wpSheets\.rollInit\(rows\[i\]\.charId, \{ priv: combatRollPriv\(combatDraft\.mapId, rows\[i\]\.tokId\), tok: rows\[i\]\.tokId \}\)/.test(wbU)
+        && /rollInit\(ch\.id, \{ priv: !!\(tkI && \(tkI\.hidden \|\| \(typeof net\.tokUnseen === 'function' && net\.tokUnseen\(mapId, tkI\.id\)\)\)\), tok: tkI \? tkI\.id : undefined \}\)/.test(require('./checkkit').part('netfight.js')));   // 1.6.3 (the combat review, finding 3): and the token rolled for, whose name the card wears, moved on purpose
 })());
 // Range penalties R3 (the owner's answer of 2026-09-29): a public roll that reads the range goes to its roller and the GM alone while
 // another player on the target's map cannot see the target — the real roll-req branch and the GM's own net.diceRoll, with the real
@@ -350,7 +350,7 @@ pendingChecks.push((async () => {
         const rrSrc = (ordersSrc + '\n' + between('// [netcheck:rollreq-start]', '// [netcheck:rollreq-end]', 'rollreq'));
         check('initiative O1 (source): the roll request takes a player\'s own initiative roll into the fight after the roll goes out — only when the entry it was rebuilt from is the system\'s initiative roll; players never get a row\'s number or its rolled mark (combatRowOut)',
             rrSrc.includes("if (actQ && actQ.init === true && typeof initIntoFight === 'function') initIntoFight(campQ, locQ, q.charId, pidQ, resQ.value);") && rrSrc.indexOf('initIntoFight(campQ') > rrSrc.indexOf("else { sendTable(recQ, null);")
-            && src.includes("function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }") && /if \(r\.rolled === 1 \|\| r\.rolled === true\) o\.rolled = 1;/.test(src));
+            && src.includes("function combatRowOut(r, i, unseen) { if (unseen) return { id: 'h' + i, name: 'Hidden', tokId: null, src: null, hid: 1 }; var o = { id: r.id, name: r.name, tokId: r.tokId, src: r.src }; if (r.held === 1) o.held = 1; return o; }") && /if \(r\.rolled === 1 \|\| r\.rolled === true\) o\.rolled = 1;/.test(src));
     }
     const teSrc = between('// [netcheck:turnend-start]', '// [netcheck:turnend-end]', 'turnend');
     const runTE = (msg, o) => {
@@ -689,7 +689,7 @@ pendingChecks.push((async () => {
         J(gG) === J({ host: [true, true], msgs: gG.msgs, sent: true, snap: [S5], cleaned: [[S5], [S4]] }) && gG.msgs > 20, J(gG));
     const rd3 = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n'), help3 = rd3('system/app/index.html'), notes3 = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(rd3);
     check('fold 3 (source): Help\'s combat entry says that a step back is a correction and runs nothing twice, naming the actions by the words their list shows, the Rolls entry says the round still goes back at a step back but runs an action once for each round reached, the timed effects say they count once a round, and both release notes say it under 1.5.5\'s Combat',
-        help3.includes('<li>A step back with <b>&#9664;</b> on the turn strip is a correction. Going on again runs no <b>Also each round</b>, <b>Also at its turn&rsquo;s start</b> or <b>end</b> action twice, and counts no timed effect twice.</li>')
+        help3.includes('<li>A step back with <b><i class="wib wi-nextturn wib-mirror"></i> Previous turn</b> on the turn strip is a correction. Going on again runs no <b>Also each round</b>, <b>Also at its turn&rsquo;s start</b> or <b>end</b> action twice, and counts no timed effect twice.</li>')
         && help3.includes('<b>Also each round</b> runs it on every character with a token in the fight once for each round the fight reaches. The round changes at the combat&rsquo;s start, at <b>Next turn</b> past the last and back at a step back past the first. A step back is a correction, so a round reached before runs nothing again.') && !help3.includes('runs no Each round or Each turn action')
         && help3.includes('In a combat one round passes at the start of its character&rsquo;s turn, once in each round of the fight, and a step back counts nothing again.')
         && notes3.every(t => { const a = t.indexOf('WAYPOINT 1.5.5'), b = t.indexOf('WAYPOINT 1.5.4'), c = t.indexOf('\nCombat\n', a), i = t.indexOf('- A step back on the turn strip is a correction. Going back and on\n'); return a >= 0 && c > a && i > c && i < b; }));
@@ -1567,7 +1567,7 @@ pendingChecks.push((async () => {
     const nt = mkA({ turns: false }); nt.sp('Action'); const nt2 = nt.sp('Action');
     const nk = mkA(); const nk1 = nk.sp('Nope'), nk2 = nk.sp('');
     check('The bell (Bell-b): an action\'s turn note names its character (what is left, and past it under Warn), and Warn also notes it in the GM\'s bell; a spend within the count does not',
-        w.out.sent.filter(m => m.type === 'turn-note').length === 2 && w.out.sent.filter(m => m.type === 'turn-note').every(m => m.charId === 'c_p') && j(w.out.bells) === j([['c_p', 'Turn', 'Used a Action past what a turn allows.']]), j([w.out.sent, w.out.bells]));
+        w.out.sent.filter(m => m.type === 'turn-note').length === 2 && w.out.sent.filter(m => m.type === 'turn-note').every(m => m.charId === 'c_p') && j(w.out.bells) === j([['c_p', 'Turn', 'Used Action past what a turn allows.']]) /* 1.6.3 (finding 25): no article, and a plain word for an action with no name, moved on purpose */, j([w.out.sent, w.out.bells]));
     check('T4 actSpend\'s modes and reach: Warn lets a press past the count through with a note to them and the GM (it still counts); Off neither counts nor notes; a character not in the combat, turn-based combat off, a cost naming no action or none: free',
         w2 === '' && w.net.turnSpent.c_p.Action === 2 && /used past what a turn allows/.test(w.out.notes()[1]) && w.out.toasts.length === 1 && j(w.out.left().pop()) === j('pA2:{"Action":0,"Bonus":2}:warn')
         && f1 === '' && f2 === '' && !f.out.sent.length && !('c_p' in f.net.turnSpent) && nq1 === '' && !('c_q' in nq.net.turnSpent) && nt2 === '' && !nt.out.sent.length && nk1 === '' && nk2 === '' && !nk.out.sent.length, j([w.net.turnSpent, w.out.notes(), f.out.sent]));
@@ -1596,8 +1596,8 @@ pendingChecks.push((async () => {
         const r0 = mkR(0); const pre = r0.sp('Ready'), pre2 = r0.sp('Ready'), m0 = JSON.stringify(r0.net.turnMax.c_p);
         const rE = mkR(2); rE.api.start('m1', rE.net.combats.m1); rE.api.end('m1', rE.net.combats.m1); const gone = !('c_p' in rE.net.turnMax);
         check('192 an action\'s count by formula (host, run for real): worked out at the turn\'s start over the players\' view and the owner\'s own copy (1 + ExtraReady with 2 gives 3; a count naming a GM-only value and one that rolls dice stand at their number), told as what is left, spent to 0 and then refused; a press before any turn of theirs works it out then; the combat\'s end forgets it',
-            m2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && l2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && JSON.stringify(sp2) === JSON.stringify(['', '', '', 'No Ready left this turn.'])
-            && pre === '' && pre2 === 'No Ready left this turn.' && m0 === JSON.stringify({ Ready: 1, Act: 1, Hid: 2, Dice: 3 }) && gone, j([m2, l2, sp2, pre, pre2, m0, gone]));
+            m2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && l2 === JSON.stringify({ Ready: 3, Act: 1, Hid: 2, Dice: 3 }) && JSON.stringify(sp2) === JSON.stringify(['', '', '', 'No Action left this turn.'] /* 1.6.3 (finding 25): an action with no name is said as Action, never its key, moved on purpose */)
+            && pre === '' && pre2 === 'No Action left this turn.' && m0 === JSON.stringify({ Ready: 1, Act: 1, Hid: 2, Dice: 3 }) && gone, j([m2, l2, sp2, pre, pre2, m0, gone]));
     }
     const runAI = (msg, o) => { o = o || {}; const net = { foreign: true, syncedPeer: 'h', stream: false, actsLeft: o.had || undefined }, seen = []; new Function('msg', 'conn', 'net', 'window', aiA)(Object.assign({ type: 'acts-left' }, msg), { peer: o.peer || 'h' }, net, { wpSheets: { charChanged: id => seen.push(id) } }); return { al: net.actsLeft, seen }; };
     const ai1 = runAI({ charId: 'c_p', left: { Action: 0, Bonus: 2, 'bad key': 1, Big: 120, Mid: 12, Frac: 0.5, constructor: 1 }, mode: 'warn' }), ai2 = runAI({ charId: 'c_p', left: null }, { had: { c_p: { left: {}, mode: 'refuse' } } });
@@ -1829,7 +1829,7 @@ pendingChecks.push((async () => {
     f.rollRow('Goblin'); f.start();
     f.net.combatSet('m2', { mapId: 'm2', round: 2, turn: 1, rows: [{ id: 'c_tur', name: 'Turret', tokId: null, init: 9, src: null }, { id: 'c_gat', name: 'Gate', tokId: null, init: 4, src: null }] });
     const fA = f.last(f.conns[0]), fB = f.last(f.conns[1]), fYard = fightIn(f.net.combats, 'm2'), fYardOut = f.N.combatsFor('u_a', 'm2');
-    const hid = { id: 'h0', name: 'Hidden', tokId: null, src: null };
+    const hid = { id: 'h0', name: 'Hidden', tokId: null, src: null, hid: 1 };   // 1.6.3 (finding 24): a redacted row carries its mark, moved on purpose
     check('combat roster (fog): an unseen creature\'s row is Hidden whole — no name, token, picture or token-bearing id — in its place in the order; nor is there a number on any row, on the fogged map or an unfogged one',
         j(rowsOf(fA)) === j([hid].concat(order.slice(1))) && j(fYardOut) === j(oneFight(fYard.id, 'm2', 2, 1, [full('c_tur', 'Turret', null, null), full('c_gat', 'Gate', null, null)]))
         && noFid(fA).indexOf('gob') < 0 && noFid(fA).indexOf('Goblin') < 0 && noFid(fA).indexOf('init') < 0, j([fA, fYardOut]));
@@ -1859,7 +1859,7 @@ pendingChecks.push((async () => {
     // holds a hidden token with the Orc's id and a combat of its own: a hidden token counts on its own map only. An item whose id reads 'null'
     // (a file may hold any id) is hidden on m1: a row with no token is never touched
     const tokOf = (s, mapId, id) => s.camp.items[mapId].whiteboard.find(w => w.id === id);
-    const hidRow = i => ({ id: 'h' + i, name: 'Hidden', tokId: null, src: null });
+    const hidRow = i => ({ id: 'h' + i, name: 'Hidden', tokId: null, src: null, hid: 1 });   // 1.6.3 (finding 24): a redacted row carries its mark, moved on purpose
     const hideWorld = o => {
         const s = scen(Object.assign({ m2: true }, o)); s.rollRow('Goblin'); s.start(); fightIn(s.net.combats, 'm1').round = 3; fightIn(s.net.combats, 'm1').turn = 1;
         s.camp.items.m1.whiteboard.push({ id: 'null', hidden: true, x: 0, y: 0 });
@@ -2067,5 +2067,41 @@ pendingChecks.push((async () => {
             nW.fightWas('f1', 't1').init === 9 && nW.fightWas('f1', 'zz') === null && nW.fightWas('f9', 't1') === null && require('./checkkit').part('netfight.js').includes('wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 };'));
         check('a join the player began closes the Multiplayer window; a reconnect leaves it as it stands', flat.includes("if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }"));
     }
+
+{   // 1.6.3 (the improvement week's combat review, batch "strip", finding 24): a redacted row is known by its mark (hid, 1), never by the name Hidden.
+    // combatToasts run for real: a player's notice for a row they cannot see says someone they cannot see acts; cleanFightBody keeps the mark only as 1;
+    // declare.js mineOf run for real: an NPC the GM really named Hidden is in the GM's Declaring box, and a redacted row is in no one's
+    const flat = src.split('\r\n').join('\n'), pf = kit.part('netfight.js').split('\r\n').join('\n');
+    const toS = pf.slice(pf.indexOf('function combatToasts(before, after) {'), pf.indexOf('// [netcheck:orders-end]')), said = [];
+    const toF = new Function('getActiveCampaign', 'fightMineKey', 'chosenRule', 'toast', toS + '\nreturn combatToasts;')(() => ({ activeItemId: 'm1' }), (o) => (o && o.f1 ? 'f1' : null), () => false, t => said.push(t));
+    const fHid = { f1: { round: 1, turn: 0, rows: [{ id: 'h0', name: 'Hidden', hid: 1 }, { id: 'r1', name: 'Hidden' }] } }, fName = { f1: { round: 1, turn: 1, rows: fHid.f1.rows } };
+    toF(null, fHid); toF(fHid, fName); toF(fName, { f1: { round: 2, turn: 0, rows: fHid.f1.rows } });
+    const cB = flat.slice(flat.indexOf('function cleanFightBody(k, mapId) {'), flat.indexOf('// [netcheck:notepad-start]')), clF = new Function(cB + '\nreturn cleanFightBody;')();
+    const kept = clF({ rows: [{ id: 'h0', name: 'Hidden', hid: 1 }, { id: 'r1', name: 'Hidden', hid: true }, { id: 'r2', name: 'B', hid: 2 }] }, 'm');
+    const dm = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'declare.js'), 'utf8').replace(/\r\n/g, '\n'), mineS = dm.slice(dm.indexOf('function own(o, k)'), dm.indexOf('function inOf(c, host)'));
+    const mineOf = new Function('window', mineS.replace(/function fightOf[^\n]*\n/, '').replace(/function declaring[^\n]*\n/, '') + '\nreturn mineOf;')({});
+    const mapD = { whiteboard: [{ id: 't_h', ownerId: '' }, { id: 't_p', ownerId: 'u_a' }] }, cD = { rows: [{ id: 'r_h', tokId: 't_h', name: 'Hidden' }, { id: 'r_p', tokId: 't_p', name: 'Pat' }, { id: 'h2', tokId: null, name: 'Hidden', hid: 1 }] };
+    check('1.6.3 (finding 24, run for real): a player\'s turn notice for a row they cannot see says someone they cannot see acts, and a row the GM named Hidden says its name; cleanFightBody keeps the mark only as 1; the GM\'s Declaring box keeps an NPC named Hidden; a redacted row is no one\'s; and combatsFor and a drawn order\'s card count shown rows by the mark',
+        j(said) === j(['Combat! Someone you cannot see acts.', "Hidden's turn.", 'Someone you cannot see acts. Round 2.']) && kept.rows[0].hid === 1 && !('hid' in kept.rows[1]) && !('hid' in kept.rows[2])
+        && j(mineOf(cD, mapD, true, 'gm').map(r => r.id)) === j(['r_h']) && j(mineOf(cD, mapD, false, 'u_a').map(r => r.id)) === j(['r_p'])
+        && flat.includes("var shownD = out[fid].rows.filter(function(r) { return r.hid !== 1; });") && flat.includes("return !!cp.rows[i] && cp.rows[i].hid !== 1; }), rec = mk(seen);") && !/name !== 'Hidden'/.test(flat) && !/name !== 'Hidden'/.test(dm),
+        j([said, kept.rows]));
+}
+
+{   // 1.6.3 (the improvement week's combat review, batch "strip", finding 23): fightNextAt run for real, who acts next by the turn shape. The plain order is the row after
+    // the one on turn, round to round; several turns a round walk the round's own turns, the same row again among them; a drawn order ends its round at its card; a counting
+    // clock and a round whose order is made again (rolled every round, sides, a drawn order) have no next; Next is chosen is the strip's own; combatsFor sends nx only where
+    // it is not the row after the one on turn; and turn notices say an action by its name, never with an article, nor its key
+    const flat = src.split('\r\n').join('\n'), nxS = flat.slice(flat.indexOf("// 1.6.3 (the combat review's batch \"strip\", finding 23)"), flat.indexOf('net.fightNextAt = function(fid) {'));
+    let IR = {}; const fna = new Function('initRulesOf', nxS + '\nreturn fightNextAt;')(() => IR), rows = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const at = (ir, c) => { IR = ir; return fna({}, Object.assign({ rows: rows }, c)); };
+    const got = [at({}, { turn: 0 }), at({}, { turn: 2 }), at({ every: true }, { turn: 2 }), at({ side: 'pc' }, { turn: 1 }), at({ side: 'pc' }, { turn: 2 }), at({ deck: { key: 'D1' } }, { turn: 0, endAt: 2 }), at({ deck: { key: 'D1' } }, { turn: 1, endAt: 2 }),
+        at({}, { turn: 1, endAt: 2 }), at({ clock: { cost: 3 } }, { turn: 0 }), at({ chosen: true }, { turn: 0 }), at({ several: { by: 'passes' } }, { turn: 0, seq: ['a', 'a', 'c'], sq: 0 }), at({ several: { by: 'passes' } }, { turn: 2, seq: ['a', 'a', 'c'], sq: 2 }),
+        at({ every: true }, { turn: 2, seq: ['a', 'c'], sq: 1 }), fna({}, { rows: [] })];
+    check('1.6.3 (finding 23, fightNextAt run for real): who acts next by the turn shape, -1 where it cannot be known now, null for Next is chosen; combatsFor sends it only where it is not the row after the one on turn; turn notices drop the article and never name an action by its key',
+        j(got) === j([1, 0, -1, 2, -1, 1, -1, 0, -1, null, 0, 0, -1, -1])
+        && flat.includes("var nxF = fightNextAt(camp, cmb); if (typeof nxF === 'number' && nxF !== (cmb.turn + 1) % cmb.rows.length) out[fid].nx = nxF;") && flat.includes("if (typeof k.nx === 'number' && Math.floor(k.nx) === k.nx && k.nx >= -1 && k.nx < rows.length) f.nx = k.nx;")
+        && !/ used a ' \+ lbl/.test(flat) && !/'Used a ' \+ lbl/.test(flat) && !/lbl = a\.label \|\| a\.key/.test(flat) && !/String\(a\.label \|\| a\.key\)/.test(flat), j(got));
+}
 
 T.finish();

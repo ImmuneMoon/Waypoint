@@ -6042,14 +6042,19 @@ function hitNamed(opts, swRef, id) {
     o.hit = id; return o;
 }
 function hitPick(anchor, need, go) {
+    // 1.6.3 (the combat review's batch "strip", finding 30): on a player's app the menu comes up at once with one line, Asking the GM's table, while the host is asked
+    // for the target's locations, so the press shows it was taken (it took a round trip, up to five seconds, with nothing on screen). The answer fills the menu in its
+    // place; a menu put away meanwhile (Escape, a press elsewhere) is the player's no, and an answer that comes after it rolls nothing
     var show = function(rows) {
-        if (!Array.isArray(rows)) { toast('No answer from the GM about where to aim. Try again.'); return; }
-        if (!rows.length) { go(null); return; }
+        var waiting = rows === 'wait';
+        if (!waiting && !Array.isArray(rows)) { if (_ldPop && _ldPop._hitWait) closeLoadMenu(); toast('No answer from the GM about where to aim. Try again.'); return; }
+        if (!waiting && !rows.length) { if (_ldPop && _ldPop._hitWait) closeLoadMenu(); go(null); return; }
         if (_ldPop) closeLoadMenu();
         var pop = el('div', 'sheet-dl-pop sheet-hit-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', 'Where it is aimed'); pop._anchor = anchor; pop._hit = true;
         var item = function(label, sub, id) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeLoadMenu(); go(id); }); pop.appendChild(b); };
-        item('No called shot', 'Aim at no one location', null);
-        rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.name === 'string') item(r.name, 'A location of your target', r.id); });
+        if (waiting) { var wl = el('div', 'sheet-dl-wait', 'Asking the GM’s table…'); wl.setAttribute('role', 'menuitem'); wl.setAttribute('aria-disabled', 'true'); wl.tabIndex = -1; pop.appendChild(wl); pop._hitWait = true; }
+        else item('No called shot', 'Aim at no one location', null);
+        if (!waiting) rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.name === 'string') item(r.name, 'A location of your target', r.id); });
         pop.addEventListener('mousedown', function(e) { e.stopPropagation(); });
         pop.addEventListener('keydown', function(e) {
             e.stopPropagation(); if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -6058,9 +6063,9 @@ function hitPick(anchor, need, go) {
         document.body.appendChild(pop); _ldPop = pop;
         var r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : { left: 8, bottom: 8 }, nI = pop.children.length; pop.style.left = Math.max(8, Math.min(window.innerWidth - 288, r.left)) + 'px'; pop.style.top = Math.max(8, Math.min(window.innerHeight - (24 + 52 * Math.min(nI, 8)), r.bottom + 6)) + 'px';
         document.addEventListener('mousedown', ldOutside, true); document.addEventListener('keydown', ldKey, true);
-        var first = pop.querySelector('.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
+        var first = pop.querySelector(waiting ? '.sheet-dl-wait' : '.sheet-dl-item'); try { if (first) first.focus(); } catch (er) {}
     };
-    if (isClient()) { var n = net(); if (!n || typeof n.hitRows !== 'function') { go(null); return; } if (typeof _hitWaitAt === 'number') _hitWaitAt = Date.now(); n.hitRows(need.c.id, function(rows) { if (typeof _hitWaitAt === 'number') _hitWaitAt = 0; show(rows); }); return; }   // the review of input: while the host is asked, a card's press still waits (rollAsking)
+    if (isClient()) { var n = net(); if (!n || typeof n.hitRows !== 'function') { go(null); return; } if (typeof _hitWaitAt === 'number') _hitWaitAt = Date.now(); show('wait'); var waitP = _ldPop; n.hitRows(need.c.id, function(rows) { if (typeof _hitWaitAt === 'number') _hitWaitAt = 0; if (waitP && _ldPop !== waitP) return; show(rows); }); return; }   // finding 30: the waiting menu first; one put away meanwhile is a no   // the review of input: while the host is asked, a card's press still waits (rollAsking)
     var mp = need.camp && need.camp.items && Object.prototype.hasOwnProperty.call(need.camp.items, need.mapId) ? need.camp.items[need.mapId] : null, w = mp && Array.isArray(mp.whiteboard) ? mp.whiteboard.find(function(x) { return x && x.id === need.tid; }) : null;
     var tc = w && typeof w.charId === 'string' && need.camp.chars && Object.prototype.hasOwnProperty.call(need.camp.chars, w.charId) ? need.camp.chars[w.charId] : null;
     show(tc ? targetHitRows(need.sys, tc, false) : []);
@@ -6460,6 +6465,10 @@ function rollAsking() {
 // The combat roster (whiteboard.js): initiative from the system's init roll, made at the table like any roll
 function hasInitRoll() { var sys = systemOf(getActiveCampaign()); return !!(sys && initRoll(sys)); }
 function initTieNow() { var camp = getActiveCampaign(), sys = systemOf(camp); return sys && F() ? initTie(sys, F(), function(r) { return r && typeof r.charId === 'string' ? charById(r.charId, camp) : null; }) : null; }   // initiative O2: the tie steps for the roster's sort (its rows name their character)
+// opts.tok (1.6.3, finding 3): the token the roll is for, whose own name its card wears. An NPC's roll (a sheet with no player) goes to the GM alone unless the
+// campaign's NPC initiative rolls setting says Everyone (camp.turnRules.npcInit 'all'; Fulllion's pick of 2026-11-20: "optional on if its shown by a setting,
+// recommended by default"), so the strip's rule holds that players see the order and never an NPC's number
+function npcInitHidden(camp, c) { return !!c && !(c.ownerId && !c.npc) && !(camp && camp.turnRules && typeof camp.turnRules === 'object' && camp.turnRules.npcInit === 'all'); }
 function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the label shows (the roster's re-roll for a creature the GM hid)
     var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp), r = sys ? initRoll(sys) : null;
     var irG = sys && sys.combat && sys.combat.initiative; if (irG && irG.by === 'gm') return { error: 'The GM sets the order in this system. Type each number in the roster.' };   // 1.6.2 (backlog 59)
@@ -6469,7 +6478,7 @@ function rollInit(charId, opts) {   // opts.priv: rolled in private whatever the
     var allI = F() ? resolveAll(sys, c, F(), tokenCtxFor(c.id, camp)) : null, lbI = allI ? rollLabel(r, sys, c, allI.vars) : r.label, whyI = allI ? labelSecret(sys, allI.vars, r.label) : '';   // HF5a: the label's value, and the GM's privacy rule
     if ((r.needs || r.needsWhy) && !(allI && typeof rollNeedsOk === 'function' && rollNeedsOk(r, allI.vars, F()))) return { held: true, error: typeof rollNeedsSays === 'function' ? rollNeedsSays(r, allI ? allI.vars : undefined, F()) : (r.needsText || 'Not now.') };   /* 1.6.3: never the formula, as rollNeedsSays */   // 1.5.4: what the initiative roll needs, before anything is rolled (the roster's Roll all and the every-round re-roll pass over a row it holds back)
     if (whyI) toast('Kept private: its label shows a GM-only value (' + (typeof privWordsS === 'function' ? privWordsS(sys, whyI) : whyI) + ').');
-    return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI || !!(opts && opts.priv === true), gmOnly: r.vis === 'gm' });
+    return window.wpDice.rollFor(charId, r.formula, lbI || 'Initiative', { source: 'combat', priv: !!whyI || !!(opts && opts.priv === true) || (typeof npcInitHidden === 'function' && npcInitHidden(camp, c)), gmOnly: r.vis === 'gm', tok: opts && typeof opts.tok === 'string' && opts.tok ? opts.tok : undefined });
 }
 // [split:sheetlink.js]
 var _sheetLink = sheetLink(), charCatNow = _sheetLink.charCatNow, charCatSet = _sheetLink.charCatSet, linkBar = _sheetLink.linkBar, linkRiders = _sheetLink.linkRiders, linkValuesWrite = _sheetLink.linkValuesWrite, shareToggle = _sheetLink.shareToggle, valuesMoved = _sheetLink.valuesMoved;   // [split:glue]

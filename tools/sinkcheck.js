@@ -6014,7 +6014,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 'var _ldPop = null;\nfunction el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }\n' + shA.slice(aA, bA) + '\nreturn allyPick;')(
                 doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => ({ tok: { id: 'tk_a' }, map: {}, mapId: 'm1' }), () => ({}), () => !!client, () => (client ? 'u_a' : 'u_gm'), () => {}, () => {}, () => {});
             pick({ getBoundingClientRect() { return { left: 10, bottom: 20 }; } }, { id: 'c_a', name: '<b>Kael</b>', ownerId: 'u_a' }, on => got.push(on));
-            const pop = world.body[0] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];
+            const pop = world.body[world.body.length - 1] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];   // 1.6.3 (finding 30): the menu last put up, after a player's waiting line, moved on purpose
             return { world, got, items: items.map(b => [b.children[0].textContent, b.children[1].textContent]), click: k => items[k].listeners.click.forEach(f => f({ preventDefault() {}, stopPropagation() {} })) }; };
         const BAD = '<img src=x onerror=alert(1)>Bo';
         const r1 = runA([{ id: 'tk_b', charId: 'c_b', name: BAD }, { id: 'tk_n', charId: 'c_n', name: 'Orc' }], { u_a: { id: 'tk_n', mapId: 'm1' } }, true);
@@ -6047,15 +6047,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const n = { hitRows: (cid, cb) => { asked.push(cid); cb(answer); } };
             const api = new Function('document', 'window', 'net', 'isClient', 'toast', 'targetHitRows', 'closeLoadMenu', 'ldOutside', 'ldKey', 'getActiveCampaign', 'systemOf', 'charById', 'tokenCtxFor', 'F',
                 'var _ldPop = null;\nfunction el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }\n' + shH.slice(aH, bH) + '\nreturn { hitPick: hitPick, hitNamed: hitNamed, hitNeed: hitNeed };')(
-                doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => !!client, t => toasts.push(t), () => rowsGm, () => {}, () => {}, () => {}, () => camp, () => ({}), () => null, () => null, () => null);
+                doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => !!client, t => toasts.push(t), () => rowsGm, () => { world.body.pop(); } /* 1.6.3 (finding 30): the menu put away leaves the page, as closeLoadMenu does, moved on purpose */, () => {}, () => {}, () => camp, () => ({}), () => null, () => null, () => null);
             api.hitPick({ getBoundingClientRect() { return { left: 10, bottom: 20 }; } }, { c: { id: 'c_a' }, camp, sys: {}, tid: 't_u', mapId: 'm1' }, id => got.push(id));
-            const pop = world.body[0] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];
+            const pop = world.body[world.body.length - 1] || null, items = pop ? pop.querySelectorAll('.sheet-dl-item') : [];   // 1.6.3 (finding 30): the menu last put up, after a player's waiting line, moved on purpose
             return { api, world, got, toasts, asked, items: items.map(b => [b.children[0].textContent, b.children[1].textContent]), click: k => items[k].listeners.click.forEach(f => f({ preventDefault() {}, stopPropagation() {} })) }; };
         const g1 = runH([{ id: 'w_srv', name: BAD }, { id: 'w_tor', name: 'Torso' }], false);
         g1.click(1);
         const g0 = runH([{ id: 'w_tor', name: 'Torso' }], false); g0.click(0);
         const p1 = runH([], true, [{ id: 'w_srv', name: BAD }]); p1.click(1);
         const pNone = runH([], true, []), pGone = runH([], true, null), gEmpty = runH([], false);
+        {   // 1.6.3 (the improvement week's combat review, batch "strip", finding 30, hitPick run for real): on a player's app the menu comes up at once with one line saying
+            // the GM's table is being asked, as text and no choice; the answer fills the menu in its place; a menu put away meanwhile is a no, and its late answer rolls nothing
+            const runW = closeFirst => { const { doc, world } = mkDoc(), got = [], toasts = []; let later = null;
+                const n = { hitRows: (cid, cb) => { later = cb; } };
+                const api = new Function('document', 'window', 'net', 'isClient', 'toast', 'targetHitRows', 'ldOutside', 'ldKey', 'getActiveCampaign', 'systemOf', 'charById', 'tokenCtxFor', 'F',
+                    'var _ldPop = null;\nfunction closeLoadMenu() { _ldPop = null; }\nfunction el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }\n' + shH.slice(aH, bH) + '\nreturn { hitPick: hitPick, close: closeLoadMenu };')(
+                    doc, { innerWidth: 800, innerHeight: 600 }, () => n, () => true, t => toasts.push(t), () => [], () => {}, () => {}, () => camp, () => ({}), () => null, () => null, () => null);
+                api.hitPick({ getBoundingClientRect() { return { left: 10, bottom: 20 }; } }, { c: { id: 'c_a' }, camp, sys: {}, tid: 't_u', mapId: 'm1' }, id => got.push(id));
+                const w0 = world.body[0], wait = w0 ? w0.querySelector('.sheet-dl-wait') : null, waitWords = wait ? [wait.textContent, wait.attrs['aria-disabled'], w0.querySelectorAll('.sheet-dl-item').length] : null;
+                if (closeFirst) api.close(); later([{ id: 'w_srv', name: 'Servo-arm' }]);
+                const last = world.body[world.body.length - 1], items = last.querySelectorAll('.sheet-dl-item').map(b => b.children[0].textContent);
+                return { waitWords, pops: world.body.length, items, got, toasts, markup: world.markup }; };
+            const wOpen = runW(false), wShut = runW(true);
+            check('1.6.3 (the combat review, finding 30, sheets.js hitPick run for real): a player\'s press shows the menu at once with Asking the GM\'s table as text, never a choice, while the host is asked; the answer fills the menu in its place; a menu put away meanwhile is a no, and the late answer puts up nothing and rolls nothing',
+                j(wOpen.waitWords) === j(['Asking the GM’s table…', 'true', 0]) && wOpen.pops === 2 && j(wOpen.items) === j(['No called shot', 'Servo-arm']) && wOpen.got.length === 0 && wOpen.markup === 0
+                && j(wShut.waitWords) === j(wOpen.waitWords) && wShut.pops === 1 && wShut.got.length === 0 && wShut.toasts.length === 0, j([wOpen, wShut]));
+        }
         const nm1 = g1.api.hitNamed({ priv: true }, { r: 'r_aim' }, 'w_srv'), nm2 = g1.api.hitNamed(undefined, { l: 'f_gear', row: 'w_g', i: 1 }, 'w_tor'), nm3 = g1.api.hitNamed({ act: 'r_x' }, { f: 'f_y' }, 'w_tor');
         check('1.6.0 (B5) a called shot, the sheet\'s menu of where a roll is aimed (sheets.js hitPick and hitNamed, run for real on a page that refuses markup): No called shot first, then each of the target\'s own locations, every name a text node and a hostile name as the very text; a pick hands on that row\'s id and No called shot nothing; a player\'s app asks the host for its own character, and with no answer says so and rolls nothing, with no location rolls at once; the roll named for the host as its \u00b1 window names one; no markup is ever written',
             j(g1.items) === j([['No called shot', 'Aim at no one location'], [BAD, 'A location of your target'], ['Torso', 'A location of your target']]) && j(g1.got) === j(['w_srv']) && j(g0.got) === j([null])
@@ -6319,6 +6336,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const wrote = api.stripHeldNamed({ id: 'r"><b', holdFor: { text: X } }, true, 'Kael'), wroteP = api.stripHeldNamed({ id: 'r_a', hf: X }, false, 'Kael'), bare = api.stripHeldNamed({ id: 'r_a' }, false, 'Kael');
         check('1.6.0 a named hold, the strip (whiteboard.js stripHeldNamed, run for real): a hostile line and a hostile row id are escaped in the words and in their attributes, Set off is the GM\'s, and a copy with no words says none',
             got.length === 1 && got[0].text === X && got[0].roll === 'r_a' && !doc.getElementById('holdAsk') && !/<img|<b>?["\s]/.test(wrote.replace(/<span class="combat-strip-held"|<\/span>|<button class="combat-strip-btn" data-act="setoff"|<\/button>/g, '')) && wrote.indexOf(escS(X)) > 0 && /data-act="setoff"/.test(wrote) && !/setoff/.test(wroteP) && wroteP.indexOf(escS(X)) > 0 && !/:/.test(bare.replace(/data-tip="[^"]*"/, '')), wrote);
+        {   // 1.6.3 (the improvement week's combat review, batch "strip", finding 11, holdAsk run for real): pressed from the strip's menu, the anchor is the strip's own Hold
+            // button, which the compact strip puts away; its rectangle has no size, so the box stands under the strip's last button, else the strip, else the middle of the window
+            const rect = (l, t, w, h) => () => ({ left: l, top: t, right: l + w, bottom: t + h, width: w, height: h }), zero = { getBoundingClientRect: rect(0, 0, 0, 0) };
+            const place = () => { const b = doc.getElementById('holdAsk'); const at = [b.style.left, b.style.top]; api.holdClose(); return at; };
+            const strip = mkEl('div'); strip.id = 'combatStrip'; strip.getBoundingClientRect = rect(120, 40, 400, 30); let moreR = rect(480, 44, 24, 24); strip.querySelector = q => (q === '.combat-strip-morebtn' && moreR ? { getBoundingClientRect: moreR } : null); doc.body.appendChild(strip);
+            api.holdAsk(zero, {}, () => {}); const atMore = place(); moreR = null; api.holdAsk(zero, {}, () => {}); const atStrip = place(); doc.body.removeChild(strip); api.holdAsk(zero, {}, () => {}); const atMid = place();
+            api.holdAsk({ getBoundingClientRect: rect(60, 500, 40, 20) }, {}, () => {}); const atOwn = place();
+            check('1.6.3 (the combat review, finding 11, holdAsk run for real): an anchor with no size (the strip\'s own Hold, put away in the compact strip) gives way to the strip\'s last button, then the strip, then the middle of the window, never the top left corner; an anchor with a size keeps the box under it, held inside the window',
+                JSON.stringify([atMore, atStrip, atMid, atOwn]) === JSON.stringify([['480px', '74px'], ['120px', '76px'], ['300px', '250px'], ['60px', '492px']]), JSON.stringify([atMore, atStrip, atMid, atOwn]));
+        }
         const stripHd = wbH.slice(wbH.indexOf('function renderCombatStrip('), wbH.indexOf('window.wpRenderCombatStrip = renderCombatStrip;'));
         check('1.6.0 a named hold, the strip\'s other word: what it says of a row set off is fixed words and its name through the strip\'s own writer', /acts now ' \+ nameOf\(r\) \+ '<\/span>'/.test(stripHd) && !/r\.hf|holdFor/.test(stripHd.replace(/stripHeldNamed\(r, host, nameOf\(r\)\)/g, '')));
     }

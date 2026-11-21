@@ -161,6 +161,15 @@ const j = v => JSON.stringify(v);
             gfAsH.includes('data-fight="targetas"') && gfAsH.includes('<i class="wib wi-target"><\/i> Target as Orvane &lt;b&gt;') && !gfAsH.includes('<b>') && gfAsH.includes('data-fight="target"') && gfAsDo === true && gfAsCall === j([['as', 't_npc', 't_pc', 'm1', 'Sorrell']])
             && gfAsMine.includes('<i class="wib wi-ring"><\/i> Orvane &lt;b&gt; stops targeting') && gfAsNo.every(x => x === null)
             && wbS2.includes("var gmF = isWb ? gmFightModel(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean), selAs) : null; html += gmFightHtml(gmF);"), j([gfAsH, gfAsCall, gfAsMine.slice(0, 200), gfAsNo]));
+        {   // 1.6.3 (the improvement week's combat review, batch "strip", finding 17): the right-click selects what it is on (the owner, 2026-11-12), so the token that may
+            // target, trade as or hold the one under the pointer is the one selected BEFORE it. The handler's own lines, run for real: the selection is noted first, then lit
+            const a17 = wbS2.indexOf('        var preSel = [];'), b17 = wbS2.indexOf('        } else {', a17), asL = wbS2.slice(wbS2.indexOf('            var selNow = preSel.length'), wbS2.indexOf('\n', wbS2.indexOf('            var selNow = preSel.length')));
+            const run17 = (sel, target) => { const st = { selWbIds: sel.slice(), selWbId: sel[0] || null }, am = { whiteboard: [{ id: 't_npc' }, { id: 't_pc' }, { id: 't_o' }] };
+                const r = new Function('state', 'targetId', 'isWb', 'am', 'window', 'var selectedIds = [];\n' + wbS2.slice(a17, b17) + '}\n' + asL + '\nreturn [selectedIds, selAs ? selAs.id : null, state.selWbIds];')(st, target, true, am, {}); return r; };
+            const r17 = [run17(['t_npc'], 't_pc'), run17(['t_pc'], 't_pc'), run17([], 't_pc'), run17(['t_npc', 't_o'], 't_pc')];
+            check('1.6.3 (finding 17, the right-click\'s own lines run for real): with one token selected, a right-click on another lights the one under the pointer and keeps the one selected before as the token that may target it, so Target as, Trade as and the GM\'s Who holds whom are offered again; nothing changes where it was already selected, with nothing selected or with two',
+                j(r17) === j([[['t_pc'], 't_npc', ['t_pc']], [['t_pc'], 't_pc', ['t_pc']], [['t_pc'], 't_pc', ['t_pc']], [['t_pc'], null, ['t_pc']]]) && a17 > 0 && b17 > a17 && asL.length > 0, j(r17));
+        }
         // 1.5.9 (the owner's game of 2026-10-25, by prompt: "Both places"): on the GM's menu of a token someone targets, one row a pointer at it,
         // Clear <name>'s target, the name escaped and the pointer named by its place in the model, never by its key; the press asks the host to clear it
         gfW.net.calls = []; gfW.net.clearTargetOf = pid => { gfW.net.calls.push(['clear', pid]); return true; };

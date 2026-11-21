@@ -6885,7 +6885,7 @@ function renderCombatModal() {
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + (r.busy ? ' disabled title="In another fight on this map: a token is in one fight at a time"' : ' title="In the fight"') + '>'
             + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty" title="' + (r.custom ? 'A row you added' : 'A token with no picture of its own') + '">' + (r.custom ? '<i class="wib wi-spark"></i>' : '<i class="wib wi-starf"></i>') + '</span>')
             + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + stateT + '</span>'
-            + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll"' + (deckS ? ' style="display:none"' : '') + ' title="Roll initiative from the character sheet: a table roll, or yours alone when it reads a GM-only value. Players see the order, never the number" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
+            + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll"' + (deckS ? ' style="display:none"' : '') + ' title="Roll initiative from the character sheet. A player&rsquo;s roll goes to the table. An NPC&rsquo;s goes to you alone unless NPC initiative rolls in Settings says Everyone, and so does one that reads a GM-only value. Players see the order" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
             + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '"' + (deckS ? ' style="display:none"' : '') + (clockS ? ' title="Count. Higher acts first. A row at 0 or less never acts" aria-label="Count"' : ' title="Initiative — higher goes first"') + '>'
             + '<span class="ui-seg combat-moves"><button class="tool ghost combat-up" title="Move up">&#9650;</button><button class="tool ghost combat-down" title="Move down">&#9660;</button></span>'
             + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row">&times;</button>' : '')
@@ -6923,7 +6923,7 @@ window.wpOpenCombat = openCombatModal;
         var rows = combatDraft.rows;
         if (e.target.closest('.combat-up') && i > 0) { rows.splice(i - 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
         else if (e.target.closest('.combat-down') && i < rows.length - 1) { rows.splice(i + 1, 0, rows.splice(i, 1)[0]); renderCombatModal(); }
-        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId, { priv: combatRollPriv(combatDraft.mapId, rows[i].tokId) }) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
+        else if (e.target.closest('.combat-roll')) { var rr = window.wpSheets && rows[i].charId ? window.wpSheets.rollInit(rows[i].charId, { priv: combatRollPriv(combatDraft.mapId, rows[i].tokId), tok: rows[i].tokId }) : null; if (rr && rr.error) toast(rr.error); else if (rr && typeof rr.value === 'number') { rows[i].init = rr.value; rows[i].rolled = true; delete rows[i].tb; combatDraft.rows = combatSortByInit(rows); renderCombatModal(); } }
         else if (e.target.closest('.combat-del')) { rows.splice(i, 1); renderCombatModal(); }
         else if (e.target.closest('.combat-find')) { if (combatFind(combatDraft.mapId, String(e.target.closest('.combat-find').dataset.tok || ''))) rosterPeek(m, FIND_MS + 200); }   // backlog 26: the token found on this screen, the roster faded while its ring shows
     });
@@ -6947,7 +6947,7 @@ window.wpOpenCombat = openCombatModal;
         var n = 0, held = [], heldW = ''; if (!draft || !window.wpSheets || !window.wpSheets.rollInit) return n;
         for (var k = 0; k < draft.rows.length; k++) {
             var r = draft.rows[k]; if (!r || !r.on || !r.charId || r.rolled) continue;
-            var rr = window.wpSheets.rollInit(r.charId, { priv: combatRollPriv(draft.mapId, r.tokId) }); if (rr && rr.held) { held.push(r.name || 'A character'); heldW = heldW || rr.error || ''; continue; } if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): what its initiative roll needs is not met, it is passed over
+            var rr = window.wpSheets.rollInit(r.charId, { priv: combatRollPriv(draft.mapId, r.tokId), tok: r.tokId }); if (rr && rr.held) { held.push(r.name || 'A character'); heldW = heldW || rr.error || ''; continue; } if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): what its initiative roll needs is not met, it is passed over
             if (rr && typeof rr.value === 'number') { r.init = rr.value; r.rolled = true; delete r.tb; n++; }
         }
         draft.rows = combatSortByInit(draft.rows);
@@ -7028,7 +7028,13 @@ function holdAsk(anchor, sys, done) {
     var btn = function(t, f) { var b = document.createElement('button'); b.type = 'button'; b.className = 'tool ghost'; b.textContent = t; b.addEventListener('click', f); box.appendChild(b); }; btn('Hold', go); btn('Cancel', holdClose);
     box.addEventListener('keydown', function(e) { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); go(); } else if (e.key === 'Escape') { e.preventDefault(); holdClose(); } });
     document.body.appendChild(box);
-    var ra = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null; if (ra) { box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, ra.left)) + 'px'; box.style.top = Math.min(window.innerHeight - box.offsetHeight - 8, ra.bottom + 6) + 'px'; }
+    // 1.6.3 (the combat review's batch "strip", finding 11): the box stands by what was pressed. Pressed from the strip's menu the anchor is the strip's own Hold button, which the
+    // compact strip puts away, so its rectangle has no size and the box went to the window's top left corner, over the top row. An anchor with no size gives way to the strip's
+    // last button, the one the menu opened under, then to the strip itself, and with neither the box stands in the middle of the window
+    var sized = function(e) { var r = e && e.getBoundingClientRect ? e.getBoundingClientRect() : null; return r && (r.width > 0 || r.height > 0) ? r : null; }, stS = document.getElementById('combatStrip');
+    var ra = sized(anchor) || sized(stS && stS.querySelector ? stS.querySelector('.combat-strip-morebtn') : null) || sized(stS);
+    if (ra) { box.style.left = Math.max(8, Math.min(window.innerWidth - box.offsetWidth - 8, ra.left)) + 'px'; box.style.top = Math.max(8, Math.min(window.innerHeight - box.offsetHeight - 8, ra.bottom + 6)) + 'px'; }
+    else { box.style.left = Math.max(8, Math.round((window.innerWidth - box.offsetWidth) / 2)) + 'px'; box.style.top = Math.max(8, Math.round((window.innerHeight - box.offsetHeight) / 2)) + 'px'; }
     inp.focus(); return box;
 }
 function stripHeldNamed(r, host, nameH) {   // a held row under holdNames: its words for the GM and its holder, in esc; the GM's Set off
@@ -7038,8 +7044,12 @@ function stripHeldNamed(r, host, nameH) {   // a held row under holdNames: its w
 // [sinkcheck:holdask-end]
 function stripMoveHtml(n, fid, c, map) {
     var mv = turnMoveOf(n, fid, c, null); if (!mv || !n.cellsText) return '';
-    var over = mv.m > mv.a + 0.05, r = Math.round(mv.m * 10) / 10;
-    return '<span class="combat-strip-move' + (over ? ' over' : '') + '" data-tip="How far the token on turn has moved, of its move this turn' + (typeof mv.w === 'number' ? '. Past ' + esc(n.cellsText(mv.w, map)) + ' it spends the action' : '') + '">Moved ' + esc(String(r)) + ' of ' + esc(n.cellsText(mv.a, map)) + '</span>';
+    var over = mv.m > mv.a + 0.05, r = Math.round(mv.m * 10) / 10, fig = function(v) { return String(Math.round(v * 10) / 10); };
+    // 1.6.3 (the combat review's batch "strip", finding 31; Fulllion's pick of 2026-11-20): the walk is the move, and the run an aside, as the turn's notice says them:
+    // "Moved 2 of 5 hexes (5 yd), 10 if you run" while a run is on offer (w, how far it goes before it spends the action), and "No move this turn" for a token that
+    // has none and has not moved (a Down character)
+    var words = mv.a <= 0 && mv.m <= 0.05 ? 'No move this turn' : 'Moved ' + fig(r) + ' of ' + n.cellsText(typeof mv.w === 'number' ? mv.w : mv.a, map) + (typeof mv.w === 'number' ? ', ' + fig(mv.a) + ' if you run' : '');
+    return '<span class="combat-strip-move' + (over ? ' over' : '') + '" data-tip="How far the token on turn has moved, of its move this turn' + (typeof mv.w === 'number' ? '. Past ' + esc(n.cellsText(mv.w, map)) + ' it spends the action' : '') + '">' + esc(words) + '</span>';
 }
 // [lookcheck:stripacts-start]
 // 1.6.0: what the character on turn has left of each action, as the strip says it. net.js actsNow says whether there is anything to say: a player's character, where actions are counted
@@ -7047,7 +7057,7 @@ function stripActsHtml(n, c, map) {
     var cur = c && c.rows ? c.rows[c.turn] : null, tok = cur && cur.tokId && map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(w) { return w && w.id === cur.tokId; }) : null;
     var al = tok && typeof tok.charId === 'string' && n && typeof n.actsNow === 'function' ? n.actsNow(tok.charId) : null; if (!al || !al.left) return '';
     var cp = getActiveCampaign(), tn = cp && cp.system && cp.system.combat ? cp.system.combat.turn : null, acts = tn && Array.isArray(tn.acts) ? tn.acts : [], out = true;
-    var bits = acts.filter(function(a) { return a && typeof al.left[a.key] === 'number'; }).map(function(a) { var k = al.left[a.key]; if (k > 0) out = false; return esc(a.label || a.key) + ': ' + (k > 0 ? esc(String(k)) + ' left' : 'none left'); });
+    var bits = acts.filter(function(a) { return a && typeof al.left[a.key] === 'number'; }).map(function(a) { var k = al.left[a.key]; if (k > 0) out = false; return esc(a.label || 'Action') + ': ' + (k > 0 ? esc(String(k)) + ' left' : 'none left'); });
     return bits.length ? '<span class="combat-strip-acts' + (out ? ' out' : '') + '" data-tip="What the character on turn has left of each action this turn">' + bits.join(', ') + '</span>' : '';
 }
 // [lookcheck:stripacts-end]
@@ -7074,7 +7084,11 @@ function renderCombatStrip() {
     var fidS = n && (n.active || n.solo) && am && am.type === 'map' && state.viewMode === 'visual' ? stripFightId(am.id) : null, c = fidS ? n.combats[fidS] : null;
     if (!c) { strip.innerHTML = ''; strip.wpDrawn = ''; strip.style.display = 'none'; if (typeof stripMenu === 'function') stripMenu(strip, false); if (typeof stripInBar === 'function') stripInBar(); if (typeof window !== 'undefined' && window.wpPills) window.wpPills.sync(); return; }   // backlog 219: the bar lets the fight go, and the Round pill comes back
     var idsS = fightsHere(am.id), atS = idsS.indexOf(fidS);
-    var cur = c.rows[c.turn] || {}, nxt = c.rows[(c.turn + 1) % c.rows.length] || {};
+    // 1.6.3 (the combat review's batch "strip", finding 23): who acts next is the host's to work out by the turn shape (net.js fightNextAt), the GM's strip asking it
+    // and a player's reading the place it was sent (nx, -1 where it cannot be known: a counting clock, a round whose order is made again). An older host sends none,
+    // and the row after the one on turn is the guess it always was. A row redacted for this player is never named next
+    var nxAt = n.role === 'host' ? (typeof n.fightNextAt === 'function' ? n.fightNextAt(fidS) : undefined) : c.nx;
+    var cur = c.rows[c.turn] || {}, nxt = typeof nxAt === 'number' ? (nxAt >= 0 && c.rows.length > 1 ? c.rows[nxAt] || null : null) : c.rows[(c.turn + 1) % c.rows.length] || {};
     var host = n.role === 'host', mine = !host && n.myTurnTok ? n.myTurnTok() : null;   // turn-based combat T2: the player on turn ends it here
     if (mine && mine.fid && mine.fid !== fidS) mine = null;   // fold 2: on the strip of the fight they are on turn in
     // initiative O5 (backlog 34): Next is chosen. Up next is the next in the standing order who has not gone this round, and Pick next lists those
@@ -7102,11 +7116,11 @@ function renderCombatStrip() {
     var html = (idsS.length > 1 ? '<button class="combat-strip-btn combat-strip-switch" data-act="switch" title="' + idsS.length + ' fights run on this map: show the next one. This changes nothing for anyone else">' + (atS + 1) + ' of ' + idsS.length + '</button>' : '')
         + '<span class="combat-strip-round" title="Round"><i class="wib wi-fight"></i> R' + c.round + '</span>'
         + (c.side === 'pc' || c.side === 'rest' ? '<span class="combat-strip-side" title="Side initiative: this round&rsquo;s sides roll put this side first">' + (c.side === 'pc' ? 'players first' : 'the rest first') + '</span>' : '')
-        + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn">&#9664;</button>' : '')
+        + (host ? '<button class="combat-strip-btn" data-act="prev" title="Previous turn"><i class="wib wi-nextturn wib-mirror"></i></button>' : '')   // 1.6.3 (finding 28; Fulllion's pick of 2026-11-20): Next's own drawing turned the other way, so the two arrows pair up
         + '<span class="combat-strip-cur" data-tip="Whose turn it is">' + (cur.src ? '<img src="' + esc(resolveImg(cur.src)) + '" alt="">' : '') + nameOf(cur) + '</span>'
         + (typeof stripMoveHtml === 'function' ? stripMoveHtml(n, fidS, c, am) : '')   // 1.5.7: the turn's move, asked through typeof for the suites that slice the strip alone
         + (typeof stripActsHtml === 'function' ? stripActsHtml(n, c, am) : '')   // 1.6.0: its actions, the same way
-        + (nxt !== cur ? '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>' : '')   // 1.6.2: a fight of one names nobody next
+        + (nxt && (nxt !== cur || typeof nxAt === 'number') && nxt.hid !== 1 ? '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>' : '')   // 1.6.2: a fight of one names nobody next
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '"><i class="wib wi-endturn"></i> End turn</button>' : '')
         + pickH + neverH
         + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on. ' + (holdStay ? 'They act while held, and Done ends the hold.' : 'Act later puts them right after whoever is acting.') + (holdNext ? ' The hold lasts to their next turn.' : ' A hold not used by the round&rsquo;s end is lost.')) + '">Hold</button>' : '') + heldH)
@@ -7167,8 +7181,13 @@ function stripMenu(strip, open) {
             if (sp && sp.wpMoreOpen == null) renderCombatStrip();
         });
     }
-    m.textContent = ''; var heads = true;
-    stripMenuRows(strip).forEach(function(r) {
+    // 1.6.3 (the combat review's batch "strip", finding 11, found live): the strip is drawn again often (every redraw of the board asks it), and the menu's rows were made
+    // anew each time, so a row the pointer went down on could be gone by the time it came up, and the press (Hold, the roster, End combat) did nothing. The rows are made
+    // again only when what they say, or the strip they press, has changed
+    var rowsM = stripMenuRows(strip), sigM = String(strip.wpDrawn || '') + '\n' + JSON.stringify(rowsM.map(function(r) { return [r.text, !!r.b, !!r.red]; }));
+    if (m.wpSig === sigM && m.firstChild) rowsM = []; else { m.wpSig = sigM; m.textContent = ''; }
+    var heads = true;
+    rowsM.forEach(function(r) {
         if (!r.b) { var h = document.createElement('div'); h.className = 'fight-menu-word'; h.textContent = r.text; m.appendChild(h); return; }
         if (heads) { heads = false; if (m.firstChild) m.appendChild(document.createElement('hr')); }
         if (r.red && m.lastChild && m.lastChild.tagName !== 'HR') m.appendChild(document.createElement('hr'));
@@ -7582,7 +7601,7 @@ function gmFightPut(n, map, fid, add, out) {   // that fight with the tokens add
     // its count, as Roll all would (in private where a player cannot see it); one that still has none is said
     var ckP = typeof rosterShape === 'function' && typeof getActiveCampaign === 'function' && rosterShape(getActiveCampaign()).kind === 'clock', shP = typeof window !== 'undefined' ? window.wpSheets : null, never = [];
     if (add) add.forEach(function(w) { var was = typeof n.fightWas === 'function' ? n.fightWas(fid, w.id) : null, o = { id: 'r' + w.id, name: typeof rowNameOf === 'function' ? rowNameOf(w, map) : w.charName || w.name || 'Unnamed', tokId: w.id, init: was ? was.init : 0, src: w.src || null }; if (was && was.rolled) o.rolled = 1;
-        if (ckP && !was && typeof w.charId === 'string' && shP && typeof shP.hasInitRoll === 'function' && shP.hasInitRoll() && typeof shP.rollInit === 'function') { var rrP = shP.rollInit(w.charId, { priv: !!w.hidden || (typeof n.tokUnseen === 'function' && n.tokUnseen(map.id, w.id)) }); if (rrP && typeof rrP.value === 'number' && isFinite(rrP.value)) { o.init = rrP.value; o.rolled = 1; } }
+        if (ckP && !was && typeof w.charId === 'string' && shP && typeof shP.hasInitRoll === 'function' && shP.hasInitRoll() && typeof shP.rollInit === 'function') { var rrP = shP.rollInit(w.charId, { priv: !!w.hidden || (typeof n.tokUnseen === 'function' && n.tokUnseen(map.id, w.id)), tok: w.id }); if (rrP && typeof rrP.value === 'number' && isFinite(rrP.value)) { o.init = rrP.value; o.rolled = 1; } }
         if (ckP && !(Number(o.init) > 0)) never.push(o.name);
         var low = was ? rows.findIndex(function(r) { return !(Number(r.init) >= o.init); }) : -1; if (low >= 0) rows.splice(low, 0, o); else rows.push(o); });   // one coming back stands where its number puts it, the row on turn kept below
     if (out) { rows = rows.filter(function(r) { return !(typeof r.tokId === 'string' && out[r.tokId] === 1); }); if (!rows.length) { n.fightEnd(fid); return true; } }
@@ -7677,8 +7696,9 @@ document.addEventListener('contextmenu', function(e) {
         e.preventDefault();
         
         var selectedIds = [];
+        var preSel = [];   // 1.6.3 (the combat review's batch "strip", finding 17): the selection as it stood before this right-click selected what it is on
         if (isWb) {
-            selectedIds = state.selWbIds || (state.selWbId ? [state.selWbId] : []);
+            selectedIds = state.selWbIds || (state.selWbId ? [state.selWbId] : []); preSel = selectedIds.slice();
             if (targetId && !selectedIds.includes(targetId)) { selectedIds = [targetId]; state.selWbIds = [targetId]; state.selWbId = targetId; if (window.appRender) window.appRender(); }   // 1.6.2 (the owner, 2026-11-12: "when right clicking something it should highlight like when its clicked to be selected"): a right-click selects what its menu acts on, so it is lit while the menu is up
         } else {
             selectedIds = state.selId ? [state.selId] : [];
@@ -7708,7 +7728,9 @@ document.addEventListener('contextmenu', function(e) {
             var sheetTop = !!(isWb && selectedIds.length === 1 && firstItem && (firstItem.isChar || firstItem.charId) && window.wpSheets);
             if (sheetTop) { html += '<div class="menu-item cm-sheet"><i class="wib wi-clip"></i> ' + (firstItem.charId ? 'Sheet&hellip;' : 'New character sheet&hellip;') + '</div>'; if (firstItem.charId && window.wpSheets.hudFor && window.wpSheets.hudFor(firstItem.charId)) html += '<div class="menu-item cm-hud"><i class="wib wi-hud"></i> HUD&hellip;</div>'; }
             if (sheetTop && firstItem.charId && window.wpSheets.canDamage && window.wpSheets.canDamage(firstItem.charId)) html += '<div class="menu-item cm-dmg" title="Apply a blow to this character: its DR first, then its wounds, and the wear on what it wears"><i class="wib wi-fight"></i> Take damage&hellip;</div>';   // 1.5.6, the damage step
-            var selNow = state.selWbIds && state.selWbIds.length ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), selAs = isWb && selNow.length === 1 ? am.whiteboard.find(function(x) { return x.id === selNow[0]; }) : null;   // 158: the one token selected, which may target the token under the pointer
+            // 1.6.3 (finding 17): the one token selected BEFORE the right-click, which may target, trade as or hold the token under the pointer. The right-click selects what it
+            // is on (the owner, 2026-11-12), so read after it the selection was always that token, and Target as, Trade as and the GM's Who holds whom were never offered
+            var selNow = preSel.length ? preSel : state.selWbIds && state.selWbIds.length ? state.selWbIds : (state.selWbId ? [state.selWbId] : []), selAs = isWb && selNow.length === 1 ? am.whiteboard.find(function(x) { return x.id === selNow[0]; }) : null;   // 158: the one token selected, which may target the token under the pointer
             var gmF = isWb ? gmFightModel(am, selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean), selAs) : null; html += gmFightHtml(gmF);   // the GM's own Target, Start combat, Add to the fight
             var gmR = isWb ? gmRulesModel(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmRulesHtml(gmR); var gmL = isWb ? gmLootModel(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : null; html += gmLootHtml(gmL);   // 152 fold 4b: an NPC's Rules run switch
             var grpM = isWb ? groupRollModel(am, selectedIds) : null; html += groupRollHtml(grpM);   // 1.6.0 (v2, B7a): Group roll

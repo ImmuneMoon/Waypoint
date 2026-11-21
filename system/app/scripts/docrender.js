@@ -586,9 +586,13 @@ function compileFlowchart(b) {
     m += 'classDef violet fill:#281f3b,stroke:#b98cff,color:#fff\n';
     m += 'classDef neutral fill:#26262a,stroke:#c9c9d4,color:#fff\n';
     var links = [];   // a linked node's line (linkLine): the whole node is the link — written after everything else, so a chart with none compiles exactly as before
+    // 1.6.3 (the review of pages and planners, finding 20): the steps there are, by the id the chart gives them. An arrow whose end names no
+    // step (its step deleted, in a save from before a step's delete took its arrows with it) is left out: the diagram library would make a
+    // box of its own for that end, named after the app's own id, for the GM and for players
+    var stepIds = Object.create(null);
     (Array.isArray(b.nodes) ? b.nodes : []).forEach(function(n) {
         if (!n || typeof n !== 'object') return;
-        var id = mmId(n.id || ('n' + Math.random().toString(36).substr(2, 5)));
+        var id = mmId(n.id || ('n' + Math.random().toString(36).substr(2, 5))); stepIds[id] = true;
         var ll = Object.prototype.hasOwnProperty.call(n, 'link') ? linkLine(id, n.link) : ''; if (ll) links.push(ll);
         var txt = mmLabel(n.text || 'Node', Object.prototype.hasOwnProperty.call(n, 'fmt') ? n.fmt : undefined);
         var s1 = '[', s2 = ']';
@@ -600,6 +604,7 @@ function compileFlowchart(b) {
     });
     (Array.isArray(b.edges) ? b.edges : []).forEach(function(e) {
         if (!e || typeof e !== 'object' || !e.from || !e.to) return;
+        if (!stepIds[mmId(e.from)] || !stepIds[mmId(e.to)]) return;   // an end that names no step (above)
         var line = e.style === 'dotted' ? '-.->' : '-->';
         if (e.text) line += '|' + mmLabel(e.text, Object.prototype.hasOwnProperty.call(e, 'fmt') ? e.fmt : undefined) + '|';
         m += mmId(e.from) + ' ' + line + ' ' + mmId(e.to) + '\n';

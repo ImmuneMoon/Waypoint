@@ -24,7 +24,7 @@ import { cellHtml, rowJoin, headJoin, fmtHtml, fmtRich, cellFmtOf, colFmtOf, LIM
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 // The one state of the window's table (there is one table a window)
-var tw = { body: null, key: '', camp: '', item: '', block: '', b: null, rich: false, sig: '', editing: null, pending: null, hold: null, n: 0, sent: 0, menu: null, note: '', chan: null, wired: false };
+var tw = { body: null, key: '', camp: '', item: '', block: '', b: null, rich: false, sig: '', editing: null, pending: null, hold: null, n: 0, sent: 0, menu: null, note: '', chan: null, wired: false, lastText: null, reopen: null };
 var TW_HOLD_MS = 5000;   // how long a sent edit is shown as typed while the save is on its way (a poll with the old table is passed over)
 // This window's own id, made once, which every edit carries and every answer names again (twAck passes over an answer to another window)
 var TW_ID = (function() {
@@ -130,7 +130,36 @@ function twDraw() {
     var sc2 = tw.body.querySelector('.tw-scroll'); if (sc2) sc2.scrollLeft = x; tw.body.scrollTop = y;
     var back = fsel ? tw.body.querySelector(fsel) : null; if (back) try { back.focus({ preventScroll: true }); } catch (e) {}
     tw.pending = false;
+    if (tw.reopen) { var L = tw.reopen; tw.reopen = null; twReopen(L); }   // words the main window did not take, back in their box (twLost)
 }
+
+// [pagecheck:twlost-start]
+// 1.6.3 (the review of pages and planners, finding 12). A cell's or a heading's new words were thrown away when the main window refused them
+// or never answered: the grid was drawn again from the save, and only a line of gray text said so. Now the last words sent (tw.lastText, set
+// as Done sends them) are kept until the save holds them. If the main window refuses them, or no save comes in time, twLost marks them to
+// come back, and the next draw of the grid opens that very cell's box again with the words still in it (twReopen), so Done tries again. Where
+// the table changed meanwhile so the cell is no longer the one the words were typed for (other rows, or other words in it), the words stand
+// under the note in a box of their own to copy, never on another cell
+function twLost(why) {
+    var L = tw.lastText; tw.lastText = null;
+    if (!L) { twNote(why); return; }
+    tw.reopen = L;
+    twNote(why + ' Your words are back in the box: press Done to try again.');
+}
+function twReopen(L) {
+    if (!tw.b || !tw.body || !L) return;
+    var cols = twCols(tw.b), head = L.k === 'head', rows = Array.isArray(tw.b.rows) ? tw.b.rows : [];
+    var same = rows.length === L.rows && L.ci < cols.length && (head ? String(cols[L.ci] == null ? '' : cols[L.ci]) === L.was : (L.ri < rows.length && twText(rows[L.ri], L.ci) === L.was));
+    var el = same ? tw.body.querySelector(head ? '.tw-grid thead th[data-ci="' + L.ci + '"]' : '.tw-grid td[data-ri="' + L.ri + '"][data-ci="' + L.ci + '"]') : null;
+    if (el) { twEdit(el, L.text); return; }
+    twNote('The table changed, so your words were not put back in their cell. Here they are to copy.');
+    var note = tw.body.querySelector('.tw-note'), head0 = note && note.parentNode;
+    if (!head0 || typeof document === 'undefined') return;
+    var box = document.createElement('div'); box.className = 'tw-lost';
+    var ta = document.createElement('textarea'); ta.readOnly = true; ta.value = L.text; ta.rows = Math.min(8, Math.max(2, L.text.split('\n').length)); ta.setAttribute('aria-label', 'Your words that were not saved');
+    box.appendChild(ta); head0.appendChild(box);
+}
+// [pagecheck:twlost-end]
 
 // Every poll of the save (popout.js tickDoc): the table as the save holds it now. Answers { title } for the window's bar, or null where the
 // page or the table is gone (the window then says so). A table that has not changed is not drawn again; one that changed while an edit is
@@ -153,8 +182,8 @@ function twTick(body, camp, it, blockId, pageTitle, want) {
     var sig = JSON.stringify(b);
     if (tw.hold) {
         if (Date.now() < tw.hold.until && sig === tw.hold.was) return twTitle(pageTitle, b);   // the save is still on its way
-        if (sig === tw.hold.was) { tw.sig = ''; tw.note = 'The main window did not take the change. Is Waypoint still open there?'; }   // no save came: the grid shows the table as it is
-        else tw.note = 'Saved.';   // the save holds the change (the main window's answer may come before or after it)
+        if (sig === tw.hold.was) { tw.sig = ''; twLost('The main window did not take the change. Is Waypoint still open there?'); }   // no save came: the grid shows the table as it is, and the words come back (twLost)
+        else { tw.note = 'Saved.'; tw.lastText = null; }   // the save holds the change (the main window's answer may come before or after it)
         tw.hold = null;
     }
     if (sig !== tw.sig) { tw.sig = sig; tw.b = JSON.parse(sig); twDraw(); }
@@ -182,19 +211,20 @@ function twBusy() { if (!(tw.hold && tw.hold.struct)) return false; twNote('Savi
 function twAck(d) {
     if (!d || d.type !== 'tableEditAck' || typeof d.n !== 'number' || !tw.sent || d.n !== tw.sent) return;   // the answer to the last edit this window sent
     if (d.w !== TW_ID || d.camp !== tw.camp || d.item !== tw.item || d.block !== tw.block) return;   // and to this window, about this very table
-    if (d.ok === true) twNote('Saved.');
-    else { tw.hold = null; tw.sig = ''; tw.sent = 0; twNote(typeof d.why === 'string' && d.why ? d.why.slice(0, 200) : 'The change was not made.'); }
+    if (d.ok === true) { twNote('Saved.'); tw.lastText = null; }
+    else { tw.hold = null; tw.sig = ''; tw.sent = 0; twLost(typeof d.why === 'string' && d.why ? d.why.slice(0, 200) : 'The change was not made.'); }   // the poll draws the grid, and the words come back (twLost)
 }
 
 // A cell or a head opened for typing: a box in its place with its words, a "• List" button and Done. Enter is a new line (a cell takes
-// them); Ctrl+Enter or Done keeps the words, Escape leaves them as they were; leaving the box keeps them too
-function twEdit(el) {
+// them); Ctrl+Enter or Done keeps the words, Escape leaves them as they were; leaving the box keeps them too. text: words to show in place of
+// the cell's own (1.6.3, twReopen: words the main window did not take, typed again for the GM)
+function twEdit(el, text) {
     if (!tw.b || tw.editing || !el || !el.dataset || twBusy()) return;
     var ci = parseInt(el.dataset.ci, 10), ri = el.dataset.ri === undefined ? -1 : parseInt(el.dataset.ri, 10), head = ri < 0, cols = twCols(tw.b);
     if (!(ci >= 0 && ci < cols.length) || (!head && !(ri >= 0 && ri < tw.b.rows.length))) return;
     var was = head ? String(cols[ci] == null ? '' : cols[ci]) : twText(tw.b.rows[ri], ci);
     var box = document.createElement('div'); box.className = 'tw-edit';
-    var ta = document.createElement('textarea'); ta.value = was; ta.rows = Math.min(12, Math.max(2, was.split('\n').length + 1)); ta.setAttribute('aria-label', head ? 'Heading of column ' + (ci + 1) : 'Row ' + (ri + 1) + ', column ' + (ci + 1)); ta.maxLength = head ? 300 : LIMITS.cell;
+    var ta = document.createElement('textarea'); ta.value = typeof text === 'string' ? text : was; ta.rows = Math.min(12, Math.max(2, was.split('\n').length + 1)); ta.setAttribute('aria-label', head ? 'Heading of column ' + (ci + 1) : 'Row ' + (ri + 1) + ', column ' + (ci + 1)); ta.maxLength = head ? 300 : LIMITS.cell;
     var bar = document.createElement('div'); bar.className = 'tw-editbar';
     var list = document.createElement('button'); list.type = 'button'; list.className = 'tool ghost'; list.textContent = '• List'; list.title = 'Make the lines you picked, or the caret’s line, a bulleted list. Press again for plain lines.';
     var done = document.createElement('button'); done.type = 'button'; done.className = 'tool'; done.textContent = 'Done'; done.title = 'Keep these words (Ctrl+Enter)';
@@ -209,6 +239,7 @@ function twEdit(el) {
         var now = ta.value.replace(/\r\n?/g, '\n');
         if (keep && now !== ed.was) {
             if (twSend(head ? { k: 'head', ci: ci, text: now.slice(0, 300), rows: ed.rows, was: ed.was } : { k: 'cell', ri: ri, ci: ci, text: now.slice(0, LIMITS.cell), rows: ed.rows, was: ed.was })) {
+                tw.lastText = { k: head ? 'head' : 'cell', ri: ri, ci: ci, text: now, was: ed.was, rows: ed.rows };   // kept until the save holds it (twLost)
                 if (head) tw.b.cols = cols.map(function(c, k) { return k === ci ? now : c; });   // shown at once, with no look until the save brings it
                 else { var r = tw.b.rows[ri]; if (Array.isArray(r)) r[ci] = now; else { r['col' + (ci + 1)] = now; if (r.fmt) delete r.fmt['col' + (ci + 1)]; } if (Array.isArray(tw.b.rowFmt) && Array.isArray(tw.b.rowFmt[ri])) tw.b.rowFmt[ri][ci] = null; }
             }
@@ -295,4 +326,4 @@ function twWire(body) {
 }
 
 if (typeof window !== 'undefined') window.wpTableWin = { tick: twTick };   // (a suite loads the module under Node, where there is no window)
-export { twTick, twHtml, twBlock, twBullets, twBulletLines, twText, twRowSig, twHeadSig, twFocusSel, twSend, twBusy, twMenu, twCols, TW_HOLD_MS };   // twSend, twBusy and twMenu for a suite
+export { twTick, twHtml, twBlock, twBullets, twBulletLines, twText, twRowSig, twHeadSig, twFocusSel, twSend, twBusy, twMenu, twCols, twEdit, TW_HOLD_MS };   // twSend, twBusy, twMenu and twEdit for a suite

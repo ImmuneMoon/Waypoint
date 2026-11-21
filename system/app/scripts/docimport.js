@@ -9,7 +9,9 @@
        has pictures (images/<itemId>/<name> beside the .md), else a .md;
      • the template download in Help (#helpMdTemplateBtn).
    Pictures are uploaded first, every upload awaited, then the blocks are built and saved once — one
-   undo step, and Cancel leaves no files and no save. Everything goes through wpCanPersistLocal. */
+   undo step. Cancel before Import leaves no files and no save; Cancel or Escape while the pictures upload
+   stops the import (no item, no save), and the pictures already sent stay in the Image Library.
+   Everything goes through wpCanPersistLocal. */
 import { state } from './state.js';
 import { uid, createNewPlanner, createNewDoc, getActiveCampaign, getActiveMap } from './models.js';
 import { save, toast } from './io.js';
@@ -113,6 +115,7 @@ async function openImport(opts) {
 }
 function showDialog() {
     var m = ui('docImportModal'); if (!m || !pending) return;
+    if (!pending.busy) goReset();   // 1.6.3 (finding 11): the Import button as it was, whatever an import before this one left it as
     var p = pending.parsed, kind = pending.kind, am = getActiveMap();
     var counts = {}; p.blocks.forEach(function(b) { counts[b.type] = (counts[b.type] || 0) + 1; });
     ui('docImportSummary').textContent = p.blocks.length + ' block' + (p.blocks.length === 1 ? '' : 's') + ' from ' + pending.fileName + ': ' + Object.keys(counts).map(function(t) { return counts[t] + ' ' + (TYPE_LABEL[t] || t).toLowerCase() + (counts[t] === 1 ? '' : 's'); }).join(', ') + '.';
@@ -144,7 +147,14 @@ function showDialog() {
     };
     m.style.display = 'flex';
 }
-function closeDialog() { var m = ui('docImportModal'); if (m) m.style.display = 'none'; pending = null; }
+// [doccheck:dimp-start]
+// 1.6.3 (the review of pages and planners, finding 11). Cancel and Escape while the pictures upload used to set pending to null under the
+// upload loop, which then threw at its next pass: no item was made, and the Import button stayed off with "Uploading pictures…" until a
+// reload. Now the import reads only its own job (the pending import it began with), Cancel and Escape mark that job stopped, and the loop
+// stops at its next picture: nothing is made or saved, and the GM is told how many pictures were already sent. goReset puts the Import button
+// back, at the end of every import and whenever the dialog is drawn for a new one
+function goReset() { var go = ui('docImportGo'); if (go) { go.disabled = false; go.textContent = 'Import'; } }
+function closeDialog() { var m = ui('docImportModal'); if (m) m.style.display = 'none'; if (pending && pending.busy) pending.stop = true; pending = null; }
 // Change a block's type where the dialog allows it
 function retype(b, t) {
     if (b.type === t) return b;
@@ -153,24 +163,25 @@ function retype(b, t) {
     return o;
 }
 async function doImport() {
-    if (!pending) return;
+    if (!pending || pending.busy) return;
+    var job = pending;   // this import's own job: closeDialog may set pending to null, or a new import may start, while the pictures upload
     if (!canWrite()) { closeDialog(); return; }
     var camp = getActiveCampaign(); if (!camp) { closeDialog(); return; }
-    var target = ui('docImportTarget').value || 'new:' + pending.kind;
-    var kind = target === 'append' ? pending.kind : target.slice(4);
+    var target = ui('docImportTarget').value || 'new:' + job.kind;
+    var kind = target === 'append' ? job.kind : target.slice(4);
     var rowsEl = Array.from(ui('docImportRows').querySelectorAll('.dimp-row'));
     var keep = {}, types = {};
     rowsEl.forEach(function(r) { var i = +r.dataset.i; keep[i] = r.querySelector('.dimp-keep').checked; var s = r.querySelector('.dimp-type'); if (s) types[i] = s.value; });
-    var p = pending.parsed, blocks = [], indexMap = {};
+    var p = job.parsed, blocks = [], indexMap = {};
     p.blocks.forEach(function(b, i) { if (!keep[i]) return; indexMap[i] = blocks.length; blocks.push(types[i] ? retype(b, types[i]) : Object.assign({}, b)); });
     if (!blocks.length) { toast('Every block is unticked. Nothing to import.'); return; }
     // the target item (a new one is built now so the uploads know its folder; it enters the campaign only after they finish)
     var item, isNew = target !== 'append';
     if (isNew) {
-        var title = getUniqueItemTitle((p.meta.title || (blocks.find(function(b) { return b.type === 'h1'; }) || {}).title || pending.fileName.replace(/\.[^.]*$/, '') || 'Imported').slice(0, 300), pending.parentId || null);
+        var title = getUniqueItemTitle((p.meta.title || (blocks.find(function(b) { return b.type === 'h1'; }) || {}).title || job.fileName.replace(/\.[^.]*$/, '') || 'Imported').slice(0, 300), job.parentId || null);
         item = kind === 'doc' ? createNewDoc(title) : createNewPlanner(title);
         if (kind === 'planner') item.id = 'plan_' + uid().replace(/^b_/, '');
-        if (pending.parentId && camp.items[pending.parentId] && camp.items[pending.parentId].type === kind) { item.meta.parentId = pending.parentId; camp.items[pending.parentId].meta.collapsed = false; }
+        if (job.parentId && camp.items[job.parentId] && camp.items[job.parentId].type === kind) { item.meta.parentId = job.parentId; camp.items[job.parentId].meta.collapsed = false; }
         if (kind === 'planner' && p.meta.status) item.meta.status = p.meta.status;
         if (kind === 'doc' && p.meta.players === false) item.meta.players = false;
         if (!blocks.some(function(b) { return b.type === 'h1'; })) blocks.unshift({ id: 'b_' + uid().replace(/^b_/, ''), type: 'h1', title: title, sub: p.meta.subtitle || '' });
@@ -180,14 +191,21 @@ async function doImport() {
     }
     // uploads first, all awaited; a failure leaves the block with its caption
     var go = ui('docImportGo'); if (go) { go.disabled = true; go.textContent = 'Uploading pictures…'; }
-    var failed = 0;
-    for (var s = 0; s < pending.sources.length; s++) {
-        var src = pending.sources[s]; if (!src || indexMap[src.index] === undefined) continue;
-        var b = blocks[indexMap[src.index]];
-        if (src.blob.size > LIMITS.picture) { failed++; p.notes.push('Picture "' + src.name + '" is over 8 MB and was not uploaded.'); continue; }
-        try { b.src = await window.wpUploadBlob(item.id, src.name, src.blob); } catch (e) { failed++; }
+    var failed = 0, sent = 0;
+    job.busy = true;
+    try {
+        for (var s = 0; s < job.sources.length; s++) {
+            if (job.stop) break;
+            var src = job.sources[s]; if (!src || indexMap[src.index] === undefined) continue;
+            var b = blocks[indexMap[src.index]];
+            if (src.blob.size > LIMITS.picture) { failed++; p.notes.push('Picture "' + src.name + '" is over 8 MB and was not uploaded.'); continue; }
+            try { b.src = await window.wpUploadBlob(item.id, src.name, src.blob); sent++; } catch (e) { failed++; }
+        }
+    } finally {
+        job.busy = false;
+        if (!pending || pending === job) goReset();   // never the button of a new import begun meanwhile
     }
-    if (go) { go.disabled = false; go.textContent = 'Import'; }
+    if (job.stop) { toast('Import canceled. Nothing was added.' + (sent ? ' ' + sent + ' picture' + (sent === 1 ? ' was' : 's were') + ' already sent and stay' + (sent === 1 ? 's' : '') + ' in the Image Library.' : '')); return; }
     // the blocks
     blocks.forEach(function(b) { if (!b.id) b.id = 'b_' + uid().replace(/^b_/, ''); });
     if (isNew) { item.blocks = blocks; camp.items[item.id] = item; camp.activeItemId = item.id; state.selId = null; state.selWbId = null; state.linkStart = null; }
@@ -196,6 +214,7 @@ async function doImport() {
     save(true); updateSidebarNav(); render();
     toast((isNew ? 'Imported “' + (item.meta.title || '') + '”' : 'Imported ' + blocks.length + ' block' + (blocks.length === 1 ? '' : 's')) + (failed ? '. ' + failed + ' picture' + (failed === 1 ? '' : 's') + ' could not be uploaded.' : '.'));
 }
+// [doccheck:dimp-end]
 
 /* ---------- export ---------- */
 async function exportMarkdown(item) {

@@ -1215,6 +1215,13 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       var own = !!(t.classList && t.classList.contains('ts-box'));   // a styled field's box: never the browser's own undo
 
+      // 1.6.3 (the review of pages, finding 9): a text block written on the page itself (Edit mode: its form stands in the editor's layer over
+      // the page, planner.js pgLayout) never uses the browser's own undo either. Laying the form again as the page under it is drawn split the
+      // browser's run of typing, so a Ctrl+Z there took back one character or a few at a time; the planner's history takes back the whole run
+      // of typing in one step, as it does in a styled field's box
+
+      if (!own && t.classList && t.classList.contains('rte-body') && t.closest('.pbe-layer')) own = true;
+
       if (t._wpNativeDirty && !own) {
 
           // let the browser try; if no text moved anywhere (its undo stack is one per document, so the

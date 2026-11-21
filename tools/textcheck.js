@@ -2197,7 +2197,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             else if (op === 1 && b && b.type === 'node' && b.rows.length) { b.rows.splice(Math.floor(R() * b.rows.length), 1); name = 'delete row'; }
             else if (op === 2 && b && b.type === 'node') { pg.tsSetColCount(b, 1 + Math.floor(R() * 8)); name = 'column count'; }
             else if (op === 3 && b && b.type === 'flowchart') { b.nodes.push({ id: 'n' + (b.nodes.length + 1), text: 'Node', shape: 'rect', color: 'neutral' }); name = 'add node'; }
-            else if (op === 4 && b && b.type === 'flowchart' && b.nodes.length) { b.nodes.splice(Math.floor(R() * b.nodes.length), 1); name = 'delete node'; }
+            else if (op === 4 && b && b.type === 'flowchart' && b.nodes.length) { const gone = b.nodes.splice(Math.floor(R() * b.nodes.length), 1)[0]; b.edges = b.edges.filter(e => !(gone.id && (e.from === gone.id || e.to === gone.id))); name = 'delete node'; }   // 1.6.3 (finding 20): its arrows go with it, as planner.js fcDropStep does
             else if (op === 5 && b && b.type === 'flowchart') { b.edges.push({ from: '', to: '', text: '', style: 'solid' }); name = 'add arrow'; }
             else if (op === 6 && b && b.type === 'flowchart' && b.edges.length) { b.edges.splice(Math.floor(R() * b.edges.length), 1); name = 'delete arrow'; }
             else if (op === 7 && idx > 0) { const t = blocks[idx]; blocks[idx] = blocks[idx - 1]; blocks[idx - 1] = t; name = 'move up'; }
@@ -2214,7 +2214,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             !bad && steps === 600 && ['add row', 'delete row', 'column count', 'add node', 'delete node', 'add arrow', 'delete arrow', 'move up', 'move down', 'delete block', 'add block', 'type'].every(k => done[k] > 5), bad || done);
         check('structure (wired): the editor\'s handlers do exactly those list operations — a row, a node and an arrow are spliced or pushed as objects, blocks swap as objects, the Columns select goes through tsSetColCount',
             /activeMap\.blocks\[this\.dataset\.idx\]\.rows\.push\(\{\}\); save\(true\)/.test(plannerSrc) && /activeMap\.blocks\[this\.dataset\.idx\]\.rows\.splice\(this\.dataset\.ri, 1\); save\(true\)/.test(plannerSrc)
-            && /\.nodes\.splice\(this\.dataset\.ni, 1\); save\(true\)/.test(plannerSrc) && /\.edges\.splice\(this\.dataset\.ei, 1\); save\(true\)/.test(plannerSrc) && /\.nodes\.push\(\{id: fcFreeId\(activeMap\.blocks\[this\.dataset\.idx\]\),/.test(plannerSrc) && /\.edges\.push\(\{from: '', to: '', text: '', style: 'solid'\}\)/.test(plannerSrc)
+            && /* 1.6.3 (finding 20): moved on purpose, a step is deleted through fcDropStep, which takes its arrows with it */ /fcDropStep\(activeMap\.blocks\[this\.dataset\.idx\], \+this\.dataset\.ni\); save\(true\)/.test(plannerSrc) && /var gone = b\.nodes\.splice\(ni, 1\)\[0\]/.test(plannerSrc) && /\.edges\.splice\(this\.dataset\.ei, 1\); save\(true\)/.test(plannerSrc) && /\.nodes\.push\(\{id: fcFreeId\(activeMap\.blocks\[this\.dataset\.idx\]\),/.test(plannerSrc) && /\.edges\.push\(\{from: '', to: '', text: '', style: 'solid'\}\)/.test(plannerSrc)
             && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i-1\]; activeMap\.blocks\[i-1\]=t;/.test(plannerSrc) && /var t=activeMap\.blocks\[i\]; activeMap\.blocks\[i\]=activeMap\.blocks\[i\+1\]; activeMap\.blocks\[i\+1\]=t;/.test(plannerSrc)
             && /var di = parseInt\(this\.dataset\.idx\); activeMap\.blocks\.splice\(di, 1\); pgDropped\(di\); save\(true\)/.test(plannerSrc)   // 1.6.2, found by hand: the open form follows a block moved or deleted (moved on purpose)
             && /pgMoved\(i, i - 1\); save\(true\); renderPlanner\(\); pgReopen\(\); pbeToolBack\(i - 1, 'mv-up'\);/.test(plannerSrc) && /pgMoved\(i, i \+ 1\); save\(true\); renderPlanner\(\); pgReopen\(\); pbeToolBack\(i \+ 1, 'mv-dn'\);/.test(plannerSrc) && /tsSetColCount\(bb, n\);/.test(plannerSrc));
@@ -2935,6 +2935,50 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 J(md) === '[false,false,true,true,true]' && J(cmds) === '["bold"]' && looks.length === 5, [md, cmds]);
         }
 
+        /* ---- 1.6.3 (the review of pages and planners, finding 1): the bar of the text block in use is moved into the slot at the top of the
+           editor (planner.js [textcheck:pbebar], run on the test page), which in Edit mode is a row of the Find bar, so it is painted over the
+           open form's layer and can be pressed; it goes back to its block when the block is left, and every control of it still reaches its
+           own block (the real wireRte, home()) ---- */
+        {
+            const dom = makeDom(), doc = dom.document;
+            const wrap = dom.mk('div', '', {}, 'plannerEditorWrap'), fb = dom.mk('div', '', {}, 'plannerFindBar'), slot = dom.mk('div', 'pbe-barslot', {}, 'pbeBarSlot'), idle = dom.mk('div', 'pbe-idlebar'), container = dom.mk('div', 'blocks');
+            wrap.style = { setProperty() {} };
+            doc.body.appendChild(fb); doc.body.appendChild(wrap); fb.appendChild(slot); slot.appendChild(idle); wrap.appendChild(container);   // Edit mode: the slot stands in the Find bar, outside the editor
+            const mkRte = i => { const rte = dom.mk('div', 'rte', { idx: String(i) }), bar = dom.mk('div', 'rte-bar'), link = dom.mk('input', 'ts-link rte-link'), pick = dom.mk('input', 'rte-colorpick'), body = dom.mk('div', 'field rte-body', { idx: String(i) }); bar.appendChild(link); bar.appendChild(pick); rte.appendChild(bar); rte.appendChild(body); container.appendChild(rte); return { rte, bar, link, pick, body }; };
+            const A = mkRte(0), B = mkRte(1), other = dom.mk('input', 'find'); fb.appendChild(other);
+            const later = [], looks = [];
+            const PB = new Function('document', 'window', 'setTimeout', slice('planner.js', 'pbebar') + '\nreturn { pbeBarOn, pbeBarWire, pbeRteOf, pbeBarHome };')(doc, dom.window, fn => later.push(fn));
+            const W = new Function('getActiveMap', 'save', 'renderPlannerPreview', 'rteSyncBar', 'fieldUndoChord', 'rteLook', 'document', 'Event', 'rteLinkKeep', 'rteLinkMark', 'rteLinkSync', 'rteLinkBox', 'rteLinkDo', 'rteLinkBack', 'tsPageMenu', 'pvTyped',
+                slice('planner.js', 'rtewire') + '\nreturn wireRte;')(() => null, () => {}, () => {}, () => {}, () => false, (b, change) => { looks.push([b, change]); return true; }, doc, function() {}, () => false, () => {}, () => {}, () => null, () => 'ok', () => {}, undefined, () => {});
+            W(container); PB.pbeBarWire(wrap);
+            const run = () => { const q = later.splice(0); q.forEach(f => f()); };
+            A.body.focus(); run();
+            const r1 = [A.bar.parentNode === slot, B.bar.parentNode === B.rte, A.rte.classList.contains('rte-on'), doc.body.classList.contains('pbe-bar-on')];
+            A.pick.value = '#123456'; A.pick.fire('change');   // the color picker of the bar in the slot still colors its own block
+            A.link.focus(); run();   // into the bar's Link box, which stands in the Find bar: the bar stays
+            const r2 = [A.bar.parentNode === slot, PB.pbeRteOf(A.link) === A.rte, doc.body.classList.contains('pbe-bar-on')];
+            B.body.focus(); run();   // another block: its bar takes the slot and the first goes home, first in its block
+            const r3 = [B.bar.parentNode === slot, A.bar.parentNode === A.rte, A.rte.childNodes[0] === A.bar, A.rte.classList.contains('rte-on')];
+            other.focus(); run();   // out of every block: the bar goes home and the grayed copy is back
+            const r4 = [B.bar.parentNode === B.rte, B.rte.childNodes[0] === B.bar, slot.childNodes.length === 1, doc.body.classList.contains('pbe-bar-on')];
+            A.body.focus(); run(); container.removeChild(A.rte); PB.pbeBarOn(wrap, null);   // the editor drawn again under it: a bar whose block is gone leaves the slot
+            const r5 = [slot.childNodes.length === 1 && slot.childNodes[0] === idle];
+            check('1.6.3 the text bar in Edit mode (finding 1, planner.js pbeBarOn, pbeBarHome, pbeRteOf and wireRte, run for real): the bar of the block in use stands in the slot of the Find bar and acts on its own block; its Link box keeps it there; another block takes the slot and the first bar goes back to its block; leaving every block puts it home; a bar whose block was drawn away leaves the slot',
+                J(r1) === '[true,true,true,true]' && looks.length === 1 && looks[0][0] === A.body && J(looks[0][1]) === J({ color: '#123456' }) && J(r2) === '[true,true,true]' && J(r3) === '[true,true,true,false]' && J(r4) === '[true,true,true,false]' && J(r5) === '[true]',
+                J([r1, looks.map(l => [l[0] === A.body, l[1]]), r2, r3, r4, r5]));
+        }
+        /* ---- 1.6.3 (finding 9): Ctrl+Z in a text block written on the page itself (Edit mode, the editor's layer .pbe-layer) is the planner's
+           history, which takes a run of typing back in one step; the browser's own undo, which the form laid again split a few characters at a
+           time, is no longer asked there. Side by side keeps the browser's (io.js fieldUndoChord, run for real with io.js's own history) ---- */
+        {
+            const pg = mkPage({ map: mapOf([{ id: 't', type: 'text', content: '<p>a</p>' }]) }), H = mkHist(pg);
+            const rte = pg.mk('div', 'rte', { idx: '0' }), body = pg.mk('div', 'field rte-body', { idx: '0' }); body.setAttribute('contenteditable', 'true'); rte.appendChild(body); pg.blocksEl.appendChild(rte);
+            const press = () => { const e = { key: 'z', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, target: body, prevented: false, preventDefault() { this.prevented = true; }, stopPropagation() {} }; const took = H.fieldUndoChord(e); return [took, e.prevented]; };
+            body._wpNativeDirty = true; const side = press();
+            pg.editor.className = 'pbe-layer'; body._wpNativeDirty = true; const edit = press();
+            check('1.6.3 Ctrl+Z in a text block on the page itself is the planner\'s own step (finding 9, io.js fieldUndoChord run for real): in Side by side a block with typing of the browser\'s own leaves the press to the browser, in Edit mode (the editor\'s layer) the planner takes it',
+                J(side) === '[false,false]' && J(edit) === '[true,true]', J([side, edit]));
+        }
         /* ---- a text block's Link control (planner.js [textcheck:rtelink] and the real wireRte, run on the test page with io.js's own history) ---- */
         {
             const linkSrc = slice('planner.js', 'rtelink'), wireSrc = slice('planner.js', 'rtewire');

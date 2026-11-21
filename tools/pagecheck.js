@@ -1232,6 +1232,36 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                             J([last, mid, hmOp, hBusy, reopened, nAfter - n0, TWW.twHeadSig(merged)]));
                     } finally { if (realDoc === undefined) delete globalThis.document; else globalThis.document = realDoc; if (realWin === undefined) delete globalThis.window; else globalThis.window = realWin; }
                 }
+                {   // 1.6.3 (the review of pages and planners, finding 12): words typed in a big table's window and refused by the main window, or
+                    // never taken, come back in their cell's box (tablewin.js twLost and twReopen, run for real); where the cell changed meanwhile
+                    // they stand under the note to copy, never on another cell
+                    const realDoc = globalThis.document, wd = makeDom();
+                    globalThis.document = wd.document;
+                    try {
+                        const holder = wd.mk('div', 'tw-head'), note = wd.mk('span', 'tw-note'), cell = wd.mk('td', '', { ri: '0', ci: '1' });
+                        wd.document.body.appendChild(holder); holder.appendChild(note); wd.document.body.appendChild(cell);
+                        const lb = { innerHTML: '', scrollTop: 0, addEventListener() {}, contains: () => false /* the focus is never found again here (twFocusSel reads selectors the test page has not) */, querySelector: s => (s === '.tw-note' ? note : s === '.tw-grid td[data-ri="0"][data-ci="1"]' ? cell : null) };
+                        const lit = { id: 'd2', type: 'doc', blocks: [{ id: 'b_l', type: 'table', cols: ['A', 'B'], rows: [['a', 'old words']] }] };
+                        const done = () => cell.querySelectorAll('button').filter(b => b.textContent === 'Done')[0];
+                        const refuse = why => { const m = sent[sent.length - 1]; heard.forEach(f => f({ data: { type: 'tableEditAck', camp: 'c1', item: 'd2', block: 'b_l', w: m.w, n: m.n, ok: false, why } })); };
+                        TWW.twTick(lb, wc, lit, 'b_l', 'P', 'c1');
+                        TWW.twEdit(cell); cell.querySelector('textarea').value = 'my long words'; done().fire('click');
+                        const sentOp = sent[sent.length - 1].op;
+                        refuse('The main window is on another campaign.');
+                        TWW.twTick(lb, wc, lit, 'b_l', 'P', 'c1');   // the next poll draws the grid: the box is open again with the words
+                        const ta1 = cell.querySelector('textarea'), back1 = ta1 && ta1.value, note1 = note.textContent;
+                        done().fire('click'); const resent = sent[sent.length - 1].op;   // Done tries again
+                        while (cell.firstChild) cell.removeChild(cell.firstChild);   // the grid drawn again (the test's body draws no markup)
+                        lit.blocks[0].rows[0][1] = 'someone else\'s words'; refuse('Refused.');   // the cell changed meanwhile
+                        TWW.twTick(lb, wc, lit, 'b_l', 'P', 'c1');
+                        const lost = holder.querySelector('.tw-lost'), lostTa = lost && lost.querySelector('textarea'), note2 = note.textContent;
+                        check('1.6.3 words a big table\'s window could not save come back (finding 12, tablewin.js twLost and twReopen, run for real): refused, the cell\'s box opens again on the next draw with the words in it and the note says to press Done, which sends them again; where the cell changed meanwhile the words stand under the note to copy and no box opens on that cell',
+                            sentOp.k === 'cell' && sentOp.text === 'my long words' && back1 === 'my long words' && /The main window is on another campaign\. Your words are back in the box: press Done to try again\./.test(note1)
+                            && resent.k === 'cell' && resent.text === 'my long words' && resent.was === 'old words'
+                            && !!lostTa && lostTa.value === 'my long words' && lostTa.readOnly === true && !cell.querySelector('textarea') && /Here they are to copy/.test(note2),
+                            J([sentOp, back1, note1, resent, lostTa && lostTa.value, note2]));
+                    } finally { if (realDoc === undefined) delete globalThis.document; else globalThis.document = realDoc; }
+                }
             } finally { globalThis.BroadcastChannel = realBC; }
         }
         {   // 1.6.2 (the owner, 2026-11-14): "lets have the horizontal scroll bar for a table stick to the bottom of the screen while navigating it, and
@@ -1632,9 +1662,35 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 J(r) === J([0, 0, 1, 1, 2, 2, 2, 2, 3, 3, false, true, 4, 4, 0, 1])
                 && plR.includes("      save(d.k === 'caption');\n      if (typeof pvTyped === 'function') pvTyped(); else renderPlannerPreview();")
                 && plR.includes("save(false); if (typeof pvTyped === 'function') pvTyped(); else renderPlannerPreview(); rteSyncBar(this); rteLinkSync(this);")
-                && plR.includes("if(activeMap.blocks[this.dataset.idx].type !== 'diagram') pvTyped(); }));")
+                && plR.includes("save(false); pvTyped(activeMap.blocks[this.dataset.idx].type === 'diagram' ? PV_DIAGRAM_MS : 0); });")   // moved on purpose (1.6.3, finding 10): a diagram's code is drawn too, a little later
                 && plR.includes("  function renderPlannerPreview() {\n      if (typeof pvDrop === 'function') pvDrop();")
                 && plR.includes("      if (!isDocLike(am)) { await fn(); return; }\n      pvFlush();"), J(r));
+        }
+        // ---- finding 10: a diagram's code draws its chart again, PV_DIAGRAM_MS after the last key, and at once when its box is left ----
+        {
+            const C = clock(), on = { map: { id: 'p1' } }; let drawn = 0;
+            const P = new Function('getActiveMap', 'renderPlannerPreview', 'setTimeout', 'clearTimeout', 'document', 'window', "'use strict';\n" + cutP('pvtyped') + '\nreturn { pvTyped, pvDrop, PV_TYPE_MS, PV_DIAGRAM_MS };')(
+                () => on.map, () => { P.pvDrop(); drawn++; }, C.set, C.clear, { addEventListener() {} }, { addEventListener() {} });
+            const r = [];
+            P.pvTyped(P.PV_DIAGRAM_MS); C.run(P.PV_TYPE_MS); r.push(drawn); C.run(P.PV_DIAGRAM_MS - P.PV_TYPE_MS); r.push(drawn);   // a diagram's key: not at a text's 200 ms, at 600
+            P.pvTyped(P.PV_DIAGRAM_MS); C.run(100); P.pvTyped(1); C.run(1); r.push(drawn);   // its box left (change): drawn at once, the wait for the key taken over
+            P.pvTyped({ type: 'input' }); C.run(P.PV_TYPE_MS); r.push(drawn);   // anything that is no wait is a text's
+            check('1.6.3 a diagram\'s code redraws its chart (finding 10, planner.js pvTyped with a wait, run for real): drawn 600 ms after the last key, never at a text\'s 200 ms so a half-typed chart does not flash its error; at once when the box is left; the box\'s change listener asks for it',
+                J(r) === J([0, 1, 2, 3]) && P.PV_DIAGRAM_MS === 600
+                && plR.includes("el.addEventListener('change', function() { var b = activeMap.blocks[this.dataset.idx]; if (b && b.type === 'diagram') pvTyped(1); });"), J(r));
+        }
+        // ---- finding 34: a picture picked or uploaded goes to the very block it was asked for (planner.js picTo, run for real) ----
+        {
+            const toasts = [], saves = [], draws = [];
+            const picTo = new Function('toast', 'save', 'renderPlanner', cutP('picto') + '\nreturn picTo;')(m => toasts.push(m), x => saves.push(x), () => draws.push(1));
+            const pic = { id: 'b_p', type: 'image' }, other = { id: 'b_o', type: 'text' }, map = { blocks: [other, pic] };
+            map.blocks.splice(0, 1);   // a block above it deleted while the upload ran: the picture block now stands at another place
+            const ok = picTo(map, pic, '/saves/images/p1/a.png'), other2 = JSON.stringify(other);
+            map.blocks.splice(0, 1);   // the picture block itself deleted
+            const gone = picTo(map, pic, '/saves/images/p1/b.png');
+            check('1.6.3 a picture lands in the block it was asked for (finding 34, planner.js picTo): a block moved meanwhile still gets it, no other block is touched, and a block deleted meanwhile gets nothing and the GM is told the picture is in the Image Library',
+                ok === true && pic.src === '/saves/images/p1/a.png' && other2 === JSON.stringify({ id: 'b_o', type: 'text' }) && gone === false && saves.length === 1 && draws.length === 1
+                && toasts.length === 1 && /deleted.*Image Library/.test(toasts[0]) && plR.includes('window.wpPickImage(function(src) { picTo(map, blk, src); });') && plR.includes('.then(function(url) { picTo(map, blk, url); }'), J([ok, gone, pic, toasts]));
         }
         // ---- finding 2: the app's redraw draws the editor again only where what it shows changed, and never under the GM's hands ----
         {

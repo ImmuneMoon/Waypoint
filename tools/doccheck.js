@@ -139,6 +139,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('flowchart: header, direction and spacing', /^%%\{init: \{"flowchart": \{"nodeSpacing": 18, "rankSpacing": 28, "htmlLabels": true\}\}\}%%\nflowchart LR\n/.test(m), m.split('\n').slice(0, 2).join(' | '));
         check('flowchart: shapes, quoting and escaping', m.indexOf('a{"Start [here]"}:::gold') > 0 && m.indexOf('b_c(["x #quot;q#quot; #35;1"]):::neutral') > 0, m);
         check('flowchart: dotted labeled edge, empty edge skipped', m.indexOf('a -.->|"yes"| b_c') > 0 && (m.match(/-->|-\.->/g) || []).length === 1, m);
+        {   // 1.6.3 (the review of pages and planners, finding 20): an arrow whose end names no step is left out of the chart (the diagram library
+            // drew a box for it named after the app's own id), and a step deleted in the editor takes its arrows with it (planner.js fcDropStep, run for real)
+            const fs = require('fs'), pl = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'planner.js'), 'utf8');
+            const a = pl.indexOf('// [doccheck:fcdrop-start]'), z = pl.indexOf('// [doccheck:fcdrop-end]');
+            const fcDropStep = new Function(pl.slice(a, z) + '\nreturn fcDropStep;')();
+            const dang = compileFlowchart({ nodes: [{ id: 'n1', text: 'One' }, { id: 'n2', text: 'Two' }], edges: [{ from: 'n1', to: 'n2' }, { from: 'n1', to: 'n3' }, { from: 'gone', to: 'n2' }] });
+            const fb = { nodes: [{ id: 'n1', text: 'One' }, { id: 'n2', text: 'Two' }, { id: 'n3', text: 'Three' }], edges: [{ from: 'n1', to: 'n3' }, { from: 'n3', to: 'n2' }, { from: 'n1', to: 'n2' }] };
+            fcDropStep(fb, 2); const kept = JSON.stringify(fb);
+            const fb2 = { nodes: [{ id: 'n1' }], edges: [{ from: 'n1', to: 'n1' }] }; fcDropStep(fb2, 5); fcDropStep(null, 0);
+            check('1.6.3 a flowchart\'s arrows follow its steps (finding 20): the chart leaves out an arrow whose end names no step, so no box named after an id is drawn; a step deleted takes every arrow to or from it, the others kept; a place that is no step changes nothing',
+                (dang.match(/-->/g) || []).length === 1 && dang.indexOf('n1 --> n2') > 0 && dang.indexOf('n3') < 0 && dang.indexOf('gone') < 0
+                && kept === JSON.stringify({ nodes: [{ id: 'n1', text: 'One' }, { id: 'n2', text: 'Two' }], edges: [{ from: 'n1', to: 'n2' }] }) && fb2.edges.length === 1, [dang, kept]);
+        }
         check('flowchart: bad direction/color fall back', /flowchart TD\n/.test(compileFlowchart({ dir: 'XX', nodes: [{ id: 'n', color: 'pink' }] })) && compileFlowchart({ dir: 'XX', nodes: [{ id: 'n', color: 'pink' }] }).indexOf(':::neutral') > 0);
         check('stripMermaidLinks removes click/callback/href/linkStyle lines', stripMermaidLinks('graph TD\nA-->B\n  click A "javascript:alert(1)"\nCLICK B call x()\nhref A "https://x"\nlinkStyle 0 stroke:red\ncallback A f\nC-->D') === 'graph TD\nA-->B\nC-->D');
         {   // a directive wherever it stands in a line (a diagram's link and callback statements never reach the diagram library)
@@ -1534,6 +1547,37 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && r2.md.includes('| Weight (Credit Denomination / Aurodium Weight) |||\n|---|---|---|') && jj(r2.back.headMerge) === jj({ col1: 3 }) && r3.md.includes('| A | B | C |') && !('headMerge' in r3.back)
             && jj(hand[0].headMerge) === jj({ col2: 2 }) && !('headMerge' in hand[1]) && hand[1].cols[0] === '', jj([r1, r2, r3.md, hand.map(x => [x.cols, x.headMerge])]));
     }
+    /* ---- 1.6.3 (the review of pages and planners, finding 11): Cancel or Escape while a Markdown import's pictures upload stops that import
+       cleanly (docimport.js, its dimp slice run for real): the loop reads its own job, nothing is made or saved, the Import button is put back,
+       and the GM is told how many pictures were already sent; an import begun meanwhile keeps its own button ---- */
+    await (async () => {
+        const fs = require('fs'), di = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docimport.js'), 'utf8');
+        const a = di.indexOf('// [doccheck:dimp-start]'), z = di.indexOf('// [doccheck:dimp-end]');
+        const go = { disabled: false, textContent: 'Import' }, modal = { style: { display: 'flex' } }, row = i => ({ dataset: { i: String(i) }, querySelector: s => (s === '.dimp-keep' ? { checked: true } : null) });
+        const els = { docImportGo: go, docImportModal: modal, docImportTarget: { value: 'new:doc' }, docImportRows: { querySelectorAll: () => [row(0), row(1), row(2)] } };
+        const camp = { items: {} }, toasts = [], saves = [], ups = [];
+        const win = { wpUploadBlob: (id, name) => new Promise(res => ups.push(() => res('/saves/images/' + id + '/' + name))) };
+        const deps = { ui: id => els[id] || null, canWrite: () => true, getActiveCampaign: () => camp, getActiveMap: () => null, getUniqueItemTitle: t => t, createNewDoc: t => ({ id: 'doc_x', type: 'doc', meta: { title: t }, blocks: [] }), createNewPlanner: t => ({ id: 'plan_x', type: 'planner', meta: { title: t }, blocks: [] }),
+            uid: () => 'b_1', LIMITS: { picture: 8e6 }, window: win, toast: m => toasts.push(m), save: x => saves.push(x), updateSidebarNav: () => {}, render: () => {}, state: {} };
+        const names = Object.keys(deps);
+        const api = new Function(...names, 'var pending = null;\n' + di.slice(a, z) + '\nreturn { set: function(p) { pending = p; }, get: function() { return pending; }, closeDialog: closeDialog, doImport: doImport };')(...names.map(k => deps[k]));
+        const blob = { size: 10 };
+        const job = () => ({ kind: 'doc', mode: 'new', parentId: null, fileName: 'x.md', parsed: { meta: {}, notes: [], blocks: [{ type: 'h1', title: 'T' }, { type: 'image' }, { type: 'image' }] }, sources: [null, { index: 1, blob, name: 'a.png' }, { index: 2, blob, name: 'b.png' }] });
+        const tick = () => new Promise(r => setTimeout(r, 0));
+        api.set(job()); let threw = null; const run = api.doImport().catch(e => { threw = e; });
+        await tick(); const during = [go.disabled, go.textContent];
+        ups.shift()();   // the first picture lands
+        api.closeDialog();   // Cancel while the second would start
+        await tick(); await tick(); while (ups.length) ups.shift()(); await run;
+        const r1 = { threw: threw && String(threw), items: Object.keys(camp.items).length, saves: saves.length, go: [go.disabled, go.textContent], modal: modal.style.display, pending: api.get(), toast: toasts[toasts.length - 1] };
+        // a second import begun while the first still uploads keeps its own button: the first, stopped, never turns it back on
+        ups.length = 0; toasts.length = 0; api.set(job()); const run2 = api.doImport(); await tick();
+        api.closeDialog(); const j3 = job(); api.set(j3); go.disabled = true; go.textContent = 'Uploading pictures…'; j3.busy = true;
+        while (ups.length) ups.shift()(); await run2; const r2 = [go.disabled, Object.keys(camp.items).length];
+        check('1.6.3 a Markdown import canceled while its pictures upload (finding 11, docimport.js doImport and closeDialog, run for real): nothing throws, no item is made or saved, the Import button is put back, the dialog is away, and the GM is told the pictures already sent stay in the Image Library; an import begun meanwhile keeps its own button',
+            r1.threw === null && r1.items === 0 && r1.saves === 0 && JSON.stringify(r1.go) === '[false,"Import"]' && JSON.stringify(during) === '[true,"Uploading pictures…"]' && r1.modal === 'none' && r1.pending === null
+            && /^Import canceled\. Nothing was added\. 1 picture was already sent and stays in the Image Library\.$/.test(r1.toast || '') && JSON.stringify(r2) === '[true,0]', JSON.stringify([r1, during, r2]));
+    })();
     /* ---- 1.5.6: a GM-only page keeps every page nested under it from players (the owner, 2026-10-24, by prompt: "Hidden parent hides all") ---- */
     {
         const pg = (id, players, parentId) => ({ id, type: 'doc', meta: Object.assign({ title: id }, players === false ? { players: false } : {}, parentId ? { parentId } : {}) });

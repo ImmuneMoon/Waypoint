@@ -93,6 +93,26 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function blockName(b) { if (!b || typeof b !== 'object') return 'Block'; if (b.type === 'node' && b.mode === 'table') return 'Table'; if (b.type === 'node' && typeof CC === 'object' && CC && CC.cardKind(b) !== 'scene') return CC.kindOf(b).label + ' card'; return Object.prototype.hasOwnProperty.call(BLOCK_NAMES, b.type) ? BLOCK_NAMES[b.type] : String(b.type || 'Block'); }
   function pbeCap(t) { return '<div class="pbe-cap">' + esc(t) + '</div>'; }
   function fcStepWords(n) { var t = String(n && n.text != null ? n.text : '').split('\n')[0].trim(); if (t.length > 40) t = t.slice(0, 39) + '\u2026'; return t || 'A step with no words'; }
+  // [pagecheck:picto-start]
+  // A picture picked or uploaded for a picture block (1.6.3, the review of pages and planners, finding 34). An upload takes a while and the
+  // editor stays in use, so the block may have moved or been deleted by the time it is done: before, the picture was written to whatever
+  // block then stood at the old place in the list, or was lost. picTo writes it to the very block it was asked for, only while that block is
+  // still in its page, and otherwise says where the picture is. Answers whether it was placed
+  function picTo(map, blk, src) {
+      if (!map || !Array.isArray(map.blocks) || !blk || map.blocks.indexOf(blk) < 0) { toast('That picture block was deleted, so the picture was not placed. It is in the Image Library.'); return false; }
+      blk.src = src; save(true); renderPlanner(); return true;
+  }
+  // [pagecheck:picto-end]
+  // [doccheck:fcdrop-start]
+  // A flowchart's step deleted, with every arrow that starts or ends at it (1.6.3, the review of pages and planners, finding 20). Before, only
+  // the step went: its arrows kept its id, and the diagram library drew a box for that id, named after the app's own key. One undo step
+  // (the caller saves once) puts the step and its arrows back together
+  function fcDropStep(b, ni) {
+      if (!b || !Array.isArray(b.nodes) || !(ni >= 0 && ni < b.nodes.length)) return;
+      var gone = b.nodes.splice(ni, 1)[0], id = gone && typeof gone === 'object' ? gone.id : null;
+      if (id && Array.isArray(b.edges)) b.edges = b.edges.filter(function(e) { return !(e && typeof e === 'object' && (e.from === id || e.to === id)); });
+  }
+  // [doccheck:fcdrop-end]
   function fcStepOpts(b, was) {
       var nodes = Array.isArray(b && b.nodes) ? b.nodes : [], seen = false;
       var out = '<option value=""' + (was ? '' : ' selected') + '>Pick a step</option>' + nodes.map(function(n) {
@@ -207,7 +227,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // [textcheck:pbebar-start]
   // One bar at the top (1.6.2, backlog 171; the owner, by prompt: "One bar at the top"). Each text block keeps its own bar in the page, so
   // what a press does is wired as it always was; only the bar of the block in use shows, held at the top of the editor, over a grayed
-  // copy that stands there while no text block is in use
+  // copy that stands there while no text block is in use.
+  // 1.6.3 (the review of pages, finding 1): the bar of the block in use is MOVED into that slot at the top while it is on, and moved back
+  // into its own block when it goes off. Before, it stayed inside its block and was only drawn fixed over the slot; but in Edit mode the
+  // block's form lies in a layer (z 20) under the Find bar (z 21), which holds the slot, so the bar was painted under the Find bar and
+  // could not be pressed. Moved, it is painted by the Find bar itself. The bar and its block know each other (bar._wpRte, rte._wpBar, set
+  // by wireRte), so every press of the bar still reaches its own block wherever the bar stands
   function pbeBarSlot(wrap) {
       var slot = document.getElementById('pbeBarSlot');
       if (!slot) { slot = document.createElement('div'); slot.id = 'pbeBarSlot'; slot.className = 'pbe-barslot'; wrap.insertBefore(slot, wrap.firstChild); }
@@ -215,7 +240,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   function pbeBarIdle(wrap, container) {
       if (!wrap || !container) return;
-      var slot = pbeBarSlot(wrap), first = container.querySelector('.rte > .rte-bar');
+      var slot = pbeBarSlot(wrap), first = container.querySelector('.rte .rte-bar');   // a bar still in its own block (every bar is its block's own child)
       while (slot.firstChild) slot.removeChild(slot.firstChild);
       slot.hidden = !first;
       if (!first) return;
@@ -230,17 +255,42 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var r = (slot.firstChild || slot).getBoundingClientRect();
       wrap.style.setProperty('--pbe-top', Math.round(r.top) + 'px'); wrap.style.setProperty('--pbe-left', Math.round(r.left) + 'px'); wrap.style.setProperty('--pbe-w', Math.round(r.width) + 'px');
   }
+  // A bar standing in the slot goes back to its own block, as its first child, unless it is the bar of rte, the block now in use. A bar
+  // whose block is no longer on the page (the editor drawn again) is simply taken out of the slot
+  function pbeBarHome(slot, rte) {
+      if (!slot) return;
+      Array.prototype.slice.call(slot.querySelectorAll('.rte-bar')).forEach(function(bar) {
+          var home = bar._wpRte;
+          if (home && home === rte) return;
+          if (home && home.isConnected) home.insertBefore(bar, home.firstChild); else if (bar.parentNode) bar.parentNode.removeChild(bar);
+      });
+  }
+  // The block a focused element belongs to: its own .rte, or, for a control of a bar that stands in the slot, that bar's block
+  function pbeRteOf(a) {
+      if (!a || !a.closest) return null;
+      var rte = a.closest('.rte'); if (rte) return rte;
+      var bar = a.closest('.rte-bar');   // not in its block (the .rte above would have answered): a bar standing in the slot
+      return bar ? bar._wpRte || null : null;
+  }
   function pbeBarOn(wrap, rte) {
+      var slot = document.getElementById('pbeBarSlot');
       Array.prototype.forEach.call(wrap.querySelectorAll('.rte.rte-on'), function(o) { if (o !== rte) o.classList.remove('rte-on'); });
-      if (rte) { pbeBarPlace(wrap); rte.classList.add('rte-on'); }
+      pbeBarHome(slot, rte);
+      if (rte) {
+          pbeBarPlace(wrap); rte.classList.add('rte-on');
+          var bar = rte._wpBar || rte.querySelector('.rte-bar');
+          if (slot && !slot.hidden && bar && bar.parentNode !== slot) slot.appendChild(bar);   // drawn over the grayed copy, inside the bar that sticks at the top
+      }
       wrap.classList.toggle('pbe-bar-on', !!rte); if (document.body) document.body.classList.toggle('pbe-bar-on', !!rte);   // the grayed copy steps aside wherever it stands
   }
   function pbeBarWire(wrap) {
       if (!wrap || wrap._pbeBar) return; wrap._pbeBar = true;
       wrap.addEventListener('focusin', function(e) { var rte = e.target && e.target.closest ? e.target.closest('.rte') : null; if (rte) pbeBarOn(wrap, rte); });
-      wrap.addEventListener('focusout', function() {
-          setTimeout(function() { var a = document.activeElement, rte = a && a.closest ? a.closest('.rte') : null; if (!rte || !wrap.contains(rte)) pbeBarOn(wrap, null); }, 0);
-      });
+      var out = function() {
+          setTimeout(function() { var rte = pbeRteOf(document.activeElement); if (!rte || !wrap.contains(rte)) pbeBarOn(wrap, null); }, 0);
+      };
+      wrap.addEventListener('focusout', out);
+      pbeBarSlot(wrap).addEventListener('focusout', out);   // in Edit mode the slot stands in the Find bar, outside the editor: leaving the bar's Link box from there puts the bar back too
       wrap.addEventListener('scroll', function() { pbeBarPlace(wrap); }, { passive: true });
       window.addEventListener('resize', function() { pbeBarPlace(wrap); });
   }
@@ -2346,18 +2396,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-img-scene')).forEach(el => el.addEventListener('click', function() {   // backlog 181: this picture as a scene
           var bk = activeMap.blocks[+this.dataset.idx]; if (bk && picRef(bk.src) && window.wpScene) window.wpScene.open(bk.src, { caption: typeof bk.caption === 'string' ? bk.caption : '' });
       }));
+      // 1.6.3 (finding 34): the picture goes to the very block it was asked for (picTo), kept as the object itself, never by its place in the list
       Array.from(blockContainer.querySelectorAll('.b-img-pick')).forEach(el => el.addEventListener('click', function() {
-          var idx = +this.dataset.idx;
+          var map = activeMap, blk = map.blocks[+this.dataset.idx];
           if (!window.wpPickImage) { toast('The image library is not available here.'); return; }
-          window.wpPickImage(function(src) { activeMap.blocks[idx].src = src; save(true); renderPlanner(); });
+          window.wpPickImage(function(src) { picTo(map, blk, src); });
       }));
       Array.from(blockContainer.querySelectorAll('.b-img-upload')).forEach(el => el.addEventListener('change', function() {
-          var idx = +this.dataset.idx, f = this.files && this.files[0]; if (!f || !f.type.startsWith('image/')) return;
+          var map = activeMap, blk = map.blocks[+this.dataset.idx], f = this.files && this.files[0]; if (!f || !f.type.startsWith('image/')) return;
           if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) { toast('Not while you\'re at someone else\'s table.'); return; }
           toast('Uploading picture…');
-          window.wpUploadBlob(activeMap.id, f.name, f)
-              .then(function(url) { activeMap.blocks[idx].src = url; save(true); renderPlanner(); })
-              .catch(function() { toast('Upload failed.'); });
+          window.wpUploadBlob(map.id, f.name, f)
+              .then(function(url) { picTo(map, blk, url); }, function() { toast('Upload failed.'); });
       }));
       Array.from(blockContainer.querySelectorAll('.b-imgw')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].width = +this.value; save(true); renderPlannerPreview(); }));
       Array.from(blockContainer.querySelectorAll('.b-imga')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].align = this.value; save(true); renderPlannerPreview(); }));
@@ -2424,7 +2474,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           tsSetColCount(bb, n);   // the heads, and their formats in step
           save(true); renderPlanner();
       }));
-      Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') pvTyped(); }));   // 1.6.3 (finding 0): typed, so drawn a moment after the last key
+      Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => {
+          el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); pvTyped(activeMap.blocks[this.dataset.idx].type === 'diagram' ? PV_DIAGRAM_MS : 0); });   // 1.6.3 (finding 0): typed, so drawn a moment after the last key
+          // 1.6.3 (the review of pages, finding 10): a diagram's code drew its chart again only when something else drew the preview, so the GM
+          // could not see whether the code worked. It is drawn PV_DIAGRAM_MS after the last key (longer than a text, so a half-typed chart does
+          // not flash its error at every key), and as soon as the box is left (change, which also comes before a press of Done lands)
+          el.addEventListener('change', function() { var b = activeMap.blocks[this.dataset.idx]; if (b && b.type === 'diagram') pvTyped(1); });
+      });
       wireRte(blockContainer);
       var _pbeWrap = document.getElementById('plannerEditorWrap'); pbeBarWire(_pbeWrap); pbeBarIdle(_pbeWrap, blockContainer); pbeBarOn(_pbeWrap, null);   // one bar at the top (backlog 171)
 
@@ -2484,7 +2540,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.fc-n-color')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].color = this.value; save(true); renderPlannerPreview(); }));
 
-      Array.from(blockContainer.querySelectorAll('.del-fc-n')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].nodes.splice(this.dataset.ni, 1); save(true); renderPlanner(); }));
+      Array.from(blockContainer.querySelectorAll('.del-fc-n')).forEach(el => el.addEventListener('click', function() { fcDropStep(activeMap.blocks[this.dataset.idx], +this.dataset.ni); save(true); renderPlanner(); }));   // 1.6.3 (finding 20): its arrows go with it
 
       Array.from(blockContainer.querySelectorAll('.add-fc-n')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].nodes.push({id: fcFreeId(activeMap.blocks[this.dataset.idx]), text: 'Node', shape: 'rect', color: 'neutral'}); save(true); renderPlanner(); }));
 
@@ -2623,7 +2679,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // [sinkcheck:rtebar-end]
   function rteSyncBar(body) {
-      var bar = body.parentNode.querySelector('.rte-bar'); if (!bar) return;
+      var home = body.parentNode, bar = home ? home._wpBar || home.querySelector('.rte-bar') : null; if (!bar) return;   // 1.6.3: the bar may stand in the editor's slot at the top (planner.js pbeBarOn)
       bar.querySelectorAll('.rte-btn').forEach(function(btn) {
           var on = false; try { on = document.queryCommandState(btn.dataset.cmd); } catch (e) {}
           btn.classList.toggle('on', !!on);
@@ -2848,7 +2904,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (changed && typeof body.normalize === 'function') body.normalize();   // the pieces of a cut text node that ended up side by side are one node again
       return changed;
   }
-  function rteLinkBox(body) { return body && body.parentNode ? body.parentNode.querySelector('.rte-link') : null; }
+  function rteLinkBox(body) { var home = body && body.parentNode; if (!home) return null; return home._wpBar ? home._wpBar.querySelector('.rte-link') : home.querySelector('.rte-link'); }   // 1.6.3: through the block's own bar, wherever it stands (pbeBarOn moves it into the slot at the top)
   // The box's selection remembered for the Link box (which takes the focus), and the Link box showing what it would act on: the address of
   // the link the selection or the caret is in — never over what is being typed there
   function rteLinkSync(body) {
@@ -2930,15 +2986,19 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           body.addEventListener('focus', function() { rteSyncBar(this); rteLinkSync(this); });
       });
       Array.from(container.querySelectorAll('.rte-bar')).forEach(function(bar) {
+          // 1.6.3 (the review of pages, finding 1): the bar and its block know each other, since while the block is in use the bar is moved
+          // into the slot at the top of the editor (pbeBarOn). home() is the block, wherever the bar stands
+          var rteHome = bar.parentNode; bar._wpRte = rteHome; if (rteHome) rteHome._wpBar = bar;
+          var home = function() { return bar._wpRte || bar.parentNode; };
           bar.addEventListener('mousedown', function(e) { if (e.target && e.target.closest && e.target.closest('select, input')) return; e.preventDefault(); });   // keep the selection in the box (the size list and the color picker must take the focus: the box's selection is remembered for them)
           var pick = bar.querySelector('.rte-colorpick'), sizeSel = bar.querySelector('.rte-size');
-          if (pick) pick.addEventListener('change', function() { rteLook(bar.parentNode.querySelector('.rte-body'), { color: this.value }); });
-          if (sizeSel) sizeSel.addEventListener('change', function() { var v = this.value; this.value = ''; if (v) rteLook(bar.parentNode.querySelector('.rte-body'), { size: v === 'default' ? null : v }); });
+          if (pick) pick.addEventListener('change', function() { rteLook(home().querySelector('.rte-body'), { color: this.value }); });
+          if (sizeSel) sizeSel.addEventListener('change', function() { var v = this.value; this.value = ''; if (v) rteLook(home().querySelector('.rte-body'), { size: v === 'default' ? null : v }); });
           // the Link box: Enter sets its address and goes back to the block; Escape goes back and drops what was typed; left for somewhere else with a new
           // address in it, that address is set and the focus stays where it went (done: what Enter or Escape has already dealt with)
           var linkBox = bar.querySelector('.rte-link');
           if (linkBox) {
-              var blockOf = function() { return bar.parentNode.querySelector('.rte-body'); };
+              var blockOf = function() { return home().querySelector('.rte-body'); };
               linkBox.addEventListener('keydown', function(e) {
                   if (e.key !== 'Enter' && e.key !== 'Escape') return;
                   e.preventDefault(); e.stopPropagation();
@@ -2959,7 +3019,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               });   // 1.5.6: the campaign's pages to pick from, set at once
           }
           bar.addEventListener('click', function(e) {
-              var body = bar.parentNode.querySelector('.rte-body');
+              var body = home().querySelector('.rte-body');
               var sym = e.target.closest && e.target.closest('.rte-sym');
               if (sym) {   // drop the symbol in at the cursor (replacing a selection), close the tray
                   body.focus();
@@ -3459,11 +3519,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // structural edit or renderPlanner draws at once as it always did). A draw that falls due while a pointer is held down waits until it is
   // let go and the press has landed (pvWire), so a click on the preview is never drawn away from under the pointer. A draw that falls due
   // after another page came on screen is dropped: that page was drawn whole as it came. pvFlush draws a waiting preview at once (an export)
-  var PV_TYPE_MS = 200, _pvT = { t: 0, id: '', down: false, late: false, after: [] };
-  function pvTyped() {
+  // ms: how long after the last key (absent or 0, PV_TYPE_MS; a diagram's code waits PV_DIAGRAM_MS, finding 10 of the same review)
+  var PV_TYPE_MS = 200, PV_DIAGRAM_MS = 600, _pvT = { t: 0, id: '', down: false, late: false, after: [] };
+  function pvTyped(ms) {
       var am = getActiveMap(); _pvT.id = am ? am.id : '';
       if (_pvT.t) clearTimeout(_pvT.t);
-      _pvT.t = setTimeout(pvFire, PV_TYPE_MS);
+      _pvT.t = setTimeout(pvFire, ms > 0 ? ms : PV_TYPE_MS);
   }
   function pvFire() {
       _pvT.t = 0;

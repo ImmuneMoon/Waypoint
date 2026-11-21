@@ -526,6 +526,10 @@ function renderPanel() {
     btns.appendChild(tb('music-loop wib wi-' + (st.loop === 'off' ? 'refresh' : st.loop === 'one' ? 'loop1' : 'loop'), loopLbl[st.loop] || 'list', 'Loop: off / one track / whole list', function() { setLoop(st.loop === 'off' ? 'list' : st.loop === 'list' ? 'one' : 'off'); }, st.loop !== 'off'));
     btns.appendChild(tb('music-shuf wib wi-shuffle', '', 'Shuffle the playlist', function() { setShuffle(!st.shuffle); }, st.shuffle));
     tp.appendChild(btns);
+    // 1.6.3 (the improvement week's review of multiplayer, finding 24; Fulllion, 2026-11-21): while hosting, the panel says who hears what it
+    // plays. Transport changes reach players only while Take control is on (broadcastControl), and a GM who pressed Play for the table heard
+    // it alone with nothing on the panel to say so. How it works does not change
+    if (isHost() && sessionLive()) tp.appendChild(el('div', 'set-line music-hear', controlling ? 'Your table hears this.' : 'Only you hear this. Take control to play it for the table.'));
     var volRow = el('div', 'music-volrow');
     var vmute = el('button', 'tool ghost music-mute wib wi-' + (st.muted ? 'muted' : 'sound')); vmute.title = st.muted ? 'Unmute music' : 'Mute music'; vmute.addEventListener('click', function() { setMute(!mmuted); });
     var vsl = el('input'); vsl.type = 'range'; vsl.min = 0; vsl.max = 100; vsl.value = Math.round(st.volume * 100); vsl.className = 'music-vol'; vsl.title = 'Music volume'; vsl.addEventListener('input', function() { setVolume(Number(vsl.value) / 100); });

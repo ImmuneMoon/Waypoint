@@ -497,6 +497,71 @@ pendingChecks.push((async () => {
     runChat(h.env, { type: 'chat', text: 42, from: { id: 'u_pat' } }, c);
     check('chat: a non-string text is dropped', h.pushed.length === 1);
 }
+// 1.6.3 (the improvement week's review of multiplayer, finding 12; Fulllion, 2026-11-21): a player may whisper the GM or another player, the
+// GM sees every whisper, and the host judges it: never relayed to anyone but the one named, never broadcast. The host's chat branch, run for real
+{
+    const h = harness(); const cP = h.conn('ch1'), cR1 = h.conn('ch2'), cR2 = h.conn('ch3'), cO = h.conn('ch4');
+    h.env.net.roster.ch1 = { id: 'u_pat', name: 'Pat' }; h.env.net.roster.ch2 = { id: 'u_rae', name: 'Rae' }; h.env.net.roster.ch3 = { id: 'u_rae', name: 'Rae' }; h.env.net.roster.ch4 = { id: 'u_odo', name: 'Odo' };
+    const sentTo = () => h.sent.filter(s => s.m.type === 'chat').map(s => s.peer).sort().join(',');
+    runChat(h.env, { type: 'chat', text: 'a plan for you', to: 'gm', toName: 'Odo', scope: 'global' }, cP);
+    const toGm = [h.pushed.length, h.pushed[0] && h.pushed[0].scope, h.pushed[0] && h.pushed[0].toId, h.pushed[0] && h.pushed[0].toName, sentTo(), h.bcast.length];
+    runChat(h.env, { type: 'chat', text: 'meet me after', to: 'u_rae' }, cP);
+    const toRae = [h.pushed.length, h.pushed[1] && h.pushed[1].scope, h.pushed[1] && h.pushed[1].toId, h.pushed[1] && h.pushed[1].toName, h.pushed[1] && h.pushed[1].from.id, sentTo(), h.bcast.length];
+    const before = h.pushed.length;
+    ['u_pat', 'u_nobody', '__proto__', 'constructor', 'a b', 'p:u_rae'].forEach(to => runChat(h.env, { type: 'chat', text: 'x', to }, cP));
+    const dropped = [h.pushed.length - before, sentTo(), h.bcast.length];
+    cR1.open = false; cR2.open = false;
+    runChat(h.env, { type: 'chat', text: 'still there?', to: 'u_rae' }, cP);
+    const goneRae = [h.pushed.length - before, sentTo()];
+    check('1.6.3 finding 12 (the host\'s chat branch, run for real): a player\'s whisper to the GM stays on the GM\'s machine, marked whisper to GM and sent to nobody; one to another player goes to that player\'s open connections and to nobody else, the GM seeing it too; one to themselves, to nobody at the table, to a closed connection\'s player or to a word that is no profile id is dropped; none is ever broadcast',
+        j(toGm) === j([1, 'whisper', 'gm', 'GM', '', 0]) && j(toRae) === j([2, 'whisper', 'u_rae', 'Rae', 'u_pat', 'ch2,ch3', 0]) && j(dropped) === j([0, 'ch2,ch3', 0]) && j(goneRae) === j([0, 'ch2,ch3']),
+        j({ toGm, toRae, dropped, goneRae }));
+}
+// 1.6.3 (the improvement week's review of multiplayer, findings 4 and 12): Table Chat's To list names a player by profile id, follows the roster,
+// keeps a player who left marked not connected and refuses a whisper to them, never falling back to Everyone. The whisper slice, run for real
+{
+    const wSrc = between('// [netcheck:whisper-start]', '// [netcheck:whisper-end]', 'whisper');
+    const mkW = role => {
+        const out = { sent: [], bcast: [], pushed: [], toasts: [], logs: [] };
+        const sel = { value: '', style: { display: 'none' }, innerHTML: '' }, input = { value: '' };
+        const net = { role, active: true, myId: role === 'host' ? 'u_gm' : 'u_me', conns: [], roster: Object.create(null) };
+        const conn = (peer, pid, name) => { const c = { peer, open: true, send: m => out.sent.push({ peer, m: JSON.parse(JSON.stringify(m)) }) }; net.conns.push(c); if (pid) net.roster[peer] = { id: pid, name }; return c; };
+        const api = new Function('net', 'own', 'validProfileId', 'ui', 'escTextRoster', 'escText', 'toast', 'getProfile', 'chatMen', 'unkeepLinks', 'DC', 'window', 'broadcast', 'sendFailed', 'pushChat', 'logEvent',
+            wSrc + '\nreturn { refresh: refreshChatRecipients, send: sendChat, target: whisperTarget, tag: whisperTag, choices: whisperChoices };')(
+            net, H.own, H.validProfileId, id => id === 'chatTo' ? sel : id === 'chatInput' ? input : null, s => String(s), s => String(s), t => out.toasts.push(String(t)), () => ({ name: role === 'host' ? 'GM' : 'Me' }), () => undefined, null, () => null, {},
+            (m, ex) => out.bcast.push(JSON.parse(JSON.stringify(m))), () => {}, m => out.pushed.push(m), (k, t, how) => out.logs.push([t, how && how.h]));
+        const opts = () => [...sel.innerHTML.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g)].map(m => m[1] + '=' + m[2]);
+        return { out, sel, input, net, conn, api, opts };
+    };
+    // the GM: Trevor picked, then he reloads under a new connection id
+    const G = mkW('host'); const old = G.conn('peerOld', 'u_tre', 'Trevor'); G.conn('peerMira', 'u_mira', 'Mira');
+    G.api.refresh(); const optsA = G.opts(); G.sel.value = 'p:u_tre';
+    old.open = false; delete G.net.roster.peerOld; G.conn('peerNew', 'u_tre', 'Trevor');
+    G.input.value = 'Secret for Trevor'; G.api.send();
+    const reloadSend = [G.out.sent.map(s => s.peer).join(), G.out.bcast.length, G.out.pushed.length, G.out.pushed[0] && G.out.pushed[0].toName, G.out.pushed[0] && G.out.pushed[0].scope, G.api.tag(G.out.pushed[0] || {}), G.out.logs.length && G.out.logs[0][1]];
+    // Trevor leaves for good: his row stays, marked, and a whisper to him is refused with the words kept in the box
+    G.net.conns.filter(c => c.peer === 'peerNew')[0].open = false; delete G.net.roster.peerNew;
+    G.api.refresh(); const optsGone = G.opts(), keptPick = G.sel.value;
+    G.input.value = 'Are you there?'; G.api.send();
+    const refused = [G.out.sent.length, G.out.bcast.length, G.out.pushed.length, G.input.value, G.out.toasts.slice(-1)[0]];
+    // a player: the GM and the other players, never themselves; a whisper to the GM goes to the host as a word naming whom, never with their own words of whom
+    const P = mkW('client'); P.net.roster.u_me = { id: 'u_me', name: 'Me' }; P.net.roster.u_rae = { id: 'u_rae', name: 'Rae' }; P.conn('host');
+    P.api.refresh(); const optsP = P.opts(), shownP = P.sel.style.display;
+    P.sel.value = 'gm'; P.input.value = 'I pick the lock'; P.api.send();
+    const toGm = [P.out.bcast.length, P.out.bcast[0] && P.out.bcast[0].to, P.out.bcast[0] && 'toName' in P.out.bcast[0], P.out.pushed[0] && P.out.pushed[0].toId, P.api.tag(P.out.pushed[0] || {})];
+    const tags = [P.api.tag({ toId: 'u_me', toName: 'Me' }), P.api.tag({ toId: 'u_rae', toName: 'Rae' }), P.api.tag({}), G.api.tag({ toId: 'gm', toName: 'GM' })];
+    check('1.6.3 findings 4 and 12 (the whisper slice, run for real): the GM\'s To list names each player once by profile id; a player who reloads under a new connection id is still the one picked and the whisper reaches their new connection alone, marked whisper to Trevor, and the Game Record keeps it from players; once they leave their row stays, marked not connected, the pick is kept and never falls back to Everyone, and a whisper to them is refused with a word, sent nowhere and left in the box; a player\'s list offers the GM and the other players, never themselves, and a whisper to the GM goes to the host naming only gm; the tag reads whisper to you on the one it went to',
+        j(optsA) === j(['=Everyone', 'p:u_tre=Whisper: Trevor', 'p:u_mira=Whisper: Mira']) && j(reloadSend) === j(['peerNew', 0, 1, 'Trevor', 'whisper', 'whisper to Trevor', true])
+        && j(optsGone) === j(['=Everyone', 'p:u_mira=Whisper: Mira', 'p:u_tre=Whisper: Trevor (not connected)']) && keptPick === 'p:u_tre'
+        && refused[0] === 1 && refused[1] === 0 && refused[2] === 1 && refused[3] === 'Are you there?' && /Trevor is not connected, so the whisper was not sent/.test(refused[4])
+        && j(optsP) === j(['=Everyone', 'gm=Whisper: GM', 'p:u_rae=Whisper: Rae']) && shownP === 'block' && j(toGm) === j([1, 'gm', false, 'gm', 'whisper to GM'])
+        && j(tags) === j(['whisper to you', 'whisper to Rae', 'whisper', 'whisper to you']),
+        j({ optsA, reloadSend, optsGone, keptPick, refused, optsP, shownP, toGm, tags }));
+    check('1.6.3 finding 4 (source): the host\'s To list is drawn again whenever the roster changes, and the GM\'s roll whispered to a player goes by profile id to every open connection of theirs, kept the GM\'s where they are not connected',
+        /function broadcastRoster\(\) \{[^\n]*if \(typeof refreshChatRecipients === 'function'\) refreshChatRecipients\(\); \}/.test(src)
+        && /var tgW = \/\^p:\/\.test\(toKey\) && typeof whisperTarget === 'function' \? whisperTarget\(toKey\) : null, cW = tgW && tgW\.pid && typeof whisperConns === 'function' \? whisperConns\(tgW\.pid\) : null;/.test(src)
+        && /else \{ rec\.priv = 'gm'; toast\(tgW\.name \+ ' is not connected, so that roll was kept for you\.'\); \}/.test(src));
+}
 
 /* ================= what a client accepts from a host ================= */
 check('client: every campaign/item lookup from a host message is an own-key lookup (campOf/validKey) in applyStage, applyItem, applyItemDelta, handlePos, itemGone, chars, system', (src.match(/campOf\(/g) || []).length >= 8 && /function applyItem\(msg\) \{\n\s*var camp = campOf\(msg\.campId\);\n\s*if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(require('./checkkit').part('netfog.js')) && /function applyItemDelta\(msg\) \{\n\s*var camp = campOf\(msg\.campId\); if \(!camp \|\| !validKey\(msg\.itemId\)\) return;/.test(require('./checkkit').part('netfog.js')));
@@ -595,7 +660,7 @@ pendingChecks.push((async () => {
         && /net\.safeAvatar\(p\.avatar\)/.test(sbSrc) && /src="' \+ esc\(p\.avatar\) \+ '"/.test(sbSrc) && !/src="' \+ p\.avatar/.test(sbSrc)
         && (wbSrc2.match(/window\.wpNet\.safeAvatar\(p\.avatar\)/g) || []).length === 1 && !/base64,\/\.test\(p\.avatar\)/.test(wbSrc2));   // one: the party strip (Onboarding F1c: the hover card no longer reads a profile picture at all)
     check('attribute sinks: roster ids and peer keys are escaped (the Properties owner picker, the whisper list, summon/kick, the Players panel)',
-        /'<option value="'\+esc\(pid\)\+'"'/.test(inSrc) && /data-summon="' \+ escTextRoster\(peerKey\)/.test(src) && /data-kick="' \+ escTextRoster\(peerKey\)/.test(src) && /'<option value="' \+ escTextRoster\(e\[0\]\) \+ '">Whisper: '/.test(src)
+        /'<option value="'\+esc\(pid\)\+'"'/.test(inSrc) && /data-summon="' \+ escTextRoster\(peerKey\)/.test(src) && /data-kick="' \+ escTextRoster\(peerKey\)/.test(src) && /'<option value="' \+ escTextRoster\(o\.v\) \+ '">Whisper: ' \+ escText\(o\.name\)/.test(src) && /'<option value="' \+ escTextRoster\(cur\) \+ '">Whisper: ' \+ escText\(gone\.name\)/.test(src) /* 1.6.3 (finding 4): the whisper list keyed by profile id, and a player who left, moved on purpose */
         && !/data-(un)?ban="' \+ pid \+/.test(src) && !/data-forget="' \+ pid \+/.test(src));
     const stSrc = rd('settings.js'), mnSrc = rd('main.js'), chk = s => { const m = s.match(/return (typeof v === 'string' && v\.length <= 200000 && \/\^data:image[^\n]*?\.test\(v\));/); return m ? m[1] : null; };
     check('own-profile avatar: Settings\' preview and the welcome circle draw the stored picture as a node after the SAME whole-URL check as net.js (a restored prefs file never writes markup)',
@@ -791,6 +856,8 @@ pendingChecks.push((async () => {
             return out;
         };
         const adm = clSrc ? runClose(true) : null, str = clSrc ? runClose(false) : null;
+        check('1.6.3 finding 32 (the close handler, run for real): a player who leaves from a map that is gone, or has no title, is said to have left their character on their last map, never on undefined',
+            !!clSrc && adm.toasts[0] === 'Xan left. Their character stays on their last map.', J(adm && adm.toasts));
         const gone = o => J(o.left) === J({ conns: ['pO'], meta: [], seen: [], refs: [], bytes: [], roster: o === adm ? ['pO'] : [] });
         check('cluster J #6 (host, the close handler run for real): an admitted player\'s connection closing saves the campaign once, sends the roster once, redraws and says who left; a connection never admitted (a stranger whose junk message the gate closed, a waiting peer that gave up) is taken out of the list and its records the same, but costs no disk save, no roster message to the table, no redraw and no word',
             !!clSrc && adm.threw === '' && str.threw === '' && adm.saves === 1 && adm.rosters === 1 && adm.renders === 1 && adm.toasts.length === 1 && /Xan left/.test(adm.toasts[0]) && adm.logs.length === 1 && gone(adm)
@@ -1550,6 +1617,17 @@ pendingChecks.push((async () => {
     new Function('net', 'setIndicator', 'lastSeen', 'HB_DEAD', 'HB_STALE', 'toast', 'renderRoster', 'sendFailed', 'broadcast', hbSrc + '\nreturn hbTick();')(net, () => {}, {}, 20000, 8000, () => {}, () => {}, () => {}, m => bc.push(m));
     check('heartbeat (host): every open connection hears it — an admitted player and one still waiting for the Allow — and nothing else goes to the waiting one; a closed connection is skipped',
         j(conns[0].sent) === '[{"type":"hb"}]' && j(conns[1].sent) === '[{"type":"hb"}]' && conns[2].sent.length === 0 && bc.every(m => m.type !== 'hb'), j([conns.map(c => c.sent), bc]));
+}
+// 1.6.3 (the improvement week's review of multiplayer, finding 33): the globe's tooltip counts the players at the table, each once: never a
+// connection still waiting for the Allow, a closed one, or a player's second connection in the seconds of a reload (hbTick and playersHere, run for real)
+{
+    const hbSrc = fnSrc('function hbTick() {', '\n// Where each player was last seen', 'hbTick');
+    const said = [];
+    const tick = (conns, roster) => new Function('net', 'setIndicator', 'lastSeen', 'HB_DEAD', 'HB_STALE', 'toast', 'renderRoster', 'sendFailed', 'broadcast', hbSrc + '\nreturn hbTick();')({ active: true, role: 'host', conns, roster }, (k, t) => said.push(t), {}, 20000, 8000, () => {}, () => {}, () => {}, () => {});
+    tick([mkConn('pWait'), mkConn('pShut', false), mkConn('pShut2', false)], { pShut: { id: 'u_a' } });
+    tick([mkConn('pOld'), mkConn('pNew'), mkConn('pB'), mkConn('pWait')], { pOld: { id: 'u_a' }, pNew: { id: 'u_a' }, pB: { id: 'u_b' } });
+    check('1.6.3 finding 33 (hbTick, run for real): with nobody admitted the globe says 0 players however many connections are open or closed; a player\'s two connections count once and a waiting one not at all; End session\'s question counts the same way',
+        j(said) === j(['hosting, 0 players connected', 'hosting, 2 players connected']) && /var n = playersHere\(\);[^\n]*\n    import\('\.\/dialogs\.js'\)/.test(src), j(said));
 }
 
 // Onboarding F2b: a side about to freeze in a print dialog asks the other to wait (the hold), capped; the next word from it ends the wait

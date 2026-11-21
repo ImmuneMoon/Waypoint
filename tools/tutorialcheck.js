@@ -190,6 +190,29 @@ for (const t of targets) {
         return [els.welcomeScreen.style.display, els.wcMain.style.display, els.wcJoinView.style.display, calls.join('+'), els.wcJoinStatus.textContent, netW ? String(netW.fromWelcome) : '-', body.list.has('web-gate')].join('|');
     };
     const shows = { desk: showRun(false, null), deskTable: showRun(false, { active: true, foreign: true, fromWelcome: true }), web: showRun(true, { active: false, foreign: false, fromWelcome: true }), webTable: showRun(true, { active: true, foreign: true, fromWelcome: false }), webLost: showRun(true, { active: false, foreign: false }) };
+    // 1.6.3 (the improvement week's review of multiplayer, finding 20): pressing Join on the welcome never changes the player's color. The welcome's
+    // boxes came up before net.js had made the profile, and Join saved the box's stand-in blue over the profile's color. The wcfill slice and
+    // showWelcome, run for real on a page of plain objects: the color is written only where the box was changed by hand
+    {
+        const fillSrc = cut('  // [tutorialcheck:wcfill-start]', '  // [tutorialcheck:wcfill-end]');
+        const runF = (steps) => {
+            const els = { welcomeScreen: el(), wcMain: el(), wcJoinView: el(), wcNameInput: el({ value: '' }), wcColorInput: el({ value: '' }), wcAvatarPrev: el({ appendChild() {} }), wcLaunchPref: el(), wcJoinGo: el(), wcJoinCode: el(), wcJoinStatus: el() };
+            let prof = null; const sets = [];
+            const win = { wpWebMode: W(false), wpNet: { getProfile: () => prof || {}, setProfile: p => { sets.push(Object.assign({}, p)); prof = Object.assign({}, prof || {}, p); } } };
+            const api = new Function('window', 'document', 'setTimeout', 'wcProfile', 'wcSafeAvatar', 'wpDefaultAvatar', 'welcomePref', 'wcLaunchRow', 'welcomePrefSet', 'renderWcContinue', 'state', '"use strict";' + nl + webSrc + nl + fillSrc + nl + showSrc + nl + 'return { show: showWelcome, save: saveWcProfile, fill: wcFillBoxes };')(
+                win, docOf(els, bodyOf()), () => 0, () => (prof || {}), () => false, () => 'data:,', () => 'always', () => {}, () => true, () => {}, { appState: { campaigns: {} } });
+            steps({ api, els, setProf: p => { prof = p; } });
+            return { sets, prof };
+        };
+        const untouched = runF(w => { w.api.show(); w.setProf({ id: 'u_new', name: 'Mira', color: '#59cf61' }); w.els.wcNameInput.value = 'Mira'; w.api.save(); });
+        const refilled = runF(w => { w.api.show(); w.setProf({ id: 'u_new', name: 'Mira', color: '#59cf61' }); w.api.fill(); w.api.save(); });
+        const byHand = runF(w => { w.setProf({ id: 'u_new', name: 'Mira', color: '#59cf61' }); w.api.show(); w.els.wcColorInput.value = '#ff0000'; w.api.save(); w.api.save(); });
+        var fillOk = !!fillSrc && untouched.prof.color === '#59cf61' && untouched.sets.every(s => !('color' in s)) && refilled.prof.color === '#59cf61' && refilled.sets.every(s => !('color' in s))
+            && byHand.prof.color === '#ff0000' && byHand.sets.filter(s => 'color' in s).length === 1
+            && /function showJoinView\(\) \{\n\s*wcFillBoxes\(\);/.test(mainLf) && /function showHostView\(\) \{\n\s*wcFillBoxes\(\);/.test(mainLf);
+        if (fillOk) console.log('ok        1.6.3 finding 20 (main.js wcfill slice and showWelcome, run for real): the welcome filled before the profile existed never writes its stand-in color over the profile on Join, the Join and Host views fill the boxes from the profile as they open, and a color picked by hand is saved once');
+        else { console.log('FAIL      1.6.3 finding 20: the welcome never writes a color it was not given  -> ' + JSON.stringify({ untouched, refilled, byHand, slice: !!fillSrc })); bad++; }
+    }
     const showOk = shows.desk === 'flex|flex|none|launchRow+continue|Could not reconnect.|-|false' && shows.deskTable === 'flex|flex|none|launchRow+continue|Could not reconnect.|false|false' && shows.web === 'flex|none|flex|launchRow|Could not reconnect.|false|true'
         && shows.webTable === '||||Could not reconnect.|false|false' && shows.webLost === 'flex|none|flex|launchRow|Could not reconnect.|false|true';
     // maybeShowWelcome, run for real: it shows at once as it always did, a desktop by the stored choice and a website's page always (its mode is known

@@ -445,6 +445,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 a player following the GM keeps their place as the loop changes (onControl asks loopTo, source)', mu.includes("        loopTo(mc.loop === 'one');   // 1.6.0: its place kept as the loop changes\n        if (Math.abs((mc.pos || 0) - position()) > 2.5) seek(mc.pos || 0);"));
     }
     check('1.6.0 a key step on Add a track adds no track, found on the sheet Add lists: Down on a closed list fires its change at once, so it asks the key rule of the Texture lists', fs.readFileSync(path.join(__dirname, '..', 'system/app/scripts/music.js'), 'utf8').includes('if (window.wpTexList) window.wpTexList.keys(addSel);'));
+    {   // 1.6.3 (the improvement week's review of multiplayer, finding 24; Fulllion, 2026-11-21): while hosting, the Music panel says who hears what it plays.
+        // The panel's line, cut from renderPanel and run for real with each state: not controlling, controlling, and no table (where it says nothing)
+        const muH = read('system/app/scripts/music.js'), lineH = (muH.match(/\n    (if \(isHost\(\) && sessionLive\(\)\) tp\.appendChild\(el\('div', 'set-line music-hear'[^\n]*)/) || [])[1] || '';
+        const runH = (host, live, ctl) => { const kids = []; new Function('isHost', 'sessionLive', 'controlling', 'tp', 'el', lineH)(() => host, () => live, ctl, { appendChild: k => kids.push(k) }, (t, c, x) => ({ c, x })); return kids.map(k => k.x); };
+        const said = lineH ? [runH(true, true, false), runH(true, true, true), runH(false, true, false), runH(true, false, false)] : [];
+        check('1.6.3 finding 24 (renderPanel\'s line, run for real): while hosting the panel says Only you hear this until Take control is on, and Your table hears this while it is; a player and a GM with no table see no such line; the line stands right under the transport buttons, and how music works does not change',
+            j(said) === j([['Only you hear this. Take control to play it for the table.'], ['Your table hears this.'], [], []]) && /tp\.appendChild\(btns\);\n(?:\s*\/\/[^\n]*\n)*\s*if \(isHost\(\) && sessionLive\(\)\) tp\.appendChild\(el\('div', 'set-line music-hear'/.test(muH), j(said));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -1716,7 +1716,7 @@ var _meSoon = null;
 function wcFields() {
     var p = getProfile(), n = ui('wcNameInput'), c = ui('wcColorInput');
     if (n && document.activeElement !== n) n.value = p.name || '';
-    if (c && document.activeElement !== c) c.value = p.color || '#7aa7ff';
+    if (c && document.activeElement !== c) { c.value = p.color || '#7aa7ff'; c.wpFilled = c.value; }   // 1.6.3 (finding 20): the welcome saves a color only where it was changed by hand
 }
 function meSoon(k) {
     if (_meSoon) return;

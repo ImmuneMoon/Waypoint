@@ -249,6 +249,12 @@ Smaller things
 - The Grid menu holds the grid's own settings now: the map's scale, Cell
   size, Offset, Fit grid to picture, and a Grid opacity slider beside
   Label opacity. The measure options keep Imperial and Metric.
+- A list that goes by where its rows are worn can take layers now, so
+  fatigues stay on under a cuirass instead of being pushed off by it.
+  Tick Worn in layers under the list's switch and say how high each row
+  is worn, such as Row.Weight > 1. Two rows on the same layer still
+  push each other off, and Row.covered tells a row which of its places
+  something heavier covers, so its bonuses can stop counting there.
 
 WAYPOINT 1.6.2 — What's New
 ============================

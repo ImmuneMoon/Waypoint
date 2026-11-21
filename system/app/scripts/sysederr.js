@@ -732,8 +732,8 @@ function refreshErrors() {
         var m = e && typeof e.prop === 'string' ? /^end\.(\d+)$/.exec(e.prop) : null, pl = m ? endPlans[e.id] : null; if (!pl) return;
         for (var i = 0; i < pl.length; i++) if (pl[i] && pl[i].at === +m[1]) { e.prop = 'end.' + i; return; }
     };
-    v.errors.forEach(function(e) { whyRe(e); fillRe(e); endRe(e); var eid = e.prop === 'list' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists
-    v.warnings.forEach(function(w) { whyRe(w); fillRe(w); endRe(w); var wid = w.prop === 'list' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
+    v.errors.forEach(function(e) { whyRe(e); fillRe(e); endRe(e); var eid = e.prop === 'list' || e.prop === 'list.layer' ? 'list:' + e.id : e.id; (errorsById[eid] = errorsById[eid] || []).push(e); });   // F4c1: a list's own messages sit under its card in Lists (1.6.3: a layer's keep its prop, so the line stands under the Layer box)
+    v.warnings.forEach(function(w) { whyRe(w); fillRe(w); endRe(w); var wid = w.prop === 'list' || w.prop === 'list.layer' ? 'list:' + w.id : w.id; (warningsById[wid] = warningsById[wid] || []).push(w); });
     var tnE = draft.combat && draft.combat.turn && typeof draft.combat.turn === 'object' ? draft.combat.turn : null, tErr = [];   // turn-based combat T1: what Save drops from the turn rules, under the Combat tab
     if (tnE) {
         var KEY = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
@@ -1304,6 +1304,19 @@ function listCleanSays(f, cf) {
         else if (typeof hasDice === 'function' && pa.ast && hasDice(pa.ast.body)) say('list.upamt', 'What a row keeps paying rolls dice, and it must be a plain figure, so Save drops it.');
         else if (up.each === 'clock') say('list.uppool', 'Paying by the clock needs how often it pays, a number and a unit, in \u201cEvery\u201d. Until then Save drops what it keeps paying.');
         else say('list.uppool', 'What a row keeps paying cannot be kept as it is, so Save drops it.');
+    }
+    // 1.6.3 Layers under a list's places: Worn in layers ticked with its box empty, and a layer Save drops (cleancore.js cleanSystem: it cannot be
+    // worked out, rolls dice, reads whether a row is covered, or reads a GM-only value), said on the box in plain words. The validator reads the
+    // cleaned system, so it never sees a dropped layer: what Save drops is said here alone. Until a layer is kept, rows take each other off as before
+    var swL = sp.on && typeof sp.on === 'object' && typeof sp.on.over === 'string' && sp.on.over && typeof sp.on.layer === 'string' ? sp.on.layer : null, layTail = ' Rows then take each other off wherever their places meet.';
+    if (swL !== null && !swL.trim()) say('list.layer', 'Rows worn in layers need to know how high each row is worn. Write it in the box beside \u201cWorn in layers\u201d. Until then, rows take each other off wherever their places meet.');
+    else if (swL !== null && !(cl.on && cl.on.layer)) {
+        var pL = parsed(swL.trim()), lyNs = []; try { lyNs = pL && pL.ok && typeof F().names === 'function' ? F().names(swL.trim()) || [] : []; } catch (e) { lyNs = []; }
+        var ownCov = (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).some(function(s) { return s && typeof s.key === 'string' && s.key.toLowerCase() === 'covered'; });
+        if (!pL || !pL.ok) say('list.layer', 'How high each row is worn cannot be worked out as it is written, so Save drops it.' + layTail);
+        else if (typeof hasDice === 'function' && pL.ast && hasDice(pL.ast.body)) say('list.layer', 'How high each row is worn rolls dice, and it must come out the same each time, so Save drops it.' + layTail);
+        else if (!ownCov && lyNs.some(function(n) { return String(n).toLowerCase() === 'row.covered'; })) say('list.layer', 'How high each row is worn cannot depend on whether a row is covered, since that comes from how high the rows are worn, so Save drops it.' + layTail);
+        else say('list.layer', 'How high each row is worn reads a GM-only value, and your players\u2019 sheets must agree with yours, so Save drops it.' + layTail);
     }
     var lk = sp.look && typeof sp.look === 'object' ? sp.look : null;
     if (lk && has(lk, 'by') && cl.look && !(Array.isArray(cl.look.shades) && cl.look.shades.length)) say('list.lkshades', 'Rows are shaded by a stat, but no shade is set for its values, so no row takes one. In \u201cShades\u201d, give each value a line, such as Steel = #8a8f99.');

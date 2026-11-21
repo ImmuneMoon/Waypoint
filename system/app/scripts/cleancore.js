@@ -528,6 +528,13 @@ function cleanSecStyle(v) {
 // kind of bonus (stack, a word). Of the changes on one figure that share a kind, only the largest bonus counts (fxIndex); a penalty still adds, and
 // a change with no kind adds as ever
 function cleanStack(v) { var t = typeof v === 'string' ? v.trim() : ''; return /^[A-Za-z][A-Za-z0-9 _-]{0,23}$/.test(t) ? t : ''; }
+// 1.6.3 Layers under a list's places: whether a layer reads Row.covered, which is worked out from the layers themselves, so it could never be
+// worked out (cleanSystem drops it, and the validator says so). A list that keys a stat or a column covered reads its own, so it is no loop there
+function layerReadsCovered(sp, F) {
+    var own = (Array.isArray(sp.stats) ? sp.stats : []).concat(Array.isArray(sp.cols) ? sp.cols : []).some(function(s) { return isObj(s) && typeof s.key === 'string' && lower(s.key) === 'covered'; }); if (own) return false;
+    var ns = []; try { ns = F && typeof F.names === 'function' ? F.names(sp.on.layer) || [] : []; } catch (e) { ns = []; }
+    return ns.some(function(n) { return lower(String(n)) === 'row.covered'; });
+}
 function cleanMod(m, fieldKinds, withVf) {
     if (!isObj(m) || typeof m.f !== 'string' || !FIELD_ID.test(m.f) || !fieldKinds || !fieldKinds[m.f]) return null;
     var k = fieldKinds[m.f];
@@ -805,6 +812,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         for (var opi = 0; opw && out.stats && opi < out.stats.length; opi++) if (lower(out.stats[opi].key) === opw) { ops = out.stats[opi]; break; }
         for (var ovi = 0; ovw && out.stats && ovi < out.stats.length; ovi++) if (out.stats[ovi].kind !== 'pick' && lower(out.stats[ovi].key) === ovw) { ovs = out.stats[ovi]; break; }   // 1.6.0 O1: over, a number stat read as a set of places
         if (ovs) { out.on.over = ovs.key; ovs.set = true; } else if (ops) out.on.per = ops.key; else if (v.on.one === true) out.on.one = true;
+        if (ovs && typeof v.on.layer === 'string') { var lyrT = cleanFormulaText(v.on.layer); if (lyrT) out.on.layer = lyrT; }   // 1.6.3 Layers under a list's places: a formula of the row's names, kept only beside over (cleanSystem drops one that cannot be worked out the same on every machine)
     }
     if (out.stats && typeof v.price === 'string') { var pl = lower(v.price); for (var pi = 0; pi < out.stats.length; pi++) if (lower(out.stats[pi].key) === pl) { if (out.stats[pi].kind !== 'pick') out.price = out.stats[pi].key; break; } }   // F5a2: never a choice   // F4c1: the price is one of its stats (stored as its key): a row records it as paid when it is added
     if (v.money === '@lvl' && isObj(out.lvl) && !Array.isArray(out.lvl.labels)) out.money = '@lvl';   // 1.5.6 a Money box: each row holds its level (a chip's money)
@@ -1712,6 +1720,10 @@ function cleanSystem(sys, opts) {
     if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && typeof f.list.modsIf === 'string'; }) && (!gmView || (F && typeof F.parse === 'function'))) {   // 1.6.0 Changes apply where: one that does not parse, rolls dice or, on a list players see, reads a GM-only value at any depth goes, judged over the GM's view, in both views alike (its player's sheet and the GM's agree)
         var sysMi = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
         out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && typeof f.list.modsIf === 'string' && !modsIfOk(sysMi, F, f, f.list.modsIf)) delete f.list.modsIf; });
+    }
+    if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && isObj(f.list.on) && typeof f.list.on.layer === 'string'; }) && (!gmView || (F && typeof F.parse === 'function'))) {   // 1.6.3 Layers under a list's places, judged as Changes apply where is: a layer that does not parse, rolls dice or, on a list players see, reads a GM-only value at any depth goes, in both views alike, so a player's own app and the host put the same rows on and off
+        var sysLr = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
+        out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.on) && typeof f.list.on.layer === 'string' && (!modsIfOk(sysLr, F, f, f.list.on.layer) || layerReadsCovered(f.list, F))) delete f.list.on.layer; });
     }
     if (out.fields.some(function(f) { return f.kind === 'item-list' && isObj(f.list) && isObj(f.list.lay); })) {   // 1.6.2 Laid from: its source is another item list of the view; a list players see is never laid from a GM-only list, by a test that reads a GM-only value, or with a GM-only stat; each copied stat is one of the source's, spelled as it spells it (both views alike)
         var sysLy = { fields: F ? gmViewFields(sys, F) : [], items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };

@@ -373,7 +373,7 @@ var PROP_BOX = [[/^loot$/, ['sys-loot-if']], [/^(?:apply|then)\.(\d+)$/, ['sys-a
     [/^results\.label\.(\d+)$/, ['sys-res-label']], [/^results\.dice\.(\d+)$/, ['sys-res-dice']], [/^results\.rows\.(\d+)$/, ['sys-res-label']], [/^values\.label\.(\d+)$/, ['sys-val-label']], [/^tags\.label\.(\d+)$/, ['sys-tag-label']], [/^money\.label\.(\d+)$/, ['sys-cur-label']], [/^charcats\.label\.(\d+)$/, ['sys-cc-label']],
     [/^tab\.label\.(\d+)$/, ['sys-tab-label']], [/^group\.label\.(\d+)$/, ['sys-bgrp-label']],
     [/^range\.size$/, ['sys-range-size']], [/^posture\.cover$/, ['sys-posture-cover']], [/^posture\.covmod$/, ['sys-combat-covmod', 'sys-combat-postatk']],
-    [/^list\.fitwords$/, ['sys-list-partsfitwords']], [/^list\.pfitwords\.(\d+)$/, ['sys-pfit-says']], [/^list\.pfit\.(\d+)$/, ['sys-pfit-if']], [/^list\.pcap\.(\d+)$/, ['sys-pcap-row']], [/^list\.uppool$/, ['sys-list-uppool']], [/^list\.lkshades$/, ['sys-list-lkshades', 'sys-list-lkby']], [/^list\.trade$/, ['sys-traderules']]];
+    [/^list\.fitwords$/, ['sys-list-partsfitwords']], [/^list\.pfitwords\.(\d+)$/, ['sys-pfit-says']], [/^list\.pfit\.(\d+)$/, ['sys-pfit-if']], [/^list\.pcap\.(\d+)$/, ['sys-pcap-row']], [/^list\.uppool$/, ['sys-list-uppool']], [/^list\.layer$/, ['sys-list-layerof', 'sys-list-layered']], [/^list\.lkshades$/, ['sys-list-lkshades', 'sys-list-lkby']], [/^list\.trade$/, ['sys-traderules']]];
 // The box a word names in what holds it, the nth of its class where the word says which. Found by comparing, so nothing of a system file reaches a selector
 function formToo(b) { if (b && b.hidden && window.wpFormBox && typeof window.wpFormBox.openFor === 'function') window.wpFormBox.openFor(b); return b; }
 function boxIn(scope, prop) {

@@ -304,6 +304,14 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
             var opS = el('select', 'sys-list-onper'); opS.title = 'One row on for the whole list, or one for each value of a stat, as one armor on for each location: rows whose stat reads the same value are one group';
             perOptions(opS, sp);
             orow.appendChild(opS);
+            // 1.6.3 Layers under a list's places (the campaign build's ask of 2026-11-20, a thin garment worn under armor; Fulllion, by prompt: "One Layer
+            // formula"): only where the switch goes by where rows sit. The tick shows the box, which starts empty and is said under the list until it is
+            // filled (by the errors part, sysederr.js), since Row.covered and the rule both read it; unticking it, or picking another grouping, takes it away
+            // (sysedtabs.js). The switch rule and Row.covered in systemcore.js read what Save keeps of it (the cleaners, cleancore.js)
+            if (typeof sw.over === 'string' && sw.over) {
+                orow.appendChild(checkLabel('sys-list-layered', typeof sw.layer === 'string', 'Worn in layers', 'Rows on different layers may be worn at the same place, as a shirt under armor. A higher layer covers a lower one, and rows on the same layer still take each other off. Row.covered reads the places a higher layer covers on a row'));
+                if (typeof sw.layer === 'string') orow.appendChild(input('sys-list-layerof field', sw.layer, 'How high is each row worn? A formula of the row with no dice that gives a number, such as Row.Weight > 1, which puts a thin garment under anything heavier. A row whose layer cannot be worked out takes off every row it meets', 'How high it is worn, such as Row.Weight > 1'));
+            }
         }
         orow.appendChild(input('sys-list-swshow field', typeof sw.showIf === 'string' ? sw.showIf : '', 'Shown only on rows where this is true, such as Row.Kind = 2. Row names are read. No dice. Elsewhere the row has no switch', 'Shown where (optional)'));   // 1.6.0
         orow.appendChild(input('sys-list-swneeds field', typeof sw.needs === 'string' ? sw.needs : '', 'A formula that must be true before a row is switched on, such as Row.Charge > 0. Row names are read. No dice. A player is refused while it does not hold. You may still switch it on, and are told', 'Needs to switch on'));   // 1.5.8

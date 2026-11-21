@@ -136,7 +136,7 @@ function refreshErrors() {
     refreshErrors.seen = null;
     var S = typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.derivedScope === 'function' ? window.wpSystemCore : null, msAt = Date.now();
     if (S) S.derivedScope(refreshErrorsNow); else refreshErrorsNow();
-    refreshErrors.ms = Date.now() - msAt;   // what a full check cost, which patchErrors waits for the keys by
+    refreshErrors.ms = Date.now() - msAt;   // what a full check cost, which sheets.js waits for the keys by
     if (seen) { seen.n = Object.keys(errorsById).length + ':' + Object.keys(warningsById).length; refreshErrors.seen = seen; }
 }
 function refreshErrorsNow() {

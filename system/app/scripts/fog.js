@@ -2738,7 +2738,8 @@ function tick() {
     raf = null;
     if (!active()) { clearCanvas(); return; }
     var now = Date.now();
-    if (now - lastDraw >= 60 && !fogCovered()) { lastDraw = now; _sensesTick++; _sensesDraw = true; _dtFresh = false; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; if (_dtFresh) drawTiersSlow(Date.now() - now); } }   // a frame: the tokens' senses are kept while nothing they read changed; 1.6.3 (finding 24): a frame that worked tiers out says how long it took
+    if (fogCovered()) { raf = requestAnimationFrame(tick); return; }   // under the System editor or the Library window: no frame, the loop kept
+    if (now - lastDraw >= 60) { lastDraw = now; _sensesTick++; _sensesDraw = true; _dtFresh = false; try { draw(); if (typeof drawBox === 'function') drawBox(); } finally { _sensesDraw = false; if (_dtFresh) drawTiersSlow(Date.now() - now); } }   // a frame: the tokens' senses are kept while nothing they read changed; 1.6.3 (finding 24): a frame that worked tiers out says how long it took
     raf = requestAnimationFrame(tick);
 }
 function kick() { if (!raf) raf = requestAnimationFrame(tick); }

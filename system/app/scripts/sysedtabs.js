@@ -217,10 +217,14 @@ function renderAll() {
 // 1.6.2, a list beside one open: only the row picked is built. sysui.js keeps the list, and each builder is as it was
 function pickModel(kind) {
     var nameOf = function(t) { return String(t || '').replace(/\s*\(?\{[^}]*\}\)?/g, '').trim(); };   // a roll's label may hold {a formula}
-    if (kind === 'fields') return draft.fields.map(function(f) { return { id: f.id, key: f.key || '', name: f.label || '', tag: KIND_LABEL[f.kind] || '', more: f.kind === 'formula' ? 'modifier secondary attribute derived stat formula' : '' }; });   // 1.6.2 (the owner: "Derived"): found by what a builder calls it
+    // 1.6.3 (the improvement week's review of the System editor, finding 24): two fields or two lists of one name read alike in the list
+    // beside the open row, so where a name is shared its short name follows it in brackets, as a field in a list of choices does
+    var twinN = Object.create(null); draft.fields.forEach(function(f) { var w = f && f.label ? f.label : ''; if (w) twinN[w] = (twinN[w] || 0) + 1; });
+    var nameTw = function(f) { var w = f.label || ''; return w && twinN[w] > 1 && f.key && f.key !== w ? w + ' (' + f.key + ')' : w; };
+    if (kind === 'fields') return draft.fields.map(function(f) { return { id: f.id, key: f.key || '', name: nameTw(f), tag: KIND_LABEL[f.kind] || '', more: f.kind === 'formula' ? 'modifier secondary attribute derived stat formula' : '' }; });   // 1.6.2 (the owner: "Derived"): found by what a builder calls it
     if (kind === 'rolls') return draft.rolls.map(function(r) { return { id: r.id, name: nameOf(r.label), tag: Array.isArray(r.apply) ? 'Apply' : r.init ? 'Initiative' : r.dmg ? 'Damage' : 'Roll', more: typeof r.formula === 'string' ? r.formula : '' }; });
     if (kind === 'items') return (draft.items || []).map(function(it) { return { id: it.id, key: it.key || '', name: it.name || '', tag: it.category || '' }; });
-    if (kind === 'lists') return draft.fields.filter(function(f) { return f.kind === 'item-list'; }).map(function(f) { return { id: f.id, key: f.key || '', name: f.label || '', err: 'list:' + f.id }; });
+    if (kind === 'lists') return draft.fields.filter(function(f) { return f.kind === 'item-list'; }).map(function(f) { return { id: f.id, key: f.key || '', name: nameTw(f), err: 'list:' + f.id }; });
     if (kind === 'effects') return (draft.effects || []).map(function(d) { return { id: d.id, name: d.name || '', tag: d.tone === 'buff' ? 'Buff' : d.tone === 'debuff' ? 'Debuff' : '' }; });
     return [];
 }

@@ -8310,7 +8310,7 @@ function lazySelect(cls, options, value, title, search) {
         var swap = function(e) {
             if (!full || !s.parentNode) return; var all = full; fill();
             if (e && e.type === 'pointerdown' && e.preventDefault) e.preventDefault();   // the list's own drop-down never opens: the search stands in its place
-            var box = U.find({ choices: all.filter(function(x) { return x[0] !== ''; }).map(function(x) { return { value: x[0], name: x[1] }; }), blank: (all[0] && all[0][0] === '') ? all[0][1] : undefined, value: s.value, label: title || search, placeholder: search, cls: 'sys-find',
+            var box = U.find({ choices: all.filter(function(x) { return x[0] !== ''; }).map(function(x) { return { value: x[0], name: x[1] }; }), blank: (all[0] && all[0][0] === '') ? all[0][1] : undefined, value: s.value, label: title || search, placeholder: search, cls: 'sys-tfind',   /* its own class: sys-find is the pick lists' search box, which sysui.js hears */
                 set: function(v) { s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); } });
             ['input', 'change', 'keydown'].forEach(function(k) { box.addEventListener(k, function(ev) { if (k !== 'keydown' || ev.key !== 'Escape' || (box.input && box.input.value)) ev.stopPropagation(); }); });   // the search's own words and picks are no edit of the draft
             s.parentNode.insertBefore(box, s.nextSibling); s.hidden = true;

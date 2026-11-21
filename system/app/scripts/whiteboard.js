@@ -4612,15 +4612,18 @@ window.wpFitToGrid = fitToGrid;
   // becomes its timer). Beside each effect not on, on the GM's own screen and only for a character token (whose sheet keeps timers), the app's own
   // counter (wpUi.step), 0 to 99 and 0 at first: 0 keeps the effect's own time, any other count is how many rounds it lasts, set on the add
   // (sheets.js tokenFxCharOp, commitEffect). A press on the counter, and a key in its box, stay with it, so the line's own click never fires.
-  // Answers a reader of the counts by the line's place: get(k), 0 where nothing was set
+  // Answers a reader of the counts by the line's place: get(k), 0 where nothing was set. get(k) first asks that line's counter to hand on what
+  // its box holds now (uiparts.js flush): a figure typed and not yet handed on waits for the end of the press, and the line's click is that very
+  // press, so without the flush a count typed and then clicked was read as 0 (the review of combat damage, 2026-11-20)
   function fxRoundsGm() { var n = window.wpNet; return !(n && (n.foreign || (n.active && n.role === 'client'))) && !window.wpStream; }
   function fxRoundsInto(menu, m) {
-      var rd = {}, out = { get: function(k) { return typeof rd[k] === 'number' ? rd[k] : 0; } }, U = window.wpUi;
+      var rd = {}, steps = {}, out = { get: function(k) { var s = steps[k]; if (s && typeof s.flush === 'function') s.flush(); return typeof rd[k] === 'number' ? rd[k] : 0; } }, U = window.wpUi;
       if (!menu || !m || !m.char || !fxRoundsGm() || !U || typeof U.step !== 'function' || typeof menu.querySelectorAll !== 'function') return out;
       menu.querySelectorAll('.cm-fx').forEach(function(line) {
           var k = Number(line.dataset && line.dataset.fi), r = m.rows[k]; if (!r || r.rowId || r.auto === true || !(k >= 0)) return;
           var box = document.createElement('span'); box.className = 'cm-fx-rounds'; box.title = 'How many rounds it lasts once you tick it. 0 keeps its own time.';
           var st = U.step({ min: 0, max: 99, value: 0, label: 'Rounds for ' + String(r.name || 'this effect'), lessTip: 'One round less', moreTip: 'One round more', set: function(n) { rd[k] = n; } });
+          steps[k] = st;   // kept by the line's place, so get(k) can flush it
           var wd = document.createElement('span'); wd.className = 'cm-fx-rwd'; wd.textContent = 'rounds';   // the word after the counter, found live: inside its box it read "0rounds"
           box.appendChild(st); box.appendChild(wd);
           ['click', 'pointerdown', 'mousedown'].forEach(function(ev) { box.addEventListener(ev, function(e) { e.stopPropagation(); }); });

@@ -8579,14 +8579,22 @@ function dmgFollowWords(sys, info) {   // 1.6.2: the rolls a blow will ask for, 
 // The Take damage window says so, and offers to give the token the hit is for its own sheet first (ownSheetFor, the token menu's own row). Asked on
 // the GM's own campaign alone (shareGm), never for a template, and never for a sheet whose first answer is to share (a character a player plays, an
 // NPC ticked Unique: systemcore shareFirst), since that is one character on every map by design. Answers null, or { n: the tokens that use the
-// sheet, m: on how many maps, tok: the token the hit is for: the one tokId names where it uses this sheet, else the first of them on the map on
-// screen, else none }
+// sheet, m: on how many maps, tok: the token the hit is for, only where tokId names a token that uses this very sheet, else none }. There is no
+// guess: a card that lands on its own roller, a window opened with nobody picked, or a token of another sheet gives no token, and the window
+// then says the sheet is shared without the button, so the button never copies a token the GM did not point at (the review of combat damage,
+// 2026-11-20: the first token on the map on screen was taken, and one mook's burning split off another)
 function dmgShareInfo(camp, c, tokId) {
     if (!camp || !c || c.template === true || shareFirst(c) || (typeof shareGm === 'function' && !shareGm())) return null;
     var users = sheetUsers(camp, c.id, null); if (users.length < 2) return null;
     var maps = {}; users.forEach(function(u) { maps[u.mapId] = 1; });
-    var hit = users.filter(function(u) { return typeof tokId === 'string' && u.tok.id === tokId; })[0] || users.filter(function(u) { return u.mapId === camp.activeItemId; })[0] || null;
+    var hit = users.filter(function(u) { return typeof tokId === 'string' && u.tok.id === tokId; })[0] || null;
     return { n: users.length, m: Object.keys(maps).length, tok: hit ? hit.tok : null };
+}
+// Whether a token of this id on any map of the campaign uses the sheet charId: what the Who list asks before it keeps the token the window was
+// opened for, so a pick of another character never carries a token of the old sheet over to the new one (takeDamage's whoGo)
+function dmgTokUses(camp, tokId, charId) {
+    if (!camp || !camp.items || typeof tokId !== 'string' || !tokId || typeof charId !== 'string') return false;
+    return Object.keys(camp.items).some(function(k) { var it = camp.items[k]; return it && Array.isArray(it.whiteboard) && it.whiteboard.some(function(w) { return w && w.id === tokId && w.charId === charId; }); });
 }
 function dmgShareWords(info) { return 'This sheet is shared by ' + info.n + ' tokens on ' + (info.m === 1 ? 'one map' : info.m + ' maps') + '. A wound here wounds every one of them.'; }
 // The window's button: the token takes its own copy of the sheet (ownSheetFor, one save, said in its notice), and the window opens again for the copy
@@ -8630,6 +8638,8 @@ function takeDamage(charId, pre) {
         var whoGo = function(v) {
             if (typeof v !== 'string' || !v || (!whoOpen && v === charId)) return; var av = Number(amt.value), np = Object.assign({}, pre, { whoOpen: false }); if (amt.value !== '' && isFinite(av) && av >= 0) np.amt = av;
             var tbK = typeof pre.tb === 'number' ? pre.tb : pre.tbHeld; delete np.tb; delete np.tbHeld; if (typeof tbK === 'number') { if (np.tbFor === v) np.tb = tbK; else np.tbHeld = tbK; }
+            // the token the hit was for goes with the character it uses alone, and is held aside as tokHeld meanwhile, as tb is (the review of combat damage)
+            var tkK = typeof pre.tok === 'string' ? pre.tok : pre.tokHeld; delete np.tok; delete np.tokHeld; if (typeof tkK === 'string') { if (typeof dmgTokUses === 'function' && dmgTokUses(camp, tkK, v)) np.tok = tkK; else np.tokHeld = tkK; }
             takeDamage(v, np);
         };
         // The list is the app's own choice of many with a search (uiparts.js find), since a busy map holds dozens of characters. A closed list

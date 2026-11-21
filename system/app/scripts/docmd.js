@@ -204,6 +204,17 @@ function isTableSep(line) { return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|
    given; anything else is the plain text, as before. A look that holds for the whole text is written once, around everything, and comes
    back as the field's own look; every other look as a span. A field with no format is written exactly as it always was. */
 var SIZE_OF = {}; Object.keys(SIZE_EM).forEach(function(k) { SIZE_OF[SIZE_EM[k]] = k; });
+// 1.6.3 (the review of pages, finding 31): the map a card's "Map:" line names. Its title, ignoring case and the spaces at its ends, is the whole
+// line or the line's start right before a slash; of several, the longest title. null where none is
+function mapByLine(items, line) {
+    var low = String(line || '').trim().toLowerCase(), best = null, bestN = -1;
+    Object.keys(items || {}).forEach(function(k) {
+        var it = items[k]; if (!it || it.type !== 'map' || !it.meta) return;
+        var t = String(it.meta.title || '').trim().toLowerCase(); if (!t || t.length <= bestN) return;
+        if (low === t || (low.indexOf(t) === 0 && /^\s*\//.test(low.slice(t.length)))) { best = it; bestN = t.length; }
+    });
+    return best;
+}
 function ownKey(o, k) { return !!o && typeof o === 'object' && Object.prototype.hasOwnProperty.call(o, k); }
 // The looks of a text as it is walked in order: open(look) … close() around text(length). look: { color, b, i, u, st, size, link } or null (an element that has none)
 function lookWalk() {
@@ -671,18 +682,34 @@ function markdownToBlocks(text, opts) {
         }
         // scene-node field lines (planner) right under "### Scene:"
         if (scene && kind === 'planner') {
-            var fld = /^\*\*(tag|role|area|must resolve|must|wants|when they arrive|points to|also known as|played|found|session):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
+            var fld = /^\*\*(tag|role|area|must resolve|must|wants|when they arrive|points to|also known as|played|found|session|sheet|plays):?\*\*:?\s*(.*)$/i.exec(line) || /^(map)\s*:\s*(.*)$/i.exec(line);
             if (fld) {
                 sceneGap = false;   // a line of the card's own: a table right under it is still the card's
                 var key = fld[1].toLowerCase(), vf = fieldOf(fld[2]), val = vf.text;
                 if (key === 'role' || key === 'area') key = 'tag'; else if (key === 'wants' || key === 'when they arrive' || key === 'points to') key = 'must';   // a card's own words for its tag and its lead line
                 if (key === 'also known as') { var akaI = CC.cleanAka(val); if (akaI) scene.aka = akaI; i++; continue; }
                 if (key === 'session') { var wvI = val.trim().toLowerCase(); if (CC.cleanWhen(wvI, CC.cardKind(scene)) && scene.done !== true) scene.when = wvI; i++; continue; }   // 1.6.2 (backlog 166 d)
+                // 1.6.3 (finding 30): a person card's Sheet by its character's name (opts.chars), a card's Plays by its name (opts.cueFind); a name not
+                // known here is said in a note and the card keeps none
+                if (key === 'sheet') {
+                    var shN = val.trim().toLowerCase(), shId = CC.kindOf(scene).sheet && opts.chars && typeof opts.chars === 'object' ? Object.keys(opts.chars).filter(function(cid) { var ch = opts.chars[cid]; return ch && String(ch.name || '').trim().toLowerCase() === shN; })[0] : null;
+                    if (shId) scene.sheet = shId; else if (shN) notes.push('Card "' + scene.title + '": sheet "' + val.trim() + '" not found in this campaign.');
+                    i++; continue;
+                }
+                if (key === 'plays') {
+                    var cuF = typeof opts.cueFind === 'function' ? CC.cleanCue(opts.cueFind(val.trim()), CC.cardKind(scene)) : undefined;
+                    if (cuF) scene.cue = cuF; else if (val.trim()) notes.push('Card "' + scene.title + '": "' + val.trim() + '" to play not found in this campaign.');
+                    i++; continue;
+                }
                 if (key === 'played' || key === 'found') { if (/^(yes|true|x)$/i.test(val.trim()) && CC.kindOf(scene).tick.toLowerCase() === key) scene.done = true; i++; continue; }
                 if (key === 'tag') { scene.tag = val; setFmt(scene, 'tag', vf.fmt); }
                 else if (key === 'map') {
+                    // 1.6.3 (the review of pages, finding 31): a map's title may hold a slash itself ("Prison Block / Cellblock"), so the map is the one whose
+                    // title is the longest that the line is, or begins with followed by a slash; what follows that slash is the room. With none such the
+                    // line is cut at its first slash as before, which is what the note then names
                     var parts = val.split('/').map(function(x) { return x.trim(); }), mapT = parts[0].toLowerCase(), roomT = (parts[1] || '').toLowerCase();
-                    var mp = Object.values(items).find(function(it) { return it && it.type === 'map' && String((it.meta && it.meta.title) || '').toLowerCase() === mapT; });
+                    var mp = mapByLine(items, val);
+                    if (mp) { var restM = val.trim().slice(String(mp.meta.title).trim().length).replace(/^\s*\/\s*/, ''); parts = [String(mp.meta.title), restM]; roomT = restM.toLowerCase(); }
                     if (mp) { scene.linkMapId = mp.id; if (roomT) { var rm = (mp.rooms || []).find(function(r) { return String(r.name || '').toLowerCase() === roomT; }); if (rm) scene.linkRoomId = rm.id; else notes.push('Scene "' + scene.title + '": room "' + parts[1] + '" not found on ' + mp.meta.title + '.'); } }
                     else notes.push('Scene "' + scene.title + '": map "' + parts[0] + '" not found in this campaign.');
                 } else { scene.must = val; setFmt(scene, 'must', vf.fmt); }
@@ -833,11 +860,15 @@ function tableMd(title, cols, rows, b) {
     return L.join('\n');
 }
 // opts.items: the campaign's items (a scene node's map link is written as "Map: title / room");
-// returns { text, images: [{ path, name }] } — the caller bundles the pictures under images/<itemId>/<name>
+// 1.6.3 (the review of pages, finding 30): opts.chars, the campaign's characters, and opts.cueName(cue), a card's Plays by its name: a person
+// card's Sheet and a card's Plays are written as card lines by name ("**Sheet:** Mira", "**Plays:** Rain on the roof"), read back by name.
+// What Markdown cannot keep is counted in left, plain phrases the caller says: a flowchart's nudged layout, and a Sheet or a Plays whose name
+// is not known here.
+// returns { text, images: [{ path, name }], left: [phrase] } — the caller bundles the pictures under images/<itemId>/<name>
 function docToMarkdown(item, opts) {
     opts = opts || {};
     var items = opts.items || {}, kind = item.type === 'doc' ? 'doc' : 'planner', meta = item.meta || {};
-    var L = [], images = [], used = {};
+    var L = [], images = [], used = {}, left = [], leftAdd = function(p) { if (left.indexOf(p) < 0) left.push(p); };
     var h1 = (item.blocks || []).find(function(b) { return b && b.type === 'h1'; });
     var fm = ['title: ' + yamlStr(meta.title || (h1 && h1.title) || 'Untitled')];
     if (h1 && h1.sub) fm.push('subtitle: ' + yamlStr(h1.sub));
@@ -881,16 +912,22 @@ function docToMarkdown(item, opts) {
                 if (b.tag) L.push('**' + kdM.tag + ':** ' + fieldText(b, 'tag', IN_LINE));
                 if (b.must) L.push('**' + kdM.must + ':** ' + fieldText(b, 'must', IN_LINE));
                 if (b.linkMapId && items[b.linkMapId]) { var mp = items[b.linkMapId], rm = b.linkRoomId && (mp.rooms || []).find(function(r) { return r.id === b.linkRoomId; }); L.push('Map: ' + ((mp.meta && mp.meta.title) || mp.id) + (rm ? ' / ' + (rm.name || rm.id) : '')); }
+                if (kdM.sheet && typeof b.sheet === 'string' && b.sheet) {   // 1.6.3 (finding 30): a person card's Sheet by its character's name
+                    var chM = ownKey(opts.chars, b.sheet) && opts.chars[b.sheet] ? String(opts.chars[b.sheet].name || '').trim() : '';
+                    if (chM) L.push('**Sheet:** ' + IN_LINE.put(chM, true)); else leftAdd('a card’s Sheet that is not in this campaign');
+                }
+                var cueM = CC.cleanCue(b.cue, CC.cardKind(b));   // 1.6.3 (finding 30): a card's Plays by its name
+                if (cueM) { var cnM = typeof opts.cueName === 'function' ? String(opts.cueName(cueM) || '').trim() : ''; if (cnM) L.push('**Plays:** ' + IN_LINE.put(cnM, true)); else leftAdd('a card’s Plays that is not in this campaign'); }
                 for (var cK = cardAt; cK < L.length; cK++) L[cK] = cardLn(L[cK]);
                 if ((b.cols && b.cols.length) || (b.rows && b.rows.length)) L.push(tableMd('', b.cols && b.cols.length ? b.cols : kdM.cols.slice(), b.rows, b));
                 L.push(''); break;
             case 'rule': L.push('---', ''); break;
             case 'diagram': L.push('```mermaid', stripMermaidLinks(unent(String(b.content || ''))).replace(/```/g, '` ` `'), '```', ''); break;   // as it is drawn: its links as canonical lines
-            case 'flowchart': L.push('```flowchart', flowchartToMermaid(b), '```', ''); break;
+            case 'flowchart': L.push('```flowchart', flowchartToMermaid(b), '```', ''); if ((b.nodePos && typeof b.nodePos === 'object' && Object.keys(b.nodePos).length) || (b.nodeSize && typeof b.nodeSize === 'object' && Object.keys(b.nodeSize).length)) leftAdd('a flowchart’s nudged layout'); break;   // 1.6.3 (finding 30): where its nodes were moved or sized by hand is layout alone, which Markdown cannot hold
             case 'raw': L.push('```html', String(b.content || '').replace(/```/g, '` ` `'), '```', ''); break;
         }
     });
-    return { text: L.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '') + '\n', images: images };
+    return { text: L.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '') + '\n', images: images, left: left };
 }
 
 /* ---------- a zip dropped on Import: a Markdown bundle, or not ---------- */
@@ -964,6 +1001,6 @@ var TEMPLATE = [
 ''
 ].join('\n');
 
-var API = { VERSION: VERSION, LIMITS: LIMITS, PLANNER_BLOCKS: PLANNER_BLOCKS.slice(), DOC_BLOCKS: DOC_BLOCKS.slice(), markdownToBlocks: markdownToBlocks, docToMarkdown: docToMarkdown, htmlToMarkdown: htmlToMarkdown, fmtFromInline: fmtFromInline, flowchartFromMermaid: flowchartFromMermaid, flowchartToMermaid: flowchartToMermaid, parseAttrs: parseAttrs, detectBundle: detectBundle, TEMPLATE: TEMPLATE };
+var API = { mapByLine: mapByLine, VERSION: VERSION, LIMITS: LIMITS, PLANNER_BLOCKS: PLANNER_BLOCKS.slice(), DOC_BLOCKS: DOC_BLOCKS.slice(), markdownToBlocks: markdownToBlocks, docToMarkdown: docToMarkdown, htmlToMarkdown: htmlToMarkdown, fmtFromInline: fmtFromInline, flowchartFromMermaid: flowchartFromMermaid, flowchartToMermaid: flowchartToMermaid, parseAttrs: parseAttrs, detectBundle: detectBundle, TEMPLATE: TEMPLATE };
 if (typeof window !== 'undefined') window.wpDocMd = API;
-export { VERSION, LIMITS, PLANNER_BLOCKS, markdownToBlocks, docToMarkdown, htmlToMarkdown, fmtFromInline, mdEscapeText, mdEscapeMarks, yamlStr, flowchartFromMermaid, flowchartToMermaid, parseAttrs, detectBundle, TEMPLATE };
+export { mapByLine, VERSION, LIMITS, PLANNER_BLOCKS, markdownToBlocks, docToMarkdown, htmlToMarkdown, fmtFromInline, mdEscapeText, mdEscapeMarks, yamlStr, flowchartFromMermaid, flowchartToMermaid, parseAttrs, detectBundle, TEMPLATE };

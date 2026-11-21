@@ -12,7 +12,7 @@ const J = JSON.stringify;
     const C = await import(url('calendarcore.js'));
     const src = read('scripts/timeline.js'), a = src.indexOf('// [timelinecheck:core-start]'), z = src.indexOf('// [timelinecheck:core-end]');
     check('the core slice is there once', a > 0 && z > a && src.indexOf('// [timelinecheck:core-start]', a + 1) < 0);
-    const T = new Function('cleanCalendar', 'dateOf', 'timeOf', 'dayLength', 'noteNext', 'fmtDate', src.slice(a, z) + '\nreturn { tlItems, tlOccur, tlLimits, tlZoom, tlFit, tlTicks };')(C.cleanCalendar, C.dateOf, C.timeOf, C.dayLength, C.noteNext, C.fmtDate);
+    const T = new Function('cleanCalendar', 'dateOf', 'timeOf', 'dayLength', 'noteNext', 'fmtDate', src.slice(a, z) + '\nreturn { tlItems, tlOccur, tlLimits, tlZoom, tlFit, tlTicks, tlLabelLeft, TL_LABEL };')(C.cleanCalendar, C.dateOf, C.timeOf, C.dayLength, C.noteNext, C.fmtDate);
     const cal = C.cleanCalendar(C.preset('twelve')), dl = C.dayLength(cal), yd = C.yearDays(cal, 1), plain = C.cleanCalendar({});
     // the clock's record of the sessions played
     const pl = C.cleanPlayed([{ t: 86400, at: 1762400000000 }, { t: -1 }, { t: 'x' }, null, { t: 172800 }, { t: 1e16 }]);
@@ -47,6 +47,18 @@ const J = JSON.stringify;
         && calJ.includes("window.wpTimeline.draw(rb, cal, clockOf(getActiveCampaign()), openDay);") && calJ.includes('sessionBegan: sessionBegan, timeData: timeData, openDay: openDay,') && rec.includes("window.wpCalendar.sessionBegan(camp);")
         && net.includes("if (ck.played) o.played = ck.played.map(function(p) { return { t: p.t }; });") && net.includes("if (ckIn && ckIn.played && campCk.clock) campCk.clock.played = ckIn.played.map(function(p) { return { t: p.t }; });")
         && !/innerHTML|insertAdjacentHTML|outerHTML/.test(src) && ix.includes('<b data-ctl="#timelineCampBtn">Timeline</b>'));
+    // 1.6.3 (the review of pages, finding 23): a note's label is judged by the box it is drawn in, so no two labels touch, at an edge too
+    {
+        const place = (notes, w) => { let last = -Infinity; return notes.map(px => { const l = T.tlLabelLeft(px, w, last); if (l !== null) last = l + T.TL_LABEL; return l; }); };
+        const near = place([0, 111], 600), apart = place([100, 250], 600), right = place([590, 480], 600);
+        let seeded = true, seed = 7;
+        for (let k = 0; k < 300; k++) { const pxs = []; for (let i = 0; i < 8; i++) { seed = (seed * 1103515245 + 12345) % 2147483648; pxs.push(seed % 700); } pxs.sort((a, b) => a - b); const ls = place(pxs, 700).filter(l => l !== null);
+            for (let i = 1; i < ls.length; i++) if (ls[i] < ls[i - 1] + T.TL_LABEL + 6) seeded = false; if (ls.some(l => l < 2 || l + T.TL_LABEL > 698)) seeded = false; }
+        const tl = read('scripts/timeline.js'), css = read('style.css');
+        check('1.6.3 a note\'s label on the timeline (timeline.js tlLabelLeft, run for real): it is drawn only where the box it stands in, held inside the ribbon, begins clear of the last label\'s end, so two notes 111 px apart near the left edge, which overlapped by some 70 px, show one label, notes far apart show both, and over 300 seeded rows of notes no two labels touch and none leaves the ribbon; the paint asks it, and the width it counts is the style sheet\'s',
+            J(near) === J([2, null]) && J(apart) === J([40, 190]) && J(right) === J([478, null]) && seeded && T.TL_LABEL === 120
+            && tl.includes('var lx = tlLabelLeft(px, w, lastRight); if (lx !== null) {') && !tl.includes('lastLabel') && css.includes('.tl-note-label { position: absolute; top: 68px; width: 120px;'), J([near, apart, right, seeded]));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

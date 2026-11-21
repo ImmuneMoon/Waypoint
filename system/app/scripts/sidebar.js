@@ -213,7 +213,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (st === 'next') Object.values(camp.items).forEach(function(o) { if (o !== it && o.type === 'planner' && o.meta && o.meta.status === 'next') delete o.meta.status; });
               save(true); updateSidebarNav();
               var sel = document.getElementById('plannerStatus'); if (sel && camp.activeItemId === id) sel.value = st;
-              toast((it.meta.title || 'Planner') + (st === 'next' ? ' is the next scene.' : st === 'played' ? ' marked played.' : st === 'skipped' ? ' marked skipped.' : ': status cleared.'));
+              toast((it.meta.title || 'Planner') + (st === 'next' ? ' is the planner you play next.' : st === 'played' ? ' marked played.' : st === 'skipped' ? ' marked skipped.' : ': status cleared.'));
           });
       });
   })();
@@ -712,7 +712,12 @@ function treeMenu(row) {
                 menu.querySelectorAll('.ctx-doc-only').forEach(function(x) { x.style.display = isDocCtx ? 'block' : 'none'; });
                 menu.querySelectorAll('.ctx-docwin-only').forEach(function(x) { x.style.display = (isPlCtx || isDocCtx) ? 'block' : 'none'; }); var pinRowS = document.getElementById('ctxPinPage'); if (pinRowS && it && window.wpPageShelf && window.wpPageShelf.pinLabel) pinRowS.textContent = window.wpPageShelf.pinLabel(it.id);   // Open in new window — planners + handbook pages
                 var plBtn = document.getElementById('ctxDocPlayers');
-                if (plBtn && isDocCtx) plBtn.innerHTML = (it.meta && it.meta.players === false) ? '<i class="wib wi-seen"></i> Show to players' : '<i class="wib wi-unseen"></i> Hide from players';
+                if (plBtn && isDocCtx) {
+                    // 1.6.3 (the review of pages, finding 26): a page under a GM-only page is hidden already; its row still sets its own switch, and says so
+                    var campH = getActiveCampaign(), upH = campH && window.wpDocRender && window.wpDocRender.pageHidBy ? window.wpDocRender.pageHidBy(campH.items, it.id) : null;
+                    plBtn.innerHTML = (it.meta && it.meta.players === false) ? '<i class="wib wi-seen"></i> Show to players' : upH ? '<i class="wib wi-unseen"></i> Hide from players too' : '<i class="wib wi-unseen"></i> Hide from players';
+                    plBtn.removeAttribute('title'); plBtn.setAttribute('data-tip', upH ? 'Players do not get this page now, because the page it stands under, “' + String((upH.meta && upH.meta.title) || 'A page').slice(0, 80) + '”, is GM only. This keeps it hidden after that page is shared.' : 'Whether players at your table receive this page. Hidden pages never leave your machine; while hosting, hiding one removes it from every player at once.');
+                }
                 window.wpClampMenu(menu, e.clientX, e.clientY);   // placed once its rows are the item's own: above the pointer when the bottom is near
             });
             el.addEventListener('click', function(e) {

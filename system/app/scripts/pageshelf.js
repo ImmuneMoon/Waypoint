@@ -204,7 +204,24 @@ function shelfModel(camp, mapId, recentRaw) {
     if (nextId && take(nextId)) m.next.push(row(nextId, nxS.node ? 'Tonight: ' + nxS.node : '', nxS.at));   // at tonight's scene
     pins.forEach(function(id) { if (take(id)) m.pinned.push(row(id)); });
     recentClean(camp, recentRaw).forEach(function(id) { if (take(id)) m.recent.push(row(id)); });
+    shelfTwins(camp, [].concat.apply([], m.where.map(function(g) { return g.rows; })).concat(m.next, m.pinned, m.recent));
     return m;
+}
+// 1.6.3 (the review of pages, finding 38; Fulllion, 2026-11-21: "a gray line naming the parent planner where rows share a title"). Rows of
+// the shelf whose pages share a title, ignoring case, are told apart by the page each stands under (twinWhere), set before the row's own
+// gray line, so two sessions' copies of one planner are never two rows alike
+function twinWhere(camp, it) {
+    var pid = it && it.meta && typeof it.meta.parentId === 'string' ? it.meta.parentId : '', up = pid && Object.prototype.hasOwnProperty.call(camp.items, pid) ? camp.items[pid] : null;
+    var st = it && it.meta && (it.meta.status === 'played' || it.meta.status === 'skipped') ? ', ' + it.meta.status : '';
+    return (up && up !== it && (up.type === 'planner' || up.type === 'doc') ? 'in ' + pageTitle(up) : 'at the top') + st;
+}
+function shelfTwins(camp, rows) {
+    var by = Object.create(null);
+    rows.forEach(function(r) { var k = String(r.title || '').toLowerCase(); (by[k] = by[k] || []).push(r); });
+    Object.keys(by).forEach(function(k) {
+        var g = by[k]; if (g.filter(function(r, i) { return g.map(function(x) { return x.id; }).indexOf(r.id) === i; }).length < 2) return;
+        g.forEach(function(r) { var w = twinWhere(camp, camp.items[r.id]); r.sub = w + (r.sub ? ' · ' + r.sub : ''); });
+    });
 }
 // [shelfcheck:shelf-end]
 
@@ -342,10 +359,14 @@ function mentionName(camp, kind, id, at) {
 }
 function mentionWords(kind, id, at) { var n = mentionName(getActiveCampaign(), kind, id, at); return n ? (kind === 'page' ? 'Page: ' : kind === 'map' ? 'Map: ' : 'Character: ') + n : ''; }
 var MENTION_GONE = { map: 'That map is not in this campaign.', char: 'That character is not in this campaign.' };
+// 1.6.3 (the review of pages, finding 25): at someone else's table a mention of what this app does not hold (an NPC, a map or a page the GM
+// keeps) was never shared with this player, so it is said as not shared, as a page link says it, and never as gone
+var MENTION_HID = 'That has not been shared with you.';
+function mentionForeign() { var n = window.wpNet; return !!(n && n.foreign); }
 function mentionGo(kind, id, at) {
     var camp = getActiveCampaign();
     if (kind === 'page') return linkGo(id, at, '');
-    if (!mentionName(camp, kind, id, at)) { toast(MENTION_GONE[kind] || 'That is not in this campaign.'); return false; }
+    if (!mentionName(camp, kind, id, at)) { toast(mentionForeign() ? MENTION_HID : MENTION_GONE[kind] || 'That is not in this campaign.'); return false; }
     if (kind === 'map') { var n = window.wpNet; if (n && n.active && n.role === 'client') { toast('Only the GM moves you to another map.'); return false; } return navigateToMap(id, at || null) !== false; }
     if (kind === 'char') { if (window.wpSheets && typeof window.wpSheets.openSheet === 'function') { window.wpSheets.openSheet(id); return true; } return false; }
     return false;
@@ -354,7 +375,7 @@ function mentionGo(kind, id, at) {
 // edited is never touched, since its words are the field's own
 function mentionPaint(root, soft, keep) {
     if (!root || typeof root.querySelectorAll !== 'function') return 0;
-    var camp = getActiveCampaign(), n = 0, sure = !!camp && soft !== true;   // soft: a window that may hold no campaign, or another's: nothing is said to be gone
+    var camp = getActiveCampaign(), n = 0, sure = !!camp && soft !== true && !mentionForeign();   // soft: a window that may hold no campaign, or another's: nothing is said to be gone; at someone else's table a mention not here was not shared, never gone (finding 25)
     Array.prototype.forEach.call(root.querySelectorAll('a[href^="#wp:@:"]'), function(a) {
         var ed = a.closest ? a.closest('[contenteditable="true"], [contenteditable="plaintext-only"], .ts-box') : null; if (ed && !(ed.hasAttribute && ed.hasAttribute('data-reads'))) return;
         var m = /^#wp:@:(page|map|char):([A-Za-z0-9_-]{1,80})(?::([A-Za-z0-9_-]{1,64}))?$/.exec(String(a.getAttribute('href') || '')); if (!m) return;
@@ -532,10 +553,13 @@ function namedKept(b) {
     var t = namedFold(namedText(b)); if (sig) _namedKept.set(b, { sig: sig, t: t });
     return t;
 }
-function namedIn(camp, names, self, plain) {
-    var list = namedNames(names, plain); if (!camp || !camp.items || typeof camp.items !== 'object' || !list.length) return [];
+// o (1.6.3, the review of pages, finding 33): { skip, link, say } for a whole page: skip, a page passed over whole (the page asking); link, a
+// pattern a block's whole stored form is tested by (a page link or a mention of that page, whatever words it shows), its row then saying say
+function namedIn(camp, names, self, plain, o) {
+    var list = namedNames(names, plain), link = o && o.link instanceof RegExp ? o.link : null; if (!camp || !camp.items || typeof camp.items !== 'object' || (!list.length && !link)) return [];
     var out = [], si = self && typeof self.i === 'number' && self.i >= 0 ? self.i : -1;
     Object.keys(camp.items).forEach(function(id) {
+        if (o && o.skip === id) return;
         var it = pageOf(camp, id); if (!it || !Array.isArray(it.blocks)) return;
         var first = null, n = 0, head = '', mine = !!self && self.id === id;
         it.blocks.forEach(function(b, bi) {
@@ -543,6 +567,7 @@ function namedIn(camp, names, self, plain) {
             if (b.type === 'h1' || b.type === 'h2') head = namedSay(b.title);
             if (mine && (si >= 0 ? bi === si : typeof self.at === 'string' && b.id === self.at)) return;
             var t = namedKept(b), hit = null; for (var k = 0; k < list.length && !hit; k++) if (list[k].re.test(t)) hit = list[k];
+            if (!hit && link) { var js = ''; try { js = JSON.stringify(b) || ''; } catch (e) {} if (link.test(js)) hit = { say: o.say || '' }; }
             if (!hit) return;
             n++;
             if (!first) first = { at: typeof b.id === 'string' && NAMED_ID.test(b.id) ? b.id : '', bi: bi, where: (b.type === 'node' && namedSay(b.title)) || head, q: hit.say };
@@ -565,7 +590,24 @@ function namedCard(camp, pageId, at, bi) {
     var cc = window.wpCardCore, names = cc && typeof cc.cardNames === 'function' ? cc.cardNames(b) : [b.title];
     return { names: (Array.isArray(names) ? names : []).filter(function(x) { return typeof x === 'string'; }), plain: !!(cc && typeof cc.cardNames === 'function'), self: { id: pageId, at: at, i: i } };
 }
-var _named = null;   // the menu while it is up: { el, from, page, at, bi, q }
+// 1.6.3 (the review of pages, finding 33; Fulllion, 2026-11-21: "Mentioned in for a whole page, from the Outline menu"). The rows for a whole
+// page or planner: the others that name it by its title as a whole word, or hold a page link or a mention of it (#wp:page:<id> or
+// #wp:@:page:<id>, with a section or not), whatever words that link shows. The page itself is passed over. null where it is no page here
+function namedPageRows(camp, pageId) {
+    var it = pageOf(camp, pageId); if (!it || typeof pageId !== 'string' || !NAMED_ID.test(pageId)) return null;
+    var title = namedSay(String((it.meta && it.meta.title) || ''));
+    return namedIn(camp, title ? [title] : [], null, true, { skip: pageId, link: new RegExp('#wp:(?:@:)?page:' + pageId.replace(/[-]/g, '\\-') + '(?=["\'\\\\:])'), say: title });
+}
+// The press of the Outline menu's Mentioned in (pagenav.js): the same menu as a card's, under the Outline button, for the page itself. Never at
+// someone else's table, where no planner is
+function namedPage(btn, pageId) {
+    var n = window.wpNet; if (n && n.foreign) return null;
+    if (_named && _named.whole && _named.from === btn) { namedClose(true); return null; }
+    var camp = getActiveCampaign(), rows = namedPageRows(camp, pageId); if (!rows || !btn) return null;
+    var it = pageOf(camp, pageId), title = namedSay(String((it.meta && it.meta.title) || '')) || 'this page';
+    return namedOpen(btn, rows, title, { page: pageId, at: '', bi: -1, whole: true });
+}
+var _named = null;   // the menu while it is up: { el, from, page, at, bi, q, whole }
 // A button's place in its page as its drawn block says it, or -1
 function namedBi(btn) { var blk = btn && btn.closest ? btn.closest('.pv-blk') : null, n = blk && blk.dataset ? Number(blk.dataset.blk) : NaN; return n === n && n >= 0 ? Math.round(n) : -1; }
 // Whether a button is the one the menu came from. A page drawn again makes its buttons anew, so the button is known by what it names, never by the element alone
@@ -582,7 +624,7 @@ function namedClose(refocus) {
     if (from) { from.setAttribute('aria-expanded', 'false'); if (refocus && from.focus) { try { from.focus({ preventScroll: true }); } catch (e) {} } }
 }
 // The menu under the button: one row a page, its name and where on it, as text nodes; a row opens the page at the block that names the card
-function namedOpen(btn, rows, name) {
+function namedOpen(btn, rows, name, over) {
     namedClose(false);
     var m = document.createElement('div'); m.id = 'namedInMenu'; m.setAttribute('role', 'menu'); m.setAttribute('aria-label', 'Mentioned in');
     var hd = document.createElement('div'); hd.className = rows.length ? 'nin-head' : 'nin-none'; hd.appendChild(document.createTextNode(rows.length ? 'Mentioned in' : 'Nothing else names ' + name + '.')); m.appendChild(hd);
@@ -595,6 +637,7 @@ function namedOpen(btn, rows, name) {
         m.appendChild(b);
     });
     var st = { el: m, from: btn, page: btn.dataset ? btn.dataset.page : '', at: btn.dataset ? btn.dataset.at : '', bi: namedBi(btn), q: name };
+    if (over && typeof over === 'object') { st.page = over.page; st.at = over.at; st.bi = over.bi; st.whole = over.whole === true; }   // a whole page's (namedPage): what it names is the page, never a card
     m.tabIndex = -1;
     m.addEventListener('keydown', namedKey);
     m.addEventListener('focusout', function(e) { var to = e.relatedTarget; if (_named === st && !(to && (m.contains(to) || namedIs(st, to)))) namedClose(false); });
@@ -640,8 +683,8 @@ function namedPress(btn) {
 // row press for a row that carries a place; null where the card or the page no longer names anything, and the row then opens at its words
 function namedRowNow(st, id) {
     if (!st) return null;
-    var camp = getActiveCampaign(), card = namedCard(camp, st.page, st.at, st.bi); if (!card || !card.names.length) return null;
-    var rows = namedIn(camp, card.names, card.self, card.plain);
+    var camp = getActiveCampaign(), card = st.whole ? null : namedCard(camp, st.page, st.at, st.bi); if (!st.whole && (!card || !card.names.length)) return null;
+    var rows = st.whole ? namedPageRows(camp, st.page) || [] : namedIn(camp, card.names, card.self, card.plain);
     for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i];
     return null;
 }
@@ -664,7 +707,7 @@ function namedWire() {
     }, true);
     // a quick second press on the button puts its menu away: it is no double-click on the card, which in the Read view would leave it for the editor
     document.addEventListener('dblclick', function(e) { if (e.target && e.target.closest && e.target.closest('.pv-ment')) e.stopPropagation(); }, true);
-    document.addEventListener('pointerdown', function(e) { if (_named && !(e.target && e.target.closest && e.target.closest('#namedInMenu, .pv-ment'))) namedClose(false); }, true);
+    document.addEventListener('pointerdown', function(e) { if (_named && !(e.target && e.target.closest && e.target.closest('#namedInMenu, .pv-ment') || (_named.whole && e.target === _named.from))) namedClose(false); }, true);
     // the menu stands at a fixed place under its button: a page that scrolls under it, and a window that changes size, put it away. Its own scroll leaves it
     document.addEventListener('scroll', function(e) { if (_named && !(e.target && e.target.nodeType === 1 && _named.el.contains(e.target))) namedClose(false); }, true);
     window.addEventListener('resize', function() { if (_named) namedClose(false); });
@@ -847,5 +890,7 @@ window.wpPageShelf.namedIn = function(names, self) { return namedIn(getActiveCam
 window.wpPageShelf.sheetCard = function(w) { return mapPinGm() ? sheetCardFor(getActiveCampaign(), w) : null; }; window.wpPageShelf.sheetDrop = sheetCardsDrop;
 // 1.6.2, a part of a page in a window of its own: its opener, and whether this screen may open one (the GM's, in the app's own window)
 window.wpPageShelf.openPart = openPart; window.wpPageShelf.partMay = function() { return mapPinGm(); };
+// 1.6.3, the review of pages, finding 33: Mentioned in for a whole page, asked by the Outline menu (pagenav.js mentionedOpen)
+window.wpPageShelf.mentionedPage = namedPage;
 // 1.6.2, backlog 107 (a): what the Prep column asks, the shelf's own model, its row, the pinned pages and a block's words
 window.wpPageShelf.model = function(mapId) { var c = getActiveCampaign(); return shelfModel(c, typeof mapId === 'string' ? mapId : '', c && typeof c.id === 'string' ? recentRead(c) : []); }; window.wpPageShelf.row = shelfRow; window.wpPageShelf.pinned = function() { var c = getActiveCampaign(); return c ? pinnedOf(c) : []; }; window.wpPageShelf.words = function(b) { return b && typeof b === 'object' ? namedFold(namedText(b).split(NAMED_BRK).join(' ')) : ''; };

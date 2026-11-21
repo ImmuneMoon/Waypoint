@@ -97,7 +97,7 @@ async function openImport(opts) {
     var got = await gather(Array.from(opts.files)); if (!got) return;
     var kind = targetKind(opts);
     var parsed;
-    try { parsed = markdownToBlocks(got.text, { kind: kind, items: camp.items }); } catch (e) { console.error(e); toast('Could not read that file as Markdown: ' + e.message); return; }
+    try { parsed = markdownToBlocks(got.text, mdReadOpts(kind, camp)); } catch (e) { console.error(e); toast('Could not read that file as Markdown: ' + e.message); return; }
     if (!parsed.blocks.length) { toast('Nothing in that file became a block.'); return; }
     // pictures: what each image block will upload (nothing uploads until Import)
     var sources = parsed.images.map(function(im) {
@@ -136,7 +136,7 @@ function showDialog() {
         var k2 = v.slice(4); if (k2 === pending.kind) return;
         pending.kind = k2;
         var camp = getActiveCampaign();
-        try { var reparsed = markdownToBlocks(pending.parsed._text || '', { kind: k2, items: camp.items }); } catch (e) { return; }
+        try { var reparsed = markdownToBlocks(pending.parsed._text || '', mdReadOpts(k2, camp)); } catch (e) { return; }
         reparsed._text = pending.parsed._text;
         pending.parsed = reparsed;
         pending.sources = reparsed.images.map(function(im) { var old = pending.sourcesByRef && pending.sourcesByRef[im.value]; return old ? { index: im.index, blob: old.blob, name: old.name } : null; });
@@ -197,21 +197,29 @@ async function doImport() {
     toast((isNew ? 'Imported “' + (item.meta.title || '') + '”' : 'Imported ' + blocks.length + ' block' + (blocks.length === 1 ? '' : 's')) + (failed ? '. ' + failed + ' picture' + (failed === 1 ? '' : 's') + ' could not be uploaded.' : '.'));
 }
 
+// 1.6.3 (finding 30): what a file is read against: the campaign's maps, its characters (a card's Sheet by name) and what may be played (a card's
+// Plays by name, through planner.js's window.wpCues)
+function mdReadOpts(kind, camp) {
+    var cues = window.wpCues;
+    return { kind: kind, items: camp.items, chars: camp.chars || {}, cueFind: cues && typeof cues.find === 'function' ? function(n) { return cues.find(n, camp); } : null };
+}
 /* ---------- export ---------- */
 async function exportMarkdown(item) {
     item = item || getActiveMap();
     if (!item || (item.type !== 'planner' && item.type !== 'doc')) { toast('Open a planner or a handbook page to save it as Markdown.'); return; }
     var camp = getActiveCampaign();
-    var out = docToMarkdown(item, { items: camp ? camp.items : {} });
+    var cues = window.wpCues;   // 1.6.3 (finding 30): a card's Plays by its name (planner.js publishes the campaign's sounds, songs and saved effects)
+    var out = docToMarkdown(item, { items: camp ? camp.items : {}, chars: camp ? camp.chars : {}, cueName: cues && typeof cues.name === 'function' ? function(cu) { return cues.name(cu, camp); } : null });
     var name = slug(item.meta && item.meta.title);
-    if (!out.images.length) { downloadBlob(name + '.md', new Blob([out.text], { type: 'text/markdown' })); toast('Markdown saved.'); return; }
+    var leftW = out.left && out.left.length ? ' Not kept in Markdown: ' + out.left.join(', ') + '.' : '';   // what the file cannot hold is said, never lost in silence
+    if (!out.images.length) { downloadBlob(name + '.md', new Blob([out.text], { type: 'text/markdown' })); toast('Markdown saved.' + leftW); return; }
     var entries = [{ name: name + '.md', data: new TextEncoder().encode(out.text) }], missing = 0;
     for (var k = 0; k < out.images.length; k++) {
         try { var r = await fetch(encodeURI(out.images[k].path)); if (!r.ok) { missing++; continue; } entries.push({ name: 'images/' + item.id + '/' + out.images[k].name, data: new Uint8Array(await r.arrayBuffer()) }); }
         catch (e) { missing++; }
     }
     downloadBlob(name + '.zip', zipCreate(entries));
-    toast('Markdown saved with ' + (entries.length - 1) + ' picture' + (entries.length === 2 ? '' : 's') + (missing ? ' (' + missing + ' missing)' : '') + '.');
+    toast('Markdown saved with ' + (entries.length - 1) + ' picture' + (entries.length === 2 ? '' : 's') + (missing ? ' (' + missing + ' missing)' : '') + '.' + leftW);
 }
 
 /* ---------- wiring ---------- */

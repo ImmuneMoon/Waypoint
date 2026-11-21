@@ -231,6 +231,32 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('the review of story cards: a saved spread is stored as the editor box shows it, as prep.js does, only an & before a letter or # and a < that would start markup escaped, so Salt & Iron and a > stay as typed', sbE.title === 'Maren & Vos' && sbE.tag === 'Salt & Iron' && sbE.rows[1].col2 === '3 > 2 &amp;amp; &lt;i>x&lt;/i> &amp;#39; a&amp;b' && !/&gt;/.test(J(sbE)), J(sbE));
         check('the Decks window makes it through the card core, and a scene is the kind where a spread names none', /import \{ spreadCard[^}]*\} from '\.\/cardcore\.js';/.test(read('scripts/deckwin.js')) && read('scripts/deckwin.js').includes("spreadCard({ label: sp.label, as: sp.as, places: pl }") && C.cardKind(C.spreadCard({ places: [{ label: 'A', words: 'b' }] }, 'b_s2')) === 'scene');
     }
+    // 1.6.3, the review of pages, findings 30 and 31: a card's Sheet and Plays travel through Markdown by name, what cannot is said, and a map's
+    // title that holds a slash still finds its map
+    {
+        const items = { m1: { id: 'm1', type: 'map', meta: { title: 'Prison Block / Cellblock' }, rooms: [{ id: 'r1', name: 'A cell' }, { id: 'r2', name: 'Guard / post' }] }, m2: { id: 'm2', type: 'map', meta: { title: 'Prison Block' }, rooms: [{ id: 'r3', name: 'Yard' }] } };
+        const chars = { c1: { name: 'Mira' } }, cues = { s1: 'Rain on the roof' };
+        const cueName = cu => (cu.k === 's' && cues[cu.id]) || '', cueFind = n => (n.toLowerCase() === 'rain on the roof' ? { k: 's', id: 's1' } : null);
+        const plan = { type: 'planner', meta: { title: 'P' }, blocks: [{ type: 'h1', title: 'P' },
+            { type: 'node', mode: 'person', id: 'b1', title: 'Mira', sheet: 'c1', cue: { k: 's', id: 's1' }, linkMapId: 'm1', linkRoomId: 'r1', rows: [] },
+            { type: 'node', id: 'b2', title: 'Yard fight', linkMapId: 'm2', linkRoomId: 'r3', cue: { k: 'm', id: 'gone' } },
+            { type: 'node', id: 'b3', title: 'Guard', linkMapId: 'm1', linkRoomId: 'r2' },
+            { type: 'node', mode: 'person', id: 'b4', title: 'Lost', sheet: 'c9' },
+            { type: 'flowchart', nodes: [{ id: 'n1', text: 'A' }], edges: [], nodePos: { n1: { x: 3, y: 4 } } }] };
+        const out = M.docToMarkdown(plan, { items, chars, cueName });
+        const back = M.markdownToBlocks(out.text, { kind: 'planner', items, chars, cueFind }), nodes = back.blocks.filter(b => b.type === 'node');
+        check('1.6.3 a card\'s Sheet and Plays through Markdown (docmd.js docToMarkdown and markdownToBlocks, run for real): written by name as card lines and read back by name to the very sheet and sound; a Sheet or a Plays not known here, and a flowchart moved by hand, are named in what Markdown cannot keep, once each',
+            out.text.includes('**Sheet:** Mira\n**Plays:** Rain on the roof\n') && nodes[0].sheet === 'c1' && J(nodes[0].cue) === J({ k: 's', id: 's1' }) && !('cue' in nodes[1]) && !('sheet' in nodes[3])
+            && J(out.left) === J(['a card’s Plays that is not in this campaign', 'a card’s Sheet that is not in this campaign', 'a flowchart’s nudged layout']) && J(M.docToMarkdown({ type: 'planner', meta: {}, blocks: [] }, {}).left) === '[]', J([out.text, nodes, out.left]));
+        const hand = M.markdownToBlocks('# P\n\n### Person: Bo\n**Sheet:** Nobody\n**Plays:** Silence\n', { kind: 'planner', items, chars, cueFind });
+        check('1.6.3 a Sheet or a Plays read back by a name this campaign does not hold leaves the card without it and says so in a note', J(hand.notes) === J(['Card "Bo": sheet "Nobody" not found in this campaign.', 'Card "Bo": "Silence" to play not found in this campaign.']) && !('sheet' in hand.blocks[1]), J(hand.notes));
+        check('1.6.3 a "Map:" line whose map title holds a slash (docmd.js mapByLine, run for real): the longest title the line is, or begins with before a slash, is the map, the rest its room, a room holding a slash too; a map whose title is a part of another\'s still finds its own room; nothing is noted',
+            J(nodes.map(n => [n.linkMapId, n.linkRoomId])) === J([['m1', 'r1'], ['m2', 'r3'], ['m1', 'r2'], [undefined, undefined]]) && !back.notes.some(n => /not found on|map "/.test(n))
+            && M.mapByLine(items, 'prison block / cellblock').id === 'm1' && M.mapByLine(items, 'Prison Block').id === 'm2' && M.mapByLine(items, 'Prison Blockade') === null, J([nodes.map(n => [n.linkMapId, n.linkRoomId]), back.notes]));
+        const di = read('scripts/docimport.js');
+        check('1.6.3 the export says what it could not keep, and both reads hand the campaign\'s characters and what may be played (pinned)',
+            di.includes("toast('Markdown saved.' + leftW); return; }") && di.includes("+ (missing ? ' (' + missing + ' missing)' : '') + '.' + leftW);") && (di.match(/mdReadOpts\(/g) || []).length === 3 && read('scripts/planner.js').includes('window.wpCues = { name: function(cu, camp) { return cueName(cu, camp); }, find: cueFind };'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

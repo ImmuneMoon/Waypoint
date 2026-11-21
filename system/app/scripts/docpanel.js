@@ -374,7 +374,7 @@ function draw(force) {
     body.scrollTop = keep;
     if (window.mermaid) {
         var mnodes = Array.prototype.slice.call(body.querySelectorAll('pre.mermaid'));
-        if (mnodes.length) { try { Promise.resolve(window.mermaid.run({ nodes: mnodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { if (query.trim()) highlightBody(query); }).then(function() { landAgain(gen); }).catch(function() {}); } catch (e) {} }   // 1.5.4 (the review of step 1): a chart the library could not draw stops neither (it rejects the whole run for one)
+        if (mnodes.length) { try { Promise.resolve(window.mermaid.run({ nodes: mnodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { if (DR.diagramBad) DR.diagramBad(body, !(window.wpNet && window.wpNet.foreign)); if (query.trim()) highlightBody(query); }).then(function() { landAgain(gen); }).catch(function() {}); } catch (e) {} }   // 1.5.4 (the review of step 1): a chart the library could not draw stops neither (it rejects the whole run for one)
     }
     if (query.trim()) highlightBody(query);   // re-apply the in-page highlight after a live re-render
 }

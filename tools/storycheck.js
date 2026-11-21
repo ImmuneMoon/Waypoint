@@ -36,6 +36,31 @@ const J = JSON.stringify;
         ['storyHead', 'storySum', 'storyClose', 'storyBody'].every(i => box.includes('id="' + i + '"')) && !/<script|\son[a-z]+=/i.test(box) && /var FLOAT_IDS = \[[^\]]*'storyPanel'/.test(fl) && /var Z_BOXES = \[[^\]]*'storyPanel'/.test(sh) && /var ESC_LAST = \[[^\]]*'storyPanel'/.test(esc)
         && esc.includes("storyPanel: function(el) { if (!escPress(doc, 'storyClose')) el.style.display = 'none'; },") && ps.includes("if (at('.ps-story')) { shelfClose(); if (window.wpStory) window.wpStory.open(); return; }") && ps.includes("window.wpStory.may()")
         && ix.includes('id="storyCampBtn"') && ix.includes('<script type="module" src="scripts/storyview.js"></script>') && src.includes("save(); if (typeof window.appRender === 'function') window.appRender();") && !/innerHTML|insertAdjacentHTML|outerHTML/.test(src) && ix.includes('<b data-ctl="#storyCampBtn">Story view</b>'));
+    // 1.6.3, the review of pages, findings 37 and 39
+    {
+        const S2 = new Function('CC', src.slice(a, z) + '\nreturn { storyBeats, storyModel, storyKeep };')(CC);
+        const un = S2.storyBeats({ blocks: [node('u1', '', { tag: 'Props' }), node('u2', '', { rows: [{ col1: '', col2: 'Who is <b>where</b>' }] }), node('u3', ''), node('u4', 'Named', { tag: 'Named' })] });
+        check('1.6.3 an untitled beat goes by its tag, else the first cell of its rows that holds words, markup left out, else A scene; a tag that names it is not said twice (storyBeats with cardcore cardLabel, run for real)',
+            J(un.map(b => [b.title, b.tag])) === J([['Props', ''], ['Who is where', ''], ['A scene', ''], ['Named', '']]) && CC.cardLabel({ title: '', rows: [['', 'x']] }) === 'x' && CC.cardLabel(null) === '', J(un));
+        const ar = (id, depth, n) => ({ id, depth, beats: Array.from({ length: n }, (x, i) => ({ id: id + i })) });
+        const kept = S2.storyKeep([ar('A', 0, 0), ar('B', 1, 0), ar('C', 2, 2), ar('D', 1, 0), ar('E', 0, 0), ar('F', 0, 1), ar('G', 1, 0)]).map(x => x.id);
+        check('1.6.3 Only planners with scene cards (storyKeep, run for real): an arc with beats stays, and so do the planners it stands under; an empty planner with none under it goes',
+            J(kept) === J(['A', 'B', 'C', 'F']) && J(S2.storyKeep([])) === '[]', J(kept));
+        // the change's own Undo (the undo slice, run for real on a planner of plain objects)
+        const u0 = src.indexOf('// [storycheck:undo-start]'), u1 = src.indexOf('// [storycheck:undo-end]'), toasts = [], acts = [], drawn = [];
+        const b1 = node('s1', 'At the inn'), b2 = node('s2', 'The road'), pl = { id: 'pp', type: 'planner', meta: {}, blocks: [b1, b2] }, camp = { items: { pp: pl } };
+        const U = new Function('CC', 'getActiveCampaign', 'save', 'toast', 'toastAction', 'draw', 'shown', 'log', 'localStorage', 'window', src.slice(a, z) + src.slice(u0, u1) + '\nfunction plannerOf(c, id) { return c.items[id] || null; }\nreturn { setSess, move };')(
+            CC, () => camp, () => {}, m => toasts.push(m), (m, l, fn) => { toasts.push(m); acts.push(fn); }, id => drawn.push(id), () => true, () => {}, { getItem: () => null, setItem() {}, removeItem() {} }, {});
+        U.setSess('pp', 's1', 'played'); const s1 = CC.sessionOf(b1); acts[0](); const s2 = CC.sessionOf(b1);
+        U.setSess('pp', 's1', 'tonight'); CC.setSession(b1, 'ahead'); acts[1](); const s3 = CC.sessionOf(b1);
+        U.move('pp', 's2', 's1', false); const m1 = pl.blocks.map(b => b.id); acts[2](); const m2 = pl.blocks.map(b => b.id);
+        U.move('pp', 's2', 's1', false); pl.blocks = pl.blocks.slice(); acts[3](); const m3 = pl.blocks.map(b => b.id);
+        check('1.6.3 a change made in the Story view says so with its own Undo (storyview.js setSess and move, run for real): Undo puts back the session the card had or the order of its planner; where the card or the planner has changed since, nothing is taken back and that is said',
+            s1 === 'played' && s2 === '' && s3 === 'ahead' && J(m1) === J(['s2', 's1']) && J(m2) === J(['s1', 's2']) && J(m3) === J(['s2', 's1'])
+            && toasts[0] === 'At the inn marked Played.' && toasts.filter(t => /changed since/.test(t)).length === 2 && toasts.includes('The road moved.'), J([s1, s2, s3, m1, m2, m3, toasts]));
+        check('1.6.3 the Only planners with scene cards tick stands in the window, kept on this computer; the Prep column names an untitled card the same way', read('index.html').includes('<input type="checkbox" id="storyOnlyBeats"> Only planners with scene cards</label>') && src.includes("localStorage.getItem('wp_storyOnlyBeats') === '1'")
+            && read('scripts/prep.js').includes("title: prepPlain(b.title, 120) || (CC.cardLabel ? prepWords(CC.cardLabel(b), 120) : '') || kd.word || 'Card',"));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -129,7 +129,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           { type: 'h1', title: title || 'New Planner', sub: '' },
 
-          { type: 'text', content: 'Start writing...' }
+          { type: 'text', content: '' }   // 1.6.3 (the review of pages, finding 42): empty, so no words of the app's stay in the planner; the editor's box shows its own placeholder
 
       ]
 
@@ -147,7 +147,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       meta: { title: title || 'New Page', updated: Date.now(), players: true },
       blocks: [
           { id: 'b_' + uid(), type: 'h1', title: title || 'New Page', sub: '' },
-          { id: 'b_' + uid(), type: 'text', content: 'Start writing...' }
+          { id: 'b_' + uid(), type: 'text', content: '' }   // 1.6.3 (finding 42): empty, the box's placeholder says where to write
       ]
     };
   }

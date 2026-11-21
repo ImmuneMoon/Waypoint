@@ -1490,6 +1490,22 @@ window.wpHandoutFor = function(src, title, caption, hid) {
     return h.id;
 };
 window.wpHandoutName = function(src) { return niceName(src); };
+// 1.6.3 (the review of pages, finding 17; Fulllion, 2026-11-21): Hand out… on a planner's or a page's block (planner.js handoutOf). A text
+// handout of this campaign made from the words handed in, cut as the Handouts window cuts them, saved, and the Handouts window opened at
+// it with its title box focused and its row lit, so the GM checks the words and shows it with the row's own Show to table or Give to. Nothing
+// is sent here. Answers the new handout's id, or '' where there is no campaign or no words.
+// [pagecheck:handouttext-start]
+window.wpHandoutText = function(title, text) {
+    var camp = getActiveCampaign(); text = String(text || '').slice(0, 60000); if (!camp || !text.trim()) return '';
+    var hs = handoutsOf(camp), id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    hs[id] = { id: id, kind: 'text', title: String(title || '').slice(0, 120) || 'Handout', caption: '', text: text, createdAt: Date.now() };
+    save(true); openHandouts();
+    var row = document.querySelector('.handout-row[data-id="' + id + '"]');
+    if (row) { row.classList.add('handout-new'); try { row.scrollIntoView({ block: 'nearest' }); } catch (e) {} var tb = row.querySelector('.handout-title'); if (tb) { tb.focus(); tb.select(); } }
+    toast('Handout made from the block. Check its words, then show it to the table or give it to a player.');
+    return id;
+};
+// [pagecheck:handouttext-end]
 // 1.6.0: what the Journal knows of a GM, for the Profile window's list of the tables that know you (settings.js profTablesDraw). want: GM ids.
 // Answers { <gm id>: { gm, campaign } }, read from the journals on this computer as their own index has them (the newest journal of a GM
 // kept); nothing is sent and nothing written

@@ -22,6 +22,15 @@ function mentionAll(camp) {
         out.push({ kind: 'map', word: 'Map', label: t || 'A map', href: '#wp:@:map:' + id });
         (Array.isArray(it.rooms) ? it.rooms : []).slice(0, 400).forEach(function(r) { var rn = r && plain(r.name); if (rn && typeof r.id === 'string' && AT.test(r.id)) out.push({ kind: 'map', word: 'Room', label: (t || 'A map') + ' \u203a ' + rn, href: '#wp:@:map:' + id + ':' + r.id }); });
     });
+    // 1.6.3 (the review of pages, finding 38): pages and planners that share a title, ignoring case, each say the page they stand under (or that
+    // they stand at the top, and played or skipped where marked) as their gray line, so the list never holds two rows alike
+    var twins = Object.create(null);
+    out.forEach(function(x) { if (x.kind !== 'page') return; var k = x.label.toLowerCase(); twins[k] = (twins[k] || 0) + 1; });
+    out.forEach(function(x) {
+        if (x.kind !== 'page' || !(twins[x.label.toLowerCase()] >= 2)) return;
+        var it = items[x.href.slice('#wp:@:page:'.length)], pid = it && it.meta && typeof it.meta.parentId === 'string' ? it.meta.parentId : '', up = pid && Object.prototype.hasOwnProperty.call(items, pid) ? items[pid] : null;
+        x.sub = (up && up !== it && (up.type === 'planner' || up.type === 'doc') ? 'in ' + (plain(up.meta && up.meta.title) || 'a page') : 'at the top') + (it && it.meta && (it.meta.status === 'played' || it.meta.status === 'skipped') ? ', ' + it.meta.status : '');
+    });
     var chars = camp.chars && typeof camp.chars === 'object' ? camp.chars : {};
     Object.keys(chars).forEach(function(id) { var c = chars[id], n = c && plain(c.name); if (n && ID.test(id)) out.push({ kind: 'char', word: c.npc === true ? 'NPC' : 'Character', label: n, href: '#wp:@:char:' + id }); });
     return out;
@@ -52,6 +61,7 @@ function draw() {
     st.rows.forEach(function(r, i) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'mention-row' + (i === st.i ? ' on' : ''); b.dataset.i = String(i); b.setAttribute('role', 'option'); b.setAttribute('aria-selected', i === st.i ? 'true' : 'false');
         var n = document.createElement('span'); n.className = 'mention-name'; n.textContent = r.label; b.appendChild(n);
+        if (r.sub) { var sb = document.createElement('span'); sb.className = 'mention-sub'; sb.textContent = r.sub; n.appendChild(sb); }   // 1.6.3 (finding 38): where a page of a shared title stands
         var k = document.createElement('span'); k.className = 'mention-kind'; k.textContent = r.word; b.appendChild(k);
         m.appendChild(b);
     });

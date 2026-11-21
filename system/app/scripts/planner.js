@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin, headJoin, cleanHeadJoin, headHtml } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin, headJoin, cleanHeadJoin, headHtml, plainLines, diagramBad } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -91,6 +91,37 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var BLOCK_NAMES = { h1: 'Title', h2: 'Section heading', h3: 'Sub-heading', lede: 'Lead text', oneline: 'One-line summary', node: 'Scene', table: 'Table',
       flare: 'Callout', callout: 'Gold-edged note', image: 'Picture', rule: 'Line', flowchart: 'Flowchart', diagram: 'Diagram from code', text: 'Text', raw: 'Raw HTML' };
   function blockName(b) { if (!b || typeof b !== 'object') return 'Block'; if (b.type === 'node' && b.mode === 'table') return 'Table'; if (b.type === 'node' && typeof CC === 'object' && CC && CC.cardKind(b) !== 'scene') return CC.kindOf(b).label + ' card'; return Object.prototype.hasOwnProperty.call(BLOCK_NAMES, b.type) ? BLOCK_NAMES[b.type] : String(b.type || 'Block'); }
+  // [pagecheck:handout-start]
+  // 1.6.3 (the review of pages, finding 17; Fulllion, 2026-11-21: "Hand out… on a text, callout or card block, making a text handout through the
+  // usual Show to picker"). handoutOk says which blocks offer it: a text block, either kind of callout, and a card (a node that is no plain table).
+  // handoutOf(item, idx) answers { title, text } in plain words, read by docrender's plainLines, or null for a block that offers nothing. A text
+  // or a callout takes the title of the nearest heading above it, else the page's own. A card takes its own title (else its kind's word) and
+  // its lines by the names its kind gives them (Role, Wants, ...), then each row as "Column: words", a row to a paragraph. Nothing is sent: the
+  // GM sees the words in Handouts first, where a person card's The truth column can still be taken out.
+  function handoutOk(b) { return !!b && typeof b === 'object' && (b.type === 'text' || b.type === 'callout' || b.type === 'flare' || (b.type === 'node' && b.mode !== 'table')); }
+  function handoutOf(item, idx) {
+      var blocks = item && Array.isArray(item.blocks) ? item.blocks : [], b = blocks[idx];
+      if (!handoutOk(b)) return null;
+      var words = function(v) { return typeof v === 'string' ? plainLines(v) : ''; }, cap = function(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) : s; };
+      var pageTitle = words(item && item.meta && item.meta.title) || 'Handout';
+      if (b.type !== 'node') {
+          var head = '';
+          for (var i = idx - 1; i >= 0 && !head; i--) { var hb = blocks[i]; if (hb && (hb.type === 'h1' || hb.type === 'h2' || hb.type === 'h3')) head = words(hb.title); }
+          return { title: cap(head || pageTitle, 120), text: cap(words(b.content), 60000) };
+      }
+      var kd = CC.kindOf(b), lines = [];
+      var tag = words(b.tag), must = words(b.must);
+      if (tag) lines.push(kd.tag + ': ' + tag);
+      if (must) lines.push(kd.must + ': ' + must);
+      var cols = Array.isArray(b.cols) && b.cols.length ? b.cols.map(words) : kd.cols.slice();
+      var rows = (Array.isArray(b.rows) ? b.rows : []).map(function(r) {
+          var cells = Array.isArray(r) ? r : cols.map(function(_, ci) { return r && typeof r === 'object' ? r['col' + (ci + 1)] : ''; });
+          return cells.map(function(c, ci) { var w = words(c); return w ? (cols[ci] ? cols[ci] + ': ' : '') + w : ''; }).filter(Boolean).join('\n');
+      }).filter(Boolean);
+      var text = lines.join('\n') + (lines.length && rows.length ? '\n\n' : '') + rows.join('\n\n');
+      return { title: cap(words(b.title) || kd.word || 'Handout', 120), text: cap(text, 60000) };
+  }
+  // [pagecheck:handout-end]
   function pbeCap(t) { return '<div class="pbe-cap">' + esc(t) + '</div>'; }
   function fcStepWords(n) { var t = String(n && n.text != null ? n.text : '').split('\n')[0].trim(); if (t.length > 40) t = t.slice(0, 39) + '\u2026'; return t || 'A step with no words'; }
   function fcStepOpts(b, was) {
@@ -2060,13 +2091,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var addSel = document.getElementById('addBlockSelect');
       if (addSel) Array.from(addSel.options).forEach(function(o) { var f = o.dataset.for; o.hidden = !!(f && f !== (isDocEd ? 'doc' : 'planner')); });
       var stSelD = document.getElementById('plannerStatus'); if (stSelD) stSelD.style.display = isDocEd ? 'none' : '';
+      // 1.6.3 (the review of pages, finding 43): the undo and redo buttons name what they act on, a page or a planner, as the editor serves both
+      ['Undo', 'Redo'].forEach(function(w) { var ub = document.getElementById('planner' + w + 'Btn'); if (ub) ub.title = w + ' (this ' + (isDocEd ? 'page' : 'planner') + ')'; });
       var plBtnD = document.getElementById('docPlayersBtn');
       if (plBtnD) {
           plBtnD.style.display = isDocEd ? '' : 'none';
           var onP = !(activeMap.meta && activeMap.meta.players === false);
-          plBtnD.innerHTML = onP ? '<i class="wib wi-seen"></i> Players can read' : '<i class="wib wi-unseen"></i> GM only';
-          plBtnD.classList.toggle('on', onP);
-          plBtnD.title = onP ? 'Players at your table receive this page and read it from their Handbook. Click to keep it to yourself.' : 'Only you see this page. Click to let players read it.';
+          var campP = getActiveCampaign(), upP = onP && campP && window.wpDocRender && window.wpDocRender.pageHidBy ? window.wpDocRender.pageHidBy(campP.items, activeMap.id) : null;   // 1.6.3 (finding 26): a GM-only page above keeps this one from the players
+          plBtnD.innerHTML = onP && !upP ? '<i class="wib wi-seen"></i> Players can read' : '<i class="wib wi-unseen"></i> GM only';
+          plBtnD.classList.toggle('on', onP && !upP);
+          plBtnD.title = upP ? 'Players do not get this page, because the page it stands under, “' + String((upP.meta && upP.meta.title) || 'A page').slice(0, 80) + '”, is GM only. This page’s own switch lets them read it once that page is shared. Click to keep this page to yourself too.'
+              : onP ? 'Players at your table receive this page and read it from their Handbook. Click to keep it to yourself.' : 'Only you see this page. Click to let players read it.';
       }
 
       
@@ -2103,7 +2138,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   { id: 'b_'+uid(), type: 'h1', title: titleStr, sub: '' },
 
-                  { id: 'b_'+uid(), type: 'text', content: 'Start writing...' }
+                  { id: 'b_'+uid(), type: 'text', content: '' }   // 1.6.3 (finding 42): the old seed's words are read above, never written again
 
               ];
 
@@ -2132,7 +2167,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="block-head"><span>' + esc(blockName(b)) + '</span>';
 
-          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
+          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button>' + (handoutOk(b) ? '<button type="button" class="tool ghost b-handout" data-idx="'+idx+'" title="Make a text handout from this block’s words. You check them in Handouts, then show it to the table or give it to one player.">Hand out…</button>' : '') + '<button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
 
           
 
@@ -2417,6 +2452,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       }));
 
+      // 1.6.3 (the review of pages, finding 17): Hand out… makes a text handout from the block's words (handoutOf) and opens Handouts at it
+      Array.from(blockContainer.querySelectorAll('.b-handout')).forEach(el => el.addEventListener('click', function(e) {
+          e.preventDefault(); e.stopPropagation();
+          var ho = handoutOf(activeMap, +this.dataset.idx);
+          if (!ho || !ho.text) { toast('This block has no words to hand out yet.'); return; }
+          if (!(typeof window.wpHandoutText === 'function' && window.wpHandoutText(ho.title, ho.text))) toast('The handout could not be made.');
+      }));
       // 1.6.2 (the owner, 2026-11-14: "i dont see a way to exit editing the table"): Done closes the block open on the page, as Escape does
       Array.from(blockContainer.querySelectorAll('.pg-done')).forEach(el => el.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); pgClose(true); }));
       // 1.6.2: a table's Pin heading row (the owner: "allow pinning of the table headers, like google docs does"), true or not there at all
@@ -2597,7 +2639,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (e) {}
   document.addEventListener('pointerdown', function(e) { if (!(e.target.closest && e.target.closest('.rte-symwrap'))) document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
-  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.querySelectorAll('.rte-symwrap.open').forEach(function(w) { w.classList.remove('open'); }); }, true);
+  document.addEventListener('keydown', function(e) { if (e.key !== 'Escape') return; var open = document.querySelectorAll('.rte-symwrap.open'); if (open.length) e.wpTrayShut = true; open.forEach(function(w) { w.classList.remove('open'); }); }, true);   // wpTrayShut: this Escape shut the tray, so a text block's box keeps it (it closes nothing else)
   document.addEventListener('selectionchange', function() {
       var a = document.activeElement; if (a && a.classList && a.classList.contains('rte-body')) { rteSyncBar(a); rteLinkSync(a); var gs = window.getSelection(); a._wpRange = gs && gs.rangeCount && a.contains(gs.anchorNode) ? gs.getRangeAt(0).cloneRange() : a._wpRange; }   // remembered for the controls that take the focus (the size list, the color picker)
   });
@@ -2886,7 +2928,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   var lb = rteLinkBox(this);
                   if (lb) { e.preventDefault(); e.stopPropagation(); rteLinkSync(this); try { lb.focus(); lb.select(); } catch (err) {} return; }
               }
-              if (fieldUndoChord(e)) return; e.stopPropagation();
+              if (fieldUndoChord(e)) return;
+              // 1.6.3 (the review of pages, finding 8): Escape goes on to the editor's own listener, which closes the block open on the page, as
+              // Done and Help say. Only where the Escape did not just shut the symbol tray (the capture listener below marks such a press), so the
+              // first Escape shuts the tray and the next closes the block. Every other key stays the box's.
+              if (e.key === 'Escape' && !e.wpTrayShut) return;
+              e.stopPropagation();
           });
           body.addEventListener('paste', function(e) {   // plain text only — no styles from elsewhere
               e.preventDefault();
@@ -3331,6 +3378,41 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // A field with a format (textfmt.js) is drawn by docrender fmtRich: the format cleaned against the text first, the WHOLE field through
   // the same sanitiser once — so a typed <b> or &mdash; reads as it does with no format, wherever a run begins — and the runs laid over its
   // text by their offsets, each in a span whose style is written from the cleaned values; with none, as before. (A caption is escaped text: fmtHtml.)
+  // [pagecheck:cardtick-start]
+  // 1.6.3 (the review of pages, finding 29; Fulllion, 2026-11-21: "Played and Found ticks on cards in the GM's own reading views"). A scene
+  // card and a clue card carry a tick button in a row of their own, as the Mentioned in button stands: the style sheet shows the row only in
+  // the planner's own view and the panel over the map of the app's own window (a planner is only ever drawn so on the GM's own campaign), and
+  // never in an export, a picture of the page or on paper. Its words are an attribute the style sheet prints, so the page's Find never reads
+  // them. data-page is the planner, data-at the block's id and data-bi its place, so the press finds the very card again.
+  function cardTickHtml(b, kd, pageId, bi, cc) {
+      var key = cc.cardKind(b); if (key !== 'scene' && !kd.tick) return '';
+      var on = key === 'scene' ? cc.sessionOf(b) === 'played' : b.done === true;
+      var say = on ? kd.tick : 'Mark ' + kd.tick.toLowerCase();
+      return '<p class="pv-linkrow pv-tick-row" data-html2canvas-ignore="true"><button type="button" class="tool ghost pv-tick' + (on ? ' on' : '') + '" data-page="' + esc(pageId) + '"' + (typeof b.id === 'string' ? ' data-at="' + esc(b.id) + '"' : '') + ' data-bi="' + bi + '" data-say="' + esc(say) + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + esc(kd.tick) + '" title="' + (on ? 'Press to take the ' + esc(kd.tick.toLowerCase()) + ' tick back.' : 'Tick this card as ' + esc(kd.tick.toLowerCase()) + '. One save, and Undo in its planner takes it back.') + '"></button></p>';
+  }
+  // The press, the card's own tick set as the editor sets it (prep.js's tick does the same): a clue's Found on or off, a scene Played, and a
+  // scene un-ticked gets back the session it had when it was ticked here (was, by planner and block, this window's memory). Answers whether
+  // it changed, or false for a block that holds no tick
+  function cardTickApply(b, cc, was, key) {
+      if (!b || b.type !== 'node' || b.mode === 'table') return false;
+      if (cc.cardKind(b) === 'scene') {
+          var s = cc.sessionOf(b);
+          if (s === 'played') { cc.setSession(b, was[key] || ''); delete was[key]; }
+          else { was[key] = s; cc.setSession(b, 'played'); }
+          return true;
+      }
+      if (!cc.kindOf(b).tick) return false;
+      if (b.done === true) delete b.done; else b.done = true;
+      return true;
+  }
+  // The block a press names: by its id where it has one, else by its place, in that planner of this campaign
+  function cardTickBlock(camp, ds) {
+      var it = camp && camp.items && typeof ds.page === 'string' && Object.prototype.hasOwnProperty.call(camp.items, ds.page) ? camp.items[ds.page] : null;
+      if (!it || it.type !== 'planner' || !Array.isArray(it.blocks)) return null;
+      var b = typeof ds.at === 'string' && ds.at ? it.blocks.filter(function(x) { return x && x.id === ds.at; })[0] : it.blocks[+ds.bi];
+      return b ? { it: it, b: b } : null;
+  }
+  // [pagecheck:cardtick-end]
   function plannerPreviewHtml(activeMap, camp, empty) {   // empty: what a planner with no block reads where it is only read (the panel over the map, a window of its own); absent: the editor's hint
       var blocks = Array.isArray(activeMap.blocks) ? activeMap.blocks : [];
       var _pCss = docStyleCss(mergeDocStyle(camp && camp.docStyle, activeMap.meta && activeMap.meta.style));
@@ -3392,6 +3474,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               }
               // 1.6.2 (backlog 107 (a), Mentioned in): a person and a place say where else they are named (pageshelf.js namedPress). The ids are this planner's own, escaped.
               // The button holds no text node: its words are an attribute the style sheet prints, so the page's Find and a landing at words never read them
+              if (!plainPv && ccP && typeof activeMap.id === 'string') html += cardTickHtml(b, kdP, activeMap.id, _bi, ccP);   // 1.6.3 (finding 29): Played or Found pressed on the card itself
               if (!plainPv && (kdP.key === 'person' || kdP.key === 'place') && b.title && typeof b.id === 'string' && typeof activeMap.id === 'string') html += '<p class="pv-linkrow pv-ment-row" data-html2canvas-ignore="true"><button type="button" class="tool ghost pv-ment" data-page="' + esc(activeMap.id) + '" data-at="' + esc(b.id) + '" data-say="Mentioned in&hellip;" aria-label="Mentioned in" aria-haspopup="menu" aria-expanded="false" title="The pages and scenes that name this card. Press one to open it there."></button></p>';
               html += '</div>';
           } else if (b.type === 'flowchart') {
@@ -3453,7 +3536,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var runMermaid = function(tries) {
           var pane = document.getElementById('plannerPreview');
           if (pane && pane.clientWidth === 0 && tries < 40) { setTimeout(function() { runMermaid(tries + 1); }, 60); return; }   // wait until laid out, else labels measure wrong
-          try { Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }
+          try { Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { if (typeof diagramBad === 'function') diagramBad(pane, true); pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }   // 1.6.3 (finding 21): a diagram that failed says so to the GM in plain words
       };
       runMermaid(0);
   }
@@ -3669,6 +3752,15 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
       var ok = function(x) { return !!x && typeof x.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(x.id) && typeof x.name === 'string'; };
       return { s: (Array.isArray(snd) ? snd : []).filter(ok), m: (Array.isArray(mu.tracks) ? mu.tracks : []).filter(ok), p: (Array.isArray(mu.playlists) ? mu.playlists : []).filter(ok), f: (Array.isArray(fx) ? fx : []).filter(ok) };
   }
+  // 1.6.3 (finding 30): a Plays by its name, for a Markdown file read back (docimport.js mdReadOpts): the first sound, song, playlist or saved
+  // effect of that name, ignoring case and the spaces at its ends, as { k, id }; null where none is
+  function cueFind(name, camp) {
+      var n = String(name || '').trim().toLowerCase(); if (!n) return null;
+      var L = cueLists(camp), ks = ['s', 'm', 'p', 'f'];
+      for (var i = 0; i < ks.length; i++) { var x = L[ks[i]].filter(function(e) { return String(e.name).trim().toLowerCase() === n; })[0]; if (x) return { k: ks[i], id: x.id }; }
+      return null;
+  }
+  window.wpCues = { name: function(cu, camp) { return cueName(cu, camp); }, find: cueFind };
   function cueName(cu, camp) { if (!cu) return ''; var l = cueLists(camp)[cu.k] || [], x = l.filter(function(e) { return e.id === cu.id; })[0]; return x ? x.name : ''; }
   function cueOptions(cur) {
       var camp = getActiveCampaign(), L = cueLists(camp), selV = cur && typeof cur === 'object' ? cur.k + ':' + cur.id : '', found = !selV, out = '<option value="">Nothing</option>';
@@ -3702,6 +3794,21 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
       e.preventDefault(); e.stopPropagation();
       if (!cuePlay(b.dataset.k, b.dataset.id)) toast('That could not start. It may be switched off in Settings.');
   };
+  // 1.6.3 (finding 29): a card's tick pressed in the planner's own view or the panel over the map (cardTickBlock, cardTickApply): one save,
+  // a step of that planner's own undo, and the whole app drawn again
+  var _pvTickWas = Object.create(null), _pvTickCamp = '';
+  var pvTickGo = function(e) {
+      var t = e.target.closest && e.target.closest('.pv-tick'); if (!t) return;
+      e.preventDefault(); e.stopPropagation();
+      var camp = getActiveCampaign(); if (!camp) return;
+      if (_pvTickCamp !== camp.id) { _pvTickWas = Object.create(null); _pvTickCamp = camp.id; }
+      var f = cardTickBlock(camp, t.dataset); if (!f) { toast('That card is no longer in its planner.'); return; }
+      if (!cardTickApply(f.b, CC, _pvTickWas, f.it.id + '/' + (t.dataset.at || t.dataset.bi))) return;
+      f.it.meta = f.it.meta || {}; f.it.meta.updated = Date.now();
+      save(true); render();
+  };
+  if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', pvTickGo);
+  if (_el_docPanelBodyEl) _el_docPanelBodyEl.addEventListener('click', pvTickGo);
   if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', pvCueGo);
   if (_el_docPanelBodyEl) _el_docPanelBodyEl.addEventListener('click', pvCueGo);
   // [sinkcheck:pvgoto-start]

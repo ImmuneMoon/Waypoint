@@ -2293,7 +2293,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   var _el_exportShareBtn = document.getElementById('exportShareBtn');
   if (_el_exportShareBtn) _el_exportShareBtn.addEventListener('click', function() { if (window.wpShare && typeof window.wpShare.open === 'function') window.wpShare.open('campaign', true); else exportScope('campaign'); });
 
-  // "Export This …" reflects whatever is open when the menu drops down
+  // "Export this …" reflects whatever is open when the menu drops down, in sentence case as every other row (1.6.3, the review of pages, finding 43)
   var _el_saveAsBtn2 = document.getElementById('saveAsBtn');
   if (_el_saveAsBtn2) _el_saveAsBtn2.addEventListener('click', function() {
       var camp = getActiveCampaign();
@@ -2301,7 +2301,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var row = document.getElementById('exportItemBtn');
       if (!row) return;
       row.style.display = it ? '' : 'none';
-      var rowName = row.querySelector('span'); if (it && rowName) rowName.textContent = 'Export This ' + (it.type === 'planner' ? 'Planner' : it.type === 'doc' ? 'Page' : 'Map');   // the row keeps its drawing: only its words change
+      var rowName = row.querySelector('span'); if (it && rowName) rowName.textContent = 'Export this ' + (it.type === 'planner' ? 'planner' : it.type === 'doc' ? 'page' : 'map');   // the row keeps its drawing: only its words change
   });
 
   

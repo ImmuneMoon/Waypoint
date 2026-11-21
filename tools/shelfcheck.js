@@ -698,7 +698,8 @@ const drawSrc = sliceOf(ps, 'draw');
         && J(v3) === J([1, ['3'], 'guards', J([0, 0, 0, 0, 0])]) && J(v4) === J([['3'], ['3'], J([0, 0, 0, 1, 0])]), J([v1, v1b, v1c, v2, v3, v4]));
     check('the planner draws through the one word and publishes the landing once: both of the preview\'s draws say which page it now holds, and the diagram run ends in that draw\'s word, after the pass that follows it',
         count(pl, '          runPreviewMermaid(activeMap.id);\n          return;\n') === 1 && count(pl, '      preview.innerHTML = plannerPreviewHtml(activeMap, getActiveCampaign());\n      runPreviewMermaid(activeMap.id);\n') === 1 && count(pl, 'runPreviewMermaid(') === 3
-        && count(pl, "Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }") === 1 && count(pl, 'window.wpPlannerLand = plannerLand;') === 1);
+        // moved on purpose (1.6.3, the review of pages, finding 21): the settled run first puts right a diagram the library could not draw
+        && count(pl, "Promise.resolve(mermaid.run({ querySelector: '#plannerPreview .mermaid' })).then(fcPostProcess).catch(function() {}).then(function() { if (typeof diagramBad === 'function') diagramBad(pane, true); pvLaidOut(gen); }); } catch(e) { pvLaidOut(gen); }") === 1 && count(pl, 'window.wpPlannerLand = plannerLand;') === 1);
 }
 {
     // a player's reader lands once the page is drawn (handbook.js, sliced by its readerland markers and run for real on plain objects)
@@ -1324,8 +1325,50 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && plan.indexOf('<li>The shelf is yours alone.') < plan.indexOf('<li>A page you find opens') && plan.indexOf('<li>A page you find opens') < plan.indexOf('<li>The panel over the map holds several pages at once.')
         && wn.every(t => count(t, NOTE5) === 1));
     check('Help\'s Planners part says a click on Next scene opens it over the map; both release notes carry the line, alike; the suite is one of those CI runs',
-        plan.includes('the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>')
+        // moved on purpose (1.6.3, the review of pages, finding 16): the Status list is a whole planner's, and one sentence says how Next and a card's Tonight combine
+        plan.includes('the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a planner done. A planner marked Next says which planner, and a scene card marked Tonight says where in it Next scene opens.</li>')
+        && /title="Where this whole planner stands\. Next is the planner you play next/.test(read('index.html')) && /' is the planner you play next\.'/.test(fs.readFileSync(path.join(root, 'system/app/scripts/sidebar.js'), 'utf8'))
         && wn.every(t => count(t, NOTE) === 1) && fs.readFileSync(path.join(root, '.github/workflows/checks.yml'), 'utf8').replace(/\r\n/g, '\n').includes('        if: ${{ !cancelled() }}\n        run: node tools/shelfcheck.js\n'));
+}
+
+/* ---------- 1.6.3, the review of pages, finding 33: Mentioned in for a whole page, from the Outline menu ---------- */
+{
+    const { makeDom } = require('./boxdom.js');
+    const dom = makeDom(), doc = dom.document, opened = [];
+    const win = { innerWidth: 800, innerHeight: 600, addEventListener() {}, wpNet: null, wpCardCore: null };
+    const camp = { items: {
+        d1: { type: 'doc', meta: { title: 'Harbour District' }, blocks: [{ id: 'b_self', type: 'text', content: '<p>The Harbour District itself.</p>' }] },
+        p1: { type: 'planner', meta: { title: 'Act one' }, blocks: [{ id: 'h_a', type: 'h2', title: 'Opening' }, { id: 'b_1', type: 'text', content: '<p>Meet in the harbour   district at dawn.</p>' }, { id: 'b_2', type: 'text', content: '<p>See <a href="#wp:page:d1">the docks</a>.</p>' }] },
+        p2: { type: 'planner', meta: { title: 'Act two' }, blocks: [{ id: 'b_3', type: 'node', title: 'A chase', tag: 'x', fmt: { spans: [{ s: 0, e: 1, link: '#wp:@:page:d1:b_self' }] } }] },
+        p3: { type: 'planner', meta: { title: 'Act three' }, blocks: [{ id: 'b_4', type: 'text', content: '<p>Districts and harbours, and <a href="#wp:page:d10">another</a>.</p>' }] },
+        m1: { type: 'map', meta: { title: 'Harbour District' } } } };
+    const N = new Function('getActiveCampaign', 'openPage', 'pageWay', 'viewNow', 'window', 'document', 'location', 'URLSearchParams', (waySrc.match(/\nfunction pageOf\(camp, id\) \{[\s\S]*?\n\}\n/) || [''])[0] + (shelfSrc.match(/\nfunction natCmp\(a, b\) \{[\s\S]*?\n\}\n/) || [''])[0] + sliceOf(ps, 'namedin') + '\nreturn { namedPageRows, namedPage, namedWire, up: function() { return _named; } };')(
+        () => camp, (id, way, land) => { opened.push([id, land]); return way; }, () => 'panel', () => 'play', win, doc, { search: '' }, URLSearchParams);
+    const rows = N.namedPageRows(camp, 'd1'), btn = doc.createElement('button'); doc.body.appendChild(btn);
+    const m = N.namedPage(btn, 'd1'), st = N.up(), again = N.namedPage(btn, 'd1');
+    const none = N.namedPageRows(camp, 'm1'), bad = N.namedPageRows(camp, 'gone');
+    const pn = read('scripts/pagenav.js');
+    check('1.6.3 Mentioned in for a whole page (pageshelf.js namedPageRows and namedPage, run for real): the others that name it by its title as a whole word, whatever its case and spaces, or hold a page link or a mention of it, a section of it too, whatever words that link shows; the page itself, a longer id and words that only begin the same are passed over; the menu comes up under the Outline button for the page and goes at its second press; a map or a page that is not here has none; the Outline menu offers it where parts open, and reads the page from its place',
+        J(rows.map(r => [r.id, r.at, r.n])) === J([['p1', 'b_1', 2], ['p2', 'b_3', 1]]) && !!m && st.whole === true && st.page === 'd1' && st.from === btn && again === null && N.up() === null && none === null && bad === null
+        && pn.includes("if (act && act.dataset.act === 'mentioned') { mentionedOpen(root, fromB); return; }") && pn.includes("pOn && typeof window.wpPageShelf.mentionedPage === 'function');") && pn.includes(".concat(ment === true ? [['mentioned', 'Mentioned in\u2026']] : [])"), J([rows, st && st.page]));
+}
+
+/* ---------- 1.6.3, the review of pages, finding 38: pages that share a title are told apart ---------- */
+{
+    const camp = { id: 'k', items: {
+        m1: { id: 'm1', type: 'map', meta: { title: 'Docking Bay' } },
+        s1: { id: 's1', type: 'planner', meta: { title: 'Session 1' } }, s2: { id: 's2', type: 'planner', meta: { title: 'Session 2' } },
+        a: { id: 'a', type: 'planner', meta: { title: 'Part 2b', parentId: 's1', status: 'played' }, blocks: [{ type: 'node', id: 'b_a', title: 'Ovesh', linkMapId: 'm1' }] },
+        b: { id: 'b', type: 'planner', meta: { title: 'part 2B', parentId: 's2' }, blocks: [{ type: 'node', id: 'b_b', title: 'Ovesh', linkMapId: 'm1' }] },
+        c: { id: 'c', type: 'planner', meta: { title: 'Alone' }, blocks: [{ type: 'node', id: 'b_c', title: 'x', linkMapId: 'm1' }] },
+        d: { id: 'd', type: 'doc', meta: { title: 'Part 2b' }, blocks: [] } } };
+    const sm = S.shelfModel(camp, 'm1', ['d']), rows = sm.where[0].rows.concat(sm.recent);
+    const subOf = id => (rows.filter(r => r.id === id)[0] || {}).sub;
+    check('1.6.3 shelf rows whose pages share a title, whatever its case, each say first in a gray line the page they stand under, at the top where none, and played or skipped where marked, before the row\'s own words; a title of its own says nothing new (shelfModel, run for real)',
+        subOf('a') === 'in Session 1, played · Ovesh' && subOf('b') === 'in Session 2 · Ovesh' && subOf('c') === 'x' && subOf('d') === 'at the top', J(rows.map(r => [r.id, r.sub])));
+    const mj = read('scripts/mention.js'), PK = new Function(sliceOf(mj, 'mentionpick') + '\nreturn { mentionAll };')(), all = PK.mentionAll(camp).filter(x => x.kind === 'page');
+    check('1.6.3 the @ list tells pages that share a title apart by the page each stands under (mentionAll, run for real), and draws it as a gray line of its own',
+        J(all.map(x => [x.label, x.sub || ''])) === J([['Session 1', ''], ['Session 2', ''], ['Part 2b', 'in Session 1, played'], ['part 2B', 'in Session 2'], ['Alone', ''], ['Part 2b', 'at the top']]) && mj.includes("sb.className = 'mention-sub'; sb.textContent = r.sub;"), J(all));
 }
 
 /* ---------- the CI file ---------- */
@@ -1764,6 +1807,13 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const nS = MS.mentionPaint({ querySelectorAll: q => (q === 'a[href^="#wp:@:"]' ? Bs.slice(0, 1) : []) }, true), nK = MS.mentionPaint({ querySelectorAll: q => (q === 'a[href^="#wp:@:"]' ? Bs.slice(1) : []) }, false, true);
     check('166 f, fold 3, the paint for chat, the Journal and the pad (mentionPaint run for real): soft (a window or a Journal that may hold another campaign) never says a mention is gone; keep leaves the words as written while the chip follows (the pad counts its own words); a box editable for its caret alone (data-reads) is painted',
         nS === 1 && !Bs[0].cls.has('wp-mention-gone') && Bs[0].cls.has('wp-mention') && nK === 2 && Bs[1].text === 'kept words' && Bs[1].cls.has('wp-mention') && Bs[2].text === 'read pad' && Bs[2].cls.has('wp-mention'), J(Bs.map(a => [a.text, [...a.cls]])));
+    // 1.6.3 (the review of pages, finding 25): at someone else's table, a mention of something this app does not hold was not shared with the player
+    win.wpNet = { foreign: true, active: true, role: 'client' }; toasts.length = 0;
+    const Fs = [mk('#wp:@:char:c9', 'The Baron'), mk('#wp:@:page:p9', 'A secret page')]; Fs.forEach(a => { a.classList._s = a.cls; });
+    const nF = MS.mentionPaint({ querySelectorAll: q => (q === 'a[href^="#wp:@:"]' ? Fs : []) }); MS.mentionGo('char', 'c9', ''); MS.mentionGo('map', 'm9', '');
+    win.wpNet = null;
+    check('1.6.3 a mention at someone else\'s table (mentionPaint and mentionGo, run for real): one of an NPC or a page the player was never sent is a plain chip with the words the GM wrote, never struck through as gone, and a press says it has not been shared with you, never that it is not in this campaign',
+        nF === 2 && Fs.every(a => a.cls.has('wp-mention') && !a.cls.has('wp-mention-gone')) && Fs[0].text === 'The Baron' && J(toasts) === J(['That has not been shared with you.', 'That has not been shared with you.']), J([Fs.map(a => [a.text, [...a.cls]]), toasts]));
     const plM = read('scripts/planner.js'), lgM = read('scripts/linkgate.js'), escM = read('scripts/esckey.js');
     check('166 f wired (pinned): the editors write a mention (mentionCan, mentionAt, mention published on wpTextBox), a press goes through the link gate with no question, every read view paints its mentions before its folds, the list is heard first by Escape\u2019s own-menu rule, the module loaded after the time panel; Help says it',
         plM.includes('mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,') && lgM.includes("            if (pg) pageGo(win, pg, way, e, a); else mentionGo(win, mn, way, e, a);") && read('scripts/pagenav.js').includes("window.wpPageShelf.mentionPaint(root); } catch (e) {} }")
@@ -1872,7 +1922,8 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && count(plS, "if (!plainPv && (kdP.key === 'person' || kdP.key === 'place') && b.title && typeof b.id === 'string' && typeof activeMap.id === 'string') html += '<p class=\"pv-linkrow pv-ment-row\" data-html2canvas-ignore=\"true\"><button type=\"button\" class=\"tool ghost pv-ment\" data-page=\"' + esc(activeMap.id) + '\" data-at=\"' + esc(b.id) + '\" data-say=\"Mentioned in&hellip;\" aria-label=\"Mentioned in\" aria-haspopup=\"menu\" aria-expanded=\"false\" title=\"The pages and scenes that name this card. Press one to open it there.\"></button></p>';") === 1
         && !/addEventListener\('keydown'/.test(sliceOf(ps, 'namedin').replace("m.addEventListener('keydown', namedKey);", '')) && count(ps, "\nwindow.wpPageShelf.namedIn = function(names, self) { return namedIn(getActiveCampaign(), names, self); }; namedWire();\n") === 1
         && escS.includes("var ESC_OWN_MENUS = '#pageNavMenu, #pageLinkMenu, #namedInMenu,")
-        && count(cssS, "\n  @media screen {\n    body:not(.popout-mode):not(.stream-mode) #plannerPreview .pv-ment-row, body:not(.popout-mode):not(.stream-mode) #docPanelBody .pv-ment-row { display: block; }\n    .pv-ment::before { content: attr(data-say); }\n  }\n") === 1 && count(cssS, 'pv-ment-row') === 4 && count(cssS, "\n  .pv-ment-row { display: none; }\n  .doc-view .pv-cards > .pv-blk > .node > :nth-last-child(2):has(+ .pv-ment-row) { margin-bottom: 0; }") === 1, J([W.R.opened, wSet, wBad]));
+        // moved on purpose (1.6.3, the review of pages, finding 29): a card's Played or Found row stands under the very same rules
+        && count(cssS, "\n  @media screen {\n    body:not(.popout-mode):not(.stream-mode) #plannerPreview .pv-ment-row, body:not(.popout-mode):not(.stream-mode) #docPanelBody .pv-ment-row { display: block; }\n    body:not(.popout-mode):not(.stream-mode) #plannerPreview .pv-tick-row, body:not(.popout-mode):not(.stream-mode) #docPanelBody .pv-tick-row { display: block; }\n    .pv-ment::before, .pv-tick::before { content: attr(data-say); }\n") === 1 && count(cssS, 'pv-ment-row') === 4 && count(cssS, "\n  .pv-ment-row, .pv-tick-row { display: none; }   /* 1.6.3 (finding 29): a card's Played or Found button follows the same rule */\n  .doc-view .pv-cards > .pv-blk > .node > :nth-last-child(2):has(+ .pv-ment-row) { margin-bottom: 0; }") === 1, J([W.R.opened, wSet, wBad]));
     // what the review of the fold found, each by a case of its own
     const rv = { items: {
         a: { type: 'planner', meta: { title: 'A' }, blocks: [{ id: 'f1', type: 'flowchart', nodes: [{ id: 'n1', text: 'Meet Baron Vex' }], edges: [] }, { id: 'f2', type: 'flowchart', nodes: [{ id: 'n1', text: 'Start' }], edges: [{ from: 'n1', to: 'n1', text: 'Baron Vex agrees' }] }, { id: 'f3', type: 'flowchart', nodes: [{ id: 'n1', label: 'Baron Vex' }] }] },

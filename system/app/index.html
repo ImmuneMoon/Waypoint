@@ -1433,12 +1433,14 @@
                                   <li>Read shows the page as it reads. Side by side shows the editor beside the page, as before.</li>
                               </ul></li>
                           <li>Planners nest under planners just like maps, and <b>re-order</b> the same way. Drag onto the top or bottom of a row, or right-click &rarr; <b>&#8593; Move Up</b> / <b>&#8595; Move Down</b>. Keep one parent per module with a child page per scene.</li>
-                          <li>The toolbar&rsquo;s <b>Status&hellip;</b> list says where a scene stands. <b>Next</b> is the one you play next: the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>
+                          <li>The toolbar&rsquo;s <b>Status&hellip;</b> list says where a whole planner stands. <b>Next</b> is the planner you play next: the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a planner done. A planner marked Next says which planner, and a scene card marked Tonight says where in it Next scene opens.</li>
+                          <li><b>Hand out&hellip;</b> stands in the head of an open text, callout or card block. It makes a text handout from the block&rsquo;s words and opens Handouts at it. Check the words there, then show it to the table or give it to one player.</li>
                           <li><b>Cards</b>: a scene node&rsquo;s <b>Mode</b> list makes it a <b>Person</b>, a <b>Place</b> or a <b>Clue</b> card, or a plain table. Switching keeps every field.<ul>
                                   <li>Each kind names its fields its own way. A person has a Role, Wants and Where they are. A place has an Area and When they arrive. A clue has Points to and Where it can be found.</li>
                                   <li><b>Also known as</b> takes a card&rsquo;s other names, with commas between them. Search and quick jump find the card by any of them and open the page at the card.</li>
                                   <li>A person card can name its character <b>Sheet</b>. A clue card has a <b>Found</b> tick.</li>
                                   <li>A scene card has a <b>Session</b> list: <b>Ahead</b>, <b>Tonight</b> or <b>Played</b>, each in its own color. <b>&#9654; Next scene</b> and the Pages shelf open the planner at the scene marked Tonight. With no planner marked Next, they open the planner that holds it.</li>
+                                  <li>Read in its own view or over the map, a scene card has a <b>Mark played</b> button and a clue card a <b>Mark found</b> button. Press it again to take the tick back.</li>
                                   <li><b>Plays</b>, under a card&rsquo;s map, picks a sound, a song, a playlist or a saved effect. The card then shows a <b>Play</b> button that starts it for the table. It works from the panel over the map and from a window of its own too.</li>
                                   <li>The <b>+</b> between blocks offers a Person, a Place and a Clue card too.</li>
                               </ul></li>
@@ -1471,6 +1473,7 @@
                           <li><b>Names only</b>: a section of cards has a small <b>Names only</b> button at its top right. It folds every card of that section to its name, so five people are five lines. Press a name to open that card, or <b>Open cards</b> to open them all. <b>Cards to names</b> at the foot of the Outline menu does it for the whole page.</li>
                           <li><b>Contents</b>: a page with two sections or more shows them as a row of chips above it. Each chip names a section and how many cards it holds, and the section in view is gold. Press a chip to go there. In the planner&rsquo;s own view, on a wide window, Contents stands beside the page as a column and lists the cards of each section by name. Untick <b>Contents</b> at the foot of the Outline menu to put it away on this computer.</li>
                           <li><b>Mentioned in</b>: a Person card and a Place card end in a <b>Mentioned in</b> button. Press it to list the pages and planners that name the card somewhere else, by its name or one of its other names. Each row says where on the page the name stands. Press a row to open that page there. Hold Ctrl as you press to open it in a window of its own, or Alt for the page itself. The button shows in the planner&rsquo;s own view and in the panel over the map. A name of fewer than three letters finds nothing.</li>
+                          <li>The Outline menu of a page or a planner ends in <b>Mentioned in&hellip;</b> too. It lists the other pages and planners that name its title or link to it.</li>
                       </ol>
                       <h4>In a session</h4>
                       <ul>
@@ -1485,6 +1488,8 @@
                                   <li><b data-ctl="#storyCampBtn">Story view</b> lays your planners out as the story. Each planner is an arc, a planner nested under another stands under it, and its scene cards are its beats in order.</li>
                                   <li>A beat is colored as Played, Tonight or Ahead, and its three small buttons set it. Click a beat to open its planner there.</li>
                                   <li>Drag a beat to move it in its planner, or press <kbd>Alt</kbd> and an arrow key. It opens from the Pages shelf and from the campaign menu.</li>
+                                  <li>Each change there says so with an <b>Undo</b> of its own. A scene card with no title goes by its tag or its first cell. Tick <b>Only planners with scene cards</b> to leave the others out.</li>
+                                  <li>Where two pages share a title, the shelf and the @ list say in gray the page each stands under.</li>
                                   <li>The shelf is yours alone. Players never get the list of pinned pages.</li>
                               </ul>
                           </li>
@@ -1702,7 +1707,7 @@
                           </li>
                           <li>Pictures come along when you pick them together with the file, or zip the file with its <code>images</code> folder. Google Docs&rsquo; <b>File &rsaquo; Download &rsaquo; Markdown</b> embeds them and works as is.</li>
                           <li>A preview lists every block first. Flip a type and untick what you don&rsquo;t want. Nothing is written until you press Import, and the import is one undo step.</li>
-                          <li><b>Save Markdown</b> on the Export menu writes the open planner or page back out, as a zip when it has pictures.</li>
+                          <li><b>Save Markdown</b> on the Export menu writes the open planner or page back out, as a zip when it has pictures. A card&rsquo;s Sheet and Plays are written by name and found again by name. What a file cannot hold, such as a flowchart moved by hand, is named when you save.</li>
                           <li>Word users: export to Markdown first. Google Docs does it directly.</li>
                           <li><b>Text style</b> travels too. Save Markdown writes each look as its own mark.
                               <ul>
@@ -4419,7 +4424,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <span class="ui-seg"><button class="tool ghost icon" id="plannerUndoBtn" title="Undo (this planner)" style="opacity:0.5; pointer-events:none;">&#8617;</button><button class="tool ghost icon" id="plannerRedoBtn" title="Redo (this planner)" style="opacity:0.5; pointer-events:none;">&#8618;</button></span>
       <button class="tool" id="renderPlannerBtn"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9V3z"/></svg> Render preview </button>
       <span id="plannerModeSeg" class="pg-seg" role="group" aria-label="How the page is shown"><button type="button" class="tool ghost" data-mode="edit" title="Write on the page: press a block to edit it where it stands">Edit</button><button type="button" class="tool ghost" data-mode="read" title="The page as it reads, with nothing to edit">Read</button><button type="button" class="tool ghost" data-mode="side" title="The editor and the page side by side, as before">Side by side</button></span>
-      <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">Next</option><option value="played">Played</option><option value="skipped">Skipped</option></select>
+      <select id="plannerStatus" class="tool" title="Where this whole planner stands. Next is the planner you play next, and the play map's right-click menu offers it. Played and Skipped mark a planner done. A scene card's own Session list says which card is Tonight."><option value="">Status…</option><option value="next">Next</option><option value="played">Played</option><option value="skipped">Skipped</option></select>
       <button class="tool ghost" id="docPlayersBtn" style="display:none;" title="Whether players at your table receive this page"><i class="wib wi-seen"></i> Players can read</button>
       <span class="pg-pair"><button class="tool ghost icon" id="plannerImportBtn" title="Import a Markdown file (pick its pictures with it, or a zip of both) into this document" aria-label="Import document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM12 9.5v7.5M9 14l3 3 3-3"/></svg><span class="pg-word">Import</span></button>
       <button class="tool ghost icon" id="plannerAppearanceBtn" title="Appearance &mdash; font, colors &amp; a background image for this page, and a campaign-wide default" aria-label="Appearance"><i class="wib wi-palette"></i><span class="pg-word">Appearance</span></button></span>
@@ -5514,6 +5519,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <div id="storyPanel" style="display:none;" role="dialog" aria-label="Story">
     <div id="storyHead"><span class="notepad-title"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg> Story</span><span id="storySum" class="sv-sum"></span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="storyClose" title="Close the Story view">&times;</button></div>
     <div class="sv-help">Each planner is an arc and its scene cards are its beats. Click a beat to open it. Drag a beat, or press Alt and an arrow key, to move it in its planner.</div>
+    <label class="sv-only" title="Leave out the planners that hold no scene card, and keep a planner that stands over one that does"><input type="checkbox" id="storyOnlyBeats"> Only planners with scene cards</label>
     <div id="storyBody"></div>
 </div>
 <div id="deckPanel" style="display:none;" role="dialog" aria-label="Decks">

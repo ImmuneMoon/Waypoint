@@ -12,7 +12,7 @@ import { state } from './state.js';
 import { net } from './net.js';
 import { getActiveCampaign } from './models.js';
 import { toast } from './io.js';
-import { renderDoc } from './docrender.js';
+import { renderDoc, diagramBad } from './docrender.js';
 
 var ui = function(id) { return document.getElementById(id); };
 var openDocId = null, openCampId = null, openSig = '';
@@ -86,7 +86,7 @@ function renderPage(body, it) {
     if (!nodes.length) { readerLaidOut(gen, body, it); return; }
     var run = function(tries) {
         if (body.clientWidth === 0 && tries < 40) { setTimeout(function() { run(tries + 1); }, 60); return; }   // laid out first, else labels measure wrong
-        try { Promise.resolve(mermaid.run({ nodes: nodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { readerLaidOut(gen, body, it); }); } catch (e) { readerLaidOut(gen, body, it); }
+        try { Promise.resolve(mermaid.run({ nodes: nodes })).then(function() { if (window.wpFcPostProcess) window.wpFcPostProcess(body, it); }).catch(function() {}).then(function() { if (typeof diagramBad === 'function') diagramBad(body, !foreign()); readerLaidOut(gen, body, it); }); } catch (e) { readerLaidOut(gen, body, it); }   // 1.6.3 (finding 21): a failed diagram is a plain line for the GM, nothing for a player
     };
     run(0);
 }

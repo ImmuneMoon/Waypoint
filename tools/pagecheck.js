@@ -1609,6 +1609,152 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixT.includes('<li><b>Contents</b>: a page with two sections or more shows them as a row of chips above it.') && wnT.every(t => t.includes('- Contents: a page with two sections or more shows them as a row of chips\n') && t.indexOf('- Contents: a page with two sections') < t.indexOf('WAYPOINT 1.6.1')), J([strip, col, tight, tcss.length, (cssT.replace(tcss, '').match(/pv-toc/g) || []).length]));
     }
 
+    {   // 1.6.3, the improvement week's review of pages and planners, batch "redraw": findings 0, 2, 3, 24, 35 and 45, each run for real
+        const plR = read('scripts/planner.js'), cutP = n => { const a = plR.indexOf('  // [pagecheck:' + n + '-start]'), z = plR.indexOf('  // [pagecheck:' + n + '-end]'); return a < 0 || z < a ? '' : plR.slice(a, z); };
+        // a clock of the suite's own: timers fire only when told
+        const clock = () => { const c = { t: 0, q: [], id: 0 }; c.set = (f, ms) => { const id = ++c.id; c.q.push({ id, f, at: c.t + (ms || 0) }); return id; }; c.clear = id => { c.q = c.q.filter(x => x.id !== id); };
+            c.run = ms => { const end = c.t + ms; for (;;) { const due = c.q.filter(x => x.at <= end).sort((a, b) => a.at - b.at || a.id - b.id)[0]; if (!due) break; c.q = c.q.filter(x => x !== due); c.t = Math.max(c.t, due.at); due.f(); } c.t = end; }; return c; };
+        // ---- finding 0: typing asks for the preview a moment later (pvTyped), once for a run of keys ----
+        {
+            const C = clock(), heard = {}, on = { map: { id: 'p1' } }; let drawn = 0;
+            const doc = { addEventListener: (t, f) => { heard['d:' + t] = f; } }, win = { addEventListener: (t, f) => { heard['w:' + t] = f; } };
+            const P = new Function('getActiveMap', 'renderPlannerPreview', 'setTimeout', 'clearTimeout', 'document', 'window', "'use strict';\n" + cutP('pvtyped') + '\nreturn { pvTyped, pvDrop, pvFlush, pvAfterPress, PV_TYPE_MS, st: _pvT };')(
+                () => on.map, () => { P.pvDrop(); drawn++; }, C.set, C.clear, doc, win);
+            const r = [];
+            P.pvTyped(); P.pvTyped(); P.pvTyped(); r.push(drawn); C.run(P.PV_TYPE_MS - 1); r.push(drawn); C.run(1); r.push(drawn);   // three keys, one draw, 200 ms after the last
+            P.pvTyped(); C.run(100); P.pvTyped(); C.run(150); r.push(drawn); C.run(50); r.push(drawn);   // a key inside the wait starts it again
+            P.pvTyped(); P.pvDrop(); C.run(500); r.push(drawn);   // a whole draw (renderPlannerPreview asks pvDrop) takes the waiting one's place
+            P.pvTyped(); heard['d:pointerdown'](); C.run(300); r.push(drawn); heard['w:pointerup'](); r.push(drawn); C.run(0); r.push(drawn);   // a press held: drawn once it is let go and has landed
+            P.pvTyped(); on.map = { id: 'p2' }; C.run(300); r.push(drawn); on.map = { id: 'p1' };   // another page came on screen: dropped
+            r.push(P.pvFlush()); P.pvTyped(); r.push(P.pvFlush(), drawn); C.run(500); r.push(drawn);   // an export draws a waiting preview at once, and nothing after
+            let ran = 0; heard['d:pointerdown'](); P.pvAfterPress(() => ran++); C.run(50); const held = ran; heard['w:pointerup'](); C.run(0); r.push(held, ran);
+            check('1.6.3 typing draws the preview a moment after the last key (planner.js pvTyped, run for real on a clock of the suite\'s own): three keys one draw, 200 ms after the last; a key inside the wait starts it again; a whole draw takes the waiting one\'s place; a draw that falls due while a press is held is made once it is let go and has landed; another page on screen drops it; pvFlush draws a waiting one at once; and every typed path asks it',
+                J(r) === J([0, 0, 1, 1, 2, 2, 2, 2, 3, 3, false, true, 4, 4, 0, 1])
+                && plR.includes("      save(d.k === 'caption');\n      if (typeof pvTyped === 'function') pvTyped(); else renderPlannerPreview();")
+                && plR.includes("save(false); if (typeof pvTyped === 'function') pvTyped(); else renderPlannerPreview(); rteSyncBar(this); rteLinkSync(this);")
+                && plR.includes("if(activeMap.blocks[this.dataset.idx].type !== 'diagram') pvTyped(); }));")
+                && plR.includes("  function renderPlannerPreview() {\n      if (typeof pvDrop === 'function') pvDrop();")
+                && plR.includes("      if (!isDocLike(am)) { await fn(); return; }\n      pvFlush();"), J(r));
+        }
+        // ---- finding 2: the app's redraw draws the editor again only where what it shows changed, and never under the GM's hands ----
+        {
+            const C = clock(), heard = {}, am = { id: 'p1', type: 'planner', meta: { title: 'Notes', updated: 1 }, blocks: [{ type: 'text', content: 'a' }] };
+            const camp = { id: 'c1', items: { p1: am, m1: { id: 'm1', type: 'map', meta: { title: 'Dock' }, rooms: [] } }, chars: { k: { name: 'Kael', values: { hp: 3 } } } };
+            const ed = { id: 'plannerEditorWrap' }, box = { closest: s => (s === '#plannerEditorWrap' ? ed : null) }, outside = { closest: () => null }, docBody = { closest: () => null };
+            const doc = { activeElement: docBody, body: docBody, addEventListener: (t, f) => { heard[t] = f; } }, win = { wpRenderN: 0 }, tsState = { comp: false };
+            let built = 0, pressDown = false; const after = [];
+            const E = new Function('getActiveMap', 'getActiveCampaign', 'document', 'window', 'tsState', 'tsInBar', 'cueLists', 'isDocLike', 'pvAfterPress', 'renderPlanner', 'plannerFullscreen', "'use strict';\n" + cutP('pedrawn') + '\nreturn { plannerApp, pePrint, peLeft, st: _pe };')(
+                () => am, () => camp, doc, win, tsState, () => false, () => ({ s: [], m: [], p: [], f: [] }), () => true, f => { if (pressDown) after.push(f); else C.set(f, 0); }, () => { built++; E.pePrint(am); }, false);
+            const app = () => { win.wpRenderN++; return E.plannerApp(); }, r = [];
+            r.push(app(), app(), built);   // the first draw of the planner, then nothing changed: not drawn again
+            camp.chars.k.values.hp = 1; am.meta.updated = 2; r.push(app(), built);   // a character's figure, and the stamp save() puts on the item: nothing the editor shows
+            camp.chars.k.name = 'Kael Varr'; r.push(app(), built);   // a name a card's Sheet list shows: drawn
+            doc.activeElement = box; camp.items.m1.meta.title = 'Docks'; r.push(app(), app(), built);   // the GM types in the editor: held, the caret kept
+            doc.activeElement = outside; pressDown = true; heard.focusout(); C.run(0); r.push(built); pressDown = false; after.splice(0).forEach(f => f()); r.push(built);   // left the editor by a press: drawn once it has landed
+            r.push(app(), built);
+            doc.activeElement = box; am.blocks[0].content = 'ab'; r.push(app()); E.st.force = true; r.push(app(), built);   // an undo (plannerRedrawNext) draws it even with the focus there
+            doc.activeElement = docBody; win.wpRenderN += 5; r.push(app(), built);   // the app's last whole draw showed something else: drawn
+            tsState.comp = true; doc.activeElement = outside; am.blocks[0].content = 'abc'; r.push(app()); tsState.comp = false;   // a composition open anywhere in the editor holds it too
+            const mainS = read('scripts/main.js'), ioS = read('scripts/io.js');
+            check('1.6.3 the app\'s redraw and the planner\'s editor (planner.js plannerApp, run for real): drawn once, then not again while nothing it shows changed (a character\'s figures and the stamp io.js save puts on the item are not what it shows); drawn where a name it lists changed; held while the GM is in the editor or a composition is open, and drawn once the focus has left it and the press has landed; an undo or another view before it draws it whatever; main.js render asks it, io.js stepHistory asks for the undo\'s draw, renderPlanner notes what it drew',
+                J(r) === J(['drawn', 'same', 1, 'same', 1, 'drawn', 2, 'held', 'held', 2, 2, 3, 'same', 3, 'held', 'drawn', 4, 'drawn', 5, 'held'])
+                && mainS.includes("          plannerApp();   // 1.6.3 (finding 2)") && mainS.includes("import { renderPlanner, renderPlannerPreview, plannerApp } from './planner.js';")
+                && /window\.wpPlannerRedrawNext\(\);[^\n]*\n\s*render\(\);\n\n\s*isUndoing = true;/.test(ioS) && plR.includes("      pePrint(activeMap);   // 1.6.3 (finding 2)"), J(r));
+        }
+        // ---- finding 3: the main window tells a page's window when its page changed on disk ----
+        {
+            const camp = { id: 'c1', docStyle: null, items: { p1: { id: 'p1', type: 'planner', meta: { title: 'Notes' }, blocks: [{ type: 'text', content: 'a' }] } } }, sent = [];
+            const W = new Function('state', 'BroadcastChannel', 'window', "'use strict';\n" + cutP('docwatch') + '\nreturn { docWatchAsk, docWatchSnap, docWatchSig, docWatchCamp, W: _docW };')({ appState: { activeCampaignId: 'c1', campaigns: { c1: camp } } }, null, {});
+            const campOf = id => (id === 'c1' ? camp : null), post = m => sent.push(m.type + ':' + m.to), r = [];
+            r.push(W.docWatchAsk({ id: 'dabc123w', camp: 'c1', item: 'p1' }, campOf, post, 0), W.docWatchAsk({ id: 'x', camp: 'c1', item: 'p1' }, campOf, post, 0), W.docWatchAsk({ id: 'dabc123w', camp: 'c1', item: '' }, campOf, post, 0), sent.join());
+            let told = W.docWatchSnap(campOf, post, 10); told(); r.push(sent.join());   // a new window is told at the first save
+            sent.length = 0; told = W.docWatchSnap(campOf, post, 20); told(); r.push(sent.length);   // a save that left the page as it was: not told
+            const snap = W.docWatchSnap(campOf, post, 30); camp.items.p1.blocks[0].content = 'ab'; snap(); r.push(sent.length);   // judged as the save's body held it: a change after it waits for its own save
+            W.docWatchSnap(campOf, post, 40)(); r.push(sent.join());
+            sent.length = 0; delete camp.items.p1; W.docWatchSnap(campOf, post, 50)(); r.push(sent.join());   // the page gone: told, so the window says so
+            r.push(W.docWatchSnap(campOf, post, 50 + 60001), Object.keys(W.W).length);   // a window not heard from for a minute is forgotten
+            r.push(W.docWatchCamp('') === camp, W.docWatchCamp('nope'));
+            check('1.6.3 a page\'s window is told when its page changed on disk (planner.js docWatchAsk and docWatchSnap, run for real): a window says which page it shows and is answered; a new one is told at the next save; a save that left the page as it was tells nothing; the page is judged as that very save\'s body held it; a page gone is told; a window not heard from for a minute is forgotten; io.js doSave takes the snapshot as it makes the body and calls it once the save is written',
+                J(r) === J([true, false, false, 'docHere:dabc123w', 'docHere:dabc123w,docSaved:dabc123w', 0, 0, 'docSaved:dabc123w', 'docSaved:dabc123w', null, 0, true, null])
+                && read('scripts/io.js').includes("        var docTold = typeof window !== 'undefined' && typeof window.wpDocWatchSnap === 'function' ? window.wpDocWatchSnap() : null;")
+                && /else saveNote\.innerHTML = 'Error saving\.';\n\s*if \(res\.ok && docTold\) \{ try \{ docTold\(\); \} catch \(e\) \{\} \}/.test(read('scripts/io.js')), J(r));
+            // the window's side (popout.js popDocLive, run for real on a channel and a clock of the suite's own)
+            const pop = fs.readFileSync(path.join(app, 'scripts', 'popout.js'), 'latin1'), pa = pop.indexOf('    // [pagecheck:popdoc-start]'), pz = pop.indexOf('    // [pagecheck:popdoc-end]');
+            const C = clock(), chans = []; let ticks = 0, nowT = 0;
+            function BC() { this.posted = []; this.l = null; chans.push(this); } BC.prototype.postMessage = function(m) { this.posted.push(m); }; BC.prototype.addEventListener = function(t, f) { this.l = f; };
+            const ctx = { pp: { camp: 'c1', item: 'p1' }, itemNow: 'p1' };
+            const D = new Function('BroadcastChannel', 'setTimeout', 'setInterval', 'Date', 'tick', 'ctx', "'use strict';\nvar pp = ctx.pp, itemNow = ctx.itemNow;\n" + (pa < 0 || pz < pa ? '' : pop.slice(pa, pz)) + '\nreturn { popDocLive, setItem: function(v) { itemNow = v; } };')(
+                BC, C.set, (f, ms) => { const tk = () => { f(); C.set(tk, ms); }; C.set(tk, ms); }, { now: () => C.t }, () => { ticks++; }, ctx);
+            D.popDocLive(); const ch = chans[0], q = [];
+            C.run(150); q.push(ticks, ch.posted.map(m => m.type + ':' + m.item).join());   // read once as it opens, and says which page it shows
+            const pid = ch.posted[0].id; ch.l({ data: { type: 'docHere', to: pid } }); C.run(25000); q.push(ticks);   // a main window answers: nothing read while nothing changed (19 MB a second before)
+            ch.l({ data: { type: 'docSaved', to: pid } }); ch.l({ data: { type: 'docSaved', to: pid } }); ch.l({ data: { type: 'docSaved', to: 'dother' } }); C.run(200); q.push(ticks);   // its page changed: read once for a run of saves
+            C.run(31000); q.push(ticks);   // the slow look for what a page reads from outside itself, every 30 s
+            D.setItem('p2'); C.run(1000); q.push(ch.posted[ch.posted.length - 1].item);   // another page shown here: said at once
+            C.run(70000); q.push(ticks);   // no main window answers any more: every 10 s
+            check('1.6.3 a page, a part or a big table in a window of its own reads the save only when its page changed (popout.js popDocLive, run for real on a channel and a clock of the suite\'s own): read once as it opens, and says which page it shows; with a main window answering, nothing read while nothing changed; read once for a run of saves that changed its page, and never for another window\'s; every 30 s at most for what it reads from outside its page, and every 10 s where no main window answers; another page shown is said at once; the window is started that way',
+                J(q) === J([1, 'docWatch:p1', 1, 2, 3, 'p2', 8]) && pop.includes("        popDocLive();   // a page, a part or a big table") && !/setInterval\(tick, 1000\)/.test(pop), J(q));
+        }
+        // ---- finding 45: + Add Row puts the new row's boxes alone into the editor ----
+        {
+            const made = [];
+            const T2 = new Function('rowJoin', 'tsBoxHtml', 'getActiveMap', 'tbBig', 'CC', 'document', 'tsFill', 'tbMenuFor', 'save', 'renderPlanner', "'use strict';\n" + cutP('tbrow') + '\nreturn { tbEdCols, tbRowEdHtml, tbRowWire, tbRowAdd };')(
+                (b, ri, n) => ({ full: false, spans: null }), (cls, ph, data) => '<div class="' + cls + ' ts-box" ' + data + '></div>', () => S.am, b => (b.rows.length * (b.cols || [1, 2, 3]).length) > 600,
+                { kindOf: () => ({ cols: ['Who', 'Wants'] }), KINDS: { table: { cols: ['Item', 'Detail', 'Notes'] } } },
+                { createElement: () => { const t = { content: { firstElementChild: null } }; Object.defineProperty(t, 'innerHTML', { set(h) { made.push(h); t.content.firstElementChild = { html: h, q: [], querySelectorAll(sel) { this.q.push(sel); return []; } }; } }); return t; } },
+                (root, blocks) => { root.filled = true; }, () => {}, () => {}, () => {});
+            const S = { am: { blocks: [{ type: 'table', cols: ['A', 'B'], rows: [{}, {}] }] } };
+            const del = n => Array.from({ length: n }, () => ({})), tbl = { classList: { contains: c => c === 'b-table' }, kids: [], querySelectorAll: s => (s === '.del-row' ? del(tbl.kids.length + 2) : []), appendChild(x) { tbl.kids.push(x); } };
+            const btn = { dataset: { idx: '0' }, previousElementSibling: tbl };
+            S.am.blocks[0].rows.push({}); const w1 = T2.tbRowAdd(btn, S.am.blocks[0]), row = tbl.kids[0];
+            S.am.blocks[0].rows.push({}); const stale = T2.tbRowAdd({ dataset: { idx: '0' }, previousElementSibling: { classList: { contains: () => true }, querySelectorAll: () => del(9) } }, S.am.blocks[0]);   // the boxes drawn are not the rows before it
+            const big = { type: 'table', cols: ['A', 'B'], rows: Array.from({ length: 301 }, () => ({})) }; S.am.blocks.push(big); const w3 = T2.tbRowAdd({ dataset: { idx: '1' }, previousElementSibling: tbl }, big);   // grew past a big table's line: drawn whole, as its card
+            const w4 = T2.tbRowAdd({ dataset: { idx: '0' }, previousElementSibling: { classList: { contains: () => false } } }, S.am.blocks[0]);
+            const one = T2.tbRowEdHtml({ cols: ['A', 'B'] }, 4, 7, ['A', 'B']);
+            check('1.6.3 + Add Row puts the new row\'s boxes alone into its table\'s editor (planner.js tbRowAdd, run for real): the row\'s markup made by the one row builder renderPlanner draws every row with (tbRowEdHtml), its boxes filled and wired; the whole editor drawn as before where the boxes drawn are not the rows before it, where the table grew past a big table\'s line, or where its table is not drawn as boxes; the handler draws the preview a moment later (pvTyped)',
+                w1 === true && !!row && row.filled === true && J(row.q) === J(['.b-rowmenu', '.b-table .r-col', '.del-row']) && /data-idx="0" data-ri="2"/.test(row.html) && stale === false && w3 === false && w4 === false
+                && one === '<div class="row-h"><div class="r-col ts-box" data-idx="4" data-ri="7" data-ci="0"></div><div class="r-col ts-box" data-idx="4" data-ri="7" data-ci="1"></div><button class="tool ghost b-rowmenu x-btn" data-idx="4" data-ri="7" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">⋯</button><button class="tool ghost danger del-row x-btn" data-idx="4" data-ri="7" title="Remove this row"><i class="wib wi-close"></i></button></div>'
+                && plR.includes("              b.rows.forEach(function(r, ri) { html += tbRowEdHtml(b, idx, ri, colNames); });") && plR.includes("      tbRowWire(blockContainer, activeMap);")
+                && plR.includes("          activeMap.blocks[this.dataset.idx].rows.push({}); save(true);\n          if (tbRowAdd(this, activeMap.blocks[this.dataset.idx])) pvTyped(); else renderPlanner();"), J([w1, row && row.html, stale, w3, w4, one]));
+        }
+        // ---- finding 24: the table follow's half-second look is made only where something moved ----
+        {
+            const tfS = read('scripts/tablefollow.js'), a = tfS.indexOf('// [pagecheck:tfpoll-start]'), z = tfS.indexOf('// [pagecheck:tfpoll-end]');
+            const els = [{ r: { left: 0, top: 100, width: 500, height: 300 }, sw: 900, cw: 500 }], el = e => ({ getBoundingClientRect: () => e.r, scrollWidth: e.sw, clientWidth: e.cw, isConnected: true });
+            const doc = { hidden: false, querySelectorAll: () => els.map(el) }, win = { innerWidth: 1400, innerHeight: 900 }; let soon = 0;
+            const F = new Function('document', 'window', 'tf', 'tfSoon', 'tfOnTop', "'use strict';\n" + (a < 0 || z < a ? '' : tfS.slice(a, z)) + '\nreturn { tfPollSig, tfStill, tfPoll };');
+            const tf = { sig: '', blocked: false, bar: { hidden: true }, head: { hidden: true }, barProbe: null, headProbe: null }; let top = true;
+            const P = F(doc, win, tf, () => { soon++; }, () => top), r = [];
+            P.tfPoll(); r.push(soon); tf.sig = P.tfPollSig(); P.tfPoll(); P.tfPoll(); r.push(soon);   // the first look, then nothing moved: none
+            els[0].r = { left: 0, top: 60, width: 500, height: 300 }; P.tfPoll(); r.push(soon); tf.sig = P.tfPollSig();   // a table moved (a fold opened above it)
+            win.innerWidth = 1200; P.tfPoll(); r.push(soon); tf.sig = P.tfPollSig();
+            tf.blocked = true; P.tfPoll(); r.push(soon); tf.blocked = false;   // a table left without its bar only because something lay over it: looked at every time
+            const box = { isConnected: true }; tf.bar.hidden = false; tf.barProbe = { el: box, x: 1, y: 2 }; P.tfPoll(); r.push(soon); top = false; P.tfPoll(); r.push(soon); top = true;   // the bar's place covered since
+            box.isConnected = false; P.tfPoll(); r.push(soon); box.isConnected = true; tf.bar.hidden = true;   // its table drawn again
+            tf.head.hidden = false; tf.headProbe = { el: box, x: 1, y: 2, ed: true }; P.tfPoll(); r.push(soon);   // the editor's own table: what the GM types is its names
+            check('1.6.3 the table follow\'s half-second look is made only where something it reads moved (tablefollow.js tfPoll, run for real): the first look; none while the tables, their places, sizes and inside widths and the window stand as they were; one where a table moved or the window changed size, where a table had no bar only because something lay over it, where the bar\'s place is covered since or its table was drawn again, and always for the editor\'s own table',
+                J(r) === J([1, 1, 2, 3, 4, 4, 5, 6, 7]) && tfS.includes('    setInterval(tfPoll, 500);') && tfS.includes('    tf.sig = tfPollSig();'), J(r));
+        }
+        // ---- finding 35: the panel over the map compares a cheap stamp before it writes the page out as text ----
+        {
+            const dS = fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'latin1'), dA = dS.indexOf('function draw(force) {'), dZ = dS.indexOf('// [textcheck:panelland-start]', dA), sA = dS.indexOf('var lastStamp = null;');
+            let json = 0, rendered = 0;
+            const blk = { type: 'text', content: 'a', toJSON() { json++; return { type: this.type, content: this.content }; } };
+            const env = { it: { id: 'p1', type: 'doc', meta: { title: 'Page' }, blocks: [blk] }, win: { wpSaveN: 1, wpDocRender: { renderDoc: () => { rendered++; return ''; } } } };
+            const camp = { items: { p1: env.it }, docStyle: null }, body = { scrollTop: 0, querySelectorAll: () => [] }, panel = { style: { display: 'block' } };
+            const DP = new Function('window', 'ui', 'activeCamp', 'tabClose', 'tabsSync', 'setMermaidStrict', 'highlightBody', 'landAgain', "'use strict';\nvar lastSig = '', drawGen = 0, landPend = null, drawnId = '', openId = 'p1', query = '', tabTop = {};\n"
+                + dS.slice(sA, dS.indexOf('\n', dS.indexOf('function stampSame', sA))) + '\n' + dS.slice(dA, dZ) + '\nreturn { draw };')(env.win, id => (id === 'docPanel' ? panel : id === 'docPanelBody' ? body : null), () => camp, () => {}, () => {}, () => {}, () => {}, () => {});
+            const r = [];
+            DP.draw(false); r.push(json, rendered); DP.draw(false); DP.draw(false); r.push(json, rendered);   // an app redraw with nothing saved: no text made
+            env.win.wpSaveN++; DP.draw(false); r.push(json, rendered);   // a save: compared, and as it was, not drawn
+            blk.content = 'b'; env.win.wpSaveN++; DP.draw(false); r.push(json, rendered);
+            camp.items.p1 = env.it = Object.assign({}, env.it); DP.draw(false); r.push(json, rendered);   // a page from the table arrives as a new object
+            DP.draw(true); r.push(rendered);
+            check('1.6.3 the panel over the map writes the open page out as text only where something could have changed it (docpanel.js draw, run for real): an app redraw with nothing saved makes no text; a save makes it, and draws only where it differs; a page that arrives as a new object is compared; a forced draw draws',
+                J(r) === J([1, 1, 1, 1, 2, 1, 3, 2, 4, 2, 3]) && read('scripts/io.js').includes("    if (typeof window !== 'undefined') window.wpSaveN = (window.wpSaveN | 0) + 1;"), J(r));
+        }
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

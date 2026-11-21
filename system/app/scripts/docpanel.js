@@ -11,6 +11,13 @@ import { state } from './state.js';
 const ui = function(id) { return document.getElementById(id); };
 var openId = '';        // the doc/planner item id currently shown; '' = closed
 var lastSig = '';
+// 1.6.3 (the improvement week's review of pages and planners, finding 35: every redraw of the app wrote the whole open page out as text to
+// compare it, and a page may hold 5,000 blocks). draw compares the page as text only where something could have changed it since the last
+// look: a save made on this machine (io.js save() counts them as window.wpSaveN, and every change of a page here is saved), another page or
+// another object for it, its blocks or its meta (a page from the table arrives as a new object), its look or the campaign's. lastStamp is
+// what the last look saw, compared item by item by stampSame
+var lastStamp = null;
+function stampSame(a, b) { if (!a || !b || a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false; return true; }
 var tabs = [], tabTop = Object.create(null), tabSig = '', drawnId = '';   // 1.5.4 tabs: the pages open in the panel, in the order they were opened (openId is the one in front); where each was scrolled to; the strip as last drawn; the page last drawn
 var mmMode = '';
 var query = '';         // the live search query
@@ -345,6 +352,9 @@ function draw(force) {
     var title = (it.meta && it.meta.title) || it.name || (it.type === 'planner' ? 'Planner' : 'Page');
     var t = ui('docPanelTitle'); if (t) t.textContent = title;
     tabsSync(camp);   // 1.5.4: the tab strip follows the pages open in the panel and their names
+    var stamp = [openId, it, it.blocks, (it.blocks || []).length, it.meta, it.meta && it.meta.updated, it.meta && it.meta.style, camp, camp.docStyle, title, typeof window !== 'undefined' ? window.wpSaveN : 0];
+    if (!force && lastSig && stampSame(lastStamp, stamp)) return;   // nothing that could change the page has happened since the last look
+    lastStamp = stamp;
     var sig = title + ' ' + JSON.stringify(it.blocks || []) + ' ' + JSON.stringify((it.meta && it.meta.style) || null) + ' ' + JSON.stringify(camp.docStyle || null);
     if (!force && sig === lastSig) return;   // nothing changed — skip the re-render (and keep highlights)
     lastSig = sig; var gen = ++drawGen; landPend = null;

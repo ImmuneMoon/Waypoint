@@ -1158,6 +1158,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
 
+      if (typeof window !== 'undefined' && window.wpPlannerRedrawNext) window.wpPlannerRedrawNext();   // 1.6.3: an undo draws a planner's editor again even with the focus in it (planner.js plannerApp)
       render();
 
       isUndoing = true;
@@ -1480,6 +1481,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // [netcheck:saveswitch-end]
 
   function save(immediate) {
+    if (typeof window !== 'undefined') window.wpSaveN = (window.wpSaveN | 0) + 1;   // 1.6.3: how many changes were saved, a cheap stamp the page panel and the Prep column compare before they work anything out
     if (window.__wpNoSave) return;   // a snapshot is being restored: the in-memory copy must not win
 
     if (typeof switchClear === 'function') switchClear();   // 1.6.3: a save carries a map switch still waiting (saveSwitch)
@@ -1531,6 +1533,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
         }
 
+        var docTold = typeof window !== 'undefined' && typeof window.wpDocWatchSnap === 'function' ? window.wpDocWatchSnap() : null;   // 1.6.3 (finding 3): the pages windows of their own watch, as this very save holds them (planner.js docWatchSnap)
         var rawS = fetch('/api/data', {
 
           method: 'POST',
@@ -1550,6 +1553,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
             if(res.ok) saveNote.innerHTML = 'Saved to disk <b>&#10003;</b>';
 
             else saveNote.innerHTML = 'Error saving.';
+            if (res.ok && docTold) { try { docTold(); } catch (e) {} }   // and each window whose page changed is told, once that save is on disk
 
         })
 

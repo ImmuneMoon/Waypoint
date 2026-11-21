@@ -517,6 +517,24 @@ const J = JSON.stringify, count = (s, f) => s.split(f).length - 1;
         && tu.includes("players never receive them. On the play map, <b>Prep</b> keeps tonight&rsquo;s cards beside the map.',")
         && wn.every(t => t.includes('- Prep is a new column beside the play map.') && t.indexOf('- Prep is a new column beside the play map.') < t.indexOf('WAYPOINT 1.6.1')));
 
+    /* ---- 1.6.3 (the improvement week's review of pages and planners, finding 35): a press outside the column works its model out only where what it shows could have moved ---- */
+    {
+        const store = {}, win = { wpSaveN: 3 }, ls = { getItem: k => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null) };
+        const camp = { id: 'c1', activeItemId: 'm1', pinnedPages: ['p1'], items: { m1: { type: 'map' } } }; let map = 'm1';
+        const Pre = new Function('window', 'localStorage', 'mapNow', "'use strict';\n" + cut('pre') + '\nreturn { prepPre };')(win, ls, () => map);
+        const k0 = Pre.prepPre(camp), r = [Pre.prepPre(camp) === k0];
+        win.wpSaveN++; r.push(Pre.prepPre(camp) === k0); const k1 = Pre.prepPre(camp);   // a save made here (a tick, a card, a pin from the shelf)
+        map = 'm2'; r.push(Pre.prepPre(camp) === k1); map = 'm1';   // another map on screen
+        camp.pinnedPages = []; r.push(Pre.prepPre(camp) === k1); camp.pinnedPages = ['p1'];
+        store.wp_recentp_c1 = '["p1"]'; r.push(Pre.prepPre(camp) === k1); delete store.wp_recentp_c1;   // a page opened, kept as recent on this computer
+        camp.activeItemId = 'p1'; r.push(Pre.prepPre(camp) === k1); camp.activeItemId = 'm1';
+        r.push(Pre.prepPre(null), Pre.prepPre(camp) === k1);
+        check('1.6.3 a press outside the Prep column draws it only where what it shows could have moved (prep.js prepPre, run for real): the same text while nothing moved; another for a save made here, another map or item on screen, the pinned pages and this computer\'s recent pages; the press\'s look compares it a moment later, and a press in the column draws as ever',
+            J(r) === J([true, false, false, false, false, false, '', true])
+            && src.includes("_preCol = _preCol || inCol; clearTimeout(_soon); _soon = setTimeout(function() { var c = _preCol; _preCol = false; if (_was && (c || prepPre(getActiveCampaign()) !== _pre)) draw(false); }, 90);")
+            && src.includes("    _pre = prepPre(camp);   // what this draw saw"), J(r));
+    }
+
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

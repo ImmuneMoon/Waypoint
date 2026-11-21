@@ -300,6 +300,35 @@ if (spec) {
     }
     // [hudcheck:popsheetwin-end]
 
+    // [pagecheck:popdoc-start]
+    // 1.6.3 (the improvement week's review of pages and planners, finding 3: a page, a part or a big table in a window of its own read the
+    // whole save, 19 MB on a large campaign, every second). Such a window now reads the save as it opens, and again only when the main window
+    // says its page changed on disk. It says which page it shows (docWatch, on the app's own channel, at once, whenever the page it shows is
+    // another, and every 20 s); the main window answers docHere, and docSaved once a save that changed that page is written (planner.js
+    // docWatchAsk and docWatchSnap). The save is still read now and then, for what a page draws from outside itself (another item's name):
+    // every DOC_SLOW_MS while a main window answers, and every DOC_ALONE_MS while none does
+    var DOC_SLOW_MS = 30000, DOC_ALONE_MS = 10000, DOC_LIVE_MS = 60000, DOC_SAY_MS = 20000;
+    function popDocLive() {
+        var pid = 'd' + Math.random().toString(36).slice(2, 12) + 'w', bc = null, seen = 0, soonT = 0, said = '', lastLook = Date.now(), lastWatch = 0;
+        try { bc = new BroadcastChannel('waypoint'); } catch (e) { bc = null; }
+        var page = function() { return typeof itemNow === 'string' && itemNow ? itemNow : (pp && typeof pp.item === 'string' ? pp.item : ''); };
+        var watch = function() { said = page(); lastWatch = Date.now(); if (bc && said) try { bc.postMessage({ type: 'docWatch', id: pid, camp: pp && typeof pp.camp === 'string' ? pp.camp : '', item: said }); } catch (e) {} };
+        var look = function() { lastLook = Date.now(); tick(); };
+        var soon = function() { if (soonT) return; soonT = setTimeout(function() { soonT = 0; look(); }, 120); };   // a run of saves read once
+        if (bc) bc.addEventListener('message', function(e) {
+            var m = e.data; if (!m || m.to !== pid) return;
+            if (m.type === 'docHere') seen = Date.now();
+            else if (m.type === 'docSaved') { seen = Date.now(); soon(); }
+        });
+        setTimeout(look, 150); watch();
+        setInterval(function() {
+            var now = Date.now(), live = !!seen && now - seen < DOC_LIVE_MS;
+            if (page() !== said || now - lastWatch >= DOC_SAY_MS) watch();
+            if (now - lastLook >= (live ? DOC_SLOW_MS : DOC_ALONE_MS)) look();
+        }, 1000);
+    }
+    // [pagecheck:popdoc-end]
+
     async function tick() {
         var data; try { data = await (await fetch('/api/data', { cache: 'no-store' })).json(); } catch (e) { return; }
         if (!data || !data.campaigns || !Object.keys(data.campaigns).length) return;
@@ -317,8 +346,7 @@ if (spec) {
     } else if (kind === 'sheet') {
         popSheetLive();
     } else {
-        setTimeout(tick, 150);
-        setInterval(tick, 1000);
+        popDocLive();   // a page, a part or a big table: read again only when its page changed (1.6.3)
     }
     try { new BroadcastChannel('waypoint').onmessage = function(e) { if (e.data && e.data.type === 'reload') location.reload(); }; } catch (e) {}
 }

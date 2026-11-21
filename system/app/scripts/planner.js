@@ -1233,7 +1233,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsState.sel = { map: am.id, d: d, s: s, e: e, back: false };
       if ((own || redrawn) && document.activeElement === box) tsSelect(box, s, e);
       save(d.k === 'caption');
-      renderPlannerPreview();
+      if (typeof pvTyped === 'function') pvTyped(); else renderPlannerPreview();   // 1.6.3 (finding 0): the preview a moment after the last key (pvTyped)
       tsRefresh(); tsPlace();
       return true;
   }
@@ -2046,6 +2046,58 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // [textcheck:bar-end]
   // [sinkcheck:boxes-end]
 
+  // [pagecheck:tbrow-start]
+  // 1.6.3 (the improvement week's review of pages and planners, finding 45: + Add Row redrew the whole editor, 126 to 220 ms a press): what a
+  // table's editor draws for one row, and the wiring of a row, each in one place, so renderPlanner and + Add Row draw a row the same way.
+  // tbEdCols: the names of a table's columns as its boxes are drawn: its own, else the three of a plain table, else its kind of card's own
+  function tbEdCols(b, plain, kd) { return (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : kd.cols.slice()); }
+  // tbRowEdHtml: one row of a table's editor as markup: its boxes (empty: tsFill draws their words), its menu button and its x. b: the block,
+  // idx: its place in the item, ri: the row's place, colNames: tbEdCols' answer
+  function tbRowEdHtml(b, idx, ri, colNames) {
+      var html = '';
+      // 1.6.2, merged cells (docrender.js rowJoin): a merged cell's box takes the room of every column it spans, a cell under a merge has
+      // no box (its words are kept, and come back on Unmerge), and a full-width row is its first cell alone, across the row. A merged box
+      // also takes the k-1 gaps of 6 px (.row-h) between the boxes it stands for, so it lines up with the headings above at every width
+      var jE = rowJoin(b, ri, colNames.length);
+      html += '<div class="row-h' + (jE.full ? ' b-row-full' : '') + '">';
+      colNames.forEach(function(c, ci) {
+          var k = jE.full ? (ci === 0 ? colNames.length : 0) : jE.spans ? jE.spans[ci] : 1;
+          if (k === 0) return;
+          html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 ' + (6 * (k - 1)) + 'px; min-width:' + (70 * k + 6 * (k - 1)) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
+      });
+      html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
+      html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
+      html += '</div>';
+      return html;
+  }
+  // tbRowWire: a row's menu button, a right-click on one of its cells (tbMenuFor) and its x, for every row under root (the whole editor, or
+  // the row + Add Row has just put there). The x takes the row out and draws the editor again
+  function tbRowWire(root, activeMap) {
+      Array.from(root.querySelectorAll('.b-rowmenu')).forEach(el => el.addEventListener('click', function(e) { e.stopPropagation(); var r = this.getBoundingClientRect(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, -1, r.left, r.bottom + 2, this); }));
+      Array.from(root.querySelectorAll('.b-table .r-col')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, +this.dataset.ci, e.clientX, e.clientY, this); }));
+      Array.from(root.querySelectorAll('.del-row')).forEach(el => el.addEventListener('click', function() { 
+
+          activeMap.blocks[this.dataset.idx].rows.splice(this.dataset.ri, 1); save(true); renderPlanner(); 
+
+      }));
+  }
+  // tbRowAdd: + Add Row's new row put into the table's editor where the table is drawn as boxes (never a big table's card, which tbBig now
+  // answers for a table that just grew past it): the row's markup made by tbRowEdHtml, its boxes drawn by tsFill and wired by tbRowWire.
+  // btn: the + Add Row button, b: the block with its new row already pushed. Answers whether it did it; with false the caller draws the
+  // whole editor as before
+  function tbRowAdd(btn, b) {
+      var tbl = btn && btn.previousElementSibling, am = getActiveMap(); if (!tbl || !tbl.classList || !tbl.classList.contains('b-table') || !am || !b || !Array.isArray(b.rows) || !b.rows.length) return false;
+      var idx = +btn.dataset.idx; if (am.blocks[idx] !== b || tbBig(b)) return false;
+      var plain = b.mode === 'table' || b.type === 'table', kd = b.type === 'node' ? CC.kindOf(b) : CC.KINDS.table, ri = b.rows.length - 1;
+      if (tbl.querySelectorAll('.del-row').length !== ri) return false;   // the boxes drawn are not the rows before this one: drawn anew
+      var t = document.createElement('template'); t.innerHTML = tbRowEdHtml(b, idx, ri, tbEdCols(b, plain, kd));
+      var row = t.content.firstElementChild; if (!row) return false;
+      tbl.appendChild(row);
+      tsFill(row, am.blocks); tbRowWire(row, am);
+      return true;
+  }
+  // [pagecheck:tbrow-end]
+
   function renderPlanner() {
       var activeMap = getActiveMap();
       if (!activeMap) return;
@@ -2188,7 +2240,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
                   html += '</div>';
               }
               if (b.type === 'node' && !plain) html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
-              var colNames = (Array.isArray(b.cols) && b.cols.length > 0) ? b.cols.slice() : (plain ? ['Item', 'Detail', 'Notes'] : kd.cols.slice());
+              var colNames = tbEdCols(b, plain, kd);   // the names of the columns, as the editor's boxes are drawn for them (tbEdCols)
               if (!b.rows) b.rows = [];
               html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label>' + (plain ? '<label title="Keep this table\u2019s heading row in sight at the top while the table is read, as a pinned header row does. The editor always keeps it in sight."><input type="checkbox" class="b-tpin" data-idx="'+idx+'"' + (b.pin === true ? ' checked' : '') + '> Pin heading row</label>' : '') + '<span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';   // 1.6.2: the pin (tablefollow.js), true only
               if (tbBig(b)) html += tbCardHtml(b, idx);   // 1.6.2: a big table is a card here and is edited in a window of its own (tbBig)
@@ -2197,21 +2249,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var hjE = headJoin(b, colNames.length);   // 1.6.2, merged headings: a merged heading's box takes its columns' room (as a merged cell's does), one under it has none
               colNames.forEach(function(c, ci) { var hk = hjE ? hjE[ci] : 1; if (hk === 0) return; html += tsBoxHtml('b-colhead' + (hk > 1 ? ' r-span' : ''), 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', hk > 1 ? 'flex:' + hk + ' 1 ' + (6 * (hk - 1)) + 'px; min-width:' + (70 * hk + 6 * (hk - 1)) + 'px;' : '', true, hk > 1 ? 'title="Heading over ' + hk + ' columns. Right-click for Unmerge."' : 'title="Header of column '+(ci+1)+'. Right-click to merge it with the next."'); });   // heads and cells take line breaks (tsMulti)
               html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
-              b.rows.forEach(function(r, ri) {
-                  // 1.6.2, merged cells (docrender.js rowJoin): a merged cell's box takes the room of every column it spans, a cell under a merge has
-                  // no box (its words are kept, and come back on Unmerge), and a full-width row is its first cell alone, across the row. A merged box
-                  // also takes the k-1 gaps of 6 px (.row-h) between the boxes it stands for, so it lines up with the headings above at every width
-                  var jE = rowJoin(b, ri, colNames.length);
-                  html += '<div class="row-h' + (jE.full ? ' b-row-full' : '') + '">';
-                  colNames.forEach(function(c, ci) {
-                      var k = jE.full ? (ci === 0 ? colNames.length : 0) : jE.spans ? jE.spans[ci] : 1;
-                      if (k === 0) return;
-                      html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 ' + (6 * (k - 1)) + 'px; min-width:' + (70 * k + 6 * (k - 1)) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
-                  });
-                  html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
-                  html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
-                  html += '</div>';
-              });
+              b.rows.forEach(function(r, ri) { html += tbRowEdHtml(b, idx, ri, colNames); });   // one row's boxes (tbRowEdHtml, which + Add Row also asks)
               html += '</div>';
               html += '<button class="tool ghost add-row" data-idx="'+idx+'">+ Add Row</button>';
               }
@@ -2386,7 +2424,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           tsSetColCount(bb, n);   // the heads, and their formats in step
           save(true); renderPlanner();
       }));
-      Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') renderPlannerPreview(); }));
+      Array.from(blockContainer.querySelectorAll('.b-content')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].content = this.value; save(false); if(activeMap.blocks[this.dataset.idx].type !== 'diagram') pvTyped(); }));   // 1.6.3 (finding 0): typed, so drawn a moment after the last key
       wireRte(blockContainer);
       var _pbeWrap = document.getElementById('plannerEditorWrap'); pbeBarWire(_pbeWrap); pbeBarIdle(_pbeWrap, blockContainer); pbeBarOn(_pbeWrap, null);   // one bar at the top (backlog 171)
 
@@ -2411,10 +2449,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       }));
 
-      Array.from(blockContainer.querySelectorAll('.add-row')).forEach(el => el.addEventListener('click', function() { 
-
-          activeMap.blocks[this.dataset.idx].rows.push({}); save(true); renderPlanner(); 
-
+      Array.from(blockContainer.querySelectorAll('.add-row')).forEach(el => el.addEventListener('click', function() {
+          activeMap.blocks[this.dataset.idx].rows.push({}); save(true);
+          if (tbRowAdd(this, activeMap.blocks[this.dataset.idx])) pvTyped(); else renderPlanner();   // 1.6.3 (finding 45): the new row's boxes alone, and the preview a moment later, once for a run of presses (pvTyped); the whole editor where that cannot be done
       }));
 
       // 1.6.2 (the owner, 2026-11-14: "i dont see a way to exit editing the table"): Done closes the block open on the page, as Escape does
@@ -2428,14 +2465,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       }));
       Array.from(blockContainer.querySelectorAll('.b-tablehere')).forEach(el => el.addEventListener('click', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb || typeof bb.id !== 'string') return; tbHere[bb.id] = true; renderPlanner(); }));
       // 1.6.2, merged cells: the row's menu button, and a right-click on a cell (tbMenuFor)
-      Array.from(blockContainer.querySelectorAll('.b-rowmenu')).forEach(el => el.addEventListener('click', function(e) { e.stopPropagation(); var r = this.getBoundingClientRect(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, -1, r.left, r.bottom + 2, this); }));
       Array.from(blockContainer.querySelectorAll('.b-table .b-colhead')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, -1, +this.dataset.ci, e.clientX, e.clientY, this); }));   // 1.6.2: a heading's menu (Merge with next, Unmerge)
-      Array.from(blockContainer.querySelectorAll('.b-table .r-col')).forEach(el => el.addEventListener('contextmenu', function(e) { e.preventDefault(); e.stopPropagation(); tbMenuFor(+this.dataset.idx, +this.dataset.ri, +this.dataset.ci, e.clientX, e.clientY, this); }));
-      Array.from(blockContainer.querySelectorAll('.del-row')).forEach(el => el.addEventListener('click', function() { 
-
-          activeMap.blocks[this.dataset.idx].rows.splice(this.dataset.ri, 1); save(true); renderPlanner(); 
-
-      }));
+      tbRowWire(blockContainer, activeMap);   // a row's menu, a right-click on a cell and a row's x (tbRowWire, which + Add Row also asks for the row it adds)
 
       Array.from(blockContainer.querySelectorAll('.fc-n-id')).forEach(el => el.addEventListener('input', function() { activeMap.blocks[this.dataset.idx].nodes[this.dataset.ni].id = this.value; save(false); renderPlannerPreview(); }));
 
@@ -2467,6 +2498,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       Array.from(blockContainer.querySelectorAll('.del-fc-e')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].edges.splice(this.dataset.ei, 1); save(true); renderPlanner(); }));
 
+      pePrint(activeMap);   // 1.6.3 (finding 2): what the editor now shows, which the app's next redraw compares (plannerApp)
+
       Array.from(blockContainer.querySelectorAll('.add-fc-e')).forEach(el => el.addEventListener('click', function() { activeMap.blocks[this.dataset.idx].edges.push({from: '', to: '', text: '', style: 'solid'}); save(true); renderPlanner(); }));
 
       
@@ -2489,6 +2522,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   window.wpWithRenderedPlanner = async function(fn) {
       var am = getActiveMap();
       if (!isDocLike(am)) { await fn(); return; }
+      pvFlush();   // 1.6.3: a preview still waiting for typing to settle is drawn first, so the export holds every word typed
       var was = plannerFullscreen;
       // nothing of the bar over the preview (controls, find box, highlights) belongs in an export
       var bar = document.getElementById('plannerFindBar'), barParent = bar && bar.parentNode, barNext = bar && bar.nextSibling;
@@ -2876,7 +2910,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (kept) this._wpNativeDirty = false;   // nodes were re-made behind the browser's own text undo: Ctrl+Z is the planner's
               var am = getActiveMap(); if (!am || !am.blocks) return;
               am.blocks[this.dataset.idx].content = this.innerHTML;
-              save(false); renderPlannerPreview(); rteSyncBar(this); rteLinkSync(this);
+              save(false); if (typeof pvTyped === 'function') pvTyped(); else renderPlannerPreview(); rteSyncBar(this); rteLinkSync(this);   // 1.6.3 (finding 0): the preview a moment after the last key
           });
           body.addEventListener('beforeinput', function(e) { if (!this._wpComp) rteLinkMark(this, e.inputType); });
           body.addEventListener('compositionstart', function() { rteLinkMark(this, 'insertCompositionText'); this._wpComp = true; });   // a composition is judged once, at its end
@@ -3417,7 +3451,144 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   // [sinkcheck:planner-read-end]
   window.wpPlannerRead = plannerRead;
+  // [pagecheck:pvtyped-start]
+  // 1.6.3 (the improvement week's review of pages and planners, finding 0: every key typed in the editor drew the whole preview again, every
+  // diagram with it, 50 to 160 ms a key on a planner of 300 blocks). A typed edit (a plain field's box through tsCommit, a text block's input,
+  // a Raw HTML block's) asks pvTyped in place of renderPlannerPreview: the preview is drawn once, PV_TYPE_MS after the last key, and the save
+  // goes on as before. Any whole draw of the preview takes the waiting one's place (pvDrop, asked by renderPlannerPreview itself, so a
+  // structural edit or renderPlanner draws at once as it always did). A draw that falls due while a pointer is held down waits until it is
+  // let go and the press has landed (pvWire), so a click on the preview is never drawn away from under the pointer. A draw that falls due
+  // after another page came on screen is dropped: that page was drawn whole as it came. pvFlush draws a waiting preview at once (an export)
+  var PV_TYPE_MS = 200, _pvT = { t: 0, id: '', down: false, late: false, after: [] };
+  function pvTyped() {
+      var am = getActiveMap(); _pvT.id = am ? am.id : '';
+      if (_pvT.t) clearTimeout(_pvT.t);
+      _pvT.t = setTimeout(pvFire, PV_TYPE_MS);
+  }
+  function pvFire() {
+      _pvT.t = 0;
+      if (_pvT.down) { _pvT.late = true; return; }   // drawn once the press is let go (pvWire)
+      var am = getActiveMap(); if (!am || am.id !== _pvT.id) return;
+      renderPlannerPreview();
+  }
+  function pvDrop() { if (_pvT.t) { clearTimeout(_pvT.t); _pvT.t = 0; } _pvT.late = false; }
+  function pvFlush() {
+      if (!_pvT.t && !_pvT.late) return false;
+      pvDrop();
+      var am = getActiveMap(); if (!am || am.id !== _pvT.id) return false;
+      renderPlannerPreview(); return true;
+  }
+  // fn run once no pointer is held down and the press that was has landed (its click handlers first); in a turn of its own otherwise
+  function pvAfterPress(fn) { if (_pvT.down) _pvT.after.push(fn); else setTimeout(fn, 0); }
+  // The press watched on the whole page, in the capture phase: a draw that fell due while it was held is made after the click it ends in
+  function pvWire(doc, win) {
+      if (!doc || !doc.addEventListener) return;
+      doc.addEventListener('pointerdown', function() { _pvT.down = true; }, true);
+      var up = function() {
+          if (!_pvT.down) return; _pvT.down = false;
+          setTimeout(function() {
+              if (_pvT.late) { _pvT.late = false; pvFire(); }
+              var q = _pvT.after; _pvT.after = []; q.forEach(function(f) { try { f(); } catch (e) {} });
+          }, 0);
+      };
+      (win || doc).addEventListener('pointerup', up, true); (win || doc).addEventListener('pointercancel', up, true);
+  }
+  pvWire(typeof document !== 'undefined' ? document : null, typeof window !== 'undefined' ? window : null);
+  // [pagecheck:pvtyped-end]
+  // [pagecheck:pedrawn-start]
+  // 1.6.3 (the improvement week's review of pages and planners, finding 2: every redraw of the app, which every change of a player's sheet, a
+  // time rule, a fight or the roster asks for, wrote the planner's whole editor again, so a GM typing notes while hosting lost the caret
+  // every few seconds). main.js render asks plannerApp in place of renderPlanner. The editor is drawn again only where the app's last whole
+  // draw did not show this very planner (_pe.n, window.wpRenderN), where an undo or a redo asks for it (plannerRedrawNext, from io.js
+  // stepHistory), or where what the editor shows has changed since it was last drawn (peSigOf, noted by renderPlanner itself through
+  // pePrint). While the GM is in the editor (peBusy: the focus in it or its bar, or a composition open) it is never drawn again under their
+  // hands: the draw waits until the focus has left the editor and any press held has landed (peLeft, pvAfterPress)
+  var _pe = { id: '', sig: null, n: -1, later: false, force: false };
+  // What the editor shows, as text: the item (its meta but the stamp io.js save() puts on whatever item is on screen), the campaign's look,
+  // the names of its items, maps' rooms and characters the card boxes list, the cues the Plays lists offer, the reading view, whose table
+  // this is. null where it cannot be told, which always draws
+  function peSigOf(am, camp) {
+      try {
+          var m = am.meta && typeof am.meta === 'object' ? am.meta : {}, meta = {};
+          Object.keys(m).forEach(function(k) { if (k !== 'updated') meta[k] = m[k]; });
+          var c = camp && typeof camp === 'object' ? camp : {}, items = c.items && typeof c.items === 'object' ? c.items : {}, chars = c.chars && typeof c.chars === 'object' ? c.chars : {};
+          var names = Object.keys(items).map(function(id) { var x = items[id] || {}, xm = x.meta || {}; return [id, x.type, xm.title || x.name || '', x.type === 'map' && Array.isArray(x.rooms) ? x.rooms.map(function(r) { return r ? [r.id, r.name] : 0; }) : 0]; });
+          var who = Object.keys(chars).map(function(id) { return [id, chars[id] && chars[id].name]; });
+          return JSON.stringify([am.id, am.type, am.name || '', meta, am.blocks || [], am.content || '', c.id, c.docStyle || null, names, who, typeof cueLists === 'function' ? cueLists(c) : 0, plannerFullscreen, !!c._foreign, !!(window.wpNet && window.wpNet.foreign)]);
+      } catch (e) { return null; }
+  }
+  function pePrint(am) { _pe.id = am && am.id ? am.id : ''; _pe.sig = am ? peSigOf(am, getActiveCampaign()) : null; }
+  function peBusy() {
+      var ae = document.activeElement;
+      if (tsState.comp) return true;
+      return !!(ae && ae.closest && ae !== document.body && (ae.closest('#plannerEditorWrap') || tsInBar(ae)));
+  }
+  // Answers what it did: 'drawn', 'same' (nothing it shows changed) or 'held' (the GM is in the editor: drawn once they leave it)
+  function plannerApp() {
+      var am = getActiveMap(); if (!am) return 'none';
+      var n = typeof window.wpRenderN === 'number' ? window.wpRenderN : 0, seen = _pe.n === n - 1 && _pe.id === am.id;
+      _pe.n = n;
+      if (_pe.force) { _pe.force = false; seen = false; }
+      if (seen && peBusy()) { _pe.later = true; return 'held'; }
+      if (seen && _pe.sig !== null && peSigOf(am, getActiveCampaign()) === _pe.sig) return 'same';
+      _pe.later = false;
+      renderPlanner();
+      return 'drawn';
+  }
+  function plannerRedrawNext() { _pe.force = true; }
+  // The focus has left something: a draw held for the GM is made once the focus is out of the editor and the press, if any, has landed,
+  // and only where what the editor shows has changed
+  function peLeft() {
+      if (!_pe.later) return;
+      pvAfterPress(function() {
+          if (!_pe.later || peBusy()) return;
+          _pe.later = false;
+          var am = getActiveMap(); if (!am || am.id !== _pe.id || !isDocLike(am)) return;
+          if (peSigOf(am, getActiveCampaign()) !== _pe.sig) renderPlanner();
+      });
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('focusout', peLeft, true);
+  window.wpPlannerRedrawNext = plannerRedrawNext;
+  // [pagecheck:pedrawn-end]
+  // [pagecheck:docwatch-start]
+  // 1.6.3 (the improvement week's review of pages and planners, finding 3: a page, a part or a big table in a window of its own read the
+  // whole save, 19 MB, every second). Such a window says here which page it shows (a docWatch message on the app's own channel, again every
+  // 20 s), and is told when that page has changed on disk (docSaved), and only then reads the save (popout.js popDocLive). io.js doSave asks
+  // docWatchSnap as it makes the body of a save, and calls what it answers once that save is written: the watched pages are judged as that
+  // very save holds them, so a window never reads a save older than the change it was told of. A window not heard from for DOC_WATCH_MS is
+  // forgotten. Nothing of a page is sent: the window still reads the save itself
+  var DOC_WATCH_MS = 60000, _docW = Object.create(null);
+  // What a window draws of its page, as text: 'none' where the page is gone or is no page
+  function docWatchSig(camp, itemId) {
+      var it = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, itemId) ? camp.items[itemId] : null;
+      if (!it || (it.type !== 'doc' && it.type !== 'planner')) return 'none';
+      try { return JSON.stringify([it.type, (it.meta && it.meta.title) || it.name || '', it.blocks || [], (it.meta && it.meta.style) || null, camp.docStyle || null]); } catch (e) { return null; }
+  }
+  // the campaign a window names, or where it names none the one on screen here, as the window itself falls back to the save's open one
+  function docWatchCamp(id) { var s = state.appState, c = s && s.campaigns; if (!c) return null; var k = id || s.activeCampaignId; return k && Object.prototype.hasOwnProperty.call(c, k) ? c[k] : null; }
+  function docWatchPost(m) { try { new BroadcastChannel('waypoint').postMessage(m); } catch (e) {} }
+  // A window says which page it shows: kept (a new window, or another page, is told at the next save whatever it holds) and answered docHere
+  function docWatchAsk(d, campOf, post, now) {
+      if (!d || typeof d.id !== 'string' || !/^d[a-z0-9]{4,20}$/.test(d.id) || typeof d.camp !== 'string' || d.camp.length > 200 || typeof d.item !== 'string' || !d.item || d.item.length > 200) return false;
+      var w = _docW[d.id];
+      if (!w || w.camp !== d.camp || w.item !== d.item) _docW[d.id] = w = { camp: d.camp, item: d.item, sig: undefined };
+      w.at = now;
+      post({ type: 'docHere', to: d.id });
+      return true;
+  }
+  // As a save's body is made: each watched page as that save holds it. The answer, called once the save is written, tells each window whose
+  // page changed since it was last told
+  function docWatchSnap(campOf, post, now) {
+      var ids = Object.keys(_docW); if (!ids.length) return null;
+      var take = [];
+      ids.forEach(function(id) { var w = _docW[id]; if (now - w.at > DOC_WATCH_MS) { delete _docW[id]; return; } take.push({ id: id, w: w, sig: docWatchSig(campOf(w.camp), w.item) }); });
+      if (!take.length) return null;
+      return function() { take.forEach(function(t) { if (_docW[t.id] !== t.w) return; if (t.sig === null || t.sig !== t.w.sig) { t.w.sig = t.sig; post({ type: 'docSaved', to: t.id }); } }); };
+  }
+  window.wpDocWatchSnap = function() { return docWatchSnap(docWatchCamp, docWatchPost, Date.now()); };
+  // [pagecheck:docwatch-end]
   function renderPlannerPreview() {
+      if (typeof pvDrop === 'function') pvDrop();   // 1.6.3: this draw takes the place of one typing asked for (pvTyped)
       renderPlannerPreviewCore();
       if (typeof pgAfterDraw === 'function') pgAfterDraw();   // writing on the page (backlog 171): every block pressable, a + before each, the open form laid again
       var box = document.getElementById('plannerFind');
@@ -3727,7 +3898,7 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
       var msg = pvGotoMsg(location.search, a); if (!msg) return;
       try { new BroadcastChannel('waypoint').postMessage(msg); } catch (err) {}
   });
-  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); else if (e.data && e.data.type === 'tableEdit') tbEditTake(e.data); }); } catch (e) {} }   // 1.6.2: an edit from a big table's window (tbEditTake)
+  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); else if (e.data && e.data.type === 'tableEdit') tbEditTake(e.data); else if (e.data && e.data.type === 'docWatch') docWatchAsk(e.data, docWatchCamp, docWatchPost, Date.now()); }); } catch (e) {} }   // 1.6.2: an edit from a big table's window (tbEditTake)
   // Page layout by hand (pages only): drag a picture in the preview to nudge it (dx / dy), drag its
   // bottom-right corner to resize it (the width snaps to the select's steps). One save at pointerup is
   // one undo step per drag; io.js's capture listener closes any typing chunk at the pointerdown.
@@ -3813,6 +3984,8 @@ export {
     renderPlanner,
 
     renderPlannerPreview,
+
+    plannerApp,
 
     RTE_CMDS,
 

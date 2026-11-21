@@ -69,7 +69,7 @@ function tfFirst(items, scOf, want) {
 }
 // [pagecheck:tfollow-end]
 
-var tf = { bar: null, inner: null, head: null, box: null, raf: 0, wired: false, lastSc: undefined };   // lastSc: the element the reader last scrolled up and down (null: the window)
+var tf = { bar: null, inner: null, head: null, box: null, raf: 0, wired: false, lastSc: undefined, sig: '', blocked: false, barProbe: null, headProbe: null };   // sig, blocked and the probes: what the half-second look compares (tfPoll)   // lastSc: the element the reader last scrolled up and down (null: the window)
 function tfZ(el) { return getComputedStyle(el).zIndex; }
 // The bar or the copy given the z of the place it serves (tfZOf), written only where it changed
 function tfZSet(node, el) { var z = tfZOf(el, node.parentElement, tfZ); if (node.style.zIndex !== z) node.style.zIndex = z; }
@@ -117,14 +117,16 @@ function tfNow() {
     tf.raf = 0;
     if (document.hidden) return;
     tfMake();
+    tf.blocked = false; tf.barProbe = null; tf.headProbe = null;
     tfBar(); tfHead();
+    tf.sig = tfPollSig();   // what this look saw, which the next half-second look compares
 }
 function tfBar() {
     var boxes = tfFirst(document.querySelectorAll('.pv-tscroll, .b-table'), tfScroller, tf.lastSc), pick = null;
     for (var i = 0; i < boxes.length && !pick; i++) {
         var b = boxes[i]; if (!tfSeen(b)) continue;
         var reg = tfRoom(b), at = tfBarAt(b.getBoundingClientRect(), b.scrollWidth, b.clientWidth, reg);
-        if (at && tfOnTop(b, at.left + at.width / 2, at.top + 2)) pick = { b: b, at: at };
+        if (at && tfOnTop(b, at.left + at.width / 2, at.top + 2)) pick = { b: b, at: at }; else if (at) tf.blocked = true;   // something lies over it: looked at again every half second
     }
     if (!pick) { if (!tf.bar.hidden) tf.bar.hidden = true; tf.box = null; return; }
     var s = tf.bar.style, b2 = pick.b;
@@ -132,6 +134,7 @@ function tfBar() {
     tf.inner.style.width = (b2.scrollWidth - b2.clientWidth + pick.at.width) + 'px';   // the same reach as the box's own scroll, so the two move one for one
     tfZSet(tf.bar, b2);   // over its own place: a player's reader and the panel over the map stand above the style sheet's 9001
     tf.box = b2; if (tf.bar.hidden) tf.bar.hidden = false;
+    tf.barProbe = { el: b2, x: pick.at.left + pick.at.width / 2, y: pick.at.top + 2 };
     if (tf.bar.scrollLeft !== b2.scrollLeft) tf.bar.scrollLeft = b2.scrollLeft;
 }
 function tfHead() {
@@ -143,9 +146,10 @@ function tfHead() {
         var box = ed ? t : t.parentElement && t.parentElement.classList.contains('pv-tscroll') ? t.parentElement : t;
         var reg = tfRoom(t), at = tfHeadAt(row.getBoundingClientRect(), t.getBoundingClientRect(), reg); if (!at) continue;
         var br = box.getBoundingClientRect(), left = Math.max(br.left, reg.left), right = Math.min(br.left + (box.clientWidth || br.width), reg.right);
-        if (right - left < TF_MIN || !tfOnTop(box.contains(t) ? box : t, left + 4, at.top + 2)) continue;
+        if (right - left < TF_MIN) continue;
+        var onEl = box.contains(t) ? box : t; if (!tfOnTop(onEl, left + 4, at.top + 2)) { tf.blocked = true; continue; }
         var cells = Array.prototype.map.call(ed ? row.querySelectorAll('.ts-box') : row.children, function(c, k) { return { rect: c.getBoundingClientRect(), text: ed && typeof c._tsText === 'string' ? c._tsText : c.textContent, first: tfHeldFirst(c, k, ed, box) }; });   // a merged first heading is not held (1.6.2, tfHeldFirst)
-        pick = { at: at, left: left, width: right - left, cells: tfHeadCells(cells, left), ed: ed, t: t };
+        pick = { at: at, left: left, width: right - left, cells: tfHeadCells(cells, left), ed: ed, t: t, probe: { el: onEl, x: left + 4, y: at.top + 2, ed: ed } };
     }
     if (!pick) { if (!tf.head.hidden) tf.head.hidden = true; return; }
     var s = tf.head.style; s.left = Math.round(pick.left) + 'px'; s.top = pick.at.top + 'px'; s.width = Math.round(pick.width) + 'px'; s.height = pick.at.height + 'px';
@@ -161,8 +165,30 @@ function tfHead() {
         el.classList.toggle('tf-first', c.first);
     });
     if (tf.head.hidden) tf.head.hidden = false;
+    tf.headProbe = pick.probe;
 }
 function tfSoon() { if (!tf.raf) tf.raf = requestAnimationFrame(tfNow); }
+// [pagecheck:tfpoll-start]
+// 1.6.3 (the improvement week's review of pages and planners, finding 24: the half-second look walked and measured every table of a long page,
+// 6 to 11 ms a look, while nothing moved). The look is made only where something it reads may have changed since the last one: tfPollSig
+// is the tables there are, each one's place, size and inside width, and the window's size, as text; tfStill says the bar and the copy still
+// stand where they were drawn, over what they were drawn over (the place they serve still on top at the point they were judged on, the one
+// element each look asks of the page), and that no table was left without them only because something lay over it. The editor's own table's
+// copy is looked at every time, since its names are what the GM types. A scroll and a change of the window's size still ask at once
+function tfPollSig() {
+    var list = document.querySelectorAll('.pv-tscroll, .b-table, table.t-pin'), parts = [window.innerWidth, window.innerHeight, list.length];
+    for (var i = 0; i < list.length; i++) { var el = list[i], r = el.getBoundingClientRect(); parts.push(Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height), el.scrollWidth, el.clientWidth); }
+    return parts.join(',');
+}
+function tfStill(onTop) {
+    if (tf.blocked) return false;
+    var p = tf.barProbe, q = tf.headProbe;
+    if (tf.bar && !tf.bar.hidden && (!p || !p.el.isConnected || !onTop(p.el, p.x, p.y))) return false;
+    if (tf.head && !tf.head.hidden && (!q || q.ed || !q.el.isConnected || !onTop(q.el, q.x, q.y))) return false;
+    return true;
+}
+function tfPoll() { if (document.hidden) return; if (tf.sig && tfPollSig() === tf.sig && tfStill(tfOnTop)) return; tfSoon(); }
+// [pagecheck:tfpoll-end]
 function tfWire() {
     if (tf.wired || typeof document === 'undefined') return; tf.wired = true;
     var q = new URLSearchParams(location.search); if (q.has('stream')) return;   // the stream window shows the table's view, never a page
@@ -176,7 +202,7 @@ function tfWire() {
         var st = e.target; if (st && st.nodeType === 1 && st.scrollHeight > st.clientHeight + 1 && st !== document.body && st !== document.documentElement) tf.lastSc = st; else if (st && (st.nodeType === 9 || st === document.body || st === document.documentElement)) tf.lastSc = null;
         if (tf.box && e.target === tf.box && tf.bar && tf.bar.scrollLeft !== tf.box.scrollLeft) tf.bar.scrollLeft = tf.box.scrollLeft; tfSoon(); }, true);
     window.addEventListener('resize', tfSoon);
-    setInterval(tfSoon, 500);   // a page drawn again, a fold opened, a table's box filled anew
+    setInterval(tfPoll, 500);   // a page drawn again, a fold opened, a table's box filled anew: looked at only where something moved (tfPoll)
 }
-if (typeof window !== 'undefined' && typeof document !== 'undefined') { tfWire(); window.wpTableFollow = { now: tfNow }; }
+if (typeof window !== 'undefined' && typeof document !== 'undefined') { tfWire(); window.wpTableFollow = { now: tfNow, poll: tfPoll }; }
 export { tfBarAt, tfHeadAt, tfHeadCells, tfZOf, tfFirst, TF_BAR_H };

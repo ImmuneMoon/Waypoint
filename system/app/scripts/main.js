@@ -10,7 +10,7 @@ import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar
 
 import { showPrompt, showConfirm, isCampaignNameTaken, getUniqueCampaignTitle, promptForCampaignName, isItemNameTaken, getUniqueItemTitle, promptForItemName } from './dialogs.js';
 
-import { renderPlanner, renderPlannerPreview } from './planner.js';
+import { renderPlanner, renderPlannerPreview, plannerApp } from './planner.js';
 
 import { renderDataMap, clearSnaps, drawSnap, doSmartSnapping, attachDrag, attachPanning, isLinkMode, setLinkMode, removeLinkAt } from './datamap.js';
 
@@ -432,7 +432,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
       if (isPlanner) {
 
-          renderPlanner();
+          plannerApp();   // 1.6.3 (finding 2): the editor drawn again only where what it shows changed, and never under the GM's hands (planner.js)
 
       } else {
 

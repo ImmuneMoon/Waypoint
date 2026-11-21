@@ -448,8 +448,23 @@ function foundNow(camp, q, PS, mapId) {
     return _fq.list;
 }
 // [prepcheck:found-end]
+// [prepcheck:pre-start]
+// 1.6.3 (the improvement week's review of pages and planners, finding 35: a press anywhere on the page worked the column's whole model out
+// again, over every planner of the campaign, while it shows). What the column may show that changes with no redraw of the page, as text:
+// how many saves this machine has made (io.js save() counts them as window.wpSaveN, and every change of a planner is saved), the item and
+// the map on screen, the pinned pages and this computer's recent pages for the campaign. A press outside the column draws it only where
+// this moved since the column's last draw (prepPre at draw, compared by the press's own look a moment later)
+var _pre = '', _preCol = false;   // _preCol: a press in the column waits in the same look as a later one elsewhere
+function prepPre(camp) {
+    if (!camp) return '';
+    var rec = ''; try { rec = localStorage.getItem('wp_recentp_' + camp.id) || ''; } catch (e) {}
+    var pins = ''; try { pins = JSON.stringify(camp.pinnedPages || null); } catch (e) {}
+    return [typeof window !== 'undefined' ? (window.wpSaveN | 0) : 0, camp.id, camp.activeItemId || '', mapNow(camp) || '', pins, rec].join('\n');
+}
+// [prepcheck:pre-end]
 function draw(force) {
     var E = els(), camp = getActiveCampaign(); if (!E.col || !E.body || !camp) return;
+    _pre = prepPre(camp);   // what this draw saw, which a press outside the column compares
     var PS = window.wpPageShelf, mapId = mapNow(camp), pinList = PS && typeof PS.pinned === 'function' ? PS.pinned() : [], pinned = {}; pinList.forEach(function(id) { pinned[id] = 1; });
     var keepId = _tn.camp === camp.id && _tn.id && tnKept(camp).indexOf(_tn.id) >= 0 ? _tn.id : '';
     var m = prepModel(camp, mapId, { pinned: pinList, keep: keepId }), q = st.q.trim(), found = q ? foundNow(camp, q, PS, mapId) : null;
@@ -810,7 +825,11 @@ function wire() {
     }
     // a press anywhere may have changed what the column shows with no redraw of the page (a pin from the shelf or the tree): looked at again a
     // moment later, and drawn only where something differs
-    document.addEventListener('click', function() { if (!_was) return; clearTimeout(_soon); _soon = setTimeout(function() { if (_was) draw(false); }, 90); }, true);
+    document.addEventListener('click', function(e) {
+        if (!_was) return;
+        var inCol = !!(e && e.target && e.target.closest && e.target.closest('#prepCol'));   // a press in the column: drawn again as ever
+        _preCol = _preCol || inCol; clearTimeout(_soon); _soon = setTimeout(function() { var c = _preCol; _preCol = false; if (_was && (c || prepPre(getActiveCampaign()) !== _pre)) draw(false); }, 90);   // 1.6.3: elsewhere, only where what it shows could have moved (prepPre)
+    }, true);
 }
 window.wpPrep = { sync: sync, may: prepMay, can: prepCan, shown: shownNow, open: function(via) { return setOpen(true, via); }, close: function(via) { return setOpen(false, via); }, toggle: toggle,
     spread: spreadNow, over: boxOver, card: showCard, unspread: function(via) { return setSpread(false, via || 'esc'); }, spreadToggle: function(via) { return setSpread(!spreadNow(), via); } };

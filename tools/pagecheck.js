@@ -818,7 +818,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             pl.includes("      if (typeof window !== 'undefined' && window.wpPageNav && typeof window.wpPageNav.reveal === 'function') window.wpPageNav.reveal(h[0]);   // a hit inside a folded part: the fold is opened first (pagenav.js)\n      h[0].scrollIntoView({ block: 'center', behavior: quiet ? 'auto' : 'smooth' });\n")
             && panelSrc.includes("if (hits[curHit] && typeof window !== 'undefined' && window.wpPageNav && typeof window.wpPageNav.reveal === 'function') window.wpPageNav.reveal(hits[curHit][0]); if (scroll !== false && hits[curHit]) hits[curHit][0].scrollIntoView(")
             && panelSrc.includes('window.wpDocPanel = { open: open, close: close, refresh: refresh, popOut: popOut, openId: function() { return openId; }, tabs: function() { return tabs.slice(); } };')
-            && mainSrc.includes("          if (navX && navX.strip) navX.strip(pvX);   // the page as drawn: an export carries no fold and no fold arrow (pagenav.js)\n          var content = pvX.innerHTML;\n          if (navX && navX.apply) navX.apply(pvX);\n")
+            /* the review of pages reveal (finding 3) moved this pin on purpose: the HTML export reads the drawn page as players read it where the GM picks that, still with the folds taken off */
+            && mainSrc.includes("          if (navX && navX.strip) navX.strip(pvX);   // the page as drawn: an export carries no fold and no fold arrow (pagenav.js)\n          var campX = getActiveCampaign(), content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;\n          if (navX && navX.apply) navX.apply(pvX);\n")
             && mainSrc.includes("refoldI = function() { if (pvI && navI && navI.apply) navI.apply(pvI); };\n      if (pvI && navI && navI.strip) navI.strip(pvI);") && mainSrc.includes("      html2canvas(target, opts).then(function(cv) {\n          refoldI();\n") && mainSrc.includes("      }).catch(function() {\n\n          refoldI();\n")
             && src.includes("        reveal: function(el) { var root = navRootOf(el); return root ? foldReveal(root, el, false) : false; },") && src.includes('        strip: foldStrip, apply: foldApply') && src.includes("import { getActiveCampaign } from './models.js';")
             && src.includes("    if (typeof window.addEventListener === 'function') window.addEventListener('storage', function(e) {\n        if (e && e.key !== null && e.key !== FOLD_STORE && !(typeof TOC_STORE === 'string' && e.key === TOC_STORE)) return;")   /* 1.6.2 (107 (a)) moved on purpose: another window follows the Contents tick too */
@@ -2084,6 +2085,72 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && css.includes('  #popoutBody.doc-view:has(> .tw-head) { max-width: none; }') && css.includes('  #popoutBody.doc-view { max-width: 880px;') && tw.includes("var h = '<div class=\"tw-head\">") && tw.includes('tw.body.innerHTML = twHtml(tw.b, tw.rich, tw.note);'));
     }
 
+    /* ---- 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21): the page editor's Players see this and Seen by, planner.js
+       sliced by its seerow markers and run for real on a campaign of plain objects; the row's wiring, its styles and Help pinned ---- */
+    {
+        const plS = read('scripts/planner.js'), sa = plS.indexOf('// [pagecheck:seerow-start]'), sz = plS.indexOf('// [pagecheck:seerow-end]');
+        const escS = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const campS = { players: { u_mira: { name: 'Mira <i>' }, u_kael: { name: 'Kael' }, u_ban: { name: 'Banned' }, 'bad id': { name: 'X' } }, bannedPlayers: { u_ban: 1 } };
+        const S = new Function('esc', 'getActiveCampaign', plS.slice(sa, sz) + '\nreturn { seePlayers, seeRowHtml, seeSet, seePick, seeNames };')(escS, () => campS);
+        const open = { id: 'b', type: 'text' }, kept = { id: 'k', type: 'text', hide: true, see: ['u_kael', 'u_old'] };
+        const hOpen = S.seeRowHtml(3, open, campS), hKept = S.seeRowHtml(4, kept, campS), hNone = S.seeRowHtml(5, { hide: true }, {});
+        const b1 = { id: 'x' }; S.seeSet(b1, false); const set1 = J(b1); S.seePick(b1, 'u_mira', true); S.seePick(b1, 'u_kael', true); S.seePick(b1, 'u_mira', true); const set2 = J(b1); S.seePick(b1, 'u_mira', false); S.seePick(b1, 'u_kael', false); const set3 = J(b1); S.seePick(b1, 'no good!', true); const set4 = J(b1); S.seePick(b1, 'u_kael', true); S.seeSet(b1, true); const set5 = J(b1);
+        const R = { set1, set2, set3, set4, set5, names: S.seeNames(['u_mira', 'u_gone']), players: S.seePlayers(campS, kept).map(p => p.id + ':' + p.name) };
+        check('1.6.3 (finding 18) the page editor: every block has Players see this, ticked unless the block is kept back; a kept block offers Seen by, one tick for each player the campaign knows (not a banned one, not an id that is none) and any id it already names, names escaped; with none known it says only you see it',
+            hOpen.indexOf('class="b-seeall" data-idx="3" checked') >= 0 && hOpen.indexOf('b-see-who') < 0 && hKept.indexOf('class="b-seeall" data-idx="4">') >= 0 && hKept.indexOf('data-pid="u_kael" checked') >= 0 && hKept.indexOf('data-pid="u_mira">') >= 0
+            && hKept.indexOf('Mira &lt;i&gt;') >= 0 && hKept.indexOf('u_ban') < 0 && hKept.indexOf('bad id') < 0 && hKept.indexOf('data-pid="u_old" checked> A player no longer listed') >= 0 && hNone.indexOf('Only you see it.') >= 0 && hNone.indexOf('b-seep') < 0
+            && J(R.players) === J(['u_kael:Kael', 'u_mira:Mira <i>', 'u_old:A player no longer listed']), hKept);
+        check('1.6.3 (finding 18) seeSet and seePick: unticking keeps the block back with nobody named, a pick adds a player once and takes them off again, the last taken off leaves no list, an id that is none is not taken, and ticking Players see this again forgets the list; seeNames names a player the campaign no longer knows as such',
+            R.set1 === '{"id":"x","hide":true}' && R.set2 === '{"id":"x","hide":true,"see":["u_kael","u_mira"]}' && R.set3 === '{"id":"x","hide":true}' && R.set4 === R.set3 && R.set5 === '{"id":"x"}' && J(R.names) === J(['Mira <i>', 'a player no longer listed']), J(R));
+        const css = read('style.css'), ix = read('index.html');
+        // the review of pages reveal (finding 3) moved this pin on purpose: the mark is no longer inside @media screen, so a kept block on paper, in a
+        // PDF or in a saved HTML page is never unmarked; a page saved as players read it leaves the block off the paper by body.print-players
+        check('1.6.3 (finding 18) wired and said: the row is drawn under each block of a page alone, its two ticks each one save, the GM\'s preview names who still sees a kept block, the mark is printed from its attribute on screen and on paper alike and never positions the block, and Help says it',
+            plS.includes("if (isDocEd) html += seeRowHtml(idx, b, getActiveCampaign());") && plS.includes("seeSet(bb, this.checked); save(true); renderPlanner();") && plS.includes("seePick(bb, this.dataset.pid, this.checked); save(true); renderPlanner();") && plS.includes('renderDoc(activeMap, { who: seeNames,')
+            && /\n\.pv-blk\.pv-kept \{ outline: 1px dashed var\(--dim\);[^}\n]*\}\n\.pv-blk\.pv-kept::before \{ content: attr\(data-kept\);/.test(css) && !/@media screen \{\n  \.pv-blk\.pv-kept/.test(css) && !/\.pv-kept[^{]*\{[^}]*position/.test(css)
+            && css.includes('\n@media print { body.print-players .pv-blk.pv-kept { display: none !important; } }\n')
+            && ix.includes('Each block has <b>Players see this</b>, ticked to start. Untick it to keep that block from your players.') && ix.includes('A player never receives a block kept from them, not even its title.') && !ix.includes('Everything on a page is player-safe by design'));
+    }
+    /* ---- the review of pages reveal (finding 3; 2026-11-21): a page's Save PDF and Save HTML once saved exactly what players read. Now a page with a
+       block kept back asks first, by its buttons alone: As players read it leaves every kept block out and keeps a link to one only as its page,
+       With what I kept back keeps them, marked on paper. io.js sliced by its keptexport and keptpdf markers and run for real with the real
+       docrender; the HTML export's use of them, the style sheet and Help pinned ---- */
+    {
+        const ioS = read('scripts/io.js'), cutI = n => { const a = ioS.indexOf('// [pagecheck:' + n + '-start]'), z = ioS.indexOf('// [pagecheck:' + n + '-end]'); if (a < 0 || z < a) throw new Error('pagecheck: the io.js ' + n + ' slice is not marked'); return ioS.slice(a, z); };
+        const DRx = await import(modUrl('docrender.js')), winX = { wpDocRender: DRx };
+        const KE = new Function('window', cutI('keptexport') + '\nreturn { keptAsk, keptCut };')(winX);
+        const pgKept = { id: 'pk', type: 'doc', blocks: [{ id: 'b_open', type: 'text', content: '<p>x</p>' }, { id: 'b_gm', type: 'text', content: '<p>GM</p>', hide: true }] }, pgOpen = { id: 'po', type: 'doc', blocks: [{ id: 'b1', type: 'text' }] }, plKept = { id: 'pl', type: 'planner', blocks: [{ id: 'n', type: 'text', hide: true }] };
+        const asked = [], said = [], ask = ans => (q, cb, o) => { asked.push([q, o]); cb(ans); };
+        KE.keptAsk(pgKept, ask(true), p => said.push('yes:' + p)); KE.keptAsk(pgKept, ask('alt'), p => said.push('alt:' + p)); KE.keptAsk(pgKept, ask(false), p => said.push('no:' + p)); KE.keptAsk(pgKept, ask(null), p => said.push('esc:' + p));
+        const nAsk = asked.length; KE.keptAsk(pgOpen, ask(true), p => said.push('open:' + p)); KE.keptAsk(plKept, ask(true), p => said.push('planner:' + p)); KE.keptAsk(null, ask(true), p => said.push('none:' + p));
+        // a small tree of the drawn page: cloneNode(true), querySelectorAll('.pv-kept'), removeChild and innerHTML, as a browser's element answers them
+        const El = function(tag, cls, kids) { this.tag = tag; this.className = cls || ''; this.kids = []; this.parentNode = null; (kids || []).forEach(k => this.appendChild(k)); };
+        El.prototype.appendChild = function(k) { if (typeof k !== 'string') k.parentNode = this; this.kids.push(k); return k; };
+        El.prototype.removeChild = function(k) { this.kids.splice(this.kids.indexOf(k), 1); k.parentNode = null; return k; };
+        El.prototype.cloneNode = function(deep) { const c = new El(this.tag, this.className); if (deep) this.kids.forEach(k => c.appendChild(typeof k === 'string' ? k : k.cloneNode(true))); return c; };
+        El.prototype.querySelectorAll = function(sel) { const out = [], cls = sel.slice(1), walk = e => e.kids.forEach(k => { if (typeof k !== 'string') { if (k.className.split(' ').indexOf(cls) >= 0) out.push(k); walk(k); } }); walk(this); return out; };
+        Object.defineProperty(El.prototype, 'innerHTML', { get() { return this.kids.map(k => typeof k === 'string' ? k : '<' + k.tag + ' class="' + k.className + '">' + k.innerHTML + '</' + k.tag + '>').join(''); } });
+        const pv = new El('div', '', [new El('div', 'pv-blk', ['Open words <a href="#wp:page:pk:b_gm">see</a> <a href="#wp:page:pk:b_open">here</a>']), new El('div', 'pv-blk pv-kept', ['GM SECRET words']), new El('div', 'pv-blk', ['Last'])]);
+        const cutH = KE.keptCut(pv, { pk: pgKept }), still = pv.innerHTML;
+        const R = { said, nAsk, asked: asked.map(a => a[1]), q: asked[0] && asked[0][0], cutH };
+        check('the review of pages reveal (finding 3) io.js keptAsk, run for real: a page that holds a block kept back asks how to save it, by its buttons alone, As players read it first and With what I kept back beside it; the first answer saves the players\' copy, the second the page whole, Cancel saves nothing; a page with no kept block, a planner and no page save at once, whole, with no question',
+            J(said) === J(['yes:true', 'alt:false', 'open:false', 'planner:false', 'none:false']) && nAsk === 4 && asked.length === 4 && asked.every(a => a[1].noEnter === true && a[1].yes === 'As players read it' && a[1].alt === 'With what I kept back')
+            && /^This page holds blocks you kept back from your players\./.test(R.q || '') && !/[\(\);]/.test(R.q || ''), J(R));
+        check('the review of pages reveal (finding 3) io.js keptCut, run for real with the real docrender: the drawn page as players read it holds no kept block, none of its words and no mark, a link to a kept block keeps only its page while a link to a block players read keeps its part, and the page on screen is left as it was',
+            cutH.indexOf('SECRET') < 0 && cutH.indexOf('pv-kept') < 0 && cutH.indexOf('href="#wp:page:pk">see') >= 0 && cutH.indexOf('#wp:page:pk:b_open') >= 0 && cutH.indexOf('b_gm') < 0 && cutH.indexOf('Last') >= 0 && cutH.indexOf('Open words') >= 0
+            && still.indexOf('GM SECRET words') >= 0 && still.indexOf('pv-kept') >= 0 && still.indexOf('#wp:page:pk:b_gm') >= 0, J(R));
+        // Save PDF: the keptpdf slice run on a page of plain objects, the print dialog a recorder of the body's words as it comes up
+        const runPdf = ans => { const cls = new Set(), seen = []; const doc = { body: { classList: { add: c => cls.add(c), remove: c => cls.delete(c) } } }, win = { print: () => seen.push([...cls].join(' ')) };
+            new Function('keptAsk', 'getActiveMap', 'showConfirm', 'window', 'document', cutI('keptpdf'))(KE.keptAsk, () => pgKept, (q, cb) => cb(ans), win, doc); return J([seen, [...cls]]); };
+        const P = { players: runPdf(true), whole: runPdf('alt'), cancel: runPdf(false) };
+        check('the review of pages reveal (finding 3) Save PDF, io.js sliced by its keptpdf markers and run for real: As players read it prints with the body\'s print-players word, under which the style sheet leaves every kept block off the paper, and takes the word off again once the dialog is closed; With what I kept back prints the page whole; Cancel prints nothing',
+            P.players === J([['print-players'], []]) && P.whole === J([[''], []]) && P.cancel === J([[], []]), J(P));
+        const mainS = read('scripts/main.js'), ixP = read('index.html');
+        check('the review of pages reveal (finding 3) Save HTML asks the same question through window.wpKeptExport and, saved as players read it, writes the page through keptCut, and says so; Help says both answers in plain words',
+            ioS.includes('window.wpKeptExport = { ask: keptAsk, cut: keptCut };') && mainS.includes("askK(activeMap, showConfirm, function(players) { run(function() {") && mainS.includes('content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;')
+            && mainS.includes("toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.');")
+            && ixP.includes('<li><b>Save PDF</b> and <b>Save HTML</b> ask first on a page with blocks you kept back. <b>As players read it</b> leaves those blocks out. <b>With what I kept back</b> keeps them, each marked on paper as on screen.</li>'));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

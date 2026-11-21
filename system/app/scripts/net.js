@@ -817,7 +817,43 @@ function cleanPosture(v, sys) {   // '' for the first posture (none stored)
 }
 // 1.5.6: a page nested under a GM-only page is GM only too (docrender pageHid), judged in the hosted campaign (the one on screen)
 function docHidHere(id) { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, R = window.wpDocRender; return !!(c && c.items && R && typeof R.pageHid === 'function' && R.pageHid(c.items, id)); }
-function sanitizeItem(item) {
+// 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21, "Also per player"): a page that holds a block kept back from
+// players (docrender.js blockKept) is cut for each reader apart, so it never goes as one shared copy or a shared delta: net.sendItem and
+// net.broadcastItemFiltered ask this and send each admitted connection its own copy (sanitizeItem with that player's id)
+function docPerReader(it) { var R = window.wpDocRender; return !!(it && it.type === 'doc' && R && typeof R.docKept === 'function' && R.docKept(it)); }
+// [netcheck:docsent-start]
+// 1.6.3 (the review of pages reveal, finding 1): what each admitted connection was last sent of a page cut per reader, by the page's id and
+// then the connection's peer id. Before this, such a page went whole to every player at every save of the GM's, while it was the item on
+// screen, whatever changed: several megabytes a player on a long page. Now the next send to a connection is a delta worked out against its
+// OWN copy (netfog.js's delta, handed that copy as its base), or nothing at all where its copy is as it was. A copy is noted only once it
+// went out. It is let go when the connection closes (docSentForget with its peer id), when the page leaves the per-reader path or leaves
+// every player's copy (docSentForget with no peer and the page's id), and at a new table (docSentForget with nothing)
+var _docSent = Object.create(null);
+function docSentForget(peer, itemId) {
+    if (typeof itemId === 'string') { if (typeof peer === 'string') { if (_docSent[itemId]) delete _docSent[itemId][peer]; } else delete _docSent[itemId]; return; }
+    if (typeof peer === 'string') { Object.keys(_docSent).forEach(function(id) { delete _docSent[id][peer]; }); return; }
+    _docSent = Object.create(null);
+}
+// One connection's copy of a page cut per reader (sanitizeItem with that player's id). whole (true only) sends it whole and so does a
+// connection with no copy noted. Otherwise a delta against that connection's own copy goes where it is smaller, the whole copy where the
+// delta cannot be made, and nothing where the copy is unchanged. ak wraps a message with how far that connection's copy goes (14c) and at is
+// the action of theirs a whole copy answers. Called by net.sendItem and net.broadcastItemFiltered alone
+function docSendTo(conn, campId, itemId, it, whole, ak, at) {
+    var pr = net.roster[conn.peer]; if (!pr || !conn.open) return;
+    var out = sanitizeItem(it, pr.id); if (!out) return;
+    var mine = _docSent[itemId] || (_docSent[itemId] = Object.create(null)), base = whole === true ? null : (mine[conn.peer] || null);
+    var msg = { type: 'item', campId: campId, itemId: itemId, item: out };
+    if (base) { var d = itemDelta(itemId, out, base); if (d === false) return; if (d) { d.campId = campId; if (JSON.stringify(d).length < JSON.stringify(msg).length * 0.9) msg = d; } }
+    try { conn.send(ak(msg, conn, at)); } catch (e) { sendFailed(e); return; }
+    mine[conn.peer] = out;   // what that connection now holds: sanitizeItem made it fresh for this send, and nothing writes into it after
+}
+// [netcheck:docsent-end]
+// a link or a mention in a page or a chat line that leads to a kept block keeps only its page (docrender.js unlinkKept), judged in the hosted
+// campaign, the one on screen
+function unkeepLinks(v) { var c = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, R = window.wpDocRender; return c && c.items && R && typeof R.unlinkKept === 'function' && typeof R.keptIn === 'function' ? R.unlinkKept(v, R.keptIn(c.items)) : v; }
+// reader (1.6.3, finding 18): the profile id of the player this copy is for. A page's blocks kept back from players reach only those they name;
+// with no reader (the stream window) none does, and '*any' (the asset gate's sweep) keeps a block any player may read. A map ignores it
+function sanitizeItem(item, reader) {
     // 1.6.2, merged cells: a cell under a merge, and every cell of a full-width row but its first, keeps its words on the GM's page (Unmerge
     // shows them again) but is not drawn. On the copy that goes to players it is blanked, with its look, so a player's Handbook search or
     // Mentioned in never finds a page by words they cannot see on it. d is cleanDoc's fresh copy (rows as lists), never the GM's own page.
@@ -845,7 +881,7 @@ function sanitizeItem(item) {
     }
     if (!item) return item;
     if (item.type === 'planner') return null;
-    if (item.type === 'doc') { if (typeof docHidHere === 'function' && docHidHere(item.id)) return null; return window.wpDocRender ? docHideMerged(window.wpDocRender.cleanDoc(item), window.wpDocRender) : null; }   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all (1.5.6: nor a page nested under a GM-only one)
+    if (item.type === 'doc') { if (typeof docHidHere === 'function' && docHidHere(item.id)) return null; if (!window.wpDocRender) return null; var docW = docHideMerged(window.wpDocRender.cleanDoc(item, { reader: reader }), window.wpDocRender); return docW && typeof unkeepLinks === 'function' ? unkeepLinks(docW) : docW; }   // GM-only pages and unknown block types never leave the host; without the renderer, no page at all (1.5.6: nor a page nested under a GM-only one)
     if (item.type !== 'map') return item;
     var m = JSON.parse(JSON.stringify(item), wireNum);
     if (m.meta && typeof m.meta === 'object') { delete m.meta.lastX; delete m.meta.lastY; delete m.meta.lastZoom; delete m.meta.lastWbX; delete m.meta.lastWbY; delete m.meta.lastWbZoom; }   // the camera (CAM_KEYS, written out here): where the GM last looked may be on a hidden token, and is the GM's screen's own; a player's app opens on its own (camLand)
@@ -1199,6 +1235,14 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: a player's drawing the GM hid, noted for each of their connections before the copy without it goes
     if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: a picture only a piece no longer sent carries is forgotten once the map has gone out
     if (!onlyConn && typeof mapNobody === 'function' && mapNobody(it, itemId)) { delete _lastSent[itemId]; return; }   // 1.6.3 (the combat review, finding 2): a map no connection holds whole goes nowhere, so nothing of it is made; whoever comes to it is given it whole (mapGive)
+    if (typeof docPerReader === 'function' && docPerReader(it)) {   // 1.6.3 (finding 18): a page with a block kept back goes to each admitted connection as its own reader's copy, never as a shared delta
+        delete _lastSent[itemId];   // the next send of it, once nothing is kept back, is whole
+        // the review of pages reveal (finding 1): a delta against that connection's own copy, or nothing where it is unchanged; one asked for is sent whole
+        var docOne = function(conn) { if (exceptConn && conn === exceptConn) return; docSendTo(conn, campId, itemId, it, !!onlyConn, ak, at); };
+        if (onlyConn) docOne(onlyConn); else net.conns.forEach(docOne);
+        return;
+    }
+    if (typeof docSentForget === 'function') docSentForget(null, itemId);   // the review of pages reveal: a page off the per-reader path keeps no copy per connection
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
     // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
     if (mapFogged(it)) {
@@ -1239,6 +1283,13 @@ net.broadcastItemFiltered = function(campId, itemId) {
     if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem
     if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
     if (typeof mapNobody === 'function' && mapNobody(it, itemId)) { delete _lastSent[itemId]; return; }   // 1.6.3 (finding 2): as net.sendItem, after the stub its holders are sent
+    if (typeof docPerReader === 'function' && docPerReader(it)) {   // 1.6.3 (finding 18): as net.sendItem, each admitted connection its own reader's copy
+        delete _lastSent[itemId];
+        var akB = typeof withAck === 'function' ? withAck : function(m) { return m; };
+        net.conns.forEach(function(conn) { docSendTo(conn, campId, itemId, it, true, akB); });   // always whole, as this send always is; each copy is noted for the next delta
+        return;
+    }
+    if (typeof docSentForget === 'function') docSentForget(null, itemId);   // the review of pages reveal: as net.sendItem
     if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm, it.type === 'map' && typeof mapHeld === 'function' ? itemId : null); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // possession: a map to the connections holding it whole, a page to every admitted one   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
@@ -1272,6 +1323,7 @@ function pagesSync(fresh) {   // fresh (true only): note the pages as they stand
 }
 net.itemGone = function(campId, itemId, title) {
     delete _lastSent[itemId];
+    if (typeof docSentForget === 'function') docSentForget(null, itemId);   // the review of pages reveal: and each connection's copy of a page cut per reader
     if (typeof sensesForgetMap === 'function') sensesForgetMap(itemId);   // Senses S0: and what anyone's copy of it was made by
     if (typeof fogForgetMap === 'function') fogForgetMap(itemId);   // fold M5: and what anyone's copy of it holds
     if (typeof hidForgetMap === 'function') hidForgetMap(itemId);   // hidden pieces: and the drawings on it the GM hid
@@ -3927,7 +3979,7 @@ function notepadMsg() {
     var camp = getActiveCampaign() || {};
     var m = { type: 'notepad', on: !!net.notepad.on, text: String(net.notepad.text || '').slice(0, 20000), campId: camp.id || '', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM' };
     var lk = m.on ? padRec(m.text) : undefined;   // the look for the very text sent: a message with no look has exactly the keys it always had
-    if (lk) m.look = lk;
+    if (lk) m.look = typeof unkeepLinks === 'function' ? unkeepLinks(lk) : lk;   // the review of pages reveal (finding 2): a mention in the pad of a block kept back from players names only its page
     return m;
 }
 // The pad's one field, as the text box reads and writes it. Only while this app hosts: a player's app has no field, so nothing can be typed
@@ -4908,7 +4960,7 @@ function relayShare(msg, conn, sender) {
     // It is CLEANED once, after the rate limit, for the text as it will be relayed, and what is charged is the weight of the cleaned look:
     // that is what is relayed and what each reader keeps, and it can be many times the look as it arrived (each part of one link holds the address)
     var LKs = typeof window !== 'undefined' && window.wpLook && typeof window.wpLook.recShapeOk === 'function' ? window.wpLook : null, lkS = LKs && en.kind !== 'image' && LKs.recShapeOk(en.look) ? en.look : null;
-    var lkO = null, lookOut = function() { if (lkO === null) lkO = (lkS && LKs.cleanRec(lkS, String(en.text || '').slice(0, 60000), LKs.RULES.NOTE)) || undefined; return lkO; };
+    var lkO = null, lookOut = function() { if (lkO === null) { lkO = (lkS && LKs.cleanRec(lkS, String(en.text || '').slice(0, 60000), LKs.RULES.NOTE)) || undefined; if (lkO && typeof unkeepLinks === 'function') lkO = unkeepLinks(lkO); } return lkO; };   // the review of pages reveal (finding 2): a link or a mention of a block kept back from players names only its page
     if (conn) {   // from a player: a few a minute, and a budget for the session (a share lands on the GM's disk or in another player's journal) — 100 shares and 60 MB,
                   // the player's own by profile id, so a new connection (a new peer id) is no new allowance; the notes and the caption count with the text or the picture
         var kS = String(sp.id);
@@ -8111,6 +8163,7 @@ function handleMessage(msg, conn) {
             msg = { type: 'chat', scope: 'global', from: { id: pc.id, name: pc.name || 'Player' }, text: msg.text.slice(0, 2000), ts: Date.now() };
             if (pc.color) msg.from.color = pc.color;
             var menH = typeof chatMen === 'function' ? chatMen(menIn, msg.text) : undefined; if (menH) msg.men = menH;   // 1.6.2 (166 f): its mentions, kept only as stretches of the words relayed
+            if (msg.men && typeof unkeepLinks === 'function') msg.men = unkeepLinks(msg.men);   // the review of pages reveal (finding 2): a player named in a kept block may mention it, and everyone is relayed only its page
             pushChat(msg);
             broadcast(msg, conn);
             logEvent('chat', (msg.from.name || 'Player') + ': ' + String(msg.text || '').slice(0, 300), { w: msg.from.name || 'Player', x: 'Said in chat', d: String(msg.text || '').slice(0, 300) });
@@ -8345,6 +8398,7 @@ function wireConn(conn) {
         if (p && p.id && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) sensesForget(p.id);   // Senses S0: their last connection: what their copies were made by is forgotten, and no send waits for them
         if (net.role === 'host' && typeof fogDragSweep === 'function') fogDragSweep();   // fold M4: a drag this connection left open goes back where it began
         if (typeof fogForgetConn === 'function') fogForgetConn(conn.peer);   // fold M5: and what its copies held
+        if (typeof docSentForget === 'function') docSentForget(conn.peer);   // the review of pages reveal: and its copies of pages cut per reader
         if (p && p.id && net.role === 'host' && typeof tradeConnGone === 'function' && !net.conns.some(function(c) { return c.open && net.roster[c.peer] && net.roster[c.peer].id === p.id; })) tradeConnGone(p.id);   // 1.5.6: their last connection: their trades end, the other side told
         if (net.role === 'host' && typeof videoHang === 'function') { videoHang(conn.peer); videoTold(); }   // item 21 V2: and the call that showed it a video
         if (net.role === 'host' && window.wpVoice) { try { window.wpVoice.connGone(conn.peer); } catch (e) {} }   // voice chat: and its voice link, gone from everyone else's voice
@@ -8630,7 +8684,7 @@ function sigGate(peer, isHost, room) {
 // [netcheck:siggate-end]
 net._hostGen = 0;
 function startHosting(forceFresh) {
-    _lastSent = {};   // a new table starts from the snapshot, not from anything sent before
+    _lastSent = {}; if (typeof docSentForget === 'function') docSentForget();   // a new table starts from the snapshot, not from anything sent before, and so does each connection's copy of a page cut per reader (the review of pages reveal)
     sensesReset();   // Senses S0: and from no copy made for anyone
     _dragFrom = Object.create(null); _refusedAt = Object.create(null);   // fold M4: and from no drag of the last table
     if (typeof webJoinOnly === 'function' && webJoinOnly()) return;   // 1.5.5: a website's plan that joins tables alone hosts none (webmode.js; the site holds the same line): nothing of a table is begun
@@ -9135,7 +9189,7 @@ function assetHidePlan(camp) {
         Object.keys(cand).forEach(function(k) { if (shown[k] !== 1 && _assetKept[k] === 1) { shown[k] = 1; left--; } });   // what the items' own copies carried a moment ago
         if (left > 0) {
             var before = Object.create(null); Object.keys(shown).forEach(function(k) { before[k] = 1; });
-            for (var q = 0; q < items.length && left > 0; q++) { var it = items[q], wire = null; if (it.type === 'planner') continue; try { wire = sanitizeItem(Array.isArray(it.whiteboard) ? Object.assign({}, it, { whiteboard: [] }) : it); } catch (e) { wire = null; } if (wire) assetWalk(wire, put); }   // an item that cannot be judged is not sent either
+            for (var q = 0; q < items.length && left > 0; q++) { var it = items[q], wire = null; if (it.type === 'planner') continue; try { wire = sanitizeItem(Array.isArray(it.whiteboard) ? Object.assign({}, it, { whiteboard: [] }) : it, '*any'); } catch (e) { wire = null; } if (wire) assetWalk(wire, put); }   // an item that cannot be judged is not sent either
             Object.keys(shown).forEach(function(k) { if (before[k] !== 1) _assetKept[k] = 1; }); _assetKeptAt = nowA;
         }
     }
@@ -9602,7 +9656,7 @@ net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged
         if (e.cid ? e.cid === charId : !!(name && typeof e.m.roll.as === 'string' && e.m.roll.as && namesR().indexOf(e.m.roll.as) >= 0 && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
-function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper' || !!m.shown; }).filter(function(m) { return !m.help; }).filter(function(m) { return !m.kept; }).slice(-60).map(function(m) { var wr = m.shown || m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.shown ? 'global' : m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
+function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper' || !!m.shown; }).filter(function(m) { return !m.help; }).filter(function(m) { return !m.kept; }).slice(-60).map(function(m) { var wr = m.shown || m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.shown ? 'global' : m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m.men && typeof unkeepLinks === 'function' ? Object.assign({}, m, { men: unkeepLinks(m.men) }) : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
 // [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
     if (rec && typeof rec.id === 'string') for (var iR = chatLog.length - 1; iR >= 0; iR--) if (chatLog[iR] && chatLog[iR].roll && chatLog[iR].roll.id === rec.id) { chatLog[iR].roll = rec; chatLog[iR].res = res; chatLog[iR].scope = scope; if (!rec.pend) ringPush(chatLog[iR], opts && opts.cid); renderChat(); return; }   // 1.6.2 (G5): a held roll's card, changed or landed, takes the place of the one before it
@@ -10369,6 +10423,7 @@ function sendChat(menFrom) {
     var me = getProfile();
     var msg = { type: 'chat', scope: 'global', from: { id: net.myId, name: me.name || (net.role === 'host' ? 'GM' : 'Player'), gm: net.role === 'host' }, text: text, ts: Date.now() };
     var menS = chatMen(menT, text); if (menS) msg.men = menS;
+    if (msg.men && net.role === 'host' && typeof unkeepLinks === 'function') msg.men = unkeepLinks(msg.men);   // 1.6.3 (finding 18): a mention of a block kept back from players names only its page
     if (net.role === 'host') {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';
         if (toKey) {

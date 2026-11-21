@@ -511,10 +511,13 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
 
       var title = exportTitle();
       var run = window.wpWithRenderedPlanner || function(fn) { return fn(); };
-      run(function() { return fetch('style.css').then(r => r.text()).then(function(css) {
+      // the review of pages reveal (finding 3): a page with a block kept back asks first (io.js keptAsk). As players read it saves the drawn
+      // page with every kept block left out (io.js keptCut); With what I kept back saves it whole, each kept block marked as on screen
+      var KX = window.wpKeptExport, askK = KX && KX.ask ? KX.ask : function(it, a, then) { then(false); };
+      askK(activeMap, showConfirm, function(players) { run(function() { return fetch('style.css').then(r => r.text()).then(function(css) {
           var pvX = document.getElementById('plannerPreview'), navX = window.wpPageNav;
           if (navX && navX.strip) navX.strip(pvX);   // the page as drawn: an export carries no fold and no fold arrow (pagenav.js)
-          var content = pvX.innerHTML;
+          var campX = getActiveCampaign(), content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;
           if (navX && navX.apply) navX.apply(pvX);
 
           var htmlOutput = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + title + '</title>' +
@@ -526,8 +529,8 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
               '</head><body><div id="plannerPreviewWrap" class="doc-view">' + content + '</div></body></html>';
 
           downloadFile(title + '.html', new Blob([htmlOutput], {type: 'text/html'}));
-          toast('HTML exported.');
-      }).catch(function() { toast('HTML export failed.'); }); });
+          toast(players === true ? 'HTML exported as players read it.' : 'HTML exported.');
+      }).catch(function() { toast('HTML export failed.'); }); }); });
   });
 
   var _el_exportImgBtn = document.getElementById('exportImgBtn');

@@ -3271,6 +3271,19 @@
   .doc-view .node.card-ahead { box-shadow: inset 3px 0 0 var(--blue); }
   .doc-view .node .card-aka, .doc-view .node .card-sheet { color: var(--dim); margin: 2px 0 6px; font-size: 13px; }
   .b-done-l, .b-when-l, .b-wide-l { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; font-size: 12px; color: var(--dim); }
+/* 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21): a block of a page kept back from players. On the GM's own
+   drawn page it wears a dashed edge and its words (docrender.js keptWords), printed from its data-kept attribute so that the page's Find never
+   reads them. A player's copy never holds such a block. Never positioned: a positioned block paints over a picture floated beside it.
+   The review of pages reveal (finding 3): the mark is no longer for the screen alone, so a kept block on paper, in a PDF or in a saved HTML
+   page is never unmarked. A page saved As players read it prints with body.print-players, under which every kept block is left out */
+.pv-blk.pv-kept { outline: 1px dashed var(--dim); outline-offset: 4px; border-radius: 4px; }
+.pv-blk.pv-kept::before { content: attr(data-kept); display: block; font-size: 11px; letter-spacing: .3px; color: var(--dim); margin: 0 0 4px; }
+@media print { body.print-players .pv-blk.pv-kept { display: none !important; } }
+/* the page editor's row under each block: Players see this, and the players who still see a block kept back */
+.b-see-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 6px; }
+.b-see-l, .b-see-p { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--dim); }
+.b-see-who { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.b-see-cap, .b-see-none { font-size: 12px; color: var(--dim); }
   .doc-view .node h3 .tag { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 20px; padding: 2px 9px; margin-left: 9px; vertical-align: middle; }
   .doc-view .must { color: var(--dim); margin: 2px 0 10px; font-size: 14px; }
   .doc-view .must b { color: var(--ink); }

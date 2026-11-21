@@ -707,6 +707,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const pageOk = c => !!c && JSON.stringify(c.blocks[0].fmt) === JSON.stringify({ title: { color: RED, spans: [{ s: 0, e: 3, b: true }] } }) && JSON.stringify(c.blocks[1].colFmt) === '[{"i":true}]' && JSON.stringify(c.blocks[1].rowFmt) === '[[{"b":true}]]' && JSON.stringify(c.blocks[1].rows) === '[["x"]]';
             check('text style import (Merge): every format a planner\'s blocks carry is cleaned against its own text — a title\'s, a tag\'s, a head\'s, a cell\'s, a node\'s label\'s, an arrow\'s, a caption\'s — hostile keys and values gone, an emptied holder gone; a page\'s through cleanDoc',
                 JSON.stringify(icF.items.pf.blocks) === wantPlanner && pageOk(icF.items.df), JSON.stringify(icF.items.pf.blocks));
+            // 1.6.3 (the improvement week's pages review, finding 18): a file the GM brings in keeps which of a page's blocks are kept back from
+            // players, and from whom, cleaned (docrender cleanDoc opts.gm): a hide that is not true keeps nothing back, a see list keeps profile ids alone
+            const icK = JSON.parse(JSON.stringify({ items: { dk: { id: 'dk', type: 'doc', meta: { title: 'K' }, blocks: [{ id: 'k1', type: 'text', content: '<p>a</p>', hide: true, see: ['u_a', '<b>', 'u_a'] }, { id: 'k2', type: 'text', content: '<p>b</p>', hide: 'yes' }] } } }));
+            cleanImportItems(icK, deps);
+            check('1.6.3 (finding 18) a page brought in by the GM keeps its blocks kept back from players, and who still sees them, cleaned',
+                JSON.stringify(icK.items.dk.blocks.map(b => [b.id, b.hide, b.see])) === JSON.stringify([['k1', true, ['u_a']], ['k2', undefined, undefined]]), JSON.stringify(icK.items.dk.blocks));
             const outF = cleanImport(JSON.parse(JSON.stringify({ activeCampaignId: 'cF', campaigns: { cF: { id: 'cF', name: 'F', items: { pf: styledPlanner(), df: styledPage() } } } })), deps);
             check('text style import (Replace): the same, after the load\'s normaliser', !!outF && JSON.stringify(outF.campaigns.cF.items.pf.blocks) === wantPlanner && pageOk(outF.campaigns.cF.items.df), outF && JSON.stringify(outF.campaigns.cF.items.pf.blocks));
             const bare = b => JSON.stringify(b).indexOf('"fmt"') < 0 && JSON.stringify(b).indexOf('"colFmt"') < 0 && JSON.stringify(b).indexOf('"rowFmt"') < 0;

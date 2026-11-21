@@ -1591,6 +1591,44 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.5.6 a GM-only page hides the pages under it (docrender pageHid): a page is kept from players when it or any page it is nested under is GM only, whatever its own switch says, down every level; a page under no GM-only page, or under a map (a page nests only under pages), is shown; a parent that is not there, a loop and a chain past 200 pages stop the walk; items are read by own keys only; anything that is no page or no list answers no',
             R.f && R.c && R.g && !R.p && !R.q && R.own && !R.under && !R.dang && !R.loop && !R.map && !R.none && !R.proto && !R.inh && R.deep && !R.past && R.junk.every(v => v === false), JSON.stringify(R));
     }
+    /* ---- 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21: "an option to reveal certain parts and not others if
+       the gm desires", and "Also per player"): a page's block kept back from players. cleanDoc's players' copy leaves out what its reader may
+       not read and keeps no mark; only the GM's own copy keeps hide and see, cleaned; renderDoc marks a kept block on the GM's page only by an
+       attribute; a link to a kept block keeps only its page; and the GM's own Markdown export comes back with what it kept back ---- */
+    {
+        const J = JSON.stringify;
+        const doc = { id: 'pk', type: 'doc', meta: { title: 'P' }, blocks: [
+            { id: 'a1', type: 'text', content: '<p>open</p>' },
+            { id: 'k1', type: 'callout', content: '<p>SECRET</p>', hide: true, see: 'u_x' },
+            { id: 'k2', type: 'h3', title: 'MIRA', hide: true, see: ['u_mira', 'u_mira', '__proto__', 7, 'bad id!', 'u_kael'] },
+            { id: 'a2', type: 'text', content: '<p>after</p>', hide: 'yes', see: ['u_mira'] }] };
+        const ids = d => d ? d.blocks.map(b => b.id).join() : 'none';
+        const gm = D.cleanDoc(doc, { keepHidden: true, gm: true }), mira = D.cleanDoc(doc, { reader: 'u_mira' }), kael = D.cleanDoc(doc, { reader: 'u_kael' }), nobody = D.cleanDoc(doc), client = D.cleanDoc(doc, { keepHidden: true }), any = D.cleanDoc(doc, { reader: '*any' });
+        const R = { gm: ids(gm), gmMarks: gm.blocks.map(b => [b.hide, b.see]), mira: ids(mira), kael: ids(kael), nobody: ids(nobody), client: ids(client), any: ids(any),
+            noMarks: [mira, kael, nobody, client, any].every(d => J(d).indexOf('"hide"') < 0 && J(d).indexOf('"see"') < 0), noSecret: [mira, kael, nobody, client].every(d => J(d).indexOf('SECRET') < 0 && J(d).indexOf('k1') < 0) && J(nobody).indexOf('MIRA') < 0 };
+        check('1.6.3 (finding 18) cleanDoc: a block kept back from players is left out of every players\' copy but the copy of a reader it names (a hide that is not true keeps nothing back); only the GM\'s own copy keeps hide, true only, and see, cleaned to profile ids once each',
+            R.gm === 'a1,k1,k2,a2' && J(R.gmMarks) === J([[undefined, undefined], [true, undefined], [true, ['u_mira', 'u_kael']], [undefined, undefined]]) && R.mira === 'a1,k2,a2' && R.kael === 'a1,k2,a2' && R.nobody === 'a1,a2' && R.client === 'a1,a2' && R.any === 'a1,k2,a2' && R.noMarks && R.noSecret, J(R));
+        const big = { see: Array.from({ length: 100 }, (_, i) => 'u_' + i) };
+        check('1.6.3 (finding 18) blockSeen and cleanSee: a kept block is seen only by a reader it names, never by none, a number or the empty name; a list holds 32 at most; docKept says whether a page holds one',
+            D.blockSeen({ hide: true, see: ['u_a'] }, 'u_a') && !D.blockSeen({ hide: true, see: ['u_a'] }, 'u_b') && !D.blockSeen({ hide: true }, undefined) && !D.blockSeen({ hide: true, see: ['7'] }, 7) && !D.blockSeen({ hide: true, see: [''] }, '')
+            && D.blockSeen({ hide: 1 }, null) && D.cleanSee(big.see).length === D.SEE_MAX && D.docKept(doc) && !D.docKept({ blocks: [{ hide: 'true' }] }) && !D.docKept(null), J(D.cleanSee(big.see).length));
+        const html = D.renderDoc(gm, { who: idsW => idsW.map(x => x === 'u_mira' ? 'Mira <b>' : 'Kael') }), plain = D.renderDoc(mira);
+        check('1.6.3 (finding 18) renderDoc marks a kept block on the GM\'s own page by a class and an attribute only (escaped names, never a text node), and draws a players\' copy exactly as before',
+            html.indexOf('<div class="pv-blk pv-kept" data-blk="1" data-kept="Kept from players">') >= 0 && html.indexOf('data-kept="Kept from players. Seen by Mira &lt;b&gt;, Kael"') >= 0 && html.indexOf('<div class="pv-blk" data-blk="0">') >= 0
+            && plain.indexOf('pv-kept') < 0 && plain.indexOf('data-kept') < 0 && (plain.match(/class="pv-blk" data-blk="\d+"/g) || []).length === 3 && D.keptWords({ hide: true, see: ['a', 'b'] }) === 'Kept from players. Seen by 2 players', html.slice(0, 400));
+        const items = { pk: doc, other: { id: 'other', type: 'doc', blocks: [{ id: 'k9', hide: true }] } }, judge = D.keptIn(items);
+        const linked = { blocks: [{ content: '<a href="#wp:page:pk:k1">x</a> <a href="#wp:page:pk:a1">y</a> <a href="#wp:@:page:other:k9">z</a> <a href="#wp:page:pk">w</a> <a href="#wp:page:nope:k1">v</a>' }] }, un = D.unlinkKept(linked, judge);
+        check('1.6.3 (finding 18) unlinkKept: a link or a mention of a kept block keeps only its page, one to a block players read and one to a page alone stand, and a doc with no link is handed back as it is',
+            un.blocks[0].content === '<a href="#wp:page:pk">x</a> <a href="#wp:page:pk:a1">y</a> <a href="#wp:@:page:other">z</a> <a href="#wp:page:pk">w</a> <a href="#wp:page:nope:k1">v</a>' && D.unlinkKept(gm, judge) === gm && !judge('__proto__', 'k1') && !judge('pk', 'zz'), un.blocks[0].content);
+        if (M) {
+            const out = M.docToMarkdown(gm).text, back = M.markdownToBlocks(out, { kind: 'doc' }).blocks, none = M.docToMarkdown(D.cleanDoc(Object.assign({}, doc, { blocks: doc.blocks.map(b => Object.assign({}, b, { hide: undefined })) }), { keepHidden: true, gm: true })).text;
+            const tag = back.map(b => b.type + ':' + (b.hide === true ? 'kept' + (b.see ? '[' + b.see.join(',') + ']' : '') : 'shown')).join();
+            const esc = M.markdownToBlocks(M.docToMarkdown({ type: 'doc', meta: { title: 'E' }, blocks: [{ id: 't', type: 'text', content: '<p>{kept}</p>' }] }).text, { kind: 'doc' }).blocks;
+            check('1.6.3 (finding 18) Markdown: the GM\'s own export of a page writes {kept} (with see=) and {shown} where that changes, and reads back each block as it was kept; a page with nothing kept writes neither; a paragraph that says {kept} reads back as words',
+                tag === 'text:shown,callout:kept,h3:kept[u_mira,u_kael],text:shown' && out.indexOf('{kept}') >= 0 && out.indexOf('{kept see=u_mira,u_kael}') >= 0 && out.indexOf('{shown}') >= 0 && none.indexOf('{kept') < 0 && none.indexOf('{shown}') < 0
+                && esc.length === 1 && esc[0].hide === undefined && esc[0].content.indexOf('{kept}') >= 0, J([tag, esc]));
+        }
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -27,7 +27,9 @@
      labelFmt(fmt, text)     a flowchart label's format: the cleaner's, less every link (a label never carries one).
      cleanDoc(doc, opts)     the wire sanitizer (host) and the client-side normaliser (keepHidden):
                              a new object with only the known fields, every string capped, every
-                             number validated; null for a GM-only page unless opts.keepHidden.
+                             number validated; null for a GM-only page unless opts.keepHidden. A block
+                             kept back from players is left out unless opts.reader may read it, and
+                             only opts.gm (the GM's own copy) keeps the marks hide and see (1.6.3).
      renderDoc(doc, opts)    the page as HTML built from escaped text and sanitized content only.
      proseHtml(content, t)   the planner's line-break rule, shared so pages and planners read alike.
      compileFlowchart(b)     the builder block → mermaid source (moved here from planner.js).
@@ -840,6 +842,58 @@ function effectiveLayout(b) {
 // a plain field's format on the wire: cleaned against the text as it is sent (the capped one), kept only when something is left
 function keepFmt(o, b, k) { var f = cleanFmt(fieldFmt(b, k), o[k]); if (f) { if (!o.fmt) o.fmt = {}; o.fmt[k] = f; } }
 var LAYOUT_OK = { image: 1, callout: 1, flare: 1, table: 1, diagram: 1, flowchart: 1 };
+// 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21: "I think there should be an option to reveal certain parts and
+// not others if the gm desires", and then "Also per player"): a block of a page may be kept back from players. Two keys of the GM's own say so
+// on the block: hide, true only, is the page editor's Players see this unticked, and see lists the profile ids of the players who still see a
+// block kept back (none listed: nobody but the GM). Neither key ever leaves the host. cleanDoc's players' copy (any call without opts.gm) leaves
+// out every block its reader may not read, before anything of it is cleaned or counted, and keeps neither key on a block it sends. The host
+// cuts a page per connection (net.js sanitizeItem with the reader), so a kept block's words, title, id and count reach only the players it
+// names, and the stream window, which reads with no reader, never gets one. Only the GM's own copy keeps the keys (cleanDoc with opts.gm: a
+// file brought in by the GM, cleanup.js cleanImportItems). renderDoc marks a kept block for the GM (keptOpen).
+var SEE_MAX = 32;
+// the players who see a block kept back, as profile ids (net.js validProfileId's rule), each once, SEE_MAX at most, anything else dropped
+function cleanSee(v) {
+    var out = []; if (!Array.isArray(v)) return out;
+    for (var i = 0; i < v.length && out.length < SEE_MAX && i < SEE_MAX * 4; i++) { var id = v[i]; if (typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(id) && !(id in Object.prototype) && out.indexOf(id) < 0) out.push(id); }
+    return out;
+}
+function blockKept(b) { return !!b && typeof b === 'object' && b.hide === true; }
+// reader: a player's profile id. '*any' asks whether any player at all may read the block (the asset gate's sweep in net.js). Anything else
+// (none, the stream window, a player's own app cleaning what it received) reads no kept block at all
+function blockSeen(b, reader) {
+    if (!blockKept(b)) return true;
+    if (typeof reader !== 'string' || !reader) return false;
+    var s = cleanSee(b.see); return reader === '*any' ? s.length > 0 : s.indexOf(reader) >= 0;
+}
+// whether a page holds a block kept back from players at all (net.js sends such a page to each connection apart, never as one shared copy)
+function docKept(doc) { var bl = doc && Array.isArray(doc.blocks) ? doc.blocks : []; for (var i = 0; i < bl.length; i++) if (blockKept(bl[i])) return true; return false; }
+// a judge of links for unlinkKept: true where the page of that id holds a kept block of that id, read from the campaign's items by own keys
+function keptIn(items) {
+    return function(pid, bid) {
+        var it = items && typeof items === 'object' && Object.prototype.hasOwnProperty.call(items, pid) ? items[pid] : null, bl = it && it.type === 'doc' && Array.isArray(it.blocks) ? it.blocks : [];
+        for (var i = 0; i < bl.length; i++) if (bl[i] && bl[i].id === bid) return blockKept(bl[i]);
+        return false;
+    };
+}
+// A link to a part of a page (#wp:page:<page>:<block>) and a mention of one (#wp:@:page:<page>:<block>) on a copy that goes to players: where
+// that block is kept back, the link keeps only its page, so no kept block's id leaves the host in another block's words. It is judged for the
+// table as a whole, whoever may read the block, so a page with no kept block of its own stays one copy for every player. doc is a copy already
+// (cleanDoc's), handed back as it is where nothing changed
+function unlinkKept(doc, isKept) {
+    if (!doc || typeof isKept !== 'function') return doc;
+    var s = JSON.stringify(doc); if (s.indexOf('#wp:') < 0) return doc;
+    var t = s.replace(/#wp:(@:)?page:([A-Za-z0-9_-]{1,80}):([A-Za-z0-9_-]{1,64})/g, function(all, at, pid, bid) { return isKept(pid, bid) ? '#wp:' + (at || '') + 'page:' + pid : all; });
+    return t === s ? doc : JSON.parse(t);
+}
+// the words a kept block wears on the GM's own drawn page: printed by the style sheet from an attribute, never a text node, so the page's Find
+// never reads it. who (renderDoc's opts.who) turns the listed ids into names; with none the count of players is said
+function keptWords(b, who) {
+    var s = cleanSee(b.see), names = s.length && typeof who === 'function' ? who(s) : null;
+    if (!s.length) return 'Kept from players';
+    if (Array.isArray(names) && names.length) return 'Kept from players. Seen by ' + names.slice(0, 6).join(', ') + (names.length > 6 ? ' and ' + (names.length - 6) + ' more' : '');
+    return 'Kept from players. Seen by ' + s.length + (s.length === 1 ? ' player' : ' players');
+}
+function keptOpen(b, i, who) { return '<div class="pv-blk pv-kept" data-blk="' + i + '" data-kept="' + esc(keptWords(b, who)) + '">'; }
 var NO_FLOAT_IN_COLS = { callout: 1, flare: 1 };
 function cleanBlock(b, used, ctx) {
     if (!b || typeof b !== 'object' || DOC_BLOCKS.indexOf(b.type) < 0) return null;
@@ -1001,8 +1055,10 @@ function cleanDoc(doc, opts) {
     var src = Array.isArray(doc.blocks) ? doc.blocks : [];
     for (var i = 0; i < src.length; i++) {
         if (out.blocks.length >= LIMITS.blocks) { truncated = true; break; }
+        if (opts.gm !== true && !blockSeen(src[i], opts.reader)) continue;   // 1.6.3 (finding 18): a block kept back from this reader is never cleaned, counted or sent
         var c = cleanBlock(src[i], used, ctx);
         if (!c) continue;
+        if (opts.gm === true && blockKept(src[i])) { c.hide = true; var seeK = cleanSee(src[i].see); if (seeK.length) c.see = seeK; }   // the GM's own copy keeps its marks
         bytes += JSON.stringify(c).length;
         if (bytes > LIMITS.bytes) { truncated = true; break; }
         out.blocks.push(c);
@@ -1045,6 +1101,7 @@ function renderDoc(doc, opts) {
             if (b.type === 'h2') { cols = Math.max(1, Math.min(3, Math.round(Number(b.cols) || 1))); }
         }
         var blk = '<div class="pv-blk" data-blk="' + i + '">';
+        if (blockKept(b)) blk = keptOpen(b, i, opts.who);   // 1.6.3 (finding 18): a block kept back from players, marked on the GM's own page
         switch (b.type) {
             case 'h1': blk += '<h1>' + fmtHtml(b.title, fieldFmt(b, 'title')) + (b.sub ? '<span class="sub">' + fmtHtml(b.sub, fieldFmt(b, 'sub')) + '</span>' : '') + '</h1>'; break;
             case 'h2': blk += '<h2>' + fmtHtml(b.title, fieldFmt(b, 'title')) + '</h2>'; break;
@@ -1236,6 +1293,6 @@ function diagramBad(root, gm, doc) {
     return n;
 }
 
-var API = { pageHidBy: pageHidBy, pageHidSays: pageHidSays, diagramBad: diagramBad, headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { cleanSee: cleanSee, blockKept: blockKept, blockSeen: blockSeen, docKept: docKept, keptIn: keptIn, unlinkKept: unlinkKept, keptWords: keptWords, SEE_MAX: SEE_MAX, pageHidBy: pageHidBy, pageHidSays: pageHidSays, diagramBad: diagramBad, headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { pageHidBy, pageHidSays, diagramBad, DIAGRAM_BAD, plainLines, headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { cleanSee, blockKept, blockSeen, docKept, keptIn, unlinkKept, keptWords, SEE_MAX, pageHidBy, pageHidSays, diagramBad, DIAGRAM_BAD, plainLines, headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

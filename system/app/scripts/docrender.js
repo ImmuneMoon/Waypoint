@@ -41,7 +41,7 @@ import { cleanFmt, cleanLink, runsOf, SIZE_EM, FONTS as TF_FONTS, fontKnown, fon
 import { cssColor } from './safecore.js';
 
 var VERSION = '1.5.0';
-var LIMITS = { html: 65536, title: 300, cell: 2000, caption: 500, blocks: 500, bytes: 2 * 1024 * 1024, cols: 64, rows: 500, nodes: 200, edges: 400 };
+var LIMITS = { html: 65536, title: 300, cell: 2000, caption: 500, blocks: 5000, bytes: 2 * 1024 * 1024, cols: 64, rows: 500, nodes: 200, edges: 400 };
 
 var DOC_BLOCKS = ['h1', 'h2', 'h3', 'text', 'lede', 'oneline', 'callout', 'flare', 'image', 'table', 'rule', 'diagram', 'flowchart'];
 var PROSE = { text: 1, lede: 1, oneline: 1, callout: 1, flare: 1 };

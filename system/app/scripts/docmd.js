@@ -36,7 +36,7 @@ import { cleanFmt, runsOf, SIZE_EM, MAX_RAW } from './textfmt.js';
 import * as CC from './cardcore.js';   // backlog 107 step 3: a card's kind, other names and tick, written and read back
 
 var VERSION = '1.5.0';
-var LIMITS = { text: 2 * 1024 * 1024, blocks: 500, picture: 8 * 1024 * 1024, cols: 64 };   // cols: docrender LIMITS.cols (8 before 1.6.2's wide tables), held to it by doccheck   // blocks: what a page holds (docrender LIMITS.blocks; it was 300, and a long file lost its end)
+var LIMITS = { text: 2 * 1024 * 1024, blocks: 5000, picture: 8 * 1024 * 1024, cols: 64 };   // cols: docrender LIMITS.cols (8 before 1.6.2's wide tables), held to it by doccheck   // blocks: what a page holds (docrender LIMITS.blocks; it was 300, then 500, and a long chapter lost its end each time; 1.6.3, Fulllion: Waypoint adapts to the book, so it is a safety ceiling about ten times a long chapter's 579)
 var PLANNER_BLOCKS = ['h1', 'h2', 'lede', 'oneline', 'text', 'flare', 'callout', 'node', 'image', 'diagram', 'flowchart'];   // raw is never created by an import
 var PROSE = { lede: 1, oneline: 1, flare: 1, callout: 1 };
 var ATTR_KEYS = { cols: 1, width: 1, float: 1, dx: 1, dy: 1, span: 1 };

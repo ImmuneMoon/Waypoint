@@ -232,7 +232,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('cleanDoc: players absent counts as true', cleanDoc({ type: 'doc', id: 'd', meta: { title: 't' }, blocks: [] }).meta.players === true);
         check('cleanDoc: non-doc / null / non-array blocks', cleanDoc({ type: 'map' }) === null && cleanDoc(null) === null && cleanDoc({ type: 'doc', id: 'd', meta: { title: 't' }, blocks: 'nope' }).blocks.length === 0);
         check('cleanDoc: non-string title becomes Page, huge title cut', cleanDoc({ type: 'doc', id: 'd', meta: { title: {} }, blocks: [] }).meta.title === 'Page' && cleanDoc({ type: 'doc', id: 'd', meta: { title: 'x'.repeat(1000) }, blocks: [] }).meta.title.length === LIMITS.title);
-        const manyBlocks = { type: 'doc', id: 'd', meta: { title: 't' }, blocks: Array.from({ length: 700 }, (_, i) => ({ id: 'b' + i, type: 'rule' })) };
+        const manyBlocks = { type: 'doc', id: 'd', meta: { title: 't' }, blocks: Array.from({ length: 5200 }, (_, i) => ({ id: 'b' + i, type: 'rule' })) };   // moved on purpose (1.6.3): past the 5,000 a page now holds
         const mc = cleanDoc(manyBlocks);
         check('cleanDoc: block cap applied with a final notice block', mc.blocks.length === LIMITS.blocks + 1 && mc.blocks[LIMITS.blocks].type === 'text' && /too long/.test(mc.blocks[LIMITS.blocks].content), mc.blocks.length);
         const fat = { type: 'doc', id: 'd', meta: { title: 't' }, blocks: Array.from({ length: 60 }, (_, i) => ({ id: 'b' + i, type: 'text', content: 'x'.repeat(60000) })) };
@@ -355,7 +355,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('Markdown export, a text block with no color: where its own bold and italic marks would not read back (a bold part inside an italic, a strike-through ending in a space) the tags are written and the block reads back exactly; where the marks do read back they are written as ever (no tag appears)',
                 rN.every((r, i) => r.back === nest[i]) && rP.every((r, i) => r.back === plainOnes[i] && !/<[bis]>/.test(r.md)), JSON.stringify([rN.map((r, i) => r.back === nest[i] ? null : [nest[i], r.md, r.back]).filter(Boolean), rP.map((r, i) => r.back === plainOnes[i] && !/<[bis]>/.test(r.md) ? null : [plainOnes[i], r.md, r.back]).filter(Boolean)]));
         }
-        check('block cap 500 with a note', (() => { const r = markdownToBlocks(Array.from({ length: 520 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' }); return r.blocks.length === 500 && r.notes.some(n => /first 500/.test(n)); })());
+        check('block cap 5000 with a note (500 before 1.6.3, moved on purpose)', (() => { const r = markdownToBlocks(Array.from({ length: 5020 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' }); return r.blocks.length === 5000 && r.notes.some(n => /first 5000/.test(n)); })());
         check('flowchartFromMermaid: beyond the subset → null (classDef, subgraph, &)', flowchartFromMermaid('flowchart TD\nclassDef x fill:#fff\nA-->B') === null && flowchartFromMermaid('graph LR\nsubgraph s\nA-->B\nend') === null && flowchartFromMermaid('flowchart LR\nA & B --> C') === null && flowchartFromMermaid('pie\nA: 1') === null);
         check('flowchartFromMermaid: chains, labels, dotted, shapes', (() => { const f = flowchartFromMermaid('graph TB\n  A[Start] --> B{Choice?} -.->|no| C([End]):::red\n  B -- yes --> D{{Hex}}'); return f && f.dir === 'TD' && f.nodes.map(n => n.id + ':' + n.shape).join(',') === 'A:rect,B:diamond,C:pill,D:hex' && f.nodes[2].color === 'red' && f.edges.length === 3 && f.edges[1].style === 'dotted' && f.edges[1].text === 'no' && f.edges[2].text === 'yes'; })());
         // export and the round trip
@@ -1385,8 +1385,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             mixed === '<ul><li>a<ol><li>one</li><li>two</li></ol></li><li>b<ul><li>b1</li></ul></li></ul>' && md(mixBack) === mixed, jj([mixed, mixBack, md(mixBack)]));
         check('1.5.4 Markdown both ways: a list that starts at 3 is written 3. 4. and reads back as the same list, a nested one keeps its number, a list from 1 is written 1. 2. as ever',
             /^3\. a\n4\. b\s*$/.test(back) && md(back) === '<ol start="3"><li>a</li><li>b</li></ol>' && /\n  5\. five/.test(nested) && md(nested) === '<ul><li>a<ol start="5"><li>five</li></ol></li></ul>' && /^1\. a\n2\. b\s*$/.test(from1), jj([back, md(back), nested, md(nested), from1]));
-        const big = M.markdownToBlocks(Array.from({ length: 520 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' });
-        check('1.5.4 the Markdown import keeps as many blocks as a page holds (500; it kept 300) and says what it left out', big.blocks.length === 500 && M.LIMITS.blocks === D.LIMITS.blocks && big.notes.some(n => /first 500/.test(n)), big.blocks.length);
+        const big = M.markdownToBlocks(Array.from({ length: 5020 }, (_, i) => '## S' + i).join('\n\n'), { kind: 'doc' });
+        check('1.5.4 the Markdown import keeps as many blocks as a page holds (5,000 since 1.6.3, moved on purpose; it kept 300, then 500) and says what it left out', big.blocks.length === 5000 && M.LIMITS.blocks === D.LIMITS.blocks && big.notes.some(n => /first 5000/.test(n)), big.blocks.length);
+        {   // 1.6.3 (Fulllion: Waypoint adapts to the book): a chapter of 579 blocks, a third of them tables, comes through the Markdown import, cleanDoc and Markdown back whole
+            const ch = Array.from({ length: 579 }, (_, i) => i % 3 === 0 ? '## Part ' + i : i % 3 === 1 ? 'Words of part ' + i + '.' : '| A | B |\n| --- | --- |\n| ' + i + ' | x |').join('\n\n');
+            const im = M.markdownToBlocks(ch, { kind: 'doc' }), cl = D.cleanDoc({ type: 'doc', id: 'doc_ch', meta: { title: 'Chapter' }, blocks: im.blocks });
+            const again = M.markdownToBlocks(M.docToMarkdown(cl, {}).text, { kind: 'doc' });
+            check('1.6.3 a long chapter of 579 blocks (a third of them tables) is kept whole by the import, by cleanDoc and through Markdown and back, with no notice of a cut', im.blocks.length === 579 && cl.blocks.length === 579 && again.blocks.length === 579 && !im.notes.some(n => /first/.test(n)) && !cl.blocks.some(b => b.type === 'text' && /too long/.test(b.content || '')), JSON.stringify([im.blocks.length, cl.blocks.length, again.blocks.length]));
+        }
         const cssT = require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8');
         const cellD = D.cleanDoc({ type: 'doc', id: 'doc_c', meta: { title: 'T' }, blocks: [{ id: 'b_1', type: 'table', cols: ['A\nB'], rows: [['one\ntwo <b>x</b>'], [new Array(5000).join('\n')]] }] });
         const cellH = D.renderDoc(cellD);

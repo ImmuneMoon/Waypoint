@@ -273,9 +273,13 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             const ft = slice(trJs, 'trackcheck:trkfoot'), props = {}, writes = [];
             const st = { getPropertyValue: k => props[k] || '', setProperty: (k, v) => { props[k] = v; writes.push('set ' + k + '=' + v); }, removeProperty: k => { delete props[k]; writes.push('rm ' + k); } };
             const doc = { documentElement: { style: st } };
-            const F = new Function('document', ft + '\nreturn footSet;')(doc);
+            const win = {};   // the review of multiplayer window: no layout at first, then a layout that holds the bar at a top place or a lower one
+            const F = new Function('document', 'window', ft + '\nreturn footSet;')(doc, win);
             const bar = (bottom, height) => ({ getBoundingClientRect: () => ({ bottom, height }) });
             F(bar(96.4, 34)); const a = j(props); F(bar(96.4, 34)); const quiet = writes.length; F(bar(130, 70)); const b = j(props); F(bar(0, 0)); const c = j(props); F(null); const d = writes.length;
+            let heldAt = 'bc'; win.wpLayout = { held: () => true, atTop: () => heldAt.charAt(0) === 't' };
+            F(bar(1040, 34)); const low = j(props); heldAt = 'tr'; F(bar(96, 34)); const high = j(props); heldAt = 'mc'; F(bar(540, 34)); const mid = j(props);
+            win.wpLayout = { held: () => true }; F(bar(96, 34)); const noAsk = j(props); win.wpLayout = { held: () => false, atTop: () => false }; F(bar(96, 34)); const free = j(props); delete win.wpLayout;
             const plA = trJs.indexOf('function place(box) {'), plS = plA < 0 ? '' : trJs.slice(plA, trJs.indexOf('\n}\n', plA));
             check('1.6.3 (finding 19): the pause banner and the travel banner stand under the trackers bar: footSet writes the bar\'s bottom in the window as --trkfoot (run for real), only where it differs, and takes it off for a bar with no height or none; place asks it on its two ways out and at its end; each banner\'s top is the lower of its own and 8 px under the bar, a hidden top row\'s too, and the travel banner stands over the map\'s bars (8990) with its look in the style sheet',
                 a === j({ '--trkfoot': '96px' }) && quiet === 1 && b === j({ '--trkfoot': '130px' }) && c === '{}' && d === 3
@@ -284,6 +288,8 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
                 && css.includes('body.row-hidden:not(.tour-on):not(.stream-mode) #pauseBanner { top: max(calc(var(--rowbar) + 27px), calc(var(--trkfoot, 0px) + 8px)); }')
                 && /#travelLockBanner \{ position: fixed; top: max\(64px, calc\(var\(--trkfoot, 0px\) \+ 8px\)\);[^}]*z-index: 8995;/.test(css)
                 && ix.includes('<div id="travelLockBanner" style="display:none;"><i class="wib wi-lock"></i> Travel between maps is locked by the GM</div>'), j([a, quiet, b, c, d, writes]));
+            check('the review of multiplayer window: a trackers bar the layout editor holds at the bottom or in the middle of the map writes no --trkfoot, so the pause and travel banners keep their own top and never leave the window; one held at a top place writes it as before, and a layout that cannot say where it holds the bar counts as not at the top (footSet, run for real)',
+                low === '{}' && high === j({ '--trkfoot': '96px' }) && mid === '{}' && noAsk === '{}' && free === j({ '--trkfoot': '96px' }), j([low, high, mid, noAsk, free]));
         }
         check('CI runs this suite', ci.includes('run: node tools/trackcheck.js'));
     }

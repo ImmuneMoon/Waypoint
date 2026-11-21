@@ -2216,7 +2216,7 @@
 
   /* Table pause */
   /* 1.6.3 (the improvement week's review of multiplayer, finding 19): the pause banner and the travel banner stand under the trackers bar,
-     never over it nor under it. trackers.js place writes the bar's bottom on the page as --trkfoot (none while the bar is put away), and each
+     never over it nor under it. trackers.js place writes the bar's bottom on the page as --trkfoot (none while the bar is put away, or held off the top by the layout editor), and each
      banner takes the lower of its own top and 8 px under the bar. The travel banner stands over the map's bars (8990) */
   #pauseBanner {
     position: fixed; top: max(60px, calc(var(--trkfoot, 0px) + 8px)); left: 50%; transform: translateX(-50%); z-index: 95000;

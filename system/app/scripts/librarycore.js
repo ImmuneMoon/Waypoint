@@ -56,7 +56,7 @@ export function cleanPack(p, ctx, seen) {
     var why = function(r) { dropped++; if (reasons.length < LIB.reasons) reasons.push(r); };
     (Array.isArray(p.entries) ? p.entries : []).forEach(function(e, i) {
         if (out.entries.length >= LIB.entries) { why('entry ' + (i + 1) + ': past ' + LIB.entries + ' entries in one pack'); return; }
-        var c = cleanLibEntry(e, ctx); if (!c) { why('entry ' + (i + 1) + ': not a valid item (it needs an id like i_name)'); return; }
+        var c = cleanLibEntry(e, ctx); if (!c) { why('entry ' + (i + 1) + ': it is not an entry Waypoint can read'); return; }   // 1.6.3 (the review of the System editor and the Library window, finding 39): said in words, never by the form an id takes
         if (ids[c.id]) { why('entry ' + (i + 1) + ': the id ' + c.id + ' is already used'); return; }
         ids[c.id] = 1; out.entries.push(c);
     });
@@ -249,12 +249,39 @@ export function readPackImport(text, ctx) {
     if (text.length > LIB.fileBytes) return { error: 'That file is too large (16 MB at most).' };
     var j = null; try { j = JSON.parse(text); } catch (e) { return { error: 'That file is not JSON.' }; }
     if (!isObj(j) || (j.format !== undefined && j.format !== 'waypoint-pack') || !Array.isArray(j.entries)) return { error: 'That file is not a Waypoint pack.' };
-    var cp = cleanPack({ format: 'waypoint-pack', id: 'p_import', rev: 0, entries: j.entries }, ctx);
+    var fx = importIds(j.entries), cp = cleanPack({ format: 'waypoint-pack', id: 'p_import', rev: 0, entries: fx.entries }, ctx);
     var out = { name: line(j.name, LIB.packName) || 'Imported pack', vis: j.vis === 'gm' ? 'gm' : 'all', entries: cp.pack.entries, dropped: cp.dropped, reasons: cp.reasons };
+    if (fx.made) out.newIds = fx.made;   // 1.6.3 (finding 39): how many entries were given an id of their own, which the window says
     var ic = cleanIcon(j.icon); if (ic) out.icon = ic;
     if (typeof j.id === 'string' && PACK_RE.test(j.id)) out.id = j.id;   // 1.6.0: only to say which pack it was: Into starts on the pack of that id
     var ls = lostStats(j.entries, cp.pack.entries); if (ls.length) out.lostStats = ls;   // Stage 6 F3: never left out silently
     return out;
+}
+// 1.6.3 (the review of the System editor and the Library window, finding 39): a file written by hand, or by another tool, may name its entries by ids
+// of another form (e_t1), and the cleaner refused every one of them, asking the GM to type a key. An entry that is an object and whose id is no item
+// id is given one of its own here (newEntryId, never one the file already uses), and what the same file names by the old id (a need, an entry it
+// opens, an entry it grants) is pointed at the new one. Answers { entries, made }: the entries handed to the cleaner, each a copy where it
+// changed, and how many were given an id. The file's own entries are never changed. Read only by readPackImport
+var ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/;   // the id an entry needs, systemcore.js's own ITEM_ID (librarycheck holds the two alike); a part's glue exports it there, which a joined read does not
+export function importIds(raw) {
+    var list = Array.isArray(raw) ? raw : [], taken = map(), to = map(), made = 0;
+    list.forEach(function(e) { if (isObj(e) && typeof e.id === 'string' && ITEM_ID.test(e.id)) taken[e.id] = 1; });
+    var out = list.map(function(e) {
+        if (!isObj(e) || (typeof e.id === 'string' && ITEM_ID.test(e.id))) return e;
+        var id = newEntryId(taken); if (!id) return e; taken[id] = 1; made++;
+        if (typeof e.id === 'string' && e.id && !own(to, e.id)) to[e.id] = id;
+        return Object.assign({}, e, { id: id });
+    });
+    if (!made) return { entries: list, made: 0 };
+    var re = function(v) { return typeof v === 'string' && own(to, v) ? to[v] : v; };
+    out = out.map(function(e) {
+        if (!isObj(e)) return e; var c = null, put = function(k, arr) { (c = c || Object.assign({}, e))[k] = arr; };
+        if (Array.isArray(e.needs) && e.needs.some(function(n) { return isObj(n) && re(n.id) !== n.id; })) put('needs', e.needs.map(function(n) { return isObj(n) ? Object.assign({}, n, { id: re(n.id) }) : n; }));
+        if (Array.isArray(e.opens) && e.opens.some(function(n) { return isObj(n) && re(n.id) !== n.id; })) put('opens', e.opens.map(function(n) { return isObj(n) ? Object.assign({}, n, { id: re(n.id) }) : n; }));
+        if (Array.isArray(e.grants) && e.grants.some(function(g) { return isObj(g) && re(g.entry) !== g.entry; })) put('grants', e.grants.map(function(g) { return isObj(g) ? Object.assign({}, g, { entry: re(g.entry) }) : g; }));
+        return c || e;
+    });
+    return { entries: out, made: made };
 }
 // Stage 6 F3: the stats an import leaves out — a stat no list of this system has (or a value it cannot hold): [{ key, n }], the most
 // common first, at most LIB.lostStats. Each entry counted once, as the first of its id (the one kept); keys compared ignoring case

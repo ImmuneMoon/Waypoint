@@ -1212,5 +1212,18 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 a new rule of Laid from starts on the source list’s first category, else the first category an item of the system holds, else none (its fault then says so)',
             !!lcLine && J(LCF({ fields: [{ id: 'f_s', list: { cats: [' Limb ', 'Head'] } }], items: [] })({ from: 'f_s' })) === J(['Limb']) && J(LCF({ fields: [{ id: 'f_s', list: {} }], items: [{ category: 'Gear' }] })({ from: 'f_s' })) === J(['Gear']) && J(LCF({ fields: [], items: [] })({ from: 'f_s' })) === J([]), lcLine.slice(0, 80));
     }
+    {   // 1.6.3 (the review of the System editor and the Library window, finding 7): a list's categories come from the system's items, its core and the library's entries
+        const slR = kit.part('sysedlist.js').replace(/\r\n/g, '\n'), rlA = slR.indexOf('function renderLists() {'), rlZ = slR.indexOf('// [systemcheck:stattick-start]');
+        let seenC = null, rlErr = '';
+        try {
+            const mkB = () => ({ kids: [], scrollTop: 0, set textContent(v) { this.kids = []; }, appendChild(c) { this.kids.push(c); return c; } }), box = mkB(), rules = mkB();
+            const draftC = { fields: [{ id: 'f_w', kind: 'item-list', label: 'Weapons', list: { cats: ['Blade'] } }], items: [], combat: {} };
+            new Function('ui', 'draft', 'el', 'listCard', 'errorCell', 'labeledSelect', 'APPLY_KINDS', 'pickOne', 'catChoices', 'window', '"use strict";\n' + slR.slice(rlA, rlZ) + '\nrenderLists();')(
+                id => (id === 'sysListRows' ? box : id === 'sysListRules' ? rules : null), draftC, (t, c, x) => ({ tag: t, className: c, text: x, dataset: {} }), (f, cats) => { seenC = cats; return { tag: 'card' }; }, () => ({ dataset: {} }), () => ({}), {}, undefined,
+                sys => (sys === draftC ? ['Accessory', 'Raw Materials', 'accessory', ' Blade ', '', null] : []), undefined);
+        } catch (e) { rlErr = String(e && e.stack || e).slice(0, 400); }
+        check('1.6.3 (finding 7) the Lists tab offers a list every category the system’s items, its core and the library’s entries hold (sheets.js catChoices), each once ignoring case, so a system built on a library can point a list at its entries; the note where there are none says where categories come from (renderLists, run for real)',
+            j(seenC) === j(['Accessory', 'Raw Materials', 'Blade']) && slR.includes('callsBox, capInline, catChoices, charsOf,') && slR.includes("'Categories come from the items in Items and from the library\\u2019s entries. Give one a category and it shows here to tick.'") && !slR.includes('Give items a category in Items to choose'), rlErr || j(seenC));
+    }
     await T.finish();
 })();

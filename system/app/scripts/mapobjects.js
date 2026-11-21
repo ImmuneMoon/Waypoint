@@ -8,7 +8,7 @@
    alone, since a name can come from a file. Every step is logged ('objects v1'). */
 import { state } from './state.js';
 import { getActiveCampaign } from './models.js';
-import { save, toast, pressHold } from './io.js';
+import { save, toast, pressHold, keepPlace } from './io.js';
 import { showConfirm } from './dialogs.js';
 import './objcore.js';
 
@@ -59,20 +59,27 @@ function formInto(box, o, kind, list, acts) {
     var C = OC(), f = el('div', 'obj-form');
     var commit = function(next) { var nl = listsOf(campNow(), C)[kind].map(function(x) { return x.id === o.id ? Object.assign({}, x, next) : x; }); nl = C.cleanObjects(nl); store(kind, nl); return nl; };
     var row = function(label, ctl) { var r = el('label', 'gen-row'); r.appendChild(el('span', 'gen-name', label)); r.appendChild(ctl); f.appendChild(r); };
-    var nm = el('input'); nm.type = 'text'; nm.maxLength = 60; nm.value = o.name; nm.addEventListener('change', function() { var v = nm.value.trim(); if (v) { commit({ name: v }); draw(); } else nm.value = o.name; });
+    // 1.6.3 (the review of the System editor and the Library window, finding 30): each control says which object and which value it is for, so the
+    // list drawn again after a change gives the focus back to the very control the GM moved to (drawNow, io.js keepPlace)
+    var key = function(n, k) { if (n && n.dataset) n.dataset.objk = o.id + ':' + k; return n; };
+    // 1.6.3 (finding 30): a figure is the app's own counter (uiparts.js step: its \u2212 and +, and a box you type in) where the parts are here, else a
+    // plain number box. set(n) is handed the figure once it is settled
+    var counter = function(k, val, lo, hi, label, tip, off, set) {
+        var UIs = window.wpUi && typeof window.wpUi.step === 'function' ? window.wpUi : null;
+        if (UIs) { var w = UIs.step({ value: val === '' || val === undefined || val === null ? null : val, min: lo, max: hi, step: 1, label: label, off: off, data: { objk: o.id + ':' + k }, set: set }); w.dataset.tip = tip; w.input.placeholder = lo === 0 ? 'None' : ''; return w; }
+        var n = el('input'); n.type = 'number'; n.min = lo; n.max = hi; n.step = 1; n.value = val === undefined || val === null ? '' : val; n.disabled = !!off; n.dataset.tip = tip; key(n, k); n.addEventListener('change', function() { set(Number(n.value)); }); return n;
+    };
+    var nm = key(el('input'), 'name'); nm.type = 'text'; nm.maxLength = 60; nm.value = o.name; nm.addEventListener('change', function() { var v = nm.value.trim(); if (v) { commit({ name: v }); draw(); } else nm.value = o.name; });
     row('Name', nm);
     var sel = el('select'); [['', 'No cover'], ['half', 'Half'], ['threeq', 'Three-quarters'], ['total', 'Total']].forEach(function(p) { var op = el('option', '', p[1]); op.value = p[0]; sel.appendChild(op); });
-    sel.value = o.cover || ''; sel.disabled = !!o.sight; sel.dataset.tip = o.sight ? 'A piece that blocks sight gives total cover by itself.' : 'What it gives whenever a line to a target passes through it.';
+    key(sel, 'cover'); sel.value = o.cover || ''; sel.disabled = !!o.sight; sel.dataset.tip = o.sight ? 'A piece that blocks sight gives total cover by itself.' : 'What it gives whenever a line to a target passes through it.';
     sel.addEventListener('change', function() { commit({ cover: sel.value || undefined }); draw(); });
     row('Cover', sel);
-    var pro = el('input'); pro.type = 'number'; pro.min = 0; pro.max = 999; pro.step = 1; pro.placeholder = 'None'; pro.value = o.pro || '';
     // 1.6.3 (Fulllion's rulings of 2026-11-20: a box that depends on another follows it): Protection is read only where the object gives cover or
     // blocks sight (objcore objProps writes cover 'no' otherwise, and coverRole then reads nothing of it). So with No cover and no Blocks sight the
     // box stands greyed, its figure still shown and kept by the cleaner, as Cover stands greyed under Blocks sight, and its tip says why. The
     // Cover list's and the Blocks sight tick's changes draw the form again, so the box follows at once
-    pro.disabled = !o.sight && !o.cover;
-    pro.dataset.tip = pro.disabled ? 'Protection counts only for an object that gives cover or blocks sight. Pick a Cover first.' : 'How much it stops of a blow that passes through it, where your system reads it in a roll. Leave it empty if it stops nothing.';
-    pro.addEventListener('change', function() { commit({ pro: Number(pro.value) || undefined }); draw(); });
+    var proOff = !o.sight && !o.cover, pro = counter('pro', o.pro || '', 0, 999, 'Protection', proOff ? 'Protection counts only for an object that gives cover or blocks sight. Pick a Cover first.' : 'How much it stops of a blow that passes through it, where your system reads it in a roll. Leave it empty if it stops nothing.', proOff, function(v) { commit({ pro: Number(v) || undefined }); draw(); });
     row('Protection', pro);
     // 1.6.3 (the editor coverage audit, gap 5: the live system's eight objects each name a color that only a file could set). An object with no
     // picture is drawn as a block in its own color (objcore cleanObj keeps a color only where there is no picture, objProps hands it to the piece).
@@ -80,22 +87,22 @@ function formInto(box, o, kind, list, acts) {
     // commits the color through the same commit as every other row, and the row draws again. An object that names a furnishing is drawn as that
     // furnishing's drawing, never in a color, so it has no swatch
     if (!o.src && !o.furn) {
-        var col = el('input', 'obj-color'); col.type = 'color'; col.value = o.color || OBJ_LAND; col.setAttribute('aria-label', 'Its color');
+        var col = key(el('input', 'obj-color'), 'color'); col.type = 'color'; col.value = o.color || OBJ_LAND; col.setAttribute('aria-label', 'Its color');
         col.dataset.tip = 'The color of its block on the map. A picture takes its place.';
         col.addEventListener('change', function() { commit({ color: String(col.value).toLowerCase() }); draw(); });
         row('Color', col);
     }
     var FUf = window.wpFurnCore; if (FUf) {   // 1.6.2 (backlog 222): the furnishing kind this object gives its rules to (the owner: "The system says")
-        var fk = el('select'), op0 = el('option', '', 'No furnishing'); op0.value = ''; fk.appendChild(op0);
+        var fk = key(el('select'), 'furn'), op0 = el('option', '', 'No furnishing'); op0.value = ''; fk.appendChild(op0);
         FUf.FURN_KINDS.forEach(function(k) { var op = el('option', '', k.label); op.value = k.key; fk.appendChild(op); });
         fk.value = o.furn || ''; fk.dataset.tip = 'A furnishing of this kind placed from Build takes this object\u2019s cover, size and blocking. The system\u2019s objects come first.';
         fk.addEventListener('change', function() { commit({ furn: fk.value || undefined }); draw(); });
         row('Rules for', fk);
     }
-    var tick = function(label, on, tip, go) { var l = el('label', 'gen-tick'); var c = el('input'); c.type = 'checkbox'; c.checked = on; c.addEventListener('change', function() { go(c.checked); }); l.appendChild(c); l.appendChild(el('span', '', label)); l.dataset.tip = tip; f.appendChild(l); };
+    var tick = function(label, on, tip, go) { var l = el('label', 'gen-tick'); var c = key(el('input'), 'tick:' + label); c.type = 'checkbox'; c.checked = on; c.addEventListener('change', function() { go(c.checked); }); l.appendChild(c); l.appendChild(el('span', '', label)); l.dataset.tip = tip; f.appendChild(l); };
     tick('Blocks sight', !!o.sight, 'A wall to sight, tokens and cover.', function(v) { commit({ sight: v || undefined, stops: undefined }); draw(); });
     if (!o.sight) tick('Stops tokens', !!o.stops, 'Tokens cannot cross it. Sight passes.', function(v) { commit({ stops: v || undefined }); draw(); });
-    var size = function(label, key) { var n = el('input'); n.type = 'number'; n.min = 1; n.max = 12; n.value = o[key] || 1; n.addEventListener('change', function() { commit(key === 'w' ? { w: Number(n.value) } : { h: Number(n.value) }); draw(); }); row(label, n); };
+    var size = function(label, k) { row(label, counter(k, o[k] || 1, 1, 12, label, label === 'Cells wide' ? 'How many cells wide it is placed.' : 'How many cells tall it is placed.', false, function(v) { commit(k === 'w' ? { w: Number(v) } : { h: Number(v) }); draw(); })); };   // 1.6.3 (finding 30): the app's own counter
     size('Cells wide', 'w'); size('Cells tall', 'h');
     var bar = acts || el('div', 'obj-formbar');   // 1.6.2 (backlog 225, the item card): in a card its actions stand in the card's own row at its foot
     var pic = btn('tool ghost', o.src ? 'Change picture' : 'Pick a picture', 'Pick from the Image Library. A piece already placed keeps its picture.');
@@ -136,8 +143,20 @@ function rowOf(o, kind, list) {
     if (_win.edit === o.id) formInto(r, o, kind, list);
     return r;
 }
-function draw() {
+// 1.6.3 (the review of the System editor and the Library window, finding 30): every change of a field drew the whole list again at once, as the field
+// said its change, so a Tab from Name to Cover found Cover gone and the focus fell to the page, and a long list went back to its top. draw() now
+// only asks for a drawing a moment later (one for any number of asks), when the focus has landed where the key or the press sent it, and
+// drawNow makes it through io.js keepPlace, which keeps the list's scroll and gives the focus to the control that now stands for the one that
+// held it (a field by its object and its value, data-objk)
+var _drawT = 0;
+function draw() { if (_drawT) return; _drawT = setTimeout(function() { _drawT = 0; drawNow(); }, 0); }
+function objKeyOf(n) { return n && n.dataset && n.dataset.objk ? 'k:' + n.dataset.objk : null; }
+function drawNow() {
     if (_hold && _hold.busy()) { _hold.then(draw); return; }   // a field said its change as a press went down: the press lands first
+    var box = $('objList'); if (!OC() || !box) return;
+    keepPlace(box, drawList, objKeyOf);
+}
+function drawList() {
     var C = OC(), box = $('objList'), camp = campNow(); if (!C || !box) return;
     box.textContent = '';
     var L = listsOf(camp, C), part = function(title, list, kind, none) {
@@ -208,7 +227,7 @@ function place(o) {
 function open() {
     if (!objMay(net(), window)) { toast('Map objects are the GM’s.'); return; }
     var m = $('objModal'); if (!m) return;
-    _win.edit = ''; _win.from = false; draw(); m.style.display = 'flex'; log('open', {});
+    _win.edit = ''; _win.from = false; drawNow(); m.style.display = 'flex'; log('open', {});
 }
 function close() { var m = $('objModal'); if (m) m.style.display = 'none'; }
 function wire() {

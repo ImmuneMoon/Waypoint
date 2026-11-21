@@ -4408,6 +4408,9 @@ function clockSort(camp, c) { var S = SC(), map = camp && camp.items && own(camp
 function clockCost(c, ck) { var u = c.ckUsed, pass = typeof ck.pass === 'number' ? ck.pass : ck.cost; return Math.max(1, u && u.named ? u.n : u && u.press ? ck.cost : pass); }
 function clockStep(camp, c, dir, ck) {
     var S = SC(), row = c.rows[c.turn]; if (!S) return c.turn;
+    // 1.6.3 (Fulllion's ruling of 2026-11-20: the GM may always pass or reverse anyone's turn): a step back at a cycle's first turn goes back into the cycle before,
+    // its counts and its steps as clockCycle kept them (ckPrevs, the last ten cycles, the host's own and never sent), so the GM's Previous turn is never a press that does nothing
+    if (dir < 0 && !(Array.isArray(c.ckBack) && c.ckBack.length) && Array.isArray(c.ckPrevs) && c.ckPrevs.length && c.round > 1) { var pv = c.ckPrevs.pop(); c.rows.forEach(function(r) { if (r && typeof r.id === 'string' && pv.init && Object.prototype.hasOwnProperty.call(pv.init, r.id)) r.init = pv.init[r.id]; }); c.ckBack = Array.isArray(pv.back) ? pv.back : []; c.round -= 1; }
     if (dir < 0) { var b = Array.isArray(c.ckBack) ? c.ckBack.pop() : null, rB = b ? c.rows.filter(function(r) { return !!r && r.id === b.id; })[0] : null; if (!rB) return c.turn; rB.init = b.was; clockSort(camp, c); return Math.max(0, c.rows.indexOf(rB)); }
     if (row && row.held !== 1) { c.ckBack = (Array.isArray(c.ckBack) ? c.ckBack : []).slice(-199); c.ckBack.push({ id: row.id, was: row.init }); row.init = Math.max(0, (typeof row.init === 'number' ? row.init : 0) - clockCost(c, ck)); } delete c.ckUsed;
     clockSort(camp, c); var nx = S.clockNext(c.rows, c.ckNext); delete c.ckNext;
@@ -4416,12 +4419,13 @@ function clockStep(camp, c, dir, ck) {
     return nx;
 }
 function clockCycle(camp, c) {
+    var pvI = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string') pvI[r.id] = r.init; }); c.ckPrevs = (Array.isArray(c.ckPrevs) ? c.ckPrevs : []).slice(-9); c.ckPrevs.push({ init: pvI, back: Array.isArray(c.ckBack) ? c.ckBack.slice() : [] });   // 1.6.3: the cycle that ends, as a step back finds it again (clockStep)
     var S = SC(), ir = initRulesOf(camp), c0 = c.ck0 || (c.ck0 = Object.create(null)); c.rows.forEach(function(r) { if (!r || typeof r.id !== 'string') return; delete r.held; if (!ir || ir.every !== true) { if (Object.prototype.hasOwnProperty.call(c0, r.id)) r.init = c0[r.id]; } else if (typeof r.init === 'number') c0[r.id] = r.init; });
     delete c.ckBack; delete c.ckUsed; delete c.ckNext; clockSort(camp, c); var nx = S ? S.clockNext(c.rows) : 0; c.turn = nx >= 0 ? nx : 0;
 }
 function clockStart(camp, c, had) {   // a new fight, or a roster edit
-    if (!clockRule(camp)) return; var S = SC(), c0 = had && had.ck0 ? had.ck0 : Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.init === 'number' && !Object.prototype.hasOwnProperty.call(c0, r.id)) c0[r.id] = r.init; }); c.ck0 = c0;
-    if (had) { if (Array.isArray(had.ckBack)) c.ckBack = had.ckBack; if (had.ckUsed) c.ckUsed = had.ckUsed; }
+    if (!clockRule(camp)) return; var S = SC(), c0 = had && had.ck0 ? had.ck0 : Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.init === 'number' && (!Object.prototype.hasOwnProperty.call(c0, r.id) || (!(c0[r.id] > 0) && r.init > 0))) c0[r.id] = r.init; }); c.ck0 = c0;   // 1.6.3 (the combat review, finding 13): a row that began at 0 or less, which never acts, takes the count the GM gives it later as where it begins, so a new cycle does not put it back to 0
+    if (had) { if (Array.isArray(had.ckBack)) c.ckBack = had.ckBack; if (had.ckUsed) c.ckUsed = had.ckUsed; if (Array.isArray(had.ckPrevs)) c.ckPrevs = had.ckPrevs; }
     clockSort(camp, c); if (!had) { var nx = S ? S.clockNext(c.rows) : 0; c.turn = nx >= 0 ? nx : 0; }
 }
 function clockPress(camp, charId, ent) {   // what a press spends, from the host's own entry
@@ -9285,10 +9289,25 @@ function applyLine(rec) { var D = DC(); return D && D.applyText ? D.applyText(re
 function dueLine(rec) { var D = DC(); return D && D.dueText ? D.dueText(rec) : 'An action is due.'; }
 // Turn-based combat T2b: a timed action that waits for a press — its reminder card (sheets.js timedHook): the character's player's when asked
 // (each connection of theirs; the GM's copy then says whose it is to press), else the GM's alone. A whisper: never in the join's history
+// 1.6.3 (the combat review, finding 16): the name a card or a line gives a character, as its token reads on the map, so the GM never has to translate between the
+// turn strip's names and the sheet's. The token's own name (whiteboard.js names a fight's row the same way, window.wpRowNameOf, which falls back to the sheet's name
+// where another token on that map reads the same), looked for on the map named first, else the map on screen, then the campaign's other maps. Where its tokens there
+// read differently (one sheet shared by several tokens), or it has none, the sheet's own name. Never a waiting token's
+net.tokNameOf = function(ch, mapId) {
+    var nm = ch && typeof ch.name === 'string' ? ch.name : ''; if (!ch || typeof ch.id !== 'string') return nm;
+    var camp = getActiveCampaign(), rn = window.wpRowNameOf; if (!camp || !camp.items || typeof camp.items !== 'object' || typeof rn !== 'function') return nm;
+    var first = typeof mapId === 'string' && own(camp.items, mapId) ? mapId : camp.activeItemId, ids = Object.keys(camp.items).sort(function(a, b) { return (b === first ? 1 : 0) - (a === first ? 1 : 0); });
+    for (var i = 0; i < ids.length; i++) {
+        var m = camp.items[ids[i]]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) continue;
+        var names = []; m.whiteboard.forEach(function(w) { if (!w || !w.isChar || w.waiting || w.charId !== ch.id) return; var t = String(rn(w, m, camp) || '').trim().slice(0, 60); if (t && names.indexOf(t) < 0) names.push(t); });
+        if (names.length) return names.length === 1 ? names[0] : nm;
+    }
+    return nm;
+};
 net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m } (1.6.0, the core's gap 5: and or, the other rolls it may be resisted by)
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'end' ? 'end' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
-    if (ch.name) rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch);
+    var asD = typeof net.tokNameOf === 'function' ? net.tokNameOf(ch) : ch.name; if (asD) rec.as = String(asD).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch);   // 1.6.3 (finding 16): by its token's name
     if (rec.why === 'major' && more && typeof more.mw === 'string' && more.mw) rec.mw = more.mw.slice(0, 60);   // 1.6.0: the system's own word for a Major Wound
     if (rec.why === 'cross' && more) { if (typeof more.xf === 'string' && more.xf) rec.xf = more.xf.slice(0, 60); if (typeof more.xs === 'number' && isFinite(more.xs)) rec.xs = Math.max(-1e9, Math.min(1e9, more.xs)); if (more.xd === 'up') rec.xd = 'up'; }   // 1.6.3 (finding 36): which value crossed which step, as sheets.js crossFollow worked them out (words for its card alone)
     if (rec.why === 'called' && more) { if (typeof more.att === 'string' && more.att) rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); }   // 1.6.0: a roll another called for
@@ -9309,7 +9328,7 @@ net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, 
 net.postBlastDue = function(ch, att, label, toOwner, go) {   // go (1.6.0): the GM's card that lets a blast's Defense rolls go, this machine's own; 'hold': the same for a hold that waits for its target's roll
     if (!ch || typeof ch.id !== 'string' || typeof att !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, label: String(label || 'A blast').slice(0, 60), why: 'blast', round: 1, roll: 1, att: att, ts: Date.now() };
-    if (go === true || go === 'hold') { rec.go = 1; if (go === 'hold') rec.hold = 1; } else if (ch.name) { rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); }
+    if (go === true || go === 'hold') { rec.go = 1; if (go === 'hold') rec.hold = 1; } else if (ch.name) { rec.as = String(net.tokNameOf(ch) || ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); }   // 1.6.3 (finding 16): by its token's name
     postDue(rec, ch, !!toOwner);
 };
 // ... and a player's press of that card, sent to the host, which rolls it (whiteboard.js wpBlastOwedRoll)
@@ -9318,7 +9337,7 @@ net.postBlastDue = function(ch, att, label, toOwner, go) {   // go (1.6.0): the 
 net.postSendOn = function(ch, att, by, toOwner) {
     if (!ch || typeof ch.id !== 'string' || typeof att !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, label: 'Send it on', why: 'send', round: 1, att: att, ts: Date.now() };
-    if (ch.name) { rec.as = String(ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); } if (typeof by === 'string' && by) rec.by = by.slice(0, 60);
+    if (ch.name) { rec.as = String(net.tokNameOf(ch) || ch.name).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch); } if (typeof by === 'string' && by) rec.by = by.slice(0, 60);   // 1.6.3 (finding 16): by its token's name
     postDue(rec, ch, !!toOwner);
 };
 net.blastRoll = function(att) {

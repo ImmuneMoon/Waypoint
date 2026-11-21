@@ -35,8 +35,8 @@ function fxApply(camp, ch, kind, now, secs, at) {   // one tick of one character
     if (window.wpSheets) window.wpSheets.charChanged(ch.id);
     r.expired.forEach(function(nm) { fxEnded(ch, nm); });
 }
-function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for the GM, and one for its player at the table
-    var text = String(name).slice(0, 60) + ' ran out on ' + String(ch.name || 'a character').slice(0, 60) + '.', from = { id: net.myId || 'gm', name: 'GM', gm: true }, m = { type: 'chat', scope: 'whisper', from: from, text: text, ts: Date.now() };
+function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for the GM, and one for its player at the table; 1.6.3 (finding 16): the character by its token's name, as the turn strip says it (net.tokNameOf)
+    var text = String(name).slice(0, 60) + ' ran out on ' + String((typeof net.tokNameOf === 'function' ? net.tokNameOf(ch) : '') || ch.name || 'a character').slice(0, 60) + '.', from = { id: net.myId || 'gm', name: 'GM', gm: true }, m = { type: 'chat', scope: 'whisper', from: from, text: text, ts: Date.now() };
     if (net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
     pushChat(m);
 }

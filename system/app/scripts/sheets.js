@@ -8546,7 +8546,7 @@ function takeDamage(charId, pre) {
     var box = el('div', 'dmg-win'); box.id = 'dmgWin'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
     var card = el('div', 'dmg-card'); box.appendChild(card);
     var whoL = Array.isArray(pre.who) ? pre.who.filter(function(x) { return dmgObj(x) && typeof x.id === 'string' && x.id; }) : [], whoOpen = pre.whoOpen === true && whoL.length > 0;   // 1.6.3 (finding 29): a card's window, with who it may land on (damageFromRoll dmgWhoList); whoOpen, nobody picked yet
-    card.appendChild(el('h3', 'dmg-title', whoOpen ? 'Take damage' : 'Take damage \u2014 ' + (c.name || 'Unnamed')));
+    card.appendChild(el('h3', 'dmg-title', whoOpen ? 'Take damage' : 'Take damage \u2014 ' + (typeof dmgWhoName === 'function' ? dmgWhoName(camp, charId, c) : (c.name || 'Unnamed'))));   // 1.6.3 (finding 16): as the map on screen names it
     var row = function(label, ctl, line) { var r = el('label', 'dmg-row'), nm = el('span', 'dmg-name', label); r.appendChild(nm); r.appendChild(ctl); if (line) r.appendChild(el('small', 'dmg-line', line)); card.appendChild(r); return ctl; };
     var amt = el('input', 'dmg-amt'); amt.type = 'number'; amt.min = '0'; amt.step = '1'; amt.value = typeof pre.amt === 'number' && isFinite(pre.amt) ? String(Math.max(0, Math.floor(pre.amt))) : '';
     var who = null;
@@ -8743,9 +8743,18 @@ function damageFromRoll(fromId, total, done, type, more) {   // 1.5.7: done, cal
 // on. firsts (the roller's target's character, then the selected token's) stand first, wherever they are; then the characters of every other
 // character token on the map on screen (never a waiting token), each once, by name. Only a character this screen may damage (canDamage) and
 // one still in the campaign. [{ id, name }]: names are a sheet's own and are set as an option's text by takeDamage
+// 1.6.3 (the combat review, finding 16): a character as the map on screen names it, so the Who list and the window's title read as the turn strip does. Its token's own
+// name (whiteboard.js rowNameOf, window.wpRowNameOf), with the sheet's name after it in brackets where they differ; tokens of one shared sheet that read differently are
+// named together, three at most. With no token on the map on screen, the sheet's own name
+function dmgWhoName(camp, cid, ch) {
+    var own = String(ch && ch.name || 'Unnamed').slice(0, 60), am = camp && camp.items ? camp.items[camp.activeItemId] : null, rn = typeof window !== 'undefined' ? window.wpRowNameOf : null, names = [];
+    (am && Array.isArray(am.whiteboard) ? am.whiteboard : []).forEach(function(w) { if (!w || !w.isChar || w.waiting || w.charId !== cid) return; var t = String(typeof rn === 'function' ? rn(w, am, camp) : (w.charName || w.name || '')).trim().slice(0, 60); if (t && names.indexOf(t) < 0) names.push(t); });
+    if (!names.length || (names.length === 1 && names[0] === own)) return own;
+    return names.slice(0, 3).join(', ') + (names.length > 3 ? ' and ' + (names.length - 3) + ' more' : '') + ' (' + own + ')';
+}
 function dmgWhoList(camp, firsts) {
     var am = camp && camp.items ? camp.items[camp.activeItemId] : null, seen = Object.create(null), out = [];
-    var put = function(cid) { if (typeof cid !== 'string' || !cid || seen[cid]) return; var ch = typeof charById === 'function' ? charById(cid, camp) : null; if (!ch || (typeof canDamage === 'function' && !canDamage(cid))) return; seen[cid] = 1; out.push({ id: cid, name: String(ch.name || 'Unnamed').slice(0, 60) }); };
+    var put = function(cid) { if (typeof cid !== 'string' || !cid || seen[cid]) return; var ch = typeof charById === 'function' ? charById(cid, camp) : null; if (!ch || (typeof canDamage === 'function' && !canDamage(cid))) return; seen[cid] = 1; out.push({ id: cid, name: typeof dmgWhoName === 'function' ? dmgWhoName(camp, cid, ch) : String(ch.name || 'Unnamed').slice(0, 60) }); };
     (Array.isArray(firsts) ? firsts : []).forEach(put); var lead = out.length;
     (am && Array.isArray(am.whiteboard) ? am.whiteboard : []).forEach(function(w) { if (w && !w.waiting && typeof w.charId === 'string') put(w.charId); });
     return out.slice(0, lead).concat(out.slice(lead).sort(function(a, b) { return a.name.localeCompare(b.name); }));

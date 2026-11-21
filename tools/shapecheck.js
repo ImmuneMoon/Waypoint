@@ -98,6 +98,18 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     check('a step back puts the count where it stood, and gives the turn back', k2.rows.filter(r => r.id === 'b')[0].init === 9 && k2.rows[back].id === 'b', J(k2.rows));
     const k3 = { id: 'f1', mapId: 'm', round: 1, turn: 0, rows: [{ id: 'a', tokId: 't_a', init: 1 }] }; K.clockStart(campK, k3, null); const ov = K.clockStep(campK, k3, 1, ck3); K.clockCycle(campK, k3);
     check('when nobody stands above 0 a new cycle starts, which is a new round, and the counts go back to where they began', k3.round === 2 && ov === 0 && k3.rows[0].init === 1 && k3.ckBack === undefined, J(k3));
+    // 1.6.3 (the improvement week's combat review, finding 13): a row that began at 0 never acts, so a count the GM gives it later in the roster is where it begins from then on
+    const k7 = fK(); k7.rows.filter(r => r.id === 'c')[0].init = 0; K.clockStart(campK, k7, null); const ck7a = k7.ck0.c, k7b = { id: 'f1', mapId: 'm', round: 1, turn: 0, rows: k7.rows.map(r => Object.assign({}, r)) };
+    k7b.rows.filter(r => r.id === 'c')[0].init = 5; k7b.rows.filter(r => r.id === 'b')[0].init = 3; K.clockStart(campK, k7b, k7);
+    check('1.6.3 (finding 13): a row that began at a count of 0, which never acts, takes the count the GM gives it later in the roster as where it begins, so a new cycle no longer puts it back to 0; a row that began above 0 keeps where it began',
+        ck7a === 0 && k7b.ck0.c === 5 && k7b.ck0.b === 9, J(k7b.ck0));
+    // Fulllion's ruling of 2026-11-20 (the GM may always pass or reverse anyone's turn): a step back at a new cycle's first turn goes back into the cycle before
+    const k8 = { id: 'f1', mapId: 'm', round: 1, turn: 0, rows: [{ id: 'a', tokId: 't_a', init: 2 }, { id: 'b', tokId: 't_b', init: 1 }] }; K.clockStart(campK, k8, null);
+    for (let g = 0; g < 10 && k8.round === 1; g++) { const t8 = K.clockStep(campK, k8, 1, ck3); if (k8.round > 1) K.clockCycle(campK, k8); else k8.turn = t8; }
+    const at8 = [k8.round, k8.rows.map(r => r.id + ':' + r.init).join()], b8 = K.clockStep(campK, k8, -1, ck3), back8 = [k8.round, k8.rows[b8].id, k8.rows.map(r => r.id + ':' + r.init).join()];
+    const k8e = { id: 'f1', mapId: 'm', round: k8.round, turn: b8, rows: k8.rows.map(r => Object.assign({}, r)) }; K.clockStart(campK, k8e, k8);
+    check('1.6.3 (Fulllion\'s ruling: the GM may always reverse anyone\'s turn): a step back at a new cycle\'s first turn goes back into the cycle before, its round, its counts and its last turn as they stood, where before it did nothing; a roster edit keeps the cycles a step back may reach',
+        J(at8) === J([2, 'a:2,b:1']) && J(back8) === J([1, 'b', 'b:1,a:0']) && Array.isArray(k8e.ckPrevs) && k8e.ckPrevs === k8.ckPrevs, J([at8, back8]));
     const k4 = fK(); K.clockStart(campK, k4, null); k4.rows[k4.turn].held = 1; K.clockStep(campK, k4, 1, ck3);
     check('a held turn costs nothing, and when only a held row is left it acts', k4.rows.filter(r => r.id === 'b')[0].init === 9, J(k4.rows)); const k5 = { id: 'f1', mapId: 'm', round: 1, turn: 0, rows: [{ id: 'a', tokId: 't_a', init: 4, held: 1 }] }; K.clockStart(campK, k5, null); const hN = K.clockStep(campK, k5, 1, ck3); check('...and its hold ends', hN === 0 && k5.rows[0].held === undefined && k5.round === 1, J(k5));
     const k6 = fK(); K.clockStart(campK, k6, null); netK.combats.f1 = k6; K.clockPress(campK, 'c_b', { clockN: 2 }); K.clockPress(campK, 'c_b', { clockN: 1 }); K.clockPress(campK, 'c_b', {}); K.clockPress(campK, 'c_a', { clockN: 4 }); K.clockPress(campK, 'c_c', {}); K.clockPress(campK, 'c_zz', { clockN: 4 });

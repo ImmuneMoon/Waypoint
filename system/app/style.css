@@ -3906,6 +3906,10 @@
   #combatModal.combat-peek > div { opacity: .1; pointer-events: none; transition: opacity .15s; }
   .combat-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.08); }
   .combat-row.off { opacity: .55; }
+  .combat-row.now { border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }   /* 1.6.3 (the combat review, finding 20): whose turn it is, in a running fight's roster */
+  .combat-tag.combat-now { color: var(--gold); border-color: var(--gold); }
+  .combat-row.never .combat-init { border-color: var(--red); }   /* 1.6.3 (finding 13): a count of 0 or less on a counting clock, which never acts */
+  .combat-tag.combat-never { color: var(--red); border-color: var(--red); }
   .combat-key { color: var(--dim); font-size: 11px; margin-top: 6px; }   /* 1.6.2: what the roster's marks mean */
   .combat-row.drop-before { border-top: 2px solid var(--gold); }
   .combat-grip { color: var(--dim); cursor: grab; font-size: 16px; line-height: 1; }

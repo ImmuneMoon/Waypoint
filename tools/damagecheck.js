@@ -1504,6 +1504,17 @@ const j = v => JSON.stringify(v);
                 && j(preW) === j([['c_2', ['c_2:Ann', 'c_1:Zed'], true], ['c_4', ['c_4:Far', 'c_1:Zed', 'c_2:Ann'], false], ['c_1', ['c_1:Zed'], false], ['c_2', ['c_2:Ann', 'c_1:Zed'], true], ['c_4', null, false]]),
                 j([w0, w1, s2 && s2.value, n2, wW.sent, preW]));
         }
+        {   // 1.6.3 (the improvement week's combat review, finding 16): the Who list and the window's title name a character as the map on screen does, by its token's
+            // own name as the turn strip says it (whiteboard.js rowNameOf, run for real as window.wpRowNameOf), the sheet's name after it in brackets where they differ
+            const wbN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), rnS = wbN.slice(wbN.indexOf('// [lookcheck:rowname-start]'), wbN.indexOf('// [lookcheck:rowname-end]'));
+            const rowName = new Function('getActiveCampaign', rnS + '\nreturn rowNameOf;')(() => null), WN = new Function('window', "'use strict';\n" + dfSrc + '\nreturn dmgWhoName;')({ wpRowNameOf: rowName });
+            const chN = { c_1: { id: 'c_1', name: 'Duros worker' }, c_2: { id: 'c_2', name: 'Guard' }, c_3: { id: 'c_3', name: 'Ana' }, c_4: { id: 'c_4', name: 'Wait' }, c_5: { id: 'c_5', name: 'Nowhere' } };
+            const campN = { activeItemId: 'm', chars: chN, items: { m: { whiteboard: [{ id: 't1', isChar: true, charId: 'c_1', name: 'Freight handler' }, { id: 't2', isChar: true, charId: 'c_2', charName: 'Guard A' }, { id: 't3', isChar: true, charId: 'c_2', charName: 'Guard B' }, { id: 't4', isChar: true, charId: 'c_3', name: 'Ana' }, { id: 't5', isChar: true, charId: 'c_4', name: 'X', waiting: true }] } } };
+            const whoN = ['c_1', 'c_2', 'c_3', 'c_4', 'c_5'].map(id => WN(campN, id, chN[id])), noWin = new Function("'use strict';\n" + dfSrc + '\nreturn dmgWhoName;')()(campN, 'c_1', chN.c_1);
+            check('1.6.3 (finding 16, dmgWhoName run for real with the strip\'s own rowNameOf): a character is named in the Take damage window as its token on the map on screen reads, the sheet\'s name after it where they differ; tokens of one shared sheet named together; a token reading as its sheet, a waiting token and no token give the sheet\'s name alone; the Who list and the title both ask it',
+                j(whoN) === j(['Freight handler (Duros worker)', 'Guard A, Guard B (Guard)', 'Ana', 'Wait', 'Nowhere']) && noWin === 'Freight handler (Duros worker)'
+                && dfSrc.includes("out.push({ id: cid, name: typeof dmgWhoName === 'function' ? dmgWhoName(camp, cid, ch) : String(ch.name || 'Unnamed').slice(0, 60) })") && twSrc.includes("'Take damage \\u2014 ' + (typeof dmgWhoName === 'function' ? dmgWhoName(camp, charId, c) : (c.name || 'Unnamed'))"), j([whoN, noWin]));
+        }
         {   // 1.6.3 (the review of damage): the Who list is the app's own search (uiparts.js find, imported and run on a page of plain objects) with the
             // closed list's keys (wbblast.js texListKeys, sliced and run for real), so an arrow key on it opens it and draws nothing again; a pick draws the
             // window for that character; where the attacker stood (tb) goes with the character it was worked out for alone, and comes back with it

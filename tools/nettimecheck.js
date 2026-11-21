@@ -63,10 +63,23 @@ pendingChecks.push((async () => {
             && gGone[0] === 0 && gGone[1].indexOf('Quick ran out on Quin.') >= 0 && j(offT) === j({ left: 10, at: 0 }) && offT2.at > 0 && offT2.left === 10 && cli.camp.chars.c_q.values.f_fx[0].t.left === 10 && noSheets.camp.chars.c_q.values.f_fx[0].t.left === 10
             , j([gq1, gd1, gd2, gq2, gp2, gr2, gq3, gGone, offT, offT2]));
     }
+    const cbZ = JSON.parse(JSON.stringify(cb));   // 1.6.3: the fight as it stands before any turn, for finding 16's check below
     const a = mkF({ combats: { m1: cb } }); a.api.turn('m1', cb);
     check('T5a a turn\'s start (host, run for real): a round of the character\'s timed effects passes; one that runs out comes off (stored, sent as a delta, its views redrawn) with a private line for the GM and each connection of its player, never another\'s',
         j(a.camp.chars.c_p.values.f_fx) === '[]' && j(a.out.deltas) === j([['c_p', { f_fx: [] }]]) && j(a.out.changed) === j(['c_p']) && a.out.chat.length === 1 && a.out.chat[0].text === 'Bless ran out on Pat.' && a.out.chat[0].scope === 'whisper'
         && a.conns[0].sent.length === 1 && a.conns[0].sent[0].text === 'Bless ran out on Pat.' && !a.conns[1].sent.length && a.api.inCombat('c_p') === true && a.api.inCombat('c_q') === false, j([a.out, a.conns.map(c => c.sent)]));
+    {   // 1.6.3 (the improvement week's combat review, finding 16): an effect running out, a reminder card and a defense card name the character as its token reads
+        // (net.tokNameOf, run for real with the strip's own rowNameOf): the map named or on screen first, then the others; tokens that read differently, or none, the sheet's name
+        const nN = require('./checkkit').joined('net.js'), tnS = nN.slice(nN.indexOf('net.tokNameOf = function(ch, mapId) {'), nN.indexOf('net.postDue = function(ch, act, kind, round, toOwner, more) {'));
+        const wbN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), rowName = new Function('getActiveCampaign', wbN.slice(wbN.indexOf('// [lookcheck:rowname-start]'), wbN.indexOf('// [lookcheck:rowname-end]')) + '\nreturn rowNameOf;')(() => null);
+        const campT = { activeItemId: 'mB', chars: {}, items: { mA: { type: 'map', whiteboard: [{ id: 'ta', isChar: true, charId: 'c_d', name: 'Freight handler' }, { id: 'tw', isChar: true, charId: 'c_w', name: 'Early', waiting: true }] }, mB: { type: 'map', whiteboard: [{ id: 'tb', isChar: true, charId: 'c_d', name: 'Dock worker' }, { id: 'tg1', isChar: true, charId: 'c_g', name: 'Guard A' }, { id: 'tg2', isChar: true, charId: 'c_g', name: 'Guard B' }] }, pg: { type: 'page' } } };
+        const netT = {}; new Function('net', 'getActiveCampaign', 'window', 'own', tnS)(netT, () => campT, { wpRowNameOf: rowName }, (o, k) => Object.prototype.hasOwnProperty.call(o, k));
+        const dock = { id: 'c_d', name: 'Duros worker' }, names = [netT.tokNameOf(dock), netT.tokNameOf(dock, 'mA'), netT.tokNameOf({ id: 'c_g', name: 'Guard' }), netT.tokNameOf({ id: 'c_w', name: 'Wait' }), netT.tokNameOf({ id: 'c_n', name: 'Nobody' }), netT.tokNameOf(null)];
+        const z = mkF({ combats: { m1: cbZ } }); z.net.tokNameOf = ch => (ch && ch.id === 'c_p' ? 'Pat the bold' : ch.name); z.api.turn('m1', cbZ);
+        check('1.6.3 (finding 16, net.tokNameOf run for real): a character is named by its token on the map on screen, or on the map named first, then the others; tokens of one sheet that read differently, a waiting token alone and no token give the sheet\'s name; and an effect running out says the token\'s name to the GM and its player',
+            j(names) === j(['Dock worker', 'Freight handler', 'Guard', 'Wait', 'Nobody', '']) && z.out.chat.length === 1 && z.out.chat[0].text === 'Bless ran out on Pat the bold.' && z.conns[0].sent[0].text === 'Bless ran out on Pat the bold.'
+            && nN.includes("var asD = typeof net.tokNameOf === 'function' ? net.tokNameOf(ch) : ch.name; if (asD) rec.as = String(asD).slice(0, 60);") && (nN.match(/rec\.as = String\(net\.tokNameOf\(ch\) \|\| ch\.name\)\.slice\(0, 60\);/g) || []).length === 2, j([names, z.out.chat]));
+    }
     const b = mkF({ combats: { m1: cb } }); b.camp.chars.c_p.values.f_fx[0].t = { left: 6, at: Date.now() - 2000 }; b.api.edge('m1', cb, 'bank');
     const bT = b.camp.chars.c_p.values.f_fx[0].t; b.api.edge('m1', cb, 'resume'); const rT = b.camp.chars.c_p.values.f_fx[0].t;
     check('T5a a combat\'s start banks what ran and stops the clock; its end starts it again from now (what is left carries from one encounter to the next)',

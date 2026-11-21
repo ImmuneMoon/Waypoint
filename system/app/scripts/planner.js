@@ -2046,6 +2046,41 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // [textcheck:bar-end]
   // [sinkcheck:boxes-end]
 
+  // [pagecheck:seerow-start]
+  // 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21: "I think there should be an option to reveal certain parts and
+  // not others if the gm desires", and then "Also per player"): every block of a page has Players see this, ticked to start. Unticked, the
+  // block's hide is true and players never get it (docrender.js cleanDoc leaves it out of their copy, net.js sanitizeItem cuts each reader's
+  // apart). Beside it the GM ticks which players still see it: their profile ids in the block's see, none meaning nobody but the GM. The
+  // players offered are those the campaign knows (camp.players, the banned left out) and any id the block already names, so a name can be
+  // taken off again. seeRowHtml writes the row (names and ids through esc), seeSet and seePick are the two changes, one save each.
+  function seePlayers(camp, b) {
+      var out = [], seen = Object.create(null), pl = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}, ban = camp && camp.bannedPlayers && typeof camp.bannedPlayers === 'object' ? camp.bannedPlayers : {};
+      Object.keys(pl).forEach(function(pid) { var p = pl[pid]; if (!p || typeof p !== 'object' || Object.prototype.hasOwnProperty.call(ban, pid) || !/^[A-Za-z0-9_.:-]{1,80}$/.test(pid)) return; seen[pid] = 1; out.push({ id: pid, name: String(p.name || 'A player').slice(0, 60) }); });
+      out.sort(function(a, c) { return a.name.localeCompare(c.name); });
+      (Array.isArray(b && b.see) ? b.see : []).forEach(function(pid) { if (typeof pid === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(pid) && !seen[pid]) { seen[pid] = 1; out.push({ id: pid, name: 'A player no longer listed' }); } });
+      return out;
+  }
+  function seeRowHtml(idx, b, camp) {
+      var kept = !!b && b.hide === true, see = Array.isArray(b && b.see) ? b.see : [];
+      var html = '<div class="fc-opts b-see-row"><label class="b-see-l" title="Untick to keep this block from your players. You still see it on your page, marked."><input type="checkbox" class="b-seeall" data-idx="' + idx + '"' + (kept ? '' : ' checked') + '> Players see this</label>';
+      if (kept) {
+          var ps = seePlayers(camp, b);
+          html += '<span class="b-see-who" title="The players you tick still get this block. With none ticked, only you see it.">';
+          html += ps.length ? '<span class="b-see-cap">Seen by</span>' + ps.map(function(p) { return '<label class="b-see-p"><input type="checkbox" class="b-seep" data-idx="' + idx + '" data-pid="' + esc(p.id) + '"' + (see.indexOf(p.id) >= 0 ? ' checked' : '') + '> ' + esc(p.name) + '</label>'; }).join('') : '<span class="b-see-none">Only you see it. Players who join your table can be picked here.</span>';
+          html += '</span>';
+      }
+      return html + '</div>';
+  }
+  function seeSet(b, on) { if (!b || typeof b !== 'object') return; if (on) { delete b.hide; delete b.see; } else b.hide = true; }
+  function seePick(b, pid, on) {
+      if (!b || typeof b !== 'object' || typeof pid !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(pid)) return;
+      var s = (Array.isArray(b.see) ? b.see : []).filter(function(x) { return x !== pid; }); if (on) s.push(pid);
+      if (s.length) b.see = s; else delete b.see;
+  }
+  // the names renderDoc writes on a kept block of the GM's own page (docrender.js keptWords), from the campaign's own record of its players
+  function seeNames(ids) { var camp = getActiveCampaign(), pl = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}; return ids.map(function(pid) { var p = Object.prototype.hasOwnProperty.call(pl, pid) ? pl[pid] : null; return p && p.name ? String(p.name).slice(0, 60) : 'a player no longer listed'; }); }
+  // [pagecheck:seerow-end]
+
   function renderPlanner() {
       var activeMap = getActiveMap();
       if (!activeMap) return;
@@ -2288,6 +2323,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           }
 
           if (isDocEd && LAYOUT_TYPES[b.type]) html += layoutRowHtml(idx, b, secCols);
+          if (isDocEd) html += seeRowHtml(idx, b, getActiveCampaign());   // 1.6.3 (finding 18): Players see this, and who still sees a block kept back
           if (!isDocEd && secCards && CC.wideMay(b)) html += '<div class="fc-opts" style="margin-top:6px;"><label class="b-wide-l" title="This one takes the whole row of its section, beside no other card"><input type="checkbox" class="b-wide" data-idx="'+idx+'"' + (CC.wideOn(b) ? ' checked' : '') + '> Wide card</label></div>';
           html += '</div>';
 
@@ -2332,6 +2368,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       // 1.6.2 (backlog 107 (a)): a section's blocks as cards, their size, and a card that takes the whole row
       Array.from(blockContainer.querySelectorAll('.b-h2cards')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; if (this.value === 'cards') bb.cards = CC.cleanCards(bb.cards) || 'medium'; else delete bb.cards; save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-h2size')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; bb.cards = CC.cleanCards(this.value) || 'medium'; save(true); renderPlanner(); }));
+      Array.from(blockContainer.querySelectorAll('.b-seeall')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; seeSet(bb, this.checked); save(true); renderPlanner(); }));   // 1.6.3 (finding 18)
+      Array.from(blockContainer.querySelectorAll('.b-seep')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; seePick(bb, this.dataset.pid, this.checked); save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-wide')).forEach(el => el.addEventListener('change', function() { var bb = activeMap.blocks[this.dataset.idx]; if (!bb) return; CC.wideSet(bb, this.checked); save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-h2cols')).forEach(el => el.addEventListener('change', function() { activeMap.blocks[this.dataset.idx].cols = Math.max(1, Math.min(3, parseInt(this.value, 10) || 1)); save(true); renderPlanner(); }));
       Array.from(blockContainer.querySelectorAll('.b-linkmap')).forEach(el => el.addEventListener('change', function() {
@@ -3432,8 +3470,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var preview = document.getElementById('plannerPreview');
       if (window.wpDocPanel) window.wpDocPanel.refresh();   // a doc popped over the map stays in sync with edits made here (sig-checked)
 
-      if (activeMap.type === 'doc') {   // a page renders through the shared renderer (docrender.js): escaped text, sanitized prose — what a player gets
-          preview.innerHTML = renderDoc(activeMap, { mermaid: !!window.mermaid, docStyle: (getActiveCampaign() || {}).docStyle, empty: '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
+      if (activeMap.type === 'doc') {   // a page renders through the shared renderer (docrender.js): escaped text, sanitized prose, as a player gets it, but for the blocks kept back from players, which it draws marked (1.6.3, finding 18: the preview no longer is exactly what every player reads)
+          preview.innerHTML = renderDoc(activeMap, { who: seeNames, mermaid: !!window.mermaid, docStyle: (getActiveCampaign() || {}).docStyle, empty: '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
           runPreviewMermaid(activeMap.id);
           return;
       }

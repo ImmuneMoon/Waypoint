@@ -613,7 +613,7 @@ function cleanImportItems(ic, deps) {
         // cleaned as the map it will be drawn as. Its type had to be exactly 'map' for a cleaner below to run: a file's 'Map' or 'board' kept
         // its whole play map as written, a text box's markup included
         if (it.type !== 'doc' && it.type !== 'planner' && it.type !== 'map') it.type = !it.type && Array.isArray(it.blocks) ? 'planner' : 'map';
-        if (it.type === 'doc') { var cd = DR && DR.cleanDoc ? DR.cleanDoc(it, { keepHidden: true }) : null; if (cd) ic.items[id] = cd; else delete ic.items[id]; return; }
+        if (it.type === 'doc') { var cd = DR && DR.cleanDoc ? DR.cleanDoc(it, { keepHidden: true, gm: true }) : null;   /* 1.6.3 (finding 18): a file the GM brings in keeps which blocks are kept back from players, and from whom (docrender.js cleanDoc opts.gm) */ if (cd) ic.items[id] = cd; else delete ic.items[id]; return; }
         if (it.type === 'planner') {   // a planner from before blocks keeps its text in one string, which opens as a raw HTML block (planner.js): it becomes that block here, so the rule below cleans it
             if (typeof it.content === 'string' && it.content && (!Array.isArray(it.blocks) || !it.blocks.length)) it.blocks = [{ id: 'b_' + Math.random().toString(36).slice(2, 10), type: 'raw', content: it.content }];
             delete it.content;

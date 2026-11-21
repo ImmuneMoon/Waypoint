@@ -250,7 +250,7 @@ function sanitizeAppState(s, recipientId, held) {   // recipientId: the player t
             var orig = camp.items[id];
             if (orig && orig.type === 'doc' && camp.id !== c.activeCampaignId) { delete camp.items[id]; return; }   // a session is one campaign: only the hosted campaign's pages travel
             if (orig && orig.type === 'map' && recipientId && held && typeof mapStub === 'function' && !(own(held, id) && held[id] === 1)) { camp.items[id] = mapStub(orig); return; }   // possession: a map this player has not reached travels as its stub (name, lock, nesting), nothing of what is on it
-            var it = sanitizeItem(orig);
+            var it = sanitizeItem(orig, recipientId);   // 1.6.3 (finding 18): a page's blocks kept back reach only the players they name, and none the stream window (no recipient)
             if (it === null) { delete camp.items[id]; return; }
             if (it.type === 'map' && recipientId && camp.id === c.activeCampaignId) it = fogCopyFor(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig, recipientId);   // drop the creatures this player cannot see (judged on the host's own campaign, as every later send is), with their lit cells
             else if (it.type === 'map' && !recipientId && camp.id === c.activeCampaignId) it = fogPartyCopy(it, (s.campaigns && s.campaigns[camp.id]) || camp, orig);   // R2 #14: the stream window's copy is the party view — the creatures no player's token sees dropped, the cells the players' tokens see together on it

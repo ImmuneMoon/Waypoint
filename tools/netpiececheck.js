@@ -1875,6 +1875,51 @@ pendingChecks.push((async () => {
             && ixH.includes('The pages nested under it are GM only too, whatever their own switch says.') && ixH.includes('removes it, and the pages under it, from every player at once. Moving a page under a GM-only page does the same.')
             && wn.every(t => { const a = t.indexOf('WAYPOINT 1.5.6'), b = t.indexOf('WAYPOINT 1.5.5'), k = t.indexOf('Handbook\n- A page set GM only now keeps every page nested under it from your\n'); return a >= 0 && k > a && k < b; }));
     } catch (e) { check('1.5.6 the hidden parent checks ran', false, String(e && e.stack || e)); } })());
+    /* ---- 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21: "an option to reveal certain parts and not others if
+       the gm desires", and "Also per player"): a page's block kept back from players reaches only the players it names, on every way a page
+       goes out. Run on the real docrender, sanitizeItem, sanitizeAppState, net.sendItem, net.broadcastItemFiltered and unkeepLinks ---- */
+    pendingChecks.push((async () => { try {
+        const urlK = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const DRk = await import(urlK('docrender.js')), win = { wpDocRender: DRk }, J2 = JSON.stringify;
+        const pgK = { id: 'pk', type: 'doc', meta: { title: 'Rules' }, blocks: [
+            { id: 'b_open', type: 'text', content: '<p>Open words</p>' },
+            { id: 'b_gm', type: 'callout', content: '<p>GM SECRET words</p>', hide: true },
+            { id: 'b_mira', type: 'h2', title: 'MIRA ONLY title', cols: 1, hide: true, see: ['u_mira', 'u_gone'] },
+            { id: 'b_link', type: 'text', content: '<p><a href="#wp:page:pk:b_gm">see</a> and <a href="#wp:page:pk:b_open">here</a></p>' }] };
+        const pgPlain = { id: 'pp', type: 'doc', meta: { title: 'Plain' }, blocks: [{ id: 'b1', type: 'text', content: '<p><a href="#wp:page:pk:b_mira">over there</a></p>' }] };
+        const campK = { id: 'k', name: 'K', activeItemId: 'm', players: { u_mira: { name: 'Mira' }, u_kael: { name: 'Kael' } }, items: { m: { id: 'm', type: 'map', meta: { title: 'M' }, whiteboard: [], rooms: [], links: [] }, pk: pgK, pp: pgPlain } };
+        const lineK = name => { const a = src.indexOf('function ' + name + '('); return src.slice(a, src.indexOf('\n', a)); };
+        const extra = ['docHidHere', 'docPerReader', 'unkeepLinks'].map(lineK).join('\n') + '\n';
+        const saSrcK = src.slice(src.indexOf('function cleanElevation('), src.indexOf('function sanitizeItem(')) + '\n' + extra + siSrc() + '\n' + fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js');
+        const [SAk, SIk, PRk, ULk] = new Function('own', 'window', 'fxLib', 'itemLib', 'withHoverLines', 'fogCopyFor', 'fogPartyCopy', 'getActiveCampaign', "'use strict';\n" + saSrcK + '\nreturn [sanitizeAppState, sanitizeItem, docPerReader, unkeepLinks];')(H.own, win, () => ({}), () => ({}), v => v, it => it, it => it, () => campK);
+        const ids = d => d ? d.blocks.map(b => b.id).join() : 'none', marks = d => J2(d).indexOf('"hide"') >= 0 || J2(d).indexOf('"see"') >= 0;
+        const st = { activeCampaignId: 'k', campaigns: { k: campK } };
+        const snapM = SAk(st, 'u_mira', null).campaigns.k.items.pk, snapK = SAk(st, 'u_kael', null).campaigns.k.items.pk, strm = SAk(st).campaigns.k.items.pk;
+        const R = { mira: ids(snapM), kael: ids(snapK), stream: ids(strm), anyR: ids(SIk(pgK, '*any')), alone: ids(SIk(pgK)), linkK: snapK.blocks.find(b => b.id === 'b_link').content, plain: SIk(pgPlain, 'u_mira').blocks[0].content, perPk: PRk(pgK), perPp: PRk(pgPlain) };
+        check('1.6.3 (finding 18) a page block kept back from players reaches only the players it names: the join snapshot gives Mira the block she is named in and not the GM-only one, Kael neither, the stream window neither, and none of their copies holds a mark, a kept block\'s words, title or id',
+            R.mira === 'b_open,b_mira,b_link' && R.kael === 'b_open,b_link' && R.stream === 'b_open,b_link' && R.anyR === 'b_open,b_mira,b_link' && R.alone === 'b_open,b_link'
+            && ![snapM, snapK, strm].some(marks) && J2(snapK).indexOf('SECRET') < 0 && J2(snapK).indexOf('MIRA') < 0 && J2(snapK).indexOf('b_gm') < 0 && J2(snapK).indexOf('b_mira') < 0 && J2(strm).indexOf('b_mira') < 0 && J2(snapM).indexOf('u_gone') < 0 && J2(snapM).indexOf('SECRET') < 0, J2(R));
+        check('1.6.3 (finding 18) a link or a mention that leads to a kept block keeps only its page, in the page itself and in another page, and a link to a block players read keeps its part; a page with a kept block goes to each reader apart (docPerReader), a page with none does not',
+            R.linkK.indexOf('#wp:page:pk"') >= 0 && R.linkK.indexOf('#wp:page:pk:b_open') >= 0 && R.linkK.indexOf('b_gm') < 0 && R.plain.indexOf('#wp:page:pk"') >= 0 && R.plain.indexOf('b_mira') < 0
+            && R.perPk === true && R.perPp === false && J2(ULk([{ s: 0, e: 3, h: '#wp:@:page:pk:b_gm' }, { s: 4, e: 6, h: '#wp:@:page:pk:b_open' }])) === J2([{ s: 0, e: 3, h: '#wp:@:page:pk' }, { s: 4, e: 6, h: '#wp:@:page:pk:b_open' }]), J2(R));
+        // net.sendItem and net.broadcastItemFiltered, run for real: each admitted connection its own copy, whole, and no shared baseline kept
+        const siA = src.indexOf('net.sendItem = function('), siZ = src.indexOf('// Host: broadcast one whole map/item to the table');
+        const bfA = siZ, bfZ = src.indexOf('// Host: an item leaves every admitted player');
+        const lastSent = { pk: { stale: true } };
+        const netK = { conns: [mkConn('pm'), mkConn('pkl'), mkConn('pw')], roster: { pm: { id: 'u_mira' }, pkl: { id: 'u_kael' } } };
+        const stK = { appState: st };
+        const fnK = new Function('net', 'state', 'own', 'sanitizeItem', 'docPerReader', 'sendFailed', '_lastSent', 'mapFogged', 'itemDelta', 'broadcast', 'window', "'use strict';\n" + src.slice(siA, bfZ) + '\nreturn net;');
+        fnK(netK, stK, H.own, SIk, PRk, () => {}, lastSent, () => false, () => { throw new Error('no shared delta for a page with a kept block'); }, () => { throw new Error('no broadcast'); }, win);
+        netK.sendItem('k', 'pk');
+        const gotS = netK.conns.map(c => c.sent.map(m => m.type + ':' + ids(m.item)).join('|'));
+        netK.conns.forEach(c => { c.sent.length = 0; });
+        netK.broadcastItemFiltered('k', 'pk');
+        const gotB = netK.conns.map(c => c.sent.map(m => m.type + ':' + ids(m.item)).join('|'));
+        netK.conns.forEach(c => { c.sent.length = 0; }); netK.sendItem('k', 'pk', netK.conns[1]);
+        const gotO = netK.conns.map(c => c.sent.length).join();
+        check('1.6.3 (finding 18) net.sendItem and net.broadcastItemFiltered, run for real: a page with a kept block goes to each admitted connection as its own reader\'s copy, whole, never to one not admitted, and no shared baseline is kept; one connection asked for gets its own copy alone',
+            J2(gotS) === J2(['item:b_open,b_mira,b_link', 'item:b_open,b_link', '']) && J2(gotB) === J2(gotS) && gotO === '0,1,0' && !Object.prototype.hasOwnProperty.call(lastSent, 'pk'), J2({ gotS, gotB, gotO }));
+    } catch (e) { check('1.6.3 (finding 18) the kept block checks ran', false, String(e && e.stack || e)); } })());
 // From netcheck.js's closing block, where these two ran after every pending check (they lean on none of them):
     /* ---- 1.5.4: the follow ruling (the owner, 2026-10-04): nobody follows the GM around unless the table is set to ---- */
     {

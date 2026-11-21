@@ -540,7 +540,12 @@ function markdownToBlocks(text, opts) {
     text = text.replace(/^\[([^\]]+)\]:\s*(<[^>]*>|\S+)(?:\s+"[^"]*")?\s*$/gm, function(m, label, dest) { refs[label.toLowerCase()] = dest.replace(/^<|>$/g, ''); return ''; });
     var lines = text.split('\n');
 
-    function push(b) { b.id = uid(); blocks.push(b); return b; }
+    function push(b) { b.id = uid(); if (kind === 'doc' && pendingKept) { b.hide = true; if (pendingKept.length) b.see = pendingKept.slice(); } blocks.push(b); return b; }
+    // 1.6.3 (the improvement week's pages review, finding 18): on a page, a line that holds {kept} alone (or {kept see=<ids>}, the players who
+    // still see it) keeps every block after it back from players, until a line that holds {shown} alone. docToMarkdown writes one wherever that
+    // changes, so the GM's own export of a page comes back with what it kept back. Each flushes the text before it, so no paragraph joins a
+    // block on the other side of it. pendingKept: null (shown), or the see list (empty: nobody but the GM)
+    var pendingKept = null;
     // What a file's inline HTML becomes in a text block: the page sanitiser's — its allow-list of tags, and the one span form (a color, a size step) an export writes
     function tidy(html) { return dropEmptySpans(sanitizeHtml(html)).replace(/<p>\s*<\/p>/g, ''); }   // an HTML block inside a paragraph leaves empty pairs behind
     function flushRun() { if (!run.length) return; var html = tidy(run.join('')); run = []; if (html.replace(/<[^>]+>/g, '').trim() || /<pre>/.test(html)) push({ type: 'text', content: html }); }
@@ -695,6 +700,8 @@ function markdownToBlocks(text, opts) {
         if (!pb.length) { i++; continue; }
         var boldOnly = pb.length === 1 && /^\s*(\*\*|__)(.+?)\1\s*$/.exec(pb[0]);
         var nextNonBlank = i; while (nextNonBlank < lines.length && !lines[nextNonBlank].trim()) nextNonBlank++;
+        var keptM = kind === 'doc' && pb.length === 1 ? /^\s*\{(?:kept(?:\s+see=([A-Za-z0-9_.:,-]*))?|(shown))\}\s*$/i.exec(pb[0]) : null;   // 1.6.3 (finding 18): see push
+        if (keptM) { flushRun(); pendingKept = keptM[2] ? null : (keptM[1] || '').split(',').filter(function(x, xi, xs) { return /^[A-Za-z0-9_.:-]{1,80}$/.test(x) && xs.indexOf(x) === xi; }).slice(0, 32); scene = null; continue; }
         // 1.6.2 (backlog 107 (a)): a line that holds {wide} alone, right before a plain table of a planner, makes that table a Wide card
         if (kind === 'planner' && pb.length === 1 && /^\s*\{wide\}\s*$/i.test(pb[0]) && nextNonBlank < lines.length && wideTableAt(lines, nextNonBlank)) { pendingWide = true; scene = null; continue; }
         // 1.6.2: {pin} alone right before a table (or its bold title) pins its heading row; a planner's {wide pin} makes a Wide card that is pinned too
@@ -718,7 +725,7 @@ function markdownToBlocks(text, opts) {
 function mdEscapeMarks(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/&(?=#?[A-Za-z0-9]+;)/g, '&amp;'); }
 // A paragraph that is the very words of a line mark ({wide}, {pin}, {wide pin} or {pin wide}) is written with its brace escaped, so that it reads
 // back as text and never as the mark of the table after it (1.6.2: {pin} beside {wide})
-function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=(?:wide|pin|wide\s+pin|pin\s+wide)\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
+function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=(?:wide|pin|wide\s+pin|pin\s+wide|kept(?:\s+see=[^}]*)?|shown)\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
 function mdEscapeText(s) { return mdEscapeLineStart(mdEscapeMarks(s)); }
 // A text block's color / size span as the sanitiser's one form, written anew from its two values ('' for any other span)
 function spanTag(attrs) {
@@ -844,9 +851,13 @@ function docToMarkdown(item, opts) {
     if (kind === 'planner' && meta.status) fm.push('status: ' + meta.status);
     if (kind === 'doc' && meta.players === false) fm.push('players: false');
     L.push('---'); L.push.apply(L, fm); L.push('---', '');
-    var sawH1 = false;
+    var sawH1 = false, keptNow = '';
     (item.blocks || []).forEach(function(b) {
         if (!b || typeof b !== 'object') return;
+        if (kind === 'doc') {   // 1.6.3 (finding 18): a page's blocks kept back from players, marked where that changes (markdownToBlocks pendingKept)
+            var keptW = b.hide === true ? '{kept' + (Array.isArray(b.see) && b.see.length ? ' see=' + b.see.filter(function(x) { return typeof x === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(x); }).slice(0, 32).join(',') : '') + '}' : '';
+            if (keptW !== keptNow) { L.push(keptW || '{shown}', ''); keptNow = keptW; }
+        }
         switch (b.type) {
             case 'h1':
                 if (sawH1) { L.push('## ' + tailGuard(fieldText(b, 'title', IN_LINE), headAttrs(kind, 2, false, '')), ''); break; }

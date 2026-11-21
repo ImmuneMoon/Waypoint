@@ -1609,6 +1609,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && ixT.includes('<li><b>Contents</b>: a page with two sections or more shows them as a row of chips above it.') && wnT.every(t => t.includes('- Contents: a page with two sections or more shows them as a row of chips\n') && t.indexOf('- Contents: a page with two sections') < t.indexOf('WAYPOINT 1.6.1')), J([strip, col, tight, tcss.length, (cssT.replace(tcss, '').match(/pv-toc/g) || []).length]));
     }
 
+    /* ---- 1.6.3 (the improvement week's pages review, finding 18; Fulllion, 2026-11-21): the page editor's Players see this and Seen by, planner.js
+       sliced by its seerow markers and run for real on a campaign of plain objects; the row's wiring, its styles and Help pinned ---- */
+    {
+        const plS = read('scripts/planner.js'), sa = plS.indexOf('// [pagecheck:seerow-start]'), sz = plS.indexOf('// [pagecheck:seerow-end]');
+        const escS = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const campS = { players: { u_mira: { name: 'Mira <i>' }, u_kael: { name: 'Kael' }, u_ban: { name: 'Banned' }, 'bad id': { name: 'X' } }, bannedPlayers: { u_ban: 1 } };
+        const S = new Function('esc', 'getActiveCampaign', plS.slice(sa, sz) + '\nreturn { seePlayers, seeRowHtml, seeSet, seePick, seeNames };')(escS, () => campS);
+        const open = { id: 'b', type: 'text' }, kept = { id: 'k', type: 'text', hide: true, see: ['u_kael', 'u_old'] };
+        const hOpen = S.seeRowHtml(3, open, campS), hKept = S.seeRowHtml(4, kept, campS), hNone = S.seeRowHtml(5, { hide: true }, {});
+        const b1 = { id: 'x' }; S.seeSet(b1, false); const set1 = J(b1); S.seePick(b1, 'u_mira', true); S.seePick(b1, 'u_kael', true); S.seePick(b1, 'u_mira', true); const set2 = J(b1); S.seePick(b1, 'u_mira', false); S.seePick(b1, 'u_kael', false); const set3 = J(b1); S.seePick(b1, 'no good!', true); const set4 = J(b1); S.seePick(b1, 'u_kael', true); S.seeSet(b1, true); const set5 = J(b1);
+        const R = { set1, set2, set3, set4, set5, names: S.seeNames(['u_mira', 'u_gone']), players: S.seePlayers(campS, kept).map(p => p.id + ':' + p.name) };
+        check('1.6.3 (finding 18) the page editor: every block has Players see this, ticked unless the block is kept back; a kept block offers Seen by, one tick for each player the campaign knows (not a banned one, not an id that is none) and any id it already names, names escaped; with none known it says only you see it',
+            hOpen.indexOf('class="b-seeall" data-idx="3" checked') >= 0 && hOpen.indexOf('b-see-who') < 0 && hKept.indexOf('class="b-seeall" data-idx="4">') >= 0 && hKept.indexOf('data-pid="u_kael" checked') >= 0 && hKept.indexOf('data-pid="u_mira">') >= 0
+            && hKept.indexOf('Mira &lt;i&gt;') >= 0 && hKept.indexOf('u_ban') < 0 && hKept.indexOf('bad id') < 0 && hKept.indexOf('data-pid="u_old" checked> A player no longer listed') >= 0 && hNone.indexOf('Only you see it.') >= 0 && hNone.indexOf('b-seep') < 0
+            && J(R.players) === J(['u_kael:Kael', 'u_mira:Mira <i>', 'u_old:A player no longer listed']), hKept);
+        check('1.6.3 (finding 18) seeSet and seePick: unticking keeps the block back with nobody named, a pick adds a player once and takes them off again, the last taken off leaves no list, an id that is none is not taken, and ticking Players see this again forgets the list; seeNames names a player the campaign no longer knows as such',
+            R.set1 === '{"id":"x","hide":true}' && R.set2 === '{"id":"x","hide":true,"see":["u_kael","u_mira"]}' && R.set3 === '{"id":"x","hide":true}' && R.set4 === R.set3 && R.set5 === '{"id":"x"}' && J(R.names) === J(['Mira <i>', 'a player no longer listed']), J(R));
+        const css = read('style.css'), ix = read('index.html');
+        check('1.6.3 (finding 18) wired and said: the row is drawn under each block of a page alone, its two ticks each one save, the GM\'s preview names who still sees a kept block, the mark is printed from its attribute on screen only and never positions the block, and Help says it',
+            plS.includes("if (isDocEd) html += seeRowHtml(idx, b, getActiveCampaign());") && plS.includes("seeSet(bb, this.checked); save(true); renderPlanner();") && plS.includes("seePick(bb, this.dataset.pid, this.checked); save(true); renderPlanner();") && plS.includes('renderDoc(activeMap, { who: seeNames,')
+            && /@media screen \{\n  \.pv-blk\.pv-kept \{ outline: 1px dashed var\(--dim\);[^}\n]*\}\n  \.pv-blk\.pv-kept::before \{ content: attr\(data-kept\);/.test(css) && !/\.pv-kept[^{]*\{[^}]*position/.test(css)
+            && ix.includes('Each block has <b>Players see this</b>, ticked to start. Untick it to keep that block from your players.') && ix.includes('A player never receives a block kept from them, not even its title.') && !ix.includes('Everything on a page is player-safe by design'));
+    }
     summed = true;
     console.log('\n' + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

@@ -1664,7 +1664,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // ---- finding 3: the main window tells a page's window when its page changed on disk ----
         {
             const camp = { id: 'c1', docStyle: null, items: { p1: { id: 'p1', type: 'planner', meta: { title: 'Notes' }, blocks: [{ type: 'text', content: 'a' }] } } }, sent = [];
-            const W = new Function('state', 'BroadcastChannel', 'window', "'use strict';\n" + cutP('docwatch') + '\nreturn { docWatchAsk, docWatchSnap, docWatchSig, docWatchCamp, W: _docW };')({ appState: { activeCampaignId: 'c1', campaigns: { c1: camp } } }, null, {});
+            const W = new Function('state', 'BroadcastChannel', 'window', "'use strict';\n" + cutP('docwatch') + '\nreturn { docWatchAsk, docWatchSnap, docWatchSig, docWatchCamp, docWatchHello, W: _docW };')({ appState: { activeCampaignId: 'c1', campaigns: { c1: camp } } }, null, {});
             const campOf = id => (id === 'c1' ? camp : null), post = m => sent.push(m.type + ':' + m.to), r = [];
             r.push(W.docWatchAsk({ id: 'dabc123w', camp: 'c1', item: 'p1' }, campOf, post, 0), W.docWatchAsk({ id: 'x', camp: 'c1', item: 'p1' }, campOf, post, 0), W.docWatchAsk({ id: 'dabc123w', camp: 'c1', item: '' }, campOf, post, 0), sent.join());
             let told = W.docWatchSnap(campOf, post, 10); told(); r.push(sent.join());   // a new window is told at the first save
@@ -1694,6 +1694,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             C.run(70000); q.push(ticks);   // no main window answers any more: every 10 s
             check('1.6.3 a page, a part or a big table in a window of its own reads the save only when its page changed (popout.js popDocLive, run for real on a channel and a clock of the suite\'s own): read once as it opens, and says which page it shows; with a main window answering, nothing read while nothing changed; read once for a run of saves that changed its page, and never for another window\'s; every 30 s at most for what it reads from outside its page, and every 10 s where no main window answers; another page shown is said at once; the window is started that way',
                 J(q) === J([1, 'docWatch:p1', 1, 2, 3, 'p2', 8]) && pop.includes("        popDocLive();   // a page, a part or a big table") && !/setInterval\(tick, 1000\)/.test(pop), J(q));
+            // The review of that fold: the main window keeps its list of watching windows in memory alone, so after it reloads it knew none of
+            // them until each said docWatch again, up to 20 s later, and an edit made then was not told. A main window now asks docWho once as
+            // it wires its channel (planner.js docWatchHello), and a page window answers at once with docWatch and reads the save once.
+            const hello = []; W.docWatchHello(m => hello.push(m));
+            const n0 = ch.posted.length, t0 = ticks; ch.l({ data: { type: 'docWho' } });
+            const said = ch.posted.slice(n0).map(m => m.type + ':' + m.item + ':' + (m.id === pid)).join();
+            C.run(130); const read1 = ticks - t0;
+            const plW = read('scripts/planner.js').replace(/\r\n/g, '\n');
+            check('1.6.3 the review of the redraw fold: a main window that has just loaded asks every page window which page it shows, once, as it wires its channel (planner.js docWatchHello), and a page window answers at once with docWatch and reads the save once (popout.js popDocLive), so an edit made right after a reload reaches it at the next save',
+                J(hello) === J([{ type: 'docWho' }]) && said === 'docWatch:p2:true' && read1 === 1
+                && plW.includes("docWatchAsk(e.data, docWatchCamp, docWatchPost, Date.now()); }); docWatchHello(docWatchPost); } catch (e) {} }"),
+                J([hello, said, read1]));
         }
         // ---- finding 45: + Add Row puts the new row's boxes alone into the editor ----
         {

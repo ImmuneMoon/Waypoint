@@ -306,7 +306,8 @@ if (spec) {
     // says its page changed on disk. It says which page it shows (docWatch, on the app's own channel, at once, whenever the page it shows is
     // another, and every 20 s); the main window answers docHere, and docSaved once a save that changed that page is written (planner.js
     // docWatchAsk and docWatchSnap). The save is still read now and then, for what a page draws from outside itself (another item's name):
-    // every DOC_SLOW_MS while a main window answers, and every DOC_ALONE_MS while none does
+    // every DOC_SLOW_MS while a main window answers, and every DOC_ALONE_MS while none does. A main window that has just loaded asks docWho,
+    // which is answered at once (the review of that fold)
     var DOC_SLOW_MS = 30000, DOC_ALONE_MS = 10000, DOC_LIVE_MS = 60000, DOC_SAY_MS = 20000;
     function popDocLive() {
         var pid = 'd' + Math.random().toString(36).slice(2, 12) + 'w', bc = null, seen = 0, soonT = 0, said = '', lastLook = Date.now(), lastWatch = 0;
@@ -316,7 +317,11 @@ if (spec) {
         var look = function() { lastLook = Date.now(); tick(); };
         var soon = function() { if (soonT) return; soonT = setTimeout(function() { soonT = 0; look(); }, 120); };   // a run of saves read once
         if (bc) bc.addEventListener('message', function(e) {
-            var m = e.data; if (!m || m.to !== pid) return;
+            var m = e.data; if (!m) return;
+            // a main window that has just loaded asks every page window who it is (planner.js docWatchHello): said at once, and the save
+            // read once, so a change made while that window knew of none is shown now and the next save is told here again
+            if (m.type === 'docWho') { watch(); soon(); return; }
+            if (m.to !== pid) return;
             if (m.type === 'docHere') seen = Date.now();
             else if (m.type === 'docSaved') { seen = Date.now(); soon(); }
         });

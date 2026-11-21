@@ -3586,6 +3586,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return function() { take.forEach(function(t) { if (_docW[t.id] !== t.w) return; if (t.sig === null || t.sig !== t.w.sig) { t.w.sig = t.sig; post({ type: 'docSaved', to: t.id }); } }); };
   }
   window.wpDocWatchSnap = function() { return docWatchSnap(docWatchCamp, docWatchPost, Date.now()); };
+  // 1.6.3 (the review of the redraw fold): the list of watching windows lives in this window's memory alone, so a main window that has just
+  // loaded (Refresh, a Developer mode switch, an update) knows none of them, and a window said docWatch again only every 20 s. In that time
+  // an edit the GM made was not told to it. So a main window asks every page window once, as it wires its channel, to say which page it
+  // shows at once (docWho, answered by popout.js popDocLive with docWatch and one read of the save). Nothing of a page is in the message
+  function docWatchHello(post) { post({ type: 'docWho' }); }
   // [pagecheck:docwatch-end]
   function renderPlannerPreview() {
       if (typeof pvDrop === 'function') pvDrop();   // 1.6.3: this draw takes the place of one typing asked for (pvTyped)
@@ -3898,7 +3903,7 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
       var msg = pvGotoMsg(location.search, a); if (!msg) return;
       try { new BroadcastChannel('waypoint').postMessage(msg); } catch (err) {}
   });
-  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); else if (e.data && e.data.type === 'tableEdit') tbEditTake(e.data); else if (e.data && e.data.type === 'docWatch') docWatchAsk(e.data, docWatchCamp, docWatchPost, Date.now()); }); } catch (e) {} }   // 1.6.2: an edit from a big table's window (tbEditTake)
+  else if (!_isStreamP) { try { new BroadcastChannel('waypoint').addEventListener('message', function(e) { if (pvGotoOk(e.data, getActiveCampaign())) navigateToMap(e.data.map, e.data.room || null); else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id); else if (e.data && e.data.type === 'tableEdit') tbEditTake(e.data); else if (e.data && e.data.type === 'docWatch') docWatchAsk(e.data, docWatchCamp, docWatchPost, Date.now()); }); docWatchHello(docWatchPost); } catch (e) {} }   // 1.6.2: an edit from a big table's window (tbEditTake)
   // Page layout by hand (pages only): drag a picture in the preview to nudge it (dx / dy), drag its
   // bottom-right corner to resize it (the width snaps to the select's steps). One save at pointerup is
   // one undo step per drag; io.js's capture listener closes any typing chunk at the pointerdown.

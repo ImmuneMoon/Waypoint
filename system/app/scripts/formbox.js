@@ -543,11 +543,16 @@ function dressPick(inp, kind) {
 // still loading and not gone (the review of 2026-11-19)
 function listsOf(inp) { var s = null; try { s = source ? source(inp) : null; } catch (e) { s = null; } var lib = null, out; try { lib = s && s.sys ? s.lib : null; out = s && s.sys ? optLists(s.sys, lib) : []; } catch (e) { out = []; } out.waiting = !!(lib && lib.waiting); return out; }
 function figsOf(inp) { var s = null; try { s = source ? source(inp) : null; } catch (e) { s = null; } var out = []; ((s && s.groups) || []).forEach(function(g) { if (g && g.name === 'This character') (g.items || []).forEach(function(i) { if (i && typeof i.s === 'string') out.push([i.s, i.label || i.s]); }); }); return out; }
-function dressOpts(inp) {
-    inp.dataset.fbo = '1'; inp.hidden = true; var box = el('div', 'fb-opts'), rows = readOpts(inp.value), figs = figsOf(inp), lists = listsOf(inp); inp.parentNode.insertBefore(box, inp);
+// 1.6.3 (the review of the System editor and the Library window, finding 31): one, where it is handed, makes the same picks stand for a box that
+// holds ONE name and no option words: an item's Thrown with, in the Items tab and the Library window, which the cleaner keeps only as a single name.
+// Its one row has no name box, no x and no + Option, and its first choice is one.blank (No throw roll) in place of Just this word. The box gets
+// the name the picks make, a figure of the sheet's own or of one row of a list, never anything typed
+function dressOpts(inp, one) {
+    inp.dataset.fbo = '1'; inp.hidden = true; var box = el('div', 'fb-opts' + (one ? ' fb-opts-one' : '')), rows = one ? [{ label: '', name: String(inp.value || '').trim() }] : readOpts(inp.value), figs = figsOf(inp), lists = listsOf(inp); inp.parentNode.insertBefore(box, inp);
+    if (one) { var nm0 = rows[0].name.toLowerCase(); figs.forEach(function(f) { if (String(f[0]).toLowerCase() === nm0) rows[0].name = f[0]; }); }   // a name stored in another case shows as the figure it reads
     var LIST = '@list:', listOf = function(k) { for (var q = 0; q < lists.length; q++) if (lists[q].key === k) return lists[q]; return null; };
     rows.forEach(function(r) { r.row = lists.length ? optRowRead(r.name, lists) : null; });   // an option stored as a row of a list shows as its picks
-    var keep = function() { var t = writeOpts(rows); if (t === inp.value) return; inp.value = t; try { inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {} };
+    var keep = function() { var t = one ? rows[0].name : writeOpts(rows); if (t === inp.value) return; inp.value = t; try { inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {} };
     // the figure a new pick of a list starts on: the one the other options of this stat read of that list most, else the list's first
     var figFor = function(L) { var n = Object.create(null), best = ''; rows.forEach(function(o) { if (o.row && o.row.list === L.key && o.row.figKnown !== false) { n[o.row.fig] = (n[o.row.fig] || 0) + 1; if (!best || n[o.row.fig] > n[best]) best = o.row.fig; } }); return best || L.figs[0][0]; };
     // a row's picks write its name only once it is whole (an entry picked); until then the option keeps what it stood for, and the row says
@@ -559,7 +564,7 @@ function dressOpts(inp) {
     // what the option still stands for while its picks are not whole: just the word, a figure of the sheet by its name, the row of a list it
     // stood for, or a figure that is gone. Words only, never a stored name
     var heldWords = function(r) {
-        var n = r.name, f = null; if (!n) return 'it stays just this word';
+        var n = r.name, f = null; if (!n) return one ? 'it stays ' + String(one.blank || 'none').toLowerCase() : 'it stays just this word';
         figs.forEach(function(x) { if (!f && String(x[0]).toLowerCase() === n.toLowerCase()) f = x; }); if (f) return 'it still stands for ' + f[1];
         var o = optRowRead(n, lists), L = o ? listOf(o.list) : null, e = null; if (L) L.entries.forEach(function(x) { if (!e && x[0] === o.entry) e = x; });
         return L ? 'it still stands for ' + (e ? e[1] : 'an entry that is gone') + ' of ' + L.label : 'it still stands for a figure that is gone';
@@ -571,16 +576,17 @@ function dressOpts(inp) {
         rows.forEach(function(r, i) {
             r._say = null; r._specNote = null; var rw = el('div', 'fb-opt'), lb = el('input', 'field fb-optname'), sel = el('select', 'field fb-optfig'), add = function(v, t) { var o = el('option', '', t); o.value = v; sel.appendChild(o); }, rm = btn('tool ghost sys-btn fb-optrm', '\u00d7', 'Take this option away');
             lb.type = 'text'; lb.value = r.label; lb.placeholder = 'An option'; lb.title = 'What the option is called'; lb.addEventListener('input', function() { r.label = lb.value; }); lb.addEventListener('change', keep);
-            add('', 'Just this word'); figs.forEach(function(f) { add(f[0], 'Stands for ' + f[1]); });
-            lists.forEach(function(L) { add(LIST + L.key, 'Stands for a row of ' + L.label); });
-            if (!r.row && r.name && !figs.some(function(f) { return String(f[0]).toLowerCase() === r.name.toLowerCase(); })) add(r.name, 'Stands for a figure that is gone');
-            sel.value = r.row ? LIST + r.row.list : r.name || ''; sel.title = 'An option may stand for a figure of the sheet, or of one row of a list, which a formula then reads through it';
+            var pre = one ? '' : 'Stands for ';   // one: the picks name the figure itself
+            add('', one ? one.blank : 'Just this word'); figs.forEach(function(f) { add(f[0], pre + f[1]); });
+            lists.forEach(function(L) { add(LIST + L.key, (one ? 'A row of ' : 'Stands for a row of ') + L.label); });
+            if (!r.row && r.name && !figs.some(function(f) { return String(f[0]).toLowerCase() === r.name.toLowerCase(); })) add(r.name, one ? 'A figure that is gone' : 'Stands for a figure that is gone');
+            sel.value = r.row ? LIST + r.row.list : r.name || ''; sel.title = one ? one.title : 'An option may stand for a figure of the sheet, or of one row of a list, which a formula then reads through it';
             sel.addEventListener('change', function() {
                 if (sel.value.indexOf(LIST) === 0) { var L = listOf(sel.value.slice(LIST.length)); if (!L) return; r.row = { list: L.key, entry: '', known: false, spec: '', fig: figFor(L), figKnown: true }; r.held = true; r.specNo = ''; draw(); var fq = box.querySelectorAll('.fb-opt')[i]; fq = fq && fq.querySelector ? fq.querySelector('.ui-find-q') : null; if (fq && fq.focus) fq.focus(); return; }
                 var was = !!r.row; r.row = null; r.held = false; r.specNo = ''; r.name = sel.value; keep(); if (was) draw();
             });
             rm.addEventListener('click', function() { rows.splice(i, 1); keep(); draw(); });
-            rw.appendChild(lb); if (figs.length || lists.length || r.name) rw.appendChild(sel);
+            if (!one) rw.appendChild(lb); else if (one.cap) rw.appendChild(el('span', 'fb-onecap', one.cap + ':')); if (one || figs.length || lists.length || r.name) rw.appendChild(sel);
             var L0 = r.row ? listOf(r.row.list) : null;
             if (L0) {   // the row's picks: the entry by its name with a search, its specialty where the list has them, and which figure
                 var pk = el('span', 'fb-optrow'), specFill = null, specLine = null;   // specLine: the specialty's own gray line, set where the list has Specialties
@@ -643,17 +649,20 @@ function dressOpts(inp) {
                 fs.addEventListener('change', function() { r.row.fig = fs.value; r.row.figKnown = true; commit(r); });
                 r._say = el('small', 'fb-optsay'); pk.appendChild(fs); pk.appendChild(r._say); if (specLine) pk.appendChild(specLine); say(r); rw.appendChild(pk); rw.className = 'fb-opt fb-opt-row';
             }
-            rw.appendChild(rm); box.appendChild(rw);
+            if (!one) rw.appendChild(rm); box.appendChild(rw);
         });
+        if (one) return;   // one name: no + Option
         var more = btn('tool ghost sys-btn fb-optadd', '+ Option', 'Add an option to this list'); more.addEventListener('click', function() { rows.push({ label: '', name: '' }); draw(); var all = box.querySelectorAll('.fb-optname'); if (all.length && all[all.length - 1].focus) all[all.length - 1].focus(); }); box.appendChild(more);
     };
     draw();
 }
 // [formcheck:pick-end]
+// 1.6.3 (finding 31): an item's Thrown with picks its one name, as a stat's option does (dressOpts with one)
+var THROW_ONE = { blank: 'No throw roll', title: 'What the Combat tab\u2019s throw roll is made against when it is thrown or placed: a figure of the thrower\u2019s sheet, or of one row of a list. With none, no throw roll is made' };
 function sweep(root) {
     if (!root || typeof root.querySelectorAll !== 'function') return 0;
     var n = 0, all = root.querySelectorAll('input');
-    for (var p = 0; p < all.length; p++) { var ip = all[p]; if (!ip.dataset || !ip.parentNode) continue; if (!ip.dataset.fbp) { var pk = pickKind(ip); if (pk) dressPick(ip, pk); } if (!ip.dataset.fbo && ip.classList && ip.classList.contains('sys-list-statopts')) dressOpts(ip); }
+    for (var p = 0; p < all.length; p++) { var ip = all[p]; if (!ip.dataset || !ip.parentNode) continue; if (!ip.dataset.fbp) { var pk = pickKind(ip); if (pk) dressPick(ip, pk); } if (!ip.dataset.fbo && ip.classList && ip.classList.contains('sys-list-statopts')) dressOpts(ip); else if (!ip.dataset.fbo && ((ip.classList && ip.classList.contains('sys-item-throw')) || ip.id === 'libF_throwSkill')) dressOpts(ip, ip.id === 'libF_throwSkill' ? THROW_ONE : Object.assign({}, THROW_ONE, { cap: String(ip.placeholder || '') })); }   // the Items tab's box has no label of its own, so its words stand before the pick
     for (var i = 0; i < all.length; i++) { if (all[i].dataset && !all[i].dataset.fb && !all[i].dataset.fbw && kindOf(all[i])) { dress(all[i]); if (all[i].dataset.fb) n++; } }
     return n;
 }

@@ -103,7 +103,9 @@ function formLib() {
     return out;
 }
 function formSource(inp) {
-    var cF = draft ? null : getActiveCampaign(), d = draft || (cF ? systemOf(cF) : null); if (!d) return null;
+    // 1.6.3 (the review of the System editor and the Library window, finding 11; Fulllion's pick of 2026-11-21: the Library never reads the unsaved
+    // draft): a box of the Library window reads the system as saved, even while the editor stands open under it with changes
+    var libB = !!(inp && /^libF_/.test(inp.id || '')), useD = draft && !libB, cF = useD ? null : getActiveCampaign(), d = useD ? draft : (cF ? systemOf(cF) : null); if (!d) return null;
     var ctx = inp && /^libF_/.test(inp.id || '') ? {} : formCtx(inp);
     return { sys: d, get lib() { return formLib(); }, subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, get wgroups() { return readsOf(d, Object.assign({}, ctx, { words: true })); }, get wlists() { return Array.isArray(ctx.only) ? [] : (d.fields || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.key === 'string' && f.key && f.key.indexOf('.') < 0; }).map(function(f) { return [f.key, f.label || f.key]; }); }, word: function(s) { return nameWord(d, s, ctx.list); } };   // wgroups (167 D): what a test of words may read
 }

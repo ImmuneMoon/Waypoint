@@ -913,18 +913,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const elG = (tag, cls, text) => { const e = rich(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; };
             const modal = rich('div'); modal.id = 'libraryModal'; const sysModal = rich('div'); sysModal.id = 'systemModal';
             const docG = { listeners: 0, addEventListener() { this.listeners++; }, removeEventListener() { this.listeners--; } };
-            const G = new Function('el', 'iconNode', 'ui', 'EMOJI_SET', 'GLYPHS', 'PICKER_HIDE', 'GLYPH_WORDS', 'document', 'window', 'Event', '"use strict";\n' + shG.slice(gA, gB) + '\n' + shG.slice(bA, bB) + '\nreturn { glyphButton, glyphPicker, closeGlyphPicker, pop: () => _glyphPop };')(
+            const G = new Function('el', 'iconNode', 'ui', 'EMOJI_SET', 'GLYPHS', 'PICKER_HIDE', 'GLYPH_WORDS', 'document', 'window', 'Event', '"use strict";\n' + shG.slice(gA, gB) + '\n' + shG.slice(bA, bB) + '\nreturn { glyphButton, glyphPicker, closeGlyphPicker, glyphWord, pop: () => _glyphPop };')(
                 elG, v => elG('span', 'ico', v), id => (id === 'systemModal' ? sysModal : null), [['\u{1F9E0}', 'brain mind']], { bolt: 'M0 0', 'graduation-cap': 'M1 1' }, {}, {}, docG, { innerWidth: 1200, innerHeight: 800 }, class { constructor(t) { this.type = t; } });
             const W5 = formWorld({ real: true }); W5.entries[0] = Object.assign({}, W5.entries[0], { icon: 'icon:graduation-cap' }); modal.appendChild(W5.form);
             const shut = []; globalThis.window = { wpSheets: { glyphButton: G.glyphButton, closeGlyphPicker: () => { shut.push(1); G.closeGlyphPicker(); } } };
             let pick;
             try {
                 W5.api.renderForm(); const icon = W5.byId.libF_icon; icon.dispatchEvent = ev => { if (icon.on[ev.type]) icon.on[ev.type](ev); };
-                const btn = icon.parentNode.kids[icon.parentNode.kids.indexOf(icon) + 1], ev = { preventDefault() {}, stopPropagation() {} };
+                const btn = icon.parentNode.kids[icon.parentNode.kids.indexOf(icon) + 1], ev = { preventDefault() {}, stopPropagation() {} }, title0 = btn.title;
                 btn.on.click(ev); const pop1 = G.pop(), inModal = !!pop1 && pop1.parentNode === modal && !sysModal.kids.length;
                 const opts = (function find(n, out) { if (n.cls && n.cls.has('sys-glyph-opt')) out.push(n); (n.kids || []).forEach(k => find(k, out)); return out; })(pop1, []);
                 const boltOpt = opts.find(o => o.title === 'bolt'); boltOpt.on.click(ev);
-                pick = { inModal, gone: G.pop() === null && modal.kids.indexOf(pop1) < 0, value: icon.value, read: W5.api.readForm().icon, focusBtn: focused === btn, listeners: docG.listeners, title: btn.title };
+                pick = { inModal, gone: G.pop() === null && modal.kids.indexOf(pop1) < 0, value: icon.value, read: W5.api.readForm().icon, focusBtn: focused === btn, listeners: docG.listeners, title: btn.title, title0, words: [G.glyphWord('icon:graduation-cap'), G.glyphWord('\u{1F9E0}'), G.glyphWord('x'), G.glyphWord('')] };
                 btn.on.click(ev); const pop2 = G.pop(), shutBefore = shut.length; W5.api.renderForm();
                 pick.redraw = shut.length === shutBefore + 1 && G.pop() === null && modal.kids.indexOf(pop2) < 0;
             } finally { delete globalThis.window; }
@@ -932,6 +932,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         } catch (e) { gpErr = String(e && e.stack || e).slice(0, 700); }
         check('1.6.3, the review of the audit\'s gaps 5 to 10: the Items tab\'s own icon picker, run for real on the Library window\'s Icon, opens inside the Library window, writes the hidden box as an input so readForm reads the pick, hands the focus back to its button (a hidden box takes none) and says no word of typing; a pop left open goes when the form is drawn again, and close() takes it away too',
             !!gp && gp.inModal === true && gp.gone === true && gp.value === 'icon:bolt' && gp.read === 'icon:bolt' && gp.focusBtn === true && gp.listeners === 0 && /^Pick an icon from Waypoint/.test(gp.title) && !/type/i.test(gp.title) && gp.redraw === true
+            /* 1.6.3 (the review of the System editor and the Library window, finding 35): a hidden box's button names the pick in words, never its stored form */ && /\. Now: graduation cap$/.test(gp.title0) && /\. Now: bolt$/.test(gp.title) && !/icon:/.test(gp.title0 + gp.title) && JSON.stringify(gp.words) === JSON.stringify(['graduation cap', 'brain', 'x', ''])
             && winS2.includes('async function close() { if (!st.open) return; glyphClose();') && shV.includes('closeGlyphPicker: closeGlyphPicker });') && typeof globalThis.window === 'undefined',
             gpErr || j(gp));
         // 1.5.8: an entry's blast extras in the form (librarywin.js blastBox, dmgTypePairs, blastDrops and the real renderForm and readForm)
@@ -1301,16 +1302,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         let dn = null, dnErr = '';
         try {
             const src = between('function sysUnsaved(', '\n/* ---- packs ---- */');
-            const mk = () => { const cls = new Set(['on']), ev = []; const els = { systemModal: { style: { display: 'flex' } }, sysSaveBtn: { classList: { contains: c => cls.has(c) }, click() { ev.push('save'); if (this.refuse !== true) cls.delete('on'); } }, libDraftNote: { hidden: true } };
-                const st = { open: true }; const api = new Function('ui', 'st', 'leave', 'renderAll', 'toast', '"use strict";\n' + src + '\nreturn { sysUnsaved, draftNote, draftSave };')(id => els[id] || null, st, () => ev.push('leave'), () => ev.push('render'), t => ev.push('toast:' + t)); return { els, ev, api, st }; };
+            // the review of this batch: a save is known by the campaign holding another system object afterwards, as saveDraft stores a fresh one, so a save
+            // that leaves the button marked again for a part it keeps waiting (a sense with no unit yet) still draws the window again
+            const mk = () => { const cls = new Set(['on']), ev = [], cp = { system: {} }; const els = { systemModal: { style: { display: 'flex' } }, sysSaveBtn: { classList: { contains: c => cls.has(c) }, click() { ev.push('save'); if (this.refuse !== true) { cp.system = {}; if (this.keepOn !== true) cls.delete('on'); } } }, libDraftNote: { hidden: true } };
+                const st = { open: true }; const api = new Function('ui', 'st', 'leave', 'renderAll', 'toast', 'camp', '"use strict";\n' + src + '\nreturn { sysUnsaved, draftNote, draftSave };')(id => els[id] || null, st, () => ev.push('leave'), () => ev.push('render'), t => ev.push('toast:' + t), () => cp); return { els, ev, api, st }; };
             const a = mk(); a.api.draftNote(); const shown = a.els.libDraftNote.hidden === false; a.api.draftSave(); const after = [a.els.libDraftNote.hidden, a.ev.slice()];
             const b = mk(); b.els.sysSaveBtn.refuse = true; b.api.draftNote(); b.api.draftSave(); const refused = [b.els.libDraftNote.hidden, b.ev.slice()];
             const c = mk(); c.els.systemModal.style.display = 'none'; c.api.draftNote(); const closed = c.els.libDraftNote.hidden;
             const d2 = mk(); d2.api.draftSave(); d2.api.draftSave(); const twice = d2.ev.filter(x => x === 'save').length;
-            dn = { shown, after, refused, closed, twice };
+            const k2 = mk(); k2.els.sysSaveBtn.keepOn = true; k2.api.draftSave(); const keptOn = [k2.els.libDraftNote.hidden, k2.ev.slice(0, 3)];
+            dn = { shown, after, refused, closed, twice, keptOn };
         } catch (e) { dnErr = String(e && e.stack || e).slice(0, 400); }
         check('1.6.3 (finding 11) while the System editor stands open under the Library with changes not saved, one line at the top says new lists, stats and categories show once they are saved, and its button presses the editor’s own Save: saved, the open entry is saved against the new system and the window drawn again; refused, nothing more; with the editor closed or saved, no line (sysUnsaved, draftNote and draftSave, run for real)',
-            !!dn && dn.shown === true && dn.after[0] === true && j(dn.after[1].slice(0, 3)) === j(['save', 'leave', 'render']) && /^toast:The System editor.s changes are saved/.test(dn.after[1][3]) && dn.refused[0] === false && j(dn.refused[1]) === j(['save']) && dn.closed === true && dn.twice === 1
+            !!dn && dn.shown === true && dn.after[0] === true && j(dn.after[1].slice(0, 3)) === j(['save', 'leave', 'render']) && /^toast:The System editor.s changes are saved/.test(dn.after[1][3]) && dn.refused[0] === false && j(dn.refused[1]) === j(['save']) && dn.closed === true && dn.twice === 1 && dn.keptOn[0] === false && j(dn.keptOn[1]) === j(['save', 'leave', 'render'])
             && W.includes("    m.style.display = 'flex'; state(''); renderAll(); guideOpen(); draftNote();") && /<div id="libDraftNote" class="lib-guide lib-draft" hidden>[^\n]*id="libDraftSave"/.test(HTML) && W.includes("var ds = ui('libDraftSave'); if (ds) ds.addEventListener('click', draftSave);"), dnErr || j(dn));
         // finding 8: an entry left is saved by itself, only where its form changed, and a leave never refuses (formRead, leave and saveEntry, run for real)
         let lv = null, lvErr = '';

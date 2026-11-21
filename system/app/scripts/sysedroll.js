@@ -488,7 +488,7 @@ function fxOfRow(target) { var row = target.closest && target.closest('.sys-fx-r
 // Category offers what the system's items, its core and the library's entries already use (sheets.js catChoices, the list every other picker of
 // categories reads), each once ignoring case. One datalist a row, beside the box: the tab draws one row at a time, so its id names one element. Text nodes alone
 function itemCatList() {
-    var dl = el('datalist'), seen = Object.create(null); dl.id = 'sysItemCats';
+    var dl = el('datalist', 'sys-item-catlist'), seen = Object.create(null); dl.id = 'sysItemCats';   // its class keeps it in the row's head beside the box (sysui GROUPS), never in More
     var cc = typeof catChoices === 'function' ? catChoices(draft) : []; (Array.isArray(cc) ? cc : []).forEach(function(c0) { var c = String(c0 || '').trim(); if (!c || seen[c.toLowerCase()]) return; seen[c.toLowerCase()] = 1; var o = el('option'); o.value = c; dl.appendChild(o); });
     return dl;
 }
@@ -521,8 +521,9 @@ function itemRow(it) {
     var flags = el('div', 'sys-flags');
     flags.appendChild(input('sys-item-cost field', it.cost, 'Point/credit cost (a formula, no dice) — used by budgets in a later slice', 'Cost (optional)'));
     // 1.6.3 (Fulllion's rulings of 2026-11-20): the throw skill is what the Combat tab's throw roll reads as ThrowSkill, so it is no longer (optional), and
-    // with none no throw roll is made (the validator says so under it). It stays a box: what it names is often a column of one entry of a list, such as a
-    // skill's Target, which no list of fields could offer
+    // with none no throw roll is made (the validator says so under it). Since the review of the System editor and the Library window (finding 31) the
+    // box is hidden and picked as a stat's option is (formbox.js dressOpts, one name): a figure of the sheet, or of one row of a list, such as a
+    // skill's Target, each by its name and never typed
     // 1.6.3 (the review of items): only an item with a blast is thrown or placed, so the box says it is needed there alone, and optional on any other item
     flags.appendChild(input('sys-item-throw field', it.throwSkill, 'What the Combat tab’s throw roll is made against when it is thrown or placed, such as a skill’s target. With none, no throw roll is made: it lands where it is aimed', it.area ? (it.area.place === true ? 'Placing skill' : 'Throw skill') : 'Throw skill (optional)'));
     var iIcoIn = input('sys-item-icon field', it.icon, 'An emoji or a bundled icon shown on the row', 'Icon'); iIcoIn.type = 'hidden'; flags.appendChild(iIcoIn); flags.appendChild(glyphButton(iIcoIn, 'Pick an icon from Waypoint\u2019s own icons or the emoji'));   // 1.6.3 (finding 35): the box hidden, the picker shows the pick

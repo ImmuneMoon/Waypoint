@@ -66,7 +66,7 @@ function formInto(box, o, kind, list, acts) {
     // plain number box. set(n) is handed the figure once it is settled
     var counter = function(k, val, lo, hi, label, tip, off, set) {
         var UIs = window.wpUi && typeof window.wpUi.step === 'function' ? window.wpUi : null;
-        if (UIs) { var w = UIs.step({ value: val === '' || val === undefined || val === null ? null : val, min: lo, max: hi, step: 1, label: label, off: off, data: { objk: o.id + ':' + k }, set: set }); w.dataset.tip = tip; w.input.placeholder = lo === 0 ? 'None' : ''; return w; }
+        if (UIs) { var w = UIs.step({ value: val === '' || val === undefined || val === null ? null : val, min: lo, max: hi, step: 1, label: label, off: off, data: { objk: o.id + ':' + k }, set: set }); w.dataset.tip = tip; w.input.placeholder = lo === 0 ? '0' : ''; /* the counter's box is narrow: an empty Protection reads 0, which stops nothing */ return w; }
         var n = el('input'); n.type = 'number'; n.min = lo; n.max = hi; n.step = 1; n.value = val === undefined || val === null ? '' : val; n.disabled = !!off; n.dataset.tip = tip; key(n, k); n.addEventListener('change', function() { set(Number(n.value)); }); return n;
     };
     var nm = key(el('input'), 'name'); nm.type = 'text'; nm.maxLength = 60; nm.value = o.name; nm.addEventListener('change', function() { var v = nm.value.trim(); if (v) { commit({ name: v }); draw(); } else nm.value = o.name; });

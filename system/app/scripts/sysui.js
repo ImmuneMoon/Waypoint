@@ -168,7 +168,7 @@ var GROUPS = {
         ['bands', 'Result bands', 0, ['sys-bands']],
         ['then', 'What it changes', 1, ['sys-apply']],
         ['explain', 'What it means', 0, ['sys-explain']]] },   // 1.6.2 (backlog 218 fold 3)
-    items: { split: ['sys-row-main', 'sys-flags'], head: ['sys-item-name', 'sys-item-cat', 'sys-btns'], list: [
+    items: { split: ['sys-row-main', 'sys-flags'], head: ['sys-item-name', 'sys-item-cat', 'sys-item-catlist', 'sys-btns'], list: [   // 1.6.3 (finding 35): and the list of categories the Category box suggests
         ['what', 'What it is', 1, ['sys-item-damage', 'sys-item-cost', 'sys-item-throw', 'sys-item-key', 'sys-item-lvl', 'sys-item-only', 'sys-item-again', 'sys-item-notes']],
         ['look', 'Who sees it and how it looks', 1, ['sys-item-vis', 'sys-item-icon', 'sys-glyph-btn', 'sys-item-pic', 'sys-pic']],
         ['stats', 'Stats', 1, ['sys-item-stats']],

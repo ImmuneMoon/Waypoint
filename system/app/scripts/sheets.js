@@ -3043,11 +3043,20 @@ function picPicker(inp) {
 }
 function glyphButton(inp, title) {   // title: the button's own words where its box is not one to type in (the Library window's Icon, a hidden box)
     var b = el('button', 'tool ghost sys-btn sys-glyph-btn'); b.type = 'button'; b.title = typeof title === 'string' && title ? title : 'Pick an icon (or type an emoji)';
-    var paint = function() { b.textContent = ''; var v = inp.value.trim(); b.appendChild(v ? iconNode(v, 'sys-glyph-cur') : el('span', 'sys-glyph-cur', '\u2026')); };
+    // 1.6.3 (the review of the System editor and the Library window, finding 35): where the box is hidden, the button's tooltip also names the pick in
+    // words (glyphWord), since the box that once showed it is out of sight
+    var base = b.title, paint = function() { b.textContent = ''; var v = inp.value.trim(); b.appendChild(v ? iconNode(v, 'sys-glyph-cur') : el('span', 'sys-glyph-cur', '\u2026')); if (inp.type === 'hidden') b.title = base + (v ? '. Now: ' + glyphWord(v) : '. None picked yet'); };
     paint();
     b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); glyphPicker(inp, b, paint); });
     inp.addEventListener('input', paint);
     return b;
+}
+// 1.6.3 (finding 35): an icon's value in words: a bundled icon by its name, its hyphens as spaces, an emoji by the first word the picker files it
+// under, else the emoji itself. Never the stored form (icon:name)
+function glyphWord(v) {
+    var s = String(v || '').trim(); if (s.indexOf('icon:') === 0) return s.slice(5).replace(/-/g, ' ');
+    for (var i = 0; i < EMOJI_SET.length; i++) if (EMOJI_SET[i][0] === s) return EMOJI_SET[i][1].split(' ')[0];
+    return s;
 }
 function glyphPicker(inp, anchor, repaint) {
     closeGlyphPicker();

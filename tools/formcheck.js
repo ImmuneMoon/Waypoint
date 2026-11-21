@@ -439,6 +439,15 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
             B.setSource(() => ({ groups: [{ name: 'This character', items: [{ label: 'Strength', s: 'ST' }] }], word: () => '', sys: sysO, get lib() { return libW; } }));
             const oR3 = doc.createElement('div'), oB3 = doc.createElement('input'); oB3.type = 'text'; oB3.className = 'sys-list-statopts field'; oB3.value = 'Old = Skills.axe.Target'; oR3.appendChild(oB3); modal.appendChild(oR3); B.sweep(oR3);
             check('the review of gap 4: while the library is still loading, a stored entry it cannot find is said to be loading and kept', oB3.value === 'Old = Skills.axe.Target' && j(texts(oR3.querySelector('.ui-find-sel')).slice(0, 2)) === j(['Pick an entry', 'An entry of the library, still loading']));
+            {   // 1.6.3 (the review of the System editor and the Library window, finding 11; Fulllion's pick of 2026-11-21): a box of the Library window reads
+                // the system as saved, never the System editor's draft, while a box of the editor reads the draft (sysedbox.js formSource, run on stand-ins)
+                const sbS = require('./checkkit').part('sysedbox.js').replace(/\r\n/g, '\n'), fsA = sbS.indexOf('function formSource(inp) {'), fsB = sbS.indexOf('\n// [formcheck:source-end]', fsA);
+                const saved = { fields: [{ key: 'Saved' }] }, drafted = { fields: [{ key: 'Draft' }] };
+                const mkFS = dr => new Function('draft', 'getActiveCampaign', 'systemOf', 'formCtx', 'formLib', 'formTrial', 'readsOf', 'nameWord', '"use strict";\n' + sbS.slice(fsA, fsB) + '\nreturn formSource;')(dr, () => ({ system: saved }), c => c.system, () => ({}), () => [], () => null, () => [], () => '');
+                const libIn = { id: 'libF_needsIf' }, edIn = { id: '', className: 'sys-roll-needs' };
+                check('1.6.3 (finding 11) a box of the Library window reads the system as saved, even while the System editor holds a draft, and a box of the editor reads its draft; with no draft both read the saved system',
+                    fsA > 0 && fsB > fsA && mkFS(drafted)(libIn).sys === saved && mkFS(drafted)(edIn).sys === drafted && mkFS(null)(libIn).sys === saved && mkFS(null)(edIn).sys === saved);
+            }
             const sbx = require('./checkkit').part('sysedbox.js'), flA = sbx.indexOf('function formLib()'), flB = sbx.indexOf('\nfunction formSource', flA);   // sysedbox.js, its formLib run on a stand-in library
             const formLib = new Function('window', 'getActiveCampaign', sbx.slice(flA, flB) + '\nreturn formLib;');
             const packsL = { p1: [{ key: 'a', name: 'A', category: 'Skill' }, { key: 'b', name: 'B', category: 'Skill', vis: 'gm' }, null, { name: 'no key' }], p2: [{ key: 'c', name: 'C', category: 'Skill' }], p3: [] };
@@ -451,6 +460,21 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
         B.setSource(() => ({ groups: [{ name: 'This character', items: [{ label: 'Strength', s: 'ST' }] }], word: () => '' }));
         const oRoot2 = doc.createElement('div'), oBox2 = doc.createElement('input'); oBox2.type = 'text'; oBox2.className = 'sys-list-statopts field'; oBox2.value = 'Blade = Skills.knife.Target'; oRoot2.appendChild(oBox2); modal.appendChild(oRoot2); B.sweep(oRoot2);
         check('gap 4: with no system at hand the option is drawn as before and kept', oBox2.value === 'Blade = Skills.knife.Target' && j(texts(oRoot2.querySelector('.fb-optfig'))) === j(['Just this word', 'Stands for Strength', 'Stands for a figure that is gone']) && !oRoot2.querySelector('.fb-optrow'));
+        {   // 1.6.3 (the review of the System editor and the Library window, finding 31): an item's Thrown with holds ONE name, picked as a stat's
+            // option is (dressOpts with one): a figure of the sheet, or of one row of a list, never typed. The Items tab's box, and the Library window's
+            B.setSource(() => ({ groups: [{ name: 'This character', items: [{ label: 'Strength', s: 'ST' }] }], word: () => '', sys: sysO, get lib() { return libO; } }));
+            const tw = (cls, id, v, ph) => { const rt = doc.createElement('div'), bx = doc.createElement('input'); bx.type = 'text'; if (cls) bx.className = cls; if (id) bx.id = id; if (ph) bx.placeholder = ph; bx.value = v; rt.appendChild(bx); modal.appendChild(rt); B.sweep(rt); return { rt, bx, q: c => rt.querySelector(c) }; };
+            const T1 = tw('sys-item-throw field', '', 'st', 'Throw skill'), T2 = tw('', 'libF_throwSkill', 'Skills.knife.Target'), T3 = tw('sys-item-throw field', '', '');
+            check('1.6.3 (finding 31) an item\u2019s Thrown with is picked, never typed: the box is hidden behind one row of picks with no name box, no x and no + Option, its first choice No throw roll, a figure of the sheet by its name and each list\u2019s rows; a name stored in another case shows as the figure it reads; dressing writes nothing; the Items tab\u2019s box says its own words before the pick, the Library\u2019s has its own label',
+                T1.bx.hidden === true && T1.rt.querySelectorAll('.fb-opt').length === 1 && !T1.q('.fb-optname') && !T1.q('.fb-optrm') && !T1.q('.fb-optadd') && T1.q('.fb-optfig').value === 'ST' && T1.bx.value === 'st' && T1.bx.calls.length === 0
+                && j(texts(T1.q('.fb-optfig'))) === j(['No throw roll', 'Strength', 'A row of Skills', 'A row of Gear']) && T1.q('.fb-onecap').textContent === 'Throw skill:'
+                && T2.bx.hidden === true && !T2.q('.fb-onecap') && T2.q('.fb-optfig').value === '@list:Skills' && T2.q('.ui-find-sel').value === 'knife' && T2.q('.fb-optrowfig').value === 'Target' && T2.bx.calls.length === 0
+                && T3.q('.fb-optfig').value === '', j([T1.bx.value, texts(T1.q('.fb-optfig'))]));
+            chg(T3.q('.fb-optfig'), 'ST');
+            const one1 = T3.bx.value; chg(T3.q('.fb-optfig'), '@list:Skills'); const held = [T3.bx.value, T3.q('.fb-optsay').textContent]; chg(T3.q('.ui-find-sel'), 'club'); const one2 = T3.bx.value; chg(T3.q('.fb-optrowfig'), 'bonus'); const one3 = T3.bx.value; chg(T3.q('.fb-optfig'), '');
+            check('1.6.3 (finding 31) a pick writes the one name the cleaner keeps and says so to the editor: a figure by its name, a row of a list once an entry is picked (until then the box keeps what it held and the gray line says so), another figure of the row, and No throw roll empties it',
+                one1 === 'ST' && held[0] === 'ST' && /still stands for Strength/.test(held[1]) && one2 === 'Skills.club.lvl' && one3 === 'Skills.club.bonus' && T3.bx.value === '' && T3.bx.calls.includes('dispatch change'), j([one1, held, one2, one3, T3.bx.value]));
+        }
         const fbS = readU('scripts/formbox.js');
         check('gap 4: the entry is the app\u2019s own choice of many with a search, and nothing of it is markup', /import \{ find \} from '\.\/uiparts\.js';/.test(fbS) && /var fe = find\(\{/.test(fbS) && /pk\.appendChild\(fe\);/.test(fbS) && /sys: d, get lib\(\) \{ return formLib\(\); \}/.test(require('./checkkit').part('sysedbox.js')));
     }

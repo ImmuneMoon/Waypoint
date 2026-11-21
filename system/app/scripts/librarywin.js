@@ -104,8 +104,11 @@ function sysUnsaved() { var sm = ui('systemModal'), sb = ui('sysSaveBtn'); retur
 function draftNote() { var n = ui('libDraftNote'); if (n) n.hidden = !(st.open && sysUnsaved()); }
 function draftSave() {
     var sb = ui('sysSaveBtn'); if (!sb || !st.open || !sysUnsaved()) { draftNote(); return; }
+    var was = camp() ? camp().system : null;
     sb.click();
-    if (sysUnsaved()) { draftNote(); return; }   // the editor refused it, and said why
+    // the save went through where the campaign holds another system object (saveDraft stores a fresh one), even if the editor marks itself again for
+    // a part it keeps waiting (a sense with no unit yet). Where it is the same object, the editor refused it and said why
+    if (!camp() || camp().system === was) { draftNote(); return; }
     leave(); renderAll(); draftNote(); toast('The System editor\u2019s changes are saved. Its new lists, stats and categories show here now.');
 }
 // the library finished reading (library.js): what was loading can be shown now; an entry being edited stays as typed
@@ -578,10 +581,12 @@ function entryChooser(ents, blank, title, off, onPick) {
     if (UIf) {
         var w = UIf.find({ choices: list.map(function(x) { return { value: x.id, name: String(x.name || ''), sub: x.vis === 'gm' ? 'GM only' : '' }; }), blank: blank, value: '', label: title, placeholder: 'Search the library', set: function(v) { if (v) onPick(v); } });
         w.classList.add('lib-entry-find'); w.title = title; if (off) { w.input.disabled = true; w.select.disabled = true; }
+        if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(w.select);   // a key step on the closed list opens it, never adds the entry it steps past
         return w;
     }
     var sel = select([['', blank]].concat(list.map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; })), ''); sel.title = title; sel.disabled = !!off;
     sel.addEventListener('change', function() { if (sel.value) onPick(sel.value); });
+    if (typeof window !== 'undefined' && window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(sel);
     return sel;
 }
 function needsBox(form, e) {

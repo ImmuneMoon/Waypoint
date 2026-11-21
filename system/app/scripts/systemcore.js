@@ -9468,5 +9468,5 @@ export { revRowWords, revRows };   // 1.6.0: what a Review line says of a list; 
 export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, TABLE_KEY, TABLE_ROW_KEY, nameFold };   // 1.6.0: a system's tables
 export { onOther, cleanTests, testFormula, TEST_MAX };   // 1.6.2: Applies to someone else, near or their target
 export { deckTrial, deckTrialRead, drawnVal };   // 1.6.2: Try it draws for a roll that draws first
-export { outsideKey, outsideCamp };
-export { lazyVars };   // 1.6.3: a lazy resolver of a sheet in a token's context, as resolveAll's .vars reads it   // 1.6.3: what a resolver reads beside the system and its character (fog.js sensesKept)
+export { outsideKey, outsideCamp };   // 1.6.3: what a resolver reads beside the system and its character (fog.js sensesKept)
+export { lazyVars };   // 1.6.3: a lazy resolver of a sheet in a token's context, as resolveAll's .vars reads it

@@ -498,7 +498,42 @@ pendingChecks.push((async () => {
         nfS.includes("if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightStep(fid, dir, by, pick); });") && nfS.includes("if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightSet(fid, combat); });")
         && src.includes("return net.charBatch(combatOver.bind(null, fid, had, quiet, title));") && calS.includes("if (nB && typeof nB.charBatch === 'function' && typeof nB.charBatching === 'function' && !nB.charBatching()) return nB.charBatch(function() { return ownTime(groups); });")
         && kit.part('nettime.js').includes("return net.charBatch(fxClockTick);") && /net\.syncCharDelta = function\(id, values\) \{ if \(typeof fxPassForget === 'function'\) fxPassForget\(\); if \(typeof batchDelta === 'function' && batchDelta\(id, values\)\) return;/.test(src)
-        && /function charChanged\(id\) \{\n    if \(typeof window !== 'undefined' && window\.wpFog && window\.wpFog\.sensesForget\) window\.wpFog\.sensesForget\(\); if \(typeof id === 'string' && typeof window !== 'undefined' && window\.wpNet && typeof window\.wpNet\.chgHeld === 'function' && window\.wpNet\.chgHeld\(id\)\) \{ if \(typeof passForget === 'function'\) passForget\(\); return; \}/.test(shS6));
+        && /function charChanged\(id\) \{\n    if \(typeof window !== 'undefined' && window\.wpFog && window\.wpFog\.sensesForget\) window\.wpFog\.sensesForget\(\); if \(typeof id === 'string' && typeof window !== 'undefined' && window\.wpNet && typeof window\.wpNet\.chgHeld === 'function' && window\.wpNet\.chgHeld\(id\)\) \{ if \(typeof passForget === 'function'\) passForget\(\); if \(typeof ruleFollow === 'function'\) \{/.test(shS6));   // the review of combat speed moved this pin on purpose: inside a batch the followers still judge each change at once (ruleFollow)
 }
+
+
+// The review of combat speed (2026-11-20, its low finding): a batch keeps the sends, the sight and the drawing to its end, but not what judges
+// each change. Run for real: the charbatch slice of net.js, sheets.js charChanged and its cross slice (crossFollow, crossSeed, ruleFollow) with
+// the real systemcore. A value falls past a step and comes back inside one batch: the crossing runs once, at once, and the flush runs it no
+// second time; the Game Record is told of each change as it is gathered, so the fall and the rise each keep a line; the sheet is drawn once
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const shR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cutR = (a, b) => { const x = shR.indexOf(a), y = shR.indexOf(b, x + 1); if (x < 0 || y < 0) throw new Error('review of combat speed: slice ' + a); return shR.slice(x, y); };
+    const crossSrc = cutR('// [systemcheck:cross-start]', '// [systemcheck:cross-end]'), chgSrc = cutR('var _chgWhole = Object.create(null);', "// the token's owner select moved");
+    const cbS = between('// [netcheck:charbatch-start]', '// [netcheck:charbatch-end]', 'charbatch');
+    const gm = Sx.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10', def: 'max', min: -40 }],
+        rolls: [{ id: 'r_dc', label: 'Death check', formula: '3d6 <= 10', cross: { f: 'f_hp', dir: 'down', at: '0' } }] }, { F: Fx, gmView: true });
+    const c = { id: 'c_a', name: 'Ana', ownerId: 'u_a', values: { f_hp: { cur: 5 } } }, camp = { id: 'k', system: gm, chars: { c_a: c } };
+    const out = { rolls: [], record: [], sent: [], views: [], boards: [] };
+    const netO = { active: true, role: 'host', conns: [] };
+    const win = { appRender: () => {}, wpDice: { rollFor: (id, f, lb) => out.rolls.push([id, lb]) }, wpCalendar: { rulesRun: () => null }, wpNet: netO, wpSystemCore: Sx,
+        wpRecord: { sheet: (k, id) => out.record.push(j(k.chars[id].values.f_hp)) } };
+    const nb = new Function('net', 'own', 'window', 'getActiveCampaign', cbS + '\nreturn { batchDelta: batchDelta };')(netO, H.own, win, () => camp);
+    netO.syncCharDelta = (id, v) => { if (nb.batchDelta(id, v)) return; out.sent.push([id, j(v)]); win.wpRecord.sheet(camp, id); };
+    const sh = new Function('isClient', 'canWrite', 'F', 'crossings', 'makeResolver', 'getActiveCampaign', 'fieldById', 'tokenCtxFor', 'charById', 'net', 'toast', 'applyAction', 'save', 'sheetOpen', 'huds', 'renderViews', 'boardRedraw', 'window',
+        crossSrc + '\n' + chgSrc + '\nreturn { crossSeed: crossSeed, charChanged: charChanged };')(
+        () => false, () => true, () => Fx, Sx.crossings, Sx.makeResolver, () => camp, (sy, id) => sy.fields.filter(f => f.id === id)[0] || null, () => null, (id, k) => ((k || camp).chars[id] || null), () => netO, () => {}, () => {}, () => {},
+        null, {}, id => out.views.push(id), (id, whole) => out.boards.push([id, whole]), win);
+    win.wpSheets = { charChanged: sh.charChanged };
+    sh.crossSeed();
+    const hp = v => { c.values.f_hp = { cur: v }; netO.syncCharDelta('c_a', { f_hp: { cur: v } }); win.wpSheets.charChanged('c_a'); };
+    let midRolls = -1, midViews = -1;
+    netO.charBatch(() => { hp(-3); hp(4); midRolls = out.rolls.length; midViews = out.views.length; });
+    check('the review of combat speed (net.js charBatch with sheets.js charChanged and its crossings, run for real with the real systemcore): HP that falls past a step and comes back inside one batch runs its crossing once, at once, and the flush runs it no second time; the Game Record is told of the fall and of the rise as each is gathered; the change is sent once and the sheet drawn once, at the end',
+        midRolls === 1 && j(out.rolls) === j([['c_a', 'Death check']]) && j(out.record.slice(0, 2)) === j([j({ cur: -3 }), j({ cur: 4 })]) && j(out.sent) === j([['c_a', j({ f_hp: { cur: 4 } })]]) && midViews === 0 && j(out.views) === j(['c_a']) && out.boards.length === 1,
+        j([midRolls, out.rolls, out.record, out.sent, midViews, out.views, out.boards]));
+})());
 
 T.finish();

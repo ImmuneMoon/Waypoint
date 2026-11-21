@@ -879,10 +879,11 @@ function crossFollow(c, camp) {
 // The review of folds 4a and 6b: a time rule's run (runTimeRules) and a round's or a turn's action (timedHook) store what they write outside the
 // two funnels, so each asks here what the funnels ask once a change is stored: an effect that came on lays its token down, saved outside the
 // GM's undo with its maps sent to the table, and a value that crossed a step runs its rules, so a bleed past minus HP owes its death check then
-function ruleFollow(c, camp) {
+// o, where handed in, is told whether a token was laid down (o.laid): charChanged's batch branch keeps that for its flush, which draws the whole app then
+function ruleFollow(c, camp, o) {
     if (!c || typeof c.id !== 'string' || !camp) return 0;
     var mp = typeof postureFollow === 'function' ? postureFollow(c, camp) : [];
-    if (mp.length) { var n = net(), was = n ? n.applyingRemote : false; if (n) n.applyingRemote = true; try { save(true); } finally { if (n) n.applyingRemote = was; } if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) mp.forEach(function(mid) { n.broadcastItemFiltered(camp.id, mid); }); }
+    if (mp.length) { if (o && typeof o === 'object') o.laid = true; var n = net(), was = n ? n.applyingRemote : false; if (n) n.applyingRemote = true; try { save(true); } finally { if (n) n.applyingRemote = was; } if (n && n.active && n.role === 'host' && n.broadcastItemFiltered) mp.forEach(function(mid) { n.broadcastItemFiltered(camp.id, mid); }); }
     if (typeof tileFollow === 'function') tileFollow(c, camp);   // 1.6.2 (body fold 8)
     if (typeof fxEndFollow === 'function') fxEndFollow(c, camp);   // 1.6.2: an effect that ended runs its end
     return typeof crossFollow === 'function' ? crossFollow(c, camp) : 0;
@@ -8077,14 +8078,20 @@ function playerFinder(camp, view) {
         lib: L && L.entry ? function(id) { return typeof id === 'string' && ids[id] === 1 ? L.entry(id) : null; } : null };   // an entry of a pack players may see: the host's own copy
 }
 // net.js hooks: a character arrived, changed or went
+// The review of combat speed (2026-11-20): inside a batch (net.charBatch, a fight's step or the clock) what judges each change still runs at
+// once, through ruleFollow: a value that crosses a step and comes back within one step of a fight runs its crossing, and an effect that runs
+// out and is put on again runs its end, as each did before the batch. Only the save, the drawing and the rest wait for the batch's end, where
+// charChanged runs again and the followers, which keep what they last saw, find nothing new. A token laid down meanwhile is kept in
+// _chgWhole, so that the end draws the whole app for it
+var _chgWhole = Object.create(null);
 function charChanged(id) {
-    if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget(); if (typeof id === 'string' && typeof window !== 'undefined' && window.wpNet && typeof window.wpNet.chgHeld === 'function' && window.wpNet.chgHeld(id)) { if (typeof passForget === 'function') passForget(); return; }   // the fog's kept senses are read again from the sheet; 1.6.3 (the combat review, finding 6): inside one batch of a fight's step or the clock, the kept caches go now and the rest runs once at the batch's end (net.charBatch)
+    if (typeof window !== 'undefined' && window.wpFog && window.wpFog.sensesForget) window.wpFog.sensesForget(); if (typeof id === 'string' && typeof window !== 'undefined' && window.wpNet && typeof window.wpNet.chgHeld === 'function' && window.wpNet.chgHeld(id)) { if (typeof passForget === 'function') passForget(); if (typeof ruleFollow === 'function') { var campB = getActiveCampaign(), cB = charById(id, campB), oB = {}; if (cB) { ruleFollow(cB, campB, oB); if (oB.laid) _chgWhole[id] = 1; } } return; }   // the fog's kept senses are read again from the sheet; 1.6.3 (the combat review, finding 6): inside one batch of a fight's step or the clock, the kept caches go now and the rest runs once at the batch's end (net.charBatch)
     if (typeof lookPrune === 'function') lookPrune(id);   // item 35: a change from the table (a player's edit, a time rule) that left a look without its text
     if (typeof passForget === 'function') passForget();   // 1.6.3: what was kept for this pass of the app (a token's effects, the party's hover lines) is read again after the change
     if (typeof openSyncOne === 'function') openSyncOne(id);   // 1.5.8: a change from the table (a Form a player switched on) that opens or closes rows
     if (typeof tileFollow === 'function' && typeof id === 'string') { var campT = getActiveCampaign(), cT = charById(id, campT); if (cT) tileFollow(cT, campT); }   // 1.6.2 (body fold 8)
     if (typeof crossFollow === 'function' && typeof id === 'string') { var campX = getActiveCampaign(), cX = charById(id, campX); if (cX) crossFollow(cX, campX); }   // 1.5.9: a change from the table that crossed a step
-    var boardWhole = typeof id !== 'string';   // 1.6.3 (finding 2): every character, or a posture laid down below: the whole app is drawn
+    var boardWhole = typeof id !== 'string' || _chgWhole[id] === 1; if (typeof id === 'string') delete _chgWhole[id];   // 1.6.3 (finding 2): every character, or a posture laid down below or during a batch: the whole app is drawn
     if (typeof postureFollow === 'function' && typeof id === 'string') { var campP = getActiveCampaign(), cP = charById(id, campP), mpP = cP ? postureFollow(cP, campP) : []; if (mpP.length) { boardWhole = true; var nP = net(), wasP = nP ? nP.applyingRemote : false; if (nP) nP.applyingRemote = true; try { save(true); } finally { if (nP) nP.applyingRemote = wasP; } if (nP && nP.active && nP.role === 'host' && nP.broadcastItemFiltered) mpP.forEach(function(mid) { nP.broadcastItemFiltered(campP.id, mid); }); } }   // 1.5.9: a change from the table (a player's edit, a time rule) that brought on an effect that sets a posture; never a step of the GM's undo
     if (typeof fxEndFollow === 'function' && typeof id === 'string') { var campE = getActiveCampaign(), cE = charById(id, campE); if (cE) fxEndFollow(cE, campE); }   // 1.6.2: an effect that ran out or was taken off from the table runs its end
     if (typeof goneFire === 'function') goneFire(id);   // 1.6.0: a row a press of ours used up, now gone from our copy: its Undo

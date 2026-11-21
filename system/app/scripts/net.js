@@ -1237,8 +1237,8 @@ net.broadcastItemFiltered = function(campId, itemId) {
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveler arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
     if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem
-    if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));
-    if (typeof mapNobody === 'function' && mapNobody(it, itemId)) { delete _lastSent[itemId]; return; }   // 1.6.3 (finding 2): as net.sendItem, after the stub its holders are sent   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
+    if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
+    if (typeof mapNobody === 'function' && mapNobody(it, itemId)) { delete _lastSent[itemId]; return; }   // 1.6.3 (finding 2): as net.sendItem, after the stub its holders are sent
     if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm, it.type === 'map' && typeof mapHeld === 'function' ? itemId : null); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // possession: a map to the connections holding it whole, a page to every admitted one   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
@@ -2438,6 +2438,10 @@ function batchDelta(id, values) {   // true where the batch took it
     if (!_batch || typeof id !== 'string' || !values || typeof values !== 'object') return false;
     if (!own(_batch.d, id)) { _batch.ids.push(id); _batch.d[id] = {}; }
     var pB = _batch.d[id]; Object.keys(values).forEach(function(k) { pB[k] = values[k]; });
+    // the review of combat speed (2026-11-20): the Game Record judges each change, so it is told now, as the change is gathered, and not
+    // only at the flush. Two moves of one field in one step of a fight (a bleed, then a heal) each keep their own line. At the flush
+    // net.syncCharDelta tells the record again, which finds the sheet as it last saw it and writes nothing more
+    if (net.active && net.role === 'host' && typeof window !== 'undefined' && window.wpRecord && typeof getActiveCampaign === 'function') { try { window.wpRecord.sheet(getActiveCampaign(), id); } catch (e) { console.error(e); } }
     return true;
 }
 // The flush: each character's gathered delta, then each character followed. Where several are followed, the whole app is drawn once after

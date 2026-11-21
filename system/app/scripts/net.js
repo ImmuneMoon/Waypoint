@@ -4415,17 +4415,35 @@ function clockStep(camp, c, dir, ck) {
     if (row && row.held !== 1) { c.ckBack = (Array.isArray(c.ckBack) ? c.ckBack : []).slice(-199); c.ckBack.push({ id: row.id, was: row.init }); row.init = Math.max(0, (typeof row.init === 'number' ? row.init : 0) - clockCost(c, ck)); } delete c.ckUsed;
     clockSort(camp, c); var nx = S.clockNext(c.rows, c.ckNext); delete c.ckNext;
     if (nx === -2) { c.rows.forEach(function(r) { if (r) delete r.held; }); nx = S.clockNext(c.rows); }
-    if (nx < 0) { c.round += 1; return 0; }
+    if (nx < 0) { clockEnded(c); c.round += 1; return 0; }
     return nx;
 }
+// 1.6.3 (the review of the combat roster): the cycle that ends, as a step back finds it again (clockStep). It is taken here, at the very moment the cycle is found to end,
+// because fightStep then runs the new round's roll (netfight.js), which under Rolled again every round rolls the new cycle's counts into the rows before clockCycle runs: a snapshot taken
+// in clockCycle held those new counts, and a step back put every row at them. ckPrevs keeps the last ten cycles, the host's own and never sent
+function clockEnded(c) {
+    var pvI = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string') pvI[r.id] = r.init; });
+    c.ckPrevs = (Array.isArray(c.ckPrevs) ? c.ckPrevs : []).slice(-9); c.ckPrevs.push({ init: pvI, back: Array.isArray(c.ckBack) ? c.ckBack.slice() : [] });
+}
+// A new cycle begins. Without Rolled again every round each row goes back to where it began (ck0). Under Rolled again every round the counts that new round roll just gave
+// are where the cycle begins, and they are kept by round in ckStarts (the last ten, the host's own and never sent): a cycle reached a second time, after the GM stepped back
+// into the cycle before and on again, rolls nothing new (the new round's roll runs only for a round the fight has not reached), so its rows are put back at the counts it began with
+// the first time, never left at the counts the cycle before ended with
 function clockCycle(camp, c) {
-    var pvI = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string') pvI[r.id] = r.init; }); c.ckPrevs = (Array.isArray(c.ckPrevs) ? c.ckPrevs : []).slice(-9); c.ckPrevs.push({ init: pvI, back: Array.isArray(c.ckBack) ? c.ckBack.slice() : [] });   // 1.6.3: the cycle that ends, as a step back finds it again (clockStep)
-    var S = SC(), ir = initRulesOf(camp), c0 = c.ck0 || (c.ck0 = Object.create(null)); c.rows.forEach(function(r) { if (!r || typeof r.id !== 'string') return; delete r.held; if (!ir || ir.every !== true) { if (Object.prototype.hasOwnProperty.call(c0, r.id)) r.init = c0[r.id]; } else if (typeof r.init === 'number') c0[r.id] = r.init; });
+    var S = SC(), ir = initRulesOf(camp), c0 = c.ck0 || (c.ck0 = Object.create(null)), every = !!(ir && ir.every === true);
+    var st = every && Array.isArray(c.ckStarts) ? c.ckStarts.filter(function(x) { return !!x && x.round === c.round && !!x.init; })[0] : null;
+    c.rows.forEach(function(r) {
+        if (!r || typeof r.id !== 'string') return; delete r.held;
+        if (!every) { if (Object.prototype.hasOwnProperty.call(c0, r.id)) r.init = c0[r.id]; }
+        else if (st) { var v = Object.prototype.hasOwnProperty.call(st.init, r.id) ? st.init[r.id] : Object.prototype.hasOwnProperty.call(c0, r.id) ? c0[r.id] : r.init; if (typeof v === 'number') { r.init = v; c0[r.id] = v; } }
+        else if (typeof r.init === 'number') c0[r.id] = r.init;
+    });
+    if (every && !st) { var bg = Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.init === 'number') bg[r.id] = r.init; }); c.ckStarts = (Array.isArray(c.ckStarts) ? c.ckStarts : []).filter(function(x) { return !!x && x.round < c.round; }).slice(-9); c.ckStarts.push({ round: c.round, init: bg }); }
     delete c.ckBack; delete c.ckUsed; delete c.ckNext; clockSort(camp, c); var nx = S ? S.clockNext(c.rows) : 0; c.turn = nx >= 0 ? nx : 0;
 }
 function clockStart(camp, c, had) {   // a new fight, or a roster edit
     if (!clockRule(camp)) return; var S = SC(), c0 = had && had.ck0 ? had.ck0 : Object.create(null); c.rows.forEach(function(r) { if (r && typeof r.id === 'string' && typeof r.init === 'number' && (!Object.prototype.hasOwnProperty.call(c0, r.id) || (!(c0[r.id] > 0) && r.init > 0))) c0[r.id] = r.init; }); c.ck0 = c0;   // 1.6.3 (the combat review, finding 13): a row that began at 0 or less, which never acts, takes the count the GM gives it later as where it begins, so a new cycle does not put it back to 0
-    if (had) { if (Array.isArray(had.ckBack)) c.ckBack = had.ckBack; if (had.ckUsed) c.ckUsed = had.ckUsed; if (Array.isArray(had.ckPrevs)) c.ckPrevs = had.ckPrevs; }
+    if (had) { if (Array.isArray(had.ckBack)) c.ckBack = had.ckBack; if (had.ckUsed) c.ckUsed = had.ckUsed; if (Array.isArray(had.ckPrevs)) c.ckPrevs = had.ckPrevs; if (Array.isArray(had.ckStarts)) c.ckStarts = had.ckStarts; }
     clockSort(camp, c); if (!had) { var nx = S ? S.clockNext(c.rows) : 0; c.turn = nx >= 0 ? nx : 0; }
 }
 function clockPress(camp, charId, ent) {   // what a press spends, from the host's own entry
@@ -10518,6 +10536,16 @@ function fightMarks(v) {   // { a row's or a character's id: a whole number }, i
     Object.keys(v).slice(0, 400).forEach(function(k) { if (k.length <= 80 && fightNum(v[k])) o[k] = v[k]; });
     return o;
 }
+// 1.6.3 (the review of the combat roster): a counting clock's own figures, read back as data. A count may be a fraction (an initiative roll keeps hundredths) or below 0,
+// so these are any sound number within a million either way. fightFigs: { a row's id: a count }; fightBacks: the steps a correction takes back, [{ id, was }], kept only
+// for a row the fight still holds (has: the kept rows' ids)
+function fightFig(v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 1e6; }
+function fightFigs(v) {
+    var o = Object.create(null); if (!v || typeof v !== 'object') return o;
+    Object.keys(v).slice(0, 400).forEach(function(k) { if (k.length <= 80 && fightFig(v[k])) o[k] = v[k]; });
+    return o;
+}
+function fightBacks(v, has) { return Array.isArray(v) ? v.slice(-200).filter(function(x) { return !!x && typeof x === 'object' && typeof x.id === 'string' && x.id.length <= 80 && has[x.id] === 1 && fightFig(x.was); }).map(function(x) { return { id: x.id, was: x.was }; }) : []; }
 function fightIdsIn(v) { return Array.isArray(v) ? v.filter(function(x) { return typeof x === 'string' && x.length <= 80; }).slice(0, 80) : []; }
 function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
     var list = Object.create(null), on = null; if (!raw || typeof raw !== 'object' || !raw.list || typeof raw.list !== 'object' || !camp || !camp.items) return { list: list, on: on };
@@ -10532,7 +10560,17 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         rows.forEach(function(r) { delete r.hf; delete r.sf; var raw = r.held === 1 ? k.rows.filter(function(x) { return !!x && typeof x === 'object' && x.id === r.id; })[0] : null, SF = raw && raw.holdFor && typeof SC === 'function' ? SC() : null, hc = SF && typeof SF.cleanHoldFor === 'function' ? SF.cleanHoldFor(camp.system, raw.holdFor) : null; if (hc) { r.holdFor = hc; if (raw.holdFor.was === 1) hc.was = 1; } });   // 1.6.0: a named hold comes back with its fight
         ['n', 'rr', 'rh', 'eh', 'sq'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
         if (Array.isArray(k.seq) && k.seq.length && k.seq.length <= 2000) { var sqK = k.seq.filter(function(x) { return typeof x === 'string'; }); if (sqK.length === k.seq.length) f.seq = sqK; }   // 1.6.2 (G10): the round's order of turns comes back with its fight
-        ['et', 'th', 'turned', 'fxEnded', 'ck0'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
+        ['et', 'th', 'turned', 'fxEnded'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
+        // 1.6.3 (the review of the combat roster; Fulllion's ruling of 2026-11-20 that the GM may always reverse anyone's turn, and his pick that a reload keeps a fight
+        // live): a counting clock comes back whole, where each row began (ck0, a fraction kept), what the turn on hand has spent (ckUsed), the steps a correction takes
+        // back (ckBack), the cycles before (ckPrevs) and where each cycle began under Rolled again every round (ckStarts). Without them the clock's Previous turn found
+        // nothing to take back after the GM's reload, at any turn
+        var rowHas = Object.create(null); rows.forEach(function(r) { if (typeof r.id === 'string') rowHas[r.id] = 1; });
+        if (k.ck0 && typeof k.ck0 === 'object') f.ck0 = fightFigs(k.ck0);
+        if (k.ckUsed && typeof k.ckUsed === 'object' && (k.ckUsed.press === 1 || k.ckUsed.named === 1)) { var uK = { n: fightFig(k.ckUsed.n) && k.ckUsed.n >= 0 ? k.ckUsed.n : 0 }; if (k.ckUsed.press === 1) uK.press = 1; if (k.ckUsed.named === 1) uK.named = 1; f.ckUsed = uK; }
+        if (Array.isArray(k.ckBack)) { var bkK = fightBacks(k.ckBack, rowHas); if (bkK.length) f.ckBack = bkK; }
+        if (Array.isArray(k.ckPrevs)) { var pvK = k.ckPrevs.slice(-10).filter(function(x) { return !!x && typeof x === 'object'; }).map(function(x) { return { init: fightFigs(x.init), back: fightBacks(x.back, rowHas) }; }); if (pvK.length) f.ckPrevs = pvK; }
+        if (Array.isArray(k.ckStarts)) { var stK = k.ckStarts.slice(-10).filter(function(x) { return !!x && typeof x === 'object' && fightNum(x.round) && x.round >= 1; }).map(function(x) { return { round: x.round, init: fightFigs(x.init) }; }); if (stK.length) f.ckStarts = stK; }
         if (Array.isArray(k.hl)) { var hlK = holdsRead(k.hl, rows); if (hlK.length) f.hl = hlK; }   // 1.6.0 Who holds whom
         var dK = k.dec && typeof k.dec === 'object' ? k.dec : null;   // the viewing of 2026-11-09 (the owner, by prompt: "Save it with the fight (Recommended)"): a round's open declaration comes back with its lines
         if (dK && dK.open === 1 && dK.round === f.round && (typeof declareRule !== 'function' || declareRule(camp))) { var dL = Object.create(null), lnK = dK.lines && typeof dK.lines === 'object' ? dK.lines : {}; rows.forEach(function(r) { var t = typeof r.id === 'string' && Object.prototype.hasOwnProperty.call(lnK, r.id) && typeof lnK[r.id] === 'string' ? lnK[r.id].replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim().slice(0, 200) : ''; if (t) dL[r.id] = t; }); f.dec = { round: f.round, lines: dL, open: 1 }; }

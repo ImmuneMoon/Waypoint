@@ -6844,6 +6844,14 @@ function rosterRowState(live, rid) {
     o.acted = !o.now && !o.held && (row.dn === 1 || !!(th && Object.keys(th).some(function(k) { return th[k] === 1 && (k === rid || k.indexOf(rid + '#') === 0); })));
     return o;
 }
+// 1.6.3 (the review of the combat roster): where a row begins on a counting clock, which is what says whether it ever acts. A row's count runs down to 0 as it acts and
+// goes back to where it began at the next cycle (the host's ck0, live.ck0 on the GM's machine), so the count it stands at in the middle of a cycle says nothing of that.
+// The higher of where it began and the count given wins, as clockStart keeps it: a count the GM types above 0 is where the row then begins. live: the fight as the host
+// holds it, or none for a fight not yet running; id: the row's id; now: its count as given. Asked by the roster, Update and the turn strip
+function clockBegin(live, id, now) {
+    var b = live && live.ck0 && typeof live.ck0 === 'object' && typeof id === 'string' && Object.prototype.hasOwnProperty.call(live.ck0, id) ? Number(live.ck0[id]) : NaN, n = Number(now);
+    return Math.max(isFinite(b) ? b : -Infinity, isFinite(n) ? n : -Infinity);
+}
 // Finding 13: the words for rows whose count on a counting clock is 0 or less, which never get a turn: names, three at most and how many more
 function clockNeverWords(names) {
     if (!Array.isArray(names) || !names.length) return '';
@@ -6869,7 +6877,7 @@ function renderCombatModal() {
     var fa = document.activeElement, fr = fa && list.contains(fa) && fa.closest ? fa.closest('.combat-row') : null, keepR = fr ? fr.dataset.rid : '', keepC = fr ? ['combat-on', 'combat-init', 'combat-roll', 'combat-up', 'combat-down'].filter(function(c) { return fa.classList.contains(c); })[0] : '';   // 1.6.0: a redraw keeps the keyboard's place in the list
     list.innerHTML = combatDraft.rows.map(function(r, i) {
         var dupT = nameN['n' + r.name] > 1 ? ' <span class="combat-tag" title="Rows of one name, numbered down the list">' + (nameAt['n' + r.name] = (nameAt['n' + r.name] || 0) + 1) + '</span>' : '';
-        var stR = typeof rosterRowState === 'function' ? rosterRowState(live, String(r.id)) : { now: false, held: false, acted: false, holdText: '' }, neverR = clockS && r.on && !r.busy && !(Number(r.init) > 0);   // 1.6.3 (findings 20 and 13)
+        var stR = typeof rosterRowState === 'function' ? rosterRowState(live, String(r.id)) : { now: false, held: false, acted: false, holdText: '' }, neverR = clockS && r.on && !r.busy && !((typeof clockBegin === 'function' ? clockBegin(live, String(r.id), r.init) : Number(r.init)) > 0);   // 1.6.3 (findings 20 and 13; the review: judged by where the row begins, so a row that acted down to 0 mid-cycle is not marked)
         var stateT = (stR.now ? ' <span class="combat-tag combat-now" title="Whose turn it is now">now</span>' : '') + (stR.held || (!live && r.held) ? ' <span class="combat-tag" title="' + esc(stR.holdText ? 'Holding their turn until ' + stR.holdText : 'Holding their turn. The hold stays when you update the roster') + '">holding</span>' : '') + (stR.acted ? ' <span class="combat-tag" title="Has had its turn this round">acted</span>' : '')
             + (r.hidden ? ' <span class="combat-tag" title="Hidden from players. It takes its turns as any other. A player who saw it in this fight keeps its name, and the others read Hidden">hidden</span>' : '') + (neverR ? ' <span class="combat-tag combat-never" title="On the counting clock a row at 0 or less never acts. Give it a count above 0">never acts</span>' : '');
         return '<div class="combat-row' + (r.on ? '' : ' off') + (stR.now ? ' now' : '') + (neverR ? ' never' : '') + '" draggable="true" data-i="' + i + '" data-rid="' + esc(String(r.id)) + '">'
@@ -6948,7 +6956,7 @@ window.wpOpenCombat = openCombatModal;
     }
     // [systemcheck:rollall-end]
     var tickAllBtn = document.getElementById('combatTickAllBtn');   // 1.6.2 (the owner: "compact rows"): every row that may join, ticked at once
-    if (tickAllBtn) tickAllBtn.addEventListener('click', function() { if (!combatDraft) return; combatDraft.rows.forEach(function(r) { if (r && !r.busy) r.on = true; }); renderCombatModal(); });
+    if (tickAllBtn) tickAllBtn.addEventListener('click', function() { if (!combatDraft) return; combatDraft.rows.forEach(function(r) { if (r && !r.busy && !r.hidden) r.on = true; }); renderCombatModal(); });   // 1.6.3 (the review of the combat roster): never a hidden token, which is ticked one at a time, so one press does not pull hidden ambushers into every player's order as Hidden rows
     var rollAllBtn = document.getElementById('combatRollAllBtn');
     if (rollAllBtn) rollAllBtn.addEventListener('click', function() { if (!combatDraft) return; var nR = combatRollAll(combatDraft); if (!nR && !combatDraft.rows.some(function(r) { return r && r.on && r.charId && !r.rolled; })) toast('Every ticked character has its initiative already.'); renderCombatModal(); });   // 1.5.4: never said while a row was passed over or a roll refused
     var addBtn = document.getElementById('combatAddBtn'), addName = document.getElementById('combatAddName');
@@ -6964,10 +6972,14 @@ window.wpOpenCombat = openCombatModal;
     document.getElementById('combatStartBtn').addEventListener('click', function() {
         var n = window.wpNet; if (!combatDraft || !n) return;
         if (combatDraft.sortDue) { combatDraft.sortDue = false; combatDraft.rows = combatSortByInit(combatDraft.rows); }
-        var rows = combatDraft.rows.filter(function(r) { return r.on && !r.busy; }).map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; if (r.held) o.held = 1; return o; });   // initiative O1: whether a row has its number; 1.6.3 (finding 0): and a hold it keeps
-        if (!rows.length) { toast('Tick at least one combatant.'); return; }
-        var neverS = typeof rosterShape === 'function' && rosterShape(getActiveCampaign()).kind === 'clock' ? rows.filter(function(r) { return !(Number(r.init) > 0); }).map(function(r) { return r.name || 'Someone'; }) : [];   // 1.6.3 (finding 13): said, never refused
         var was = combatDraft.fid && n.combats && Object.prototype.hasOwnProperty.call(n.combats, combatDraft.fid) ? n.combats[combatDraft.fid] : null;   // fold 2: the fight this roster edits, by its id
+        // 1.6.3 (finding 0; the review of the combat roster): a hold is taken from the fight as it stands at Update, never from the roster as it opened: the held row may
+        // have acted from its hold, or the round ended and the hold was lost, while the roster was open, and the hold must not come back. Only a fight not yet running
+        // reads the draft's own flag
+        var heldNow = function(r) { if (!was) return !!r.held; var lr = (was.rows || []).filter(function(x) { return !!x && x.id === r.id; })[0]; return !!lr && lr.held === 1 && was.rows[was.turn] !== lr; };
+        var rows = combatDraft.rows.filter(function(r) { return r.on && !r.busy; }).map(function(r) { var o = { id: r.id, name: r.name, tokId: r.tokId, init: r.init, src: r.src }; if (r.rolled) o.rolled = 1; if (Array.isArray(r.tb)) o.tb = r.tb; if (heldNow(r)) o.held = 1; return o; });   // initiative O1: whether a row has its number; 1.6.3 (finding 0): and a hold it keeps
+        if (!rows.length) { toast('Tick at least one combatant.'); return; }
+        var neverS = typeof rosterShape === 'function' && rosterShape(getActiveCampaign()).kind === 'clock' ? rows.filter(function(r) { return !((typeof clockBegin === 'function' ? clockBegin(was, r.id, r.init) : Number(r.init)) > 0); }).map(function(r) { return r.name || 'Someone'; }) : [];   // 1.6.3 (finding 13): said, never refused; the review: judged by where a row begins
         var turn = 0, round = 1;
         if (was) { round = was.round; var curId = (was.rows[was.turn] || {}).id; var at = rows.findIndex(function(r) { return r.id === curId; }); turn = at >= 0 ? at : 0; }
         var midS = combatDraft.mapId, fidS = n.fightSet(was ? combatDraft.fid : null, { mapId: midS, round: round, turn: turn, rows: rows });
@@ -7083,7 +7095,7 @@ function renderCombatStrip() {
     var myTokIds = {}; if (!host && am && Array.isArray(am.whiteboard)) am.whiteboard.forEach(function(w) { if (w && w.isChar && w.ownerId && w.ownerId === n.myId && typeof w.id === 'string') myTokIds[w.id] = 1; });   // initiative O3: whose held rows a player may act from
     var campH = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, holdStay = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdAct === 'stay'), holdNm = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdNames === true), holdNext = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.hold === 'next');   // 1.6.0: a system that keeps its order, and one whose holds name what sets them off
     // 1.6.3 (the combat review, finding 13): on a counting clock a row at 0 or less never gets a turn, so the GM's strip names it, in the strip's menu
-    var neverH = host && irC && irC.clock && typeof irC.clock === 'object' ? c.rows.filter(function(r) { return !!r && !(Number(r.init) > 0); }).map(function(r) { return '<span class="combat-strip-held combat-strip-never" data-tip="On the counting clock a row at 0 or less never acts. Give it a count in the roster">never acts ' + nameOf(r) + '</span>'; }).join('') : '';
+    var neverH = host && irC && irC.clock && typeof irC.clock === 'object' ? c.rows.filter(function(r) { return !!r && !((typeof clockBegin === 'function' ? clockBegin(c, r.id, r.init) : Number(r.init)) > 0); }).map(function(r) { return '<span class="combat-strip-held combat-strip-never" data-tip="On the counting clock a row at 0 or less never acts. Give it a count in the roster">never acts ' + nameOf(r) + '</span>'; }).join('') : '';
     var heldH = c.rows.map(function(r, i) { if (r && r.sf === 1) return '<span class="combat-strip-held" data-tip="Their hold was set off: they act before the turn goes on">acts now ' + nameOf(r) + '</span>'; if (holdNm && typeof stripHeldNamed === 'function') return r && r.held === 1 && i !== c.turn ? stripHeldNamed(r, host, nameOf(r)) : ''; return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="' + (holdStay ? 'Holding their turn: they may act now, and Done ends the hold' : 'Holding their turn: Act puts them right after whoever is acting') + '">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="' + (holdStay ? 'Done: the hold ends and the order stays as it is' : 'Act now: right after whoever is acting') + '">' + (holdStay ? 'Done' : 'Act') + '</button>' : '') : ''; }).join('');
     // drawn again only when it changed (found live, 2026-10-17): a redraw between a press and its click took the button pressed off the page, so
     // the press did nothing. What was written last is kept on the strip, since a hover moves each title into data-tip and the page's markup changes

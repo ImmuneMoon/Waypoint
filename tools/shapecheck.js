@@ -110,6 +110,17 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     const k8e = { id: 'f1', mapId: 'm', round: k8.round, turn: b8, rows: k8.rows.map(r => Object.assign({}, r)) }; K.clockStart(campK, k8e, k8);
     check('1.6.3 (Fulllion\'s ruling: the GM may always reverse anyone\'s turn): a step back at a new cycle\'s first turn goes back into the cycle before, its round, its counts and its last turn as they stood, where before it did nothing; a roster edit keeps the cycles a step back may reach',
         J(at8) === J([2, 'a:2,b:1']) && J(back8) === J([1, 'b', 'b:1,a:0']) && Array.isArray(k8e.ckPrevs) && k8e.ckPrevs === k8.ckPrevs, J([at8, back8]));
+    // The review of the combat roster (2026-11-20), finding 2: under Rolled again every round, fightStep runs combatNewRound (which rolls the new cycle's counts into the
+    // rows) before clockCycle. The cycle that ends is kept as clockStep finds it ending, before that roll, so a step back finds the old cycle's own counts; and a cycle
+    // reached again after a step back (combatNewRound rolls nothing then) is put back at the counts it began with the first time
+    const campE = Object.assign({}, campK, { rule: { clock: ck3, every: true } }), k9 = { id: 'f1', mapId: 'm', round: 1, turn: 0, rows: [{ id: 'a', tokId: 't_a', init: 2 }, { id: 'b', tokId: 't_b', init: 1 }] }; K.clockStart(campE, k9, null);
+    const newRound9 = () => { if (k9.round > (k9.rr || 1)) { k9.rr = k9.round; k9.rows.forEach(r => { r.init = { a: 8, b: 5 }[r.id]; }); } };   // combatNewRound, as fightStep runs it: a roll only for a round not reached before
+    const fwd9 = () => { const r0 = k9.round, t9 = K.clockStep(campE, k9, 1, ck3); k9.turn = t9; if (k9.round > r0) { newRound9(); K.clockCycle(campE, k9); } };
+    for (let g = 0; g < 10 && k9.round === 1; g++) fwd9();
+    const at9 = [k9.round, k9.rows.map(r => r.id + ':' + r.init).join(), J(k9.ck0)], b9 = K.clockStep(campE, k9, -1, ck3), back9 = [k9.round, k9.rows[b9].id, k9.rows.map(r => r.id + ':' + r.init).join()]; k9.turn = b9;
+    fwd9(); const again9 = [k9.round, k9.rows.map(r => r.id + ':' + r.init).join(), J(k9.ck0), k9.rows[k9.turn].id];
+    check('1.6.3 (the review of the combat roster, finding 2): under Rolled again every round a step back at the first turn of a new cycle finds the cycle before as it ended, never the counts the new cycle rolled; stepping on again rolls nothing new and puts the cycle back at the counts it began with, which stay where each row begins',
+        J(at9) === J([2, 'a:8,b:5', J({ a: 8, b: 5 })]) && J(back9) === J([1, 'b', 'b:1,a:0']) && J(again9) === J([2, 'a:8,b:5', J({ a: 8, b: 5 }), 'a']), J([at9, back9, again9]));
     const k4 = fK(); K.clockStart(campK, k4, null); k4.rows[k4.turn].held = 1; K.clockStep(campK, k4, 1, ck3);
     check('a held turn costs nothing, and when only a held row is left it acts', k4.rows.filter(r => r.id === 'b')[0].init === 9, J(k4.rows)); const k5 = { id: 'f1', mapId: 'm', round: 1, turn: 0, rows: [{ id: 'a', tokId: 't_a', init: 4, held: 1 }] }; K.clockStart(campK, k5, null); const hN = K.clockStep(campK, k5, 1, ck3); check('...and its hold ends', hN === 0 && k5.rows[0].held === undefined && k5.round === 1, J(k5));
     const k6 = fK(); K.clockStart(campK, k6, null); netK.combats.f1 = k6; K.clockPress(campK, 'c_b', { clockN: 2 }); K.clockPress(campK, 'c_b', { clockN: 1 }); K.clockPress(campK, 'c_b', {}); K.clockPress(campK, 'c_a', { clockN: 4 }); K.clockPress(campK, 'c_c', {}); K.clockPress(campK, 'c_zz', { clockN: 4 });

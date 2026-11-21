@@ -1741,7 +1741,7 @@ pendingChecks.push((async () => {
         const findS = wbCut('// [lookcheck:combatfind-start]', '// [lookcheck:combatfind-end]', 'combatfind'), escS = (/\n  (function esc\(s\)\{return [^\n]*\})\n/.exec(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'inspector.js'), 'utf8').replace(/\r\n/g, '\n')) || [])[1] || '';
         // A roster world over a scen() table: o.roll, the system has an initiative roll; o.sys, the system the GM's copy holds
         const mkR = (Bq, o) => {
-            o = o || {}; const els = {}, made = []; ['combatModal', 'combatRows', 'combatAddBtn', 'combatAddName', 'combatCancelBtn', 'combatCloseBtn', 'combatStartBtn', 'combatMapName', 'combatRollAllBtn', 'combatHelp'].forEach(id => { els[id] = fe(); });
+            o = o || {}; const els = {}, made = []; ['combatModal', 'combatRows', 'combatAddBtn', 'combatAddName', 'combatCancelBtn', 'combatCloseBtn', 'combatStartBtn', 'combatMapName', 'combatRollAllBtn', 'combatHelp', 'combatTickAllBtn'].forEach(id => { els[id] = fe(); });   // the review of the combat roster: Tick all too
             if (o.sys) Bq.camp.system = o.sys; Bq.camp.items.m1.whiteboard.forEach(w => { w.charId = 'c' + w.id; if (!w.name) w.name = w.id.charAt(2).toUpperCase() + w.id.slice(3); });   // Orc, Ana, Gob, X
             const doc = { getElementById: id => els[id] || null, createElement: tag => { const e = { tag, className: '', title: '', innerHTML: '' }; made.push(e); return e; } };
             const R = new Function('document', 'window', 'toast', 'getActiveCampaign', 'getActiveMap', 'state', 'resolveImg', 'setTimeout', 'clearTimeout', 'var combatDraft = null;\n' + escS + '\n' + fhSrc + '\n' + findS + '\n' + rowsS + '\n' + sortSrc + '\n' + rendS + '\n' + openS + '\n' + wireSrc + '\nreturn { open: openCombatModal, render: renderCombatModal, draft: function() { return combatDraft; }, shape: rosterShape, never: clockNeverWords };')(
@@ -1795,6 +1795,33 @@ pendingChecks.push((async () => {
         const fK1 = { rows: [{ id: 'g', held: 1 }, { id: 'a' }] }, fK2 = { rows: [{ id: 'g' }] }; FRK({ rows: [{ id: 'g', held: 1, holdFor: { text: 'the guard moves' } }] }, fK1); FRK({ rows: [{ id: 'g', held: 1, holdFor: { text: 'x' } }] }, fK2);
         check('1.6.3 (finding 0, the host\'s half, run for real): a roster edit that keeps a row held keeps what its hold names (fightReachKept), and one whose row no longer holds lets it go, which is why the roster must hand held on',
             j(fK1.rows[0].holdFor) === j({ text: 'the guard moves' }) && fK2.rows[0].holdFor === undefined, j([fK1, fK2]));
+        // The review of the combat roster (2026-11-20), finding 1: on a counting clock a row's count runs down to 0 as it acts and goes back to where it began (ck0) at
+        // the next cycle, so in the middle of a cycle a row that acted down to 0 is no row that never acts. The roster, Update and the strip judge by where it begins
+        const sysK = { combat: { initiative: { clock: { cost: 3 } } } }, Bk = scen(); Bk.start(); const fidK = Bk.net.fightsOn('m1')[0], cK = Bk.net.combats[fidK];
+        cK.ck0 = { r_t_orc: 6, r_t_ana: 4, r_t_gob: 0, c_trap: 5 }; cK.rows.forEach(r => { r.init = { r_t_orc: 0, r_t_ana: 4, r_t_gob: 0, c_trap: 0 }[r.id]; }); cK.turn = cK.rows.findIndex(r => r.id === 'r_t_ana');
+        const MK = mkR(Bk, { sys: sysK }); MK.R.open('m1', { fid: fidK }); const kOrc = MK.rowHtml('r_t_orc'), kGob = MK.rowHtml('r_t_gob'), kTrap = MK.rowHtml('c_trap');
+        Bk.net.fightSet = f => f;   /* Update's own toast is what is read here, not the host's clock (this world has no system core) */ MK.els.combatStartBtn.on.click({});
+        const sortK = sortSrc.indexOf('function clockBegin(live, id, now) {') >= 0 ? new Function(sortSrc + '\nreturn clockBegin;')() : null;
+        const wbK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.3 (the review of the combat roster, finding 1, run for real): mid-cycle on a counting clock a row that acted down to 0 but began above 0 is not marked never acts in the running roster, nor said at Update, nor named on the strip; a row that began at 0 still is; a count the GM types above 0 wins; the strip asks the same rule with the fight the host holds',
+            !!sortK && kOrc.indexOf('>never acts</span>') < 0 && kOrc.indexOf(' never"') < 0 && kTrap.indexOf('>never acts</span>') < 0 && kGob.indexOf('>never acts</span>') > 0
+            && j(Bk.toasts.filter(t => /never act/.test(t))) === j(['Gob has a count of 0 or less, so on the counting clock it never acts. Give it a count above 0 in the roster.'])
+            && sortK({ ck0: { a: 6 } }, 'a', 0) === 6 && sortK({ ck0: { a: 0 } }, 'a', 5) === 5 && sortK(null, 'a', 0) === 0 && sortK({ ck0: { a: 6 } }, 'b', -2) === -2 && !(sortK(null, 'a', undefined) > 0)
+            && wbK.includes("c.rows.filter(function(r) { return !!r && !((typeof clockBegin === 'function' ? clockBegin(c, r.id, r.init) : Number(r.init)) > 0); })"), j([kOrc, kGob, kTrap, Bk.toasts]));
+        // Finding 4: Update reads a hold from the fight as it stands, never from the roster as it opened. The Goblin held when the roster opened, then acted from its hold
+        // while the roster was open: Update does not bring the hold back. The Orc held as the roster opened and still holds: it keeps it. A row now on turn holds nothing
+        const Bu = scen(); Bu.start(); const fidU = Bu.net.fightsOn('m1')[0], cU = Bu.net.combats[fidU]; cU.turn = cU.rows.findIndex(r => r.id === 'r_t_ana');
+        cU.rows.find(r => r.id === 'r_t_gob').held = 1; cU.rows.find(r => r.id === 'r_t_orc').held = 1; cU.rows.find(r => r.id === 'c_trap').held = 1;
+        const MU = mkR(Bu); MU.R.open('m1', { fid: fidU }); const dU = MU.R.draft().rows.filter(r => r.held).map(r => r.id).sort();
+        delete cU.rows.find(r => r.id === 'r_t_gob').held; cU.turn = cU.rows.findIndex(r => r.id === 'c_trap');   // the Goblin acted from its hold, and the trap's held turn came round
+        MU.els.combatStartBtn.on.click({}); const afU = Bu.net.combats[fidU].rows.filter(r => r.held === 1).map(r => r.id).sort();
+        check('1.6.3 (the review of the combat roster, finding 4, run for real): Update sets a hold from the fight as it stands at the press: a row that acted from its hold while the roster was open, and one whose turn has come, hold nothing after; a row that still holds keeps its hold',
+            j(dU) === j(['c_trap', 'r_t_gob', 'r_t_orc']) && j(afU) === j(['r_t_orc']), j([dU, afU]));
+        // Finding 5: Tick all passes over a hidden token, which is ticked one at a time, so no press pulls hidden ambushers into every player's order
+        const Bt = scen(); Bt.camp.items.m1.whiteboard.find(w => w.id === 't_x').hidden = true; const MT = mkR(Bt); MT.R.open('m1', {}); MT.els.combatTickAllBtn.on.click({});
+        const tRows = MT.R.draft().rows.map(r => r.tokId + ':' + (r.on ? 'on' : 'off')).sort();
+        check('1.6.3 (the review of the combat roster, finding 5, run for real): Tick all ticks every row that may join but a hidden token, and its tooltip says so',
+            j(tRows) === j(['t_ana:on', 't_gob:on', 't_orc:on', 't_x:off']) && /id="combatTickAllBtn" title="Tick every row that may join this fight but the hidden ones, which you tick one at a time"/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8')), j(tRows));
     }
     // fog: a player who cannot see the Goblin gets a Hidden row with nothing of it (no name, token, picture, or the row id that carries its
     // token's); one who sees everything gets the plain order; a combat on an unfogged map at the same table has no number either

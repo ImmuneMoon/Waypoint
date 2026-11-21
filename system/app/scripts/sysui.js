@@ -424,6 +424,12 @@ function boxIn(scope, prop) {
         var rsB = scope.querySelectorAll('.sys-tbl')[+rsP[1]], rsR = rsB ? rsB.querySelectorAll('.sys-res-row')[+rsP[2]] : null, rsX = rsR ? rsR.querySelector('.sys-res-' + rsP[3]) : null;
         if (rsX) return rsX; if (rsR) return rsR; if (rsB) return rsB;
     }
+    // the review of the System editor library: what an item is thrown with is a hidden box under its picks (formbox.js dresses it), so its fault lands on
+    // the pick standing just before it, the fb-opts box's first list, and on the hidden box only where it was never dressed. Fixed class names alone
+    if (prop === 'throwSkill') {
+        var tw = scope.querySelector('.sys-item-throw'), tb = tw ? tw.previousSibling : null, tp = tb && tb.classList && tb.classList.contains('fb-opts') && tb.querySelector ? tb.querySelector('.fb-optfig') : null;
+        if (tp) return tp; if (tw) return tw;
+    }
     for (var i = 0; i < PROP_BOX.length; i++) {
         var m = PROP_BOX[i][0].exec(prop); if (!m) continue;
         for (var j = 0; j < PROP_BOX[i][1].length; j++) { var l = scope.querySelectorAll('.' + PROP_BOX[i][1][j]), hit = l[m[1] ? Math.min(+m[1], l.length - 1) : 0]; if (hit) return hit; }

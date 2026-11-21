@@ -157,6 +157,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const tsWarn = v.warnings.some(w => w.id === 'i_badts' && w.prop === 'throwSkill');
         return costErr && damageOk && tsWarn;
     })());
+    /* ---- the review of the System editor library: what an item is thrown with may be a figure of one row of a list, and is judged as a formula reads it ---- */
+    {
+        const rawT = { name: 'T', fields: [{ id: 'f_dx', key: 'DX', kind: 'number', def: 10 }, { id: 'f_sk', key: 'Skills', kind: 'item-list', vis: 'all', list: { cols: [{ key: 'Target', label: 'Target', formula: '10' }] } }],
+            rolls: [], items: [{ id: 'i_sk', key: 'Throwing', name: 'Throwing', category: '', vis: 'all' }, { id: 'i_row', name: 'Knife', vis: 'all', throwSkill: 'Skills.Throwing.Target' }, { id: 'i_fld', name: 'Rock', vis: 'all', throwSkill: 'DX' }, { id: 'i_gone', name: 'Brick', vis: 'all', throwSkill: 'Nothing.Here.Target' }], combat: { blastAuto: 'roll', hpResource: '' } };
+        const sT = cleanSystem(rawT, { F, gmView: true }), vT = validateSystem(sT, F), tw = vT.warnings.filter(w => w.prop === 'throwSkill');
+        check('the review of the System editor library: an item thrown with a figure of one row of a list (Skills, Throwing, Target) or a field draws no warning; a name that reads nothing does, in words that never show the stored name',
+            itemDef(sT, 'i_row').throwSkill === 'Skills.Throwing.Target' && j(tw.map(w => w.id)) === j(['i_gone']) && !/Nothing|Skills|"/.test(tw[0].message) && /thrown with/.test(tw[0].message), j(tw));
+    }
 
     /* ---- autoLayout places item-list fields (full-row Items section) ---- */
     check('autoLayout: item-list fields land in an Items section as full rows', (() => {

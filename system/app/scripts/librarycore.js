@@ -266,9 +266,18 @@ var ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/;   // the id an entry needs, systemcore.j
 export function importIds(raw) {
     var list = Array.isArray(raw) ? raw : [], taken = map(), to = map(), made = 0;
     list.forEach(function(e) { if (isObj(e) && typeof e.id === 'string' && ITEM_ID.test(e.id)) taken[e.id] = 1; });
+    // the review of the System editor library: the new id is made from the file's own id (i_ and its letters, digits and _, cut to 24 and numbered where
+    // two clash or one is taken), else from its name, so the same file gives the same ids at every import and Merged into a pack, by id matches what an
+    // earlier import of it made. A random id only where neither leaves a letter or a digit
+    var fromWords = function(w) {
+        var b = typeof w === 'string' ? w.replace(/[^A-Za-z0-9_]/g, '').slice(0, 24) : ''; if (!/[A-Za-z0-9]/.test(b)) return '';
+        if (!taken['i_' + b]) return 'i_' + b;
+        for (var n = 2; n < 10000; n++) { var sfx = '_' + n, c = 'i_' + b.slice(0, 24 - sfx.length) + sfx; if (!taken[c]) return c; }
+        return '';
+    };
     var out = list.map(function(e) {
         if (!isObj(e) || (typeof e.id === 'string' && ITEM_ID.test(e.id))) return e;
-        var id = newEntryId(taken); if (!id) return e; taken[id] = 1; made++;
+        var id = fromWords(e.id) || fromWords(e.name) || newEntryId(taken); if (!id) return e; taken[id] = 1; made++;
         if (typeof e.id === 'string' && e.id && !own(to, e.id)) to[e.id] = id;
         return Object.assign({}, e, { id: id });
     });

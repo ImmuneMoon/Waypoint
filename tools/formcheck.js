@@ -447,6 +447,11 @@ const url = f => 'file:///' + path.resolve(path.join(app, 'scripts', f)).split(S
                 const libIn = { id: 'libF_needsIf' }, edIn = { id: '', className: 'sys-roll-needs' };
                 check('1.6.3 (finding 11) a box of the Library window reads the system as saved, even while the System editor holds a draft, and a box of the editor reads its draft; with no draft both read the saved system',
                     fsA > 0 && fsB > fsA && mkFS(drafted)(libIn).sys === saved && mkFS(drafted)(edIn).sys === drafted && mkFS(null)(libIn).sys === saved && mkFS(null)(edIn).sys === saved);
+                // the review of the System editor library: a Library box with no id (the change by a formula, lib-mod-amtf) is told by its lib- class or by
+                // standing in #libraryModal, never read against the draft
+                const amtfIn = { id: '', className: 'field lib-mod-amtf' }, inLib = { id: '', className: 'field', closest: q => q === '#libraryModal' ? {} : null }, notLib = { id: '', className: 'field sys-fx-amtf', closest: () => null };
+                check('the review of the System editor library: the Library’s change-by-a-formula box, which has no id, and any box inside the Library window read the system as saved while the System editor holds a draft; a box of the editor still reads the draft',
+                    mkFS(drafted)(amtfIn).sys === saved && mkFS(drafted)(inLib).sys === saved && mkFS(drafted)(notLib).sys === drafted);
             }
             const sbx = require('./checkkit').part('sysedbox.js'), flA = sbx.indexOf('function formLib()'), flB = sbx.indexOf('\nfunction formSource', flA);   // sysedbox.js, its formLib run on a stand-in library
             const formLib = new Function('window', 'getActiveCampaign', sbx.slice(flA, flB) + '\nreturn formLib;');

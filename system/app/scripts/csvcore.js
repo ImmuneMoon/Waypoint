@@ -249,11 +249,13 @@ export function csvPreview(data, stats, mapped) {
     var sts = (Array.isArray(stats) ? stats : []).filter(function(s) { return ids[s.key]; }).slice(0, CSV.showStats);
     return { cols: ['Name', 'Category'].concat(sts.map(function(s) { return s.label; })), rows: (data && Array.isArray(data.entries) ? data.entries : []).slice(0, CSV.show).map(function(e) { return [e.name, e.category || ''].concat(sts.map(function(s) { var h = isObj(e.stats) ? e.stats : {}, k = Object.keys(h).filter(function(x) { return x.toLowerCase() === s.key.toLowerCase(); })[0]; return k === undefined ? '' : String(h[k]); })); }) };
 }
-// Rows a list will not offer: with a list that names categories, how many have none, and the categories it does not take. Those rows still come in
+// Rows a list will not offer: with a list that names categories, how many have none, and the categories it does not take. Those rows still come in.
+// With no list named (listId ''), every item list is asked: a list that names no categories takes every category, so where one stands nothing is off
+// (the review of the System editor library: a pack import warned that no list took categories one list took)
 export function csvCats(sys, listId, entries) {
-    var cats = map(), named = false, out = { none: 0, off: [] }, seen = map();
-    (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list) || (listId && f.id !== listId) || !Array.isArray(f.list.cats) || !f.list.cats.length) return; named = true; f.list.cats.forEach(function(c) { cats[String(c).toLowerCase()] = 1; }); });
-    if (!named) return out;
+    var cats = map(), named = false, every = false, out = { none: 0, off: [] }, seen = map();
+    (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(f) { if (!isObj(f) || f.kind !== 'item-list' || !isObj(f.list) || (listId && f.id !== listId)) return; if (!Array.isArray(f.list.cats) || !f.list.cats.length) { every = true; return; } named = true; f.list.cats.forEach(function(c) { cats[String(c).toLowerCase()] = 1; }); });
+    if (!named || (!listId && every)) return out;
     (Array.isArray(entries) ? entries : []).forEach(function(e) { var c = isObj(e) && typeof e.category === 'string' ? e.category : ''; if (!c) { out.none++; return; } var l = c.toLowerCase(); if (!cats[l] && !seen[l]) { seen[l] = 1; out.off.push(c); } });
     return out;
 }

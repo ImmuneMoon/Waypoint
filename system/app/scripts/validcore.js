@@ -864,7 +864,10 @@ function validateSystem(sys, F) {
             if (isObj(a.lasts) && typeof a.lasts.n === 'string' && a.lasts.n) { checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.lasts', a.lasts.n, true, 'gm'); if (!affLastsSecs(sys, 1, a.lasts.u)) warnings.push({ id: it.id, prop: 'aff.' + ai + '.lasts', message: 'Lasts names a time unit the Combat tab does not have, so the effect lasts its own time.' }); }
         });
         if (it.cost) checkFormula({ id: it.id, key: it.id }, 'cost', it.cost, false, it.vis);
-        if (it.throwSkill && !ix[lower(it.throwSkill)]) warnings.push({ id: it.id, prop: 'throwSkill', message: 'Throw skill "' + it.throwSkill + '" is not a field.' });
+        // 1.6.3 (the review of the System editor library): what an item is thrown with may be a field or a figure of one row of a list (Skills, Throwing,
+        // Target, kept as one name), so it is judged by every name a formula can read (known, then listT, as a choice stat's option is), never by the field
+        // keys alone. Only a name that reads nothing is said, in words that never show the stored name
+        if (it.throwSkill && !(known[lower(it.throwSkill)] || listT(it.throwSkill))) warnings.push({ id: it.id, prop: 'throwSkill', message: 'What it is thrown with no longer names anything this sheet has, so the Combat tab’s throw roll cannot be made for it. Pick it again.' });
     });
     // Stage 6 F4b: an item's key names one row of each list it can be on (the list's categories, or every item): once there
     var keyErr = map();

@@ -3186,8 +3186,12 @@ window.wpFitToGrid = fitToGrid;
               var avOk = !!(window.wpNet && window.wpNet.safeAvatar && window.wpNet.safeAvatar(p.avatar));   // the whole data URL (net.js)
               var fvP = window.wpNet && window.wpNet.faceView ? window.wpNet.faceView(p, p.color || '#4db3d3') : null;   // the waiting token's color when they have none   // Onboarding F1b: their chosen face
               var locMap = p.location && camp.items[p.location];
-              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: p.name || 'Player', src: fvP ? (fvP.img || null) : (avOk ? p.avatar : null), emoji: fvP && fvP.emoji ? fvP.emoji : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
-                          mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: true });
+              // 1.6.3 (the improvement week's review of multiplayer, finding 29): on a player's app a map they are not on is held only as a stub,
+              // whose pieces are not sent, so a teammate there is never found by their token. Such a chip says where the roster puts them and
+              // names the character the app knows they play (stubPlays), and never says they have no token yet, which it cannot tell
+              var stubL = !!(locMap && locMap.stub === true), playsL = stubL ? stubPlays(camp, p.id) : '';
+              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: playsL || p.name || 'Player', src: fvP ? (fvP.img || null) : (avOk ? p.avatar : null), emoji: fvP && fvP.emoji ? fvP.emoji : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
+                          mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: !stubL });
           });
       }
       // Onboarding F3 (the GM's): by the chip's player — one of theirs waiting for Keep it, one unlocked for them, one they are making (the
@@ -3220,6 +3224,16 @@ window.wpFitToGrid = fitToGrid;
       }).join('');
   }
   window.wpRenderPartyStrip = renderPartyStrip;
+  // [hudcheck:stubplays-start]
+  // 1.6.3 (finding 29): the name of the character a player plays, as this app knows it: the first sheet of theirs it holds (a teammate's
+  // hover copy on a player's app) that is no NPC and not still being made, else ''. Read only for a teammate on a map held as a stub
+  function stubPlays(camp, pid) {
+      var cs = camp && camp.chars && typeof camp.chars === 'object' ? camp.chars : null; if (!cs || typeof pid !== 'string' || !pid) return '';
+      var ks = Object.keys(cs);
+      for (var i = 0; i < ks.length; i++) { var x = cs[ks[i]]; if (x && typeof x === 'object' && x.ownerId === pid && !x.npc && x.making !== 1 && typeof x.name === 'string' && x.name.trim()) return x.name.trim().slice(0, 60); }
+      return '';
+  }
+  // [hudcheck:stubplays-end]
   // Onboarding F1a: a waiting token the GM deletes (any route) stays away for the rest of the session
   window.wpWaitingGone = function(items) { (items || []).forEach(function(x) { if (x && x.waiting && window.wpNet && window.wpNet.noWaiting) window.wpNet.noWaiting(x.ownerId); }); };
   // Onboarding F1a: the join card (index.html #joinCard) — status only for now (text through textContent)
@@ -3460,6 +3474,18 @@ window.wpFitToGrid = fitToGrid;
           e.preventDefault(); e.stopPropagation();
           openPartyMenu(tok.dataset.key, e.clientX, e.clientY);
       });
+      // [boardcheck:partywho-start]
+      // 1.6.3 (the improvement week's review of multiplayer, finding 36; Fulllion, 2026-11-21: the party chip's menu names the player for player
+      // actions, "Pause Mira (HK-24)"). The rows that act on the PERSON (summon, pause or resume, clear their target, hide the trackers) name the
+      // player, with the character beside it in brackets where the chip is a character of theirs; the rows that act on the character (jump,
+      // sheet, HUD, bring) keep the character's name. The player's name is the roster's, else their record in this campaign; where neither is
+      // known, every row says what it said before. who: for a row's words, whoS: before 's, hideW: the trackers row's ending
+      function partyWho(camp, ownerId, rosterP, name, isChar) {
+          var rec = ownerId && camp && camp.players && typeof camp.players === 'object' && Object.prototype.hasOwnProperty.call(camp.players, ownerId) ? camp.players[ownerId] : null;
+          var pn = (rosterP && typeof rosterP.name === 'string' && rosterP.name.trim()) || (rec && typeof rec.name === 'string' && rec.name.trim()) || '';
+          return { who: pn ? (isChar && name && name !== pn ? pn + ' (' + name + ')' : pn) : name, whoS: pn || name, hideW: pn || 'them' };
+      }
+      // [boardcheck:partywho-end]
       // A chip's menu; the GM's right-click on a player's waiting token opens the same one (Onboarding F1a)
       function openPartyMenu(key, cx, cy) {
           if (!menu) return;
@@ -3472,6 +3498,7 @@ window.wpFitToGrid = fitToGrid;
           var rosterP = ownerId && window.wpNet && Object.values(window.wpNet.roster || {}).find(function(p) { return p && p.id === ownerId; });
           var waitN = ownerId && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(camp, ownerId)[0] : null;   // Onboarding F1a: a player away inside the grace has only their waiting token's name
           var name = loc ? (loc.tok.charName || loc.tok.name || 'this character') : (rosterP && rosterP.name) || (waitN && waitN.w.name) || 'this player';
+          var pw = partyWho(camp, ownerId, rosterP, name, !!loc);   // 1.6.3 (finding 36): the player's own name on the rows that act on them
           var hosting = window.wpNet && window.wpNet.active && window.wpNet.role === 'host';
           var connected = hosting && ownerId && window.wpNet.isConnected(ownerId);
           var here = !!(atM && am && atM.id === am.id);
@@ -3487,21 +3514,21 @@ window.wpFitToGrid = fitToGrid;
               var stagedTitle = (stagedId && camp.items[stagedId] && camp.items[stagedId].meta && camp.items[stagedId].meta.title) || null;
               var tableSfx = (viewingOther && stagedTitle) ? ' (' + stagedTitle + ')' : '';
               items.push(connected
-                  ? { act: 'summon', ico: 'summon', label: 'Summon ' + name + ' to the table\'s map' + tableSfx }
-                  : { act: 'none', ico: 'summon', label: 'Summon ' + name + ' \u2014 not connected', dim: true });
-              if (viewingOther && connected) items.push({ act: 'summonHere', ico: 'summon', label: 'Summon ' + name + ' to this map (' + amTitle + ')' });
+                  ? { act: 'summon', ico: 'summon', label: 'Summon ' + pw.who + ' to the table\'s map' + tableSfx }
+                  : { act: 'none', ico: 'summon', label: 'Summon ' + pw.who + ' \u2014 not connected', dim: true });
+              if (viewingOther && connected) items.push({ act: 'summonHere', ico: 'summon', label: 'Summon ' + pw.who + ' to this map (' + amTitle + ')' });
               items.push({ act: 'summonAll', ico: 'summon', label: 'Summon everyone to the table\'s map' + tableSfx });
               if (viewingOther) items.push({ act: 'summonAllHere', ico: 'summon', label: 'Summon everyone to this map (' + amTitle + ')' });
               var waitT = ownerId && window.wpSystemCore && window.wpSystemCore.waitingTokensOf ? window.wpSystemCore.waitingTokensOf(camp, ownerId)[0] : null;   // Onboarding F1a
               if (waitT) { items.push({ act: 'waitHide', ico: waitT.w.hidden ? 'seen' : 'unseen', label: (waitT.w.hidden ? 'Show ' : 'Hide ') + name + '\u2019s waiting token' }); items.push({ act: 'waitRemove', ico: 'close', label: 'Remove ' + name + '\u2019s waiting token (for this session)' }); }
-              if (!window.wpStream && window.wpNet.targets && Object.prototype.hasOwnProperty.call(window.wpNet.targets, ownerId) && window.wpNet.targets[ownerId] && typeof window.wpNet.clearTargetOf === 'function') items.push({ act: 'clearTarget', ico: 'ring', label: 'Clear ' + name + '\u2019s target' });   // 1.5.9: the GM takes a player's pointer off (the label through esc, as every row's)
+              if (!window.wpStream && window.wpNet.targets && Object.prototype.hasOwnProperty.call(window.wpNet.targets, ownerId) && window.wpNet.targets[ownerId] && typeof window.wpNet.clearTargetOf === 'function') items.push({ act: 'clearTarget', ico: 'ring', label: 'Clear ' + pw.whoS + '\u2019s target' });   // 1.5.9: the GM takes a player's pointer off (the label through esc, as every row's)
               if (connected) {
                   var pausedP = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(ownerId);
-                  items.push({ act: pausedP ? 'unpausePlayer' : 'pausePlayer', ico: pausedP ? 'play' : 'pause', label: (pausedP ? 'Resume ' : 'Pause ') + name + ' (just this player)' });
+                  items.push({ act: pausedP ? 'unpausePlayer' : 'pausePlayer', ico: pausedP ? 'play' : 'pause', label: (pausedP ? 'Resume ' : 'Pause ') + pw.who });
               }
           }
           var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
-          if (!isClient && ownerId && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) items.push({ act: 'trkHide', label: (window.wpTrackers.hidden(ownerId) ? '\u2611 ' : '\u2610 ') + 'Hide table trackers from them' });   // backlog 29: the owner, "gm but for the whole table or specific players"
+          if (!isClient && ownerId && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) items.push({ act: 'trkHide', label: (window.wpTrackers.hidden(ownerId) ? '\u2611 ' : '\u2610 ') + 'Hide table trackers from ' + pw.hideW });   // backlog 29: the owner, "gm but for the whole table or specific players"
           if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', ico: 'bring', label: 'Bring ' + name + ' here (this map)' });
           if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', ico: 'target', label: 'Target ' + name });
           if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', ico: 'clip', label: (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)

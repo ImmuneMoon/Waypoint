@@ -184,9 +184,21 @@ const j = v => JSON.stringify(v);
             j([gfCl.clears, gfClH, gfClDo, gfClCalls]));
         delete gfW.net.clearTargetOf; gfW.net.calls = [];
         check('1.5.9 Clear target on the party strip (whiteboard.js, source): a player\'s chip offers Clear <name>\'s target to the hosting GM alone, never in the stream window, only while that player holds a pointer, its label set through esc as every row of the menu; the press asks the host to clear it by the chip\'s player',
-            wbS2.includes("if (!window.wpStream && window.wpNet.targets && Object.prototype.hasOwnProperty.call(window.wpNet.targets, ownerId) && window.wpNet.targets[ownerId] && typeof window.wpNet.clearTargetOf === 'function') items.push({ act: 'clearTarget', ico: 'ring', label: 'Clear ' + name + '\\u2019s target' });")
+            wbS2.includes("if (!window.wpStream && window.wpNet.targets && Object.prototype.hasOwnProperty.call(window.wpNet.targets, ownerId) && window.wpNet.targets[ownerId] && typeof window.wpNet.clearTargetOf === 'function') items.push({ act: 'clearTarget', ico: 'ring', label: 'Clear ' + pw.whoS + '\\u2019s target' });") /* 1.6.3 (finding 36): the player's own name, moved on purpose */
             && wbS2.indexOf("items.push({ act: 'clearTarget'") > wbS2.indexOf('          if (hosting && ownerId) {') && wbS2.indexOf("items.push({ act: 'clearTarget'") < wbS2.indexOf("          var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';", wbS2.indexOf('          if (hosting && ownerId) {'))
             && wbS2.includes("else if (act === 'clearTarget') { if (window.wpNet.clearTargetOf) window.wpNet.clearTargetOf(key.slice(2)); }") && wbS2.includes("+ esc(i.label) + '</button>';"));
+        {   // 1.6.3 (the improvement week's review of multiplayer, finding 36; Fulllion, 2026-11-21): the party chip's menu names the player on the rows
+            // that act on the person ("Pause Mira (HK-24)"), the character's name beside it in brackets where the chip is a character; partyWho run for real
+            const pwA = wbS2.indexOf('// [boardcheck:partywho-start]'), pwZ = wbS2.indexOf('// [boardcheck:partywho-end]'), pwSrc = pwA >= 0 && pwZ > pwA ? wbS2.slice(wbS2.indexOf('\n', pwA) + 1, pwZ) : '';
+            const PW = new Function(pwSrc + '\nreturn partyWho;')(), campW = { players: { u_m: { name: 'Mira' }, u_r: { name: '  ' } } };
+            const pwOut = [PW(campW, 'u_m', { id: 'u_m', name: 'Mira' }, 'HK-24', true), PW(campW, 'u_m', null, 'HK-24', true), PW(campW, 'u_m', { name: 'Mira' }, 'Mira', true), PW(campW, 'u_m', { name: 'Mira' }, 'Mira', false),
+                PW(campW, 'u_x', null, 'Scorch', true), PW(campW, 'u_r', null, 'Brakka', true), PW(campW, '__proto__', null, 'this player', false), PW(null, null, null, 'this character', true)];
+            check('1.6.3 (finding 36): the party chip\'s menu names the player for the rows that act on them (partyWho, run for real): the player with their character in brackets, the player alone where the chip is no character or names them already, the roster\'s name before the record\'s; with no name known the character as before and Hide table trackers from them; each row asks it (summon, summon here, not connected, clear their target, pause or resume, hide the trackers)',
+                j(pwOut) === j([{ who: 'Mira (HK-24)', whoS: 'Mira', hideW: 'Mira' }, { who: 'Mira (HK-24)', whoS: 'Mira', hideW: 'Mira' }, { who: 'Mira', whoS: 'Mira', hideW: 'Mira' }, { who: 'Mira', whoS: 'Mira', hideW: 'Mira' },
+                    { who: 'Scorch', whoS: 'Scorch', hideW: 'them' }, { who: 'Brakka', whoS: 'Brakka', hideW: 'them' }, { who: 'this player', whoS: 'this player', hideW: 'them' }, { who: 'this character', whoS: 'this character', hideW: 'them' }])
+                && wbS2.includes("var pw = partyWho(camp, ownerId, rosterP, name, !!loc);") && (wbS2.match(/'Summon ' \+ pw\.who \+ /g) || []).length === 3 && wbS2.includes("label: (pausedP ? 'Resume ' : 'Pause ') + pw.who });")
+                && wbS2.includes("'Hide table trackers from ' + pw.hideW });") && !wbS2.includes("' (just this player)'"), j(pwOut));
+        }
         // 152 fold 4b (the owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): a tick row among the GM's
         // own on an NPC token's menu, its state calendar.js's to answer and to set (gmfight run for real, with a switch of the suite's own)
         {

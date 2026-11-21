@@ -976,6 +976,20 @@ const j = v => JSON.stringify(v);
                 !psErr && !!psS && psNow.first === 3 && psOld.first === 6 && psNow.html === psOld.html && psNow.html.indexOf('Guard t1') > 0 && psNow.again === 3 && psNow.same && psNow.ixOne
                 && j(navOut) === j([true, 'm2', 0, 'view,nav,render,switch,camera', 'view,nav,render,save:true,camera', 'view,nav,render,switch,camera']), j([psErr, psNow && [psNow.first, psNow.again], psOld && psOld.first, navOut]));
         }
+        {   // 1.6.3 (the improvement week's review of multiplayer, finding 29): on a player's app a teammate on a map held only as a stub is named by the
+            // character the app knows they play and never said to have no token yet (renderPartyStrip with stubPlays, run for real on a page of plain objects)
+            const wbQ = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL), qA = wbQ.indexOf('  function renderPartyStrip() {'), qZ = wbQ.indexOf('\n  window.wpRenderPartyStrip = renderPartyStrip;', qA);
+            const spA = wbQ.indexOf('// [hudcheck:stubplays-start]'), spZ = wbQ.indexOf('// [hudcheck:stubplays-end]'), psQ = qA >= 0 && qZ > qA && spA > 0 && spZ > spA ? wbQ.slice(qA, qZ) + NL + wbQ.slice(spA, spZ) : '';
+            const tipOf = stub => { const strip = { innerHTML: '', dataset: {} };
+                const campQ = { id: 'k', chars: { c1: { ownerId: 'u_t', name: 'Sahrhie' }, c2: { ownerId: 'u_t', name: 'Npc', npc: true } }, items: { mA: { id: 'mA', type: 'map', meta: { title: 'A' } }, mB: Object.assign({ id: 'mB', type: 'map', meta: { title: 'Main Ship Dock' } }, stub ? { stub: true } : {}) } };
+                const win = { wpNet: { active: true, role: 'client', roster: { pT: { id: 'u_t', name: 'Trevor', location: 'mB' } }, safeAvatar: () => false, faceView: () => null }, wpSystemCore: { waitingTokensOf: () => [] }, wpDefaultAvatar: c => 'data:' + c };
+                new Function('getActiveCampaign', 'getActiveMap', 'state', 'characterList', 'chipPlace', 'playerNow', 'window', 'document', 'cssColor', 'esc', 'resolveImg', 'wbHashHue', 'PARTY_SHOWN', psQ + '\nreturn renderPartyStrip;')(
+                    () => campQ, () => campQ.items.mA, { viewMode: 'visual' }, () => [], (camp, c) => c, () => null, win, { getElementById: id => id === 'partyStrip' ? strip : null }, c => c, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), s => s, () => 200, 4)();
+                const m = strip.innerHTML.match(/data-tip="([^"]*)"/); return m ? m[1] : ''; };
+            let stubT = '', heldT = '', qErr = ''; try { stubT = tipOf(true); heldT = tipOf(false); } catch (e) { qErr = String(e && e.message); }
+            check('1.6.3 (finding 29): on a player\'s app a teammate on a map held only as a stub is named by the character the app knows they play, on the map the roster puts them, and never said to have no token yet; on a map the app holds whole a player with no token is still said to have none, by their own name (renderPartyStrip with stubPlays, run for real)',
+                !qErr && !!psQ && stubT === 'Sahrhie \u2014 on Main Ship Dock' && heldT === 'Trevor \u2014 on Main Ship Dock \u2014 no token yet', j([qErr, stubT, heldT]));
+        }
         {   // 1.6.3: a token's effects kept for one pass of the app (systemcore tokenEffectsPass and tokenEffectsForget, run for real): every token of one sheet
             // shows the same list, worked out once a pass by the character object and whether the GM reads it, and read afresh where anything it reads is another
             const sysE = cleanSystem({ v: 1, name: 'E', fields: [{ id: 'f_fx', key: 'Effects', label: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_a', name: 'Blessed', tone: 'buff', vis: 'all', mods: [] }, { id: 'e_g', name: 'Cursed', tone: 'debuff', vis: 'gm', mods: [] }] }, GVR);

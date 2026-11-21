@@ -646,7 +646,7 @@ function hbTick() {
                 if (p && !p.stale) { p.stale = true; renderRoster(); }
             } else if (p && p.stale) { delete p.stale; renderRoster(); }
         });
-        var n = net.conns.length;
+        var n = playersHere();   // 1.6.3 (finding 33): the players at the table, each once
         setIndicator(stale ? 'warn' : 'ok', stale ? stale + ' player' + (stale > 1 ? 's' : '') + ' not responding' : 'hosting, ' + n + ' player' + (n === 1 ? '' : 's') + ' connected');
         if (typeof fogDragSweep === 'function') fogDragSweep();   // fold M4: a drag that ended without landing goes back where it began
     } else {
@@ -667,6 +667,15 @@ function hbTick() {
             setStatus('Connected, but no word from the GM for ' + Math.round(age0 / 1000) + 's…');
         } else setIndicator('ok', 'connected to the GM');
     }
+}
+// 1.6.3 (the improvement week's review of multiplayer, finding 33): how many players are at the table, the host's own count for the globe's
+// tooltip and End session's question. Each admitted player whose connection is open, once, by profile id: net.conns also holds connections
+// still waiting for the GM's Allow, and in the seconds of a reload a player's old and new connection both, so its length said players were
+// there when nobody was
+function playersHere() {
+    var seen = Object.create(null), n = 0;
+    (net.conns || []).forEach(function(c) { var p = c && c.open && Object.prototype.hasOwnProperty.call(net.roster, c.peer) ? net.roster[c.peer] : null; if (p && p.id && !seen[p.id]) { seen[p.id] = 1; n++; } });
+    return n;
 }
 // Where each player was last seen, for presence after they leave. Host: from the campaign record
 // (kept in step with the roster); client: from the last roster broadcast.
@@ -736,6 +745,7 @@ net.playersOnMap = function(mapId) {
 function renderRoster() {
     syncLastMaps();
     updateSidebarNav();   // keep the Maps sidebar presence dots in step with the roster
+    if (typeof rosterSeat === 'function') rosterSeat();   // 1.6.3 (finding 30): under the room code while hosting
     var el = ui('netRoster');
     if (el) {
         var players = Object.values(net.roster);
@@ -762,8 +772,14 @@ function renderRoster() {
                       '<button class="roster-kick" data-kick="' + escTextRoster(peerKey) + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
                     : '';
                 var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding — will be dropped if silence continues"><i class="wib wi-hourglass"></i></span>' : '';
-                return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + '"' + jump + '>' + face +
-                    '<span>' + name + '</span>' + staleMark + sub + kick + '</span>';
+                // 1.6.3 (the improvement week's review of multiplayer, finding 34): a player the GM paused alone says so on their chip, beside a
+                // button that lets them play again (net.pausePlayer(id, false), the party chip's own Resume). Before, only the small party chip
+                // showed it, and a GM who resumed the table could forget that one player was still held
+                var pausedMark = net.role === 'host' && pausedById(p.id)
+                    ? '<span class="roster-paused">Paused</span><button class="roster-resume" data-resume="' + escTextRoster(peerKey) + '" title="Paused by you. Press to let them play again."><i class="wib wi-play"></i></button>'
+                    : '';
+                return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + (pausedMark ? ' roster-held' : '') + '"' + jump + '>' + face +
+                    '<span>' + name + '</span>' + staleMark + pausedMark + sub + kick + '</span>';
             }).join('');
         }
     }
@@ -785,6 +801,13 @@ if (_rosterEl) _rosterEl.addEventListener('click', function(e) {
         e.stopPropagation();
         var kickKey = kickBtn.dataset.kick, kickP = own(net.roster, kickKey) ? net.roster[kickKey] : null;   // 1.6.0, found by pressing it by mistake: it asks first, by name, and Enter does not answer
         showConfirm('Remove ' + (kickP && kickP.name ? kickP.name : 'this player') + ' from the table? They stay out for the rest of the session.', function(yes) { if (yes) net.kickPlayer(kickKey); }, { noEnter: true });
+        return;
+    }
+    var resumeBtn = e.target.closest('[data-resume]');   // 1.6.3 (finding 34): the paused mark's own button lets that player play again
+    if (resumeBtn && net.role === 'host') {
+        e.stopPropagation();
+        var resP = own(net.roster, resumeBtn.dataset.resume) ? net.roster[resumeBtn.dataset.resume] : null;
+        if (resP && resP.id) net.pausePlayer(resP.id, false);
         return;
     }
     var summonBtn = e.target.closest('[data-summon]');
@@ -3948,7 +3971,7 @@ function rosterPayload() {
     });
     return out;
 }
-function broadcastRoster() { if (typeof landRosterMoved === 'function') landRosterMoved(); broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); }   // backlog 29: a player on another map is sent that map's trackers
+function broadcastRoster() { if (typeof landRosterMoved === 'function') landRosterMoved(); broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); if (typeof refreshChatRecipients === 'function') refreshChatRecipients(); }   // 1.6.3 (finding 4): Table Chat's To list follows the roster. backlog 29: a player on another map is sent that map's trackers
 // [netcheck:roster-end]
 
 // Is this player currently on the given map? (self is always present to itself)
@@ -5552,7 +5575,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), whispers: true, travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + '. Something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -6285,6 +6308,7 @@ function handleMessage(msg, conn) {
         if (typeof msg.key === 'string' && msg.key && !conn.wpKeyTaken) { conn.wpKeyTaken = true; rememberTableKey(net.gmId, msg.key); }   // the table key this host issued me: proves this id is mine next time — taken once per connection (a host cannot fill or overwrite the store snapshot after snapshot)
         // [netcheck:snapkey-end]
         if (!conn.wpSeenTaken && typeof msg.gmId === 'string') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent; once per connection and only from an id sent as text, as the key is taken, so a host cannot fill the list with names of its own
+        if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }   // the review of multiplayer chat: a host that judges whispers says so (whispers: true), read as true only
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         if (typeof reconnHold === 'function' && net.reconnecting) reconnHold(false);   // 1.6.3 (finding 15): back at the table, the board is let go
         syncSessionButtons();
@@ -8284,11 +8308,26 @@ function handleMessage(msg, conn) {
             if (typeof msg.text !== 'string') return;
             if (!allow('chat', { perMs: 150, burst: 20, windowMs: 10000, table: 2000 }, conn.peer)) return;
             var pc = net.roster[conn.peer];
-            var menIn = msg.men;
+            var menIn = msg.men, toIn = typeof msg.to === 'string' ? msg.to.slice(0, 82) : '';   // 1.6.3 (findings 4 and 12): whom a whisper names, read before the message is rebuilt
             msg = { type: 'chat', scope: 'global', from: { id: pc.id, name: pc.name || 'Player' }, text: msg.text.slice(0, 2000), ts: Date.now() };
             if (pc.color) msg.from.color = pc.color;
             var menH = typeof chatMen === 'function' ? chatMen(menIn, msg.text) : undefined; if (menH) msg.men = menH;   // 1.6.2 (166 f): its mentions, kept only as stretches of the words relayed
             if (msg.men && typeof unkeepLinks === 'function') msg.men = unkeepLinks(msg.men);   // the review of pages reveal (finding 2): a player named in a kept block may mention it, and everyone is relayed only its page
+            if (toIn) {
+                // 1.6.3 (the improvement week's review of multiplayer, finding 12; Fulllion, 2026-11-21: a player may whisper the GM or another player,
+                // the GM sees every whisper, a player only those they sent or received). The host judges it: 'gm' stays on this machine, a profile id
+                // goes to that player's own open admitted connections and to nobody else, and anything else (no such player at the table, the
+                // sender themselves, a word that is no profile id) is dropped. It is never broadcast, and the GM's own log shows it with whom it went to
+                var toConnsW = [], toNameW = '';
+                if (toIn === 'gm') toNameW = 'GM';
+                else if (validProfileId(toIn) && toIn !== pc.id) { net.conns.forEach(function(cw) { var rw = cw && cw.open && own(net.roster, cw.peer) ? net.roster[cw.peer] : null; if (rw && rw.id === toIn) { toConnsW.push(cw); toNameW = rw.name || 'Player'; } }); if (!toConnsW.length) return; }
+                else return;
+                msg.scope = 'whisper'; msg.toId = toIn; msg.toName = String(toNameW).slice(0, 60);
+                pushChat(msg);
+                toConnsW.forEach(function(cw) { try { cw.send(msg); } catch (e) { sendFailed(e); } });
+                logEvent('chat', (msg.from.name || 'Player') + ' whispered to ' + msg.toName + ': ' + String(msg.text || '').slice(0, 300), { w: msg.from.name || 'Player', x: 'Whispered to ' + msg.toName, d: String(msg.text || '').slice(0, 300), h: true });
+                return;
+            }
             pushChat(msg);
             broadcast(msg, conn);
             logEvent('chat', (msg.from.name || 'Player') + ': ' + String(msg.text || '').slice(0, 300), { w: msg.from.name || 'Player', x: 'Said in chat', d: String(msg.text || '').slice(0, 300) });
@@ -8297,7 +8336,7 @@ function handleMessage(msg, conn) {
             if (conn.peer !== net.syncedPeer || typeof msg.text !== 'string' || !msg.from || typeof msg.from !== 'object') return;
             var fromH = { id: String(msg.from.id || '').slice(0, 60), name: String(msg.from.name || '').slice(0, 60), gm: msg.from.gm === true };
             if (safeColor(msg.from.color)) fromH.color = msg.from.color;
-            var lineH = { type: 'chat', scope: msg.scope === 'whisper' ? 'whisper' : 'global', from: fromH, text: msg.text.slice(0, 2000), ts: Number(msg.ts) || Date.now(), toName: typeof msg.toName === 'string' ? msg.toName.slice(0, 60) : '' };
+            var lineH = { type: 'chat', scope: msg.scope === 'whisper' ? 'whisper' : 'global', from: fromH, text: msg.text.slice(0, 2000), ts: Number(msg.ts) || Date.now(), toName: typeof msg.toName === 'string' ? msg.toName.slice(0, 60) : '', toId: typeof msg.toId === 'string' ? msg.toId.slice(0, 80) : '' };   // 1.6.3 (finding 12): and to whom, by id, so the receiver reads "whisper to you"
             var menC = typeof chatMen === 'function' ? chatMen(msg.men, lineH.text) : undefined; if (menC) lineH.men = menC;   // cleaned again here: a host's word is never taken as it came
             if (msg.kind === 'time' && lineH.scope === 'whisper' && fromH.gm && typeof timeNote === 'function') timeNote(lineH); else pushChat(lineH);   // 1.5.6: a time rule's note, as this player chose
         }
@@ -8385,7 +8424,7 @@ function rejoinKeep() { var b = _rejoinBack; _rejoinBack = null; if (!b) return 
 function scheduleReconnect() {
     var nowR = Date.now();
     if (!reconn.since) reconn.since = nowR;   // 1.6.3 (finding 6): when the link dropped; let go only once the reconnect is over (reconnHold), so a connection that opens and closes unproven never starts the five minutes again
-    if (typeof reconnOver === 'function' ? reconnOver(reconn.tries, reconn.since, nowR) : reconn.tries >= RECONNECT_TRIES) { var msgR = 'Could not reach the GM\u2019s table for five minutes. The GM may have ended the session.'; if (typeof reconnGiveUp === 'function') reconnGiveUp(msgR); else giveUpAndRestore(msgR); return; }
+    if (typeof reconnOver === 'function' ? reconnOver(reconn.tries, reconn.since, nowR) : reconn.tries >= RECONNECT_TRIES) { var msgR = 'Could not get back to the GM\u2019s table for five minutes. It may have closed, or a network is down. Join again with the room code when it is back.'; if (typeof reconnGiveUp === 'function') reconnGiveUp(msgR); else giveUpAndRestore(msgR); return; }   // 1.6.3 (finding 10): no guess that the session ended; the five minutes and the Rejoin offer are findings 6 and 15
     reconn.pending = true;
     if (!net.reconnecting && typeof reconnHold === 'function') reconnHold(true);   // 1.6.3 (finding 15): the board is held, and the bar says so, until the table is back or this app stops trying
     reconn.tries++;
@@ -8600,7 +8639,7 @@ function wireConn(conn) {
         if (net.role === 'host' && window.wpVoice) { try { window.wpVoice.connGone(conn.peer); } catch (e) {} }   // voice chat: and its voice link, gone from everyone else's voice
         if (net.role === 'host' && typeof closeSoon === 'function') closeSoon(false); else renderRoster();   // finding 23: on the host the roster is drawn a moment later, once for every close of that moment
         if (net.role === 'host') {
-            if (p) toast((p.name || 'A player') + ' left' + (p.location ? '. Their character stays on ' + (((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title + '.' : '.'));
+            if (p) toast((p.name || 'A player') + ' left' + (p.location ? '. Their character stays on ' + (((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta || {}).title || 'their last map') + '.' : '.'));   // 1.6.3 (finding 32): a map deleted since, or with no title, is their last map
             if (p) logEvent('player', (p.name || 'A player') + ' left' + (p.location ? ' (on ' + ((((getActiveCampaign() || {}).items || {})[p.location] || { meta: {} }).meta.title || p.location) + ')' : ''), { w: p.name || 'A player', x: 'Left the table', d: typeof playsOf === 'function' ? playsOf(p.id).replace(/^Plays/, 'Played') : '' });
             if (p) startWaitGrace(p.id);   // Onboarding F1a: their waiting token goes if they are not back in three minutes
             if (p && net.targets[p.id] && !net.conns.some(function(c2) { return c2.peer !== conn.peer && c2.open && net.roster[c2.peer] && net.roster[c2.peer].id === p.id; })) { delete net.targets[p.id]; broadcastTargets(); }   // the review of multiplayer speed: no redraw here, since p is set and closeSoon(true) below draws once a moment later. 1.6.2: a reload's new connection may land before the old one is seen to close, and then the pointer is the new one's. fold M0: each player the pointers they may see (a fogged table), never all of them
@@ -8784,6 +8823,13 @@ var CODE_TYPO = ' That code begins with WP but holds a character Waypoint room c
 // alphabet leaves out says so in place of any other advice (the review of 241), with the tick on or off: telling the player to have the GM tick
 // a setting would send them after the wrong thing, since what they typed already begins with WP. Its callers say what it answers in place of
 // the advice about a relay server.
+// 1.6.3 (the improvement week's review of multiplayer, finding 14; Fulllion, 2026-11-21): the Host part says which server its room code is on,
+// so a GM whose players join from a browser knows to tick Own signaling server. A code that carries the mark is on Waypoint's own server
+// (codeOwn), any other on the public one, which a website's player never looks on. Plain words, set as text under the code
+function codeWhereWords(code) {
+    if (typeof codeOwn === 'function' && codeOwn(code)) return 'This code is on Waypoint\u2019s own server. Players can join it from Waypoint or from a browser.';
+    return 'This code is on the public server. A player joining from a browser cannot find it. For them, tick Own signaling server in Settings, under Multiplayer, and host again.';
+}
 function signalMiss(code) {
     if (typeof codeTypo === 'function' && codeTypo(code)) return CODE_TYPO;
     return signalHost() && !(typeof codeOwn === 'function' && codeOwn(code)) ? SIGNAL_MISS : '';
@@ -9048,6 +9094,7 @@ function startHosting(forceFresh) {
         setStatus(codeLine());
         var codeEl = ui('netCode');
         if (codeEl) codeEl.textContent = showCode(code);
+        var whereEl = ui('netCodeWhere'); if (whereEl && typeof codeWhereWords === 'function') whereEl.textContent = codeWhereWords(code);   // 1.6.3 (finding 14): which server the code is on
         ui('netHostInfo').style.display = 'block';
         var hiEl = ui('netHostInfo'); if (hiEl && typeof hiEl.scrollIntoView === 'function') hiEl.scrollIntoView({ block: 'start' });   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off
         syncSessionButtons();
@@ -9104,7 +9151,8 @@ function startHosting(forceFresh) {
             return;
         }
         if (typeof fightsBack === 'function') fightsBack();   // 1.6.2: a table that never opened gives a fight it held (fightsHold) back on this machine, or the save keeps it unseen and the next fight writes over it
-        setStatus('Host error: ' + type);
+        if (typeof netErrLog === 'function') netErrLog('host', type);   // 1.6.3 (finding 10): the library's own word goes to the console
+        setStatus(typeof hostErrWords === 'function' ? hostErrWords(type) : 'Host error: ' + type);
     });
     // [netcheck:hostpeer-end]
 }
@@ -9117,8 +9165,40 @@ function peerLibMissing() {
     return true;
 }
 // [netcheck:peerlib-end]
+// [netcheck:networds-start]
+// 1.6.3 (the improvement week's review of multiplayer, findings 7 and 10): what a failed join or a failed hosting says, in plain words, from
+// the connection library's error type. A player who mistyped the code was told "Connection error: peer-unavailable", and a network that could
+// not connect was told about ICE and carrier-grade NAT whatever the cause. Now the type goes to the console alone (netErrLog), a code that finds
+// no table says so, a server that cannot be reached says so, and the advice about a relay server comes only where a table answered at the code
+// and the connection to it never opened (noRouteWords), which is when a relay helps. The relay itself is the GM's to set up in Settings, under
+// Multiplayer (Fulllion, 2026-11-21: no relay of Waypoint's own is built now, the plan relay comes in 1.6.4)
+var NET_FIND_WORDS = 'Waypoint could not reach the server that finds tables. Check your internet and try again.';
+var RELAY_WORDS = ' This often happens on a phone hotspot or a mobile network. Your GM can set up a relay server in Settings, under Multiplayer. Then join again.';
+function netErrLog(where, type) { try { console.warn('[net] ' + where + ' error: ' + String(type || 'unknown').slice(0, 60)); } catch (e) {} }
+function joinErrWords(type) {
+    if (type === 'peer-unavailable') return 'No table is open at that code. Check the code with your GM. Their table may not be open yet.';
+    if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed' || type === 'disconnected') return NET_FIND_WORDS;
+    if (type === 'browser-incompatible') return 'This browser cannot join a table. Try another browser, or Waypoint itself.';
+    if (type === 'invalid-id') return 'That room code cannot be used. Check it with your GM.';
+    if (type === 'ssl-unavailable' || type === 'webrtc') return 'Waypoint could not open a connection on this computer. Restart Waypoint and try again.';
+    return 'Waypoint could not join the table. Try again in a moment.';
+}
+function hostErrWords(type) {
+    if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed' || type === 'disconnected') return 'Waypoint could not reach the server that finds tables, so no room code was made. Check your internet and try again.';
+    if (type === 'browser-incompatible') return 'This browser cannot host a table. Try another browser, or Waypoint itself.';
+    if (type === 'ssl-unavailable' || type === 'webrtc') return 'Waypoint could not open a connection on this computer. Restart Waypoint and try again.';
+    return 'Hosting could not start. Try again in a moment.';
+}
+function noRouteWords(ice) { return (ice ? 'Your network and the GM\u2019s could not connect.' : 'Waypoint found the GM\u2019s table but could not connect to it.') + RELAY_WORDS; }
+// [netcheck:networds-end]
 
 var JOIN_ATTEMPT_MS = 7000;   // per generation; a dead generation's registration answers nothing
+// The review of multiplayer chat (1.6.3): whether any room generation of the join a player began answered nothing at all within its seven
+// seconds, rather than being reported as not there. A first join walks every generation (a table resumed after a crash lives under one of
+// them), so when the last generation turns out not to be there, this says which words fit: a table that answered somewhere along the walk
+// and never connected gets the relay advice (noRouteWords), and a code where every generation was not there is said as no table at that
+// code. Reset at the start of each join the player begins, set by joinSession's own timer, read by its error handler on the last generation
+var _joinSlow = false;
 function joinSession(code, name, isRetry, probe) {
     if (peerLibMissing()) return;
     code = typedCode(code);   // transport: a code typed or pasted in its two groups dials the same room (hyphen and spaces out, lower case)
@@ -9127,12 +9207,14 @@ function joinSession(code, name, isRetry, probe) {
     if (!isRetry && !probe && typeof rejoinDone === 'function') rejoinDone();
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
+    if (!isRetry && !probe) { _joinSlow = false; if (typeof whispersKnow === 'function') whispersKnow(false); }   // the review of multiplayer chat: a new walk through the generations, and no whisper until this table's snapshot says it knows them
     if (!isRetry && !probe) joinTrustReset();   // security (2026-10-01): a join the player began — what the last one refused is forgotten (a yes the player just gave holds for this one)
     var nextGen = null;   // (set once this attempt's connection exists) on to the next generation of the code, or the end of the join
     var profile = setProfileName(name || getProfile().name || 'Player');
     net.myId = profile.id;
     var peer = new Peer(peerOpts(undefined, typeof codeOwn === 'function' && codeOwn(code)));   // 1.6.3 (backlog 241): a code that carries the mark is joined on Waypoint's own signaling server, for this join alone
     net.peer = peer; net.role = 'client'; net.code = code;
+    if (typeof netPaneSync === 'function') netPaneSync();   // 1.6.3 (finding 28): a join is under way, so Join is off until it ends
     peer.on('call', function(call) { try { call.close(); } catch (e) {} });   // item 21 V2: no media call is used: any that comes is closed
     if (isRetry) {
         // Still at the GM's table as far as the player is concerned: the GM's campaign is on
@@ -9156,10 +9238,11 @@ function joinSession(code, name, isRetry, probe) {
             if (conn.open || net.peer !== peer) return;
             try { peer.destroy(); } catch (e) {}
             if (reconn.pending) { scheduleReconnect(); return; }
+            _joinSlow = true;   // the review of multiplayer chat: this generation answered nothing at all, which is what a relay may fix
             if (probe + 1 < ROOM_GENS) { joinSession(code, name, false, probe + 1); return; }
-            joinFailed('No route to the GM\'s table.');
+            joinFailed(noRouteWords(false));   // 1.6.3 (findings 7 and 10): a table that answered and never connected, with the relay advice in plain words
         }, JOIN_ATTEMPT_MS);
-        conn.on('iceStateChanged', function(s) { if ((s === 'failed' || s === 'closed') && !conn.open && net.peer === peer && !reconn.pending) joinFailed('Your network and the GM\'s could not reach each other (ICE ' + s + ').'); });
+        conn.on('iceStateChanged', function(s) { if ((s === 'failed' || s === 'closed') && !conn.open && net.peer === peer && !reconn.pending) { netErrLog('join', 'ice ' + s); joinFailed(noRouteWords(true)); } });
         conn.on('open', function() { clearTimeout(joinTimer); });
         function joinFailed(why) {
             clearTimeout(joinTimer);
@@ -9169,9 +9252,10 @@ function joinSession(code, name, isRetry, probe) {
             if (!_joinTrust.refused && typeof rejoinKeep === 'function' && rejoinKeep()) return;
             var rfJ = _joinTrust.refused;   // security (2026-10-01): a table answered at this code, but not as the GM this app knows: that is what is said (in the app's own words), not the network advice
             if (rfJ) setStatus(rfJ.late ? HOST_LATE + ' You have not joined.' : SNAP_REFUSED + ' You have not joined.' + (rfJ.offer ? ' Join again to be asked whether to trust this table\u2019s GM.' : ''));
-            else setStatus(why + (typeof signalMiss === 'function' && signalMiss(code) ? signalMiss(code) : ' This usually means your connection is behind carrier-grade NAT and the table needs a relay server: ask the GM to set one under Settings \u25B8 Relay server, then try again.'));
+            else { var missF = typeof signalMiss === 'function' ? signalMiss(code) : '', baseF = why && why.slice(-RELAY_WORDS.length) === RELAY_WORDS ? why.slice(0, -RELAY_WORDS.length) : why; setStatus(missF ? (baseF || 'No table answered at that code.') + missF : (why || 'No table answered at that code. Check the code with your GM.')); }   // 1.6.3 (findings 7 and 10): the relay advice only where a table answered and never connected (noRouteWords), never on a guess
             if (net.fromWelcome) { if (window.wpJoinFailed) window.wpJoinFailed(); }   // joined from the welcome screen: the error shows there; re-enable its Join button
             else { toast(rfJ ? 'You have not joined. See the Multiplayer panel.' : 'Could not reach the GM\'s table. See the Multiplayer panel.'); var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'flex'; }
+            if (typeof netPaneSync === 'function') netPaneSync();   // 1.6.3 (finding 28): the join is over, so Join is live again
             if (net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
             if (rfJ) snapAsk(code, name);
         }
@@ -9207,11 +9291,21 @@ function joinSession(code, name, isRetry, probe) {
             return;
         }
         if (_joinTrust.refused && nextGen && net.peer === peer && !net.active) { nextGen(); return; }   // security (2026-10-01): after a host this app refused, a generation that is not there is passed over at once (its seven seconds are for a host that may yet answer)
+        // The review of multiplayer chat (1.6.3): the connection library reports a room generation nobody holds as an error of the type
+        // peer-unavailable and does not end the peer. A first join (a reload's rejoin among them) passes on to the next generation at once, with no
+        // words and no notice, since a table resumed after a crash lives under one of them; only the last generation says anything. nextGen,
+        // set once this attempt's connection exists, clears the seven-second timer, lets the peer go and dials the next generation
+        if (err.type === 'peer-unavailable' && nextGen && net.peer === peer && !net.active && probe + 1 < ROOM_GENS) { nextGen(); return; }
         if (!net.active && typeof rejoinKeep === 'function' && rejoinKeep()) { try { peer.destroy(); } catch (e) {} return; }
         var missJ = err.type === 'peer-unavailable' && typeof signalMiss === 'function' ? signalMiss(code) : '';
-        setStatus('Connection error: ' + err.type + '.' + missJ);
+        netErrLog('join', err.type);   // 1.6.3 (finding 10): the library's own word goes to the console, the player reads plain words
+        var slowJ = err.type === 'peer-unavailable' && _joinSlow;   // a generation along the walk answered and never connected: the relay advice, not "no table"
+        var wordsJ = slowJ ? (missJ ? noRouteWords(false).slice(0, -RELAY_WORDS.length) + missJ : noRouteWords(false)) : missJ ? 'No table answered at that code.' + missJ : joinErrWords(err.type);
+        setStatus(wordsJ);
         if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
-        toast('Could not reach that room (' + err.type + ').' + missJ);
+        toast(wordsJ);
+        if (!net.active && net.peer === peer) { try { peer.destroy(); } catch (e) {} net.peer = null; net.role = null; net.code = null; }   // 1.6.3 (finding 28): a join that failed before it reached a table is over, so Join is live again
+        if (!net.active && typeof netPaneSync === 'function') netPaneSync();
         // Only when the join itself failed: a signaling hiccup mid-game also lands here, with the table still live
         if (!net.active && net.foreign && !window.wpStream) load();   // a previous table is still on screen: bring the own campaign back
     });
@@ -10087,6 +10181,7 @@ net.diceRoll = function(expr, o) {
         if (_dicePending) return { error: 'Waiting for the GM to roll the last one.' };
         var rid = 'q' + Math.random().toString(36).slice(2, 10), req = { type: 'roll-req', rid: rid, expr: expr };
         if (o.priv || o.hide) req.priv = 'gm';   // 1.6.3: a player's own hide is their To the GM only
+        else if (typeof whisperRollPriv === 'function') whisperRollPriv(req);   // the review of multiplayer chat: a whisper picked in Table Chat makes it the GM's alone, said
         if (o.charId) req.charId = o.charId;
         if (o.by && o.charId) req.by = String(o.by);   // 1.6.0: the crew sheet that pressed it
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
@@ -10247,8 +10342,14 @@ net.diceRoll = function(expr, o) {
     else if (choseR) { rec.priv = 'gm'; var choseOnlyR = true; if (hosting && typeof revealKeep === 'function') revealKeep(rec, chR, landR ? { ch: landR, name: o.onName } : null); }   // 1.6.3: hidden by choice alone, past every secret check above, so it may be shown to the table later
     else if (hosting) {
         var toKey = ui('chatTo') ? ui('chatTo').value : '';   // a whisper target makes the roll private to that player
+        // 1.6.3 (finding 4): Table Chat names a player by profile id ('p:' and the id), sent to every open admitted connection of theirs. A player
+        // who is not connected now keeps the roll the GM's, said, where before a gone connection left the select blank and the roll went to everyone
+        var tgW = /^p:/.test(toKey) && typeof whisperTarget === 'function' ? whisperTarget(toKey) : null, cW = tgW && tgW.pid && typeof whisperConns === 'function' ? whisperConns(tgW.pid) : null;
+        if (cW) { if (cW.length) { rec.to = cW[0].peer; toName = tgW.name || 'a player'; cW.forEach(function(cw) { try { cw.send(hdR ? figOf(rec) : rec); } catch (e) { sendFailed(e); } }); } else { rec.priv = 'gm'; toast(tgW.name + ' is not connected, so that roll was kept for you.'); } }
+        else {
         var target = toKey ? net.conns.find(function(c) { return c.peer === toKey; }) : null;
         if (target && target.open && net.roster[toKey]) { rec.to = toKey; toName = net.roster[toKey].name || 'a player'; try { target.send(hdR ? figOf(rec) : rec); } catch (e) { sendFailed(e); } }
+        }
     }
     var scope = rec.priv || rec.to ? 'whisper' : 'global';
     var hsR = typeof holdsSqueeze === 'function' && chR && SR && typeof SR.holdRefOf === 'function' ? holdsSqueeze(campR, chR, SR.holdRefOf(o.act, o.row), rec, D) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
@@ -10476,7 +10577,7 @@ function chatEntryNode(m) {   // one text entry, built from nodes: nothing from 
     wrap.style.cssText = whisper ? 'margin-bottom:7px; border-left:2px solid var(--violet); padding-left:7px; font-style:italic;' : 'margin-bottom:7px;';
     var who = document.createElement('b'); who.style.color = playerColor(m.from); who.textContent = m.from.id === net.myId ? 'You' : (m.from.name || 'Player'); wrap.appendChild(who);
     if (m.from.gm) { var g = document.createElement('span'); g.className = 'chat-gm'; g.textContent = 'GM'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(g); }
-    if (whisper) { var t = document.createElement('span'); t.className = 'chat-tag'; t.textContent = 'whisper'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(t); }
+    if (whisper) { var t = document.createElement('span'); t.className = 'chat-tag'; t.textContent = whisperTag(m); wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(t); }   // 1.6.3 (finding 12): whisper to whom
     var tm = document.createElement('span'); tm.className = 'chat-time'; tm.textContent = chatTime(m.ts); wrap.appendChild(tm);
     wrap.appendChild(document.createElement('br'));
     var tx = document.createElement('span'); tx.className = 'chat-text'; chatTextInto(tx, String(m.text || ''), m.men); wrap.appendChild(tx);
@@ -10679,15 +10780,78 @@ function pushChat(m) {
     renderChatSoon();   // security (2026-10-01): one draw per burst — a flood of lines from a host used to redraw the whole panel (and post it to a pop-out) for each
     if (m.roll && window.wpDice) window.wpDice.landed(m);   // this machine's own dice cue, if wanted
 }
+// [netcheck:whisper-start]
+// 1.6.3 (the improvement week's review of multiplayer, findings 4 and 12; Fulllion, 2026-11-21: a player may whisper the GM or another player
+// through the chat's To list, the GM sees every whisper's sender and receiver, a player only those they sent or received, and the GM's own log
+// says whom each whisper went to). A whisper names a PLAYER, never a connection: the To list keys each player by profile id ('p:' and the id)
+// and the GM by 'gm'. The GM's list used to key each player by the connection's peer id, so a player who reconnected under a new id left the
+// GM's pick naming nobody: the next whisper reached no one yet showed as sent, and once the list was drawn again the pick fell back to
+// Everyone and the next secret went to the whole table. Now the list is drawn again whenever the roster changes (broadcastRoster on the host,
+// the roster branch on a player's app), a player who left keeps their row marked not connected, and a whisper to someone not here is refused
+// with a word and never sent anywhere else. The host resolves a player to every open admitted connection of theirs at the moment it sends
+var _whisperNames = Object.create(null);   // profile id -> the name last listed for it, so a row for a player who left keeps their name
+// The review of multiplayer chat (1.6.3): a host from before whispers between players rebuilds every player's chat line as said to everyone
+// and never reads whom it was for, and a newer player is admitted to an older host. So a host that judges a player's whisper says so in its
+// join snapshot (whispers: true), read as true only here, and until it does a player's app shows no To list and never sends a whisper. Set
+// by the snapshot branch, and forgotten as a player begins a join (joinSession). The GM's own app always knows them
+var _whispersOk = false;
+function whispersKnow(v) { _whispersOk = v === true; }
+function whisperKnows() { return net.role !== 'client' || _whispersOk; }
+// A player's roll made while a whisper is picked in the To list goes to the GM only, said in these words. Without it a player who picked
+// Whisper GM and typed /r, or pressed a roll on their sheet, showed the whole table a roll they meant to keep private (the GM's own rolls
+// already follow the pick). It is asked by sendChat for a typed roll and by net.diceRoll for every roll a player's app sends
+var WHISPER_ROLL_WORDS = 'That roll went to the GM only, since a whisper is picked in Table Chat. Pick Everyone to roll for the table.';
+function whisperRollPick() {   // (a player's app) the whisper picked in Table Chat that a roll follows, or null for Everyone
+    if (net.role !== 'client' || !net.active || !whisperKnows()) return null;
+    var sel = ui('chatTo'); if (!sel || !sel.value || (sel.style && sel.style.display === 'none')) return null;
+    return whisperTarget(sel.value);
+}
+function whisperRollPriv(req) {   // (a player's app) makes a roll request the GM's alone where a whisper is picked, and says so once; true where it did
+    if (!req || req.priv || !whisperRollPick()) return false;
+    req.priv = 'gm'; toast(WHISPER_ROLL_WORDS); return true;
+}
+function whisperConns(pid) {   // (the host) every open, admitted connection of one player
+    var out = [];
+    (net.conns || []).forEach(function(c) { var p = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (p && p.id === pid) out.push(c); });
+    return out;
+}
+function whisperChoices() {   // the To list's rows past Everyone: [{ v, name }], the GM first on a player's app, each player once, never this app's own player
+    var out = [], seen = Object.create(null);
+    if (net.role === 'host') (net.conns || []).forEach(function(c) { var p = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!p || !validProfileId(p.id) || seen[p.id]) return; seen[p.id] = 1; out.push({ v: 'p:' + p.id, name: String(p.name || 'Player').slice(0, 60) }); });
+    else {
+        out.push({ v: 'gm', name: 'GM' });
+        Object.keys(net.roster || {}).forEach(function(pid) { var p = net.roster[pid]; if (!p || pid === net.myId || !validProfileId(pid) || seen[pid]) return; seen[pid] = 1; out.push({ v: 'p:' + pid, name: String(p.name || 'Player').slice(0, 60) }); });
+    }
+    out.forEach(function(o) { if (o.v !== 'gm') _whisperNames[o.v.slice(2)] = o.name; });
+    return out;
+}
+// What a To value names: null for Everyone or a value that names nothing, { gm: true, name, here } for the GM (a player's app), or
+// { pid, name, here } for a player. here: whether a whisper can reach them now
+function whisperTarget(v) {
+    if (typeof v !== 'string' || !v) return null;
+    if (v === 'gm') return net.role === 'host' ? null : { gm: true, name: 'GM', here: !!net.active };
+    if (v.slice(0, 2) !== 'p:' || !validProfileId(v.slice(2))) return null;
+    var pid = v.slice(2), here = false, name = '';
+    if (net.role === 'host') { var cs = whisperConns(pid); here = cs.length > 0; if (here) name = net.roster[cs[0].peer].name || ''; }
+    else { here = !!net.active && own(net.roster, pid) && pid !== net.myId; if (here) name = net.roster[pid].name || ''; }
+    return { pid: pid, name: String(name || _whisperNames[pid] || 'That player').slice(0, 60), here: here };
+}
+// A whisper line's tag: whisper to you where this app is the one it went to, else whisper to the name it went to, else whisper alone
+function whisperTag(m) {
+    var toId = m && typeof m.toId === 'string' ? m.toId : '', toName = m && typeof m.toName === 'string' ? m.toName : '';
+    if (toId && (toId === net.myId || (toId === 'gm' && net.role === 'host'))) return 'whisper to you';
+    return toName ? 'whisper to ' + toName : 'whisper';
+}
 function refreshChatRecipients() {
     var sel = ui('chatTo');
     if (!sel) return;
-    if (net.role !== 'host') { sel.style.display = 'none'; return; }
+    if (!net.active || (net.role !== 'host' && net.role !== 'client') || !whisperKnows()) { sel.style.display = 'none'; return; }   // the review of multiplayer chat: hidden at an older host, as before whispers between players
     sel.style.display = 'block';
-    var cur = sel.value;
-    sel.innerHTML = '<option value="">Everyone</option>' + Object.entries(net.roster).map(function(e) {
-        return '<option value="' + escTextRoster(e[0]) + '">Whisper: ' + escText(e[1].name || e[1].id) + '</option>';
-    }).join('');
+    var cur = sel.value, rows = whisperChoices();
+    var html = '<option value="">Everyone</option>' + rows.map(function(o) { return '<option value="' + escTextRoster(o.v) + '">Whisper: ' + escText(o.name) + '</option>'; }).join('');
+    var gone = cur && !rows.some(function(o) { return o.v === cur; }) ? whisperTarget(cur) : null;   // the player picked has left: their row stays, marked, never Everyone in its place
+    if (gone) html += '<option value="' + escTextRoster(cur) + '">Whisper: ' + escText(gone.name) + ' (not connected)</option>';
+    sel.innerHTML = html;
     sel.value = cur;
 }
 function sendChat(menFrom) {
@@ -10697,28 +10861,29 @@ function sendChat(menFrom) {
     var WMn = window.wpMention, menT = Array.isArray(menFrom) ? menFrom : WMn && typeof WMn.take === 'function' ? WMn.take(input, text) : [];   // 1.6.2 (166 f): what was picked from the @ list, as stretches of these words (a pop-out's come with its words)
     if (window.wpPopout) { try { if (_chatBC) _chatBC.postMessage({ type: 'chatSend', text: text, men: menT }); } catch (e) {} input.value = ''; return; }   // the pop-out has no session — relay to the main window, which sends and mirrors the result back
     var cmd = DC() ? DC().parseCommand(text) : null;   // /roll, /r, /gmroll, /gr work with or without a session
-    if (cmd) { input.value = ''; var rr = window.wpDice ? window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll', typed: true, source: 'chat' }) : net.diceRoll(cmd.expr, { hide: cmd.cmd === 'gmroll', typed: true }); if (rr.error) toast(rr.error); return; }   // 1.6.3 (finding 26): typed, which its card says
+    var wPickC = cmd && cmd.cmd !== 'gmroll' ? whisperRollPick() : null;   // the review of multiplayer chat: a player's typed roll follows a whisper picked, to the GM only
+    if (cmd) { input.value = ''; var rr = window.wpDice ? window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll' || !!wPickC, typed: true, source: 'chat' }) : net.diceRoll(cmd.expr, { hide: cmd.cmd === 'gmroll' || !!wPickC, typed: true }); if (rr.error) toast(rr.error); else if (wPickC) toast(WHISPER_ROLL_WORDS); return; }   // 1.6.3 (finding 26): typed, which its card says
     if (!net.active) { toast('Chat needs an active multiplayer session.'); return; }
+    var toSel = ui('chatTo'), toV = toSel && toSel.style && toSel.style.display !== 'none' && whisperKnows() ? toSel.value : '', tgt = toV ? whisperTarget(toV) : null;   // the review of multiplayer chat: never a whisper to a host that has not said it knows them
+    if (toV && (!tgt || !tgt.here)) { toast((tgt ? tgt.name : 'That player') + ' is not connected, so the whisper was not sent. It is still in the box.'); refreshChatRecipients(); return; }   // 1.6.3 (finding 4): refused, never sent to anyone else
     input.value = '';
     var me = getProfile();
     var msg = { type: 'chat', scope: 'global', from: { id: net.myId, name: me.name || (net.role === 'host' ? 'GM' : 'Player'), gm: net.role === 'host' }, text: text, ts: Date.now() };
     var menS = chatMen(menT, text); if (menS) msg.men = menS;
     if (msg.men && net.role === 'host' && typeof unkeepLinks === 'function') msg.men = unkeepLinks(msg.men);   // 1.6.3 (finding 18): a mention of a block kept back from players names only its page
+    if (tgt) { msg.scope = 'whisper'; msg.toId = tgt.gm ? 'gm' : tgt.pid; msg.toName = tgt.name; }   // 1.6.3 (finding 12): this app's own line says to whom
     if (net.role === 'host') {
-        var toKey = ui('chatTo') ? ui('chatTo').value : '';
-        if (toKey) {
-            msg.scope = 'whisper';
-            var target = net.conns.find(function(c) { return c.peer === toKey; });
-            if (target && target.open) { try { target.send(msg); } catch (e) { sendFailed(e); } }
-        } else {
-            broadcast(msg, null);
-        }
+        if (tgt) whisperConns(tgt.pid).forEach(function(cw) { try { cw.send(msg); } catch (e) { sendFailed(e); } });
+        else { broadcast(msg, null); }   // everyone: the shared broadcast, as before (netdragcheck counts the maps that go out that way)
     } else {
-        broadcast(msg, null); // client's only conn is the host, which relays
+        var outC = msg; if (tgt) { outC = Object.assign({}, msg, { to: msg.toId }); delete outC.toId; delete outC.toName; }   // the host judges whom a player's whisper reaches (its chat branch)
+        broadcast(outC, null); // client's only conn is the host, which relays
     }
     pushChat(msg);
     if (net.role === 'host' && msg.scope !== 'whisper') logEvent('chat', 'GM: ' + String(msg.text || '').slice(0, 300), { w: 'You', x: 'Said in chat', d: String(msg.text || '').slice(0, 300) });
+    else if (net.role === 'host') logEvent('chat', 'GM whispered to ' + msg.toName + ': ' + String(msg.text || '').slice(0, 300), { w: 'You', x: 'Whispered to ' + msg.toName, d: String(msg.text || '').slice(0, 300), h: true });
 }
+// [netcheck:whisper-end]
 
 // [netcheck:chatdrag-start]
 (function chatDrag() {   // 1.6.0 (a two-player test by hand): Table Chat moves by its header, as the notepad does; a box moved by hand keeps its place (floats.js), and the dice roller goes with it
@@ -10841,6 +11006,29 @@ function renderPlayersPanel() {
     list.innerHTML = html;
 }
 
+// [netcheck:banask-start]
+// 1.6.3 (the improvement week's review of multiplayer, finding 31): Ban was the one action of Player History that did not ask first. It now
+// asks by name, with its buttons alone (noEnter), as removing a player from the roster and Forget do. Only a yes bans: the player's record
+// is written into camp.bannedPlayers, a player at the table right now is removed with it (net.kickPlayer) and their waiting token goes at
+// once, the campaign is saved and the panel drawn again. A no, or an answer that comes after another campaign was opened, changes nothing
+function banAsk(camp, pid) {
+    if (!camp || typeof pid !== 'string' || !pid) return;
+    var nm = (camp.players && own(camp.players, pid) && camp.players[pid] && camp.players[pid].name) || 'this player';
+    showConfirm('Ban ' + nm + ' from this campaign? They are removed now and refused in later sessions until you unban them.', function(yes) {
+        if (!yes || getActiveCampaign() !== camp) { renderPlayersPanel(); return; }
+        camp.bannedPlayers = camp.bannedPlayers || {};
+        camp.bannedPlayers[pid] = { name: (camp.players && own(camp.players, pid) && camp.players[pid] && camp.players[pid].name) || pid, bannedAt: Date.now() };
+        if (net.active && net.role === 'host') {   // at the table right now: they leave with the ban
+            var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === pid; });
+            if (key) net.kickPlayer(key);
+            dropWaitingFor(pid);   // Onboarding F1a: their waiting token goes at once, even inside the grace after they left
+        }
+        save();
+        toast((camp.bannedPlayers[pid].name || 'Player') + ' banned from this campaign.');
+        renderPlayersPanel();
+    }, { noEnter: true });
+}
+// [netcheck:banask-end]
 // [netcheck:forget-start]
 // Players panel ▸ Forget: asked first. The record goes for good — a player at the table right now plays on, but nothing brings the record
 // back this session (net.forgotten, read by syncLastMaps), so their next join waits for the GM's Allow like a stranger's.
@@ -10901,17 +11089,8 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
     var camp = getActiveCampaign();
     if (!camp) return;
     if (btn.dataset.ban) {
-        var pid = btn.dataset.ban;
-        camp.bannedPlayers = camp.bannedPlayers || {};
-        camp.bannedPlayers[pid] = { name: (camp.players[pid] || {}).name || pid, bannedAt: Date.now() };
-        // if they're at the table right now, they leave with the ban
-        if (net.active && net.role === 'host') {
-            var key = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === pid; });
-            if (key) net.kickPlayer(key);
-            dropWaitingFor(pid);   // Onboarding F1a: their waiting token goes at once, even inside the grace after they left
-        }
-        save();
-        toast((camp.bannedPlayers[pid].name || 'Player') + ' banned from this campaign.');
+        banAsk(camp, btn.dataset.ban);
+        return;   // 1.6.3: the panel redraws once the GM answers
     } else if (btn.dataset.unban) {
         var uid2 = btn.dataset.unban;
         var nm3 = (camp.bannedPlayers && camp.bannedPlayers[uid2] && camp.bannedPlayers[uid2].name) || 'Player';
@@ -10962,6 +11141,7 @@ if (_hostBtn) _hostBtn.addEventListener('click', function() { netPaneShow('host'
 var _joinBtn = ui('netJoinBtn');
 if (_joinBtn) _joinBtn.addEventListener('click', function() {
     netPaneShow('join');
+    if (typeof joinLocked === 'function' && joinLocked()) { toast('You are already at a table, or joining one. Leave the session first to join another.'); return; }   // 1.6.3 (finding 28): a second press never drops the table
     var code = typedCode(ui('netCodeInput').value);
     if (code.length < 4) { toast('Enter the room code.'); return; }
     if (!ensureNamed()) return;
@@ -11238,11 +11418,43 @@ function netPaneSync() {
         if (box) box.style.display = shown ? 'block' : 'none';
         if (btn) { btn.classList.toggle('on', shown); btn.setAttribute('aria-expanded', shown ? 'true' : 'false'); btn.disabled = !!net.active && !shown; }
     });
+    // 1.6.3 (the improvement week's review of multiplayer, finding 28): at a table, or while a join is under way, the join part shows the code
+    // in use, read only, and Join is off with a line saying why. A second press used to drop the table with no question and join again
+    var lockJ = joinLocked(), jb = ui('netJoinBtn'), ci = ui('netCodeInput'), at = ui('netJoinAt');
+    if (jb) jb.disabled = lockJ;
+    if (ci) { ci.readOnly = lockJ; if (lockJ && net.code) ci.value = typeof showCode === 'function' ? showCode(net.code) : net.code; }
+    if (at) at.style.display = lockJ ? 'block' : 'none';
+    rosterSeat();
 }
+// 1.6.3 (the improvement week's review of multiplayer, finding 30; Fulllion, 2026-11-21: "while hosting, who is connected right under the
+// room code"): the GM reopens this window mostly to see who is here and act on one player, and the list stood last, under every table
+// button and the Table options fold. While this app hosts, the one roster element (#netRoster, which renderRoster fills and whose summon,
+// kick and resume buttons keep their listener) is moved to stand right under the room code's lines in the host's part; otherwise it goes
+// back to its home before the VTT line, where a player at someone's table reads it. Asked by netPaneSync and renderRoster; it moves the
+// element only where it stands elsewhere, and does nothing on a page that lacks any of the three
+function rosterSeat() {
+    var r = ui('netRoster'), at = ui('netCodeWhere'), home = ui('netVttLine');
+    if (!r || !at || !home || !at.parentNode || !home.parentNode || typeof at.parentNode.insertBefore !== 'function') return;
+    if (net.active && net.role === 'host') { if (r.previousElementSibling !== at) at.parentNode.insertBefore(r, at.nextSibling); }
+    else if (r.nextElementSibling !== home) home.parentNode.insertBefore(r, home);
+}
+// 1.6.3 (the improvement week's review of multiplayer, finding 27): the session password is typed hidden, since GMs stream or share their
+// screen, and the eye beside it (#netPassShow) shows it so the GM can read it out, and hides it again. One press turns it: the box's type
+// between password and text, the button's pressed state, and its words, which always say what the next press does
+function passShow(btn, inp, on) {
+    if (!btn || !inp) return;
+    var show = typeof on === 'boolean' ? on : inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    var words = show ? 'Hide the password' : 'Show the password';
+    btn.setAttribute('aria-pressed', show ? 'true' : 'false'); btn.setAttribute('aria-label', words); btn.title = words;
+}
+function joinLocked() { return net.role === 'client' && (!!net.active || !!net.peer); }   // at someone else's table, or dialing one
+net.joinLocked = joinLocked;   // the review of multiplayer chat: the welcome's Join asks it before it hands a join on (main.js), since a disabled Join button takes no press
 function netPanePick(k) { if (net.active) return; _netPane = _netPane === k ? null : k; netPaneSync(); }
 function netPaneShow(k) { _netPane = k; netPaneSync(); }   // the part a press of Host or Join belongs to stays shown, so a join that fails is read where it was typed
 // [netcheck:netpane-end]
 ['netPaneHostBtn', 'netPaneJoinBtn'].forEach(function(id) { var b = ui(id); if (b) b.addEventListener('click', function() { netPanePick(b.dataset.pane); }); });
+var _passShowBtn = ui('netPassShow'); if (_passShowBtn) _passShowBtn.addEventListener('click', function() { passShow(_passShowBtn, ui('netPassInput')); });   // 1.6.3 (finding 27)
 function syncSessionButtons() {
     netPaneSync();
     var cbtn = ui('chatBtn');
@@ -11260,7 +11472,7 @@ function syncSessionButtons() {
 var _endBtn = ui('netEndBtn');
 if (_endBtn) _endBtn.addEventListener('click', function() {
     if (!net.active || net.role !== 'host') { syncSessionButtons(); return; }
-    var n = net.conns.length;
+    var n = playersHere();   // 1.6.3 (finding 33): the players at the table, each once, never a closed or waiting connection
     import('./dialogs.js').then(function(d) {
         d.showConfirm('End the session for everyone?' + (n ? ' ' + n + ' player' + (n === 1 ? '' : 's') + ' will be told the session ended and returned to their own campaigns.' : '') + ' The room code is retired.', function(yes) {
             if (!yes) return;   // Cancel and Esc keep the table running

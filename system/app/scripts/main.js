@@ -1235,13 +1235,28 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   }
   // the stored profile's picture, checked WHOLE (the same check as net.js safeAvatar, which may not be loaded yet): never markup
   function wcSafeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
+  // [tutorialcheck:wcfill-start]
+  // 1.6.3 (the improvement week's review of multiplayer, finding 20): pressing Join changed a player's color. The welcome's color box was filled
+  // as the page came up, before net.js had made the profile (with a color of its own), and never filled again, so Join saved the box's stand-in
+  // color over the real one and every new player came to the table in the same blue. Now each view of the welcome fills its boxes from the
+  // profile as it stands (wcFillBoxes, asked by the Join and Host views as they open; settings.js wcFields keeps them in step as the profile
+  // changes), the box remembers the color it was filled with (wpFilled), and saveWcProfile writes a color only where the box was changed by hand
   function saveWcProfile() {
       var nm = document.getElementById('wcNameInput'), col = document.getElementById('wcColorInput');
-      var name = (nm && nm.value || '').trim(), patch = { color: (col && col.value) || '' };
+      var name = (nm && nm.value || '').trim(), patch = {}, colV = (col && col.value) || '';
+      var changed = !!colV && colV.toLowerCase() !== String((col && col.wpFilled) || '').toLowerCase();
+      if (changed) patch.color = colV;   // an untouched box never writes its color over the profile's
       if (name || !(wcProfile().name || '').trim()) patch.name = name;   // an empty box never blanks a stored name (a name is how the table knows you; hosting needs it)
       if (window.wpNet && window.wpNet.setProfile) window.wpNet.setProfile(patch);
+      if (changed && col) col.wpFilled = colV;   // what is stored now
       if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face preview follows the color
   }
+  function wcFillBoxes() {   // the name and color boxes from the profile as it stands, but a box being typed in
+      var prof = wcProfile(), nm = document.getElementById('wcNameInput'), col = document.getElementById('wcColorInput');
+      if (nm && document.activeElement !== nm) nm.value = prof.name || '';
+      if (col && document.activeElement !== col) { col.value = prof.color || '#7aa7ff'; col.wpFilled = col.value; }
+  }
+  // [tutorialcheck:wcfill-end]
   // [tutorialcheck:wclaunch-start]
   // "Show this on launch" is set ONCE from the welcome (the owner's word, 2026-10-01): the select shows there only while the preference has never
   // been stored, the first leaving of the welcome stores whatever it says, and from then on Settings alone changes it (#setWelcomePref)
@@ -1400,7 +1415,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       if (window.wpNet) window.wpNet.fromWelcome = false;   // clean slate: the Join sub-screen sets this when it drives a join
       var prof = wcProfile();
       var nm = document.getElementById('wcNameInput'); if (nm) nm.value = prof.name || '';
-      var col = document.getElementById('wcColorInput'); if (col) col.value = prof.color || '#7aa7ff';
+      var col = document.getElementById('wcColorInput'); if (col) { col.value = prof.color || '#7aa7ff'; col.wpFilled = col.value; }   // 1.6.3 (finding 20): the color it was filled with, which saveWcProfile never writes back
       var av = document.getElementById('wcAvatarPrev');
       if (av) { av.textContent = ''; var avI = document.createElement('img'); avI.alt = ''; avI.src = wcSafeAvatar(prof.avatar) ? prof.avatar : wpDefaultAvatar(prof.color); av.appendChild(avI); av.style.background = ''; }   // a photo, else the color-tinted silhouette default (built as a node)
       var pref = document.getElementById('wcLaunchPref'); if (pref) pref.value = welcomePref();
@@ -1434,6 +1449,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); window.wpWelcomeImporting = true; var fi = document.getElementById('fileIn'); var done = function() { window.wpWelcomeImporting = false; }; if (fi) { fi.addEventListener('change', done, { once: true }); fi.addEventListener('cancel', done, { once: true }); } setTimeout(done, 60000); var b = document.getElementById('importBtn'); if (b) b.click(); });
       // Join a game → its OWN screen (profile + room code + live status); it stays up until the GM's snapshot lands (or an error).
       function showJoinView() {
+          wcFillBoxes();   // 1.6.3 (finding 20): the profile as it stands now, made since the welcome came up
           var mv = document.getElementById('wcMain'), jv = document.getElementById('wcJoinView');
           if (mv) mv.style.display = 'none'; if (jv) jv.style.display = 'flex';
           var st = document.getElementById('wcJoinStatus'); if (st) { st.textContent = ''; st.className = 'wc-join-status'; }
@@ -1441,6 +1457,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           setTimeout(function() { try { var nmEl2 = document.getElementById('wcNameInput'); (nmEl2 && (nmEl2.value || '').trim() ? document.getElementById('wcJoinCode') : nmEl2).focus(); } catch (e) {} }, 60);
       }
       function showHostView() {
+          wcFillBoxes();   // 1.6.3 (finding 20)
           var mv = document.getElementById('wcMain'), hv = document.getElementById('wcHostView'), away = !!((window.wpNet && window.wpNet.foreign) || (state.appState && state.appState._foreign));
           var rows = away ? [] : wcHostRows((state.appState && state.appState.campaigns) || {}, state.appState && state.appState.activeCampaignId, wcSeedOnly);
           wcHostDraw(document, rows, away, function(id) { wcHostPick(id, document, function() { saveWcProfile(); hideWelcome(); }); });
@@ -1474,6 +1491,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           if (code.length < 4) { say('Enter the room code the GM shared.', 'err'); return; }
           var name = (document.getElementById('wcNameInput').value || '').trim();
           if (!name) { say('Enter your name — that’s how players know you.', 'err'); try { document.getElementById('wcNameInput').focus(); } catch (e) {} return; }
+          // the review of multiplayer chat (1.6.3): while a join is still under way (a refresh's rejoin dialing or waiting to try again) the
+          // Multiplayer window's Join button is off, and a press handed to a disabled button does nothing, so the welcome stood at Connecting
+          // for good. It asks net.js first and says why here, with its own Join left on
+          if (window.wpNet && typeof window.wpNet.joinLocked === 'function' && window.wpNet.joinLocked()) { say('Waypoint is still trying to reach a table. Wait for that to end, then press Join again.', 'err'); return; }
           saveWcProfile();
           var nc = document.getElementById('netCodeInput'); if (nc) nc.value = code;   // hand the fields to the multiplayer join + trigger it (reuses its validation + joinSession + status)
           var nn = document.getElementById('netNameInput'); if (nn) nn.value = name;

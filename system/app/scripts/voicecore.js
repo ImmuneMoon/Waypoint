@@ -104,11 +104,12 @@ function mouseBind(button) { return button === 3 ? 'Mouse3' : button === 4 ? 'Mo
 /* ---------- the words ---------- */
 // A level meter's reading (0..1, RMS of the time-domain samples) as speaking or not; a little hysteresis is the caller's
 function speaking(rms) { return typeof rms === 'number' && rms > 0.02; }
-function stateWords(s) {   // s: { joined, joining, muted, deaf, mode, talking, error }
+function stateWords(s) {   // s: { joined, joining, muted, deaf, mode, talking, error, listen }
     if (s.error) return s.error;
     if (s.joining) return 'Connecting…';
     if (!s.joined) return 'Not in voice';
     if (s.deaf) return 'Deafened';
+    if (s.listen) return 'Listening only';   // 1.6.3 (finding 21): in voice with no microphone
     if (s.muted) return 'Muted';
     if (s.mode === 'ptt') return s.talking ? 'Talking' : 'Push to talk — hold ' + bindLabel(s.bind);
     return 'Voice connected';

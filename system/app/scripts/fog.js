@@ -2342,6 +2342,7 @@ function draw() {
     if (!pp) { ctx.beginPath();
     for (var i = 0; i < tl.length; i++) if (tk[tl[i].key] !== 1) traceCell(tl[i].cell); }
     fillP(pp && pp.clear);                                         // punch every clear or bright cell in one pass
+    if (isClientView() && typeof ownClear === 'function') ownClear(ctx, ownClearList(map, myId()), z, sx, sy, ownTokEl);   // 1.6.3 (finding 18): a player's own tokens stand over their own fog, the ground around them dark
     ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
     ctx.save(); if (turnV) turnV.turnCtx(ctx);
@@ -2354,6 +2355,59 @@ function draw() {
     ctx.restore();
     if (typeof measureCaps === 'function') measureCaps(ctx, s);    // the rulers and shapes, over the fog on every screen
 }
+// [fogcheck:ownclear-start]
+// 1.6.3 (the improvement week's review of multiplayer, finding 18; Fulllion, 2026-11-21: "A player's own tokens, waiting tokens among them, are
+// drawn above the fog on their own screen. The ground around them stays dark. This is in fog.js's overlay draw only, never in what the host
+// sends"). A new player is told to move their waiting token, and a waiting token sees nothing of its own under fog by default, so it stood in the
+// dark. On a player's own screen alone (draw asks it only where isClientView), each token of theirs (a character token or a waiting one, never a
+// hidden piece) is cut out of the fog in its own outline, so the board's own drawing of the token shows through: an ellipse for a round token,
+// the hexagon, diamond or box of a shaped one, and for a picture token with no shape the picture's own pixels (its <img>, drawn as the board
+// fits it, object-fit contain), so its transparent parts stay dark. The cut is made in the board's own scale at the token's place, turned as the
+// token is (its rot, and the upright turn the view gives it on its element's style.rotate), inside the canvas the overlay has already turned with
+// the view. Nothing is stored, sent or judged: what the host sends a player is as before. At most OWN_CLEAR_MOST tokens a frame
+var OWN_CLEAR_MOST = 40;
+function ownClearList(map, me) {
+    var out = []; if (!map || !Array.isArray(map.whiteboard) || typeof me !== 'string' || !me) return out;
+    for (var i = 0; i < map.whiteboard.length && out.length < OWN_CLEAR_MOST; i++) {
+        var w = map.whiteboard[i];
+        if (!w || typeof w !== 'object' || w.ownerId !== me || w.hidden || !(w.isChar || w.waiting)) continue;
+        if (!isFinite(Number(w.x)) || !isFinite(Number(w.y)) || !(Number(w.w || 60) > 0) || !(Number(w.h || 52) > 0)) continue;
+        out.push(w);
+    }
+    return out;
+}
+function ownClearShape(w) {
+    if (w.type === 'image') return w.shape === 'hexagon' ? 'hex' : w.shape === 'circle' ? 'ellipse' : w.shape === 'rect' ? 'rect' : 'img';
+    return w.type === 'hexagon' ? 'hex' : w.type === 'diamond' ? 'diamond' : w.type === 'rect' ? 'rect' : 'ellipse';   // a waiting token is a circle unless it is a box or a hexagon
+}
+function ownTokEl(id) {
+    if (typeof document === 'undefined' || !document || typeof document.querySelector !== 'function' || typeof id !== 'string') return null;
+    var q = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(id) : id.replace(/[^\w-]/g, '');
+    return document.querySelector('#whiteboard .wb-item[data-id="' + q + '"]');
+}
+function ownClear(ctx, list, z, sx, sy, find) {
+    var n = 0; if (!ctx || !Array.isArray(list)) return 0;
+    for (var i = 0; i < list.length && i < OWN_CLEAR_MOST; i++) {
+        var w = list[i], ww = Number(w.w || 60), hh = Number(w.h || 52), bw = ww * z, bh = hh * z, cx = (Number(w.x) + ww / 2) * z - sx, cy = (Number(w.y) + hh / 2) * z - sy;
+        var el = typeof find === 'function' ? find(w.id) : null, up = el && el.style ? parseFloat(el.style.rotate) || 0 : 0, ang = ((Number(w.rot) || 0) + up) * Math.PI / 180;
+        var sh = ownClearShape(w), img = sh === 'img' && el && typeof el.querySelector === 'function' ? el.querySelector(':scope > img') : null;
+        ctx.save(); ctx.translate(cx, cy); if (ang) ctx.rotate(ang);
+        if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0 && typeof ctx.drawImage === 'function') {
+            var k = Math.min(bw / img.naturalWidth, bh / img.naturalHeight), iw = img.naturalWidth * k, ih = img.naturalHeight * k;
+            try { ctx.drawImage(img, -iw / 2, -ih / 2, iw, ih); } catch (e) { ctx.fillRect(-bw / 2, -bh / 2, bw, bh); }   // a picture the canvas cannot read: its box
+        } else {
+            ctx.beginPath();
+            if (sh === 'ellipse') ctx.ellipse(0, 0, bw / 2, bh / 2, 0, 0, Math.PI * 2);
+            else if (sh === 'hex') { ctx.moveTo(-bw / 4, -bh / 2); ctx.lineTo(bw / 4, -bh / 2); ctx.lineTo(bw / 2, 0); ctx.lineTo(bw / 4, bh / 2); ctx.lineTo(-bw / 4, bh / 2); ctx.lineTo(-bw / 2, 0); ctx.closePath(); }
+            else if (sh === 'diamond') { ctx.moveTo(0, -bh / 2); ctx.lineTo(bw / 2, 0); ctx.lineTo(0, bh / 2); ctx.lineTo(-bw / 2, 0); ctx.closePath(); }
+            else ctx.rect(-bw / 2, -bh / 2, bw, bh);   // a box, and a picture not loaded yet
+            ctx.fill();
+        }
+        ctx.restore(); n++;
+    }
+    return n;
+}
+// [fogcheck:ownclear-end]
 // Lighting L4 (owner answer 7): the name of the light a targeted token stands in, under the token. Drawn here, over the fog: the board's own
 // layers lie under it, and on a player's screen the cells beneath a token are often dark. whiteboard.js marks the token with the words it
 // worked out for this screen (data-light-cap); they are drawn as text (fillText: never markup), level however the token is turned, where the

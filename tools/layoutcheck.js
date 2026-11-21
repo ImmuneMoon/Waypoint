@@ -120,6 +120,14 @@ function install(P) {
         && mv['--lay-t'] === '26px' && mv['--lay-et'] === '18px' && mv['--lay-tt'] === '0px' && mv['--lay-rt'] === '52px' && P.body.style.vars['--lay-rl'] === '0px' && mv['--lay-pt'] === (52 + 18 + 8 - 26) + 'px' && mv['--lay-pl'] === '0px'
         && E.minimap.classList.contains('lay-at') && E.minimap.style.vars['--lay-x'] === (1246 - 14 - 180) + 'px' && E.minimap.style.vars['--lay-y'] === (26 + 52) + 'px' && API.held(E.minimap)
         && !E.zoomBox.classList.contains('lay-at') && E.wbEdgeTools.classList.contains('lay-low'), J([E.wbFloatingToolbar.classList.list(), mv, E.minimap.style.vars]));
+    // the review of multiplayer window: atTop says a held control stands at one of the three top places, which trackers.js asks before it
+    // writes where the trackers bar ends for the banners under it
+    const topTr = API.atTop(E.minimap), topFree = API.atTop(E.zoomBox);
+    P.store.wp_layout = J({ play: { bar: { side: 'top', edge: true }, parts: { minimap: { c: 'bl', x: 0, y: 0 } } } }); API.sync(); const topBl = API.atTop(E.minimap);
+    P.store.wp_layout = J({ play: { bar: { side: 'top', edge: true }, parts: { minimap: { c: 'mc', x: 0, y: 0 } } } }); API.sync(); const topMc = API.atTop(E.minimap);
+    P.store.wp_layout = J({ play: { bar: { side: 'top', edge: true }, parts: { minimap: { c: 'tr', x: 0, y: 0 } } } }); API.sync();
+    check('atTop: a control held at a top place answers true, one held at the bottom or in the middle and one the layout does not hold answer false',
+        topTr === true && topFree === false && topBl === false && topMc === false && API.atTop(E.minimap) === true && API.atTop(null) === false, J([topTr, topFree, topBl, topMc]));
     // the other map: the play map's layout goes, the data map has none
     P.win.view = 'data'; API.sync();
     check('on the Data Map the play map\'s layout is taken off whole (it has one of its own), and nothing stays held',

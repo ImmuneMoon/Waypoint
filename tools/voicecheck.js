@@ -199,7 +199,29 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const Stm = mkP({ net: { role: 'client', stream: true } }); Stm.api.join(); await tick();
     const Den = mkP({ noMic: true }); Den.api.join(); await tick();
     check('a player not at a table yet (before the snapshot) and the stream window never join, nor ask for the microphone; a microphone refused says so and leaves nothing open',
-        Off.world.gum.length === 0 && Off.gm.sent.length === 0 && Stm.world.gum.length === 0 && Stm.gm.sent.length === 0 && Den.api.me.on === false && Den.api.me.error === 'Microphone access was refused.' && Den.gm.sent.length === 0, j([Off.world.gum.length, Stm.world.gum.length, Den.api.me.error]));
+        Off.world.gum.length === 0 && Off.gm.sent.length === 0 && Stm.world.gum.length === 0 && Stm.gm.sent.length === 0 && Den.api.me.on === false && Den.api.me.error === 'Microphone access was refused. You can still listen.' /* 1.6.3 (finding 21): and says Listen only is there, moved on purpose */ && Den.gm.sent.length === 0, j([Off.world.gum.length, Stm.world.gum.length, Den.api.me.error]));
+    // 1.6.3 (the improvement week's review of multiplayer, finding 21; Fulllion, 2026-11-21: a Listen only button, offered by itself when there is no
+    // microphone). voice.js run for real on its page of plain objects: a player with no microphone hears the table and sends nothing up
+    {
+        const btns = W => W.els.voiceBody.querySelectorAll('.voice-join').map(b => b.textContent);
+        Den.els.voiceInd.click(); await tick(); const denBtns = btns(Den);
+        const Ok = mkP(); Ok.els.voiceInd.click(); await tick(); const okBtns = btns(Ok);
+        const L = mkP({ noMic: true }); L.api.join(true); await tick();
+        const lIn = [L.api.me.on, L.api.me.listen, L.world.gum.length, j(L.gm.sent)];
+        L.api.fromHost(OFFER(ID, 3, { 1: { pid: 'u_gm', name: 'GM', gm: true }, 2: { pid: 'u_b', name: 'Bo' } })); await tick();
+        const pcL = L.world.pcs[0], ansL = L.gm.sent.filter(m => m.act === 'answer');
+        const lLink = [!!pcL, pcL && pcL.tx[0].direction, pcL && pcL.tx.every(t => t.sender.track === null), ansL.length, j(Object.keys(L.api.voices).sort())];
+        L.els.voiceInd.click(); await tick(); const lWords = L.els.voiceBody.querySelectorAll('.voice-none').map(e => e.textContent), lTicks = L.els.voiceBody.textContent;
+        L.api.leave(false); await tick(); const lOut = [L.api.me.on, L.api.me.listen];
+        const HL = loadVoice(V, { role: 'host', dice: D, profile: { name: 'Gina' } }), aL = HL.conn('peerA', 'u_a', 'Ann');
+        HL.api.join(true); await tick(); HL.api.fromPlayer({ type: 'voice-up', act: 'join' }, aL); await tick();
+        const hlIn = [HL.api.me.on, HL.api.me.listen, HL.world.gum.length, !!HL.api.hub.srcs.gm];
+        check('1.6.3 finding 21 (voice.js run for real): a microphone refused offers Listen only by itself, and a player with a microphone is offered Join voice and Listen only; Listen only asks for no microphone, tells the GM to join, answers the offer with its first line sending nothing and plays every voice; the popover says nobody hears you and offers no mute or push to talk; leaving ends it; the GM listening only adds no voice of their own to the hub',
+            j(denBtns) === j(['Listen only']) && j(okBtns) === j(['Join voice', 'Listen only']) && j(lIn) === j([true, true, 0, j([{ act: 'join', type: 'voice-up' }])])
+            && j(lLink) === j([true, 'inactive', true, 1, j(['u_b', 'u_gm'])]) && lWords.includes('You are listening only. Nobody hears you.') && !/Mute my microphone|Push to talk/.test(lTicks) && j(lOut) === j([false, false])
+            && j(hlIn) === j([true, true, 0, false]) && V.stateWords({ joined: true, listen: true }) === 'Listening only',
+            j({ denBtns, okBtns, lIn, lLink, lWords, lOut, hlIn }));
+    }
 
     /* ================= the page ================= */
     const ix = read('index.html');

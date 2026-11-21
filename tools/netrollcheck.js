@@ -1926,7 +1926,7 @@ pendingChecks.push((async () => {
     const rC = drC.dr('1d20', { hide: true }); drC.clear();
     check('1.6.3 on a player\'s app hide is their own To the GM only: the request asks the host to keep it private, and names nothing else of it', rC.ok === true && sentC.length === 1 && sentC[0].priv === 'gm' && !('hide' in sentC[0]), j(sentC));
     check('1.6.3 the wiring: a table that ends lets the notes go (diceSessionReset), /gmroll is the GM\'s choice, a latecomer\'s history reads a shown roll\'s table copy, and the host never writes rollsHid onto anything it sends',
-        src4.includes("    if (typeof revealForget === 'function') revealForget();") && src4.includes("window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll', typed: true, source: 'chat' })") && src4.includes("var wr = m.shown || m.roll || m.apply;") && !/\.rollsHid\s*=[^=]/.test(src4)
+        src4.includes("    if (typeof revealForget === 'function') revealForget();") && src4.includes("window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll' || !!wPickC, typed: true, source: 'chat' })") /* the review of multiplayer chat: a player's typed roll also follows a whisper picked (wPickC, which is null for the GM and for /gmroll), moved on purpose */ && src4.includes("var wr = m.shown || m.roll || m.apply;") && !/\.rollsHid\s*=[^=]/.test(src4)
         && A.out.steps.some(s => s[0] === 'hiderolls v1' && s[1] === 'shown'));
 
     // The review of 2026-11-19. Finding 1: a roll with card actions sends its pending card before the secret checks of its landing, so the host asks them

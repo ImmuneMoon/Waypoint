@@ -192,6 +192,15 @@ function layFree(el) { if (!el) return; el.classList.remove('lay-at'); el.classL
 // Whether a control stands where the layout put it now (trackers.js and main.js cornerFit ask)
 function layHeld(el) { return !!el && !!el.classList && el.classList.contains('lay-at') && document.body.classList.contains('lay-on'); }
 function layBarOf(which) { return layEl(LAY_BARS[which]); }
+// 1.6.3 (the review of multiplayer window): whether a control the layout holds stands at one of the three top places (tl, tc, tr).
+// trackers.js asks it before it writes where the trackers bar ends for the pause and travel banners, which stand under a bar at the
+// top of the map and would be pushed off the window by a bar placed at the bottom or in the middle. A control not held by the layout,
+// or one being dragged, answers false, so the caller decides by its own rule
+function layAtTop(el) {
+    if (!layHeld(el) || (_lay.drag && _lay.drag.el === el)) return false;
+    var v = layCur(), sp = v && v.parts ? v.parts[el.id] : null;
+    return !!sp && typeof sp.c === 'string' && sp.c.charAt(0) === 't';
+}
 
 // Every class, variable and place the layout writes, written again from the layout, the view and the page as they stand. With no
 // layout, on a narrow area or off the two maps, all of it is taken off
@@ -542,7 +551,7 @@ function layInit() {
     if (layRead()) laySync();
 }
 // [layoutcheck:api]
-var API = { sync: laySync, edit: layEdit, escape: layEscape, held: layHeld, fitSide: layFitSide, measure: layMeasure, menuFit: layMenuFit, keyHold: layKeyHold, cardPlace: layCardPlace, down: layDown, move: layMove, up: layUp, editing: function() { return _lay.edit; } };
+var API = { sync: laySync, edit: layEdit, escape: layEscape, held: layHeld, atTop: layAtTop, fitSide: layFitSide, measure: layMeasure, menuFit: layMenuFit, keyHold: layKeyHold, cardPlace: layCardPlace, down: layDown, move: layMove, up: layUp, editing: function() { return _lay.edit; } };
 export { cleanLayout, cleanView, cleanBar, cleanSpot, spotXY, spotOf, barOf, pushOf, rulerShift, propRight, layWith, barClasses, unclash, LAY_KEY, LAY_PARTS, LAY_BARS, LAY_SPOTS, LAY_SIDES, API };
 if (typeof window !== 'undefined') {
     window.wpLayout = API;

@@ -421,9 +421,25 @@ function panelOpen() { var p = ui('musicPanel'); return !!(p && p.style.display 
 function openPanel() { if (!canWrite()) { toast('Only the GM manages music.'); return; } var p = ui('musicPanel'); if (!p) return; p.style.display = 'flex'; if (window.wpFloats) window.wpFloats.reveal(p); try { var pos = JSON.parse(pref('wp_musicPanel', '')); if (pos && typeof pos.x === 'number') { p.style.left = Math.max(0, Math.min(pos.x, window.innerWidth - 60)) + 'px'; p.style.top = Math.max(0, Math.min(pos.y, window.innerHeight - 40)) + 'px'; p.style.right = 'auto'; } } catch (e) {} renderPanel(); }
 function closePanel() { var p = ui('musicPanel'); if (p) p.style.display = 'none'; picking = null; }
 // Light update of the transport display without rebuilding the panel (so a slider being dragged is never yanked).
+// [musiccheck:hear-start]
+// The review of multiplayer chat (1.6.3): what the Music panel says of who hears what it plays, while this machine hosts a table. Taking
+// control, the table hears it. Not taking control, each machine plays the map's own music by itself (tick, above), so where what plays is
+// the map on screen's own setting (mapSetting, cleaned as tick cleans it) the players on that map hear it too, and anything else is heard
+// by the GM alone. With nothing playing and no control taken it says nothing. Read by hearSet, which renderPanel and refreshTransport ask
+function hearWords() {
+    if (!isHost() || !sessionLive()) return '';
+    if (controlling) return 'Your table hears this.';
+    if (!cur) return '';
+    var camp = getActiveCampaign(), it = activeMapItem(), mm = it && camp ? mapSetting(it, camp.activeItemId) : null, cfg = mm ? cleanMapMusic(mm, idSets()) : null;
+    if (cfg && source && source.kind === (cfg.playlist ? 'playlist' : 'track') && source.id === (cfg.playlist || cfg.track)) return 'Players on this map hear this too. It is this map\u2019s own music.';
+    return 'Only you hear this. Take control to play it for the table.';
+}
+function hearSet(node) { var w = hearWords(); node.textContent = w; node.style.display = w ? '' : 'none'; }
+// [musiccheck:hear-end]
 function refreshTransport() {
     var p = ui('musicPanel'); if (!p || p.style.display === 'none') return;
     var st = status(), q = function(s) { return p.querySelector(s); };
+    var hr = q('.music-hear'); if (hr) hearSet(hr);   // the review of multiplayer chat: who hears it follows what plays
     var now = q('.music-now'); if (now) now.textContent = st.entry ? st.entry.name : (campMusic().tracks.length ? (source ? 'Stopped' : idleNow()) : 'No tracks yet');
     var bar = q('.music-seekbar'); if (bar && document.activeElement !== bar) { bar.max = Math.max(1, Math.floor(st.dur)); bar.value = Math.floor(st.pos); bar.disabled = !st.entry; }
     var ts = p.querySelectorAll('.music-seek .music-t'); if (ts[0]) ts[0].textContent = fmtTime(st.pos); if (ts[1]) ts[1].textContent = fmtTime(st.dur);
@@ -526,6 +542,11 @@ function renderPanel() {
     btns.appendChild(tb('music-loop wib wi-' + (st.loop === 'off' ? 'refresh' : st.loop === 'one' ? 'loop1' : 'loop'), loopLbl[st.loop] || 'list', 'Loop: off / one track / whole list', function() { setLoop(st.loop === 'off' ? 'list' : st.loop === 'list' ? 'one' : 'off'); }, st.loop !== 'off'));
     btns.appendChild(tb('music-shuf wib wi-shuffle', '', 'Shuffle the playlist', function() { setShuffle(!st.shuffle); }, st.shuffle));
     tp.appendChild(btns);
+    // 1.6.3 (the improvement week's review of multiplayer, finding 24; Fulllion, 2026-11-21): while hosting, the panel says who hears what it
+    // plays. Transport changes reach players only while Take control is on (broadcastControl), and a GM who pressed Play for the table heard
+    // it alone with nothing on the panel to say so. How it works does not change. The words are hearWords' (below), set again by
+    // refreshTransport as playback starts and stops, so the line is put away where there is nothing to say
+    var hearL = el('div', 'set-line music-hear', ''); hearSet(hearL); tp.appendChild(hearL);
     var volRow = el('div', 'music-volrow');
     var vmute = el('button', 'tool ghost music-mute wib wi-' + (st.muted ? 'muted' : 'sound')); vmute.title = st.muted ? 'Unmute music' : 'Mute music'; vmute.addEventListener('click', function() { setMute(!mmuted); });
     var vsl = el('input'); vsl.type = 'range'; vsl.min = 0; vsl.max = 100; vsl.value = Math.round(st.volume * 100); vsl.className = 'music-vol'; vsl.title = 'Music volume'; vsl.addEventListener('input', function() { setVolume(Number(vsl.value) / 100); });

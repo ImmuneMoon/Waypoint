@@ -43,7 +43,8 @@ function savePrefs() {
 }
 
 /* ---------- this machine's microphone ---------- */
-var me = { on: false, joining: false, mic: null, track: null, muted: false, deaf: false, talking: false, error: '' };
+// listen: in voice with no microphone (Listen only). noMic: the last try found no microphone this app may use, so Listen only is offered by itself
+var me = { on: false, joining: false, mic: null, track: null, muted: false, deaf: false, talking: false, error: '', listen: false, noMic: false };
 function micOpen() {   // whether what the microphone hears goes out now
     return me.on && !!me.track && !me.muted && !me.deaf && (prefs.mode === 'open' || me.talking);
 }
@@ -98,10 +99,10 @@ function listDevices() {
         devs.inputs = deviceList(ds, 'audioinput'); devs.outputs = deviceList(ds, 'audiooutput');
     }).catch(function() {});
 }
-if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', function() { listDevices().then(function() { render(true); }); });   // a headset plugged in or out: the lists follow
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', function() { me.noMic = false; listDevices().then(function() { render(true); }); });   // a headset plugged in or out: the lists follow, and Join voice is offered again
 function setInput(id) {
     prefs.input = cleanDeviceId(id); savePrefs();
-    if (me.on) getMic().then(swapMic).catch(function() { me.error = 'That microphone could not be opened.'; render(true); });
+    if (me.on && !me.listen) getMic().then(swapMic).catch(function() { me.error = 'That microphone could not be opened.'; render(true); });
     render(true);
 }
 function setOutput(id) {
@@ -364,7 +365,7 @@ function fromHost(msg) {
     }
     if (msg.act !== 'offer') return;
     var sdp = cleanSdp(msg.sdp); if (!sdp) return;
-    if (!me.on || !me.track) { say({ act: 'leave', id: msg.id }); return; }   // not in voice here (left while it was on its way)
+    if (!me.on || (!me.track && !me.listen)) { say({ act: 'leave', id: msg.id }); return; }   // not in voice here (left while it was on its way)
     if (!up || up.id !== msg.id) {   // a new link: an older one goes first
         upClose();
         var pc;
@@ -385,7 +386,8 @@ function fromHost(msg) {
         if (up !== cur) return null;
         if (!cur.sent) {   // the first line is ours to send on: the microphone goes up it
             var tx = cur.pc.getTransceivers()[0];
-            if (tx) { tx.direction = 'sendonly'; tx.sender.replaceTrack(me.track); cur.sent = true; }
+            if (tx && me.track) { tx.direction = 'sendonly'; tx.sender.replaceTrack(me.track); cur.sent = true; }
+            else if (tx) { tx.direction = 'inactive'; cur.sent = true; }   // 1.6.3 (finding 21): Listen only sends nothing up, and every other line still plays
         }
         return cur.pc.createAnswer();
     }).then(function(a) {
@@ -401,10 +403,17 @@ function fromHost(msg) {
 }
 
 /* ================= joining and leaving (both sides) ================= */
-function join() {
+// 1.6.3 (the improvement week's review of multiplayer, finding 21; Fulllion, 2026-11-21: a Listen only button, offered by itself when there is no
+// microphone). A player with no microphone, a broken one, or who refuses the app access to it could neither speak nor hear the table, since the
+// word 'join' went to the host only after a microphone track existed. Listen only joins with no track: a player's first line answers the host's
+// offer as inactive, so it carries nothing up, and every voice still comes down on the lines the host adds. The GM listening only adds no voice
+// of their own to the hub and hears every player. A try that finds no microphone (none there, or access refused) sets me.noMic, and the popover
+// then offers Listen only by itself until a device is plugged in
+function join(listen) {
     if (me.on || me.joining || !tableOn()) return;
     me.joining = true; me.error = ''; render(true);
     ctx();   // inside the click: the engine lets sound start
+    if (listen === true) { listenIn(); return; }
     getMic().then(function(stream) {
         if (!me.joining || !tableOn()) { stream.getTracks().forEach(function(t) { t.stop(); }); me.joining = false; render(true); return; }
         me.mic = stream; me.track = stream.getAudioTracks()[0] || null;
@@ -425,13 +434,21 @@ function join() {
     }).catch(function(e) {
         me.joining = false;
         dropMic(); me.on = false;
+        var noMicE = !!e && (e.name === 'NotAllowedError' || e.name === 'NotFoundError' || e.message === 'No microphone found.' || e.message === 'This app cannot use a microphone.');
         me.error = e && e.name === 'NotAllowedError' ? 'Microphone access was refused.' : e && e.name === 'NotFoundError' ? 'No microphone found.' : (e && e.message) || 'Could not start voice.';
+        if (noMicE) { me.noMic = true; me.error += ' You can still listen.'; }
         render(true);
     });
 }
+function listenIn() {   // in voice with no microphone: hear the table, send nothing
+    me.on = true; me.listen = true; me.joining = false; me.track = null; me.mic = null;
+    if (hosting()) Object.keys(hub.srcs).forEach(function(k) { var s = hub.srcs[k]; if (!s.gm) voicePlay(s.pid, s.name, false, s.track); });
+    else { rejoins = 0; if (!say({ act: 'join' })) { me.on = false; me.listen = false; me.error = 'Not connected to the GM.'; } }
+    render(true);
+}
 function leave(quiet) {
     var was = me.on || me.joining;
-    me.on = false; me.joining = false; me.talking = false;
+    me.on = false; me.joining = false; me.talking = false; me.listen = false;
     if (hosting()) {
         srcDrop('gm');
         voicesClear();   // the GM hears nobody out of voice; the hub keeps forwarding the players to each other
@@ -516,19 +533,22 @@ function renderBody() {
     var body = ui('voiceBody'); body.textContent = '';
     if (!me.on) {
         if (!tableOn()) body.appendChild(el('div', 'voice-none', 'Voice works once you host a table or join one.'));   // 1.6.0: the row shows it with no table too
-        var j = button('voice-join', me.joining ? 'Connecting…' : 'Join voice', 'Talk with the table: your microphone goes to everyone in voice', join);
-        j.disabled = me.joining || !tableOn(); body.appendChild(j);
+        if (!me.noMic) { var j = button('voice-join', me.joining ? 'Connecting…' : 'Join voice', 'Talk with the table: your microphone goes to everyone in voice', function() { join(); }); j.disabled = me.joining || !tableOn(); body.appendChild(j); }
+        else body.appendChild(el('div', 'voice-none', 'No microphone this app can use. You can still listen to the table.'));
+        var lo = button('voice-join voice-listen', 'Listen only', 'Hear everyone in voice without a microphone. Nobody hears you.', function() { join(true); });   // 1.6.3 (finding 21)
+        lo.disabled = me.joining || !tableOn(); body.appendChild(lo);
         devSection(body);   // chosen before joining, too
         return;
     }
-    body.appendChild(tick('Mute my microphone', me.muted, 'Nobody hears you until you untick it. Quicker: right-click the microphone, or Ctrl+Shift+M', setMuted));
+    if (me.listen) body.appendChild(el('div', 'voice-none', 'You are listening only. Nobody hears you.'));   // 1.6.3 (finding 21): no microphone, so nothing of it to mute or hold
+    if (!me.listen) body.appendChild(tick('Mute my microphone', me.muted, 'Nobody hears you until you untick it. Quicker: right-click the microphone, or Ctrl+Shift+M', setMuted));
     body.appendChild(tick('Deafen', me.deaf, 'You hear nobody, and nobody hears you', setDeaf));
-    var ptt = tick('Push to talk', prefs.mode === 'ptt', 'Your microphone is open only while you hold the key (while Waypoint is the window in front)', function(on) { setMode(on ? 'ptt' : 'open'); });
-    if (prefs.mode === 'ptt') {
+    var ptt = me.listen ? null : tick('Push to talk', prefs.mode === 'ptt', 'Your microphone is open only while you hold the key (while Waypoint is the window in front)', function(on) { setMode(on ? 'ptt' : 'open'); });
+    if (ptt && prefs.mode === 'ptt') {
         var k = button('voice-bind' + (binding ? ' on' : ''), binding ? 'Press a key…' : bindLabel(prefs.bind), 'Change the key: click, then press a key or a mouse side button (Esc keeps this one)', function(e) { e.preventDefault(); binding = !binding; render(true); });
         ptt.appendChild(k);
     }
-    body.appendChild(ptt);
+    if (ptt) body.appendChild(ptt);
     devSection(body);
     var ms = members(), list = el('div', 'voice-list');
     if (!ms.length) list.appendChild(el('div', 'voice-none', 'Nobody else is in voice yet.'));
@@ -594,6 +614,7 @@ function renderInd() {
     b.classList.toggle('no-table', !table);
     b.title = !table ? 'Voice — it works once you host a table or join one'
         : !me.on ? 'Voice — talk with the table'
+        : me.listen && !me.deaf ? 'Voice — listening only. Nobody hears you'   // 1.6.3 (finding 21): no microphone, so nothing to mute
         : (me.deaf ? 'Voice — deafened' : me.muted ? 'Voice — your microphone is muted' : prefs.mode === 'ptt' ? 'Voice — hold ' + bindLabel(prefs.bind) + ' to talk' : 'Voice — you are in voice')
           + '. Right-click or Ctrl+Shift+M to ' + (me.muted ? 'unmute' : 'mute');
 }
@@ -601,8 +622,8 @@ function render(force) {
     renderInd();
     if (!popOpen()) return;
     var now = ui('voiceNow');
-    if (now) now.textContent = stateWords({ joined: me.on, joining: me.joining, muted: me.muted, deaf: me.deaf, mode: prefs.mode, talking: me.talking, bind: prefs.bind, error: me.error });
-    var sig = JSON.stringify([members(), prefs.mode, prefs.bind, prefs.mutes, me.on, me.joining, me.muted, me.deaf, binding, tableOn(), devs.open, devs.inputs, devs.outputs, prefs.input, prefs.output]);
+    if (now) now.textContent = stateWords({ joined: me.on, joining: me.joining, muted: me.muted, deaf: me.deaf, mode: prefs.mode, talking: me.talking, bind: prefs.bind, error: me.error, listen: me.listen });
+    var sig = JSON.stringify([members(), prefs.mode, prefs.bind, prefs.mutes, me.on, me.joining, me.muted, me.deaf, me.listen, me.noMic, binding, tableOn(), devs.open, devs.inputs, devs.outputs, prefs.input, prefs.output]);
     if (force || sig !== popSig) { popSig = sig; renderBody(); }   // a slider being dragged keeps its place: nothing it changes is in the signature
     renderDots();
 }

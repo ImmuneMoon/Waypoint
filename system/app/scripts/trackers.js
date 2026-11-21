@@ -143,8 +143,8 @@ function barParts(box) {
 // The bar's place read from the page: its left and its room as two properties the style sheet reads (--trkleft, --trkwide), and its top
 // written on the bar only where it stands a row lower than the style sheet puts it; the stream window keeps its own
 function place(box) {
-    box = box || strip(); var hostB = box && box.parentElement; if (!box || box.style.display === 'none') { if (hostB && hostB.style) hostB.style.removeProperty('--trkbot'); return; }   // the viewing of 2026-11-09: where the bar ends, so the fight's turn strip stands below it and never under it
-    var n = net(); if (n && n.stream) { box.style.removeProperty('--trkleft'); box.style.removeProperty('--trkwide'); if (box.style.top) box.style.top = ''; return; }
+    box = box || strip(); var hostB = box && box.parentElement; if (!box || box.style.display === 'none') { if (hostB && hostB.style) hostB.style.removeProperty('--trkbot'); footSet(null); return; }   // the viewing of 2026-11-09: where the bar ends, so the fight's turn strip stands below it and never under it
+    var n = net(); if (n && n.stream) { box.style.removeProperty('--trkleft'); box.style.removeProperty('--trkwide'); if (box.style.top) box.style.top = ''; footSet(null); return; }
     var area = box.offsetParent, mm = document.getElementById('minimap'); if (!area) return;
     var party = document.getElementById('partyStrip');   // the party's faces spread out under the pointer on a narrow area: the bar keeps its place meanwhile
     if (party && box.style.getPropertyValue('--trkleft') && document.body.classList.contains('area-narrow') && typeof party.matches === 'function' && party.matches(':hover, :focus-within')) return;
@@ -161,7 +161,25 @@ function place(box) {
     if (box.style.getPropertyValue('--trkwide') !== W) box.style.setProperty('--trkwide', W);
     if (box.style.top !== T) box.style.top = T;
     var B = (box.offsetTop + box.offsetHeight) + 'px'; if (hostB && hostB.style && hostB.style.getPropertyValue('--trkbot') !== B) hostB.style.setProperty('--trkbot', B);
+    footSet(box);
 }
+// [trackcheck:trkfoot-start]
+// 1.6.3 (the improvement week's review of multiplayer, finding 19): where the bar ends in the window, written on the page as --trkfoot, which
+// the style sheet reads to stand the pause banner and the travel banner under the bar (both are fixed to the window, the bar stands in the
+// map's area). A bar put away, or one with no height (the view it stands in is put away), writes nothing, so each banner keeps its own top.
+// Written only where it differs, so a draw that moves nothing writes nothing. The review of multiplayer window: the layout editor may place
+// the bar at the bottom or in the middle of the map (layout.js), and a banner under it would then stand off the window or mid-map, so a
+// bar the layout holds writes nothing unless the layout says it stands at a top place (window.wpLayout.atTop)
+function footOf(box) { var r = box && typeof box.getBoundingClientRect === 'function' ? box.getBoundingClientRect() : null; return r && r.height > 0 && isFinite(r.bottom) ? Math.round(r.bottom) + 'px' : ''; }
+function footSet(box) {
+    var root = typeof document !== 'undefined' && document && document.documentElement, st = root && root.style; if (!st) return;
+    var L = typeof window !== 'undefined' && window ? window.wpLayout : null;
+    if (box && L && typeof L.held === 'function' && L.held(box) && !(typeof L.atTop === 'function' && L.atTop(box))) box = null;
+    var F = box ? footOf(box) : '';
+    if (F) { if (st.getPropertyValue('--trkfoot') !== F) st.setProperty('--trkfoot', F); }
+    else if (st.getPropertyValue('--trkfoot')) st.removeProperty('--trkfoot');
+}
+// [trackcheck:trkfoot-end]
 function panel() { return document.getElementById('trkPanel'); }
 function menuEl() { return document.getElementById('trkMenu'); }
 function foldOn() { try { return localStorage.getItem('wp_trkFold') === '1'; } catch (e) { return false; } }

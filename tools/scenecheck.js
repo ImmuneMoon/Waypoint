@@ -226,5 +226,18 @@ check('the handout a scene is saved as (handouts.js wpHandoutFor): the one named
         && count(ix, 'id="handoutClearAll"') === 1 && hsrc.includes("var clrA = ui('handoutClearAll'); if (clrA) clrA.disabled = !Object.keys(handoutsOf(camp)).length;") && hsrc.includes("if (_clrAll) _clrAll.addEventListener('click', function() { handoutsClearAll(); });"),
         J([y.out, no.out, none.out]));
 }
+// 1.6.3 (the improvement week's review of multiplayer, finding 35): the Handouts window names a player in words, never by a profile id
+// (handouts.js playerWord, run for real): the character they play, else their name, else the record that took their old id into its was list,
+// else "a former player"; Seen by and queued for each name a person once
+{
+    const hsrc = read('scripts/handouts.js'), J = JSON.stringify;
+    const PWd = new Function('window', 'playsOf', slice(hsrc, 'scenecheck:playerword') + '\nreturn playerWord;')({}, (camp, pid, p) => p && typeof p.charName === 'string' ? p.charName : '');
+    const camp = { players: { u_m: { name: 'Mira', charName: 'HK-24' }, u_t: { name: 'Trevor' }, u_new: { name: 'Hshif', was: ['u_l9gatmcq', 'u_old2'] }, u_blank: { name: '  ' } } };
+    const out = ['u_m', 'u_t', 'u_l9gatmcq', 'u_old2', 'u_gone', 'u_blank', '__proto__', 'constructor', '', null].map(pid => PWd(camp, pid)).concat([PWd(null, 'u_x'), PWd({}, 'u_x')]);
+    check('1.6.3 (finding 35): the Handouts window names a player in words, never a profile id (playerWord, run for real): the character they play, else their name; an id a merged or handed-over record keeps in its was list by that record; any other id, a record with no name, a prototype\'s key or none as a former player; Seen by and queued for both ask it and name a person once',
+        J(out) === J(['HK-24', 'Trevor', 'Hshif', 'Hshif', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player'])
+        && (hsrc.match(/\.map\(function\(pid\) \{ return playerWord\(camp, pid\); \}\)\.filter\(function\(w, i, all\) \{ return all\.indexOf\(w\) === i; \}\)/g) || []).length === 2
+        && !/return p && p\.name \? p\.name : pid;/.test(hsrc) && !/\|\| p\.name \|\| pid;/.test(hsrc), J(out));
+}
 console.log(NL + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

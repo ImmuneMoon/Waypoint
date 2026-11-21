@@ -838,7 +838,7 @@ pendingChecks.push((async () => {
                     check('1.6.2 a held fight comes back where hosting fails before it opens (fightsBack, run for real): held, net.combats emptied by leaveSession, the table never opening, fightsBack reads the save back on this machine with the role still the host\'s and lets the wait go, so a later keep keeps the fight as it then stands and its end lets the save go as ever; the peer\'s error handler asks it in the invalid-key branch and before it says Host error, both after the table that opened has returned',
                         heldF && nF === 1 && backF && kF === true && keptF && kF2 === true && goneF
                         && /if \(type === 'invalid-key' && !opened\) \{[^\n]*try \{ peer\.destroy\(\); \} catch \(e\) \{\} if \(typeof fightsBack === 'function'\) fightsBack\(\); setStatus\(planW\);/.test(hpE)
-                        && /\n            return;\n        \}\n        if \(typeof fightsBack === 'function'\) fightsBack\(\);[^\n]*\n        setStatus\('Host error: ' \+ type\);/.test(hpE.replace(/\r\n/g, '\n')),
+                        && /\n            return;\n        \}\n        if \(typeof fightsBack === 'function'\) fightsBack\(\);[^\n]*\n        if \(typeof netErrLog === 'function'\) netErrLog\('host', type\);[^\n]*\n        setStatus\(typeof hostErrWords === 'function' \? hostErrWords\(type\) : 'Host error: ' \+ type\);/.test(hpE.replace(/\r\n/g, '\n')),
                         j({ heldF, nF, backF, kF, keptF, kF2, goneF, hp: hpE.length }));
                 }
                 {   // 1.6.3 (the combat review, finding 1, found live): startHosting empties the store of records before it holds the fights, so the hold's keep found
@@ -1523,11 +1523,67 @@ pendingChecks.push((async () => {
     const want = ['none,none,false,false,false,false,false,false', 'block,none,true,false,true,false,false,false', 'none,block,false,true,false,true,false,false', 'none,none,false,false,false,false,false,false', 'block,none,true,false,true,false,false,true', 'block,none,true,false,true,false,false,true', 'none,block,false,true,false,true,true,false', 'none,block,false,true,false,true,false,false'];
     const html = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
     const iBar = html.indexOf('id="netPaneBar"'), iName = html.indexOf('id="netNameInput"'), iHost = html.indexOf('<div id="netPaneHost" style="display:none;'), iJoin = html.indexOf('<div id="netPaneJoin" style="display:none;'), iHostBtn = html.indexOf('id="netHostBtn"'), iJoinBtn = html.indexOf('id="netJoinBtn"');
-    const wired = /\['netPaneHostBtn', 'netPaneJoinBtn'\]\.forEach\(function\(id\) \{ var b = ui\(id\); if \(b\) b\.addEventListener\('click', function\(\) \{ netPanePick\(b\.dataset\.pane\); \}\); \}\);/.test(src) && /function syncSessionButtons\(\) \{\n    netPaneSync\(\);/.test(src) && /netPaneShow\('host'\); if \(!ensureNamed\(\)\) return; startHosting\(false\);/.test(src) && /addEventListener\('click', function\(\) \{\n    netPaneShow\('join'\);\n    var code = typedCode\(/.test(src);
+    const wired = /\['netPaneHostBtn', 'netPaneJoinBtn'\]\.forEach\(function\(id\) \{ var b = ui\(id\); if \(b\) b\.addEventListener\('click', function\(\) \{ netPanePick\(b\.dataset\.pane\); \}\); \}\);/.test(src) && /function syncSessionButtons\(\) \{\n    netPaneSync\(\);/.test(src) && /netPaneShow\('host'\); if \(!ensureNamed\(\)\) return; startHosting\(false\);/.test(src) && /addEventListener\('click', function\(\) \{\n    netPaneShow\('join'\);\n    if \(typeof joinLocked === 'function' && joinLocked\(\)\)[^\n]*\n    var code = typedCode\(/.test(src);   // 1.6.3 (finding 28): Join refuses at a table first, moved on purpose
     check('the Multiplayer panel shows one part at a time, each behind its own button (the netpane slice run for real on a page of plain objects): nothing pressed, both closed; Host a table opens the host\'s part, Join a table opens the join part and closes the other, the open one\'s button again closes it; in a session the part of this app\'s role is shown whatever was picked — the room code and the table\'s controls for a GM, the join fields for a player — and the other button is off, a press changing nothing; after the session the part last picked again; the open part\'s button marked on and expanded; in the page both parts start closed, the name sits above the two buttons (it is needed to host and to join) and each part holds its own action; Host and Join presses keep their own part shown, and every refresh of the session buttons refreshes the parts',
         JSON.stringify(seen) === JSON.stringify(want) && w.api.netPaneWant(false, null, 'x') === null && w.api.netPaneWant(true, undefined, 'host') === 'join'
         && iName > 0 && iBar > iName && iHost > iBar && iHostBtn > iHost && iJoin > iHostBtn && iJoinBtn > iJoin && html.split('id="netNameInput"').length === 2 && html.split('id="netJoinAvatar"').length === 2 && /data-pane="host" aria-expanded="false" aria-controls="netPaneHost"/.test(html) && /data-pane="join" aria-expanded="false" aria-controls="netPaneJoin"/.test(html) && wired,
         JSON.stringify([seen, iName, iBar, iHost, iHostBtn, iJoin, iJoinBtn, wired]));
+}
+// 1.6.3 (the improvement week's review of multiplayer, finding 28): at a table, or while a join is under way, the join part shows the code in use
+// read only and Join is off with a line saying why, so a second press never drops the table. The netpane slice, run for real
+{
+    const paneSrc = between('// [netcheck:netpane-start]', '// [netcheck:netpane-end]', 'netpane');
+    const el = () => ({ style: { display: '?' }, cls: new Set(), attrs: {}, disabled: null, readOnly: false, value: '', classList: { toggle() {} }, setAttribute(k, v) { this.attrs[k] = v; } });
+    const els = { netPaneHost: el(), netPaneJoin: el(), netPaneHostBtn: el(), netPaneJoinBtn: el(), netJoinBtn: el(), netCodeInput: el(), netJoinAt: el() };
+    const net = { active: false, role: null, peer: null, code: null };
+    const api = new Function('net', 'ui', 'showCode', paneSrc + '\nreturn { netPaneSync, joinLocked };')(net, id => els[id] || null, c => c.toUpperCase());
+    const view = () => [els.netJoinBtn.disabled, els.netCodeInput.readOnly, els.netCodeInput.value, els.netJoinAt.style.display].join('|');
+    const seen = [];
+    els.netCodeInput.value = 'typed'; api.netPaneSync(); seen.push(view());                                   // no table: Join live, the box as typed
+    net.role = 'client'; net.peer = {}; net.code = 'abcdefghjk'; api.netPaneSync(); seen.push(view());          // a join under way
+    net.active = true; api.netPaneSync(); seen.push(view());                                                    // at the table
+    net.active = false; net.role = null; net.peer = null; api.netPaneSync(); seen.push(view());                 // the join failed, or the session ended: live again
+    net.active = true; net.role = 'host'; net.peer = {}; api.netPaneSync(); seen.push(view());                  // hosting: the join part is not the GM's, and nothing locks it
+    const htmlJ = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+    check('1.6.3 finding 28 (the netpane slice, run for real): with no table Join is live and the box keeps what was typed; while a join is under way and at the table Join is off, the box shows the code in use read only, and a line says to leave the session first; once the join fails or the session ends Join is live again; the Join button\'s press refuses at a table in words, and joinSession and a failed join draw the part again',
+        j(seen) === j(['false|false|typed|none', 'true|true|ABCDEFGHJK|block', 'true|true|ABCDEFGHJK|block', 'false|false|ABCDEFGHJK|none', 'false|false|ABCDEFGHJK|none'])
+        && /<div id="netJoinAt" class="set-line" style="display:none;">You are at this table\. To join another, leave the session first\.<\/div>/.test(htmlJ)
+        && /if \(typeof joinLocked === 'function' && joinLocked\(\)\) \{ toast\('You are already at a table, or joining one\. Leave the session first to join another\.'\); return; \}/.test(src)
+        && /net\.peer = peer; net\.role = 'client'; net\.code = code;\n    if \(typeof netPaneSync === 'function'\) netPaneSync\(\);/.test(src.replace(/\r\n/g, '\n'))
+        && /if \(!net\.active && net\.peer === peer\) \{ try \{ peer\.destroy\(\); \} catch \(e\) \{\} net\.peer = null; net\.role = null; net\.code = null; \}[^\n]*\n\s*if \(!net\.active && typeof netPaneSync === 'function'\) netPaneSync\(\);/.test(src.replace(/\r\n/g, '\n')), j(seen));   // found live: a code that found no table left the join's peer standing, and Join stayed off
+}
+// 1.6.3 (the improvement week's review of multiplayer, findings 30 and 34): while hosting, who is connected stands right under the room code
+// (rosterSeat in the netpane slice, run for real on a page of plain nodes), and goes back to its home before the VTT line otherwise; a player the
+// GM paused alone says Paused on their roster chip beside a resume button (renderRoster, run for real), which lets them play again
+{
+    const paneSrc = between('// [netcheck:netpane-start]', '// [netcheck:netpane-end]', 'netpane');
+    const node = id => ({ id, parentNode: null, style: {}, classList: { toggle() {} }, setAttribute() {}, get previousElementSibling() { const s = this.parentNode.kids, i = s.indexOf(this); return i > 0 ? s[i - 1] : null; }, get nextElementSibling() { const s = this.parentNode.kids, i = s.indexOf(this); return i >= 0 && i < s.length - 1 ? s[i + 1] : null; }, get nextSibling() { return this.nextElementSibling; } });
+    const box = id => { const b = node(id); b.kids = []; b.insertBefore = (n, ref) => { if (n.parentNode) n.parentNode.kids.splice(n.parentNode.kids.indexOf(n), 1); const at = ref ? b.kids.indexOf(ref) : -1; if (at < 0) b.kids.push(n); else b.kids.splice(at, 0, n); n.parentNode = b; return n; }; return b; };
+    const hostInfo = box('netHostInfo'), modal = box('netModal'), els = {};
+    ['netCode', 'netCodeWhere', 'tipLine', 'netSummonBtn'].forEach(id => { els[id] = node(id); hostInfo.insertBefore(els[id], null); });
+    ['netPaneJoin', 'netRoster', 'netVttLine', 'netPlayersBtn'].forEach(id => { els[id] = node(id); modal.insertBefore(els[id], null); });
+    const net = { active: false, role: null, peer: null, code: null };
+    const api = new Function('net', 'ui', 'showCode', paneSrc + '\nreturn { rosterSeat, netPaneSync };')(net, id => els[id] || null, c => c);
+    const order = () => [hostInfo.kids.map(n => n.id).join(','), modal.kids.map(n => n.id).join(',')].join(' | ');
+    const seen = [order()];
+    net.active = true; net.role = 'host'; api.rosterSeat(); seen.push(order()); api.rosterSeat(); seen.push(order());
+    net.role = 'client'; api.rosterSeat(); seen.push(order());
+    net.role = 'host'; api.netPaneSync(); seen.push(order());
+    net.active = false; net.role = null; api.netPaneSync(); seen.push(order());
+    // renderRoster, run for real: Mira paused alone wears Paused and a resume button; Trevor plays on with neither; a player's own app shows neither
+    const rrA = src.indexOf('function renderRoster() {'), rrSrc = rrA < 0 ? '' : src.slice(rrA, src.indexOf('\n}\n', rrA) + 2);
+    const roster = (role, paused) => { const el = { textContent: '', innerHTML: '' }; const n2 = { role, active: true, roster: { pM: { id: 'u_m', name: 'Mira' }, pT: { id: 'u_t', name: 'Trevor' } } };
+        new Function('net', 'ui', 'syncLastMaps', 'updateSidebarNav', 'rosterSeat', 'getActiveCampaign', 'own', 'escTextRoster', 'safeAvatar', 'window', 'playerHue', 'pausedById', 'renderWhere', 'document', rrSrc + '\nrenderRoster();')(
+            n2, id => id === 'netRoster' ? el : null, () => {}, () => {}, () => {}, () => null, () => false, s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'), () => false, {}, () => 1, id => paused.indexOf(id) >= 0, () => {}, { body: { classList: { toggle() {} } } });
+        return el.innerHTML; };
+    const hostH = roster('host', ['u_m']), noneH = roster('host', []), clientH = roster('client', ['u_m']);
+    const chips = hostH.split('<span class="roster-chip').slice(1);
+    const resumeWired = /var resumeBtn = e\.target\.closest\('\[data-resume\]'\);[^\n]*\r?\n\s+if \(resumeBtn && net\.role === 'host'\) \{\r?\n\s+e\.stopPropagation\(\);\r?\n[^\n]*\r?\n\s+if \(resP && resP\.id\) net\.pausePlayer\(resP\.id, false\);/.test(src);
+    check('1.6.3 (findings 30 and 34): while hosting, the list of who is connected stands right under the room code (rosterSeat, run for real: moved once and left where it stands, back before the VTT line for a player and after the session); a player paused alone wears Paused and a resume button on their roster chip (renderRoster, run for real), which lets them play again through net.pausePlayer; nobody else does, and a player\'s own app shows neither',
+        j(seen) === j(['netCode,netCodeWhere,tipLine,netSummonBtn | netPaneJoin,netRoster,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,netRoster,tipLine,netSummonBtn | netPaneJoin,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,netRoster,tipLine,netSummonBtn | netPaneJoin,netVttLine,netPlayersBtn',
+            'netCode,netCodeWhere,tipLine,netSummonBtn | netPaneJoin,netRoster,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,netRoster,tipLine,netSummonBtn | netPaneJoin,netVttLine,netPlayersBtn', 'netCode,netCodeWhere,tipLine,netSummonBtn | netPaneJoin,netRoster,netVttLine,netPlayersBtn'])
+        && chips.length === 2 && /roster-held/.test(chips[0]) && /<span class="roster-paused">Paused<\/span><button class="roster-resume" data-resume="pM" title="Paused by you\. Press to let them play again\.">/.test(chips[0]) && !/roster-paused|roster-resume/.test(chips[1])
+        && !/roster-paused|roster-resume/.test(noneH) && !/roster-paused|roster-resume/.test(clientH) && resumeWired, j([seen, hostH, clientH, resumeWired]));
 }
 // 1.5.4 (found live): Leave session showed outside every session, where it did nothing (net.leaveSessionConfirm asks nothing with no table)
 {
@@ -1961,7 +2017,7 @@ pendingChecks.push((async () => { try {
     const overs = [R.api.over(29, 0, 10 ** 9), R.api.over(30, 1000, 1000 + 299999), R.api.over(30, 1000, 1000 + 300000), R.api.over(45, 1, 300001)];
     R.reconn.tries = 30; R.tick(200000); R.api.sched(); const slowGoing = R.reconn.pending === true && R.log.includes('wait 5000') && !R.log.some(l => /^gaveup/.test(l));
     R.tick(100001); R.api.sched();
-    const gaveUp = R.log.some(l => l === 'gaveup Could not reach the GM\u2019s table for five minutes. The GM may have ended the session.') && R.net.reconnecting === false && R.els.reconnBar.style.display === 'flex' && R.els.reconnRejoin.hidden === false && R.els.reconnStop.hidden === true && /five minutes/.test(R.els.reconnText.textContent);
+    const gaveUp = R.log.some(l => l === 'gaveup Could not get back to the GM\u2019s table for five minutes. It may have closed, or a network is down. Join again with the room code when it is back.')   /* 1.6.3: the words of finding 10, which guess nothing of the session, joined to finding 6's five minutes at the merge, moved on purpose */ && R.net.reconnecting === false && R.els.reconnBar.style.display === 'flex' && R.els.reconnRejoin.hidden === false && R.els.reconnStop.hidden === true && /five minutes/.test(R.els.reconnText.textContent);
     R.els.netJoinPassInput.value = ''; R.api.go();
     const rejoined = R.log[R.log.length - 1] === 'join abcdefghjk Mira false' && R.els.netJoinPassInput.value === 'pw' && R.els.netCodeInput.value === 'ABCDEFGHJK' && R.els.reconnBar.style.display === 'none' && R.reconn.since === 0;
     const S = rw({}); S.api.sched(); S.api.stop();

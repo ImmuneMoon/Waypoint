@@ -214,7 +214,8 @@
 /* 1.6.0: the app's own drawings where an emoji stood (the owner passed them on the sheet of 2026-10-31). One rule a drawing, so a menu row, a button that sets its words as text and Help all wear the same one: wi-<name> names it, and wib draws it before what the element holds. */
   .wib::before { content: ''; display: inline-block; width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.22em; background: currentColor; -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
   .wib:not(:empty)::before { margin-right: .35em; }
-  i.wib { font-style: normal; pointer-events: none; }   /* a menu reads the class of what was pressed: never the drawing's */
+  i.wib { font-style: normal; pointer-events: none; }
+  .wib.wib-mirror::before { transform: scaleX(-1); }   /* 1.6.3 (the combat review, finding 28): a drawing turned the other way, as the turn strip's Previous turn wears Next turn's */   /* a menu reads the class of what was pressed: never the drawing's */
   .wi-door-open { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 21V3.5h12V21M3.5 21H6M12.5 21h8M6 3.5l6.5 2.8v16.6L6 21M10.2 13h.01'/%3E%3C/svg%3E"); }
   .wi-wall { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18v12H3zM3 12h18M9 6v6M15 6v6M6 12v6M12 12v6M18 12v6'/%3E%3C/svg%3E"); }
   .wi-barrier { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM7.5 12h9'/%3E%3C/svg%3E"); }
@@ -3918,6 +3919,10 @@
   #combatModal.combat-peek > div { opacity: .1; pointer-events: none; transition: opacity .15s; }
   .combat-row { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 6px; background: rgba(0,0,0,0.08); }
   .combat-row.off { opacity: .55; }
+  .combat-row.now { border-color: var(--gold); box-shadow: inset 3px 0 0 var(--gold); }   /* 1.6.3 (the combat review, finding 20): whose turn it is, in a running fight's roster */
+  .combat-tag.combat-now { color: var(--gold); border-color: var(--gold); }
+  .combat-row.never .combat-init { border-color: var(--red); }   /* 1.6.3 (finding 13): a count of 0 or less on a counting clock, which never acts */
+  .combat-tag.combat-never { color: var(--red); border-color: var(--red); }
   .combat-key { color: var(--dim); font-size: 11px; margin-top: 6px; }   /* 1.6.2: what the roster's marks mean */
   .combat-row.drop-before { border-top: 2px solid var(--gold); }
   .combat-grip { color: var(--dim); cursor: grab; font-size: 16px; line-height: 1; }
@@ -6146,6 +6151,14 @@
   .dmg-preview { margin: 6px 0 12px; padding: 8px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); font-size: 13px; line-height: 1.45; }
   .dmg-hint { color: var(--dim); }
   .dmg-btns { display: flex; justify-content: flex-end; gap: 8px; }
+  /* 1.6.3 (the combat review, finding 4): the Take damage window's word that the sheet is shared, and its button to give the token its own sheet first */
+  .dmg-shared { margin: -2px 0 12px; padding: 8px 10px; border-left: 3px solid var(--gold); border-radius: 4px; background: rgba(224, 165, 79, 0.08); font-size: 12.5px; line-height: 1.45; }
+  .dmg-shared .dmg-shared-own { margin-top: 6px; font-size: 12px; }
+  /* 1.6.3 (the combat review, finding 21): a token's Effects menu, the rounds counter at the end of an effect's line */
+  .menu-item.cm-fx .cm-fx-rounds { float: right; margin-left: 10px; display: inline-flex; align-items: center; gap: 4px; cursor: default; }
+  .menu-item.cm-fx .cm-fx-rounds .ui-step { height: 24px; }
+  .menu-item.cm-fx .cm-fx-rounds .ui-step > button { flex-basis: 22px; width: 22px; }
+  .menu-item.cm-fx .cm-fx-rwd { color: var(--dim); font-size: 11px; }
   .chat-dmgapply { margin-top: 6px; font-size: 12px; }
   /* 1.6.3: Hide my rolls. The GM's Show to the table on a card of a roll they hid, the small tag a shown roll wears, and the eye the Table Chat button
      wears while the GM's rolls are hidden (dice.js hideSync), in its bottom-left corner, clear of the unread count at its top right */
@@ -6397,6 +6410,7 @@
   .sheet-hit-pop { max-height: min(460px, calc(100vh - 16px)); overflow-y: auto; }   /* 1.6.0 (B5): a target's locations, a long list scrolling inside */
   .sheet-dl-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 6px 8px; color: var(--ink); cursor: pointer; font: inherit; }
   .sheet-dl-item:hover, .sheet-dl-item:focus-visible { background: var(--surface); border-color: var(--edge); outline: none; }
+  .sheet-dl-wait { padding: 6px 8px; color: var(--dim); font-size: 13px; outline: none; }   /* 1.6.3 (the combat review, finding 30): the line a called shot's menu shows while the GM's table is asked */
   .sheet-rowlib-pop { max-height: 60vh; overflow-y: auto; }   /* 1.6.2: a row added to the library: every pack on offer */
   .sheet-rowlib-pop > .sheet-dl-s { padding: 2px 8px 4px; overflow-wrap: anywhere; }
   .sheet-dl-t { font-size: 13px; }

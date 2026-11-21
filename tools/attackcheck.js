@@ -611,4 +611,48 @@ pendingChecks.push((async () => {
         check('1.6.2 a parry on a row ticked Takes the blow on this row: the host notes which row took it, net.thruOf names it for the Take damage window, and the GM is told by name; a roll not ticked notes nothing',
             n1 === true && got === 'w_b' && n2 === false && none === null && said.length === 1 && /Tess took the blow on Blade/.test(said[0]) && logs.length === 1, JSON.stringify([n1, got, n2, none, said]));
     }
+// 1.6.3 (the combat review, finding 1; Fulllion's pick of 2026-11-20: "keep them live"): the records behind the cards in chat are saved with the fight and come
+// back as the table opens, so a GM's reload ends no Defend card, wound roll or blast Defense card (the attkeep slice of netattack.js, run for real)
+{
+    const akS = between('// [netcheck:attkeep-start]', '// [netcheck:attkeep-end]', 'attkeep', 'netattack.js');
+    const mkA = () => {
+        const st = { _attempts: Object.create(null), _attIds: [], _callIds: [], _lands: Object.create(null) }, net = {};
+        new Function('st', 'net', 'own', 'window', 'ATT_MAX', 'CALL_MAX', 'var _attempts = st._attempts, _attIds = st._attIds, _callIds = st._callIds, _lands = st._lands;\n' + akS + '\nst.ids = function() { return [_attIds, _callIds]; };')(st, net, (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k), {}, 100, 500);
+        return { st, net };
+    };
+    const A = mkA(), a = A.st._attempts;
+    a.a_def00001 = { charId: 'c_a', act: 'r_def', m: 3, defend: { key: 'b_k1', tok: 't1', map: 'm1' }, atk: 1, atkBy: 'c_b' }; A.st._attIds.push('a_def00001');
+    a.b_blow0001 = { charId: 'c_a', act: 'r_ht', m: 0, blow: { dmg: 9, wound: 4 }, vals: { f_hp: 3 }, crip: 'f_crip' }; A.st._attIds.push('b_blow0001');
+    a.a_call0001 = { charId: 'c_b', act: 'r_dmg', m: 0, blow: {}, land: { on: 'c_a', tok: 't1', map: 'm1', name: 'Ava' }, lt: { by: 'Shot', who: 'Bram' } }; A.st._callIds.push('a_call0001');
+    a.a_busy0001 = { charId: 'c_a', act: 'r_def', m: 1, busy: 1 }; A.st._attIds.push('a_busy0001');
+    a.a_land0001 = { charId: 'c_a', act: 'r_def', m: 1, lw: 'a_land0001' }; A.st._attIds.push('a_land0001'); A.st._lands.a_land0001 = { id: 'a_land0001' };
+    const kept = JSON.parse(JSON.stringify(A.net.attsKeep()));
+    const camp = { chars: { c_a: { id: 'c_a' }, c_b: { id: 'c_b' } } }, B = mkA(), nB = B.net.attsBack(kept, camp), ids = B.st.ids();
+    const C = mkA(), hostile = [{ id: 'a_bad', charId: 'c_a' }, { id: 'a_nochar01', charId: 'c_gone' }, { id: 'a_proto001', charId: '__proto__' }, { id: 'a_shape001', charId: 'c_a', act: 'not an id', m: 'x', vals: { big: 'x'.repeat(300000) }, atkBy: 'c_gone', blow: { dmg: 2 } }, 'x', null];
+    const nC = C.net.attsBack(hostile, camp), sh = C.st._attempts.a_shape001;
+    check('1.6.3 (the combat review, finding 1): the records behind the cards in chat are kept with the fight (a Defend card\'s attempt with its blast Defense mark, a wound roll\'s blow and the values it reads, a called damage roll stamped where it lands, kept apart), never one held for its card actions or a landing\'s own (its landing keeps it), and come back as the table opens, each in its own list',
+        kept.map(r => r.id).join() === 'a_def00001,b_blow0001,a_call0001' && nB === 3 && j(B.st._attempts.a_def00001) === j({ charId: 'c_a', act: 'r_def', m: 3, atk: 1, atkBy: 'c_b', defend: { key: 'b_k1', tok: 't1', map: 'm1' } })
+        && j(B.st._attempts.b_blow0001.vals) === j({ f_hp: 3 }) && B.st._attempts.b_blow0001.crip === 'f_crip' && B.st._attempts.a_call0001.land.name === 'Ava' && j(ids) === j([['a_def00001', 'b_blow0001'], ['a_call0001']]), j([kept, B.st._attempts, ids]));
+    check('1.6.3 (the combat review, finding 1): a kept record is read back as data: an id of the store\'s own form, a character the campaign still holds (never a prototype\'s name), an action\'s id of its form, a margin that is a number, values no larger than a sheet\'s, a character it names that is gone left out',
+        nC === 1 && !!sh && sh.act === '' && sh.m === 0 && !('vals' in sh) && !('atkBy' in sh) && j(sh.blow) === j({ dmg: 2 }) && Object.keys(C.st._attempts).join() === 'a_shape001', j([nC, C.st._attempts]));
+    const ptS = kit.part('netattack.js');
+    check('1.6.3 (the combat review, finding 1), the wiring: a card answered is let go in the save (attemptDrop asks fightsKeepSoon), every card posted and every card over keeps the fight a moment later (postDue, net.dueOver), and fightsKeep and fightsBack ask the store and the blasts beside the landings',
+        /delete _attempts\[id\]; _attIds = [^\n]*if \(typeof fightsKeepSoon === 'function'\) fightsKeepSoon\(\); \} \}/.test(ptS) && /bellOut\(ch\.id, \{ due: rec \}\);\s*\n\s*if \(typeof fightsKeepSoon === 'function'\) fightsKeepSoon\(\);/.test(src)
+        && src.includes("var atK = typeof net.attsKeep === 'function' ? net.attsKeep() : []; if (atK.length) bodyK.atts = atK;") && src.includes("if (back.atts && typeof net.attsBack === 'function')") && src.includes("if (back.blasts && typeof window.wpBlastBack === 'function')"), '');
+    // the review of combat state (2026-11-20): a thing in flight waiting for its target's resist roll (fw) and the GM's Apply now card of a hold or of such a
+    // thing (htAtt) come back too. fw holds the live token, so it is saved as data (the map, the target, the token's id) and found again on the map as it stands
+    const D = mkA(), dA = D.st._attempts, tokF = { id: 'w_fly001', x: 5, fly: { by: 'c_b', left: 2 } };
+    dA.a_fly00001 = { charId: 'c_a', act: 'r_dodge', m: 0, fw: { m: 'm1', w: tokF, tid: 't1', name: 'Missile' }, htAtt: 'a_fly00001' }; D.st._attIds.push('a_fly00001');
+    dA.a_hold0001 = { charId: 'c_a', act: 'r_esc', m: 0, ht: { m: 'm1', c: 'c_b', on: 't1', pin: false }, htAtt: 'a_hold0001' }; D.st._attIds.push('a_hold0001');
+    const keptD = JSON.parse(JSON.stringify(D.net.attsKeep())), fwSaved = keptD.filter(r => r.id === 'a_fly00001')[0];
+    const liveTok = { id: 'w_fly001', x: 9, fly: { by: 'c_b', left: 1 } }, campD = { chars: camp.chars, items: { m1: { id: 'm1', whiteboard: [{ id: 'w_wall' }, liveTok] } } };
+    const E = mkA(), nE = E.net.attsBack(keptD, campD), eF = E.st._attempts.a_fly00001, eH = E.st._attempts.a_hold0001;
+    const campGone = { chars: camp.chars, items: { m1: { id: 'm1', whiteboard: [{ id: 'w_fly001' }] } } }, G = mkA(); G.net.attsBack(keptD, campGone);
+    const H = mkA(); H.net.attsBack([{ id: 'a_hostile1', charId: 'c_a', htAtt: '<b>', fw: { m: '__proto__', wid: 'w_fly001' } }], campD);
+    check('1.6.3, the review of combat state: a thing in flight waiting for the roll of its target is kept by the id of its token and comes back holding that very token on the map as it stands, and the Apply now card of a hold or of such a thing (htAtt) comes back, so the roll of the target still lands the thing and turns the card over after a reload; a token no longer in flight, or a hostile record, brings back neither',
+        !!fwSaved && j(fwSaved.fw) === j({ m: 'm1', tid: 't1', name: 'Missile', wid: 'w_fly001' }) && nE === 2 && !!eF && !!eF.fw && eF.fw.w === liveTok && eF.fw.tid === 't1' && eF.fw.name === 'Missile' && eF.htAtt === 'a_fly00001'
+        && !!eH && eH.htAtt === 'a_hold0001' && j(eH.ht) === j({ m: 'm1', c: 'c_b', on: 't1', pin: false })
+        && !!G.st._attempts.a_fly00001 && !('fw' in G.st._attempts.a_fly00001) && !!H.st._attempts.a_hostile1 && !('htAtt' in H.st._attempts.a_hostile1) && !('fw' in H.st._attempts.a_hostile1),
+        j([keptD, E.st._attempts, G.st._attempts, H.st._attempts]));
+}
 T.finish();

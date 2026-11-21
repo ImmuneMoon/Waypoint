@@ -35,11 +35,43 @@ function fxApply(camp, ch, kind, now, secs, at) {   // one tick of one character
     if (window.wpSheets) window.wpSheets.charChanged(ch.id);
     r.expired.forEach(function(nm) { fxEnded(ch, nm); });
 }
-function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for the GM, and one for its player at the table
-    var text = String(name).slice(0, 60) + ' ran out on ' + String(ch.name || 'a character').slice(0, 60) + '.', from = { id: net.myId || 'gm', name: 'GM', gm: true }, m = { type: 'chat', scope: 'whisper', from: from, text: text, ts: Date.now() };
-    if (net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
-    pushChat(m);
+// 1.6.3 (the combat review, finding 12; Fulllion's pick of 2026-11-20: "one chat line a round for the GM, with the details in the Time rules panel"): what
+// runs out is gathered, and said once all that one step of time ran has run (fxOutFlush, a moment later, so a round that ends seventeen effects says it
+// once). The GM gets ONE chat line, a run of the Time rules panel (timepanel.js) whose Open lists each character and what ran out on it, and with no panel
+// at hand one whisper of it all. Each player gets one whisper of what ran out on their own characters. "Bless ran out on Pat." where one thing ran out
+var _fxOut = [], _fxOutT = null;
+function fxEnded(ch, name) {   // noted, said with the rest of its step
+    if (!ch || typeof ch !== 'object') return;
+    _fxOut.push({ ch: ch, name: String(name).slice(0, 60) });
+    if (!_fxOutT) _fxOutT = setTimeout(fxOutFlush, 0);
 }
+function fxOutWords(list) {   // "Bless ran out on Pat." for one, else "Ran out: Bless on Pat, Quick on Quin and 3 more."
+    // 1.6.3 (finding 16): a character by its token's name, as the turn strip says it (net.tokNameOf), else its sheet's name
+    var nm = function(x) { return String((typeof net.tokNameOf === 'function' ? net.tokNameOf(x.ch) : '') || x.ch.name || 'a character').slice(0, 60); };
+    if (list.length === 1) return list[0].name + ' ran out on ' + nm(list[0]) + '.';
+    var shown = list.slice(0, 6).map(function(x) { return x.name + ' on ' + nm(x); }), more = list.length - shown.length;
+    return 'Ran out: ' + shown.join(', ') + (more > 0 ? ' and ' + more + ' more' : '') + '.';
+}
+function fxOutFlush() {
+    if (_fxOutT) { clearTimeout(_fxOutT); _fxOutT = null; }
+    var list = _fxOut; _fxOut = []; if (!list.length) return 0;
+    var from = { id: net.myId || 'gm', name: 'GM', gm: true }, now = Date.now(), byOwner = Object.create(null), byChar = [];
+    list.forEach(function(x) {
+        var ch = x.ch, at = byChar.filter(function(e) { return e.c === ch; })[0]; if (!at) { at = { c: ch, lines: [] }; byChar.push(at); } at.lines.push({ r: 'fxout', head: x.name, body: 'Ran out' });
+        if (ch.ownerId && !ch.npc) (byOwner[ch.ownerId] = byOwner[ch.ownerId] || []).push(x);
+    });
+    if (net.active && net.role === 'host') Object.keys(byOwner).forEach(function(pid) {   // each player: what ran out on their own characters, in one line
+        var m = { type: 'chat', scope: 'whisper', from: from, text: fxOutWords(byOwner[pid]).slice(0, 1500), ts: now };
+        net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+    });
+    var text = fxOutWords(list).slice(0, 1500), TP = window.wpTimePanel, camp = getActiveCampaign(), run = null;
+    // always: this line is posted whatever the GM's Time rule notes choice says, since that choice governs time rule runs alone (the second combat review,
+    // 2026-11-20: under Off the GM was no longer told that effects ran out)
+    if (TP && typeof TP.add === 'function' && camp) { try { run = TP.add(camp, camp.system, 'Effects ran out', byChar, { title: text.slice(0, 300), sub: byChar.length + (byChar.length === 1 ? ' character.' : ' characters.'), always: true }); } catch (e) { run = null; } }
+    if (!run) pushChat({ type: 'chat', scope: 'whisper', from: from, text: text, ts: now });   // no panel here: the whole of it in one whisper
+    return list.length;
+}
+net.fxOutFlush = fxOutFlush;
 // [netcheck:timecard-start]
 // Item 20 K5: a time rules summary (sheets.js runTimeRules) — a private line for the GM, and one for the character's player at the table unless it
 // is the GM's alone (an NPC, or a rule that moves or reads what the player cannot see); and the Game Record's Time
@@ -77,9 +109,10 @@ function timeNote(m) {
     if (!_timeTimer) _timeTimer = setTimeout(timeFlush, mode === '1h' ? 3600000 : 600000);
 }
 // Backlog 173: the GM's one chat line a run of the time rules, with Open (timepanel.js draws it): a whisper of the GM's own, so no player and no
-// join's history ever holds it; the GM's own Time rule notes choice of Off posts none
+// join's history ever holds it; the GM's own Time rule notes choice of Off posts none, but for a run marked always (effects that ran out, fxOutFlush), which
+// that choice never governed
 net.timeRunLine = function(run) {
-    if (net.role === 'client' || net.stream || !run || typeof run !== 'object' || timeNotesMode() === 'off') return false;
+    if (net.role === 'client' || net.stream || !run || typeof run !== 'object' || (timeNotesMode() === 'off' && run.always !== true)) return false;
     pushChat({ type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: String(run.text || '').slice(0, 300), ts: Date.now(), kind: 'time', trun: { id: String(run.id || '').slice(0, 40), sub: String(run.sub || '').slice(0, 200) } });
     return true;
 };
@@ -119,6 +152,7 @@ function turnFxEnd(mapId, c, row, round) {
 }
 function fxCombatEdge(mapId, combat, kind) { var camp = getActiveCampaign(), now = Date.now(); if (kind === 'bank' && !net._fxStop) net._fxStop = now; fxCombatChars(mapId, combat).forEach(function(ch) { fxApply(camp, ch, kind, now); }); }   // bank at a combat's start, resume at its end
 function fxClockTick() {   // out of combat: the clock, on the GM's own machine
+    if (typeof net.charBatch === 'function' && !net.charBatching() && net.role !== 'client' && !net.stream) return net.charBatch(fxClockTick);   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     if (net.role === 'client' || net.stream || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
     var camp = getActiveCampaign(), now = Date.now(); if (!camp || !camp.system || !camp.chars) return;
     var byGame = !!(window.wpVtt && window.wpVtt.on('calendar')), inF = typeof ordersOfChars === 'function' ? ordersOfChars(camp) : null, fights = (typeof fightIds === 'function' && fightIds().length > 0) || (typeof _fightsWait !== 'undefined' && _fightsWait && !!camp.fights);   // 1.6.2: a fight held through the GM's reload (fightsHold, before its fightsBack) runs still, so no real seconds come off a fighter's effects in the gap. K4: the Calendar on — real time never counts outside a fight; 152 fold 4: nor while any fight runs, when everyone in no fight follows the second (net.fxSpans)

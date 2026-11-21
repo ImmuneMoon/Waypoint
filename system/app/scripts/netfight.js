@@ -18,7 +18,7 @@
    the other's names (tools/splitcheck.js holds it). Change the code here as if it still stood in net.js. Like net.js, this file is
    kept byte for byte by git (.gitattributes), with its CRLF line endings. */
 // [split:of net.js]
-import { HELD_WORDS, SC, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcast, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatOver, combatRefresh, combatSeen, combatsFor, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsKeep, fightsKeepSoon, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, fxLib, getActiveCampaign, getProfile, hitAskSet, itemLib, logEvent, mapFogged, mapTitleOf, marksStart, moveMode, net, noteOwner, own, playerHue, postApply, recLine, render, roundChanged, save, saveRemoteSoon, sendFailed, seqIdx, seqMake, seqMoved, seqPlace, seqStep, severalRule, showConfirm, snapBack, targetTok, targetsFor, toast, turnCombatOf, turnEnded, turnNote, turnStarted } from './net.js';   // [split:glue]
+import { HELD_WORDS, SC, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcast, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatOver, combatRefresh, combatRefreshTurn, combatSeen, combatsFor, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsKeep, fightsKeepSoon, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, fxLib, getActiveCampaign, getProfile, hitAskSet, itemLib, logEvent, mapFogged, mapTitleOf, marksStart, moveMode, net, noteOwner, own, playerHue, postApply, recLine, render, roundChanged, save, saveRemoteSoon, sendFailed, seqIdx, seqMake, seqMoved, seqPlace, seqStep, severalRule, showConfirm, snapBack, targetTok, targetsFor, toast, turnCombatOf, turnEnded, turnNote, turnStarted } from './net.js';   // [split:glue]
 export function netFight() {   // [split:glue]
 // [split:body-start]
 // [netcheck:holds-start]
@@ -389,7 +389,7 @@ function combatNewRound(mapId, c) {   // combatStep at a new round, once per rou
         var charOf = function(r) { var tk = tokOf(r); return tk && tk.isChar && typeof tk.charId === 'string' && camp.chars && own(camp.chars, tk.charId) ? camp.chars[tk.charId] : null; };
         for (var i = 0, n = 0; i < c.rows.length; i++) {
             var ch = charOf(c.rows[i]); if (!ch) continue;
-            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && (tkI.hidden || (typeof net.tokUnseen === 'function' && net.tokUnseen(mapId, tkI.id)))) }); if (rr && rr.held) continue; if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): its initiative roll's needs not met, it keeps its number   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid, or one some player at the table cannot see (net.tokUnseen), rolls in private (its row reads Hidden to them, and the card would name it)
+            var tkI = tokOf(c.rows[i]), rr = window.wpSheets.rollInit(ch.id, { priv: !!(tkI && (tkI.hidden || (typeof net.tokUnseen === 'function' && net.tokUnseen(mapId, tkI.id)))), tok: tkI ? tkI.id : undefined }); if (rr && rr.held) continue; if (rr && rr.error) { toast(rr.error); break; }   // held (1.5.4): its initiative roll's needs not met, it keeps its number   // no roll, dice off: said once, the rest keep their numbers; hidden pieces: a creature the GM hid, or one some player at the table cannot see (net.tokUnseen), rolls in private (its row reads Hidden to them, and the card would name it)
             if (rr && typeof rr.value === 'number' && isFinite(rr.value)) { c.rows[i].init = Math.max(-1e6, Math.min(1e6, Math.round(rr.value * 100) / 100)); c.rows[i].rolled = 1; delete c.rows[i].tb; n++; }
         }
         if (n && S.orderByInit) c.rows = S.orderByInit(c.rows, S.initTie ? S.initTie(camp.system, window.wpFormula, charOf) : null);   // nothing rolled: the order as it was
@@ -569,9 +569,11 @@ var _fightWas = Object.create(null);   // 1.6.0: fight -> token -> the number it
 net.fightWas = function(fid, tokId) { var f = _fightWas[fid]; return f && f[tokId] ? f[tokId] : null; };
 function fightSet(fid, combat) {
     if (net.role !== 'host') return null;
+    if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightSet(fid, combat); });   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     var had = orderById(fid), mapId = had ? had.mapId : (combat && typeof combat === 'object' && typeof combat.mapId === 'string' && combat.mapId ? combat.mapId : null), f = null, tg = null;
     if (combat && mapId) {
         f = cleanFightBody(combat, mapId); if (!f) return null;
+        var cutN = Array.isArray(combat.rows) ? combat.rows.filter(function(r) { return !!r && typeof r === 'object'; }).length - f.rows.length : 0;   // 1.6.3 (the combat review, finding 14): rows past what a fight holds, said below
         var heldBy = Object.create(null); fightsOn(mapId).forEach(function(k) { if (k !== fid) net.combats[k].rows.forEach(function(r) { if (r && typeof r.tokId === 'string') heldBy[r.tokId] = 1; }); });
         f.rows = f.rows.filter(function(r) { return !(typeof r.tokId === 'string' && heldBy[r.tokId] === 1); }); if (!f.rows.length) return null;   // a token is in one fight at most: a row whose token another fight on that map holds stays out
         f.turn = Math.min(f.turn, f.rows.length - 1);
@@ -596,6 +598,7 @@ function fightSet(fid, combat) {
         if (!had || had.round !== f.round) roundChanged(mapId, f);   // G10: the first round (a roster edit keeps its round)
         if (!had) { net.fightOn = fid; logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + f.rows.map(function(r) { return r.name; }).join(', ')); }   // a new fight is the one played
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + '. ' + (f.rows[f.turn] || f.rows[0]).name + ' goes first.');
+        if (cutN > 0) { toast(cutN + (cutN === 1 ? ' was' : ' were') + ' left out. A fight holds 600 at most.'); logEvent('table', cutN + ' left out of the fight on ' + mapTitleOf(mapId) + ': a fight holds 600 at most'); }
     } else if (!combat) combatOver(fid, had);   // End: the one way a fight ends (fold 0), which the session's end and a deleted map share
     else return null;
     broadcastCombats(); combatRefresh();
@@ -638,6 +641,7 @@ function chosenGo(c, dir, nx, t0) {   // the place play goes: forward, nx (from 
 }
 function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 1) or the one before (dir -1); by 'player': a player's own End turn or hold; initiative O5: pick, the row chosen to go next
     if (net.role !== 'host') return;
+    if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightStep(fid, dir, by, pick); });   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     var c = orderById(fid); if (!c || !c.rows.length) return;
     var S5 = chosenRule() && typeof SC === 'function' ? SC() : null; if (S5 && typeof S5.chosenNext !== 'function') S5 = null;   // initiative O5: Next is chosen
     var nx = S5 && dir > 0 ? S5.chosenNext(c.rows, c.turn, typeof pick === 'string' ? pick : undefined) : null;
@@ -653,7 +657,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     else if (ckR) t = clockStep(campS, c, dir, ckR);   // 1.6.2 (G10): a counting clock
     else if (t >= c.rows.length || (dir > 0 && typeof c.endAt === 'number' && t >= c.endAt)) { t = 0; c.round += 1; }   // 1.6.2 (G9): a card that ends the round ends it where it stands
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = (typeof c.endAt === 'number' ? Math.min(c.endAt, c.rows.length) : c.rows.length) - 1; } else t = 0; }
-    c.turn = t;
+    c.turn = t; c.tn = (typeof c.tn === 'number' ? c.tn : 0) + 1;   // 1.6.3 (the combat review, finding 29): every step is a turn of its own, by this serial, which a player's End turn names
     if (c.round !== r0 && holdRule('hold') !== 'next' && holdRule('holdNames') !== true) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost (1.6.0: unless the system's hold lasts to the row's next turn, which the next line ends)
     if (holdRule('holdNames') === true) holdTurn(c, t, dir, t0);   // 1.6.0: a named hold lasts to its row's next turn, a row set off has had its moment, and a lost action takes a hold
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
@@ -666,7 +670,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     var tg = c.round !== r0 && a0 ? fightTurned(campS, c, a0, r0) : null;   // fold 4: its own time moves by the round's length (a step back, back)
     toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 || seqR || ckR ? c.round > r0 : t === 0 && dir > 0) ? '. Round ' + c.round : '') + '.');
     if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Game Record
-    broadcastCombats(); combatRefresh();
+    broadcastCombats(); if (c.round === r0 && typeof combatRefreshTurn === 'function') combatRefreshTurn(); else combatRefresh();   // 1.6.3 (the combat review, finding 26): a step within its round draws only what shows whose turn it is
     if (c.round !== r0 || c.turn !== t0 || (seqR && c.sq !== at0) || (ckR && dir > 0)) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
     if (tg) ordersMoved('step', tg);   // fold 4: the round it closed counted, and the clock moved once the fight furthest behind moves on
 }
@@ -755,7 +759,8 @@ function fightMineKey(cs, camp, mid) {
 function combatToasts(before, after) {
     var camp = getActiveCampaign(), mid = camp && camp.activeItemId, kB = fightMineKey(before, camp, mid), kA = fightMineKey(after, camp, mid);
     var cA = kA !== null ? after[kA] : null, cB = kA !== null && before && Object.prototype.hasOwnProperty.call(before, kA) ? before[kA] : null;
-    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (cA.rows[cA.turn] || {}).name + "'s turn" + ((chosenRule() ? !!cB && cB.round < cA.round : cA.round > 1 && cA.turn === 0) ? '. Round ' + cA.round : '') + '.');
+    var rT = cA ? cA.rows[cA.turn] || {} : null, rndT = cA ? (chosenRule() ? !!cB && cB.round < cA.round : cA.round > 1 && cA.turn === 0) : false;   // 1.6.3 (finding 24): a row redacted for this player is someone they cannot see
+    if (cA && (!cB || cB.turn !== cA.turn || cB.round !== cA.round)) toast((cB ? '' : 'Combat! ') + (rT.hid === 1 ? 'Someone you cannot see acts' : rT.name + "'s turn") + (rndT ? '. Round ' + cA.round : '') + '.');
     else if (kB !== null && !Object.prototype.hasOwnProperty.call(after, kB)) toast('Combat is over.');
 }
 // [netcheck:orders-end]

@@ -36,7 +36,7 @@ pendingChecks.push((async () => {
         const out = { deltas: [], changed: [], chat: [], saves: 0 }, mk = p => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pB')];
         const net = { active: true, role: o.role || 'host', stream: false, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, combats: o.combats || {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
         const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'saveRemoteSoon', 'pushChat', 'sendFailed', pidF + ftS + '\n' + ordersSrc + '\nreturn { apply: fxApply, turn: turnFxStart, turnEnd: turnFxEnd, edge: fxCombatEdge, clock: fxClockTick, inCombat: net.charInCombat };')(
-            net, { wpVtt: { on: k => (k === 'sheets' ? o.sheets !== false : k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: id => out.changed.push(id) } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => out.saves++, m => out.chat.push(m), e => { throw e; });
+            net, { wpVtt: { on: k => (k === 'sheets' ? o.sheets !== false : k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: id => out.changed.push(id) }, wpTimePanel: o.tp }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => out.saves++, m => out.chat.push(m), e => { throw e; });
         return { out, net, camp, api, conns };
     };
     const cb = { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] };
@@ -44,7 +44,7 @@ pendingChecks.push((async () => {
         const fxE = Object.assign(JSON.parse(JSON.stringify(sysF)), {}); fxE.effects = fxE.effects.map(d => Object.assign({}, d, { ends: 'turnEnd' }));
         const g = mkF({ combats: { m1: cb } }), cE = JSON.parse(JSON.stringify(cb)); g.camp.system = fxE; const row = cE.rows[0], secs = g.camp.chars.c_p.values.f_fx[0].t.left;
         g.api.turn('m1', cE); const held = JSON.parse(JSON.stringify(g.camp.chars.c_p.values.f_fx)), told = g.out.chat.length;
-        g.api.turnEnd('m1', cE, row, 1); const gone = g.camp.chars.c_p.values.f_fx.length, said = g.out.chat.map(m => m.text);
+        g.api.turnEnd('m1', cE, row, 1); g.net.fxOutFlush(); const gone = g.camp.chars.c_p.values.f_fx.length, said = g.out.chat.map(m => m.text);   // 1.6.3 (finding 12): what ran out is said once its step has run (fxOutFlush, a moment later)
         const h = mkF({ combats: { m1: cb } }), cH = JSON.parse(JSON.stringify(cb)); h.camp.system = fxE; h.camp.chars.c_p.values.f_fx[0].t = { left: secs * 2, at: 0 }; h.api.turn('m1', cH); h.api.turnEnd('m1', cH, cH.rows[0], 1); const once = h.camp.chars.c_p.values.f_fx[0].t.left; h.api.turnEnd('m1', cH, cH.rows[0], 1); const twice = h.camp.chars.c_p.values.f_fx[0].t.left;
         const sn = JSON.stringify(Object.keys(h.net.combats));
         check('1.6.0 Counts at on the host (turnFxStart and turnFxEnd over the real fxTick): an effect set to its turn\'s end stays on through its character\'s turn start with nothing said, runs out as that turn ends and is said then; a turn\'s end counts once in a round of that fight, whichever row of the sheet ends',
@@ -55,7 +55,7 @@ pendingChecks.push((async () => {
         g.api.clock(); const gq1 = JSON.parse(JSON.stringify(g.camp.chars.c_q.values.f_fx[0].t)), gd1 = g.out.deltas.length; g.api.clock(); const gd2 = g.out.deltas.length;
         g.net.fxGameTime(3); const gq2 = g.camp.chars.c_q.values.f_fx[0].t.left, gp2 = JSON.parse(JSON.stringify(g.camp.chars.c_p.values.f_fx[0].t)), gr2 = g.camp.chars.c_r.values.f_fx[0].t;
         [0, -5, NaN, '3'].forEach(v => g.net.fxGameTime(v)); const gq3 = g.camp.chars.c_q.values.f_fx[0].t.left;
-        g.net.fxGameTime(3600); const gGone = [g.camp.chars.c_q.values.f_fx.length, g.out.chat.map(m => m.text)];
+        g.net.fxGameTime(3600); g.net.fxOutFlush(); const gGone = [g.camp.chars.c_q.values.f_fx.length, g.out.chat.map(m => m.text)];
         const off = mkF({ calendar: false }); off.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; off.net.fxGameTime(3); const offT = JSON.parse(JSON.stringify(off.camp.chars.c_q.values.f_fx[0].t)); off.api.clock(); const offT2 = off.camp.chars.c_q.values.f_fx[0].t;
         const cli = mkF({ calendar: true, role: 'client' }); cli.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; cli.net.fxGameTime(3); const noSheets = mkF({ calendar: true, sheets: false }); noSheets.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; noSheets.net.fxGameTime(3);
         check('item 20 K4 the Calendar on (host, run for real): the tick stops a clock still running, keeping what ran (about 8 of 10 s), once; each move of the game clock on takes that much from every timed effect outside a fight (Quin 8 to 5), never one in the fight (Pat) or a paused one (Rex); no move, one back or one that is no number takes nothing; what runs out comes off with its lines; the Calendar off, the game clock runs nothing and the tick starts a stopped clock again from now; a player\'s machine or a table without sheets runs nothing',
@@ -63,20 +63,50 @@ pendingChecks.push((async () => {
             && gGone[0] === 0 && gGone[1].indexOf('Quick ran out on Quin.') >= 0 && j(offT) === j({ left: 10, at: 0 }) && offT2.at > 0 && offT2.left === 10 && cli.camp.chars.c_q.values.f_fx[0].t.left === 10 && noSheets.camp.chars.c_q.values.f_fx[0].t.left === 10
             , j([gq1, gd1, gd2, gq2, gp2, gr2, gq3, gGone, offT, offT2]));
     }
-    const a = mkF({ combats: { m1: cb } }); a.api.turn('m1', cb);
+    const cbZ = JSON.parse(JSON.stringify(cb));   // 1.6.3: the fight as it stands before any turn, for finding 16's check below
+    const a = mkF({ combats: { m1: cb } }); a.api.turn('m1', cb); a.net.fxOutFlush();
     check('T5a a turn\'s start (host, run for real): a round of the character\'s timed effects passes; one that runs out comes off (stored, sent as a delta, its views redrawn) with a private line for the GM and each connection of its player, never another\'s',
         j(a.camp.chars.c_p.values.f_fx) === '[]' && j(a.out.deltas) === j([['c_p', { f_fx: [] }]]) && j(a.out.changed) === j(['c_p']) && a.out.chat.length === 1 && a.out.chat[0].text === 'Bless ran out on Pat.' && a.out.chat[0].scope === 'whisper'
         && a.conns[0].sent.length === 1 && a.conns[0].sent[0].text === 'Bless ran out on Pat.' && !a.conns[1].sent.length && a.api.inCombat('c_p') === true && a.api.inCombat('c_q') === false, j([a.out, a.conns.map(c => c.sent)]));
+    {   // 1.6.3 (the improvement week's combat review, finding 16): an effect running out, a reminder card and a defense card name the character as its token reads
+        // (net.tokNameOf, run for real with the strip's own rowNameOf): the map named or on screen first, then the others; tokens that read differently, or none, the sheet's name
+        const nN = require('./checkkit').joined('net.js'), tnS = nN.slice(nN.indexOf('net.tokNameOf = function(ch, mapId, tokId) {'), nN.indexOf('net.postDue = function(ch, act, kind, round, toOwner, more) {'));
+        const wbN = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n'), rowName = new Function('getActiveCampaign', wbN.slice(wbN.indexOf('// [lookcheck:rowname-start]'), wbN.indexOf('// [lookcheck:rowname-end]')) + '\nreturn rowNameOf;')(() => null);
+        const campT = { activeItemId: 'mB', chars: {}, items: { mA: { type: 'map', whiteboard: [{ id: 'ta', isChar: true, charId: 'c_d', name: 'Freight handler' }, { id: 'tw', isChar: true, charId: 'c_w', name: 'Early', waiting: true }] }, mB: { type: 'map', whiteboard: [{ id: 'tb', isChar: true, charId: 'c_d', name: 'Dock worker' }, { id: 'tg1', isChar: true, charId: 'c_g', name: 'Guard A' }, { id: 'tg2', isChar: true, charId: 'c_g', name: 'Guard B' }] }, pg: { type: 'page' } } };
+        const netT = {}; new Function('net', 'getActiveCampaign', 'window', 'own', tnS)(netT, () => campT, { wpRowNameOf: rowName }, (o, k) => Object.prototype.hasOwnProperty.call(o, k));
+        const dock = { id: 'c_d', name: 'Duros worker' }, names = [netT.tokNameOf(dock), netT.tokNameOf(dock, 'mA'), netT.tokNameOf({ id: 'c_g', name: 'Guard' }), netT.tokNameOf({ id: 'c_w', name: 'Wait' }), netT.tokNameOf({ id: 'c_n', name: 'Nobody' }), netT.tokNameOf(null)];
+        // 1.6.3 (the combat review's batch "strip", finding 3): the very token a roll was made for names it, on any map, where it is one of that character's and not waiting
+        names.push(netT.tokNameOf({ id: 'c_g', name: 'Guard' }, null, 'tg2'), netT.tokNameOf({ id: 'c_g', name: 'Guard' }, 'mA', 'tg1'), netT.tokNameOf(dock, null, 'tg1'), netT.tokNameOf({ id: 'c_w', name: 'Wait' }, null, 'tw'));
+        const z = mkF({ combats: { m1: cbZ } }); z.net.tokNameOf = ch => (ch && ch.id === 'c_p' ? 'Pat the bold' : ch.name); z.api.turn('m1', cbZ); z.net.fxOutFlush();   // 1.6.3 (finding 12): what ran out is said once its step has run
+        check('1.6.3 (finding 16, net.tokNameOf run for real): a character is named by its token on the map on screen, or on the map named first, then the others; tokens of one sheet that read differently, a waiting token alone and no token give the sheet\'s name; and an effect running out says the token\'s name to the GM and its player',
+            j(names) === j(['Dock worker', 'Freight handler', 'Guard', 'Wait', 'Nobody', '', 'Guard B', 'Guard A', 'Dock worker', 'Wait']) && z.out.chat.length === 1 && z.out.chat[0].text === 'Bless ran out on Pat the bold.' && z.conns[0].sent[0].text === 'Bless ran out on Pat the bold.'
+            && nN.includes("var asD = typeof net.tokNameOf === 'function' ? net.tokNameOf(ch) : ch.name; if (asD) rec.as = String(asD).slice(0, 60);") && (nN.match(/rec\.as = String\(net\.tokNameOf\(ch\) \|\| ch\.name\)\.slice\(0, 60\);/g) || []).length === 2 && nN.includes("rec.as = String((typeof net.tokNameOf === 'function' ? net.tokNameOf(ch) : '') || ch.name).slice(0, 60);") /* 1.6.3 (finding 3): and the GM's own apply card (net.postApplyCard), moved on purpose */
+            && nN.includes("rec.as = String((typeof net.tokNameOf === 'function' ? net.tokNameOf(chR, typeof o.tok === 'string' ? null : tcR && tcR.selfMap, typeof o.tok === 'string' ? o.tok : tcR && tcR.self) : '') || chR.name || '')") && nN.includes("as: (typeof net.tokNameOf === 'function' ? net.tokNameOf(chR, typeof o.tok === 'string' ? null : tcR && tcR.selfMap, typeof o.tok === 'string' ? o.tok : tcR && tcR.self) : '') || chR.name, cid: chR.id,"), j([names, z.out.chat]));
+    }
     const b = mkF({ combats: { m1: cb } }); b.camp.chars.c_p.values.f_fx[0].t = { left: 6, at: Date.now() - 2000 }; b.api.edge('m1', cb, 'bank');
     const bT = b.camp.chars.c_p.values.f_fx[0].t; b.api.edge('m1', cb, 'resume'); const rT = b.camp.chars.c_p.values.f_fx[0].t;
     check('T5a a combat\'s start banks what ran and stops the clock; its end starts it again from now (what is left carries from one encounter to the next)',
         bT.at === 0 && bT.left < 6 && bT.left >= 0 && rT.left === bT.left && rT.at > 0, j([bT, rT]));
-    const c = mkF({ combats: { m1: cb } }); c.camp.chars.c_p.values.f_fx[0].t = { left: 6, at: 1000 }; c.api.clock();   // Pat's clock long started: in the combat it must not tick
+    const c = mkF({ combats: { m1: cb } }); c.camp.chars.c_p.values.f_fx[0].t = { left: 6, at: 1000 }; c.api.clock(); c.net.fxOutFlush();   // Pat's clock long started: in the combat it must not tick
     const d = mkF({ role: 'client' }); d.api.clock();
     const e = mkF({ sheets: false }); e.api.clock();
     check('T5a the clock (every few seconds, on the GM\'s own machine): each character out of combat — Quick (10 s since long ago) runs out on Quin and on the NPC Rex (their lines: Quin\'s player hears it; an NPC\'s to the GM alone); Pat, in the combat, is left to his turns; a player\'s machine and a table without sheets run nothing',
-        j(c.camp.chars.c_q.values.f_fx) === '[]' && j(c.camp.chars.c_r.values.f_fx) === '[]' && c.camp.chars.c_p.values.f_fx.length === 1 && j(c.out.chat.map(m => m.text)) === j(['Quick ran out on Quin.', 'Quick ran out on Rex.']) && c.conns[0].sent.length === 1
+        j(c.camp.chars.c_q.values.f_fx) === '[]' && j(c.camp.chars.c_r.values.f_fx) === '[]' && c.camp.chars.c_p.values.f_fx.length === 1 && j(c.out.chat.map(m => m.text)) === j(['Ran out: Quick on Quin, Quick on Rex.']) /* 1.6.3 (finding 12), moved on purpose: one line a step */ && c.conns[0].sent.length === 1 && c.conns[0].sent[0].text === 'Quick ran out on Quin.'
         && d.camp.chars.c_q.values.f_fx.length === 1 && !d.out.chat.length && e.camp.chars.c_q.values.f_fx.length === 1, j([c.out.chat, c.conns[0].sent]));
+    {   // 1.6.3 (the combat review, finding 12; Fulllion's pick of 2026-11-20: "one chat line a round for the GM, with the details in the Time rules panel"): what one
+        // step of time runs out is said once its step has run, not a line an effect. The GM's one line is a run of the Time rules panel, listing each character and
+        // what ran out on it; with no panel at hand one whisper of it all. Each player gets one whisper of their own characters (fxApply and fxOutFlush, run for real)
+        const runs = [], tp = { add: (camp, sys, words, chars, opts) => { runs.push({ words, chars: chars.map(e => [e.c.name, e.lines.map(l => l.head + '|' + l.r)]), opts }); return { id: 'tr1' }; } };
+        const P = mkF({ tp }); P.camp.chars.c_q.values.f_fx.push({ id: 'x_4', ref: 'e_b', on: true, t: { left: 1, at: 1000 } }); P.api.clock(); const before = P.out.chat.length + P.conns[0].sent.length; const nP = P.net.fxOutFlush();
+        const Q = mkF(); Q.camp.chars.c_q.values.f_fx.push({ id: 'x_4', ref: 'e_b', on: true, t: { left: 1, at: 1000 } }); Q.api.clock(); Q.net.fxOutFlush();
+        check('1.6.3 (the combat review, finding 12): what one step of time runs out waits for that step to end and is said once: the GM\'s one line a run of the Time rules panel (its words, each character with what ran out on it, its own chat words), nothing pushed beside it; with no panel one whisper of it all; each player one whisper of what ran out on their own characters',
+            before === 0 && nP === 3 && runs.length === 1 && runs[0].words === 'Effects ran out' && j(runs[0].chars) === j([['Quin', ['Quick|fxout', 'Bless|fxout']], ['Rex', ['Quick|fxout']]]) && runs[0].opts.title === 'Ran out: Quick on Quin, Bless on Quin, Quick on Rex.' && runs[0].opts.sub === '2 characters.'
+            && P.out.chat.length === 0 && j(P.conns[0].sent.map(m => m.text)) === j(['Ran out: Quick on Quin, Bless on Quin.']) && !P.conns[1].sent.length
+            && j(Q.out.chat.map(m => m.text)) === j(['Ran out: Quick on Quin, Bless on Quin, Quick on Rex.']) && Q.conns[0].sent.length === 1, j([runs, P.out.chat, P.conns[0].sent, Q.out.chat]));
+        const tpS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'timepanel.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.3 (the combat review, finding 12), the panel: a run may say its own chat words (add\'s opts: title and sub, which tpLine reads first), and what ran out mutes as one, named so in the panel\'s foot',
+            tpS.includes("if (typeof run.title === 'string' && run.title) return { title: run.title, sub: typeof run.sub === 'string' ? run.sub : '' };") && tpS.includes('function add(camp, sys, words, chars, opts) {') && tpS.includes("names[l.r] = l.r === 'fxout' ? 'Effects that ran out' :"), '');
+    }
     const T = src.replace(/\r\n/g, '\n');
     check('T5a the wiring (source): a player\'s added effect starts its timer on the host with the host\'s clock and whether they are in a combat; turnStarted takes a round; a combat\'s start banks and its end resumes, once no fight is left (152 fold 4, moved on purpose); the clock starts with the first render',
         /view: window\.wpSheets \? window\.wpSheets\.playerSystem\(campX\) : null, now: Date\.now\(\), inCombat: !!\(net\.charInCombat && net\.charInCombat\(qx\.charId\)\), timersGm: !!\(campX\.turnRules && campX\.turnRules\.timers === 'gm'\) \}\);/.test(T) && /try \{ turnFxStart\(mapId, c\); \} catch \(e\)/.test(T)
@@ -453,6 +483,13 @@ pendingChecks.push((async () => {
             const H = world(null, 'host'), Hoff = world('off', 'host'), Cl = world(null, 'client');
             const okH = H.net.timeRunLine({ id: 'tr1', text: 'Time rules: 1 hour', sub: '2 characters, 3 changes.' }) === true && H.pushed.length === 1 && H.pushed[0].scope === 'whisper' && H.pushed[0].from.gm === true && JSON.stringify(H.pushed[0].trun) === JSON.stringify({ id: 'tr1', sub: '2 characters, 3 changes.' }) && H.pushed[0].text === 'Time rules: 1 hour';
             const okOff = Hoff.net.timeRunLine({ id: 'tr2', text: 'x' }) === false && Hoff.pushed.length === 0 && Cl.net.timeRunLine({ id: 'tr3', text: 'x' }) === false && Cl.pushed.length === 0 && H.net.timeRunLine(null) === false;
+            // the review of combat state (2026-11-20): a run marked always, the line of effects that ran out, is posted under Off too, since that choice governs
+            // time rule runs alone; always that is no true is no mark, and a player's app still posts none
+            const Hoff2 = world('off', 'host'), okAlways = Hoff2.net.timeRunLine({ id: 'tr4', text: 'Bless ran out on Pat.', always: true }) === true && Hoff2.pushed.length === 1 && Hoff2.pushed[0].text === 'Bless ran out on Pat.'
+                && Hoff2.net.timeRunLine({ id: 'tr5', text: 'x', always: 'yes' }) === false && Hoff2.pushed.length === 1 && Cl.net.timeRunLine({ id: 'tr6', text: 'x', always: true }) === false;
+            check('1.6.3, the review of combat state: the line of effects that ran out reaches the chat of the GM whatever the Time rule notes choice of the GM says, which governs time rule runs alone (timeRunLine honours a run marked always, the Time rules panel hands that mark on, and fxOutFlush marks its run)',
+                okAlways && require('./checkkit').part('nettime.js').includes("sub: byChar.length + (byChar.length === 1 ? ' character.' : ' characters.'), always: true }); } catch (e) { run = null; } }")
+                && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'timepanel.js'), 'utf8').includes("if (opts && typeof opts === 'object' && opts.always === true) ln.always = true; n.timeRunLine(ln);"), JSON.stringify([okAlways, Hoff2.pushed]));
             const ntC = require('./checkkit').part('nettime.js'), tcA = ntC.indexOf('// [netcheck:timecard-start]'), tcZ = ntC.indexOf('// [netcheck:timecard-end]'), sent = [], gmChat = [], logs = [];   // nettime.js, read by its own name
             const netT = { active: true, role: 'host', myId: 'gm', roster: { p1: {} }, conns: [{ open: true, peer: 'p1', send: m => sent.push(m.text) }] };
             new Function('net', 'timeNote', 'pushChat', 'logEvent', 'peerProfileId', 'sendFailed', ntC.slice(tcA, tcZ))(netT, m => gmChat.push(m.text), m => gmChat.push(m.text), (k, t) => logs.push(t), () => 'u_a', () => {});
@@ -465,5 +502,75 @@ pendingChecks.push((async () => {
             ok && kit.part('nettime.js').includes("ts: Date.now(), kind: 'time' };") && kit.part('nettime.js').includes("if (typeof timeNote === 'function') timeNote(m); else pushChat(m);   // 1.5.6: the GM's own chat") && kit.part('nettime.js').includes("logEvent('time', t);   // the Game Record keeps every line") && flat.includes("if (msg.kind === 'time' && lineH.scope === 'whisper' && fromH.gm && typeof timeNote === 'function') timeNote(lineH); else pushChat(lineH);")
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<select id="setTimeNotes" class="field"'), JSON.stringify([A.pushed.length, B.pushed.length, cBefore, cTimers, C.pushed.map(m => m.text), dMs, D.pushed.length, E.pushed.length]));
     }
+
+// 1.6.3 (the improvement week's combat review, finding 6: a new round held the GM's screen about 3 s and a fight's end about 4 s, each character
+// sent, followed and drawn again for every timed effect, counter and time rule that moved it): net.charBatch (the charbatch slice, run for real)
+// gathers what each character changed and sends it once, follows each once, and draws the whole app once at the batch's end; and the fight's
+// step, its start and end, combatOver, the clock's own time and the timed effects' clock tick each run in one batch
+{
+    const cbS = between('// [netcheck:charbatch-start]', '// [netcheck:charbatch-end]', 'charbatch');
+    const mkB = () => {
+        const sent = [], changed = [], draws = [], log = [], win = { appRender: () => { draws.push('render'); log.push('render'); }, wpSheets: null };
+        const net = { role: 'host' };
+        const api = new Function('net', 'own', 'window', cbS + '\nreturn { batchDelta: batchDelta };')(net, H.own, win);
+        net.syncCharDelta = (id, v) => { if (api.batchDelta(id, v)) return; sent.push([id, j(v)]); log.push('sent:' + id); };
+        win.wpSheets = { charChanged: id => { if (net.chgHeld(id)) return; changed.push(id); log.push('changed:' + id); win.appRender(); win.appRender(); } };
+        return { net, win, sent, changed, draws, log };
+    };
+    const B = mkB(), r1 = B.net.charBatch(() => {
+        B.net.syncCharDelta('c1', { f_a: 1, f_b: 2 }); B.win.wpSheets.charChanged('c1');
+        B.net.charBatch(() => { B.net.syncCharDelta('c2', { f_a: 5 }); B.net.syncCharDelta('c1', { f_a: 3, f_c: null }); B.win.wpSheets.charChanged('c2'); B.win.wpSheets.charChanged('c1'); });
+        return B.sent.length + B.changed.length + B.draws.length;   // nothing yet, the inner batch's end included
+    });
+    const out1 = [r1, B.sent, B.changed, B.draws.length, B.log, B.net.charBatching()];
+    const C = mkB(); let threw = false; try { C.net.charBatch(() => { C.net.syncCharDelta('c9', { f_a: 1 }); C.win.wpSheets.charChanged('c9'); throw new Error('boom'); }); } catch (e) { threw = e.message === 'boom'; }
+    C.net.syncCharDelta('c8', { f_a: 1 }); C.win.wpSheets.charChanged('c8');
+    const D = mkB(); D.net.charBatch(() => { D.net.syncCharDelta('c1', { f_a: 1 }); D.win.wpSheets.charChanged('c1'); });
+    check('finding 6 (net.js charBatch, run for real): inside a batch nothing of a character is sent, followed or drawn; at the outermost end each character is sent once with every field it changed (a later value over an earlier, null kept), in the order it first changed, then each followed once, and the whole app drawn once for them all; an inner batch joins the outer',
+        out1[0] === 0 && j(out1[1]) === j([['c1', j({ f_a: 3, f_b: 2, f_c: null })], ['c2', j({ f_a: 5 })]]) && j(out1[2]) === j(['c1', 'c2']) && out1[3] === 1 && j(out1[4]) === j(['sent:c1', 'sent:c2', 'changed:c1', 'changed:c2', 'render']) && out1[5] === false, j(out1));
+    check('finding 6: a batch that throws still sends and follows what it gathered and the error goes on; outside a batch a change is sent and followed at once as before, each follow drawing as it always did; one character followed draws as it always did',
+        threw && j(C.sent) === j([['c9', j({ f_a: 1 })], ['c8', j({ f_a: 1 })]]) && j(C.changed) === j(['c9', 'c8']) && C.draws.length === 4 && D.draws.length === 2, j([threw, C.sent, C.changed, C.draws.length, D.draws.length]));
+    const nfS = kit.part('netfight.js'), calS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n'), shS6 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+    check('finding 6 (source): a fight\u2019s step and its start, change and end (netfight.js fightStep and fightSet), combatOver, the clock\u2019s own time (calendar.js ownTime) and the timed effects\u2019 clock tick each run in one batch; net.syncCharDelta gathers into it on its first line and wpSheets.charChanged notes into it right after the fog\u2019s senses let go',
+        nfS.includes("if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightStep(fid, dir, by, pick); });") && nfS.includes("if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightSet(fid, combat); });")
+        && src.includes("return net.charBatch(combatOver.bind(null, fid, had, quiet, title));") && calS.includes("if (nB && typeof nB.charBatch === 'function' && typeof nB.charBatching === 'function' && !nB.charBatching()) return nB.charBatch(function() { return ownTime(groups); });")
+        && kit.part('nettime.js').includes("return net.charBatch(fxClockTick);") && /net\.syncCharDelta = function\(id, values\) \{ if \(typeof fxPassForget === 'function'\) fxPassForget\(\); if \(typeof batchDelta === 'function' && batchDelta\(id, values\)\) return;/.test(src)
+        && /function charChanged\(id\) \{\n    if \(typeof window !== 'undefined' && window\.wpFog && window\.wpFog\.sensesForget\) window\.wpFog\.sensesForget\(\); if \(typeof id === 'string' && typeof window !== 'undefined' && window\.wpNet && typeof window\.wpNet\.chgHeld === 'function' && window\.wpNet\.chgHeld\(id\)\) \{ if \(typeof passForget === 'function'\) passForget\(\); if \(typeof ruleFollow === 'function'\) \{/.test(shS6));   // the review of combat speed moved this pin on purpose: inside a batch the followers still judge each change at once (ruleFollow)
+}
+
+
+// The review of combat speed (2026-11-20, its low finding): a batch keeps the sends, the sight and the drawing to its end, but not what judges
+// each change. Run for real: the charbatch slice of net.js, sheets.js charChanged and its cross slice (crossFollow, crossSeed, ruleFollow) with
+// the real systemcore. A value falls past a step and comes back inside one batch: the crossing runs once, at once, and the flush runs it no
+// second time; the Game Record is told of each change as it is gathered, so the fall and the rise each keep a line; the sheet is drawn once
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const shR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cutR = (a, b) => { const x = shR.indexOf(a), y = shR.indexOf(b, x + 1); if (x < 0 || y < 0) throw new Error('review of combat speed: slice ' + a); return shR.slice(x, y); };
+    const crossSrc = cutR('// [systemcheck:cross-start]', '// [systemcheck:cross-end]'), chgSrc = cutR('var _chgWhole = Object.create(null);', "// the token's owner select moved");
+    const cbS = between('// [netcheck:charbatch-start]', '// [netcheck:charbatch-end]', 'charbatch');
+    const gm = Sx.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'resource', maxFormula: '10', def: 'max', min: -40 }],
+        rolls: [{ id: 'r_dc', label: 'Death check', formula: '3d6 <= 10', cross: { f: 'f_hp', dir: 'down', at: '0' } }] }, { F: Fx, gmView: true });
+    const c = { id: 'c_a', name: 'Ana', ownerId: 'u_a', values: { f_hp: { cur: 5 } } }, camp = { id: 'k', system: gm, chars: { c_a: c } };
+    const out = { rolls: [], record: [], sent: [], views: [], boards: [] };
+    const netO = { active: true, role: 'host', conns: [] };
+    const win = { appRender: () => {}, wpDice: { rollFor: (id, f, lb) => out.rolls.push([id, lb]) }, wpCalendar: { rulesRun: () => null }, wpNet: netO, wpSystemCore: Sx,
+        wpRecord: { sheet: (k, id) => out.record.push(j(k.chars[id].values.f_hp)) } };
+    const nb = new Function('net', 'own', 'window', 'getActiveCampaign', cbS + '\nreturn { batchDelta: batchDelta };')(netO, H.own, win, () => camp);
+    netO.syncCharDelta = (id, v) => { if (nb.batchDelta(id, v)) return; out.sent.push([id, j(v)]); win.wpRecord.sheet(camp, id); };
+    const sh = new Function('isClient', 'canWrite', 'F', 'crossings', 'makeResolver', 'getActiveCampaign', 'fieldById', 'tokenCtxFor', 'charById', 'net', 'toast', 'applyAction', 'save', 'sheetOpen', 'huds', 'renderViews', 'boardRedraw', 'window',
+        crossSrc + '\n' + chgSrc + '\nreturn { crossSeed: crossSeed, charChanged: charChanged };')(
+        () => false, () => true, () => Fx, Sx.crossings, Sx.makeResolver, () => camp, (sy, id) => sy.fields.filter(f => f.id === id)[0] || null, () => null, (id, k) => ((k || camp).chars[id] || null), () => netO, () => {}, () => {}, () => {},
+        null, {}, id => out.views.push(id), (id, whole) => out.boards.push([id, whole]), win);
+    win.wpSheets = { charChanged: sh.charChanged };
+    sh.crossSeed();
+    const hp = v => { c.values.f_hp = { cur: v }; netO.syncCharDelta('c_a', { f_hp: { cur: v } }); win.wpSheets.charChanged('c_a'); };
+    let midRolls = -1, midViews = -1;
+    netO.charBatch(() => { hp(-3); hp(4); midRolls = out.rolls.length; midViews = out.views.length; });
+    check('the review of combat speed (net.js charBatch with sheets.js charChanged and its crossings, run for real with the real systemcore): HP that falls past a step and comes back inside one batch runs its crossing once, at once, and the flush runs it no second time; the Game Record is told of the fall and of the rise as each is gathered; the change is sent once and the sheet drawn once, at the end',
+        midRolls === 1 && j(out.rolls) === j([['c_a', 'Death check']]) && j(out.record.slice(0, 2)) === j([j({ cur: -3 }), j({ cur: 4 })]) && j(out.sent) === j([['c_a', j({ f_hp: { cur: 4 } })]]) && midViews === 0 && j(out.views) === j(['c_a']) && out.boards.length === 1,
+        j([midRolls, out.rolls, out.record, out.sent, midViews, out.views, out.boards]));
+})());
 
 T.finish();

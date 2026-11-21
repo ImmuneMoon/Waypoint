@@ -7715,6 +7715,25 @@ function captionParts(sys, char, F, text, vars, metric) {   // vars: the render'
     return out;
 }
 // Every field's value for a render: { fieldId: { value, text, error, max } } (max for resources)
+// 1.6.3 (the improvement week's combat review, findings 5 and 19: each Next and each Roll all worked out every field of a sheet to read a
+// few names): a resolver that gives what resolveAll(sys, char, F, tctx).vars gives, working out only the names it is asked for. A name worked
+// out with no error is the same value whichever order names are asked in. Only where a name answers an error (a chain past the formula
+// engine's depth, which a whole sheet worked out field by field may still read) is the whole sheet worked out, once, and that name and every
+// later reading taken from it, so nothing the eager resolver could read is lost. A part of the resolver asked by name (detail, rangeRead and
+// the rest) answers from the eager one too once it is made, where the lazy one has nothing to say. resolveCtx is the very part of a token's
+// context resolveAll keeps. Asked by the round and turn hooks (sheets.js timedHook, through applyRound) and the initiative roll (rollInit)
+function resolveCtx(tctx) { return isObj(tctx) ? { facing: tctx.facing || null, stance: tctx.stance || null, combat: isObj(tctx.combat) ? tctx.combat : null, range: isObj(tctx.range) ? tctx.range : null, cross: isObj(tctx.cross) ? tctx.cross : null } : null; }
+function lazyVars(sys, char, F, tctx) {
+    var lz = makeResolver(sys, char, F, resolveCtx(tctx)), eg = null;
+    var whole = function() { return eg || (eg = resolveAll(sys, char, F, tctx).vars); };
+    var v = function() { if (eg) return eg.apply(null, arguments); var x = lz.apply(null, arguments); return x && typeof x === 'object' && x.error ? whole().apply(null, arguments) : x; };
+    Object.keys(lz).forEach(function(p) {
+        var lf = lz[p]; if (typeof lf !== 'function') { v[p] = lf; return; }
+        v[p] = function() { var a = lf.apply(lz, arguments); if (eg && typeof eg[p] === 'function' && (a === null || a === undefined || a === false)) return eg[p].apply(eg, arguments); return a; };
+    });
+    v.lazy = true;   // read by the suites, which hold it to resolveAll's .vars name by name
+    return v;
+}
 function resolveAll(sys, char, F, tctx, ropts) {   // tctx: tokenCtx(...) = { facing, stance } for the built-in token names (Facing, Arc, Threats, Posture, Elevation); none reads them neutral; ropts.noRows (F5a1): no list cells or totals (the hover card)
     var ro = isObj(tctx) ? { facing: tctx.facing || null, stance: tctx.stance || null, combat: isObj(tctx.combat) ? tctx.combat : null, range: isObj(tctx.range) ? tctx.range : null, cross: isObj(tctx.cross) ? tctx.cross : null } : null;   // 1.6.0: a crossing's CrossStep and Crossed   // range R2: the range to the roller's target too   // HF5b: the combat's round too
     var r = makeResolver(sys, char, F, ro), out = map(), r0 = null;
@@ -9450,3 +9469,4 @@ export { cleanTables, tableKeyOk, tableParts, tableRead, tableFam, tableRowOf, T
 export { onOther, cleanTests, testFormula, TEST_MAX };   // 1.6.2: Applies to someone else, near or their target
 export { deckTrial, deckTrialRead, drawnVal };   // 1.6.2: Try it draws for a roll that draws first
 export { outsideKey, outsideCamp };   // 1.6.3: what a resolver reads beside the system and its character (fog.js sensesKept)
+export { lazyVars };   // 1.6.3: a lazy resolver of a sheet in a token's context, as resolveAll's .vars reads it

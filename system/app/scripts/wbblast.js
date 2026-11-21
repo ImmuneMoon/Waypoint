@@ -619,7 +619,7 @@ export function wbBlast() {   // [split:glue]
           var vals = null, lines = null;
           if (dstep) {
               var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, b.loc) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; var bkF = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkF) q.kind = bkF; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
-              var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
+              var st = S.damageStep(sys, ch, q, F, blastCtxOf(ch, map.id, r.tok.id), { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else if (hpId) {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
               var res = S.applyEdit(sys, ch, hpId, { cur: (typeof e.value === 'number' ? e.value : 0) - amt }, F, {}); if (!res.ok) return;
@@ -632,6 +632,9 @@ export function wbBlast() {   // [split:glue]
   }
   // The pass's one writer: one entry a character for the Undo, holding what it had before the blast first wrote each field, an effects list among
   // them (1.5.9: a blast's fragmentation and its afflictions write too), each change sent to the table and told to the sheet
+  // 1.6.3 (the combat review, finding 10): the context of the very token a blast hits (its posture, facing, round and range), as the Take damage window
+  // hands a card's damage through tokenCtxFor, so the system's DR, wound and Major Wound formulas read the same on every path. null where it cannot be had
+  function blastCtxOf(ch, mapId, tokId) { var Sh = window.wpSheets; try { return ch && Sh && typeof Sh.tokenCtxAt === 'function' ? Sh.tokenCtxAt(ch.id, mapId, tokId) : null; } catch (e) { return null; } }
   function blastWriter(byChar, hits) {
       return function(ch, charId, vals) {
           var h = byChar[charId]; if (!h) { h = byChar[charId] = { charId: charId, prevs: {} }; hits.push(h); }
@@ -779,7 +782,7 @@ export function wbBlast() {   // [split:glue]
           var vals = null, lines = null;
           if (step) {   // through the damage step: DR at the default location, the blast's damage type, the pool
               var q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, b.loc) : ''; if (loc) q.loc = loc; if (typeOk) q.type = b.dtype; var bkS = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkS) q.kind = bkS; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
-              var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return;
+              var st = S.damageStep(sys, ch, q, F, blastCtxOf(ch, map.id, r.tok.id), { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return;
               vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
@@ -822,7 +825,7 @@ export function wbBlast() {   // [split:glue]
       var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, o.charId) ? camp.chars[o.charId] : null; if (!ch) return { error: 'That character is not there now.' };
       if (pid !== null && (ch.npc || !ch.ownerId || ch.ownerId !== pid || o.b.gm === true)) return { error: 'That blast roll is not yours to make.' };
       if (!window.wpDice || typeof window.wpDice.rollFor !== 'function') return { error: 'Dice are not available.' };
-      delete _owed[att]; _owedIds = _owedIds.filter(function(x) { return x !== att; });
+      delete _owed[att]; _owedIds = _owedIds.filter(function(x) { return x !== att; }); blastKeepSoon();
       var rE = window.wpDice.rollFor(ch.id, o.expr, (o.b.gm === true ? 'Blast' : (o.b.name || 'Blast')) + ' damage', { gmOnly: o.b.gm === true, dmg: true, used: true });
       if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return { error: 'That blast roll could not be made.' };
       var rules = blastRules(sys), fall = rules && rules.fall ? rules.fall : '', share = Math.max(0, Math.floor(rE.value)), hpId = sys.combat ? sys.combat.hpResource : '', step = !!(fall && sys.combat && sys.combat.damage && typeof S.damageStep === 'function');
@@ -832,7 +835,7 @@ export function wbBlast() {   // [split:glue]
       if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armor divisor
           var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, o.b.loc) : ''; if (loc) q.loc = loc;
           if (o.b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(o.b.dtype).toLowerCase(); })) q.type = o.b.dtype; var bkO = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkO) q.kind = bkO; if (typeof o.b.ad === 'number' && o.b.ad > 0) q.ad = o.b.ad;
-          st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
+          st = S.damageStep(sys, ch, q, F, blastCtxOf(ch, o.mapId, o.tokId), { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
           vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);
       } else if (hpId) {
           var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return { error: 'Its damage could not be applied.' };
@@ -884,7 +887,7 @@ export function wbBlast() {   // [split:glue]
       }
       if (pass === true && tok && typeof d.posture === 'string' && d.posture && typeof window.wpSetTokenStance === 'function') window.wpSetTokenStance(def.map, def.tok, { posture: d.posture });
       if (window.wpStepLog) window.wpStepLog('blastdefend v1', 'answered', { pass: pass === true, left: Object.keys(w.want).length });
-      if (!Object.keys(w.want).length) defendGo(w.key);
+      if (!Object.keys(w.want).length) defendGo(w.key); else blastKeepSoon();
       return true;
   };
   function defendGo(key) {
@@ -895,8 +898,65 @@ export function wbBlast() {   // [split:glue]
       if (w.waits.some(function(e) { return typeof e.b.defKey === 'string'; })) { var ks = Object.keys(_defKept); if (ks.length >= DEF_MAX) delete _defKept[ks[0]]; _defKept[key] = all; }
       if (window.wpStepLog) window.wpStepLog('blastdefend v1', 'went', { blasts: w.waits.length, unanswered: Object.keys(w.want).length });
       w.waits.forEach(function(e, i) { e.b.defGo = true; e.b.defended = all; if (i === 0) e.b.defTx = { by: w.by, hits: w.hits }; applyBlastDamage(e.b, e.total, e.hpId, e.map); delete e.b.defTx; });
+      blastKeepSoon();
       return true;
   }
+  // [blastcheck:blastkeep-start]
+  // 1.6.3 (the combat review, finding 1; Fulllion's pick of 2026-11-20: "keep them live"): what a blast still owes is saved with the fight, as its landings
+  // are, so the GM's reload leaves every card working: each victim's own roll (_owed), a blast that waits for its Defense rolls (_defWait, with the Apply now
+  // card that lets it go) and what a burst's Defense rolls already answered (_defKept). net.js fightsKeep asks wpBlastKeep, fightsBack hands wpBlastBack what
+  // the save held. Each blast is kept as data (its place, its size, its damage and what its list said of it), never what it was drawn with; a wait names its
+  // map by id; the Undo entries a pass holds keep each field as it was, one that was not there among them. Read back as data: a blast where its numbers are
+  // numbers, a character and a map the campaign still holds, the Defense rule the system still has. Nothing is ever sent
+  function blastKeepSoon() { var n = window.wpNet; if (n && typeof n.fightsKeepSoon === 'function') n.fightsKeepSoon(); }
+  function blastData(b) { var o = {}; Object.keys(b || {}).forEach(function(k) { if (k !== 'defTx' && k !== 'wire' && k !== 'wireMap' && k !== 'wireChar' && k !== 'lost') o[k] = b[k]; }); var s = ''; try { s = JSON.stringify(o); } catch (e) { s = ''; } return s && s.length <= 100000 ? JSON.parse(s) : null; }
+  function blastDataRead(b) { if (!b || typeof b !== 'object' || Array.isArray(b) || !['x', 'y', 'ft'].every(function(k) { return typeof b[k] === 'number' && isFinite(b[k]); })) return null; var s = ''; try { s = JSON.stringify(b); } catch (e) { s = ''; } if (!s || s.length > 100000) return null; var o = JSON.parse(s); o.ft = Math.max(1, Math.min(3000, o.ft)); return o; }
+  function hitsOut(hits) { return (hits || []).map(function(h) { var v = {}, u = []; Object.keys(h.prevs || {}).forEach(function(f) { if (h.prevs[f] === undefined) u.push(f); else v[f] = h.prevs[f]; }); return { charId: h.charId, v: v, u: u }; }); }
+  function hitsIn(list, camp) {   // the Undo entries, each a character the campaign holds with what each field held before the pass first wrote it
+      var hits = [], by = Object.create(null); (Array.isArray(list) ? list : []).slice(0, 600).forEach(function(h) {
+          if (!h || typeof h.charId !== 'string' || !camp.chars || !Object.prototype.hasOwnProperty.call(camp.chars, h.charId) || by[h.charId]) return; var prevs = {};
+          if (h.v && typeof h.v === 'object') Object.keys(h.v).slice(0, 400).forEach(function(f) { if (f.length <= 80) prevs[f] = h.v[f]; });
+          if (Array.isArray(h.u)) h.u.slice(0, 400).forEach(function(f) { if (typeof f === 'string' && f.length <= 80) prevs[f] = undefined; });
+          var e = { charId: h.charId, prevs: prevs }; by[h.charId] = e; hits.push(e);
+      });
+      return { by: by, hits: hits };
+  }
+  function resIn(v) { var o = Object.create(null); if (v && typeof v === 'object') Object.keys(v).slice(0, 600).forEach(function(t) { var r = v[t]; if (t.length <= 80 && r && typeof r === 'object') o[t] = typeof r.d === 'number' && isFinite(r.d) ? { d: Math.max(0, Math.min(1e6, r.d)), nf: r.nf === true } : {}; }); return o; }
+  window.wpBlastKeep = function() {   // what the save holds of the blasts that still owe something, or null where none does
+      var owed = [], def = [], kept = {};
+      _owedIds.forEach(function(id) {
+          var o = Object.prototype.hasOwnProperty.call(_owed, id) ? _owed[id] : null; if (!o) return;
+          if (typeof o.go === 'string') { owed.push({ id: id, go: o.go }); return; }
+          var b = blastData(o.b); if (b) owed.push({ id: id, b: b, mapId: o.mapId, charId: o.charId, tokId: o.tokId, d: o.d, expr: o.expr, n: o.n, dir: o.dir, cen: o.cen, tier: o.tier || null });
+      });
+      Object.keys(_defWait).forEach(function(k) { var w = _defWait[k]; def.push({ key: w.key, want: w.want, res: w.res, hits: hitsOut(w.hits), go: w.go || '', waits: w.waits.map(function(e) { return { b: blastData(e.b), total: e.total, hpId: e.hpId, map: e.map && e.map.id }; }).filter(function(e) { return !!e.b; }) }); });
+      Object.keys(_defKept).forEach(function(k) { kept[k] = _defKept[k]; });
+      return owed.length || def.length || Object.keys(kept).length ? JSON.parse(JSON.stringify({ owed: owed, def: def, kept: kept })) : null;
+  };
+  window.wpBlastBack = function(raw, camp) {   // as the host's table opens: how many owed rolls and waits came back
+      if (!raw || typeof raw !== 'object' || !camp || !camp.items || !camp.chars) return 0; var n = 0, sys = camp.system, d = (blastRules(sys) || {}).defend, key = function(v) { return typeof v === 'string' && v && v.length <= 40; }, cid = /^a_[a-z0-9]{8}$/;
+      if (d && typeof d === 'object') (Array.isArray(raw.def) ? raw.def : []).slice(0, DEF_MAX).forEach(function(w) {
+          if (!w || !key(w.key) || Object.prototype.hasOwnProperty.call(_defWait, w.key)) return;
+          var want = Object.create(null); if (w.want && typeof w.want === 'object') Object.keys(w.want).slice(0, 600).forEach(function(t) { if (t.length <= 80 && typeof w.want[t] === 'string' && /^[ab]_[a-z0-9]{8}$/.test(w.want[t])) want[t] = w.want[t]; });
+          var waits = (Array.isArray(w.waits) ? w.waits : []).slice(0, 32).map(function(e) { var b = e && blastDataRead(e.b), map = e && typeof e.map === 'string' && Object.prototype.hasOwnProperty.call(camp.items, e.map) ? camp.items[e.map] : null; return b && map && Array.isArray(map.whiteboard) ? { b: b, total: typeof e.total === 'number' && isFinite(e.total) ? e.total : 0, hpId: typeof e.hpId === 'string' ? e.hpId.slice(0, 80) : '', map: map } : null; }).filter(Boolean);
+          if (!waits.length) return;
+          var hh = hitsIn(w.hits, camp); _defWait[w.key] = { key: w.key, d: d, want: want, res: resIn(w.res), by: hh.by, hits: hh.hits, waits: waits, go: typeof w.go === 'string' && cid.test(w.go) ? w.go : '' }; n++;
+      });
+      if (raw.kept && typeof raw.kept === 'object') Object.keys(raw.kept).slice(0, DEF_MAX).forEach(function(k) { if (key(k) && !Object.prototype.hasOwnProperty.call(_defKept, k)) _defKept[k] = resIn(raw.kept[k]); });
+      (Array.isArray(raw.owed) ? raw.owed : []).slice(-OWED_MAX).forEach(function(o) {
+          if (!o || typeof o.id !== 'string' || !cid.test(o.id) || Object.prototype.hasOwnProperty.call(_owed, o.id)) return;
+          if (typeof o.go === 'string') { if (!Object.prototype.hasOwnProperty.call(_defWait, o.go)) return; _owed[o.id] = { go: o.go }; _owedIds.push(o.id); n++; return; }
+          var b = blastDataRead(o.b), map = typeof o.mapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, o.mapId) ? camp.items[o.mapId] : null;
+          if (!b || !map || typeof o.charId !== 'string' || !Object.prototype.hasOwnProperty.call(camp.chars, o.charId) || typeof o.tokId !== 'string' || o.tokId.length > 80 || typeof o.expr !== 'string' || !o.expr || typeof o.d !== 'number' || !isFinite(o.d)) return;
+          var nD = typeof o.n === 'number' && isFinite(o.n) ? Math.max(1, Math.min(100, Math.floor(o.n))) : 1, tier = o.tier && typeof o.tier === 'object' && !Array.isArray(o.tier) ? JSON.parse(JSON.stringify(o.tier)) : null;
+          _owed[o.id] = { b: b, mapId: o.mapId, charId: o.charId, tokId: o.tokId, d: o.d, expr: o.expr.slice(0, (window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.formula) || 10000), n: nD, dir: o.dir === true, cen: o.cen === true, tier: tier }; _owedIds.push(o.id); n++;
+      });
+      while (_owedIds.length > OWED_MAX) delete _owed[_owedIds.shift()];
+      if (n && window.wpStepLog) window.wpStepLog('blastowe v1', 'back', { n: n });
+      return n;
+  };
+  window.wpBlastOwedHas = function(id) { return typeof id === 'string' && Object.prototype.hasOwnProperty.call(_owed, id); };   // net.js chatKeptSettle: a kept card whose roll the blast still owes stays live
+  // [blastcheck:blastkeep-end]
   window.wpBlastOwedRoll = function(att, pid) { return blastOwedRoll(att, typeof pid === 'string' ? pid : null); };   // net.js: a player's press, by their profile id
   window.wpBlastOwedPress = function(att) {   // a blast card's Roll on this machine: a player's goes to the host, the GM's is rolled here
       var n = window.wpNet; if (n && n.active && n.role === 'client') return typeof n.blastRoll === 'function' ? n.blastRoll(att) : false;
@@ -1331,7 +1391,21 @@ export function wbBlast() {   // [split:glue]
   // whose center is in a wall is refused where a throw would go off in front of it. Every refusal is in fixed words. Of the token a circle
   // sat on the owner said, by prompt: "Ask each time". So the boxes hold a tick, Also hits the token at the center, shown only for a circle
   // on a token and off every time it comes up. Ticked, that one explosion spares nobody
+  // 1.6.3 (the combat review, finding 22; Fulllion's pick of 2026-11-20, which replaces "type is a word" for a system that names its types): where the
+  // system names damage types, the type is picked by name from a list of them, and the blast keeps its key (b.dtype), so applyBlastDamage takes that
+  // type's DR and multipliers for everyone it hits. A system with none keeps the typed words, named on the card and changing no number, as before
   var EXPLODE_MIN_FT = 1, EXPLODE_MAX_FT = 3000;   // a blast's radius in feet, as placeThrownBlast and a player's app bound it
+  function explodeTypes() {   // the system's damage types, [{ key, label }], each once by its key; none where the system names none
+      var camp = getActiveCampaign(), d = camp && camp.system && camp.system.combat && camp.system.combat.damage, seen = {}, out = [];
+      (d && Array.isArray(d.types) ? d.types : []).forEach(function(t) { if (!t || typeof t.key !== 'string' || !t.key || seen[t.key.toLowerCase()]) return; seen[t.key.toLowerCase()] = 1; out.push({ key: t.key, label: typeof t.label === 'string' && t.label.trim() ? t.label.trim().slice(0, 60) : t.key, mult: typeof t.mult === 'number' && isFinite(t.mult) ? t.mult : null }); });
+      // found live: a system may name several types alike (four called Piercing, each with its own multiplier), so a name two types share says its
+      // multiplier, and one still shared says its place among them, so that each row of the list is a type of its own
+      var cnt = function() { var c = {}; out.forEach(function(y) { var k = y.label.toLowerCase(); c[k] = (c[k] || 0) + 1; }); return c; };   // how many rows say each name
+      var ms = {}; out.forEach(function(t) { var k = t.label.toLowerCase(); (ms[k] = ms[k] || {})[String(t.mult)] = 1; });   // the multiplier is said only where the types that share a name have different ones
+      out.forEach(function(t) { var k = t.label.toLowerCase(); if (Object.keys(ms[k]).length > 1 && t.mult !== null) t.label = t.label + ' \u00d7' + (Math.round(t.mult * 100) / 100); });
+      var c2 = cnt(), at = {}; out.forEach(function(t) { var k = t.label.toLowerCase(); if (c2[k] > 1) { at[k] = (at[k] || 0) + 1; t.label = t.label + ' (' + at[k] + ')'; } });
+      return out.map(function(t) { return { key: t.key, label: t.label }; });
+  }
   function explodeType(v) {   // the damage type as typed: a few plain words on one line, 40 characters at most and never half a character
       if (typeof v !== 'string') return '';
       var out = '';
@@ -1361,6 +1435,12 @@ export function wbBlast() {   // [split:glue]
       var p = F && F.parse ? F.parse(expr) : null;
       if (!p || !p.ok) return { why: 'That damage does not read as a number or a roll.' };
       if (p.names && p.names.length) return { why: 'The damage is a number or a roll. It cannot name a value from a sheet.' };
+      var tys = explodeTypes();
+      if (tys.length) {   // a type of the system's, by its key (the list's value) or its name, ignoring case
+          var tk = typeof type === 'string' ? type.trim().toLowerCase() : '', hit = tk ? tys.filter(function(t) { return t.key.toLowerCase() === tk; })[0] || tys.filter(function(t) { return t.label.toLowerCase() === tk; })[0] : null;
+          if (!hit) return { why: 'Pick the damage type from the list.' };
+          return { c: q.c, ft: q.ft, expr: expr, type: hit.label, dtype: hit.key };
+      }
       var ty = explodeType(type); if (!ty) return { why: 'Type the damage type. It is a word.' };
       return { c: q.c, ft: q.ft, expr: expr, type: ty };
   }
@@ -1375,7 +1455,7 @@ export function wbBlast() {   // [split:glue]
       else if (auto !== 'measure' && diceOn) {   // the roll first: a damage that cannot be rolled sets nothing off
           if (!window.wpDice || !window.wpDice.rollFor) { toast('Dice are not available.'); return false; }
           var drX = auto === 'full' ? { dmg: true, used: true } : { dmg: true }; if (defX) drX.usedWait = true;
-          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', drX);   // the type is named on the card: it changes no number
+          var dr = window.wpDice.rollFor('', q.expr, 'Explosion, ' + q.type + ' damage', drX);   // the type is named on the card (a type of the system's counts through b.dtype below; typed words change no number)
           if (!dr || dr.error || !dr.ok) return false;   // the roll said why
           rolled = true; total = typeof dr.value === 'number' && isFinite(dr.value) ? dr.value : null;
       }
@@ -1383,6 +1463,7 @@ export function wbBlast() {   // [split:glue]
       var b = { x: c.x, y: c.y, ft: q.ft, name: 'Explosion', elev: typeof c.elev === 'number' && isFinite(c.elev) ? c.elev : 0, autoElev: false, thrown: true, by: '' };
       if (rlX && rlX.each && typeof q.expr === 'string' && q.expr) b.eachExpr = q.expr;   // 1.6.0 (the core's gap 8): what each victim rolls at its own dice
       if (defX) b.bid = 'b_' + Math.random().toString(36).slice(2, 12);   // what waits for its Defense rolls goes by the blast's id (defendAsk), the host's alone: it is no part of what the table is shown
+      if (typeof q.dtype === 'string' && q.dtype) b.dtype = q.dtype;   // 1.6.3 (finding 22): the system's type, read by applyBlastDamage for its DR and multipliers
       if (typeof c.tok === 'string' && hitFor !== c) b.spare = c.tok;   // the token the circle sat on was not inside it: the explosion does not hit it, unless the GM ticked that it does, for this very circle
       var sent = { x: b.x, y: b.y, ft: b.ft, name: b.name, elev: b.elev, by: '' };   // shown to the table as a thrown blast is: its place, its size, its height and the fixed word
       if (shapeOf(c.as) === 'ring' && c.inn > 0 && c.inn < c.yd) { b.shape = sent.shape = 'ring'; b.inFt = sent.inFt = c.inn * 3; }   // a ring with no hole is the whole disc
@@ -1403,6 +1484,14 @@ export function wbBlast() {   // [split:glue]
   // every time they are shown or put away, so what was typed for one explosion is never there for the next
   var _el_exBtn = document.getElementById('blastExplodeBtn'), _el_exForm = document.getElementById('blastExplodeForm'), _el_exDmg = document.getElementById('blastDmg'), _el_exType = document.getElementById('blastDmgType');
   var _el_exHitRow = document.getElementById('blastHitCentreRow'), _el_exHit = document.getElementById('blastHitCentre'), _exHitFor = null;   // the tick, and the circle it is being asked for
+  var _el_exTypeSel = document.getElementById('blastDmgTypeSel');   // 1.6.3 (finding 22): the list of the system's types, shown in place of the typed box where the system names any
+  function explodeTypeBox() { return _el_exTypeSel && _el_exTypeSel.style.display !== 'none' ? _el_exTypeSel : _el_exType; }   // the type box in use
+  function explodeTypeFill() {   // the list filled from the system's types, none picked; shown only where there are any, the typed box shown where there are none
+      var tys = explodeTypes(); if (!_el_exTypeSel) return;
+      while (_el_exTypeSel.firstChild) _el_exTypeSel.removeChild(_el_exTypeSel.firstChild);
+      if (tys.length) { var o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Pick a type'; _el_exTypeSel.appendChild(o0); tys.forEach(function(t) { var o = document.createElement('option'); o.value = t.key; o.textContent = t.label; _el_exTypeSel.appendChild(o); }); }
+      _el_exTypeSel.value = ''; _el_exTypeSel.style.display = tys.length ? '' : 'none'; if (_el_exType) _el_exType.style.display = tys.length ? 'none' : '';
+  }
   // The tick under the two boxes: Also hits the token at the center. It shows only while the boxes are up and the circle that would go off
   // sits on a token. It is unticked whenever the circle it is asked for changes, so a yes for one circle is never there for another
   function explodeHitRow() {
@@ -1414,13 +1503,14 @@ export function wbBlast() {   // [split:glue]
   }
   function explodeForm(show) {
       if (_el_exDmg) _el_exDmg.value = ''; if (_el_exType) _el_exType.value = '';
+      if (show) explodeTypeFill(); else if (_el_exTypeSel) _el_exTypeSel.value = '';
       if (_el_exForm) _el_exForm.style.display = show ? '' : 'none';
       explodeHitRow();   // put away, the tick is asked for no circle, so it is unticked; it comes up again off, whatever it held
       if (show && _el_exDmg && _el_exDmg.focus) _el_exDmg.focus();
   }
   function explodeGo() {   // refused: the boxes stay as typed, to be put right
       var hitFor = _el_exHit && _el_exHit.checked === true && _el_exHitRow && _el_exHitRow.style.display !== 'none' ? _exHitFor : null;
-      if (explodeCircle(_el_exDmg ? _el_exDmg.value : '', _el_exType ? _el_exType.value : '', hitFor)) explodeForm(false);
+      var tyB = explodeTypeBox(); if (explodeCircle(_el_exDmg ? _el_exDmg.value : '', tyB ? tyB.value : '', hitFor)) explodeForm(false);
   }
   if (_el_exBtn) _el_exBtn.addEventListener('click', function() {
       if (_el_exForm && _el_exForm.style.display !== 'none') { explodeForm(false); return; }
@@ -1431,13 +1521,13 @@ export function wbBlast() {   // [split:glue]
   if (_el_exGo) _el_exGo.addEventListener('click', explodeGo);
   if (_el_exNo) _el_exNo.addEventListener('click', function() { explodeForm(false); });
   if (_el_exDmg) _el_exDmg.addEventListener('keydown', function(e) {   // Enter in the damage box goes on to the type: an explosion is never set off from the first box
-      if (e.key === 'Enter') { e.preventDefault(); if (_el_exType && _el_exType.focus) _el_exType.focus(); }
+      if (e.key === 'Enter') { e.preventDefault(); var tyF = explodeTypeBox(); if (tyF && tyF.focus) tyF.focus(); }
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); explodeForm(false); }
   });
-  if (_el_exType) _el_exType.addEventListener('keydown', function(e) {
+  [_el_exType, _el_exTypeSel].forEach(function(tyE) { if (tyE) tyE.addEventListener('keydown', function(e) {   // the list keeps its own arrow keys: Enter sets it off, Escape puts the boxes away
       if (e.key === 'Enter') { e.preventDefault(); explodeGo(); }
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); explodeForm(false); }
-  });
+  }); });
   // [systemcheck:explode-end]
   // A sheet Throw button arms a one-shot blast placement (mirrors wpArmFxBurst); the next map click throws it.
   window.wpArmBlast = function(ft, name, ctx) {

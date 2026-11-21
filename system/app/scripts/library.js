@@ -306,18 +306,22 @@ function needSig(packId) {
 }
 // [librarycheck:needshown-end]
 function plSysOf(camp) { try { return window.wpSheets && window.wpSheets.playerSystem ? window.wpSheets.playerSystem(camp) : null; } catch (e) { return null; } }
-function playerIndexOf(packId, plSys) {
+// fh (1.6.3, the improvement week's combat review, finding 18: every save of the host's built the players' library manifest, writing out and
+// hashing the players' fields once for each pack): the hash of plSys's fields, worked out once by a caller that asks for every pack (playerManifest);
+// anything else is worked out here, as before
+function playerIndexOf(packId, plSys, fh) {
     var camp = getActiveCampaign(); if (!camp || !camp.library || !gmHere() || !ready(packId)) return null;
     var p = camp.library.packs.filter(function(x) { return x.id === packId; })[0]; if (!p || p.vis === 'gm') return null;
+    if (typeof fh !== 'string') fh = null;
     plSys = plSys || plSysOf(camp); var fields = plSys && Array.isArray(plSys.fields) ? plSys.fields : [];
-    var sig = camp.id + '|' + p.rev + '|' + hashText(JSON.stringify(fields)) + '|' + needSig(packId), m = _pidx[packId]; if (m && m.sig === sig) return m;
+    var sig = camp.id + '|' + p.rev + '|' + (fh !== null ? fh : hashText(JSON.stringify(fields))) + '|' + needSig(packId), m = _pidx[packId]; if (m && m.sig === sig) return m;
     var ix = playerIndex(entriesOf(packId), libCtx({ fields: fields }, F(), false, needShown, needRuleShown)); ix.sig = sig; _pidx[packId] = ix;
     return ix;
 }
 function playerManifest() {
     var camp = getActiveCampaign(); if (!camp || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return null;
-    var pl = plSysOf(camp), packs = [];
-    (camp.library ? camp.library.packs : []).forEach(function(p) { var ix = playerIndexOf(p.id, pl); if (!ix) return; var o = { id: p.id, name: p.name, count: ix.rows.length, hash: ix.hash }; if (p.icon) o.icon = p.icon; packs.push(o); });
+    var pl = plSysOf(camp), packs = [], fhM = hashText(JSON.stringify(pl && Array.isArray(pl.fields) ? pl.fields : []));   // 1.6.3 (finding 18): the fields' hash once for every pack
+    (camp.library ? camp.library.packs : []).forEach(function(p) { var ix = playerIndexOf(p.id, pl, fhM); if (!ix) return; var o = { id: p.id, name: p.name, count: ix.rows.length, hash: ix.hash }; if (p.icon) o.icon = p.icon; packs.push(o); });
     return { campId: camp.id, packs: packs };
 }
 function playerEntry(id) {

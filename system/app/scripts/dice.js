@@ -61,6 +61,10 @@ function readableInto(brk, res, parts, expr) {
         plusInto(brk, plus, expr, ' + '); plus = [];
         var diceSum = all.reduce(function(n, p) { return n + (p.die && typeof p.die.total === 'number' ? p.die.total * plusSign(p.die, expr) : NaN); }, 0), addN = res.value - diceSum;
         if (isFinite(addN) && addN !== 0) brk.appendChild(document.createTextNode((addN > 0 ? ' + ' : ' \u2212 ') + fmtNum(Math.abs(addN))));
+    } else if (!top && groups.length && typeof res.value === 'number' && isFinite(res.value) && !(Array.isArray(b.reads) && b.reads.length) && !all.some(function(p) { return p.die && p.die.aside; })) {   // never where the dice are read by a function of them, which the line already says in words   // 1.6.3 (the combat review, finding 27): a damage of 5d6 inside max(0, ...) with the row's adds showed its dice and a total they did not add up to
+        var dSum = all.reduce(function(n, p) { return n + (p.die && typeof p.die.total === 'number' ? p.die.total * plusSign(p.die, expr) : NaN); }, 0), Fn = F(), nmd = false;
+        try { nmd = !!(Fn && typeof Fn.names === 'function' && Fn.names(String(expr || '')).length); } catch (e) { nmd = false; }
+        if (isFinite(dSum) && dSum !== res.value) brk.appendChild(document.createTextNode(nmd ? ' \u00b7 with figures from the sheet' : ' \u00b7 with the rest of its formula'));
     }
     if (top && typeof top.left === 'number' && typeof top.right === 'number' && isFinite(top.left) && isFinite(top.right)) {
         var w = top.op === '<=' ? ' or less' : top.op === '>=' ? ' or more' : top.op === '<' ? ', under it' : top.op === '>' ? ', over it' : '';
@@ -176,7 +180,11 @@ function hmodInto(wrap, hm) {
 function refsInto(wrap, refs) {
     if (!Array.isArray(refs) || !refs.length) return; var box = el('div', 'chat-mods chat-refs');
     var say = function(s) { var u = /^untrained (.+?)( \([^()]*\))?$/.exec(s); if (u) return u[1] + ', rolled untrained' + (u[2] || ''); return /^as /.test(s) ? 'Rolled ' + s : s; };
-    refs.forEach(function(x) { if (x && typeof x === 'object' && typeof x.s === 'string' && x.s) box.appendChild(el('div', 'chat-mod-src', say(x.s))); });
+    // 1.6.3 (the combat review, finding 27): one note a text, in the order first met, with how many times where it came more than once (three names
+    // that read an empty crew group each said "nobody in Rider, read as 0", three lines alike)
+    var order = [], times = Object.create(null);
+    refs.forEach(function(x) { if (!x || typeof x !== 'object' || typeof x.s !== 'string' || !x.s) return; if (!times[x.s]) { times[x.s] = 0; order.push(x.s); } times[x.s]++; });
+    order.forEach(function(s) { box.appendChild(el('div', 'chat-mod-src', say(s) + (times[s] > 1 ? ' (' + times[s] + ' times)' : ''))); });
     if (box.firstChild) wrap.appendChild(box);
 }
 // 1.6.2, backlog 35: a card's "as" or "for" and the character's name, the name in its personal look where the card carries one
@@ -214,13 +222,19 @@ function renderCard(m) {
     }
     var coin = rec.expr === '1d2' && rec.label === 'Coin flip';   // 1.6.2: the Coin button's roll says heads or tails, with no dice line
     var named = !!rec.hid || coin; try { named = named || (typeof Fm.names === 'function' && Fm.names(rec.expr).length > 0) || (typeof Fm.plainDice === 'function' && !Fm.plainDice(rec.expr)); } catch (e) { named = false; }   // 1.5.7 (the owner: the formula "is showing as the roll information instead of being readable by everyone")
-    var exprLine = el('div', 'roll-expr', rec.expr); exprLine.title = rec.expr; if (!named) wrap.appendChild(exprLine);
+    var exprLine = el('div', 'roll-expr', rec.expr); exprLine.title = rec.expr;   // drawn below, unless the working says the formula itself
     var brk = el('div', 'roll-break');
     var sy = window.wpSheets && window.wpSheets.systemOf ? window.wpSheets.systemOf() : null, rule = typeof ruleOf === 'function' ? ruleOf(rec, sy && sy.combat ? sy.combat.checks : '') : sy && sy.combat && sy.combat.checks === 'under3d6' ? 'under3d6' : '';   // Stage 6 F8: the campaign's roll outcomes (1.6.0: or the critical range the host put on the record, asked through typeof for a suite that slices the card)
     var v = verdictOf(res, rule), crit = critOf(res, rule), mf = malfOf(rec, res);   // R3: a malfunction is a failure, whatever the test said
     if (rec.hid) { v = rec.hid === 'rolled' ? null : { kind: 'check', pass: rec.hid === 'pass', text: rec.hid === 'pass' ? 'success' : 'failure', crit: rec.hidc || '' }; crit = rec.hidc || null; }   // 1.6.2: a figure kept from this table: the dice and the host's word, and nothing worked out here
     var parts = typeof Fm.parts === 'function' ? Fm.parts(res, 40) : [Fm.describe(res, { maxChars: LIMITS.cardChars })];
     if (v && v.crit !== undefined && parts.length && typeof parts[parts.length - 1] === 'string') parts[parts.length - 1] = parts[parts.length - 1].replace(/:\s*(success|failure)( by [^:]*)?$/, '');   // F8: the rule's verdict is the line below (never the arithmetic's)
+    // 1.6.3 (the combat review, finding 27): a roll that is not named shows its working, which already writes its formula with the dice in brackets, so the
+    // formula's own line is drawn only where the working does not begin with it (spaces and the bracketed dice aside); and a damage roll keeps its bold total,
+    // the figure Apply takes, so the working does not end in it again
+    if (!named && !workSaysExpr(parts, rec.expr)) wrap.appendChild(exprLine);
+    if (!named && rec.dmg === 1 && v && v.kind === 'value' && parts.length && typeof parts[parts.length - 1] === 'string' && parts[parts.length - 1].slice(-(' = ' + v.text).length) === ' = ' + v.text) parts[parts.length - 1] = parts[parts.length - 1].slice(0, -(' = ' + v.text).length);
+    if (!named && !brk.title) brk.title = rec.expr;
     if (named) { readableInto(brk, res, parts, rec.expr); if (!brk.title) brk.title = namesHover(rec); }
     else parts.forEach(function(p) { if (typeof p === 'string') brk.appendChild(document.createTextNode(p)); else brk.appendChild(el('span', 'roll-die', p.text)); });
     if (typeof dieInto === 'function') dieInto(brk, rec);   // 1.5.8: the die its formula rolls, first on the dice line
@@ -330,6 +344,13 @@ function hitInto(wrap, i, h, t, words, faces) {
     (Array.isArray(faces) ? faces : []).forEach(function(f) { sum += f; d.appendChild(document.createTextNode(' ')); d.appendChild(el('span', 'roll-die', String(f))); });
     if (Array.isArray(faces) && faces.length && typeof t === 'number' && t !== sum) d.appendChild(document.createTextNode(' ' + (t < sum ? '\u2212' : '+') + ' ' + Math.abs(t - sum)));
     wrap.appendChild(d);
+}
+// 1.6.3 (the combat review, finding 27): whether a roll's working, as the formula engine writes it, begins with its formula, read with every space and
+// every bracketed list of dice left out. Its formula line then says nothing more and is not drawn
+function workSaysExpr(parts, expr) {
+    var x = String(expr || '').replace(/\s+/g, ''); if (!x || !Array.isArray(parts) || !parts.length) return false;
+    var w = parts.map(function(p) { return typeof p === 'string' ? p : ''; }).join('').replace(/\[\]/g, '').replace(/\s+/g, '');
+    return w.slice(0, x.length) === x;
 }
 // Stage 6 HUD H7: an apply action's card (a chat entry with m.apply = the cleaned record) — who, the tags, the action, then each change
 // "Fatigue \u22123 \u2192 0"; text only
@@ -611,7 +632,7 @@ function rollFor(charId, expr, label, opts) {
     var popS = typeof window !== 'undefined' && window && window.wpPopout ? window.wpPopoutSheet : null;   // 1.6.3 (finding 25): a sheet in a window of its own: the main window rolls it as its own press (sheets.js popSheetDo)
     if (popS && typeof popS.send === 'function' && popS.send('roll', [charId, expr, label, opts])) return { ok: true, sent: true };
     var s = ui('diceChar'); if (s && panelOpen()) { syncChars(); if (Array.prototype.some.call(s.options, function(o) { return o.value === charId; })) s.value = charId; }
-    _rollMore = opts.range || opts.blast || opts.used === true || opts.cross ? { range: opts.range || undefined, blast: opts.blast || undefined, used: opts.used === true ? true : undefined, usedWait: opts.usedWait === true ? true : undefined, cross: opts.cross && typeof opts.cross === 'object' ? opts.cross : undefined } : null;   // 1.5.8 explosives: a throw's range to its aim, the blast a damage roll is for (this machine's own words); 1.5.9: a damage roll already applied as it is rolled (a blast's fragmentation)
+    _rollMore = opts.range || opts.blast || opts.used === true || opts.cross || typeof opts.tok === 'string' ? { range: opts.range || undefined, blast: opts.blast || undefined, used: opts.used === true ? true : undefined, usedWait: opts.usedWait === true ? true : undefined, cross: opts.cross && typeof opts.cross === 'object' ? opts.cross : undefined, tok: typeof opts.tok === 'string' && opts.tok ? opts.tok : undefined } : null;   // 1.6.3 (finding 3): tok, the token a roll is made for (the roster's row), whose name its card wears   // 1.5.8 explosives: a throw's range to its aim, the blast a damage roll is for (this machine's own words); 1.5.9: a damage roll already applied as it is rolled (a blast's fragmentation)
     var cardF = typeof dueTake === 'function' ? dueTake(charId) : '';   // the review of input: the card whose press this roll is (duePress), so a roll refused or never answered makes that card live again
     var r = roll(expr, { card: cardF || undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: typeof opts.by === 'string' && opts.by ? opts.by : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: charId, label: label, source: opts.source || 'sheet', src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, hide: opts.hide === true ? true : undefined /* 1.6.3: a player's To the GM, picked in the ± window */, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, modD: typeof opts.modD === 'string' && opts.modD ? opts.modD : undefined, adv: opts.adv || undefined, hm: opts.hm && typeof opts.hm === 'object' ? opts.hm : undefined, dmg: opts.dmg === true ? true : undefined });   // the review of words: hm, what was added by hand to a roll that is not named, words for its card alone   // row (F5b): a roll on a list's row; act/mod/adv (R1): a roll with consequences   // gmOnly: a roll made of GM-only data (net.diceRoll keeps it the host's)   // 1.5.9: on, the token of the adjacent character it is used on
     if (r.error) toast(r.error);
@@ -771,7 +792,7 @@ function roll(expr, opts) {
     var clean = cleanExpr(expr);
     if (!clean) return { error: 'Type a formula, for example 2d6 + 3 (up to ' + LIMITS.expr.toLocaleString('en-US') + ' characters).' };
     if (opts.hide === true && isClient() && typeof hideAllowed === 'function' && !hideAllowed()) return { error: HIDE_OFF_WORDS };   // 1.6.3: /gmroll and a stale tick on a player's app, while the GM allows no hidden rolls (the host refuses one too)
-    var r = n.diceRoll(clean, { card: typeof opts.card === 'string' && opts.card ? opts.card : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, modD: typeof opts.modD === 'string' && opts.modD ? opts.modD : undefined, adv: opts.adv || undefined, hm: opts.hm && typeof opts.hm === 'object' ? opts.hm : undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined, hide: opts.hide === true && (isClient() || opts.source === 'chat') ? true : undefined, typed: opts.typed === true ? true : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
+    var r = n.diceRoll(clean, { card: typeof opts.card === 'string' && opts.card ? opts.card : undefined, aim: opts.aim && typeof opts.aim === 'object' ? opts.aim : undefined, by: opts.by || undefined, priv: !!opts.priv, gmOnly: !!opts.gmOnly, hit: typeof opts.hit === 'string' && opts.hit ? opts.hit : undefined, ask: opts.ask && typeof opts.ask === 'object' ? opts.ask : undefined, charId: opts.charId || undefined, label: opts.label || undefined, src: opts.src || undefined, fr: opts.fr || undefined, sw: opts.sw || undefined, row: opts.row || undefined, act: opts.act || undefined, mod: opts.mod || undefined, modD: typeof opts.modD === 'string' && opts.modD ? opts.modD : undefined, adv: opts.adv || undefined, hm: opts.hm && typeof opts.hm === 'object' ? opts.hm : undefined, dmg: opts.dmg === true ? true : undefined, on: typeof opts.on === 'string' && opts.on ? opts.on : undefined, range: more ? more.range : undefined, blast: more ? more.blast : undefined, used: more && more.used === true ? true : undefined, usedWait: more && more.usedWait === true ? true : undefined, cross: more && more.cross ? more.cross : undefined, tok: more && typeof more.tok === 'string' ? more.tok : undefined, hide: opts.hide === true && (isClient() || opts.source === 'chat') ? true : undefined, typed: opts.typed === true ? true : undefined });   // dmg: this machine's own word (a thrown item's damage); the wire never carries it
     if (!r.error && !opts.row && !opts.coin) remember(clean);   // Stage 6 F5b: a row roll is not remembered (its Row.* names need its row)
     return r;
 }

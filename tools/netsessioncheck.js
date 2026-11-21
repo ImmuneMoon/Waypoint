@@ -752,7 +752,7 @@ pendingChecks.push((async () => {
                 const api = new Function('net', 'window', 'getActiveCampaign', 'saveRemoteSoon', 'own', 'fightIds', 'FIGHT_ID', 'timeCore', 'toast', 'logEvent', 'mapTitleOf', 'marksStart', 'fxCombatEdge', 'broadcastCombats', 'combatRefresh', 'turnStarted', 'setTimeout', 'clearTimeout', 'cleanTargets', 'broadcastTargets',
                     'var _fightN = 0;\n' + bodyS + '\n' + fsS + '\nreturn { keep: fightsKeep, soon: fightsKeepSoon, read: fightsRead, back: fightsBack, hold: typeof fightsHold === \'function\' ? fightsHold : null, n: () => _fightN };')(
                     net, w, () => camp, () => log.saves++, own, fightIds, /^f_[a-z0-9]{8}$/, () => CCf, s => log.toasts.push(s), (a, s) => log.events.push(s), id => camp.items[id].meta.title, id => log.marks.push(id), (m, f, k) => log.bank.push(k), () => log.sent++, () => {}, (m, f) => log.turns.push(f.id), (fn) => { log.timer = fn; return 1; }, () => {}, cleanT, () => { log.tgSent = (log.tgSent || 0) + 1; });
-                return { log, net, api };
+                return { log, net, api, w };
             };
             const campF = () => ({ items: { m1: { meta: { title: 'Harbor' }, whiteboard: [{ id: 't1' }, { id: 't2' }] }, m2: { meta: { title: 'Gone soon' }, whiteboard: [] } } });
             const fight = (o) => Object.assign({ id: 'f_aaaaaaa1', mapId: 'm1', round: 3, turn: 1, n: 2, rows: [{ id: 'r1', tokId: 't1', name: 'Ava', init: 12 }, { id: 'r2', tokId: 't2', name: 'Raider', init: 9 }], rh: 3, th: { r1: 1, r2: 1 }, turned: { c_a: 3 }, fxEnded: { c_a: 2 }, eh: 3, et: { r1: 1 }, rr: 3, ps: ['r1'], pp: [['r1', 'r2']], at: { s: 120, ms: 0 } }, o || {});
@@ -770,6 +770,31 @@ pendingChecks.push((async () => {
             const e = campF(); e.fights = { list: 'x' }; const E = mkW(e), eN = E.api.back(), eGone = 'fights' in e; const P = mkW(Object.assign(campF(), { fights: { list: { f_aaaaaaa1: fight() } } }), 'client'), pN = P.api.back();
             check('1.6.0 a running fight, read back as data (fightsRead): a fight whose map is gone, one that keeps no row on its map and an id that is none stay out, a row whose token is gone goes with the turn staying on its row, a row with no token stays, a fight played that is gone gives way to the first; what a host figure holds that is no number is left out; a save that holds nothing sound is let go; a player\'s app brings nothing back',
                 dn === 1 && df.rows.map(r => r.id).join() === 'r2,r3' && df.turn === 1 && D.net.fightOn === 'f_aaaaaaa1' && !('rh' in hostile) && !('n' in hostile) && !('ps' in hostile) && !('at' in hostile) && j(Object.keys(hostile.th)) === j(['r2']) && Object.getPrototypeOf(hostile.th) === null && eN === 0 && eGone === false && pN === 0 && !P.net.combats.f_aaaaaaa1, j([dn, df, hostile, eN, eGone, pN]));
+            {   // 1.6.3 (the combat review, finding 8): what a reload lost of a round under way comes back with the fight, read as data
+                const r8 = { list: { f_aaaaaaa1: fight({ turn: 0, rows: [{ id: 'r1', tokId: 't1', name: 'Ava' }, { id: 'rg', tokId: 't_gone', name: 'Lost' }, { id: 'r2', tokId: 't2', name: 'Raider', hk: 1 }, { id: 'r3', tokId: null, name: 'Card' }],
+                    endAt: 3, ckNext: 'r2', ckBack: [{ id: 'r1', was: 5 }, { id: 7, was: 1 }, { id: 'r2', was: 'x' }], ckUsed: { n: 2, press: 1, named: 'yes' }, mvUsed: { r1: 1.5, r2: 'x', r3: -1 }, tn: 7 }) } };
+                const g8 = mkW(campF()).api.read(r8, campF()).list.f_aaaaaaa1, bad8 = mkW(campF()).api.read({ list: { f_aaaaaaa1: fight({ endAt: 'x', ckNext: 'r_none', ckBack: 'x', ckUsed: { n: 'x' }, mvUsed: 'x', tn: -2 }) } }, campF()).list.f_aaaaaaa1;
+                check('1.6.3 (the combat review, finding 8): a reload keeps the round under way: where a drawn card ends the round (counted by the rows that came back before it, one whose token is gone shifting it), the row a hold puts next under a counting clock, the counts a step back gives back, what the turn on hand has spent of its count, a move taken once a round, a row whose hold took a lost action, and the turn\'s serial; each read as data, what is no sound figure left out',
+                    g8.endAt === 2 && g8.ckNext === 'r2' && j(g8.ckBack) === j([{ id: 'r1', was: 5 }]) && j(g8.ckUsed) === j({ n: 2, press: 1 }) && j(g8.mvUsed) === j({ r1: 1.5 }) && Object.getPrototypeOf(g8.mvUsed) === null && g8.rows.filter(r => r.hk === 1).map(r => r.id).join() === 'r2' && g8.tn === 7
+                    && ['endAt', 'ckNext', 'ckBack', 'ckUsed', 'mvUsed', 'tn'].every(k => !(k in bad8)), j([g8, bad8]));
+            }
+            {   // the review of combat state (2026-11-20): a fight of several turns a round may hold up to 600 rows of 12 turns each, so its order of turns comes back
+                // whole up to 7200 (at the old 2000 a large such fight lost every later turn of each row after a reload), and past that bound it is no order
+                const seqOf = n => Array.from({ length: n }, (_, i) => 'r' + (i % 2 + 1) + '#' + Math.floor(i / 2));
+                const sq3 = mkW(campF()).api.read({ list: { f_aaaaaaa1: fight({ seq: seqOf(3000) }) } }, campF()).list.f_aaaaaaa1.seq, sqMax = mkW(campF()).api.read({ list: { f_aaaaaaa1: fight({ seq: seqOf(7200) }) } }, campF()).list.f_aaaaaaa1.seq;
+                const sqOver = mkW(campF()).api.read({ list: { f_aaaaaaa1: fight({ seq: seqOf(7201) }) } }, campF()).list.f_aaaaaaa1.seq;
+                const scT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js'), 'utf8'), sevM = /sevTurns: ([0-9]+),/.exec(scT);
+                check('1.6.3, the review of combat state: a fight read back keeps its order of turns up to 600 rows times the most turns a row has in a round (7200), so a large fight of several turns a round keeps every later turn of each row over a reload; past that bound it is no order',
+                    Array.isArray(sq3) && sq3.length === 3000 && Array.isArray(sqMax) && sqMax.length === 7200 && sqOver === undefined && !!sevM && Number(sevM[1]) * 600 === 7200, j([sq3 && sq3.length, sqMax && sqMax.length, sqOver && sqOver.length, sevM && sevM[1]]));
+            }
+            {   // 1.6.3 (the combat review, finding 1; Fulllion's pick: "keep them live"): the records behind the cards in chat and what a blast still owes are kept with
+                // the fight and handed back as the table opens, before its cards are judged (fightsKeep, fightsRead, fightsBack, run for real)
+                const k1c = campF(), K1 = mkW(k1c); K1.net.combats.f_aaaaaaa1 = fight(); K1.net.fightOn = 'f_aaaaaaa1'; K1.net.attsKeep = () => [{ id: 'a_owe00001', charId: 'c_a', act: 'r_def', m: 2 }]; K1.w.wpBlastKeep = () => ({ owed: [{ id: 'a_blast001' }], def: [], kept: {} }); K1.api.keep();
+                const keptA = JSON.parse(JSON.stringify(k1c.fights)), K2 = mkW(k1c), backs = []; K2.net.attsBack = (l, c) => { backs.push(['atts', l.length, c === k1c]); return l.length; }; K2.w.wpBlastBack = (b, c) => { backs.push(['blasts', b.owed.length, c === k1c]); return 1; }; const n2 = K2.api.back();
+                const k3c = campF(), K3 = mkW(k3c); K3.net.combats.f_aaaaaaa1 = fight(); K3.net.attsKeep = () => []; K3.w.wpBlastKeep = () => null; K3.api.keep();
+                check('1.6.3 (the combat review, finding 1): a running fight keeps the records behind its cards (net.attsKeep) and what a blast still owes (wpBlastKeep) beside its landings, and hands each back to its own reader as the table opens; a fight with none keeps neither key',
+                    j(keptA.atts) === j([{ id: 'a_owe00001', charId: 'c_a', act: 'r_def', m: 2 }]) && j(keptA.blasts) === j({ owed: [{ id: 'a_blast001' }], def: [], kept: {} }) && n2 === 1 && j(backs) === j([['atts', 1, true], ['blasts', 1, true]]) && !('atts' in k3c.fights) && !('blasts' in k3c.fights), j([keptA, backs]));
+            }
             const tgK = campF(), TK = mkW(tgK); TK.net.combats.f_aaaaaaa1 = fight(); TK.net.fightOn = 'f_aaaaaaa1'; TK.net.targets = { p_ava: { id: 't2', mapId: 'm1', name: 'Ava' }, 'tk:t2': { id: 't1', mapId: 'm1', name: 'Raider', from: 't2' }, p_gone: { id: 't_gone', mapId: 'm1', name: 'Bram' } }; TK.api.keep(); const heldT = JSON.parse(JSON.stringify(tgK.fights.targets));
             const TB = mkW(tgK), nTB = TB.api.back(); const noT = campF(), NT = mkW(noT); NT.net.combats.f_aaaaaaa1 = fight(); NT.api.keep();
             check('1.6.0 what a fight aims at comes back with it: a pointer is kept with a running fight, the player\'s and one of the GM\'s characters\' alike, and read back where its token still stands, sent to the table once; a fight with no pointer is kept key for key as it was',
@@ -780,6 +805,19 @@ pendingChecks.push((async () => {
             const dOld = dRd({ round: 2, lines: { r1: 'x' }, open: 1 }), dShut = dRd({ round: 3, lines: {}, open: 0 }), dHost = dRd({ round: 3, lines: { r1: 'Fires\n\u0007 twice', r2: 7, r9: 'Not here', __proto__: 'no' }, open: 1 }), dLong = dRd({ round: 3, lines: { r1: 'y'.repeat(500) }, open: 1 });
             check('the viewing of 2026-11-09 (the owner, by prompt: "Save it with the fight (Recommended)"): a round\'s open declaration is kept with its fight and comes back with its lines, who is in and the round it is for; one for a round the fight has gone past and one already shown read as nothing; a line read as text with no control character, 200 at most, only for a row the fight still holds',
                 nDB === 1 && !!dB && dB.open === 1 && dB.round === 3 && j(dB.lines) === j({ r1: 'Charges', r2: 'Holds' }) && Object.getPrototypeOf(dB.lines) === null && dOld === undefined && dShut === undefined && j(dHost.lines) === j({ r1: 'Fires  twice' }) && dLong.lines.r1.length === 200, j([dB, dOld, dShut, dHost, dLong && dLong.lines && dLong.lines.r1 && dLong.lines.r1.length, { back: nDB, bare: !!dB && !!dB.lines && Object.getPrototypeOf(dB.lines) === null, old: typeof dOld, shut: typeof dShut }]));   // the last part names what did not hold. This check was seen failing once (2026-11-10) with every figure before it as expected, in a run of 1637 checks; the review of 2026-11-11 found 1637 to be the whole count of the file as it stood the day before, so that run was most likely of an older file, and 60 runs under load since have not failed
+            {   // 1.6.3 (the review of the combat roster, finding 3; Fulllion's ruling of 2026-11-20 that the GM may always reverse anyone's turn, and his pick that a reload keeps a
+                // fight live): a counting clock's own record comes back with its fight, so the clock's Previous turn still takes a turn back after the GM's reload
+                const ckF = () => fight({ ck0: { r1: 6.5, r2: 4, r_x: 'no' }, ckUsed: { n: 2, named: 1, z: 1 }, ckBack: [{ id: 'r1', was: 6.5 }, { id: 'r_gone', was: 3 }, { id: 'r2', was: 'x' }, 'junk'], ckPrevs: [{ init: { r1: 1, r2: -2 }, back: [{ id: 'r2', was: 4 }] }, 'junk'], ckStarts: [{ round: 2, init: { r1: 6.5 } }, { round: 'x', init: {} }] });
+                const ckC = campF(), CK = mkW(ckC); CK.net.combats.f_aaaaaaa1 = ckF(); CK.net.combats.f_aaaaaaa1.rows[0].init = 0.5; CK.net.fightOn = 'f_aaaaaaa1'; CK.api.keep();
+                const CB = mkW(ckC), nCB = CB.api.back(), fCB = CB.net.combats.f_aaaaaaa1;
+                const kept = fCB ? [j(fCB.ck0), j(fCB.ckUsed), j(fCB.ckBack), j(fCB.ckPrevs), j(fCB.ckStarts)] : [];
+                const ccA = src.indexOf('// [netcheck:countclock-start]'), ccB = src.indexOf('// [netcheck:countclock-end]');
+                const KC = new Function('net', 'SC', 'window', 'own', 'initRulesOf', 'broadcastCombats', 'combatRefresh', src.slice(ccA, ccB) + 'return { clockStep };')({ combats: {} }, () => ({}), {}, (o, k) => Object.prototype.hasOwnProperty.call(o, k), c => c.rule, () => {}, () => {});
+                const tBack = fCB ? KC.clockStep({ rule: { clock: { cost: 3 } }, items: ckC.items }, fCB, -1, { cost: 3 }) : -1;
+                check('1.6.3 (the review of the combat roster, finding 3, run for real): a counting clock comes back with its fight after the GM reloads, where each row began (a fraction kept), what the turn on hand has spent, the steps a correction takes back, the cycles before and where each cycle began, each read as data (a row gone, a figure that is no number and junk left out); and Previous turn on the clock then takes the last turn back',
+                    nCB === 1 && j(kept) === j([j({ r1: 6.5, r2: 4 }), j({ n: 2, named: 1 }), j([{ id: 'r1', was: 6.5 }]), j([{ init: { r1: 1, r2: -2 }, back: [{ id: 'r2', was: 4 }] }]), j([{ round: 2, init: { r1: 6.5 } }])])
+                    && tBack === 0 && fCB.rows[0].init === 6.5 && fCB.ckBack.length === 0, j([nCB, kept, tBack, fCB && fCB.rows]));
+            }
             {   // 1.6.2 (the click test of the campaign before 1.6.2, 2026-11-14): the GM's reload in a fight lost it. The fight came back on the GM's machine alone, asked for a keep, and the table that opened emptied net.combats before that keep ran, so the keep let the save's fight go and the table's fightsBack found none
                 const hc = campF(), H = mkW(hc); H.net.combats.f_aaaaaaa1 = fight(); H.net.fightOn = 'f_aaaaaaa1'; H.api.soon(); const queued = typeof H.log.timer === 'function';
                 if (H.api.hold) H.api.hold(); const heldH = !!(hc.fights && hc.fights.list && hc.fights.list.f_aaaaaaa1);
@@ -802,6 +840,14 @@ pendingChecks.push((async () => {
                         && /if \(type === 'invalid-key' && !opened\) \{[^\n]*try \{ peer\.destroy\(\); \} catch \(e\) \{\} if \(typeof fightsBack === 'function'\) fightsBack\(\); setStatus\(planW\);/.test(hpE)
                         && /\n            return;\n        \}\n        if \(typeof fightsBack === 'function'\) fightsBack\(\);[^\n]*\n        setStatus\('Host error: ' \+ type\);/.test(hpE.replace(/\r\n/g, '\n')),
                         j({ heldF, nF, backF, kF, keptF, kF2, goneF, hp: hpE.length }));
+                }
+                {   // 1.6.3 (the combat review, finding 1, found live): startHosting empties the store of records before it holds the fights, so the hold's keep found
+                    // none and wrote the save without them, and the GM's reload ended every card all the same. What the save held stays where the keep has none
+                    const hk = campF(); hk.fights = { on: 'f_aaaaaaa1', list: { f_aaaaaaa1: fight() }, atts: [{ id: 'a_owe00001', charId: 'c_a' }], blasts: { owed: [{ id: 'a_blast001' }] } };
+                    const HK = mkW(hk); HK.net.combats.f_aaaaaaa1 = fight(); HK.net.fightOn = 'f_aaaaaaa1'; HK.net.attsKeep = () => []; HK.w.wpBlastKeep = () => null; HK.api.hold();
+                    const hk2 = campF(); hk2.fights = { list: { f_aaaaaaa1: fight() }, atts: [{ id: 'a_old00001', charId: 'c_a' }] }; const HN = mkW(hk2); HN.net.combats.f_aaaaaaa1 = fight(); HN.net.attsKeep = () => [{ id: 'a_new00001', charId: 'c_a' }]; HN.api.hold();
+                    check('1.6.3 (the combat review, finding 1): holding the fights as a table opens keeps what the save held of the records behind the cards and of the blasts where the store has none now; a store that holds its own keeps its own',
+                        j(hk.fights.atts) === j([{ id: 'a_owe00001', charId: 'c_a' }]) && j(hk.fights.blasts) === j({ owed: [{ id: 'a_blast001' }] }) && j(hk2.fights.atts) === j([{ id: 'a_new00001', charId: 'c_a' }]), j([hk.fights, hk2.fights]));
                 }
                 check('1.6.2 the wiring of fightsHold: startHosting holds the fights before its leaveSession(true) empties them',
                     /if \(typeof fightsHold === 'function'\) fightsHold\(\);[^\n]*\n    leaveSession\(true\);\n    defaultStageMode/.test(src), '');
@@ -1753,6 +1799,25 @@ pendingChecks.push((async () => {
         && src.includes("ck = sessionStorage.getItem(CHAT_KEEP);") && src.includes("sessionStorage.removeItem(CHAT_KEEP);") && /if \(ck\) net\._chatBack = ck;[^\n]*\n\s*startHosting\(false\);/.test(src) && /diceSessionReset\(true\); if \(typeof net\._chatBack === 'string'\) \{ var cbH = net\._chatBack; net\._chatBack = null; if \(typeof chatKeepIn === 'function'\) chatKeepIn\(cbH\); \}/.test(src)
         && /fightsBack\(\);   \/\/ 1\.6\.0: a fight its campaign kept comes back with the table\n\s*if \(typeof chatKeptSettle === 'function'\) chatKeptSettle\(\);/.test(src)
         && fs.readFileSync(path.join(kit.APP, 'scripts', 'dice.js'), 'utf8').includes("m.overSay === 'reload' ?"), j({ kept: kept.length, nBack, before, after, hist: hist.length, bad }));
+}
+
+// 1.6.3 (the combat review, finding 1; Fulllion's pick: "keep them live"): after the GM's reload a kept card whose roll a blast still owes stays live; one
+// that could not come back is over, the GM is told once who still owed a roll, and each player whose own card it was is told as they come back (chatkeep, run for real)
+{
+    const ckSrc = between('// [netcheck:chatkeep-start]', '// [netcheck:chatkeep-end]', 'chatkeep');
+    const said = [], logged = [], camp = { chars: { c_a: { id: 'c_a', name: 'Ava', ownerId: 'p_a' }, c_n: { id: 'c_n', name: 'Raider', npc: true } } };
+    const api = new Function('chatLog0', 'DC', 'window', 'renderChatSoon', 'attemptRec', 'getActiveCampaign', 'toast', 'logEvent', 'var chatLog = chatLog0;\n' + ckSrc + '\nreturn { settle: chatKeptSettle, tell: reloadOverTell, log: function() { return chatLog; } };')(
+        [], () => null, { wpBlastOwedHas: id => id === 'a_owedheld' }, () => {}, id => (id === 'a_attheld' ? {} : null), () => camp, s => said.push(s), (k, s) => logged.push(s));
+    const from = { id: 'gm', name: 'GM', gm: true }, log = api.log();
+    log.push({ from, kept: 1, due: { att: 'a_owedheld', charId: 'c_a', label: 'Blast: 2 dice at 1 yd', theirs: 1 } }, { from, kept: 1, due: { att: 'a_attheld', charId: 'c_a', label: 'Defend' } },
+        { from, kept: 1, due: { att: 'a_owedgone', charId: 'c_a', label: 'Blast: 3 dice at 2 yd', theirs: 1 } }, { from, kept: 1, due: { att: 'a_bighitgo', charId: 'c_n', label: 'Big Hit' } }, { from, due: { att: 'a_notkeptx', charId: 'c_a', label: 'Live' } });
+    api.settle();
+    const states = log.map(m => (m.over ? m.overSay : 'live')), sentA = [], sentB = [], cA = { open: true, send: m => sentA.push(m) }, cB = { open: true, send: m => sentB.push(m) };
+    api.tell(cA, 'p_a'); api.tell(cB, 'p_b');
+    check('1.6.3 (the combat review, finding 1): after the GM\'s reload a kept card whose roll a blast still owes (wpBlastOwedHas) and one whose record came back stay live; one that could not come back is over, said once to the GM by character and card (a notice and the Game Record) so what is owed is rolled by hand; a player whose own card it was is told it is over as they come back, another player nothing; the player\'s app takes the word reload',
+        j(states) === j(['live', 'live', 'reload', 'reload', 'live']) && said.length === 1 && /2 cards are over/.test(said[0]) && said[0].indexOf('Ava: Blast: 3 dice at 2 yd') >= 0 && said[0].indexOf('Raider: Big Hit') >= 0 && j(logged) === j(said)
+        && j(sentA) === j([{ type: 'due-over', att: 'a_owedgone', say: 'reload' }]) && sentB.length === 0
+        && /msg\.say === 'missed' \|\| msg\.say === 'reload'\) m\.overSay = msg\.say;/.test(src) && /if \(typeof reloadOverTell === 'function'\) reloadOverTell\(conn, prof\.id\);/.test(src), j({ states, said, sentA, sentB }));
 }
 
 // 1.6.3 (the review of input): chatKeepOut writes each message out once, never every tail of the list again, and keeps the very text it kept before

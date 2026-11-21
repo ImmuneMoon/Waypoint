@@ -2364,8 +2364,10 @@ function drawCaptions(ctx, s) {
     var sr = s.getBoundingClientRect();
     ctx.save();
     ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var far = typeof capsFar === 'function' && capsFar();   // 1.6.3: Token marks on my map, zoomed out: the light's name is a target mark's, shown with the marks
     for (var i = 0; i < els.length && i < CAPTIONS_MOST; i++) {
         var t = String(els[i].dataset.lightCap || '').slice(0, 200); if (!t) continue;
+        if (far && !capsNear(els[i])) continue;
         var r = els[i].getBoundingClientRect(), cx = r.left + r.width / 2 - sr.left, cy = r.bottom - sr.top + 12, w = Math.min(ctx.measureText(t).width + 14, 360), h = 17;
         if (cx + w / 2 < 0 || cy + h < 0 || cx - w / 2 > sr.width || cy - h > sr.height) continue;   // off the board's view
         ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1;
@@ -2575,6 +2577,18 @@ function blindCaptionsFor(map, camp, ownerId) {
     });
     return out;
 }
+// 1.6.3 (Fulllion, of a crowd of tokens zoomed out: "stuff like this makes the game difficult to parse at a distance"): whether this screen puts a
+// token's marks away until the pointer is on it, as settings.js says by the body's words (Token marks on my map: Near the pointer or zoomed in, and
+// the board below 100%). Never in the stream window, which always shows them. capsNear: the token under the pointer, selected, or one of a selection
+function capsFar() {
+    try { var b = typeof document !== 'undefined' && document ? document.body : null, c = b && b.classList; return !!(c && c.contains && c.contains('tokmk-far') && !c.contains('tokmk-always') && !c.contains('stream-mode')); } catch (e) { return false; }
+}
+function capsNear(el) { return !!el && ((el.matches && el.matches(':hover')) || (el.classList && (el.classList.contains('sel') || el.classList.contains('wb-msel')))); }
+// The words of the sense line for one token of the map on screen (Blind, then what still works, or a sense that fails), as this screen draws them, or
+// '' (whiteboard.js says them on the token's hover card and in the tooltip of its folded marks)
+function senseWordsOf(tokId) {
+    try { if (!active() || typeof tokId !== 'string') return ''; var map = activeMap(), c = blindCaptionsFor(map, activeCamp(), drawOwner()).find(function(x) { return x.id === tokId; }); return c ? c.text : ''; } catch (e) { return ''; }
+}
 // drawn as drawCaptions draws a light's name, but above the token (a light's name sits under it), found by its board id
 // Each viewer's own choice (the owner, 2026-10-04: "the effects over a players head should be able to be hidden from view if they dont want to see
 // them all the time"): wp_senseCaps on this machine is always (as ever), hover (only above the token under the pointer, or a selected one) or
@@ -2583,6 +2597,7 @@ function drawSenseCaptions(ctx, s, caps) {
     if (!caps.length || !ctx.fillText) return;
     var mode = 'always'; try { var mv = typeof localStorage !== 'undefined' && localStorage ? localStorage.getItem('wp_senseCaps') : null; if (mv === 'hover' || mv === 'never') mode = mv; } catch (e) {}
     if (mode === 'never') return;
+    if (mode === 'always' && typeof capsFar === 'function' && capsFar()) mode = 'hover';   // 1.6.3: left at Always, the line follows Token marks on my map, zoomed out: shown with the token's marks
     var want = Object.create(null); caps.forEach(function(c) { want[c.id] = c.text; });
     var els = document.querySelectorAll('#whiteboardWrap .wb-item[data-id]'), sr = s.getBoundingClientRect(), n = 0;
     ctx.save();
@@ -3246,6 +3261,7 @@ window.wpFog = {
     seenJudge: seenJudge, pieceSeen: pieceSeen,   // 1.6.3: which pieces a player's minimap, Shift+1, hover card and double-click may show (main.js, whiteboard.js)
     memOut: memOut, memSeed: memSeed, memKeyNow: memKeyNow,   // 1.6.3 (finding 13): a player's explored ground, kept by the host (net.js memSendTo) and laid into their screen's store
     memHostPath: memHostPath, memFlushNow: memFlushNow, memFlush: hostMemFlush, memVer: memVer,   // the review of 1.6.3: the ground a drag passed (net.js pos gate), written at once (pagehide, leaveSession), at a real save (io.js save), and fogMem's part of the save (io.js saveBody)
+    senseWordsOf: senseWordsOf,   // 1.6.3: a token's sense line in words (whiteboard.js tokMarksSync and the hover card)
     seenKind: seenKind, memSeenSig: memSeenSig, memTrace: memTrace, rememberOff: function() { return !rememberOn(activeCamp()); },   // 1.6.0: what a portal's picture of a map may hold on a player's screen (mapshot.js)
     stats: function() { var map = activeMap(); return { on: map ? !!mapFog(map).on : false, light: map ? mapLevel(map) : null, mode: map ? mapFog(map).mode : null, preview: previewMode, brush: brush, fogMode: !!window.isFogMode, role: roleNow() }; }
 };

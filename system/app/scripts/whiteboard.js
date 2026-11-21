@@ -106,6 +106,7 @@ function stanceChipsSync(el, item, activeMap) {
         if (!stanceEl) { stanceEl = document.createElement('div'); stanceEl.className = 'token-stance'; el.appendChild(stanceEl); }
         if (stanceEl.dataset.sig !== stanceHtml) { stanceEl.dataset.sig = stanceHtml; stanceEl.innerHTML = stanceHtml; }
     } else if (stanceEl) stanceEl.remove();
+    if (typeof tokMarksSync === 'function') tokMarksSync(el, item);   // 1.6.3: the chips just drawn take their place among the marks that fold
 }
 // ... and the chips of every character token on the map on screen, again (window.wpStanceChips): nothing while the data map is on screen, with
 // no map, or for a token with no element on the board
@@ -115,6 +116,62 @@ function refreshStanceChips() {
 }
 window.wpStanceChips = refreshStanceChips;
 // [fogcheck:stancechips-end]
+// [lookcheck:tokmarks-start]
+// 1.6.3 (Fulllion, 2026-11-20: "stuff like this makes the game difficult to parse at a distance", by prompt "as a setting. full marks only near the
+// pointer, or when zoomed in by default"; and "without eliminating the marks explaining what they do"). Token marks on my map, in Settings
+// (settings.js tokMarksApply, tokMarksZoom). Every mark keeps its own words: what is put away is said by one dot (Near the pointer or zoomed in) or one
+// +N chip (Always), whose tooltip names every mark. TOKMK_SHOWN is how many marks Always shows before the rest fold.
+// tokMarkFold is pure: it is handed the marks in their order, each { w: its words, a list (an effect icon that stands for several effects has
+// several) }, and answers which of them fold (each mark's place, by the words it holds before it: a mark whose first words come after the first
+// TOKMK_SHOWN folds) and how many words fold, the +N. tokMarkWords is the tooltip: every mark's words and then the extra words (the sense line, which
+// the fog draws), each once, in order
+var TOKMK_SHOWN = 3;
+function tokMarkFold(marks, shown) {
+    var at = 0, out = [], more = 0; shown = typeof shown === 'number' && shown >= 0 ? shown : TOKMK_SHOWN;
+    (Array.isArray(marks) ? marks : []).forEach(function(m) { var n = m && Array.isArray(m.w) ? m.w.length : 0; var x = at >= shown; out.push(x); if (x) more += n; at += n; });
+    return { fold: out, more: more, total: at };
+}
+function tokMarkWords(marks, extra) {
+    var seen = Object.create(null), out = [];
+    (Array.isArray(marks) ? marks : []).forEach(function(m) { (m && Array.isArray(m.w) ? m.w : []).forEach(function(t) { if (typeof t === 'string' && t && !seen[t]) { seen[t] = 1; out.push(t); } }); });
+    (Array.isArray(extra) ? extra : []).forEach(function(t) { if (typeof t === 'string' && t && !seen[t]) { seen[t] = 1; out.push(t); } });
+    return out.join(', ');
+}
+// The sense line's words as the hover card and the tooltip say them: Blind first, said as what it means, then what still works, and a sense that
+// fails here as it is
+function senseSays(text) {
+    if (typeof text !== 'string' || !text) return [];
+    var parts = text.split(' \u00b7 '), out = [];
+    if (parts[0] === 'Blind') { out.push('Blind: sees only its own cell'); parts.shift(); var still = parts.filter(function(p) { return !/ fails? here$/.test(p); }); if (still.length) out.push('Still senses ' + still.join(', ')); parts = parts.filter(function(p) { return / fails? here$/.test(p); }); }
+    return out.concat(parts);
+}
+// A token's marks on the board in the order they keep under Always: Down or Dead, who targets it, its effects, the environment badge, its posture and
+// its elevation. Each is { n: its element, w: its words } read from what the board drew (each mark's own tooltip or the hover card's words), so the
+// fold never names a mark the board did not draw. Called by the board's redraw after the marks are drawn, and by stanceChipsSync, which a move with no
+// redraw asks for again. Writes each mark's class mk-x and the one dot or chip, tok-more, and nothing else
+function tokMarkNodes(el) {
+    var out = [], q = function(s) { return el.querySelector(':scope > ' + s); };
+    var st = q('.token-status'); if (st) out.push({ n: st, w: [st.dataset && st.dataset.s === 'dead' ? 'Dead' : 'Down'] });
+    var tm = q('.target-marks'), says = tm && Array.isArray(tm._says) ? tm._says : [];
+    if (tm) Array.prototype.forEach.call(tm.children, function(ch, i) { out.push({ n: ch, w: [says[i] || 'Targeted'] }); });
+    var row = el.querySelector(':scope > .token-fx > .tfx-row'), names = row ? String(row.getAttribute('title') || '').split(' \u00b7 ').filter(Boolean) : [];
+    if (row) Array.prototype.forEach.call(row.children, function(ch, i) { var more = ch.classList && ch.classList.contains('more'); out.push({ n: ch, w: more ? names.slice(i) : [names[i] || 'An effect'] }); });
+    var env = q('.token-env'); if (env) out.push({ n: env, w: [env.getAttribute('title') || 'Its surroundings'] });
+    var sc = q('.token-stance'); if (sc) Array.prototype.forEach.call(sc.children, function(ch) { var t = String(ch.getAttribute('title') || '').split('\n')[0]; out.push({ n: ch, w: [t ? (ch.classList.contains('post') ? 'Posture: ' + t : t) : ch.textContent] }); });
+    return out;
+}
+function tokMarksSync(el, item) {
+    if (!el || !el.querySelector) return;
+    var nodes = item && item.isChar ? tokMarkNodes(el) : [], sense = item && item.isChar && window.wpFog && window.wpFog.senseWordsOf ? senseSays(window.wpFog.senseWordsOf(item.id)) : [];
+    var f = tokMarkFold(nodes, TOKMK_SHOWN), words = tokMarkWords(nodes, sense), more = el.querySelector(':scope > .tok-more');
+    nodes.forEach(function(m, i) { if (m.n.classList.contains('mk-x') !== f.fold[i]) m.n.classList.toggle('mk-x', f.fold[i]); });
+    if (!words) { if (more) more.remove(); return; }
+    if (!more) { more = document.createElement('span'); more.className = 'tok-more'; el.appendChild(more); }
+    var txt = f.more ? '+' + f.more : '';
+    if (more.textContent !== txt) more.textContent = txt;
+    if (more.getAttribute('title') !== words) { more.setAttribute('title', words); more.setAttribute('aria-label', words); }
+}
+// [lookcheck:tokmarks-end]
 
 // Context-menu rows for elevation (− / value / +) and posture (select); shared by the GM's
 // item menu and the player's own-token menu. Rows carry cm-stance so the menu stays open.
@@ -986,6 +1043,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
 
           else { el.style.display = ''; el.classList.toggle('wb-absent', absentOwner); }
           el.classList.toggle('wb-turn', onTurnHere(window.wpNet, activeMap.id, item.id));   // fold 2: on turn in any fight on this map
+          el.classList.toggle('wb-msel', !!(state.selWbIds && state.selWbIds.includes(item.id) && state.selWbIds.length > 1));   // 1.6.3: one of a selection shows its token marks (Token marks on my map)
           if (state.selWbIds && state.selWbIds.includes(item.id) && state.selWbIds.length > 1) { el.style.boxShadow = '0 0 0 2px var(--gold)'; } else { el.style.boxShadow = _isPortal ? ('inset 0 0 0 4px ' + _pc) : 'none'; }   // keep the portal ring when not multi-selected
 
           
@@ -1227,7 +1285,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
                   marksEl.title = 'Targeted by ' + tgs.map(function(t) { return t.name; }).join(', ');
                   marksEl._says = tgs.map(function(t, ti) { return markSays(t.name, tcov[ti], trng[ti], tlit[ti], thgt[ti]); });   // 1.6.0: the hover card's words for them (badgeLines)
                   marksEl.innerHTML = tgs.map(function(t, ti) {
-                      var mine = targeterToken(t.id), cv = tcov[ti], tip = esc(t.name + (cv ? ' \u2014 ' + cv.name : ''));
+                      var mine = targeterToken(t.id), cv = tcov[ti], tip = esc('Targeted by ' + t.name + (cv ? ' \u2014 ' + cv.name : ''));   // 1.6.3: the mark says what it means, not a name alone
                       var cvHtml = cv ? '<span class="target-cover" title="' + esc(cv.name) + '">' + (TARGET_COVER_GLYPH[cv.name] || '\u25d0') + '</span>' : '';
                       var pair = function(mk) { return cv ? '<span class="target-pair">' + mk + cvHtml + '</span>' : mk; };   // a mark and its cover tag wrap as one
                       var ini = String(t.name).trim().split(/\s+/).map(function(s) { return s[0] || ''; }).join('').slice(0, 2).toUpperCase();
@@ -1245,7 +1303,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
           var stEl = el.querySelector(':scope > .token-status');
           if (stv) {
               if (!stEl) { stEl = document.createElement('div'); stEl.className = 'token-status'; el.appendChild(stEl); }
-              if (stEl.dataset.s !== stv) { stEl.dataset.s = stv; stEl.innerHTML = stv === 'dead' ? TOKEN_SKULL : TOKEN_X; }
+              if (stEl.dataset.s !== stv) { stEl.dataset.s = stv; stEl.innerHTML = stv === 'dead' ? TOKEN_SKULL : TOKEN_X; stEl.title = stv === 'dead' ? 'Dead' : 'Down'; stEl.setAttribute('aria-label', stEl.title); }   // 1.6.3: the mark's words
           } else if (stEl) stEl.remove();
           el.classList.toggle('tok-dead', stv === 'dead');
           el.classList.toggle('tok-down', stv === 'down');
@@ -1271,6 +1329,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
               if (!envEl) { envEl = document.createElement('div'); envEl.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13.5V5a2 2 0 0 1 4 0v8.5a4 4 0 1 1-4 0z"/></svg>'; el.appendChild(envEl); }
               envEl.className = 'token-env ' + (envT.band === 'danger' ? 'danger' : 'warn'); envEl.title = envT.text; envEl.setAttribute('aria-label', envT.text);
           } else if (envEl) envEl.remove();
+          tokMarksSync(el, item);   // 1.6.3: Token marks on my map, which marks fold and the dot's words
           if (item.id === state.selWbId && (!state.selWbIds || state.selWbIds.length === 1)) {   // a locked piece is selected and shown too (the owner, 2026-11-13: "when locked, i should still be able to click and highlight pieces"), with no handles (positionHandles)
 
               el.classList.add('sel');
@@ -4312,7 +4371,7 @@ window.wpFitToGrid = fitToGrid;
   // the player's name, Sheet where the viewer may open it), then Health, Marks and effects, the note, and Where, each only when it holds
   // something. Built of elements and text nodes alone: every word is set as text, a color is a #rrggbb, a picture's address is the caller's
   var TOKCARD_GRACE = 400, TOKCARD_GAP = 10;
-  var TOKCARD_KINDS = ['mark', 'down', 'fx', 'buff', 'debuff', 'env', 'face', 'stance', 'ranged'];
+  var TOKCARD_KINDS = ['mark', 'down', 'fx', 'buff', 'debuff', 'env', 'face', 'stance', 'ranged', 'sense'];
   // Prose as the card says it: an art file's name or an id in brackets is left out, since the head shows the picture and Where the room
   function tokCardTidy(s) {
       if (typeof s !== 'string') return '';
@@ -4457,7 +4516,8 @@ window.wpFitToGrid = fitToGrid;
       var chips = badgeChips(el, wItem);
       if (stanceOn('elevation')) { var hvE = tokenElevation(wItem, map), hvG = groundWords(wItem, map); if (hvE || hvG) chips.push({ t: 'Elevation ' + fmtElev(hvE) + ' ' + lenUnit() + (hvG ? ' (' + hvG + ')' : ''), k: 'stance' }); }   // item 19b H5: its height, the ground it stands on included (and named)
       var postAt = stanceOn('posture') ? tokenPostureAt(wItem) : null; if (postAt && postAt.i > 0 && postAt.p && postAt.p.name) chips.push({ t: String(postAt.p.name), k: 'stance' });   // conditions C3: its posture's name in the list in use
-      if (postureRanged(wItem)) chips.push({ t: postureRangedLine(tokenPostureAt(wItem).p), k: 'ranged' });   // its posture's ranged note, in the website's words (display only)
+      if (postureRanged(wItem)) chips.push({ t: postureRangedLine(tokenPostureAt(wItem).p), k: 'ranged' });
+      if (window.wpFog && window.wpFog.senseWordsOf) senseSays(window.wpFog.senseWordsOf(wItem.id)).forEach(function(t) { chips.push({ t: t, k: 'sense' }); });   // 1.6.3: the sense line above it, in words (it may be put away with its marks)   // its posture's ranged note, in the website's words (display only)
       var notes = [], entry = null, roster = null;
       if (!client) {
           if (wItem.charRef) (map.rooms || []).some(function(rm) { entry = (rm.characters || []).find(function(x) { return x && x.id === wItem.charRef; }) || null; if (entry) roster = rm; return !!entry; });

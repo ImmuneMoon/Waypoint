@@ -270,6 +270,43 @@ try { _wm0 = wallMarkOf(localStorage.getItem('wp_wallMarks')); } catch (e) {}
 wallMarkApply(_wm0);
 var _ldSel = ui('setLibDrag'); if (_ldSel) { try { _ldSel.value = localStorage.getItem('wp_libDrag') === 'aside' ? 'aside' : 'stay'; } catch (e) {} _ldSel.addEventListener('change', function() { try { localStorage.setItem('wp_libDrag', _ldSel.value === 'aside' ? 'aside' : 'stay'); } catch (e) {} }); }   // 1.6.2 (backlog 41 (a)): Dragging from the Image Library
 if (_wmSel) { _wmSel.value = _wm0; _wmSel.addEventListener('change', function() { var v = wallMarkOf(_wmSel.value); try { localStorage.setItem('wp_wallMarks', v); } catch (e) {} wallMarkApply(v); }); }
+// [lookcheck:tokmarks-start]
+// 1.6.3 (Fulllion, 2026-11-20, of a crowd of tokens at 63%: "stuff like this makes the game difficult to parse at a distance", by prompt "as a setting.
+// full marks only near the pointer, or when zoomed in by default"). How the marks on a token show on this screen, this computer's own (wp_tokMarks).
+// near, the default: zoomed out below TOKMK_ZOOM (100%), a token with marks shows one small dot until the pointer is on it or it is selected, and at
+// 100% or more every mark shows as ever. always: every mark shows, scaled with the token (TOKMK_LEAST is the smallest share of their own size they
+// shrink to on screen), and past three the rest fold into one +N chip. The style sheet reads the body's two words: tokmk-always for the choice, and
+// tokmk-far while the board's zoom is under the threshold, which main.js sets through window.wpTokMarks.zoom wherever it sets the zoom. The stream
+// window always reads as Always (the style sheet's stream-mode rules), since nobody points there. whiteboard.js tokMarksSync marks which marks fold
+// and writes the dot's words; fog.js capsFar follows the same two words for the sense line and the light's name, which are drawn on its canvas.
+// 100% is the threshold because the marks are drawn at their own size whatever the zoom: at 100% a token is drawn at its own size too, and below it
+// the token shrinks while its marks do not, which is when they pile up over the tokens.
+var TOKMK_ZOOM = 1, TOKMK_LEAST = 0.6;
+function tokMarksOf(v) { return v === 'always' ? 'always' : 'near'; }
+function tokMarksApply(doc, v) {   // the body's word for the choice; anything but always is near
+    var m = tokMarksOf(v), b = doc && doc.body;
+    if (b && b.classList) b.classList.toggle('tokmk-always', m === 'always');
+    return m;
+}
+function tokMarksScale(z) {   // what a mark drawn at a fixed size on screen is scaled by under Always: with the token, but never under TOKMK_LEAST of its own size on screen, and never over it
+    z = typeof z === 'number' && isFinite(z) && z > 0 ? z : 1;
+    return Math.min(1 / z, Math.max(1, TOKMK_LEAST / z));
+}
+function tokMarksZoom(doc, z) {   // the board's zoom: tokmk-far below the threshold (a hair under it counts as at it), and the marks' scale for Always on the board
+    var ok = typeof z === 'number' && isFinite(z) && z > 0, far = ok && z < TOKMK_ZOOM - 0.001;
+    var b = doc && doc.body; if (b && b.classList) b.classList.toggle('tokmk-far', far);
+    var wb = doc && doc.getElementById ? doc.getElementById('whiteboard') : null;
+    if (wb && wb.style && wb.style.setProperty) wb.style.setProperty('--mkz', String(Math.round(tokMarksScale(ok ? z : 1) * 10000) / 10000));
+    return far;
+}
+// [lookcheck:tokmarks-end]
+var _tmSel = ui('setTokMarks'), _tm0 = 'near';
+try { _tm0 = tokMarksOf(localStorage.getItem('wp_tokMarks')); } catch (e) {}
+tokMarksApply(document, _tm0);
+(function() { var wb = document.getElementById('whiteboard'), w = wb && wb.style ? parseFloat(wb.style.getPropertyValue('--wbz')) : NaN; tokMarksZoom(document, w > 0 ? 1 / w : 1); })();   // the zoom main.js may have set before this module ran
+window.wpTokMarks = { zoom: function(z) { return tokMarksZoom(document, z); }, mode: function() { var v = 'near'; try { v = tokMarksOf(localStorage.getItem('wp_tokMarks')); } catch (e) {} return v; } };
+if (_tmSel) { _tmSel.value = _tm0; _tmSel.addEventListener('change', function() { var v = tokMarksOf(_tmSel.value); try { if (v === 'always') localStorage.setItem('wp_tokMarks', v); else localStorage.removeItem('wp_tokMarks'); } catch (e) {} tokMarksApply(document, v); if (window.wpFog && window.wpFog.redraw) window.wpFog.redraw(); }); }
+window.addEventListener('storage', function(e) { if (e && e.key === 'wp_tokMarks') { var v = tokMarksOf(e.newValue); tokMarksApply(document, v); if (_tmSel) _tmSel.value = v; } });   // another window of this computer, the stream window among them
 // 1.6.2, backlog 212: where this computer shows the dice of a roll tumbling (wp_dice3d: card, the default, map or off), which dice3d.js reads at each roll
 var _d3Sel = ui('setDiceShow'), _d3Of = function(v) { return v === 'map' || v === 'off' ? v : 'card'; };
 if (_d3Sel) { try { _d3Sel.value = _d3Of(localStorage.getItem('wp_dice3d')); } catch (e) { _d3Sel.value = 'card'; } _d3Sel.addEventListener('change', function() { try { localStorage.setItem('wp_dice3d', _d3Of(_d3Sel.value)); } catch (e) {} }); }

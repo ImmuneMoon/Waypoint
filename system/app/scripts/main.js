@@ -53,6 +53,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       document.getElementById('canvas').style.transform = 'scale('+state.zoomLevel+')';
 
       document.getElementById('whiteboard').style.transform = window.wpView && window.wpView.transform ? window.wpView.transform(state.zoomLevel) : 'scale('+state.zoomLevel+')'; document.getElementById('whiteboard').style.setProperty('--wbz', 1 / (state.zoomLevel || 1));   // inverse zoom for counter-scaling item badges
+    if (window.wpTokMarks) window.wpTokMarks.zoom(state.zoomLevel);   // 1.6.3: Token marks in Settings read the zoom (settings.js tokMarksZoom)
 
       document.getElementById('zoomLbl').value = Math.round(state.zoomLevel * 100) + '%';
 
@@ -2016,6 +2017,7 @@ export function restoreCameraPosition() {
     state.zoomLevel = targetZoom;
     document.getElementById('canvas').style.transform = 'scale('+state.zoomLevel+')';
     document.getElementById('whiteboard').style.transform = window.wpView && window.wpView.transform ? window.wpView.transform(state.zoomLevel) : 'scale('+state.zoomLevel+')'; document.getElementById('whiteboard').style.setProperty('--wbz', 1 / (state.zoomLevel || 1));   // inverse zoom for counter-scaling item badges
+    if (window.wpTokMarks) window.wpTokMarks.zoom(state.zoomLevel);   // 1.6.3: Token marks in Settings read the zoom (settings.js tokMarksZoom)
     var zLbl = document.getElementById('zoomLbl');
     if(zLbl) zLbl.value = Math.round(state.zoomLevel * 100) + '%';
 

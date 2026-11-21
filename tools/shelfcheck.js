@@ -1982,7 +1982,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     // findings 4 and 36: the left panel's tree for the keyboard, and a double-click that renames (sidebar.js, its treekeys slice run for real on a
     // page of plain objects)
     const sbS = read('scripts/sidebar.js'), tkSrc = sliceOf(sbS, 'treekeys');
-    const T = new Function(tkSrc + '\nreturn { act: treeKeyAct, sync: treeSync, wire: treeKeysWire, focusOf: treeFocusOf, note: treeOpenNote, back: treeBackFor, rows: treeRows };')();
+    const T = new Function(tkSrc + '\nreturn { act: treeKeyAct, sync: treeSync, wire: treeKeysWire, focusOf: treeFocusOf, note: treeOpenNote, back: treeBackFor, rows: treeRows, shown: treeShown, away: treePressAway };')();
     const R5 = [{ d: 0, kids: true, open: true }, { d: 1, kids: false }, { d: 1, kids: true, open: false }, { d: 0, kids: false }, { d: 0, kids: true, open: false }];
     const acts = [['ArrowDown', 0], ['ArrowDown', 4], ['ArrowUp', 0], ['ArrowUp', 3], ['Home', 3], ['End', 1], ['ArrowRight', 0], ['ArrowRight', 2], ['ArrowRight', 1], ['ArrowLeft', 0], ['ArrowLeft', 1], ['ArrowLeft', 2], ['ArrowLeft', 3],
         ['Enter', 2], [' ', 2], ['F2', 1], ['ContextMenu', 1], ['F10', 1, true], ['F10', 1], ['F2', 1, true], ['a', 1], ['Delete', 1]].map(a => T.act(R5, a[1], a[0], a[2]));
@@ -1990,18 +1990,20 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         J(acts) === J([{ to: 1 }, { to: 4 }, { to: 0 }, { to: 2 }, { to: 0 }, { to: 4 }, { to: 1 }, { act: 'expand' }, { to: 1 }, { act: 'collapse' }, { to: 0 }, { to: 0 }, { to: 3 },
             { act: 'open' }, { act: 'open' }, { act: 'rename' }, { act: 'menu' }, { act: 'menu' }, null, null, null, null]) && T.act([], 0, 'ArrowDown') === null && T.act(R5, 9, 'ArrowDown') === null && T.act(null, 0, 'Enter') === null, J(acts));
     // a list of the tree as the panel draws it: rows that are the list's own children, a caret where a row has a nest
-    const mkTree = (id, spec, active) => {
+    const mkTree = (id, spec, active, rects) => {
         const doc = { activeElement: null }, log = [];
-        const nav = { id, attrs: {}, children: [], on: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); } };
+        const nav = { id, attrs: {}, children: [], on: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, f) { (this.on[t] = this.on[t] || []).push(f); }, contains(t) { return t === this || this.children.indexOf(t) >= 0; } };
+        if (rects) nav.getClientRects = () => rects;   // a list with a layout: rects of no width are a list in a panel folded to its rail
         spec.forEach(([rid, d, kids, open]) => {
             const caret = kids ? { classList: { contains: c => c === 'down' && open }, click() { log.push('caret:' + rid); } } : null;
             const row = { dataset: { id: rid, depth: String(d) }, tabIndex: -1, parentNode: nav, classList: { contains: c => c === 'sidebar-item' || (c === 'active' && rid === active) }, querySelector: s => (s === '.caret' ? caret : null),
-                click() { log.push('open:' + rid); }, focus() { doc.activeElement = this; log.push('focus:' + rid); }, scrollIntoView() {} };
+                click() { log.push('open:' + rid); }, focus() { doc.activeElement = this; log.push('focus:' + rid); }, blur() { if (doc.activeElement === this) doc.activeElement = null; log.push('blur:' + rid); }, scrollIntoView() {} };
             nav.children.push(row);
         });
         nav.children.unshift({ classList: { contains: () => false } });   // the Maps list holds its quick chips first, which are no rows
         const key = (rid, k, ev) => { const row = nav.children.find(r => r.dataset && r.dataset.id === rid), e = Object.assign({ key: k, target: row, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } }, ev || {}); (nav.on.keydown || []).forEach(f => f(e)); return e; };
-        return { doc, nav, log, key, tabs: () => nav.children.filter(r => r.dataset).map(r => r.dataset.id + ':' + r.tabIndex).join(' ') };
+        const press = rid => { (nav.on.pointerdown || []).forEach(f => f({})); const row = nav.children.find(r => r.dataset && r.dataset.id === rid); doc.activeElement = row; return row; };   // a pointer press on a row: the browser gives it the focus, since it has a tabindex
+        return { doc, nav, log, key, press, tabs: () => nav.children.filter(r => r.dataset).map(r => r.dataset.id + ':' + r.tabIndex).join(' ') };
     };
     const A = mkTree('plannerNavList', [['p1', 0, true, true], ['p2', 1, false], ['p3', 0, true, false]], 'p2'), calls = [];
     const s0 = T.sync(A.nav, null), wired = T.wire(A.nav, { rename: id => calls.push('rename:' + id), menu: r => calls.push('menu:' + r.dataset.id) }), again = T.wire(A.nav, {});
@@ -2015,6 +2017,29 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const foc = T.focusOf(B.doc), B2 = mkTree('docNavList', [['d1', 0, false], ['d2', 0, false]], 'd1'), stop = T.sync(B2.nav, foc), other = T.focusOf({ activeElement: { classList: { contains: () => true }, parentNode: { id: 'charNavList' }, dataset: { id: 'c1' } } });
     check('1.6.3 (finding 4) the tree is drawn whole at every change, so the row the keyboard was on takes the focus back, by its list and its id, and is the tab stop; a row of another section of the panel is no row of the tree',
         J(foc) === J({ list: 'docNavList', id: 'd2' }) && stop.dataset.id === 'd2' && B2.tabs() === 'd1:-1 d2:0' && J(B2.log) === J(['focus:d2']) && other === null && T.focusOf({}) === null, J([foc, B2.tabs(), B2.log]));
+    // the review of pages finding (4): the tree holds the keys only while the keyboard uses it. Without the fix a row a pointer pressed took
+    // the focus back after its own redraw, a folded panel's hidden tree took the arrows and Space (which opened another map) and the page's
+    // own key handler (io.js menuHeld) held the arrows, Delete and Backspace for a tree with no width
+    const C = mkTree('mapNavList', [['m1', 0, false], ['m2', 0, false]], 'm1'); T.sync(C.nav, null); T.wire(C.nav, {});
+    C.press('m2'); const cFoc = T.focusOf(C.doc); C.log.length = 0; T.sync(C.nav, cFoc); const ptrLog = C.log.slice();
+    C.key('m2', 'ArrowUp'); C.log.length = 0; const kFoc = T.focusOf(C.doc); T.sync(C.nav, kFoc); const keyLog = C.log.slice();
+    const H = mkTree('plannerNavList', [['p1', 0, false], ['p2', 0, false]], 'p1', [{ width: 0, height: 400 }]); T.sync(H.nav, null); T.wire(H.nav, {});
+    H.doc.activeElement = H.nav.children[1]; const hDown = H.key('p1', 'ArrowDown'), hFocAfter = H.doc.activeElement;
+    H.doc.activeElement = H.nav.children[1]; const hSpace = H.key('p1', ' '), hDel = H.key('p1', 'Delete');
+    H.doc.activeElement = H.nav.children[1]; const hKeyLog = H.log.slice(); H.log.length = 0; T.sync(H.nav, { list: 'plannerNavList', id: 'p1' }); const hSync = H.log.slice();
+    const shownW = [T.shown(null), T.shown({}), T.shown({ getClientRects: () => [] }), T.shown({ getClientRects: () => [{ width: 0 }] }), T.shown({ getClientRects: () => [{ width: 0 }, { width: 240 }] })];
+    const P = mkTree('docNavList', [['d1', 0, false]], 'd1'), pRow = P.press('d1'), inPress = T.away(P.doc, pRow), inKept = P.doc.activeElement === pRow, boardEl = { id: 'whiteboard' }, outPress = T.away(P.doc, boardEl), afterOut = P.doc.activeElement;
+    const notTree = T.away({ activeElement: { classList: { contains: () => true }, parentNode: { id: 'charNavList', contains: () => false }, blur() { throw new Error('blurred'); } } }, boardEl), noFocus = T.away({ activeElement: null }, boardEl);
+    const ioT = read('scripts/io.js'), tA = ioT.indexOf('  // [shelfcheck:menuheld-start]'), tZ = ioT.indexOf('  // [shelfcheck:menuheld-end]'), menuHeldT = new Function("'use strict';\n" + ioT.slice(tA, tZ) + '\nreturn menuHeld;')();
+    const treeEl = rects => ({ nodeType: 1, closest: sel => (sel.indexOf('[role="tree"]') >= 0 ? { getClientRects: () => rects } : null) });
+    const mhT = [menuHeldT(treeEl([{ width: 0, height: 400 }])), menuHeldT(treeEl([{ width: 260, height: 400 }])), menuHeldT(treeEl([])), menuHeldT(null)];   // after a board press the focus is on no row at all: null stands for the body
+    check('the review of pages finding (4) the tree holds the keys only while the keyboard uses it: a row a pointer pressed does not take the focus back after the redraw its click makes, while one the keyboard moved to does; a key in a list that is not shown (a panel folded to its rail, no width) is left to the page, presses and opens nothing, and the row lets the focus go; the page\'s own arrows, Delete and Backspace are held only by a tree with a width; and a press outside the list lets a row\'s focus go, a press inside it or a row of another section left alone',
+        J(ptrLog) === J([]) && J(keyLog) === J(['focus:m1']) && C.nav._wpTreePtr === false && C.nav.on.pointerdown && C.nav.on.pointerdown.length === 1
+        && !hDown.prevented && !hDown.stopped && hFocAfter === null && !hSpace.prevented && !hDel.prevented && J(hKeyLog) === J(['blur:p1', 'blur:p1', 'blur:p1']) && J(hSync) === J([])
+        && J(shownW) === J([false, true, false, false, true]) && inPress === false && inKept && outPress === true && afterOut === null && notTree === false && noFocus === false
+        && J(mhT) === J([false, true, false, false])
+        && count(sbS, "document.addEventListener('pointerdown', function(e) { treePressAway(document, e.target); }, true);") === 1 && sbS.indexOf("document.addEventListener('pointerdown', function(e) { treePressAway(document, e.target); }, true);") > sbS.indexOf('// [shelfcheck:treekeys-end]'),
+        J([ptrLog, keyLog, hKeyLog, hSync, shownW, [inPress, outPress, notTree, noFocus], mhT]));
     // finding 36: a double-click that renames puts back what its first click opened over
     const camp = { activeItemId: 'm1', items: { m1: { type: 'map' }, p1: { type: 'planner' } } };
     const n1 = T.note(camp, 'p1', 'visual', 1000); camp.activeItemId = 'p1'; const n2 = T.note(camp, 'p1', 'visual', 1100), b1 = T.back(camp, 'p1', 1300), b2 = T.back(camp, 'p1', 1310);
@@ -2023,9 +2048,20 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     camp.activeItemId = 'm1'; T.note(camp, 'p1', 'visual', 0); camp.activeItemId = 'p1'; delete camp.items.m1; const gone = T.back(camp, 'p1', 10);
     check('1.6.3 (finding 36) a double-click on a row renames it and puts the view back where it was (treeOpenNote and treeBackFor, run for real): the first click notes what was on screen, the second click on the row already open notes nothing, and the double-click gets back the item and the view it left, once; nothing comes back after a while, for another row, or where what was on screen is no longer in the campaign',
         n1 === true && n2 === false && J(b1) === J({ prev: 'm1', view: 'visual' }) && b2 === null && late === null && wrongRow === null && gone === null, J([n1, n2, b1, b2, late, wrongRow, gone]));
+    // the review of pages finding (36): a deliberate open, a pause, then a double-click on that very row to rename it. The double-click's
+    // first click (a click count of 1 on the row already open) is a fresh act, so the open before it is not put back; a real double-click's
+    // second click (a count of 2) keeps the note. And the time a double-click may take is about the system's own, never a second and a half
+    const c2 = { activeItemId: 'm1', items: { m1: { type: 'map' }, p1: { type: 'planner' } } };
+    T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; const fresh = T.note(c2, 'p1', 'visual', 900, 1), afterPause = T.back(c2, 'p1', 1000);
+    c2.activeItemId = 'm1'; T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; T.note(c2, 'p1', 'visual', 90, 2); const realDbl = T.back(c2, 'p1', 200);
+    c2.activeItemId = 'm1'; T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; const slow = T.back(c2, 'p1', 700);
+    c2.activeItemId = 'm1'; T.note(c2, 'p1', 'visual', 0, 1); c2.activeItemId = 'p1'; T.note(c2, 'p1', 'visual', 50, 0); const byKey = T.back(c2, 'p1', 120);   // Enter or Space on the row: a click with a count of 0 leaves the note alone
+    check('the review of pages finding (36) a single click on the row already open lets go of the note an earlier open left, so a deliberate open, a pause and a double-click to rename does not send the GM back to the map they left on purpose; a real double-click (its second click counts 2) still puts the view back, a click made by a key changes nothing, and a double-click is about the system\'s own time (half a second), never a second and a half',
+        fresh === false && afterPause === null && J(realDbl) === J({ prev: 'm1', view: 'visual' }) && slow === null && J(byKey) === J({ prev: 'm1', view: 'visual' }) && /TREE_DBL_MS = 500;/.test(sbS),
+        J([fresh, afterPause, realDbl, slow, byKey]));
     check('1.6.3 (findings 4 and 36) the panel wires it: each row is a treeitem with its level, its nest and whether it is open; every list is synced and wired after each draw; the click notes, the double-click puts back and then renames through the one rename F2 asks too; and the page\'s own arrows, Delete and Backspace leave a row of the tree alone (io.js menuHeld)',
         /role="treeitem" tabindex="-1" aria-level="' \+ \(depth \+ 1\) \+ '"' \+ \(hasKids \? ' aria-expanded="/.test(sbS) && count(sbS, "TREE_LISTS.forEach(function(lid) { var nv = document.getElementById(lid); treeSync(nv, treeFoc); treeKeysWire(nv, { rename: renameTreeItem, menu: treeMenu }); });") === 1
-        && count(sbS, 'treeOpenNote(activeC, this.dataset.id, state.viewMode, Date.now());') === 1 && count(sbS, 'var back = treeBackFor(activeC, this.dataset.id, Date.now());') === 1 && count(sbS, 'renameTreeItem(this.dataset.id);') === 1
+        && count(sbS, 'treeOpenNote(activeC, this.dataset.id, state.viewMode, Date.now(), e.detail);') === 1   /* the review of pages finding (36) moved this pin on purpose: the click hands on its own count */ && count(sbS, 'var back = treeBackFor(activeC, this.dataset.id, Date.now());') === 1 && count(sbS, 'renameTreeItem(this.dataset.id);') === 1
         && /el\.closest\('\[role="menu"\], \[role="listbox"\], \[role="tree"\]'\)/.test(read('scripts/io.js')) && /\n  \.sidebar-item:focus-visible \{ outline: 1px solid var\(--gold\);/.test(css));
 }
 {
@@ -2137,8 +2173,24 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
 }
 {
     // finding 13: a page's long title never takes the map tabs' room
-    check('1.6.3 (finding 13) while a page is in front of the top row its title is held to a width, and the map tabs give way no more than its tab does, so a map tab stays in sight to go back with one click',
-        /\n  #mapTabFront\.mt-onpage \.mt-name \{ max-width: 220px; \}/.test(css) && /\n  #mapTabFront\.mt-onpage \+ #mapTabList \{ flex-shrink: 1; \}/.test(css) && ix.indexOf('<div id="mapTabFront" hidden>') < ix.indexOf('<div id="mapTabList"></div>'));
+    check('1.6.3 (finding 13) while a page is in front of the top row its title is held to a width, so a map tab stays in sight to go back with one click',
+        /\n  #mapTabFront\.mt-onpage \.mt-name \{ max-width: 220px; \}/.test(css) && ix.indexOf('<div id="mapTabFront" hidden>') < ix.indexOf('<div id="mapTabList"></div>'));
+    // the review of pages finding (13): the flex shrink the style sheet gives the page's tab and the map tabs, worked out as a browser does
+    // (shrinking weighted by each one's width), on the figures measured live: the map tabs' box 343 px wide, the map tabs 1,600 px of tabs,
+    // a page title 800 px long. The pin above moved on purpose: the rule that let the map tabs shrink at the page tab's rate is gone, since it
+    // left the page's tab its icon alone (51 px)
+    const ruleOf = sel => { const i = css.indexOf('\n  ' + sel + ' {'); if (i < 0) return ''; return css.slice(i, css.indexOf('}', i)); };
+    const shrinkOf = (base, over) => { const o = /flex-shrink:\s*([\d.]+)/.exec(ruleOf(over)), f = /flex:\s*[\d.]+\s+([\d.]+)/.exec(ruleOf(base)); return o ? +o[1] : f ? +f[1] : 1; };
+    const capM = /max-width:\s*(\d+)px/.exec(ruleOf('#mapTabFront.mt-onpage .mt-name')), cap = capM ? +capM[1] : Infinity;
+    const flexFit = (box, items) => {   // items: { basis, shrink }; answers each one's width, shrinking weighted by shrink times basis, none below 0
+        const w = items.map(it => it.basis); let over = w.reduce((a, b) => a + b, 0) - box;
+        for (let pass = 0; pass < 8 && over > 0.01; pass++) { const live = items.map((it, i) => (w[i] > 0 ? it.shrink * it.basis : 0)), sum = live.reduce((a, b) => a + b, 0); if (!sum) break;
+            let took = 0; items.forEach((it, i) => { const want = over * live[i] / sum, give = Math.min(w[i], want); w[i] -= give; took += give; }); over -= took; }
+        return w; };
+    const frontShrink = shrinkOf('#mapTabFront', '#mapTabFront.mt-onpage'), listShrink = shrinkOf('#mapTabList', '#mapTabFront.mt-onpage + #mapTabList');
+    const fit = flexFit(343 - 26 - 4, [{ basis: Math.min(800, cap) + 34, shrink: frontShrink }, { basis: 1600, shrink: listShrink }]);   // the plus and the two gaps take their room first
+    check('the review of pages finding (13) a page in front of the top row keeps its name readable: worked out as the browser lays the row out, its tab keeps at least 120 px and its name at least 100 px of the room the map tabs measured live, the map tabs take the rest, and no rule makes the map tabs shrink at the page tab\'s own rate',
+        fit[0] >= 120 && fit[0] - 34 >= 100 && fit[1] > 0 && listShrink >= 1000 && frontShrink <= 1 && !/#mapTabFront\.mt-onpage \+ #mapTabList \{/.test(css), J([fit, frontShrink, listShrink, cap]));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

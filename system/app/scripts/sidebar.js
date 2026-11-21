@@ -388,7 +388,29 @@ function panelJudge(chN) { var camp = getActiveCampaign(); return panelHeld(docu
    And a double-click to rename (finding 36, Fulllion, 2026-11-21: "A double-click on a tree row renames it and puts the view back where it
    was. A single click still opens at once."): the first click of a double-click has already opened the row, so the click notes what was on
    screen before it (treeOpenNote) and the double-click puts that back (treeBackFor) before it asks for the new name */
-var TREE_LISTS = ['mapNavList', 'plannerNavList', 'docNavList'], TREE_NAMES = { mapNavList: 'Maps', plannerNavList: 'Planners', docNavList: 'Handbook pages' }, TREE_DBL_MS = 1500;
+var TREE_LISTS = ['mapNavList', 'plannerNavList', 'docNavList'], TREE_NAMES = { mapNavList: 'Maps', plannerNavList: 'Planners', docNavList: 'Handbook pages' }, TREE_DBL_MS = 500;   // about the system's own double-click time: a click and a double-click further apart than this are two acts
+/* The review of pages finding (4): the tree holds the keys only while the keyboard is using it. A row has a tabindex, so a press of the
+   pointer on it gives it the focus, and the board keeps a later click from moving the focus away again: the arrows, Delete and Space then
+   went to a hidden row and Space opened another map. So a pointer press marks its list (nav._wpTreePtr) and treeSync gives the focus back
+   after a redraw only where the last thing done in the list was a key; a key in a list that is not shown (a panel folded to its rail has no
+   width) is left to the page and the row lets the focus go; and a press anywhere outside the list lets the row's focus go (treePressAway). */
+// Whether a list of the tree is shown: some box of it has a width. A list with no layout to ask (a suite's page of plain objects) counts as shown
+function treeShown(nav) {
+    if (!nav) return false;
+    if (typeof nav.getClientRects !== 'function') return true;
+    var rs = nav.getClientRects() || [];
+    for (var i = 0; i < rs.length; i++) if (rs[i] && rs[i].width > 0) return true;
+    return false;
+}
+// A press of the pointer at target t: where a row of the tree holds the focus and t is outside that row's list, the row lets the focus go,
+// so the map's own keys reach the map again. Answers whether it did. Wired once on the document in the capture phase, below the slice
+function treePressAway(doc, t) {
+    var a = doc && doc.activeElement;
+    if (!a || !a.classList || !a.classList.contains('sidebar-item') || !a.parentNode || TREE_LISTS.indexOf(a.parentNode.id) < 0) return false;
+    if (t && typeof a.parentNode.contains === 'function' && a.parentNode.contains(t)) return false;
+    if (typeof a.blur === 'function') a.blur();
+    return true;
+}
 // What a key does on a row. rows: the rows of one list in order, each { d: depth, kids: has a nest, open: its nest is shown }. Answers
 // { to: index } to move the focus, { act } for open, expand, collapse, rename or menu, or null for a key the tree leaves alone
 function treeKeyAct(rows, i, key, shift) {
@@ -424,7 +446,8 @@ function treeSync(nav, foc) {
     if (!stop) rows.forEach(function(r) { if (!stop && r.classList.contains('active')) stop = r; });
     if (!stop) stop = rows[0];
     rows.forEach(function(r) { r.tabIndex = r === stop ? 0 : -1; });
-    if (foc && foc.list === nav.id && stop.dataset.id === foc.id && typeof stop.focus === 'function') stop.focus({ preventScroll: true });
+    // the focus comes back only to a row the keyboard was on, in a list that is shown: a row a pointer pressed keeps no focus past the redraw
+    if (foc && foc.list === nav.id && stop.dataset.id === foc.id && !nav._wpTreePtr && treeShown(nav) && typeof stop.focus === 'function') stop.focus({ preventScroll: true });
     return stop;
 }
 // The focus to one row of a list: the one tab stop moves with it
@@ -440,8 +463,11 @@ function treeMove(nav, row) {
 function treeKeysWire(nav, deps) {
     if (!nav || nav._wpTreeKeys) return false;
     nav._wpTreeKeys = true;
+    nav.addEventListener('pointerdown', function() { nav._wpTreePtr = true; }, true);   // a pointer press: the focus it gives a row is not the keyboard's
     nav.addEventListener('keydown', function(e) {
+        nav._wpTreePtr = false;   // a key in the list: the keyboard is using it
         var row = e.target; if (!row || !row.classList || !row.classList.contains('sidebar-item') || row.parentNode !== nav) return;
+        if (!treeShown(nav)) { if (typeof row.blur === 'function') row.blur(); return; }   // a hidden list holds no key: it goes on to the page, and the row lets the focus go
         if (e.ctrlKey || e.altKey || e.metaKey) return;
         var rows = treeRows(nav), i = rows.indexOf(row), a = treeKeyAct(rows.map(treeRowInfo), i, e.key, e.shiftKey); if (!a) return;
         e.preventDefault(); e.stopPropagation();   // the page's own keys never hear it: its arrows would move a selected token, and Space would scroll the panel
@@ -455,9 +481,12 @@ function treeKeysWire(nav, deps) {
     return true;
 }
 // What was on screen before a click opened a row: { id, prev, view, at }. A click on the row already open notes nothing, so the second click
-// of a double-click leaves the first click's note as it is
+// of a double-click leaves the first click's note as it is. But a single click on the row already open (detail 1, the click's own count)
+// is a fresh act: the earlier open was not the first half of this double-click, so its note goes (the review of pages finding, 36: a
+// deliberate open, a pause and then a double-click to rename sent the GM back to the map they had left on purpose)
 var _treeWas = null;
-function treeOpenNote(camp, id, view, now) {
+function treeOpenNote(camp, id, view, now, detail) {
+    if (camp && typeof id === 'string' && camp.activeItemId === id && detail === 1) { _treeWas = null; return false; }
     if (!camp || typeof id !== 'string' || camp.activeItemId === id) return false;
     _treeWas = { id: id, prev: camp.activeItemId, view: view, at: now };
     return true;
@@ -471,6 +500,7 @@ function treeBackFor(camp, id, now) {
     return { prev: w.prev, view: w.view };
 }
 // [shelfcheck:treekeys-end]
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('pointerdown', function(e) { treePressAway(document, e.target); }, true);   // the review of pages finding (4): a press elsewhere gives the map its keys back
 // Rename a row's map, planner or page: the double-click's and F2's one way. The GM's alone: a received copy is never renamed
 function renameTreeItem(id) {
     if (!window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;
@@ -698,7 +728,7 @@ function treeMenu(row) {
                 var itC = activeC && activeC.items[this.dataset.id];
                 if (itC && itC.type === 'doc' && window.wpNet && window.wpNet.foreign) { if (window.wpOpenDoc) window.wpOpenDoc(this.dataset.id); return; }   // a joined player reads a page in the panel; activeItemId stays on the map
                 if (activeC && itC) {   // only an item of the campaign is opened: never an id that names nothing
-                    treeOpenNote(activeC, this.dataset.id, state.viewMode, Date.now());   // 1.6.3 (finding 36): what was on screen, for a double-click that renames
+                    treeOpenNote(activeC, this.dataset.id, state.viewMode, Date.now(), e.detail);   // 1.6.3 (finding 36): what was on screen, for a double-click that renames
                     activeC.activeItemId = this.dataset.id;
                     state.selId = null; state.selWbId = null; state.linkStart = null;
                     if (window.wpApplyRememberedView) window.wpApplyRememberedView();

@@ -3059,7 +3059,9 @@
   #mapTabFront.mt-onpage { background: transparent; border: 1px dashed var(--edge); }   /* 1.6.2: a page in front, so the row does not read as a map open */
   #mapTabFront.mt-onpage #mapBreadcrumb { display: none !important; }
   #mapTabFront.mt-onpage .mt-name { max-width: 220px; }   /* 1.6.3 (the review of pages, finding 13): a page's long title never takes the map tabs' room, so one click goes back to a map */
-  #mapTabFront.mt-onpage + #mapTabList { flex-shrink: 1; }   /* and while a page is in front the map tabs give way only as much as the page's tab does */
+  /* the review of pages finding (13): the map tabs no longer shrink at the page tab's own rate. Shrinking is weighted by width, so the map
+     tabs' far wider row took nearly all the room and left the page's tab its icon alone. With the title held to 220 px above, the list's own
+     rule (it gives way first) leaves the page's name readable and the map tabs the rest of the row */
   #mapTabList { display: flex; align-items: center; gap: 2px; flex: 0 1000000 auto; min-width: 0; overflow: hidden; }   /* the list gives way before the tab in front does, all of it: at 1000 the tab in front still gave a fraction of a pixel, and its name read "The I…" with room to spare */
   #mapTabList.clip { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); }
   .map-tab { flex: none; border: 0; background: none; color: var(--dim); cursor: pointer; font-family: inherit; }

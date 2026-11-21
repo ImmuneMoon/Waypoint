@@ -7811,7 +7811,7 @@ function handleMessage(msg, conn) {
         if (typeof swQ !== 'undefined' && swQ && swQ.ok && swQ.names.length) recQ.sw = swQ.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches it was rolled with, by name (their view holds no GM-only one)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
         if (q.mod || q.adv) { var hmQ = Dq.cleanHmod ? Dq.cleanHmod({ v: q.mod, adv: q.adv }) : null; if (hmQ) recQ.hmod = hmQ; } else if (q.hm) recQ.hmod = q.hm;   /* the review of words: a roll that is not named carries what was added by hand as words alone (cleanRollReq cleaned it), so it is judged as the plain press it is */   // 1.6.3 (finding 13): what the player added by hand in the ± window, which cleanRollReq takes only on a named roll and the host checked against its button above; the card says it to the table
         if (q.label) recQ.label = q.label;
-        if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label); if (chQ && typeof plOn === 'function' && !(typeof pressQ !== 'undefined' && pressQ)) plOn(recQ, chQ);   // 1.6.2, backlog 35: a player's roll, in its character's look (a crew press names two, so none)
+        if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + ((typeof net.tokNameOf === 'function' ? net.tokNameOf(chQ, tcQ && tcQ.selfMap, tcQ && tcQ.self) : '') || chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label);   // 1.6.3 (the review of combat batch "strip"): a crew press names the vehicle by its token, as net.diceRoll names a character if (chQ && typeof plOn === 'function' && !(typeof pressQ !== 'undefined' && pressQ)) plOn(recQ, chQ);   // 1.6.2, backlog 35: a player's roll, in its character's look (a crew press names two, so none)
         if (recQ.dmg !== 1 && chQ && typeof bodySwitch === 'function' && bodySwitch(campQ, chQ.id, recQ, resQ, Dq, mfQ, tcQ && tcQ.range, function() { return rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'bodyRead'); })) tcQ = bodyAim(tcQ, recQ);   // 1.6.2: a miss within a body's cover hits the body, a full hit aimed at it
         var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, holdRefQ(campQ, q, actQ), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
         var hdQ = !!(blowRecQ && typeof figAnswers === 'function' && figAnswers(blowRecQ, q.expr, Fq)); if (hdQ) figMark(recQ, resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq, Fq);   // 1.6.2: a roll answering an attempt whose figure is hidden: what leaves here is its copy
@@ -9351,6 +9351,31 @@ net.tokNameOf = function(ch, mapId, tokId) {
     }
     return nm;
 };
+// 1.6.3 (the review of combat batch "strip"): every name a roll made as a character can carry in its "as". The GM's rolls are named by the
+// character's token (net.tokNameOf above), which may read differently from its sheet ("Kael" against "Kael Varn"), so a player's HUD
+// roll history files a roll by any of these names, never by the sheet's name alone (tagByName and net.rollsFor below, sheets.js
+// rollNamesOf). asNamesIndex walks the campaign once and answers, for every character id, its sheet's own name first (cut as rollName
+// cuts it) and then each name its tokens read as on any map (whiteboard.js rowNameOf, through window.wpRowNameOf), never a waiting
+// token's, each once. asNamesOf answers the same list for one character. Both answer only the sheet's name where the board's namer is
+// not there, so a module run alone files rolls exactly as before. cap is the dice's label length, which a roll's "as" is cut to.
+function asNamesWalk(only, cap) {
+    var c = cap > 0 ? cap : 60, camp = getActiveCampaign(), out = Object.create(null), chs = camp && camp.chars && typeof camp.chars === 'object' ? camp.chars : null;
+    var add = function(id, s, trim) { var t = String(s || ''); t = (trim ? t.trim() : t).slice(0, c); if (!t) return; var l = out[id] || (out[id] = []); if (l.indexOf(t) < 0) l.push(t); };
+    if (chs) Object.keys(chs).forEach(function(id) { if ((!only || id === only) && chs[id] && typeof chs[id] === 'object') add(id, chs[id].name, false); });
+    var rn = window.wpRowNameOf; if (!camp || !camp.items || typeof camp.items !== 'object' || typeof rn !== 'function') return out;
+    Object.keys(camp.items).forEach(function(k) {
+        var m = camp.items[k]; if (!m || m.type !== 'map' || !Array.isArray(m.whiteboard)) return;
+        m.whiteboard.forEach(function(w) { if (!w || w.waiting || typeof w.charId !== 'string' || !w.charId || (only && w.charId !== only) || !(chs && own(chs, w.charId))) return; add(w.charId, rn(w, m, camp), true); });
+    });
+    return out;
+}
+net.asNamesIndex = function(cap) { return asNamesWalk('', cap); };
+net.asNamesOf = function(ch, cap) {
+    if (!ch || typeof ch !== 'object') return [];
+    var l = typeof ch.id === 'string' && ch.id ? asNamesWalk(ch.id, cap)[ch.id] : null, s = String(ch.name || '').slice(0, cap > 0 ? cap : 60);
+    if (!l) return s ? [s] : [];
+    return s && l.indexOf(s) < 0 ? [s].concat(l) : l;
+};
 net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m } (1.6.0, the core's gap 5: and or, the other rolls it may be resisted by)
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'end' ? 'end' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
@@ -9452,13 +9477,16 @@ var rollRing = [], ringSeq = 0;
 // Another machine's roll made as a character carries only that name ("as"): the one character in this campaign it can have been made as —
 // any of that name for the GM's roll, else only one its sender owns (the host lets a player roll as their own character only). '' when
 // none or several: the name then decides at display, for the GM's rolls and this machine's own only. Resolved once, so a rename keeps it
+// 1.6.3 (the review of combat batch "strip"): "that name" is the sheet's name or any name its tokens read as (net.asNamesIndex, walked once
+// a roll), since the GM's rolls carry the token's name; with no index (a module run alone) the sheet's name, as before
 function tagByName(m) {
     var as = m.roll.as, from = m.from || {}, camp = getActiveCampaign(), cs = camp && camp.chars;
     if (typeof as !== 'string' || !as || !cs || typeof cs !== 'object') return '';
-    var DL = window.wpDiceCore && window.wpDiceCore.LIMITS, cap = (DL && DL.label) || 60, hit = '';
+    var DL = window.wpDiceCore && window.wpDiceCore.LIMITS, cap = (DL && DL.label) || 60, hit = '', ixT = typeof net.asNamesIndex === 'function' ? net.asNamesIndex(cap) : null;
     for (var id in cs) {
         if (!Object.prototype.hasOwnProperty.call(cs, id) || !/^c_[A-Za-z0-9_]{1,24}$/.test(id)) continue;
-        var ch = cs[id]; if (!ch || typeof ch !== 'object' || String(ch.name || '').slice(0, cap) !== as) continue;
+        var ch = cs[id]; if (!ch || typeof ch !== 'object') continue;
+        var nmT = ixT && ixT[id] ? ixT[id] : [String(ch.name || '').slice(0, cap)]; if (nmT.indexOf(as) < 0) continue;
         if (from.gm !== true && !(typeof ch.ownerId === 'string' && ch.ownerId && ch.ownerId === from.id)) continue;
         if (hit) return ''; hit = id;
     }
@@ -9476,10 +9504,19 @@ function ringPush(m, cid, replay) {
 function ringRepaint() { try { if (window.wpSheets && window.wpSheets.rolled) window.wpSheets.rolled(null, ''); } catch (x) {} }   // every HUD's foot, no NEW of its own
 function ringReset() { rollRing = []; ringRepaint(); }   // a new table starts here (a fresh Join) or the old one is given up: its rolls, or this machine's solo ones, are not this session's
 net.rollSeq = function() { return ringSeq; };
+// 1.6.3 (the review of combat batch "strip"): an untagged roll is matched by the name handed in or by any name this character's tokens read as
+// (net.asNamesOf, worked out once, only when an untagged roll is met), since the GM's rolls carry the token's name ("Kael" for "Kael Varn")
 net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged with this character, or (untagged) made as its name by the GM or by this machine's own player; roll/res are shared with the chat — read-only
-    var camp = (getActiveCampaign() || {}).id || '', out = [], n = Math.max(1, Math.min(100, max | 0 || 10));
+    var cpR = getActiveCampaign(), camp = (cpR || {}).id || '', out = [], n = Math.max(1, Math.min(100, max | 0 || 10)), nmR = null;
+    var namesR = function() {
+        if (nmR) return nmR; nmR = name ? [name] : [];
+        var chR = name && cpR && cpR.chars && typeof cpR.chars === 'object' && typeof charId === 'string' && Object.prototype.hasOwnProperty.call(cpR.chars, charId) ? cpR.chars[charId] : null;
+        var DL = window.wpDiceCore && window.wpDiceCore.LIMITS;
+        if (chR && typeof net.asNamesOf === 'function') net.asNamesOf(chR, (DL && DL.label) || 60).forEach(function(s) { if (s && nmR.indexOf(s) < 0) nmR.push(s); });
+        return nmR;
+    };
     for (var i = rollRing.length - 1; i >= 0 && out.length < n; i--) { var e = rollRing[i]; if (e.camp !== camp || (sinceSeq && e.seq <= sinceSeq)) continue;
-        if (e.cid ? e.cid === charId : !!(name && e.m.roll.as === name && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
+        if (e.cid ? e.cid === charId : !!(name && typeof e.m.roll.as === 'string' && e.m.roll.as && namesR().indexOf(e.m.roll.as) >= 0 && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
 function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper' || !!m.shown; }).filter(function(m) { return !m.help; }).filter(function(m) { return !m.kept; }).slice(-60).map(function(m) { var wr = m.shown || m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.shown ? 'global' : m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)

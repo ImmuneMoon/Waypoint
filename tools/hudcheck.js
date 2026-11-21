@@ -444,6 +444,36 @@ const j = v => JSON.stringify(v);
             /\.hud-foot \{ flex: 0 1 auto; min-height: 45px; display: flex; flex-direction: column;/.test(b5) && /\.hud-body:has\(\+ \.hud-foot:not\(:empty\)\) \{ margin-bottom: 0; flex-basis: 0; min-height: 4\.5rem; \}/.test(b5)
             && /\.hud-foot:has\(> \.hud-hist-list\) \{ padding-bottom: 12px; \}/.test(b5) && /\.hud-body \{ flex: 1 1 auto; min-height: 0;[^}]*margin-bottom: 12px;/.test(b5));
     }
+    /* ---- 1.6.3 (the review of combat batch "strip"): a roll the GM makes as a player's character carries the TOKEN's name (net.tokNameOf), which may
+       read differently from the sheet ("Kael" for "Kael Varn"). The player's HUD roll history files it by either name: net.js asNamesWalk, its rolltag
+       slice (tagByName, net.rollsFor) and sheets.js rollName, rollNamesOf and rolled, each run for real beside whiteboard.js's own rowNameOf ---- */
+    {
+        const nJ = kit.joined('net.js'), shR = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), wbR = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+        const camp = { id: 'k1', activeItemId: 'm1', chars: { c_k: { id: 'c_k', name: 'Kael Varn', ownerId: 'u_me' }, c_m: { id: 'c_m', name: 'Sela', ownerId: 'u_mate' } }, items: { m1: { type: 'map', whiteboard: [] }, m2: { type: 'map', whiteboard: [{ id: 'tw', isChar: true, charId: 'c_k', name: 'Early', waiting: true }] } } };
+        const rowNameOf = new Function('getActiveCampaign', wbR.slice(wbR.indexOf('// [lookcheck:rowname-start]'), wbR.indexOf('// [lookcheck:rowname-end]')) + '\nreturn rowNameOf;')(() => camp);
+        const win = { wpRowNameOf: rowNameOf, wpDiceCore: { LIMITS: { label: 60 } }, wpSheets: { rolled() {} } }, netR = { myId: 'u_me' };
+        new Function('net', 'getActiveCampaign', 'window', 'own', nJ.slice(nJ.indexOf('function asNamesWalk(only, cap) {'), nJ.indexOf('net.postDue = function(ch, act, kind, round, toOwner, more) {')))(netR, () => camp, win, (o, k) => Object.prototype.hasOwnProperty.call(o, k));
+        const rt = new Function('getActiveCampaign', 'window', 'net', nJ.slice(nJ.indexOf('// [netcheck:rolltag-start]'), nJ.indexOf('// [netcheck:rolltag-end]')) + '\nreturn { ringPush, tagByName };')(() => camp, win, netR);
+        const GM = { id: 'u_gm', name: 'GM', gm: true }, MATE = { id: 'u_mate', name: 'Mate', gm: false };
+        const R = (id, as, from) => ({ from, text: '', scope: 'global', ts: 1, roll: { id, ts: 1, as, expr: '1d20', from }, res: { ok: true }, rollBad: null, toName: '' });
+        const before = netR.asNamesOf(camp.chars.c_k);
+        rt.ringPush(R('early', 'Kael', GM), '');   // made before the token was laid: untagged on arrival
+        camp.items.m1.whiteboard.push({ id: 'tk', isChar: true, charId: 'c_k', name: 'Kael' });
+        rt.ringPush(R('init', 'Kael', GM), ''); rt.ringPush(R('mate', 'Kael', MATE), ''); rt.ringPush(R('sheet', 'Kael Varn', GM), '');
+        const ids = l => l.map(x => x.roll.id).join(','), listed = ids(netR.rollsFor('c_k', 'Kael Varn', 0, 10)), mateList = ids(netR.rollsFor('c_m', 'Sela', 0, 10));
+        // sheets.js: the HUD's foot is drawn again for a roll its character made as the token's name
+        const rnI = shR.indexOf('function rollNamesOf(c) {');
+        const sh = shR.slice(shR.indexOf('function rollName(c) {'), rnI) + shR.slice(rnI, shR.indexOf('\n}\n', rnI) + 3)
+            + shR.slice(shR.indexOf('function rolled(m, cid) {'), shR.indexOf('// One refresh path for every view of a character'));
+        const drawn = [], huds = { c_k: { charId: 'c_k' }, c_m: { charId: 'c_m' } };
+        const sapi = new Function('net', 'window', 'huds', 'charById', 'renderHudFoot', sh + '\nreturn { rolled, rollNamesOf };')(() => netR, win, huds, id => camp.chars[id] || null, v => drawn.push(v.charId));
+        sapi.rolled(R('x', 'Kael', GM), ''); const gmDrawn = drawn.slice(); drawn.length = 0; sapi.rolled(R('y', 'Kael', MATE), ''); const mateDrawn = drawn.slice();
+        check('1.6.3 (the review of combat batch "strip") a GM roll made as a player\'s character carries its token\'s name, and the player\'s HUD history still files it: the names a roll can carry are the sheet\'s and each its tokens read as, never a waiting token\'s; a roll that arrives once the token is there is tagged with its character; one that came before is listed by rollsFor all the same, as is a GM roll by the sheet\'s name; a teammate\'s roll by that name is not; the HUD\'s foot is drawn again for the GM\'s roll alone',
+            j(before) === j(['Kael Varn']) && j(netR.asNamesOf(camp.chars.c_k)) === j(['Kael Varn', 'Kael']) && j(sapi.rollNamesOf(camp.chars.c_k)) === j(['Kael Varn', 'Kael']) && rt.tagByName(R('t', 'Kael', GM)) === 'c_k' && rt.tagByName(R('t', 'Kael', MATE)) === ''
+            && listed === 'sheet,init,early' && mateList === '' && j(gmDrawn) === j(['c_k']) && j(mateDrawn) === j([])
+            && j(netR.asNamesIndex(60).c_k) === j(['Kael Varn', 'Kael']) && j(netR.asNamesIndex(60).c_m) === j(['Sela']),
+            j({ before, listed, mateList, gmDrawn, mateDrawn, ix: netR.asNamesIndex(60) }));
+    }
     /* ---- Stage 6 HUD frame (HF4a): inline rows (H2) and the counter (H8) — the cleaner, both run for real, the editor, the tour's seed ---- */
     {
         const sh6 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), fx6 = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));

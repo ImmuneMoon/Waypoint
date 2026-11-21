@@ -2332,7 +2332,7 @@ function bellNote(cid, note, as) {
     var camp = getActiveCampaign(), DCb = window.wpDiceCore; if (!camp) return null;
     if (!cid) {
         if (!isClient() || typeof as !== 'string' || !as) return null;
-        var mine = Object.keys(camp.chars || {}).filter(function(id) { var x = camp.chars[id]; return x && !x.partial && x.ownerId === myId() && rollName(x) === as; });
+        var mine = Object.keys(camp.chars || {}).filter(function(id) { var x = camp.chars[id]; return x && !x.partial && x.ownerId === myId() && (typeof rollNamesOf === 'function' ? rollNamesOf(x).indexOf(as) >= 0 : rollName(x) === as); });   // 1.6.3: a card named by its token
         if (mine.length !== 1) return null; cid = mine[0];
     }
     if (!HUD_CID.test(String(cid)) || !canOpen(cid)) return null;
@@ -2420,6 +2420,14 @@ var _histCleared = Object.create(null), HIST_DEPTHS = [10, 25, 50, 100];
 function histDepth() { var d = parseInt(pref('wp_hudHistDepth', '10'), 10); return HIST_DEPTHS.indexOf(d) >= 0 ? d : 10; }
 function sysRolls(sys) { return !!sys && ((Array.isArray(sys.rolls) && sys.rolls.length > 0) || (Array.isArray(sys.fields) && sys.fields.some(function(f) { return f && f.roll; }))); }
 function rollName(c) { var DL = window.wpDiceCore && window.wpDiceCore.LIMITS; return String((c && c.name) || '').slice(0, (DL && DL.label) || 60); }   // as a roll's "as" carries it
+// 1.6.3 (the review of combat batch "strip"): every name a roll made as this character may carry, the sheet's own first, then each name its
+// tokens read as (net.js net.asNamesOf), since the GM's rolls and cards are named by the token ("Kael" for a sheet named "Kael Varn"). rolled
+// and bellNote match a roll's "as" against these; with no net module, the sheet's name alone, as before
+function rollNamesOf(c) {
+    var s = rollName(c), n0 = net(), DL = window.wpDiceCore && window.wpDiceCore.LIMITS, l = c && n0 && typeof n0.asNamesOf === 'function' ? n0.asNamesOf(c, (DL && DL.label) || 60) : [];
+    if (!Array.isArray(l)) l = [];
+    return s && l.indexOf(s) < 0 ? [s].concat(l) : l.length ? l : [s];
+}
 function renderHudFoot(v) {
     var foot = v && v.foot; if (!foot) return;
     var fa = document.activeElement, fcls = fa && foot.contains(fa) ? ['hud-hist-toggle', 'hud-hist-clear', 'hud-hist-depth', 'hud-bell-btn', 'hud-bell-clear', 'hud-bell-depth'].filter(function(k) { return fa.classList.contains(k); })[0] || '' : '';
@@ -2473,7 +2481,7 @@ function rolled(m, cid) {
     var me = (net() || {}).myId;
     Object.keys(huds).forEach(function(id) {
         var v = huds[id]; if (!v) return;
-        if (m && m.roll) { if (cid ? id !== cid : !(m.roll.as && m.roll.as === rollName(charById(id)) && m.from && (m.from.gm === true || m.from.id === me))) return; }
+        if (m && m.roll) { if (cid ? id !== cid : !(m.roll.as && rollNamesOf(charById(id)).indexOf(m.roll.as) >= 0 && m.from && (m.from.gm === true || m.from.id === me))) return; }
         renderHudFoot(v);
     });
 }

@@ -446,12 +446,25 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
     check('1.6.0 a key step on Add a track adds no track, found on the sheet Add lists: Down on a closed list fires its change at once, so it asks the key rule of the Texture lists', fs.readFileSync(path.join(__dirname, '..', 'system/app/scripts/music.js'), 'utf8').includes('if (window.wpTexList) window.wpTexList.keys(addSel);'));
     {   // 1.6.3 (the improvement week's review of multiplayer, finding 24; Fulllion, 2026-11-21): while hosting, the Music panel says who hears what it plays.
-        // The panel's line, cut from renderPanel and run for real with each state: not controlling, controlling, and no table (where it says nothing)
-        const muH = read('system/app/scripts/music.js'), lineH = (muH.match(/\n    (if \(isHost\(\) && sessionLive\(\)\) tp\.appendChild\(el\('div', 'set-line music-hear'[^\n]*)/) || [])[1] || '';
-        const runH = (host, live, ctl) => { const kids = []; new Function('isHost', 'sessionLive', 'controlling', 'tp', 'el', lineH)(() => host, () => live, ctl, { appendChild: k => kids.push(k) }, (t, c, x) => ({ c, x })); return kids.map(k => k.x); };
-        const said = lineH ? [runH(true, true, false), runH(true, true, true), runH(false, true, false), runH(true, false, false)] : [];
-        check('1.6.3 finding 24 (renderPanel\'s line, run for real): while hosting the panel says Only you hear this until Take control is on, and Your table hears this while it is; a player and a GM with no table see no such line; the line stands right under the transport buttons, and how music works does not change',
-            j(said) === j([['Only you hear this. Take control to play it for the table.'], ['Your table hears this.'], [], []]) && /tp\.appendChild\(btns\);\n(?:\s*\/\/[^\n]*\n)*\s*if \(isHost\(\) && sessionLive\(\)\) tp\.appendChild\(el\('div', 'set-line music-hear'/.test(muH), j(said));
+        // The review of multiplayer chat: the words are hearWords', cut from music.js by its hear markers and run for real with each state, moved on
+        // purpose. Not taking control, each machine plays the map's own music by itself, so where what plays is that the players on the map hear
+        // it too; nothing playing and no control taken says nothing. renderPanel puts the line right under the transport buttons, and
+        // refreshTransport sets it again as playback starts and stops
+        const muH = read('system/app/scripts/music.js'), sH = muH.indexOf('// [musiccheck:hear-start]'), eH = muH.indexOf('// [musiccheck:hear-end]'), hearSrc = sH >= 0 && eH > sH ? muH.slice(sH, eH) : '';
+        const runH = o => { const node = { textContent: 'x', style: {} }; const api = new Function('isHost', 'sessionLive', 'controlling', 'cur', 'source', 'getActiveCampaign', 'activeMapItem', 'mapSetting', 'cleanMapMusic', 'idSets', hearSrc + '\nreturn { hearWords: hearWords, hearSet: hearSet };')(
+            () => o.host, () => o.live, !!o.ctl, o.cur ? {} : null, o.src || null, () => ({ activeItemId: 'm1' }), () => o.map ? { type: 'map', music: o.map } : null, (it, id) => it && it.music, mm => mm && (mm.playlist || mm.track) ? { playlist: mm.playlist || '', track: mm.track || '' } : null, () => ({}));
+            api.hearSet(node); return [node.textContent, node.style.display]; };
+        const ONLY = 'Only you hear this. Take control to play it for the table.', MAP = 'Players on this map hear this too. It is this map’s own music.';
+        const said = hearSrc ? [
+            runH({ host: true, live: true, cur: true, src: { kind: 'track', id: 't2' }, map: { track: 't1' } }),       // something else plays: the GM alone
+            runH({ host: true, live: true, cur: true, src: { kind: 'track', id: 't1' }, map: { track: 't1' } }),       // the map's own song: players on the map too
+            runH({ host: true, live: true, cur: true, src: { kind: 'playlist', id: 'p1' }, map: { playlist: 'p1' } }), // the map's own playlist
+            runH({ host: true, live: true, cur: false, src: { kind: 'track', id: 't2' }, map: { track: 't1' } }),      // nothing playing: no line
+            runH({ host: true, live: true, ctl: true, cur: true, src: { kind: 'track', id: 't2' } }),                  // in control: the table
+            runH({ host: false, live: true, cur: true }), runH({ host: true, live: false, cur: true })] : [];
+        check('1.6.3 finding 24 and the review of multiplayer chat (hearWords and hearSet, run for real): while hosting and not in control the panel says Only you hear this where what plays is not the map\'s own music, says the players on this map hear it too where it is the map\'s own song or playlist, and says nothing, the line put away, where nothing plays; in control it says Your table hears this; a player and a GM with no table see no line; renderPanel puts it right under the transport buttons and refreshTransport sets it again',
+            j(said) === j([[ONLY, ''], [MAP, ''], [MAP, ''], ['', 'none'], ['Your table hears this.', ''], ['', 'none'], ['', 'none']])
+            && /tp\.appendChild\(btns\);\n(?:\s*\/\/[^\n]*\n)*\s*var hearL = el\('div', 'set-line music-hear', ''\); hearSet\(hearL\); tp\.appendChild\(hearL\);/.test(muH) && muH.includes("var hr = q('.music-hear'); if (hr) hearSet(hr);"), j(said));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

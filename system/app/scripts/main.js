@@ -1468,6 +1468,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           if (code.length < 4) { say('Enter the room code the GM shared.', 'err'); return; }
           var name = (document.getElementById('wcNameInput').value || '').trim();
           if (!name) { say('Enter your name — that’s how players know you.', 'err'); try { document.getElementById('wcNameInput').focus(); } catch (e) {} return; }
+          // the review of multiplayer chat (1.6.3): while a join is still under way (a refresh's rejoin dialing or waiting to try again) the
+          // Multiplayer window's Join button is off, and a press handed to a disabled button does nothing, so the welcome stood at Connecting
+          // for good. It asks net.js first and says why here, with its own Join left on
+          if (window.wpNet && typeof window.wpNet.joinLocked === 'function' && window.wpNet.joinLocked()) { say('Waypoint is still trying to reach a table. Wait for that to end, then press Join again.', 'err'); return; }
           saveWcProfile();
           var nc = document.getElementById('netCodeInput'); if (nc) nc.value = code;   // hand the fields to the multiplayer join + trigger it (reuses its validation + joinSession + status)
           var nn = document.getElementById('netNameInput'); if (nn) nn.value = name;

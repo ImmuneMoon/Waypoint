@@ -5531,7 +5531,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), whispers: true, travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + '. Something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -6195,6 +6195,7 @@ function handleMessage(msg, conn) {
         if (typeof msg.key === 'string' && msg.key && !conn.wpKeyTaken) { conn.wpKeyTaken = true; rememberTableKey(net.gmId, msg.key); }   // the table key this host issued me: proves this id is mine next time — taken once per connection (a host cannot fill or overwrite the store snapshot after snapshot)
         // [netcheck:snapkey-end]
         if (!conn.wpSeenTaken && typeof msg.gmId === 'string') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent; once per connection and only from an id sent as text, as the key is taken, so a host cannot fill the list with names of its own
+        if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }   // the review of multiplayer chat: a host that judges whispers says so (whispers: true), read as true only
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         syncSessionButtons();
         if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive([], 0);   // backlog 29: a whole campaign from the host: none of its trackers until it sends them
@@ -8899,6 +8900,12 @@ function noRouteWords(ice) { return (ice ? 'Your network and the GM\u2019s could
 // [netcheck:networds-end]
 
 var JOIN_ATTEMPT_MS = 7000;   // per generation; a dead generation's registration answers nothing
+// The review of multiplayer chat (1.6.3): whether any room generation of the join a player began answered nothing at all within its seven
+// seconds, rather than being reported as not there. A first join walks every generation (a table resumed after a crash lives under one of
+// them), so when the last generation turns out not to be there, this says which words fit: a table that answered somewhere along the walk
+// and never connected gets the relay advice (noRouteWords), and a code where every generation was not there is said as no table at that
+// code. Reset at the start of each join the player begins, set by joinSession's own timer, read by its error handler on the last generation
+var _joinSlow = false;
 function joinSession(code, name, isRetry, probe) {
     if (peerLibMissing()) return;
     code = typedCode(code);   // transport: a code typed or pasted in its two groups dials the same room (hyphen and spaces out, lower case)
@@ -8907,6 +8914,7 @@ function joinSession(code, name, isRetry, probe) {
     if (!isRetry && !probe && typeof rejoinDone === 'function') rejoinDone();
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
+    if (!isRetry && !probe) { _joinSlow = false; if (typeof whispersKnow === 'function') whispersKnow(false); }   // the review of multiplayer chat: a new walk through the generations, and no whisper until this table's snapshot says it knows them
     if (!isRetry && !probe) joinTrustReset();   // security (2026-10-01): a join the player began — what the last one refused is forgotten (a yes the player just gave holds for this one)
     var nextGen = null;   // (set once this attempt's connection exists) on to the next generation of the code, or the end of the join
     var profile = setProfileName(name || getProfile().name || 'Player');
@@ -8937,6 +8945,7 @@ function joinSession(code, name, isRetry, probe) {
             if (conn.open || net.peer !== peer) return;
             try { peer.destroy(); } catch (e) {}
             if (reconn.pending) { scheduleReconnect(); return; }
+            _joinSlow = true;   // the review of multiplayer chat: this generation answered nothing at all, which is what a relay may fix
             if (probe + 1 < ROOM_GENS) { joinSession(code, name, false, probe + 1); return; }
             joinFailed(noRouteWords(false));   // 1.6.3 (findings 7 and 10): a table that answered and never connected, with the relay advice in plain words
         }, JOIN_ATTEMPT_MS);
@@ -8989,10 +8998,16 @@ function joinSession(code, name, isRetry, probe) {
             return;
         }
         if (_joinTrust.refused && nextGen && net.peer === peer && !net.active) { nextGen(); return; }   // security (2026-10-01): after a host this app refused, a generation that is not there is passed over at once (its seven seconds are for a host that may yet answer)
+        // The review of multiplayer chat (1.6.3): the connection library reports a room generation nobody holds as an error of the type
+        // peer-unavailable and does not end the peer. A first join (a reload's rejoin among them) passes on to the next generation at once, with no
+        // words and no notice, since a table resumed after a crash lives under one of them; only the last generation says anything. nextGen,
+        // set once this attempt's connection exists, clears the seven-second timer, lets the peer go and dials the next generation
+        if (err.type === 'peer-unavailable' && nextGen && net.peer === peer && !net.active && probe + 1 < ROOM_GENS) { nextGen(); return; }
         if (!net.active && typeof rejoinKeep === 'function' && rejoinKeep()) { try { peer.destroy(); } catch (e) {} return; }
         var missJ = err.type === 'peer-unavailable' && typeof signalMiss === 'function' ? signalMiss(code) : '';
         netErrLog('join', err.type);   // 1.6.3 (finding 10): the library's own word goes to the console, the player reads plain words
-        var wordsJ = missJ ? 'No table answered at that code.' + missJ : joinErrWords(err.type);
+        var slowJ = err.type === 'peer-unavailable' && _joinSlow;   // a generation along the walk answered and never connected: the relay advice, not "no table"
+        var wordsJ = slowJ ? (missJ ? noRouteWords(false).slice(0, -RELAY_WORDS.length) + missJ : noRouteWords(false)) : missJ ? 'No table answered at that code.' + missJ : joinErrWords(err.type);
         setStatus(wordsJ);
         if (net.fromWelcome && window.wpJoinFailed) window.wpJoinFailed();   // re-enable the welcome Join button (the error shows on that screen)
         toast(wordsJ);
@@ -9872,6 +9887,7 @@ net.diceRoll = function(expr, o) {
         if (_dicePending) return { error: 'Waiting for the GM to roll the last one.' };
         var rid = 'q' + Math.random().toString(36).slice(2, 10), req = { type: 'roll-req', rid: rid, expr: expr };
         if (o.priv || o.hide) req.priv = 'gm';   // 1.6.3: a player's own hide is their To the GM only
+        else if (typeof whisperRollPriv === 'function') whisperRollPriv(req);   // the review of multiplayer chat: a whisper picked in Table Chat makes it the GM's alone, said
         if (o.charId) req.charId = o.charId;
         if (o.by && o.charId) req.by = String(o.by);   // 1.6.0: the crew sheet that pressed it
         if (o.label) req.label = String(o.label).slice(0, D.LIMITS.label);
@@ -10480,6 +10496,26 @@ function pushChat(m) {
 // the roster branch on a player's app), a player who left keeps their row marked not connected, and a whisper to someone not here is refused
 // with a word and never sent anywhere else. The host resolves a player to every open admitted connection of theirs at the moment it sends
 var _whisperNames = Object.create(null);   // profile id -> the name last listed for it, so a row for a player who left keeps their name
+// The review of multiplayer chat (1.6.3): a host from before whispers between players rebuilds every player's chat line as said to everyone
+// and never reads whom it was for, and a newer player is admitted to an older host. So a host that judges a player's whisper says so in its
+// join snapshot (whispers: true), read as true only here, and until it does a player's app shows no To list and never sends a whisper. Set
+// by the snapshot branch, and forgotten as a player begins a join (joinSession). The GM's own app always knows them
+var _whispersOk = false;
+function whispersKnow(v) { _whispersOk = v === true; }
+function whisperKnows() { return net.role !== 'client' || _whispersOk; }
+// A player's roll made while a whisper is picked in the To list goes to the GM only, said in these words. Without it a player who picked
+// Whisper GM and typed /r, or pressed a roll on their sheet, showed the whole table a roll they meant to keep private (the GM's own rolls
+// already follow the pick). It is asked by sendChat for a typed roll and by net.diceRoll for every roll a player's app sends
+var WHISPER_ROLL_WORDS = 'That roll went to the GM only, since a whisper is picked in Table Chat. Pick Everyone to roll for the table.';
+function whisperRollPick() {   // (a player's app) the whisper picked in Table Chat that a roll follows, or null for Everyone
+    if (net.role !== 'client' || !net.active || !whisperKnows()) return null;
+    var sel = ui('chatTo'); if (!sel || !sel.value || (sel.style && sel.style.display === 'none')) return null;
+    return whisperTarget(sel.value);
+}
+function whisperRollPriv(req) {   // (a player's app) makes a roll request the GM's alone where a whisper is picked, and says so once; true where it did
+    if (!req || req.priv || !whisperRollPick()) return false;
+    req.priv = 'gm'; toast(WHISPER_ROLL_WORDS); return true;
+}
 function whisperConns(pid) {   // (the host) every open, admitted connection of one player
     var out = [];
     (net.conns || []).forEach(function(c) { var p = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (p && p.id === pid) out.push(c); });
@@ -10515,7 +10551,7 @@ function whisperTag(m) {
 function refreshChatRecipients() {
     var sel = ui('chatTo');
     if (!sel) return;
-    if (!net.active || (net.role !== 'host' && net.role !== 'client')) { sel.style.display = 'none'; return; }
+    if (!net.active || (net.role !== 'host' && net.role !== 'client') || !whisperKnows()) { sel.style.display = 'none'; return; }   // the review of multiplayer chat: hidden at an older host, as before whispers between players
     sel.style.display = 'block';
     var cur = sel.value, rows = whisperChoices();
     var html = '<option value="">Everyone</option>' + rows.map(function(o) { return '<option value="' + escTextRoster(o.v) + '">Whisper: ' + escText(o.name) + '</option>'; }).join('');
@@ -10531,9 +10567,10 @@ function sendChat(menFrom) {
     var WMn = window.wpMention, menT = Array.isArray(menFrom) ? menFrom : WMn && typeof WMn.take === 'function' ? WMn.take(input, text) : [];   // 1.6.2 (166 f): what was picked from the @ list, as stretches of these words (a pop-out's come with its words)
     if (window.wpPopout) { try { if (_chatBC) _chatBC.postMessage({ type: 'chatSend', text: text, men: menT }); } catch (e) {} input.value = ''; return; }   // the pop-out has no session — relay to the main window, which sends and mirrors the result back
     var cmd = DC() ? DC().parseCommand(text) : null;   // /roll, /r, /gmroll, /gr work with or without a session
-    if (cmd) { input.value = ''; var rr = window.wpDice ? window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll', typed: true, source: 'chat' }) : net.diceRoll(cmd.expr, { hide: cmd.cmd === 'gmroll', typed: true }); if (rr.error) toast(rr.error); return; }   // 1.6.3 (finding 26): typed, which its card says
+    var wPickC = cmd && cmd.cmd !== 'gmroll' ? whisperRollPick() : null;   // the review of multiplayer chat: a player's typed roll follows a whisper picked, to the GM only
+    if (cmd) { input.value = ''; var rr = window.wpDice ? window.wpDice.roll(cmd.expr, { hide: cmd.cmd === 'gmroll' || !!wPickC, typed: true, source: 'chat' }) : net.diceRoll(cmd.expr, { hide: cmd.cmd === 'gmroll' || !!wPickC, typed: true }); if (rr.error) toast(rr.error); else if (wPickC) toast(WHISPER_ROLL_WORDS); return; }   // 1.6.3 (finding 26): typed, which its card says
     if (!net.active) { toast('Chat needs an active multiplayer session.'); return; }
-    var toSel = ui('chatTo'), toV = toSel && toSel.style && toSel.style.display !== 'none' ? toSel.value : '', tgt = toV ? whisperTarget(toV) : null;
+    var toSel = ui('chatTo'), toV = toSel && toSel.style && toSel.style.display !== 'none' && whisperKnows() ? toSel.value : '', tgt = toV ? whisperTarget(toV) : null;   // the review of multiplayer chat: never a whisper to a host that has not said it knows them
     if (toV && (!tgt || !tgt.here)) { toast((tgt ? tgt.name : 'That player') + ' is not connected, so the whisper was not sent. It is still in the box.'); refreshChatRecipients(); return; }   // 1.6.3 (finding 4): refused, never sent to anyone else
     input.value = '';
     var me = getProfile();
@@ -11028,6 +11065,7 @@ function netPaneSync() {
     if (at) at.style.display = lockJ ? 'block' : 'none';
 }
 function joinLocked() { return net.role === 'client' && (!!net.active || !!net.peer); }   // at someone else's table, or dialing one
+net.joinLocked = joinLocked;   // the review of multiplayer chat: the welcome's Join asks it before it hands a join on (main.js), since a disabled Join button takes no press
 function netPanePick(k) { if (net.active) return; _netPane = _netPane === k ? null : k; netPaneSync(); }
 function netPaneShow(k) { _netPane = k; netPaneSync(); }   // the part a press of Host or Join belongs to stays shown, so a join that fails is read where it was typed
 // [netcheck:netpane-end]

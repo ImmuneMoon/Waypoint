@@ -521,14 +521,14 @@ pendingChecks.push((async () => {
 // keeps a player who left marked not connected and refuses a whisper to them, never falling back to Everyone. The whisper slice, run for real
 {
     const wSrc = between('// [netcheck:whisper-start]', '// [netcheck:whisper-end]', 'whisper');
-    const mkW = role => {
+    const mkW = (role, more) => {   // more (the review of multiplayer chat): { DC, win } for a typed roll's path
         const out = { sent: [], bcast: [], pushed: [], toasts: [], logs: [] };
         const sel = { value: '', style: { display: 'none' }, innerHTML: '' }, input = { value: '' };
         const net = { role, active: true, myId: role === 'host' ? 'u_gm' : 'u_me', conns: [], roster: Object.create(null) };
         const conn = (peer, pid, name) => { const c = { peer, open: true, send: m => out.sent.push({ peer, m: JSON.parse(JSON.stringify(m)) }) }; net.conns.push(c); if (pid) net.roster[peer] = { id: pid, name }; return c; };
         const api = new Function('net', 'own', 'validProfileId', 'ui', 'escTextRoster', 'escText', 'toast', 'getProfile', 'chatMen', 'unkeepLinks', 'DC', 'window', 'broadcast', 'sendFailed', 'pushChat', 'logEvent',
-            wSrc + '\nreturn { refresh: refreshChatRecipients, send: sendChat, target: whisperTarget, tag: whisperTag, choices: whisperChoices };')(
-            net, H.own, H.validProfileId, id => id === 'chatTo' ? sel : id === 'chatInput' ? input : null, s => String(s), s => String(s), t => out.toasts.push(String(t)), () => ({ name: role === 'host' ? 'GM' : 'Me' }), () => undefined, null, () => null, {},
+            wSrc + '\nreturn { refresh: refreshChatRecipients, send: sendChat, target: whisperTarget, tag: whisperTag, choices: whisperChoices, knows: whispersKnow, pick: whisperRollPick, priv: whisperRollPriv, words: WHISPER_ROLL_WORDS };')(
+            net, H.own, H.validProfileId, id => id === 'chatTo' ? sel : id === 'chatInput' ? input : null, s => String(s), s => String(s), t => out.toasts.push(String(t)), () => ({ name: role === 'host' ? 'GM' : 'Me' }), () => undefined, null, (more && more.DC) || (() => null), (more && more.win) || {},
             (m, ex) => out.bcast.push(JSON.parse(JSON.stringify(m))), () => {}, m => out.pushed.push(m), (k, t, how) => out.logs.push([t, how && how.h]));
         const opts = () => [...sel.innerHTML.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g)].map(m => m[1] + '=' + m[2]);
         return { out, sel, input, net, conn, api, opts };
@@ -546,6 +546,7 @@ pendingChecks.push((async () => {
     const refused = [G.out.sent.length, G.out.bcast.length, G.out.pushed.length, G.input.value, G.out.toasts.slice(-1)[0]];
     // a player: the GM and the other players, never themselves; a whisper to the GM goes to the host as a word naming whom, never with their own words of whom
     const P = mkW('client'); P.net.roster.u_me = { id: 'u_me', name: 'Me' }; P.net.roster.u_rae = { id: 'u_rae', name: 'Rae' }; P.conn('host');
+    P.api.knows(true);   // the review of multiplayer chat: this host's snapshot said it judges whispers (whispers: true)
     P.api.refresh(); const optsP = P.opts(), shownP = P.sel.style.display;
     P.sel.value = 'gm'; P.input.value = 'I pick the lock'; P.api.send();
     const toGm = [P.out.bcast.length, P.out.bcast[0] && P.out.bcast[0].to, P.out.bcast[0] && 'toName' in P.out.bcast[0], P.out.pushed[0] && P.out.pushed[0].toId, P.api.tag(P.out.pushed[0] || {})];
@@ -557,6 +558,31 @@ pendingChecks.push((async () => {
         && j(optsP) === j(['=Everyone', 'gm=Whisper: GM', 'p:u_rae=Whisper: Rae']) && shownP === 'block' && j(toGm) === j([1, 'gm', false, 'gm', 'whisper to GM'])
         && j(tags) === j(['whisper to you', 'whisper to Rae', 'whisper', 'whisper to you']),
         j({ optsA, reloadSend, optsGone, keptPick, refused, optsP, shownP, toGm, tags }));
+    // The review of multiplayer chat (1.6.3): an older host rebuilds every player's chat line as said to everyone, and a newer player is admitted
+    // to it, so a player's app shows no To list and sends no whisper until the host's snapshot says whispers: true (read as true only)
+    const Q = mkW('client'); Q.net.roster.u_me = { id: 'u_me', name: 'Me' }; Q.net.roster.u_rae = { id: 'u_rae', name: 'Rae' }; Q.conn('host');
+    const knowQ = [];
+    [undefined, 'yes', 1, {}].forEach(v => { Q.api.knows(v); Q.sel.style.display = 'block'; Q.api.refresh(); knowQ.push(Q.sel.style.display); });
+    Q.sel.value = 'gm'; Q.input.value = 'Psst'; Q.api.send();
+    const oldHost = [Q.out.bcast.length, Q.out.bcast[0] && Q.out.bcast[0].scope, Q.out.bcast[0] && 'to' in Q.out.bcast[0], Q.out.pushed[0] && Q.out.pushed[0].scope, Q.api.pick()];
+    Q.api.knows(true); Q.api.refresh(); const knownQ = Q.sel.style.display;
+    check('the review of multiplayer chat (the whisper slice, run for real): until the host\'s snapshot says whispers: true a player\'s app shows no To list, for a key that is missing, a word, a number or an object alike, and a line it sends goes to everyone with no whom in it, whatever the hidden list held; once the host says true the list shows. The host says it in its snapshot, and the snapshot branch reads it, as a fresh join forgets it',
+        j(knowQ) === j(['none', 'none', 'none', 'none']) && j(oldHost) === j([1, 'global', false, 'global', null]) && knownQ === 'block'
+        && /pausedSelf: !!\(net\.pausedPlayers && net\.pausedPlayers\[prof\.id\]\), whispers: true, travelLocked:/.test(src) && src.includes("if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }")
+        && src.includes("if (!isRetry && !probe) { _joinSlow = false; if (typeof whispersKnow === 'function') whispersKnow(false); }"), j({ knowQ, oldHost, knownQ }));
+    // The review of multiplayer chat (1.6.3): a player's roll made while a whisper is picked goes to the GM only and says so. A typed /r through
+    // sendChat, run for real with a stand-in roller, and any roll a player's app sends through net.diceRoll (whisperRollPriv)
+    const rolled = [], R = mkW('client', { DC: () => ({ parseCommand: t => /^\/(r|roll|gmroll) /.test(t) ? { cmd: t.split(' ')[0].slice(1) === 'r' ? 'roll' : t.split(' ')[0].slice(1), expr: t.split(' ')[1] } : null }), win: { wpDice: { roll: (e, o) => { rolled.push([e, !!o.hide]); return {}; } } } });
+    R.net.roster.u_me = { id: 'u_me', name: 'Me' }; R.net.roster.u_rae = { id: 'u_rae', name: 'Rae' }; R.conn('host'); R.api.knows(true); R.api.refresh();
+    R.sel.value = 'gm'; R.input.value = '/r 1d20'; R.api.send(); const t1 = R.out.toasts.slice();
+    R.sel.value = 'p:u_rae'; R.input.value = '/roll 2d6'; R.api.send();
+    R.input.value = '/gmroll 1d4'; R.api.send(); const t3 = R.out.toasts.length;
+    R.sel.value = ''; R.input.value = '/r 1d8'; R.api.send(); const t4 = R.out.toasts.length;
+    const reqA = { type: 'roll-req' }, reqB = { type: 'roll-req', priv: 'gm' }; R.sel.value = 'gm'; const pa = R.api.priv(reqA), pb = R.api.priv(reqB); R.sel.value = ''; const reqC = {}, pc = R.api.priv(reqC);
+    check('the review of multiplayer chat (sendChat and whisperRollPriv, run for real): a player who picked a whisper and types /r or /roll rolls to the GM only and is told so once; /gmroll is the GM only as ever, with no second word; with Everyone picked the roll is the table\'s; a roll request a player\'s app sends is made the GM\'s alone while a whisper is picked, said, and one already private or with Everyone picked is left as it was; net.diceRoll\'s player branch asks it',
+        j(rolled) === j([['1d20', true], ['2d6', true], ['1d4', true], ['1d8', false]]) && j(t1) === j([R.api.words]) && t3 === 2 && t4 === 2 && R.out.bcast.length === 0
+        && pa === true && reqA.priv === 'gm' && pb === false && pc === false && !('priv' in reqC) && R.out.toasts.length === 3
+        && src.includes("        if (o.priv || o.hide) req.priv = 'gm';   // 1.6.3: a player's own hide is their To the GM only\n        else if (typeof whisperRollPriv === 'function') whisperRollPriv(req);".replace(/\n/g, src.includes('\r\n') ? '\r\n' : '\n')), j({ rolled, t1, toasts: R.out.toasts, pa, pb, pc, reqA }));
     check('1.6.3 finding 4 (source): the host\'s To list is drawn again whenever the roster changes, and the GM\'s roll whispered to a player goes by profile id to every open connection of theirs, kept the GM\'s where they are not connected',
         /function broadcastRoster\(\) \{[^\n]*if \(typeof refreshChatRecipients === 'function'\) refreshChatRecipients\(\); \}/.test(src)
         && /var tgW = \/\^p:\/\.test\(toKey\) && typeof whisperTarget === 'function' \? whisperTarget\(toKey\) : null, cW = tgW && tgW\.pid && typeof whisperConns === 'function' \? whisperConns\(tgW\.pid\) : null;/.test(src)

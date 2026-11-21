@@ -225,6 +225,21 @@ pendingChecks.push((async () => {
         check('the live test, 2026-10-30, Enter in a join box (pressOnEnter, run for real): it presses the button once, never for another key, while composing or while the button is held back; both join forms\' code and password boxes are wired; the Room code tooltip on the join page is a player\'s words and stands above the box, the GM\'s words on the GM\'s own code',
             je0 === 0 && je1 === 1 && jeB.n === 1 && jeSt === 1 && /\['wcJoinCode', 'wcJoinPass'\]\.forEach\(function\(id\) \{ pressOnEnter\(document\.getElementById\(id\), joinGo\); \}\);/.test(mainSrc) && /\['netCodeInput', 'netJoinPassInput'\]\.forEach/.test(mainSrc)
             && /'room code': 'The code your GM sent you\./.test(tipsSrc) && !/Send this to your players/.test(tipsSrc) && /<label class="wc-field" data-tip-up="1"><span>Room code<\/span>/.test(html) && /title="Send this to your players\.[^"]*">Room code<\/div>/.test(html), J([je0, je1, jeB.n, jeSt]));
+        // The review of multiplayer chat (1.6.3): while a join is still under way the Multiplayer window's Join button is off, and a press handed
+        // to a disabled button does nothing, so the welcome's Join stood at Connecting for good. The welcome's Join handler, cut from main.js and
+        // run for real: it asks wpNet.joinLocked first and says why in its own status line, its button left on
+        const mN = mainSrc.replace(/\r\n/g, '\n'), wgA = mN.indexOf("      if (joinGo) joinGo.addEventListener('click', function() {"), wgE = wgA < 0 ? -1 : mN.indexOf('\n      });', wgA), wgS = wgA < 0 || wgE < 0 ? '' : mN.slice(wgA, wgE + 10);
+        const runWg = locked => {
+            const els = { wcJoinStatus: { textContent: '', className: '' }, wcJoinCode: { value: 'ABCDE-FGHJK' }, wcNameInput: { value: 'Ayla', focus() {} }, netCodeInput: { value: '' }, netNameInput: { value: '' }, netJoinPassInput: { value: '' }, wcJoinPass: { value: '' }, netJoinBtn: { n: 0, click() { this.n++; } } };
+            let hd = null; const joinGo = { disabled: false, addEventListener: (t, f) => { hd = f; } }, wpNet = { joinLocked: () => locked, typedCode: c => c.replace(/[-\s]/g, '').toLowerCase() };
+            new Function('document', 'window', 'saveWcProfile', 'joinGo', wgS)({ getElementById: id => els[id] || null }, { wpNet }, () => {}, joinGo);
+            if (hd) hd();
+            return [els.netJoinBtn.n, joinGo.disabled, els.wcJoinStatus.textContent, els.wcJoinStatus.className, wpNet.fromWelcome === true];
+        };
+        const wgL = wgS ? runWg(true) : [], wgF = wgS ? runWg(false) : [];
+        check('the review of multiplayer chat (the welcome\'s Join handler, run for real): while Waypoint is still trying to reach a table the welcome\'s Join hands nothing on, says why in its own line, and stays on; with no join under way it hands the join to the Multiplayer window\'s Join as before; net.js publishes joinLocked',
+            J(wgL) === J([0, false, 'Waypoint is still trying to reach a table. Wait for that to end, then press Join again.', 'wc-join-status err', false]) && J(wgF) === J([1, true, 'Connecting\u2026', 'wc-join-status', true])
+            && src.includes('net.joinLocked = joinLocked;'), J([wgL, wgF]));
     }
 
     /* ---- 1.6.3 (the improvement week's review of multiplayer, finding 14): the Host part says which server its room code is on ---- */
@@ -420,9 +435,56 @@ pendingChecks.push((async () => {
             !!NW && jw[0] === 'No table is open at that code. Check the code with your GM. Their table may not be open yet.' && jw[1] === 'Waypoint could not reach the server that finds tables. Check your internet and try again.' && jw.slice(1, 6).every(s => s === jw[1])
             && /no room code was made/.test(hw[1]) && hw.slice(1, 6).every(s => s === hw[1]) && jw.concat(hw).every(plain) && jw[11] === 'Waypoint could not join the table. Try again in a moment.' && hw[11] === 'Hosting could not start. Try again in a moment.'
             && nr.every(s => plain(s) && /relay server in Settings, under Multiplayer\. Then join again\.$/.test(s)) && /^Your network and the GM\u2019s could not connect\./.test(nr[0]) && /^Waypoint found the GM\u2019s table/.test(nr[1])
-            && /netErrLog\('join', err\.type\);[^\n]*\n\s*var wordsJ = missJ \? 'No table answered at that code\.' \+ missJ : joinErrWords\(err\.type\);\n\s*setStatus\(wordsJ\);/.test(src.replace(/\r\n/g, '\n'))
+            && /netErrLog\('join', err\.type\);[^\n]*\n\s*var slowJ = [^\n]*\n\s*var wordsJ = slowJ \? [^\n]*: missJ \? 'No table answered at that code\.' \+ missJ : joinErrWords\(err\.type\);\n\s*setStatus\(wordsJ\);/.test(src.replace(/\r\n/g, '\n'))   /* the review of multiplayer chat: a code where some generation answered and never connected says the relay words, moved on purpose */
             && /joinFailed\(noRouteWords\(false\)\);/.test(src) && /joinFailed\(noRouteWords\(true\)\);/.test(src) && !/Connection error: ' \+ err\.type/.test(src) && !/\(ICE ' \+ s/.test(src) && !/carrier-grade NAT and the table needs/.test(src),
             J({ jw, hw, nr }));
+        // The review of multiplayer chat (1.6.3): a first join walks every room generation of the code (a table resumed after a crash lives under
+        // one of them). The connection library reports a generation nobody holds as an error of the type peer-unavailable; that error used to
+        // end the join at once, so a resumed table at generation 1 was never reached and a table that answered and never connected was told
+        // "No table is open". joinSession and its error handler run for real here, with a stand-in connection library and a clock of the test's own
+        {
+            const jsSrc = (() => { const t = src.replace(/\r\n/g, '\n'), i = t.indexOf('var JOIN_ATTEMPT_MS = 7000;'), e = t.indexOf('\nfunction leaveSession(silent) {', i); return i < 0 || e < 0 ? '' : t.slice(i, e); })();
+            const nwJ = sl('networds');
+            const mkJ = () => {
+                const w = { peers: [], timers: [], status: [], toasts: [], threw: '' };
+                function Peer() { const p = { h: {}, destroyed: 0, conns: [], on(ev, fn) { (p.h[ev] = p.h[ev] || []).push(fn); }, emit(ev, a) { (p.h[ev] || []).slice().forEach(f => f(a)); }, destroy() { p.destroyed++; }, connect(id) { const c = { peer: id, open: false, h: {}, on(ev, fn) { (c.h[ev] = c.h[ev] || []).push(fn); }, emit(ev, a) { (c.h[ev] || []).slice().forEach(f => f(a)); }, send() {} }; p.conns.push(c); return c; } }; w.peers.push(p); return p; }
+                const net = { active: false, role: null, peer: null, conns: [], code: null, fromWelcome: false };
+                const reconn = { pending: false, gen: 0, tries: 0 };
+                const scope = { net, reconn, Peer, ROOM_GENS: 4, peerLibMissing: () => false, typedCode: c => String(c).toLowerCase(), cancelReconnect() {}, rejoinDone() {}, ringReset() {}, leaveSession() {}, joinTrustReset() {},
+                    setProfileName: n => ({ id: 'u_me', name: n }), getProfile: () => ({ id: 'u_me', name: 'Ayla' }), peerOpts: () => ({}), codeOwn: () => false, netPaneSync() {}, renderRoster() {}, syncSessionButtons() {},
+                    setStatus: s => w.status.push(String(s)), showCode: c => c, relayWarn() {}, genNotRefused: (c, g) => g, retryGen: () => 0, roomPeerId: (c, g) => 'waypoint-' + c + (g ? '-r' + g : ''), sigGate() {}, newKey: () => 'k',
+                    setTimeout: (fn, ms) => { w.timers.push({ fn, ms }); return w.timers.length; }, clearTimeout: id => { if (w.timers[id - 1]) w.timers[id - 1].off = true; }, setIndicator() {}, _joinTrust: { refused: null }, rejoinKeep: () => false,
+                    HOST_LATE: '', SNAP_REFUSED: '', signalMiss: () => '', toast: t => w.toasts.push(String(t)), ui: () => null, load() {}, window: {}, snapAsk() {}, scheduleReconnect() {}, APP_VERSION: '1', hostWait() {}, startHeartbeat() {}, wireConn() {}, console: { warn() {} } };
+                try { w.api = new Function('scope', 'with (scope) { ' + nwJ + '\n' + jsSrc + '\n return { joinSession: joinSession }; }')(scope); } catch (e) { w.threw = String(e && e.message); }
+                w.net = net;
+                w.last = () => w.peers[w.peers.length - 1];
+                w.dialed = () => { const p = w.last(); p.emit('open'); return p.conns[0] ? p.conns[0].peer : ''; };   // the newest peer registers and dials its generation
+                w.gone = () => { w.last().emit('error', { type: 'peer-unavailable' }); };   // that generation is not there
+                w.slow = () => { const t = w.timers.filter(x => !x.off && x.ms === 7000).pop(); if (t) { t.off = true; t.fn(); } };   // its seven seconds pass with no answer
+                return w;
+            };
+            let jr = {}, jerr = 'no slice';
+            if (jsSrc && nwJ) jerr = noThrow(() => {
+                // (a) generation 0 is not there: the join dials generation 1 at once, says nothing, and reaches the resumed table there
+                const A = mkJ(); A.api.joinSession('abcdefghjk', 'Ayla'); const a0 = A.dialed(); A.gone(); const a1 = A.dialed();
+                jr.a = [A.threw, a0, a1, A.peers.length, A.peers[0].destroyed > 0, A.status.length, A.toasts.length, A.net.peer === A.peers[1]];
+                // (b) generation 0 answers nothing in its seven seconds and generations 1 to 3 are not there: the relay words, never "No table"
+                const B = mkJ(); B.api.joinSession('abcdefghjk', 'Ayla'); const bd = [B.dialed()]; B.slow(); for (let g = 1; g < 4; g++) { bd.push(B.dialed()); B.gone(); }
+                jr.b = [B.threw, bd, B.status.slice(-1)[0], B.toasts.slice(-1)[0], B.net.peer];
+                // (c) no generation is there: no table at that code, said once, at the end of the walk
+                const C = mkJ(); C.api.joinSession('abcdefghjk', 'Ayla'); const cd = []; for (let g = 0; g < 4; g++) { cd.push(C.dialed()); C.gone(); }
+                jr.c = [C.threw, cd, C.status.slice(1), C.toasts, C.net.peer];
+                // (d) a fresh join after a walk that met a silent generation starts clean: all four not there now is no table
+                B.api.joinSession('abcdefghjk', 'Ayla'); for (let g = 0; g < 4; g++) { B.dialed(); B.gone(); }
+                jr.d = B.status.slice(-1)[0];
+            });
+            const NO_T = 'No table is open at that code. Check the code with your GM. Their table may not be open yet.';
+            check('the review of multiplayer chat (joinSession and its error handler run for real): a first join whose generation 0 is not there dials generation 1 at once, saying nothing and showing no notice, so a table resumed after a crash at generation 1 is reached; a walk on which one generation answered nothing in its seven seconds and the rest were not there ends with the relay words, never "No table is open"; a walk on which no generation is there says no table at that code once, at the end; a new join forgets the walk before it',
+                jerr === '' && jr.a && jr.a[0] === '' && jr.a[1] === 'waypoint-abcdefghjk' && jr.a[2] === 'waypoint-abcdefghjk-r1' && jr.a[3] === 2 && jr.a[4] === true && jr.a[5] === 1 && jr.a[6] === 0 && jr.a[7] === true
+                && J(jr.b[1]) === J(['waypoint-abcdefghjk', 'waypoint-abcdefghjk-r1', 'waypoint-abcdefghjk-r2', 'waypoint-abcdefghjk-r3']) && /^Waypoint found the GM’s table but could not connect to it\. .*relay server in Settings, under Multiplayer/.test(jr.b[2]) && jr.b[3] === jr.b[2] && jr.b[4] === null
+                && J(jr.c[1]) === J(['waypoint-abcdefghjk', 'waypoint-abcdefghjk-r1', 'waypoint-abcdefghjk-r2', 'waypoint-abcdefghjk-r3']) && J(jr.c[2]) === J([NO_T]) && J(jr.c[3]) === J([NO_T]) && jr.c[4] === null
+                && jr.d === NO_T, J([jerr, jr]));
+        }
         check('transport T2 (teardown): leaveSession lets go of the peer before it destroys it, so the "disconnected" a peer says on its way down never registers it again',
             /var peerL = net\.peer; net\.peer = null; if \(peerL\) \{ try \{ peerL\.destroy\(\); \} catch \(e\) \{\} \}/.test(src) && !/if \(net\.peer\) \{ try \{ net\.peer\.destroy\(\); \} catch \(e\) \{\} \}\n/.test(src));
     }

@@ -35,11 +35,40 @@ function fxApply(camp, ch, kind, now, secs, at) {   // one tick of one character
     if (window.wpSheets) window.wpSheets.charChanged(ch.id);
     r.expired.forEach(function(nm) { fxEnded(ch, nm); });
 }
-function fxEnded(ch, name) {   // "Bless ran out on Pat." — a private line for the GM, and one for its player at the table
-    var text = String(name).slice(0, 60) + ' ran out on ' + String(ch.name || 'a character').slice(0, 60) + '.', from = { id: net.myId || 'gm', name: 'GM', gm: true }, m = { type: 'chat', scope: 'whisper', from: from, text: text, ts: Date.now() };
-    if (net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
-    pushChat(m);
+// 1.6.3 (the combat review, finding 12; Fulllion's pick of 2026-11-20: "one chat line a round for the GM, with the details in the Time rules panel"): what
+// runs out is gathered, and said once all that one step of time ran has run (fxOutFlush, a moment later, so a round that ends seventeen effects says it
+// once). The GM gets ONE chat line, a run of the Time rules panel (timepanel.js) whose Open lists each character and what ran out on it, and with no panel
+// at hand one whisper of it all. Each player gets one whisper of what ran out on their own characters. "Bless ran out on Pat." where one thing ran out
+var _fxOut = [], _fxOutT = null;
+function fxEnded(ch, name) {   // noted, said with the rest of its step
+    if (!ch || typeof ch !== 'object') return;
+    _fxOut.push({ ch: ch, name: String(name).slice(0, 60) });
+    if (!_fxOutT) _fxOutT = setTimeout(fxOutFlush, 0);
 }
+function fxOutWords(list) {   // "Bless ran out on Pat." for one, else "Ran out: Bless on Pat, Quick on Quin and 3 more."
+    var nm = function(x) { return String(x.ch.name || 'a character').slice(0, 60); };
+    if (list.length === 1) return list[0].name + ' ran out on ' + nm(list[0]) + '.';
+    var shown = list.slice(0, 6).map(function(x) { return x.name + ' on ' + nm(x); }), more = list.length - shown.length;
+    return 'Ran out: ' + shown.join(', ') + (more > 0 ? ' and ' + more + ' more' : '') + '.';
+}
+function fxOutFlush() {
+    if (_fxOutT) { clearTimeout(_fxOutT); _fxOutT = null; }
+    var list = _fxOut; _fxOut = []; if (!list.length) return 0;
+    var from = { id: net.myId || 'gm', name: 'GM', gm: true }, now = Date.now(), byOwner = Object.create(null), byChar = [];
+    list.forEach(function(x) {
+        var ch = x.ch, at = byChar.filter(function(e) { return e.c === ch; })[0]; if (!at) { at = { c: ch, lines: [] }; byChar.push(at); } at.lines.push({ r: 'fxout', head: x.name, body: 'Ran out' });
+        if (ch.ownerId && !ch.npc) (byOwner[ch.ownerId] = byOwner[ch.ownerId] || []).push(x);
+    });
+    if (net.active && net.role === 'host') Object.keys(byOwner).forEach(function(pid) {   // each player: what ran out on their own characters, in one line
+        var m = { type: 'chat', scope: 'whisper', from: from, text: fxOutWords(byOwner[pid]).slice(0, 1500), ts: now };
+        net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === pid) { try { c.send(m); } catch (e) { sendFailed(e); } } });
+    });
+    var text = fxOutWords(list).slice(0, 1500), TP = window.wpTimePanel, camp = getActiveCampaign(), run = null;
+    if (TP && typeof TP.add === 'function' && camp) { try { run = TP.add(camp, camp.system, 'Effects ran out', byChar, { title: text.slice(0, 300), sub: byChar.length + (byChar.length === 1 ? ' character.' : ' characters.') }); } catch (e) { run = null; } }
+    if (!run) pushChat({ type: 'chat', scope: 'whisper', from: from, text: text, ts: now });   // no panel here: the whole of it in one whisper
+    return list.length;
+}
+net.fxOutFlush = fxOutFlush;
 // [netcheck:timecard-start]
 // Item 20 K5: a time rules summary (sheets.js runTimeRules) — a private line for the GM, and one for the character's player at the table unless it
 // is the GM's alone (an NPC, or a rule that moves or reads what the player cannot see); and the Game Record's Time

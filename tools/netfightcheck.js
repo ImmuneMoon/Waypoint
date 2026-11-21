@@ -405,6 +405,8 @@ pendingChecks.push((async () => {
                 return { seq, net, c: net.combats.m1 }; };
             const E1 = mkE(0); for (let i = 0; i < 4; i++) E1.net.combatStep('m1', 1); E1.net.combatStep('m1', -1); E1.net.combatStep('m1', 1); E1.net.combatStep('m1', 1);
             const E2 = mkE(1); E2.net.combatHold('m1'); E2.net.combatStep('m1', 1); const E3 = mkE(0); E3.net.combatStep('m1', -1);
+            check('1.6.3 (the combat review, finding 29): every step of a fight is a turn of its own by its serial (fightStep raises tn, run for real), a hold\'s step among them, and the serial rides on each player\'s copy and through a roster edit and a reload',
+                E1.c.tn === 7 && E2.c.tn === 2 && E3.c.tn === 1 && /if \(typeof cmb\.tn === 'number'\) out\[fid\]\.tn = cmb\.tn;/.test(src) && /if \(typeof had\.tn === 'number'\) f\.tn = had\.tn;/.test(src) && /\['n', 'rr', 'rh', 'eh', 'sq', 'tn'\]/.test(src), j([E1.c.tn, E2.c.tn, E3.c.tn]));
             const E4 = mkE(1, { holdEnd: 'end' }); E4.net.combatHold('m1'); const e4a = E4.seq.filter(x => x.indexOf('end B') === 0).length; E4.net.combatAct('m1', 'B'); E4.net.combatStep('m1', 1); E4.net.combatStep('m1', 1);
             const E5 = mkE(1); E5.net.combatHold('m1'); const e5a = E5.seq.filter(x => x.indexOf('end B') === 0).length; E5.net.combatAct('m1', 'B'); E5.net.combatStep('m1', 1); E5.net.combatStep('m1', 1); const e5b = E5.seq.filter(x => x.indexOf('end B') === 0).length;
             check('1.6.0 a hold and its turn\'s end (fightStep with the turnended slice, run for real): set, the turn-end step runs as the row holds and not again when it acts from the hold and that turn ends; absent, it waits and runs once, when the turn it acts in ends',
@@ -514,6 +516,50 @@ pendingChecks.push((async () => {
     check('turn-end, the client: myTurnTok names the map, the row and the token only while the player\'s own token has the turn there (turn-based combat on, at a table); End turn sends that row, else says why and sends nothing',
         cOn.tok && cOn.tok.mapId === 'm1' && cOn.tok.rowId === 'r_pat' && cOn.tok.tok.id === 't_pat' && j(cOn.sent) === j([{ type: 'turn-end', mapId: 'm1', row: 'r_pat' }]) && j(cOn.end) === j({ ok: true })
         && cOff.every(c => c.tok === null && !c.sent.length && c.end.error === 'It is not your turn.') && !cShut.sent.length && cShut.end.error === 'Not at the table yet.', j([cOn, cOff.map(c => c.end)]));
+    {   // 1.6.3 (the combat review, finding 29): End turn pressed twice. Under several turns a round, or a counting clock, the same row may be on turn again at
+        // once, so the host's check that the row on turn is the one the player saw let a second press (a double click) end that turn too. The press now names
+        // the turn's serial (tn), the host steps nothing for one that has ended, and the player's own app sends one press a turn (net.js, run for real)
+        const runN = (msgTn, tn) => {
+            const steps = [], map = { type: 'map', whiteboard: [{ id: 't_pat', isChar: true, charId: 'c_p', ownerId: 'u_a' }] }, camp = { items: { m1: map } };
+            const net = { role: 'host', roster: { pA: { id: 'u_a', location: 'm1' } }, combats: { m1: { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_pat', tokId: 't_pat' }] } } }; if (tn !== undefined) net.combats.m1.tn = tn;
+            const msg = { type: 'turn-end', mapId: 'm1', row: 'r_pat' }; if (msgTn !== undefined) msg.tn = msgTn;
+            new Function('msg', 'conn', 'net', 'window', 'getActiveCampaign', 'peerPaused', 'allow', 'own', 'toast', 'broadcastCombats', 'combatRefresh', 'roundChanged', 'turnStarted', ordersSrc + '\n' + teSrc)(msg, { peer: 'pA' }, net,
+                { wpVtt: { on: () => true } }, () => camp, () => false, () => true, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => {}, () => {}, () => {}, () => {}, (m, c) => steps.push(c.tn));
+            return steps;
+        };
+        const hNow = runN(4, 4), hOld = runN(3, 4), hNone = runN(undefined, 4), hFresh = runN(0, undefined), hBad = runN('4', 4);
+        check('1.6.3 (the combat review, finding 29), the host: an End turn that names the turn on hand steps it (its serial raised), one naming a turn that has ended steps nothing, an older app that names none steps as before, a fight with no serial yet is its turn 0, and a serial that is no number steps nothing',
+            j(hNow) === j([5]) && j(hOld) === j([]) && j(hNone) === j([5]) && j(hFresh) === j([1]) && j(hBad) === j([]), j([hNow, hOld, hNone, hFresh, hBad]));
+        const twice = (() => {
+            const sent = [], camp = { activeItemId: 'm1', items: { m1: { type: 'map', whiteboard: [{ id: 't_pat', isChar: true, charId: 'c_p', ownerId: 'u_a' }] } } };
+            const net = { active: true, role: 'client', stream: false, myId: 'u_a', foreign: true, syncedPeer: 'gm', conns: [{ peer: 'gm', open: true, send: m => sent.push(m) }], combats: { m1: { mapId: 'm1', round: 1, turn: 0, tn: 9, rows: [{ id: 'r_pat', tokId: 't_pat' }] } } };
+            new Function('net', 'window', 'getActiveCampaign', 'own', ordersSrc + '\n' + mtSrc + '\n' + teCl)(net, { wpVtt: { on: () => true } }, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k));
+            const a = net.turnEnd(), b = net.turnEnd(), hb = net.turnHold(); net.combats.m1.tn = 10; const c = net.turnEnd();
+            return { a, b, hb, c, sent };
+        })();
+        check('1.6.3 (the combat review, finding 29), the player\'s app: End turn names the turn\'s serial; a second press of that same turn (and a hold after it) sends nothing and says the turn is already ending; the next turn of theirs sends again',
+            j(twice.a) === j({ ok: true }) && twice.b.error === 'Your turn is already ending.' && twice.hb.error === 'Your turn is already ending.' && j(twice.c) === j({ ok: true })
+            && j(twice.sent) === j([{ type: 'turn-end', mapId: 'm1', row: 'r_pat', tn: 9 }, { type: 'turn-end', mapId: 'm1', row: 'r_pat', tn: 10 }]), j(twice));
+        const first = (() => {   // a fight that has not stepped yet: its copy holds no serial (it is turn 0), the press names none, and a second press is held here
+            const sent = [], camp = { activeItemId: 'm1', items: { m1: { type: 'map', whiteboard: [{ id: 't_pat', isChar: true, charId: 'c_p', ownerId: 'u_a' }] } } };
+            const net = { active: true, role: 'client', stream: false, myId: 'u_a', foreign: true, syncedPeer: 'gm', conns: [{ peer: 'gm', open: true, send: m => sent.push(m) }], combats: { m1: { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_pat', tokId: 't_pat' }] } } };
+            new Function('net', 'window', 'getActiveCampaign', 'own', ordersSrc + '\n' + mtSrc + '\n' + teCl)(net, { wpVtt: { on: () => true } }, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k));
+            const a = net.turnEnd(), b = net.turnEnd(); net.combats.m1.tn = 1; const c = net.turnEnd();
+            return { a, b, c, sent };
+        })();
+        check('1.6.3 (the combat review, finding 29), the first turn: a fight that has not stepped is its turn 0, so a double press of its first End turn sends one (naming no serial, as an older host reads it) and the next turn of theirs sends again',
+            j(first.a) === j({ ok: true }) && first.b.error === 'Your turn is already ending.' && j(first.c) === j({ ok: true }) && j(first.sent) === j([{ type: 'turn-end', mapId: 'm1', row: 'r_pat' }, { type: 'turn-end', mapId: 'm1', row: 'r_pat', tn: 1 }]), j(first));
+    }
+    {   // 1.6.3 (the combat review, finding 14): a fight held 60 rows and cut the rest with no word. It holds 600, a safety ceiling well past any real battle,
+        // on the host and on a player's app alike (cleanFightBody, run for real), and a start or a roster edit past it says how many were left out (fightSet)
+        const cfb = new Function(fnSrc('function cleanFightBody(k, mapId) {', '\n// [netcheck:notepad-start]', 'cleanFightBody') + '\nreturn cleanFightBody;')();
+        const many = n => Array.from({ length: n }, (x, i) => ({ id: 'r' + i, name: 'N' + i, tokId: 't' + i, init: n - i }));
+        const f70 = cfb({ round: 1, turn: 0, rows: many(70) }, 'm1'), f700 = cfb({ round: 1, turn: 0, rows: many(700), dec: { in: many(700).map(r => r.id), n: 700 } }, 'm1'), fTn = cfb({ round: 1, turn: 0, rows: many(2), tn: 12 }, 'm1'), fBad = cfb({ round: 1, turn: 0, rows: many(2), tn: -1 }, 'm1');
+        const fsS = fnSrc('function fightSet(fid, combat) {', '\n    } else if (!combat) combatOver(fid, had);', 'fightSet', 'netfight.js');
+        check('1.6.3 (the combat review, finding 14): a fight keeps 70 rows whole and holds 600 at most of 700 (its declaration too); a start or a roster edit past that says how many were left out, in a notice and the Game Record; the turn\'s serial is kept as a whole number',
+            f70.rows.length === 70 && f700.rows.length === 600 && f700.dec.in.length === 600 && f700.dec.n === 600 && fTn.tn === 12 && !('tn' in fBad)
+            && fsS.includes("var cutN = Array.isArray(combat.rows) ? combat.rows.filter(function(r) { return !!r && typeof r === 'object'; }).length - f.rows.length : 0;") && fsS.includes("if (cutN > 0) { toast(cutN + (cutN === 1 ? ' was' : ' were') + ' left out. A fight holds 600 at most.');"), j([f70.rows.length, f700.rows.length, f700.dec, fTn.tn]));
+    }
 }
 // Turn-based combat T2b: a reminder card — the host delivers a player's to each of that player's admitted connections (the GM's copy then says
 // whose it is), else keeps it the GM's; a client takes one from its synced host only, cleaned, never a GM's copy; the turn's start runs on
@@ -669,12 +715,13 @@ pendingChecks.push((async () => {
         && J(gF.own) === J([[2, J({ rt_kael: 1, rt_u7: 1 }), J({ c_kael: 2, c_u7: 2 })], [2, J({ rt_sela: 1 }), J({ c_sela: 2 })]]) && J(gF.ticks) === J([2, 2, 2]), J(gF));
     // (G) never sent: every copy of the fights the players were sent, and what the join snapshot and a hostile host would give
     const keysOf = cs => Object.keys(cs).map(k => Object.keys(cs[k]).sort().join(','));
-    const S5 = ['id', 'mapId', 'round', 'turn', 'rows'].sort().join(','), S4 = ['mapId', 'round', 'turn', 'rows'].sort().join(',');   // the keys a fight is sent with, and an older host's
+    const S5 = ['id', 'mapId', 'round', 'turn', 'rows'].sort().join(','), S5T = ['id', 'mapId', 'round', 'turn', 'rows', 'tn'].sort().join(','), S4 = ['mapId', 'round', 'turn', 'rows'].sort().join(',');   // the keys a fight is sent with, and an older host's
     const msgs = [A, B, C, D, E, F].reduce((all, Wd) => all.concat(...Wd.conns.map(c => c.sent.filter(m => m.type === 'combats'))), []);
     const snapA = A.api.combatsFor('u_a', 'mDocks'), hostile = { f_abcd1234: { mapId: 'mDocks', round: 2, turn: 0, rows: [{ id: 'r1', name: 'Kael', tokId: 't_kael' }], rh: 9, th: 3, turned: { c_kael: 9 } } };
     const cleanedF = A.api.cleanFights(hostile), cleanedC = A.api.cleanCombats({ mDocks: hostile.f_abcd1234 });
     const gG = { host: [A, F].map(Wd => Object.keys(Wd.net.combats).every(k => ['rh', 'th', 'turned'].every(x => Object.prototype.hasOwnProperty.call(Wd.net.combats[k], x)))), msgs: msgs.length,
-        sent: msgs.every(m => /"(rh|th|turned)"/.test(J(m)) === false && keysOf(m.combats).every(s => s === S5)), snap: keysOf(snapA), cleaned: [keysOf(cleanedF), keysOf(cleanedC)] };
+        sent: msgs.every(m => /"(rh|th|turned)"/.test(J(m)) === false && keysOf(m.combats).every(s => s === S5 || s === S5T)), snap: keysOf(snapA).map(s => s === S5T ? S5 : s), cleaned: [keysOf(cleanedF), keysOf(cleanedC)] };
+    // 1.6.3 (the combat review, finding 29), moved on purpose: a fight that has stepped is sent with tn, its turn's serial, which a player's End turn names (S5T)
     check('fold 3 (run for real): rh, th and turned are the host\'s own — every fight here keeps all three, and none of them is in any copy of the fights a player was sent, in what the join snapshot carries (combatsFor), or in what a player\'s app keeps from a hostile host that names them (cleanFights, cleanCombats)',
         J(gG) === J({ host: [true, true], msgs: gG.msgs, sent: true, snap: [S5], cleaned: [[S5], [S4]] }) && gG.msgs > 20, J(gG));
     const rd3 = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n'), help3 = rd3('system/app/index.html'), notes3 = ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].map(rd3);

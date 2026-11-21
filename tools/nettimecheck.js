@@ -36,7 +36,7 @@ pendingChecks.push((async () => {
         const out = { deltas: [], changed: [], chat: [], saves: 0 }, mk = p => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pB')];
         const net = { active: true, role: o.role || 'host', stream: false, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, combats: o.combats || {}, syncCharDelta: (id, d) => out.deltas.push([id, JSON.parse(JSON.stringify(d))]) };
         const api = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'saveRemoteSoon', 'pushChat', 'sendFailed', pidF + ftS + '\n' + ordersSrc + '\nreturn { apply: fxApply, turn: turnFxStart, turnEnd: turnFxEnd, edge: fxCombatEdge, clock: fxClockTick, inCombat: net.charInCombat };')(
-            net, { wpVtt: { on: k => (k === 'sheets' ? o.sheets !== false : k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: id => out.changed.push(id) } }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => out.saves++, m => out.chat.push(m), e => { throw e; });
+            net, { wpVtt: { on: k => (k === 'sheets' ? o.sheets !== false : k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: id => out.changed.push(id) }, wpTimePanel: o.tp }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => out.saves++, m => out.chat.push(m), e => { throw e; });
         return { out, net, camp, api, conns };
     };
     const cb = { mapId: 'm1', round: 1, turn: 0, rows: [{ id: 'r_p', tokId: 't_p' }] };
@@ -44,7 +44,7 @@ pendingChecks.push((async () => {
         const fxE = Object.assign(JSON.parse(JSON.stringify(sysF)), {}); fxE.effects = fxE.effects.map(d => Object.assign({}, d, { ends: 'turnEnd' }));
         const g = mkF({ combats: { m1: cb } }), cE = JSON.parse(JSON.stringify(cb)); g.camp.system = fxE; const row = cE.rows[0], secs = g.camp.chars.c_p.values.f_fx[0].t.left;
         g.api.turn('m1', cE); const held = JSON.parse(JSON.stringify(g.camp.chars.c_p.values.f_fx)), told = g.out.chat.length;
-        g.api.turnEnd('m1', cE, row, 1); const gone = g.camp.chars.c_p.values.f_fx.length, said = g.out.chat.map(m => m.text);
+        g.api.turnEnd('m1', cE, row, 1); g.net.fxOutFlush(); const gone = g.camp.chars.c_p.values.f_fx.length, said = g.out.chat.map(m => m.text);   // 1.6.3 (finding 12): what ran out is said once its step has run (fxOutFlush, a moment later)
         const h = mkF({ combats: { m1: cb } }), cH = JSON.parse(JSON.stringify(cb)); h.camp.system = fxE; h.camp.chars.c_p.values.f_fx[0].t = { left: secs * 2, at: 0 }; h.api.turn('m1', cH); h.api.turnEnd('m1', cH, cH.rows[0], 1); const once = h.camp.chars.c_p.values.f_fx[0].t.left; h.api.turnEnd('m1', cH, cH.rows[0], 1); const twice = h.camp.chars.c_p.values.f_fx[0].t.left;
         const sn = JSON.stringify(Object.keys(h.net.combats));
         check('1.6.0 Counts at on the host (turnFxStart and turnFxEnd over the real fxTick): an effect set to its turn\'s end stays on through its character\'s turn start with nothing said, runs out as that turn ends and is said then; a turn\'s end counts once in a round of that fight, whichever row of the sheet ends',
@@ -55,7 +55,7 @@ pendingChecks.push((async () => {
         g.api.clock(); const gq1 = JSON.parse(JSON.stringify(g.camp.chars.c_q.values.f_fx[0].t)), gd1 = g.out.deltas.length; g.api.clock(); const gd2 = g.out.deltas.length;
         g.net.fxGameTime(3); const gq2 = g.camp.chars.c_q.values.f_fx[0].t.left, gp2 = JSON.parse(JSON.stringify(g.camp.chars.c_p.values.f_fx[0].t)), gr2 = g.camp.chars.c_r.values.f_fx[0].t;
         [0, -5, NaN, '3'].forEach(v => g.net.fxGameTime(v)); const gq3 = g.camp.chars.c_q.values.f_fx[0].t.left;
-        g.net.fxGameTime(3600); const gGone = [g.camp.chars.c_q.values.f_fx.length, g.out.chat.map(m => m.text)];
+        g.net.fxGameTime(3600); g.net.fxOutFlush(); const gGone = [g.camp.chars.c_q.values.f_fx.length, g.out.chat.map(m => m.text)];
         const off = mkF({ calendar: false }); off.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; off.net.fxGameTime(3); const offT = JSON.parse(JSON.stringify(off.camp.chars.c_q.values.f_fx[0].t)); off.api.clock(); const offT2 = off.camp.chars.c_q.values.f_fx[0].t;
         const cli = mkF({ calendar: true, role: 'client' }); cli.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; cli.net.fxGameTime(3); const noSheets = mkF({ calendar: true, sheets: false }); noSheets.camp.chars.c_q.values.f_fx[0].t = { left: 10, at: 0 }; noSheets.net.fxGameTime(3);
         check('item 20 K4 the Calendar on (host, run for real): the tick stops a clock still running, keeping what ran (about 8 of 10 s), once; each move of the game clock on takes that much from every timed effect outside a fight (Quin 8 to 5), never one in the fight (Pat) or a paused one (Rex); no move, one back or one that is no number takes nothing; what runs out comes off with its lines; the Calendar off, the game clock runs nothing and the tick starts a stopped clock again from now; a player\'s machine or a table without sheets runs nothing',
@@ -63,7 +63,7 @@ pendingChecks.push((async () => {
             && gGone[0] === 0 && gGone[1].indexOf('Quick ran out on Quin.') >= 0 && j(offT) === j({ left: 10, at: 0 }) && offT2.at > 0 && offT2.left === 10 && cli.camp.chars.c_q.values.f_fx[0].t.left === 10 && noSheets.camp.chars.c_q.values.f_fx[0].t.left === 10
             , j([gq1, gd1, gd2, gq2, gp2, gr2, gq3, gGone, offT, offT2]));
     }
-    const a = mkF({ combats: { m1: cb } }); a.api.turn('m1', cb);
+    const a = mkF({ combats: { m1: cb } }); a.api.turn('m1', cb); a.net.fxOutFlush();
     check('T5a a turn\'s start (host, run for real): a round of the character\'s timed effects passes; one that runs out comes off (stored, sent as a delta, its views redrawn) with a private line for the GM and each connection of its player, never another\'s',
         j(a.camp.chars.c_p.values.f_fx) === '[]' && j(a.out.deltas) === j([['c_p', { f_fx: [] }]]) && j(a.out.changed) === j(['c_p']) && a.out.chat.length === 1 && a.out.chat[0].text === 'Bless ran out on Pat.' && a.out.chat[0].scope === 'whisper'
         && a.conns[0].sent.length === 1 && a.conns[0].sent[0].text === 'Bless ran out on Pat.' && !a.conns[1].sent.length && a.api.inCombat('c_p') === true && a.api.inCombat('c_q') === false, j([a.out, a.conns.map(c => c.sent)]));
@@ -71,12 +71,26 @@ pendingChecks.push((async () => {
     const bT = b.camp.chars.c_p.values.f_fx[0].t; b.api.edge('m1', cb, 'resume'); const rT = b.camp.chars.c_p.values.f_fx[0].t;
     check('T5a a combat\'s start banks what ran and stops the clock; its end starts it again from now (what is left carries from one encounter to the next)',
         bT.at === 0 && bT.left < 6 && bT.left >= 0 && rT.left === bT.left && rT.at > 0, j([bT, rT]));
-    const c = mkF({ combats: { m1: cb } }); c.camp.chars.c_p.values.f_fx[0].t = { left: 6, at: 1000 }; c.api.clock();   // Pat's clock long started: in the combat it must not tick
+    const c = mkF({ combats: { m1: cb } }); c.camp.chars.c_p.values.f_fx[0].t = { left: 6, at: 1000 }; c.api.clock(); c.net.fxOutFlush();   // Pat's clock long started: in the combat it must not tick
     const d = mkF({ role: 'client' }); d.api.clock();
     const e = mkF({ sheets: false }); e.api.clock();
     check('T5a the clock (every few seconds, on the GM\'s own machine): each character out of combat — Quick (10 s since long ago) runs out on Quin and on the NPC Rex (their lines: Quin\'s player hears it; an NPC\'s to the GM alone); Pat, in the combat, is left to his turns; a player\'s machine and a table without sheets run nothing',
-        j(c.camp.chars.c_q.values.f_fx) === '[]' && j(c.camp.chars.c_r.values.f_fx) === '[]' && c.camp.chars.c_p.values.f_fx.length === 1 && j(c.out.chat.map(m => m.text)) === j(['Quick ran out on Quin.', 'Quick ran out on Rex.']) && c.conns[0].sent.length === 1
+        j(c.camp.chars.c_q.values.f_fx) === '[]' && j(c.camp.chars.c_r.values.f_fx) === '[]' && c.camp.chars.c_p.values.f_fx.length === 1 && j(c.out.chat.map(m => m.text)) === j(['Ran out: Quick on Quin, Quick on Rex.']) /* 1.6.3 (finding 12), moved on purpose: one line a step */ && c.conns[0].sent.length === 1 && c.conns[0].sent[0].text === 'Quick ran out on Quin.'
         && d.camp.chars.c_q.values.f_fx.length === 1 && !d.out.chat.length && e.camp.chars.c_q.values.f_fx.length === 1, j([c.out.chat, c.conns[0].sent]));
+    {   // 1.6.3 (the combat review, finding 12; Fulllion's pick of 2026-11-20: "one chat line a round for the GM, with the details in the Time rules panel"): what one
+        // step of time runs out is said once its step has run, not a line an effect. The GM's one line is a run of the Time rules panel, listing each character and
+        // what ran out on it; with no panel at hand one whisper of it all. Each player gets one whisper of their own characters (fxApply and fxOutFlush, run for real)
+        const runs = [], tp = { add: (camp, sys, words, chars, opts) => { runs.push({ words, chars: chars.map(e => [e.c.name, e.lines.map(l => l.head + '|' + l.r)]), opts }); return { id: 'tr1' }; } };
+        const P = mkF({ tp }); P.camp.chars.c_q.values.f_fx.push({ id: 'x_4', ref: 'e_b', on: true, t: { left: 1, at: 1000 } }); P.api.clock(); const before = P.out.chat.length + P.conns[0].sent.length; const nP = P.net.fxOutFlush();
+        const Q = mkF(); Q.camp.chars.c_q.values.f_fx.push({ id: 'x_4', ref: 'e_b', on: true, t: { left: 1, at: 1000 } }); Q.api.clock(); Q.net.fxOutFlush();
+        check('1.6.3 (the combat review, finding 12): what one step of time runs out waits for that step to end and is said once: the GM\'s one line a run of the Time rules panel (its words, each character with what ran out on it, its own chat words), nothing pushed beside it; with no panel one whisper of it all; each player one whisper of what ran out on their own characters',
+            before === 0 && nP === 3 && runs.length === 1 && runs[0].words === 'Effects ran out' && j(runs[0].chars) === j([['Quin', ['Quick|fxout', 'Bless|fxout']], ['Rex', ['Quick|fxout']]]) && runs[0].opts.title === 'Ran out: Quick on Quin, Bless on Quin, Quick on Rex.' && runs[0].opts.sub === '2 characters.'
+            && P.out.chat.length === 0 && j(P.conns[0].sent.map(m => m.text)) === j(['Ran out: Quick on Quin, Bless on Quin.']) && !P.conns[1].sent.length
+            && j(Q.out.chat.map(m => m.text)) === j(['Ran out: Quick on Quin, Bless on Quin, Quick on Rex.']) && Q.conns[0].sent.length === 1, j([runs, P.out.chat, P.conns[0].sent, Q.out.chat]));
+        const tpS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'timepanel.js'), 'utf8').replace(/\r\n/g, '\n');
+        check('1.6.3 (the combat review, finding 12), the panel: a run may say its own chat words (add\'s opts: title and sub, which tpLine reads first), and what ran out mutes as one, named so in the panel\'s foot',
+            tpS.includes("if (typeof run.title === 'string' && run.title) return { title: run.title, sub: typeof run.sub === 'string' ? run.sub : '' };") && tpS.includes('function add(camp, sys, words, chars, opts) {') && tpS.includes("names[l.r] = l.r === 'fxout' ? 'Effects that ran out' :"), '');
+    }
     const T = src.replace(/\r\n/g, '\n');
     check('T5a the wiring (source): a player\'s added effect starts its timer on the host with the host\'s clock and whether they are in a combat; turnStarted takes a round; a combat\'s start banks and its end resumes, once no fight is left (152 fold 4, moved on purpose); the clock starts with the first render',
         /view: window\.wpSheets \? window\.wpSheets\.playerSystem\(campX\) : null, now: Date\.now\(\), inCombat: !!\(net\.charInCombat && net\.charInCombat\(qx\.charId\)\), timersGm: !!\(campX\.turnRules && campX\.turnRules\.timers === 'gm'\) \}\);/.test(T) && /try \{ turnFxStart\(mapId, c\); \} catch \(e\)/.test(T)

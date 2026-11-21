@@ -619,7 +619,7 @@ export function wbBlast() {   // [split:glue]
           var vals = null, lines = null;
           if (dstep) {
               var q = { amt: amt }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, b.loc) : ''; if (loc) q.loc = loc; if (tyOk) q.type = ty; var bkF = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkF) q.kind = bkF; if (fr.ad === true && typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad; if (dice > 0) q.dice = Math.min(100, dice);   // 1.6.0: the dice it rolled, for a figure a die
-              var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
+              var st = S.damageStep(sys, ch, q, F, blastCtxOf(ch, map.id, r.tok.id), { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return; vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else if (hpId) {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
               var res = S.applyEdit(sys, ch, hpId, { cur: (typeof e.value === 'number' ? e.value : 0) - amt }, F, {}); if (!res.ok) return;
@@ -632,6 +632,9 @@ export function wbBlast() {   // [split:glue]
   }
   // The pass's one writer: one entry a character for the Undo, holding what it had before the blast first wrote each field, an effects list among
   // them (1.5.9: a blast's fragmentation and its afflictions write too), each change sent to the table and told to the sheet
+  // 1.6.3 (the combat review, finding 10): the context of the very token a blast hits (its posture, facing, round and range), as the Take damage window
+  // hands a card's damage through tokenCtxFor, so the system's DR, wound and Major Wound formulas read the same on every path. null where it cannot be had
+  function blastCtxOf(ch, mapId, tokId) { var Sh = window.wpSheets; try { return ch && Sh && typeof Sh.tokenCtxAt === 'function' ? Sh.tokenCtxAt(ch.id, mapId, tokId) : null; } catch (e) { return null; } }
   function blastWriter(byChar, hits) {
       return function(ch, charId, vals) {
           var h = byChar[charId]; if (!h) { h = byChar[charId] = { charId: charId, prevs: {} }; hits.push(h); }
@@ -779,7 +782,7 @@ export function wbBlast() {   // [split:glue]
           var vals = null, lines = null;
           if (step) {   // through the damage step: DR at the default location, the blast's damage type, the pool
               var q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, b.loc) : ''; if (loc) q.loc = loc; if (typeOk) q.type = b.dtype; var bkS = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkS) q.kind = bkS; if (typeof b.ad === 'number' && b.ad > 0) q.ad = b.ad;
-              var st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return;
+              var st = S.damageStep(sys, ch, q, F, blastCtxOf(ch, map.id, r.tok.id), { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return;
               vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);   // 1.6.0 (B3): a Major Wound's roll is posted
           } else {
               var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return;
@@ -822,7 +825,7 @@ export function wbBlast() {   // [split:glue]
       var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, o.charId) ? camp.chars[o.charId] : null; if (!ch) return { error: 'That character is not there now.' };
       if (pid !== null && (ch.npc || !ch.ownerId || ch.ownerId !== pid || o.b.gm === true)) return { error: 'That blast roll is not yours to make.' };
       if (!window.wpDice || typeof window.wpDice.rollFor !== 'function') return { error: 'Dice are not available.' };
-      delete _owed[att]; _owedIds = _owedIds.filter(function(x) { return x !== att; });
+      delete _owed[att]; _owedIds = _owedIds.filter(function(x) { return x !== att; }); blastKeepSoon();
       var rE = window.wpDice.rollFor(ch.id, o.expr, (o.b.gm === true ? 'Blast' : (o.b.name || 'Blast')) + ' damage', { gmOnly: o.b.gm === true, dmg: true, used: true });
       if (!rE || !rE.ok || typeof rE.value !== 'number' || !isFinite(rE.value)) return { error: 'That blast roll could not be made.' };
       var rules = blastRules(sys), fall = rules && rules.fall ? rules.fall : '', share = Math.max(0, Math.floor(rE.value)), hpId = sys.combat ? sys.combat.hpResource : '', step = !!(fall && sys.combat && sys.combat.damage && typeof S.damageStep === 'function');
@@ -832,7 +835,7 @@ export function wbBlast() {   // [split:glue]
       if (step) {   // as the blast pass's own shares: DR at the default location, the blast's damage type, its armor divisor
           var types = Array.isArray(sys.combat.damage.types) ? sys.combat.damage.types : [], q = { amt: Math.floor(dmgC) }, loc = typeof torsoOf === 'function' ? torsoOf(sys, ch, o.b.loc) : ''; if (loc) q.loc = loc;
           if (o.b.dtype && types.some(function(y) { return y && typeof y.key === 'string' && y.key.toLowerCase() === String(o.b.dtype).toLowerCase(); })) q.type = o.b.dtype; var bkO = typeof blastKind === 'function' ? blastKind(sys, rules) : ''; if (bkO) q.kind = bkO; if (typeof o.b.ad === 'number' && o.b.ad > 0) q.ad = o.b.ad;
-          st = S.damageStep(sys, ch, q, F, undefined, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
+          st = S.damageStep(sys, ch, q, F, blastCtxOf(ch, o.mapId, o.tokId), { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(ch.id)) }); if (!st || !st.ok) return { error: 'Its damage could not be applied.' };
           vals = st.values; lines = st.lines; if (st.info && (st.info.majorRoll || st.info.follows) && window.wpSheets && typeof window.wpSheets.majorFollow === 'function') window.wpSheets.majorFollow(ch, st.info, st.values);
       } else if (hpId) {
           var all = S.resolveAll(sys, ch, F), e = all[hpId]; if (!e) return { error: 'Its damage could not be applied.' };
@@ -884,7 +887,7 @@ export function wbBlast() {   // [split:glue]
       }
       if (pass === true && tok && typeof d.posture === 'string' && d.posture && typeof window.wpSetTokenStance === 'function') window.wpSetTokenStance(def.map, def.tok, { posture: d.posture });
       if (window.wpStepLog) window.wpStepLog('blastdefend v1', 'answered', { pass: pass === true, left: Object.keys(w.want).length });
-      if (!Object.keys(w.want).length) defendGo(w.key);
+      if (!Object.keys(w.want).length) defendGo(w.key); else blastKeepSoon();
       return true;
   };
   function defendGo(key) {
@@ -895,8 +898,65 @@ export function wbBlast() {   // [split:glue]
       if (w.waits.some(function(e) { return typeof e.b.defKey === 'string'; })) { var ks = Object.keys(_defKept); if (ks.length >= DEF_MAX) delete _defKept[ks[0]]; _defKept[key] = all; }
       if (window.wpStepLog) window.wpStepLog('blastdefend v1', 'went', { blasts: w.waits.length, unanswered: Object.keys(w.want).length });
       w.waits.forEach(function(e, i) { e.b.defGo = true; e.b.defended = all; if (i === 0) e.b.defTx = { by: w.by, hits: w.hits }; applyBlastDamage(e.b, e.total, e.hpId, e.map); delete e.b.defTx; });
+      blastKeepSoon();
       return true;
   }
+  // [blastcheck:blastkeep-start]
+  // 1.6.3 (the combat review, finding 1; Fulllion's pick of 2026-11-20: "keep them live"): what a blast still owes is saved with the fight, as its landings
+  // are, so the GM's reload leaves every card working: each victim's own roll (_owed), a blast that waits for its Defense rolls (_defWait, with the Apply now
+  // card that lets it go) and what a burst's Defense rolls already answered (_defKept). net.js fightsKeep asks wpBlastKeep, fightsBack hands wpBlastBack what
+  // the save held. Each blast is kept as data (its place, its size, its damage and what its list said of it), never what it was drawn with; a wait names its
+  // map by id; the Undo entries a pass holds keep each field as it was, one that was not there among them. Read back as data: a blast where its numbers are
+  // numbers, a character and a map the campaign still holds, the Defense rule the system still has. Nothing is ever sent
+  function blastKeepSoon() { var n = window.wpNet; if (n && typeof n.fightsKeepSoon === 'function') n.fightsKeepSoon(); }
+  function blastData(b) { var o = {}; Object.keys(b || {}).forEach(function(k) { if (k !== 'defTx' && k !== 'wire' && k !== 'wireMap' && k !== 'wireChar' && k !== 'lost') o[k] = b[k]; }); var s = ''; try { s = JSON.stringify(o); } catch (e) { s = ''; } return s && s.length <= 100000 ? JSON.parse(s) : null; }
+  function blastDataRead(b) { if (!b || typeof b !== 'object' || Array.isArray(b) || !['x', 'y', 'ft'].every(function(k) { return typeof b[k] === 'number' && isFinite(b[k]); })) return null; var s = ''; try { s = JSON.stringify(b); } catch (e) { s = ''; } if (!s || s.length > 100000) return null; var o = JSON.parse(s); o.ft = Math.max(1, Math.min(3000, o.ft)); return o; }
+  function hitsOut(hits) { return (hits || []).map(function(h) { var v = {}, u = []; Object.keys(h.prevs || {}).forEach(function(f) { if (h.prevs[f] === undefined) u.push(f); else v[f] = h.prevs[f]; }); return { charId: h.charId, v: v, u: u }; }); }
+  function hitsIn(list, camp) {   // the Undo entries, each a character the campaign holds with what each field held before the pass first wrote it
+      var hits = [], by = Object.create(null); (Array.isArray(list) ? list : []).slice(0, 600).forEach(function(h) {
+          if (!h || typeof h.charId !== 'string' || !camp.chars || !Object.prototype.hasOwnProperty.call(camp.chars, h.charId) || by[h.charId]) return; var prevs = {};
+          if (h.v && typeof h.v === 'object') Object.keys(h.v).slice(0, 400).forEach(function(f) { if (f.length <= 80) prevs[f] = h.v[f]; });
+          if (Array.isArray(h.u)) h.u.slice(0, 400).forEach(function(f) { if (typeof f === 'string' && f.length <= 80) prevs[f] = undefined; });
+          var e = { charId: h.charId, prevs: prevs }; by[h.charId] = e; hits.push(e);
+      });
+      return { by: by, hits: hits };
+  }
+  function resIn(v) { var o = Object.create(null); if (v && typeof v === 'object') Object.keys(v).slice(0, 600).forEach(function(t) { var r = v[t]; if (t.length <= 80 && r && typeof r === 'object') o[t] = typeof r.d === 'number' && isFinite(r.d) ? { d: Math.max(0, Math.min(1e6, r.d)), nf: r.nf === true } : {}; }); return o; }
+  window.wpBlastKeep = function() {   // what the save holds of the blasts that still owe something, or null where none does
+      var owed = [], def = [], kept = {};
+      _owedIds.forEach(function(id) {
+          var o = Object.prototype.hasOwnProperty.call(_owed, id) ? _owed[id] : null; if (!o) return;
+          if (typeof o.go === 'string') { owed.push({ id: id, go: o.go }); return; }
+          var b = blastData(o.b); if (b) owed.push({ id: id, b: b, mapId: o.mapId, charId: o.charId, tokId: o.tokId, d: o.d, expr: o.expr, n: o.n, dir: o.dir, cen: o.cen, tier: o.tier || null });
+      });
+      Object.keys(_defWait).forEach(function(k) { var w = _defWait[k]; def.push({ key: w.key, want: w.want, res: w.res, hits: hitsOut(w.hits), go: w.go || '', waits: w.waits.map(function(e) { return { b: blastData(e.b), total: e.total, hpId: e.hpId, map: e.map && e.map.id }; }).filter(function(e) { return !!e.b; }) }); });
+      Object.keys(_defKept).forEach(function(k) { kept[k] = _defKept[k]; });
+      return owed.length || def.length || Object.keys(kept).length ? JSON.parse(JSON.stringify({ owed: owed, def: def, kept: kept })) : null;
+  };
+  window.wpBlastBack = function(raw, camp) {   // as the host's table opens: how many owed rolls and waits came back
+      if (!raw || typeof raw !== 'object' || !camp || !camp.items || !camp.chars) return 0; var n = 0, sys = camp.system, d = (blastRules(sys) || {}).defend, key = function(v) { return typeof v === 'string' && v && v.length <= 40; }, cid = /^a_[a-z0-9]{8}$/;
+      if (d && typeof d === 'object') (Array.isArray(raw.def) ? raw.def : []).slice(0, DEF_MAX).forEach(function(w) {
+          if (!w || !key(w.key) || Object.prototype.hasOwnProperty.call(_defWait, w.key)) return;
+          var want = Object.create(null); if (w.want && typeof w.want === 'object') Object.keys(w.want).slice(0, 600).forEach(function(t) { if (t.length <= 80 && typeof w.want[t] === 'string' && /^[ab]_[a-z0-9]{8}$/.test(w.want[t])) want[t] = w.want[t]; });
+          var waits = (Array.isArray(w.waits) ? w.waits : []).slice(0, 32).map(function(e) { var b = e && blastDataRead(e.b), map = e && typeof e.map === 'string' && Object.prototype.hasOwnProperty.call(camp.items, e.map) ? camp.items[e.map] : null; return b && map && Array.isArray(map.whiteboard) ? { b: b, total: typeof e.total === 'number' && isFinite(e.total) ? e.total : 0, hpId: typeof e.hpId === 'string' ? e.hpId.slice(0, 80) : '', map: map } : null; }).filter(Boolean);
+          if (!waits.length) return;
+          var hh = hitsIn(w.hits, camp); _defWait[w.key] = { key: w.key, d: d, want: want, res: resIn(w.res), by: hh.by, hits: hh.hits, waits: waits, go: typeof w.go === 'string' && cid.test(w.go) ? w.go : '' }; n++;
+      });
+      if (raw.kept && typeof raw.kept === 'object') Object.keys(raw.kept).slice(0, DEF_MAX).forEach(function(k) { if (key(k) && !Object.prototype.hasOwnProperty.call(_defKept, k)) _defKept[k] = resIn(raw.kept[k]); });
+      (Array.isArray(raw.owed) ? raw.owed : []).slice(-OWED_MAX).forEach(function(o) {
+          if (!o || typeof o.id !== 'string' || !cid.test(o.id) || Object.prototype.hasOwnProperty.call(_owed, o.id)) return;
+          if (typeof o.go === 'string') { if (!Object.prototype.hasOwnProperty.call(_defWait, o.go)) return; _owed[o.id] = { go: o.go }; _owedIds.push(o.id); n++; return; }
+          var b = blastDataRead(o.b), map = typeof o.mapId === 'string' && Object.prototype.hasOwnProperty.call(camp.items, o.mapId) ? camp.items[o.mapId] : null;
+          if (!b || !map || typeof o.charId !== 'string' || !Object.prototype.hasOwnProperty.call(camp.chars, o.charId) || typeof o.tokId !== 'string' || o.tokId.length > 80 || typeof o.expr !== 'string' || !o.expr || typeof o.d !== 'number' || !isFinite(o.d)) return;
+          var nD = typeof o.n === 'number' && isFinite(o.n) ? Math.max(1, Math.min(100, Math.floor(o.n))) : 1, tier = o.tier && typeof o.tier === 'object' && !Array.isArray(o.tier) ? JSON.parse(JSON.stringify(o.tier)) : null;
+          _owed[o.id] = { b: b, mapId: o.mapId, charId: o.charId, tokId: o.tokId, d: o.d, expr: o.expr.slice(0, (window.wpSystemCore && window.wpSystemCore.LIMITS && window.wpSystemCore.LIMITS.formula) || 10000), n: nD, dir: o.dir === true, cen: o.cen === true, tier: tier }; _owedIds.push(o.id); n++;
+      });
+      while (_owedIds.length > OWED_MAX) delete _owed[_owedIds.shift()];
+      if (n && window.wpStepLog) window.wpStepLog('blastowe v1', 'back', { n: n });
+      return n;
+  };
+  window.wpBlastOwedHas = function(id) { return typeof id === 'string' && Object.prototype.hasOwnProperty.call(_owed, id); };   // net.js chatKeptSettle: a kept card whose roll the blast still owes stays live
+  // [blastcheck:blastkeep-end]
   window.wpBlastOwedRoll = function(att, pid) { return blastOwedRoll(att, typeof pid === 'string' ? pid : null); };   // net.js: a player's press, by their profile id
   window.wpBlastOwedPress = function(att) {   // a blast card's Roll on this machine: a player's goes to the host, the GM's is rolled here
       var n = window.wpNet; if (n && n.active && n.role === 'client') return typeof n.blastRoll === 'function' ? n.blastRoll(att) : false;

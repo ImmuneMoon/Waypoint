@@ -573,6 +573,7 @@ function fightSet(fid, combat) {
     var had = orderById(fid), mapId = had ? had.mapId : (combat && typeof combat === 'object' && typeof combat.mapId === 'string' && combat.mapId ? combat.mapId : null), f = null, tg = null;
     if (combat && mapId) {
         f = cleanFightBody(combat, mapId); if (!f) return null;
+        var cutN = Array.isArray(combat.rows) ? combat.rows.filter(function(r) { return !!r && typeof r === 'object'; }).length - f.rows.length : 0;   // 1.6.3 (the combat review, finding 14): rows past what a fight holds, said below
         var heldBy = Object.create(null); fightsOn(mapId).forEach(function(k) { if (k !== fid) net.combats[k].rows.forEach(function(r) { if (r && typeof r.tokId === 'string') heldBy[r.tokId] = 1; }); });
         f.rows = f.rows.filter(function(r) { return !(typeof r.tokId === 'string' && heldBy[r.tokId] === 1); }); if (!f.rows.length) return null;   // a token is in one fight at most: a row whose token another fight on that map holds stays out
         f.turn = Math.min(f.turn, f.rows.length - 1);
@@ -597,6 +598,7 @@ function fightSet(fid, combat) {
         if (!had || had.round !== f.round) roundChanged(mapId, f);   // G10: the first round (a roster edit keeps its round)
         if (!had) { net.fightOn = fid; logEvent('table', 'Combat started on ' + mapTitleOf(mapId) + ': ' + f.rows.map(function(r) { return r.name; }).join(', ')); }   // a new fight is the one played
         toast(had ? 'Combat roster updated.' : 'Combat started on ' + mapTitleOf(mapId) + '. ' + (f.rows[f.turn] || f.rows[0]).name + ' goes first.');
+        if (cutN > 0) { toast(cutN + (cutN === 1 ? ' was' : ' were') + ' left out. A fight holds 600 at most.'); logEvent('table', cutN + ' left out of the fight on ' + mapTitleOf(mapId) + ': a fight holds 600 at most'); }
     } else if (!combat) combatOver(fid, had);   // End: the one way a fight ends (fold 0), which the session's end and a deleted map share
     else return null;
     broadcastCombats(); combatRefresh();
@@ -655,7 +657,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     else if (ckR) t = clockStep(campS, c, dir, ckR);   // 1.6.2 (G10): a counting clock
     else if (t >= c.rows.length || (dir > 0 && typeof c.endAt === 'number' && t >= c.endAt)) { t = 0; c.round += 1; }   // 1.6.2 (G9): a card that ends the round ends it where it stands
     else if (t < 0) { if (c.round > 1) { c.round -= 1; t = (typeof c.endAt === 'number' ? Math.min(c.endAt, c.rows.length) : c.rows.length) - 1; } else t = 0; }
-    c.turn = t;
+    c.turn = t; c.tn = (typeof c.tn === 'number' ? c.tn : 0) + 1;   // 1.6.3 (the combat review, finding 29): every step is a turn of its own, by this serial, which a player's End turn names
     if (c.round !== r0 && holdRule('hold') !== 'next' && holdRule('holdNames') !== true) c.rows.forEach(function(r) { if (r) delete r.held; });   // initiative O3 (the owner's answer): a hold not used by the round's end is lost (1.6.0: unless the system's hold lasts to the row's next turn, which the next line ends)
     if (holdRule('holdNames') === true) holdTurn(c, t, dir, t0);   // 1.6.0: a named hold lasts to its row's next turn, a row set off has had its moment, and a lost action takes a hold
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing

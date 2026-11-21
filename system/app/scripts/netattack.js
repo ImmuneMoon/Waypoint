@@ -41,7 +41,7 @@ function attemptForget() { var keepA = Object.create(null); if (typeof _lands !=
 // 1.6.3 (defense fold 2): wr, the row a roll Answered with a row of a list was pressed with ({ f, r }, the wire's with): the attempt is taken only where it
 // offered that very roll on that very row (its withs, each act#f#r, which attemptMake writes). A press that names no row never takes such a roll
 function attemptPeek(id, charId, act, row, wr) { var a = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; if (a && a.busy) return null; if (wr && typeof wr === 'object') return a && a.charId === charId && typeof act === 'string' && typeof wr.f === 'string' && typeof wr.r === 'string' && Array.isArray(a.withs) && a.withs.indexOf(act + '#' + wr.f + '#' + wr.r) >= 0 ? a.m : null; if (row && typeof row === 'object') return a && a.charId === charId && typeof row.i === 'number' && typeof row.r === 'string' && Array.isArray(a.rows) && a.rows.indexOf(row.f + '#' + row.i + '#' + row.r) >= 0 ? a.m : null; return a && a.charId === charId && (a.act === act || (Array.isArray(a.alts) && a.alts.indexOf(act) >= 0)) ? a.m : null; }   // 1.6.0: or a list's roll on one of the rows it offers   // 1.6.0 (the core's gap 5): or one of the other rolls it may be resisted by
-function attemptDrop(id) { if (typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id)) { delete _attempts[id]; _attIds = _attIds.filter(function(x) { return x !== id; }); if (typeof _callIds !== 'undefined') _callIds = _callIds.filter(function(x) { return x !== id; }); } }
+function attemptDrop(id) { if (typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id)) { delete _attempts[id]; _attIds = _attIds.filter(function(x) { return x !== id; }); if (typeof _callIds !== 'undefined') _callIds = _callIds.filter(function(x) { return x !== id; }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon(); } }   // 1.6.3 (the combat review, finding 1): an answered card is let go in the fight's save too
 // the roll's entry as the GM's own system holds it: a players' view says only that it is resisted (resisted: true), so the host finds the
 // whole entry, a system roll by its id, a list's roll by the same label and formula
 function attemptEntry(sys, q, act) {
@@ -574,6 +574,49 @@ net.attemptDrop = function(id) { attemptDrop(id); };
 // a soft record of a blow (b_) the host no longer holds: the roll is made on the live sheet with no attempt, as before the core's ask 3
 function attSoftGone(id) { return typeof id === 'string' && /^b_[a-z0-9]{8}$/.test(id) && !Object.prototype.hasOwnProperty.call(_attempts, id); }
 function attemptRec(id) { return typeof id === 'string' && Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; }
+// [netcheck:attkeep-start]
+// 1.6.3 (the combat review, finding 1; Fulllion's pick of 2026-11-20: "keep them live"): the records behind the cards in chat (a Defend card's attempt, the
+// record of a roll a wound or a hit called for, a blast's own Defense roll, a called damage roll stamped where it lands) are saved with the fight as its
+// landings are (fightsKeep asks net.attsKeep, fightsBack hands net.attsBack what the save held), so the GM's reload leaves every such card working. A landing's
+// own attempt is landsKeep's, and a roll held for its card actions lives in memory alone (its card is not kept either). Read back as data: an id of the
+// store's own form, a character the campaign still holds, each key of its known shape, and the whole bounded (ATT_KEEP_MAX), the newest kept first
+var ATT_KEEP_KEYS = ['charId', 'act', 'm', 'blow', 'vals', 'crip', 'cripBy', 'alts', 'rows', 'withs', 'k', 't', 'kp', 'hide', 'atk', 'atkBy', 'atkRow', 'atkPriv', 'area', 'rd', 'calls', 'callBy', 'callFrom', 'callFromName', 'callRow', 'callPriv', 'land', 'lt', 'big', 'tst', 'defend', 'ht', 'hf'], ATT_KEEP_MAX = 4000000;
+net.attsKeep = function() {
+    var out = [], size = 0, ids = _attIds.concat(_callIds);
+    for (var i = ids.length - 1; i >= 0; i--) {
+        var id = ids[i], a = Object.prototype.hasOwnProperty.call(_attempts, id) ? _attempts[id] : null; if (!a || a.busy || (typeof _lands !== 'undefined' && Object.prototype.hasOwnProperty.call(_lands, id))) continue;
+        var o = { id: id, call: _callIds.indexOf(id) >= 0 ? 1 : 0 }; ATT_KEEP_KEYS.forEach(function(k) { if (a[k] !== undefined) o[k] = a[k]; });
+        var s = ''; try { s = JSON.stringify(o); } catch (e) { s = ''; } if (!s || s.length > 250000 || size + s.length > ATT_KEEP_MAX) continue;
+        size += s.length; out.unshift(JSON.parse(s));
+    }
+    return out;
+};
+function attKeepRead(r, camp) {   // one saved record, read back as data, or null
+    if (!r || typeof r !== 'object' || typeof r.id !== 'string' || !/^[ab]_[a-z0-9]{8}$/.test(r.id) || !camp || !camp.chars || typeof r.charId !== 'string' || !own(camp.chars, r.charId)) return null;
+    var a = { charId: r.charId, act: typeof r.act === 'string' && (r.act === '' || /^r_[A-Za-z0-9_]{1,24}$/.test(r.act)) ? r.act : '', m: typeof r.m === 'number' && isFinite(r.m) ? Math.max(-9999, Math.min(9999, r.m)) : 0 };
+    ATT_KEEP_KEYS.forEach(function(k) {
+        if (k === 'charId' || k === 'act' || k === 'm' || r[k] === undefined || r[k] === null) return; var v = r[k];
+        if (typeof v === 'number') { if (isFinite(v)) a[k] = Math.max(-1e9, Math.min(1e9, v)); return; }
+        if (typeof v === 'boolean') { a[k] = v; return; }
+        if (typeof v === 'string') { a[k] = v.slice(0, 10000); return; }
+        if (typeof v === 'object') { var s = ''; try { s = JSON.stringify(v); } catch (e) { s = ''; } if (s && s.length <= (k === 'vals' ? 200000 : 20000)) a[k] = JSON.parse(s); }
+    });
+    if (typeof a.atkBy === 'string' && !own(camp.chars, a.atkBy)) delete a.atkBy;
+    if (typeof a.callFrom === 'string' && !own(camp.chars, a.callFrom)) delete a.callFrom;
+    return a;
+}
+net.attsBack = function(list, camp) {   // as the host's table opens (fightsBack): how many came back. An id the store holds already (a landing's) stays as it is
+    var n = 0; if (!Array.isArray(list) || !camp) return 0;
+    list.slice(-(ATT_MAX + CALL_MAX)).forEach(function(r) {
+        var a = attKeepRead(r, camp); if (!a || Object.prototype.hasOwnProperty.call(_attempts, r.id)) return;
+        _attempts[r.id] = a; if (r.call === 1) _callIds.push(r.id); else _attIds.push(r.id); n++;
+    });
+    while (_attIds.length > ATT_MAX) delete _attempts[_attIds.shift()];
+    while (_callIds.length > CALL_MAX) delete _attempts[_callIds.shift()];
+    if (n && window.wpStepLog) window.wpStepLog('attempt v1', 'back', { n: n });
+    return n;
+};
+// [netcheck:attkeep-end]
 // the location a failed roll of a blow's record cripples: how far it failed (a malfunction 1 at least), on the host's own copy of the character,
 // through systemcore blowCripOf. { charId, values, line } for the caller to write as it writes the roll's own changes, or null
 function blowCrip(camp, rec, vd, malf, nat) {   // nat: the roll's natural total, read by cripBy as Natural

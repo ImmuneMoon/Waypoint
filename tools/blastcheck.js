@@ -1486,5 +1486,43 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('item 19b H5 a thrown blast moved by the wall rule (placeThrownBlast, run strict): it takes the height of the token standing where it goes off, read on that map from the pieces players hold, and with no token there the ground\'s own height, asked the same way; that height is what is shown and sent',
             j(pt1.elevArgs) === j(['deck', true, true]) && pt1.groundArgs === null && j(pt3.groundArgs) === j([true, 175, 125, true]) && pt3.elevArgs === null && j(pt3.pushed) === j({ x: 175, y: 125, elev: 5 }) && j(pt3.sent) === j({ x: 175, y: 125, elev: 5, map: 'mp' }) && pt2.groundArgs === null && pt2.elevArgs === null, j([pt1.elevArgs, pt3, pt2.groundArgs]));
     }
+    {   // 1.6.3 (the combat review, finding 1; Fulllion's pick of 2026-11-20: "keep them live"): what a blast still owes is saved with the fight and comes back as the
+        // GM's table opens: each victim's own roll, a Defense wait with its Apply now card and its Undo entries, and what a burst's Defense rolls answered (the
+        // blastkeep slice of wbblast.js, run for real on plain objects)
+        const wbP = kit.part('wbblast.js').replace(/\r\n/g, '\n'), bkA = wbP.indexOf('  // [blastcheck:blastkeep-start]'), bkB = wbP.indexOf('  // [blastcheck:blastkeep-end]'), bkS = wbP.slice(bkA, bkB);
+        const mkK = sys => { const st = { _owed: Object.create(null), _owedIds: [], _defWait: Object.create(null), _defKept: Object.create(null) }, w = { wpNet: { fightsKeepSoon: () => { st.soon = (st.soon || 0) + 1; } } };
+            new Function('st', 'window', 'OWED_MAX', 'DEF_MAX', 'blastRules', 'var _owed = st._owed, _owedIds = st._owedIds, _defWait = st._defWait, _defKept = st._defKept;\n' + bkS + '\nst.soonFn = blastKeepSoon; st.ids = function() { return _owedIds; };')(st, w, 100, 32, s => (s && s.combat && s.combat.blast) || null);
+            return { st, w }; };
+        const m1 = { id: 'm1', whiteboard: [{ id: 't1' }] }, camp = { items: { m1 }, chars: { c_a: { id: 'c_a' } }, system: { combat: { blast: { defend: { roll: 'r_def' } } } } };
+        const A = mkK(), b = { x: 100, y: 120, ft: 15, name: 'Grenade', bid: 'b_abc', dmgExpr: '4d6', defKey: 'k1', wire: { x: 1 }, defTx: { by: {} }, lost: true };
+        A.st._owed.a_owe00001 = { b, mapId: 'm1', charId: 'c_a', tokId: 't1', d: 2.5, expr: '3d6', n: 3, dir: true, cen: false, tier: { grade: 1 } }; A.st._owedIds.push('a_owe00001');
+        A.st._defWait.k1 = { key: 'k1', d: { roll: 'r_def' }, want: { t1: 'a_def00001' }, res: { t2: { d: 2, nf: true } }, by: {}, hits: [{ charId: 'c_a', prevs: { f_hp: 9, f_fx: undefined } }], waits: [{ b, total: 11, hpId: 'f_hp', map: m1 }], go: 'a_go000001' };
+        A.st._owed.a_go000001 = { go: 'k1' }; A.st._owedIds.push('a_go000001'); A.st._defKept.k0 = { t3: { d: 1, nf: false } };
+        const kept = A.w.wpBlastKeep(), text = JSON.stringify(kept), B = mkK(), nB = B.w.wpBlastBack(JSON.parse(text), camp), o = B.st._owed.a_owe00001, dw = B.st._defWait.k1;
+        check('1.6.3 (the combat review, finding 1): what a blast owes is kept as data (never what it was drawn with or told the table) and comes back as the table opens: a victim\'s own roll with its blast, distance, dice and cover; a Defense wait on its map with its card, what it has answered and its Undo entries, a field that was not there kept as not there; what a burst answered',
+            !/"wire"|"defTx"|"lost"/.test(text) && nB === 3 && o.b.name === 'Grenade' && o.d === 2.5 && o.n === 3 && o.dir === true && j(o.tier) === j({ grade: 1 }) && j(B.st.ids()) === j(['a_owe00001', 'a_go000001'])
+            && dw.waits[0].map === m1 && dw.waits[0].total === 11 && dw.want.t1 === 'a_def00001' && j(dw.res.t2) === j({ d: 2, nf: true }) && dw.go === 'a_go000001' && dw.by.c_a === dw.hits[0] && 'f_fx' in dw.hits[0].prevs && dw.hits[0].prevs.f_fx === undefined && dw.hits[0].prevs.f_hp === 9
+            && j(B.st._defKept.k0) === j({ t3: { d: 1, nf: false } }) && B.w.wpBlastOwedHas('a_owe00001') && !B.w.wpBlastOwedHas('a_nothere1') && mkK().w.wpBlastKeep() === null, j({ kept, nB }));
+        const C = mkK(), bad = { owed: [{ id: 'a_bad' }, { id: 'a_nomap001', b, mapId: 'm9', charId: 'c_a', tokId: 't1', d: 1, expr: '1d6' }, { id: 'a_nochr001', b, mapId: 'm1', charId: 'c_x', tokId: 't1', d: 1, expr: '1d6' }, { id: 'a_numb0001', b: { x: 'x', y: 1, ft: 1 }, mapId: 'm1', charId: 'c_a', tokId: 't1', d: 1, expr: '1d6' }, { id: 'a_gone0001', go: 'k_none' }],
+            def: [{ key: 'k2', want: {}, waits: [{ b, total: 1, map: 'm9' }] }] };
+        const nC = C.w.wpBlastBack(bad, camp), nD = mkK().w.wpBlastBack(JSON.parse(text), Object.assign({}, camp, { system: { combat: {} } }));
+        check('1.6.3 (the combat review, finding 1): a saved blast is read back as data: an owed roll whose map or character is gone, or whose blast holds no figures, stays out, an Apply now card whose wait did not come back too, a wait whose map is gone, and every Defense wait where the system no longer has the Defense roll',
+            nC === 0 && Object.keys(C.st._owed).length === 0 && Object.keys(C.st._defWait).length === 0 && nD === 1, j([nC, nD]));
+        check('1.6.3 (the combat review, finding 1), the wiring: a victim\'s roll made, a Defense answered and a wait gone each keep the fight a moment later',
+            /delete _owed\[att\]; _owedIds = _owedIds\.filter\(function\(x\) \{ return x !== att; \}\); blastKeepSoon\(\);/.test(wbP) && wbP.includes('if (!Object.keys(w.want).length) defendGo(w.key); else blastKeepSoon();') && /applyBlastDamage\(e\.b, e\.total, e\.hpId, e\.map\); delete e\.b\.defTx; \}\);\n      blastKeepSoon\(\);/.test(wbP), '');
+    }
+    {   // 1.6.3 (the combat review, finding 10): a blast's damage reads the context of the very token it hits (its posture, facing, round and range), as a card's damage
+        // through the Take damage window does; the host's char-damage branch, a player applying a card to their own character, reads its token's too
+        const wbP = kit.part('wbblast.js').replace(/\r\n/g, '\n'), shS = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), netS = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1').replace(/\r\n/g, '\n');
+        const a = shS.indexOf('function tokenCtxAt('), fnS = shS.slice(a, shS.indexOf('\nfunction tokenCtxFor(', a)), calls = [];
+        const map = { whiteboard: [{ id: 't_a', charId: 'c_a', isChar: true }, { id: 't_b', charId: 'c_b', isChar: true }] }, camp = { items: { m1: map }, chars: { c_a: { id: 'c_a' } } };
+        const at = new Function('getActiveCampaign', 'charById', 'tokenCtx', 'tokenFlags', 'withRound', 'combatOn', 'withRange', 'rangeFor', fnS + '\nreturn tokenCtxAt;')(() => camp, (id, c) => (c.chars[id] || null),
+            (m, t, f) => { calls.push('ctx ' + t.id); return { self: t.id, flags: f }; }, () => ({ posture: true }), (c, cb) => Object.assign({}, c, { round: cb ? cb.round : 0 }), (mid, tid) => ({ round: 3 }), (c, r) => Object.assign({}, c, { range: r }), (c, mid, m, t) => ({ tid: 'x', from: t.id }));
+        const got = at('c_a', 'm1', 't_a'), none = [at('c_a', 'm1', 't_b'), at('c_a', 'm9', 't_a'), at('c_x', 'm1', 't_a')];
+        check('1.6.3 (the combat review, finding 10): a token\'s own context (sheets.js tokenCtxAt, run for real): the very token named, its posture flags, the round of its fight and its range, as tokenCtxFor builds them; none for a token of another character, a map or a character that is not there; each blast damage step hands the token hit, and the host\'s char-damage hands its character\'s',
+            got && got.self === 't_a' && got.round === 3 && got.range.from === 't_a' && got.flags.posture === true && none.every(x => x === null) && j(calls) === j(['ctx t_a'])
+            && kit.familyCount('whiteboard.js', 'S.damageStep(sys, ch, q, F, blastCtxOf(ch, map.id, r.tok.id), {') === 2 && wbP.includes('st = S.damageStep(sys, ch, q, F, blastCtxOf(ch, o.mapId, o.tokId), {') && !/damageStep\(sys, ch, q, F, undefined/.test(wbP)
+            && /tokenCtxAt\(ch\.id, mapId, tokId\)/.test(wbP) && shS.includes('    tokenCtxAt: tokenCtxAt, openSheet: openSheet,') && netS.includes("window.wpSheets.tokenCtxFor(chD.id, campD)") && /Sd\.damageBurst\(campD\.system, chD, qd\.q, Fd, tcD,[^\n]*Sd\.damageStep\(campD\.system, chD, qd\.q, Fd, tcD,/.test(netS), j([got, none, calls]));
+    }
     await T.finish();
 })();

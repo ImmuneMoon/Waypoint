@@ -38,6 +38,7 @@ function tpRun(id, words, chars, who, mapOf, campId) {
 }
 // The chat line's words: what ran and how much
 function tpLine(run) {
+    if (typeof run.title === 'string' && run.title) return { title: run.title, sub: typeof run.sub === 'string' ? run.sub : '' };   // 1.6.3 (the combat review, finding 12): a run that says its own words, as what ran out does
     var n = run.chars.length;
     return { title: 'Time rules: ' + (run.words || 'a run'), sub: n + (n === 1 ? ' character, ' : ' characters, ') + run.changes + (run.changes === 1 ? ' change.' : ' changes.') + (run.rolls ? ' ' + run.rolls + (run.rolls === 1 ? ' roll.' : ' rolls.') : '') };
 }
@@ -76,12 +77,14 @@ function mapOfFn(camp) {
     };
 }
 // A run from runTimeRules (sheets.js), on the machine that owns the campaign: kept, the panel drawn again if it is up, and the chat line posted
-function add(camp, sys, words, chars) {
+// opts (1.6.3, the combat review, finding 12): { title, sub }, the chat line's own words in place of the run's count, for effects that ran out (nettime.js fxOutFlush)
+function add(camp, sys, words, chars, opts) {
     if (!camp || typeof camp.id !== 'string') return null;
     var n = window.wpNet; if (n && (n.role === 'client' || n.stream)) return null;
     var run = tpRun('tr' + (++_tp.seq), words, chars, namesOf(camp), mapOfFn(camp), camp.id); if (!run.chars.length) return null;
     if (window.wpRecord) window.wpRecord.add('bg', '', 'Time rules ran', String(words || ''));   // 1.6.0: the game record; what each moved, it says from the sheets
     run.at = Date.now();
+    if (opts && typeof opts === 'object') { if (typeof opts.title === 'string') run.title = tpText(opts.title, 300); if (typeof opts.sub === 'string') run.sub = tpText(opts.sub, 200); }
     var CC = window.wpCalendarCore; try { run.when = CC && typeof CC.fmtWhen === 'function' ? tpText(CC.fmtWhen(sys && sys.calendar ? sys.calendar : null, camp.clock && typeof camp.clock.t === 'number' ? camp.clock.t : 0), 60) : ''; } catch (e) { run.when = ''; }   // the game date it ran at, so two runs of one hour are told apart
     var list = _tp.runs[camp.id] || (_tp.runs[camp.id] = []); list.push(run); if (list.length > TP_RUNS) list.splice(0, list.length - TP_RUNS);
     if (shown()) { _tp.pick = run.id; draw(); }
@@ -139,7 +142,7 @@ function draw() {
     });
     body.appendChild(wrap);
     var foot = el('div', 'tp-foot'), all = camp ? tpMuteAll()[camp.id] : null, names = Object.create(null);
-    list.forEach(function(r) { r.chars.forEach(function(x) { x.lines.forEach(function(l) { names[l.r] = l.head.replace(/ ×\d+.*$/, ''); }); }); });
+    list.forEach(function(r) { r.chars.forEach(function(x) { x.lines.forEach(function(l) { names[l.r] = l.r === 'fxout' ? 'Effects that ran out' : l.head.replace(/ ×\d+.*$/, ''); }); }); });
     if (Array.isArray(all) && all.length) { foot.appendChild(document.createTextNode('Muted: ')); all.forEach(function(rid, i) { if (i) foot.appendChild(document.createTextNode(', ')); var u = el('button', 'tp-unmute', (names[rid] || 'a rule') + ' (unmute)'); u.type = 'button'; u.dataset.tpmute = rid; foot.appendChild(u); }); foot.appendChild(document.createTextNode('. ')); }
     foot.appendChild(document.createTextNode('The Game Record keeps every line.')); body.appendChild(foot);
 }

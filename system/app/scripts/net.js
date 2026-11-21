@@ -2724,12 +2724,21 @@ net.myTurnTok = function() {
     });
     return hit;
 };
+// 1.6.3 (the combat review, finding 29): the serial of the turn a fight is on, as this player's copy holds it (the host raises it at every step and sends
+// it once the fight has stepped; a fight that has not is at its turn 0), or null with no copy. The press names it only where the copy holds one, which an
+// older host never sends. _turnSent: the serial each fight's End turn or hold was last sent for, so a double click sends one, the second answered at once
+var _turnSent = Object.create(null), TURN_RESEND_MS = 4000;
+function turnSentNow(fid, tn) { var s = _turnSent[fid]; return !!s && s.tn === tn && Date.now() - s.at < TURN_RESEND_MS; }   // sent for this very turn a moment ago (after a while it may go again, should the host have let it fall)
+function turnSerial(fid) { var cb = typeof fid === 'string' && net.combats && own(net.combats, fid) ? net.combats[fid] : null; return cb ? (typeof cb.tn === 'number' ? cb.tn : 0) : null; }
+function turnSerialSaid(fid) { var cb = typeof fid === 'string' && net.combats && own(net.combats, fid) ? net.combats[fid] : null; return !!cb && typeof cb.tn === 'number'; }
 // the player ends their own turn: the host checks the row is still theirs and the one on turn, then steps as the GM's Next turn
 net.turnEnd = function(pick) {   // initiative O5: pick, the row they choose to go next (the id their copy holds), else the next in the order
     var t = net.myTurnTok(); if (!t) return { error: 'It is not your turn.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     var mT = { type: 'turn-end', mapId: t.mapId, row: t.rowId }; if (typeof pick === 'string' && pick && pick.length <= 40) mT.pick = pick;
+    var tnT = turnSerial(t.fid); if (tnT !== null) { if (turnSentNow(t.fid, tnT)) return { error: 'Your turn is already ending.' }; if (turnSerialSaid(t.fid)) mT.tn = tnT; }   // 1.6.3 (the combat review, finding 29)
     try { net.conns[0].send(mT); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    if (tnT !== null) _turnSent[t.fid] = { tn: tnT, at: Date.now() };
     return { ok: true };
 };
 // Initiative O3: the player holds their own turn, or acts from their own hold (the host checks the row is theirs and still on turn or held)
@@ -2737,7 +2746,9 @@ net.turnHold = function(hf) {   // hf (1.6.0): what a named hold names
     var t = net.myTurnTok(); if (!t) return { error: 'It is not your turn.' };
     if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
     var mH = { type: 'turn-hold', mapId: t.mapId, row: t.rowId }; if (hf && typeof hf === 'object') { if (typeof hf.text === 'string') mH.text = hf.text.slice(0, 200); if (typeof hf.roll === 'string') mH.roll = hf.roll.slice(0, 40); }
+    var tnH = turnSerial(t.fid); if (tnH !== null) { if (turnSentNow(t.fid, tnH)) return { error: 'Your turn is already ending.' }; if (turnSerialSaid(t.fid)) mH.tn = tnH; }   // 1.6.3 (the combat review, finding 29)
     try { net.conns[0].send(mH); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    if (tnH !== null) _turnSent[t.fid] = { tn: tnH, at: Date.now() };
     return { ok: true };
 };
 net.turnAct = function(rowId) {
@@ -4161,7 +4172,7 @@ var combatAskOpen = Object.create(null);   // profile id -> true while a Start-c
 function cleanCombats(c) {   // an older host's shape, keyed by the map: a newer player at an older host reads it exactly as before. Into an object with
     // no prototype (fold 2), so a hostile host's "__proto__" key is a key like any other and never this object's prototype
     var out = Object.create(null); if (!c || typeof c !== 'object') return out;
-    Object.keys(c).slice(0, 40).forEach(function(mapId) { var f = cleanFightBody(c[mapId], String(mapId).slice(0, 80)); if (f) out[f.mapId] = f; });
+    Object.keys(c).slice(0, 400).forEach(function(mapId) { var f = cleanFightBody(c[mapId], String(mapId).slice(0, 80)); if (f) out[f.mapId] = f; });
     return out;
 }
 // Fold 2 (backlog 152): fights by their own ids. A host that keys them so says it in its snapshot (fights: true, read as true only), and a player's
@@ -4170,7 +4181,7 @@ var FIGHT_ID = /^f_[a-z0-9]{8}$/, _fightsOk = false;
 function fightsKnow(v) { _fightsOk = v === true; }
 function cleanFights(c) {
     var out = Object.create(null); if (!c || typeof c !== 'object') return out;
-    Object.keys(c).slice(0, 40).forEach(function(id) {
+    Object.keys(c).slice(0, 400).forEach(function(id) {
         var k = c[id]; if (!FIGHT_ID.test(id) || !k || typeof k !== 'object' || typeof k.mapId !== 'string' || !k.mapId || k.mapId.length > 80) return;
         var f = cleanFightBody(k, k.mapId); if (f) out[id] = Object.assign({ id: id }, f);
     });
@@ -4179,7 +4190,9 @@ function cleanFights(c) {
 function cleanFightsIn(c) { return _fightsOk ? cleanFights(c) : cleanCombats(c); }   // a player's app: the host's fights by the shape its snapshot said
 function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, round, turn, rows, side? }, or null where it holds no row
     if (!k || typeof k !== 'object' || !Array.isArray(k.rows)) return null;
-        var rows = k.rows.slice(0, 60).map(function(r) {
+        // 1.6.3 (the combat review, finding 14): a fight holds 600 rows at most, a safety ceiling well past any real battle (it was 60, and a large
+        // battle lost its lowest numbers with no word). fightSet says how many a start or a roster edit left out where it is still hit
+        var rows = k.rows.slice(0, 600).map(function(r) {
             if (!r || typeof r !== 'object') return null;
             var o = { id: String(r.id || '').slice(0, 40), name: String(r.name || '').slice(0, 60), tokId: r.tokId ? String(r.tokId).slice(0, 80) : null, init: Math.max(-1e6, Math.min(1e6, Number(r.init) || 0)), src: typeof r.src === 'string' && r.src.length <= 400 ? r.src : null };
             if (r.rolled === 1 || r.rolled === true) o.rolled = 1;   // initiative O1: the row has its number (rolled or given); the host's own, never sent to a player (combatRowOut)
@@ -4193,8 +4206,9 @@ function cleanFightBody(k, mapId) {   // one fight's order, cleaned: { mapId, ro
     if (!rows.length) return null;
     var f = { mapId: mapId, round: Math.max(1, Math.min(9999, Number(k.round) || 1)), turn: Math.max(0, Math.min(rows.length - 1, Number(k.turn) || 0)), rows: rows };
     if (k.side === 'pc' || k.side === 'rest') f.side = k.side;   // initiative O4: the side going first this round (shown to the table)
-    if (k.dec && typeof k.dec === 'object' && Array.isArray(k.dec.in)) f.dec = { in: k.dec.in.slice(0, 60).map(function(x) { return String(x).slice(0, 40); }), n: Math.max(0, Math.min(60, Number(k.dec.n) || 0)) };   // 1.6.2 (G10): a declaration under way: who is in, and of how many
+    if (k.dec && typeof k.dec === 'object' && Array.isArray(k.dec.in)) f.dec = { in: k.dec.in.slice(0, 600).map(function(x) { return String(x).slice(0, 40); }), n: Math.max(0, Math.min(600, Number(k.dec.n) || 0)) };   // 1.6.2 (G10): a declaration under way: who is in, and of how many
     if (k.mv && typeof k.mv === 'object' && typeof k.mv.m === 'number' && typeof k.mv.a === 'number' && isFinite(k.mv.m) && isFinite(k.mv.a)) { f.mv = { m: Math.max(0, Math.min(1e6, k.mv.m)), a: Math.max(0, Math.min(1e6, k.mv.a)) }; if (typeof k.mv.w === 'number' && isFinite(k.mv.w)) f.mv.w = Math.max(0, Math.min(1e6, k.mv.w)); }   // 1.5.7: the turn's move, this player's own; 1.6.0: w, how far it goes before it spends the action
+    if (typeof k.tn === 'number' && isFinite(k.tn) && k.tn >= 0 && k.tn <= 1e9 && Math.floor(k.tn) === k.tn) f.tn = k.tn;   // 1.6.3 (the combat review, finding 29): the turn's serial, which a player's End turn names
     return f;
 }
 // [netcheck:notepad-start]
@@ -4246,6 +4260,7 @@ function combatsFor(recipientId, mapId) {
             if (r.holdFor && !unseen && typeof holdOwner === 'function' && holdOwner(camp, mapId, r) === recipientId) oD.hf = r.holdFor.text;   // 1.6.0: what sets its hold off, to the holder's own player alone
             return oD;
         }) };
+        if (typeof cmb.tn === 'number') out[fid].tn = cmb.tn;   // 1.6.3 (the combat review, finding 29): the turn's serial, so a second press of End turn names a turn that has ended
         if (cmb.side === 'pc' || cmb.side === 'rest') out[fid].side = cmb.side;   // initiative O4: which side goes first this round (never its rolls: those are their cards)
         if (cmb.dec && cmb.dec.open === 1) { var shownD = out[fid].rows.filter(function(r) { return r.name !== 'Hidden'; }); out[fid].dec = { in: shownD.map(function(r) { return r.id; }).filter(function(id) { return own(cmb.dec.lines, id); }), n: shownD.length }; }   // 1.6.2 (G10): who is in, of those they can see, and never what
         var stMv = net.turnMove && Object.prototype.hasOwnProperty.call(net.turnMove, fid) ? net.turnMove[fid] : null, curMv = cmb.rows[cmb.turn];   // 1.5.7: the turn's move, to the token's own player alone
@@ -4590,6 +4605,7 @@ function turnJobEnd(mapId, c, row, round) {
 // [netcheck:job-end]
 function fightReachKept(had, f) {   // a roster edit: how far the fight has gone, kept whole (a row taken out and put back in the same round keeps its turn had)
     if (typeof had.rh === 'number') f.rh = had.rh;
+    if (typeof had.tn === 'number') f.tn = had.tn;   // 1.6.3 (the combat review, finding 29): and the turn's serial, so an End turn sent before the edit still names its turn
     if (typeof had.eh === 'number') f.eh = had.eh;   // 1.6.0: and the turns it has ended
     if (had.et && typeof had.et === 'object') f.et = had.et;
     if (had.th && typeof had.th === 'object') f.th = had.th;
@@ -5384,6 +5400,7 @@ function admitPlayer(conn, prof, provenKey) {
         var recent = chatHistoryOf(chatLog); if (typeof historySeen === 'function') recent = historySeen(recent, prof);
         if (typeof bodyView === 'function') { var campBV = getActiveCampaign(); recent = recent.map(function(m) { var rB = m && m.roll; return rB && (rB.bodyTgt !== undefined || rB.bodyTok !== undefined) ? Object.assign({}, m, { roll: bodyView(rB, prof, campBV) }) : m; }); }   // 1.6.2: a body in the way named only to those who can see the target
         if (recent.length && conn.open) { try { conn.send({ type: 'chat-history', log: recent }); } catch (e) { sendFailed(e); } }
+        if (typeof reloadOverTell === 'function') reloadOverTell(conn, prof.id);   // 1.6.3 (the combat review, finding 1): their cards a GM's reload ended
     }, 1200);
     var camp = getActiveCampaign();
     if (camp) {
@@ -6709,7 +6726,8 @@ function handleMessage(msg, conn) {
         if (!campD || !campD.system || !chD) { denyD('missing'); return; }
         var profD = net.roster[conn.peer]; if (chD.npc || !chD.ownerId || !profD || (chD.ownerId !== profD.id && !(typeof handsTo === 'function' && handsTo(chD, profD.id)))) { denyD('owner'); return; }
         if (chD.making === 1) { denyD('making'); return; }
-        var rd = Array.isArray(qd.q.hits) ? Sd.damageBurst(campD.system, chD, qd.q, Fd, undefined, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(chD.id)) }) : Sd.damageStep(campD.system, chD, qd.q, Fd, undefined, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(chD.id)) });   // 1.6.0 (B3): the clock a Major Wound's effect starts by
+        var tcD = null; try { tcD = window.wpSheets && typeof window.wpSheets.tokenCtxFor === 'function' ? window.wpSheets.tokenCtxFor(chD.id, campD) : null; } catch (e) { tcD = null; }   // 1.6.3 (the combat review, finding 10): its token's posture, facing, round and range, as the GM's own Take damage reads them
+        var rd = Array.isArray(qd.q.hits) ? Sd.damageBurst(campD.system, chD, qd.q, Fd, tcD, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(chD.id)) }) : Sd.damageStep(campD.system, chD, qd.q, Fd, tcD, { now: Date.now(), inCombat: !!(typeof net.charInCombat === 'function' && net.charInCombat(chD.id)) });   // 1.6.0 (B3): the clock a Major Wound's effect starts by
         if (!rd.ok) { denyD(rd.reason === 'error' ? 'error' : rd.reason === 'missing' ? 'missing' : rd.reason === 'field' ? 'field' : 'value', rd.message); return; }
         if (rd.info && rd.info.hits && window.wpStepLog) window.wpStepLog('burst v1', 'applied', { hits: rd.info.hits, wound: rd.info.wound, wear: rd.info.wear.length, by: 'player' });
         if (rd && Array.isArray(rd.fitSays) && rd.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + rd.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
@@ -6743,6 +6761,7 @@ function handleMessage(msg, conn) {
         var fidH = null; fightsOn(msg.mapId).forEach(function(fid) { if (fidH === null && net.combats[fid].rows.some(function(r) { return !!r && r.id === msg.row; })) fidH = fid; });   // fold 2: the fight on that map whose order holds the row
         var cbH = fidH ? net.combats[fidH] : null, rowH = cbH ? cbH.rows.find(function(r) { return r && r.id === msg.row; }) : null;
         if (!rowH || typeof rowH.tokId !== 'string') return;
+        if (msg.type === 'turn-hold' && msg.tn !== undefined && msg.tn !== (typeof cbH.tn === 'number' ? cbH.tn : 0)) return;   // 1.6.3 (the combat review, finding 29): a hold names the turn it holds; one sent for a turn that has ended holds nothing
         var campH = getActiveCampaign(), mapH = campH && campH.items && own(campH.items, msg.mapId) ? campH.items[msg.mapId] : null;
         var tokH = mapH && mapH.type === 'map' && Array.isArray(mapH.whiteboard) ? mapH.whiteboard.find(function(w) { return w && w.id === rowH.tokId; }) : null;
         if (!tokH || !tokH.isChar || !tokH.ownerId || tokH.ownerId !== prH.id) return;
@@ -6761,6 +6780,9 @@ function handleMessage(msg, conn) {
         var fidT = null; fightsOn(msg.mapId).forEach(function(fid) { var cb = net.combats[fid], r = cb.rows[cb.turn]; if (fidT === null && r && r.id === msg.row) fidT = fid; });   // fold 2: the fight on that map whose row on turn it is
         var cbT = fidT ? net.combats[fidT] : null, rowT = cbT ? cbT.rows[cbT.turn] : null;
         if (!rowT || rowT.id !== msg.row || typeof rowT.tokId !== 'string') return;
+        // 1.6.3 (the combat review, finding 29): the press names the turn it ends by its serial (tn, which fightStep raises at every step). Under several turns a
+        // round, or a counting clock, the same row may be on turn again at once, and a second press (a double click) ended that turn too. An older app names none
+        if (msg.tn !== undefined && msg.tn !== (typeof cbT.tn === 'number' ? cbT.tn : 0)) return;
         var campT = getActiveCampaign(), mapT = campT && campT.items && own(campT.items, msg.mapId) ? campT.items[msg.mapId] : null;
         var tokT = mapT && mapT.type === 'map' && Array.isArray(mapT.whiteboard) ? mapT.whiteboard.find(function(w) { return w && w.id === rowT.tokId; }) : null;
         if (!tokT || !tokT.isChar || !tokT.ownerId || tokT.ownerId !== prT.id) return;
@@ -8007,7 +8029,7 @@ function handleMessage(msg, conn) {
         // 1.6.0: the host's word that a card's blast went off: only a card of this very attempt, from the synced host
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         var Dv = DC(); if (!Dv || !Dv.cleanAtt || !Dv.cleanAtt(msg.att)) return;
-        var overV = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === msg.att && !m.over) { m.over = 1; overV = true; if (msg.say === 'land' || msg.say === 'rolled' || msg.say === 'gone' || msg.say === 'sent' || msg.say === 'aside' || msg.say === 'missed') m.overSay = msg.say; } }); if (overV) renderChatSoon();   // 1.6.3: and why, a fixed word
+        var overV = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === msg.att && !m.over) { m.over = 1; overV = true; if (msg.say === 'land' || msg.say === 'rolled' || msg.say === 'gone' || msg.say === 'sent' || msg.say === 'aside' || msg.say === 'missed' || msg.say === 'reload') m.overSay = msg.say; } }); if (overV) renderChatSoon();   // 1.6.3: and why, a fixed word (finding 1 of the combat review: reload, a card the GM's reload ended)
         // [netcheck:dueover-end]
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
         // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
@@ -9391,6 +9413,7 @@ function postDue(rec, ch, toOwner, gmX) {   // gmX (1.6.3, the review of defense
     if (toOwner && net.active && net.role === 'host' && ch && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== ch.ownerId) return; try { c.send(rec); sent = true; } catch (e) { sendFailed(e); } });
     pushChat({ from: rec.from, text: '', scope: 'whisper', ts: rec.ts, due: sent ? Object.assign({}, rec, { theirs: 1 }, gmX || {}) : gmX ? Object.assign({}, rec, gmX) : rec });
     if (ch && typeof ch.id === 'string' && typeof bellOut === 'function') bellOut(ch.id, { due: rec });
+    if (typeof fightsKeepSoon === 'function') fightsKeepSoon();   // 1.6.3 (the combat review, finding 1): the record behind it is kept with the fight
 }
 // 1.6.0: a Defense card its blast no longer waits for: it says so here and on its player's app, with no button left. att: the attempt's id, which that card already holds
 net.dueOver = function(att, say) {   // say (1.6.3, defense fold 1): why the card is over, a fixed word ('land', 'rolled', 'gone'; none for a blast that went off)
@@ -9400,7 +9423,7 @@ net.dueOver = function(att, say) {   // say (1.6.3, defense fold 1): why the car
         var ch = m.due.theirs === 1 && camp && camp.chars && own(camp.chars, m.due.charId) ? camp.chars[m.due.charId] : null; if (!ch || !net.active || net.role !== 'host') return;
         net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== ch.ownerId) return; try { c.send(m.overSay ? { type: 'due-over', att: att, say: m.overSay } : { type: 'due-over', att: att }); } catch (e) { sendFailed(e); } });
     });
-    if (any) renderChatSoon(); return any;
+    if (any) { renderChatSoon(); if (typeof fightsKeepSoon === 'function') fightsKeepSoon(); } return any;   // 1.6.3 (finding 1): and the fight's save let go of it
 };
 net.dueRolled = function(att) { var any = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === att && m.due.hold === 1 && !m.over) { m.over = 1; m.rolled = 1; any = true; } }); if (any) renderChatSoon(); return any; };   // the GM's Apply now once the roll it stood in for is made
 // [netcheck:postdue-end]
@@ -9954,14 +9977,25 @@ function chatKeepIn(txt) {   // laid back in front of what the chat holds now, e
     if (typeof renderChatSoon === 'function') renderChatSoon();
     return back.length;
 }
+// 1.6.3 (the combat review, finding 1): a card that could not come back (no fight kept it) is over, and the GM is told once who still owed a roll; each
+// player whose own card it was is told as they come back to the table (reloadOverTell), so their copy offers no button that answers "made already"
+var _reloadGone = [];
 function chatKeptSettle() {   // once the table is open: a kept card whose attempt the host no longer holds is over (dice.js says why)
-    var over = false;
+    var over = false, gone = [], campK = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null;
     chatLog.forEach(function(m) {
         var a = m && m.kept && m.due && !m.over ? m.due.att : null; if (typeof a !== 'string' || !/^a_/.test(a)) return;
         if (typeof attemptRec === 'function' && attemptRec(a)) return;
+        if (typeof window.wpBlastOwedHas === 'function' && window.wpBlastOwedHas(a)) return;   // a roll a blast still owes, kept with the fight
         m.over = 1; m.overSay = 'reload'; over = true;
+        var chK = campK && campK.chars && typeof m.due.charId === 'string' && Object.prototype.hasOwnProperty.call(campK.chars, m.due.charId) ? campK.chars[m.due.charId] : null;
+        gone.push(String((chK && chK.name) || m.due.as || 'A character').slice(0, 60) + ': ' + String(m.due.label || 'a roll').slice(0, 60));
+        if (m.due.theirs === 1 && chK && chK.ownerId && _reloadGone.length < 400) _reloadGone.push({ att: a, pid: chK.ownerId });
     });
     if (over && typeof renderChatSoon === 'function') renderChatSoon();
+    if (gone.length) { var saysK = 'After the reload ' + gone.length + (gone.length === 1 ? ' card is' : ' cards are') + ' over, so roll by hand what is still owed: ' + gone.slice(0, 8).join(', ') + (gone.length > 8 ? ' and ' + (gone.length - 8) + ' more' : '') + '.'; if (typeof toast === 'function') toast(saysK); if (typeof logEvent === 'function') logEvent('table', saysK); }
+}
+function reloadOverTell(conn, pid) {   // a player comes back to the table: their own cards a reload ended are over on their app too
+    _reloadGone.forEach(function(g) { if (g.pid !== pid || !conn || !conn.open) return; try { conn.send({ type: 'due-over', att: g.att, say: 'reload' }); } catch (e) { if (typeof sendFailed === 'function') sendFailed(e); } });
 }
 // [netcheck:chatkeep-end]
 
@@ -10539,6 +10573,8 @@ function fightsKeep() {
     var bodyK = { on: net.fightOn, list: net.combats }; if (net.targets && Object.keys(net.targets).length) bodyK.targets = net.targets;
     var ntK = window.wpNotice && typeof window.wpNotice.keep === 'function' ? window.wpNotice.keep() : null; if (ntK) bodyK.notice = ntK;   // 1.6.2: noticing results, so a reload rolls nothing again
     var lnK = typeof landsKeep === 'function' ? landsKeep() : []; if (lnK.length) bodyK.lands = lnK;   // 1.6.3 (defense fold 1): the attacks waiting to land, so a reload loses none
+    var atK = typeof net.attsKeep === 'function' ? net.attsKeep() : []; if (atK.length) bodyK.atts = atK;   // 1.6.3 (the combat review, finding 1): the records behind the cards in chat
+    var blK = typeof window.wpBlastKeep === 'function' ? window.wpBlastKeep() : null; if (blK) bodyK.blasts = blK;   // ...and what a blast still owes: each victim's roll and a Defense wait
     var text = JSON.stringify(bodyK); if (text === _fightKept) return false;
     _fightKept = text; camp.fights = JSON.parse(text); saveRemoteSoon(); return true;
 }
@@ -10547,9 +10583,14 @@ function fightsKeepSoon() { if (net.role !== 'host' || net.stream || _fightSoon)
 // GM's own machine (renderCombatStrip, soloHost), and asks for a keep a moment later; the table that opens next empties net.combats (leaveSession) before
 // its fightsBack, so that keep found no fight and let the kept one go. As a table opens: what runs now goes in the save at once, a keep still to come is
 // let go, and none lets the save's fights go until a fight runs again or fightsBack has read them
+// 1.6.3 (the combat review, finding 1, found live): startHosting empties the store of records (diceSessionReset) before it holds the fights, so the keep made
+// here found none and wrote the save without them. What the save held of the records and the blasts stays where this keep has none of its own; the table's
+// fightsBack reads it back
 function fightsHold() {
     if (_fightSoon) { clearTimeout(_fightSoon); _fightSoon = null; }
+    var campH = getActiveCampaign(), wasH = campH && campH.fights && typeof campH.fights === 'object' ? { atts: campH.fights.atts, blasts: campH.fights.blasts } : null;
     if (net.role === 'host' && !net.active && !net.stream && fightIds().length) fightsKeep();
+    if (wasH && campH.fights && typeof campH.fights === 'object') { if (wasH.atts && !campH.fights.atts) campH.fights.atts = wasH.atts; if (wasH.blasts && !campH.fights.blasts) campH.fights.blasts = wasH.blasts; }
     _fightsWait = true;
 }
 net.fightsKeepSoon = fightsKeepSoon;   // 1.6.2: notice.js asks it once a result is rolled
@@ -10563,15 +10604,24 @@ function fightIdsIn(v) { return Array.isArray(v) ? v.filter(function(x) { return
 function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
     var list = Object.create(null), on = null; if (!raw || typeof raw !== 'object' || !raw.list || typeof raw.list !== 'object' || !camp || !camp.items) return { list: list, on: on };
     var CC = typeof timeCore === 'function' ? timeCore() : null;
-    Object.keys(raw.list).slice(0, 40).forEach(function(id) {
+    Object.keys(raw.list).slice(0, 400).forEach(function(id) {
         var k = raw.list[id]; if (!FIGHT_ID.test(id) || !k || typeof k !== 'object' || typeof k.mapId !== 'string' || !k.mapId || k.mapId.length > 80) return;
         var map = own(camp.items, k.mapId) ? camp.items[k.mapId] : null; if (!map || !Array.isArray(map.whiteboard)) return;
         var f = cleanFightBody(k, k.mapId); if (!f) return;
         var has = Object.create(null); map.whiteboard.forEach(function(w) { if (w && typeof w.id === 'string') has[w.id] = 1; });
         var onTurn = f.rows[f.turn], rows = f.rows.filter(function(r) { return !(typeof r.tokId === 'string' && has[r.tokId] !== 1); }); if (!rows.length) return;
         f.turn = Math.max(0, rows.indexOf(onTurn)); f.rows = rows; delete f.mv;
+        rows.forEach(function(r) { var rawK = k.rows.filter(function(x) { return !!x && typeof x === 'object' && x.id === r.id; })[0]; if (rawK && rawK.hk === 1) r.hk = 1; });   // 1.6.3 (the combat review, finding 8): a row whose hold went in place of a lost action keeps the action it kept
         rows.forEach(function(r) { delete r.hf; delete r.sf; var raw = r.held === 1 ? k.rows.filter(function(x) { return !!x && typeof x === 'object' && x.id === r.id; })[0] : null, SF = raw && raw.holdFor && typeof SC === 'function' ? SC() : null, hc = SF && typeof SF.cleanHoldFor === 'function' ? SF.cleanHoldFor(camp.system, raw.holdFor) : null; if (hc) { r.holdFor = hc; if (raw.holdFor.was === 1) hc.was = 1; } });   // 1.6.0: a named hold comes back with its fight
-        ['n', 'rr', 'rh', 'eh', 'sq'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });
+        ['n', 'rr', 'rh', 'eh', 'sq', 'tn'].forEach(function(key) { if (fightNum(k[key])) f[key] = k[key]; });   // 1.6.3 (finding 29): tn, the turn's serial
+        // 1.6.3 (the combat review, finding 8): what a reload lost of a round under way. endAt, where a drawn card ends the round, by the rows that came
+        // back before it (a row whose token is gone shifts it); ckNext, the row a hold's Act puts next under a counting clock; ckBack, the counts a step back
+        // gives back; ckUsed, what the turn on hand has spent of its count; mvUsed, a row's move taken once a round under several turns
+        if (fightNum(k.endAt) && k.endAt >= 1) { var endK = k.rows.slice(0, k.endAt).filter(function(x) { return !!x && typeof x === 'object' && rows.some(function(r) { return r.id === x.id; }); }).length; if (endK >= 1 && endK < rows.length) f.endAt = endK; }
+        if (typeof k.ckNext === 'string' && rows.some(function(r) { return r.id === k.ckNext; })) f.ckNext = k.ckNext;
+        if (Array.isArray(k.ckBack)) { var cbK = k.ckBack.slice(-200).filter(function(x) { return !!x && typeof x === 'object' && typeof x.id === 'string' && x.id.length <= 40 && typeof x.was === 'number' && isFinite(x.was); }).map(function(x) { return { id: x.id, was: Math.max(-1e6, Math.min(1e6, x.was)) }; }); if (cbK.length) f.ckBack = cbK; }
+        if (k.ckUsed && typeof k.ckUsed === 'object' && typeof k.ckUsed.n === 'number' && isFinite(k.ckUsed.n)) { f.ckUsed = { n: Math.max(0, Math.min(1e6, k.ckUsed.n)) }; if (k.ckUsed.press === 1) f.ckUsed.press = 1; if (k.ckUsed.named === 1) f.ckUsed.named = 1; }
+        if (k.mvUsed && typeof k.mvUsed === 'object') { var mvK = Object.create(null); Object.keys(k.mvUsed).slice(0, 600).forEach(function(id) { var v = k.mvUsed[id]; if (id.length <= 40 && typeof v === 'number' && isFinite(v) && v >= 0) mvK[id] = Math.min(1e6, v); }); if (Object.keys(mvK).length) f.mvUsed = mvK; }
         if (Array.isArray(k.seq) && k.seq.length && k.seq.length <= 2000) { var sqK = k.seq.filter(function(x) { return typeof x === 'string'; }); if (sqK.length === k.seq.length) f.seq = sqK; }   // 1.6.2 (G10): the round's order of turns comes back with its fight
         ['et', 'th', 'turned', 'fxEnded', 'ck0'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
         if (Array.isArray(k.hl)) { var hlK = holdsRead(k.hl, rows); if (hlK.length) f.hl = hlK; }   // 1.6.0 Who holds whom
@@ -10585,7 +10635,7 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
     if (typeof raw.on === 'string' && Object.prototype.hasOwnProperty.call(list, raw.on)) on = raw.on;
     var kept = {}, tgRaw = raw.targets && typeof raw.targets === 'object' && typeof cleanTargets === 'function' ? cleanTargets(raw.targets) : {};   // 1.6.0: a pointer whose token still stands
     Object.keys(tgRaw).forEach(function(pid) { var t = tgRaw[pid], map = own(camp.items, t.mapId) ? camp.items[t.mapId] : null; if (map && Array.isArray(map.whiteboard) && map.whiteboard.some(function(w) { return !!w && w.id === t.id; })) kept[pid] = t; });
-    return { list: list, on: on, targets: kept, lands: Array.isArray(raw.lands) ? raw.lands : null /* 1.6.3: the landings, read as data by landsBack */, notice: raw.notice && typeof raw.notice === 'object' ? raw.notice : null };   // 1.6.2: noticing results, read as data by notice.js restore
+    return { list: list, on: on, targets: kept, lands: Array.isArray(raw.lands) ? raw.lands : null /* 1.6.3: the landings, read as data by landsBack */, atts: Array.isArray(raw.atts) ? raw.atts : null /* 1.6.3 (finding 1): read as data by net.attsBack */, blasts: raw.blasts && typeof raw.blasts === 'object' ? raw.blasts : null /* ...and by wpBlastBack */, notice: raw.notice && typeof raw.notice === 'object' ? raw.notice : null };   // 1.6.2: noticing results, read as data by notice.js restore
 }
 function fightsBack() {   // as the host's table opens: the fights its campaign kept, if none runs yet; how many came back
     _fightsWait = false;   // 1.6.2: the table has read the save (fightsHold)
@@ -10599,6 +10649,8 @@ function fightsBack() {   // as the host's table opens: the fights its campaign 
     Object.keys(back.targets || {}).forEach(function(pid) { if (!own(net.targets, pid)) net.targets[pid] = back.targets[pid]; });   // 1.6.0: what was aimed at is still aimed at
     if (back.notice && window.wpNotice && typeof window.wpNotice.restore === 'function') { try { window.wpNotice.restore(back.notice); } catch (e) { console.error(e); } }   // 1.6.2: and who noticed whom
     if (back.lands && typeof landsBack === 'function') { try { landsBack(back.lands, camp); } catch (e) { console.error(e); } }   // 1.6.3 (defense fold 1): and the attacks waiting to land
+    if (back.atts && typeof net.attsBack === 'function') { try { net.attsBack(back.atts, camp); } catch (e) { console.error(e); } }   // 1.6.3 (the combat review, finding 1): and the records behind the cards in chat
+    if (back.blasts && typeof window.wpBlastBack === 'function') { try { window.wpBlastBack(back.blasts, camp); } catch (e) { console.error(e); } }   // ...and what a blast still owes
     ids.forEach(function(id) {
         var f = net.combats[id];
         if (!maps[f.mapId]) { maps[f.mapId] = 1; if (typeof marksStart === 'function') { try { marksStart(f.mapId); } catch (e) { console.error(e); } } }

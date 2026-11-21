@@ -18,7 +18,7 @@
    the other's names (tools/splitcheck.js holds it). Change the code here as if it still stood in net.js. Like net.js, this file is
    kept byte for byte by git (.gitattributes), with its CRLF line endings. */
 // [split:of net.js]
-import { HELD_WORDS, SC, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcast, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatOver, combatRefresh, combatSeen, combatsFor, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsKeep, fightsKeepSoon, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, fxLib, getActiveCampaign, getProfile, hitAskSet, itemLib, logEvent, mapFogged, mapTitleOf, marksStart, moveMode, net, noteOwner, own, playerHue, postApply, recLine, render, roundChanged, save, saveRemoteSoon, sendFailed, seqIdx, seqMake, seqMoved, seqPlace, seqStep, severalRule, showConfirm, snapBack, targetTok, targetsFor, toast, turnCombatOf, turnEnded, turnNote, turnStarted } from './net.js';   // [split:glue]
+import { HELD_WORDS, SC, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcast, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatOver, combatRefresh, combatRefreshTurn, combatSeen, combatsFor, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsKeep, fightsKeepSoon, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, fxLib, getActiveCampaign, getProfile, hitAskSet, itemLib, logEvent, mapFogged, mapTitleOf, marksStart, moveMode, net, noteOwner, own, playerHue, postApply, recLine, render, roundChanged, save, saveRemoteSoon, sendFailed, seqIdx, seqMake, seqMoved, seqPlace, seqStep, severalRule, showConfirm, snapBack, targetTok, targetsFor, toast, turnCombatOf, turnEnded, turnNote, turnStarted } from './net.js';   // [split:glue]
 export function netFight() {   // [split:glue]
 // [split:body-start]
 // [netcheck:holds-start]
@@ -569,6 +569,7 @@ var _fightWas = Object.create(null);   // 1.6.0: fight -> token -> the number it
 net.fightWas = function(fid, tokId) { var f = _fightWas[fid]; return f && f[tokId] ? f[tokId] : null; };
 function fightSet(fid, combat) {
     if (net.role !== 'host') return null;
+    if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightSet(fid, combat); });   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     var had = orderById(fid), mapId = had ? had.mapId : (combat && typeof combat === 'object' && typeof combat.mapId === 'string' && combat.mapId ? combat.mapId : null), f = null, tg = null;
     if (combat && mapId) {
         f = cleanFightBody(combat, mapId); if (!f) return null;
@@ -638,6 +639,7 @@ function chosenGo(c, dir, nx, t0) {   // the place play goes: forward, nx (from 
 }
 function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 1) or the one before (dir -1); by 'player': a player's own End turn or hold; initiative O5: pick, the row chosen to go next
     if (net.role !== 'host') return;
+    if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightStep(fid, dir, by, pick); });   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     var c = orderById(fid); if (!c || !c.rows.length) return;
     var S5 = chosenRule() && typeof SC === 'function' ? SC() : null; if (S5 && typeof S5.chosenNext !== 'function') S5 = null;   // initiative O5: Next is chosen
     var nx = S5 && dir > 0 ? S5.chosenNext(c.rows, c.turn, typeof pick === 'string' ? pick : undefined) : null;
@@ -666,7 +668,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     var tg = c.round !== r0 && a0 ? fightTurned(campS, c, a0, r0) : null;   // fold 4: its own time moves by the round's length (a step back, back)
     toast((c.rows[t].name || 'Someone') + "'s turn" + ((S5 || seqR || ckR ? c.round > r0 : t === 0 && dir > 0) ? '. Round ' + c.round : '') + '.');
     if (S5 && typeof pick === 'string') logEvent('table', (by === 'player' ? (pkFrom && pkFrom.name) || 'Someone' : 'The GM') + ' picked ' + (c.rows[t].name || 'someone') + ' to go ' + (c.round > r0 ? 'first in round ' + c.round : 'next') + ' on ' + mapTitleOf(mapId));   // initiative O5: a pick, in the Game Record
-    broadcastCombats(); combatRefresh();
+    broadcastCombats(); if (c.round === r0 && typeof combatRefreshTurn === 'function') combatRefreshTurn(); else combatRefresh();   // 1.6.3 (the combat review, finding 26): a step within its round draws only what shows whose turn it is
     if (c.round !== r0 || c.turn !== t0 || (seqR && c.sq !== at0) || (ckR && dir > 0)) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
     if (tg) ordersMoved('step', tg);   // fold 4: the round it closed counted, and the clock moved once the fight furthest behind moves on
 }

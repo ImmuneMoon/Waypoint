@@ -145,6 +145,7 @@ function spansOf(camp, g) {   // each character's span of a group, its mark move
 function uniformOf(spans) { var v = null, ok = true; Object.keys(spans).forEach(function(k) { if (v === null) v = spans[k]; else if (spans[k] !== v) ok = false; }); return ok ? v : null; }
 function evenSpans(camp, s) { var o = {}; charIdsOf(camp).forEach(function(id) { o[id] = s; }); return o; }
 function ownTime(groups) {   // the one counter: each group's spans, once, to the timed effects and the time rules; true where a list was made
+    var nB = net(); if (nB && typeof nB.charBatch === 'function' && typeof nB.charBatching === 'function' && !nB.charBatching()) return nB.charBatch(function() { return ownTime(groups); });   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     var camp = getActiveCampaign(); pendFor(camp); if (!camp || isPlayer() || !Array.isArray(groups)) return false;
     var sys = sysNow(), n = net(), made = false, marked = false;
     groups.forEach(function(g0) {

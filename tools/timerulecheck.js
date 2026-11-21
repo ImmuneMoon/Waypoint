@@ -1406,7 +1406,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             check('1.6.0 a counter ticked Starts again each turn: the cleaner keeps turn only as true, in both views; at its character\'s turn start (applyRound \'turn\', which the host\'s turn hook runs) each such count goes back to where a row starts, its stored count taken off, other counters and a row already at its start left as they are, nothing written over the character; a new round or a turn\'s end does nothing; the Lists tab ticks it',
                 ctT[0].turn === true && ctT[1].turn === true && !('turn' in ctT[2]) && !('turn' in ctT[3]) && j(tP.fields[0].list.counters) === j(ctT)
                 && j(rT.values.f_w) === j([{ defId: 'i_axe', qty: 1, ct: { hits: 3 } }, { defId: 'i_bow', qty: 1 }, { defId: 'i_rod', qty: 1, ct: { ammo: 5, swings: 0 } }]) && rT.values.f_w[2] === chT.values.f_w[2] && j(chT.values.f_w[0].ct) === j({ swings: 2, hits: 3 })
-                && j(rR.values) === '{}' && j(rE.values) === '{}' && kit.part('sheettime.js').includes("var res = applyRound(sys, c, function(w) { return resolveAll(sys, w, F(), tc).vars; }, F(), tc, kind,") && require('./checkkit').part('sysedlist.js').includes("checkLabel('sys-list-ctnewturn', tt.turn === true, 'Starts again each turn',"), j([ctT, rT, rR, rE]));
+                && j(rR.values) === '{}' && j(rE.values) === '{}' && kit.part('sheettime.js').includes("var res = applyRound(sys, c, function(w) { return hookVars(sys, w, tc); }, F(), tc, kind,") /* 1.6.3 (the combat review, finding 5): the hook's names through hookVars, lazy where systemcore lazyVars is at hand (moved on purpose) */ && require('./checkkit').part('sysedlist.js').includes("checkLabel('sys-list-ctnewturn', tt.turn === true, 'Starts again each turn',"), j([ctT, rT, rR, rE]));
             {   /* 1.6.0 (the core's gap 14, heavy swings): a counter ticked Starts again each turn may pass its count to another counter of its list first */
                 const mkP = gm => S.cleanSystem({ v: 1, name: 'P', rolls: [], fields: [{ id: 'f_w', key: 'Arms', label: 'Arms', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'wt', label: 'Wt' }],
                     counters: [{ key: 'swung', label: 'Swung', turn: true, pass: 'LAST' }, { key: 'last', label: 'Swung last turn' }, { key: 'a', label: 'A', turn: true, pass: 'b' }, { key: 'b', label: 'B', def: 2, turn: true, pass: 'a' },
@@ -1422,6 +1422,36 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
                     && j(pT2.values.f_w) === j([{ defId: 'i_maul', qty: 1, ct: { a: 3 } }, { defId: 'i_rod', qty: 1 }, { defId: 'i_bow', qty: 1 }]) && j(chP.values.f_w[0].ct) === j({ swung: 1, a: 3 }) && j(pR.values) === '{}'
                     && require('./checkkit').part('sysedlist.js').includes("var tps = el('select', 'sys-list-ctpass');") && require('./checkkit').part('sysedtabs.js').includes("if (t.value) ctD6.pass = t.value; else delete ctD6.pass; }") && require('./checkkit').part('sysedtabs.js').includes("else { delete ctD5.turn; delete ctD5.pass; } }"), j([ctP, pT, pT2, pR]));
             }
+    }
+
+    {   /* 1.6.3 (the improvement week's combat review, finding 5: each Next held the GM's screen up to two seconds on a large system, the round and
+           turn hooks working the whole sheet out again for every due action, though most fail on their needs). applyRound keeps the resolver of its
+           working copy while the actions pass over it and makes it again only after one that ran; systemcore lazyVars answers as resolveAll's .vars
+           name by name, working out only what is asked, and falls back on the whole sheet where a lazy reading errs (a chain past the engine's
+           depth); the host's round hook reads through it (sheettime.js hookVars). Run for real */
+        const deepL = []; for (let i = 0; i < 80; i++) deepL.push({ id: 'f_d' + i, key: 'Deep' + i, kind: 'formula', formula: i ? 'Deep' + (i - 1) + ' + 1' : 'ST' });
+        const rawL = { v: 1, name: 'R', fields: [{ id: 'f_st', key: 'ST', kind: 'number', def: 10 }, { id: 'f_on', key: 'Hot', kind: 'toggle' }, { id: 'f_hp', key: 'HP', kind: 'number', def: 10 }].concat(deepL),
+            rolls: [{ id: 'r_a', label: 'A', apply: [{ f: 'f_hp', formula: '1', add: true }], each: 'round', needs: 'Hot' }, { id: 'r_b', label: 'B', apply: [{ f: 'f_hp', formula: '2', add: true }], each: 'round' },
+                { id: 'r_c', label: 'C', apply: [{ f: 'f_hp', formula: '4', add: true }], each: 'round', needs: 'Hot' }, { id: 'r_d', label: 'D', apply: [{ f: 'f_hp', formula: 'Deep79 - 85', add: true }], each: 'round' }] };
+        const syL = cleanSystem(rawL, { F, gmView: true }), chL = () => ({ id: 'c_r', values: { f_hp: 10 } });
+        let callsL = 0; const rL = S.applyRound(syL, chL(), w => { callsL++; return resolveAll(syL, w, F, null).vars; }, F, null, 'round');
+        check('finding 5 (applyRound, run for real): the working copy\u2019s resolver is made once and kept while due actions pass over it (one whose needs fail changes nothing), and made again only after one that ran; what the round gives is as before (two ran: +2, then +4 read through a chain past the engine\u2019s depth)',
+            j(rL) === j({ values: { f_hp: 16 }, ran: 2 }) && callsL === 2, j([rL, callsL]));
+        const lzL = typeof S.lazyVars === 'function' ? S.lazyVars(syL, chL(), F, { combat: { round: 3 }, facing: null, tags: { x: 1 } }) : null, egL = resolveAll(syL, chL(), F, { combat: { round: 3 }, facing: null, tags: { x: 1 } }).vars;
+        const namesL = ['ST', 'Hot', 'HP', 'Deep0', 'Deep40', 'Deep79', 'CombatRound', 'Nope'];
+        check('finding 5 (systemcore lazyVars, run for real): it answers every name as resolveAll\u2019s .vars does, in the same token\u2019s context, the round among them; a name a fresh lazy resolver cannot reach (a chain past the engine\u2019s depth) is read from the whole sheet worked out once; it says it is lazy',
+            !!lzL && lzL.lazy === true && namesL.every(n => j(lzL(n)) === j(egL(n))) && !!(makeResolver(syL, chL(), F, null)('Deep79') || {}).error && lzL('Deep79') === 89 && typeof lzL.detail === 'function',
+            j(lzL ? namesL.map(n => [n, lzL(n), egL(n)]) : 'no lazyVars'));
+        const shL5 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), aL5 = shL5.indexOf("// Stage 6 HUD G10: the host's round hook"), bL5 = shL5.indexOf('// The combat roster (whiteboard.js): initiative from the system', aL5);
+        const hkL5 = aL5 >= 0 && bL5 > aL5 ? shL5.slice(aL5, bL5) : 'function roundHook() { throw new Error("markers"); }';
+        const runL5 = lazy => { let eager = 0; const chars = { c_r: chL() }, camp = { items: { m1: { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_r', x: 0, y: 0, width: 50, height: 50 }] } }, chars, system: syL };
+            const n = { role: 'host', active: true, syncCharDelta() {}, postDue() {} };
+            new Function('getActiveCampaign', 'systemOf', 'net', 'F', 'window', 'combatChars', 'charsOf', 'charById', 'withRound', 'tokenCtx', 'tokenFlags', 'applyRound', 'dueActs', 'resolveAll', 'renderViews', 'save', 'rollNeedsOk', 'lazyVars', hkL5 + NL + 'return roundHook;')(
+                () => camp, c => c.system, () => n, () => F, { wpVtt: { on: () => true } }, S.combatChars, c => c.chars, (id, c) => c.chars[id] || null, S.withRound, S.tokenCtx, () => ({}), S.applyRound, S.dueActs, (a, b, c, d) => { eager++; return resolveAll(a, b, c, d); }, () => {}, () => {}, S.rollNeedsOk, lazy ? S.lazyVars : undefined)('m1', { rows: [{ tokId: 't1' }], turn: 0, round: 2 });
+            return [chars.c_r.values.f_hp, eager]; };
+        const hkLz = runL5(true), hkEg = runL5(false);
+        check('finding 5 (sheets.js roundHook, run for real): the host\u2019s round hook reads its actions through systemcore lazyVars and works no sheet out whole for them, with the same result as without it (where it still works the sheet out for each action\u2019s copy)',
+            hkLz[0] === 16 && hkEg[0] === 16 && hkLz[1] === 0 && hkEg[1] >= 2, j([hkLz, hkEg]));
     }
 
     await T.finish();

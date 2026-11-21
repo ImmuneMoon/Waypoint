@@ -6783,6 +6783,15 @@ function onTurnHere(n, mapId, tokId) {
     return n.fightsOn(mapId).some(function(f) { var c = n.combats && n.combats[f], r = c && Array.isArray(c.rows) ? c.rows[c.turn] : null; return !!(r && r.tokId === tokId); });
 }
 // [lookcheck:onturn-end]
+// 1.6.3 (the improvement week's combat review, finding 26): a step of a fight that moves only whose turn it is (net.js combatRefreshTurn) sets the
+// ring on the map's drawn pieces by this very test, with no redraw of the board. Every piece drawn (state.wbEls) is judged, as the board's draw
+// judges each one
+function turnRings() {
+    var am = getActiveMap(); if (!am || am.type !== 'map' || !state.wbEls) return false;
+    Object.keys(state.wbEls).forEach(function(id) { var el = state.wbEls[id]; if (el && el.classList) el.classList.toggle('wb-turn', onTurnHere(window.wpNet, am.id, id)); });
+    return true;
+}
+window.wpTurnRings = turnRings;
 function combatRowsFor(mapId, opts) {
     var camp = getActiveCampaign(), map = camp && camp.items[mapId]; if (!map) return [];
     var n = window.wpNet, fidR = opts && typeof opts.fid === 'string' ? opts.fid : null, running = fidR && n.combats && Object.prototype.hasOwnProperty.call(n.combats, fidR) ? n.combats[fidR] : null;

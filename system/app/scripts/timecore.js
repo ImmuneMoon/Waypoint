@@ -22,10 +22,16 @@ function applyRound(sys, char, varsFor, F, tctx, kind, D, fxo) {   // fxo (1.6.0
     var work = Object.assign({}, char, { values: Object.assign({}, isObj(char.values) ? char.values : {}) }), lvR = map();
     if (kind === 'turn') turnCounters(sys, work, out);   // 1.6.0: counters that start again each turn, before the turn's own actions run
     if (kind === 'turn' || kind === 'round' || kind === 'turnEnd') { var upT = rowUpkeep(sys, work, out, kind, F); if (upT.paid || upT.off.length) { out.upkeep = { paid: upT.paid, off: upT.off }; if (upT.said.length) out.upkeepSaid = upT.said; } }   // 1.6.0 (CORE gap 13): then what rows switched on keep paying
+    // 1.6.3 (the improvement week's combat review, finding 5: each Next held the GM's screen for up to two seconds on a large system): the
+    // resolver of the working copy is made once and kept while the actions pass over it. An action whose needs fail, or that runs to nothing,
+    // changes nothing of work, so the next one reads the very same state and the very same answers; only an action that ran (res.ok) moved
+    // values, and the next one works the copy out again. Before this, the whole sheet was worked out again for every due action
+    var vvC = null;
     roundActs(sys, kind).forEach(function(act) {
-        var vv = varsFor(work); if (typeof vv !== 'function') return;
+        var vv = vvC || (vvC = varsFor(work)); if (typeof vv !== 'function') { vvC = null; return; }
         if (onOther(act)) vv = withOnSelf(vv, true);   // 1.6.0 (the review of 96e39ae6): a run by itself is on its own character, so OnSelf reads 1
         var loR = linkOverSwap(lvR), res; try { res = applyAct(sys, work, act, vv, F, tctx || null, null, undefined, D, null, fxo); } finally { linkOverSwap(loR); } if (!res.ok) return;
+        vvC = null;   // it ran: what it moved is read afresh by the next one
         Object.keys(res.values).forEach(function(k) { work.values[k] = res.values[k]; out.values[k] = res.values[k]; }); out.ran++;
         if (res.linkValues) Object.keys(res.linkValues).forEach(function(id) { lvR[id] = Object.assign(lvR[id] || {}, res.linkValues[id]); });   // 1.6.2: what it moved on a linked sheet, which the next action reads
     });

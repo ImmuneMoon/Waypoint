@@ -354,8 +354,20 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const lbP = require('fs').readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
         check('L3 the store: a players\' index only on the GM\'s machine, for the campaign on screen, of a pack it has read that players may see (never a GM-only pack), worked out again when the pack or the players\' fields change; the manifest and an entry by id go through it',
             /var camp = getActiveCampaign\(\); if \(!camp \|\| !camp\.library \|\| !gmHere\(\) \|\| !ready\(packId\)\) return null;\n\s*var p = camp\.library\.packs\.filter\(function\(x\) \{ return x\.id === packId; \}\)\[0\]; if \(!p \|\| p\.vis === 'gm'\) return null;/.test(lbP)
-            && /var sig = camp\.id \+ '\|' \+ p\.rev \+ '\|' \+ hashText\(JSON\.stringify\(fields\)\) \+ '\|' \+ needSig\(packId\), m = _pidx\[packId\]; if \(m && m\.sig === sig\) return m;/.test(lbP)
-            && /\(camp\.library \? camp\.library\.packs : \[\]\)\.forEach\(function\(p\) \{ var ix = playerIndexOf\(p\.id, pl\); if \(!ix\) return;/.test(lbP) && /var ix = playerIndexOf\(camp\.library\.packs\[i\]\.id, pl\); if \(ix && Object\.prototype\.hasOwnProperty\.call\(ix\.byId, id\)\) return ix\.byId\[id\];/.test(lbP));
+            && /var sig = camp\.id \+ '\|' \+ p\.rev \+ '\|' \+ \(fh !== null \? fh : hashText\(JSON\.stringify\(fields\)\)\) \+ '\|' \+ needSig\(packId\), m = _pidx\[packId\]; if \(m && m\.sig === sig\) return m;/.test(lbP)
+            && /\(camp\.library \? camp\.library\.packs : \[\]\)\.forEach\(function\(p\) \{ var ix = playerIndexOf\(p\.id, pl, fhM\); if \(!ix\) return;/.test(lbP) /* 1.6.3 (the combat review, finding 18): the fields’ hash worked out once for every pack by the manifest, handed in as fh (moved on purpose) */ && /var ix = playerIndexOf\(camp\.library\.packs\[i\]\.id, pl\); if \(ix && Object\.prototype\.hasOwnProperty\.call\(ix\.byId, id\)\) return ix\.byId\[id\];/.test(lbP));
+        {   // 1.6.3 (the improvement week's combat review, finding 18: every save of the host's built the players' library manifest, writing out and
+            // hashing the players' fields once for each pack): playerManifest hashes them once and hands the hash to playerIndexOf for every pack, whose
+            // key is the very one it was (library.js, run for real)
+            const pmS = lbP.slice(lbP.indexOf('function playerIndexOf(packId, plSys, fh) {'), lbP.indexOf('function playerEntry(id) {'));
+            const runPM = () => { const hashed = [], fields = [{ id: 'f_a', key: 'A' }, { id: 'f_b', key: 'B' }], fj = JSON.stringify(fields), camp = { id: 'k', library: { packs: [{ id: 'p1', name: 'One', rev: 1 }, { id: 'p2', name: 'Two', rev: 3, icon: 'i' }, { id: 'p3', name: 'GM', rev: 1, vis: 'gm' }, { id: 'p4', name: 'Four', rev: 2 }] } }, pidx = {};
+                const api = new Function('getActiveCampaign', 'gmHere', 'ready', 'cur', 'plSysOf', 'hashText', 'needSig', '_pidx', 'playerIndex', 'entriesOf', 'libCtx', 'F', 'needShown', 'needRuleShown', pmS + '\nreturn { m: playerManifest, ix: playerIndexOf };')(
+                    () => camp, () => true, () => true, { campId: 'k', state: 'ready' }, () => ({ fields }), s => { hashed.push(s === fj ? 'fields' : s); return 'h' + s.length; }, id => 'n' + id, pidx, (en, ctx) => ({ rows: en.map(e => [e]), hash: 'x' + en.length }), id => [id + 'a', id + 'b'], () => ({}), () => ({}), () => true, () => true);
+                const m = api.m(), hm = hashed.slice(), keys = Object.keys(pidx).map(k => pidx[k].sig), again = api.ix('p2', { fields }); return { m, keys, hashed: hm, again: again && again.sig }; };
+            const pm = runPM();
+            check('finding 18: the players\u2019 library manifest (playerManifest, run for real) hashes the players\u2019 fields once for all its packs and hands the hash on; each pack\u2019s index keeps the key it always had (campaign, revision, the fields\u2019 hash, its needs), so a pack asked alone afterwards is the kept one; a GM-only pack is left out as before',
+                pm.hashed.filter(h => h === 'fields').length === 1 && j(pm.m.packs.map(p => p.id)) === j(['p1', 'p2', 'p4']) && j(pm.keys) === j(['k|1|h' + j([{ id: 'f_a', key: 'A' }, { id: 'f_b', key: 'B' }]).length + '|np1', 'k|3|h' + j([{ id: 'f_a', key: 'A' }, { id: 'f_b', key: 'B' }]).length + '|np2', 'k|2|h' + j([{ id: 'f_a', key: 'A' }, { id: 'f_b', key: 'B' }]).length + '|np4']) && pm.again === pm.keys[1], j(pm));
+        }
         // a list's categories in the players' view: the library's word (catsFor) — the GM's machine, the campaign on screen, every pack read; a GM-only pack's or entry's categories hidden
         const cfS = lbP.slice(lbP.indexOf('var _cats = '), lbP.indexOf('function entry(id)'));
         const cf = o => { const packs = o.packs || []; const camp = { id: 'k', library: { dir: 'l_x', packs: packs.map(p => ({ id: p.id, rev: 1, vis: p.vis })) } };
@@ -514,7 +526,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && shA === false && sigTwoHidden !== sigTwo && /^[0-9a-f]{8}$/.test(sigTwoHidden) && sigTwoBack === sigTwo && shSys === false && sigTwoSys !== sigTwo && sigTwoSys !== sigTwoHidden
             && noCamp[0] === false && /^[0-9a-f]{8}$/.test(noCamp[1]) && noCamp[1] !== sigTwo && noCamp[1] !== sigTwoHidden && noCamp[1] !== sigTwoSys
             && !w1.asked.includes('i_sys') && w1.asked.includes('i_nowhere')
-            && lbT.includes("    var sig = camp.id + '|' + p.rev + '|' + hashText(JSON.stringify(fields)) + '|' + needSig(packId), m = _pidx[packId]; if (m && m.sig === sig) return m;") && lbT.split('needSig(').length === 3,
+            && lbT.includes("    var sig = camp.id + '|' + p.rev + '|' + (fh !== null ? fh : hashText(JSON.stringify(fields))) + '|' + needSig(packId), m = _pidx[packId]; if (m && m.sig === sig) return m;") /* 1.6.3 (the combat review, finding 18): the fields’ hash worked out once for every pack by the manifest, handed in as fh (moved on purpose) */ && lbT.split('needSig(').length === 3,
             j([s0, sigOne, sigTwo, sigTwoHidden, sigTwoSys, noCamp]));
     }
     /* ---- 1.5.5, a list placed once a category: the library's picker opens on the placement's first category (libpicker.js buildAll and wantCat,

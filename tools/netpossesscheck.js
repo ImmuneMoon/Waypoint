@@ -89,7 +89,7 @@ pendingChecks.push((async () => {
         const lastSent = {};
         // ensurePlayerToken as the real one behaves on the wire: a token made for the player on the map they arrive on, then the map to the table
         const ensure = (pid, mapId) => { W.ensured.push(pid + ':' + mapId); const m = camp.items[mapId]; if (!m || m.type !== 'map' || m.whiteboard.some(w => w.ownerId === pid)) return false; m.whiteboard.push(T('new_' + pid + '_' + mapId, pid, pid === 'u_a' ? 'c_a' : 'c_b', 6, 6)); W.net.broadcastItemFiltered('k', mapId); return true; };
-        W.api = build9(W.net, () => Sx, win, () => false, () => camp, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, bc, lastSent, setT, clearT,
+        W.api = (o.build || build9)(W.net, () => Sx, win, () => false, () => camp, e => { throw e; }, c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, bc, lastSent, setT, clearT,
             () => { W.saves++; }, t => W.toasts.push(t), (k, t) => W.logs.push(k + ':' + t), () => { W.roster++; }, () => {}, () => true, () => {}, () => ev.push('roster-out'), () => {}, () => {}, () => {}, () => {}, () => W.now, ensure, () => null, () => null);
         W.lastSent = lastSent; W.state = state;
         W.types = c => c.sent.map(m => m.type + (m.itemId ? ':' + m.itemId : ''));
@@ -146,6 +146,19 @@ pendingChecks.push((async () => {
             J(quiet) === J([]) && fired === 1 && cu === false && J(posQuiet) === J([]) && J(onA) === J(['pA1:item:mA', 'pA2:item:mA', 'pB:item:mA', 'pA1:item:mA', 'pA2:item:mA', 'pB:item:mA', 'pA1:pos:mA', 'pA2:pos:mA', 'pB:pos:mA']) && !W.leak(W.a1, SENT_B) && !W.leak(W.b1, SENT_B) && !W.leak(W.a1, SENT_F) && J(pageOut) === J(['pA1:item:dD', 'pA2:item:dD', 'pB:item:dD']), J([quiet, posQuiet, onA, pageOut]));
         const pages = [W.a1, W.a2, W.b1].map(c => [J(c.page.map('mB')) === J(STUB('mB', 'The mB', { parentId: 'mA', sortIndex: 2 })), J(c.page.map('mC')) === J(STUB('mC', 'The mC', { sortIndex: 3 })), c.page.asked.length]);
         check('possession: after all that every page still holds mB (as the last stub pushed to it) and mC as their stubs and asked for nothing', pages.every(p => p[0] && p[1] && p[2] === 0), J(pages));
+        // 1.6.3 (the improvement week's combat review, finding 2: an Apply in the Take damage window held the GM about 1.3 s, most of it making copies
+        // of maps no player was on): net.sendItem and net.broadcastItemFiltered make no copy at all of a map no connection holds whole, and let its
+        // shared baseline go, so the next copy after someone comes to it is whole; a map someone holds is sent as before (run for real)
+        const build9N = new Function(...NAMES9, lineOf('function mapNobody(') + '\n' + modSrc);   // the world with net.js's mapNobody beside its sends
+        const W2 = mkW({ build: build9N }); W2.join(W2.a1, 'mA'); W2.clear();
+        const readsOf = it => { let n = 0; const wb = it.whiteboard; Object.defineProperty(it, 'whiteboard', { configurable: true, enumerable: true, get() { n++; return wb; }, set(v) { Object.defineProperty(it, 'whiteboard', { value: v, writable: true, configurable: true, enumerable: true }); } }); return () => { const k = n; Object.defineProperty(it, 'whiteboard', { value: wb, writable: true, configurable: true, enumerable: true }); return k; }; };
+        W2.lastSent.mB = { type: 'map', stale: 1 }; W2.lastSent.mF = { type: 'map', stale: 1 };
+        const rB = readsOf(W2.camp.items.mB); W2.net.sendItem('k', 'mB'); const nB = rB();
+        const rF = readsOf(W2.camp.items.mF); W2.net.broadcastItemFiltered('k', 'mF'); const nF = rF();
+        const rA = readsOf(W2.camp.items.mA); W2.net.sendItem('k', 'mA'); const nA = rA();
+        const evN = W2.ev.slice();
+        check('finding 2: a map no connection holds whole is made no copy of by net.sendItem or net.broadcastItemFiltered (nothing sent but a stub to its stub holders, its pieces read only to note a hidden drawing) and its shared baseline is let go; a map a connection holds is copied and sent as before',
+            !('mB' in W2.lastSent) && !('mF' in W2.lastSent) && nB <= 2 && nF <= 2 && nA > 2 && evN.every(e => !/:item:m[BF]$|:itemDelta:m[BF]$/.test(e) || /:item:mF$/.test(e)) && evN.some(e => /:item:mA$|:itemDelta:mA$/.test(e)) && W2.a1.sent.filter(m => m.itemId === 'mB').length === 0, J([nB, nF, nA, evN, Object.keys(W2.lastSent)]));
     }
     // (3) the arrival: a summon gives the map whole before the stage word, to that connection alone; the record; a delta then reaches it
     {

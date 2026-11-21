@@ -852,7 +852,7 @@ pendingChecks.push((async () => {
         /\n    if \(snapOk && typeof combatsSentSeed === 'function'\) combatsSentSeed\(conn, snap\.combats\);/.test(src) && /function fogForgetConn\(peer\) \{[^\n]*if \(typeof combatsSentForget === 'function'\) combatsSentForget\(peer\); \}/.test(require('./checkkit').part('netfog.js'))
         && /function combatForget\(fid\) \{ if \(fid === undefined\) \{ _combatSeen = Object\.create\(null\); _combatsSent = Object\.create\(null\); \}/.test(src)
         && (src.match(/net\.combatRoundOf\(/g) || []).length === 4 /* 1.6.0: and Or resisted by's list roll, judging its Shown where in the target's fight (moved on purpose); 1.6.3: and lockOptsHost, reading a field's Locked while in the round the player's own sheet reads it in (moved on purpose) */ && !/net\.combatFor\(loc[QA]\)/.test(src) && (shSrcR.match(/n\.combatRoundOf\(/g) || []).length === 1
-        && /el\.classList\.toggle\('wb-turn', onTurnHere\(window\.wpNet, activeMap\.id, item\.id\)\);/.test(wbSrcR) && (wbSrcR.match(/onTurnHere\(/g) || []).length === 2);
+        && /el\.classList\.toggle\('wb-turn', onTurnHere\(window\.wpNet, activeMap\.id, item\.id\)\);/.test(wbSrcR) && (wbSrcR.match(/onTurnHere\(/g) || []).length === 3 /* 1.6.3 (the combat review, finding 26): and turnRings, which sets the ring after a step within its round with no redraw (moved on purpose) */);
     check('fold 2 (source): the join snapshot says fights (true) and carries the fights on the map the player lands on; a player\'s app takes the word through typeof before it reads the snapshot\'s fights and reads every later copy by it; nothing of the host reads a fight by its map\'s id any more (net.js, whiteboard.js, pills.js and sheets.js); fights start, change and end in fightSet alone and end in combatOver alone; the host\'s branches are 31 (voice-up of voice chat, 1.5.9, the newest) (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34; 1.6.0 B5, a deliberate change of this pin: hit-ask, a player asking which locations their target has, makes them 35; 1.6.0, a deliberate change of this pin: sheet-out, a player asking the host\'s reader for a file of their own character, makes them 36; 1.6.2, a deliberate change of this pin: show-ask, a player asking to put drawings on the map, makes them 37)',
         /combats: combatsFor\(prof\.id, prof\.location\), fights: true,/.test(src) && /\n    if \(typeof fightsKnow === 'function'\) fightsKnow\(msg\.fights\);[^\n]*\n    net\.combats = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(snapBody)
         && src.split('fightsKnow(').length === 3 && /var before = net\.combats, after = typeof cleanFightsIn === 'function' \? cleanFightsIn\(msg\.combats\) : cleanCombats\(msg\.combats\);/.test(src)
@@ -1969,5 +1969,26 @@ pendingChecks.push((async () => {
             nW.fightWas('f1', 't1').init === 9 && nW.fightWas('f1', 'zz') === null && nW.fightWas('f9', 't1') === null && require('./checkkit').part('netfight.js').includes('wn[r.tokId] = { init: r.init, rolled: r.rolled === 1 };'));
         check('a join the player began closes the Multiplayer window; a reconnect leaves it as it stands', flat.includes("if (conn.wpRetry !== true) { var nmJ = ui('netModal'); if (nmJ) nmJ.style.display = 'none'; }"));
     }
+
+// 1.6.3 (the improvement week's combat review, finding 26: every Next drew the whole app again): the host's step of a fight that stays in its
+// round sets the board's ring by onTurnHere with no redraw (whiteboard.js turnRings) and draws what shows whose turn it is (net.js
+// combatRefreshTurn); a new round still draws everything (run for real, and the step's wiring)
+{
+    const wbF = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+    const otA = wbF.indexOf('// [lookcheck:onturn-start]'), trA = wbF.indexOf('function turnRings() {'), trZ = wbF.indexOf('window.wpTurnRings = turnRings;');
+    const ringSrc = otA >= 0 && trA > otA && trZ > trA ? wbF.slice(otA, trZ) : 'function turnRings() { throw new Error("markers"); }';
+    const mkEl = on => { const s = new Set(on ? ['wb-turn'] : []); return { classList: { toggle: (c, v) => { if (v) s.add(c); else s.delete(c); }, has: c => s.has(c) } }; };
+    const els = { t1: mkEl(true), t2: mkEl(false), t3: mkEl(false) }, wn = { active: true, fightsOn: m => (m === 'm1' ? ['f1', 'f2'] : []), combats: { f1: { rows: [{ tokId: 't1' }, { tokId: 't2' }], turn: 1 }, f2: { rows: [{ tokId: 't3' }], turn: 0 } } };
+    const rings = new Function('getActiveMap', 'state', 'window', ringSrc + '\nreturn turnRings;')(() => ({ id: 'm1', type: 'map' }), { wbEls: els }, { wpNet: wn });
+    const ran = rings(), on = Object.keys(els).filter(k => els[k].classList.has('wb-turn'));
+    const crS = lineOf('function combatRefresh() {') + '\n' + src.slice(src.indexOf('function combatRefreshTurn() {'), src.indexOf('function roundChanged('));
+    const runCR = w => { const calls = []; const win = Object.assign({ wpRenderCombatStrip: () => calls.push('strip'), wpRenderPartyStrip: () => calls.push('party'), wpPills: { sync: () => calls.push('pills') }, wpTrackers: { draw: () => calls.push('trackers') }, wpCharList: { sync: () => calls.push('chars') }, wpSheets: { tokenTurned: (a, b) => calls.push('turned:' + a + ':' + b) } }, w(calls));
+        new Function('render', 'window', crS + '\nreturn combatRefreshTurn;')(() => calls.push('render'), win)(); return calls; };
+    const light = runCR(calls => ({ wpTurnRings: () => { calls.push('rings'); return true; } })), none = runCR(() => ({})), off = runCR(calls => ({ wpTurnRings: () => { calls.push('rings'); return false; } }));
+    check('finding 26 (whiteboard.js turnRings and net.js combatRefreshTurn, run for real): the ring on each drawn piece follows onTurnHere over every fight on the map with no redraw; a step within its round draws the ring, the strip, the party strip, the pills, the trackers, Characters and an open sheet\u2019s End turn, and never the whole app; where the board cannot set its rings, the whole draw as before',
+        ran === true && j(on) === j(['t2', 't3']) && j(light) === j(['rings', 'strip', 'party', 'pills', 'trackers', 'chars', 'turned:null:true']) && j(none) === j(['render', 'strip']) && j(off) === j(['rings', 'render', 'strip']), j([ran, on, light, none, off]));
+    check('finding 26 (source): the host\u2019s fight step draws only what shows whose turn it is while its round stays, and everything at a new round; a player\u2019s app still draws everything at every word of the fights',
+        require('./checkkit').part('netfight.js').includes("    broadcastCombats(); if (c.round === r0 && typeof combatRefreshTurn === 'function') combatRefreshTurn(); else combatRefresh();") && wbF.includes('window.wpTurnRings = turnRings;'));
+}
 
 T.finish();

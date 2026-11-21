@@ -11,7 +11,7 @@
    sheets.js (live, so a value sheets.js changes later is read as it is then); the last line hands back the names sheets.js uses of it.
    Neither side may assign the other's names (tools/splitcheck.js holds it). Change the code here as if it still stood in sheets.js. */
 // [split:of sheets.js]
-import { APPLY_KINDS, F, LIMITS, applyAct, applyRound, applyScope, chainsShallow, charById, charsOf, combatChars, dueActs, figText, getActiveCampaign, gmOnlyNames, hasDice, linkValuesWrite, makeResolver, net, opt, renderViews, resolveAll, rollNeedsOk, rolled, ruleFollow, ruleRunCtx, save, state, systemOf, tab, timeRuleRun, tokenCtx, tokenFlags, upkeepLines, withOnSelf, withRound } from './sheets.js';   // [split:glue]
+import { APPLY_KINDS, F, LIMITS, applyAct, applyRound, applyScope, chainsShallow, charById, charsOf, combatChars, dueActs, figText, getActiveCampaign, gmOnlyNames, hasDice, lazyVars, linkValuesWrite, makeResolver, net, opt, renderViews, resolveAll, rollNeedsOk, rolled, ruleFollow, ruleRunCtx, save, state, systemOf, tab, timeRuleRun, tokenCtx, tokenFlags, upkeepLines, withOnSelf, withRound } from './sheets.js';   // [split:glue]
 export function sheetTime() {   // [split:glue]
 // [split:body-start]
 // Stage 6 HUD G10: the host's round hook — on every new round of a combat (net.js combatStep / combatSet), each Each round action on every
@@ -27,8 +27,8 @@ function timedHook(mapId, combat, kind) {
     combatChars(mp, who, charsOf(camp)).forEach(function(e) {
         var c = charById(e.charId, camp); if (!c) return;
         var tc = withRound(tokenCtx(mp, e.tok, Object.assign({}, tokenFlags(), { viewer: typeof e.tok.ownerId === 'string' ? e.tok.ownerId : undefined })), combat), vvD = null;   // 1.5.5 (the release trace, F2): a player's character is judged by what its player sees, as turnMoveStart judges it, so an attacker hidden from them counts for nothing
-        dues.forEach(function(a) { if ((a.needs || a.needsWhy) && typeof rollNeedsOk === 'function') { vvD = vvD || resolveAll(sys, c, F(), tc).vars; if (!rollNeedsOk(a, (a.to === 'near' || a.to === 'target') ? withOnSelf(vvD, true) : vvD, F())) return; } if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm'); });   // 1.5.4: no reminder while its needs are not met
-        var res = applyRound(sys, c, function(w) { return resolveAll(sys, w, F(), tc).vars; }, F(), tc, kind, window.wpDiceCore || null, { now: Date.now(), inCombat: true }), ids = Object.keys(res.values);   // 1.5.9: the host's dice roll a Rolled amount
+        dues.forEach(function(a) { if ((a.needs || a.needsWhy) && typeof rollNeedsOk === 'function') { vvD = vvD || hookVars(sys, c, tc); if (!rollNeedsOk(a, (a.to === 'near' || a.to === 'target') ? withOnSelf(vvD, true) : vvD, F())) return; } if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm'); });   // 1.5.4: no reminder while its needs are not met
+        var res = applyRound(sys, c, function(w) { return hookVars(sys, w, tc); }, F(), tc, kind, window.wpDiceCore || null, { now: Date.now(), inCombat: true }), ids = Object.keys(res.values);   // 1.5.9: the host's dice roll a Rolled amount
         if (res.upkeep && window.wpStepLog) window.wpStepLog('upkeep v1', 'paid', { when: kind, paid: res.upkeep.paid, off: res.upkeep.off.length });   // 1.6.0 (CORE gap 13)
         if (res.linkValues && typeof linkValuesWrite === 'function' && linkValuesWrite(res.linkValues) && !ids.length) { done++; return; }   // 1.6.2: what it moved on a linked sheet
         if (!ids.length) return;
@@ -41,6 +41,10 @@ function timedHook(mapId, combat, kind) {
     if (done) { save(true); if (window.appRender) window.appRender(); }
     return done;
 }
+// 1.6.3 (the improvement week's combat review, finding 5): the names a hook's needs and actions are read with. systemcore lazyVars answers
+// every name as resolveAll's .vars would and works out only the names each action reads, so a hook whose actions mostly fail on their needs no
+// longer works out the whole sheet for each of them. Without it (a harness that slices this file alone), the whole sheet as before
+function hookVars(sys, w, tc) { return typeof lazyVars === 'function' ? lazyVars(sys, w, F(), tc) : resolveAll(sys, w, F(), tc).vars; }
 // 205 follow-up (3): a turn's or a round's upkeep said on apply cards (net.postApplyCard), once a character: what its owner may see on a card for
 // them and the GM, the rest on one for the GM alone (systemcore upkeepLines judges which); LIMITS.applyChanges lines a card. The number of cards
 function upkeepCards(c, said, n) {

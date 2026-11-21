@@ -23,7 +23,7 @@ import { netLink } from './netlink.js';   // [split:glue]
 import { netTrade } from './nettrade.js';   // [split:glue]
 import { netFog } from './netfog.js';   // [split:glue]
 import { netFight } from './netfight.js';   // [split:glue]
-export { HELD_WORDS, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatRefresh, combatSeen, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, getProfile, hitAskSet, mapTitleOf, marksStart, moveMode, playerHue, postApply, roundChanged, seqIdx, seqMake, seqMoved, seqPlace, seqStep, showConfirm, targetTok, turnCombatOf, turnEnded, turnStarted };   // [split:glue]
+export { HELD_WORDS, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatRefresh, combatRefreshTurn, combatSeen, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, getProfile, hitAskSet, mapTitleOf, marksStart, moveMode, playerHue, postApply, roundChanged, seqIdx, seqMake, seqMoved, seqPlace, seqStep, showConfirm, targetTok, turnCombatOf, turnEnded, turnStarted };   // [split:glue]
 export { _barSent, _dragFrom, _faceRefused, _lastSent, _refusedAt, applyNotepad, boxForgetConn, camGiven, camHold, camLand, camMine, camOf, campOf, charSessionReset, cleanCombats, cleanElevation, cleanFightsIn, cleanHostMap, cleanHostWbItem, cleanPosture, cleanStance, cleanStanceCamps, cleanTargets, clockOut, combatForget, combatsFor, combatsSentForget, combatsTo, connMap, dateFigOut, decksFor, dragEnd, escAttr, escText, faceCount, faceDeg, faceJudge, faceRefusedText, faceRelay, fightsKnow, fightsOn, heldSync, hitsKnow, hostTravel, landingPoint, landsKnow, load, mapFogged, marksOwnMoved, moveCounted, moveRefused, noteHostChar, noteHostCopy, noteOwner, openDrag, openDrags, ownCellKeysOf, ownTokIdsOf, peerPaused, recLine, render, renderRoster, restLogOut, rowTextKnows, sanitizeItem, setPausedLocal, setSelfPausedLocal, setTravelLockLocal, sheetFilesOkSet, sheetOutsKnow, snapBack, stageConn, state, styleHostKnows, targetsFor, tokBarsSoon, tradeLost, trkSendTo, ui, updateCampaignSelect, updateSidebarNav, validKey, validProfileId, webJoinOnly, wireWbItem, withHoverLines, withLinkFigs };   // [split:glue]
 export { actSpend, actsCombat, actsOf, fxNow, offTurnOf, offTurnTell, rowOnGm };   // [split:glue]
 export { charViewFor };   // [split:glue]
@@ -1186,6 +1186,11 @@ var _lastSent = {};   // itemId → the sanitized item as last broadcast by this
 // [split:netfog.js]
 var _netFog = netFog(), SHOW_ASK_MOST = _netFog.SHOW_ASK_MOST, _lastPatchHash = _netFog._lastPatchHash, _sensesAt = _netFog._sensesAt, _sensesSig = _netFog._sensesSig, ackIn = _netFog.ackIn, ackSend = _netFog.ackSend, ackTook = _netFog.ackTook, actForget = _netFog.actForget, actNext = _netFog.actNext, actNote = _netFog.actNote, actPos = _netFog.actPos, activeItemPatch = _netFog.activeItemPatch, anyFog = _netFog.anyFog, applyClientItemFiltered = _netFog.applyClientItemFiltered, applyFogDiff = _netFog.applyFogDiff, applyItem = _netFog.applyItem, applyItemDelta = _netFog.applyItemDelta, applySnapshot = _netFog.applySnapshot, applyStage = _netFog.applyStage, broadcast = _netFog.broadcast, currentStage = _netFog.currentStage, defaultStageMode = _netFog.defaultStageMode, fogArm = _netFog.fogArm, fogCatchUp = _netFog.fogCatchUp, fogCopyFor = _netFog.fogCopyFor, fogDiffId = _netFog.fogDiffId, fogDragSweep = _netFog.fogDragSweep, fogDrop = _netFog.fogDrop, fogFilterClean = _netFog.fogFilterClean, fogForgetAll = _netFog.fogForgetAll, fogForgetConn = _netFog.fogForgetConn, fogForgetMap = _netFog.fogForgetMap, fogLanded = _netFog.fogLanded, fogNow = _netFog.fogNow, fogOwnLive = _netFog.fogOwnLive, fogRoster = _netFog.fogRoster, fogSeed = _netFog.fogSeed, fogSeedSnapshot = _netFog.fogSeedSnapshot, hidForgetMap = _netFog.hidForgetMap, hidNote = _netFog.hidNote, hidNoteAll = _netFog.hidNoteAll, itemDelta = _netFog.itemDelta, landingFor = _netFog.landingFor, mapForgetConn = _netFog.mapForgetConn, mapForgetMap = _netFog.mapForgetMap, mapGive = _netFog.mapGive, mapHeld = _netFog.mapHeld, mapHeldNote = _netFog.mapHeldNote, mapHeldOf = _netFog.mapHeldOf, mapLeft = _netFog.mapLeft, mapStub = _netFog.mapStub, mapStubMsg = _netFog.mapStubMsg, mapStubSend = _netFog.mapStubSend, mapStubSync = _netFog.mapStubSync, memSendTo = _netFog.memSendTo, quickHash = _netFog.quickHash, refreshStageSelect = _netFog.refreshStageSelect, sanitizeAppState = _netFog.sanitizeAppState, sendFailed = _netFog.sendFailed, strokeActsForget = _netFog.strokeActsForget, wireNum = _netFog.wireNum, withAck = _netFog.withAck;   // [split:glue]
 // Host: send one map item to the table — as a delta when one exists and is smaller, else whole.
+// 1.6.3 (the improvement week's combat review, finding 2: an Apply in the Take damage window held the GM about 1.3 s, most of it making copies
+// of maps no player was on): true for a map no open, admitted connection holds whole (netfog.js mapHeld), so net.sendItem and
+// net.broadcastItemFiltered make no copy of it at all. Its shared baseline is let go, so the next copy that goes out after someone comes to it is
+// whole; arriving on it gives them the map whole anyway (mapGive). A page, and a harness with no record of who holds what, are never passed over
+function mapNobody(it, itemId) { return !!(it && it.type === 'map' && typeof mapHeld === 'function' && !net.conns.some(function(c) { return !!c && c.open && !!net.roster[c.peer] && mapHeld(c, itemId); })); }
 function mapFogged(it) { return !!(it && it.type === 'map' && it.fog && it.fog.on === true && window.wpVtt && window.wpVtt.on('fog')); }   // true alone, as fog.js reads it: a map stored with on 'yes' is unfogged for both, never per-player once and shared after
 net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M10: exceptConn, a connection a fogged map is not sent to (its own copy catches up in place); at: the action of onlyConn's that this whole copy answers (14c)
     var camp = own(state.appState.campaigns, campId) ? state.appState.campaigns[campId] : null, it = camp && own(camp.items, itemId) ? camp.items[itemId] : null; if (!it) return;   // own keys only: an id from the wire (needItem) that is a prototype's names nothing — never a prototype object sent as a map, never a function handed to the packer
@@ -1193,6 +1198,7 @@ net.sendItem = function(campId, itemId, onlyConn, exceptConn, at) {   // fold M1
     if (it.type === 'map' && typeof tokBarsSoon === 'function') tokBarsSoon();   // backlog 28: a token's own bars changed with the map
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: a player's drawing the GM hid, noted for each of their connections before the copy without it goes
     if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: a picture only a piece no longer sent carries is forgotten once the map has gone out
+    if (!onlyConn && typeof mapNobody === 'function' && mapNobody(it, itemId)) { delete _lastSent[itemId]; return; }   // 1.6.3 (the combat review, finding 2): a map no connection holds whole goes nowhere, so nothing of it is made; whoever comes to it is given it whole (mapGive)
     // fog of war (1.5.0 FV2): a fogged map is sent per recipient — the heavy map is cloned once (sanitizeItem), then a
     // cheap shallow copy drops each player's unseen creatures. No shared delta while fog is on (baselines differ per peer).
     if (mapFogged(it)) {
@@ -1231,7 +1237,8 @@ net.broadcastItemFiltered = function(campId, itemId) {
     if (typeof window !== 'undefined' && window.wpFog && window.wpFog.invalidateSeen) window.wpFog.invalidateSeen(itemId);   // Senses S0: a map sent this way was changed as a remote change (a traveler arrived or left, a waiting token placed, a light switched): who sees what on it is judged afresh
     if (typeof hidNote === 'function') hidNote(it);   // hidden pieces: as sendItem
     if (it.type === 'map' && typeof assetHideSoon === 'function') assetHideSoon();   // security: as sendItem
-    if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
+    if (it.type === 'map' && typeof mapStubSend === 'function' && typeof mapHeld === 'function') mapStubSend(mapStubMsg(campId, itemId, it));
+    if (typeof mapNobody === 'function' && mapNobody(it, itemId)) { delete _lastSent[itemId]; return; }   // 1.6.3 (finding 2): as net.sendItem, after the stub its holders are sent   // possession: a connection holding this map's stub (a lock changed, say) gets the stub afresh — its name and its lock, nothing of what is on it (never one arriving on it now: the whole map follows)
     if (!mapFogged(it)) { var clean = sanitizeItem(it); if (!clean) return; if (typeof fogForgetMap === 'function') fogForgetMap(itemId); var bm = { type: 'item', campId: campId, itemId: itemId, item: clean }; if (typeof ackSend === 'function') ackSend(bm, it.type === 'map' && typeof mapHeld === 'function' ? itemId : null); else broadcast(bm, null); _lastSent[itemId] = JSON.parse(JSON.stringify(clean)); return; }   // possession: a map to the connections holding it whole, a page to every admitted one   // the table now holds this: the next delta is worked out from it (a light switched off here and on again by the GM was the same as the older baseline, and never went out)
     delete _lastSent[itemId];   // a fogged map has no shared baseline (as sendItem)
     var fogSend = function() {   // fold M4: cloned and judged with every open drag on this map at its start
@@ -2410,7 +2417,41 @@ net.syncChar = function(id) { if (typeof fxPassForget === 'function') fxPassForg
         try { c.send(v ? { type: 'char', campId: camp.id, char: v } : { type: 'charGone', campId: camp.id, id: id }); } catch (e) { sendFailed(e); }
     });
 };
-net.syncCharDelta = function(id, values) { if (typeof fxPassForget === 'function') fxPassForget();   // changed values, filtered to what each peer may see (null = reverted to the default)
+// [netcheck:charbatch-start]
+// 1.6.3 (the improvement week's combat review, finding 6: a new round held the GM's screen about 3 s and a fight's end about 4 s): a step of a
+// fight, a fight's start or end and a move of the game clock change the same characters several times over (their timed effects, their
+// counters by the clock, their time rules, the round and turn hooks), and each change ran the whole funnel: the delta to every connection,
+// the sight judged again, the tokens' marks, the sheet's followers and a redraw. net.charBatch runs such a pass as one batch. While it is
+// open, net.syncCharDelta only gathers what each character changed (a later value of a field over an earlier one: what a player's copy
+// ends with is the same, since each delta is made from the character as it stands), and wpSheets.charChanged only notes the character
+// (net.chgHeld) after letting its kept caches go. At the end of the outermost batch each character is sent once, in the order it first
+// changed, and then followed and drawn once. Batches nest: an inner one joins the outer. A pass that throws still flushes. Asked by
+// netfight.js's fight step and fight set, combatOver, calendar.js ownTime and the timed effects' clock tick (nettime.js)
+var _batch = null;
+net.charBatch = function(fn) {
+    if (_batch) _batch.n++; else _batch = { n: 1, ids: [], d: Object.create(null), c: [] };
+    try { return fn(); } finally { if (--_batch.n === 0) { var bF = _batch; _batch = null; batchFlush(bF); } }
+};
+net.charBatching = function() { return !!_batch; };
+net.chgHeld = function(id) { if (!_batch || typeof id !== 'string') return false; if (_batch.c.indexOf(id) < 0) _batch.c.push(id); return true; };
+function batchDelta(id, values) {   // true where the batch took it
+    if (!_batch || typeof id !== 'string' || !values || typeof values !== 'object') return false;
+    if (!own(_batch.d, id)) { _batch.ids.push(id); _batch.d[id] = {}; }
+    var pB = _batch.d[id]; Object.keys(values).forEach(function(k) { pB[k] = values[k]; });
+    return true;
+}
+// The flush: each character's gathered delta, then each character followed. Where several are followed, the whole app is drawn once after
+// them all: a whole draw each asks for (sheets.js boardRedraw, where a token's marks moved) is noted and made once at the end, since each
+// would draw every character anyway. A follower that is no draw runs as it ever did
+function batchFlush(b) {
+    b.ids.forEach(function(id) { try { net.syncCharDelta(id, b.d[id]); } catch (e) { console.error(e); } });
+    var arB = typeof window !== 'undefined' ? window.appRender : null, wantB = false, oneB = b.c.length > 1 && typeof arB === 'function';
+    if (oneB) window.appRender = function() { wantB = true; };
+    try { b.c.forEach(function(id) { try { if (window.wpSheets && typeof window.wpSheets.charChanged === 'function') window.wpSheets.charChanged(id); } catch (e) { console.error(e); } }); }
+    finally { if (oneB) { window.appRender = arB; if (wantB) { try { arB(); } catch (e) { console.error(e); } } } }
+}
+// [netcheck:charbatch-end]
+net.syncCharDelta = function(id, values) { if (typeof fxPassForget === 'function') fxPassForget(); if (typeof batchDelta === 'function' && batchDelta(id, values)) return;   // changed values, filtered to what each peer may see (null = reverted to the default); 1.6.3 (the combat review, finding 6): gathered while a batch is open (net.charBatch), sent once at its end
     if (!net.active || net.role !== 'host') return;
     if (net.sensesMoved) net.sensesMoved(id);   // before anything turns this away: a change that sends its owner nothing (a kept curse) moves their sight all the same
     if (typeof fxbMoved === 'function') fxbMoved(id);   // conditions C1: the effects on their tokens
@@ -4356,6 +4397,20 @@ function marksOwnMoved(mapId, toks, pid) {   // a player dropped tokens of their
 }
 // [netcheck:marksheld-end]
 function combatRefresh() { render(); if (window.wpRenderCombatStrip) window.wpRenderCombatStrip(); }
+// 1.6.3 (the improvement week's combat review, finding 26: every Next drew the whole app again): the host's step of a fight that stays in its
+// round changes only whose turn it is, which the board shows as a ring (whiteboard.js turnRings) and the strip, the party strip, the pills, the
+// trackers bar, Characters and an open sheet's End turn show for themselves. Those are drawn, and the board is left alone. A round that changes,
+// a fight's start or end, and the player's app still draw everything (combatRefresh). A hook that changed a value at the turn draws through the
+// sheet's own funnels, as before. Where the board cannot set its rings by itself, the whole draw
+function combatRefreshTurn() {
+    if (typeof window === 'undefined' || typeof window.wpTurnRings !== 'function' || !window.wpTurnRings()) { combatRefresh(); return; }
+    if (window.wpRenderCombatStrip) window.wpRenderCombatStrip();
+    if (window.wpRenderPartyStrip) window.wpRenderPartyStrip();
+    if (window.wpPills && typeof window.wpPills.sync === 'function') window.wpPills.sync();
+    if (window.wpTrackers && typeof window.wpTrackers.draw === 'function') window.wpTrackers.draw();
+    if (window.wpCharList && typeof window.wpCharList.sync === 'function') window.wpCharList.sync();
+    if (window.wpSheets && typeof window.wpSheets.tokenTurned === 'function') window.wpSheets.tokenTurned(null, true);
+}
 // Stage 6 HUD G10: a combat's round just changed (its start, or a step past either end) — the sheets' round hook runs the Each round actions;
 // a fault in it never stops the turn
 // Item 20 K2 moved the clock by a fight's rounds here; 152 fold 4 gives each fight its own time, and the orders slice's coordinator (ordersMoved) moves the clock
@@ -4716,6 +4771,7 @@ function mapTitleOf(mapId) { var camp = getActiveCampaign(); var m = camp && cam
 // tick runs at once, which sets their effects going as it does every few seconds (combatFreed). The last fight over, that tick runs at once too.
 // title: a deleted map's own name, which the delete hands on through net.itemGone; with none the notice and the log line say the deleted map
 function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id; its map is the fight's
+    if (net.role === 'host' && typeof net.charBatch === 'function' && typeof net.charBatching === 'function' && !net.charBatching()) return net.charBatch(combatOver.bind(null, fid, had, quiet, title));   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     var mapId = had && typeof had.mapId === 'string' ? had.mapId : '';
     var campO = had ? getActiveCampaign() : null, gone = !!had && !(campO && campO.items && Object.prototype.hasOwnProperty.call(campO.items, mapId)), nmO = had ? (gone ? (typeof title === 'string' && title ? title : 'the deleted map') : mapTitleOf(mapId)) : '';
     var endO = had && typeof fightEndTime === 'function' ? fightEndTime(campO, had, nmO) : null;   // 152 fold 4: the round it ends in, lived up to its time and one round's length

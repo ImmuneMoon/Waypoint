@@ -119,6 +119,7 @@ function turnFxEnd(mapId, c, row, round) {
 }
 function fxCombatEdge(mapId, combat, kind) { var camp = getActiveCampaign(), now = Date.now(); if (kind === 'bank' && !net._fxStop) net._fxStop = now; fxCombatChars(mapId, combat).forEach(function(ch) { fxApply(camp, ch, kind, now); }); }   // bank at a combat's start, resume at its end
 function fxClockTick() {   // out of combat: the clock, on the GM's own machine
+    if (typeof net.charBatch === 'function' && !net.charBatching() && net.role !== 'client' && !net.stream) return net.charBatch(fxClockTick);   // 1.6.3 (the combat review, finding 6): one batch, so each character changed is sent and drawn once at its end
     if (net.role === 'client' || net.stream || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
     var camp = getActiveCampaign(), now = Date.now(); if (!camp || !camp.system || !camp.chars) return;
     var byGame = !!(window.wpVtt && window.wpVtt.on('calendar')), inF = typeof ordersOfChars === 'function' ? ordersOfChars(camp) : null, fights = (typeof fightIds === 'function' && fightIds().length > 0) || (typeof _fightsWait !== 'undefined' && _fightsWait && !!camp.fights);   // 1.6.2: a fight held through the GM's reload (fightsHold, before its fightsBack) runs still, so no real seconds come off a fighter's effects in the gap. K4: the Calendar on — real time never counts outside a fight; 152 fold 4: nor while any fight runs, when everyone in no fight follows the second (net.fxSpans)

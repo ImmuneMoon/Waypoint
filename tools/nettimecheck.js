@@ -466,4 +466,39 @@ pendingChecks.push((async () => {
             && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<select id="setTimeNotes" class="field"'), JSON.stringify([A.pushed.length, B.pushed.length, cBefore, cTimers, C.pushed.map(m => m.text), dMs, D.pushed.length, E.pushed.length]));
     }
 
+// 1.6.3 (the improvement week's combat review, finding 6: a new round held the GM's screen about 3 s and a fight's end about 4 s, each character
+// sent, followed and drawn again for every timed effect, counter and time rule that moved it): net.charBatch (the charbatch slice, run for real)
+// gathers what each character changed and sends it once, follows each once, and draws the whole app once at the batch's end; and the fight's
+// step, its start and end, combatOver, the clock's own time and the timed effects' clock tick each run in one batch
+{
+    const cbS = between('// [netcheck:charbatch-start]', '// [netcheck:charbatch-end]', 'charbatch');
+    const mkB = () => {
+        const sent = [], changed = [], draws = [], log = [], win = { appRender: () => { draws.push('render'); log.push('render'); }, wpSheets: null };
+        const net = { role: 'host' };
+        const api = new Function('net', 'own', 'window', cbS + '\nreturn { batchDelta: batchDelta };')(net, H.own, win);
+        net.syncCharDelta = (id, v) => { if (api.batchDelta(id, v)) return; sent.push([id, j(v)]); log.push('sent:' + id); };
+        win.wpSheets = { charChanged: id => { if (net.chgHeld(id)) return; changed.push(id); log.push('changed:' + id); win.appRender(); win.appRender(); } };
+        return { net, win, sent, changed, draws, log };
+    };
+    const B = mkB(), r1 = B.net.charBatch(() => {
+        B.net.syncCharDelta('c1', { f_a: 1, f_b: 2 }); B.win.wpSheets.charChanged('c1');
+        B.net.charBatch(() => { B.net.syncCharDelta('c2', { f_a: 5 }); B.net.syncCharDelta('c1', { f_a: 3, f_c: null }); B.win.wpSheets.charChanged('c2'); B.win.wpSheets.charChanged('c1'); });
+        return B.sent.length + B.changed.length + B.draws.length;   // nothing yet, the inner batch's end included
+    });
+    const out1 = [r1, B.sent, B.changed, B.draws.length, B.log, B.net.charBatching()];
+    const C = mkB(); let threw = false; try { C.net.charBatch(() => { C.net.syncCharDelta('c9', { f_a: 1 }); C.win.wpSheets.charChanged('c9'); throw new Error('boom'); }); } catch (e) { threw = e.message === 'boom'; }
+    C.net.syncCharDelta('c8', { f_a: 1 }); C.win.wpSheets.charChanged('c8');
+    const D = mkB(); D.net.charBatch(() => { D.net.syncCharDelta('c1', { f_a: 1 }); D.win.wpSheets.charChanged('c1'); });
+    check('finding 6 (net.js charBatch, run for real): inside a batch nothing of a character is sent, followed or drawn; at the outermost end each character is sent once with every field it changed (a later value over an earlier, null kept), in the order it first changed, then each followed once, and the whole app drawn once for them all; an inner batch joins the outer',
+        out1[0] === 0 && j(out1[1]) === j([['c1', j({ f_a: 3, f_b: 2, f_c: null })], ['c2', j({ f_a: 5 })]]) && j(out1[2]) === j(['c1', 'c2']) && out1[3] === 1 && j(out1[4]) === j(['sent:c1', 'sent:c2', 'changed:c1', 'changed:c2', 'render']) && out1[5] === false, j(out1));
+    check('finding 6: a batch that throws still sends and follows what it gathered and the error goes on; outside a batch a change is sent and followed at once as before, each follow drawing as it always did; one character followed draws as it always did',
+        threw && j(C.sent) === j([['c9', j({ f_a: 1 })], ['c8', j({ f_a: 1 })]]) && j(C.changed) === j(['c9', 'c8']) && C.draws.length === 4 && D.draws.length === 2, j([threw, C.sent, C.changed, C.draws.length, D.draws.length]));
+    const nfS = kit.part('netfight.js'), calS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'calendar.js'), 'utf8').replace(/\r\n/g, '\n'), shS6 = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n');
+    check('finding 6 (source): a fight\u2019s step and its start, change and end (netfight.js fightStep and fightSet), combatOver, the clock\u2019s own time (calendar.js ownTime) and the timed effects\u2019 clock tick each run in one batch; net.syncCharDelta gathers into it on its first line and wpSheets.charChanged notes into it right after the fog\u2019s senses let go',
+        nfS.includes("if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightStep(fid, dir, by, pick); });") && nfS.includes("if (typeof net.charBatch === 'function' && !net.charBatching()) return net.charBatch(function() { return fightSet(fid, combat); });")
+        && src.includes("return net.charBatch(combatOver.bind(null, fid, had, quiet, title));") && calS.includes("if (nB && typeof nB.charBatch === 'function' && typeof nB.charBatching === 'function' && !nB.charBatching()) return nB.charBatch(function() { return ownTime(groups); });")
+        && kit.part('nettime.js').includes("return net.charBatch(fxClockTick);") && /net\.syncCharDelta = function\(id, values\) \{ if \(typeof fxPassForget === 'function'\) fxPassForget\(\); if \(typeof batchDelta === 'function' && batchDelta\(id, values\)\) return;/.test(src)
+        && /function charChanged\(id\) \{\n    if \(typeof window !== 'undefined' && window\.wpFog && window\.wpFog\.sensesForget\) window\.wpFog\.sensesForget\(\); if \(typeof id === 'string' && typeof window !== 'undefined' && window\.wpNet && typeof window\.wpNet\.chgHeld === 'function' && window\.wpNet\.chgHeld\(id\)\) \{ if \(typeof passForget === 'function'\) passForget\(\); return; \}/.test(shS6));
+}
+
 T.finish();

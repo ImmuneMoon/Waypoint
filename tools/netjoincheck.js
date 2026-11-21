@@ -1657,5 +1657,15 @@ pendingChecks.push((async () => {
     const ended = [out.saves, out.rosterDraws];
     check('1.6.3 (the multiplayer review, finding 23) the close handler on the GM\'s machine (connclose and closesoon, run for real): two players and a stranger leaving in one moment are each told and logged at once, but the roster is drawn, the campaign saved, the roster sent and the app drawn ONCE, a moment later, for all of them; a stranger\'s close alone draws the roster and saves, sends and draws nothing; a table that has ended by then saves nothing',
         out.threw === '' && J(before) === J([0, 0, 0, 0, 2, 2, 1]) && J(after) === J([1, 1, 1, 1]) && J(stranger) === J([0, 0, 0, 1]) && J(ended) === J([0, 2]), J({ before, after, stranger, ended, threw: out.threw }));
+    // The review of multiplayer speed: a player who holds a target pointer (most do in a fight) still drew the app inside the close event, and then
+    // a second time in closeRun. Their pointer goes at once and is sent at once, and the app is drawn once, a moment later, with the rest
+    net23.active = true; out.saves = out.rosters = out.renders = out.rosterDraws = 0; let sentT = 0; env.broadcastTargets = () => { sentT++; };
+    const api2 = new Function(...names, "'use strict';\n" + csSrc + '\nreturn { close: function(conn) {\n' + clSrc23 + '\n} };')(...names.map(n => env[n]));
+    net23.conns.push({ peer: 'pD', open: false }); net23.roster.pD = { id: 'u_d', name: 'Di' }; net23.targets.u_d = { tok: 't1', mapId: 'm1' };
+    let threw2 = ''; try { api2.close(net23.conns[0]); } catch (e) { threw2 = String(e && e.message); }
+    const pointBefore = [out.renders, sentT, 'u_d' in net23.targets ? 1 : 0, timers.length];
+    timers.splice(0).forEach(t0 => t0[0]());
+    check('the review of multiplayer speed (finding 23, a pointer): a player who leaves holding a target pointer has it taken off and sent to the table at once, draws nothing inside the close event, and the app is drawn once a moment later, with the save and the roster',
+        threw2 === '' && J(pointBefore) === J([0, 1, 0, 1]) && J([out.renders, out.saves, out.rosters, out.rosterDraws]) === J([1, 1, 1, 1]), J({ pointBefore, after: [out.renders, out.saves, out.rosters, out.rosterDraws], threw2 }));
 }
 T.finish();

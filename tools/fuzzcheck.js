@@ -298,7 +298,7 @@ async function drain() { for (let i = 0; i < 6; i++) await new Promise(r => proc
 
 /* ---------- the stub page: every sink recorded ---------- */
 const allConfirms = [];
-const rec = { html: [], attr: [], text: [], style: [], toasts: [], confirms: [], saves: [], fetches: [], loads: 0, renders: 0, opens: [], warns: [], journal: [], blasts: 0, pics: [], gives: [], combatsOpened: [], reads: 0, cancels: 0, voice: [] };   // voice: what net.js handed voice.js (1.5.9)   // reads / cancels: the stub server's bodies read whole, and canceled unread
+const rec = { html: [], attr: [], text: [], style: [], toasts: [], confirms: [], saves: [], fetches: [], loads: 0, renders: 0, opens: [], warns: [], journal: [], blasts: 0, pics: [], gives: [], combatsOpened: [], reads: 0, cancels: 0, voice: [], wants: [] };   // voice: what net.js handed voice.js (1.5.9)   // reads / cancels: the stub server's bodies read whole, and canceled unread
 function resetRec() { Object.keys(rec).forEach(k => { if (Array.isArray(rec[k])) rec[k].length = 0; else rec[k] = 0; }); }
 function mkEl(tag, id) {
     const el = { tagName: String(tag || 'div').toUpperCase(), id: id || '', children: [], _attrs: {}, _h: {}, dataset: {}, _text: '', _html: '', value: '', checked: false, disabled: false, scrollTop: 0, scrollHeight: 0, offsetParent: null, offsetWidth: 100, offsetHeight: 20, parentNode: null, nodeType: 1, nodeName: String(tag || 'div').toUpperCase(), className: '', hidden: false };
@@ -882,6 +882,9 @@ function mutations(tpl) {
             wpCalendar: { refresh() {}, rounds() {}, fightEnded() {} },
             wpDice: { renderCard: () => mkEl('div'), renderApply: () => mkEl('div'), renderDue: () => mkEl('div'), line: () => 'a roll', landed() {}, onDeny() {}, onRolled() {}, closePanel() {}, roll: () => ({}) },
             wpJournalReceive(m) { rec.journal.push(m); }, wpRenderSharedBlast() { rec.blasts++; }, wpClearSharedBlasts() {},
+            // the review of multiplayer speed: the Journal's two hooks of finding 9. On the host a handout's page, as handouts.js wpHandoutPayload
+            // makes it; on a player's app the ids its Journal lacks, as wpHandoutWants answers (here: every id it is handed), each ask recorded
+            wpHandoutPayload: h => Promise.resolve({ kind: 'text', text: 'the page of ' + (h && h.id) }), wpHandoutWants(m) { rec.wants.push(m); return Promise.resolve((m && Array.isArray(m.list) ? m.list : []).map(x => x.id)); },
             wpSnapOn: () => true, wpSeatDrop: () => false, wpSeatCell() {}, wpHistFlush() {}, wpHistBarrier() {}, wpResetHistory() {},
             wpRenderCombatStrip() {}, wpRenderPartyStrip() {}, wpSettingsSync() {}, wpSheetsSync() {}, wpOpenCombat(mapId, o) { rec.combatsOpened.push(mapId); },
             wpDefaultAvatar: c => 'data:image/svg+xml,silhouette', wpAutoRoom: () => null, wpPlaceThrownBlast(b) { rec.blasts++; },
@@ -1007,6 +1010,7 @@ function mutations(tpl) {
             'box': { type: 'box', op: 'open', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1' },   // 1.6.2 (backlog 42): a container asked to open; the world holds none, so it answers nothing and changes nothing
             'send-on': { type: 'send-on', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 4): Send it on, on a card a defense left its own player; no attack waits here, so it is refused in words and sends nothing on
             'land-take': { type: 'land-take', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 1): Take it on a defense card, its own player's alone; no attack waits here, so it is refused in words and lands nothing
+            'handout-want': { type: 'handout-want', campId: 'c1', ids: ['h_none', 'h_p2only', '__proto__'] },   // 1.6.3 (the multiplayer review, finding 9): a player's app asks again for handouts it was shown; this world showed this player none, so nothing is sent to anyone
             'card-act': { type: 'card-act', id: 'r_nosuchhe', key: 'accept' },   // 1.6.2 (G5): a press on a held roll's card, its roller's alone; none is held here
             'show-ask': { type: 'show-ask', campId: 'c1', itemId: 'm_open', ids: ['stroke_show', 'draw_show', 'stroke_onmap'] },   // 1.6.2: an ask to put a drawing on the map changes nothing by itself
             'door-req-secret': { type: 'door-req', mapId: 'm_open', itemId: 'door_secret' },   // fold B5: a secret door: a door request naming it is answered as a wall's is — with nothing — and changes nothing
@@ -1230,7 +1234,8 @@ function mutations(tpl) {
         'asset-req': o => rec.fetches.length === 1 && o.p1.some(m => m.type === 'asset' && m.path === '/saves/images/pic.png'),
         'asset-req-audio': o => o.p1.some(m => m.type === 'asset-part'),
         'chat': o => o.p2.some(m => m.type === 'chat' && m.text === 'hello table' && m.from.id === 'u_p1' && !m.from.gm) && !o.p1.some(m => m.type === 'chat'),
-        'voice-up': () => rec.voice.length === 1 && rec.voice[0] === 'player:join:peer_p1'
+        'voice-up': () => rec.voice.length === 1 && rec.voice[0] === 'player:join:peer_p1',
+        'handout-want': o => !o.p1.some(m => m.type === 'handout') && !o.p2.some(m => m.type === 'handout')   // 1.6.3 (finding 9): no handout reaches anyone for an ask naming none this player was shown
     };
     /* ---------- generic fuzz over every host type from each sender ---------- */
     console.log('# host world: ' + Object.keys(host.tpl).length + ' message kinds × mutations × senders');
@@ -1272,6 +1277,27 @@ function mutations(tpl) {
         await fireHost('s', 'voice-up', 'from a stranger', cloneMsg(host.tpl['voice-up'])); const v3 = rec.voice.slice();
         await fireHost('p1', 'voice@host', 'the GM\'s own word sent at the GM', cloneMsg(host.tpl['voice@host'])); const v4 = rec.voice.slice();
         check('host: voice chat\'s voice-up reaches voice.js from an admitted player alone, with the connection it came on; the waiting peer\'s and a stranger\'s reach nothing, and a voice word sent at the host has no branch', JSON.stringify([v1, v2, v3, v4]) === JSON.stringify([['player:join:peer_p1'], [], [], []]), [v1, v2, v3, v4]);
+    }
+    {   // the review of multiplayer speed (finding 9's two words, the 46th host branch): a player's handout-want sends again only the handouts the host's
+        // own record says it showed that very player, each once and to that player alone. Another player's handout, an id the world does not hold, a key a
+        // prototype holds, another campaign, the waiting peer and a stranger send nothing. The world holds no handouts otherwise, so they are put in and taken out here
+        await resetWorld();
+        const campHW = campH(), keepH = campHW.handouts, keepR = campHW.handoutReveals;
+        campHW.handouts = { h_p1: { id: 'h_p1', kind: 'text', title: 'Shown to Ayla' }, h_p2: { id: 'h_p2', kind: 'text', title: 'Shown to Bram alone' } };
+        campHW.handoutReveals = { u_p1: { h_p1: 1 }, u_p2: { h_p2: 1 } };
+        const hSent = b => sentLog.slice(b).filter(s => s.m.type === 'handout').map(s => s.to + ':' + s.m.id);
+        let b = sentLog.length;
+        await fireHost('p1', 'handout-want', 'their own beside others', { type: 'handout-want', campId: 'c1', ids: ['h_p2', 'h_none', '__proto__', 'h_p1', 'h_p1', 5, null] }); const hw1 = hSent(b);
+        b = sentLog.length; await fireHost('p1', 'handout-want', 'another player\'s alone', { type: 'handout-want', campId: 'c1', ids: ['h_p2'] }); const hw2 = hSent(b);
+        b = sentLog.length; await fireHost('p1', 'handout-want', 'another campaign', { type: 'handout-want', campId: 'c_other', ids: ['h_p1'] }); const hw3 = hSent(b);
+        if (!conns.w.open) { conns.w = connect('peer_w'); hello(conns.w, { id: 'u_w', name: 'Waiting' }); }
+        b = sentLog.length; await fireHost('w', 'handout-want', 'from the waiting peer', { type: 'handout-want', campId: 'c1', ids: ['h_p1', 'h_p2'] }); const hw4 = hSent(b);
+        if (!conns.w.open) { conns.w = connect('peer_w'); hello(conns.w, { id: 'u_w', name: 'Waiting' }); }
+        b = sentLog.length; await fireHost('s', 'handout-want', 'from a stranger', { type: 'handout-want', campId: 'c1', ids: ['h_p1', 'h_p2'] }); const hw5 = hSent(b);
+        if (keepH === undefined) delete campHW.handouts; else campHW.handouts = keepH;
+        if (keepR === undefined) delete campHW.handoutReveals; else campHW.handoutReveals = keepR;
+        check('host: a player\'s handout-want (the review of multiplayer speed) sends again only the one handout the host showed that very player, once and to them alone; another player\'s, an id the world lacks, a prototype\'s key, another campaign, the waiting peer and a stranger send nothing to anyone',
+            JSON.stringify([hw1, hw2, hw3, hw4, hw5]) === JSON.stringify([['peer_p1:h_p1'], [], [], [], []]), [hw1, hw2, hw3, hw4, hw5]);
     }
     /* ---------- ordered scenarios on the host ---------- */
     function drainDialogs() { for (let n = 0; n < 60; n++) { const d = allConfirms.find(x => !x.answered); if (!d) return; d.answered = true; d.cb(false); flushTimers(); } }
@@ -2818,6 +2844,7 @@ function mutations(tpl) {
         'stance': { type: 'stance', flags: { elevation: true, posture: false }, camps: {}, campId: 'c1' },
         'travelLock': { type: 'travelLock', on: false }, 'travelDenied': { type: 'travelDenied', reason: 'closed', map: 'Cellar' },
         'handout': { type: 'handout', kind: 'text', text: 'note', title: 'T', caption: 'c', id: 'sh_1', campId: 'c1', gmId: 'u_gm', look: { fmt: { b: true }, font: 'Lora', sig: win.wpLook.textSig('note') } },   // item 35, fold 2b: a page may come with a look
+        'handout-have': { type: 'handout-have', campId: 'c1', gmId: 'u_gm', list: [{ id: 'h_1', s: 'a' }, { id: 'h_2', s: 'b' }] },   // 1.6.3 (the multiplayer review, finding 9): the host's list of the handouts it showed this player
         'notepad': { type: 'notepad', on: true, text: 'hi', campId: 'c1', gmId: 'u_gm', campaign: 'C', gm: 'GM', look: { fmt: { b: true, spans: [{ s: 0, e: 1, link: 'https://a.example/' }] }, font: 'Lora', sig: win.wpLook.textSig('hi') } },   // item 35, fold 3a: the pad may come with a look, so the seeded mutations reach its cleaner
         'combats': { type: 'combats', combats: { f_open0001: { id: 'f_open0001', mapId: 'm_open', round: 1, turn: 0, rows: [{ id: 'row_p1', name: 'Ayla', tokId: 'tok_p1' }, { id: 'row_npc', name: 'Orc', tokId: 'tok_npc' }] }, f_open0002: { id: 'f_open0002', mapId: 'm_open', round: 2, turn: 0, rows: [{ id: 'row_p2', name: 'Bram', tokId: 'tok_p2' }] } } },   // fold 2: two fights on one map, each by its own id
         'targets': { type: 'targets', targets: { u_p2: { id: 'tok_npc', mapId: 'm_open', name: 'Bram' } } },
@@ -2878,6 +2905,7 @@ function mutations(tpl) {
         'stage': () => campC().activeItemId === 'm_open' && rec.toasts.some(t => /arrive/.test(t)),
         'pause': () => cnet.paused === true, 'snap': () => cnet.tableSnapOn === true, 'stance': () => !!cnet.stance,
         'handout': () => rec.journal.length === 1, 'notepad': () => cnet.notepad && cnet.notepad.on === true && JSON.stringify(cnet.notepad.look) === JSON.stringify({ fmt: { b: true }, font: 'Lora', sig: win.wpLook.textSig('hi') }),   // (the look as the rule of the pad cleans it: its link is gone)
+        'handout-have': sent => rec.journal.length === 0 && JSON.stringify(sent.filter(m => m.type === 'handout-want').map(m => m.ids)) === JSON.stringify([['h_1', 'h_2']]),   // 1.6.3 (finding 9): one ask back and nothing written to the Journal
         'combats': () => !!cnet.combats.f_open0001 && cnet.combats.f_open0001.rows.length === 2 && !!cnet.combats.f_open0002 && cnet.combats.f_open0002.mapId === 'm_open' && cnet.combats.f_open0002.round === 2,
         'targets': () => cnet.targets.u_p2 && cnet.targets.u_p2.id === 'tok_npc',
         'pos': () => tokC('m_open', 'tok_p2').x === 200 && tokC('m_open', 'tok_p2').rot === 45,
@@ -2962,12 +2990,13 @@ function mutations(tpl) {
     }
 
     // 1. before the snapshot: the player's own campaign is in memory; the host (or a stale connection) names it
-    const preTypes = ['item', 'itemDelta', 'pos', 'stage', 'pause', 'handout', 'combats', 'targets', 'chat-history', 'notepad', 'denied', 'char-upload-done'];
+    const preTypes = ['item', 'itemDelta', 'pos', 'stage', 'pause', 'handout', 'handout-have', 'combats', 'targets', 'chat-history', 'notepad', 'denied', 'char-upload-done'];
     for (const k of preTypes) {
         const m = clone(ctpl[k]); const s = JSON.stringify(m).replace(/"c1"/g, '"camp_tutorial"').replace(/"m_open"/g, '"home"').replace(/"tok_p2"/g, '"mytok"');
         await fireClient('host', k + ' (pre-snapshot)', 'naming the player\'s own campaign', JSON.parse(s));
         await fireClient('stale', k + ' (pre-snapshot)', 'naming the player\'s own campaign', JSON.parse(s));
     }
+    check('client (the review of multiplayer speed): before the snapshot a host\'s handout-have asks the Journal nothing and is answered with no handout-want', !sentLog.some(s => s.m.type === 'handout-want') && rec.wants.length === 0);
     check('client: before the snapshot nothing from a host names or changes the player\'s own campaign in memory', !openFindings().some(f => /before the snapshot/.test(f.kind)), openFindings().filter(f => /before the snapshot/.test(f.kind)).map(f => f.detail).slice(0, 3));
     // the key challenge, before the snapshot (that is when a host asks). The app answers once per connection; the suite clears that mark
     // between probes so each is judged as the first challenge of a fresh connection
@@ -3053,6 +3082,15 @@ function mutations(tpl) {
         resetClient(); await fireClient('other', 'voice', 'from another host', clone(ctpl.voice)); const c3 = rec.voice.slice();
         resetClient(); await fireClient('host', 'voice-up@client', 'a player\'s word sent at the player', clone(ctpl['voice-up@client'])); const c4 = rec.voice.slice();
         check('client: voice chat\'s voice word reaches voice.js from the synced host alone; a stale connection\'s and another host\'s reach nothing, and a voice-up word sent at a player has no branch', JSON.stringify([c1, c2, c3, c4]) === JSON.stringify([['host:offer'], [], [], []]), [c1, c2, c3, c4]);
+    }
+    {   // the review of multiplayer speed (finding 9's two words): a host's handout-have is read from the synced host alone. It writes nothing to the Journal
+        // and is answered with one handout-want, to the synced host only; a stale connection's and another host's are read by nobody and answered by nothing
+        const wantsTo = b => sentLog.slice(b).filter(s => s.m.type === 'handout-want').map(s => s.to + ':' + JSON.stringify(s.m.ids));
+        resetClient(); let b = sentLog.length; await fireClient('host', 'handout-have', 'well-formed', clone(ctpl['handout-have'])); const hh1 = wantsTo(b), j1 = rec.journal.length;
+        resetClient(); b = sentLog.length; await fireClient('stale', 'handout-have', 'from a stale connection', clone(ctpl['handout-have'])); const hh2 = wantsTo(b), a2 = rec.wants.length;
+        resetClient(); b = sentLog.length; await fireClient('other', 'handout-have', 'from another host', clone(ctpl['handout-have'])); const hh3 = wantsTo(b), a3 = rec.wants.length;
+        check('client: a host\'s handout-have (the review of multiplayer speed) is answered with one handout-want to the synced host alone and writes nothing to the Journal; a stale connection\'s and another host\'s ask the Journal nothing and are answered by nothing',
+            JSON.stringify([hh1, j1, hh2, a2, hh3, a3]) === JSON.stringify([[hconn.peer + ':["h_1","h_2"]'], 0, [], 0, [], 0]), [hh1, j1, hh2, a2, hh3, a3]);
     }
     {   // the snapshot itself fuzzed (after the real one so the app stays synced)
         const muts = mutations(snapshotForClient).filter(m => !/appState=|\.campaigns/.test(m.name) || /appState=\{\}|appState=null|appState=\[\]/.test(m.name)).slice(0, 80);

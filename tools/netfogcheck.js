@@ -994,11 +994,11 @@ pendingChecks.push((async () => {
         const U = tgWorld(false), uR = closeTg(U, U.c1), uOut = { bc: U.bc, direct: U.net.conns.map(c => c.sent.filter(m => m.type === 'targets').length).join(''), renders: uR };
         check('fold M0: when a connection holding a target pointer closes on a fogged table (the close handler\'s statement, run for real with the real broadcastTargets and targetsFor), its pointer is gone and each admitted player gets the pointers they may see — Bo\'s holds neither Ana\'s pointer at the wolf he cannot see nor its id, Ana\'s holds her own and not Bo\'s at a token she cannot see, and nothing is broadcast to all; a waiting peer gets nothing; a closing peer who held no pointer sends nothing',
             tgLine.length > 0 && typeof F.api.targets === 'function' && typeof F.api.targetsFor === 'function'
-            && j(fOut) === j({ a1: [{ u_a: ptr.u_a }], a2: [{ u_a: ptr.u_a }], b1: [{ u_b: ptr.u_b }], w1: 0, c1: 0, bc: 0, left: ['u_a', 'u_b'], renders: 1 })
+            && j(fOut) === j({ a1: [{ u_a: ptr.u_a }], a2: [{ u_a: ptr.u_a }], b1: [{ u_b: ptr.u_b }], w1: 0, c1: 0, bc: 0, left: ['u_a', 'u_b'], renders: 0 })   // the review of multiplayer speed, a deliberate change of this pin: the pointer line draws nothing now; closeRun draws once, a moment later (netjoincheck holds that)
             && !/wolf/.test(j(F.b1.sent)) && !/"tB"/.test(j(F.a1.sent)) && !/"u_c"/.test(j(F.net.conns.map(c => c.sent)))
             && j(gOut) === j(['0000', 0, 0, ['u_a', 'u_b']]), j([tgLine.length, fOut, gOut]));
         check('fold M0: on a table without fog the same close sends the pointers as before — one broadcast of all of them that remain, the closed player\'s gone, and no per-player copy',
-            j(uOut) === j({ bc: [{ type: 'targets', targets: { u_a: ptr.u_a, u_b: ptr.u_b } }], direct: '0000', renders: 1 }), j(uOut));
+            j(uOut) === j({ bc: [{ type: 'targets', targets: { u_a: ptr.u_a, u_b: ptr.u_b } }], direct: '0000', renders: 0 }), j(uOut));   // the review of multiplayer speed: the same deliberate change, no draw in the close event
 
         // (b) the source: every pointer message outside broadcastTargets is a player's own copy (targetsFor); the combats slice defines it
         const btA = src.indexOf('function broadcastTargets() {'), btB = btA < 0 ? -1 : src.indexOf('\n}\n', btA), btSrc = btB < 0 ? '' : src.slice(btA, btB + 3);

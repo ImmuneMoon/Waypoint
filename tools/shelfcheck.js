@@ -1369,6 +1369,14 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const mj = read('scripts/mention.js'), PK = new Function(sliceOf(mj, 'mentionpick') + '\nreturn { mentionAll };')(), all = PK.mentionAll(camp).filter(x => x.kind === 'page');
     check('1.6.3 the @ list tells pages that share a title apart by the page each stands under (mentionAll, run for real), and draws it as a gray line of its own',
         J(all.map(x => [x.label, x.sub || ''])) === J([['Session 1', ''], ['Session 2', ''], ['Part 2b', 'in Session 1, played'], ['part 2B', 'in Session 2'], ['Alone', ''], ['Part 2b', 'at the top']]) && mj.includes("sb.className = 'mention-sub'; sb.textContent = r.sub;"), J(all));
+    // the review of pages cards: a long shared title cut the gray line off. Each now stands on a line of its own under the name, the name cut
+    // with its own ellipsis: the shelf's row a grid whose second line is the gray line under the name, the @ list's name a column of its label and line
+    const cssT = read('style.css'), rule = sel => { const i = cssT.indexOf('\n  ' + sel + ' {'); return i < 0 ? '' : cssT.slice(i, cssT.indexOf('}', i)); };
+    const open = rule('.page-shelf .ps-open'), nm = rule('.page-shelf .ps-name'), sub = rule('.page-shelf .ps-sub'), mn = rule('.mention-name'), mk = rule('.mention-name > span');
+    check('1.6.3 the gray line of a shared title stands on a line of its own under the name, so a long title never pushes it out (the review of pages cards): the shelf\'s row a grid of the drawing and the words, the gray line in the words\' column under the name, neither one shrinking the other; the @ list\'s name a column of its label and its line, each cut by its own ellipsis, the label its own element',
+        /display: grid; grid-template-columns: auto minmax\(0, 1fr\)/.test(open) && !/flex/.test(nm) && /white-space: nowrap/.test(nm) && /grid-column: 2;/.test(sub) && !/flex: 1 1 0/.test(sub)
+        && /display: flex; flex-direction: column;/.test(mn) && !/white-space: nowrap/.test(mn) && /text-overflow: ellipsis; white-space: nowrap;/.test(mk)
+        && mj.includes("lab.className = 'mention-label'; lab.textContent = r.label; n.appendChild(lab);") && !mj.includes("n.className = 'mention-name'; n.textContent = r.label;"), J([open, nm, sub, mn, mk]));
 }
 
 /* ---------- the CI file ---------- */

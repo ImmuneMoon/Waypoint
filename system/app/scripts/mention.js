@@ -60,7 +60,9 @@ function draw() {
     if (!st.rows.length) { var none = document.createElement('div'); none.className = 'mention-none'; none.textContent = 'Nothing here by that name'; m.appendChild(none); }
     st.rows.forEach(function(r, i) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'mention-row' + (i === st.i ? ' on' : ''); b.dataset.i = String(i); b.setAttribute('role', 'option'); b.setAttribute('aria-selected', i === st.i ? 'true' : 'false');
-        var n = document.createElement('span'); n.className = 'mention-name'; n.textContent = r.label; b.appendChild(n);
+        // the name and, under it on a line of its own, where a page of a shared title stands (finding 38): a long title is cut with its own
+        // ellipsis and can never push the gray line out of sight (the review of pages cards)
+        var n = document.createElement('span'); n.className = 'mention-name'; var lab = document.createElement('span'); lab.className = 'mention-label'; lab.textContent = r.label; n.appendChild(lab); b.appendChild(n);
         if (r.sub) { var sb = document.createElement('span'); sb.className = 'mention-sub'; sb.textContent = r.sub; n.appendChild(sb); }   // 1.6.3 (finding 38): where a page of a shared title stands
         var k = document.createElement('span'); k.className = 'mention-kind'; k.textContent = r.word; b.appendChild(k);
         m.appendChild(b);

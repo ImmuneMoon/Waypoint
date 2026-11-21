@@ -1187,6 +1187,14 @@ function pageHidBy(items, id) {
     }
     return null;
 }
+// The review of pages cards (2026-11-21): what to say when a page's own switch is turned on while a GM-only page above still keeps it from
+// the players, or '' where nothing above keeps it. named: true names the page itself (the tree's row), else it is "This page" (the editor).
+// Asked by planner.js's Players can read button and dialogs.js's Show to players row, after the switch is turned.
+function pageHidSays(items, id, named) {
+    var up = pageHidBy(items, id); if (!up) return '';
+    var me = items[id], t = function(it) { return String((it && it.meta && it.meta.title) || 'A page').slice(0, 80); };
+    return (named ? '\u201c' + t(me) + '\u201d has its own switch on' : 'This page\u2019s own switch is on') + ', but players get it only once \u201c' + t(up) + '\u201d is shared.';
+}
 function pageHid(items, id) {
     if (!items || typeof items !== 'object') return false;
     var seen = Object.create(null), cur = id, n = 0;
@@ -1223,6 +1231,6 @@ function diagramBad(root, gm, doc) {
     return n;
 }
 
-var API = { pageHidBy: pageHidBy, diagramBad: diagramBad, headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { pageHidBy: pageHidBy, pageHidSays: pageHidSays, diagramBad: diagramBad, headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { pageHidBy, diagramBad, DIAGRAM_BAD, plainLines, headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { pageHidBy, pageHidSays, diagramBad, DIAGRAM_BAD, plainLines, headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

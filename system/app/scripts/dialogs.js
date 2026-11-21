@@ -637,7 +637,8 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       var off = it.meta.players !== false;
       it.meta.players = !off;
       save(true); updateSidebarNav(); if (camp.activeItemId === it.id) render();   // hosting: the save takes the page, and every page under it, from the players or sends them (net.js pagesSync)
-      toast(off ? '\u201c' + (it.meta.title || 'Page') + '\u201d is GM only now.' : 'Players can read \u201c' + (it.meta.title || 'Page') + '\u201d.');
+      // the review of pages cards: where a GM-only page above still keeps this one, the word says so (docrender pageHidSays), never Players can read
+      toast(off ? '\u201c' + (it.meta.title || 'Page') + '\u201d is GM only now.' : (window.wpDocRender && window.wpDocRender.pageHidSays ? window.wpDocRender.pageHidSays(camp.items, it.id, true) : '') || 'Players can read \u201c' + (it.meta.title || 'Page') + '\u201d.');
   });
 
   // Pop a planner / handbook page open in a floating panel over the map (read-only + live) — reference it while playing.

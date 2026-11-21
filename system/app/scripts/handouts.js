@@ -1495,14 +1495,14 @@ window.wpHandoutName = function(src) { return niceName(src); };
 // it with its title box focused and its row lit, so the GM checks the words and shows it with the row's own Show to table or Give to. Nothing
 // is sent here. Answers the new handout's id, or '' where there is no campaign or no words.
 // [pagecheck:handouttext-start]
-window.wpHandoutText = function(title, text) {
+window.wpHandoutText = function(title, text, note) {   // note: a sentence more for the GM (what the block kept back), or none
     var camp = getActiveCampaign(); text = String(text || '').slice(0, 60000); if (!camp || !text.trim()) return '';
     var hs = handoutsOf(camp), id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     hs[id] = { id: id, kind: 'text', title: String(title || '').slice(0, 120) || 'Handout', caption: '', text: text, createdAt: Date.now() };
     save(true); openHandouts();
     var row = document.querySelector('.handout-row[data-id="' + id + '"]');
     if (row) { row.classList.add('handout-new'); try { row.scrollIntoView({ block: 'nearest' }); } catch (e) {} var tb = row.querySelector('.handout-title'); if (tb) { tb.focus(); tb.select(); } }
-    toast('Handout made from the block. Check its words, then show it to the table or give it to a player.');
+    toast('Handout made from the block. ' + (note ? String(note).slice(0, 200) + ' ' : '') + 'Check its words, then show it to the table or give it to a player.');
     return id;
 };
 // [pagecheck:handouttext-end]

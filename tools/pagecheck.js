@@ -1615,7 +1615,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const CC2 = await import(modUrl('cardcore.js'));
     // finding 17 (Fulllion, 2026-11-21): Hand out… on a text, callout or card block makes a text handout from its words
     {
-        const H = new Function('plainLines', 'CC', sl2('scripts/planner.js', 'handout') + '\nreturn { handoutOk, handoutOf };')(DR.plainLines, CC2);
+        const H = new Function('plainLines', 'proseHtml', 'CC', sl2('scripts/planner.js', 'handout') + '\nreturn { handoutOk, handoutOf };')(DR.plainLines, DR.proseHtml, CC2);
         const page = { meta: { title: 'Session &amp; Six' }, blocks: [
             { type: 'text', content: '<p>Before any heading.</p>' },
             { type: 'h2', title: 'The <b>letter</b>' },
@@ -1628,8 +1628,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const got = page.blocks.map((b, i) => H.handoutOf(page, i));
         check('1.6.3 Hand out… (planner.js handoutOk and handoutOf, run for real with docrender plainLines and the real cards): a text block becomes the words of the nearest heading above it, its paragraphs, line breaks and list items kept as plain lines, its tags gone and its entities read; one with no heading above takes the page\'s title; a person card takes its name and its lines by its kind\'s own words, each row a paragraph of "Column: words"; an untitled scene card is a Scene; a callout too; a plain table, a picture and a heading offer nothing',
             J(got) === J([{ title: 'Session & Six', text: 'Before any heading.' }, null, { title: 'The letter', text: 'Dear & friend,\n\nMeet me at dawn.\nK.\n\n• one\n• two' },
-                { title: 'Mira', text: 'Role: Smuggler\nWants: Passage\n\nIf asked about: The ship\nSays: It sails at dawn\nThe truth: It is stolen' }, null, { title: 'Scene', text: 'Action: Go' },
+                { title: 'Mira', text: 'Role: Smuggler\nWants: Passage\n\nIf asked about: The ship\nSays: It sails at dawn', left: 'The truth' }, null, { title: 'Scene', text: 'Action: Go' },
                 { title: 'The letter', text: 'Boxed words' }, null, null, { title: 'x', text: '' }]), J(got));
+        // the review of pages cards: the GM's own column stays out by its place whatever the card renames it, and a card's cells and a plain-text
+        // block keep their line breaks (before, every line break of a cell or of plain text became a space)
+        const page2 = { meta: { title: 'P' }, blocks: [
+            { type: 'node', mode: 'person', title: 'Vey', cols: ['Topic', 'Answer', 'Secret'], tag: 'Captain\nof the Gull', rows: [{ col1: 'Cargo', col2: 'Grain\n- and salt', col3: 'Guns' }, { col1: 'Crew', col2: 'Six' }] },
+            { type: 'node', mode: 'person', title: 'Only', rows: [{ col3: 'A spy' }] },
+            { type: 'node', mode: 'place', title: 'Dock', rows: [{ col1: 'Look', col2: 'Rope\nand tar' }] },
+            { type: 'text', content: 'First part\n\nSecond\nline' },
+            { type: 'callout', content: 'Line one\nLine two' }] };
+        const got2 = page2.blocks.map((b, i) => H.handoutOf(page2, i));
+        check('1.6.3 Hand out… keeps the GM\'s own column and keeps line breaks (the review of pages cards; planner.js handoutOf run for real): a person card\'s third column is left out by its place whatever the card calls it, and named as left; a card whose only words are in it hands out nothing and still names it; a place card keeps every column; a card\'s tag and cells keep each line break, a cell\'s list one item a line; a plain-text block keeps its paragraphs and line breaks as the page draws them, and a callout its line breaks',
+            J(got2) === J([{ title: 'Vey', text: 'Role: Captain\nof the Gull\n\nTopic: Cargo\nAnswer: Grain\n- and salt\n\nTopic: Crew\nAnswer: Six', left: 'Secret' },
+                { title: 'Only', text: '', left: 'The truth' }, { title: 'Dock', text: 'If they: Look\nThen: Rope\nand tar' },
+                { title: 'P', text: 'First part\n\nSecond\nline' }, { title: 'P', text: 'Line one\nLine two' }])
+            && read('scripts/planner.js').includes("window.wpHandoutText(ho.title, ho.text, hoNote)") && !/Secret|Guns|A spy/.test(J(got2.map(g => g.text))), J(got2));
         const camp = { handouts: {} }, row = { cls: [], classList: { add(c) { row.cls.push(c); } }, scrollIntoView() {}, querySelector: () => ({ focus() { row.focused = true; }, select() {} }) }, toasts = [];
         let saves = 0, opened = 0;
         const W = {};
@@ -1638,6 +1652,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.3 Hand out… makes the handout (handouts.js wpHandoutText, run for real): a text handout of this campaign with the title and words handed in, saved once, the Handouts window opened at its row with its title focused and the row marked, and a word that it is made; nothing is sent; words that are only spaces make none',
             /^h/.test(id) && J([h.kind, h.title, h.text, h.caption]) === J(['text', 'A letter', 'Dear friend', '']) && saves === 1 && opened === 1 && J(row.cls) === '["handout-new"]' && row.focused === true && toasts.length === 1 && none === '' && Object.keys(camp.handouts).length === 1
             && !/revealHandout|net\./.test(sl2('scripts/handouts.js', 'handouttext')) && /handoutOk\(b\) \? '<button type="button" class="tool ghost b-handout"/.test(read('scripts/planner.js')), J([id, h, saves, opened, row, toasts]));
+        const idN = W.wpHandoutText('Mira', 'Says: hi', 'The \u201cThe truth\u201d column was left out, since it is for you alone.');
+        check('1.6.3 Hand out… tells the GM what it kept back (the review of pages cards; handouts.js wpHandoutText run for real): the third word, a note, is said in the one notice beside the made word, and a handout with none says as before',
+            /^h/.test(idN) && toasts.length === 2 && toasts[1].includes('left out, since it is for you alone') && toasts[1].startsWith('Handout made from the block. ') && !/left out/.test(toasts[0]), J(toasts));
     }
 
     // finding 21: a diagram the library could not draw is one plain line for the GM and nothing for anyone else
@@ -1669,8 +1686,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const pl = read('scripts/planner.js'), sb = read('scripts/sidebar.js');
         check('1.6.3 a page under a GM-only page (docrender pageHidBy, run for real): it names the nearest page above that is GM only, for a page whose own switch lets players read, however deep; a page whose own switch is off, a page under no GM-only page, one under a planner, a loop, a page that is not there and a key a prototype holds name none; it agrees with pageHid on every page; the editor\'s button then says GM only and names that page, and the tree\'s row says Hide from players too',
             J(by) === J([null, 'Secrets', 'Secrets', null, null, null, null, null, null]) && agree && DR.pageHidBy(null, 'a') === null
-            && pl.includes("plBtnD.innerHTML = onP && !upP ? '<i class=\"wib wi-seen\"></i> Players can read' : '<i class=\"wib wi-unseen\"></i> GM only';") && pl.includes("plBtnD.classList.toggle('on', onP && !upP);")
+            && pl.includes("plBtnD.innerHTML = onP && !upP ? '<i class=\"wib wi-seen\"></i> Players can read' : upP ? '<i class=\"wib wi-unseen\"></i> Hidden by the page above' : '<i class=\"wib wi-unseen\"></i> GM only';") && pl.includes("plBtnD.classList.toggle('on', onP && !upP);")
             && sb.includes("upH ? '<i class=\"wib wi-unseen\"></i> Hide from players too'") && sb.includes("plBtn.removeAttribute('title'); plBtn.setAttribute('data-tip', upH"), J(by));
+        // the review of pages cards: a press that turns a page's own switch on while a GM-only page above still keeps it never says Players can read
+        const says = ['a', 'b', 'c', 'top', 'gone'].map(id => DR.pageHidSays(items, id)), saysN = DR.pageHidSays(items, 'c', true), dg = read('scripts/dialogs.js'), css26 = read('style.css');
+        check('1.6.3 a page under a GM-only page is said as such when its switch is turned on (the review of pages cards; docrender pageHidSays run for real): it says the page\'s own switch is on and names the page above, the tree\'s row naming the page itself; a page nothing above keeps says nothing; the editor\'s press and the tree\'s row both ask it before Players can read, and the editor\'s button reads Hidden by the page above with a dashed edge while a page above keeps it',
+            J(says) === J(['', 'This page\u2019s own switch is on, but players get it only once \u201cSecrets\u201d is shared.', 'This page\u2019s own switch is on, but players get it only once \u201cSecrets\u201d is shared.', '', ''])
+            && saysN === '\u201cA page\u201d has its own switch on, but players get it only once \u201cSecrets\u201d is shared.'
+            && pl.includes("window.wpDocRender.pageHidSays(campD.items, am.id) : '') || 'Players can read this page.');") && dg.includes("window.wpDocRender.pageHidSays(camp.items, it.id, true) : '') || 'Players can read \\u201c'")
+            && pl.includes("upP ? '<i class=\"wib wi-unseen\"></i> Hidden by the page above'") && pl.includes("plBtnD.classList.toggle('above', !!upP);") && css26.includes('#docPlayersBtn.above { border-style: dashed; }'), J([says, saysN]));
     }
 
     // finding 29 (Fulllion, 2026-11-21): Played and Found ticked on the card itself, in the GM's own reading views
@@ -1691,6 +1715,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /class="tool ghost pv-tick on"[^>]*data-say="Played" aria-pressed="true"/.test(h1) && J(steps) === J(['played', 'tonight', true, false]) && J(none) === '[false,false,false]'
             && J(found) === J([true, 'No id', null, null, null]) && pl.includes("html += cardTickHtml(b, kdP, activeMap.id, _bi, ccP);") && pl.includes("if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('click', pvTickGo);") && pl.includes("if (_el_docPanelBodyEl) _el_docPanelBodyEl.addEventListener('click', pvTickGo);")
             && css.includes('    .pv-ment::before, .pv-tick::before { content: attr(data-say); }'), J([h0, h1, steps, found]));
+        // the review of pages cards: two quick presses on a tick are no double-click on the card, which would leave the Read view for the editor
+        const D = new Function(sl2('scripts/planner.js', 'pvdbl') + '\nreturn pvDblSkip;')();
+        const tgt = sel => ({ closest: s => s.split(',').map(x => x.trim()).includes(sel) ? {} : null });
+        const dbl = [D(tgt('.pv-tick')), D(tgt('.pv-ment')), D(tgt('.pv-blk')), D(null), D({})];
+        check('1.6.3 a quick second press on a card\'s tick stays in the Read view (the review of pages cards; planner.js pvDblSkip run for real): a double-click on a tick or on Mentioned in is passed over, one on the card itself is not, and the Read view\'s double-click asks it first',
+            J(dbl) === '[true,true,false,false,false]' && /addEventListener\('dblclick', function\(e\) \{\r?\n      if \(pvDblSkip\(e\.target\)\) return;/.test(pl), J(dbl));
     }
 
     // finding 42: a new planner or page holds no words of the app's own

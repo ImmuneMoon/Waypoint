@@ -95,31 +95,44 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // 1.6.3 (the review of pages, finding 17; Fulllion, 2026-11-21: "Hand out… on a text, callout or card block, making a text handout through the
   // usual Show to picker"). handoutOk says which blocks offer it: a text block, either kind of callout, and a card (a node that is no plain table).
   // handoutOf(item, idx) answers { title, text } in plain words, read by docrender's plainLines, or null for a block that offers nothing. A text
-  // or a callout takes the title of the nearest heading above it, else the page's own. A card takes its own title (else its kind's word) and
-  // its lines by the names its kind gives them (Role, Wants, ...), then each row as "Column: words", a row to a paragraph. Nothing is sent: the
-  // GM sees the words in Handouts first, where a person card's The truth column can still be taken out.
+  // or a callout takes the title of the nearest heading above it, else the page's own, and its words are read as the page draws them
+  // (docrender's proseHtml first, so a plain-text block keeps its paragraphs and line breaks). A card takes its own title (else its kind's
+  // word) and its lines by the names its kind gives them (Role, Wants, ...), then each row as "Column: words", a row to a paragraph. A card's
+  // fields and cells are plain text whose line breaks carry meaning (a cell's list is one item a line), so each line break stays one.
+  // The review of pages cards (2026-11-21): a card kind's secret column (HO_SECRET, by its place, whatever the card renames it: a person
+  // card's third, The truth) is the GM's own and never goes into a handout. Where it held words the answer says so as left, the column's
+  // name, which the caller tells the GM. Nothing is sent: the GM sees the words in Handouts first.
   function handoutOk(b) { return !!b && typeof b === 'object' && (b.type === 'text' || b.type === 'callout' || b.type === 'flare' || (b.type === 'node' && b.mode !== 'table')); }
+  var HO_SECRET = { person: 2 };
   function handoutOf(item, idx) {
       var blocks = item && Array.isArray(item.blocks) ? item.blocks : [], b = blocks[idx];
       if (!handoutOk(b)) return null;
       var words = function(v) { return typeof v === 'string' ? plainLines(v) : ''; }, cap = function(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) : s; };
+      var lineWords = function(v) { return typeof v === 'string' ? plainLines(v.replace(/\r\n?/g, '\n').replace(/\n/g, '<br>')) : ''; };   // a plain field: every line break kept
       var pageTitle = words(item && item.meta && item.meta.title) || 'Handout';
       if (b.type !== 'node') {
           var head = '';
           for (var i = idx - 1; i >= 0 && !head; i--) { var hb = blocks[i]; if (hb && (hb.type === 'h1' || hb.type === 'h2' || hb.type === 'h3')) head = words(hb.title); }
-          return { title: cap(head || pageTitle, 120), text: cap(words(b.content), 60000) };
+          return { title: cap(head || pageTitle, 120), text: cap(words(proseHtml(typeof b.content === 'string' ? b.content : '', b.type)), 60000) };
       }
-      var kd = CC.kindOf(b), lines = [];
-      var tag = words(b.tag), must = words(b.must);
+      var kd = CC.kindOf(b), lines = [], left = '';
+      var tag = lineWords(b.tag), must = lineWords(b.must);
       if (tag) lines.push(kd.tag + ': ' + tag);
       if (must) lines.push(kd.must + ': ' + must);
       var cols = Array.isArray(b.cols) && b.cols.length ? b.cols.map(words) : kd.cols.slice();
+      var secret = Object.prototype.hasOwnProperty.call(HO_SECRET, kd.key) ? HO_SECRET[kd.key] : -1;
       var rows = (Array.isArray(b.rows) ? b.rows : []).map(function(r) {
           var cells = Array.isArray(r) ? r : cols.map(function(_, ci) { return r && typeof r === 'object' ? r['col' + (ci + 1)] : ''; });
-          return cells.map(function(c, ci) { var w = words(c); return w ? (cols[ci] ? cols[ci] + ': ' : '') + w : ''; }).filter(Boolean).join('\n');
+          return cells.map(function(c, ci) {
+              var w = lineWords(c);
+              if (ci === secret) { if (w) left = cols[ci] || kd.cols[ci] || 'The truth'; return ''; }   // the GM's own column stays out
+              return w ? (cols[ci] ? cols[ci] + ': ' : '') + w : '';
+          }).filter(Boolean).join('\n');
       }).filter(Boolean);
       var text = lines.join('\n') + (lines.length && rows.length ? '\n\n' : '') + rows.join('\n\n');
-      return { title: cap(words(b.title) || kd.word || 'Handout', 120), text: cap(text, 60000) };
+      var out = { title: cap(words(b.title) || kd.word || 'Handout', 120), text: cap(text, 60000) };
+      if (left) out.left = cap(left, 80);
+      return out;
   }
   // [pagecheck:handout-end]
   function pbeCap(t) { return '<div class="pbe-cap">' + esc(t) + '</div>'; }
@@ -2098,8 +2111,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           plBtnD.style.display = isDocEd ? '' : 'none';
           var onP = !(activeMap.meta && activeMap.meta.players === false);
           var campP = getActiveCampaign(), upP = onP && campP && window.wpDocRender && window.wpDocRender.pageHidBy ? window.wpDocRender.pageHidBy(campP.items, activeMap.id) : null;   // 1.6.3 (finding 26): a GM-only page above keeps this one from the players
-          plBtnD.innerHTML = onP && !upP ? '<i class="wib wi-seen"></i> Players can read' : '<i class="wib wi-unseen"></i> GM only';
-          plBtnD.classList.toggle('on', onP && !upP);
+          // the review of pages cards: a page whose own switch is on but a page above keeps it says so, so a press never seems to do nothing
+          plBtnD.innerHTML = onP && !upP ? '<i class="wib wi-seen"></i> Players can read' : upP ? '<i class="wib wi-unseen"></i> Hidden by the page above' : '<i class="wib wi-unseen"></i> GM only';
+          plBtnD.classList.toggle('on', onP && !upP); plBtnD.classList.toggle('above', !!upP);
           plBtnD.title = upP ? 'Players do not get this page, because the page it stands under, “' + String((upP.meta && upP.meta.title) || 'A page').slice(0, 80) + '”, is GM only. This page’s own switch lets them read it once that page is shared. Click to keep this page to yourself too.'
               : onP ? 'Players at your table receive this page and read it from their Handbook. Click to keep it to yourself.' : 'Only you see this page. Click to let players read it.';
       }
@@ -2456,8 +2470,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       Array.from(blockContainer.querySelectorAll('.b-handout')).forEach(el => el.addEventListener('click', function(e) {
           e.preventDefault(); e.stopPropagation();
           var ho = handoutOf(activeMap, +this.dataset.idx);
-          if (!ho || !ho.text) { toast('This block has no words to hand out yet.'); return; }
-          if (!(typeof window.wpHandoutText === 'function' && window.wpHandoutText(ho.title, ho.text))) toast('The handout could not be made.');
+          if (!ho || !ho.text) { toast(ho && ho.left ? 'Only the \u201c' + ho.left + '\u201d column has words, and it is kept for you, so there is nothing to hand out.' : 'This block has no words to hand out yet.'); return; }
+          var hoNote = ho.left ? 'The \u201c' + ho.left + '\u201d column was left out, since it is for you alone.' : '';   // the review of pages cards: the GM is told what was kept back
+          if (!(typeof window.wpHandoutText === 'function' && window.wpHandoutText(ho.title, ho.text, hoNote))) toast('The handout could not be made.');
       }));
       // 1.6.2 (the owner, 2026-11-14: "i dont see a way to exit editing the table"): Done closes the block open on the page, as Escape does
       Array.from(blockContainer.querySelectorAll('.pg-done')).forEach(el => el.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); pgClose(true); }));
@@ -3715,7 +3730,8 @@ if (_el_docPlayersBtn) _el_docPlayersBtn.addEventListener('click', function() {
     if (off) am.meta.players = false; else am.meta.players = true;
     var campD = getActiveCampaign();
     save(true); updateSidebarNav(); renderPlanner();   // hosting: the save takes the page, and every page under it, from the players or sends it (net.js pagesSync)
-    toast(off ? 'GM only. Players no longer receive this page.' : 'Players can read this page.');
+    // the review of pages cards: where a GM-only page above still keeps this one, the word says so (docrender pageHidSays), never Players can read
+    toast(off ? 'GM only. Players no longer receive this page.' : (campD && window.wpDocRender && window.wpDocRender.pageHidSays ? window.wpDocRender.pageHidSays(campD.items, am.id) : '') || 'Players can read this page.');
 });
 if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function() {
     plannerFullscreen = !plannerFullscreen;
@@ -3875,7 +3891,13 @@ if(_el_renderPlannerBtn) _el_renderPlannerBtn.addEventListener('click', function
       };
       window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
   });
+  // [pagecheck:pvdbl-start]
+  // The review of pages cards (2026-11-21): a quick second press on a card's Mark played or Mark found tick, or on its Mentioned in button,
+  // is no double-click on the card. The Read view's double-click below would otherwise leave it for the editor.
+  var pvDblSkip = function(t) { return !!(t && t.closest && t.closest('.pv-tick, .pv-ment')); };
+  // [pagecheck:pvdbl-end]
   if (_el_plannerPreviewEl) _el_plannerPreviewEl.addEventListener('dblclick', function(e) {
+      if (pvDblSkip(e.target)) return;
 
       var blk = e.target.closest('.pv-blk');
 

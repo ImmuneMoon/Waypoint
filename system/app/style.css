@@ -3170,6 +3170,10 @@
   .pbe-layer #plannerBlocks > .pbe-add, .pbe-layer #plannerBlocks + div { display: none !important; }   /* on the page the + stands between the drawn blocks */
   .pbe-layer .planner-block-edit { display: none; position: absolute; pointer-events: auto; margin: 0; box-shadow: 0 8px 26px rgba(0,0,0,.5); border-color: var(--gold); }
   .pbe-layer .planner-block-edit.pg-open { display: block; }
+  /* 1.6.3 (finding 41): a form's lists and boxes never stand past its edge, and a card's form spread across its row of cards keeps a list and its
+     words on one line inside it */
+  .pbe-layer .planner-block-edit select, .pbe-layer .planner-block-edit input { max-width: 100%; }
+  .pbe-layer .planner-block-edit .fc-opts label { max-width: 100%; min-width: 0; }
   .pbe-layer .planner-block-edit .rte-body { font-size: 14.5px; line-height: 1.6; }   /* words written on the page read at the page's size */
   /* 1.6.2 (the planner editor's sheet, "The form in the page's look"): a heading's box reads at the heading's own size, known by the box's own name */
   .pbe-layer .ts-box.b-title[data-placeholder="Title"] { font-size: 24px; font-weight: 600; line-height: 1.25; }

@@ -1430,9 +1430,11 @@
                                   <li>In Edit you write on the page itself. Press a block and its boxes open where it stands, in place of the block. A chart or a picture keeps its drawing in sight, with its boxes under it.</li>
                                   <li>Press another block to move on. <b>Done</b> at the top of the open block closes it, and so does <kbd>Esc</kbd>. Done stays in sight as you scroll a tall block. Tab reaches each block, and Enter opens it.</li>
                                   <li>A block that held words, once deleted, offers <b>Undo</b> for a few seconds.</li>
+                                  <li><b><i class="wib wi-dup"></i></b> at the top of an open block puts a copy of it right after it and opens the copy. In a row of cards, an open card&rsquo;s boxes spread across the whole row.</li>
                                   <li>Read shows the page as it reads. Side by side shows the editor beside the page, as before.</li>
                               </ul></li>
                           <li>Planners nest under planners just like maps, and <b>re-order</b> the same way. Drag onto the top or bottom of a row, or right-click &rarr; <b>&#8593; Move Up</b> / <b>&#8595; Move Down</b>. Keep one parent per module with a child page per scene.</li>
+                          <li>Right-click a planner or a page &rarr; <b><i class="wib wi-dup"></i> Duplicate</b> to make a copy of it right after it. The copy starts with no status. Anything nested under it stays with the original.</li>
                           <li>The toolbar&rsquo;s <b>Status&hellip;</b> list says where a scene stands. <b>Next</b> is the one you play next: the play map&rsquo;s right-click menu then offers it as <b>&#9654; Next scene</b>. A click there opens it over the map. <b>Played</b> and <b>Skipped</b> mark a scene done.</li>
                           <li><b>Cards</b>: a scene node&rsquo;s <b>Mode</b> list makes it a <b>Person</b>, a <b>Place</b> or a <b>Clue</b> card, or a plain table. Switching keeps every field.<ul>
                                   <li>Each kind names its fields its own way. A person has a Role, Wants and Where they are. A place has an Area and When they arrive. A clue has Points to and Where it can be found.</li>
@@ -1449,6 +1451,10 @@
                           <li><b>Lists in a cell</b>: a table cell can hold a list. Press <kbd>Enter</kbd> in a cell to start a new line. A line that starts with <code>- </code> or <code>&bull; </code> reads as an item of a bulleted list.<ul>
                                   <li>Or pick the lines and press <b>&bull; List</b> on the cell&rsquo;s style bar. Press it again to make them plain lines.</li>
                                   <li>The text keeps its looks line by line.</li>
+                              </ul></li>
+                          <li><b>Rows and columns at a place</b>: press a row&rsquo;s <b>&#8943;</b> button, or right-click a cell, to add a row above or below it or to move it up or down.<ul>
+                                  <li>Right-click a heading to add a column left or right of it, to move it, or to delete it.</li>
+                                  <li>Words, looks and merged cells move with their row or column.</li>
                               </ul></li>
                           <li><b>Merged cells</b>: right-click a cell of a table in the editor for <b>Merge with next</b> and <b>Unmerge</b>. A merged cell reads once across its columns.<ul>
                                   <li>The words of a cell it covers are kept out of sight. Unmerge shows them again.</li>
@@ -1615,7 +1621,7 @@
                           <li>Styling is kept in the campaign and in its export file, and in a <b>Markdown</b> file too. <b>Save Markdown</b> keeps text style and an import brings it back. Help &rsaquo; Handbook &rsaquo; Import and export says how it is written.</li>
                       </ul>
                       <h4>Import and export</h4>
-                      <p>A planner can come in from a <b>Markdown</b> file, with a preview of every block before anything is written. The <b>import</b> button in the planner toolbar appends to the open planner. The file button on the Planners header&rsquo;s right-click menu makes a new one. The header <b>Import</b> button takes a <code>.md</code> too. <code>### Scene: Name</code> opens a scene node. <b>Save Markdown</b> on the Export menu writes it back out. The format is under <b>Handbook &rsaquo; Import and export</b>.</p>
+                      <p>A planner can come in from a <b>Markdown</b> file, with a preview of every block before anything is written. The <b>import</b> button in the planner toolbar appends to the open planner. The file button on the Planners header&rsquo;s right-click menu makes a new one. The header <b>Import</b> button takes a <code>.md</code> too. <code>### Scene: Name</code> opens a scene node. <b>Export</b> beside Import writes it back out, and so does <b>Save Markdown</b> on the Export menu. The format is under <b>Handbook &rsaquo; Import and export</b>.</p>
                       <div class="help-tip">In multiplayer, planners are never sent to players: they are yours alone. For pages your players <i>can</i> read, see <b>Handbook</b>.</div>
                       <h4>Appearance</h4>
                       <p>The <b><i class="wib wi-palette"></i></b> button in the planner toolbar gives the open page an optional <b>font</b>, <b>text color</b>, <b>background color</b> and <b>background image</b>. Each is an override, so anything you leave alone keeps the app&rsquo;s own style, and <b>Reset</b> clears them.</p>
@@ -1700,7 +1706,7 @@
                           </li>
                           <li>Pictures come along when you pick them together with the file, or zip the file with its <code>images</code> folder. Google Docs&rsquo; <b>File &rsaquo; Download &rsaquo; Markdown</b> embeds them and works as is.</li>
                           <li>A preview lists every block first. Flip a type and untick what you don&rsquo;t want. Nothing is written until you press Import, and the import is one undo step.</li>
-                          <li><b>Save Markdown</b> on the Export menu writes the open planner or page back out, as a zip when it has pictures.</li>
+                          <li><b>Export</b> beside Import on the planner bar writes the open planner or page back out, as a zip when it has pictures. <b>Save Markdown</b> on the Export menu does the same.</li>
                           <li>Word users: export to Markdown first. Google Docs does it directly.</li>
                           <li><b>Text style</b> travels too. Save Markdown writes each look as its own mark.
                               <ul>
@@ -4418,6 +4424,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
       <select id="plannerStatus" class="tool" title="Where this scene stands: Next is the one you play next (it shows in the play-map right-click menu), Played and Skipped are done."><option value="">Status…</option><option value="next">Next</option><option value="played">Played</option><option value="skipped">Skipped</option></select>
       <button class="tool ghost" id="docPlayersBtn" style="display:none;" title="Whether players at your table receive this page"><i class="wib wi-seen"></i> Players can read</button>
       <span class="pg-pair"><button class="tool ghost icon" id="plannerImportBtn" title="Import a Markdown file (pick its pictures with it, or a zip of both) into this document" aria-label="Import document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM12 9.5v7.5M9 14l3 3 3-3"/></svg><span class="pg-word">Import</span></button>
+      <button class="tool ghost icon" id="plannerExportBtn" title="Export this document as a Markdown file, with its pictures in a zip when it has any. The same as Save Markdown on Export As." aria-label="Export document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"/></svg><span class="pg-word">Export</span></button>
       <button class="tool ghost icon" id="plannerAppearanceBtn" title="Appearance &mdash; font, colors &amp; a background image for this page, and a campaign-wide default" aria-label="Appearance"><i class="wib wi-palette"></i><span class="pg-word">Appearance</span></button></span>
     </span><span id="plannerFindWrap" title="Find in this planner — the exact phrase first, then each word at word starts; case and accents ignored. Enter / Shift+Enter jump between hits, Esc clears.">
         <button class="tool ghost" id="plannerOutlineBtn" title="Outline: the headings of this page. Click one to jump to it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M8 12h12M12 18h8"/></svg> Outline</button>
@@ -5909,6 +5916,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-item" id="ctxNewParentItem" style="padding:8px 16px; cursor:pointer;" title="A new map that wraps this one: this map moves under it, and the new map gets a portal node leading here">&#8593; New Parent Map</div>
     <div class="menu-item" id="ctxNewChildItem" style="padding:8px 16px; cursor:pointer;">+ New Child Map</div>
     <div class="menu-item" id="ctxRenameItem" style="padding:8px 16px; cursor:pointer;">Rename</div>
+    <div class="menu-item ctx-docwin-only" id="ctxDuplicateItem" style="padding:8px 16px; cursor:pointer;" title="Make a copy of this planner or page, every block in it, right after it in the list. Anything nested under it stays with the original."><i class="wib wi-dup"></i> Duplicate</div>
     <div class="menu-item ctx-move" id="ctxMoveUp" style="padding:8px 16px; cursor:pointer;" title="Move this above the row before it, among its siblings. Anything nested under it comes along.">&#8593; Move Up</div>
     <div class="menu-item ctx-move" id="ctxMoveDown" style="padding:8px 16px; cursor:pointer;" title="Move this below the row after it, among its siblings. Anything nested under it comes along.">&#8595; Move Down</div>
     <div class="menu-divider ctx-planner-only" style="height:1px; background:var(--border); margin:4px 0;"></div>

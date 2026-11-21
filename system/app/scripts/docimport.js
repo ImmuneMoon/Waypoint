@@ -239,6 +239,9 @@ var b1 = ui('plannerImportBtn'); if (b1) b1.addEventListener('click', function()
 var b2 = ui('plannerFromFileBtn'); if (b2) b2.addEventListener('click', function() { openImport({ kind: 'planner', mode: 'new' }); });
 var b3 = ui('docFromFileBtn'); if (b3) b3.addEventListener('click', function() { openImport({ kind: 'doc', mode: 'new' }); });
 var b4 = ui('exportMdBtn'); if (b4) b4.addEventListener('click', function() { exportMarkdown(); });
+// 1.6.3 (the improvement week's review of pages and planners, finding 47; the owner, 2026-11-21): Export beside Import on the planner bar, the
+// same one way out as Save Markdown on Export As
+var b5 = ui('plannerExportBtn'); if (b5) b5.addEventListener('click', function() { exportMarkdown(); });
 var b5 = ui('helpMdTemplateBtn'); if (b5) b5.addEventListener('click', function() { downloadBlob('handbook-template.md', new Blob([TEMPLATE], { type: 'text/markdown' })); toast('Template saved.'); });
 var goBtn = ui('docImportGo'); if (goBtn) goBtn.addEventListener('click', function() { doImport(); });
 var cancelBtn = ui('docImportCancel'); if (cancelBtn) cancelBtn.addEventListener('click', closeDialog);

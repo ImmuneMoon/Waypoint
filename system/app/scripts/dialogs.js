@@ -30,7 +30,7 @@ var wb = document.getElementById('whiteboard');
 
 import { state, dom } from './state.js';
 
-import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, createNewDoc, isTreeItem, getActiveCampaign, getActiveMap, applyMapStart } from './models.js';
+import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, createNewDoc, isTreeItem, getActiveCampaign, getActiveMap, applyMapStart, getMapChildren, getMapParentId } from './models.js';
 
 import { load, updateUndoBtn, pushHistory, undo, save, download, getBase64Image, resetHistory, takeSafetyCopy } from './io.js';
 
@@ -625,6 +625,48 @@ if(_el_ctxRenameItem) _el_ctxRenameItem.addEventListener('click', function() {
       });
   });
   
+
+  // [pagecheck:dupitem-start]
+  /* Duplicate a planner or a page (1.6.3, the improvement week's review of pages and planners, finding 19; the owner, 2026-11-21: Duplicate on
+     a planner's or a page's row menu). dupItem makes a copy of the item with every block under a new id, so a link names one page's block or
+     the other's, never both, and stands it in the tree right after the original among the same siblings. The copy starts with no Next,
+     Played or Skipped mark, since only one planner is Next at a time and a copy of last session's planner is next session's. Anything nested
+     under the original stays with it. camp: the campaign; id: the item's id; title: the copy's title; sibs: the original's siblings in the
+     tree's order, the original among them (models.js getMapChildren); newId(type) a fresh item id; blockId() a fresh block id. It changes
+     camp.items and the siblings' order and answers the copy, or null where the item is no planner or page */
+  function dupItem(camp, id, title, sibs, newId, blockId) {
+      var own = function(o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, k); };
+      var it = camp && own(camp.items, id) ? camp.items[id] : null;
+      if (!it || (it.type !== 'planner' && it.type !== 'doc') || !Array.isArray(it.blocks)) return null;
+      var nid = newId(it.type), tries = 0;
+      while (own(camp.items, nid) && tries++ < 50) nid = newId(it.type);
+      if (own(camp.items, nid)) return null;
+      var c = JSON.parse(JSON.stringify(it));
+      c.id = nid; c.meta = c.meta && typeof c.meta === 'object' && !Array.isArray(c.meta) ? c.meta : {};
+      c.meta.title = title; c.meta.updated = Date.now(); delete c.meta.status; delete c.meta.collapsed;
+      c.blocks.forEach(function(b) { if (b && typeof b === 'object' && typeof b.id === 'string') b.id = blockId(); });
+      camp.items[nid] = c;
+      var list = (Array.isArray(sibs) ? sibs : []).filter(function(x) { return x !== c; }), at = list.indexOf(it);
+      list.splice(at < 0 ? list.length : at + 1, 0, c);
+      list.forEach(function(s, i) { if (s && s.meta) s.meta.sortIndex = (i + 1) * 10; });
+      return c;
+  }
+  // [pagecheck:dupitem-end]
+  var _el_ctxDuplicateItem = document.getElementById('ctxDuplicateItem');
+  if (_el_ctxDuplicateItem) _el_ctxDuplicateItem.addEventListener('click', function() {
+      var menu = document.getElementById('sidebarContextMenu'); if (menu) menu.style.display = 'none';
+      var camp = getActiveCampaign(), id = menu && menu.dataset.id, it = camp && id ? camp.items[id] : null;
+      if (!it || (it.type !== 'planner' && it.type !== 'doc') || !window.wpCanPersistLocal || !window.wpCanPersistLocal()) return;   // a received copy is never changed
+      var title = getUniqueItemTitle(String((it.meta && it.meta.title) || (it.type === 'doc' ? 'Page' : 'Planner')) + ' (copy)', null);
+      var made = dupItem(camp, id, title, getMapChildren(camp, getMapParentId(camp, it), it.type),
+          function(type) { return (type === 'doc' ? 'doc_' : 'plan_') + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
+          function() { return 'b_' + Math.random().toString(36).slice(2, 8); });
+      if (!made) { toast('That could not be copied.'); return; }
+      camp.activeItemId = made.id;
+      state.selId = null; state.selWbId = null; state.linkStart = null;
+      updateSidebarNav(); render(); save(true);
+      toast('\u201c' + title + '\u201d is a copy. Anything nested under the original stays with it.');
+  });
 
   // Handbook page: the players switch from the tree (the same flip as #docPlayersBtn in the editor).
   // Off while hosting removes the page from every player now; on sends it straight away.

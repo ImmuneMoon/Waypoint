@@ -336,6 +336,18 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // ▲, ▼ and ✕ (1.6.2, found by hand): the open form goes with the block it was open on, and the focus stays on the arrow pressed
   function pgMoved(from, to) { if (_pg.open === from) _pg.open = to; else if (_pg.open === to) _pg.open = from; }
   function pgDropped(i) { if (_pg.open === i) _pg.open = -1; else if (_pg.open > i) _pg.open--; }
+  // [pagecheck:blkdup-start]
+  // A block's copy (1.6.3, the improvement week's review of pages and planners, finding 19; the owner, 2026-11-21: Duplicate for a block).
+  // Every word, look and setting of the block, as a copy nothing else holds, under a new id when the block has one, so a link or the
+  // Outline names one block or the other and never both. id: the new block id the caller made. The block's Duplicate button puts the copy
+  // right after the block and opens it
+  function blockCopy(b, id) {
+      if (!b || typeof b !== 'object') return null;
+      var c = JSON.parse(JSON.stringify(b));
+      if (typeof b.id === 'string' || typeof id === 'string') c.id = id;
+      return c;
+  }
+  // [pagecheck:blkdup-end]
   // 1.6.2 (the planner editor's sheet): a block that holds words, read as text; its kind, id, look and links are no words
   function blockWords(b, d) { if (typeof b === 'string') return /\S/.test(b.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')); if (!b || typeof b !== 'object' || (d || 0) > 6) return false;
       return Object.keys(b).some(function(k) { return !/^(type|id|style|fmt|fmts|colFmt|align|layout|color|src|look|width|height|link|linkMapId|at|blk|kind|cls|size|font)$/.test(k) && blockWords(b[k], (d || 0) + 1); }); }
@@ -360,7 +372,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var E = pgEls(); if (!E.ed || !E.pv) return;
       Array.prototype.forEach.call(E.pv.querySelectorAll('.pg-room'), function(f) { f.classList.remove('pg-room', 'pg-hid'); f.style.minHeight = ''; f.style.marginBottom = ''; f.style.marginTop = ''; });
       var forms = E.ed.querySelectorAll('.planner-block-edit');
-      Array.prototype.forEach.call(forms, function(f) { var on = pgOn() && Number(f.getAttribute('data-idx')) === _pg.open; f.classList.toggle('pg-open', on); if (!on) { f.style.top = ''; f.style.left = ''; f.style.width = ''; } });
+      Array.prototype.forEach.call(forms, function(f) { var on = pgOn() && Number(f.getAttribute('data-idx')) === _pg.open; f.classList.toggle('pg-open', on); if (!on) { f.style.top = ''; f.style.left = ''; f.style.width = ''; f.classList.remove('pg-wide'); } });
       if (!pgOn() || _pg.open < 0) return;
       var form = E.ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]'), am = getActiveMap(), b = am && am.blocks ? am.blocks[_pg.open] : null;
       if (!form || !b) { _pg.open = -1; return; }
@@ -368,7 +380,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!anchor) { for (var k = _pg.open + 1; k < am.blocks.length && !anchor; k++) anchor = pgFace(E.pv, k); }
       var pr = E.pw.getBoundingClientRect(), r = (anchor || E.pv).getBoundingClientRect(), base = E.pw.scrollTop - pr.top;
       var top = anchor ? (face && under ? r.bottom + 6 : r.top) : r.bottom;
-      var fw = Math.round(Math.max(300, r.width)), fl = Math.round(r.left - pr.left), pvr = E.pv.getBoundingClientRect(), flMax = Math.round(pvr.right - pr.left) - fw;
+      var fw = Math.round(Math.max(300, r.width)), fl = Math.round(r.left - pr.left), pvr = E.pv.getBoundingClientRect();
+      // 1.6.3 (the improvement week's review of pages and planners, finding 41; the owner, 2026-11-21): a card being edited in a row of cards
+      // spreads its form across the whole row, so its lists have room, and the form goes back to the card's own cell when it is closed. The
+      // form lies over the other cards of that line while it is open. A block that takes the whole row already has its width
+      var cardRow = pgCardRow(face);
+      if (cardRow) { var crr = cardRow.getBoundingClientRect(); fw = Math.round(crr.width); fl = Math.round(crr.left - pr.left); }
+      form.classList.toggle('pg-wide', !!cardRow);
+      var flMax = Math.round(pvr.right - pr.left) - fw;
       if (fl > flMax) fl = Math.max(Math.round(pvr.left - pr.left), flMax);   // 1.6.2 (backlog 107 (a)): a card in a right-hand column of a row of cards is narrower than the form, which then stays inside the page
       form.style.top = Math.round(top + base) + 'px'; form.style.left = fl + 'px'; form.style.width = fw + 'px';
       var fbar = document.getElementById('plannerFindBar'), fbh = fbar && fbar.parentNode === E.pw ? Math.round(fbar.getBoundingClientRect().height) : 0;
@@ -378,6 +397,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       else if (face) { face.classList.add('pg-room'); face.style.marginBottom = (h + 14) + 'px'; }
       else if (anchor) { anchor.classList.add('pg-room'); anchor.style.marginTop = (h + 14) + 'px'; }
   }
+  // The row of cards a drawn block stands in as one card (backlog 107 (a): .pv-cards), or null for a block outside one or one that takes the
+  // whole row (pv-wide)
+  function pgCardRow(face) { var p = face && face.parentNode; return p && p.classList && p.classList.contains('pv-cards') && !(face.classList && face.classList.contains('pv-wide')) ? p : null; }
   function pgPlaceSoon() { if (_pg.raf) return; _pg.raf = requestAnimationFrame(function() { _pg.raf = 0; pgPlace(); }); }
   function pgFocus(i) {
       var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + i + '"]') : null; if (!form) return;
@@ -517,6 +539,88 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       for (var c = ci + k; c < ci + k + kn && c < n; c++) { var w = String(r['col' + (c + 1)] || '').trim(); if (w && w !== own) return true; }
       return false;
   }
+  /* 1.6.3 (the improvement week's review of pages and planners, finding 15; the owner, 2026-11-21: rows above and below, moving rows, and
+     columns at a place, with merges and looks moving with them). A row put in above or below another, or moved one place up or down, takes
+     its merges, its full-width mark and its looks with it, since they are kept on the row. A column put in at a place, taken out, or moved one
+     place left or right moves every row's words, looks and merges with it, and the heading's words, look and merge, as a spreadsheet does: a
+     merge the new column lands inside grows by one, a merge that loses a column shrinks by one, and a move that would split a merge is
+     refused. A full-width row keeps its sub-heading in its first cell: a column put in or taken out at the first place does it at the second
+     place on that row, and a move leaves its words alone. Each function changes the block only and answers true where it changed, or for a
+     move the word 'split' where a merge stands in the way; tbMenuFor's rows press them, then one save and the editor drawn again. Asked
+     through typeof where they need the fields slice (tsRowsAsObjects, TABLE_COLS), since a suite runs this slice alone. */
+  var TB_ROWS = 500;   // the rows a table may hold: docrender LIMITS.rows, the same figure the big table's window keeps to (tbEditOk)
+  function tbRowsOk(b) { if (!b || typeof b !== 'object' || !Array.isArray(b.rows)) return false; if (typeof tsRowsAsObjects === 'function') tsRowsAsObjects(b); return true; }
+  // A new empty row put in at a place (0 is above the first row, rows.length below the last)
+  function tbRowAt(b, at) { if (!tbRowsOk(b) || !(at >= 0 && at <= b.rows.length) || b.rows.length >= TB_ROWS) return false; b.rows.splice(at, 0, {}); return true; }
+  // A row moved one place: dir -1 up, 1 down. The two rows change places whole
+  function tbRowMove(b, ri, dir) {
+      if (!tbRowsOk(b)) return false; var to = ri + dir;
+      if (!(ri >= 0 && ri < b.rows.length && to >= 0 && to < b.rows.length)) return false;
+      var t = b.rows[ri]; b.rows[ri] = b.rows[to]; b.rows[to] = t; return true;
+  }
+  // A line of cells (a row, or the heading row) as groups: where each cell begins (s) and how many columns it takes (k). spans is rowJoin's or
+  // headJoin's answer, null where every cell takes one column
+  function tbGroups(spans, n) { var g = []; for (var c = 0; c < n; c++) { var k = spans ? spans[c] : 1; if (k > 0) g.push({ s: c, k: k }); } return g; }
+  // The merges a line's groups make, keyed as the block keeps them ({ col2: 2 })
+  function tbGroupsMerge(g) { var m = {}; g.forEach(function(x) { if (x.k > 1) m['col' + (x.s + 1)] = x.k; }); return m; }
+  // One line after a column op: { groups, map }, where map(K) says which column number K's words go to (0: they go with the column) and is null
+  // where the words stay as they are; null where a move would split a merge. op 'add' puts a column in at a (0 to n), 'del' takes column a out,
+  // 'swap' gives columns a and a + 1 each other's place
+  function tbLineOp(g, op, a) {
+      if (op === 'add') return { groups: g.map(function(x) { return x.s >= a ? { s: x.s + 1, k: x.k } : x.s + x.k > a ? { s: x.s, k: x.k + 1 } : { s: x.s, k: x.k }; }), map: function(K) { return K > a ? K + 1 : K; } };
+      if (op === 'del') return { groups: g.map(function(x) { return x.s > a ? { s: x.s - 1, k: x.k } : x.s + x.k > a ? { s: x.s, k: x.k - 1 } : { s: x.s, k: x.k }; }).filter(function(x) { return x.k > 0; }), map: function(K) { return K === a + 1 ? 0 : K > a + 1 ? K - 1 : K; } };
+      var ga = null, gb = null; g.forEach(function(x) { if (x.s <= a && a < x.s + x.k) ga = x; if (x.s <= a + 1 && a + 1 < x.s + x.k) gb = x; });
+      if (ga && ga === gb) return { groups: g, map: null };   // both columns lie under one merged cell: it reads across both as it did
+      if ((ga && ga.k > 1) || (gb && gb.k > 1)) return null;
+      return { groups: g, map: function(K) { return K === a + 1 ? a + 2 : K === a + 2 ? a + 1 : K; } };
+  }
+  // Every colK key of an object (a row's words, its looks) moved by map: the column keys first, in order, then the object's other keys as they were
+  function tbRekey(o, map) {
+      if (!o || typeof o !== 'object' || Array.isArray(o) || !map) return;
+      var cols = [], rest = [];
+      Object.keys(o).forEach(function(k) { var m = /^col([1-9]\d{0,2})$/.exec(k); if (m) { var to = map(+m[1]); if (to) cols.push([to, o[k]]); } else rest.push([k, o[k]]); delete o[k]; });
+      cols.sort(function(x, y) { return x[0] - y[0]; }).forEach(function(e) { o['col' + e[0]] = e[1]; });
+      rest.forEach(function(e) { o[e[0]] = e[1]; });
+  }
+  // A column op on the whole table: op 'add' (a from 0 to the count), 'del' or 'swap' (a and a + 1). True where it changed; 'split' where a move
+  // would split a merged cell or heading, with nothing changed
+  function tbColOp(b, op, a) {
+      if (!tbRowsOk(b)) return false;
+      var n = tbCols(b), most = typeof TABLE_COLS === 'number' ? TABLE_COLS : 64;
+      if (op === 'add' ? !(a >= 0 && a <= n) || n >= most : op === 'del' ? !(a >= 0 && a < n) || n <= 1 : op === 'swap' ? !(a >= 0 && a + 1 < n) : true) return false;
+      // each line worked out first, so a move a merge stands in the way of changes nothing at all
+      var head = tbLineOp(tbGroups(headJoin(b, n), n), op, a); if (!head) return 'split';
+      var lines = [];
+      for (var ri = 0; ri < b.rows.length; ri++) {
+          var r = b.rows[ri]; if (!r || typeof r !== 'object' || Array.isArray(r)) { lines.push(null); continue; }
+          var j = rowJoin(b, ri, n);
+          if (j.full) {   // a full-width row: its sub-heading stays in the first cell, and the merges it keeps for later follow the column
+              var kept = r.merge && typeof r.merge === 'object' && !Array.isArray(r.merge) ? rowJoin({ rows: [{ merge: r.merge }] }, 0, n).spans : null;
+              var lf = op === 'swap' ? null : tbLineOp(tbGroups(kept, n), op, Math.max(a, 1));
+              lines.push(lf ? { full: true, groups: lf.groups, map: lf.map } : { full: true, groups: tbGroups(kept, n), map: null });
+          } else { var l = tbLineOp(tbGroups(j.spans, n), op, a); if (!l) return 'split'; lines.push(l); }
+      }
+      var nn = op === 'add' ? n + 1 : op === 'del' ? n - 1 : n;
+      tsOwnCols(b);
+      // the headings and their looks: a new one is named New column; a heading's merge from its groups
+      var hc = b.cols.slice(0, n), hf = Array.isArray(b.colFmt) ? b.colFmt.slice(0, n) : null;
+      if (hf) while (hf.length < n) hf.push(null);
+      if (op === 'add') { hc.splice(a, 0, 'New column'); if (hf) hf.splice(a, 0, null); }
+      else if (op === 'del') { hc.splice(a, 1); if (hf) hf.splice(a, 1); }
+      else if (head.map) { var t = hc[a]; hc[a] = hc[a + 1]; hc[a + 1] = t; if (hf) { var tf = hf[a]; hf[a] = hf[a + 1]; hf[a + 1] = tf; } }
+      b.cols = hc;
+      if (hf) { while (hf.length && !hf[hf.length - 1]) hf.pop(); if (hf.length) b.colFmt = hf; else delete b.colFmt; }
+      var hm = tbGroupsMerge(head.groups); if (Object.keys(hm).length) b.headMerge = hm; else delete b.headMerge;
+      cleanHeadJoin(b, nn);
+      // every row: its words and looks by column, and its merges from its groups
+      lines.forEach(function(l, ri) {
+          if (!l) return; var r = b.rows[ri];
+          tbRekey(r, l.map); if (r.fmt) { tbRekey(r.fmt, l.map); if (r.fmt && typeof r.fmt === 'object' && !Object.keys(r.fmt).length) delete r.fmt; }   // a look that went with its column leaves no empty record
+          var m = tbGroupsMerge(l.groups); if (Object.keys(m).length) r.merge = m; else delete r.merge;
+          cleanRowJoin(b, ri, nn);
+      });
+      return true;
+  }
   var tbMenuEl = null;
   function tbMenuAway() { if (tbMenuEl) { tbMenuEl.style.display = 'none'; var back = tbMenuEl._back; tbMenuEl._back = null; if (back && back.isConnected && tbMenuEl.contains(document.activeElement)) try { back.focus(); } catch (e) {} } }
   // The menu for a row (ci -1: its ⋯ button) or for a cell and its row (a right-click on the cell), at x, y in the window. from: what opened it,
@@ -531,10 +635,14 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var bt = e.target && e.target.closest ? e.target.closest('button') : null; if (!bt || bt.disabled) return;
               var at = tbMenuEl._at, am2 = getActiveMap(), b2 = am2 && Array.isArray(am2.blocks) ? am2.blocks[at.idx] : null; tbMenuAway(); if (!b2) return;
               var act = bt.dataset.act, hides = (act === 'merge' && tbHides(b2, at.ri, at.ci)) || (act === 'hmerge' && tbHeadHides(b2, at.ci));
-              var did = act === 'merge' ? tbMerge(b2, at.ri, at.ci) : act === 'unmerge' ? tbUnmerge(b2, at.ri, at.ci) : act === 'full' ? tbFull(b2, at.ri) : act === 'hmerge' ? tbHeadMerge(b2, at.ci) : act === 'hunmerge' ? tbHeadUnmerge(b2, at.ci) : false;
+              var did = act === 'merge' ? tbMerge(b2, at.ri, at.ci) : act === 'unmerge' ? tbUnmerge(b2, at.ri, at.ci) : act === 'full' ? tbFull(b2, at.ri) : act === 'hmerge' ? tbHeadMerge(b2, at.ci) : act === 'hunmerge' ? tbHeadUnmerge(b2, at.ci)
+                  : act === 'rabove' ? tbRowAt(b2, at.ri) : act === 'rbelow' ? tbRowAt(b2, at.ri + 1) : act === 'rup' ? tbRowMove(b2, at.ri, -1) : act === 'rdown' ? tbRowMove(b2, at.ri, 1)   // 1.6.3 (finding 15): rows and columns at a place
+                  : act === 'cleft' ? tbColOp(b2, 'add', at.ci) : act === 'cright' ? tbColOp(b2, 'add', at.ci + at.k) : act === 'cmleft' ? tbColOp(b2, 'swap', at.ci - 1) : act === 'cmright' ? tbColOp(b2, 'swap', at.ci) : act === 'cdel' ? tbColOp(b2, 'del', at.ci) : false;
+              if (did === 'split') { toast('A merged cell joins this column to the one beside it. Unmerge it first, then move the column.'); return; }
               if (!did) return;
               save(true); renderPlanner();
               if (hides) toast('The words of the cell it now covers are kept out of sight. Unmerge shows them again.');
+              if (act === 'cdel') toast('Column deleted. Undo brings it back.');
           });
           // up and down move between the items; Escape puts the menu away and gives the focus back to the cell. The menu owns its Escape, as
           // the Outline's does: esckey.js stands aside while it shows (ESC_OWN_MENUS), so a floating box up on this view is not shut in its place
@@ -550,15 +658,30 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && tbMenuEl.style.display !== 'none') tbMenuAway(); });
       }
       var n = tbCols(b), j = head ? { full: false, spans: headJoin(b, n) } : rowJoin(b, ri, n), k = ci >= 0 && j.spans ? j.spans[ci] : 1, rows = [];
-      if (head) {   // a heading's menu: its merge alone
+      if (head) {   // a heading's menu: its merge, then its column put in, moved or taken out (1.6.3, finding 15)
           rows.push({ act: 'hmerge', text: 'Merge with next', title: 'This heading stands over the next column too, as one heading over sub-labels', off: ci + k >= n });
           rows.push({ act: 'hunmerge', text: 'Unmerge', title: 'Every column this heading spans has a heading of its own again, with the words it had', off: !(k > 1) });
+          var most = typeof TABLE_COLS === 'number' ? TABLE_COLS : 64;
+          rows.push({ rule: true });
+          rows.push({ act: 'cleft', text: 'Add a column left', title: 'Put a new empty column in before this one', off: n >= most });
+          rows.push({ act: 'cright', text: 'Add a column right', title: 'Put a new empty column in after this one', off: n >= most });
+          rows.push({ act: 'cmleft', text: 'Move column left', title: 'This column changes places with the one before it, with its words and looks', off: k > 1 || ci <= 0 });
+          rows.push({ act: 'cmright', text: 'Move column right', title: 'This column changes places with the one after it, with its words and looks', off: k > 1 || ci + 1 >= n });
+          rows.push({ act: 'cdel', text: 'Delete this column', title: 'Take this column out of the table, its heading and every cell in it', off: n <= 1 });
       } else if (ci >= 0) {
           rows.push({ act: 'merge', text: 'Merge with next', title: 'This cell takes the next column too, and reads once across both', off: j.full || ci + k >= n });
           rows.push({ act: 'unmerge', text: 'Unmerge', title: 'Every column this cell spans is a cell of its own again, with the words it had', off: j.full || !(k > 1) });
           rows.push({ rule: true });
       }
-      if (!head) rows.push({ act: 'full', text: 'Full-width row', title: 'The row\u2019s first cell runs across the whole table, as a sub-heading between the rows', tick: j.full });
+      if (!head) {
+          rows.push({ act: 'full', text: 'Full-width row', title: 'The row\u2019s first cell runs across the whole table, as a sub-heading between the rows', tick: j.full });
+          // 1.6.3 (finding 15): a row put in above or below this one, or this row moved, with its merges and looks
+          rows.push({ rule: true });
+          rows.push({ act: 'rabove', text: 'Add a row above', title: 'Put a new empty row in above this one', off: b.rows.length >= TB_ROWS });
+          rows.push({ act: 'rbelow', text: 'Add a row below', title: 'Put a new empty row in below this one', off: b.rows.length >= TB_ROWS });
+          rows.push({ act: 'rup', text: 'Move row up', title: 'This row changes places with the one above it', off: ri <= 0 });
+          rows.push({ act: 'rdown', text: 'Move row down', title: 'This row changes places with the one below it', off: ri >= b.rows.length - 1 });
+      }
       while (tbMenuEl.firstChild) tbMenuEl.removeChild(tbMenuEl.firstChild);
       rows.forEach(function(o) {
           var d = o.rule ? document.createElement('div') : document.createElement('button');   // each by a fixed name (sinkcheck reads every createElement here)
@@ -566,7 +689,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           else { d.type = 'button'; d.dataset.act = o.act; d.textContent = (o.tick === true ? '\u2713 ' : '') + o.text; d.title = o.title; d.disabled = !!o.off; if (o.tick === true || o.tick === false) { d.setAttribute('role', 'menuitemcheckbox'); d.setAttribute('aria-checked', o.tick ? 'true' : 'false'); } else d.setAttribute('role', 'menuitem'); }
           tbMenuEl.appendChild(d);
       });
-      tbMenuEl._at = { idx: idx, ri: ri, ci: ci }; tbMenuEl._back = from || null;
+      tbMenuEl._at = { idx: idx, ri: ri, ci: ci, k: k > 0 ? k : 1 }; tbMenuEl._back = from || null;   // k: how many columns the heading takes, so Add a column right lands after all of them
       tbMenuEl.style.display = 'flex';
       var w = tbMenuEl.offsetWidth || 180, h = tbMenuEl.offsetHeight || 100;
       tbMenuEl.style.left = Math.max(4, Math.min(x, (window.innerWidth || 1e4) - w - 4)) + 'px'; tbMenuEl.style.top = Math.max(4, Math.min(y, (window.innerHeight || 1e4) - h - 4)) + 'px';
@@ -2122,7 +2245,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           if (k === 0) return;
           html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 ' + (6 * (k - 1)) + 'px; min-width:' + (70 * k + 6 * (k - 1)) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
       });
-      html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
+      html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: add a row above or below, move it, or make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
       html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
       html += '</div>';
       return html;
@@ -2241,7 +2364,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           html += '<div class="block-head"><span>' + esc(blockName(b)) + '</span>';
 
-          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
+          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button><button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button type="button" class="tool ghost dup-blk" data-idx="'+idx+'" title="Duplicate: put a copy of this block right after it" aria-label="Duplicate this block"><i class="wib wi-dup"></i></button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
 
           
 
@@ -2299,12 +2422,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               if (b.type === 'node' && !plain) html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
               var colNames = tbEdCols(b, plain, kd);   // the names of the columns, as the editor's boxes are drawn for them (tbEdCols)
               if (!b.rows) b.rows = [];
-              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label>' + (plain ? '<label title="Keep this table\u2019s heading row in sight at the top while the table is read, as a pinned header row does. The editor always keeps it in sight."><input type="checkbox" class="b-tpin" data-idx="'+idx+'"' + (b.pin === true ? ' checked' : '') + '> Pin heading row</label>' : '') + '<span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row.</span></div>';   // 1.6.2: the pin (tablefollow.js), true only
+              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label>' + (plain ? '<label title="Keep this table\u2019s heading row in sight at the top while the table is read, as a pinned header row does. The editor always keeps it in sight."><input type="checkbox" class="b-tpin" data-idx="'+idx+'"' + (b.pin === true ? ' checked' : '') + '> Pin heading row</label>' : '') + '<span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row. Right-click a header or a cell, or press a row\u2019s \u22ef, to add, move or merge.</span></div>';   // 1.6.2: the pin (tablefollow.js), true only
               if (tbBig(b)) html += tbCardHtml(b, idx);   // 1.6.2: a big table is a card here and is edited in a window of its own (tbBig)
               else {
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
               var hjE = headJoin(b, colNames.length);   // 1.6.2, merged headings: a merged heading's box takes its columns' room (as a merged cell's does), one under it has none
-              colNames.forEach(function(c, ci) { var hk = hjE ? hjE[ci] : 1; if (hk === 0) return; html += tsBoxHtml('b-colhead' + (hk > 1 ? ' r-span' : ''), 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', hk > 1 ? 'flex:' + hk + ' 1 ' + (6 * (hk - 1)) + 'px; min-width:' + (70 * hk + 6 * (hk - 1)) + 'px;' : '', true, hk > 1 ? 'title="Heading over ' + hk + ' columns. Right-click for Unmerge."' : 'title="Header of column '+(ci+1)+'. Right-click to merge it with the next."'); });   // heads and cells take line breaks (tsMulti)
+              colNames.forEach(function(c, ci) { var hk = hjE ? hjE[ci] : 1; if (hk === 0) return; html += tsBoxHtml('b-colhead' + (hk > 1 ? ' r-span' : ''), 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', hk > 1 ? 'flex:' + hk + ' 1 ' + (6 * (hk - 1)) + 'px; min-width:' + (70 * hk + 6 * (hk - 1)) + 'px;' : '', true, hk > 1 ? 'title="Heading over ' + hk + ' columns. Right-click for Unmerge."' : 'title="Header of column '+(ci+1)+'. Right-click to add, move or delete a column, or to merge it with the next."'); });   // heads and cells take line breaks (tsMulti)
               html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
               b.rows.forEach(function(r, ri) { html += tbRowEdHtml(b, idx, ri, colNames); });   // one row's boxes (tbRowEdHtml, which + Add Row also asks)
               html += '</div>';
@@ -2510,6 +2633,15 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var gone = activeMap.blocks[parseInt(this.dataset.idx)], inMap = activeMap; var di = parseInt(this.dataset.idx); activeMap.blocks.splice(di, 1); pgDropped(di); save(true); renderPlanner(); pgReopen(); 
           if (gone && blockWords(gone) && typeof toastAction === 'function') toastAction('Block deleted.', 'Undo', function() { if (!blockBack(inMap, di, gone)) toast('That planner is not on screen, so the block was not put back.'); });   // 1.6.2: a block with words offers Undo
 
+      }));
+
+      // 1.6.3 (finding 19): Duplicate puts a copy of the block right after it (blockCopy) and opens the copy, so the words changed next are the copy's
+      Array.from(blockContainer.querySelectorAll('.dup-blk')).forEach(el => el.addEventListener('click', function() {
+          var i = parseInt(this.dataset.idx, 10), src = activeMap.blocks[i], c = blockCopy(src, 'b_' + uid()); if (!c) return;
+          activeMap.blocks.splice(i + 1, 0, c); if (_pg.open > i) _pg.open++;
+          save(true); renderPlanner();
+          if (pgOn()) pgOpen(i + 1); else { pgReopen(); var dupF = document.querySelector('#plannerEditorWrap .planner-block-edit[data-idx="' + (i + 1) + '"]'); if (dupF) try { dupF.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+          toast('A copy of the block stands right after it.');
       }));
 
       Array.from(blockContainer.querySelectorAll('.add-row')).forEach(el => el.addEventListener('click', function() {

@@ -1086,7 +1086,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             }
             // the editor's menu and what it does (planner.js, its [pagecheck:tbjoin] slice run for real on the test page)
             const ed = makeDom(), am = { blocks: [{ type: 'node', mode: 'table', cols: ['A', 'B', 'C', 'D'], rows: [{ col1: 'a', col2: 'b', col3: 'c', col4: 'd' }, { col1: 'x', col2: 'x', col3: '', col4: '' }] }] }, calls = [];
-            const TB = new Function('rowJoin', 'cleanRowJoin', 'tsCols', 'getActiveMap', 'document', 'window', 'save', 'renderPlanner', 'toast', 'headJoin', 'cleanHeadJoin', 'tsOwnCols', "'use strict';\n" + sliceOf('scripts/planner.js', '// [pagecheck:tbjoin-start]', '// [pagecheck:tbjoin-end]') + '\nreturn { tbMerge, tbUnmerge, tbFull, tbHides, tbMenuFor, tbHeadMerge, tbHeadUnmerge, tbHeadHides };')(
+            const TB = new Function('rowJoin', 'cleanRowJoin', 'tsCols', 'getActiveMap', 'document', 'window', 'save', 'renderPlanner', 'toast', 'headJoin', 'cleanHeadJoin', 'tsOwnCols', "'use strict';\n" + sliceOf('scripts/planner.js', '// [pagecheck:tbjoin-start]', '// [pagecheck:tbjoin-end]') + '\nreturn { tbMerge, tbUnmerge, tbFull, tbHides, tbMenuFor, tbHeadMerge, tbHeadUnmerge, tbHeadHides, tbRowAt, tbRowMove, tbColOp };')(
                 DR.rowJoin, DR.cleanRowJoin, b => (Array.isArray(b.cols) && b.cols.length ? b.cols : ['Item', 'Detail', 'Notes']), () => am, ed.document, { innerWidth: 1000, innerHeight: 800 }, im => calls.push('save:' + im), () => calls.push('draw'), m => calls.push('toast:' + m), DR.headJoin, DR.cleanHeadJoin, b => { if (!Array.isArray(b.cols) || !b.cols.length) b.cols = ['Item', 'Detail', 'Notes']; });   // 1.6.2: and the heading's merge (headJoin, cleanHeadJoin, tsOwnCols)
             const b0 = am.blocks[0], r0 = () => J(b0.rows[0]);
             const acts = [TB.tbMerge(b0, 0, 1), r0(), TB.tbMerge(b0, 0, 1), r0(), TB.tbMerge(b0, 0, 1), r0(), TB.tbUnmerge(b0, 0, 1), r0(), TB.tbUnmerge(b0, 0, 1), TB.tbMerge(b0, 0, 0), TB.tbMerge(b0, 0, 0), r0(), TB.tbFull(b0, 0), TB.tbMerge(b0, 0, 0), TB.tbFull(b0, 0), r0()];
@@ -1107,15 +1107,57 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             TB.tbMenuFor(0, 0, 0, 40, 50, null); const m3 = J(items());
             // the review of e61ed377: a heading's menu (ri -1) draws its merge alone, Merge with next off on the last heading, and no Full-width row
             TB.tbMenuFor(0, -1, 1, 40, 50, null); const mh1 = J(items()); TB.tbMenuFor(0, -1, 3, 40, 50, null); const mh3 = J(items());
-            check('1.6.2 merged headings, the editor\'s heading menu (tbMenuFor with no row): Merge with next and Unmerge alone (Unmerge off where the heading spans one), Merge with next off on the last heading, and no Full-width row or rule',
-                mh1 === J([['hmerge', 'Merge with next', false, 'menuitem', null], ['hunmerge', 'Unmerge', true, 'menuitem', null]]) && mh3 === J([['hmerge', 'Merge with next', true, 'menuitem', null], ['hunmerge', 'Unmerge', true, 'menuitem', null]])
-                && menu.querySelectorAll('.menu-divider').length === 0, J([mh1, mh3]));
+            // pin moved on purpose (1.6.3, finding 15): the heading's menu adds, moves and deletes its column after a rule, so it has those five rows
+            // and one rule; Move column right is off on the last heading
+            check('1.6.2 merged headings, the editor\'s heading menu (tbMenuFor with no row): Merge with next and Unmerge (Unmerge off where the heading spans one), Merge with next off on the last heading, then after one rule the column put in left or right, moved or deleted (1.6.3), and no Full-width row',
+                mh1 === J([['hmerge', 'Merge with next', false, 'menuitem', null], ['hunmerge', 'Unmerge', true, 'menuitem', null], ['cleft', 'Add a column left', false, 'menuitem', null], ['cright', 'Add a column right', false, 'menuitem', null], ['cmleft', 'Move column left', false, 'menuitem', null], ['cmright', 'Move column right', false, 'menuitem', null], ['cdel', 'Delete this column', false, 'menuitem', null]])
+                && mh3 === J([['hmerge', 'Merge with next', true, 'menuitem', null], ['hunmerge', 'Unmerge', true, 'menuitem', null], ['cleft', 'Add a column left', false, 'menuitem', null], ['cright', 'Add a column right', false, 'menuitem', null], ['cmleft', 'Move column left', false, 'menuitem', null], ['cmright', 'Move column right', true, 'menuitem', null], ['cdel', 'Delete this column', false, 'menuitem', null]])
+                && menu.querySelectorAll('.menu-divider').length === 1, J([mh1, mh3]));
             check('1.6.2 merged cells, the menus: a cell\'s menu has Merge with next, Unmerge (off where the cell spans one) and the row\'s Full-width row; a row\'s menu (its ⋯ button) has Full-width row alone, ticked when on, and on a full-width row a cell\'s Merge and Unmerge are off; a pick does its one thing, saves, draws the editor again and puts the menu away; merging over different words says they are kept out of sight, over the same words or nothing it says nothing',
                 J(hides) === J([false, true]) && m1[0] === 'context-menu tb-menu' && m1[1] === 'flex'
-                && m1[2] === J([['merge', 'Merge with next', false, 'menuitem', null], ['unmerge', 'Unmerge', true, 'menuitem', null], ['full', 'Full-width row', false, 'menuitemcheckbox', 'false']])
+                // pins moved on purpose (1.6.3, finding 15): a row's menu and a cell's end with the row put in above or below or moved, Move row up off on the first row
+                && m1[2] === J([['merge', 'Merge with next', false, 'menuitem', null], ['unmerge', 'Unmerge', true, 'menuitem', null], ['full', 'Full-width row', false, 'menuitemcheckbox', 'false'], ['rabove', 'Add a row above', false, 'menuitem', null], ['rbelow', 'Add a row below', false, 'menuitem', null], ['rup', 'Move row up', true, 'menuitem', null], ['rdown', 'Move row down', false, 'menuitem', null]])
                 && J(afterMerge) === J([J({ col3: 2 }), 'none', 'save:true|draw|toast:The words of the cell it now covers are kept out of sight. Unmerge shows them again.'])
-                && m2 === J([['full', 'Full-width row', false, 'menuitemcheckbox', 'false']]) && J(afterFull) === J([true, 'save:true|draw'])
-                && m3 === J([['merge', 'Merge with next', true, 'menuitem', null], ['unmerge', 'Unmerge', true, 'menuitem', null], ['full', '\u2713 Full-width row', false, 'menuitemcheckbox', 'true']]), J([hides, m1, afterMerge, m2, afterFull, m3]));
+                && m2 === J([['full', 'Full-width row', false, 'menuitemcheckbox', 'false'], ['rabove', 'Add a row above', false, 'menuitem', null], ['rbelow', 'Add a row below', false, 'menuitem', null], ['rup', 'Move row up', true, 'menuitem', null], ['rdown', 'Move row down', false, 'menuitem', null]]) && J(afterFull) === J([true, 'save:true|draw'])
+                && m3 === J([['merge', 'Merge with next', true, 'menuitem', null], ['unmerge', 'Unmerge', true, 'menuitem', null], ['full', '\u2713 Full-width row', false, 'menuitemcheckbox', 'true'], ['rabove', 'Add a row above', false, 'menuitem', null], ['rbelow', 'Add a row below', false, 'menuitem', null], ['rup', 'Move row up', true, 'menuitem', null], ['rdown', 'Move row down', false, 'menuitem', null]]), J([hides, m1, afterMerge, m2, afterFull, m3]));
+            {   // 1.6.3 (the improvement week's review of pages and planners, finding 15; the owner, 2026-11-21): rows above and below, moving rows,
+                // and columns at a place, with merges and looks moving with them (tbRowAt, tbRowMove, tbColOp, run for real)
+                const SJ = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((a, x) => { a[x] = v[x]; return a; }, {}) : v);
+                const mk = () => ({ type: 'table', cols: ['A', 'B', 'C', 'D'], colFmt: [null, { b: true }], headMerge: { col3: 2 }, rows: [
+                    { col1: 'a', col2: 'b', col3: 'c', col4: 'd', fmt: { col2: { b: true } }, merge: { col2: 2 } }, { col1: 'Sub', col2: 'x', full: true, merge: { col3: 2 } }, { col1: 'p', col2: 'q', col3: 'r', col4: 's' }] });
+                const t1 = mk(), add1 = TB.tbColOp(t1, 'add', 1);
+                const addOk = add1 === true && SJ(t1) === SJ({ type: 'table', cols: ['A', 'New column', 'B', 'C', 'D'], colFmt: [null, null, { b: true }], headMerge: { col4: 2 }, rows: [
+                    { col1: 'a', col3: 'b', col4: 'c', col5: 'd', fmt: { col3: { b: true } }, merge: { col3: 2 } }, { col1: 'Sub', col3: 'x', full: true, merge: { col4: 2 } }, { col1: 'p', col3: 'q', col4: 'r', col5: 's' }] });
+                const t2 = mk(), in2 = TB.tbColOp(t2, 'add', 2);   // lands inside the cell merged over B and C: that merge grows
+                const t3 = mk(), at0 = TB.tbColOp(t3, 'add', 0);   // before the first: a full-width row keeps its sub-heading first
+                const t4 = mk(), del1 = TB.tbColOp(t4, 'del', 1);   // B taken out: the cell merged over B and C now takes C alone
+                const t5 = mk(), del0 = TB.tbColOp(t5, 'del', 0);
+                const t6 = mk(), before6 = SJ(t6), split = TB.tbColOp(t6, 'swap', 0), same6 = SJ(t6) === before6;   // A and B: B is half of a merge
+                const t7 = mk(); delete t7.headMerge; t7.rows[0].merge = { col1: 2 }; const sw7 = TB.tbColOp(t7, 'swap', 2);   // C and D, both cells of their own everywhere
+                const t8 = mk(); const sw8 = TB.tbColOp(t8, 'swap', 1);   // B and C: C is half of the heading merged over C and D, so it is refused
+                const t9 = { type: 'table', cols: ['A'], rows: [{ col1: 'x' }] }, one = [TB.tbColOp(t9, 'del', 0), TB.tbColOp(t9, 'swap', 0)];
+                const t10 = { type: 'table', cols: Array.from({ length: 64 }, (_, i) => 'C' + i), rows: [] }, full64 = TB.tbColOp(t10, 'add', 3);
+                const r = { type: 'table', cols: ['A'], rows: [{ col1: '1', merge: { col1: 1 } }, { col1: '2', full: true }, { col1: '3' }] };
+                const rowsActs = [TB.tbRowAt(r, 1), J(r.rows.map(x => x.col1 || '')), TB.tbRowMove(r, 2, -1), J(r.rows.map(x => x.col1 || '')), r.rows[0].full === true, TB.tbRowMove(r, 0, -1), TB.tbRowMove(r, 3, 1), TB.tbRowAt(r, 9)];
+                const many = { type: 'table', cols: ['A'], rows: Array.from({ length: 500 }, () => ({})) }, at500 = TB.tbRowAt(many, 0);
+                check('1.6.3 rows and columns at a place (planner.js tbColOp, run for real): a column put in moves every row\'s words and looks and every merge after it, and is named New column; one put in inside a merged cell or heading makes it take one more column; at the first place a full-width row keeps its sub-heading first; a column taken out shrinks the merge it was part of; a move that would split a merged cell is refused as split and changes nothing; a move under one merged cell leaves that row as it is; a table of one column keeps it, and one of 64 takes no more',
+                    addOk && in2 === true && SJ(t2.rows[0]) === SJ({ col1: 'a', col2: 'b', col4: 'c', col5: 'd', fmt: { col2: { b: true } }, merge: { col2: 3 } }) && SJ(t2.headMerge) === SJ({ col4: 2 })
+                    && at0 === true && SJ(t3.rows[1]) === SJ({ col1: 'Sub', col3: 'x', full: true, merge: { col4: 2 } }) && t3.rows[2].col2 === 'p' && t3.cols[0] === 'New column'
+                    && del1 === true && SJ(t4.rows[0]) === SJ({ col1: 'a', col2: 'c', col3: 'd' }) && J(t4.cols) === J(['A', 'C', 'D']) && t4.colFmt === undefined && SJ(t4.headMerge) === SJ({ col2: 2 })
+                    && del0 === true && SJ(t5.rows[1]) === SJ({ col1: 'Sub', full: true, merge: { col2: 2 } }) && SJ(t5.rows[2]) === SJ({ col1: 'q', col2: 'r', col3: 's' })
+                    && split === 'split' && same6 && sw7 === true && J(t7.cols) === J(['A', 'B', 'D', 'C']) && SJ(t7.rows[2]) === SJ({ col1: 'p', col2: 'q', col3: 's', col4: 'r' }) && SJ(t7.rows[0].merge) === SJ({ col1: 2 })
+                    && sw8 === 'split' && J(one) === J([false, false]) && full64 === false && t10.cols.length === 64,
+                    SJ([add1, t1, in2, t2, at0, t3, del1, t4, del0, t5, split, sw7, t7, sw8, one, full64]));
+                check('1.6.3 rows at a place (tbRowAt, tbRowMove, run for real): an empty row put in above or below, a row moved up or down taking its merges and its full-width mark with it, nothing past either end, and no row past the 500 a table holds',
+                    J(rowsActs) === J([true, J(['1', '', '2', '3']), true, J(['1', '2', '', '3']), false, false, false, false]) && r.rows[1].full === true && at500 === false, J([rowsActs, at500]));
+                // the menu's rows press them: Add a row below on the cell menu, then Add a column right on a merged heading (after both its columns)
+                const tm = { type: 'node', mode: 'table', cols: ['A', 'B', 'C'], headMerge: { col1: 2 }, rows: [{ col1: 'x' }] }; am.blocks.push(tm); const ti = am.blocks.length - 1, c0 = calls.length;
+                TB.tbMenuFor(ti, 0, 0, 40, 50, null); menu.querySelectorAll('button').filter(x => x.dataset.act === 'rbelow')[0].fire('click');
+                TB.tbMenuFor(ti, -1, 0, 40, 50, null); menu.querySelectorAll('button').filter(x => x.dataset.act === 'cright')[0].fire('click');
+                TB.tbMenuFor(ti, -1, 2, 40, 50, null); menu.querySelectorAll('button').filter(x => x.dataset.act === 'cdel')[0].fire('click');
+                check('1.6.3 rows and columns at a place, from the menus: Add a row below puts an empty row under the row, Add a column right on a heading merged over two columns puts it after both, Delete this column takes it out and says Undo brings it back; each one save and the editor drawn again',
+                    tm.rows.length === 2 && J(tm.cols) === J(['A', 'B', 'C']) && SJ(tm.headMerge) === SJ({ col1: 2 }) && calls.slice(c0).join('|') === 'save:true|draw|save:true|draw|save:true|draw|toast:Column deleted. Undo brings it back.', J([tm, calls.slice(c0)]));
+            }
         }
         {   // 1.6.2, a big table in a window of its own (the owner, 2026-11-14, by prompt: "Edit a big table in its own window"): the main window's side,
             // planner.js's [pagecheck:tbjoin] slice run for real with the editor's own row helpers (tsRowsAsObjects, tsOwnCols, tsCols) and textfmt
@@ -1810,9 +1852,55 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const one = T2.tbRowEdHtml({ cols: ['A', 'B'] }, 4, 7, ['A', 'B']);
             check('1.6.3 + Add Row puts the new row\'s boxes alone into its table\'s editor (planner.js tbRowAdd, run for real): the row\'s markup made by the one row builder renderPlanner draws every row with (tbRowEdHtml), its boxes filled and wired; the whole editor drawn as before where the boxes drawn are not the rows before it, where the table grew past a big table\'s line, or where its table is not drawn as boxes; the handler draws the preview a moment later (pvTyped)',
                 w1 === true && !!row && row.filled === true && J(row.q) === J(['.b-rowmenu', '.b-table .r-col', '.del-row']) && /data-idx="0" data-ri="2"/.test(row.html) && stale === false && w3 === false && w4 === false
-                && one === '<div class="row-h"><div class="r-col ts-box" data-idx="4" data-ri="7" data-ci="0"></div><div class="r-col ts-box" data-idx="4" data-ri="7" data-ci="1"></div><button class="tool ghost b-rowmenu x-btn" data-idx="4" data-ri="7" title="This row: make it a full-width row" aria-haspopup="menu" aria-label="Row menu">⋯</button><button class="tool ghost danger del-row x-btn" data-idx="4" data-ri="7" title="Remove this row"><i class="wib wi-close"></i></button></div>'
+                && one === '<div class="row-h"><div class="r-col ts-box" data-idx="4" data-ri="7" data-ci="0"></div><div class="r-col ts-box" data-idx="4" data-ri="7" data-ci="1"></div><button class="tool ghost b-rowmenu x-btn" data-idx="4" data-ri="7" title="This row: add a row above or below, move it, or make it a full-width row" aria-haspopup="menu" aria-label="Row menu">⋯</button><button class="tool ghost danger del-row x-btn" data-idx="4" data-ri="7" title="Remove this row"><i class="wib wi-close"></i></button></div>'   // the row menu's tooltip moved on purpose (1.6.3, finding 15: it now also adds and moves rows)
                 && plR.includes("              b.rows.forEach(function(r, ri) { html += tbRowEdHtml(b, idx, ri, colNames); });") && plR.includes("      tbRowWire(blockContainer, activeMap);")
                 && plR.includes("          activeMap.blocks[this.dataset.idx].rows.push({}); save(true);\n          if (tbRowAdd(this, activeMap.blocks[this.dataset.idx])) pvTyped(); else renderPlanner();"), J([w1, row && row.html, stale, w3, w4, one]));
+        }
+        // ---- finding 19: Duplicate for a block and for a planner or a page ----
+        {
+            const BC = new Function("'use strict';\n" + cutP('blkdup') + '\nreturn { blockCopy };')();
+            const src = { id: 'b_1', type: 'node', mode: 'person', title: 'Kael', rows: [{ col1: 'x', fmt: { col1: { b: true } } }], fmt: { title: { spans: [] } } }, cp = BC.blockCopy(src, 'b_2');
+            const bare = BC.blockCopy({ type: 'text', content: 'hi' }), none = BC.blockCopy(null, 'b_3');
+            cp.rows[0].col1 = 'changed';
+            check('1.6.3 Duplicate on a block (planner.js blockCopy, run for real): a copy of every word, look and setting under the new id, sharing nothing with the original, a block with no id kept with none, and nothing for no block; the button puts it right after the block, opens it and says so',
+                cp.id === 'b_2' && cp.title === 'Kael' && src.rows[0].col1 === 'x' && J(cp.fmt) === J(src.fmt) && src.id === 'b_1' && !('id' in bare) && bare.content === 'hi' && none === null
+                && plR.includes("class=\"tool ghost dup-blk\" data-idx=\"'+idx+'\" title=\"Duplicate: put a copy of this block right after it\" aria-label=\"Duplicate this block\"><i class=\"wib wi-dup\"></i></button>")
+                && plR.includes("var i = parseInt(this.dataset.idx, 10), src = activeMap.blocks[i], c = blockCopy(src, 'b_' + uid()); if (!c) return;\n          activeMap.blocks.splice(i + 1, 0, c); if (_pg.open > i) _pg.open++;"), J([cp, bare, none]));
+            const dl = read('scripts/dialogs.js'), dA = dl.indexOf('// [pagecheck:dupitem-start]'), dZ = dl.indexOf('// [pagecheck:dupitem-end]');
+            const DI = new Function("'use strict';\n" + (dA < 0 || dZ < dA ? '' : dl.slice(dA, dZ)) + '\nreturn { dupItem };')();
+            const camp = { items: {
+                p1: { id: 'p1', type: 'planner', meta: { title: 'Session 4', status: 'next', sortIndex: 10, collapsed: true, parentId: 'p0' }, blocks: [{ id: 'b_a', type: 'h1', title: 'Session 4' }, { id: 'b_b', type: 'node', mode: 'table', rows: [{ col1: 'Fox' }] }, { type: 'text', content: 'no id' }] },
+                p2: { id: 'p2', type: 'planner', meta: { title: 'Session 5', sortIndex: 20, parentId: 'p0' }, blocks: [] },
+                m1: { id: 'm1', type: 'map', meta: { title: 'Inn' }, blocks: [] } } };
+            let n = 0, k = 0; const ids = ['p2', 'plan_new'], made = DI.dupItem(camp, 'p1', 'Session 4 (copy)', [camp.items.p1, camp.items.p2], () => ids[n++] || 'x', () => 'b_c' + (k++));
+            const order = [camp.items.p1, made, camp.items.p2].map(x => x && x.meta.sortIndex);
+            const mapNo = DI.dupItem(camp, 'm1', 'x', [], () => 'y', () => 'z'), gone = DI.dupItem(camp, 'nope', 'x', [], () => 'y', () => 'z');
+            check('1.6.3 Duplicate on a planner or a page (dialogs.js dupItem, run for real): a copy under a fresh id never one the campaign holds, its title the one given, every block with an id under a new one and a block with none left so, no Next or Played mark, right after the original among the same siblings and under the same parent, the original untouched; never a map or an item that is not there',
+                !!made && made.id === 'plan_new' && camp.items.plan_new === made && made.meta.title === 'Session 4 (copy)' && !('status' in made.meta) && !('collapsed' in made.meta) && made.meta.parentId === 'p0'
+                && J(made.blocks.map(b => b.id)) === J(['b_c0', 'b_c1', undefined]) && made.blocks[1].rows[0].col1 === 'Fox' && made.blocks[1].rows !== camp.items.p1.blocks[1].rows
+                && camp.items.p1.meta.status === 'next' && camp.items.p1.blocks[0].id === 'b_a' && J(order) === J([10, 20, 30]) && mapNo === null && gone === null, J([made, order]));
+            const ix = read('index.html');
+            check('1.6.3 Duplicate stands on a planner\'s and a page\'s row menu, after Rename, with the app\'s own Duplicate drawing, and its handler asks dupItem and opens the copy',
+                /<div class="menu-item" id="ctxRenameItem"[^\n]*\n\s*<div class="menu-item ctx-docwin-only" id="ctxDuplicateItem" [^>]*><i class="wib wi-dup"><\/i> Duplicate<\/div>/.test(ix)
+                && dl.includes("var made = dupItem(camp, id, title, getMapChildren(camp, getMapParentId(camp, it), it.type),") && dl.includes('camp.activeItemId = made.id;'));
+        }
+        // ---- finding 41: a card's form spreads to its row of cards while it is open ----
+        {
+            const pgA = plR.indexOf('  function pgCardRow(face)'), pgCR = new Function("'use strict';\n" + plR.slice(pgA, plR.indexOf('\n', pgA)) + '\nreturn pgCardRow;')();
+            const cls = (...c) => ({ contains: x => c.includes(x) }), row = { classList: cls('pv-cards') }, card = { parentNode: row, classList: cls('pv-blk') }, wide = { parentNode: row, classList: cls('pv-blk', 'pv-wide') }, out = { parentNode: { classList: cls('doc-view') }, classList: cls('pv-blk') };
+            const css = read('style.css');
+            check('1.6.3 a card being edited in a row of cards spreads its form across the row (planner.js pgCardRow, run for real, and pgPlace): only a card that is no wide card in a .pv-cards row, never a block outside one; pgPlace takes the row\'s box for the form\'s width and left, marks it pg-wide, and takes the mark off a form put away; a form\'s lists and boxes never stand past its edge',
+                pgCR(card) === row && pgCR(wide) === null && pgCR(out) === null && pgCR(null) === null
+                && plR.includes("var cardRow = pgCardRow(face);\n      if (cardRow) { var crr = cardRow.getBoundingClientRect(); fw = Math.round(crr.width); fl = Math.round(crr.left - pr.left); }\n      form.classList.toggle('pg-wide', !!cardRow);")
+                && plR.includes("f.style.width = ''; f.classList.remove('pg-wide'); }")
+                && css.includes('  .pbe-layer .planner-block-edit select, .pbe-layer .planner-block-edit input { max-width: 100%; }'));
+        }
+        // ---- finding 47: Export beside Import on the planner bar ----
+        {
+            const ix = read('index.html'), di = read('scripts/docimport.js'), bar = ix.slice(ix.indexOf('id="plannerImportBtn"'), ix.indexOf('id="plannerAppearanceBtn"'));
+            check('1.6.3 Export stands beside Import on the planner bar, in the same pair, a page with an arrow leaving it as Export As wears, and it runs the one Markdown export that Save Markdown runs',
+                /id="plannerExportBtn"[^>]*aria-label="Export document"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3.5H6v17h12v-5.5M11.5 9.5H21M17.5 6L21 9.5 17.5 13"\/><\/svg><span class="pg-word">Export<\/span><\/button>/.test(bar)
+                && di.includes("var b5 = ui('plannerExportBtn'); if (b5) b5.addEventListener('click', function() { exportMarkdown(); });"));
         }
         // ---- finding 24: the table follow's half-second look is made only where something moved ----
         {

@@ -23,6 +23,7 @@
      unstripped byte for byte, the NUL bytes of docpanel.js and popout.js, and the bytes saved, reported.
    Usage: node tools/stripcheck.js   (exit 1 on any failure) */
 'use strict';
+require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js); this suite reads the app only through a copy (fs.cpSync), so it strips and proves the real files, parts and roots as they ship
 const fs = require('fs'), path = require('path'), os = require('os'), vm = require('vm');
 const { pathToFileURL } = require('url');
 const S = require('./stripcore.js');

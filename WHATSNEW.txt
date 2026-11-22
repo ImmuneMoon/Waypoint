@@ -679,6 +679,13 @@ Boxes that need each other
   damage line and a parry's note use your own word for durability.
 
 Building more by hand
+- A field's caption can stand behind a small i beside the field's
+  name, so a sheet full of working lines reads cleaner. Pick it in
+  Shows, beside the Caption box on the Fields tab. Pointing at the i
+  shows the caption's first line, such as Base 10 · traits +0 · +0 XP,
+  and a press shows all of it. A third choice keeps it under the field
+  while a character is being made and moves it behind the i after. A
+  printed sheet still shows every caption under its field.
 - Blast radius on the Combat tab saves now. What you typed there used to
   be dropped at Save.
 - A list's roll or action can move a toggle on the Lists tab, as the

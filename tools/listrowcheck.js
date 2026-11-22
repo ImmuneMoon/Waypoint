@@ -476,10 +476,10 @@ const j = v => JSON.stringify(v);
         const ch2 = JSON.parse(J(chK)), host = ch2.values.f_p[0], wrapE = mk('div'), wrapR = mk('div');
         PP.pills(wrapE, ch2, g14.fields[0], g14.fields[0].list, g14, host, true); PP.pills(wrapR, ch2, g14.fields[0], g14.fields[0].list, g14, host, false);
         const box = wrapE.kids[0], pills = box.kids.filter(k => k.className === 'sheet-part').map(p => p.kids.map(k => k.className + ':' + k.textContent)), addSel = box.kids.find(k => k.className === 'field sheet-part-add');
-        const drawOk = J(pills) === J([['sheet-part-name:Wider', 'sheet-chip:XP 4', 'tool ghost sheet-part-pm:−', 'sheet-part-n:2', 'tool ghost sheet-part-pm:+', 'tool ghost sheet-part-rm:×'], ['sheet-part-name:Longer', 'sheet-chip:XP 3', 'tool ghost sheet-part-pm:−', 'sheet-part-n:1', 'tool ghost sheet-part-pm:+', 'tool ghost sheet-part-rm:×']])
+        const drawOk = J(pills) === J([['sheet-part-name:Wider', 'sheet-chip:XP 4', 'tool ghost sheet-part-pm:−', 'sheet-part-n:2', 'tool ghost sheet-part-pm:+', 'tool ghost sheet-part-out:Take out', 'tool ghost sheet-part-rm:×'], ['sheet-part-name:Longer', 'sheet-chip:XP 3', 'tool ghost sheet-part-pm:−', 'sheet-part-n:1', 'tool ghost sheet-part-pm:+', 'tool ghost sheet-part-out:Take out', 'tool ghost sheet-part-rm:×']])   /* 1.6.3: a part's Take out stands before its x (moved on purpose) */
             && J(addSel.kids.map(o => o.value)) === J(['', 'i_wide', 'i_long']) && addSel.kids[0].textContent === '+ Option…'
             && J(wrapR.kids[0].kids.map(p => p.kids.map(k => k.textContent))) === J([['Wider', 'XP 4', '×2'], ['Longer', 'XP 3']]);
-        box.kids[0].kids[4].on.click(); box.kids[1].kids[5].on.click(); addSel.value = 'i_long'; addSel.on.change();
+        box.kids[0].kids[4].on.click(); box.kids[1].kids[6].on.click();   /* 1.6.3: the x is one further on, after Take out (moved on purpose) */ addSel.value = 'i_long'; addSel.on.change();
         const pressOk = J(commits) === J([['f_o', J({ op: 'setQty', rowId: 'w_a1', qty: 3 })], ['f_o', J({ op: 'remove', rowId: 'w_a3' })], ['f_o', J({ op: 'add', defId: 'i_long', rowId: 'w_new', in: 'w_g' })]]) && addSel.value === '';
         const hostsOk = J(PP.hosts(g14, ch2, 'f_o')) === J({ w_g: 1, w_h: 1 }) && PP.hosts(g14, ch2, 'f_p') === null;
         const wiredOk = sh14.includes("if (spec && spec.parts && typeof partPills === 'function') partPills(wrap, c, f, spec, sysI, entry, chg && !hudRow);") && sh14.includes("if (phI) rowsI = rowsI.filter(function(r) { return !(r && typeof r.in === 'string' && phI[r.in]); });")
@@ -489,6 +489,76 @@ const j = v => JSON.stringify(v);
         check('1.6.0, backlog 180 R14: a list may take parts from an item list (parts { from, cats, label }, this list too, the same in both views and a fixed point, none from a list the view lacks); a part is a row of that list carrying in, its host\'s id, added to a host that is there and no part itself, of a category it takes, stacking only with its own kind in the same host; '
             + 'removing a host removes its parts (a kept curse keeps them, kept too); Row.parts and Row.parts.<stat> read their count and totals, known only on a list that takes parts; the wire\'s add carries in; the sheet\'s pills (partPills, run for real) with - + and x where the character may be changed and the entries that fit, the add a row op of the parts\' list; a part drawn under its host alone; a removal of a host that holds parts asked first; the library pickers, the Lists tab, the readable page and a player\'s app waiting for the host',
             cleanOk && addOk && resOk && valOk && wireOk && rmOk && curseOk && selfOk && drawOk && pressOk && hostsOk && wiredOk, J([cleanOk, addOk, resOk, valOk, wireOk, rmOk, curseOk, selfOk, drawOk, pressOk, hostsOk, wiredOk, adds, ch.values && ch.values.f_o, cells, pills, commits]));
+    }
+    {   // 1.6.3 (the port round test, before release; the book: a mod taken out cleanly comes out whole): a fitted part taken out of its host and
+        // kept. The op unfit drops the part's in and nothing else: it keeps its place in its list, its count, level, stats and counters, and its own
+        // parts; it never stacks with a loose row. The GM's hand, and a player where the list's edit right lets them, as a removal of a part needs;
+        // refused for a row that is no part, one kept from its player, a host kept from its player, a laid row, a row Locked while, a file that
+        // fills a character, and a once-each list that already holds the entry loose. A curse kept on, on the part or its host, holds nothing in
+        // (the review of unfit: a refusal told the player of the curse), and the part keeps its keptOn. Holds is not judged. The sheet's Take out
+        // is run for real, and the wire and a player's app pinned
+        const J = JSON.stringify;
+        const raw = { v: 1, name: 'U', rolls: [], items: [{ id: 'i_gust', name: 'Gust', category: 'Power', stats: { Slots: 1 } }, { id: 'i_wide', name: 'Wider', category: 'Option', stats: { XP: 4 } }, { id: 'i_long', name: 'Longer', category: 'Option', stats: { XP: 3 } }],
+            fields: [{ id: 'f_p', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Slots', label: 'Slots' }], parts: { from: 'f_o', cats: ['Option'], label: 'Option', capBy: 'Slots' } } },
+                { id: 'f_o', key: 'Opts', label: 'Opts', kind: 'item-list', vis: 'all', edit: 'owner', list: { lvl: { label: 'Rank', min: 0, max: 5 }, stats: [{ key: 'XP', label: 'XP', show: true }], counters: [{ key: 'Use', label: 'Use', max: '9' }] } },
+                { id: 'f_s', key: 'Self', label: 'Self', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_s', deep: true } } },
+                { id: 'f_g', key: 'GmOpts', label: 'GmOpts', kind: 'item-list', vis: 'all', edit: 'gm', list: {} }, { id: 'f_h', key: 'GmHost', label: 'GmHost', kind: 'item-list', vis: 'all', list: { parts: { from: 'f_g' } } }], sheet: { sections: [] } };
+        const g = cleanSystem(raw, { F, gmView: true }), pv = cleanSystem(raw, { F, gmView: false });
+        const base = () => ({ id: 'c_u', ownerId: 'p_1', values: { f_p: [{ id: 'w_g', defId: 'i_gust', qty: 1 }, { id: 'w_k', defId: 'i_gust', qty: 1, keptOn: 1 }],
+            f_o: [{ id: 'w_a6', defId: 'i_wide', qty: 1 }, { id: 'w_a1', defId: 'i_wide', qty: 2, in: 'w_g', lvl: 3, ct: { Use: 2 }, ov: { stats: { XP: 7 } }, look: { color: '#aa3322' } }, { id: 'w_a3', defId: 'i_long', qty: 1, in: 'w_g' },
+                { id: 'w_hd', defId: 'i_long', qty: 1, in: 'w_g', hid: 1 }, { id: 'w_ko', defId: 'i_long', qty: 1, in: 'w_g', keptOn: 1 }, { id: 'w_kh', defId: 'i_long', qty: 1, in: 'w_k' }, { id: 'w_dg', defId: 'i_long', qty: 1, in: 'w_gone' }],
+            f_s: [{ id: 'w_s1', defId: 'i_gust', qty: 1 }, { id: 'w_s2', defId: 'i_wide', qty: 1, in: 'w_s1' }, { id: 'w_s3', defId: 'i_long', qty: 1, in: 'w_s2' }],
+            f_g: [{ id: 'w_q1', defId: 'i_wide', qty: 1, in: 'w_r1' }, { id: 'w_q2', defId: 'i_long', qty: 1, in: 'w_r2' }], f_h: [{ id: 'w_r1', defId: 'i_gust', qty: 1 }, { id: 'w_r2', defId: 'i_gust', qty: 1, hid: 1 }] } });
+        const un = (sys, ch, fid, rid, o) => S.applyRowOp(sys, ch, fid, { op: 'unfit', rowId: rid }, F, o || {});
+        const pl = { player: true, view: pv };
+        const ch1 = base(), r1 = un(g, ch1, 'f_o', 'w_a1'), a1 = r1.ok ? r1.value.find(r => r.id === 'w_a1') : null;
+        const gmOk = r1.ok && r1.unfit === true && r1.row === 'w_a1' && r1.qty === 2 && J(r1.value.map(r => r.id)) === J(ch1.values.f_o.map(r => r.id)) && !!a1 && a1.in === undefined
+            && a1.qty === 2 && a1.lvl === 3 && J(a1.ct) === J({ Use: 2 }) && J(a1.ov) === J({ stats: { XP: 7 } }) && r1.value.find(r => r.id === 'w_a6').qty === 1
+            && J(ch1.values.f_o[1].in) === J('w_g');   // the very row, where it stood, never folded into the loose Wider beside it; the character handed in is not changed
+        const r2 = un(g, base(), 'f_o', 'w_a3', pl), plOk = r2.ok && r2.value.find(r => r.id === 'w_a3').in === undefined;
+        const rG = un(g, base(), 'f_g', 'w_q1', pl), rGm = un(g, base(), 'f_g', 'w_q1');
+        const rightOk = rG.ok === false && rG.reason === 'field' && rGm.ok === true;   // a list a player may not change is the GM's to unfit, as its removal is
+        const rNo = un(g, base(), 'f_o', 'w_a6'), rHp = un(g, base(), 'f_o', 'w_hd', pl), rHg = un(g, base(), 'f_o', 'w_hd'), rKo = un(g, base(), 'f_o', 'w_ko'), rKoP = un(g, base(), 'f_o', 'w_ko', pl), rKh = un(g, base(), 'f_o', 'w_kh'), rKhP = un(g, base(), 'f_o', 'w_kh', pl);
+        const rHh = un(g, base(), 'f_g', 'w_q2'), gO = JSON.parse(J(g)); gO.fields[1].list.noQty = true; const chO = base(); chO.values.f_o[0].defId = 'i_long'; const rO = un(gO, chO, 'f_o', 'w_a3'), rO2 = un(gO, base(), 'f_o', 'w_a3');
+        const gS = JSON.parse(J(g)); gS.fields[1].list.on = { label: 'On' }; const chS0 = base(); chS0.values.f_o[4].on = true; const rKs = un(gS, chS0, 'f_o', 'w_ko', pl);   // on a list with a switch the curse stays a curse, on and kept on
+        const refuseOk = rNo.ok === false && /not fitted/.test(rNo.msg) && rHp.reason === 'missing' && rHg.ok === false && /kept from its player/.test(rHg.msg)
+            && rKo.ok === true && rKo.value.find(r => r.id === 'w_ko').in === undefined && rKoP.ok === true && rKs.ok === true && rKs.value.find(r => r.id === 'w_ko').keptOn === 1 && rKs.value.find(r => r.id === 'w_ko').on === true && rKs.value.find(r => r.id === 'w_ko').in === undefined
+            && rKh.ok === true && rKhP.ok === true && rHh.ok === false && /host is kept from its player/.test(rHh.msg)
+            && rO.ok === false && /holds each entry once/.test(rO.msg) && rO2.ok === true
+            && un(g, base(), 'f_o', 'w_zz').reason === 'missing' && un(g, base(), 'f_o', 'w_dg').ok === true;   // a host that is gone holds nothing back; a curse kept on, on the part or its host, holds nothing in and stays a curse
+        const chM = Object.assign(base(), { making: 1 }), rF = un(g, chM, 'f_o', 'w_a3', { player: true, view: pv, fill: true }), rMk = un(g, Object.assign(base(), { making: 1 }), 'f_o', 'w_a3', pl);
+        const fillOk = rF.ok === false && rF.reason === 'field' && rMk.ok === true;   // a file that fills a character never unfits; its player making it by hand does
+        const gL = JSON.parse(J(g)); gL.fields[1].list.lock = { 'if': '1', cells: ['XP'] }; const rL = un(gL, base(), 'f_o', 'w_a3'), rLp = un(gL, base(), 'f_o', 'w_a3', pl);
+        const gL0 = JSON.parse(J(gL)); gL0.fields[1].list.lock['if'] = '0'; const rL0 = un(gL0, base(), 'f_o', 'w_a3');
+        const gY = JSON.parse(J(g)); gY.fields[1].list.lay = { from: 'f_p' }; const chY = base(); chY.values.f_o[2].lf = 'w_g'; const rY = un(gY, chY, 'f_o', 'w_a3'), rY2 = un(gY, base(), 'f_o', 'w_a3');
+        const lockOk = rL.ok === false && rL.locked === true && /cannot be taken out while its rule holds/.test(rL.msg) && rLp.ok === false && rL0.ok === true && rY.ok === false && rY.locked === true && /laid by a row of Powers/.test(rY.msg) && rY2.ok === true
+            && J(S.lockTouches({ id: 'w_x' }, { op: 'unfit', rowId: 'w_x' })) === J(['*']);
+        const rD = un(g, base(), 'f_s', 'w_s2'), deepOk = rD.ok && J(rD.value.map(r => [r.id, r.in || ''])) === J([['w_s1', ''], ['w_s2', ''], ['w_s3', 'w_s2']]);   // its own parts stay in it
+        const chC = base(); chC.values.f_o = chC.values.f_o.concat([{ id: 'w_c1', defId: 'i_long', qty: 3, in: 'w_g' }]); const rC = un(g, chC, 'f_o', 'w_c1', pl);
+        const rA = S.applyRowOp(g, base(), 'f_o', { op: 'add', defId: 'i_long', rowId: 'w_n1', in: 'w_g' }, F, pl), capOk = rC.ok === true && rA.ok === false && g.fields[0].list.parts.capBy === 'Slots';   // over its host's room or not, taking a part out frees room and is never judged by it
+        const w = S.cleanCharItem({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_o', op: 'unfit', rowId: 'w_a3', in: 'w_g', at: 'w_q' }), wireOk = J(w) === J({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_o', op: 'unfit', rowId: 'w_a3' })
+            && S.cleanCharItem({ rid: 'e12345678', charId: 'c_1', fieldId: 'f_o', op: 'unfit' }) === null;   // only its row travels
+        const sh = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), nt = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), ix = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), cs = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const pp = sh.slice(sh.indexOf('// [systemcheck:partpills-start]'), sh.indexOf('// [systemcheck:partpills-end]'));
+        const mk = (tag, cls, tx) => ({ tag, className: cls || '', textContent: tx === undefined ? '' : String(tx), kids: [], childNodes: [], title: '', value: '', on: {}, appendChild(k) { this.kids.push(k); this.childNodes.push(k); return k; }, addEventListener(t, fn) { this.on[t] = fn; } });
+        const commits = [], win = { wpSystemCore: S }; let clientNow = false;
+        const PP = new Function('el', 'opt', 'partsSrc', 'partsOf', 'rowDef', 'rowLvl', 'rowIdOf', 'statChips', 'pickerInto', 'commitItem', 'isClient', 'uid', 'openLibPicker', 'window', 'lockNowOf', pp + '\nreturn { pills: partPills, shown: unfitShown };')(
+            mk, (v, t) => Object.assign(mk('option', '', t), { value: v }), S.partsSrc, S.partsOf, S.rowDef, S.rowLvl, S.rowIdOf, () => {}, () => 0, (c, f, q) => commits.push([f.id, J(q)]), () => clientNow, () => 'w_new', () => {}, win,
+            (spec, c) => spec && spec.lock ? S.lockCells(gL, c, spec, F) : null);
+        const chS = base(), wr = mk('div'); PP.pills(wr, chS, g.fields[0], g.fields[0].list, g, chS.values.f_p[0], true);
+        const outs = wr.kids[0].kids.filter(k => k.className === 'sheet-part').map(p => p.kids.find(k => k.className === 'tool ghost sheet-part-out'));
+        const btnOk = outs.length === 3 && J(outs.map(b => !!b)) === J([true, true, true]) && outs[0].textContent === 'Take out' && outs[0].title === 'Take this part out and keep it on the list';   // the curse kept on too: it holds nothing in
+        outs[0].on.click(); const pressOk = J(commits) === J([['f_o', J({ op: 'unfit', rowId: 'w_a1' })]]);
+        const wrR = mk('div'); PP.pills(wrR, base(), g.fields[0], g.fields[0].list, g, base().values.f_p[0], false); const readOk = !J(wrR.kids.map(b => b.kids.map(p => (p.kids || []).map(k => k.className)))).includes('sheet-part-out');
+        const shownOk = PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_k', keptOn: 1 }, g) === true && PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_r2', hid: 1 }, g) === false && PP.shown(base(), gY.fields[1], { id: 'w_a3', lf: 'w_g' }, { id: 'w_g' }, gY) === false
+            && PP.shown(base(), gL.fields[1], { id: 'w_a3' }, { id: 'w_g' }, gL) === false && PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_g' }, g) === true
+            && (clientNow = true, PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_g' }, g) === true && PP.shown(base(), g.fields[3], { id: 'w_q1' }, { id: 'w_r1' }, g) === false
+                && PP.shown(Object.assign(base(), { making: 1 }), g.fields[3], { id: 'w_q1' }, { id: 'w_r1' }, g) === true && (clientNow = false, true));   // a player's Take out only where the parts' list is theirs to change, as the host's gate judges (the review of unfit)
+        const ufSrc = sh.slice(sh.indexOf('var undoFollow = function(r)'), sh.indexOf('var undoFollow = function(r)') + 200), undoOk = ufSrc.includes("if (q.op === 'unfit') return; if (q.op === 'place')");   // a Take out never takes down a pickup's Undo
+        const pinOk = nt.includes("if (q.op === 'unfit') ptW = true;") && nt.includes("if ((qi.op === 'place' || qi.op === 'unfit' || qi.op === 'chamber' ||") && ix.includes('<b>Take out</b> takes a part out of its row and keeps it on its list as a row of its own.') && cs.includes('.sheet-part-out {');
+        check('1.6.3: a fitted part taken out and kept (op unfit, run through the real applyRowOp): only its in goes, the row keeps its place, count, level, counters, own values and own parts and never stacks; the GM\'s hand and a player by the list\'s edit right; refused for a row that is no part, one kept from its player, a curse kept on, a host kept on, a laid row, a row Locked while and a file that fills a character; Holds is not judged; the wire keeps the op and its row alone; the sheet\'s Take out (partPills, run for real) commits it and stands aside where the host would refuse; a player\'s app waits for the host, the host forwards its words, Help says it',
+            gmOk && plOk && rightOk && refuseOk && fillOk && lockOk && deepOk && capOk && wireOk && btnOk && pressOk && readOk && shownOk && pinOk && undoOk,
+            J([gmOk, plOk, rightOk, refuseOk, fillOk, lockOk, deepOk, capOk, wireOk, btnOk, pressOk, readOk, shownOk, pinOk, undoOk, r1, rG, rNo, rHg, rKo, rKh, rHh, rO, rO2, rF, rMk, rL, rY, rD, rC, w, commits]));
     }
     {   // 1.6.0 R14 (the owner, 2026-10-28: "make Undo after removing a row bring its parts back too, for the GM and for players"): a host's parts come back with it
         const J = JSON.stringify;

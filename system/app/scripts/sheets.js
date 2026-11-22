@@ -4185,6 +4185,18 @@ function partHostIds(sys, c, fieldId) {
     var out = null; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) { if (!hf || hf.kind !== 'item-list' || !hf.list || !hf.list.parts || !(typeof partsFromHas === 'function' ? partsFromHas(hf.list.parts, fieldId) : hf.list.parts.from === fieldId)) return; (c && c.values && Array.isArray(c.values[hf.id]) ? c.values[hf.id] : []).forEach(function(r) { if (r && (typeof r.in !== 'string' || hf.list.parts.deep === true)) { out = out || Object.create(null); out[rowIdOf(r)] = 1; } }); });   // 205 (4): a part that holds parts too
     return out;
 }
+// 1.6.3: whether a part's Take out is drawn, beside the right the caller already judged (chg, the HOST list's): for a player the parts' own list
+// must be theirs to change too, as applyRowOp's top gate judges it (seen by players, and edited by its owner or a character open to them; the
+// review of unfit, 2026-11-22). Never on a host kept from its player, never on a part laid by another list's row (it follows its source), never
+// while the parts' list locks a cell (Locked while). A curse kept on holds nothing in: a player never sees one (their copy reads it off), and the
+// GM's Take out keeps it a curse. The host judges all of it again; this only keeps a button off where it could do nothing
+function unfitShown(c, pf, p, host, sysI) {
+    if (!p || (host && host.hid === 1)) return false;
+    if (typeof isClient === 'function' && isClient() && (!pf || pf.vis !== 'all' || (pf.edit !== 'owner' && !(c && (c.making === 1 || c.unlocked === 1))))) return false;
+    var core = typeof window !== 'undefined' ? window.wpSystemCore : null;
+    if (core && typeof core.layCells === 'function' && pf && core.layCells(pf.list, p)) return false;
+    var lk = typeof lockNowOf === 'function' && pf ? lockNowOf(pf.list, c, sysI) : null; return !(lk && Object.keys(lk).length);
+}
 // 205 (4): where the parts' list says Parts hold parts, each part's own parts are drawn under it, a level in (dep: the host's level, 0 for a
 // row that is no part); no add control past PART_DEPTH, where the host refuses one
 function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
@@ -4214,6 +4226,7 @@ function partPills(wrap, c, f, spec, sysI, entry, chg, dep) {
             pill.appendChild(mn); pill.appendChild(nn); pill.appendChild(pl);
             }
         } else if (q > 1) pill.appendChild(el('span', 'sheet-part-n', '\u00d7' + q));
+        if (chg && unfitShown(c, pf, p, entry, sysI)) { var ux = el('button', 'tool ghost sheet-part-out', 'Take out'); ux.title = 'Take this part out and keep it on the list'; ux.ariaLabel = 'Take ' + pd.name + ' out and keep it on the list'; ux.addEventListener('click', function() { commitItem(c, pf, { op: 'unfit', rowId: prid }); }); pill.appendChild(ux); }   // 1.6.3: the part leaves its host and stays a loose row of its list (systemcore applyRowOp's unfit, judged on the host for a player)
         if (chg) { var rx = el('button', 'tool ghost sheet-part-rm', '\u00d7'); rx.title = 'Remove ' + pd.name; rx.ariaLabel = rx.title; rx.addEventListener('click', function() { commitItem(c, pf, { op: 'remove', rowId: prid }); }); pill.appendChild(rx); }
         box.appendChild(pill);
         if (pspec.parts && pspec.parts.deep === true && pspec.parts.from === pf.id) { var subP = partPills(box, c, pf, pspec, sysI, p, chg, (dep | 0) + 1); if (subP) subP.className += ' sheet-parts-sub'; }   // 205 (4): its own parts, a level in
@@ -7118,7 +7131,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     if (q.priced) { q = Object.assign({}, q); delete q.priced; }
     var goneB = typeof goneOf === 'function' ? goneOf(c, f, q) : null;   // 1.5.8: the row as it stood, for the Undo its removal offers
     var before = q.rowId ? rowQty(c, f, q.rowId) : 0;
-    var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return; if (q.op === 'place') { if (typeof r.standTell === 'string' && r.standTell) toast(r.standTell + ' It stands there all the same, since you moved it.'); return; } if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
+    var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return; if (q.op === 'unfit') return; if (q.op === 'place') { if (typeof r.standTell === 'string' && r.standTell) toast(r.standTell + ' It stands there all the same, since you moved it.'); return; } if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down (1.6.3: a Take out moves no count, so it never takes a pickup's Undo down: a player's waiting answer carries no qty)
     if (isClient()) {
         var n = net(); if (!n || !n.charItem) return;
         var r = n.charItem(c.id, f.id, q);

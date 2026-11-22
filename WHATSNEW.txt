@@ -64,8 +64,10 @@ Called damage rolls
   Cut card hits the guard you swung at, where it used to land on you.
 - Who it lands on is fixed when the card comes. Press it a minute later
   with your pointer on someone else and it still lands on the guard when
-  the GM applies it. Once the GM's Waypoint reloads, a card that lands on
-  someone else can't be pressed. One that lands on you still can.
+  the GM applies it. Outside a fight, once the GM's Waypoint reloads, a
+  card that lands on someone else can't be pressed, though one that lands
+  on you still can. During a fight it's saved with the fight and keeps
+  working.
 - A call that waits for a roll to be resisted and goes to the crew now
   reaches the crew at their stations. It used to go to the sheet itself.
 
@@ -148,6 +150,575 @@ Sending an attack on
 - If the defender's player has stepped away, your copy of their card
   can send it on too, aimed with your own pointer. How far it can go
   counts in your range's own unit.
+
+The combat roster
+- Hidden tokens show in the roster now, tagged hidden, and they fight
+  like anyone else. The roster used to leave them out, so Update combat
+  took a hidden creature out of the order and ended its holds. Tick all
+  still skips them, so you add them yourself.
+- Open the roster during a fight and it shows where play stands. The
+  title has the round, each row says now, holding or acted, and Update
+  combat keeps every hold and what it waits for.
+- The roster follows how your system orders turns. A drawn order asks
+  for no numbers, a counting clock's box is a Count with a row at 0
+  marked as never acting, and with sides a line says the order is
+  grouped by side.
+- On a counting clock a token added with no number rolls its count, and
+  you're told about a row that still has none. Previous turn at the
+  start of a cycle goes back into the last one, where it used to do
+  nothing, and the clock comes back whole after a reload.
+
+The turn strip
+- An NPC's initiative roll goes to you alone now. NPC initiative rolls
+  in Settings can say Everyone instead. Players always see the turn
+  order, and the card names the token you rolled for.
+- Cards, the line about effects running out and the Take damage window
+  name a character by its token, as the turn strip does. A guard you
+  named Gate Watch never shows players the sheet's own name.
+- The strip names who's next only when it knows. With several turns a
+  round it follows the real order, and when the order is rolled again
+  each round, or on a counting clock, it stops guessing.
+- Previous turn and Next turn are one arrow facing each way. The move
+  reads Moved 2 of 5 hexes, 10 if you run, or No move this turn, and a
+  turn notice names an action by its own name.
+- A player ends only their own turn, and you can move anyone's on or
+  back. A double click on End turn ends one turn. With several turns a
+  round, the second click used to end that character's next turn too.
+- The fight's menu on the strip keeps your click when the strip redraws
+  under it, and the Hold box opens by the strip. It used to turn up in
+  the top left corner.
+- Right-click another token and Target as and Trade as act as the token
+  you had selected. The right-click used to select the new token first
+  and lose the one you meant.
+- A line a player is typing in the declaration box stays put when
+  someone else declares. A called shot's menu comes up at once with
+  Asking the GM's table, where before nothing showed until you answered.
+- A player who can't see whose turn it is reads that someone they cannot
+  see acts.
+
+A reload in the middle of a fight
+- Cards in chat keep working after you reload during a fight. Defense
+  cards, called damage cards, the rolls each target of a blast still
+  owes, a blast waiting on Defense rolls, a missile in flight and your
+  Apply now cards are all saved with the fight.
+- A card that can't come back is named to you with whose it was, and
+  that player's card is marked over once they rejoin.
+- The round in play comes back as it was, the counting clock and how far
+  the token on turn has moved included. A fight holds up to 600 rows,
+  and you're told how many were left out past that.
+
+Damage in a fight
+- Apply to target on a damage card opens with a Who list of the
+  characters on the map on screen, your target first, then the token you
+  selected. With neither it asks who first, where it used to tell you to
+  target someone and press again.
+- Take damage tells you when a sheet is shared, such as shared by 16
+  tokens on 16 maps, since a wound lands on every one. Give this token
+  its own sheet first makes a copy for that token and reopens the window
+  with your damage still typed in.
+- Under Taking damage on the Combat tab, Unaimed blows land at picks
+  where a blow lands when nothing aimed it. The Take damage window opens
+  on it and a blast lands there too. Left alone it's still Torso, else
+  the first location.
+- The Effects menu on a token's right-click has a rounds count beside
+  each effect that isn't on. Set it to 3 and the effect lasts 3 rounds,
+  and the token's card says what's left, such as Stimulated, 2 rounds
+  left. At 0 the effect keeps its own time.
+- Where your system names damage types, Explode lets you pick one, and
+  the blast brings that type's DR and multipliers to everyone it hits. A
+  typed word used to be only a label.
+- A blast's damage reads each token where it stands, posture and facing
+  included, and so does a player's card that you apply.
+- Take damage shows the armor divisor rows only where your system or the
+  card can give one.
+- When several effects run out in one step you get one chat line, and
+  the Time rules panel lists who lost what. Each player gets one whisper
+  about their own characters, where every effect used to post its own.
+- The bar over a selected token stays clear of the trackers bar, which
+  holds the fight now. It used to sit on top of it.
+
+Token marks at a distance
+- Zoomed out below 100%, a token's marks fold into one gold dot, so a
+  crowd of tokens isn't buried under badges. Point at the token or
+  select it and every mark comes back, and resting on the dot names
+  them.
+- Token marks on my map in Settings has Always, scaled with the token.
+  The marks then shrink with the map and past three fold into a +N chip.
+  It's your setting alone, and the stream window shows every mark.
+- Each mark says what it means when you point at it. A target mark says
+  who's targeting, Down and Dead are named, and Blind says the token
+  sees only its own cell.
+
+Faster fights
+- Going to the next turn within a round, on a campaign of 275 characters
+  with an 11-row fight, used to take as long as 1.3 seconds. It's a
+  seventh of a second at most now.
+- A new round went from about 2 seconds to between 1.3 and 1.6, and
+  ending a fight from 2.6 to 1.6. Starting one went from about half a
+  second to under a fifth, and Roll all from 0.8 seconds to 0.4.
+
+Hiding and showing rolls
+- Hide my rolls is the eye button at the top of Table Chat. While it's
+  on every roll you make as the GM stays private, sheet buttons too, and
+  the Table Chat button wears an eye. It's the roller's Private box as
+  well, and a roll made as a player's character still goes to the table.
+- An NPC's sheet has Hide rolls in its menu, so every roll made as that
+  NPC stays private, whoever presses it.
+- Your card of a roll you hid has Show to the table. It goes to everyone
+  who can see whoever rolled, and you're told when that's nobody.
+  Nothing of the roll runs again.
+- An attack you hide still gives the attacked player their Defend card
+  and Take it. Only the roll's own figures stay off it.
+- Players may hide rolls is a setting under This campaign, and it starts
+  off. Every player used to have To the GM only in the roller. Now they
+  get it once you say yes, and their ± window then offers Everyone or To
+  the GM.
+
+Rolls that say what they did
+- A roll typed in the roller wears typed on its card and says its sum in
+  words, such as 3d6 ≤ Dexterity + 10. You always see that line, and
+  Typed rolls in words in Settings shows it to everyone.
+- A card names each value by the sheet's own label and marks an effect
+  already counted inside a figure as already in. A value that changed
+  nothing is left off, and a note read several times is said once with
+  how many.
+- Dice inside a bigger formula say the sheet's figures go with them, so
+  the total isn't read as their sum, and the card no longer repeats the
+  formula or the total.
+- The ± window opens on its modifier's box, so you type a figure and
+  press Enter to roll. It keeps −5 and +5 and drops −1 and +1, and the
+  card says +2 added by hand. A figure typed and rolled at once used to
+  be lost.
+- A reminder for a value that crossed a step says which, such as Hit
+  Points fell to 0 or less. Its button says Apply or Roll, and pressed
+  it says Applied, Sent or Rolled where it used to say Pressed.
+- A system can let players roll while a character is still being made,
+  for rolling its stats. Rolls while making is on the System editor's
+  Rules tab, and each such roll comes to you and the player, or to the
+  player alone. Before, nobody could roll until the character was done.
+
+Sheets
+- A pool's box takes a change now. Type -7 to take 7 off or +3 to add 3,
+  and a plain number sets it. Before, -7 set the pool to its lowest and
+  an emptied box set it to 0. An empty box keeps what it had now.
+- A sheet in a window of its own works like the sheet. Its rolls and
+  changes go through your main Waypoint window, so the table judges them
+  as ever, and players can pop out their own sheet too. With the main
+  window closed it reads only and says so.
+- Revert in a sheet's head goes back up to five changes on that sheet,
+  where it took back only the last one. A value something else changed
+  since is left alone and named, and players get Revert for their own
+  last edits too.
+- Find a sheet by name stands over Characters once it lists six sheets,
+  and Enter opens the first. Quick jump finds sheets by name too, and
+  Shift+Enter opens a sheet's HUD. A player finds their own sheets there
+  at your table as well.
+- Place on this map, on a character's right-click menu under Characters,
+  puts its token in the middle of your view wearing the sheet's picture.
+  Where another token uses that sheet, you're asked whether it shares
+  stats or gets its own copy.
+- + Add effect is a search now, grouped Helpful, Harmful and Other, and
+  it keeps the focus after a pick, so the next arrow key no longer moves
+  a token on the map.
+- A row a character holds is marked as missing its needs only where it
+  fails them both as when it was taken and as the character stands now.
+  A row used to count against its own rule, and a rule meant only for
+  making a character marked rows in play. The rule is said in words now.
+- A pool's most, a skill's base, an action and an effect's change say in
+  words what they're worked out from when you rest the pointer on them,
+  where they used to show the formula. A grayed roll says why, and
+  pressing it says so too.
+- In a plain effects list each effect shows its changes again, such as
+  +2 ST. 1.6.2 left them off.
+- The line under a sheet's name for its font and color is called Text
+  style and shows only after Edit sheet. It used to say Name shown as
+  and stood on a locked sheet too.
+- A debt is tagged IOU on both sheets. It used to say I owe you, which
+  read wrong on the sheet of whoever is owed.
+- A number box on a sheet is never narrower than three digits, while the
+  HUD keeps its own sizes and its Elevation row stays on one line.
+- A reminder's, a help card's and an apply card's words are in the app's
+  own font, where they wore the formula's code font. On a sheet that
+  shows effects as cards, an automatic effect's name keeps a gap before
+  its AUTOMATIC tag, and the sheet's close button wears the app's own
+  drawing.
+- A room key such as D1 or D4 in a page stays a word, where it used to
+  become a dice button.
+- The custom row form shows its Short name box only to you, under the
+  System editor's Short names tick. The Give menu has a Give to heading
+  and a gray line for each player, As player keeps a sheet open for
+  editing if it was, and the library picker says an entry's note once.
+
+Nothing you type or press gets lost
+- A figure typed in a sheet's box and not yet left used to vanish when
+  something changed at the table. It stays now and is stored as you
+  leave the box.
+- A press on a roll, a ± or a pool's − and + right after typing in a box
+  used to miss, since the box redrew under the pointer. It lands now.
+- A player pressing + quickly on one field had presses refused and
+  undone five seconds later. They go through one at a time now.
+- A defense or reminder card that said Pressed but never rolled, say
+  when the table turned the roll down, comes back to be pressed again.
+- Your Table Chat comes back after you reload while hosting. Before, a
+  reload emptied it.
+- Table Chat keeps your place when you've scrolled up to read, with a
+  New messages button to jump down. Your own lines still take you to the
+  end.
+
+Quicker sheets
+- A change to one character redraws only what it moved. On a map of 47
+  character tokens the draw went from about 270 ms to 35. A roll that
+  changes no value skips the save and the redraw, about 15 ms where it
+  used to cost 600 or more.
+
+Keeping parts of a page back
+- Each block of a Handbook page has Players see this, ticked to start.
+  Untick it and your players never get that block, not even its title,
+  while you still see it on your page with a dashed edge.
+- Beside it, Seen by lists your players. Tick one and that player still
+  gets the block, so a letter reaches the one character it was written
+  to. With none ticked only you see it.
+- The stream window shows no kept block, and a link or a mention that
+  points at one opens its page for a player with no hint of the block.
+- Save PDF and Save HTML ask first on a page with a kept block. As
+  players read it leaves those blocks out, and With what I kept back
+  keeps them, marked on paper as on screen. Your Markdown export keeps
+  which blocks you kept back too.
+- A page under a page you keep to yourself says so. Its button reads
+  Hidden by the page above and names that page, where it used to say
+  Players can read while no player got it.
+
+Links in pages
+- Right-click a page link and its menu now offers a new tab of the page
+  panel and an external window you can drag to another screen, beside
+  Open here and the panel over the map.
+- Each way has a press of its own, middle click for a new tab, Ctrl +
+  click for an external window and Shift + click for the panel. Change
+  them in Settings under Keys, in Links in pages. Rest the pointer on a
+  page link for a small button that opens an external window.
+- A mention of a page, a map or a character has the menu too. On a
+  player's screen it offers only what works there.
+
+Finding your way around
+- The left panel works from the keyboard. Tab to a row of Maps, Planners
+  or the Handbook, move with the arrow keys, open or close a nest with
+  Right and Left, open a row with Enter, rename it with F2 and open its
+  menu with Shift+F10.
+- A double-click that renames a row puts back what you were looking at.
+  Its first click used to open that row and leave you there.
+- A player's page reader has a Find box, reached with Ctrl+F, and the
+  magnifier on their Handbook title opens Search Pages.
+- Search Planners and Search Pages search a moment after the words
+  change, a pasted word included, and Enter opens the first result. The
+  arrow keys move through results, and on the play map a result opens
+  over the map as quick jump does.
+- Those searches read a planner's Raw HTML block, and a result shows an
+  ampersand as one, where it used to show its code.
+- Quick jump takes every key you type right after Ctrl+K. A letter typed
+  fast used to land on the map, where it could even take a tool.
+- Opens page and Scene page in Properties have a search beside the list,
+  and two pages of one name say where each stands, so an old copy in an
+  archive isn't picked by mistake.
+- Words in a page's Find clear when you open another page. They used to
+  stay and light up the next one.
+- A long page title in the top row leaves room for the map tabs, so one
+  click still takes you back to a map.
+- The Outline menu of a page or a planner ends in Mentioned in…, the
+  other pages and planners that name its title or link to it.
+
+Writing pages and planners
+- A page holds 5,000 blocks now, and so does a Markdown import. A
+  rulebook chapter of 579 blocks used to stop at block 500.
+- Tables grow where you want them. A row's ⋯ button or a right-click on
+  a cell adds a row above or below or moves it. A right-click on a
+  heading adds, moves or deletes a column, and words, looks and merged
+  cells go with it.
+- Duplicate in an open block's head puts a copy right after it. A
+  planner or a page has Duplicate on its right-click menu, and the copy
+  starts with no status, so last session's planner copied isn't marked
+  Played.
+- Hand out… in the head of an open text, callout or card block makes a
+  text handout from its words and opens Handouts at it for you to check
+  first. A person card's The truth column is never put in it.
+- While you read a planner, a scene card has Mark played and a clue card
+  Mark found. Press it again to take the tick back.
+- Export stands beside Import on the planner bar and writes the open
+  planner or page as Markdown. A card's Sheet and Plays are written and
+  found again by name, and what a file can't hold, such as a flowchart
+  you arranged by hand, is named when you save.
+- A card you edit in a row of cards spreads its form across the whole
+  row, so its lists have room.
+- In Edit, the text bar of the block you're writing in stands at the top
+  where you can press it. It used to be drawn under the Find bar.
+- Ctrl+Z in a text block in Edit takes back your whole run of typing in
+  one press, where it went a character or two at a time. Escape there
+  closes the open block once the symbol tray is shut.
+- A diagram redraws a moment after you stop typing its code. One that
+  can't be drawn shows you one plain line saying so and shows players
+  nothing, where they used to get the chart program's error picture.
+- Deleting a step of a flowchart takes its arrows with it. They used to
+  stay and draw an odd box named after a code.
+- A picture still uploading lands in the block you asked for, even after
+  you move blocks or press Undo. It used to land in whatever block stood
+  at that place.
+- Cancel while a Markdown import's pictures upload stops it cleanly and
+  says how many already went to the Image Library. Import used to stay
+  off saying Uploading pictures until you reloaded.
+- In a big table's own window, words that couldn't be saved come back in
+  their cell for Done to try again, or wait under the note to copy if
+  the cell changed. They used to be thrown away. The window uses its
+  whole width now.
+- The Story view's changes each come with an Undo of their own. A scene
+  card with no title goes by its tag or its first cell there and in the
+  Prep column, and Only planners with scene cards leaves out the rest.
+- Pages that share a title say which page each stands under, on the
+  Pages shelf and in the @ list.
+- At someone else's table, a mention of something the GM never shared
+  says so. It used to be struck through as if it were gone.
+- A card's Map line in a Markdown file finds a map whose title holds a
+  slash, and timeline labels no longer overlap.
+- A new planner starts empty, where it used to hold Start writing. The
+  Status list's tooltip says it marks a whole planner, and Undo and Redo
+  say whether they act on this page or this planner.
+
+Faster planners
+- Typing in a big planner keeps up. On a planner of about 300 blocks a
+  key in a text block took about 50 ms and takes about 6 now, since the
+  preview draws once you pause.
+- The editor redraws only where something it shows changed, so a player
+  reconnecting while you write no longer moves your caret. A redraw on
+  that planner went from about 150 ms to 10.
+- A page in a window of its own reads the save only when its page
+  changed. On a big campaign it used to read all 19 MB every second.
+- + Add Row puts in just the new row, about 65 ms where it took 220.
+
+Whispers and Table Chat
+- Players can whisper now. Pick the GM or another player in the list
+  above the message box and only that person gets it. You see every
+  whisper at the table with whom it went to. Before, only the GM could.
+- A whisper follows its player across a dropped link, so it never falls
+  back to everyone. A player who has left stays in the list marked not
+  connected, and a whisper to them is turned down with the text kept in
+  the box.
+- While a whisper is picked, a player's roll goes to the GM only and
+  says so, from the dice roller and a typed /roll alike.
+
+Getting back to the table
+- If a player's link drops, their app keeps trying for five minutes,
+  slowly after the first. It used to give up after about two, too soon
+  for a GM whose Waypoint had crashed to relaunch.
+- While it tries, the player's map is held as when you pause the table,
+  under a bar that says nothing they do reaches the table. Their moves
+  used to be quietly lost. Stop trying gives up, and Rejoin dials the
+  same room code with the same name.
+- After a crash the welcome screen offers Resume your table for 15
+  minutes. It opens the campaign and hosts it with the same room code,
+  and players still trying come back by themselves.
+- A reload or a crash keeps the password, the players you kept out, the
+  pause, the travel lock, where players arrive and the notepad. Refresh
+  used to empty the password, and a player you removed could walk back.
+- Closing Waypoint while you host asks first. Cancel keeps the table,
+  End the session for everyone tells players it ended, and Close and let
+  players wait keeps the room code for 15 minutes. The window used to
+  just close. In a browser you get the browser's own question.
+- A player who reloads goes straight back to the table. A quick reload
+  could be turned away as already at the table.
+- Set a session password after players joined and a player whose link
+  drops still gets back in, since their app proves who they are. They
+  used to be refused for the whole five minutes.
+
+Joining and hosting
+- Copy invite beside the room code copies one line for your players,
+  such as "Join my Waypoint table. Press Join a game and type the room
+  code AB2CD-EF3GH." With a password it says you'll send it and never
+  holds it.
+- A failed join or hosting says what happened in plain words. A mistyped
+  code says no table is open at that code, where it said Connection
+  error peer-unavailable. Relay advice comes only when the table was
+  found and the connection to it failed.
+- The Host part says which server your room code is on. A code on the
+  public server says a player joining from a browser can't find it, and
+  Help says to tick Own signaling server for such players.
+- The session password stands above Start hosting, out of the Table
+  options fold, typed hidden with an eye button to show it. The password
+  a player types to join is hidden too.
+- While you host, who is connected stands right under the room code. The
+  list used to come last, under every button.
+- Join is off while you're at a table and says to leave the session
+  first. A second press used to drop your table with no question.
+- Join on the welcome screen keeps the color you picked. It used to save
+  the box's starting blue over it, so new players all came in blue.
+- Voice has Listen only, for a player with no microphone. You hear the
+  table and nobody hears you, and Waypoint offers it by itself where it
+  finds no microphone. Such a player used to hear nothing either.
+
+Running the table
+- Player History lists Removed this session, the players you kicked or
+  turned away, and Let back in lifts it. The only way back used to be a
+  ban and an unban.
+- A join question for a player whose connection has dropped goes away by
+  itself. Answering it could keep them out for the session.
+- Ban in Player History asks first, by name. It used to ban at once.
+- A player you paused alone says Paused on their roster chip, with a
+  button that lets them play again.
+- The party chip's menu names the player on rows that act on them, such
+  as Pause Mira, and the character on rows that open the sheet.
+- A player's party strip no longer says a teammate on another map has no
+  token yet. It names the character they play there.
+- A player's own tokens show over their own fog, a waiting token too,
+  while the ground around them stays dark. A new player used to be told
+  to move a token they couldn't see.
+- The pause and travel banners stand under the trackers bar. The travel
+  banner used to hide under it and the pause banner covered it.
+- The Handouts window names every player in words, and one no longer in
+  the campaign reads a former player, where it showed letters and
+  numbers.
+- The Music panel says who hears it while you host, your table while you
+  have control, else only you unless it's the map's own music.
+- End session and the globe's tooltip count the players really at the
+  table, not connections that had closed or were still waiting.
+
+Faster joins
+- Letting a player in on a large campaign used to hold your screen about
+  2.4 seconds. It's under a second now.
+- A returning player's join shrank from 3.2 MB to about half a megabyte,
+  since handbook pages they hold aren't sent again. Their reload reached
+  the table in 3.5 seconds where it took 8.8.
+- A token dragged on a fogged map sends each player only what changed, a
+  few hundred bytes where it sent the whole map, about 44 KB on a big
+  one.
+- A player on a slow link no longer drops while a big join or picture is
+  arriving. Anything over 20 seconds used to read as a lost GM.
+- A rejoin sends only the handouts that player's Journal is missing,
+  where it sent every picture handout they'd ever been shown.
+- Giving a player a character takes 2.2 seconds where it took 4.2, and
+  players dropping at the same moment cost one pause instead of one
+  each.
+- The stream window reads your save after you save, and otherwise every
+  5 seconds, where it read and redrew it every second.
+
+A faster System editor
+- On a system of 655 fields and 126 rolls the System editor took about 7
+  seconds to open and opens in a third of one now. Typing a field's name
+  froze the app over 3 seconds after each pause and + Field over 7. Both
+  take well under half a second.
+- The Layout tab opens in under a second where it took nearly 6, and a
+  key in a section's title no longer holds everything for over 2
+  seconds.
+- Save on that system went from about 14 seconds to about 2.
+- A long list of what a change can aim at turns into a search the first
+  time you use it. It used to be one list of about 1,000 rows. Two
+  things that share a name are numbered there, so two effects called
+  Bleeding no longer look like one.
+- The map behind the System editor and the Library window stops
+  redrawing its fog while they're open, which took a sixth of every
+  second.
+
+Your work in the System editor is safer
+- Undo and Redo stand in the editor's foot and take back your last 30
+  changes. Ctrl+Z and Ctrl+Y do the same outside a box, and a run of
+  typing in one box counts as one change.
+- Used by on a field or a roll lists what reads it, such as formulas,
+  list columns, the layout and library entries. Press a line to go
+  there.
+- Deleting a field, list, roll, item or effect that something uses asks
+  first and names what uses it. It used to go at once.
+- Changing a field's kind used to wipe what every character held in it
+  at Save, a Strength of 14 turned to text. The line under Kind says how
+  many would lose it, and Save asks first with Save and clear them. Pick
+  the old kind again and its formula or options come back.
+- An arrow key on the Kind list opens it instead of stepping the kind.
+  On Windows each step threw away the field's formula.
+- Start from, Import, Start from the automatic layout and a calendar
+  preset ask before they replace work. The last three used to replace it
+  with no question. Each such button says what it does, such as Replace,
+  where it said OK.
+- The first pool you make still takes damage, and a notice now says so
+  and where to change it, so a first pool named Mana doesn't quietly
+  take every wound.
+- The foot says unsaved changes the moment you make one, a move made
+  with Arrange included.
+- A formula form you have open stays open when another box redraws the
+  editor. It used to close mid-edit.
+
+The System editor says things in words
+- Escape in a formula form puts the box back as it was, as Cancel does.
+  It used to keep every step you'd made.
+- A box the form can't show as steps says Set by hand. Open As text to
+  see or change it, where it showed the formula itself.
+- A long line under a box is cut at a whole word and ends with Change
+  shows the rest, the whole line in its tooltip.
+- An effect's Duration says under its box how Waypoint reads it, such as
+  Runs out by itself after 3 rounds. A note like three rounds is read as
+  a time now. Before, it quietly became a note that never ran out.
+- Matched by picks each list's stats by name, and faults under a list
+  name a stat by the name you gave it.
+- A field called Round, Floor or Max is kept now. Save used to drop it,
+  saying its name had no letter A to Z.
+- A field or a list with a short name but no name of its own is said
+  under its name box, since the sheet would show the short name.
+- Save's notice counts the same errors the foot lists. It could say 1
+  while the foot said 2.
+- Save no longer says a value name moved when a list simply uses one
+  name twice, such as Piercing at four places.
+- Work out every field has a Find a field box once it lists more than
+  12.
+- Help's System editor part says what each thing does in plain words,
+  and writing a formula out has a part of its own, Formulas as text.
+
+Boxes that need each other
+- A box other boxes depend on says so under it when it's empty, in words
+  that say what it does and where to fill it in. A blast under 1 ft says
+  Save drops it. None of these stop Save.
+- New things start named and filled where a value makes sense. + Field
+  starts as New field and + Roll as New roll, and a roll's words for its
+  grayed button start as Not now once you give it needs.
+- A roll or a switch that turns a player away with no words of its own
+  says Not now. A player could be shown its formula before.
+- A weapon rule under Taking damage has a Called box beside Dur, so the
+  damage line and a parry's note use your own word for durability.
+
+Building more by hand
+- Blast radius on the Combat tab saves now. What you typed there used to
+  be dropped at Save.
+- A list's roll or action can move a toggle on the Lists tab, as the
+  Rolls tab's can, and one that switches an effect on has With number.
+- A choice stat's option can stand for a row of another list. Pick the
+  list, then the entry with a search, then which figure it reads. On a
+  list with Specialties you pick the specialty by name or type one.
+- A list's categories can be ticked from the library's entries too,
+  where they came from the system's own items alone.
+- A blow's third, fourth and fifth parts and their armor divisors have a
+  Change form like the second part's. They were plain formula boxes.
+- An item's Throw skill, and Thrown with in the Library window, are
+  picked from the sheet's figures or a figure of one row of a list.
+- The Items tab's Category suggests the categories in use, and an icon
+  box shows only its picker, whose button names the icon you picked.
+- A map object with no picture has a Color swatch, which only a file
+  could set before. Its row keeps your place and focus as you change a
+  field, and Protection is grayed until the object gives cover or blocks
+  sight.
+
+The Library window
+- An entry you leave is saved by itself, when you pick another entry or
+  pack, press + Entry or Duplicate, or close the window. What you'd
+  typed used to be thrown away.
+- While the System editor holds unsaved changes, a line at the top of
+  the Library says so, with Save them now.
+- An entry's form has what the Items tab has in the same words, a
+  grant's specifier, How on a change, up to 40 roll bonuses where it
+  took 4 and a longer needs Message. The icon is picked from Waypoint's
+  own icons.
+- An entry's form shows the stats of the lists that take its category,
+  and Show every stat shows the rest.
+- What it needs, what it opens and what it grants search the whole
+  library. They used to stop at the first 2,000 entries.
+- A box another depends on says so under it as you type, and Save entry
+  says it again without refusing. Duplicate keeps a long name, where it
+  cut it at 60 characters.
+- A pack file whose entries have ids Waypoint can't use comes in with
+  ids of its own that stay the same each import. Every entry used to be
+  refused. The import also says which categories no list takes.
 
 Smaller things
 - The game clock in the top row shows seconds for the GM. The clock still

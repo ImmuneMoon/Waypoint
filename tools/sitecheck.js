@@ -941,6 +941,15 @@ const j = v => JSON.stringify(v);
             && j(clV.fields[1].list.parts.caps.map(k => k.is)) === j(['Top rail', ['Grip', 'Top rail']]) && S.renamesSay(rnV).filter(m => m.includes('\u201cRail\u201d is now \u201cTop rail\u201d')).length === 1
             && j(swV.vals) === '[]' && swV.names.length === 1 && j(adV.vals) === '[]' && j(twV.vals) === '[]', j([rnV.vals, nxV.fields[1].list.parts.caps, swV.vals, adV.vals, twV.vals]));
     }
+    {   // 1.6.3, found in play (2026-11-22): a weapon list whose parts come from itself and from another list (also), each with its own Slot stat, lost its crystal lines at a load, since only the first list's stat was read and only it lacked those values
+        const mkA = (own, other) => ({ v: 1, name: 'T', rolls: [], fields: [
+            { id: 'f_w', key: 'Weapons', label: 'Weapons', kind: 'item-list', vis: 'all', edit: 'gm', list: { stats: [{ key: 'Slot', label: 'Slot', labels: own }, { key: 'Holds', label: 'Holds' }], parts: { from: 'f_w', also: ['f_a'], caps: [{ slot: 'Slot', is: 'Crystal', by: 'Holds' }, { slot: 'Slot', is: 'frame', by: 'Holds' }, { slot: 'Slot', is: ['Nope', 'crystal'], by: 'Holds' }, { slot: 'Slot', is: 'Nope', by: 'Holds' }] } } },
+            { id: 'f_a', key: 'Ammo', label: 'Ammo', kind: 'item-list', vis: 'all', edit: 'gm', list: { stats: [{ key: 'Slot', label: 'Slot', labels: other }] } }] });
+        const clA = cleanSystem(mkA(['None', 'Frame'], ['None', 'Frame', 'Crystal']), { F, gmView: true }), kA = clA.fields[0].list.parts.caps.map(k => k.is), clB = cleanSystem(clA, { F, gmView: true });
+        const nxA = mkA(['None', 'Frame'], ['None', 'Frame', 'Focus crystal']), rnA = S.renamesCarry(mkA(['None', 'Frame'], ['None', 'Frame', 'Crystal']), nxA), clN = cleanSystem(nxA, { F, gmView: true });
+        check('1.6.3, a line of Holds by kind whose parts come from several lists keeps a value any of those lists names, spelled by the first that names it, and drops only a value none names; the clean is a fixed point; and a value renamed on a list the parts come from through also is followed, so Save keeps the line',
+            j(kA) === j(['Crystal', 'Frame', 'Crystal']) && j(clB) === j(clA) && j(nxA.fields[0].list.parts.caps.map(k => k.is)) === j(['Focus crystal', 'frame', ['Nope', 'Focus crystal'], 'Nope']) && j(clN.fields[0].list.parts.caps.map(k => k.is)) === j(['Focus crystal', 'Frame', 'Focus crystal']), j([kA, rnA.vals, nxA.fields[0].list.parts.caps, clN.fields[0].list.parts.caps]));
+    }
     {   // 1.6.2, the builder trial (a class-and-level system built by hand): a table reached from the form, said in words, its new parts named by what you call them, and a grayed button's needs said in words
         const sysT = { fields: [{ id: 'f_1', key: 'Level', label: 'Level', kind: 'number' }, { id: 'f_2', key: 'Class', label: 'Class', kind: 'select', options: ['Fighter', 'Wizard'] }, { id: 'f_3', key: 'Notes', label: 'Notes', kind: 'text' }],
             tables: [{ key: 'Classes', label: 'Classes', cols: [{ key: 'HitDie', label: 'Hit die' }], rows: [{ key: 'Fighter', vals: { HitDie: 10 } }, { key: 'Wizard', vals: { HitDie: 6 } }] },

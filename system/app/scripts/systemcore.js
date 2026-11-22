@@ -6852,7 +6852,7 @@ function renamesCarry(prev, next) {
     });
     rn.picks.concat(rn.vals).forEach(function(p) {   // 1.6.2: a line of Holds by kind names a value of its parts' list in words, so it follows a renamed value
         (Array.isArray(next.fields) ? next.fields : []).forEach(function(h) {
-            var ps = isObj(h) && isObj(h.list) && isObj(h.list.parts) ? h.list.parts : null; if (!ps || ps.from !== p.f || !Array.isArray(ps.caps)) return;
+            var ps = isObj(h) && isObj(h.list) && isObj(h.list.parts) ? h.list.parts : null; if (!ps || partsFrom(ps).indexOf(p.f) < 0 || !Array.isArray(ps.caps)) return;   // 1.6.3: any list the parts come from (also), not the first alone
             ps.caps.forEach(function(k) { if (!isObj(k) || !same(k.slot, p.key)) return; if (Array.isArray(k.is)) k.is = k.is.map(function(v) { return same(v, p.from) ? p.to : v; }); else if (same(k.is, p.from)) k.is = p.to; });
         });
     });

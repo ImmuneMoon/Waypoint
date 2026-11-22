@@ -1590,8 +1590,12 @@ function cleanSystemNow(sys, opts) {
         var srcIds = partsFrom(f.list.parts), sstC = []; srcIds.forEach(function(id) { out.fields.forEach(function(x) { if (x.id === id && x.kind === 'item-list' && isObj(x.list) && Array.isArray(x.list.stats)) sstC = sstC.concat(x.list.stats); }); });   // 1.6.2: a stat of any list the parts come from, the first that has it
         var keptC = f.list.parts.caps.filter(function(k) {
             if (typeof k.slot !== 'string') return true;
-            var st = null; sstC.forEach(function(s) { if (!st && isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(k.slot) && s.set !== true) st = s; }); if (!st) return false;
-            var nms = st.kind === 'pick' ? (Array.isArray(st.opts) ? st.opts.map(function(o) { return isObj(o) ? o.label : ''; }) : []) : (Array.isArray(st.labels) ? st.labels : []), spelt = [];
+            // 1.6.3 (found in play, 2026-11-22: a weapon's crystal slots lost at a load): the parts may come from several lists, each with its
+            // own stat of that key, and a value may be named by only one of them (a crystal slot named on the parts list, not on the weapon
+            // list itself). So every such stat counts, in the order of the sources, each value spelled by the first that names it; only a
+            // value no source names goes. The rule at play reads each part by its own list's stat, so such a value still works
+            var sts = sstC.filter(function(s) { return isObj(s) && typeof s.key === 'string' && lower(s.key) === lower(k.slot) && s.set !== true; }), st = sts[0]; if (!st) return false;
+            var nms = [], spelt = []; sts.forEach(function(s2) { nms = nms.concat(s2.kind === 'pick' ? (Array.isArray(s2.opts) ? s2.opts.map(function(o) { return isObj(o) ? o.label : ''; }) : []) : (Array.isArray(s2.labels) ? s2.labels : [])); });
             capIsList(k).forEach(function(w) { var nm = null; nms.forEach(function(n) { if (nm === null && typeof n === 'string' && n && lower(n) === lower(w)) nm = n; }); if (nm !== null && spelt.indexOf(nm) < 0) spelt.push(nm); }); if (!spelt.length) return false;
             k.slot = st.key; k.is = spelt.length === 1 ? spelt[0] : spelt; return true;
         });

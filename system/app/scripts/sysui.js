@@ -148,7 +148,7 @@ var GROUPS = {
         ['value', 'The number', 1, ['sys-def']],
         ['who', 'Who sees and changes it', 1, ['sys-edit', 'sys-vis', 'sys-live-sel', 'sys-fldlock-*']],
         ['sheet', 'How it shows', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row', 'sys-trackshape', 'sys-trackof']],
-        ['figs', 'Units and figures', 0, ['sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption'], null, 'say'],   // 1.6.2 (the owner, by prompt: "Split in two"): folded, its heading saying what is set
+        ['figs', 'Units and figures', 0, ['sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption', 'sys-capat'], null, 'say'],   // 1.6.2 (the owner, by prompt: "Split in two"): folded, its heading saying what is set
         ['rules', 'Rolls and rules', 0, ['sys-fieldtest', 'sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-spill-*', 'sys-surch-*']],
         ['auto', 'Worked out and filled', 0, ['sys-wout-box']],   // 1.6.2 (auto apply)
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']],
@@ -233,7 +233,7 @@ function figsSay(b) {
     var val = function(c) { var n = find(b, c); return n ? String(n.value || '').trim() : ''; }, on = function(c) { var n = find(b, c); return !!n && n.checked === true; }, out = [];
     var u = val('sys-unit') || val('sys-unit-text'); if (u) out.push(u);
     var m = find(b, 'sys-metricshow'); if (m && usedIn(m)) out.push('metric');
-    if (val('sys-decmin') || val('sys-decmax')) out.push('decimals'); if (on('sys-group-chk')) out.push('1,000s'); if (on('sys-sign-chk')) out.push('\u00b1 color'); if (val('sys-caption')) out.push('a caption');
+    if (val('sys-decmin') || val('sys-decmax')) out.push('decimals'); if (on('sys-group-chk')) out.push('1,000s'); if (on('sys-sign-chk')) out.push('\u00b1 color'); if (val('sys-caption')) out.push(val('sys-capat') ? 'a caption in its i' : 'a caption');
     return out.join(', ');
 }
 function usedIn(n) {

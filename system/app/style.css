@@ -6489,6 +6489,7 @@
   .sheet-explain-pop { width: 300px; gap: 6px; padding: 10px 12px; }
   .sheet-explain-says { white-space: pre-line; font-size: 13px; line-height: 1.45; color: var(--text); }
   .sheet-explain-more { font-size: 12px; color: var(--muted); }
+  .sheet-explain-pop .sheet-explain-cap { margin-top: 0; font-size: 13px; line-height: 1.45; color: var(--text); }   /* 1.6.3: a field's caption shown in its (i) */
   .sheet-explain-page { align-self: flex-start; }
   #sheetPrint .sheet-explain { display: none; }
   /* 1.6.2 (backlog 41 (a)): the Image Library while a picture is dragged out of it: the drop goes through to the map, and Steps aside fades it */

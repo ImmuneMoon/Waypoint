@@ -352,19 +352,24 @@ function linkNode(pl, c) {
 // a roll, a list's stat or column, an effect, a section or a link means, in the system's own words, behind a small (i) beside its name. Shown only
 // where the system wrote one. A press opens the shared pop: the words as text, the working of a figure where one is handed in, and the handbook
 // page that says more where this screen may open it. A span with the role of a button, so that a label it stands in names no control of its own
-function explainBtn(ex, c, more) {
-    if (!ex || typeof ex !== 'object' || (!ex.says && !ex.page)) return null;
+// 1.6.3: cap, where given, is a function that makes the field's caption line (capInfo below): the (i) then stands for the caption alone too,
+// and its pop shows that line first, made as it opens
+function explainBtn(ex, c, more, cap) {
+    var capOk = typeof cap === 'function';
+    if (!capOk && (!ex || typeof ex !== 'object' || (!ex.says && !ex.page))) return null;
+    if (!ex || typeof ex !== 'object') ex = {};
     var b = el('span', 'sheet-explain', 'i'); b.setAttribute('role', 'button'); b.tabIndex = 0; b.title = 'What this means'; b.setAttribute('aria-label', 'What this means'); b.setAttribute('aria-haspopup', 'dialog');
-    var go = function(e) { e.preventDefault(); e.stopPropagation(); explainOpen(b, ex, c, more); };
+    var go = function(e) { e.preventDefault(); e.stopPropagation(); explainOpen(b, ex, c, more, cap); };
     b.addEventListener('click', go);
     b.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
     b.addEventListener('mousedown', function(e) { e.stopPropagation(); });   // a section's title folds at a press, a row's name opens its details
     return b;
 }
-function explainTo(node, ex, c, more) { var b = node ? explainBtn(ex, c, more) : null; if (b) node.appendChild(b); return b; }
-function explainOpen(anchor, ex, c, more) {
+function explainTo(node, ex, c, more, cap) { var b = node ? explainBtn(ex, c, more, cap) : null; if (b) node.appendChild(b); return b; }
+function explainOpen(anchor, ex, c, more, cap) {
     if (_ldPop) { var was = _ldPop._anchor === anchor; closeLoadMenu(); if (was) return; }
     var pop = el('div', 'sheet-dl-pop sheet-explain-pop'); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'What this means'); pop._anchor = anchor; pop.tabIndex = -1;
+    if (typeof cap === 'function') { var capN = null; try { capN = cap(); } catch (er) { capN = null; } if (capN) pop.appendChild(capN); }   // 1.6.3: the field's caption, its figures worked out now from the names the sheet drew with
     if (ex.says) pop.appendChild(el('div', 'sheet-explain-says', ex.says));
     if (typeof more === 'string' && more) pop.appendChild(el('div', 'sheet-explain-more', more));
     var ref = ex.page && typeof pageRef === 'function' ? pageRef(ex.page) : null, inEd = !!(anchor.closest && anchor.closest('#systemModal'));
@@ -5453,7 +5458,10 @@ function signTone(f, e) { if (!f.sign || !e || e.error || e.label || typeof e.va
 function fieldNode(f, c, e, gm, own, sysArg, vars, plc) {   // vars: the render's resolver (sections pass it; the band shows no captions); plc (F4b): the placement
     var box = fieldNodeBody(f, c, e, gm, own, sysArg, plc);
     if (typeof envMark === 'function') envMark(box, f, c, sysArg, vars);   // 1.6.0: a reading's figure in its band's color
-    if (f.caption && sysArg && vars && F()) box.appendChild(captionNode(f.caption, sysArg, c, vars));
+    if (f.caption && sysArg && vars && F()) {   // 1.6.3: in the field's (i) where capWhere says so and the (i) could be drawn, else under the field as ever
+        var capIn = typeof capWhere === 'function' && capWhere(f, c, typeof lookPaper === 'function' && lookPaper()) === 'info' && typeof capInfo === 'function' && capInfo(box, f, c, sysArg, vars);
+        if (!capIn) box.appendChild(captionNode(f.caption, sysArg, c, vars));
+    }
     return box;
 }
 function captionNode(text, sys, c, vars) {
@@ -5465,6 +5473,46 @@ function captionNode(text, sys, c, vars) {
     });
     return line;
 }
+// [sheetlookcheck:capat-start] 1.6.3 (Fulllion, 2026-11-22, asked for a campaign's character sheet and built as an option any system may set): where
+// a field's caption shows. The field's capAt says it: absent, under the field as ever; 'info', in the field's small (i) alone; 'making', under the
+// field while the character is being made (c.making) and in its (i) once it is done. Paper always keeps it under the field, since paper cannot be
+// pressed: a print draws with lookPaper() true. capWhere is the one judge, asked by fieldNode; the HUD draws through fieldNode and so follows it
+function capWhere(f, c, paper) {
+    if (!f || typeof f.caption !== 'string' || !f.caption) return '';
+    if (paper === true) return 'under';
+    if (f.capAt === 'info') return 'info';
+    if (f.capAt === 'making') return c && c.making === 1 ? 'under' : 'info';
+    return 'under';
+}
+var CAP_TIP = 120;   // the most of a caption's first line the (i)'s tooltip shows
+// The caption as one text, each figure worked out from the names the sheet drew with, a figure that fails a dash: the very words captionNode draws
+function capText(f, sys, c, vars) { return captionNode(f.caption, sys, c, vars).textContent; }
+// Its first line, spaces made single, cut at a space near CAP_TIP characters with an ellipsis: a brief look, the press shows it all
+function capFirst(t) {
+    var s = String(t || '').split(/\r?\n/)[0].replace(/\s+/g, ' ').trim();
+    if (s.length <= CAP_TIP) return s;
+    var cut = s.slice(0, CAP_TIP), sp = cut.lastIndexOf(' ');
+    return (sp > CAP_TIP / 2 ? cut.slice(0, sp) : cut).replace(/[\s,.;:]+$/, '') + '\u2026';
+}
+// The field's (i) with its caption in it. fieldNodeBody drew the label first in the box, with an (i) right after its words where the field has its own
+// explain: that (i) is taken in its place, else a new one stands right after the label's words. Its tooltip is the caption's first line, worked out
+// now; a press opens the pop with the whole caption, made again as it opens from the same names, above the field's own words and Read more. Answers
+// false where no (i) can be drawn here, and fieldNode then draws the caption under the field
+function capInfo(box, f, c, sys, vars) {
+    if (typeof explainBtn !== 'function' || !box || !box.firstChild) return false;
+    var lab = box.firstChild; if (!lab.classList || !lab.classList.contains('sheet-label')) return false;
+    var old = null; Array.prototype.forEach.call(lab.childNodes, function(k) { if (!old && k.classList && k.classList.contains('sheet-explain')) old = k; });
+    var more = f.explain && f.kind === 'formula' && typeof formulaSays === 'function' ? formulaSays(sys, f.formula) : '';   // a formula's working, as its own (i) shows it, only where it had one
+    var b = explainBtn(f.explain || {}, c, more, function() { var n = captionNode(f.caption, sys, c, vars); n.classList.add('sheet-explain-cap'); return n; });
+    if (!b) return false;
+    var tip = capFirst(capText(f, sys, c, vars)) || 'What this means';
+    b.title = tip; b.setAttribute('aria-label', tip);
+    if (old) { lab.insertBefore(b, old); lab.removeChild(old); }
+    else { var tx = lab.firstChild; lab.insertBefore(b, tx && tx.nodeType === 3 ? tx.nextSibling : tx); }
+    box.classList.add('sheet-cap-info');
+    return true;
+}
+// [sheetlookcheck:capat-end]
 // [systemcheck:placecount-start] 1.6.0, backlog 180 R9: how many rows a placement of an item list shows, read as fieldNodeBody reads them
 // (only the rows switched on where it says so, the rows of its categories), each with a definition and none kept hidden from its player,
 // so the GM's sheet and the player's give one count. null for what is no item list
@@ -8411,6 +8459,9 @@ function fieldRow(f) {
     if ((f.kind === 'number' || f.kind === 'toggle' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills (a toggle too, since the session that builds a game system asked)
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own color'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
     flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
+    var caW = capInline(select('sys-capat', [['', 'Under the field'], ['info', 'In its (i)'], ['making', 'Under it while making, then in its (i)']], f.capAt === 'info' || f.capAt === 'making' ? f.capAt : '', 'Where the caption shows on the sheet. Under the field, as always. In its (i): behind the small i beside the field\u2019s name, which shows the first line when you point at it and all of it when you press it. Or under the field while the character is being made, and behind its i once it is done. A printed sheet always shows it under the field.'), 'Shows: ');
+    if (!f.caption) caW.style.display = 'none';   // 1.6.3: only where the field has a caption (the caption box's input shows it as one is typed)
+    flags.appendChild(caW);
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
         var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'none'); rIcoIn.type = 'hidden'; flags.appendChild(capInline(rIcoIn, 'Icon: ')); flags.appendChild(glyphButton(rIcoIn, 'Pick an icon from Waypoint\u2019s own icons or the emoji'));   // 1.6.3 (finding 35): the box hidden, the picker shows the pick
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);

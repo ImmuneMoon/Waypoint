@@ -734,5 +734,56 @@ const j = v => JSON.stringify(v);
             && nb7 > css7.indexOf('\n  .sheet-num { width: 64px; }') && d7('.sheet-field.sheet-tile .sheet-num') === '{ width: 100%; max-width: 74px; text-align: center; font-size: 20px; font-weight: 700; height: 34px; }');
     }
 
+    {   // 1.6.3 (Fulllion, 2026-11-22, asked for a campaign's character sheet and built as an option any system may set): where a field's caption shows.
+        // The cleaner keeps capAt only as 'info' or 'making' and only beside a caption, right after it, the same in both views, and the players' view
+        // drops it with a caption that names a GM-only value. The sheet's real fieldNode, captionNode, its capat slice and the explain slice are run on a
+        // page of plain objects that refuses markup, with the real captionParts and resolver: under the field as ever, in the field's (i) with its first
+        // line as the tooltip and the whole caption in the pop, under it while making, and on paper always under it
+        const J = JSON.stringify;
+        const raw = { v: 1, name: 'T', fields: [
+            { id: 'f_st', key: 'ST', label: 'Strength', kind: 'number', def: 10, caption: 'Base: {ST * 2}', capAt: 'info' },
+            { id: 'f_dx', key: 'DX', label: 'Agility', kind: 'number', def: 12, caption: 'Lift {DX}', capAt: 'making', explain: { says: 'Nimbleness.', page: 'p_x' } },
+            { id: 'f_iq', key: 'IQ', label: 'Wits', kind: 'number', def: 11, caption: 'Plain {IQ}' },
+            { id: 'f_lg', key: 'LG', label: 'Long', kind: 'number', def: 1, caption: 'word '.repeat(60) + '{LG}', capAt: 'info' },
+            { id: 'f_bd', key: 'BD', label: 'Bad', kind: 'number', def: 1, caption: 'Bad {Nope + 1}', capAt: 'info' },
+            { id: 'f_x1', key: 'X1', label: 'X1', kind: 'number', caption: 'Odd', capAt: 'under' }, { id: 'f_x2', key: 'X2', label: 'X2', kind: 'number', capAt: 'info' },
+            { id: 'f_sc', key: 'Sec', label: 'Sec', kind: 'number', vis: 'gm' }, { id: 'f_pv', key: 'PV', label: 'PV', kind: 'number', caption: 'Hidden {Sec}', capAt: 'info' }] };
+        const G = cleanSystem(raw, { F, gmView: true }), P = cleanSystem(raw, { F, gmView: false }), fd = (s, id) => s.fields.filter(f => f.id === id)[0];
+        const none = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_a', key: 'A', label: 'A', kind: 'number', caption: 'A {A}' }] }, { F, gmView: true });
+        const after = f => { const k = Object.keys(f); return k.indexOf('capAt') === k.indexOf('caption') + 1; };
+        const cleanOk = fd(G, 'f_st').capAt === 'info' && fd(G, 'f_dx').capAt === 'making' && fd(G, 'f_iq').capAt === undefined && fd(G, 'f_x1').capAt === undefined && fd(G, 'f_x2').capAt === undefined
+            && after(fd(G, 'f_st')) && after(fd(G, 'f_dx')) && fd(P, 'f_st').capAt === 'info' && fd(P, 'f_dx').capAt === 'making' && fd(G, 'f_pv').capAt === 'info' && fd(P, 'f_pv').caption === undefined && fd(P, 'f_pv').capAt === undefined
+            && J(none).indexOf('capAt') < 0;
+        const shC = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), cutC = (a, b) => { const i = shC.indexOf(a), k = shC.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('capat slice: ' + a); return shC.slice(i, k); };
+        const exS = cutC('// [systemcheck:explain-start]', '// [systemcheck:explain-end]'), fnS = cutC('function fieldNode(', '// [sheetlookcheck:capat-end]');
+        const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, mk = (t, c, x) => { const e = doc.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.appendChild(doc.createTextNode(String(x))); return e; };
+        const paper = { on: false };
+        const stubBody = 'function fieldNodeBody(f, c, e, gm, own, sysArg) { var box = el("div", "sheet-field sheet-kind-" + f.kind), lab = el("label", "sheet-label", f.label); box.appendChild(lab); if (f.explain) explainTo(lab, f.explain, c, ""); lab.appendChild(el("button", "tool ghost sheet-field-roll")); box.appendChild(el("input", "field sheet-num")); return box; }';   // the label part of the real fieldNodeBody: its words, its own (i) right after them, then its roll
+        const X = new Function('el', 'document', 'window', 'pageRef', 'openPageFor', 'openPage', 'captionParts', 'F', 'lookPaper',
+            'var _ldPop = null; function closeLoadMenu() { if (_ldPop) { if (_ldPop.parentNode) _ldPop.parentNode.removeChild(_ldPop); _ldPop = null; } } function ldOutside() {} function ldKey() {}' + NL + stubBody + NL + exS + NL + fnS + NL + 'return { fieldNode: fieldNode, capWhere: capWhere, capFirst: capFirst, pop: function() { return _ldPop; }, shut: closeLoadMenu };')(
+            mk, doc, { innerWidth: 1200, innerHeight: 800 }, id => (id === 'p_x' ? { title: 'Agility page', gmOnly: false } : null), () => {}, () => {}, S.captionParts, () => F, () => paper.on);
+        const chP = { id: 'c_1', name: 'Kael', values: {} }, chM = { id: 'c_2', name: 'Pebbles', values: {}, making: 1 };
+        const draw = (id, ch) => { const all = S.resolveAll(G, ch, F, null), f = fd(G, id); return X.fieldNode(f, ch, all[id], true, false, G, all.vars, null); };
+        const kids = n => n.childNodes.filter(k => k.nodeType === 1);
+        const capUnder = box => { const k = kids(box).filter(x => x.classList.contains('sheet-caption')); return k.length ? k[0].textContent : null; };
+        const labOf = box => kids(box)[0], expl = box => kids(labOf(box)).filter(x => x.classList.contains('sheet-explain'));
+        const popOf = b => { X.shut(); Dm.fire(b, 'click'); const p = X.pop(); const t = p ? p.childNodes.map(n => n.className + '|' + n.textContent) : null; X.shut(); return t; };
+        const bU = draw('f_iq', chP), bI = draw('f_st', chP), bMp = draw('f_dx', chP), bMm = draw('f_dx', chM), bL = draw('f_lg', chP), bB = draw('f_bd', chP);
+        paper.on = true; const bPaper = draw('f_st', chP), bPaperM = draw('f_dx', chP); paper.on = false;
+        const iI = expl(bI)[0], iM = expl(bMp), iMm = expl(bMm), iL = expl(bL)[0], iB = expl(bB)[0];
+        const sheetOk = capUnder(bU) === 'Plain 11' && expl(bU).length === 0
+            && capUnder(bI) === null && !!iI && iI.tagName === 'SPAN' && iI.attrs.role === 'button' && labOf(bI).childNodes[1] === iI && labOf(bI).childNodes[2].className.indexOf('sheet-field-roll') >= 0 && iI.title === 'Base: 20' && iI.attrs['aria-label'] === 'Base: 20' && bI.classList.contains('sheet-cap-info')
+            && J(popOf(iI)) === J(['sheet-caption sheet-explain-cap|Base: 20'])
+            && capUnder(bMp) === null && iM.length === 1 && labOf(bMp).childNodes[1] === iM[0] && iM[0].title === 'Lift 12' && J(popOf(iM[0])) === J(['sheet-caption sheet-explain-cap|Lift 12', 'sheet-explain-says|Nimbleness.', 'tool sheet-dl-item sheet-explain-page|Read more: Agility page'])
+            && capUnder(bMm) === 'Lift 12' && iMm.length === 1 && iMm[0].title === 'What this means' && J(popOf(iMm[0])) === J(['sheet-explain-says|Nimbleness.', 'tool sheet-dl-item sheet-explain-page|Read more: Agility page'])
+            && capUnder(bPaper) === 'Base: 20' && expl(bPaper).length === 0 && capUnder(bPaperM) === 'Lift 12' && expl(bPaperM).length === 1
+            && !!iL && iL.title.length <= 121 && /\u2026$/.test(iL.title) && iL.title.indexOf('word word') === 0 && J(popOf(iL)) === J(['sheet-caption sheet-explain-cap|' + 'word '.repeat(60) + '1'])
+            && !!iB && iB.title === 'Bad \u2014'
+            && X.capWhere({ caption: '' }) === '' && X.capWhere({ caption: 'a', capAt: 'info' }, null, true) === 'under' && X.capWhere({ caption: 'a', capAt: 'making' }, { making: 1 }) === 'under' && X.capWhere({ caption: 'a', capAt: 'making' }, {}) === 'info' && X.capWhere({ caption: 'a', capAt: 'nope' }, {}) === 'under'
+            && X.capFirst('one\ntwo') === 'one' && X.capFirst('  a   b ') === 'a b';
+        check('1.6.3 (Fulllion, 2026-11-22) where a field\'s caption shows (cleanSystem, then the real fieldNode, captionNode, its capat slice and the explain slice with the real captionParts and resolver on a page that refuses markup): the cleaner keeps capAt only as info or making, only beside a caption and right after it, the same in both views, and a caption the players\' view drops takes it along, a system with none keeps no key; with none the caption stands under the field; In its (i) puts it behind an (i) right after the label\'s words, before its roll, whose tooltip and name are the caption\'s first line with its figures worked out, a figure that fails a dash, a long one cut at a space with an ellipsis, and whose pop shows the whole caption; a field with its own explain keeps one (i), the caption above its words and Read more; Under it while making is under the field while the character is made and in its (i) after; paper keeps every caption under the field',
+            cleanOk && sheetOk, J([cleanOk, capUnder(bU), iI && iI.title, popOf(iI), iM.map(x => x.title), capUnder(bMm), capUnder(bPaper), iL && iL.title, iB && iB.title]));
+    }
+
     await T.finish();
 })();

@@ -721,7 +721,7 @@ function onInput(e) {
         else if (c.indexOf('sys-formula') >= 0) { var p = DEF_PROP[f.kind]; if (p) f[p] = t.value; }
         else if (c.indexOf('sys-roll') >= 0) f.roll = t.value.trim() || undefined;
         else if (c.indexOf('sys-unit') >= 0) { if (t.value.trim()) f.unit = t.value.slice(0, 32); else delete f.unit; }   // Stage 5g (Save cuts it to 8 code points, never half an emoji)
-        else if (c.indexOf('sys-caption') >= 0) { if (t.value.trim()) f.caption = t.value.slice(0, 400); else delete f.caption; }   // Fold B (Save cuts it to 200)
+        else if (c.indexOf('sys-caption') >= 0) { if (t.value.trim()) f.caption = t.value.slice(0, 400); else delete f.caption; var caR = t.closest ? t.closest('.sys-row') : null, caS = caR ? caR.querySelector('.sys-capat') : null, caL = caS && caS.closest ? caS.closest('.sys-capin') : null; if (caL) caL.style.display = f.caption ? '' : 'none'; }   // Fold B (Save cuts it to 200); 1.6.3: its Shows list stands only beside a caption
         else if (c.indexOf('sys-vnames') >= 0) { var vn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (vn.length && !vn[vn.length - 1]) vn.pop(); if (vn.some(Boolean)) f.labels = vn; else delete f.labels; }   // Stage 6: a blank between names keeps its place (every later name keeps its number)
         else if (c.indexOf('sys-res-icon') >= 0) { if (t.value.trim()) f.icon = t.value.slice(0, 32); else delete f.icon; }   // Fold B
         else if (c.indexOf('sys-ovr-value') >= 0 || c.indexOf('sys-ovr-when') >= 0) { var ovK = c.indexOf('sys-ovr-value') >= 0 ? 'value' : 'when', ovT = t.value.trim() ? t.value.slice(0, LIMITS.formula) : ''; var ovO = Object.assign({}, f.override && typeof f.override === 'object' ? f.override : {}); if (ovT) ovO[ovK] = ovT; else delete ovO[ovK]; if (ovO.value || ovO.when) f.override = ovO; else delete f.override; if (ovK === 'value') { markDirty(); allOrWait(t); return; } }   // 205 (6): Taken from, then while
@@ -1081,6 +1081,7 @@ function onChange(e) {
         else if (c.indexOf('sys-live-sel') >= 0) { if (t.value === 'on') f.live = true; else if (t.value === 'off') f.live = false; else delete f.live; }   // the sheet's lock
         else if (c.indexOf('sys-tile-chk') >= 0) { if (t.checked) f.tile = true; else delete f.tile; }   // Stage 3: stat-tile display
         else if (c.indexOf('sys-sign-chk') >= 0) { if (t.checked) f.sign = true; else delete f.sign; }   // Stage 5g: color by sign
+        else if (c.indexOf('sys-capat') >= 0) { if (t.value === 'info' || t.value === 'making') f.capAt = t.value; else delete f.capAt; }   // 1.6.3: where the caption shows
         else if (c.indexOf('sys-badge-chk') >= 0) { if (t.checked) f.badge = true; else delete f.badge; markDirty(); renderAll(); return; }   // L7: the tones row follows
         else if (t.classList.contains('sys-roundto')) { if (Number(t.value) >= 1) f.roundTo = Number(t.value); else delete f.roundTo; }   // clarity package: the place it rounds to (by the whole class: sys-round is a prefix of it and of sys-roundat)
         else if (t.classList.contains('sys-round')) { if (t.value) f.round = t.value; else { delete f.round; delete f.roundTo; } if (t.value !== 'from') delete f.roundAt; markDirty(); renderAll(); return; }   // ... and how: To and Up from follow

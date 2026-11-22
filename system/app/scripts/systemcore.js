@@ -614,6 +614,7 @@ function cleanField(f, F, gmView) {
     }
     else if (k === 'item-list') { var tbl = cleanItemTable(f.table); if (tbl) out.table = tbl; var lsp = cleanListSpec(f.list, gmView, F); if (lsp) { if (isObj(lsp.parts) && lsp.parts.deep === true && lsp.parts.from !== out.id) delete lsp.parts.deep; out.list = lsp; } }   // Stage 4: optional rich table (columns/chips/footer); Stage 6 F4b: the list's options (F4c1: its stats, checked with the engine)
     if (typeof f.caption === 'string') { var cap = cutPoints(f.caption, LIMITS.caption, ' '); if (cap) out.caption = cap; }   // Stage 5g Fold B: a line under the field ({formula} values worked out when drawn)
+    if (out.caption && (f.capAt === 'info' || f.capAt === 'making')) out.capAt = f.capAt;   // 1.6.3 (Fulllion, 2026-11-22): where the caption shows. Absent: under the field. 'info': in the field's (i). 'making': under it while the character is made, in its (i) after. Kept only beside a caption, the same in both views, so a system with none cleans as before
     if (k === 'resource') {   // Stage 5g Fold B: a pool's icon, a fill-to-max button, and the bar (shown unless turned off)
         var poolIcon = cleanIcon(f.icon); if (poolIcon) out.icon = poolIcon;
         if (f.reset === true) out.reset = true;

@@ -2544,5 +2544,29 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             j({ keptL, keptNo, after, noAsk, q: askL[0] && askL[0].q }));
     }
 
+    {   // 1.6.3 (Fulllion, 2026-11-22): a field's caption and its Shows list in the editor's two handlers (sysedtabs.js onInput and onChange, their field
+        // branches cut by name and run with fieldOfRow handing the field, on a page of plain objects): typing a caption shows Shows, emptying it hides
+        // it, and Shows writes capAt as info or making and takes it off for Under the field
+        const tbC = kit.part('sysedtabs.js').replace(/\r\n/g, NL);
+        const inA = tbC.indexOf('function onInput(e) {'), inB = tbC.indexOf("    var ctx = fieldOfRow(t); if (!ctx) return;\n    var f = ctx.f, r = ctx.r, c = t.className || '';\n", inA), inZ = tbC.indexOf('\n}\nfunction onChange(e) {', inB);
+        const chA = tbC.indexOf('function onChange(e) {'), chB = tbC.indexOf("    var ctx = fieldOfRow(t); if (!ctx) return;\n    var f = ctx.f, r = ctx.r;\n", chA), chZ = tbC.indexOf('\n}\nfunction onClick(e) {', chB);
+        const fC = { id: 'f_cp', key: 'Cap', label: 'Cap', kind: 'number' }, made = {};
+        const envC = new Proxy({ fieldOfRow: () => ({ f: fC, r: null }), LIMITS: kit.LIMITS || { formula: 10000, label: 60, labels: 32 }, document: undefined, console, Object, Array, String, Number, Math, JSON, RegExp, isFinite },
+            { has: (t, k) => typeof k === 'string', get: (t, k) => (k in t ? t[k] : (k === Symbol.unscopables ? undefined : (made[k] = made[k] || function() {}))) });
+        const HC = new Function('env', 'with (env) {' + NL + 'function fIn(t, e) {' + NL + tbC.slice(inB, inZ) + NL + '}' + NL + "function fCh(t, e) { var c = t.className || '';" + NL + tbC.slice(chB, chZ) + NL + '}' + NL + 'return { fIn: fIn, fCh: fCh };' + NL + '}')(envC);
+        const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, row = doc.createElement('div'); row.className = 'sys-row';
+        const cap = doc.createElement('input'); cap.className = 'sys-caption field'; row.appendChild(cap);
+        const lab = doc.createElement('label'); lab.className = 'sys-hover sys-capin'; lab.style.display = 'none'; const sel = doc.createElement('select'); sel.className = 'sys-capat'; lab.appendChild(sel); row.appendChild(lab);
+        const seen = [];
+        cap.value = 'Base {Cap}'; HC.fIn(cap, { target: cap }); seen.push([fC.caption, lab.style.display]);
+        sel.value = 'info'; HC.fCh(sel, { target: sel }); seen.push(fC.capAt);
+        sel.value = 'making'; HC.fCh(sel, { target: sel }); seen.push(fC.capAt);
+        sel.value = 'nope'; HC.fCh(sel, { target: sel }); seen.push(fC.capAt === undefined);
+        sel.value = 'info'; HC.fCh(sel, { target: sel }); sel.value = ''; HC.fCh(sel, { target: sel }); seen.push(fC.capAt === undefined);
+        cap.value = '   '; HC.fIn(cap, { target: cap }); seen.push([fC.caption === undefined, lab.style.display]);
+        check('1.6.3 (Fulllion, 2026-11-22) the editor\'s handlers for a field\'s caption and its Shows list (sysedtabs.js onInput and onChange, cut by name and run): typing a caption shows Shows, emptying it hides it again, and Shows writes capAt as info or making only, Under the field taking it off',
+            inB > inA && inZ > inB && chB > chA && chZ > chB && j(seen) === j([['Base {Cap}', ''], 'info', 'making', true, true, [true, 'none']]), j(seen));
+    }
+
     await T.finish();
 })();

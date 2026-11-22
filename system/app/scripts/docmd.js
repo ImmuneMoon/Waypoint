@@ -727,7 +727,7 @@ function markdownToBlocks(text, opts) {
         if (!pb.length) { i++; continue; }
         var boldOnly = pb.length === 1 && /^\s*(\*\*|__)(.+?)\1\s*$/.exec(pb[0]);
         var nextNonBlank = i; while (nextNonBlank < lines.length && !lines[nextNonBlank].trim()) nextNonBlank++;
-        var keptM = kind === 'doc' && pb.length === 1 ? /^\s*\{(?:kept(?:\s+see=([A-Za-z0-9_.:,-]*))?|(shown))\}\s*$/i.exec(pb[0]) : null;   // 1.6.3 (finding 18): see push
+        var keptM = kind === 'doc' && pb.length === 1 ? /^\s*\{(?:kept(?:\s+see=([A-Za-z0-9_.:,-]*))?(?:\s*\([^)}\n]*\))?|(shown))\}\s*$/i.exec(pb[0]) : null;   // 1.6.3 (finding 18): see push; the names in brackets after the ids are words for the reader alone (finding 31 of the release click test), passed over
         if (keptM) { flushRun(); pendingKept = keptM[2] ? null : (keptM[1] || '').split(',').filter(function(x, xi, xs) { return /^[A-Za-z0-9_.:-]{1,80}$/.test(x) && xs.indexOf(x) === xi; }).slice(0, 32); scene = null; continue; }
         // 1.6.2 (backlog 107 (a)): a line that holds {wide} alone, right before a plain table of a planner, makes that table a Wide card
         if (kind === 'planner' && pb.length === 1 && /^\s*\{wide\}\s*$/i.test(pb[0]) && nextNonBlank < lines.length && wideTableAt(lines, nextNonBlank)) { pendingWide = true; scene = null; continue; }
@@ -752,7 +752,7 @@ function markdownToBlocks(text, opts) {
 function mdEscapeMarks(s) { return String(s).replace(/([\\*_`~\[\]<>])/g, '\\$1').replace(/&(?=#?[A-Za-z0-9]+;)/g, '&amp;'); }
 // A paragraph that is the very words of a line mark ({wide}, {pin}, {wide pin} or {pin wide}) is written with its brace escaped, so that it reads
 // back as text and never as the mark of the table after it (1.6.2: {pin} beside {wide})
-function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=(?:wide|pin|wide\s+pin|pin\s+wide|kept(?:\s+see=[^}]*)?|shown)\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
+function mdEscapeLineStart(s) { return String(s).replace(/^(\s*)\{(?=(?:wide|pin|wide\s+pin|pin\s+wide|kept(?:\s+see=[^}]*)?(?:\s*\([^)}]*\))?|shown)\}\s*$)/i, '$1\\{').replace(/^(\s*)([#+\-|])/, '$1\\$2').replace(/^(\s*):/, '$1&#58;').replace(/^(\s*)(\d+)([.)])(\s|$)/, '$1$2\\$3$4'); }
 function mdEscapeText(s) { return mdEscapeLineStart(mdEscapeMarks(s)); }
 // A text block's color / size span as the sanitiser's one form, written anew from its two values ('' for any other span)
 function spanTag(attrs) {
@@ -866,7 +866,16 @@ function tableMd(title, cols, rows, b) {
     });
     return L.join('\n');
 }
+// keptNames(ids, who), for docToMarkdown (1.6.3, the release click test, finding 31): ' (Mira, Kael)' after a {kept see=} list, or '' where
+// nothing names them. who is docToMarkdown's opts.who, a function of profile ids to the players' names (docrender.js seeWho). A name holds no
+// bracket or brace of its own (round brackets become square ones, braces and line breaks go), so the mark stays one line the reader can read
+function keptNames(ids, who) {
+    var names = typeof who === 'function' ? who(ids) : null; if (!Array.isArray(names) || !names.length) return '';
+    names = names.map(function(n) { return String(n == null ? '' : n).replace(/\(/g, '[').replace(/\)/g, ']').replace(/[{}\r\n]/g, '').trim().slice(0, 60); }).filter(Boolean);
+    return names.length ? ' (' + names.join(', ') + ')' : '';
+}
 // opts.items: the campaign's items (a scene node's map link is written as "Map: title / room");
+// opts.who (finding 31 of the release click test): the players a kept block is seen by, by name beside their ids (keptNames);
 // 1.6.3 (the review of pages, finding 30): opts.chars, the campaign's characters, and opts.cueName(cue), a card's Plays by its name: a person
 // card's Sheet and a card's Plays are written as card lines by name ("**Sheet:** Mira", "**Plays:** Rain on the roof"), read back by name.
 // What Markdown cannot keep is counted in left, plain phrases the caller says: a flowchart's nudged layout, and a Sheet or a Plays whose name
@@ -886,7 +895,11 @@ function docToMarkdown(item, opts) {
     (item.blocks || []).forEach(function(b) {
         if (!b || typeof b !== 'object') return;
         if (kind === 'doc') {   // 1.6.3 (finding 18): a page's blocks kept back from players, marked where that changes (markdownToBlocks pendingKept)
-            var keptW = b.hide === true ? '{kept' + (Array.isArray(b.see) && b.see.length ? ' see=' + b.see.filter(function(x) { return typeof x === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(x); }).slice(0, 32).join(',') : '') + '}' : '';
+            // 1.6.3 (the release click test, finding 31): the ids are what reads back, so they stay, and the players they name follow them in
+            // brackets (opts.who, renderDoc's own: ids to the words the page editor uses) so a GM reading or editing the file knows who they are.
+            // The reader passes over the brackets, so a file written before or a name edited by hand reads the same
+            var seeIds = Array.isArray(b.see) ? b.see.filter(function(x) { return typeof x === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(x); }).slice(0, 32) : [];
+            var keptW = b.hide === true ? '{kept' + (seeIds.length ? ' see=' + seeIds.join(',') + keptNames(seeIds, opts.who) : '') + '}' : '';
             if (keptW !== keptNow) { L.push(keptW || '{shown}', ''); keptNow = keptW; }
         }
         switch (b.type) {

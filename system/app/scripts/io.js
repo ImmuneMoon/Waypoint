@@ -517,6 +517,17 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   function menuHeld(el) { var m = el && el.nodeType === 1 && typeof el.closest === 'function' ? el.closest('[role="menu"], [role="listbox"], [role="tree"]') : null; return !!(m && (typeof m.getClientRects !== 'function' || [].some.call(m.getClientRects(), function(r) { return !!r && r.width > 0; }))); }   // shown: some box of it has a width (the review of pages finding, 4: the tree in a panel folded to its rail has a box of no width, and it held the map's keys)
   // [shelfcheck:menuheld-end]
   function askHeld() { var up = function(id) { var e = document.getElementById(id); return !!(e && e.style && e.style.display === 'flex'); }; return up('customConfirm') || up('customPrompt'); }   // the app's own question or prompt is up, as commands.js hotkeyHeld reads it ('asking')
+  // [sysedcheck:winheld-start]
+  // 1.6.3 (the release click test): a window of the app's is up over the map, so no key reaches the map behind it. A click on a blank part of the
+  // System editor left the focus on the page's body, and the arrows moved the token selected behind it, Ctrl+Z undid the map and Delete would have
+  // deleted it. A window is an element whose id ends in Modal and that shows, as commands.js hotkeyHeld reads one ('window'). A player's page
+  // reader (docReaderModal) is no window: it stands beside the map as a floating box, and the arrows still move their token while it is open
+  function winHeld(doc) {
+      var wins = doc && typeof doc.querySelectorAll === 'function' ? doc.querySelectorAll('[id$="Modal"]') : [];
+      for (var i = 0; i < wins.length; i++) { var w = wins[i]; if (w.id !== 'docReaderModal' && typeof w.getClientRects === 'function' && w.getClientRects().length > 0) return true; }
+      return false;
+  }
+  // [sysedcheck:winheld-end]
   function canPersistLocal() {
       var n = window.wpNet, W = window.wpWebMode;
       if (W && typeof W.joinOnly === 'function' && W.joinOnly() === true) return false;   // 1.5.5: a website's plan that joins tables alone keeps nothing of the player's (webmode.js): the site answers a save with 403
@@ -1802,6 +1813,8 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       if (typing) { fieldUndoChord(e); return; }   // a planner field with nothing of its own to undo hands the chord to the planner's history
 
+      if (winHeld(document)) return;   // 1.6.3 (the release click test): a window of the app's is up, so no key moves, deletes, copies or undoes the map behind it
+
       // Shift+1 frames the content — the selection if there is one, else the whole map. This is
       // navigation, not an edit, so it sits ABOVE the spectator guard (players can frame too). With
       // Shift held e.key is the shifted glyph ('!'), so match the physical key via e.code.
@@ -1907,6 +1920,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var t = e.target;
 
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+      // 1.6.3 (the review of the release click test): a window of the app's up over the map holds a paste too, as it holds every key. A click on a
+      // blank part of the System editor or the Library gives the window the focus, so Ctrl+V's paste reached here with the window as its target,
+      // and the pieces copied earlier, or a picture on the clipboard, were laid on the map behind the window and saved
+      if (winHeld(document)) return;
 
       if (!canPersistLocal()) return;
 

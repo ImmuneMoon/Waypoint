@@ -1627,6 +1627,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('1.6.3 (finding 18) Markdown: the GM\'s own export of a page writes {kept} (with see=) and {shown} where that changes, and reads back each block as it was kept; a page with nothing kept writes neither; a paragraph that says {kept} reads back as words',
                 tag === 'text:shown,callout:kept,h3:kept[u_mira,u_kael],text:shown' && out.indexOf('{kept}') >= 0 && out.indexOf('{kept see=u_mira,u_kael}') >= 0 && out.indexOf('{shown}') >= 0 && none.indexOf('{kept') < 0 && none.indexOf('{shown}') < 0
                 && esc.length === 1 && esc[0].hide === undefined && esc[0].content.indexOf('{kept}') >= 0, J([tag, esc]));
+            // 1.6.3 (the release click test, finding 31): the export names the players beside their ids, the reader passes the names over
+            const whoM = ids => ids.map(x => (x === 'u_mira' ? 'Mira (HK-24)' : x === 'u_kael' ? 'Kael {x}' : 'a player no longer listed'));
+            const outN = M.docToMarkdown(gm, { who: whoM }).text, backN = M.markdownToBlocks(outN, { kind: 'doc' }).blocks;
+            const tagN = backN.map(b => b.type + ':' + (b.hide === true ? 'kept' + (b.see ? '[' + b.see.join(',') + ']' : '') : 'shown')).join();
+            const hand = M.markdownToBlocks('---\ntitle: H\n---\n\n{kept see=u_a,u_b (Someone, Else)}\n\nSecret.\n\n{shown}\n\nOpen.\n', { kind: 'doc' }).blocks;
+            const escN = M.markdownToBlocks(M.docToMarkdown({ type: 'doc', meta: { title: 'E' }, blocks: [{ id: 't', type: 'text', content: '<p>{kept see=u_a (Mira)}</p>' }] }).text, { kind: 'doc' }).blocks;
+            check('1.6.3 (the release click test, finding 31) Markdown names the players a kept block is seen by: the export writes their names in brackets after the ids (a bracket or a brace of a name made square or taken out), reads back each block as it was kept with the same ids, a mark written by hand with names reads the same, a file with no names still reads, and a paragraph that is such a mark reads back as words; the Markdown export hands the names over',
+                outN.indexOf('{kept see=u_mira,u_kael (Mira [HK-24], Kael x)}') >= 0 && tagN === tag && hand.length === 2 && hand[0].hide === true && J(hand[0].see) === J(['u_a', 'u_b']) && hand[1].hide === undefined
+                && escN.length === 1 && escN[0].hide === undefined && escN[0].content.indexOf('{kept see=u_a (Mira)}') >= 0
+                && require('fs').readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'docimport.js'), 'utf8').includes("var out = docToMarkdown(item, { who: DRw && typeof DRw.seeWho === 'function' && camp ? DRw.seeWho(camp) : null,"), J([outN.split('\n').filter(l => /^\{/.test(l)), tagN, hand, escN]));
         }
     }
     summed = true;

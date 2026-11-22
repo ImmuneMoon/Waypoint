@@ -1581,6 +1581,22 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && wn.every(t => t.includes("- A planner's section can lay its cards side by side. On the section\n") && t.indexOf("- A planner's section can lay its cards") < t.indexOf('WAYPOINT 1.6.1')), J([widths, gap, widths.map(w => fits(980, w)), widths.map(w => fits(392, w))]));
     }
 
+    /* ---- 1.6.3 (the release click test, finding 27): the Outline reads a card by its title, never by its session badge, and an untitled card
+       with a session is no row. pagenav.js navText and navOutline run for real on what the planner's own preview draws ---- */
+    {
+        const pvS = read('scripts/planner.js'), pa = pvS.indexOf('// [sinkcheck:planner-preview-start]'), pz = pvS.indexOf('// [sinkcheck:planner-preview-end]');
+        const CCm = await import(modUrl('cardcore.js')), d = makeDom();
+        const NAMES = ['esc', 'sanitizeHtml', 'proseHtml', 'stripMermaidLinks', 'compileFlowchart', 'docStyleCss', 'mergeDocStyle', 'num', 'picRef', 'fmtHtml', 'fmtRich', 'fieldFmt', 'colFmtOf', 'cellFmtOf', 'mermaidPre', 'cellHtml', 'rowJoin', 'rowHtml', 'headJoin', 'headHtml'];
+        const ARGS = [SC.esc, DR.sanitizeHtml, DR.proseHtml, DR.stripMermaidLinks, DR.compileFlowchart, DR.docStyleCss, DR.mergeDocStyle, SC.num, SC.picRef, DR.fmtHtml, DR.fmtRich, DR.fieldFmt, DR.colFmtOf, DR.cellFmtOf, DR.mermaidPre, DR.cellHtml, DR.rowJoin, DR.rowHtml, DR.headJoin, DR.headHtml];
+        const pv = new Function(...NAMES, 'CC', pvS.slice(pa + '// [sinkcheck:planner-preview-start]'.length, pz) + '\nreturn plannerPreviewHtml;')(...ARGS, CCm);
+        const plan = { id: 'p1', type: 'planner', blocks: [{ id: 'b0', type: 'node', title: 'The Undertow', when: 'tonight' }, { id: 'b1', type: 'node', title: 'The block', done: true }, { id: 'b2', type: 'node', title: '', tag: '', cols: ['A'], rows: [{ col1: 'x' }], when: 'tonight' }, { id: 'b3', type: 'node', mode: 'clue', title: 'Ash', done: true }] };
+        const html = pv(plan, { id: 'c1', items: {} }), tree = toTree(d, html);
+        const O = new Function(slice('outline') + '\nreturn { navOutline: navOutline };')();
+        const rows = O.navOutline(tree).map(o => o.text);
+        check('1.6.3 (the release click test, finding 27) the Outline names a card by its title alone, never with its session badge (Tonight, Played, Found), and an untitled card with a session is no row of its own (pagenav.js navText, run for real on what the planner\'s preview draws)',
+            html.indexOf('card-tick-tonight') > 0 && J(rows) === J(['The Undertow', 'The block', 'Ash']), J(rows));
+    }
+
     /* ---- the page editor's open form belongs to its page (1.6.2, found by hand) ---- */
     {
         const plS = read('scripts/planner.js'), a = plS.indexOf('// [pagecheck:pgitem-start]'), z = plS.indexOf('// [pagecheck:pgitem-end]');
@@ -1592,7 +1608,29 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const old = { open: 3, ro: null }; new Function('_pg', 'getActiveMap', plS.slice(a, z) + '\nreturn pgOwn;')(old, () => ({ id: 'p9' }))();
         check('the page editor\'s open form belongs to the page it was opened on: with that page on screen it stays open, with another page or none it is put away and its observer let go, so the block at the same place of another page never comes up open; a form opened by a path that named no page is left as it was; opening notes the page, and placing and reopening ask first',
             a > 0 && z > a && same === 2 && J(other) === J([-1, null, 1]) && none === -1 && old.open === 3
-            && plS.includes("      _pg.open = Math.round(Number(i)); _pg.item = pgItemNow(); pgPlace();\n") && plS.includes("  function pgPlace() {   // the open form over (or under) its drawn block, the page making room for it\n      pgOwn();\n") && plS.includes("  function pgReopen() { pgOwn(); if (!pgOn() || _pg.open < 0) return;"), J([same, other, none, old.open]));
+            && plS.includes("      _pg.open = Math.round(Number(i)); _pg.item = pgItemNow(); pgNote(); pgPlace();\n") /* the release click test, finding 29, moved this pin on purpose: opening notes the block too */ && plS.includes("  function pgPlace() {   // the open form over (or under) its drawn block, the page making room for it\n      pgOwn();\n") && plS.includes("  function pgReopen() { pgOwn(); if (!pgOn() || _pg.open < 0) return;"), J([same, other, none, old.open]));
+    }
+
+    /* ---- 1.6.3 (the release click test, finding 29): the open form stays on the block it was opened on. pgitem sliced and run for real: a
+       Duplicate's copy opened and then undone (an undo puts back new block objects, as io.js applyContent does) closes the form, where it once
+       came up over the block after it; the block itself undone back keeps its form, found by its id and type at its new place; a block moved by
+       an undo is followed; a block with no id that an undo replaces closes the form ---- */
+    {
+        const plS = read('scripts/planner.js'), a = plS.indexOf('// [pagecheck:pgitem-start]'), z = plS.indexOf('// [pagecheck:pgitem-end]');
+        const am = { id: 'p1', blocks: [{ id: 'b_a', type: 'node', mode: 'person', title: 'Elok' }, { id: 'b_w', type: 'text', content: 'Where' }] }, pg = { open: -1, ro: null };
+        const F = new Function('_pg', 'getActiveMap', plS.slice(a, z) + '\nreturn { pgOwn: pgOwn, pgNote: pgNote, pgItemNow: pgItemNow };')(pg, () => am);
+        const undo = () => { am.blocks = JSON.parse(JSON.stringify(am.blocks)); };   // a step of the history puts back new objects
+        const r = [];
+        am.blocks.splice(1, 0, Object.assign(JSON.parse(JSON.stringify(am.blocks[0])), { id: 'b_copy' })); pg.open = 1; pg.item = 'p1'; F.pgNote();   // Duplicate opens the copy
+        am.blocks.splice(1, 1); undo(); F.pgOwn(); r.push(pg.open, pg.blk);   // the undo that takes the copy away: closed, never over the 'Where' block now at place 1
+        pg.open = 0; F.pgNote(); undo(); F.pgOwn(); r.push(pg.open, pg.blk === am.blocks[0]);   // the card itself put back as a new object: still open on it
+        am.blocks.unshift({ id: 'b_new', type: 'h2', title: 'New' }); undo(); F.pgOwn(); r.push(pg.open, am.blocks[pg.open].id);   // a block put back before it: followed to its new place
+        am.blocks[1].type = 'text'; undo(); F.pgOwn(); r.push(pg.open);   // the same id now another kind of block: not the one the form was for
+        const nid = { open: 0, ro: { n: 0, disconnect() { this.n++; } }, item: 'p1' }, am2 = { id: 'p1', blocks: [{ type: 'text', content: 'x' }] };
+        const F2 = new Function('_pg', 'getActiveMap', plS.slice(a, z) + '\nreturn { pgOwn: pgOwn, pgNote: pgNote };')(nid, () => am2);
+        F2.pgNote(); F2.pgOwn(); r.push(nid.open); am2.blocks = [{ type: 'text', content: 'x' }]; F2.pgOwn(); r.push(nid.open, nid.ro, nid.blk);   // no id: kept while the same object, closed once replaced
+        check('1.6.3 (the release click test, finding 29) the open form stays on the block it was opened on (planner.js pgOwn and pgNote, run for real): an undo that takes away the copy Duplicate opened closes the form rather than laying it over the block that now stands at its place; the block itself put back as a new object by an undo keeps its form, found again by its id and type, also where a block was put back before it; the same id on another kind of block, and a block with no id that an undo replaced, close it',
+            J(r) === J([-1, null, 0, true, 1, 'b_a', -1, 0, -1, null, null]), J(r));
     }
 
     /* ---- Mentioned in (1.6.2, backlog 107 (a); docs/PLANNER_ORG_DESIGN.md 4.9): the button the preview draws ---- */
@@ -2091,7 +2129,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const plS = read('scripts/planner.js'), sa = plS.indexOf('// [pagecheck:seerow-start]'), sz = plS.indexOf('// [pagecheck:seerow-end]');
         const escS = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const campS = { players: { u_mira: { name: 'Mira <i>' }, u_kael: { name: 'Kael' }, u_ban: { name: 'Banned' }, 'bad id': { name: 'X' } }, bannedPlayers: { u_ban: 1 } };
-        const S = new Function('esc', 'getActiveCampaign', plS.slice(sa, sz) + '\nreturn { seePlayers, seeRowHtml, seeSet, seePick, seeNames };')(escS, () => campS);
+        const DRs = await import(modUrl('docrender.js'));
+        const S = new Function('esc', 'getActiveCampaign', 'seeLabels', plS.slice(sa, sz) + '\nreturn { seePlayers, seeRowHtml, seeSet, seePick, seeNames };')(escS, () => campS, DRs.seeLabels);   // seeLabels handed in (the release click test, finding 26)
         const open = { id: 'b', type: 'text' }, kept = { id: 'k', type: 'text', hide: true, see: ['u_kael', 'u_old'] };
         const hOpen = S.seeRowHtml(3, open, campS), hKept = S.seeRowHtml(4, kept, campS), hNone = S.seeRowHtml(5, { hide: true }, {});
         const b1 = { id: 'x' }; S.seeSet(b1, false); const set1 = J(b1); S.seePick(b1, 'u_mira', true); S.seePick(b1, 'u_kael', true); S.seePick(b1, 'u_mira', true); const set2 = J(b1); S.seePick(b1, 'u_mira', false); S.seePick(b1, 'u_kael', false); const set3 = J(b1); S.seePick(b1, 'no good!', true); const set4 = J(b1); S.seePick(b1, 'u_kael', true); S.seeSet(b1, true); const set5 = J(b1);
@@ -2110,6 +2149,54 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /\n\.pv-blk\.pv-kept \{ outline: 1px dashed var\(--dim\);[^}\n]*\}\n\.pv-blk\.pv-kept::before \{ content: attr\(data-kept\);/.test(css) && !/@media screen \{\n  \.pv-blk\.pv-kept/.test(css) && !/\.pv-kept[^{]*\{[^}]*position/.test(css)
             && css.includes('\n@media print { body.print-players .pv-blk.pv-kept { display: none !important; } }\n')
             && ix.includes('Each block has <b>Players see this</b>, ticked to start. Untick it to keep that block from your players.') && ix.includes('A player never receives a block kept from them, not even its title.') && !ix.includes('Everything on a page is player-safe by design'));
+    }
+    /* ---- 1.6.3 (the release click test, findings 25, 26 and 28): the Seen by ticks and the kept mark, run for real ---- */
+    {
+        const plS = read('scripts/planner.js'), sa = plS.indexOf('// [pagecheck:seerow-start]'), sz = plS.indexOf('// [pagecheck:seerow-end]');
+        const DRs = await import(modUrl('docrender.js')), escS = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const camp = { players: { u_m1: { name: 'Mira', charName: 'HK-24' }, u_m2: { name: ' mira ', lastSeen: Date.UTC(2026, 10, 20, 12) }, u_h1: { name: 'Hshif' }, u_h2: { name: 'Hshif' }, u_k: { name: 'Kael' }, u_t1: { name: 'Tess' }, u_t2: { name: 'Tess' } },
+            chars: { c1: { name: 'Sahrhie', ownerId: 'u_h1' } }, bannedPlayers: {} };
+        const L = DRs.seeLabels(camp), who = DRs.seeWho(camp);
+        const S = new Function('esc', 'getActiveCampaign', 'seeLabels', plS.slice(sa, sz) + '\nreturn { seePlayers, seeRowHtml, seeNames };')(escS, () => camp, DRs.seeLabels);
+        const row = S.seeRowHtml(0, { id: 'k', type: 'text', hide: true, see: ['u_m1'] }, camp), mark = DRs.renderDoc({ blocks: [{ id: 'k', type: 'text', content: '<p>x</p>', hide: true, see: ['u_m1', 'u_m2'] }] }, { who: S.seeNames });
+        const markWin = DRs.renderDoc({ blocks: [{ id: 'k', type: 'text', content: '<p>x</p>', hide: true, see: ['u_m1', 'u_m2'] }] }, { who: who });
+        const R = { L: Object.assign({}, L), row, mark: /data-kept="([^"]*)"/.exec(mark)[1], markWin: /data-kept="([^"]*)"/.exec(markWin)[1], gone: who(['u_gone']) };
+        check('1.6.3 (the release click test, finding 26) two players of one name are told apart (docrender.js seeLabels, run for real): a name alone where it is the only one, else the character they play, else a sheet they own, else the day they last joined, else no character, and a number where the labels still read alike; the Seen by ticks and the kept mark of the GM\'s page say the same words, and the panel over the map and a window of its own hand renderDoc those very words',
+            L.u_k === 'Kael' && L.u_m1 === 'Mira (HK-24)' && /^mira \(last joined .*2026.*\)$/.test(L.u_m2) && L.u_h1 === 'Hshif (Sahrhie)' && L.u_h2 === 'Hshif (no character)' && L.u_t1 === 'Tess (no character)' && L.u_t2 === 'Tess (no character) 2'
+            && row.indexOf('data-pid="u_m1" checked> Mira (HK-24)') >= 0 && R.mark === R.markWin && R.mark.indexOf('Kept from players. Seen by Mira (HK-24), mira (last joined') === 0
+            && J(R.gone) === J(['a player no longer listed'])
+            && /DR\.renderDoc\(it, \{ who: typeof DR\.seeWho === 'function' \? DR\.seeWho\(camp\) : null,/.test(fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'latin1'))
+            && /DR\.renderDoc\(it, \{ who: typeof DR\.seeWho === 'function' \? DR\.seeWho\(camp\) : null,/.test(fs.readFileSync(path.join(app, 'scripts', 'popout.js'), 'latin1')), J(R));
+        const head = S.seeRowHtml(2, { id: 'h', type: 'h2', title: 'Turn Order', hide: true }, camp), headOpen = S.seeRowHtml(2, { id: 'h', type: 'h2', title: 'Turn Order' }, camp), text = S.seeRowHtml(3, { id: 't', type: 'text', hide: true }, camp);
+        const ixS = read('index.html');
+        check('1.6.3 (the release click test, finding 28) a heading kept back says that only the heading is kept, and how to keep its section: on a kept h1, h2 or h3 alone, never on an open heading or on another kind of block; Help says so',
+            head.indexOf('Only this heading is kept back. The text under it still goes to players. To keep the whole section, untick Players see this on each block under it.') > 0 && headOpen.indexOf('Only this heading') < 0 && text.indexOf('Only this heading') < 0
+            && ixS.includes('<li>Unticking a heading keeps back the heading alone. To keep its whole section back, untick each block under it too.</li>') && ixS.includes('<li>Two players of one name are told apart by the character they play, or else by the day they last joined.</li>'), head);
+        // finding 25: peSigOf (the pedrawn slice) names the players the Seen by ticks list, never what a join rewrites on every player
+        const cutP2 = n => { const x = plS.indexOf('// [pagecheck:' + n + '-start]'), y = plS.indexOf('// [pagecheck:' + n + '-end]'); return plS.slice(x, y); };
+        const pe = new Function('getActiveMap', 'getActiveCampaign', 'document', 'window', 'tsState', 'tsInBar', 'cueLists', 'isDocLike', 'pvAfterPress', 'renderPlanner', 'plannerFullscreen', 'seeLabels', "'use strict';\n" + cutP2('pedrawn') + '\nreturn peSigOf;')(
+            () => null, () => null, {}, {}, {}, () => false, null, () => true, f => f(), () => {}, false, DRs.seeLabels);
+        // ... and the word a join or a ban sends, plannerPlayersMoved, run for real: a page drawn again once its players changed, held while the GM is in the editor
+        const pgD = { id: 'd1', type: 'doc', meta: {}, blocks: [] }, cP = { id: 'c', items: {}, chars: {}, players: { u_a: { name: 'Mira' } } }, focus = { el: null }, edW = { id: 'plannerEditorWrap' }, drawn = [];
+        const docP = { get activeElement() { return focus.el; }, body: {} };
+        const PM = new Function('getActiveMap', 'getActiveCampaign', 'document', 'window', 'tsState', 'tsInBar', 'cueLists', 'isDocLike', 'pvAfterPress', 'renderPlanner', 'plannerFullscreen', 'seeLabels', "'use strict';\n" + cutP2('pedrawn') + '\nreturn { moved: plannerPlayersMoved, pePrint: pePrint, st: _pe };')(
+            () => pgD, () => cP, docP, {}, { comp: false }, () => false, null, () => true, f => f(), () => { drawn.push(1); PM.pePrint(pgD); }, false, DRs.seeLabels);
+        const pm = [PM.moved()]; PM.pePrint(pgD); pm.push(PM.moved());   // never drawn by the editor yet: nothing; drawn, nothing changed: same
+        cP.players.u_p = { name: 'Pell' }; pm.push(PM.moved(), drawn.length);   // Pell joins: drawn
+        focus.el = { closest: s => (s === '#plannerEditorWrap' ? edW : null) }; cP.players.u_q = { name: 'Quin' }; pm.push(PM.moved(), PM.st.later, drawn.length);   // the GM is typing: held for peLeft
+        const netS = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1');
+        check('1.6.3 (the release click test, finding 25, found live) a join changes the campaign\'s players with no redraw of the app, so the host\'s roster and Ban ask the page editor itself (planner.js plannerPlayersMoved, run for real): a page whose Seen by ticks changed is drawn at once, or once the GM leaves the editor where they are typing in it, and nothing is drawn where nothing changed or the editor never drew this page',
+            J(pm) === J(['none', 'same', 'drawn', 1, 'held', true, 1]) && plS.includes('  window.wpPlannerPlayers = plannerPlayersMoved;')
+            && (netS.match(/typeof window\.wpPlannerPlayers === 'function'\) window\.wpPlannerPlayers\(\);/g) || []).length === 2, J(pm));
+        const pg = { id: 'd1', type: 'doc', meta: { title: 'Combat' }, blocks: [{ id: 'k', type: 'text', hide: true }] }, pl = { id: 'p1', type: 'planner', meta: {}, blocks: [] };
+        const c2 = { id: 'c', items: {}, chars: {}, players: { u_a: { name: 'Mira', lastSeen: 1, joinCount: 1, key: 'x' } } };
+        const s0 = pe(pg, c2), p0 = pe(pl, c2);
+        c2.players.u_a.lastSeen = 2; c2.players.u_a.joinCount = 2; c2.players.u_a.key = 'y'; const s1 = pe(pg, c2);   // a rejoin: nothing the row lists
+        c2.players.u_p = { name: 'Pell' }; const s2 = pe(pg, c2), p2 = pe(pl, c2);   // a new player joins
+        c2.bannedPlayers = { u_p: 1 }; const s3 = pe(pg, c2);
+        c2.players.u_p.name = 'Pell2'; const s4 = pe(pg, c2);
+        check('1.6.3 (the release click test, finding 25) a page\'s editor is drawn again when a player joins, is banned or renamed, so Seen by lists every player as the campaign stands (planner.js peSigOf, run for real): a join, a ban and a rename change what it is judged by; a rejoin that only rewrites the last time seen, the count of joins and the key does not; a planner, which has no Seen by, is not drawn again for a join',
+            typeof s0 === 'string' && s0 === s1 && s2 !== s1 && s3 !== s2 && s4 !== s3 && p0 === p2, J([s0 === s1, s2 !== s1, s3 !== s2, s4 !== s3, p0 === p2]));
     }
     /* ---- the review of pages reveal (finding 3; 2026-11-21): a page's Save PDF and Save HTML once saved exactly what players read. Now a page with a
        block kept back asks first, by its buttons alone: As players read it leaves every kept block out and keeps a link to one only as its page,

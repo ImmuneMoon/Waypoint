@@ -425,7 +425,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const epT = new Function(shT.slice(shT.indexOf('function errPrefix('), shT.indexOf('\n', shT.indexOf('function errPrefix('))) + NL + 'return errPrefix;')();
         // 1.6.2 (found building a system by hand): a fault under its box names the part in words, and never its short name in the file
         check('1.6.2 the System editor names the part a fault stands in by words: a field\'s most, its name, and no prefix at all for a part that has no word, where it used to print the file\'s own name for it',
-            epT('maxFormula') === 'Its most: ' && epT('label') === 'Its name: ' && epT('notice.noise') === '' && epT('list.then.2.label') === '' && epT('__proto__') === '' && epT('constructor') === '', j([epT('maxFormula'), epT('notice.noise'), epT('constructor')]));
+            epT('maxFormula') === 'Its maximum: ' /* 1.6.3, the release click test: a pool's maximum, moved on purpose */ && epT('label') === 'Its name: ' && epT('notice.noise') === '' && epT('list.then.2.label') === '' && epT('__proto__') === '' && epT('constructor') === '', j([epT('maxFormula'), epT('notice.noise'), epT('constructor')]));
         check('1.6.2 a copied field is a new one, so its short name follows its label as a new field\'s does, and the question that drops the System editor\'s changes takes no Enter (sheets.js pinned; 1.6.3, finding 38: its button now says Close without saving, a pin moved on purpose)',
             require('./checkkit').part('sysedtabs.js').includes("if (ctx.f) { _keyAuto.add(d); d.key = keyFromLabel(d.label, d) || (d.key ? d.key + '2' : ''); }") && /Close the System editor without saving\?[^\n]*\{ noEnter: true, yes: 'Close without saving' \}\); return; \}/.test(require('./checkkit').part('sysedbox.js')), '');
         check('1.6.2 a sheet opened where the campaign has no character system says so, and offers the GM the System editor, where it used to close without a word (sheets.js pinned)',
@@ -2459,7 +2459,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const lossK = KL.kindLoss(prevK, drK, chK), wordsK = KL.kindLossWords(lossK), erP = kit.part('sysederr.js'), sdA = erP.indexOf('function saveDraft(force) {'), askA = erP.indexOf('if (force !== true) { var lostK = kindLoss(camp.system, draft, camp.chars || {});', sdA), rnA = erP.indexOf('var rnS = ', sdA);
         check('1.6.3 (finding 0) a field whose kind changed to one that cannot read what characters hold (kindLoss, run for real): a number turned to text on the two characters that hold it, a pool turned to a number on the one; a kind that keeps no value, a skill that reads a number and an unchanged kind clear nothing; Save asks first, before anything of the draft is changed, by a button that names the act, and the field\'s Kind box says it before Save',
             j(lossK.map(x => [x.id, x.n, x.kind])) === j([['f_s', 2, 'text'], ['f_hp', 1, 'number']]) && KL.kindLoss(prevK, prevK, chK).length === 0
-            && wordsK === 'Save clears what your characters hold in 2 fields whose kind changed: “Strength” on 2 characters and “HP” on 1 character. The new kind cannot read it. Save anyway, or pick the old kind again to keep it?'
+            && wordsK === 'Save clears what your characters hold in 2 fields whose kind changed: “Strength” on 2 character sheets and “HP” on 1 character sheet. The new kind cannot read it. Save anyway, or pick the old kind again to keep it?'
             && sdA > 0 && askA > sdA && askA < rnA && erP.includes("{ noEnter: true, yes: 'Save and clear them' }") && erP.includes("if (typeof kindLoss === 'function') kindLoss(saved, draft, chars).forEach(function(k) { (warningsById[k.id] = warningsById[k.id] || []).push({ prop: 'kind',"),
             j({ lossK, wordsK, sdA, askA, rnA }));
         // finding 10: a box whose form is open is not drawn away under it (sysedtabs.js allOrWait, run for real)
@@ -2479,7 +2479,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             midF === j({ id: 'f', kind: 'number', def: 0 }) && backF === j({ id: 'f', kind: 'formula', def: 0, formula: 'STR * 2', round: 'down' }) && backS === j({ id: 's', kind: 'select', def: 'Rogue', options: ['Fighter', 'Rogue'] })
             && midR === j({ id: 'r' }) && backR === j({ id: 'r', apply: [{ f: 'f_hp', formula: '1' }], each: 'turn', by: 'gm' }), j({ midF, backF, backS, midR, backR }));
         check('1.6.3 (finding 6) the Kind branch puts aside before it clears and brings back after it, a pool made by mistake lets the damage pool go, and the roll\'s Roll or Apply does the same; an arrow key on a closed Kind list, or Roll and Apply, opens the list and never steps it (the Texture lists\' rule)',
-            tbP.includes("if (c.indexOf('sys-kind') >= 0) { var kWas = f.kind; kindKeep(f, kWas, FIELD_KEEP); f.kind = t.value; delete f.formula;") && tbP.includes("kindBack(f, f.kind, FIELD_KEEP); if (kWas === 'resource' && f.kind !== 'resource') hpPoolLeave(f.id); if (f.kind === 'resource') hpPoolFill(f.id); markDirty(); renderAll(); return; }")
+            tbP.includes("if (c.indexOf('sys-kind') >= 0) { var kWas = f.kind; kindKeep(f, kWas, FIELD_KEEP); f.kind = t.value; delete f.formula;") && tbP.includes("kindBack(f, f.kind, FIELD_KEEP); if (f.kind === 'resource' && !(typeof f.maxFormula === 'string' && f.maxFormula.trim())) f.maxFormula = '10';") && tbP.includes("if (kWas === 'resource' && f.kind !== 'resource') hpPoolLeave(f.id); if (f.kind === 'resource') hpPoolFill(f.id); markDirty(); renderAll(); return; }") /* 1.6.3, the release click test: a new pool's maximum of 10 stands between the two, a pin moved on purpose */
             && tbP.includes("var rkWas = Array.isArray(r.apply) ? 'apply' : 'roll'; kindKeep(r, rkWas, ROLL_KEEP);") && tbP.includes("kindBack(r, t.value === 'apply' ? 'apply' : 'roll', ROLL_KEEP); markDirty(); renderAll(); return; }")
             && shJ.includes('(function(ks) { if (ks && typeof window !== \'undefined\' && window.wpTexList && window.wpTexList.keys) window.wpTexList.keys(ks); })(top.lastChild && top.lastChild.lastChild);') && rlP.includes('window.wpTexList.keys(top.lastChild);'));
         // finding 34: the first pool made is the damage pool, said once, and let go when it stops being a pool (hpPoolFill and hpPoolLeave, run for real)
@@ -2566,6 +2566,98 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         cap.value = '   '; HC.fIn(cap, { target: cap }); seen.push([fC.caption === undefined, lab.style.display]);
         check('1.6.3 (Fulllion, 2026-11-22) the editor\'s handlers for a field\'s caption and its Shows list (sysedtabs.js onInput and onChange, cut by name and run): typing a caption shows Shows, emptying it hides it again, and Shows writes capAt as info or making only, Under the field taking it off',
             inB > inA && inZ > inB && chB > chA && chZ > chB && j(seen) === j([['Base {Cap}', ''], 'info', 'making', true, true, [true, 'none']]), j(seen));
+    }
+
+    {   // 1.6.3, the release click test, batch "sysed": what the click test found in the System editor and the Library window, each run for real
+        const ioR = fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, NL), ixR = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), cssR = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL);
+        // (1) a window up holds every key of the map behind it (io.js winHeld, its slice run for real on a page of plain objects); the editor and the
+        // Library take the focus on a click on a blank part of them, so their own keys hear it
+        const whS = ioR.slice(ioR.indexOf('  // [sysedcheck:winheld-start]'), ioR.indexOf('  // [sysedcheck:winheld-end]')), winHeld = new Function(whS + NL + 'return winHeld;')();
+        const wEl = (id, up) => ({ id, getClientRects: () => (up ? [{ width: 10 }] : []) }), wDoc = els => ({ querySelectorAll: q => (q === '[id$="Modal"]' ? els : []) });
+        const wh = [winHeld(wDoc([])), winHeld(wDoc([wEl('systemModal', true)])), winHeld(wDoc([wEl('systemModal', false), wEl('settingsModal', false)])), winHeld(wDoc([wEl('docReaderModal', true)])), winHeld(wDoc([wEl('docReaderModal', true), wEl('libraryModal', true)])), winHeld(null)];
+        const kA = ioR.indexOf("  document.addEventListener('keydown', function(e) {\n\n      var t = e.target;"), tyA = ioR.indexOf('      if (typing) { fieldUndoChord(e); return; }', kA), whA = ioR.indexOf('      if (winHeld(document)) return;', kA), s1A = ioR.indexOf("e.code === 'Digit1'", kA), unA = ioR.indexOf("if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }", kA), mvA = ioR.indexOf('      if (mvDir) { if (nudgeSel(mvDir, e.shiftKey)) e.preventDefault(); return; }', kA);
+        check('1.6.3 (the release click test) a window of the app\'s up over the map holds every key of the map behind it (io.js winHeld, run for real): a shown window holds them, a hidden one and none do not, and a player\'s page reader, a floating box, does not; the page\'s key handler asks it right after a field\'s own keys and before Shift+1, the undo chords, the arrows and Delete; and the System editor and the Library window take the focus on a click on a blank part (tabindex -1, with no ring), so their own Escape, Ctrl+Z and Ctrl+Y hear it',
+            j(wh) === j([false, true, false, false, true, false]) && kA > 0 && whA > tyA && tyA > kA && s1A > whA && unA > whA && mvA > whA
+            && /<div id="systemModal" style="display:none;[^"]*" tabindex="-1">/.test(ixR) && /<div id="libraryModal" style="display:none;[^"]*" tabindex="-1">/.test(ixR) && cssR.includes('#systemModal:focus, #libraryModal:focus { outline: none; }'), j([wh, kA, tyA, whA, s1A]));
+        // (1b) the review of the release click test: a paste is held by a window too. Ctrl+V fires a paste of its own, and its listener laid the pieces
+        // copied earlier on the map behind the System editor. The listener is cut from io.js and run for real on a page of stand-ins: with a window up
+        // nothing is pasted or uploaded, with none the same paste lays the pieces; and the window is asked right after a field's own paste
+        {
+            const pA = ioR.indexOf("  document.addEventListener('paste', function(e) {"), pZ = ioR.indexOf('\n  });', pA) + 6, pS = ioR.slice(pA, pZ);
+            const pwA = pS.indexOf('      if (winHeld(document)) return;'), pfA = pS.indexOf("t.tagName === 'INPUT'"), pcA = pS.indexOf('if (!canPersistLocal()) return;');
+            const runPaste = (up, target) => { let laid = 0, sent = 0, stopped = false, handler = null;
+                const doc = { addEventListener: (ev, fn) => { if (ev === 'paste') handler = fn; } };
+                new Function('document', 'winHeld', 'canPersistLocal', 'state', 'getActiveMap', 'pasteWbClipboard', 'window', 'wbMouse', 'wbWrap', pS)(
+                    doc, d => d === doc && up, () => true, { viewMode: 'visual', zoomLevel: 1 }, () => ({ type: 'map' }), () => { laid++; return true; },
+                    { wpUploadImage: () => { sent++; } }, { x: 10, y: 10 }, { scrollLeft: 0, scrollTop: 0, clientWidth: 100, clientHeight: 100 });
+                const img = { type: 'image/png', getAsFile: () => ({}) };
+                handler({ target, preventDefault: () => { stopped = true; }, clipboardData: { items: [] } });
+                handler({ target, preventDefault: () => { stopped = true; }, clipboardData: { items: [img] } });
+                return [laid, sent, stopped]; };
+            const blank = { tagName: 'DIV', id: 'systemModal' };
+            const ps = [runPaste(true, blank), runPaste(false, blank), runPaste(true, { tagName: 'INPUT' })];
+            check('1.6.3 (the review of the release click test) a window of the app\'s up over the map holds a paste as it holds every key (io.js\'s paste listener, cut and run for real): with a window up a paste on a blank part of it lays nothing on the map and uploads no picture, with none the same paste lays the pieces and uploads the picture, and the window is asked right after a field\'s own paste and before anything else',
+                pA > 0 && j(ps) === j([[0, 0, false], [1, 1, true], [0, 0, false]]) && pwA > pfA && pfA > 0 && pcA > pwA, j([ps, pA, pfA, pwA, pcA]));
+        }
+        // (2) Used by's Layout line lands on its place, or on the section's own row (sysui.js placeReach, run for real on a page of plain objects), and a
+        // part of the section itself names the section (sysedbox.js usedPlace, run for real)
+        const suR = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').replace(/\r\n/g, NL), prS = suR.slice(suR.indexOf('// [sysedcheck:placereach-start]'), suR.indexOf('// [sysedcheck:placereach-end]'));
+        const shown = [], focused = [], timers = [];
+        const node = (cls, ds, kids) => { const n = { className: cls, dataset: ds || {}, tagName: 'DIV', marks: new Set(), kids: kids || [], scrolled: null, classList: null, parentNode: null };
+            n.classList = { add: c => n.marks.add(c), remove: c => n.marks.delete(c) }; n.scrollIntoView = o => { n.scrolled = o; }; n.focus = () => focused.push(n.className);
+            n.querySelector = q => (q === '.sys-sec-title' ? n.kids.find(k => k.className === 'sys-sec-title') || null : n.kids.find(k => /^(input|select|button)$/.test(k.tag)) || null); n.kids.forEach(k => { k.parentNode = n; }); return n; };
+        const ctl = (tag, cls) => { const c = node(cls); c.tag = tag; return c; };
+        const pl0 = node('sys-pl', { sid: 's_a', pi: '0' }, [ctl('span', 'sys-pl-name'), ctl('button', 'sys-pl-if')]), pl1 = node('sys-pl', { sid: 's_b', pi: '0' }, [ctl('button', 'sys-pl-if')]), pl2 = node('sys-pl', { sid: 's_b', pi: '1' }, [ctl('button', 'sys-pl-if2')]);
+        const secA = node('sys-row sys-sec', { sid: 's_a', topic: 'sections' }, [ctl('input', 'sys-sec-title')]), secB = node('sys-row sys-sec', { sid: 's_b', topic: 'sections' }, [ctl('input', 'sys-sec-title')]);
+        const secsBox = { querySelectorAll: q => (q === '.sys-pl' ? [pl0, pl1, pl2] : q === '.sys-sec' ? [secA, secB] : []) };
+        const placeReach = new Function('byId', 'topicIn', 'showTopic', 'setTimeout', prS + NL + 'return placeReach;')(id => (id === 'sysLayoutSecs' ? secsBox : null), (s, t) => s === 'layout' && t === 'sections', (s, t) => shown.push(s + ':' + t), (fn, ms) => timers.push([fn, ms]));
+        const rP = placeReach({}, 's_b', '1'), rS = placeReach({}, 's_a', ''), rN = placeReach({}, 's_x', '0'), rG = placeReach({}, 's_a', '7');
+        const litNow = [pl2.marks.has('sys-reached'), secA.marks.has('sys-reached')]; timers.forEach(t => t[0]());
+        const ubSrc = kit.cut('sysedbox.js', '// [sysedcheck:usedby-start]', '// [sysedcheck:usedby-end]');
+        const drU = { sheet: { sections: [{ id: 's_main', title: 'Main', showIf: 'STR > 1', fields: [{ id: 'f_str' }] }], hud: { sections: [{ id: 's_h', title: 'Bar', fields: [{ id: 'f_str' }] }] } } };
+        const UP = new Function('draft', 'window', ubSrc + NL + 'return usedPlace;')(drU, {});
+        const upP = [UP(['sheet', 'sections', 0, 'fields', 0, 'id']), UP(['sheet', 'sections', 0, 'showIf']), UP(['sheet', 'hud', 'sections', 0, 'fields', 0, 'id']), UP(['sheet', 'tabs', 0, 'label'])];
+        check('1.6.3 (the release click test) Used by\'s Layout line lands on what it names (sysui.js placeReach, run for real): a place by its section and index, compared and never put in a selector, else the section\'s own row with its title focused; its part of the tab shown, brought to the middle and lit for two seconds; none for a section that is not there; reach asks it first for a Layout place; and a part of the section itself names the section (sysedbox.js usedPlace, run for real)',
+            rP === pl2 && rS === secA && rN === null && rG === secA && pl2.scrolled && pl2.scrolled.block === 'center' && j(focused) === j(['sys-pl-if2', 'sys-sec-title', 'sys-sec-title']) && shown.length === 3 && shown.every(s => s === 'layout:sections')
+            && j(litNow) === j([true, true]) && !pl2.marks.has('sys-reached') && !secA.marks.has('sys-reached') && timers.every(t => t[1] === 2000)
+            && suR.includes("    var plm = !prop ? /^plc:(?:sheet|hud):([^:]+):(\\d*)$/.exec(id) : null; if (plm) { var pto = placeReach(modal, plm[1], plm[2]); if (pto) return pto; }")
+            && upP[0].id === 'plc:sheet:s_main:0' && upP[1].id === 'plc:sheet:s_main:' && upP[1].name === 'Layout, Main' && upP[2].id === 'plc:hud:s_h:0' && upP[3].id === 'plc:sheet:', j([focused, shown, upP]));
+        // (3) a new pool starts with a maximum of 10, and a cleared one is said as its maximum (sysedtabs.js onChange's field branch, run as the
+        // caption block above runs it; sheets.js errPrefix)
+        const tbK = kit.part('sysedtabs.js').replace(/\r\n/g, NL), kA2 = tbK.indexOf('function onChange(e) {'), kB2 = tbK.indexOf("    var ctx = fieldOfRow(t); if (!ctx) return;\n    var f = ctx.f, r = ctx.r;\n", kA2), kZ2 = tbK.indexOf('\n}\nfunction onClick(e) {', kB2);
+        const fK = { id: 'f_new', key: 'New', label: 'New field', kind: 'number' }, madeK = {}, fKeep = { id: 'f_kept', key: 'Kept', label: 'Kept', kind: 'number' };
+        let fNow = fK;
+        const envK = new Proxy({ fieldOfRow: () => ({ f: fNow, r: null }), LIMITS: kit.LIMITS || { formula: 10000, label: 60, labels: 32 }, document: undefined, console, Object, Array, String, Number, Math, JSON, RegExp, isFinite, kindBack: (f, k) => { if (f === fKeep && k === 'resource') f.maxFormula = 'END * 2'; } },
+            { has: (t, k) => typeof k === 'string', get: (t, k) => (k in t ? t[k] : (k === Symbol.unscopables ? undefined : (madeK[k] = madeK[k] || function() {}))) });
+        const HK = new Function('env', 'with (env) {' + NL + "function fCh(t, e) { var c = t.className || '';" + NL + tbK.slice(kB2, kZ2) + NL + '}' + NL + 'return { fCh: fCh };' + NL + '}')(envK);
+        const kSel = { className: 'sys-kind', value: 'resource' }; HK.fCh(kSel, { target: kSel }); const rNew = fK.maxFormula;
+        fNow = fKeep; HK.fCh(kSel, { target: kSel }); const rKept = fKeep.maxFormula;
+        const shE = kit.joined('sheets.js'), epE = new Function(shE.slice(shE.indexOf('function errPrefix('), shE.indexOf('\n', shE.indexOf('function errPrefix('))) + NL + 'return errPrefix;')();
+        check('1.6.3 (the release click test) a field turned into a pool starts with a maximum of 10, as a box others depend on starts filled, and a maximum kept from before comes back over it; a maximum left empty is said as its maximum (errPrefix), never its most',
+            kB2 > kA2 && kZ2 > kB2 && rNew === '10' && fK.def === 'max' && rKept === 'END * 2' && epE('maxFormula') === 'Its maximum: ', j([rNew, rKept, epE('maxFormula')]));
+        // (4) a kind that cannot read a field's values counts character sheets, never characters, under the Kind box
+        const erK = kit.part('sysederr.js');
+        check('1.6.3 (the release click test) the warning under a changed Kind counts character sheets, so "261 characters" is never read as letters of text',
+            erK.includes("message: 'Save clears what ' + k.n + (k.n === 1 ? ' character sheet holds' : ' character sheets hold') + ' in this field, since a '") && !erK.includes("' characters hold') + ' here, since a '"));
+        // (5) the Library opened at an entry by Used by marks its row and brings it into view (librarywin.js openAt and renderList's reveal, run for real)
+        const lwR = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, NL), laA = lwR.indexOf('// [sysedcheck:libleave-start]'), laB = lwR.indexOf('// [sysedcheck:libleave-end]');
+        const stO = { open: true, packId: 'p0', entryId: 'a', draftNew: null, sel: {}, q: 'x' }, winO = { wpLibraryWin: {} }; let drawn = 0;
+        const OA = new Function('st', 'current', 'ui', 'cleanLibEntry', 'readForm', 'gmCtx', 'clone', 'saveEntry', 'open', 'packById', 'map', 'renderAll', 'toast', 'window', lwR.slice(laA, laB) + NL + 'return window.wpLibraryWin.openAt;')(
+            stO, () => null, () => null, e => e, () => ({}), () => ({}), o => o, () => true, () => {}, id => id === 'p1', () => Object.create(null), () => { drawn++; }, () => {}, winO);
+        OA('p1', 'e_cns');
+        const rvS = lwR.slice(lwR.indexOf('    // [sysedcheck:libreveal-start]'), lwR.indexOf('    // [sysedcheck:libreveal-end]'));
+        const reveal = new Function('st', 'list', 'lb', 'ROW_H', 'ready', rvS);
+        const listR = Array.from({ length: 200 }, (x, i) => ({ id: 'e' + i })); listR[150].id = 'e_cns';
+        const lbR = { box: { scrollTop: 0, clientHeight: 400 } }, stR = { revealId: 'e_cns', packId: 'p1' }; reveal(stR, listR, lbR, 28, () => true);
+        const lbW = { box: { scrollTop: 0, clientHeight: 400 } }, stW = { revealId: 'e_cns', packId: 'p1' }; reveal(stW, [], lbW, 28, () => false);
+        const stG = { revealId: 'e_gone', packId: 'p1' }; reveal(stG, listR, { box: { scrollTop: 5, clientHeight: 400 } }, 28, () => true);
+        check('1.6.3 (the release click test) the Library opened at an entry by Used by marks its row as chosen and brings it to the middle of the list (openAt, and renderList\'s reveal, run for real): the list is scrolled to the row once it is drawn; where its pack is still being read the reveal waits for the draw that comes once it is read; an entry that is not there lets it go',
+            stO.packId === 'p1' && stO.entryId === 'e_cns' && stO.sel.e_cns === 1 && Object.keys(stO.sel).length === 1 && stO.anchor === 'e_cns' && stO.revealId === 'e_cns' && stO.q === '' && drawn === 1
+            && lbR.box.scrollTop === 150 * 28 - (400 - 28) / 2 && stR.revealId === null && lbW.box.scrollTop === 0 && stW.revealId === 'e_cns' && stG.revealId === null, j([stO, lbR.box.scrollTop, stR, stW, stG]));
+        // (6) the Layout tab's rows fit their column, its places keep their height, and only the sections in view are laid out (style.css)
+        check('1.6.3 (the release click test) the Layout tab: a place\'s row wraps with its name keeping room, a section\'s lists never run past its card, its places keep their height in it, and the browser lays out only the sections in view',
+            /\.sys-pl \{ display: flex; flex-wrap: wrap;/.test(cssR) && cssR.includes('.sys-pl-name { flex: 1 1 120px; min-width: 0;') && cssR.includes('.sys-sec-style select { max-width: 100%; }') && cssR.includes('.sys-sec > .sys-pl-list { flex-shrink: 0; }')
+            && cssR.includes('#sysLayoutSecs > .sys-sec { content-visibility: auto; contain-intrinsic-size: auto 400px; }') && cssR.includes('.sys-pl.sys-reached, .sys-sec.sys-reached {'));
     }
 
     await T.finish();

@@ -35,7 +35,7 @@ function kindLoss(prev, d, chars) {
     return out;
 }
 function kindLossWords(list) {
-    var on = function(k) { return '“' + k.label + '” on ' + k.n + (k.n === 1 ? ' character' : ' characters'); }, parts = list.map(on);
+    var on = function(k) { return '“' + k.label + '” on ' + k.n + (k.n === 1 ? ' character sheet' : ' character sheets'); } /* 1.6.3 (the release click test): sheets, since a count of characters read as letters */, parts = list.map(on);
     return 'Save clears what your characters hold in ' + (list.length === 1 ? 'a field whose kind changed: ' : list.length + ' fields whose kind changed: ') + (parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]) + '. The new kind cannot read it. Save anyway, or pick the old kind again to keep it?';
 }
 // [sysedcheck:kindloss-end]
@@ -107,7 +107,7 @@ function refWarns(saved, clean, camp0) {
     rn.names.forEach(function(p) { renamesSay({ names: [p] }).forEach(function(m) { warn(p.list ? 'list:' + p.f : p.f, m); }); });   // 1.6.2: a number's value names moved: said before Save, since the numbers stored in rows and the library stay as they are
     rn.subjects.forEach(function(p) { renamesSay({ subjects: [p] }).forEach(function(m) { warn('list:' + p.f, m); }); });   // 1.6.2: a list's subjects moved: a word only moved says nothing, since its rows follow
     var fromIn = function(l, f, x) { return l.some(function(p) { return p.f === f && low(p.from) === low(x); }); };
-    if (typeof kindLoss === 'function') kindLoss(saved, draft, chars).forEach(function(k) { (warningsById[k.id] = warningsById[k.id] || []).push({ prop: 'kind', message: 'Save clears what ' + k.n + (k.n === 1 ? ' character holds' : ' characters hold') + ' here, since a ' + (KIND_LABEL[k.kind] || k.kind) + ' field cannot read it. Pick its old kind again to keep it.' }); });   // 1.6.3 (finding 0)
+    if (typeof kindLoss === 'function') kindLoss(saved, draft, chars).forEach(function(k) { (warningsById[k.id] = warningsById[k.id] || []).push({ prop: 'kind', message: 'Save clears what ' + k.n + (k.n === 1 ? ' character sheet holds' : ' character sheets hold') + ' in this field, since a ' + (KIND_LABEL[k.kind] || k.kind) + ' field cannot read it. Pick its old kind again to keep it.' }); });   // 1.6.3 (finding 0)
     ((saved && saved.fields) || []).forEach(function(sf) {
         var df = sf ? (draft.fields || []).filter(function(x) { return x && x.id === sf.id; })[0] : null; if (!df || df.kind !== sf.kind) return;
         if (sf.kind === 'select') (Array.isArray(sf.options) ? sf.options : []).forEach(function(o) {   // a character's value of a list field that goes

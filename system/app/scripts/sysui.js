@@ -574,8 +574,30 @@ function footSync() {
 function errFill() { var list = byId('sysErrList'); if (!list || !errHost) return; errNow = errRows(lastErrs, lastWarns, errHost.where, errHost.say); errDraw(list, errNow, document); }
 function errShow(on) { var b = byId('sysErrBtn'), list = byId('sysErrList'); if (!list) return; if (on) errFill(); list.hidden = !on; if (b) b.setAttribute('aria-expanded', on ? 'true' : 'false'); }
 // Onto the box an error names: what folds it opened, the box in view, the focus on it
+// [sysedcheck:placereach-start]
+// 1.6.3 (the release click test): a place of the Layout tab, as Used by names one ('plc:', the layout, the section's id and the place's index, or
+// the section's id alone where what reads the field is a part of the section itself). Most places draw no error cell, so it is found by its
+// section and its index, compared and never put in a selector: the place's own row, else the section's row. Its part of the tab is shown, a
+// fold around it opened, and it is brought to the middle of the view with the focus on its first control (the section's title for a section),
+// shown as a keyboard's focus would be, so the GM sees which it is. Answers the element, or null where nothing matches
+function placeReach(modal, sid, pi) {
+    var secs = byId('sysLayoutSecs'); if (!secs || !sid) return null;
+    var prs = secs.querySelectorAll('.sys-pl'), rows = secs.querySelectorAll('.sys-sec'), hit = null, row = null, i;
+    if (pi !== '') for (i = 0; i < prs.length && !hit; i++) if (prs[i].dataset && prs[i].dataset.sid === sid && prs[i].dataset.pi === pi) hit = prs[i];
+    for (i = 0; i < rows.length && !row; i++) if (rows[i].dataset && rows[i].dataset.sid === sid) row = rows[i];
+    var to = hit || row; if (!to) return null;
+    if (row && row.dataset && topicIn('layout', row.dataset.topic)) showTopic('layout', row.dataset.topic);
+    for (var n = to; n && n !== modal; n = n.parentNode) if (n.tagName === 'DETAILS') n.open = true;
+    if (to.scrollIntoView) to.scrollIntoView({ block: 'center' });
+    var f = hit ? hit.querySelector('input, select, textarea, button') : row.querySelector('.sys-sec-title');
+    if (f && f.focus) { try { f.focus({ focusVisible: true }); } catch (e) { f.focus(); } }
+    if (to.classList) { to.classList.add('sys-reached'); setTimeout(function() { to.classList.remove('sys-reached'); }, 2000); }   // lit for two seconds, since a button focused after a click shows no ring
+    return to;
+}
+// [sysedcheck:placereach-end]
 function reach(id, prop) {
     var modal = byId('systemModal'), cells = modal ? modal.querySelectorAll('[data-err-for]') : [], cell = null, i;
+    var plm = !prop ? /^plc:(?:sheet|hud):([^:]+):(\d*)$/.exec(id) : null; if (plm) { var pto = placeReach(modal, plm[1], plm[2]); if (pto) return pto; }   // 1.6.3: a Layout place lands on its own row
     for (i = 0; i < cells.length && !cell; i++) if (cells[i].dataset.errFor === id) cell = cells[i];
     if (!cell) return null;
     for (var lp = cell; lp && lp !== modal; lp = lp.parentNode) if (lp.parentNode && lp.parentNode.id === 'sysLayoutSecs' && lp.dataset && topicIn('layout', lp.dataset.topic)) { showTopic('layout', lp.dataset.topic); break; }

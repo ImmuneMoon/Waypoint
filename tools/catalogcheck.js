@@ -184,6 +184,22 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     /* ---- the Library window, on a page of plain objects that refuses markup ---- */
     const winS = read('scripts/librarywin.js');
     const cutW = (from, to) => { const i = winS.indexOf(from), k = winS.indexOf(to, i); if (i < 0 || k < 0) throw new Error('catalogcheck: librarywin.js ' + from); return winS.slice(i, k); };
+    {   // 1.6.3 (the release click test): two lists called Weapons, and a file of gear whose Cost and Weight every list names. The tie goes to the
+        // list that takes the file's categories (csvcore bestList's third argument, run for real), the file's categories are read from its category
+        // column (librarywin.js csvFileCats), and For the list tells the two Weapons lists apart by their short names (csvListName), both run for real
+        const st2 = [{ key: 'Cost', label: 'Cost', kind: 'number' }, { key: 'Wt', label: 'Weight', kind: 'number' }];
+        const lsT = [{ id: 'f_weapons', key: 'Weapons', label: 'Weapons', kind: 'item-list', list: { cats: ['Blade'], stats: st2 } }, { id: 'f_vguns', key: 'VGuns', label: 'Weapons', kind: 'item-list', list: { cats: ['Gun'], stats: st2 } },
+            { id: 'f_armor', key: 'Armor', label: 'Armor & Clothing', kind: 'item-list', list: { cats: ['Utility', 'clothing'], stats: st2 } }];
+        const sysT = { fields: lsT }, hdT = ['Name', 'Category', 'Cost', 'Weight', 'Notes'];
+        const mkW = (src, names) => new Function(...Object.keys(names), '"use strict";\n' + src)(...Object.keys(names).map(k => names[k]));
+        const fileCats = mkW(cutW('function csvFileCats(', NL + '}' + NL) + NL + '}' + NL + 'return csvFileCats;', { guessMap, csvTargets, map: () => Object.create(null) });
+        const listName = mkW(cutW('function csvListName(', NL + '}' + NL) + NL + '}' + NL + 'return csvListName;', { itemLists: () => lsT });
+        const tbT = readCsv(enc('Name,Category,Cost,Weight,Notes' + NL + 'Rope,Utility,5,2,a' + NL + 'Cloak,Clothing,10,1,b' + NL + 'Belt,utility,2,1,c' + NL)), catsT = fileCats(tbT, headsOf(tbT, true), true);
+        check('1.6.3 (the release click test) a tie between lists goes to the one that takes the file\'s categories (bestList with them, any case), else the first as before; the categories are read once each from the column the headings name; two lists of one name are told apart by their short names',
+            bestList(sysT, hdT) === 'f_weapons' && j(catsT) === j(['Utility', 'Clothing']) && bestList(sysT, hdT, catsT) === 'f_armor' && bestList(sysT, hdT, ['Gun']) === 'f_vguns' && bestList(sysT, hdT, []) === 'f_weapons' && bestList(sysT, ['Name'], catsT) === ''
+            && j(lsT.map(listName)) === j(['Weapons', 'Weapons (VGuns)', 'Armor & Clothing']) && j(fileCats(readCsv(enc('Name,Weight' + NL + 'Rope,1' + NL)), ['Name', 'Weight'], true)) === j([])
+            && winS.includes('list = bestList(sys, heads, csvFileCats(t, heads, hasHead))') && winS.includes('return [f.id, csvListName(f)];'), j([catsT, lsT.map(listName)]));
+    }
     function pageOf() {
         const doc = { activeElement: null };
         const mk = tag => { const e = { tag, kids: [], on: {}, dataset: {}, style: {}, className: '', id: '', title: '', value: '', type: '', _t: '', parent: null, hidden: false, scrollTop: 0, marks: new Set(),

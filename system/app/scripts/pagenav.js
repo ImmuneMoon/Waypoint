@@ -31,10 +31,12 @@ function navHead(blk) {
     if (t === 'DIV' && navHas(k, 'node')) { var h = navFirstEl(k); if (h && h.nodeName === 'H3') return { level: 3, el: h }; }
     return null;
 }
-// a heading's own words: its text without its subtitle (.sub) and without a node's tag (.tag), white space folded, 120 characters at most
+// a heading's own words: its text without its subtitle (.sub), without a node's tag (.tag) and without a card's session badge (.card-tick:
+// Played, Found, Tonight, Ahead; 1.6.3, the release click test, finding 27), white space folded, 120 characters at most. An untitled card then
+// has no words, so the Outline and Contents leave it out, as they leave out an untitled card with no session
 function navText(el) {
     var s = '';
-    (function walk(n) { for (var i = 0; n && n.childNodes && i < n.childNodes.length; i++) { var k = n.childNodes[i]; if (k.nodeType === 3) s += k.nodeValue; else if (k.nodeType === 1 && !navHas(k, 'sub') && !navHas(k, 'tag')) walk(k); } })(el);
+    (function walk(n) { for (var i = 0; n && n.childNodes && i < n.childNodes.length; i++) { var k = n.childNodes[i]; if (k.nodeType === 3) s += k.nodeValue; else if (k.nodeType === 1 && !navHas(k, 'sub') && !navHas(k, 'tag') && !navHas(k, 'card-tick')) walk(k); } })(el);
     return Array.from(s.replace(/\s+/g, ' ').trim()).slice(0, 120).join('');
 }
 // [{ level, text, bi, el }]: bi is the block's own number (its data-blk), by which a row finds its heading again after the page was drawn again

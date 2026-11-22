@@ -664,6 +664,14 @@ const j = v => JSON.stringify(v);
         check('208 an empty station reads 0 and the card says nobody is there, by the words the record\'s cleaner keeps; a held station says nothing, nor does a count',
             em.got === 0 && j(em.r) === j([{ s: 'No one at Helm, so it counted as 0', c: 3 }]) /* 1.6.3 (the release click test): plain words (moved on purpose) */ && j(Dc.cleanRefs(em.r)) === j(em.r) && fu.got === 12 && fu.r === null && cn.r === null && j(al.r) === j([{ s: 'No one linked as Crew, so it counted as 0', c: 3 }]), j([em, fu, cn, al]));
         const thr = refsFor([], 'Veer');
+        {   // 1.6.3 (the review of the click test combat): a group's name long enough that the plain note would pass 60 characters is cut to fit, so
+            // the record's cleaner keeps the note and the roll's other notes with it
+            const gk = 'Crewmembersofthelongvesselgroupforthetest', csL = crewSys({ links: [{ id: 'lk_c', key: 'Vessel', label: 'Vessel', kind: 'crew', edit: 'owner', group: gk, press: true, stations: ['Helm', 'Bow'] }], fields: [{ id: 'f_pl', key: 'Handling', label: 'Handling', kind: 'number', vis: 'all', edit: 'owner' }], rolls: [] });
+            S.setCrewSource(() => []); const vL = makeResolver(csL, veh, F), gotL = vL(gk + '.max.Handling'), rL = S.rollRefs(vL, [{ name: gk + '.max.Handling' }]); S.setCrewSource(null);
+            const cL = Dc.cleanRefs(rL);
+            check('1.6.3 an empty crew group with a long name still says so on the card, its name cut to fit, and the record\'s cleaner keeps it',
+                gotL === 0 && Array.isArray(rL) && rL.length === 1 && rL[0].s.length <= 60 && /^No one linked as Crewmember.*, so it counted as 0$/.test(rL[0].s) && rL[0].c === 3 && j(cL) === j(rL), j([gotL, rL, cL, (csL.links || []).map(k => k.group)]));
+        }
         check('208 ...through a field worked out from it too', j(thr.r) === j([{ s: 'No one at Helm, so it counted as 0', c: 3 }]), j(thr));
         // what is gone, said at Save
         const goneSys = cleanSystem(edit(before, d => {

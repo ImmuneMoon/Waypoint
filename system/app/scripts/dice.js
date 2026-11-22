@@ -182,10 +182,11 @@ function refsInto(wrap, refs) {
     var say = function(s) { var u = /^untrained (.+?)( \([^()]*\))?$/.exec(s); if (u) return u[1] + ', rolled untrained' + (u[2] || ''); return /^as /.test(s) ? 'Rolled ' + s : s; };
     // 1.6.3 (the combat review, finding 27): one note a text, in the order first met, with how many times where it came more than once (three names
     // that read an empty crew group each said "nobody in Rider, read as 0", three lines alike)
-    // 1.6.3 (the release click test): a note that a group with no one in it counted as 0 (c 3) is said once with no count: how many of its names the
-    // formula read says nothing to the table
+    // 1.6.3 (the release click test): a note that a group with no one in it counted as 0 is said once with no count: how many of its names the
+    // formula read says nothing to the table. Such a note is c 3, as an untrained note is, so it is told apart by its words: an untrained note
+    // always begins "untrained " (the review of the click test combat), and keeps its count
     var order = [], times = Object.create(null), once = Object.create(null);
-    refs.forEach(function(x) { if (!x || typeof x !== 'object' || typeof x.s !== 'string' || !x.s) return; if (!times[x.s]) { times[x.s] = 0; order.push(x.s); } times[x.s]++; if (x.c === 3) once[x.s] = true; });
+    refs.forEach(function(x) { if (!x || typeof x !== 'object' || typeof x.s !== 'string' || !x.s) return; if (!times[x.s]) { times[x.s] = 0; order.push(x.s); } times[x.s]++; if (x.c === 3 && !/^untrained /.test(x.s)) once[x.s] = true; });
     order.forEach(function(s) { box.appendChild(el('div', 'chat-mod-src', say(s) + (times[s] > 1 && !once[s] ? ' (' + times[s] + ' times)' : ''))); });
     if (box.firstChild) wrap.appendChild(box);
 }

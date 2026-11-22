@@ -6966,7 +6966,9 @@ function specMeans(spec, d, base, key) {
 }
 // The words a roll's card says for one reference: as the row it read, with the Fallback taken where it read a sibling, or as the parent untrained
 function refSays(r) {
-    if (!isObj(r)) return ''; if (typeof r.say === 'string') return r.say;   // 1.6.2: words of the reference's own, as an empty station's
+    // 1.6.3 (the review of the click test combat): words of the reference's own are held to a card's label too, since the record's cleaner
+    // refuses the whole list of notes for one past 60 characters; one that still does not fit is left out, never the others with it
+    if (!isObj(r)) return ''; if (typeof r.say === 'string') { var sw = cutPoints(r.say, 60, ''); return sw.length <= 60 ? sw : ''; }   // 1.6.2: words of the reference's own, as an empty station's
     var pre = r.c === 3 ? 'untrained ' : 'as ', sgn = typeof r.v === 'number' && fin(r.v) && r.v ? (r.v > 0 ? '+' : '\u2212') + fmtNum(Math.abs(r.v)) : '', tail = !sgn ? '' : r.c === 2 ? ' ' + sgn : r.c === 3 ? ' (' + sgn + ')' : '';   // the untrained penalty in brackets, as the core asked: untrained Blade (-5)
     var s = cutPoints(r.s, Math.max(1, 60 - pre.length - tail.length), ''), t = s ? pre + s + tail : '';
     return t.length <= 60 ? t : '';   // within a card's label, as the record's cleaner holds it
@@ -7128,7 +7130,9 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             crewC[k.id] = mem;
         }
         var sel = p.st ? mem.filter(function(m) { return m.s.indexOf(lower(p.st)) >= 0; }) : mem; if (pressOnly) sel = sel.filter(function(m) { return m.c.id === pressOnly; }); if (p.agg === 'count') return sel.length;
-        if (!sel.length && !pressOnly) refRec[l] = [{ n: l, c: 3, say: (p.st ? 'No one at ' + p.st : 'No one linked as ' + k.group) + ', so it counted as 0', gm: false }];   /* 1.6.3 (the release click test): in plain words, said once on the card however many names read it */   // 1.6.2 (backlog 208, point 9): with no one there it reads 0, as a skill of 0 does; the card says which it was
+        // 1.6.3 (the review of the click test combat): the station's or the group's name is cut so the whole note fits a card's label (60), however
+        // long the builder made it, so the note is never dropped and never takes the roll's other notes with it
+        if (!sel.length && !pressOnly) { var eW = p.st ? 'No one at ' : 'No one linked as ', eT = ', so it counted as 0'; refRec[l] = [{ n: l, c: 3, say: eW + cutPoints(p.st || k.group, 60 - eW.length - eT.length, '') + eT, gm: false }]; }   /* 1.6.3 (the release click test): in plain words, said once on the card however many names read it */   // 1.6.2 (backlog 208, point 9): with no one there it reads 0, as a skill of 0 does; the card says which it was
         var best = null, sum = 0, gm = [], fgD = linkFig(k, p.name), fgN = null;   // the core handbook session's ask 6: a figure of the link's own, its formula worked out on each sheet
         if (fgD) { try { fgN = F.names(fgD.formula); } catch (e) { fgN = []; } if (gmOnlyNames(sys, fgN.map(function(x) { return { name: x }; })).length || gmDerivedNames(sys, F, fgN).length) gm.push({ through: k.group + '.' + rest, name: fgD.key, gm: true }); }   // one read from a GM-only value keeps a public roll private
         var fgV = !!fgD && (fgN || []).some(function(x) { return !!figVeh(k, ix, x); });   // the core handbook session's ask (after ask 6): the figure reads the vehicle doing the reading, as Vehicle.Class

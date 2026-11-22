@@ -848,7 +848,7 @@ function rnPlace(tag) {
     tag.classList.toggle('rn-hid', !!(cl && cl.contains('wb-hidden-gm') && !cl.contains('wb-room-area')));
     if (off) return;
     var x = +it.x || 0, y = +it.y || 0, w = typeof it.w === 'number' ? it.w : 100, h = typeof it.h === 'number' ? it.h : 100;
-    var mid = !!cl && RN_MID.some(function(k) { return cl.contains(k); }), cx = x + w / 2, cy = y + h / 2, ax = cx, ay = cy;
+    var mid = !!cl && RN_MID.some(function(k) { return cl.contains(k); }), cx = x + w / 2, cy = y + h / 2, ax = cx, ay = mid ? y : cy;   /* a cut or round piece (a door hex): just above its top edge, so the token standing on it stays in sight */
     if (!mid) { var dx = 4 - w / 2, dy = 4 - h / 2, r = (+it.rot || 0) * Math.PI / 180, co = Math.cos(r), si = Math.sin(r); ax = cx + dx * co - dy * si; ay = cy + dx * si + dy * co; }
     tag.classList.toggle('rn-mid', mid);
     var L = ax.toFixed(1) + 'px', T = ay.toFixed(1) + 'px';

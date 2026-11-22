@@ -859,25 +859,25 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             let pk = null; try { pk = require('../system/resources/app/updatekey.js').UPDATE_PUBKEY; } catch (e) { pk = null; }
             let kind = null; if (pk) { try { kind = crypto.createPublicKey(pk).asymmetricKeyType; } catch (e) { kind = 'unreadable'; } }
             const upSrc = read('system/resources/app/updater.js'), rel = read('tools/release.js');
-            check('the public key lives in the shell alone (system/resources/app/updatekey.js, which a one-click update never replaces: the release zips system/app only): it is empty or an Ed25519 public key in PEM, the file is exactly what the key tool writes for that key, the updater reads it from there, and no private key is anywhere in it',
+            check('the public key lives in the shell alone (system/resources/app/updatekey.js, which a one-click update never replaces: the release zips the stage\'s copy of system/app only): it is empty or an Ed25519 public key in PEM, the file is exactly what the key tool writes for that key, the updater reads it from there, and no private key is anywhere in it',
                 typeof pk === 'string' && (pk === '' || kind === 'ed25519') && !!signkey && keySrc === signkey.keyFileText(pk) && /require\('\.\/updatekey'\)/.test(upSrc) && !/PRIVATE KEY/.test(keySrc) && !has('system/app/updatekey.js')
-                && /Compress-Archive -Force -Path '\$\{path\.join\(SYSTEM, 'app', '\*'\)\}'/.test(rel), j([typeof pk, kind, keySrc.length]));
+                && /Compress-Archive -Force -Path '\$\{path\.join\(STAGE_APP, '\*'\)\}'/.test(rel) && /const STAGE_APP = path\.join\(STAGE, 'system', 'app'\);/.test(rel), j([typeof pk, kind, keySrc.length]));
         }
         const node = (script, args, env, cwd) => cp.spawnSync(process.execPath, [script].concat(args || []), { encoding: 'utf8', timeout: 60000, env: env || cleanEnv(), cwd: cwd || tmp });
-        function cleanEnv(extra) { const e = Object.assign({}, process.env); for (const k of ['WAYPOINT_SIGNING_KEY', 'WAYPOINT_SIGNTOOL', 'GITHUB_TOKEN', 'WEBSITE_DISPATCH_TOKEN', 'WAYPOINT_R2_ENDPOINT', 'WAYPOINT_R2_BUCKET', 'WAYPOINT_R2_KEY_ID', 'WAYPOINT_R2_SECRET']) delete e[k]; return Object.assign(e, extra || {}); }
+        function cleanEnv(extra) { const e = Object.assign({}, process.env); for (const k of Object.keys(e)) if (/^(WAYPOINT_SIGNING_KEY|WAYPOINT_SIGNTOOL|GITHUB_TOKEN|WEBSITE_DISPATCH_TOKEN|WAYPOINT_DISPATCH_TOKEN|WAYPOINT_DISPATCH_REPO|WAYPOINT_R2_\w+|WAYPOINT_RELEASE_TEST\w*)$/i.test(k)) delete e[k]; return Object.assign(e, extra || {}); }
         // the same as node(), without blocking this process: for a run that talks to a server of the suite's own (the bucket's stand-in)
         const nodeAsync = (script, args, env) => new Promise(resolve => { const c = cp.spawn(process.execPath, [script].concat(args || []), { env: env || cleanEnv(), cwd: tmp }); let out = '', err = ''; c.stdout.on('data', d => { out += d; }); c.stderr.on('data', d => { err += d; }); const t = setTimeout(() => c.kill(), 120000); c.on('close', code => { clearTimeout(t); resolve({ status: code, stdout: out, stderr: err }); }); });
         // a scratch copy of the repository's own tools and shell files: the tools take their root from where they lie
         function scratchRepo(pubPem) {
             const r = path.join(tmp, 'repo' + (++seq));
-            for (const f of ['tools/release.js', 'tools/signkey.js', 'tools/shellrev.js', 'tools/sitepub.js', 'installer.iss', 'system/resources/app/updater.js', 'system/resources/app/package.json', 'system/resources/app/main.js']) {
+            for (const f of ['tools/release.js', 'tools/signkey.js', 'tools/shellrev.js', 'tools/sitepub.js', 'tools/stripcore.js', 'installer.iss', 'system/resources/app/updater.js', 'system/resources/app/package.json', 'system/resources/app/main.js']) {
                 fs.mkdirSync(path.dirname(path.join(r, f)), { recursive: true }); if (has(f)) fs.copyFileSync(path.join(ROOT, f), path.join(r, f));
             }
             fs.writeFileSync(path.join(r, 'system/resources/app/updatekey.js'), signkey ? signkey.keyFileText(pubPem || '') : "module.exports = { UPDATE_PUBKEY: '' };" + NL);
             if (shellrev) shellrev.record(r);   // the scratch copy's own record of its core, as the repository keeps one
             fs.mkdirSync(path.join(r, 'system', 'app'), { recursive: true });
             fs.writeFileSync(path.join(r, 'system', 'app', 'version.json'), '{"version":"0.0.0"}' + NL); fs.writeFileSync(path.join(r, 'system', 'app', 'index.html'), '<!doctype html>');
-            fs.writeFileSync(path.join(r, 'README.md'), 'Current release: **0.0.0**' + NL); fs.writeFileSync(path.join(r, 'WHATSNEW.txt'), 'WAYPOINT 0.0.0' + NL + '====' + NL + NL + '- x' + NL);
+            fs.writeFileSync(path.join(r, 'README.md'), 'Current release: **0.0.0**' + NL); fs.writeFileSync(path.join(r, 'WHATSNEW.txt'), 'WAYPOINT ' + JSON.parse(fs.readFileSync(path.join(r, 'system/resources/app/package.json'), 'utf8')).version + ' — What\'s New' + NL + '====' + NL + NL + '- x' + NL + NL + 'WAYPOINT 0.0.1' + NL + '====' + NL + '- older' + NL);
             fs.writeFileSync(path.join(r, 'Waypoint.exe'), 'MZ'); fs.writeFileSync(path.join(r, 'license.txt'), 'the license' + NL);   // the rest of what the installer's stage takes from the top
             return r;
         }
@@ -1019,12 +1019,15 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 const DECOYS = { 'NOTES.md': 'private notes', '.agent/worktrees/w/system/app/scripts/x.js': 'old code', 'IMPROVEMENTS.md': '# ideas', 'private/reader.js': 'mine', 'saves/data.json': '{}', 'docs/plan.md': '#', '.github/workflows/checks.yml': 'name: x', '.gitattributes': '* text', 'Waypoint_Setup.exe': 'an old installer', 'unknown-root-file.txt': '?', 'system/userdata/settings.json': '{"mine":1}', 'system/app.prev/index.html': 'prev', 'system/app.new/index.html': 'new', 'system/app.bad/index.html': 'bad' };
                 for (const k of Object.keys(DECOYS)) put(sr, k, DECOYS[k]);
                 put(sr, 'system/app/assets/fonts/Some Face/SomeFace-Regular.ttf', Buffer.from([0, 1, 0, 0, 13, 10, 0, 255]));
+                const A_JS = '// the comment a reader of the installed app would use as a map' + NL + 'export const answer = 42; /* why 42 */' + NL + "export const url = 'https://x.example/a//b'; // after a string" + NL;
+                put(sr, 'system/app/scripts/a.js', A_JS); fs.mkdirSync(path.join(sr, 'system/app/scripts/empty'), { recursive: true });   // an empty folder, which the stripper alone would not make
+                const A_STRIPPED = require(path.join(ROOT, 'tools', 'stripcore.js')).stripJs(A_JS, { classic: false });
                 const ran = node(path.join(sr, 'tools', 'release.js'), [], envOf()), said = String(ran.stdout) + String(ran.stderr);
                 let got = null; try { got = JSON.parse(fs.readFileSync(log, 'utf8')); } catch (e) { got = null; }
                 // what the stage should hold, read from the scratch tree by the suite's own walk: the five files at the top, and system/ but for its five folders
                 const SKIP = ['system/userdata', 'system/app.prev', 'system/app.new', 'system/app.bad', 'system/app/private'], want = {};
                 for (const f of ['Waypoint.exe', 'license.txt', 'README.md', 'WHATSNEW.txt', 'installer.iss']) want[f] = sha256(fs.readFileSync(path.join(sr, f)));
-                const wantWalk = rel => { want[rel + '/'] = 'folder'; for (const n of fs.readdirSync(path.join(sr, rel))) { const r = rel + '/' + n; if (SKIP.indexOf(r.toLowerCase()) >= 0) continue; if (fs.statSync(path.join(sr, r)).isDirectory()) wantWalk(r); else want[r] = sha256(fs.readFileSync(path.join(sr, r))); } };
+                const wantWalk = rel => { want[rel + '/'] = 'folder'; for (const n of fs.readdirSync(path.join(sr, rel))) { const r = rel + '/' + n; if (SKIP.indexOf(r.toLowerCase()) >= 0) continue; if (fs.statSync(path.join(sr, r)).isDirectory()) wantWalk(r); else want[r] = r === 'system/app/scripts/a.js' ? sha256(Buffer.from(A_STRIPPED, 'utf8')) : sha256(fs.readFileSync(path.join(sr, r))); } };
                 wantWalk('system');
                 const sortKeys = o => { const out = {}; for (const k of Object.keys(o || {}).sort()) out[k] = o[k]; return out; };
                 const dist = path.join(sr, 'dist', vNow), setupFile = path.join(dist, 'Waypoint_Setup.exe'), setupBytes = fs.existsSync(setupFile) ? fs.readFileSync(setupFile) : Buffer.alloc(0);
@@ -1034,6 +1037,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     ran.status === 0 && !!got && Array.isArray(got.args) && got.args.length === 1 && same(got.args[0], path.join(fs.realpathSync(sr), 'dist', vNow, 'stage', 'installer.iss'))
                     && j(sortKeys(got.files)) === j(sortKeys(want)) && /Current release: \*\*Waypoint Alpha \d+\.\d+\.\d+\*\*/.test(fs.readFileSync(path.join(sr, 'README.md'), 'utf8')) && JSON.parse(fs.readFileSync(path.join(sr, 'system', 'app', 'version.json'), 'utf8')).version === vNow,
                     j([ran.status, said.slice(-400), got && got.args, got && Object.keys(got.files).filter(k => !(k in want)), Object.keys(want).filter(k => !got || !(k in got.files))]));
+                {   // 1.6.4: the stage's app folder is stripped of comments (tools/stripcore.js stripTree) before the zip and the installer are made
+                    const zb = (() => { try { return fs.readFileSync(path.join(sr, 'dist', vNow, 'waypoint-app-' + vNow + '.zip')); } catch (e) { return Buffer.alloc(0); } })();
+                    check('release.js strips the stage\'s app folder before the zip and the installer are made (1.6.4): Inno Setup is handed the stripped module (the comments gone, every name, string and line kept) and an empty folder kept, the app zip holds the stripped module and no comment of it, the source in system/app is as it was, and nothing of the raw copy is left in dist/<version>/',
+                        ran.status === 0 && A_STRIPPED !== A_JS && A_STRIPPED.split(NL).length === A_JS.split(NL).length && A_STRIPPED.indexOf("'https://x.example/a//b'") > 0 && !!got && got.files['system/app/scripts/a.js'] === sha256(Buffer.from(A_STRIPPED, 'utf8')) && got.files['system/app/scripts/empty/'] === 'folder'
+                        && zb.indexOf(Buffer.from(A_STRIPPED, 'utf8')) >= 0 && zb.indexOf(Buffer.from('a reader of the installed app')) < 0 && zb.indexOf(Buffer.from('why 42')) < 0 && fs.readFileSync(path.join(sr, 'system/app/scripts/a.js'), 'utf8') === A_JS
+                        && !fs.existsSync(path.join(sr, 'dist', vNow, 'app-unstripped')) && /comments taken out of \d+ files/.test(said), j([ran.status, A_STRIPPED, got && got.files['system/app/scripts/a.js'], zb.length]));
+                }
                 check('the installer is taken out of the stage: the copy in dist/<version>/ is the one Inno Setup made there, its signature (Waypoint_Setup.exe.sig) checks against the key as an install will check it, the stage is removed once it is out, nothing is written at the top of the tree (an old installer there stays as it was), and dist/<version>/ holds what a release carries and its notes, nothing else',
                     ran.status === 0 && setupBytes.toString('utf8') === 'an installer the stand-in made' && updater.verifyUpdate(pub2, 'Waypoint_Setup.exe', sha256(setupBytes), vNow, setupSig) === true && !fs.existsSync(path.join(dist, 'stage'))
                     && fs.readFileSync(path.join(sr, 'Waypoint_Setup.exe'), 'utf8') === 'an old installer' && j(distList) === j(['RELEASE_NOTES.md', 'Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', zipN, zipN + '.sha256', zipN + '.sig', 'manifest.json', 'envelope.json'].sort()) && /Copying what an install needs into /.test(said), j([ran.status, distList, setupSig.length]));
@@ -1050,15 +1060,15 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     let env = null, man = null; try { env = JSON.parse(envText); man = JSON.parse(env.manifest); } catch (e) { env = null; }
                     let info = null, infoErr = null; try { info = await within(realUpdater.checkForUpdate({ currentVersion: '0.0.1', shellVersion: vNow, apiUrl: realApi, pubKey: pub2 }), 60000, 'check'); } catch (e) { infoErr = String(e && e.message || e); }
                     const sp = require(path.join(sr, 'tools', 'sitepub.js'));
-                    check('release.js writes the site\'s signed list (dist/<version>/envelope.json): { manifest: <text>, sig } signed over "waypoint-manifest" and the text with the build\'s key, the manifest\'s keys in their order (version, minShell, electron, published, notes, files), the notes the top of WHATSNEW.txt as plain text, and the zip and the installer each by its exact name at downloads.<the site>/waypoint/<version>/<name>, with its whole size, lower-case digest and own signature, the very files on disk',
-                        !!env && j(Object.keys(env)) === j(['manifest', 'sig']) && updater.verifyManifest(pub2, env.manifest, env.sig) === true && !!man && j(Object.keys(man)) === j(['version', 'minShell', 'electron', 'published', 'notes', 'files'])
-                        && man.version === vNow && man.notes === '- x' && j(man.files.map(x => x.name)) === j([zipN, SETUP_NAME]) && j(man.files.map(x => x.url)) === j([DLH + zipN, DLH + SETUP_NAME])
+                    check('release.js writes the site\'s signed list (dist/<version>/envelope.json): { manifest: <text>, sig } signed over "waypoint-manifest" and the text with the build\'s key, the manifest\'s keys in their order (version, minShell, electron, published, notes, notesUrl, files), the notes the top of WHATSNEW.txt as plain text, the notes page the site\'s What\'s new at the version (https://waypointvtt.com/whats-new#<version>, never null), and the zip and the installer each by its exact name at downloads.<the site>/waypoint/<version>/<name>, with its whole size, lower-case digest and own signature, the very files on disk',
+                        !!env && j(Object.keys(env)) === j(['manifest', 'sig']) && updater.verifyManifest(pub2, env.manifest, env.sig) === true && !!man && j(Object.keys(man)) === j(['version', 'minShell', 'electron', 'published', 'notes', 'notesUrl', 'files'])
+                        && man.version === vNow && man.notes === '- x' && man.notesUrl === 'https://waypointvtt.com/whats-new#' + vNow && j(man.files.map(x => x.name)) === j([zipN, SETUP_NAME]) && j(man.files.map(x => x.url)) === j([DLH + zipN, DLH + SETUP_NAME])
                         && man.files[0].size === zipBytes.length && man.files[0].sha256 === sha256(zipBytes) && man.files[1].size === setupBytes.length && man.files[1].sha256 === sha256(setupBytes)
                         && man.files.every(x => /^[A-Za-z0-9+/]{86}==$/.test(x.sig)) && man.files[0].sig === fs.readFileSync(path.join(dist, zipN + '.sig'), 'utf8').trim() && man.files[1].sig === setupSig && sp.notesText('WAYPOINT 9.9.9' + NL + '====' + NL + NL + '- y' + NL + NL + 'WAYPOINT 9.9.8' + NL + '====' + NL + '- old') === '- y',
                         j([env && Object.keys(env), man]));
                     check('the shell\'s own checkForUpdate takes release.js\'s list as written: signed by the key the shell carries, every field clean, the zip and the installer listed with their signatures checking — a one-click update offered to an older install, the installer named, the notes as written',
                         !infoErr && !!info && info.latest === vNow && info.newer === true && info.canHotUpdate === true && info.appZip === DLH + zipN && info.installer === DLH + SETUP_NAME && info.sha256 === sha256(zipBytes)
-                        && info.installerSha256 === sha256(setupBytes) && info.installerSize === setupBytes.length && info.notes === '- x' && info.page === 'https://waypointvtt.com/', j([infoErr, info]));
+                        && info.installerSha256 === sha256(setupBytes) && info.installerSize === setupBytes.length && info.notes === '- x' && info.page === 'https://waypointvtt.com/whats-new#' + vNow, j([infoErr, info]));
                     const ri = install('0.0.1'); let applied = null, appliedErr = null;
                     try { applied = await within(updater.applyAppUpdate({ systemDir: ri.sys, appZip: at(zipN), appZipName: info && info.appZipName, sha256: info && info.sha256, sig: info && info.sig, version: info && info.latest, pubKey: pub2, shellVersion: vNow }), 60000, 'apply'); } catch (e) { appliedErr = String(e && e.message || e); }
                     const rdir = fs.mkdtempSync(path.join(tmp, 'dl-')); let fetched = null, fetchedErr = null;
@@ -1071,58 +1081,160 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     check('node tools/sitepub.js --check (checkSite, run for real against the mock site with release.js\'s own list): yes where the site names this version, signed, with its zip and installer offered to an older install; no, in plain words, where the site names another version, where its list is signed by another key, and where no list can be had',
                         cs.ok === true && cs.lines.length === 1 && csOld.ok === false && csOld.lines.some(l => /names version .* as the newest, not 0\.0\.1/.test(l)) && csKey.ok === false && /not signed by Waypoint/.test(csKey.lines.join(' ')) && csNone.ok === false && /could not be taken/.test(csNone.lines.join(' ')), j([cs, csOld, csKey, csNone]));
                     // a writer that drifts is stopped by the very check the build makes (envelopeCheck), never shipped
-                    const wantOf = () => ({ version: vNow, minShell: man.minShell, electron: man.electron, notes: man.notes, notesUrl: null, files: { [zipN]: { size: zipBytes.length, sha256: sha256(zipBytes) }, [SETUP_NAME]: { size: setupBytes.length, sha256: sha256(setupBytes) } } });
+                    const wantOf = () => ({ version: vNow, minShell: man.minShell, electron: man.electron, notes: man.notes, notesUrl: man.notesUrl, files: { [zipN]: { size: zipBytes.length, sha256: sha256(zipBytes) }, [SETUP_NAME]: { size: setupBytes.length, sha256: sha256(setupBytes) } } });
                     const remake = edit => { const m2 = JSON.parse(env.manifest); edit(m2); const t = JSON.stringify(m2); return JSON.stringify({ manifest: t, sig: crypto.sign(null, Buffer.from('waypoint-manifest' + NL + t, 'utf8'), crypto.createPrivateKey(fs.readFileSync(priv2, 'utf8'))).toString('base64') }); };
-                    const drifts = [m2 => { m2.files[0].size = String(m2.files[0].size); }, m2 => { m2.notesUrl = 'https://www.waypointvtt.com/notes'; }, m2 => { m2.files[1].sig = m2.files[1].sig.slice(0, 40) + NL + m2.files[1].sig.slice(40); },
+                    const drifts = [m2 => { m2.files[0].size = String(m2.files[0].size); }, m2 => { m2.notesUrl = 'https://www.waypointvtt.com/notes'; }, m2 => { delete m2.notesUrl; }, m2 => { m2.files[1].sig = m2.files[1].sig.slice(0, 40) + NL + m2.files[1].sig.slice(40); },
                         m2 => { m2.files[0].url = 'https://downloads.waypointvtt.com/other/' + zipN; }, m2 => { m2.electron = 'forty-four point five'; }, m2 => { m2.notes = 42; }, m2 => { m2.files[0].sha256 = m2.files[0].sha256.toUpperCase(); m2.files[1].sha256 = 'f'.repeat(64); }, m2 => { m2.version = '9.9.9'; }];
                     const driftSaid = drifts.map(d => sp.envelopeCheck(remake(d), pub2, 'https://waypointvtt.com', wantOf()));
-                    check('the build\'s own check of its list (sitepub.envelopeCheck) passes the list as written and stops every drift from what an install takes as written: a size in words, a notes page an install would drop, a signature with a line break in it, a file off /waypoint/<version>/, an electron or notes an install would drop, a digest that is not the file on disk, another version',
+                    check('the build\'s own check of its list (sitepub.envelopeCheck) passes the list as written and stops every drift from what an install takes as written: a size in words, a notes page an install would drop or none at all, a signature with a line break in it, a file off /waypoint/<version>/, an electron or notes an install would drop, a digest that is not the file on disk, another version',
                         sp.envelopeCheck(envText, pub2, 'https://waypointvtt.com', wantOf()) === null && driftSaid.every(x => typeof x === 'string' && x.length > 10), j(driftSaid));
                 }
-                // the upload to the site: a refusal before the build writes anything where the bucket is not named
+                // a file the stripper refuses stops the build, naming it, before anything is zipped, compiled or listed (1.6.4)
                 {
-                    const nr = scratchRepo(pub2), nB = { readme: fs.readFileSync(path.join(nr, 'README.md'), 'utf8') }, nRun = node(path.join(nr, 'tools', 'release.js'), ['--publish-site'], envOf()), nSaid = String(nRun.stdout) + String(nRun.stderr);
-                    const half = node(path.join(nr, 'tools', 'release.js'), ['--publish-site'], Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'https://acct.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'waypoint-test' })), halfSaid = String(half.stdout) + String(half.stderr);
-                    const plain = node(path.join(nr, 'tools', 'release.js'), ['--publish-site'], Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'http://example.com', WAYPOINT_R2_BUCKET: 'waypoint-test', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' })), plainSaid = String(plain.stdout) + String(plain.stderr);
-                    const both = node(path.join(nr, 'tools', 'release.js'), ['--publish-site', '--publish'], Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'https://acct.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'waypoint-test', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' })), bothSaid = String(both.stdout) + String(both.stderr);
-                    check('release.js --publish-site refuses before the first thing the build writes (exit 1, no dist folder, the README as it was) while the bucket is not named, half named (the key and secret missing, each said), named by an address that is not https, or, with --publish too, while GITHUB_TOKEN is not set',
-                        [nRun, half, plain, both].every(r => r.status === 1) && /WAYPOINT_R2_ENDPOINT, WAYPOINT_R2_BUCKET, WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET are not set/.test(nSaid) && /WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET are not set/.test(halfSaid)
-                        && /WAYPOINT_R2_ENDPOINT is not an https address/.test(plainSaid) && /GITHUB_TOKEN is not set/.test(bothSaid) && !fs.existsSync(path.join(nr, 'dist')) && fs.readFileSync(path.join(nr, 'README.md'), 'utf8') === nB.readme, j([nRun.status, nSaid.slice(0, 200), halfSaid.slice(0, 200), plainSaid.slice(0, 200), bothSaid.slice(0, 200)]));
+                    const br = scratchRepoWith(pub2); put(br, 'system/app/scripts/bad.js', Buffer.from([0x2f, 0x2f, 0x20, 0xff, 0xfe, 0x0a, 0x76, 0x61, 0x72, 0x20, 0x61, 0x3b, 0x0a]));
+                    try { fs.unlinkSync(log); } catch (e) {}
+                    const bRun = node(path.join(br, 'tools', 'release.js'), [], envOf()), bSaid = String(bRun.stdout) + String(bRun.stderr), bd = path.join(br, 'dist', vNow);
+                    const bList = fs.existsSync(bd) ? fs.readdirSync(bd) : [];
+                    check('release.js refuses to build where the stripper refuses a file of the app folder (1.6.4: a script that is not UTF-8), exit 1, in one plain line that names the file: Inno Setup is never run, and no zip, installer or list is made',
+                        bRun.status === 1 && /Not built: stripTree refused scripts\/bad\.js: it is not UTF-8/.test(bSaid) && !fs.existsSync(log) && !bList.some(n => /\.zip$|Waypoint_Setup\.exe|envelope\.json/.test(n)), j([bRun.status, bSaid.slice(-300), bList]));
                 }
-                // and run to its end against a stand-in for the bucket (Cloudflare R2's S3 API on loopback): every request signed (AWS Signature
-                // Version 4, checked here with the token's secret over what arrived), the files first, the list last and only once
+                // the publication: a refusal in one plain line before the build writes anything, for every setting it lacks
                 {
-                    const store = {}, reqs = [], SECRET = 'the bucket token secret ' + crypto.randomBytes(8).toString('hex'), KEYID = 'test-key-id', BUCKET = 'waypoint-test';
+                    const nr = scratchRepo(pub2), nB = { readme: fs.readFileSync(path.join(nr, 'README.md'), 'utf8') }, rel = path.join(nr, 'tools', 'release.js');
+                    const R2OK = { WAYPOINT_R2_ENDPOINT: 'https://acct.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'waypoint-test', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' };
+                    const go = (args, extra) => { const r = node(rel, args, Object.assign(envOf(), extra || {})); return { status: r.status, said: String(r.stdout) + String(r.stderr) }; };
+                    const cases = [
+                        [['--publish'], {}, /WAYPOINT_R2_ENDPOINT, WAYPOINT_R2_BUCKET, WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET are not set/],
+                        [['--publish'], { WAYPOINT_R2_ENDPOINT: R2OK.WAYPOINT_R2_ENDPOINT, WAYPOINT_R2_BUCKET: 'waypoint-test' }, /WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET are not set/],
+                        [['--publish'], Object.assign({}, R2OK, { WAYPOINT_R2_ENDPOINT: 'http://example.com' }), /WAYPOINT_R2_ENDPOINT is not an https address/],
+                        [['--publish'], Object.assign({}, R2OK, { WAYPOINT_R2_ENDPOINT: 'http://127.0.0.1:9', WAYPOINT_DISPATCH_TOKEN: 't' }), /WAYPOINT_R2_ENDPOINT is not an https address/],   // this machine, but no test said so
+                        [['--publish'], R2OK, /Not built: WAYPOINT_DISPATCH_TOKEN is not set/],
+                        [['--publish'], Object.assign({}, R2OK, { WAYPOINT_DISPATCH_TOKEN: 't', WAYPOINT_DISPATCH_REPO: 'not a repository' }), /Not built: WAYPOINT_DISPATCH_REPO is not a repository's name/],
+                        [['--publish', '--github'], Object.assign({}, R2OK, { WAYPOINT_DISPATCH_TOKEN: 't' }), /Not built: GITHUB_TOKEN is not set \(--github\)/],
+                        [['--github'], { GITHUB_TOKEN: 'g' }, /Not built: --github goes with --publish/],
+                        [['--publish-site'], R2OK, /Not built: --publish-site is no option of this tool .*--publish now puts the release on the site/],
+                        [['--publish', '--notes-only'], {}, /Not built: --notes-only builds no release to publish/],
+                        [[], { WAYPOINT_RELEASE_TEST_DISPATCH: 'http://127.0.0.1:9' }, /Not built: WAYPOINT_RELEASE_TEST_DISPATCH is set, which only a test reads/],
+                        [[], { WAYPOINT_RELEASE_TEST: '1', WAYPOINT_RELEASE_TEST_GITHUB: 'https://api.github.com' }, /Not built: WAYPOINT_RELEASE_TEST_GITHUB is not an address of this machine/],
+                        [[], { WAYPOINT_RELEASE_TEST: '1', WAYPOINT_RELEASE_TEST_BUCKET: 'http://127.0.0.1:9' }, /Not built: WAYPOINT_RELEASE_TEST_BUCKET is no test setting this tool knows/]];
+                    const said = cases.map(c => go(c[0], c[1]));
+                    const wr = scratchRepo(pub2); fs.writeFileSync(path.join(wr, 'WHATSNEW.txt'), 'WAYPOINT 0.0.9 — What\'s New' + NL + '====' + NL + '- old notes' + NL);
+                    const wRun = node(path.join(wr, 'tools', 'release.js'), [], envOf()), wSaid = String(wRun.stdout) + String(wRun.stderr);
+                    check('release.js refuses before the first thing the build writes (exit 1, one plain line, no dist folder, the README as it was): --publish while the bucket is not named, half named, named by an address that is not https or by one of this machine that no test asked for, while WAYPOINT_DISPATCH_TOKEN is not set or WAYPOINT_DISPATCH_REPO names no repository; --github without GITHUB_TOKEN, and --github alone; the old --publish-site (no option now) and --notes-only with --publish; a test\'s stand-in named without WAYPOINT_RELEASE_TEST=1, one not of this machine, and a test setting it does not know; and a build whose WHATSNEW.txt\'s newest section is not this release\'s',
+                        said.every((r, i) => r.status === 1 && cases[i][2].test(r.said) && r.said.trim().split('\n').length === 1) && !fs.existsSync(path.join(nr, 'dist')) && fs.readFileSync(path.join(nr, 'README.md'), 'utf8') === nB.readme
+                        && wRun.status === 1 && /Not built: WHATSNEW\.txt's newest section is for 0\.0\.9, not for this release/.test(wSaid) && !fs.existsSync(path.join(wr, 'dist')), j(said.map((r, i) => [i, r.status, r.said.slice(0, 160)]).concat([[wRun.status, wSaid.slice(0, 160)]])));
+                }
+                // and run to its end against stand-ins of the suite's own (WAYPOINT_RELEASE_TEST=1): a bucket speaking Cloudflare R2's S3 API on
+                // loopback (every request's AWS Signature Version 4 checked here, with the token's secret, over what arrived), and GitHub's API
+                // for the website's dispatch and the GitHub Release. One log of every request across both, in the order they came
+                {
+                    const store = {}, reqs = [], all = [], SECRET = 'the bucket token secret ' + crypto.randomBytes(8).toString('hex'), KEYID = 'test-key-id', BUCKET = 'waypoint-test', DTOKEN = 'dispatch-token-' + crypto.randomBytes(6).toString('hex'), GTOKEN = 'github-token-' + crypto.randomBytes(6).toString('hex');
+                    let failOn = null;
+                    const sitepubOf = () => require(path.join(ROOT, 'tools', 'sitepub.js'));
                     const s3 = http.createServer((req, res) => {
                         const bufs = []; req.on('data', b => bufs.push(b)); req.on('end', () => {
                             const body = Buffer.concat(bufs), auth = String(req.headers.authorization || ''), m = /^AWS4-HMAC-SHA256 Credential=([^/]+)\/(\d{8})\/auto\/s3\/aws4_request, SignedHeaders=([a-z0-9;-]+), Signature=([0-9a-f]{64})$/.exec(auth);
-                            let signedOk = false;
-                            if (m) { const hs = {}; for (const n of m[3].split(';')) hs[n] = req.headers[n]; const want = sitepubOf().s3Auth({ method: req.method, host: req.headers.host, path: req.url, query: '', headers: hs, payloadHash: sha256(body), keyId: KEYID, secret: SECRET, region: 'auto', amzDate: req.headers['x-amz-date'] }); signedOk = want === auth && m[1] === KEYID && req.headers['x-amz-content-sha256'] === sha256(body) && /host/.test(m[3]); }
-                            reqs.push({ method: req.method, url: req.url, signedOk, inm: req.headers['if-none-match'] || null, cc: req.headers['cache-control'] || null, type: req.headers['content-type'] || null, sha: sha256(body) });
-                            if (!signedOk) { res.writeHead(403); return res.end('<Error>SignatureDoesNotMatch</Error>'); }
+                            let signedOk = false, hs = null;
+                            if (m) { hs = {}; for (const n of m[3].split(';')) hs[n] = req.headers[n]; const want = sitepubOf().s3Auth({ method: req.method, host: req.headers.host, path: req.url, query: '', headers: hs, payloadHash: sha256(body), keyId: KEYID, secret: SECRET, region: 'auto', amzDate: req.headers['x-amz-date'] }); signedOk = want === auth && m[1] === KEYID && m[2] === String(req.headers['x-amz-date']).slice(0, 8) && req.headers['x-amz-content-sha256'] === sha256(body) && m[3].split(';').indexOf('host') >= 0 && m[3].split(';').indexOf('x-amz-content-sha256') >= 0 && m[3].split(';').indexOf('x-amz-date') >= 0; }
                             const key = decodeURIComponent(req.url.replace('/' + BUCKET + '/', ''));
+                            reqs.push({ method: req.method, url: req.url, key, signedOk, signed: m ? m[3] : null, inm: req.headers['if-none-match'] || null, cc: req.headers['cache-control'] || null, type: req.headers['content-type'] || null, sha: sha256(body) });
+                            all.push(req.method + ' bucket ' + key);
+                            if (!signedOk) { res.writeHead(403); return res.end('<Error>SignatureDoesNotMatch</Error>'); }
                             if (req.method === 'HEAD') { res.writeHead(store[key] ? 200 : 404); return res.end(); }
-                            if (req.method === 'PUT') { if (req.headers['if-none-match'] === '*' && store[key]) { res.writeHead(412); return res.end(); } store[key] = body; res.writeHead(200); return res.end(); }
+                            if (req.method === 'GET') { if (!store[key]) { res.writeHead(404); return res.end('<Error>NoSuchKey</Error>'); } res.writeHead(200); return res.end(store[key]); }
+                            if (req.method === 'PUT') {
+                                if (failOn && key === failOn) { res.writeHead(500); return res.end('<Error>InternalError\n  try again</Error>'); }
+                                if (req.headers['if-none-match'] === '*' && store[key]) { res.writeHead(412); return res.end(); }
+                                store[key] = body; res.writeHead(200); return res.end();
+                            }
                             res.writeHead(405); res.end();
                         });
                     });
-                    const sitepubOf = () => require(path.join(ROOT, 'tools', 'sitepub.js'));
-                    await new Promise(r => s3.listen(0, '127.0.0.1', r));
-                    const r2env = () => Object.assign(envOf(), { WAYPOINT_R2_ENDPOINT: 'http://127.0.0.1:' + s3.address().port, WAYPOINT_R2_BUCKET: BUCKET, WAYPOINT_R2_KEY_ID: KEYID, WAYPOINT_R2_SECRET: SECRET });
-                    const pr = scratchRepo(pub2); fs.writeFileSync(path.join(pr, 'tools', 'tutorialcheck.js'), "'use strict';" + NL);
-                    const up = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish-site'], r2env()), upSaid = String(up.stdout) + String(up.stderr), pd = path.join(pr, 'dist', vNow);
-                    const base = 'waypoint/' + vNow + '/', fileOf = n => { try { return fs.readFileSync(path.join(pd, n)); } catch (e) { return Buffer.alloc(0); } };
-                    const order = reqs.map(r => r.method + ' ' + decodeURIComponent(r.url));
-                    check('release.js --publish-site, run to its end against a stand-in for the bucket: one HEAD of the version\'s list (not there yet), then the zip and the installer, then the list last with If-None-Match: *, every request signed with the token (Signature Version 4, path-style, region auto, the body\'s digest named), each body byte for byte the file in dist/<version>/, every file kept immutable; and the secret is never printed',
-                        up.status === 0 && j(order) === j(['HEAD /' + BUCKET + '/' + base + 'envelope.json', 'PUT /' + BUCKET + '/' + base + zipN, 'PUT /' + BUCKET + '/' + base + SETUP_NAME, 'PUT /' + BUCKET + '/' + base + 'envelope.json'])
-                        && reqs.every(r => r.signedOk) && reqs[3].inm === '*' && reqs[1].inm === null && reqs.slice(1).every(r => r.cc === 'public, max-age=31536000, immutable') && reqs[1].type === 'application/zip' && reqs[3].type === 'application/json'
-                        && [zipN, SETUP_NAME, 'envelope.json'].every(n => !!store[base + n] && store[base + n].equals(fileOf(n)) && fileOf(n).length > 0) && upSaid.indexOf(SECRET) < 0 && /sitepub\.js --check/.test(upSaid), j([up.status, upSaid.slice(-500), order, reqs.map(r => r.signedOk)]));
-                    // a second run of the same version: the list is already there, so nothing is put; and a run whose token's secret is wrong puts nothing
-                    const n0 = reqs.length, again = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish-site'], r2env()), againSaid = String(again.stdout) + String(again.stderr), puts = reqs.slice(n0).filter(r => r.method === 'PUT').length;
-                    const n1 = reqs.length, wrong = await nodeAsync(path.join(scratchRepoWith(pub2), 'tools', 'release.js'), ['--publish-site'], Object.assign(r2env(), { WAYPOINT_R2_SECRET: 'not the secret' })), wrongSaid = String(wrong.stdout) + String(wrong.stderr), wrongPuts = reqs.slice(n1).filter(r => r.method === 'PUT' && r.signedOk).length;
-                    check('a version already on the download host is never uploaded again: a second run asks for its list, finds it, puts nothing and says so (exit 1); a token the bucket refuses puts nothing (exit 1, the bucket\'s answer said)',
-                        again.status === 1 && puts === 0 && /already there/.test(againSaid) && wrong.status === 1 && wrongPuts === 0 && /answered 403/.test(wrongSaid), j([again.status, againSaid.slice(-300), puts, wrong.status, wrongSaid.slice(-300)]));
-                    try { if (s3.closeAllConnections) s3.closeAllConnections(); s3.close(); } catch (e) {}
+                    const ghReqs = [], WEBREPO = sitepubOf().WEBSITE_REPO;
+                    const gh = http.createServer((req, res) => {
+                        const bufs = []; req.on('data', b => bufs.push(b)); req.on('end', () => {
+                            const body = Buffer.concat(bufs), u = new URL(req.url, 'http://x'), origin = 'http://127.0.0.1:' + gh.address().port;
+                            ghReqs.push({ method: req.method, path: u.pathname, name: u.searchParams.get('name'), auth: req.headers.authorization || null, sha: sha256(body), body: body.toString('utf8') });
+                            all.push(req.method + ' github ' + u.pathname + (u.searchParams.get('name') ? '?' + u.searchParams.get('name') : ''));
+                            if (req.method === 'POST' && u.pathname === '/repos/' + WEBREPO + '/dispatches') { res.writeHead(req.headers.authorization === 'Bearer ' + DTOKEN ? 204 : 401); return res.end(); }
+                            if (req.headers.authorization !== 'Bearer ' + GTOKEN) { res.writeHead(401); return res.end('{}'); }
+                            if (req.method === 'POST' && u.pathname === '/repos/ImmuneMoon/Waypoint/releases') { res.writeHead(201, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ upload_url: origin + '/upload/assets{?name,label}', html_url: origin + '/the-release' })); }
+                            if (req.method === 'POST' && u.pathname === '/upload/assets') { res.writeHead(201, { 'content-type': 'application/json' }); return res.end('{}'); }
+                            res.writeHead(404); res.end('{}');
+                        });
+                    });
+                    await new Promise(r => s3.listen(0, '127.0.0.1', r)); await new Promise(r => gh.listen(0, '127.0.0.1', r));
+                    const GHO = 'http://127.0.0.1:' + gh.address().port;
+                    const r2env = extra => Object.assign(envOf(), { WAYPOINT_RELEASE_TEST: '1', WAYPOINT_R2_ENDPOINT: 'http://127.0.0.1:' + s3.address().port, WAYPOINT_R2_BUCKET: BUCKET, WAYPOINT_R2_KEY_ID: KEYID, WAYPOINT_R2_SECRET: SECRET,
+                        WAYPOINT_DISPATCH_TOKEN: DTOKEN, WAYPOINT_RELEASE_TEST_DISPATCH: GHO, WAYPOINT_RELEASE_TEST_GITHUB: GHO }, extra || {});
+                    const base = 'waypoint/' + vNow + '/', FIVE = [zipN, zipN + '.sha256', zipN + '.sig', SETUP_NAME, SETUP_NAME + '.sig'];
+                    const pr = scratchRepoWith(pub2);
+                    const up = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish'], r2env()), upSaid = String(up.stdout) + String(up.stderr), pd = path.join(pr, 'dist', vNow);
+                    const fileOf = n => { try { return fs.readFileSync(path.join(pd, n)); } catch (e) { return Buffer.alloc(0); } };
+                    const wantOrder = FIVE.concat(['manifest.json']).map(n => 'HEAD bucket ' + base + n).concat(['GET bucket waypoint/latest.json'], FIVE.map(n => 'PUT bucket ' + base + n), ['PUT bucket ' + base + 'manifest.json', 'PUT bucket waypoint/latest.json', 'POST github /repos/' + WEBREPO + '/dispatches']);
+                    const puts = reqs.filter(r => r.method === 'PUT'), last = puts[puts.length - 1] || {};
+                    check('release.js --publish, run to its end against a stand-in for the bucket (WAYPOINT_RELEASE_TEST=1): every key of the version asked for first (HEAD) and latest.json read, then the zip, its .sha256 and .sig, the installer and its .sig, then the version\'s list as waypoint/<version>/manifest.json, then LAST of all the same list as waypoint/latest.json; every request signed with the token (Signature Version 4, path-style, region auto, the Authorization header well formed and its signed headers naming host, the date and the body\'s digest, the digest the very body\'s); each body byte for byte the file in dist/<version>/ (the list both times), every key of the version put with If-None-Match: * and kept for a year, latest.json with Cache-Control: no-cache; then the website woken with the dispatch token; and the secrets never printed',
+                        up.status === 0 && j(all) === j(wantOrder) && reqs.every(r => r.signedOk) && puts.length === 7
+                        && puts.slice(0, 6).every(r => r.inm === '*' && r.cc === 'public, max-age=31536000, immutable') && last.key === 'waypoint/latest.json' && last.cc === 'no-cache' && last.inm === null && last.type === 'application/json'
+                        && puts[0].type === 'application/zip' && puts[1].type === 'text/plain; charset=utf-8' && puts[5].type === 'application/json'
+                        && FIVE.every(n => !!store[base + n] && store[base + n].equals(fileOf(n)) && fileOf(n).length > 0) && store[base + 'manifest.json'].equals(fileOf('envelope.json')) && store['waypoint/latest.json'].equals(fileOf('envelope.json'))
+                        && ghReqs.length === 1 && ghReqs[0].auth === 'Bearer ' + DTOKEN && JSON.parse(ghReqs[0].body).event_type === 'waypoint-release' && Object.keys(JSON.parse(ghReqs[0].body)).length === 1
+                        && upSaid.indexOf(SECRET) < 0 && upSaid.indexOf(DTOKEN) < 0 && /The website was told/.test(upSaid) && /sitepub\.js --check/.test(upSaid), j([up.status, upSaid.slice(-600), all, reqs.filter(r => !r.signedOk)]));
+                    // the list on the bucket is one an install takes, as the shell reads it
+                    let lt = null; try { lt = updater.cleanManifest(updater.readEnvelope(store['waypoint/latest.json'], pub2), updater.updateHosts({ site: 'https://waypointvtt.com' })); } catch (e) { lt = String(e && e.message || e); }
+                    check('the list put on the bucket (latest.json and the version\'s manifest.json, the same bytes) is read by the shell\'s own readEnvelope and cleanManifest with the release\'s public key: this version, its notes page the site\'s What\'s new at the version, its zip and installer the very files put beside it',
+                        !!lt && typeof lt === 'object' && lt.version === vNow && lt.notesUrl === 'https://waypointvtt.com/whats-new#' + vNow && lt.zip.sha256 === sha256(store[base + zipN]) && lt.installer.sha256 === sha256(store[base + SETUP_NAME]) && lt.installer.size === store[base + SETUP_NAME].length, j(lt));
+                    check('--github stays behind its flag: a run with --publish alone sends nothing to GitHub but the website\'s dispatch, though a stand-in for GitHub was named',
+                        ghReqs.every(r => r.path === '/repos/' + WEBREPO + '/dispatches'), j(ghReqs.map(r => r.path)));
+                    // a second run of the same version: its list is already there, so nothing is put, and nothing is woken
+                    const n0 = reqs.length, g0 = ghReqs.length, again = await nodeAsync(path.join(pr, 'tools', 'release.js'), ['--publish'], r2env()), againSaid = String(again.stdout) + String(again.stderr);
+                    const n1 = reqs.length, wrong = await nodeAsync(path.join(scratchRepoWith(pub2), 'tools', 'release.js'), ['--publish'], r2env({ WAYPOINT_R2_SECRET: 'not the secret' })), wrongSaid = String(wrong.stdout) + String(wrong.stderr);
+                    check('a version already on the download host is never uploaded again: a second run asks for its keys, finds its list, puts nothing, wakes nothing and says so in one line (exit 1); a token the bucket refuses puts nothing (exit 1, the bucket\'s answer said)',
+                        again.status === 1 && reqs.slice(n0, n1).every(r => r.method === 'HEAD') && ghReqs.length === g0 && /Not uploaded to the site: version .* is already on the site/.test(againSaid)
+                        && wrong.status === 1 && reqs.slice(n1).filter(r => r.method === 'PUT' && r.signedOk).length === 0 && /answered 403/.test(wrongSaid), j([again.status, againSaid.slice(-300), wrong.status, wrongSaid.slice(-300)]));
+                    // sitePublish itself, against the same bucket and the build of the first run: an object already there, a newer latest.json, one
+                    // that is no list of the release key, and a put that fails part way
+                    const sp = sitepubOf(), cfg = { endpoint: 'http://127.0.0.1:' + s3.address().port, bucket: BUCKET, keyId: KEYID, secret: SECRET };
+                    let envObj = null; try { envObj = JSON.parse(fs.readFileSync(path.join(pd, 'envelope.json'), 'utf8')); } catch (e) { envObj = null; }
+                    const manO = envObj ? JSON.parse(envObj.manifest) : { files: [] }, fz = manO.files.find(x => x.name === zipN) || {}, fi = manO.files.find(x => x.name === SETUP_NAME) || {};
+                    const want = { version: vNow, minShell: manO.minShell, electron: manO.electron, notes: manO.notes, notesUrl: manO.notesUrl, files: { [zipN]: { size: fz.size, sha256: fz.sha256 }, [SETUP_NAME]: { size: fi.size, sha256: fi.sha256 } } };
+                    const pub = () => sp.sitePublish({ cfg, dist: pd, version: vNow, pubKey: pub2, site: 'https://waypointvtt.com', want }).then(r => ({ ok: true, r }), e => ({ ok: false, why: String(e && e.message || e) }));
+                    const clear = () => { for (const k of Object.keys(store)) delete store[k]; };
+                    // an envelope signed with the release key for another version, to stand as latest.json
+                    const listFor = ver => { const k = crypto.createPrivateKey(fs.readFileSync(priv2, 'utf8')), zn = 'waypoint-app-' + ver + '.zip', zb = Buffer.from('zip ' + ver), sb = Buffer.from('setup ' + ver);
+                        const files = [sp.fileEntry('https://waypointvtt.com', ver, zn, zb, signkey.signZip(zn, sha256(zb), ver, k)), sp.fileEntry('https://waypointvtt.com', ver, SETUP_NAME, sb, signkey.signZip(SETUP_NAME, sha256(sb), ver, k))];
+                        return Buffer.from(sp.envelopeOf(sp.siteManifest({ version: ver, minShell: ver, published: 'x', notes: '', notesUrl: sp.notesUrlOf('https://waypointvtt.com', ver), files }), k), 'utf8'); };
+                    clear(); store[base + zipN + '.sig'] = Buffer.from('a part of an earlier run'); const k0 = reqs.length; const partial = await pub(); const partialPuts = reqs.slice(k0).filter(r => r.method === 'PUT').length;
+                    clear(); store['waypoint/latest.json'] = listFor('99.0.0'); const k1 = reqs.length; const newer = await pub(); const newerPuts = reqs.slice(k1).filter(r => r.method === 'PUT').length;
+                    clear(); store['waypoint/latest.json'] = listFor('0.0.2'); const older = await pub(); const olderOk = older.ok && store['waypoint/latest.json'].equals(fileOf('envelope.json'));
+                    clear(); store['waypoint/latest.json'] = Buffer.from('{"manifest":"{}","sig":"nope"}'); const k2 = reqs.length; const junk = await pub(); const junkPuts = reqs.slice(k2).filter(r => r.method === 'PUT').length;
+                    clear(); failOn = base + SETUP_NAME; const k3 = reqs.length; const failed = await pub(); failOn = null; const failedPuts = reqs.slice(k3).filter(r => r.method === 'PUT').map(r => r.key);
+                    check('sitePublish refuses, in one plain line and before anything is put: an object of the version already in the bucket with no list beside it (an earlier run stopped part way: said so, nothing written over), a latest.json naming a newer version, and one that is no list of the release key; a latest.json of an older version is replaced, last; a put that fails part way stops there, before the version\'s list and latest.json, and says that what was put is named by no list',
+                        !partial.ok && /\.sig is already in the bucket, though no list of .* an earlier run stopped part way/.test(partial.why) && partialPuts === 0
+                        && !newer.ok && /the site already names 99\.0\.0 as the newest/.test(newer.why) && newerPuts === 0 && olderOk
+                        && !junk.ok && /waypoint\/latest\.json is there but is not a list the shell's key signs/.test(junk.why) && junkPuts === 0
+                        && !failed.ok && /answered 500 \(<Error>InternalError try again<\/Error>\) for waypoint\/[^ ]+\/Waypoint_Setup\.exe\. What was put .* is named by no list, so no install sees it\. Neither list was put\./.test(failed.why)
+                        && j(failedPuts) === j([zipN, zipN + '.sha256', zipN + '.sig', SETUP_NAME].map(n => base + n)) && !store[base + 'manifest.json'] && !store['waypoint/latest.json']
+                        && [partial, newer, junk, failed].every(x => x.why.indexOf('\n') < 0), j([partial, newer, older.ok, junk, failed, failedPuts]));
+                    // --publish --github: the site, the dispatch, then the GitHub Release with every asset, in that order
+                    clear(); const gr = scratchRepoWith(pub2), a0 = all.length;
+                    const both = await nodeAsync(path.join(gr, 'tools', 'release.js'), ['--publish', '--github'], r2env({ GITHUB_TOKEN: GTOKEN })), bothSaid = String(both.stdout) + String(both.stderr), gd = path.join(gr, 'dist', vNow);
+                    const tail = all.slice(a0).filter(x => !/^HEAD|^GET/.test(x)), ASSETS6 = [SETUP_NAME, SETUP_NAME + '.sig', zipN, zipN + '.sha256', zipN + '.sig', 'manifest.json'];
+                    const ups = ghReqs.filter(r => r.path === '/upload/assets');
+                    check('release.js --publish --github: the site first (the five files, the version\'s list, latest.json), then the website\'s dispatch, then the GitHub Release on the repository as before, with GITHUB_TOKEN, and its six assets uploaded byte for byte; the token never printed',
+                        both.status === 0 && j(tail) === j(FIVE.concat(['manifest.json']).map(n => 'PUT bucket ' + base + n).concat(['PUT bucket waypoint/latest.json', 'POST github /repos/' + WEBREPO + '/dispatches', 'POST github /repos/ImmuneMoon/Waypoint/releases'], ASSETS6.map(n => 'POST github /upload/assets?' + n)))
+                        && ups.length === 6 && ups.every(r => r.auth === 'Bearer ' + GTOKEN && (() => { try { return r.sha === sha256(fs.readFileSync(path.join(gd, r.name))); } catch (e) { return false; } })()) && bothSaid.indexOf(GTOKEN) < 0 && /Published: http:\/\/127\.0\.0\.1:\d+\/the-release/.test(bothSaid), j([both.status, bothSaid.slice(-500), tail]));
+                    // a dispatch GitHub does not take: the release is up, the GitHub Release still follows, the run ends with exit 1 and says so
+                    clear(); const dr = scratchRepoWith(pub2), g1 = ghReqs.length;
+                    const noTell = await nodeAsync(path.join(dr, 'tools', 'release.js'), ['--publish'], r2env({ WAYPOINT_DISPATCH_TOKEN: 'a token GitHub refuses' })), noTellSaid = String(noTell.stdout) + String(noTell.stderr);
+                    check('a dispatch GitHub refuses leaves the release up (its list and latest.json put) and ends the run with exit 1, said in one line: the website records it at its daily look',
+                        noTell.status === 1 && !!store[base + 'manifest.json'] && !!store['waypoint/latest.json'] && ghReqs.length === g1 + 1 && /The release is on the download host, but the website was not told \(GitHub answered 401\)/.test(noTellSaid), j([noTell.status, noTellSaid.slice(-300)]));
+                    // the dispatch's repository: the one .github/workflows/notify-website.yml names, while it stands
+                    const ny = (() => { try { return fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'notify-website.yml'), 'utf8'); } catch (e) { return ''; } })();
+                    check('the release\'s own dispatch goes by default to the website repository .github/workflows/notify-website.yml names, which stays for the changeover and says that the release tool now dispatches too; repoOk takes owner/name alone',
+                        ny.indexOf('https://api.github.com/repos/' + WEBREPO + '/dispatches') > 0 && /release tool sends this same dispatch itself/.test(ny) && sp.repoOk(' ' + WEBREPO + ' ') === WEBREPO
+                        && ['', 'x', 'a/b/c', 'https://github.com/a/b', 'a b/c', '../x', 'a/..', 42, null].every(v => sp.repoOk(v) === null), j([WEBREPO]));
+                    for (const s of [s3, gh]) { try { if (s.closeAllConnections) s.closeAllConnections(); s.close(); } catch (e) {} }
                 }
                 // the signing the upload uses is AWS's own: its published example requests, signed here, give the very signatures AWS gives
                 {
@@ -1132,10 +1244,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const cfgs = [{}, { WAYPOINT_R2_ENDPOINT: 'https://a.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'Bad_Bucket', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' }, { WAYPOINT_R2_ENDPOINT: 'https://a.r2.cloudflarestorage.com/path', WAYPOINT_R2_BUCKET: 'b-1', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' },
                         { WAYPOINT_R2_ENDPOINT: 'http://a.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'b-1', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' }, { WAYPOINT_R2_ENDPOINT: 'https://u:p@a.r2.cloudflarestorage.com', WAYPOINT_R2_BUCKET: 'b-1', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' }].map(e => sp.r2Config(e));
                     const good = sp.r2Config({ WAYPOINT_R2_ENDPOINT: ' https://a.r2.cloudflarestorage.com/ ', WAYPOINT_R2_BUCKET: 'waypoint-downloads', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' });
-                    check('the upload\'s signing (sitepub.s3Auth) gives the signatures of AWS\'s own published Signature Version 4 examples for S3 (a GET of a range, a PUT of a file whose name needs encoding); the bucket\'s settings are taken only as an https address of an account, a bucket name and both halves of the token, and anything else is refused in plain words',
+                    const loopCfg = { WAYPOINT_R2_ENDPOINT: 'http://127.0.0.1:9', WAYPOINT_R2_BUCKET: 'b-1', WAYPOINT_R2_KEY_ID: 'k', WAYPOINT_R2_SECRET: 's' };
+                    check('the upload\'s signing (sitepub.s3Auth) gives the signatures of AWS\'s own published Signature Version 4 examples for S3 (a GET of a range, a PUT of a file whose name needs encoding); the bucket\'s settings are taken only as an https address of an account, a bucket name and both halves of the token, and anything else is refused in plain words; a plain http address of this machine is taken only where a test says so (testHosts\' true, never another word), and never one of another host',
                         getSig === 'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41'
                         && /Signature=98ad721746da40c64f1a55b78f14c238d841ea1380cd77a1b5971af0ece108bd$/.test(putSig) && cfgs.every(c => typeof c.why === 'string' && /^Not uploaded to the site: /.test(c.why))
-                        && good.endpoint === 'https://a.r2.cloudflarestorage.com' && good.bucket === 'waypoint-downloads' && !good.why, j([getSig, putSig, cfgs, good]));
+                        && good.endpoint === 'https://a.r2.cloudflarestorage.com' && good.bucket === 'waypoint-downloads' && !good.why
+                        && /not an https address/.test(sp.r2Config(Object.assign({}, loopCfg)).why) && sp.r2Config(Object.assign({}, loopCfg), { test: true }).endpoint === 'http://127.0.0.1:9' && /not an https address/.test(sp.r2Config(Object.assign({}, loopCfg), { test: 'yes' }).why)
+                        && /not an https address/.test(sp.r2Config(Object.assign({}, loopCfg, { WAYPOINT_R2_ENDPOINT: 'http://example.com' }), { test: true }).why), j([getSig, putSig, cfgs, good]));
                 }
                 // and a file of the list that is missing, or a junction in what would be copied, refuses the build before the first thing it writes
                 const before = r => ({ readme: fs.readFileSync(path.join(r, 'README.md'), 'utf8'), ver: fs.readFileSync(path.join(r, 'system', 'app', 'version.json'), 'utf8') });

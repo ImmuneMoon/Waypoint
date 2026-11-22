@@ -750,7 +750,11 @@ function renderRoster() {
     if (el) {
         var players = Object.values(net.roster);
         if (!players.length) {
-            el.textContent = 'No players connected yet.';
+            // 1.6.3 (the release click test): the host's words only while this app hosts; a player who is no longer at a table (removed, or
+            // the table gone) is told nothing of connected players, and the empty line takes no room
+            var hostingR = !!(net.active && net.role === 'host');
+            el.textContent = hostingR ? 'No players connected yet.' : '';
+            if (el.style) el.style.display = hostingR || net.active ? '' : 'none';
         } else {
             var camp = getActiveCampaign();
             el.innerHTML = players.map(function(p) {
@@ -1436,7 +1440,7 @@ function scheduleStageFollow() {
         broadcastRoster();
         if (!moved && net.stageMode === 'last' && !_stayHintShown && net.conns.some(function(c) { var pS = own(net.roster, c.peer) ? net.roster[c.peer] : null; return !!pS && pS.location !== s2.itemId; })) {
             _stayHintShown = true;   // said once a session: the GM opened another map and the players did not come
-            toast('Your players stay where they are. Summon All brings them to this map; Players arrive at \u25B8 Follow me makes the table move with you.');
+            toast('Your players stay where they are. Summon All brings them to this map. To have the table move with you, set Players arrive at to Follow me.');   // 1.6.3 (the release click test): the setting said as a step, as the notice after it says one
         }
         if (moved && !net.stageOverride && !_stageHintShown) {
             _stageHintShown = true;
@@ -3986,6 +3990,7 @@ net.refreshUi = function() {               // own campaign is back: spectator cl
     renderRoster();
     if (!net.active) refreshStageSelect();
     syncSessionButtons();
+    if (typeof window !== 'undefined' && window.wpSettingsSync) window.wpSettingsSync();   // 1.6.3 (the release click test): the Multiplayer window's VTT line follows too, so a removed player no longer reads the old table's switches
 };
 net.sanitizeAppState = sanitizeAppState;   // the stream window shows the party view: what the players' tokens see together, never the GM's whole map (R2 #14)
 net.applyStage = applyStage;
@@ -5055,14 +5060,15 @@ net.revealHandout = function(hid, pids, o) {
     var camp = getActiveCampaign(); var h = camp && camp.handouts && camp.handouts[hid];
     if (!h || !window.wpHandoutPayload) return;
     var sk = sceneKeys(o, h.kind);
+    var jk = o && typeof o === 'object' && o.join === true && !sk ? { join: true } : {};   // 1.6.3 (the release click test): a handout sent as a player joins says so, and their app keeps it for one notice in place of popping each up
     var targets = net.conns.filter(function(c) { var p = net.roster[c.peer]; return c.open && p && (!pids || pids.indexOf(p.id) >= 0); });
     if (!targets.length) { toast('Nobody to show it to right now.'); return; }
     window.wpHandoutPayload(h).then(function(pl) {
         targets.forEach(function(c) {
             var p = net.roster[c.peer];
             try { c.send(pl.kind === 'text'
-                ? { type: 'handout', kind: 'text', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }
-                : Object.assign({ type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }, sk || {})); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
+                ? Object.assign({ type: 'handout', kind: 'text', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }, jk)
+                : Object.assign({ type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }, sk || jk)); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
             if (sk && sk.nokeep) return;   // a scene kept out of the Journals is no reveal: nothing comes back to them on a reconnect
             camp.handoutReveals = camp.handoutReveals || {};
             camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
@@ -5104,7 +5110,7 @@ function sendMissedHandouts(conn, prof) {
     Object.values(camp.handouts || {}).forEach(function(h, i) {
         if (!h.autoOnJoin && !(h.giveTo && h.giveTo[prof.id])) return;
         if (camp.handoutReveals && camp.handoutReveals[prof.id] && camp.handoutReveals[prof.id][h.id]) return;
-        setTimeout(function() { if (conn.open) net.revealHandout(h.id, [prof.id]); }, 3000 + i * 600);
+        setTimeout(function() { if (conn.open) net.revealHandout(h.id, [prof.id], { join: true }); }, 3000 + i * 600);   // 1.6.3 (the release click test): marked as sent at the join, so their app says them in one notice
     });
     if (!camp.handoutReveals || !camp.handoutReveals[prof.id]) return;
     // 1.6.3 (the multiplayer review, finding 9): a rejoin sent every picture this player was ever shown again, re-encoded for each, while the
@@ -8916,6 +8922,19 @@ function rememberHostCode(code) {
     try { localStorage.setItem('wp_lastHost', JSON.stringify(recH)); } catch (e) {}
 }
 function forgetHostCode() { try { localStorage.removeItem('wp_lastHost'); } catch (e) {} }
+// [netcheck:codescroll-start]
+// 1.6.3 (the release click test): the room code, which the GM reads and sends, comes into full view as hosting starts. The window's header
+// (Multiplayer and its close) stays on top as the window scrolls, and scrollIntoView does not allow for it: the code stood under it. So the
+// window is scrolled by hand until the top of the host's part stands 6 px under the header's foot. el: #netHostInfo. Asked by startHosting
+// after the Start button is put away and the roster is moved in, so what is above the code has its final height
+function hostCodeScroll(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function' || typeof el.closest !== 'function') return false;
+    var box = el.closest('#netModal > div'); if (!box || typeof box.getBoundingClientRect !== 'function') return false;
+    var h = typeof box.querySelector === 'function' ? box.querySelector('h3') : null, top = h && typeof h.getBoundingClientRect === 'function' ? h.getBoundingClientRect().bottom : box.getBoundingClientRect().top;
+    var by = el.getBoundingClientRect().top - top - 6; if (!isFinite(by)) return false;
+    box.scrollTop = Math.max(0, (Number(box.scrollTop) || 0) + by); return true;
+}
+// [netcheck:codescroll-end]
 function recentHostCode() {
     try {
         var j = JSON.parse(localStorage.getItem('wp_lastHost') || 'null');
@@ -9149,9 +9168,9 @@ function startHosting(forceFresh) {
         if (codeEl) codeEl.textContent = showCode(code);
         var whereEl = ui('netCodeWhere'); if (whereEl && typeof codeWhereWords === 'function') whereEl.textContent = codeWhereWords(code);   // 1.6.3 (finding 14): which server the code is on
         ui('netHostInfo').style.display = 'block';
-        var hiEl = ui('netHostInfo'); if (hiEl && typeof hiEl.scrollIntoView === 'function') hiEl.scrollIntoView({ block: 'start' });   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off
         syncSessionButtons();
         renderRoster();
+        if (typeof hostCodeScroll === 'function') hostCodeScroll(ui('netHostInfo'));   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off; 1.6.3 (the release click test): scrolled once the window has its final shape, and clear of its header
         toast((resumed ? 'Hosting resumed with the same room code. Players can rejoin as before.' : 'Hosting started. Share the room code.') + (sbW ? ' ' + sbW : ''));
         if (sbW) logEvent('table', sbW);
         if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.start(getActiveCampaign(), showCode(code), !!resumed);   // 1.6.0: the game record opens with the table

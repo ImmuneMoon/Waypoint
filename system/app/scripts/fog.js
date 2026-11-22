@@ -2392,7 +2392,11 @@ function ownClear(ctx, list, z, sx, sy, find) {
         var el = typeof find === 'function' ? find(w.id) : null, up = el && el.style ? parseFloat(el.style.rotate) || 0 : 0, ang = ((Number(w.rot) || 0) + up) * Math.PI / 180;
         var sh = ownClearShape(w), img = sh === 'img' && el && typeof el.querySelector === 'function' ? el.querySelector(':scope > img') : null;
         ctx.save(); ctx.translate(cx, cy); if (ang) ctx.rotate(ang);
-        if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0 && typeof ctx.drawImage === 'function') {
+        // 1.6.3 (the release click test): a picture still on its way from the host, or one the host says is missing, is the app's 1x1 clear
+        // stand-in (complete, one pixel): cut by it, nothing would show, so a picture of one pixel or less, or a token marked as missing its
+        // picture, is a picture not loaded yet and the token is cut by its box
+        var picGone = !!(el && el.classList && typeof el.classList.contains === 'function' && el.classList.contains('pic-missing'));
+        if (img && img.complete && img.naturalWidth > 1 && img.naturalHeight > 1 && !picGone && typeof ctx.drawImage === 'function') {
             var k = Math.min(bw / img.naturalWidth, bh / img.naturalHeight), iw = img.naturalWidth * k, ih = img.naturalHeight * k;
             try { ctx.drawImage(img, -iw / 2, -ih / 2, iw, ih); } catch (e) { ctx.fillRect(-bw / 2, -bh / 2, bw, bh); }   // a picture the canvas cannot read: its box
         } else {

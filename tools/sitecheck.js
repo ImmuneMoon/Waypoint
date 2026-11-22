@@ -673,6 +673,12 @@ const j = v => JSON.stringify(v);
                 gotL === 0 && Array.isArray(rL) && rL.length === 1 && rL[0].s.length <= 60 && /^No one linked as Crewmember.*, so it counted as 0$/.test(rL[0].s) && rL[0].c === 3 && j(cL) === j(rL), j([gotL, rL, cL, (csL.links || []).map(k => k.group)]));
         }
         check('208 ...through a field worked out from it too', j(thr.r) === j([{ s: 'No one at Helm, so it counted as 0', c: 3 }]), j(thr));
+        {   // 1.6.3 (the release click test): an empty sum is 0 as anyone expects and says nothing, as a count says nothing (a mount's weight
+            // read through every sheet's encumbrance put "No one linked as Rider" on every roll of a character that is no mount); an empty max keeps its note
+            const smE = refsFor([], 'Crew.sum.Handling'), smS = refsFor([], 'Crew.Helm.sum.Handling'), smF = refsFor([man], 'Crew.sum.Handling');
+            check('1.6.3 an empty crew group read as a sum reads 0 and puts no note on the card, a station\'s too; a held one sums as before',
+                smE.got === 0 && smE.r === null && smS.got === 0 && smS.r === null && smF.got === 12 && smF.r === null && em.r !== null, j([smE, smS, smF]));
+        }
         // what is gone, said at Save
         const goneSys = cleanSystem(edit(before, d => {
             d.rolls = [{ id: 'r_a', label: 'Dodge', formula: '1d6' }]; d.effects = [{ id: 'e_a', name: 'Dazed', rollSw: [{ name: 'Braced', v: 1, to: [{ r: 'r_gone' }] }] }];

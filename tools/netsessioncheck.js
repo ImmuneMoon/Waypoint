@@ -100,7 +100,24 @@ check('docStyle: a client takes it from the synced host only, for the hosted cam
     check('where (client): the campaign\'s box sits beside the campaign\'s name, right after the wrap that holds the campaign menu and the page\'s own campaign list, and a player\'s app hides that wrap whole; the map\'s box is in the next section (right after the map tabs\' box, which holds the breadcrumb); both hidden unless a joined player has something to show',
         /<header>[\s\S]*<div class="row-menu-wrap" id="campMenuWrap">\n[\s\S]*?<select id="campaignSelect"[^\n]*\n\s*<\/div>\n\s*<div id="tableWhere" class="table-where"><\/div>[\s\S]*<div class="header-sep"><\/div>[\s\S]*<div id="mapTabs"[^\n]*\n[^\n]*<div id="mapBreadcrumb"><\/div>[^\n]*\n[^\n]*\n[^\n]*\n\s*<\/div>\n\s*<div id="tableWhereMap" class="table-where"><\/div>[\s\S]*<\/header>/.test(htmlSrc)
         && /\n\s*body\.net-client #campMenuWrap \{ display: none !important; \}/.test(cssSrc) && /\n\s*#tableWhere, #tableWhereMap \{ display: none;/.test(cssSrc) && /\n\s*body\.net-client #tableWhere\.on, body\.net-client #tableWhereMap\.on \{ display: inline-flex; \}/.test(cssSrc) && !/#tableWhere(Map)?[^{\n]*\{[^}]*[{;\s]content\s*:/.test(cssSrc)
-        && /\n\s*body\.net-client #tableWhereMap\.on \{ flex: 1 1 0; justify-content: center; max-width: none; \}/.test(cssSrc) && /\n\s*body\.net-client #tableWhereMap\.on \+ \.spacer \{ display: none; \}/.test(cssSrc) && /<div id="tableWhereMap" class="table-where"><\/div>\n\s*<div class="spacer"><\/div>/.test(htmlSrc));   // centered in its section: the box takes the spacer's place
+        && /\n\s*body\.net-client #tableWhereMap\.on \{ flex: 1 1 0; justify-content: center; max-width: none; min-width: 108px; \}/.test(cssSrc) /* moved on purpose (1.6.3, the release click test): the map's name keeps 100 px and its padding, so a short row folds icons before the name goes */ && /\n\s*body\.net-client #tableWhereMap\.on \+ \.spacer \{ display: none; \}/.test(cssSrc) && /<div id="tableWhereMap" class="table-where"><\/div>\n\s*<div class="spacer"><\/div>/.test(htmlSrc));   // centered in its section: the box takes the spacer's place
+}
+
+// 1.6.3 (the release click test): the Multiplayer window of a player who is no longer at a table (removed, or the table gone) says nothing of
+// connected players and no longer shows the old table's switches: renderRoster's empty branch and net.refreshUi, run for real; and the map
+// switch's notice says the setting as a step
+{
+    const S = src.replace(/\r\n/g, '\n'), rA = S.indexOf('function renderRoster() {'), rZ = S.indexOf('\n}\n', rA), rrSrc = rA < 0 || rZ < 0 ? 'throw new Error("renderRoster");' : S.slice(rA, rZ + 3);
+    const uA = S.indexOf('net.refreshUi = function() {'), uZ = S.indexOf('\n};\n', uA), ruSrc = uA < 0 || uZ < 0 ? 'throw new Error("refreshUi");' : S.slice(uA, uZ + 4);
+    const run = (netR) => { const el = { textContent: 'was', style: { display: '' } }, log = [];
+        new Function('net', 'ui', 'syncLastMaps', 'updateSidebarNav', 'rosterSeat', 'refreshStageSelect', 'syncSessionButtons', 'window', 'document', 'renderWhere', "'use strict';\n" + rrSrc + ruSrc + '\nnet.refreshUi();')(
+            netR, id => (id === 'netRoster' ? el : null), () => {}, () => {}, () => {}, () => log.push('stage'), () => log.push('buttons'), { wpSettingsSync: () => log.push('vtt') }, { body: { classList: { toggle() {} } } }, () => {});
+        return [el.textContent, el.style.display, log.join()]; };
+    const host = run({ active: true, role: 'host', roster: {} }), gone = run({ active: false, role: null, roster: {} }), seated = run({ active: true, role: 'client', roster: {} });
+    check('1.6.3 (the release click test): an empty roster says No players connected yet only while this app hosts; a player no longer at a table reads nothing there and the line takes no room; refreshing the window\'s parts as the own campaign comes back draws the VTT line again too',
+        JSON.stringify([host, gone, seated]) === JSON.stringify([['No players connected yet.', '', 'buttons,vtt'], ['', 'none', 'stage,buttons,vtt'], ['', '', 'buttons,vtt']])
+        && S.includes("toast('Your players stay where they are. Summon All brings them to this map. To have the table move with you, set Players arrive at to Follow me.');")
+        && !S.includes('Players arrive at \\u25B8 Follow me makes'), JSON.stringify([host, gone, seated]));
 }
 
 // 1.5.0 the player's top bar: a campaign renamed mid-session reaches admitted players once per change (the real host sync, sliced), and a
@@ -1257,6 +1274,22 @@ pendingChecks.push((async () => {
             && onDisk.length > 400 && !/target=|rel=|noopener|"href"|"link"/.test(onDisk) && (onDisk.match(/<a /g) || []).length === 4, j([Object.keys(eG).sort().join(), Object.keys(eS).sort().join()]));
         check('links (who a received page came from): the viewer is told with each page that arrives — a handout from the GM and a page the GM shared are the GM\'s, a player\'s share is that player\'s by the name the Journal shows (cut to 60) — and is handed the text and the caption as the plain text they are',
             JL.shown.length === 4 && j(JL.shown.map(h => h.from)) === j([{ gm: true }, { who: 'Pat' }, { gm: true }, { who: 'x'.repeat(60) }]) && JL.shown.every(h => h.text === ADDR && h.fresh === true) && JL.shown[0].caption === CAPL, j(JL.shown.map(h => h.from)));
+        // 1.6.3 (the release click test): handouts shown while a player was away come back one after another as they rejoin, and each popped up
+        // over the last, so most flashed past unseen. A replay the Journal did not hold is saved as before and never opened; once the replays
+        // stop coming, one notice says how many came; a handout shown live still opens (the journal slice, run for real)
+        const JR = mkJournal({ popup: true });
+        for (const k of ['r1', 'r2', 'r3']) await JR.api.receive(gmMsg(k, 'words ' + k, { replay: true }));
+        await JR.api.receive(gmMsg('r1', 'words r1', { replay: true }));   // one it already holds: refreshed quietly, as before
+        const shownEarly = JR.shown.length, toastsEarly = JR.toasts.slice();
+        await new Promise(r => setTimeout(r, 1700));
+        const JR1 = mkJournal({ popup: true }); await JR1.api.receive(gmMsg('o1', 'only', { replay: true })); await new Promise(r => setTimeout(r, 1700));
+        await JR.api.receive(gmMsg('j1', 'for joiners', { join: true })); await new Promise(r => setTimeout(r, 1700));
+        await JR.api.receive(gmMsg('live', 'shown now'));
+        const ixR = await JR.idx('camp1__u_gm');
+        check('1.6.3 (the release click test): handouts sent as a player joins (those missed while away, and those the host marks join) are saved to the Journal and never popped up one over another; one notice says how many came once they stop coming, one of them by its title; a handout shown during play still opens',
+            shownEarly === 0 && toastsEarly.length === 0 && JR.toasts.length === 2 && JR.toasts[0] === '3 handouts came as you joined. They are in your Journal.' && JR.toasts[1] === '"T j1" came as you joined. It is in your Journal.'
+            && JR1.toasts.length === 1 && JR1.toasts[0] === '"T o1" came as you joined. It is in your Journal.' && JR1.shown.length === 0
+            && JR.shown.length === 1 && JR.shown[0].title === 'T live' && ['r1', 'r2', 'r3', 'j1', 'live'].every(id => ixR.entries.some(e => e.id === id)) && src.includes('net.revealHandout(h.id, [prof.id], { join: true });'), j([shownEarly, toastsEarly, JR.toasts, JR1.toasts, JR.shown.map(h => h.title)]));
         const hoL = hoBetween('// [netcheck:journal-start]', '// [netcheck:journal-end]'), hoWhole = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'handouts.js'), 'utf8').replace(/\r\n/g, '\n'), netWhole = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'net.js'), 'utf8');
         check('links (pinned): what a GM\'s text handout sends is its text and nothing else; nothing in the wire code or in the Journal\'s receiving and storing code knows about links — they are made only where a text is drawn to be read',
             /if \(h\.kind === 'text'\) return Promise\.resolve\(\{ kind: 'text', text: String\(h\.text \|\| ''\)\.slice\(0, 60000\) \}\);/.test(hoWhole) && !/linkParts|fillLinked|linkgate|typedLink/.test(netWhole) && !/linkParts|fillLinked|<a /.test(hoL)

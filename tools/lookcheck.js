@@ -5012,6 +5012,25 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && cl.includes("hdG.className = 'char-menu-head'; hdG.textContent = 'Give to';") && cl.includes("var gl = giveLine(camp, pid); if (gl) { var sm = document.createElement('small'); sm.className = 'char-menu-sub'; sm.textContent = gl; d.appendChild(sm); }")
         && /\.char-menu button \.char-menu-sub \{[^}]*pointer-events: none;/.test(fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8')), J([gl(camp, 'u_a'), gl(camp, 'u_b'), gl(camp, 'u_c')]));
 }
+{   // 1.6.3 (the release click test): the Also shared with rows wear the same gray line as the Give to rows, so two players of one name are told
+    // apart there too (charlist.js giveMenu, sliced with giveLine and run for real on a page of plain objects); the gray line takes the hovered
+    // row's white; a party menu row keeps its drawing off its words
+    const cl = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'charlist.js'), 'utf8').replace(/\r\n/g, '\n');
+    const gmSrc = cl.slice(cl.indexOf('function giveLine(camp, pid) {'), cl.indexOf('function menuMake() {'));
+    const mk = tag => { const e = { tag, className: '', dataset: {}, style: {}, kids: [], attrs: {}, _t: '', setAttribute(k, v) { this.attrs[k] = v; }, appendChild(c) { this.kids.push(c); return c; }, removeChild(c) { this.kids.splice(this.kids.indexOf(c), 1); } };
+        Object.defineProperty(e, 'textContent', { get() { return this._t + this.kids.map(k => k.textContent).join(''); }, set(v) { this._t = String(v); this.kids = []; } });
+        Object.defineProperty(e, 'firstChild', { get() { return this.kids[0] || null; } }); return e; };
+    const menu = mk('div'), camp = { players: { u_a: { name: 'Mira' }, u_b: { name: 'Mira' }, u_o: { name: 'Hshif' } } }, ch = { id: 'c1', ownerId: 'u_o', shareWith: ['u_b'] };
+    const winS = { wpSystemCore: { playsAs: (c, p) => (p === 'u_a' ? 'HK-24' : p === 'u_b' ? 'Tarn' : '') }, wpNet: { roster: {} } };
+    let gmErr = '';
+    try { new Function('window', 'document', 'sheets', 'getActiveCampaign', 'namesOf', 'charText', 'CHAR_NAME', 'toast', '_menu', gmSrc + '\ngiveMenu("c1", 10, 10);')(
+        winS, { createElement: mk }, () => ({ charById: () => ch, shareToggle() {} }), () => camp, c => ({ u_a: 'Mira', u_b: 'Mira', u_o: 'Hshif' }), (v, n) => String(v).slice(0, n), 60, () => {}, menu); } catch (e) { gmErr = String(e && e.message); }
+    const shareRows = menu.kids.filter(k => k.dataset && k.dataset.share), subOf = r => (r.kids.find(k => k.className === 'char-menu-sub') || {}).textContent || '';
+    const cssH = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8');
+    check('1.6.3 (the release click test): Also shared with names each player with the gray line Give to has (the character they play, or here now or last seen), so two players of one name are told apart; on a hovered row the line takes the row\'s white; a party menu row\'s drawing stands off its words',
+        !gmErr && shareRows.length === 2 && J(shareRows.map(subOf)) === J(['plays HK-24', 'plays Tarn']) && shareRows[1]._t === '\u2713 Mira'
+        && /\n  \.char-menu button:not\(:disabled\):hover \.char-menu-sub \{ color: inherit; opacity: 0\.85; \}/.test(cssH) && /\n  \.wb-tool-btn\.party-menu-item \{ gap: \.35em; \}/.test(cssH), J([gmErr, shareRows.map(subOf)]));
+}
 {   // 1.6.3 (the improvement week's review of sheets and rolls, finding 40): the library picker's search names no builder's word, and its preview says a
     // note that is only the description's own cut beginning once (libpicker.js noteBegins, sliced and run for real, by the sheet's own noteInDesc rule)
     const lp = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'libpicker.js'), 'utf8').replace(/\r\n/g, '\n');

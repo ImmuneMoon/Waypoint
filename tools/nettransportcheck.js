@@ -221,7 +221,17 @@ pendingChecks.push((async () => {
         jeP(jeIn, jeB); jeP(null, jeB); jeP(jeI(), null); jeIn.on.keydown(jeK('a')); jeIn.on.keydown(jeK('Enter', true)); const je0 = jeB.n; jeIn.on.keydown(jeK('Enter')); const je1 = jeB.n; jeB.disabled = true; jeIn.on.keydown(jeK('Enter'));
         const ttS = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'tooltips.js'), 'utf8');
         check('the live test, 2026-10-30: a label marked data-tip-up has its tip above it, however tall it is, so the tip leaves the next box clear; hosting brings the room code and the words under it into view',
-            /var big = !el\.dataset\.tipUp && /.test(ttS) && /if \(y \+ th > vh - 6 \|\| el\.dataset\.tipUp\) y =/.test(ttS) && /hiEl\.scrollIntoView\(\{ block: 'start' \}\)/.test(src));
+            /var big = !el\.dataset\.tipUp && /.test(ttS) && /if \(y \+ th > vh - 6 \|\| el\.dataset\.tipUp\) y =/.test(ttS) && /\n\s*syncSessionButtons\(\);\n\s*renderRoster\(\);\n\s*if \(typeof hostCodeScroll === 'function'\) hostCodeScroll\(ui\('netHostInfo'\)\);/.test(src.replace(/\r\n/g, '\n')) /* moved on purpose (1.6.3, the release click test): scrolled by hand clear of the window's header, once the window has its final shape */);
+        {   // 1.6.3 (the release click test): the room code came up under the Multiplayer window's header, which stays on top as the window scrolls
+            // and which scrollIntoView does not allow for. hostCodeScroll (sliced and run for real on rectangles of the suite's own) stops the host's
+            // part 6 px under the header's foot, never above the window's top
+            const S2 = src.replace(/\r\n/g, '\n'), csS = S2.slice(S2.indexOf('// [netcheck:codescroll-start]'), S2.indexOf('// [netcheck:codescroll-end]'));
+            const scroll = (elTop, hBottom, st, noH) => { const box = { scrollTop: st, getBoundingClientRect: () => ({ top: 40 }), querySelector: () => (noH ? null : { getBoundingClientRect: () => ({ bottom: hBottom }) }) };
+                const el = { closest: () => box, getBoundingClientRect: () => ({ top: elTop }) }; const ok = new Function(csS + '\nreturn hostCodeScroll;')()(el); return [ok, box.scrollTop]; };
+            const cs = [scroll(400, 102, 0), scroll(62, 102, 367), scroll(108, 102, 5), scroll(30, 102, 10), scroll(200, 0, 0, true)], none = new Function(csS + '\nreturn hostCodeScroll;')()(null);
+            check('1.6.3 (the release click test): hosting scrolls the Multiplayer window so the room code stands just under its header, whatever was scrolled before, and never past the window\'s top',
+                J(cs) === J([[true, 292], [true, 321], [true, 5], [true, 0], [true, 154]]) && none === false, J(cs));
+        }
         check('the live test, 2026-10-30, Enter in a join box (pressOnEnter, run for real): it presses the button once, never for another key, while composing or while the button is held back; both join forms\' code and password boxes are wired; the Room code tooltip on the join page is a player\'s words and stands above the box, the GM\'s words on the GM\'s own code',
             je0 === 0 && je1 === 1 && jeB.n === 1 && jeSt === 1 && /\['wcJoinCode', 'wcJoinPass'\]\.forEach\(function\(id\) \{ pressOnEnter\(document\.getElementById\(id\), joinGo\); \}\);/.test(mainSrc) && /\['netCodeInput', 'netJoinPassInput'\]\.forEach/.test(mainSrc)
             && /'room code': 'The code your GM sent you\./.test(tipsSrc) && !/Send this to your players/.test(tipsSrc) && /<label class="wc-field" data-tip-up="1"><span>Room code<\/span>/.test(html) && /title="Send this to your players\.[^"]*">Room code<\/div>/.test(html), J([je0, je1, jeB.n, jeSt]));

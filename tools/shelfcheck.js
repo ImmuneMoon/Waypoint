@@ -2019,6 +2019,19 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         JSON.stringify({ plWords, gmWords }));
 }
 
+{   // 1.6.3 (the release click test): typing a map's own name in quick jump lands on the map, never on a room another map holds under the same
+    // name; a row whose name is exactly what was typed comes first within its score (main.js's cmdkrows slice, run for real)
+    const mjR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n');
+    const NM = 'East Central (Central Plaza \u00b7 Commerce Ring)';
+    const ents = [{ kind: 'room', label: NM, sub: 'Ahto City', campId: 'k1', itemId: 'm3', roomId: 'r1' }, { kind: 'room', label: 'Armory', sub: 'Keep', campId: 'k1', itemId: 'm4', roomId: 'r2' },
+        { kind: 'map', label: 'Armory Annex', sub: 'Camp', campId: 'k1', itemId: 'm5' }, { kind: 'map', label: NM, sub: 'Camp', campId: 'k1', itemId: 'm6' }];
+    const rankR = q => { const list = { innerHTML: '' }, st = { appState: { campaigns: {} } };
+        return new Function('state', 'window', 'document', 'esc', 'cmdkHintSync', 'cmdkSolo', 'var _cmdkEntries = ' + JSON.stringify(ents) + ', _cmdkShown = [], _cmdkIdx = 0;\n' + sliceOf(mjR, 'cmdkrows') + '\nreturn function(q) { cmdkRender(q); return _cmdkShown.map(function(e) { return e.kind + ":" + e.label; }); };')(st, {}, { getElementById: () => list }, s => String(s), () => {}, () => false)(q); };
+    const cp = rankR('central plaza'), ec = rankR('east central'), full = rankR(NM.toLowerCase()), arm = rankR('armory');
+    check('1.6.3 (the release click test): in quick jump a map comes before a room of the same score, so typing a map\'s own name, whole or in part, lands on the map; a row named exactly what was typed comes first',
+        cp[0] === 'map:' + NM && cp[1] === 'room:' + NM && ec[0] === 'map:' + NM && full[0] === 'map:' + NM && full[1] === 'room:' + NM && arm[0] === 'room:Armory' && arm[1] === 'map:Armory Annex', JSON.stringify([cp, ec, full, arm]));
+}
+
 /* ---------- 1.6.3, the review of pages and planners: getting around and finding (lane B, batch 1) ---------- */
 {
     // finding 7: quick jump's box takes the focus in the same turn as Ctrl+K (main.js cmdkOpen, run for real on plain objects)

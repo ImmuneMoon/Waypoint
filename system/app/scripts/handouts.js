@@ -10,7 +10,7 @@
 import { state } from './state.js';
 import { net } from './net.js';
 import { getActiveCampaign, getActiveMap } from './models.js';
-import { save, toast, historyBarrier, downloadBlob } from './io.js';
+import { save, toast, toastAction, historyBarrier, downloadBlob } from './io.js';
 import { esc } from './inspector.js';
 import { picRef } from './safecore.js';   // a handout's picture is the app's own (a web address from a file never loads)
 import { fillLinked } from './linkgate.js';
@@ -293,6 +293,24 @@ function sceneBegin(id) { _sceneSeq++; _sceneWait[id] = _sceneSeq; return _scene
 function sceneLive(id, g) { return _sceneWait[id] === g; }
 function sceneEnd(id) { delete _sceneWait[id]; }
 // [scenecheck:in-end]
+// 1.6.3 (the release click test): the handouts a player is sent as they join (those shown while they were away, replayed 400 ms apart, and
+// those the GM marked for every joiner or for them, 600 ms apart, which the host marks join) came one after another, and each popped up
+// over the last, so most flashed past unseen, and one took a token's drag. Such a handout the Journal did not hold is saved as before but
+// never opened: replayHeld gathers them, and REPLAY_WAIT ms after the last one one notice says how many came and that they are in the
+// Journal, with a button that opens it where the app has one. A handout the GM shows during play opens as before
+var REPLAY_WAIT = 1500, _replayGot = [], _replayTimer = null;
+function replayHeld(title) {
+    _replayGot.push(String(title || 'Handout').slice(0, 120));
+    if (_replayTimer) clearTimeout(_replayTimer);
+    _replayTimer = setTimeout(replaySay, REPLAY_WAIT);
+}
+function replaySay() {
+    var got = _replayGot; _replayGot = []; _replayTimer = null; if (!got.length) return;
+    var words = got.length === 1 ? '"' + got[0] + '" came as you joined. It is in your Journal.' : got.length + ' handouts came as you joined. They are in your Journal.';
+    var J = typeof openJournal === 'function' ? openJournal : null;   // this module's own (asked through typeof: the suites run this part of it alone)
+    if (J && typeof toastAction === 'function') toastAction(words, 'Open Journal', function() { J(); });
+    else toast(words);
+}
 async function receiveHandout(msg) {
     var campId = journalKey(msg), id = safeId(msg.id);
     if (!campId || !id) return;
@@ -357,8 +375,9 @@ async function receiveHandout(msg) {
     if (failed) { toast('The GM showed you something, but it could not be saved.'); return; }
     if (stale.length) await dropEntryFiles(campId, stale);
     await registerJournal(campId);
-    if (msg.replay && !added) return;   // already in the journal, unchanged: refreshed, no fanfare
+    if ((msg.replay || msg.join === true) && !added) return;   // already in the journal, unchanged: refreshed, no fanfare (1.6.3: one sent as a player joins too)
     badge(unseen + 1);
+    if ((msg.replay === true || msg.join === true) && !sc.scene) { replayHeld(title); return; }   // 1.6.3 (the release click test): one missed while away is said with the others, never popped up
     if (sc.scene) { if (sceneLive(id, sg)) sceneShow({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg), scene: true, hold: sc.hold, sceneId: id }); return; }
     if (handoutPopup()) showHandout({ title: title, caption: caption, src: src, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg) });
     else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" is in your Journal.');
@@ -399,8 +418,9 @@ async function receiveTextHandout(msg, campId, id) {
         idx.entries.push(en); added = true; shownId = en.id;
     });
     await registerJournal(campId);
-    if (msg.replay && !added) return;
+    if ((msg.replay || msg.join === true) && !added) return;
     badge(unseen + 1);
+    if (msg.replay === true || msg.join === true) { replayHeld(title); return; }   // 1.6.3 (the release click test): as a picture's, above
     var fresh = { title: title, caption: caption, text: text, fresh: true, entry: { campId: campId, id: shownId }, from: cameFrom(msg) }; if (look) fresh.look = look;
     if (handoutPopup()) showHandout(fresh);
     else toast((msg.sharedBy ? msg.sharedBy + ' shared' : 'New handout') + ': "' + (title || 'Handout') + '" is in your Journal.');

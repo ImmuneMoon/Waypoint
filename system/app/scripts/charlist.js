@@ -294,7 +294,9 @@ function giveMenu(id, x, y) {   // the players this campaign knows, by name: a r
     var others = pids.filter(function(p) { return p !== c.ownerId; });   // 1.6.2 (G8): who else may use this sheet. It keeps its one owner for tokens and turns
     if (c.ownerId && !c.npc && c.making !== 1 && others.length && S.shareToggle) {
         var dvS = document.createElement('div'); dvS.className = 'menu-divider'; _menu.appendChild(dvS); var hd = document.createElement('div'); hd.className = 'char-menu-head'; hd.textContent = 'Also shared with'; hd.title = 'They can use this sheet as their own. Its tokens and turns stay with its player'; _menu.appendChild(hd);
-        others.forEach(function(pid) { var on = Array.isArray(c.shareWith) && c.shareWith.indexOf(pid) >= 0, d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitemcheckbox'); d.setAttribute('aria-checked', on ? 'true' : 'false'); d.dataset.share = pid; d.textContent = (on ? '\u2713 ' : '') + charText(names[pid], CHAR_NAME); _menu.appendChild(d); });
+        others.forEach(function(pid) { var on = Array.isArray(c.shareWith) && c.shareWith.indexOf(pid) >= 0, d = document.createElement('button'); d.type = 'button'; d.setAttribute('role', 'menuitemcheckbox'); d.setAttribute('aria-checked', on ? 'true' : 'false'); d.dataset.share = pid; d.textContent = (on ? '\u2713 ' : '') + charText(names[pid], CHAR_NAME);
+            var glS = giveLine(camp, pid); if (glS) { var smS = document.createElement('small'); smS.className = 'char-menu-sub'; smS.textContent = glS; d.appendChild(smS); }   // 1.6.3 (the release click test): the same gray line as Give to, so two players of one name are told apart here too
+            _menu.appendChild(d); });
     }
     _menu.style.display = 'flex';
     if (window.wpClampMenu) window.wpClampMenu(_menu, x, y); else { _menu.style.left = x + 'px'; _menu.style.top = y + 'px'; }

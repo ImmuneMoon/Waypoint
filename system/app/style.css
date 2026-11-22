@@ -2653,6 +2653,7 @@
   .char-menu button.danger { color: var(--red); }
   .char-menu .char-menu-head { padding: 4px 12px 2px; font-size: 11px; color: var(--muted); }
   .char-menu button .char-menu-sub { display: block; font-size: 11px; color: var(--muted); pointer-events: none; }   /* 1.6.3 (finding 43): the gray line under a player in Give to */
+  .char-menu button:not(:disabled):hover .char-menu-sub { color: inherit; opacity: 0.85; }   /* 1.6.3 (the release click test): on the hovered row's blue the gray line takes the row's white, so it stays readable (a held-back row keeps its gray) */
   .section-title:hover { color: var(--ink); }
   /* the section's action buttons live in a right-click popup, so the header title has full room */
   .section-actions { display: none; }
@@ -2836,6 +2837,7 @@
     justify-content: flex-start; text-align: left; white-space: normal; color: var(--ink); background: transparent;
   }
   #partyMenu .party-menu-item:hover { background: rgba(212,175,55,0.14); color: var(--gold); }
+  .wb-tool-btn.party-menu-item { gap: .35em; }   /* 1.6.3 (the release click test): a row is a flex box, where the space after its drawing collapses; the gap keeps the drawing off its words (the party menu, Show as a scene) */
   #partyMenu .party-menu-item.dim { opacity: 0.45; cursor: default; }
   #partyMenu .party-menu-item.dim:hover { background: transparent; color: var(--ink); }
   /* Handouts panel */
@@ -3128,7 +3130,9 @@
   #tableWhere, #tableWhereMap { display: none; align-items: center; gap: 6px; min-width: 0; max-width: min(520px, 42vw); overflow: hidden; white-space: nowrap; font-size: 13px; padding: 2px 4px; cursor: default; }
   body.net-client #tableWhere.on, body.net-client #tableWhereMap.on { display: inline-flex; }
   #tableWhereMap { max-width: min(320px, 30vw); }
-  body.net-client #tableWhereMap.on { flex: 1 1 0; justify-content: center; max-width: none; }   /* the map's name centered in its section (owner, 2026-09-26): the box takes the gap up to the right-hand groups */
+  body.net-client #tableWhereMap.on { flex: 1 1 0; justify-content: center; max-width: none; min-width: 108px; }   /* the map's name centered in its section (owner, 2026-09-26): the box takes the gap up to the right-hand groups */
+  /* 1.6.3 (the release click test): the map's name keeps 100 px and its 8 px of padding, as the GM's map tabs keep 180, so a row with no room
+     wraps and toprow.js foldFit folds icons into the tray (then goes tight) before the one place a player learns which map they are on goes to nothing */
   body.net-client #tableWhereMap.on + .spacer { display: none; }
   #tableWhere .tw-camp { color: var(--gold); font-weight: bold; max-width: 240px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #tableWhereMap .tw-map { color: var(--ink); font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
@@ -4099,7 +4103,7 @@
   .wb-item.mappin { overflow: visible; } .wb-item.mappin > .mp-glyph { position: absolute; inset: 0; border-radius: 50%; background: rgba(16,16,24,0.88); border: 1px solid rgba(255,255,255,0.35); box-sizing: border-box; pointer-events: none; }
   .wb-item.mappin > .mp-glyph::before { content: ''; position: absolute; inset: 14%; background: var(--pin, var(--gold)); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
   .wb-item.mappin > .mp-name { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 3px; padding: 1px 6px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(16,16,24,0.82); color: #f1ead8; border-radius: 4px; font-size: 11px; line-height: 1.4; pointer-events: none; }
-  .wb-item.maplegend { border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.45); overflow: hidden; } .wb-item.maplegend > .lg-box { position: absolute; inset: 0; padding: .6em .75em; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; line-height: 1.35; }
+  .wb-item.maplegend { border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.45); overflow: hidden; } .wb-item.maplegend > .lg-box { position: absolute; inset: 0; padding: .6em .75em; overflow: hidden auto; overscroll-behavior: contain; font-family: Georgia, 'Times New Roman', serif; line-height: 1.35; }
   .wb-item.maplegend .lg-title { font-weight: 700; font-size: 1.1em; padding-bottom: .3em; margin-bottom: .35em; border-bottom: 1px solid currentColor; } .wb-item.maplegend .lg-empty { opacity: .7; font-style: italic; }
   .wb-item.maplegend .lg-list { list-style: none; margin: 0; padding: 0; } .wb-item.maplegend .lg-line { display: flex; align-items: baseline; gap: .5em; width: 100%; padding: .1em .2em; background: none; border: 0; border-radius: 3px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
   .wb-item.maplegend .lg-line:hover, .wb-item.maplegend .lg-line:focus-visible { background: rgba(127,127,127,0.18); outline: none; } .wb-item.maplegend .lg-n { flex: none; min-width: 1.3em; font-weight: 700; } .wb-item.maplegend .lg-name { flex: 1; min-width: 0; overflow-wrap: anywhere; } .wb-item.maplegend .lg-line.unseen { opacity: .6; }

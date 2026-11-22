@@ -585,6 +585,16 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
   }
   function penSnap(x, y) { return window.wpPenPreset ? snapLattice(x, y) : getSnapCoords(x, y); }
   function penSnapOn() { return !!(state.snap || window.wpPenPreset); }
+  // [buildcheck:penclick-start]
+  // 1.6.3 (the release click test): a Build material drawn as a line (a wall, a door, glass) is drawn by a drag, and a plain click laid
+  // nothing and said nothing. Asked where a pen stroke ends with no length: under the Build tool's preset, on the machine that owns the
+  // campaign, it says once a session how such a material is drawn. say: the notice (io.js toast through appToast). Answers whether it spoke
+  var _penClickSaid = false;
+  function penClickSay(say) {
+      if (_penClickSaid || !window.wpPenPreset || !(window.wpCanPersistLocal && window.wpCanPersistLocal())) return false;
+      _penClickSaid = true; say('Drag along the grid lines to draw this. A click lays nothing.'); return true;
+  }
+  // [buildcheck:penclick-end]
   // [buildcheck:texseat-start]
   // The map builder (fold B1): a textured piece's tile stays seated on the board's lattice while the piece moves. A box shape's background
   // position, or a filled region's svg pattern (its x and y in tile units: the next full redraw builds it again from the item). Nothing for
@@ -1714,6 +1724,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
               if (drawPoints.length < 2 || allSame) {
 
                   currentDrawItem.remove();
+                  penClickSay(toast);   // 1.6.3 (the release click test): a Wall line clicked says it is dragged
 
                   currentDrawItem = null;
 

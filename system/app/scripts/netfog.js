@@ -805,6 +805,20 @@ if (_stageFbSel) _stageFbSel.addEventListener('change', function() {
     var fbMap = net.stageFallback && campF ? campF.items[net.stageFallback] : null;
     toast(fbMap ? 'New players will start on ' + ((fbMap.meta && fbMap.meta.title) || net.stageFallback) + '.' : 'New players will follow you.');
 });
+// [netcheck:landowntok-start]
+// 1.6.3 (the release click test): the middle of this player's own character token on the map nearest the point (x, y), never a hidden one;
+// null where they have none there. Asked by applyStage as a player arrives by a portal
+function landOwnTok(map, me, x, y) {
+    if (!map || !Array.isArray(map.whiteboard) || typeof me !== 'string' || !me) return null;
+    var num = function(v) { return typeof v === 'number' && isFinite(v); }, best = null, bestD = Infinity;
+    map.whiteboard.forEach(function(w) {
+        if (!w || typeof w !== 'object' || w.hidden || !w.isChar || w.ownerId !== me || !num(w.x) || !num(w.y)) return;
+        var cx = w.x + (num(w.w) && w.w > 0 ? w.w : 60) / 2, cy = w.y + (num(w.h) && w.h > 0 ? w.h : 52) / 2, d = (cx - x) * (cx - x) + (cy - y) * (cy - y);
+        if (d < bestD) { bestD = d; best = { x: cx, y: cy, id: w.id }; }
+    });
+    return best;
+}
+// [netcheck:landowntok-end]
 function applyStage(stage) {
     if (!stage || !campOf(stage.campId) || (stage.itemId != null && !validKey(stage.itemId))) return;
     var prevCampId = state.appState.activeCampaignId;
@@ -820,7 +834,12 @@ function applyStage(stage) {
         var destS = camp.items[stage.itemId];
         var landS = (destS.rooms || []).find(function(r) { return r.id === stage.landRoomId; });
         var ptS = landS && landingPoint(destS, landS);
-        if (ptS && ptS.wbX != null) { destS.meta = destS.meta || {}; destS.meta.lastWbX = ptS.wbX; destS.meta.lastWbY = ptS.wbY; }
+        // 1.6.3 (the release click test): a player who already has a token on the map they arrive on keeps it where the GM left it, so the
+        // view opens on the player's own character token nearest the landing (the one the host seats there, else the one they have), and on
+        // the landing itself only where they have none on this map
+        var tokS = net.role === 'client' && ptS && ptS.wbX != null && typeof landOwnTok === 'function' ? landOwnTok(destS, net.myId, ptS.wbX, ptS.wbY) : null;   // asked through typeof: suites run applyStage alone
+        if (tokS) { destS.meta = destS.meta || {}; destS.meta.lastWbX = tokS.x; destS.meta.lastWbY = tokS.y; }
+        else if (ptS && ptS.wbX != null) { destS.meta = destS.meta || {}; destS.meta.lastWbX = ptS.wbX; destS.meta.lastWbY = ptS.wbY; }
     }
     if (typeof camLand === 'function' && (net.role === 'client' || window.wpStream)) camLand(camp.items[stage.itemId], net.myId, !!window.wpStream);   // the camera: a map this app holds no view of opens on a token of its own there, never where the GM last looked (the host sends no camera)
     updateCampaignSelect();

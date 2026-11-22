@@ -1357,7 +1357,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   function wcResumeDraw(doc, rec) {
       var box = doc.getElementById('wcResume'), t = doc.getElementById('wcResumeText'); if (!box) return;
       box.style.display = rec ? 'flex' : 'none';
-      if (t) t.textContent = rec ? 'Your table with the room code ' + rec.code + ' was running a few minutes ago. Players still trying reattach when you resume it.' : '';
+      if (t) t.textContent = rec ? 'Your table with the room code ' + rec.code + ' stopped a little while ago. Players who are still trying to rejoin come back when you resume it.' : '';   // 1.6.3 (the release click test): plain words, and no guess at how long ago
   }
   // [tutorialcheck:wchost-end]
   function renderWcContinue() {
@@ -1813,7 +1813,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             if (!ql && en.kind === 'char' && !(typeof cmdkSolo === 'function' && cmdkSolo())) s = -1;   // 1.6.3 (finding 30): a sheet waits for a word too, but on a player's app, where their sheets are all the list holds
             if (s >= 0) scored.push([s, en]);
         });
-        scored.sort(function(a, b) { return a[0] - b[0]; });
+        // 1.6.3 (the release click test): within one score a row whose name is exactly what was typed comes first, then a room after a map,
+        // a planner or a page, so typing a map's own name lands on the map, never on a room another map holds under the same name
+        var cmdkExact = function(p) { return ql && p[1].label.toLowerCase() === ql ? 0 : 1; }, cmdkRoom = function(p) { return p[1].kind === 'room' ? 1 : 0; };
+        scored.sort(function(a, b) { return a[0] - b[0] || cmdkExact(a) - cmdkExact(b) || cmdkRoom(a) - cmdkRoom(b); });
         var shown = scored.map(function(p) { return p[1]; });
         // Also surface pages matched by their CONTENT (not just the title) — ranked below the name matches, with a snippet.
         // The review of the sheet picks: never on a player's app at someone else's table, where quick jump holds their own sheets alone

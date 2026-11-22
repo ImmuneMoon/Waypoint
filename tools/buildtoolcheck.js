@@ -286,6 +286,17 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         && [2, 3, 4, 5].every(i => j(pens[i]) === j(stroke(i === 2 ? { byPlayer: true } : {}))) && !('blocksSight' in pens[6]) && pens[6].tip === 'square' && pens[7].sightType === 'wall'
         && j(sHexP.penSnap(62, 25)) === j({ x: vtx.x, y: vtx.y }) && sHexP.asked.length === 0 && sHexP.penSnapOn() === true && j(sSqP.penSnap(62, 25)) === j({ x: 50, y: 50 }) && j(sSqP.penSnap(-24, 76)) === j({ x: 0, y: 100 }) && j(sOffP.penSnap(62, 25)) === j({ x: 1062, y: 1025 }) && j(sOffP.asked) === j([[62, 25]])
         && j(sHexN.penSnap(62, 25)) === j({ x: 1062, y: 1025 }) && sHexN.penSnapOn() === true && j(sNone.penSnap(62, 25)) === j({ x: 1062, y: 1025 }) && sNone.penSnapOn() === false, j([pens, sHexP.penSnap(62, 25), sSqP.penSnap(62, 25)]));
+    // 1.6.3 (the release click test): a Build material drawn as a line laid nothing at a plain click and said nothing. datamap.js's penclick
+    // slice, run for real: under Build's preset on the machine that owns the campaign it says once how the line is drawn, never under the plain
+    // pen or on a player's app; the stroke's end asks it where a click is dropped, and Build's shape line says drag
+    {
+        const pcSrc = cutM(dmSrc, 'penclick', 'datamap.js'), pcRun = (win, n) => { const said = []; const f = new Function('window', "'use strict';" + NL + pcSrc + NL + 'return penClickSay;')(win); const got = []; for (let i = 0; i < n; i++) got.push(f(t => said.push(t))); return [got, said]; };
+        const gmPc = pcRun(gmWin(PP), 2), plainPc = pcRun({ wpCanPersistLocal: () => true }, 1), playerPc = pcRun({ wpPenPreset: PP, wpCanPersistLocal: () => false }, 1);
+        check('1.6.3 (the release click test): a plain click with a Wall line of Build in hand says once that the line is dragged, never under the plain pen or at someone else\'s table; the dropped click asks it, and the shape line says drag',
+            j(gmPc) === j([[true, false], ['Drag along the grid lines to draw this. A click lays nothing.']]) && j(plainPc) === j([[false], []]) && j(playerPc) === j([[false], []])
+            && dmSrc.split('                  currentDrawItem.remove();\n                  penClickSay(toast);').length === 2
+            && partOf('wbbuild.js').split("line: 'Drag along the grid lines to draw it. The line is the wall.' };").length === 2, j([gmPc, plainPc, playerPc]));
+    }
     // (9) the wiring, the page and the styles, pinned
     const has = (s, t) => s.split(t).length === 2, pair = (ixSrc.match(/<div style="position:relative;" class="tool-pair gm-only">\n\s*<button class="wb-tool-btn" id="buildModeBtn"[\s\S]*?\n          <\/div>\n          <div class="wb-tool-sep"><\/div>/) || [''])[0];
     const idsIn = (pair.match(/ id="[A-Za-z]+"/g) || []).map(s => s.slice(5, -1)), chipsIn = (pair.match(/data-buildshape="[a-z]+"/g) || []).map(s => s.slice(17, -1)), swIn = (pair.match(/class="draw-swatch build-sw" data-color="#[0-9a-f]{6}"/g) || []).map(s => s.slice(-8, -1));

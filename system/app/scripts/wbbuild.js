@@ -822,12 +822,49 @@ function roomShowRow(items, am) {
     return { item: list[0], html: ROOM_SHOW_ROW };
 }
 // Room names on the play map: a plate at the top left of a piece that names a room, on the GM's screen alone, while the View menu's Room names
-// is ticked (this computer's wp_roomNames, ticked to start). The room's name is set as text
+// is ticked (this computer's wp_roomNames, ticked to start). The room's name is set as text.
+// 1.6.3 (the owner, editing his maps: a portal's name "is not legible enough to be useful", drawn under the tokens on the door): the plates
+// stand in a layer of their own, #roomNameLayer, a child of the board above every piece and token (style.css), never inside the piece, so a
+// token standing on a doorway no longer covers its name and a hexagon's clip no longer cuts it. roomNameSync notes a plate for each named piece
+// as the board draws it; at the draw's end window.wpRoomNamesEnd takes away the plates no piece asked for in that draw and places the rest from
+// their pieces' own geometry (rnPlace), and the board's handles ask window.wpRoomNamesPlace as a piece is dragged, so a plate follows its piece.
+// A plate mirrors its piece's being out of sight (interaction layers, a flattened piece, Hidden pieces set to Invisible), takes no pointer and is
+// counter-scaled, so it reads the same size on screen at any zoom. Nothing of it is ever drawn on a player's app or in the stream window
+var _rnPlates = Object.create(null), _rnGen = 0;   // the plates by piece id; the draw they were last asked for in
+var RN_MID = ['hexagon', 'hex-trigger', 'diamond', 'trigger-diamond', 'triangle', 'star', 'circle'];   // pieces whose corner is cut or round: the name stands in the middle
+var _rnL = null;   // the layer, kept once made
+function rnLayer() {
+    var wb = document.getElementById('whiteboard'); if (!wb) return null;
+    if (_rnL && _rnL.parentNode === wb) return _rnL;
+    _rnL = document.getElementById('roomNameLayer');
+    if (!_rnL) { _rnL = document.createElement('div'); _rnL.id = 'roomNameLayer'; _rnL.setAttribute('aria-hidden', 'true'); wb.appendChild(_rnL); }
+    return _rnL;
+}
+// One plate placed from its piece: at the piece's top left, 4 px in, turned with the piece about its middle; in the middle of a cut or round piece
+function rnPlace(tag) {
+    var it = tag._item, el = tag._el, cl = el && el.classList;
+    var off = !it || !el || el.isConnected === false || (el.style && el.style.display === 'none') || !!(cl && (cl.contains('il-off') || cl.contains('wb-flat-in')));
+    tag.classList.toggle('rn-off', off);
+    tag.classList.toggle('rn-hid', !!(cl && cl.contains('wb-hidden-gm') && !cl.contains('wb-room-area')));
+    if (off) return;
+    var x = +it.x || 0, y = +it.y || 0, w = typeof it.w === 'number' ? it.w : 100, h = typeof it.h === 'number' ? it.h : 100;
+    var mid = !!cl && RN_MID.some(function(k) { return cl.contains(k); }), cx = x + w / 2, cy = y + h / 2, ax = cx, ay = cy;
+    if (!mid) { var dx = 4 - w / 2, dy = 4 - h / 2, r = (+it.rot || 0) * Math.PI / 180, co = Math.cos(r), si = Math.sin(r); ax = cx + dx * co - dy * si; ay = cy + dx * si + dy * co; }
+    tag.classList.toggle('rn-mid', mid);
+    var L = ax.toFixed(1) + 'px', T = ay.toFixed(1) + 'px';
+    if (tag.style.left !== L) tag.style.left = L;
+    if (tag.style.top !== T) tag.style.top = T;
+}
+window.wpRoomNamesPlace = function() { for (var id in _rnPlates) rnPlace(_rnPlates[id]); };
+window.wpRoomNamesEnd = function() {
+    for (var id in _rnPlates) { var t = _rnPlates[id]; if (t._gen !== _rnGen) { if (t.parentNode) t.parentNode.removeChild(t); delete _rnPlates[id]; } else rnPlace(t); }
+};
 var _roomNames = null;   // the View tick, read from this computer once and kept
 function roomNamesOn() { if (_roomNames === null) { try { _roomNames = localStorage.getItem('wp_roomNames') !== 'off'; } catch (e) { _roomNames = true; } } return _roomNames; }
 // The pieces that wear a name, worked out once a draw: each room's place (roomcore roomPlaceOf's rule, in one pass), never a small mark that also
 // names the room, a text box, a token, a waiting token or a GM note card. Null where no name is drawn at all (unticked, a player's app, the stream window)
 function roomNamePlaces(am) {
+    _rnGen++;   // 1.6.3: a new draw; the plates it does not ask for go at its end (wpRoomNamesEnd)
     if (!roomNamesOn() || window.wpStream || !buildMay() || !am || !Array.isArray(am.rooms) || !am.rooms.length || !Array.isArray(am.whiteboard)) return null;
     var byRoom = Object.create(null), best = Object.create(null), out = Object.create(null);
     am.rooms.forEach(function(r) { if (r && typeof r.id === 'string') byRoom[r.id] = r; });
@@ -841,11 +878,11 @@ function roomNamePlaces(am) {
 }
 function roomNameSync(el, item, places) {
     var room = places && item && places[item.id];
-    if (!room && !el._roomName) return;   // the review: thousands of pieces, most naming no room, pass by at once
-    var tag = el.querySelector(':scope > .wb-room-name');
-    if (!room) { if (tag) tag.remove(); el._roomName = false; return; }
-    if (!tag) { tag = document.createElement('div'); tag.className = 'wb-room-name'; tag.setAttribute('aria-hidden', 'true'); el.appendChild(tag); }
-    el._roomName = true;
+    if (!room) return;   // the review: thousands of pieces, most naming no room, pass by at once; a plate no longer asked for goes at the draw's end
+    var layer = rnLayer(); if (!layer) return;
+    var tag = _rnPlates[item.id];
+    if (!tag || tag.parentNode !== layer) { tag = document.createElement('div'); tag.className = 'wb-room-name'; tag.setAttribute('aria-hidden', 'true'); layer.appendChild(tag); _rnPlates[item.id] = tag; }
+    tag._el = el; tag._item = item; tag._gen = _rnGen;
     var nm = room.name || '(unnamed)'; if (tag.textContent !== nm) tag.textContent = nm;
 }
 function roomNamesSync() {

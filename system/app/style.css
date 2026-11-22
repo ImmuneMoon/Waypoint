@@ -694,7 +694,7 @@
     #wbViewAllPart { border-top: 1px solid var(--edge); margin-top: 4px; padding-top: 2px; }
     body.view-turned #rulerTop, body.view-turned #rulerLeft, body.view-turned #rulerCursorX, body.view-turned #rulerCursorY { visibility: hidden; }   /* 1.6.2 (backlog 82b): a turned map has no straight edge to number */
     #whiteboard .wb-item > .token-initials, #whiteboard .token-fx .tfx { rotate: calc(var(--lvl-own, 0deg) - var(--view-turn, 0deg)); }   /* the words on the board read level however the map is turned: a token's by its own turn too (view.js --lvl-own) */
-    #whiteboard .wb-item > .wb-room-name { rotate: calc(var(--view-turn, 0deg) * -1); }   /* 1.6.2 (backlog 45, fold 3): a room's name reads level too */
+    #roomNameLayer > .wb-room-name { rotate: calc(var(--view-turn, 0deg) * -1); }   /* 1.6.2 (backlog 45, fold 3): a room's name reads level too */
     #streamNames .stream-name { rotate: calc(var(--view-turn, 0deg) * -1); transform-origin: 0 50%; }
     #measureLayer text, #tagLayer text { transform-box: fill-box; transform-origin: center; rotate: calc(var(--view-turn, 0deg) * -1); }
     /* The bar never runs off the map (whiteboard.js fitBar): it tightens, then wraps. Only the bar's own buttons shrink, never a menu's */
@@ -1385,9 +1385,20 @@
      It is centered on the piece's corner (half its size out each way, scaled about its own middle), so it takes a corner of a small token and no more */
   .wb-item.wb-room-area { opacity: 1; outline: none; box-sizing: border-box; border: 2px dashed var(--gold); }
   .wb-item.wb-room-area:not(.sel) { pointer-events: none; }
-  .wb-item:is(.hexagon, .diamond) > .wb-room-name { left: 50%; top: 50%; translate: -50% -50%; transform-origin: 50% 50%; }   /* a cut corner would clip it: in the middle there */   /* the review: an area takes no press meant for the floor or picture under it; Show on the play map selects it */   /* 1.6.2 (backlog 45, fold 3): a room's area, hidden from players */
+  /* the review: an area takes no press meant for the floor or picture under it; Show on the play map selects it */   /* 1.6.2 (backlog 45, fold 3): a room's area, hidden from players */
   body.hid-none .wb-item.wb-hidden-gm.wb-room-area { visibility: visible; }
-  .wb-item > .wb-room-name { position: absolute; left: 4px; top: 4px; z-index: 5; max-width: 220px; padding: 1px 7px; border-radius: 4px; background: rgba(20, 16, 10, 0.82); color: var(--gold); font: 600 12px/1.45 var(--font, Inter, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }   /* 1.6.2 (backlog 45, fold 3; the owner: "A. A View tick, on"): its room's name, the GM's alone */
+  /* 1.6.2 (backlog 45, fold 3; the owner: "A. A View tick, on"): its room's name, the GM's alone. 1.6.3 (the owner: a portal's name was "not legible
+     enough to be useful", small, low in contrast and under the tokens on the door): the plates stand in a layer of their own (wbbuild.js rnLayer), a child of
+     the board above every piece and token (a token is lifted to 15020 and up, a piece above the grid to 15100 and up) and under the board's own layers
+     (#streamNames 15985, #tagLayer 15990, #measureLayer 16000). A solid dark plate, a light gold edge and light words read on any art in either theme;
+     counter-scaled, so 13 px on screen at every zoom. The layer and every plate take no pointer. A plate stands at its piece's top left, or in the
+     middle of a cut or round piece (rn-mid); rn-off is a piece out of sight, rn-hid a piece hidden from players while Hidden pieces says Invisible */
+  #roomNameLayer { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 15900; }
+  #roomNameLayer > .wb-room-name { position: absolute; max-width: 240px; padding: 2px 8px; border-radius: 5px; background: #17120b; border: 1px solid rgba(240, 196, 110, 0.95); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.6); color: #fff4dc; font: 600 13px/1.4 var(--font, Inter, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }
+  #roomNameLayer > .wb-room-name.rn-mid { transform: scale(var(--wbz, 1)) translate(-50%, -50%); }
+  #roomNameLayer > .wb-room-name.rn-off { display: none; }
+  body.hid-none #roomNameLayer > .wb-room-name.rn-hid { visibility: hidden; }
+  body.stream-mode #roomNameLayer { display: none; }
   .wb-item > .wb-pin { position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; padding: 0; border: 1px solid var(--gold); border-radius: 50%; background: var(--deep); font-size: 11px; line-height: 20px; text-align: center; cursor: pointer; transform: scale(var(--wbz, 1)); transform-origin: 50% 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
   .wb-item > .wb-pin::before { content: ''; display: inline-block; width: 14px; height: 14px; vertical-align: -3px; background: var(--ink); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
   .wb-item > .wb-pin:hover::before, .wb-item > .wb-pin:focus-visible::before { background: var(--deep); }
@@ -4090,7 +4101,7 @@
   #placesBody .places-card-closed { color: var(--red); } #placesBody .places-card-pic img { display: block; max-width: 100%; max-height: 140px; border-radius: 4px; }
   .wb-item.mappin { overflow: visible; } .wb-item.mappin > .mp-glyph { position: absolute; inset: 0; border-radius: 50%; background: rgba(16,16,24,0.88); border: 1px solid rgba(255,255,255,0.35); box-sizing: border-box; pointer-events: none; }
   .wb-item.mappin > .mp-glyph::before { content: ''; position: absolute; inset: 14%; background: var(--pin, var(--gold)); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
-  .wb-item.mappin > .mp-name { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 3px; padding: 1px 6px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(16,16,24,0.82); color: #f1ead8; border-radius: 4px; font-size: 11px; line-height: 1.4; pointer-events: none; }
+  .wb-item.mappin > .mp-name { position: absolute; left: 50%; top: 100%; transform: scale(var(--wbz, 1)) translateX(-50%); transform-origin: 0 0; margin-top: 3px; padding: 2px 7px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #14141c; border: 1px solid rgba(255, 255, 255, 0.45); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 2px 5px rgba(0, 0, 0, 0.55); color: #f6efdd; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 1.4; pointer-events: none; }   /* 1.6.3: a place pin's name on a solid plate with a light edge, counter-scaled so it reads 12 px on screen at any zoom (the owner: names "not legible enough") */
   .wb-item.maplegend { border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.45); overflow: hidden; } .wb-item.maplegend > .lg-box { position: absolute; inset: 0; padding: .6em .75em; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; line-height: 1.35; }
   .wb-item.maplegend .lg-title { font-weight: 700; font-size: 1.1em; padding-bottom: .3em; margin-bottom: .35em; border-bottom: 1px solid currentColor; } .wb-item.maplegend .lg-empty { opacity: .7; font-style: italic; }
   .wb-item.maplegend .lg-list { list-style: none; margin: 0; padding: 0; } .wb-item.maplegend .lg-line { display: flex; align-items: baseline; gap: .5em; width: 100%; padding: .1em .2em; background: none; border: 0; border-radius: 3px; color: inherit; font: inherit; text-align: left; cursor: pointer; }

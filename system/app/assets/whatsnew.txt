@@ -859,6 +859,10 @@ Smaller things
 - A part fitted to a row can be taken out and kept. Press Take out on its
   pill and it stays on its list as a row of its own, with its count, level
   and stats, and any parts fitted to it stay in it.
+- Room and portal names on your map sit on a solid dark plate above the
+  tokens, and stay the same size however far you zoom out, so a door's
+  name no longer disappears under the characters standing on it. A place
+  pin's name gets the same plate.
 
 WAYPOINT 1.6.2 — What's New
 ============================

@@ -1356,6 +1356,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
 
       var rotHandle = document.getElementById('globalRotateHandle');
 
+      if (window.wpRoomNamesEnd) window.wpRoomNamesEnd();   // 1.6.3: the room names this draw asked for, placed above the pieces (wbbuild.js), the rest taken away
       positionHandles(activeMap);
       if (window.wpRefreshBlasts) window.wpRefreshBlasts();   // tokens moved: re-check who is in a blast
       if (typeof tagsDraw === 'function') tagsDraw(activeMap);   // 1.6.2 (vehicles, fold (c)): the marks one token holds on another
@@ -1459,6 +1460,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
   function positionHandles(am) {
       var rHandle = document.getElementById('globalResizeHandle');
       var rotHandle = document.getElementById('globalRotateHandle');
+      if (window.wpRoomNamesPlace) window.wpRoomNamesPlace();   // 1.6.3: a room's name follows its piece through a drag (wbbuild.js)
       try { lockRingSync(am); } catch (e) {}   // 1.6.2: a locked piece selected, its outline above the board
       if (!rHandle || !rotHandle) return;
       var z = state.zoomLevel || 1;

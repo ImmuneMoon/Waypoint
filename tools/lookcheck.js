@@ -5083,5 +5083,26 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && /if \(!camp \|\| !am \|\| am\.type !== 'map' \|\| state\.viewMode !== 'visual' \|\| !\(window\.wpCanPersistLocal && window\.wpCanPersistLocal\(\)\)\) return false;/.test(wbS) && cS.includes("else if (act === 'place') { if (!(window.wpCharPlace && window.wpCharPlace(cid))) toast("),
         acts(C.charMenuRows(true, true, null, true, false, null, false, false, null, null, true)));
 }
+{   // 1.6.3 (the owner, editing his maps: a portal's name "not legible enough to be useful", small, low in contrast and drawn under the tokens on the
+    // door): a room's name plate stands in a layer of its own on the board, above every piece and token and under the board's own layers, takes no
+    // pointer, reads on any art (a solid dark plate, a light edge, light words) and is counter-scaled, so it never shrinks on screen; the stream window
+    // has none. A place pin's name is counter-scaled on a solid plate too
+    const css = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+    const wbS = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, '\n');
+    const zOf = sel => { const m = new RegExp(sel.replace(/[#.]/g, '\\$&') + ' \\{[^}]*z-index: (\\d+)').exec(css); return m ? Number(m[1]) : NaN; };
+    const rnZ = zOf('#roomNameLayer'), plate = /\n  #roomNameLayer > \.wb-room-name \{([^}]*)\}/.exec(css), pin = /\n  \.wb-item\.mappin > \.mp-name \{([^}]*)\}/.exec(css);
+    const P = plate ? plate[1] : '', Q = pin ? pin[1] : '';
+    check('1.6.3, room names readable on any art: the layer stands above every lifted piece and token (a token at 15020 and up, a piece above the grid at 15100 and up, the locked ring at 15200) and under the board\'s own layers (#streamNames, #tagLayer, #measureLayer); it and each plate take no pointer; a solid dark plate, a light edge and light words at 13 px, counter-scaled by --wbz; none in the stream window; no plate is drawn inside a piece any more; the draw places the plates and the handles move them with a drag; a place pin\'s name is counter-scaled on a solid plate',
+        rnZ > zOf('#lockSelRing') && rnZ > 15130 && rnZ < zOf('#streamNames') && rnZ < zOf('#tagLayer') && rnZ < zOf('#measureLayer')
+        && /\n  #roomNameLayer \{[^}]*pointer-events: none;/.test(css) && P.includes('pointer-events: none;') && P.includes('background: #17120b;') && P.includes('border: 1px solid rgba(240, 196, 110, 0.95);')
+        && P.includes('color: #fff4dc;') && P.includes('font: 600 13px/1.4') && P.includes('transform: scale(var(--wbz, 1));') && css.includes('\n  #roomNameLayer > .wb-room-name.rn-mid { transform: scale(var(--wbz, 1)) translate(-50%, calc(-100% - 2px)); }')
+        && css.includes('\n  body.stream-mode #roomNameLayer { display: none; }') && css.includes('\n  body.hid-none #roomNameLayer > .wb-room-name.rn-hid { visibility: hidden; }') && css.includes('#roomNameLayer > .wb-room-name { rotate: calc(var(--view-turn, 0deg) * -1); }')
+        && !/\.wb-item[^{]*> \.wb-room-name/.test(css)
+        && wbS.includes("      if (window.wpRoomNamesEnd) window.wpRoomNamesEnd();   // 1.6.3: the room names this draw asked for, placed above the pieces (wbbuild.js), the rest taken away\n      positionHandles(activeMap);")
+        && wbS.includes("      if (window.wpRoomNamesPlace) window.wpRoomNamesPlace();   // 1.6.3: a room's name follows its piece through a drag (wbbuild.js)")
+        && Q.includes('transform: scale(var(--wbz, 1)) translateX(-50%); transform-origin: 0 0;') && Q.includes('background: #14141c;') && Q.includes('pointer-events: none;') && Q.includes('font-size: 12px;')
+        && css.includes('\n  body.stream-mode .wb-item.mappin > .mp-name { transform: translateX(-50%); transform-origin: 50% 50%; padding: 1px 6px; background: rgba(16,16,24,0.82); border: 0; box-shadow: none; color: #f1ead8; font-size: 11px; font-weight: inherit; }'),
+        J([rnZ, !!plate, !!pin]));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

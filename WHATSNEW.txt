@@ -833,6 +833,25 @@ Smaller things
   is worn, such as Row.Weight > 1. Two rows on the same layer still
   push each other off, and Row.covered tells a row which of its places
   something heavier covers, so its bonuses can stop counting there.
+- The fight's menu in the trackers bar works again after you open the
+  combat roster from it. Before, Hold and End combat did nothing until
+  the strip was drawn again.
+- An NPC's damage card opens Take damage on the NPC it was aimed at,
+  even with another token selected.
+- Next turn stays in one place in the trackers bar, so you can press it
+  turn after turn without chasing it.
+- A new round and End combat draw the screen once, so a new round on a
+  big campaign takes under a second.
+- A blast waiting for Defense rolls keeps its circle on the map after
+  you reload.
+- Keys pressed with the System editor or the Library window open stay in
+  that window. An arrow key no longer moves a token behind it.
+- A spreadsheet of gear picks the list it fits, even where two lists
+  share a name.
+- The first time Waypoint opens, the left panel shows every section,
+  not the Handbook alone.
+- Starting a campaign from the welcome screen no longer leaves an empty
+  Default Campaign behind.
 
 WAYPOINT 1.6.2 — What's New
 ============================

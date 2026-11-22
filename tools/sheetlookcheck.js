@@ -758,7 +758,10 @@ const j = v => JSON.stringify(v);
         const exS = cutC('// [systemcheck:explain-start]', '// [systemcheck:explain-end]'), fnS = cutC('function fieldNode(', '// [sheetlookcheck:capat-end]');
         const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, mk = (t, c, x) => { const e = doc.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.appendChild(doc.createTextNode(String(x))); return e; };
         const paper = { on: false };
-        const stubBody = 'function fieldNodeBody(f, c, e, gm, own, sysArg) { var box = el("div", "sheet-field sheet-kind-" + f.kind), lab = el("label", "sheet-label", f.label); box.appendChild(lab); if (f.explain) explainTo(lab, f.explain, c, ""); lab.appendChild(el("button", "tool ghost sheet-field-roll")); box.appendChild(el("input", "field sheet-num")); return box; }';   // the label part of the real fieldNodeBody: its words, its own (i) right after them, then its roll
+        // the label part of the real fieldNodeBody: its words, its own (i) right after them (the real line, cut from fieldNodeBody, which marks the box
+        // sheet-explained: 1.6.3, the review of a caption in its i), then its roll
+        const exLine = (() => { const a = shC.indexOf('    if (f.explain && typeof explainTo === \'function\'', shC.indexOf('function fieldNodeBody(')); if (a < 0) throw new Error('fieldNodeBody explain line'); return shC.slice(a, shC.indexOf(NL, a)); })();
+        const stubBody = 'function fieldNodeBody(f, c, e, gm, own, sysArg) { var box = el("div", "sheet-field sheet-kind-" + f.kind), lab = el("label", "sheet-label", f.label); box.appendChild(lab);' + NL + exLine + NL + 'lab.appendChild(el("button", "tool ghost sheet-field-roll")); box.appendChild(el("input", "field sheet-num")); return box; }';
         const X = new Function('el', 'document', 'window', 'pageRef', 'openPageFor', 'openPage', 'captionParts', 'F', 'lookPaper',
             'var _ldPop = null; function closeLoadMenu() { if (_ldPop) { if (_ldPop.parentNode) _ldPop.parentNode.removeChild(_ldPop); _ldPop = null; } } function ldOutside() {} function ldKey() {}' + NL + stubBody + NL + exS + NL + fnS + NL + 'return { fieldNode: fieldNode, capWhere: capWhere, capFirst: capFirst, pop: function() { return _ldPop; }, shut: closeLoadMenu };')(
             mk, doc, { innerWidth: 1200, innerHeight: 800 }, id => (id === 'p_x' ? { title: 'Agility page', gmOnly: false } : null), () => {}, () => {}, S.captionParts, () => F, () => paper.on);
@@ -783,6 +786,17 @@ const j = v => JSON.stringify(v);
             && X.capFirst('one\ntwo') === 'one' && X.capFirst('  a   b ') === 'a b';
         check('1.6.3 (Fulllion, 2026-11-22) where a field\'s caption shows (cleanSystem, then the real fieldNode, captionNode, its capat slice and the explain slice with the real captionParts and resolver on a page that refuses markup): the cleaner keeps capAt only as info or making, only beside a caption and right after it, the same in both views, and a caption the players\' view drops takes it along, a system with none keeps no key; with none the caption stands under the field; In its (i) puts it behind an (i) right after the label\'s words, before its roll, whose tooltip and name are the caption\'s first line with its figures worked out, a figure that fails a dash, a long one cut at a space with an ellipsis, and whose pop shows the whole caption; a field with its own explain keeps one (i), the caption above its words and Read more; Under it while making is under the field while the character is made and in its (i) after; paper keeps every caption under the field',
             cleanOk && sheetOk, J([cleanOk, capUnder(bU), iI && iI.title, popOf(iI), iM.map(x => x.title), capUnder(bMm), capUnder(bPaper), iL && iL.title, iB && iB.title]));
+        // 1.6.3 (the review of a caption in its i): a field label is cut with an ellipsis at its cell's edge (style.css .sheet-label), and its (i) stands
+        // at the label's end, so a long label in a narrow column (the HUD, an inline row) cut the (i) off, and with In its (i) the caption showed nowhere.
+        // The real fieldNodeBody line marks a field with its own (i) sheet-explained, capInfo marks one that holds its caption sheet-cap-info, and the
+        // style sheet lets both labels wrap, outside any print block and after the label's own rule
+        const cssC = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL), labBase = cssC.indexOf('  .sheet-label { color: var(--dim);');
+        const wrapAt = cssC.search(/\.sheet-field\.sheet-cap-info > \.sheet-label, \.sheet-field\.sheet-explained > \.sheet-label \{ white-space: normal; overflow: visible; \}/);
+        const wrapLine = wrapAt < 0 ? '' : cssC.slice(cssC.lastIndexOf(NL, wrapAt) + 1, cssC.indexOf(NL, wrapAt)), pre = cssC.slice(0, Math.max(0, wrapAt)).replace(/\/\*[\s\S]*?\*\//g, ''), inMedia = wrapAt < 0 || pre.split('{').length !== pre.split('}').length;   // at the top level, in no @media block
+        const bE = draw('f_dx', chP), bNone = draw('f_iq', chP);
+        check('1.6.3 (the review of a caption in its i) a field whose (i) holds its caption, or its own explain, keeps that (i) in sight: the real fieldNodeBody line marks the box sheet-explained, the caption\'s (i) marks it sheet-cap-info, and the style sheet lets such a label wrap, as a Caps label does, never cut with an ellipsis',
+            bE.classList.contains('sheet-explained') && bI.classList.contains('sheet-cap-info') && !bNone.classList.contains('sheet-explained') && !bNone.classList.contains('sheet-cap-info') && labBase >= 0 && wrapAt > labBase && !inMedia && /^  \./.test(wrapLine),
+            J([bE.className, bNone.className, labBase, wrapAt, inMedia]));
     }
 
     await T.finish();

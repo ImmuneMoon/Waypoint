@@ -233,7 +233,7 @@ function figsSay(b) {
     var val = function(c) { var n = find(b, c); return n ? String(n.value || '').trim() : ''; }, on = function(c) { var n = find(b, c); return !!n && n.checked === true; }, out = [];
     var u = val('sys-unit') || val('sys-unit-text'); if (u) out.push(u);
     var m = find(b, 'sys-metricshow'); if (m && usedIn(m)) out.push('metric');
-    if (val('sys-decmin') || val('sys-decmax')) out.push('decimals'); if (on('sys-group-chk')) out.push('1,000s'); if (on('sys-sign-chk')) out.push('\u00b1 color'); if (val('sys-caption')) out.push(val('sys-capat') ? 'a caption in its i' : 'a caption');
+    if (val('sys-decmin') || val('sys-decmax')) out.push('decimals'); if (on('sys-group-chk')) out.push('1,000s'); if (on('sys-sign-chk')) out.push('\u00b1 color'); if (val('sys-caption')) out.push(val('sys-capat') === 'making' ? 'a caption under it while making' : val('sys-capat') ? 'a caption in its i' : 'a caption');   // 1.6.3 (the review of a caption in its i): each choice in its own words
     return out.join(', ');
 }
 function usedIn(n) {

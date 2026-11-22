@@ -6492,6 +6492,10 @@
   .sheet-explain-pop .sheet-explain-cap { margin-top: 0; font-size: 13px; line-height: 1.45; color: var(--text); }   /* 1.6.3: a field's caption shown in its (i) */
   .sheet-explain-page { align-self: flex-start; }
   #sheetPrint .sheet-explain { display: none; }
+  /* 1.6.3 (the review of a caption in its i): a field label is cut with an ellipsis at its cell's edge, and the (i) stands at the end of the label,
+     so it was cut first. Where the (i) holds the field's caption (sheet-cap-info) or the field's own explain (sheet-explained), the label wraps, as a
+     Caps label does, and grows upward by the row's baseline rule, so the (i) is always in sight */
+  .sheet-field.sheet-cap-info > .sheet-label, .sheet-field.sheet-explained > .sheet-label { white-space: normal; overflow: visible; }
   /* 1.6.2 (backlog 41 (a)): the Image Library while a picture is dragged out of it: the drop goes through to the map, and Steps aside fades it */
   #imgLibModal.lib-drag, #imgLibModal.lib-drag * { pointer-events: none !important; }
   #imgLibModal.lib-drag { background: transparent !important; }

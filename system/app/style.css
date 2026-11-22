@@ -5202,8 +5202,9 @@
      seventy sections built some twenty thousand elements here, and the Layout tab, + Section and every redraw of the tab waited for all of them to
      be laid out. Nothing changes in how a section looks; one out of view is counted as 400px tall until it has been drawn once */
   #sysLayoutSecs > .sys-sec { content-visibility: auto; contain-intrinsic-size: auto 400px; }
+  /* 1.6.3 (the release click test): a section's places keep their height in its card. With its min-height of 18px the list was the one part the card shrank, and its places stood over the rows under it */
   .sys-sec > .sys-pl-list { flex-shrink: 0; }
-  .sys-pl.sys-reached, .sys-sec.sys-reached { outline: 2px solid rgba(224,165,79,0.6); outline-offset: 1px; }   /* 1.6.3: the place Used by opened, for two seconds (sysui.js placeReach) */   /* 1.6.3 (the release click test): a section's places keep their height in its card. With its min-height of 18px the list was the one part the card shrank, and its places stood over the rows under it */
+  .sys-pl.sys-reached, .sys-sec.sys-reached { outline: 2px solid rgba(224,165,79,0.6); outline-offset: 1px; }   /* 1.6.3: the place Used by opened, for two seconds (sysui.js placeReach) */
   .sys-pl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 4px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; background: rgba(0,0,0,0.12); cursor: grab; }
   .sys-pl.drop-before { border-top-color: var(--gold); }
   .sys-pl-grip { color: var(--dim); }

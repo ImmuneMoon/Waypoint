@@ -1921,6 +1921,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
 
+      // 1.6.3 (the review of the release click test): a window of the app's up over the map holds a paste too, as it holds every key. A click on a
+      // blank part of the System editor or the Library gives the window the focus, so Ctrl+V's paste reached here with the window as its target,
+      // and the pieces copied earlier, or a picture on the clipboard, were laid on the map behind the window and saved
+      if (winHeld(document)) return;
+
       if (!canPersistLocal()) return;
 
       if (state.viewMode !== 'visual') return;

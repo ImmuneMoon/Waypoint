@@ -2579,6 +2579,26 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 (the release click test) a window of the app\'s up over the map holds every key of the map behind it (io.js winHeld, run for real): a shown window holds them, a hidden one and none do not, and a player\'s page reader, a floating box, does not; the page\'s key handler asks it right after a field\'s own keys and before Shift+1, the undo chords, the arrows and Delete; and the System editor and the Library window take the focus on a click on a blank part (tabindex -1, with no ring), so their own Escape, Ctrl+Z and Ctrl+Y hear it',
             j(wh) === j([false, true, false, false, true, false]) && kA > 0 && whA > tyA && tyA > kA && s1A > whA && unA > whA && mvA > whA
             && /<div id="systemModal" style="display:none;[^"]*" tabindex="-1">/.test(ixR) && /<div id="libraryModal" style="display:none;[^"]*" tabindex="-1">/.test(ixR) && cssR.includes('#systemModal:focus, #libraryModal:focus { outline: none; }'), j([wh, kA, tyA, whA, s1A]));
+        // (1b) the review of the release click test: a paste is held by a window too. Ctrl+V fires a paste of its own, and its listener laid the pieces
+        // copied earlier on the map behind the System editor. The listener is cut from io.js and run for real on a page of stand-ins: with a window up
+        // nothing is pasted or uploaded, with none the same paste lays the pieces; and the window is asked right after a field's own paste
+        {
+            const pA = ioR.indexOf("  document.addEventListener('paste', function(e) {"), pZ = ioR.indexOf('\n  });', pA) + 6, pS = ioR.slice(pA, pZ);
+            const pwA = pS.indexOf('      if (winHeld(document)) return;'), pfA = pS.indexOf("t.tagName === 'INPUT'"), pcA = pS.indexOf('if (!canPersistLocal()) return;');
+            const runPaste = (up, target) => { let laid = 0, sent = 0, stopped = false, handler = null;
+                const doc = { addEventListener: (ev, fn) => { if (ev === 'paste') handler = fn; } };
+                new Function('document', 'winHeld', 'canPersistLocal', 'state', 'getActiveMap', 'pasteWbClipboard', 'window', 'wbMouse', 'wbWrap', pS)(
+                    doc, d => d === doc && up, () => true, { viewMode: 'visual', zoomLevel: 1 }, () => ({ type: 'map' }), () => { laid++; return true; },
+                    { wpUploadImage: () => { sent++; } }, { x: 10, y: 10 }, { scrollLeft: 0, scrollTop: 0, clientWidth: 100, clientHeight: 100 });
+                const img = { type: 'image/png', getAsFile: () => ({}) };
+                handler({ target, preventDefault: () => { stopped = true; }, clipboardData: { items: [] } });
+                handler({ target, preventDefault: () => { stopped = true; }, clipboardData: { items: [img] } });
+                return [laid, sent, stopped]; };
+            const blank = { tagName: 'DIV', id: 'systemModal' };
+            const ps = [runPaste(true, blank), runPaste(false, blank), runPaste(true, { tagName: 'INPUT' })];
+            check('1.6.3 (the review of the release click test) a window of the app\'s up over the map holds a paste as it holds every key (io.js\'s paste listener, cut and run for real): with a window up a paste on a blank part of it lays nothing on the map and uploads no picture, with none the same paste lays the pieces and uploads the picture, and the window is asked right after a field\'s own paste and before anything else',
+                pA > 0 && j(ps) === j([[0, 0, false], [1, 1, true], [0, 0, false]]) && pwA > pfA && pfA > 0 && pcA > pwA, j([ps, pA, pfA, pwA, pcA]));
+        }
         // (2) Used by's Layout line lands on its place, or on the section's own row (sysui.js placeReach, run for real on a page of plain objects), and a
         // part of the section itself names the section (sysedbox.js usedPlace, run for real)
         const suR = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').replace(/\r\n/g, NL), prS = suR.slice(suR.indexOf('// [sysedcheck:placereach-start]'), suR.indexOf('// [sysedcheck:placereach-end]'));

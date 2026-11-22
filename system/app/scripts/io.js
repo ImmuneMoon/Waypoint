@@ -1894,6 +1894,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   document.addEventListener('keydown', function(e) {
       var t = e.target, dir = chordDirOf(e);
       if (!dir || !chordBoxOf(t) || !chordOnMap) return;
+      if (typeof winHeld === 'function' && winHeld(document)) return;   // a window of the app's up over the map holds the chord too (the click test's rule)
       if (document.body && document.body.classList.contains('lay-edit')) return;
       if (askHeld()) return;
       if (!chordToMap(e, t) || !canPersistLocal()) return;

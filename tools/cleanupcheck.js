@@ -2661,9 +2661,9 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const win = { wpFloats: { boxes: () => [sheet] } };
         let api = null;
         try {
-            api = new Function('document', 'window', 'setTimeout', 'stepHistory', 'canPersistLocal', 'askHeld', 'toast', 'undo', 'redo', 'menuHeld',
+            api = new Function('document', 'window', 'setTimeout', 'stepHistory', 'canPersistLocal', 'askHeld', 'toast', 'undo', 'redo', 'menuHeld', 'winHeld',
                 'var nativeProbe = null;\n' + undoK + '\n' + srcK + '\nreturn { answered: function() { nativeProbe = null; } };')(
-                doc, win, fn => timers.push(fn), d => steps.push(d), () => persist, () => asking, m => toasts.push(m), () => steps.push('undo'), () => steps.push('redo'), () => false);
+                doc, win, fn => timers.push(fn), d => steps.push(d), () => persist, () => asking, m => toasts.push(m), () => steps.push('undo'), () => steps.push('redo'), () => false, () => false);   // winHeld: no window up (the click test's own rule, sysedcheck)
         } catch (err) { api = null; }
         const flush = () => { while (timers.length) timers.shift()(); };
         const focus = el => { doc.activeElement = el; fire('focusin', el); };

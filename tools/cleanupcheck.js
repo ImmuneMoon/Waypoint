@@ -2694,6 +2694,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             focus(sBtn); R.sheetButton = chord(sBtn, 'z');
             focus(sNum); R.sheetNumber = chord(sNum, 'y');
             fire('input', sNum, { inputType: 'insertText' }); steps.length = 0; let e2 = fire('keydown', sNum, { key: 'z', ctrlKey: true }); R.sheetTyped = steps.join(',') + (e2.prevented ? '!' : '') + '|' + (e2.stopped ? 'stopped' : 'open'); api.answered(); flush();
+            // the review of 2026-11-22: a press or a key in the sheet makes the next Ctrl+Z the sheet's again (it does nothing to the map), and a
+            // press on the map hands it back to the map
+            fire('pointerdown', sBtn); focus(sBtn); R.sheetAfterPress = chord(sBtn, 'z');
+            fire('pointerdown', piece); R.sheetAfterMap = chord(sBtn, 'z');
+            fire('keydown', sNum, { key: '5' }); R.sheetAfterKey = chord(sNum, 'z');
             focus(ce); R.styledBox = chord(ce, 'z');
             focus(pf); R.plannerField = chord(pf, 'z');
             focus(body); R.page = chord(body, 'z'); R.pageRedo = chord(body, 'y');
@@ -2703,7 +2708,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             persist = false; R.cannotWrite = chord(box, 'z') + chord(sBtn, 'z') + chord(body, 'z'); persist = true;
         }
         const want = { checkbox: 'undo!', checkboxRedo: 'redo!', checkboxShiftZ: 'redo!', select: 'undo!', range: 'undo!', untyped: 'undo!', typedBrowser: '', typedDry: 'undo', typedAfterDry: 'undo!',
-            afterMapPress: 'undo!', refocused: 'undo!', windowBack: '', windowBox: '', windowSelect: '', pressInBox: 'kept', sheetButton: 'undo!', sheetNumber: 'redo!', sheetTyped: '|stopped', styledBox: '', plannerField: 'undo!', page: 'undo!', pageRedo: 'redo!',
+            afterMapPress: 'undo!', refocused: 'undo!', windowBack: '', windowBox: '', windowSelect: '', pressInBox: 'kept', sheetButton: 'undo!', sheetNumber: 'redo!', sheetTyped: '|stopped', sheetAfterPress: '', sheetAfterMap: 'undo!', sheetAfterKey: '', styledBox: '', plannerField: 'undo!', page: 'undo!', pageRedo: 'redo!',
             plainZ: '', layEdit: '', asking: '', cannotWrite: '' };
         check('1.6.3 Ctrl+Z and Ctrl+Y undo and redo the map wherever the user is, unless a field holds typing of its own (io.js mapchord and mapkeys, run for real): a checkbox, a select, a range and a box nobody typed in hand the chord to the map; a typed box lets the browser try first and the map takes the press once it has nothing left; a press on the map or a new focus ends the typing; a sheet\'s button and number box reach the map through its shield, its typed box keeps the chord; a styled box keeps its own, a planner field goes to the planner; never while the layout is edited, a question is up or the window may not write',
             !!api && srcK.includes('document.addEventListener(\'keydown\'') && JSON.stringify(R) === JSON.stringify(want), JSON.stringify(R));

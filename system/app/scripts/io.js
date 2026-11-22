@@ -1853,6 +1853,16 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   var chordLastFocus = null;
   document.addEventListener('focusin', function(e) { var t = e.target; if (t && t.nodeType === 1) { if (t !== chordLastFocus) t._wpTypedHere = false; chordLastFocus = t; } }, true);
   // a press on the play map or the Data Map means the user is back on the map, so the field that still holds the focus is no longer typed in
+  // Whether the user's last press was on the map, rather than in a floating box (the review of 2026-11-22: with the focus left in a sheet, a
+  // Ctrl+Z meant for the sheet's own last change moved a token back instead). A press on the map sets it; a press, or any key but the chord
+  // itself, inside a floating box clears it. The floating boxes' capture listener below acts only while it is true
+  var chordOnMap = false;
+  document.addEventListener('pointerdown', function(e) {
+      var t = e.target;
+      if (t && typeof t.closest === 'function' && t.closest('#whiteboardWrap, #canvasWrap')) chordOnMap = true;
+      else if (t && t.nodeType === 1 && chordBoxOf(t)) chordOnMap = false;
+  }, true);
+  document.addEventListener('keydown', function(e) { if (!chordDirOf(e) && e.target && e.target.nodeType === 1 && chordBoxOf(e.target)) chordOnMap = false; }, true);
   document.addEventListener('pointerdown', function(e) {
       var t = e.target, ae = document.activeElement;
       if (!ae || ae._wpTypedHere !== true || !t || typeof t.closest !== 'function' || !t.closest('#whiteboardWrap, #canvasWrap')) return;
@@ -1863,10 +1873,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   // The floating boxes stop every key at themselves, so the chord is taken here, in the capture phase, before their listeners hear it. Only
   // for a target inside one of them: everywhere else the key handler below judges it as it always did, and the windows with an undo of their
   // own (the System editor, the paint window) keep it. The same guards as the handler's: never while the layout is edited or a question or a
-  // prompt is up, never on a window that may not write
+  // prompt is up, never on a window that may not write. And only after a press on the map since the user last pressed or typed in a box
+  // (chordOnMap): a Ctrl+Z pressed while working in the sheet stays the sheet's, which keeps its own Revert, and does nothing to the map
   document.addEventListener('keydown', function(e) {
       var t = e.target, dir = chordDirOf(e);
-      if (!dir || !chordBoxOf(t)) return;
+      if (!dir || !chordBoxOf(t) || !chordOnMap) return;
       if (document.body && document.body.classList.contains('lay-edit')) return;
       if (askHeld()) return;
       if (!chordToMap(e, t) || !canPersistLocal()) return;

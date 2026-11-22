@@ -4152,15 +4152,18 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
         // its host and kept. Only its `in` goes: it stays where it stands in its list, with its count, level, stats, counters, look and own values, and
         // its own parts (a deep list) stay in it. It never stacks with a loose row. The right is the one a player's removal of a part needs (the gate at
         // the top: the list's own edit right); Holds and Fits where are not judged, since a part taken out frees room. Refused for a file that fills a
-        // character (fl: a file never unfits), a row that is no part, a row kept from its player (hid, gone to them), a curse kept on, a host kept on
-        // or kept from its player; a laid row and a row Locked while were refused above by rowLockHit (lockTouches names unfit '*')
+        // character (fl: a file never unfits), a row that is no part, a row kept from its player (hid, gone to them), a host kept from its player,
+        // and on a list that holds each entry once (no quantity) where a loose row of the same entry already stands; a laid row and a row Locked
+        // while were refused above by rowLockHit (lockTouches names unfit '*'). A curse kept on (keptOn), on the part or on its host, holds nothing
+        // in (the review of unfit, 2026-11-22): a curse governs the row's switch, and a player never sees it (projFacts sends the row off), so a
+        // refusal there was the one place it showed, while a removal of the very part went through. The part comes out keeping its keptOn
         if (fl) return { ok: false, reason: 'field' };
         var ixU = typeof q.rowId === 'string' && ROW_ID.test(q.rowId) ? at(q.rowId) : -1; if (ixU < 0 || (opts.player && list[ixU].hid === 1)) return { ok: false, reason: 'missing' };
-        var rwU = list[ixU], sayU = function(gmW) { return { ok: false, reason: 'value', msg: opts.player ? 'This part cannot be taken out now.' : gmW }; };   // a player is told nothing of a curse or a hidden host
+        var rwU = list[ixU], sayU = function(gmW) { return { ok: false, reason: 'value', msg: opts.player ? 'This part cannot be taken out now.' : gmW }; };   // a player is told nothing of a hidden host
         if (typeof rwU.in !== 'string') return { ok: false, reason: 'value', msg: 'That row is not fitted in anything.' };
         if (rwU.hid === 1) return sayU('This part is kept from its player, so it stays where it is.');
-        if (rwU.keptOn === 1) return sayU('This part is a curse kept on, so it stays where it is.');
-        var hoU = unfitHost(sys, char, f.id, list, rwU.in); if (hoU && (hoU.keptOn === 1 || hoU.hid === 1)) return sayU('Its host is kept on, so its parts stay in it.');   // a host that is gone leaves a dangling `in`: taking it out is allowed
+        var hoU = unfitHost(sys, char, f.id, list, rwU.in); if (hoU && hoU.hid === 1) return sayU('Its host is kept from its player, so its parts stay in it.');   // a host that is gone leaves a dangling `in`: taking it out is allowed
+        if (spec && spec.noQty && !spec.multi && typeof rwU.defId === 'string' && !(isObj(rwU.ov) && typeof rwU.ov.name === 'string') && list.some(function(r) { return r !== rwU && isObj(r) && r.defId === rwU.defId && r.hid !== 1 && typeof r.in !== 'string'; })) return { ok: false, reason: 'value', msg: 'This list holds each entry once, and one of these already stands on it outside any row.' };   // the add's own once-each rule, read among the loose rows the part would join
         delete rwU.in; extra.row = q.rowId; extra.qty = rwU.qty | 0; extra.unfit = true;
     } else if (q.op === 'restore') {   // 1.5.8: a removed row put back whole at its place, the very row (q.row, q.at) the caller kept from before it went: the GM's sheet, or the host's own record for a player (never the player's word)
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId) || !isObj(q.row) || rowIdOf(q.row) !== q.rowId || at(q.rowId) >= 0) return { ok: false, reason: 'missing' };

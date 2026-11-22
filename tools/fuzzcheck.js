@@ -1503,6 +1503,31 @@ function mutations(tpl) {
             && JSON.stringify(outR2) === JSON.stringify([['p1', 'char-upload-ans', 'unread']]) && sameR2 && JSON.stringify(outR3) === JSON.stringify([['p1', 'char-upload-ans', 'unread']]) && sameR3 && SC.readerById('fuzz') !== null,
             { ansR1, row: rowR, strR, opsR1, upR1, outR2, outR3 });
     }
+    {   // 1.6.3 a part taken out of its host and kept (op unfit; the review of unfit, 2026-11-22: the fuzz world held no fitted part, so no
+        // unfit was ever let through and the write oracle never judged one). A parts list is put into the world for this block alone: Ayla's own
+        // fitted part comes out (its in gone, the row kept where it stood), while her part kept from her, another player's part, a row that is no
+        // part and mutated row ids change nothing; every one goes through fireHost, so the write oracle judges each
+        await resetWorld(); const campU = stubs.getActiveCampaign(), rawU = JSON.parse(JSON.stringify(campU.system));
+        rawU.items = (rawU.items || []).concat([{ id: 'i_gunU', name: 'Rifle' }, { id: 'i_modU', name: 'Scope' }]);
+        rawU.fields.push({ id: 'f_hostU', key: 'HostU', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_partU' } } }, { id: 'f_partU', key: 'PartU', label: 'Mods', kind: 'item-list', vis: 'all', edit: 'owner', list: {} });
+        campU.system = SC.cleanSystem(rawU, { F, gmView: true, libCats: {} });
+        campU.chars.c_p1.values.f_hostU = [{ id: 'w_hu', defId: 'i_gunU', qty: 1 }];
+        campU.chars.c_p1.values.f_partU = [{ id: 'w_pu', defId: 'i_modU', qty: 2, in: 'w_hu' }, { id: 'w_pk', defId: 'i_modU', qty: 1, in: 'w_hu', hid: 1 }];
+        campU.chars.c_p2.values.f_hostU = [{ id: 'w_h2', defId: 'i_gunU', qty: 1 }]; campU.chars.c_p2.values.f_partU = [{ id: 'w_p2', defId: 'i_modU', qty: 1, in: 'w_h2' }];
+        const sbU = sentLog.length, ok1 = { type: 'char-item', rid: 'u1', charId: 'c_p1', fieldId: 'f_partU', op: 'unfit', rowId: 'w_pu' };
+        await fireHost('p1', 'char-item unfit', 'well-formed: her own fitted part', ok1);
+        await fireHost('p1', 'char-item unfit', 'a part kept from her', Object.assign({}, ok1, { rid: 'u2', rowId: 'w_pk' }));
+        await fireHost('p1', 'char-item unfit', 'another player\'s part', Object.assign({}, ok1, { rid: 'u3', charId: 'c_p2', rowId: 'w_p2' }));
+        await fireHost('p1', 'char-item unfit', 'her host row, no part', Object.assign({}, ok1, { rid: 'u4', fieldId: 'f_hostU', rowId: 'w_hu' }));
+        const muts = [['rowId __proto__', { rowId: '__proto__' }], ['rowId an object', { rowId: { toString() { return 'w_pk'; } } }], ['no rowId', { rowId: undefined }], ['in beside it', { rowId: 'w_pk', in: 'w_hu' }], ['op in capitals', { op: 'Unfit', rowId: 'w_pk' }], ['op a list', { op: ['unfit'], rowId: 'w_pk' }]];
+        for (let k = 0; k < muts.length; k++) await fireHost('p1', 'char-item unfit', muts[k][0], Object.assign({}, ok1, { rid: 'm' + k }, muts[k][1]));
+        const rowsU = campU.chars.c_p1.values.f_partU, outU = sentLog.slice(sbU).filter(x => x.to === conns.p1.peer).map(x => [x.m.type, x.m.rid, x.m.reason || null]);
+        check('host: a part taken out of its host (op unfit, 1.6.3), run through the real char-item branch and judged by the write oracle: Ayla\'s own fitted Scope comes out as a loose row of 2 where it stood, acked; her part kept from her reads as gone, another player\'s part is not hers, a host row is no part, and every mutation changes nothing',
+            rowsU.length === 2 && rowsU[0].id === 'w_pu' && rowsU[0].in === undefined && rowsU[0].qty === 2 && rowsU[1].in === 'w_hu' && rowsU[1].hid === 1
+            && campU.chars.c_p2.values.f_partU[0].in === 'w_h2' && outU.some(x => x[0] === 'char-ack' && x[1] === 'u1')
+            && outU.some(x => x[0] === 'char-deny' && x[1] === 'u2' && x[2] === 'missing') && outU.some(x => x[0] === 'char-deny' && x[1] === 'u3' && x[2] === 'owner') && outU.some(x => x[0] === 'char-deny' && x[1] === 'u4'),
+            { rows: rowsU, p2: campU.chars.c_p2.values.f_partU, out: outU });
+    }
     {   // the GM-only field through the players' paths: a roll naming it, an edit of it, an apply reading it
         await resetWorld(); const sb = sentLog.length;
         await fireHost('p1', 'roll-req GM field', 'expr names the GM-only field', { type: 'roll-req', rid: 'g1', expr: '1d20 + GMFig', charId: 'c_p1' });

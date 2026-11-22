@@ -447,8 +447,9 @@ pendingChecks.push((async () => {
 })());
 
 // 1.6.3 a part taken out of its host on the wire (the port round test, before release): the host's char-item branch, run for real, takes a
-// player's own unfit through applyRowOp, stores the part as a loose row and answers with an ack; a curse kept on is refused in plain words that
-// tell the player nothing of the curse, with nothing stored or saved; another player's character is refused as not theirs
+// player's own unfit through applyRowOp, stores the part as a loose row and answers with an ack; a curse kept on comes out as any part does and
+// stays a curse (a refusal would have told the player of it); a part of a host kept from its player is refused in plain words that tell them
+// nothing, with nothing stored or saved; another player's character is refused as not theirs
 pendingChecks.push((async () => {
     const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
     const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js')), J = JSON.stringify;
@@ -456,9 +457,9 @@ pendingChecks.push((async () => {
     const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
     const sysU = Sx.cleanSystem({ v: 1, name: 'Unfit', rolls: [], fields: [{ id: 'f_p', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { parts: { from: 'f_o' } } },
         { id: 'f_o', key: 'Opts', label: 'Opts', kind: 'item-list', vis: 'all', edit: 'owner', list: {} }], items: [{ id: 'i_gust', name: 'Gust' }, { id: 'i_wide', name: 'Wider' }] }, { F: Fx, gmView: true });
-    const START = [{ id: 'w_a1', defId: 'i_wide', qty: 2, in: 'w_g' }, { id: 'w_ko', defId: 'i_wide', qty: 1, in: 'w_g', keptOn: 1 }];
+    const START = [{ id: 'w_a1', defId: 'i_wide', qty: 2, in: 'w_g' }, { id: 'w_ko', defId: 'i_wide', qty: 1, in: 'w_g', keptOn: 1, on: true }, { id: 'w_hh', defId: 'i_wide', qty: 1, in: 'w_h' }];
     const host = (msg, who) => {
-        const camp = { id: 'k', system: sysU, chars: { c_1: { id: 'c_1', name: 'Sela', ownerId: 'u_a', npc: false, values: { f_p: [{ id: 'w_g', defId: 'i_gust', qty: 1 }], f_o: JSON.parse(J(START)) } } } }, ans = [], owner = [], box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
+        const camp = { id: 'k', system: sysU, chars: { c_1: { id: 'c_1', name: 'Sela', ownerId: 'u_a', npc: false, values: { f_p: [{ id: 'w_g', defId: 'i_gust', qty: 1 }, { id: 'w_h', defId: 'i_gust', qty: 1, hid: 1 }], f_o: JSON.parse(J(START)) } } } }, ans = [], owner = [], box = b => m => { packCheck(m); b.push(JSON.parse(J(m))); };
         const netH = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(owner) }], roster: { pA: { id: who || 'u_a' } }, syncCharDelta() {} };
         const winH = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
         let saves = 0;
@@ -467,11 +468,12 @@ pendingChecks.push((async () => {
             netH, () => Sx, winH, () => false, () => camp, () => { saves++; }, e => { throw e; }, c => (netH.roster[c.peer] ? netH.roster[c.peer].id : null), { allow: () => true }, () => {}, () => {})(Object.assign({ type: 'char-item', rid: 'ri1', charId: 'c_1', fieldId: 'f_o' }, msg), { peer: 'pA', send: box(ans) });
         return { ans, owner, saves, rows: camp.chars.c_1.values.f_o };
     };
-    const out = host({ op: 'unfit', rowId: 'w_a1' }), kept = host({ op: 'unfit', rowId: 'w_ko' }), other = host({ op: 'unfit', rowId: 'w_a1' }, 'u_b');
-    check('1.6.3 a part taken out on the wire, the host\'s char-item branch (run for real): Sela\'s own Wider leaves its Gust and stays on her list as a loose row of 2, acked and saved; a curse kept on is refused in plain words with nothing stored or saved; another player\'s unfit of her part is refused as not theirs',
-        out.ans.length === 1 && out.ans[0].type === 'char-ack' && J(out.rows[0]) === J({ id: 'w_a1', defId: 'i_wide', qty: 2 }) && out.rows.length === 2 && out.rows[1].in === 'w_g' && out.saves >= 1
-        && J(kept.ans) === J([{ type: 'char-deny', rid: 'ri1', reason: 'value', msg: 'This part cannot be taken out now.' }]) && J(kept.rows) === J(START) && kept.saves === 0
-        && J(other.ans) === J([{ type: 'char-deny', rid: 'ri1', reason: 'owner' }]) && J(other.rows) === J(START) && other.saves === 0, J([out.ans, out.rows, out.saves, kept.ans, kept.rows, other.ans]));
+    const out = host({ op: 'unfit', rowId: 'w_a1' }), kept = host({ op: 'unfit', rowId: 'w_ko' }), hidH = host({ op: 'unfit', rowId: 'w_hh' }), other = host({ op: 'unfit', rowId: 'w_a1' }, 'u_b');
+    check('1.6.3 a part taken out on the wire, the host\'s char-item branch (run for real): Sela\'s own Wider leaves its Gust and stays on her list as a loose row of 2, acked and saved; a curse kept on comes out as any part does and stays a curse, so its player learns nothing of it; a part of a host kept from her is refused in plain words with nothing stored or saved; another player\'s unfit of her part is refused as not theirs',
+        out.ans.length === 1 && out.ans[0].type === 'char-ack' && J(out.rows[0]) === J({ id: 'w_a1', defId: 'i_wide', qty: 2 }) && out.rows.length === 3 && out.rows[1].in === 'w_g' && out.saves >= 1
+        && kept.ans.length === 1 && kept.ans[0].type === 'char-ack' && kept.rows[1].in === undefined && kept.saves >= 1
+        && J(hidH.ans) === J([{ type: 'char-deny', rid: 'ri1', reason: 'value', msg: 'This part cannot be taken out now.' }]) && J(hidH.rows) === J(START) && hidH.saves === 0
+        && J(other.ans) === J([{ type: 'char-deny', rid: 'ri1', reason: 'owner' }]) && J(other.rows) === J(START) && other.saves === 0, J([out.ans, out.rows, out.saves, kept.ans, kept.rows, hidH.ans, other.ans]));
 })());
 
 // 1.6.0 Levels it may be on the wire (the owner, 2026-10-30, by prompt: "Player refused, GM told"): the host's char-item branch and a player's own app, each run

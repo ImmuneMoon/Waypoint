@@ -493,8 +493,10 @@ const j = v => JSON.stringify(v);
     {   // 1.6.3 (the port round test, before release; the book: a mod taken out cleanly comes out whole): a fitted part taken out of its host and
         // kept. The op unfit drops the part's in and nothing else: it keeps its place in its list, its count, level, stats and counters, and its own
         // parts; it never stacks with a loose row. The GM's hand, and a player where the list's edit right lets them, as a removal of a part needs;
-        // refused for a row that is no part, one kept from its player, a curse kept on, a host kept on, a laid row, a row Locked while, and a file
-        // that fills a character. Holds is not judged. The sheet's Take out is run for real, and the wire and a player's app pinned
+        // refused for a row that is no part, one kept from its player, a host kept from its player, a laid row, a row Locked while, a file that
+        // fills a character, and a once-each list that already holds the entry loose. A curse kept on, on the part or its host, holds nothing in
+        // (the review of unfit: a refusal told the player of the curse), and the part keeps its keptOn. Holds is not judged. The sheet's Take out
+        // is run for real, and the wire and a player's app pinned
         const J = JSON.stringify;
         const raw = { v: 1, name: 'U', rolls: [], items: [{ id: 'i_gust', name: 'Gust', category: 'Power', stats: { Slots: 1 } }, { id: 'i_wide', name: 'Wider', category: 'Option', stats: { XP: 4 } }, { id: 'i_long', name: 'Longer', category: 'Option', stats: { XP: 3 } }],
             fields: [{ id: 'f_p', key: 'Powers', label: 'Powers', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Slots', label: 'Slots' }], parts: { from: 'f_o', cats: ['Option'], label: 'Option', capBy: 'Slots' } } },
@@ -506,7 +508,7 @@ const j = v => JSON.stringify(v);
             f_o: [{ id: 'w_a6', defId: 'i_wide', qty: 1 }, { id: 'w_a1', defId: 'i_wide', qty: 2, in: 'w_g', lvl: 3, ct: { Use: 2 }, ov: { stats: { XP: 7 } }, look: { color: '#aa3322' } }, { id: 'w_a3', defId: 'i_long', qty: 1, in: 'w_g' },
                 { id: 'w_hd', defId: 'i_long', qty: 1, in: 'w_g', hid: 1 }, { id: 'w_ko', defId: 'i_long', qty: 1, in: 'w_g', keptOn: 1 }, { id: 'w_kh', defId: 'i_long', qty: 1, in: 'w_k' }, { id: 'w_dg', defId: 'i_long', qty: 1, in: 'w_gone' }],
             f_s: [{ id: 'w_s1', defId: 'i_gust', qty: 1 }, { id: 'w_s2', defId: 'i_wide', qty: 1, in: 'w_s1' }, { id: 'w_s3', defId: 'i_long', qty: 1, in: 'w_s2' }],
-            f_g: [{ id: 'w_q1', defId: 'i_wide', qty: 1, in: 'w_r1' }], f_h: [{ id: 'w_r1', defId: 'i_gust', qty: 1 }] } });
+            f_g: [{ id: 'w_q1', defId: 'i_wide', qty: 1, in: 'w_r1' }, { id: 'w_q2', defId: 'i_long', qty: 1, in: 'w_r2' }], f_h: [{ id: 'w_r1', defId: 'i_gust', qty: 1 }, { id: 'w_r2', defId: 'i_gust', qty: 1, hid: 1 }] } });
         const un = (sys, ch, fid, rid, o) => S.applyRowOp(sys, ch, fid, { op: 'unfit', rowId: rid }, F, o || {});
         const pl = { player: true, view: pv };
         const ch1 = base(), r1 = un(g, ch1, 'f_o', 'w_a1'), a1 = r1.ok ? r1.value.find(r => r.id === 'w_a1') : null;
@@ -517,9 +519,13 @@ const j = v => JSON.stringify(v);
         const rG = un(g, base(), 'f_g', 'w_q1', pl), rGm = un(g, base(), 'f_g', 'w_q1');
         const rightOk = rG.ok === false && rG.reason === 'field' && rGm.ok === true;   // a list a player may not change is the GM's to unfit, as its removal is
         const rNo = un(g, base(), 'f_o', 'w_a6'), rHp = un(g, base(), 'f_o', 'w_hd', pl), rHg = un(g, base(), 'f_o', 'w_hd'), rKo = un(g, base(), 'f_o', 'w_ko'), rKoP = un(g, base(), 'f_o', 'w_ko', pl), rKh = un(g, base(), 'f_o', 'w_kh'), rKhP = un(g, base(), 'f_o', 'w_kh', pl);
-        const refuseOk = rNo.ok === false && /not fitted/.test(rNo.msg) && rHp.reason === 'missing' && rHg.ok === false && /kept from its player/.test(rHg.msg) && rKo.ok === false && /curse kept on/.test(rKo.msg)
-            && rKoP.ok === false && rKoP.msg === 'This part cannot be taken out now.' && rKh.ok === false && /host is kept on/.test(rKh.msg) && rKhP.msg === 'This part cannot be taken out now.'
-            && un(g, base(), 'f_o', 'w_zz').reason === 'missing' && un(g, base(), 'f_o', 'w_dg').ok === true;   // a host that is gone holds nothing back
+        const rHh = un(g, base(), 'f_g', 'w_q2'), gO = JSON.parse(J(g)); gO.fields[1].list.noQty = true; const chO = base(); chO.values.f_o[0].defId = 'i_long'; const rO = un(gO, chO, 'f_o', 'w_a3'), rO2 = un(gO, base(), 'f_o', 'w_a3');
+        const gS = JSON.parse(J(g)); gS.fields[1].list.on = { label: 'On' }; const chS0 = base(); chS0.values.f_o[4].on = true; const rKs = un(gS, chS0, 'f_o', 'w_ko', pl);   // on a list with a switch the curse stays a curse, on and kept on
+        const refuseOk = rNo.ok === false && /not fitted/.test(rNo.msg) && rHp.reason === 'missing' && rHg.ok === false && /kept from its player/.test(rHg.msg)
+            && rKo.ok === true && rKo.value.find(r => r.id === 'w_ko').in === undefined && rKoP.ok === true && rKs.ok === true && rKs.value.find(r => r.id === 'w_ko').keptOn === 1 && rKs.value.find(r => r.id === 'w_ko').on === true && rKs.value.find(r => r.id === 'w_ko').in === undefined
+            && rKh.ok === true && rKhP.ok === true && rHh.ok === false && /host is kept from its player/.test(rHh.msg)
+            && rO.ok === false && /holds each entry once/.test(rO.msg) && rO2.ok === true
+            && un(g, base(), 'f_o', 'w_zz').reason === 'missing' && un(g, base(), 'f_o', 'w_dg').ok === true;   // a host that is gone holds nothing back; a curse kept on, on the part or its host, holds nothing in and stays a curse
         const chM = Object.assign(base(), { making: 1 }), rF = un(g, chM, 'f_o', 'w_a3', { player: true, view: pv, fill: true }), rMk = un(g, Object.assign(base(), { making: 1 }), 'f_o', 'w_a3', pl);
         const fillOk = rF.ok === false && rF.reason === 'field' && rMk.ok === true;   // a file that fills a character never unfits; its player making it by hand does
         const gL = JSON.parse(J(g)); gL.fields[1].list.lock = { 'if': '1', cells: ['XP'] }; const rL = un(gL, base(), 'f_o', 'w_a3'), rLp = un(gL, base(), 'f_o', 'w_a3', pl);
@@ -535,21 +541,24 @@ const j = v => JSON.stringify(v);
         const sh = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), nt = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, '\n'), ix = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), cs = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
         const pp = sh.slice(sh.indexOf('// [systemcheck:partpills-start]'), sh.indexOf('// [systemcheck:partpills-end]'));
         const mk = (tag, cls, tx) => ({ tag, className: cls || '', textContent: tx === undefined ? '' : String(tx), kids: [], childNodes: [], title: '', value: '', on: {}, appendChild(k) { this.kids.push(k); this.childNodes.push(k); return k; }, addEventListener(t, fn) { this.on[t] = fn; } });
-        const commits = [], win = { wpSystemCore: S };
+        const commits = [], win = { wpSystemCore: S }; let clientNow = false;
         const PP = new Function('el', 'opt', 'partsSrc', 'partsOf', 'rowDef', 'rowLvl', 'rowIdOf', 'statChips', 'pickerInto', 'commitItem', 'isClient', 'uid', 'openLibPicker', 'window', 'lockNowOf', pp + '\nreturn { pills: partPills, shown: unfitShown };')(
-            mk, (v, t) => Object.assign(mk('option', '', t), { value: v }), S.partsSrc, S.partsOf, S.rowDef, S.rowLvl, S.rowIdOf, () => {}, () => 0, (c, f, q) => commits.push([f.id, J(q)]), () => false, () => 'w_new', () => {}, win,
+            mk, (v, t) => Object.assign(mk('option', '', t), { value: v }), S.partsSrc, S.partsOf, S.rowDef, S.rowLvl, S.rowIdOf, () => {}, () => 0, (c, f, q) => commits.push([f.id, J(q)]), () => clientNow, () => 'w_new', () => {}, win,
             (spec, c) => spec && spec.lock ? S.lockCells(gL, c, spec, F) : null);
         const chS = base(), wr = mk('div'); PP.pills(wr, chS, g.fields[0], g.fields[0].list, g, chS.values.f_p[0], true);
         const outs = wr.kids[0].kids.filter(k => k.className === 'sheet-part').map(p => p.kids.find(k => k.className === 'tool ghost sheet-part-out'));
-        const btnOk = outs.length === 3 && J(outs.map(b => !!b)) === J([true, true, false]) && outs[0].textContent === 'Take out' && outs[0].title === 'Take this part out and keep it on the list';   // none on the curse kept on
+        const btnOk = outs.length === 3 && J(outs.map(b => !!b)) === J([true, true, true]) && outs[0].textContent === 'Take out' && outs[0].title === 'Take this part out and keep it on the list';   // the curse kept on too: it holds nothing in
         outs[0].on.click(); const pressOk = J(commits) === J([['f_o', J({ op: 'unfit', rowId: 'w_a1' })]]);
         const wrR = mk('div'); PP.pills(wrR, base(), g.fields[0], g.fields[0].list, g, base().values.f_p[0], false); const readOk = !J(wrR.kids.map(b => b.kids.map(p => (p.kids || []).map(k => k.className)))).includes('sheet-part-out');
-        const shownOk = PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_k', keptOn: 1 }, g) === false && PP.shown(base(), gY.fields[1], { id: 'w_a3', lf: 'w_g' }, { id: 'w_g' }, gY) === false
-            && PP.shown(base(), gL.fields[1], { id: 'w_a3' }, { id: 'w_g' }, gL) === false && PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_g' }, g) === true;
+        const shownOk = PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_k', keptOn: 1 }, g) === true && PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_r2', hid: 1 }, g) === false && PP.shown(base(), gY.fields[1], { id: 'w_a3', lf: 'w_g' }, { id: 'w_g' }, gY) === false
+            && PP.shown(base(), gL.fields[1], { id: 'w_a3' }, { id: 'w_g' }, gL) === false && PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_g' }, g) === true
+            && (clientNow = true, PP.shown(base(), g.fields[1], { id: 'w_a3' }, { id: 'w_g' }, g) === true && PP.shown(base(), g.fields[3], { id: 'w_q1' }, { id: 'w_r1' }, g) === false
+                && PP.shown(Object.assign(base(), { making: 1 }), g.fields[3], { id: 'w_q1' }, { id: 'w_r1' }, g) === true && (clientNow = false, true));   // a player's Take out only where the parts' list is theirs to change, as the host's gate judges (the review of unfit)
+        const ufSrc = sh.slice(sh.indexOf('var undoFollow = function(r)'), sh.indexOf('var undoFollow = function(r)') + 200), undoOk = ufSrc.includes("if (q.op === 'unfit') return; if (q.op === 'place')");   // a Take out never takes down a pickup's Undo
         const pinOk = nt.includes("if (q.op === 'unfit') ptW = true;") && nt.includes("if ((qi.op === 'place' || qi.op === 'unfit' || qi.op === 'chamber' ||") && ix.includes('<b>Take out</b> takes a part out of its row and keeps it on its list as a row of its own.') && cs.includes('.sheet-part-out {');
         check('1.6.3: a fitted part taken out and kept (op unfit, run through the real applyRowOp): only its in goes, the row keeps its place, count, level, counters, own values and own parts and never stacks; the GM\'s hand and a player by the list\'s edit right; refused for a row that is no part, one kept from its player, a curse kept on, a host kept on, a laid row, a row Locked while and a file that fills a character; Holds is not judged; the wire keeps the op and its row alone; the sheet\'s Take out (partPills, run for real) commits it and stands aside where the host would refuse; a player\'s app waits for the host, the host forwards its words, Help says it',
-            gmOk && plOk && rightOk && refuseOk && fillOk && lockOk && deepOk && capOk && wireOk && btnOk && pressOk && readOk && shownOk && pinOk,
-            J([gmOk, plOk, rightOk, refuseOk, fillOk, lockOk, deepOk, capOk, wireOk, btnOk, pressOk, readOk, shownOk, pinOk, r1, rG, rNo, rHg, rKo, rKh, rF, rMk, rL, rY, rD, rC, w, commits]));
+            gmOk && plOk && rightOk && refuseOk && fillOk && lockOk && deepOk && capOk && wireOk && btnOk && pressOk && readOk && shownOk && pinOk && undoOk,
+            J([gmOk, plOk, rightOk, refuseOk, fillOk, lockOk, deepOk, capOk, wireOk, btnOk, pressOk, readOk, shownOk, pinOk, undoOk, r1, rG, rNo, rHg, rKo, rKh, rHh, rO, rO2, rF, rMk, rL, rY, rD, rC, w, commits]));
     }
     {   // 1.6.0 R14 (the owner, 2026-10-28: "make Undo after removing a row bring its parts back too, for the GM and for players"): a host's parts come back with it
         const J = JSON.stringify;

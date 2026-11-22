@@ -4185,11 +4185,14 @@ function partHostIds(sys, c, fieldId) {
     var out = null; (sys && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) { if (!hf || hf.kind !== 'item-list' || !hf.list || !hf.list.parts || !(typeof partsFromHas === 'function' ? partsFromHas(hf.list.parts, fieldId) : hf.list.parts.from === fieldId)) return; (c && c.values && Array.isArray(c.values[hf.id]) ? c.values[hf.id] : []).forEach(function(r) { if (r && (typeof r.in !== 'string' || hf.list.parts.deep === true)) { out = out || Object.create(null); out[rowIdOf(r)] = 1; } }); });   // 205 (4): a part that holds parts too
     return out;
 }
-// 1.6.3: whether a part's Take out is drawn, beside the right the caller already judged (chg, the same a removal needs): never on a part kept on
-// or a host kept on (the host's applyRowOp refuses both), never on a part laid by another list's row (it follows its source), never while the
-// parts' list locks a cell (Locked while). The host judges all of it again; this only keeps a button off where it could do nothing
+// 1.6.3: whether a part's Take out is drawn, beside the right the caller already judged (chg, the HOST list's): for a player the parts' own list
+// must be theirs to change too, as applyRowOp's top gate judges it (seen by players, and edited by its owner or a character open to them; the
+// review of unfit, 2026-11-22). Never on a host kept from its player, never on a part laid by another list's row (it follows its source), never
+// while the parts' list locks a cell (Locked while). A curse kept on holds nothing in: a player never sees one (their copy reads it off), and the
+// GM's Take out keeps it a curse. The host judges all of it again; this only keeps a button off where it could do nothing
 function unfitShown(c, pf, p, host, sysI) {
-    if (!p || p.keptOn === 1 || (host && host.keptOn === 1)) return false;
+    if (!p || (host && host.hid === 1)) return false;
+    if (typeof isClient === 'function' && isClient() && (!pf || pf.vis !== 'all' || (pf.edit !== 'owner' && !(c && (c.making === 1 || c.unlocked === 1))))) return false;
     var core = typeof window !== 'undefined' ? window.wpSystemCore : null;
     if (core && typeof core.layCells === 'function' && pf && core.layCells(pf.list, p)) return false;
     var lk = typeof lockNowOf === 'function' && pf ? lockNowOf(pf.list, c, sysI) : null; return !(lk && Object.keys(lk).length);
@@ -7128,7 +7131,7 @@ function commitItem(c, f, q) {   // Stage 6 F4a: a row op q = { op: add|remove|s
     if (q.priced) { q = Object.assign({}, q); delete q.priced; }
     var goneB = typeof goneOf === 'function' ? goneOf(c, f, q) : null;   // 1.5.8: the row as it stood, for the Undo its removal offers
     var before = q.rowId ? rowQty(c, f, q.rowId) : 0;
-    var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return; if (q.op === 'place') { if (typeof r.standTell === 'string' && r.standTell) toast(r.standTell + ' It stands there all the same, since you moved it.'); return; } if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down
+    var undoFollow = function(r) { if (!r || !r.ok || q.op === 'split') return; if (q.op === 'unfit') return; if (q.op === 'place') { if (typeof r.standTell === 'string' && r.standTell) toast(r.standTell + ' It stands there all the same, since you moved it.'); return; } if (r.added > 0) noteUndo(c, f, r); else if (q.rowId && q.op !== 'undo' && before > (r.qty | 0)) takeBack(c, f, q.rowId, before - (r.qty | 0)); };   // Stage 6: a pickup opens the Undo; a drop takes it down (1.6.3: a Take out moves no count, so it never takes a pickup's Undo down: a player's waiting answer carries no qty)
     if (isClient()) {
         var n = net(); if (!n || !n.charItem) return;
         var r = n.charItem(c.id, f.id, q);

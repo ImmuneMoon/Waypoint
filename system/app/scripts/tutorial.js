@@ -731,27 +731,59 @@ function discardTutorialCampaign(done) {
 // Each step: target (selector or null for a centered card), title, html, before() to put the
 // app in the right state first. Targets are ids from index.html wherever possible.
 function goView(mode) { var b = document.querySelector('#viewModeSelect .seg-btn[data-mode="' + mode + '"]'); if (b && !b.classList.contains('active')) b.click(); }
-// The VTT step spotlights a block inside Settings: open the modal with the group unfolded, and put the group's
-// remembered fold back when the tour moves on (either way) or ends. The spotlight sits above the modal.
-var _vttGroupWas = null;
+// [tutorialcheck:settour-start]
+// The VTT step spotlights a block inside Settings: open the modal showing its This campaign part, and put back the part it showed before
+// when the tour moves on (either way) or ends. The spotlight sits above the modal.
+// Since 1.6.2 Settings shows one part at a time, and settings.js's parts module (window.wpSetParts) decides which. Settings' own button
+// asks that module to show the part last open, which opens that part's details and queues its toggle event. Setting the This campaign
+// group's open flag by hand then lost to that queued event, which picked the other part again, so on the first opening of a session the
+// spotlight framed a part that was not shown (the release click test of 1.6.3, finding 41). The module's own pick closes the other part
+// at once, so its queued toggle finds it closed and does nothing.
+var _vttGroupWas = null;   // with no parts module: whether the group was open before (the fold of before 1.6.2)
+var _tourPartWas = null;   // with the parts module: the part Settings showed before the tour picked This campaign ('' for none)
 function vttGroup() { return document.querySelector('#settingsModal details.set-group[data-group="vtt"]'); }
 function openSettingsForTour() {
     var sb = document.getElementById('settingsBtn'); if (sb) sb.click();   // syncs the panel and shows the modal
+    var P = window.wpSetParts;
+    if (P && typeof P.pick === 'function') {
+        if (_tourPartWas === null) { var st0 = typeof P.state === 'function' ? P.state() : null; _tourPartWas = st0 && typeof st0.cur === 'string' ? st0.cur : ''; }
+        if (P.pick('vtt')) return;
+    }
     var g = vttGroup(); if (!g) return;
     if (_vttGroupWas === null) { var saved = null; try { saved = JSON.parse(localStorage.getItem('wp_setGroups') || 'null'); } catch (e) {} _vttGroupWas = !!(saved && saved.vtt); }
     g.open = true;
 }
 function closeSettingsForTour() {
     var m = document.getElementById('settingsModal'); if (m) m.style.display = 'none';
+    if (_tourPartWas !== null) {   // the part shown before comes back, so the next opening of Settings shows what the user last left there
+        var was = _tourPartWas, P = window.wpSetParts; _tourPartWas = null;
+        if (was && was !== 'vtt' && P && typeof P.pick === 'function') P.pick(was);
+    }
     if (_vttGroupWas === null) return;
     var g = vttGroup(); if (g) g.open = _vttGroupWas;   // the toggle listener rewrites wp_setGroups
     _vttGroupWas = null;
 }
+// [tutorialcheck:settour-end]
 function openItem(id) { var camp = getActiveCampaign(); if (!camp || !camp.items[id]) return; if (camp.items[id].type === 'map') navigateToMap(id); else { camp.activeItemId = id; state.selId = null; state.selWbId = null; state.selWbIds = []; updateSidebarNav(); render(); } }
 // The Properties step spotlights the right panel: unfold it when it is folded away, and fold it again when the tour moves on or ends.
 var _rightWasFolded = false;
 function openRightForTour() { if (window.wpRightHand && window.wpRightHand(true)) _rightWasFolded = true; }   // opened by hand, as the panel's X closes it (1.6.2: the tab at the map's edge is gone)
 function closeRightForTour() { if (!_rightWasFolded) return; _rightWasFolded = false; if (window.wpRightHand) window.wpRightHand(false); }
+// The Fog of war step's view: the card stands at the foot of the window beside the fog button, so the cellar is framed with Bren and the
+// Cellar Lurker in the upper part of the map, clear of the card (the release click test of 1.6.3, finding 47: the map opens on its own
+// last view, centred on Bren, which put him under the card and the Lurker off a narrow screen's edge). Asked again a moment later, since
+// opening a map puts its own camera back after the step's setup has run. The point is the middle of the two tokens (tutorial.js builds
+// both at 15000 and 15400 across, 15000 down, each a cell of 50).
+var FOG_FRAME = { x: 15225, y: 15025 };
+function frameFogStep() {
+    function frame() {
+        var wrap = document.getElementById('whiteboardWrap'); if (!wrap || !wrap.clientWidth) return;
+        var sx = wrap.clientWidth / 2, sy = wrap.clientHeight * 0.3;
+        if (window.wpView && typeof window.wpView.place === 'function') { window.wpView.place(wrap, FOG_FRAME.x, FOG_FRAME.y, sx, sy); return; }
+        var z = state.zoomLevel || 1; wrap.scrollLeft = FOG_FRAME.x * z - sx; wrap.scrollTop = FOG_FRAME.y * z - sy;
+    }
+    frame(); setTimeout(function() { if (tour.active && !tour.paused && STEPS[tour.i] && STEPS[tour.i].target === '#fogModeBtn') frame(); }, 60);
+}
 function openLeft() { var sb = document.getElementById('campaignSidebar'); if (sb && sb.classList.contains('collapsed')) { var t = document.getElementById('toggleLeftBtn'); if (t) t.click(); } }
 
 var STEPS = [
@@ -778,7 +810,7 @@ var STEPS = [
       help: ['datamap', 'Linked maps: doors, stairs and warps'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#sidebar', title: 'The Properties panel',
-      html: 'Whatever you select is edited here. For a room that is its name, color, scene image, notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears. The arrow on its edge toggles it by hand.',
+      html: 'Whatever you select is edited here. For a room that is its name, color, scene image, notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears. Its &times; closes it by hand, and a right-click on the empty map opens <b>Map properties</b>.',
       help: ['datamap', 'Rooms'],
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); openRightForTour(); } },
     { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
@@ -812,7 +844,7 @@ var STEPS = [
     { target: '#fogModeBtn', title: 'Fog of war',
       html: 'Each player sees only what their own tokens see. The <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.2A3.5 3.5 0 0 1 17.5 14H7zM5 17.5h14M8 21h8"/></svg> button opens the fog menu, and <b>Fog on this map</b> is the switch. On your screen the fog is a see-through veil. A player&rsquo;s fog is opaque, and a creature they cannot see is not on their map at all. This cellar is dark. Bren carries a <b>Torch</b>, and the <b>Cellar Lurker</b> stands in the dark, out of his sight. To make a wall, tick <b>Blocks sight</b> in the Properties of a shape or a pen line.',
       help: ['whiteboard', 'Fog of war'],
-      before: function() { openItem('map_tut_fog'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSound) window.wpSound.closePanel(); if (window.wpFx) window.wpFx.closePanel(); if (window.wpFog) window.wpFog.setPreview('party'); } },
+      before: function() { openItem('map_tut_fog'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSound) window.wpSound.closePanel(); if (window.wpFx) window.wpFx.closePanel(); if (window.wpFog) window.wpFog.setPreview('off'); frameFogStep(); } },
     { target: '#whiteboardWrap', title: 'Tokens',
       html: 'Any shape or picture with <b>Is Character</b> set is a token. Hover one for its name and stats. <b>Right-click</b> one for its conditions, posture, elevation and light. The chips at its foot show its height and posture. <b>Horn</b>, behind the guard-room door, is hidden from players until you tick <b>Visible to players</b>. The gold hexes on the stairs are <b>portals</b>: double-click one to change floors.',
       help: ['whiteboard', 'The right-click menu'],
@@ -838,7 +870,7 @@ var STEPS = [
       help: ['planners', 'Building pages'],
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#plannerTools', title: 'Writing a planner',
-      html: 'Add blocks from the toolbar: headings, prose, callouts, tables and flowcharts. Click into a title, a table cell or a flowchart label and <b>a bar appears on the box</b> to style it. The <b>&#8617; &#8618;</b> buttons are this planner&rsquo;s own undo and redo. <b>Render</b> shows the finished page, and <b>Export As</b> turns it into an image, a PDF or HTML. The <b><i class="wib wi-palette"></i></b> button sets its font, colors and background.',
+      html: 'Add blocks from the toolbar: headings, prose, callouts, tables and flowcharts. Click into a title, a table cell or a flowchart label and <b>a bar appears on the box</b> to style it. The <b>&#8617; &#8618;</b> buttons are this planner&rsquo;s own undo and redo. <b>Edit</b>, <b>Read</b> and <b>Side by side</b> switch how the page is shown, and <b>Export As</b> turns it into an image, a PDF or HTML. The <b><i class="wib wi-palette"></i></b> button sets its font, colors and background.',
       help: ['planners', 'Text style'],
       before: function() { openItem('plan_tut_session1'); } },
     { target: '#docNavList', title: 'Handbook',
@@ -856,15 +888,16 @@ var STEPS = [
       html: '<kbd>Ctrl</kbd> + <kbd>K</kbd> jumps anywhere: type a map, planner or room name from any campaign and press Enter. Right-click <b>Planners</b> or <b>Maps</b> for a search that filters its list. The <b>Recent</b> chips above the Maps tree remember where you have been.',
       help: ['start', 'Getting around fast'] },
     { section: 'Character system', target: '#systemBtn', title: 'The system',
-      html: 'Your game&rsquo;s rules, with no code. The <b>System</b> editor holds the campaign&rsquo;s <b>fields</b>: attributes, formulas worked out from them, pools such as HP, skills, toggles and text. It also holds its <b>rolls</b>, such as <code>d20 + STRmod</code>. <b>Start from&hellip;</b> gives you Basic d20 to edit. Players get every field you leave visible, and GM-only fields never leave your machine.',
+      html: 'Your game&rsquo;s rules, with no code. The <b>System</b> editor holds the campaign&rsquo;s <b>fields</b>: attributes, formulas worked out from them, pools such as HP, skills, toggles and text. It also holds its <b>rolls</b>, such as an attack of a d20 plus a bonus from Strength. <b>Start from&hellip;</b> gives you Basic d20 to edit. Players get every field you leave visible, and GM-only fields never leave your machine.',
       help: ['sheets', 'The system'],
       before: function() { if (window.wpSheets) { window.wpSheets.close(true); window.wpSheets.closeSheet(); } if (window.wpTopRow) window.wpTopRow.open('campMenu'); } },   // System is a row of the campaign's menu: the menu is opened, so the row can be seen
     { target: '#sysLayout', title: 'Designing the sheet',
+      avoid: ['#systemModal .sys-tabs', '#sysLayout .sys-toolbar'],   // the card keeps clear of the tabs and the Sheet | HUD switch it names
       html: 'The <b>Layout</b> tab is where you build the sheet. Arrange it into <b>sections</b> of one to four columns, then add fields, roll buttons, headings and the portrait. <b>Tabs</b> at the top split a bigger sheet into pages. Drag rows to reorder them, and the <b>preview</b> shows a real character as you build. Leave Layout alone and the sheet arranges itself. The <b>Sheet | HUD</b> switch lays out the character&rsquo;s HUD window the same way.',
       help: ['sheets', 'Layout'],
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('layout'); } } },
     { target: '#sysLayoutPreview', title: 'The sheet\u2019s look',
-      html: 'The <b>Sheet look</b> box at the top of Layout dresses the whole sheet, and the preview shows it as you go. A <b>palette</b> recolors every part at once: start from a <b>preset</b> and change any swatch. The box also sets the font, the shape of titles and tabs, and how effects, numbers and items are drawn. Nothing changes until you pick it.',
+      html: '<b>Sheet look</b> in the Layout tab&rsquo;s list dresses the whole sheet, and the preview shows it as you go. A <b>palette</b> recolors every part at once: start from a <b>preset</b> and change any swatch. It also sets the font, the shape of titles and tabs, and how effects, numbers and items are drawn. Nothing changes until you pick it.',
       help: ['sheets', 'Sheet look and palette'],
       before: function() { var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); if (window.wpSheets) { window.wpSheets.closeSheet(); window.wpSheets.open('layout'); } } },
     { target: '#sysItems', title: 'Items & throwing',
@@ -892,10 +925,11 @@ var STEPS = [
       help: ['sheets', 'The HUD'],
       before: function() { if (window.wpSheets) window.wpSheets.close(true); var camp = tutorialCampaign(); if (camp && ensureTutorialSheet(camp)) save(true); openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpSheets) { window.wpSheets.openSheet('c_tut_bren'); if (window.wpSheets.openHud) window.wpSheets.openHud('c_tut_bren'); } } },
     { section: 'Multiplayer & the table', target: '#netBtn', title: 'Multiplayer',
-      html: 'Host a table from here. Players join with a <b>room code</b> and come back to where they were last. They move only their own tokens, and their copy of the campaign leaves out your notes, planners and hidden items. From the same panel you pause, whisper, summon players to a map and run combat. A player who joins with no character gets a <b>waiting token</b> until you give them one. Your name, color and picture are in <b>Settings &#9656; Profile</b>.',
+      html: 'Host a table from here. Players join with a <b>room code</b> and come back to where they were last. They move only their own tokens, and their copy of the campaign leaves out your notes, planners and hidden items. From the same panel you pause, whisper, summon players to a map and run combat. A player who joins with no character gets a <b>waiting token</b> until you give them one. Your picture in the top row opens <b>your profile</b>, with your name and color.',
       help: ['mp-gm', 'Host a session'],
       before: function() { if (window.wpSheets) window.wpSheets.closeSheet(); } },
     { target: '#diceBtn', title: 'Dice',
+      avoid: ['#chatPanel'],   // the card stands beside Table Chat, never over it
       html: 'Roll from <b>Table Chat</b>: type <b>/roll 2d6 + 3</b>, or open this roller. At a table the GM&rsquo;s machine makes every roll, and everyone sees the same card. <b>Private</b> keeps a roll between you and the GM. Pick a <b>character</b> in the roller and names like <b>Might</b> come from its sheet. <b>Shift-click</b> a sheet&rsquo;s roll button for a bonus or a penalty before the roll.',
       help: ['dice', 'Rolling at the table'],
       before: function() { if (window.wpChat && window.wpChat.openPanel) window.wpChat.openPanel(); } },   // the chat's own opener: closed or put away with another view, it comes up here (1.5.4)
@@ -1024,7 +1058,7 @@ function ensureDom() {
         window.addEventListener('pointermove', move, true); window.addEventListener('pointerup', up, true); window.addEventListener('pointercancel', up, true);
         e.preventDefault();
     });
-    window.addEventListener('resize', function() { if (tour.active && !tour.paused) place(); });
+    window.addEventListener('resize', function() { if (tour.active && !tour.paused) place(); if (tour.active && tour.paused) placeChip(); });
     document.addEventListener('keydown', tourKey, true);
 }
 
@@ -1082,11 +1116,9 @@ function place() {
         spot.style.display = 'block'; spot.className = '';
         spot.style.left = (r.left - pad) + 'px'; spot.style.top = (r.top - pad) + 'px';
         spot.style.width = (r.width + pad * 2) + 'px'; spot.style.height = (r.height + pad * 2) + 'px';
-        // the card sits beside the target on whichever side has room
-        if (r.right + 16 + cw <= W) { x = r.right + 16; y = r.top; }
-        else if (r.left - 16 - cw >= 0) { x = r.left - 16 - cw; y = r.top; }
-        else if (r.bottom + 16 + ch <= H) { x = r.left; y = r.bottom + 16; }
-        else { x = r.left; y = r.top - 16 - ch; }
+        // the card sits beside the target on whichever side has room, clear of what the step says it must not cover
+        var av = (Array.isArray(step.avoid) ? step.avoid : []).map(function(sel) { return shownRect(document.querySelector(sel)); }).filter(Boolean);
+        var at = cardSpot(r, av, cw, ch, W, H); x = at.x; y = at.y;
     } else {
         // no target (or one that is not on screen): a zero-size spot in the middle still dims the whole screen
         spot.style.display = 'block'; spot.className = 'nospot';
@@ -1096,6 +1128,62 @@ function place() {
     if (tour.pos) { x = tour.pos.x; y = tour.pos.y; }   // moved by hand: where it was put, kept on screen
     x = Math.max(12, Math.min(x, W - cw - 12)); y = Math.max(12, Math.min(y, H - ch - 12));
     card.style.left = Math.round(x) + 'px'; card.style.top = Math.round(y) + 'px';
+}
+
+// [tutorialcheck:cardspot-start]
+// Where a card stands beside its target r (a rectangle on screen), for a card cw wide and ch tall in a window W by H. av lists rectangles
+// the card must not cover (a step's avoid: the tabs a step names, the chat panel beside the dice button). The sides are tried against the
+// target and those rectangles together, in order right, left, below, above. Where none has room and the step names something to keep
+// clear of, the card stands inside the target in a corner that covers none of it (the release click test of 1.6.3, finding 48: the
+// System editor's Layout tab fills the window, and the card went to its top, over the tabs and the Sheet | HUD switch the step names).
+// With no av the spot is exactly what place() always gave. place() then keeps the card inside the window.
+function cardSpot(r, av, cw, ch, W, H) {
+    av = Array.isArray(av) ? av : [];
+    var u = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    av.forEach(function(a) { u.left = Math.min(u.left, a.left); u.top = Math.min(u.top, a.top); u.right = Math.max(u.right, a.right); u.bottom = Math.max(u.bottom, a.bottom); });
+    if (u.right + 16 + cw <= W) return { x: u.right + 16, y: r.top };
+    if (u.left - 16 - cw >= 0) return { x: u.left - 16 - cw, y: r.top };
+    if (u.bottom + 16 + ch <= H) return { x: r.left, y: u.bottom + 16 };
+    if (av.length) {
+        if (u.top - 16 - ch >= 0) return { x: r.left, y: u.top - 16 - ch };
+        var hits = function(x, y) { return av.some(function(a) { return x < a.right && x + cw > a.left && y < a.bottom && y + ch > a.top; }); };
+        var corners = [[r.right - cw, r.bottom - ch], [r.left, r.bottom - ch], [r.right - cw, r.top], [r.left, r.top]];
+        for (var i = 0; i < corners.length; i++) {
+            var x = Math.max(12, Math.min(corners[i][0], W - cw - 12)), y = Math.max(12, Math.min(corners[i][1], H - ch - 12));
+            if (!hits(x, y)) return { x: x, y: y };
+        }
+    }
+    return { x: r.left, y: r.top - 16 - ch };
+}
+// [tutorialcheck:cardspot-end]
+
+// [tutorialcheck:chip-start]
+// Where the chip of a paused tour stands (the release click test of 1.6.3, finding 42: it stood at the foot of the window's middle, over
+// the map's toolbar, so Try it yourself on a step that names a tool left that tool under the chip). c is the chip's rectangle where the
+// style sheet puts it, bars the rectangles of the toolbars on screen, H the window's height. The answer is the chip's distance from the
+// window's foot that stands it 10 px above every toolbar it would cover, or null where it covers none. Asked again after each lift, since a
+// chip lifted over one toolbar may then meet another.
+function chipLift(c, bars, H) {
+    bars = Array.isArray(bars) ? bars : [];
+    var top = c.top, bottom = c.bottom, h = c.bottom - c.top, lifted = null;
+    for (var pass = 0; pass <= bars.length; pass++) {
+        var hit = null;
+        bars.forEach(function(b) { if (c.left < b.right && c.right > b.left && top < b.bottom && bottom > b.top && (!hit || b.top < hit.top)) hit = b; });
+        if (!hit) return lifted;
+        bottom = hit.top - 10; top = bottom - h; lifted = Math.round(H - bottom);
+    }
+    return lifted;
+}
+// [tutorialcheck:chip-end]
+// The chip placed for the toolbars on screen now: the play map's, its edge column, the Data Map's (each a .floating-toolbar), wherever
+// the layout of the map has put them.
+function placeChip() {
+    var chip = tour.chip; if (!chip || chip.style.display === 'none') return;
+    chip.style.bottom = '';
+    var c = shownRect(chip); if (!c) return;
+    var bars = Array.prototype.map.call(document.querySelectorAll('.floating-toolbar'), shownRect).filter(Boolean);
+    var b = chipLift(c, bars, window.innerHeight);
+    if (b !== null) chip.style.bottom = b + 'px';
 }
 
 // [tutorialcheck:stage-start]
@@ -1207,6 +1295,7 @@ function pauseTour() {
     document.body.classList.remove('tour-on');
     var t = tour.chip.querySelector('.tour-chip-txt'); if (t) t.textContent = 'Tour paused' + (step ? ' at “' + step.title + '”' : '');
     tour.chip.style.display = 'flex';
+    placeChip();
 }
 function resumeTour() {
     if (!tour.active || !tour.paused) return;

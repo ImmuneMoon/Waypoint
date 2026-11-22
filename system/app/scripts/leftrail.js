@@ -107,7 +107,11 @@ function railBack(doc, kept) {
 }
 function railPinRead(store) { try { return store.getItem('wp_leftPin') === '1'; } catch (e) { return false; } }
 function railPinKeep(store, pin) { try { if (pin === true) store.setItem('wp_leftPin', '1'); else store.removeItem('wp_leftPin'); return true; } catch (e) { return false; } }
-function railShowRead(store) { try { var v = store.getItem('wp_leftShow'); return v === 'all' || RAIL_SECS.indexOf(v) >= 0 ? v : ''; } catch (e) { return ''; } }
+// Nothing kept yet is a first run, which shows every section, so a newcomer finds the planner, map or character they just made (the release
+// click test of 1.6.3, finding 45: the first section alone, the Handbook, showed, with the rest behind the rail's icons). railShowKeep never
+// keeps '' (it takes the key out), so a missing key only ever means nobody has picked yet, and a store this computer cannot read is the same.
+// A word the rail does not know still reads as the first section.
+function railShowRead(store) { try { var v = store.getItem('wp_leftShow'); if (v === null || v === undefined) return 'all'; return v === 'all' || RAIL_SECS.indexOf(v) >= 0 ? v : ''; } catch (e) { return 'all'; } }
 function railShowKeep(store, show) { try { if (show === 'all' || RAIL_SECS.indexOf(show) >= 0) store.setItem('wp_leftShow', show); else store.removeItem('wp_leftShow'); return true; } catch (e) { return false; } }
 // [lookcheck:leftrail-end]
 

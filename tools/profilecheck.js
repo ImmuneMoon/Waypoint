@@ -105,7 +105,7 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
         && read('scripts/handbook.js').includes("'settingsModal', 'profileModal', 'helpModal'"), '');
     check('Help says where the profile is and what its list shows, the top row\'s part names your picture, and both release notes say it',
         ix.includes('<li><b>Your profile</b> has a window of its own. Your picture at the right end of the top row opens it.') && ix.includes('<li>The list is read from this computer alone. A table&rsquo;s key is never shown, and nothing is sent.</li>')
-        && ix.includes('<li><b>Your picture:</b> your picture at the right end of the top row, beside Settings, opens your profile.') && ix.includes('It offers five things:')
+        && ix.includes('<li><b>Your picture:</b> your picture at the right end of the top row, beside Settings, opens your profile.') && ix.includes('It offers <b>Start a campaign</b>, <b>Import</b> one from a file, <b>Host a game</b>, <b>Join a game</b>')
         && [read('assets/whatsnew.txt'), fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8')].every(t => t.replace(/\r\n/g, NL).includes('- Your profile has a window of its own. Your picture at the right of the\n  top row opens it,')), '');
     // ---- Reset preferences keeps who you are at tables (the owner, 2026-10-29: "keep your table keys"): settings.js's reset, its keep and its sweep run on a store ----
     {

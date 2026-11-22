@@ -426,8 +426,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         // 1.6.2 (found building a system by hand): a fault under its box names the part in words, and never its short name in the file
         check('1.6.2 the System editor names the part a fault stands in by words: a field\'s most, its name, and no prefix at all for a part that has no word, where it used to print the file\'s own name for it',
             epT('maxFormula') === 'Its most: ' && epT('label') === 'Its name: ' && epT('notice.noise') === '' && epT('list.then.2.label') === '' && epT('__proto__') === '' && epT('constructor') === '', j([epT('maxFormula'), epT('notice.noise'), epT('constructor')]));
-        check('1.6.2 a copied field is a new one, so its short name follows its label as a new field\'s does, and the question that drops the System editor\'s changes takes no Enter (sheets.js pinned)',
-            require('./checkkit').part('sysedtabs.js').includes("if (ctx.f) { _keyAuto.add(d); d.key = keyFromLabel(d.label, d) || (d.key ? d.key + '2' : ''); }") && /Close the System editor without saving\?[^\n]*\{ noEnter: true \}\); return; \}/.test(require('./checkkit').part('sysedbox.js')), '');
+        check('1.6.2 a copied field is a new one, so its short name follows its label as a new field\'s does, and the question that drops the System editor\'s changes takes no Enter (sheets.js pinned; 1.6.3, finding 38: its button now says Close without saving, a pin moved on purpose)',
+            require('./checkkit').part('sysedtabs.js').includes("if (ctx.f) { _keyAuto.add(d); d.key = keyFromLabel(d.label, d) || (d.key ? d.key + '2' : ''); }") && /Close the System editor without saving\?[^\n]*\{ noEnter: true, yes: 'Close without saving' \}\); return; \}/.test(require('./checkkit').part('sysedbox.js')), '');
         check('1.6.2 a sheet opened where the campaign has no character system says so, and offers the GM the System editor, where it used to close without a word (sheets.js pinned)',
             /function openSheet\(charId\) \{[^]*?if \(!systemOf\(getActiveCampaign\(\)\)\) \{[^]*?toastAction\('This campaign has no character system yet[^]*?'Set up the system', function\(\) \{ var sb = ui\('systemBtn'\); if \(sb\) sb\.click\(\); \}\);[^]*?toast\('The GM has not set up the character sheets yet\.'\);[^]*?return;/.test(shT), '');
         check('1.6.2 a question\'s + Add a value list takes a value only when it is chosen, never at a key step, as every other list of its kind (sheets.js pinned)', /add\.title = 'A value of the sheet this question offers'; if \(window\.wpTexList\) window\.wpTexList\.keys\(add\);/.test(shT), '');
@@ -2066,7 +2066,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const tabsR = kit.part('sysedtabs.js').replace(/\r\n/g, NL), lineR = (a) => { const i = tabsR.indexOf(a); if (i < 0 || tabsR.indexOf(a, i + 1) >= 0) throw new Error('1.6.3 rolls line: ' + a); return tabsR.slice(i, tabsR.indexOf(NL, i)); };
         const boxR = { focused: 0, selected: 0, focus() { this.focused++; }, select() { this.selected++; } }, drR = { rolls: [] };
         new Function('b', 'draft', 'uid', 'markDirty', 'renderAll', 'ui', '(function() {' + lineR("    if (b.id === 'sysAddRoll') {") + NL + '})();')({ id: 'sysAddRoll' }, drR, p => p + '1', () => {}, () => {}, () => ({ lastElementChild: { querySelector: () => boxR } }));
-        const rK = { label: 'New roll', formula: '3d6' }; new Function('c', 't', 'r', 'markDirty', 'renderAll', '(function() {' + lineR("        if (c.indexOf('sys-roll-kind') >= 0) {") + NL + '})();')('sys-roll-kind', { value: 'apply' }, rK, () => {}, () => {});
+        // 1.6.3 (finding 6, a pin moved on purpose): the Roll or Apply line puts aside what the old kind used, so its helpers run beside it
+        const rK = { label: 'New roll', formula: '3d6' }; new Function('c', 't', 'r', 'markDirty', 'renderAll', kit.cut('sysedtabs.js', '// [sysedcheck:kindkeep-start]', '// [sysedcheck:kindkeep-end]') + NL + '(function() {' + lineR("        if (c.indexOf('sys-roll-kind') >= 0) {") + NL + '})();')('sys-roll-kind', { value: 'apply' }, rK, () => {}, () => {});
         const lsR = {}, rArr = []; new Function('ract', 'rArr', 'lsr', 'LIMITS', 'toast', '(function() {' + lineR("        if (ract === 'rolladd') {") + NL + '})();')('rolladd', rArr, lsR, S.LIMITS, () => {});
         const ndQ = tabsR.slice(tabsR.indexOf("        else if (c.indexOf('sys-roll-needs') >= 0) {"), tabsR.indexOf(NL + '        }' + NL, tabsR.indexOf("        else if (c.indexOf('sys-roll-needs') >= 0) {")) + 10).replace(/^\s*else /, '');
         const txN = { value: '' }, rN = {}, tN = { value: 'HP > 0', closest: () => ({ querySelector: () => txN }) };
@@ -2297,6 +2298,151 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         live.forEach(x => { x.on = false; x.fn(); });
         check('1.6.3 (finding 4) a key in a section\'s title on the Layout tab (onLayoutInput, run for real) keeps the title and marks the draft at once, and draws the preview once, 300 ms after the last key, never at each key',
             sec.title === 'New' && dirtyN === 2 && drawnTyping === 0 && live.length === 1 && live[0].ms === 300 && drawn === 1 && /function onLayoutInput/.test(lyP), J({ title: sec.title, dirtyN, drawnTyping, live: live.length, drawn }));
+    }
+
+    /* ---- 1.6.3 the improvement week's review of the System editor, batch "safety": never losing a GM's work (findings 0, 5, 6, 9, 10, 12, 16, 34,
+       36 and 38; Fulllion's picks of 2026-11-21) ---- */
+    {
+        // Undo and Redo, and the foot's unsaved changes (sysedbox.js, its hist slice, run for real on drafts of the test's own)
+        const hSrc = kit.cut('sysedbox.js', '// [sysedcheck:hist-start]', '// [sysedcheck:hist-end]');
+        const els = {}, mkEl = id => (els[id] = els[id] || { id, disabled: false, textContent: '', classList: { add() {}, remove() {} }, lis: {}, addEventListener(t, fn) { (this.lis[t] = this.lis[t] || []).push(fn); } });
+        const timers = []; let renders = 0;
+        const HB = new Function('ui', 'window', 'setTimeout', 'clearTimeout', 'renderAll', 'renderPreview',
+            'var draft = null, dirty = false; function dirtySet(v) { dirty = v; } function draftSet(d) { draft = d; } function markDirty() { dirtySet(true); histNote(); footDirty(); }' + NL + hSrc +
+            NL + 'return { get d() { return draft; }, set d(v) { draft = v; }, get dirty() { return dirty; }, mark: markDirty, reset: histReset, saved: histSaved, flush: histFlush, step: histStep, key: histKey, wire: histWire, st: function() { return _hist; } };')
+            (mkEl, {}, (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, () => {}, () => { renders++; }, () => {});
+        mkEl('sysFoot').textContent = '2 fields · no errors';
+        HB.d = { fields: [{ id: 'f_a', label: 'A' }] }; HB.reset(); const u0 = mkEl('sysUndoBtn').disabled;
+        HB.d.fields.push({ id: 'f_b', label: 'B' }); HB.mark(); const pend = HB.st().pend, u1 = mkEl('sysUndoBtn').disabled, foot1 = mkEl('sysFoot').textContent, wait = timers[timers.length - 1].ms;
+        HB.flush();
+        HB.d.fields[1].label = 'Be'; HB.mark(); HB.d.fields[1].label = 'Bee'; HB.mark(); HB.flush(); const n1 = HB.st().undo.length;   // a run of typing in one box: one step
+        HB.step(true); const afterU1 = j(HB.d);
+        HB.step(true); const afterU2 = j(HB.d), dirty2 = HB.dirty, foot2 = mkEl('sysFoot').textContent;
+        HB.step(false); const afterR1 = j(HB.d), dirty3 = HB.dirty;
+        HB.d.fields.push({ id: 'f_c' }); HB.mark(); HB.flush(); const redoGone = HB.st().redo.length;
+        for (let i = 0; i < 40; i++) { HB.d.fields[0].label = 'L' + i; HB.mark(); HB.flush(); }
+        const capped = HB.st().undo.length;
+        HB.d = { fields: [{ id: 'k' }] }; HB.reset(); HB.d.fields[0].label = 'x'; HB.mark();
+        const ev = (key, tgt, mods) => Object.assign({ key, target: tgt, ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, prevented: false, preventDefault() { this.prevented = true; } }, mods || {});
+        const btn = { nodeType: 1, tagName: 'BUTTON' }, txt = { nodeType: 1, tagName: 'INPUT', type: 'text' }, chk = { nodeType: 1, tagName: 'INPUT', type: 'checkbox' }, area = { nodeType: 1, tagName: 'TEXTAREA' };
+        const kTyping = HB.key(ev('z', txt)) || HB.key(ev('z', area)), stillX = HB.d.fields[0].label;
+        const kz = ev('z', chk), kOn = HB.key(kz), undone = HB.d.fields[0].label;
+        HB.key(ev('y', btn)); const redone = HB.d.fields[0].label;
+        HB.key(ev('z', btn)); HB.key(ev('Z', btn, { shiftKey: true })); const shiftRedo = HB.d.fields[0].label;
+        const noMod = HB.key(ev('z', btn, { ctrlKey: false }));
+        const modal = mkEl('modalX'); HB.wire(modal); HB.d.fields[0].label = 'y'; HB.mark(); const pendW = HB.st().pend; modal.lis.pointerdown.forEach(f => f({})); const closedW = HB.st().pend ? -1 : HB.st().undo.length;
+        mkEl('sysUndoBtn').lis.click[0](); const btnUndo = HB.d.fields[0].label;
+        mkEl('sysRedoBtn').lis.click[0](); const btnRedo = HB.d.fields[0].label;
+        HB.d.fields[0].label = 'z'; HB.mark(); HB.saved(); const savedNoStep = !HB.st().pend && HB.st().undo.length === 2;
+        check('1.6.3 (finding 9) the System editor\'s Undo and Redo (sysedbox.js, run for real): a change notes a step and wakes Undo at once, closed 700 ms after the last change; a run of typing in one box is one step; Undo goes back step by step to the draft as saved, with no unsaved changes left; Redo comes back, a new change drops what Redo held, and 30 steps are kept at most; Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z act where the focus is not in a box typed in, and leave such a box alone; a press in the editor closes a step; the foot\'s two buttons act; Save makes the draft the saved one with no step',
+            u0 === true && pend === true && u1 === false && wait === 700 && n1 === 2 && afterU1 === j({ fields: [{ id: 'f_a', label: 'A' }, { id: 'f_b', label: 'B' }] }) && afterU2 === j({ fields: [{ id: 'f_a', label: 'A' }] }) && dirty2 === false && dirty3 === true
+            && afterR1 === afterU1 && redoGone === 0 && capped === 30 && kTyping === false && stillX === 'x' && kOn === true && kz.prevented === true && undone === undefined && redone === 'x' && shiftRedo === 'x' && noMod === false
+            && pendW === true && closedW === 2 && btnUndo === 'x' && btnRedo === 'y' && savedNoStep && renders > 0,
+            j({ u0, pend, u1, wait, n1, afterU1, afterU2, dirty2, dirty3, redoGone, capped, kTyping, kOn, undone, redone, shiftRedo, noMod, pendW, closedW, btnUndo, btnRedo, savedNoStep }));
+        const bxP = kit.part('sysedbox.js'), ixH = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        check('1.6.3 (finding 36) the foot says unsaved changes as soon as the draft is marked, an Arrange move among them (markDirty adds it through footDirty, and Arrange\'s changed is markDirty), and a step of Undo back to the saved draft takes it off',
+            /unsaved changes$/.test(foot1) && foot2 === '2 fields · no errors' && /histNote\(\); footDirty\(\); \}/.test(bxP) && /changed: function\(\) \{ markDirty\(\); renderPreview\(\); \}/.test(kit.part('sysedlayout.js')), j({ foot1, foot2 }));
+        check('1.6.3 (finding 9) the editor opens with Undo empty and wires it once; Undo and Redo stand in the foot as one joined pair before Save, off until there is a step; Escape and Ctrl+Z stay the editor\'s own, and Help says it all',
+            /histReset\(\);   \/\/ 1\.6\.3 \(finding 9\)/.test(bxP) && /histWire\(m\);/.test(bxP) && /<span class="ui-seg sys-hist"><button type="button" class="tool ghost" id="sysUndoBtn"[^>]*disabled>Undo<\/button><button type="button" class="tool ghost" id="sysRedoBtn"[^>]*disabled>Redo<\/button><\/span><button class="tool" id="sysSaveBtn"/.test(ixH)
+            && ixH.includes('<li><b>Undo</b> and <b>Redo</b> in the editor&rsquo;s foot take back your last 30 changes and bring them back.') && ixH.includes('<li><b>Used by</b> on a field or a roll lists what reads it:'));
+        // finding 38: a question that throws work away names its act
+        check('1.6.3 (finding 38) Close without saving names its act on its button, and keeps noEnter',
+            bxP.includes("{ noEnter: true, yes: 'Close without saving' }"));
+        // Used by and the question before a delete (sysedbox.js, its usedby slice, run for real with the real cleaner and check)
+        const uSrc = kit.cut('sysedbox.js', '// [sysedcheck:usedby-start]', '// [sysedcheck:usedby-end]');
+        const sysU = { v: 1, name: 'Used', fields: [
+            { id: 'f_str', key: 'STR', label: 'Strength', kind: 'number', def: 10, edit: 'owner', vis: 'all' },
+            { id: 'f_mod', key: 'StrMod', label: 'Modifier', kind: 'formula', formula: 'floor((STR - 10) / 2)', vis: 'all' },
+            { id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource', maxFormula: '10', def: 'max', vis: 'all' },
+            { id: 'f_free', key: 'Free', label: 'Free', kind: 'number', def: 0, vis: 'all' } ],
+            rolls: [{ id: 'r_atk', label: 'Attack', formula: '1d20 + STR', vis: 'all', then: [{ fx: 'e_rage', on: true, when: 'hit' }] }],
+            items: [{ id: 'i_sw', key: 'Sword', name: 'Sword', category: '', vis: 'all' }],
+            effects: [{ id: 'e_rage', name: 'Rage', vis: 'all', mods: [{ f: 'f_str', op: 'add', v: 2 }] }],
+            sheet: { sections: [{ id: 's_main', title: 'Main', cols: 2, fields: [{ id: 'f_str', w: 1 }] }] },
+            combat: { blastAuto: 'full', blastRoller: 'owner', hpResource: 'f_hp' } };
+        const asked = [], winU = { wpLibrary: { entriesOf: id => (id === 'p1' ? [{ id: 'l1', key: 'Axe', name: 'Axe', needsIf: 'STR >= 12' }, { id: 'l2', key: 'Rock', name: 'Rock' }] : []) },
+            wpSysUi: { place: id => { const all = sysU.fields.concat(sysU.rolls, sysU.items, sysU.effects), o = all.find(x => x.id === id); return o ? { name: (o.label || o.name) + ' row' } : id === 'damage' ? { name: 'Combat, Taking damage' } : /^plc:/.test(id) ? { name: 'Layout', tab: 'layout' } : null; } } };
+        const UB = new Function('draft', 'F', 'clone', 'cleanSystem', 'validateSystem', 'getActiveCampaign', 'el', 'tabSet', 'renderAll', 'showConfirm', 'window', uSrc + NL + 'return { usedBy: usedBy, usedAsk: usedAsk };')
+            (sysU, () => F, o => JSON.parse(JSON.stringify(o)), cleanSystem, validateSystem, () => ({ library: { packs: [{ id: 'p1' }] } }), () => ({}), () => {}, () => {}, (q, cb, o) => asked.push({ q, cb, o }), winU);
+        const names = rows => rows.map(r => r.name).sort();
+        const uStr = names(UB.usedBy('field', 'f_str')), uFree = UB.usedBy('field', 'f_free'), uHp = names(UB.usedBy('field', 'f_hp')), uRage = names(UB.usedBy('effect', 'e_rage')), uAtk = UB.usedBy('roll', 'r_atk');
+        let goneN = 0; const askFree = UB.usedAsk('field', sysU.fields[3], () => { goneN++; }), goneAt = goneN;
+        const askStr = UB.usedAsk('field', sysU.fields[0], () => { goneN++; }), q0 = asked[0];
+        if (q0) q0.cb(false); const afterNo = goneN; if (q0) q0.cb(true);
+        check('1.6.3 (finding 16) Used by (usedBy, run for real): a field is read by the formula and the roll that name it (the check run with it and without it), the effect that changes it and the place on the sheet that shows it (its id written there), and a library entry whose rule reads it, each once and by its own name; the damage pool is the Combat tab\'s Taking damage; an effect is used by the roll that switches it; a field nothing reads, and a roll nothing names, list nothing',
+            j(uStr) === j(['Attack row', 'Layout, Main', 'Library: Axe', 'Modifier row', 'Rage row']) && uFree.length === 0 && j(uHp) === j(['Combat, Taking damage']) && j(uRage) === j(['Attack row']) && uAtk.length === 0,
+            j({ uStr, uFree, uHp, uRage, uAtk }));
+        check('1.6.3 (finding 9) a delete asks first only where something uses it (usedAsk, run for real): nothing uses it and it goes at once with no question; else one question by its buttons alone (noEnter, noEscape), Delete it on its button, naming the places that use it and saying Undo brings it back, and a No deletes nothing',
+            askFree === false && goneAt === 1 && askStr === true && asked.length === 1 && !!q0 && q0.o.noEnter === true && q0.o.noEscape === true && q0.o.yes === 'Delete it'
+            && /^Delete the field “Strength”\? 5 parts of this system use it: /.test(q0.q) && /Undo brings it back\.$/.test(q0.q) && afterNo === 1 && goneN === 2, j({ askFree, goneAt, askStr, q: q0 && q0.q, o: q0 && q0.o, afterNo, goneN }));
+        const tbP = kit.part('sysedtabs.js'), rlP = kit.part('sysedroll.js'), shJ = kit.joined('sheets.js');
+        check('1.6.3 (findings 9 and 16) a field\'s and a roll\'s row carry Used by before their buttons; the field, list, roll, item and effect deletes ask through usedAsk; Used by opens a place as an error\'s press does (sysui.js goTo) or the Library window at its entry (openAt)',
+            shJ.includes("if (typeof usedByBox === 'function') flags.appendChild(usedByBox('field', f));") && rlP.includes("if (typeof usedByBox === 'function') top.appendChild(usedByBox('roll', r));")
+            && tbP.includes("usedAsk(ctx.f ? 'field' : 'roll', item, function() {") && tbP.includes("usedAsk('item', iitem, function() {") && tbP.includes("usedAsk('effect', ed, function() {")
+            && /function goTo\(id, prop\) \{ if \(!errHost \|\| !errHost\.where\(id\)\) return false; errShow\(false\); errHost\.go\(id, prop\);/.test(fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8'))
+            && fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').includes('window.wpLibraryWin.openAt = function(packId, entryId) {'));
+        // finding 0: a changed kind that clears what characters hold (sysederr.js, its kindloss slice, run for real with the real cleanValue)
+        const KL = new Function('STORED', 'cleanValue', 'valueOpts', kit.cut('sysederr.js', '// [sysedcheck:kindloss-start]', '// [sysedcheck:kindloss-end]') + NL + 'return { kindLoss: kindLoss, kindLossWords: kindLossWords };')(S.STORED, cleanValue, S.valueOpts);
+        const prevK = { fields: [{ id: 'f_s', label: 'Strength', kind: 'number' }, { id: 'f_hp', label: 'HP', kind: 'resource' }, { id: 'f_d', label: 'Dodge', kind: 'number' }, { id: 'f_n', label: 'Name', kind: 'text' }, { id: 'f_k', label: 'Skill', kind: 'number' }] };
+        const drK = { fields: [{ id: 'f_s', label: 'Strength', kind: 'text' }, { id: 'f_hp', label: 'HP', kind: 'number' }, { id: 'f_d', label: 'Dodge', kind: 'formula', formula: '1' }, { id: 'f_n', label: 'Name', kind: 'text' }, { id: 'f_k', label: 'Skill', kind: 'skill' }] };
+        const chK = { a: { values: { f_s: 14, f_hp: { cur: 5 }, f_d: 3, f_n: 'Kael', f_k: 2 } }, b: { values: { f_s: 9, f_k: 1 } }, c: { values: {} } };
+        const lossK = KL.kindLoss(prevK, drK, chK), wordsK = KL.kindLossWords(lossK), erP = kit.part('sysederr.js'), sdA = erP.indexOf('function saveDraft(force) {'), askA = erP.indexOf('if (force !== true) { var lostK = kindLoss(camp.system, draft, camp.chars || {});', sdA), rnA = erP.indexOf('var rnS = ', sdA);
+        check('1.6.3 (finding 0) a field whose kind changed to one that cannot read what characters hold (kindLoss, run for real): a number turned to text on the two characters that hold it, a pool turned to a number on the one; a kind that keeps no value, a skill that reads a number and an unchanged kind clear nothing; Save asks first, before anything of the draft is changed, by a button that names the act, and the field\'s Kind box says it before Save',
+            j(lossK.map(x => [x.id, x.n, x.kind])) === j([['f_s', 2, 'text'], ['f_hp', 1, 'number']]) && KL.kindLoss(prevK, prevK, chK).length === 0
+            && wordsK === 'Save clears what your characters hold in 2 fields whose kind changed: “Strength” on 2 characters and “HP” on 1 character. The new kind cannot read it. Save anyway, or pick the old kind again to keep it?'
+            && sdA > 0 && askA > sdA && askA < rnA && erP.includes("{ noEnter: true, yes: 'Save and clear them' }") && erP.includes("if (typeof kindLoss === 'function') kindLoss(saved, draft, chars).forEach(function(k) { (warningsById[k.id] = warningsById[k.id] || []).push({ prop: 'kind',"),
+            j({ lossK, wordsK, sdA, askA, rnA }));
+        // finding 10: a box whose form is open is not drawn away under it (sysedtabs.js allOrWait, run for real)
+        let drawsA = 0; const winA = { wpFormBox: { o: true, isOpen() { return this.o; } } };
+        const AW = new Function('draft', 'renderAll', 'window', kit.cut('sysedtabs.js', '// [sysedcheck:allorwait-start]', '// [sysedcheck:allorwait-end]') + NL + 'return allOrWait;')({}, () => { drawsA++; }, winA);
+        const boxA = { lis: {}, addEventListener(t, f) { (this.lis[t] = this.lis[t] || []).push(f); }, removeEventListener(t, f) { this.lis[t] = (this.lis[t] || []).filter(x => x !== f); }, fire(t) { (this.lis[t] || []).slice().forEach(f => f({})); } };
+        const w1 = AW(boxA), w2 = AW(boxA), d0 = drawsA; winA.wpFormBox.o = false; boxA.fire('change'); const d1 = drawsA; boxA.fire('change'); const d2 = drawsA, w3 = AW(boxA), d3 = drawsA;
+        check('1.6.3 (finding 10) while a form is open on a box, a redraw the box asks for waits for its change, which the form says as it is put away, and is made once; with no form open it is made at once; Taken from, Locked while and both crossings ask it',
+            w1 === false && w2 === false && d0 === 0 && d1 === 1 && d2 === 1 && w3 === true && d3 === 2 && kit.familyCount('sheets.js', 'markDirty(); allOrWait(t); return;') === 4, j({ w1, w2, d0, d1, d2, w3, d3 }));
+        // finding 6: what a kind used is put aside and comes back with it (sysedtabs.js kindKeep and kindBack, run for real as the Kind branch runs them)
+        const KK = new Function(kit.cut('sysedtabs.js', '// [sysedcheck:kindkeep-start]', '// [sysedcheck:kindkeep-end]') + NL + 'return { keep: kindKeep, back: kindBack, FK: FIELD_KEEP, RK: ROLL_KEEP };')();
+        const kindTo = (f, to) => { const was = f.kind; KK.keep(f, was, KK.FK); f.kind = to; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; delete f.round; f.def = to === 'select' || to === 'text' ? '' : 0; KK.back(f, to, KK.FK); };
+        const fK = { id: 'f', kind: 'formula', formula: 'STR * 2', round: 'down', def: 0 }; kindTo(fK, 'number'); const midF = j(fK); kindTo(fK, 'formula'); const backF = j(fK);
+        const sK = { id: 's', kind: 'select', options: ['Fighter', 'Rogue'], def: 'Rogue' }; kindTo(sK, 'text'); kindTo(sK, 'number'); kindTo(sK, 'select'); const backS = j(sK);
+        const rK = { id: 'r', apply: [{ f: 'f_hp', formula: '1' }], each: 'turn', by: 'gm' }; KK.keep(rK, 'apply', KK.RK); delete rK.apply; delete rK.each; delete rK.by; const midR = j(rK); KK.keep(rK, 'roll', KK.RK); rK.apply = [{ f: '', formula: '' }]; KK.back(rK, 'apply', KK.RK); const backR = j(rK);
+        check('1.6.3 (finding 6) a kind picked by mistake loses nothing (kindKeep and kindBack, run for real): a Derived field\'s formula and rounding, a choice\'s options and default and an action\'s changes, each and by come back when their kind is picked again, kept beside the draft and never in it',
+            midF === j({ id: 'f', kind: 'number', def: 0 }) && backF === j({ id: 'f', kind: 'formula', def: 0, formula: 'STR * 2', round: 'down' }) && backS === j({ id: 's', kind: 'select', def: 'Rogue', options: ['Fighter', 'Rogue'] })
+            && midR === j({ id: 'r' }) && backR === j({ id: 'r', apply: [{ f: 'f_hp', formula: '1' }], each: 'turn', by: 'gm' }), j({ midF, backF, backS, midR, backR }));
+        check('1.6.3 (finding 6) the Kind branch puts aside before it clears and brings back after it, a pool made by mistake lets the damage pool go, and the roll\'s Roll or Apply does the same; an arrow key on a closed Kind list, or Roll and Apply, opens the list and never steps it (the Texture lists\' rule)',
+            tbP.includes("if (c.indexOf('sys-kind') >= 0) { var kWas = f.kind; kindKeep(f, kWas, FIELD_KEEP); f.kind = t.value; delete f.formula;") && tbP.includes("kindBack(f, f.kind, FIELD_KEEP); if (kWas === 'resource' && f.kind !== 'resource') hpPoolLeave(f.id); if (f.kind === 'resource') hpPoolFill(f.id); markDirty(); renderAll(); return; }")
+            && tbP.includes("var rkWas = Array.isArray(r.apply) ? 'apply' : 'roll'; kindKeep(r, rkWas, ROLL_KEEP);") && tbP.includes("kindBack(r, t.value === 'apply' ? 'apply' : 'roll', ROLL_KEEP); markDirty(); renderAll(); return; }")
+            && shJ.includes('(function(ks) { if (ks && typeof window !== \'undefined\' && window.wpTexList && window.wpTexList.keys) window.wpTexList.keys(ks); })(top.lastChild && top.lastChild.lastChild);') && rlP.includes('window.wpTexList.keys(top.lastChild);'));
+        // finding 34: the first pool made is the damage pool, said once, and let go when it stops being a pool (hpPoolFill and hpPoolLeave, run for real)
+        const toastsH = [], drH = { fields: [{ id: 'f_mana', label: 'Mana', kind: 'resource' }, { id: 'f_hp', label: 'Hit points', kind: 'resource' }], combat: { hpResource: '' } };
+        const HP = new Function('toast', 'draft0', 'var draft = draft0;' + NL + tbP.slice(tbP.indexOf('function hpPoolFill(id) {'), tbP.indexOf('function startFrom(id) {')) + NL + 'return { fill: hpPoolFill, leave: hpPoolLeave };')(t => toastsH.push(t), drH);
+        HP.fill('f_mana'); const p1 = drH.combat.hpResource, t1 = toastsH.slice();
+        drH.fields[0].kind = 'number'; HP.leave('f_mana'); const p2 = drH.combat.hpResource;
+        drH.fields[0].kind = 'resource'; HP.leave('f_mana'); HP.fill('f_mana'); const p3 = drH.combat.hpResource, nT = toastsH.length;
+        drH.combat.hpResource = 'f_mana'; HP.leave('f_mana'); const p4 = drH.combat.hpResource;
+        check('1.6.3 (finding 34) the first pool made still becomes the damage pool, and a notice says so once, naming the Combat tab\'s Taking damage; a pool the fill picked that is turned to another kind lets it go to the next pool with no second notice; a pick made by hand is never let go',
+            p1 === 'f_mana' && j(t1) === j(['Damage now comes off Mana. Change it on the Combat tab, under Taking damage.']) && p2 === 'f_hp' && p3 === 'f_hp' && nT === 1 && p4 === 'f_mana', j({ p1, t1, p2, p3, nT, p4 }));
+        // findings 5, 12 and 38: Start from, Import, the automatic layout and a calendar preset ask first where there is something to replace
+        const DH = new Function('cleanSystem', 'emptySystem', 'F', kit.cut('sysedtabs.js', '// [sysedcheck:draftholds-start]', '// [sysedcheck:draftholds-end]') + NL + 'return { holds: draftHolds, words: REPLACE_WORDS };')(cleanSystem, emptySystem, () => F);
+        const blank = () => { const b = emptySystem(); b.fields = b.fields || []; b.rolls = b.rolls || []; b.sheet = b.sheet && Array.isArray(b.sheet.sections) ? b.sheet : { sections: [] }; b.items = b.items || []; b.combat = b.combat || { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; return b; };
+        const hBlank = DH.holds(blank()), hCal = DH.holds(Object.assign(blank(), { calendar: { periods: [{ name: 'Moon', days: 28 }] } })), hItem = DH.holds(Object.assign(blank(), { items: [{ id: 'i_a', key: 'A', name: 'A' }] })), hSec = DH.holds(Object.assign(blank(), { sheet: { sections: [{ id: 's_a', title: 'A', cols: 2, fields: [] }] } }));
+        check('1.6.3 (findings 5 and 12) whether the draft holds anything a replace would lose (draftHolds, run for real with the real cleaner): a blank system as the editor opens one holds nothing; a calendar, an item or a section alone is something; the words say all of it goes, that nothing changes until Save and that Undo brings it back, with no field id in them',
+            hBlank === false && hCal === true && hItem === true && hSec === true && DH.words('this preset') === 'Replace everything in this system with this preset? That is its fields, rolls, items, effects, lists, combat and rules, calendar and layout. Nothing changes until you Save, and Undo brings it back. Values your characters hold for fields the new system does not have stay stored but hidden until such a field exists again.',
+            j({ hBlank, hCal, hItem, hSec }));
+        check('1.6.3 (findings 5, 12 and 38) Start from and Import ask whenever the draft holds anything, by a button that says Replace; Import says after how many characters hold values for fields the file does not have; the calendar\'s presets ask where the calendar holds periods',
+            tbP.includes("if (draftHolds(draft)) showConfirm(REPLACE_WORDS('this preset'), function(yes) { if (yes) go(); }, { noEnter: true, yes: 'Replace' });") && tbP.includes("if (draftHolds(draft)) showConfirm(REPLACE_WORDS('the system in this file'), function(yes) { if (yes) put(); }, { noEnter: true, yes: 'Replace' }); else put();")
+            && tbP.includes(' for fields this file does not have. After Save those stay stored but hidden, until such a field exists again.') && !/Replace the current fields, rolls and layout/.test(tbP)
+            && kit.part('sysedcal.js').includes("showConfirm('Replace your calendar with this one? Its periods, week and leap rules go, and the other calendars are kept. Undo brings it back.', function(yes) { if (yes && draft) putCal(); }, { noEnter: true, yes: 'Replace' }); else putCal();"));
+        // finding 5: Start from the automatic layout asks where there are sections (sysedlayout.js onLayoutClick, run for real)
+        const clkS = kit.cut('sysedlayout.js', 'function onLayoutClick(b) {', '\n}\n') + '\n}\n', askL = [];
+        const CLPs = ['ui', 'layoutView', 'renderLayout', 'cleanSystem', 'draft', 'F', 'LIMITS', 'autoLayout', 'uid', 'clone', 'markDirty', 'toast', 'showConfirm', 'layoutSections', 'layoutRoot', 'sheetList', 'layoutTabs', 'draftHasHud'];
+        const DRL = { v: 1, name: 'L', fields: [{ id: 'f_a', key: 'A', label: 'A', kind: 'number' }], rolls: [], sheet: { sections: [{ id: 's_mine', title: 'Mine', cols: 2, fields: [] }] } };
+        const CLs = new Function(...CLPs, clkS + '\nreturn onLayoutClick;')(() => null, 'sheet', () => {}, cleanSystem, DRL, () => F, S.LIMITS, S.autoLayout, p => p + 'u', o => JSON.parse(JSON.stringify(o)), () => {}, () => {}, (q, cb, o) => askL.push({ q, cb, o }), () => DRL.sheet.sections, () => DRL.sheet, () => [], () => [], () => false);
+        CLs({ id: 'sysLayoutAuto', dataset: {}, closest: () => null }); const keptL = DRL.sheet.sections.map(s => s.id);
+        if (askL[0]) askL[0].cb(false); const keptNo = DRL.sheet.sections.map(s => s.id); if (askL[0]) askL[0].cb(true); const after = DRL.sheet.sections.map(s => s.id);
+        DRL.sheet.sections = []; CLs({ id: 'sysLayoutAuto', dataset: {}, closest: () => null }); const noAsk = askL.length;
+        check('1.6.3 (findings 5 and 38) Start from the automatic layout asks before it replaces the sheet\'s sections, naming how many, by a button that says Replace; a No keeps them, a Yes rebuilds them; with no sections it rebuilds at once with no question, as Arrange presses it',
+            j(keptL) === j(['s_mine']) && j(keptNo) === j(['s_mine']) && askL.length >= 1 && /^Replace your 1 section with the automatic layout\?/.test(askL[0].q) && askL[0].o.yes === 'Replace' && askL[0].o.noEnter === true && j(after) !== j(['s_mine']) && after.length > 0 && noAsk === 1,
+            j({ keptL, keptNo, after, noAsk, q: askL[0] && askL[0].q }));
     }
 
     await T.finish();

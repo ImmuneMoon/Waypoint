@@ -2374,6 +2374,10 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                                   <li>A list&rsquo;s ticks stand in three groups: <b>What a row may be</b>, <b>How it looks</b> and <b>Rules</b>. The four ways a row can tie to another row stand together in <b>Tied to other rows</b>. <b>Add a tie</b> shows the one you need, and one in use always shows.</li>
                                   <li>On the Combat tab, Blasts and throws stands in folds: Throwing, Damage by distance, Launchers, Fragments and Afflictions. Each fold&rsquo;s head says in one line what is set in it.</li>
                                   <li>The foot of the editor counts your errors and warnings. Press the count for a list of them, and press one to go to the box it names.</li>
+                                  <li><b>Undo</b> and <b>Redo</b> in the editor&rsquo;s foot take back your last 30 changes and bring them back. Ctrl+Z and Ctrl+Y do the same while you are not typing in a box. A run of typing in one box is one change.</li>
+                                  <li><b>Used by</b> on a field or a roll lists what reads it: formulas, rolls, list columns, the layout, effects and library entries. Press one to go to it.</li>
+                                  <li>Deleting a field, roll, item or effect that something else uses asks first, and names what uses it. Replacing the whole system, the sheet&rsquo;s sections or the calendar asks first too.</li>
+                                  <li>A field whose kind you change may no longer read what characters hold in it. Its line says how many would lose it, and Save asks first. Pick its old kind again to keep it, with its formula or options as they were.</li>
                                   <li>Press <b>Got it</b> beside a tab&rsquo;s long note to fold it away. <b>About this tab</b> brings it back.</li>
                               </ul>
                           </li>
@@ -5700,7 +5704,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
         <div id="sysCalendar" class="sys-tab" style="display:none;"></div>
         <div id="sysSidePrev" class="sys-side-prev" hidden></div>
-        <div class="sys-foot"><span id="sysFoot" class="sys-note"></span><label class="sys-keysw" title="Each name has a short form, which only As text needs. This stays out of sight until you tick this."><input type="checkbox" id="sysShowKeys"> Short names</label><button type="button" class="tool ghost" id="sysErrBtn" hidden aria-expanded="false" aria-controls="sysErrList"></button><div id="sysErrList" class="sys-errlist" hidden></div><span style="flex:1;"></span><button class="tool" id="sysSaveBtn" title="Save the system to this campaign (players at the table get the visible fields at once)">Save</button></div>
+        <div class="sys-foot"><span id="sysFoot" class="sys-note"></span><label class="sys-keysw" title="Each name has a short form, which only As text needs. This stays out of sight until you tick this."><input type="checkbox" id="sysShowKeys"> Short names</label><button type="button" class="tool ghost" id="sysErrBtn" hidden aria-expanded="false" aria-controls="sysErrList"></button><div id="sysErrList" class="sys-errlist" hidden></div><span style="flex:1;"></span><span class="ui-seg sys-hist"><button type="button" class="tool ghost" id="sysUndoBtn" title="Take back your last change in the editor. Ctrl+Z does it too, while you are not typing in a box" disabled>Undo</button><button type="button" class="tool ghost" id="sysRedoBtn" title="Bring back the change you took back. Ctrl+Y does it too" disabled>Redo</button></span><button class="tool" id="sysSaveBtn" title="Save the system to this campaign (players at the table get the visible fields at once)">Save</button></div>
         <input type="file" id="sysImportFile" accept=".json,application/json" style="display:none;">
     </div>
 </div>

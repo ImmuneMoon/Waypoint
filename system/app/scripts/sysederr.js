@@ -11,12 +11,39 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { APPLY_KINDS, CAL_LIMITS, F, FEEDS_MAX, KINDS, LIMITS, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTier, cleanTurn, clone, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, itemReach, keyFromLabel, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
+import { APPLY_KINDS, CAL_LIMITS, F, FEEDS_MAX, KINDS, KIND_LABEL, LIMITS, STORED, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTier, cleanTurn, cleanValue, clone, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, histSaved, itemReach, keyFromLabel, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, showConfirm, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, valueOpts, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
 export function sysedErr() {   // [split:glue]
 // [split:body-start]
-function saveDraft() {
+// [sysedcheck:kindloss-start]
+// 1.6.3 (the improvement week's review of the System editor, finding 0): a field whose kind changed in the draft cannot read what characters hold
+// in it under its old kind (a number read as a text, a pool's current value read as a number), and Save's re-check (reCleanChars) then clears it
+// on every sheet. kindLoss counts it before Save: for each field the saved system has whose kind the draft changed to one that keeps a value, how
+// many characters hold a value the new kind's cleaner (cleanValue) answers nothing for. A kind that keeps no value (Derived) clears nothing, since
+// the value is left where it is. kindLossWords is the question Save asks, and refWarns says each under the field's Kind box
+function kindLoss(prev, d, chars) {
+    var out = [], vo = null; if (!prev || !d) return out;
+    (Array.isArray(prev.fields) ? prev.fields : []).forEach(function(sf) {
+        var df = sf ? (Array.isArray(d.fields) ? d.fields : []).filter(function(x) { return x && x.id === sf.id; })[0] : null; if (!df || df.kind === sf.kind || !STORED[df.kind]) return;
+        if (!vo) { try { vo = valueOpts(d); } catch (e) { vo = {}; } }
+        var fd = Object.assign({}, df, { options: Array.isArray(df.options) ? df.options : [] }), n = 0;
+        Object.keys(chars || {}).forEach(function(cid) {
+            var c = chars[cid], v = c && c.values && typeof c.values === 'object' ? c.values[sf.id] : undefined; if (v === undefined || v === null) return;
+            var w; try { w = cleanValue(fd, v, vo); } catch (e) { w = undefined; } if (w === undefined) n++;
+        });
+        if (n) out.push({ id: sf.id, label: df.label || sf.label || df.key || sf.key || 'a field', n: n, kind: df.kind });
+    });
+    return out;
+}
+function kindLossWords(list) {
+    var on = function(k) { return '“' + k.label + '” on ' + k.n + (k.n === 1 ? ' character' : ' characters'); }, parts = list.map(on);
+    return 'Save clears what your characters hold in ' + (list.length === 1 ? 'a field whose kind changed: ' : list.length + ' fields whose kind changed: ') + (parts.length === 1 ? parts[0] : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1]) + '. The new kind cannot read it. Save anyway, or pick the old kind again to keep it?';
+}
+// [sysedcheck:kindloss-end]
+// force: true only where Save was already asked about what it clears (finding 0); the button's own click hands an event, which is no true
+function saveDraft(force) {
     if (!draft || !canWrite()) return;
     var camp = getActiveCampaign(); if (!camp) return;
+    if (force !== true) { var lostK = kindLoss(camp.system, draft, camp.chars || {}); if (lostK.length) { showConfirm(kindLossWords(lostK), function(yes) { if (yes && draft) saveDraft(true); }, { noEnter: true, yes: 'Save and clear them' }); return; } }   // before anything of the draft is changed
     var rnS = typeof renamesCarry === 'function' ? renamesCarry(camp.system, draft) : null;   // 1.6.2 (backlog 208): an option, a station or a list's roll renamed: what names it follows
     draft.name = (ui('sysName').value || '').trim().slice(0, LIMITS.name);
     if (ui('sysMark')) { var mkD = ui('sysMark').value.trim(); if (mkD) draft.mark = mkD; else delete draft.mark; }
@@ -36,7 +63,7 @@ function saveDraft() {
     stampRows(clean, camp.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id (its derived one would name the item)
     var reach = itemReach(prevSys, clean, camp.chars || {}), nR = net(); if (nR && nR.logEvent) reach.lines.forEach(function(l) { nR.logEvent('items', l); });   // Stage 6 F4c2: how far an edit to carried items reaches (after the re-check, so a removed stat's own values are gone), into the session log before the save
     if (window.wpLibrary && window.wpLibrary.refreshCore) { try { if (window.wpLibrary.refreshCore(camp, true)) clean = camp.system; } catch (e) { console.error(e); } }   // Stage 6 library L1d: the core its formulas now address (the draft below carries it); true: the editor's Save
-    draftSet(clone(clean)); dirtySet(false); var s = ui('sysSaveBtn'); if (s) s.classList.remove('on');
+    draftSet(clone(clean)); dirtySet(false); var s = ui('sysSaveBtn'); if (s) s.classList.remove('on'); if (typeof histSaved === 'function') histSaved();   // 1.6.3: no Undo step
     if (pendS.length) { var dc = draft.combat || (draft.combat = {}), dsn = dc.senses && typeof dc.senses === 'object' ? dc.senses : (dc.senses = {}); dsn.list = (Array.isArray(dsn.list) ? dsn.list : []).concat(clone(pendS)); markDirty(); }
     save(true);
     starterSaved();   // 1.6.2: a starter's own packs, now that its system is the campaign's
@@ -76,6 +103,7 @@ function refWarns(saved, clean, camp0) {
     rn.names.forEach(function(p) { renamesSay({ names: [p] }).forEach(function(m) { warn(p.list ? 'list:' + p.f : p.f, m); }); });   // 1.6.2: a number's value names moved: said before Save, since the numbers stored in rows and the library stay as they are
     rn.subjects.forEach(function(p) { renamesSay({ subjects: [p] }).forEach(function(m) { warn('list:' + p.f, m); }); });   // 1.6.2: a list's subjects moved: a word only moved says nothing, since its rows follow
     var fromIn = function(l, f, x) { return l.some(function(p) { return p.f === f && low(p.from) === low(x); }); };
+    if (typeof kindLoss === 'function') kindLoss(saved, draft, chars).forEach(function(k) { (warningsById[k.id] = warningsById[k.id] || []).push({ prop: 'kind', message: 'Save clears what ' + k.n + (k.n === 1 ? ' character holds' : ' characters hold') + ' here, since a ' + (KIND_LABEL[k.kind] || k.kind) + ' field cannot read it. Pick its old kind again to keep it.' }); });   // 1.6.3 (finding 0)
     ((saved && saved.fields) || []).forEach(function(sf) {
         var df = sf ? (draft.fields || []).filter(function(x) { return x && x.id === sf.id; })[0] : null; if (!df || df.kind !== sf.kind) return;
         if (sf.kind === 'select') (Array.isArray(sf.options) ? sf.options : []).forEach(function(o) {   // a character's value of a list field that goes

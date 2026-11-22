@@ -12,7 +12,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CHAMBER_CAP, DEF_PROP, F, FEEDS_MAX, GRANT_MAX, KIND_LABEL, LIMITS, MARK_HOW, STAT_KEY, TURN_UNITS, _keyAuto, _perAt, _priceAt, _sidePrev, _starterPacks, addCharAsk, affOfRow, affSaysAt, applyChangeOf, barsClick, btnRow, budgetClick, buildDefCell, calendarClick, capInline, capsAt, charRowChange, charRowClick, charsDraw, checkLabel, cleanSystem, cleanTests, clone, closeGlyphPicker, coverHitClick, coverHitInput, crossEdit, damageClick, draft, draftSet, droppedCounts, droppedWords, effectRow, el, emptySystem, envClick, errPrefix, errorCell, everyEdit, featureOn, fieldRow, fxOfRow, fxTargets, getActiveCampaign, heightClick, input, itemRow, itemStatDefs, keyFollows, keyFromLabel, labeledSelect, layoutView, layoutViewSet, lightClick, lineUnder, linkClick, listCrossEdit, listNamesText, listOfCard, lookShadesOf, lvlOnlyRead, markDirty, modTiersRead, moneyOptions, numField, onAreaEdit, onBarsChange, onBlastChange, onBlastInput, onBudgetChange, onBudgetInput, onCalendarChange, onCalendarInput, onChecksInput, onDamageChange, onDamageInput, onDefendChange, onEnvChange, onEnvInput, onHeightChange, onHeightInput, onHoldChange, onHoldInput, onInitChange, onInitInput, onLayoutChange, onLayoutClick, onLayoutInput, onLightChange, onLightInput, onLinkChange, onLinkInput, onPostureChange, onPostureInput, onRangeChange, onRangeInput, onRemoveChange, onSensesChange, onSensesInput, onSwChange, onSwClick, onSwInput, onTableChange, onTableInput, open, opt, partsHostIn, patchErrors, perOptions, placeSet, plainMessage, postureClick, priceColOptions, priceOptions, rangeClick, refreshErrors, renderBudgets, renderCalendar, renderCharCats, renderCombat, renderCurrencies, renderDecks, renderEnv, renderLayout, renderLinks, renderLists, renderNames, renderResults, renderTables, renderTags, renderTests, renderValues, resistOrTick, resolveAll, rollRow, rolled, rowAimSet, segPut, select, sensesClick, setChangeTarget, showConfirm, sidePrevSet, sidePrevSync, starterPacksSet, statKey, statKeyInput, statTick, state, switchChangesChange, sysRolls, tab, tabSet, tableClick, testFormula, toast, ui, uid, upkeepChange, validateSystem } from './sheets.js';   // [split:glue]
+import { CHAMBER_CAP, DEF_PROP, F, FEEDS_MAX, GRANT_MAX, KIND_LABEL, LIMITS, MARK_HOW, STAT_KEY, TURN_UNITS, _keyAuto, _perAt, _priceAt, _sidePrev, _starterPacks, addCharAsk, affOfRow, affSaysAt, applyChangeOf, barsClick, btnRow, budgetClick, buildDefCell, calendarClick, capInline, capsAt, charRowChange, charRowClick, charsDraw, checkLabel, cleanSystem, cleanTests, clone, closeGlyphPicker, coverHitClick, coverHitInput, crossEdit, damageClick, draft, draftSet, droppedCounts, droppedWords, effectRow, el, emptySystem, envClick, errPrefix, errorCell, everyEdit, featureOn, fieldRow, fxOfRow, fxTargets, getActiveCampaign, heightClick, input, itemRow, itemStatDefs, keyFollows, keyFromLabel, labeledSelect, layoutView, layoutViewSet, lightClick, lineUnder, linkClick, listCrossEdit, listNamesText, listOfCard, lookShadesOf, lvlOnlyRead, markDirty, modTiersRead, moneyOptions, numField, onAreaEdit, onBarsChange, onBlastChange, onBlastInput, onBudgetChange, onBudgetInput, onCalendarChange, onCalendarInput, onChecksInput, onDamageChange, onDamageInput, onDefendChange, onEnvChange, onEnvInput, onHeightChange, onHeightInput, onHoldChange, onHoldInput, onInitChange, onInitInput, onLayoutChange, onLayoutClick, onLayoutInput, onLightChange, onLightInput, onLinkChange, onLinkInput, onPostureChange, onPostureInput, onRangeChange, onRangeInput, onRemoveChange, onSensesChange, onSensesInput, onSwChange, onSwClick, onSwInput, onTableChange, onTableInput, open, opt, partsHostIn, patchErrors, perOptions, placeSet, plainMessage, postureClick, priceColOptions, priceOptions, rangeClick, refreshErrors, renderBudgets, renderCalendar, renderCharCats, renderCombat, renderCurrencies, renderDecks, renderEnv, renderLayout, renderLinks, renderLists, renderNames, renderResults, renderTables, renderTags, renderTests, renderValues, resistOrTick, resolveAll, rollRow, rolled, rowAimSet, segPut, select, sensesClick, setChangeTarget, showConfirm, sidePrevSet, sidePrevSync, starterPacksSet, statKey, statKeyInput, statTick, state, switchChangesChange, sysRolls, tab, tabSet, tableClick, testFormula, toast, ui, uid, upkeepChange, usedAsk, validateSystem } from './sheets.js';   // [split:glue]
 export function sysedTabs() {   // [split:glue]
 // [split:body-start]
 function turnActs() { var tn = draft && draft.combat && draft.combat.turn; return tn && typeof tn === 'object' && Array.isArray(tn.acts) ? tn.acts.filter(function(a) { return a && typeof a === 'object' && typeof a.key === 'string' && a.key; }) : []; }
@@ -473,6 +473,28 @@ function needsWordsFollow(o, was, t, cls) {
     else return;
     var rw = t && t.closest ? t.closest(w[1]) : null, bx = rw && rw.querySelector ? rw.querySelector('.' + w[0]) : null; if (bx) bx.value = o.needsText || '';
 }
+// [sysedcheck:allorwait-start]
+// 1.6.3 (the improvement week's review of the System editor, finding 10): a few boxes draw the tab again as they first get a value (Taken from, Locked
+// while, a crossing's step), since another box comes with it. Where that box wears a form (formbox.js) whose every step says its input, the redraw
+// took the open form away after its first step. So while a form is open the redraw waits for the box's change, which the form says as it is put
+// away with something built, and is then made once. With no form open it is made at once, as before
+function allOrWait(t) {
+    var FB = typeof window !== 'undefined' ? window.wpFormBox : null;
+    if (FB && FB.isOpen && FB.isOpen() && t && t.addEventListener) {
+        if (!t._wpRedrawWait) { t._wpRedrawWait = true; var once = function() { t.removeEventListener('change', once); t._wpRedrawWait = false; if (draft) renderAll(); }; t.addEventListener('change', once); }
+        return false;
+    }
+    renderAll(); return true;
+}
+// [sysedcheck:allorwait-end]
+// [sysedcheck:kindkeep-start]
+// 1.6.3 (finding 6): changing a field's Kind, or a roll from Roll to Apply, took away what the old kind used (a formula, options, a base, the
+// changes of an action) at once, so a stray pick, or the next kind tried, lost them for good. What the old kind used is put aside here, in this
+// editor's memory and never in the draft (so Save and the check see the field as its kind has it), and comes back when that kind is picked again
+var FIELD_KEEP = ['formula', 'maxFormula', 'base', 'options', 'def', 'unit', 'unitShow', 'decMin', 'decMax', 'group', 'round', 'roundTo', 'roundAt'], ROLL_KEEP = ['apply', 'round', 'each', 'by', 'init'], _kindKept = new WeakMap();
+function kindKeep(o, kind, props) { if (!o || typeof o !== 'object') return; var m = _kindKept.get(o) || {}, k = {}; props.forEach(function(p) { if (o[p] !== undefined) k[p] = JSON.parse(JSON.stringify(o[p])); }); m[kind] = k; _kindKept.set(o, m); }
+function kindBack(o, kind, props) { var m = o && typeof o === 'object' ? _kindKept.get(o) : null, k = m ? m[kind] : null; if (!k) return false; props.forEach(function(p) { if (k[p] !== undefined) o[p] = JSON.parse(JSON.stringify(k[p])); }); return true; }
+// [sysedcheck:kindkeep-end]
 function onInput(e) {
     if (!draft) return;
     var t = e.target; keyBoxFollow(t); if (onLayoutInput(t)) return;
@@ -622,7 +644,7 @@ function onInput(e) {
             else if (lcc.indexOf('sys-list-ctend') >= 0) { if (!ctD.timer || typeof ctD.timer !== 'object') return; if (t.value.trim()) ctD.timer.end = t.value.slice(0, LIMITS.label); else delete ctD.timer.end; }
             else return;
         }
-        else if (lcc.indexOf('sys-list-xs') >= 0) { var xr = t.closest('.sys-list-xsrow'), xL = Array.isArray(lsp.rolls) ? lsp.rolls : null, xD = xr && xL ? xL[+xr.dataset.ri] : null; if (!xD || typeof xD !== 'object') return; if (listCrossEdit(xD, lcc, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.6.0
+        else if (lcc.indexOf('sys-list-xs') >= 0) { var xr = t.closest('.sys-list-xsrow'), xL = Array.isArray(lsp.rolls) ? lsp.rolls : null, xD = xr && xL ? xL[+xr.dataset.ri] : null; if (!xD || typeof xD !== 'object') return; if (listCrossEdit(xD, lcc, t) === 'all') { markDirty(); allOrWait(t); return; } }   // 1.6.0
         else if (lcc.indexOf('sys-list-applymoney') >= 0) {   // 1.6.0: the sheet's money, a figure (Save cleans it)
             var mrw = t.closest('.sys-list-applyrow'), mRl = mrw && Array.isArray(lsp.rolls) ? lsp.rolls[+mrw.dataset.ri] : null, mC = mRl && Array.isArray(mRl.then) ? mRl.then[+mrw.dataset.ai] : null;
             if (!mC || typeof mC !== 'object') return; mC.money = t.value.slice(0, LIMITS.formula);
@@ -702,9 +724,9 @@ function onInput(e) {
         else if (c.indexOf('sys-caption') >= 0) { if (t.value.trim()) f.caption = t.value.slice(0, 400); else delete f.caption; }   // Fold B (Save cuts it to 200)
         else if (c.indexOf('sys-vnames') >= 0) { var vn = t.value.split(',').map(function(s) { return s.trim(); }).slice(0, LIMITS.labels); while (vn.length && !vn[vn.length - 1]) vn.pop(); if (vn.some(Boolean)) f.labels = vn; else delete f.labels; }   // Stage 6: a blank between names keeps its place (every later name keeps its number)
         else if (c.indexOf('sys-res-icon') >= 0) { if (t.value.trim()) f.icon = t.value.slice(0, 32); else delete f.icon; }   // Fold B
-        else if (c.indexOf('sys-ovr-value') >= 0 || c.indexOf('sys-ovr-when') >= 0) { var ovK = c.indexOf('sys-ovr-value') >= 0 ? 'value' : 'when', ovT = t.value.trim() ? t.value.slice(0, LIMITS.formula) : ''; var ovO = Object.assign({}, f.override && typeof f.override === 'object' ? f.override : {}); if (ovT) ovO[ovK] = ovT; else delete ovO[ovK]; if (ovO.value || ovO.when) f.override = ovO; else delete f.override; if (ovK === 'value') { markDirty(); renderAll(); return; } }   // 205 (6): Taken from, then while
+        else if (c.indexOf('sys-ovr-value') >= 0 || c.indexOf('sys-ovr-when') >= 0) { var ovK = c.indexOf('sys-ovr-value') >= 0 ? 'value' : 'when', ovT = t.value.trim() ? t.value.slice(0, LIMITS.formula) : ''; var ovO = Object.assign({}, f.override && typeof f.override === 'object' ? f.override : {}); if (ovT) ovO[ovK] = ovT; else delete ovO[ovK]; if (ovO.value || ovO.when) f.override = ovO; else delete f.override; if (ovK === 'value') { markDirty(); allOrWait(t); return; } }   // 205 (6): Taken from, then while
         else if (c.indexOf('sys-trackof') >= 0) { if (f.track && typeof f.track === 'object') { if (t.value.trim()) f.track.of = t.value.slice(0, LIMITS.formula); else delete f.track.of; } }   // 1.6.2: a track's Out of
-        else if (c.indexOf('sys-fldlock-if') >= 0) { var flH = !!(f.lock && typeof f.lock === 'object' && f.lock['if']), flO = Object.assign({}, f.lock && typeof f.lock === 'object' ? f.lock : {}); if (t.value.trim()) { flO['if'] = t.value.slice(0, LIMITS.formula); f.lock = flO; } else delete f.lock; if (flH !== !!f.lock) { markDirty(); renderAll(); return; } }   // 1.6.3 (backlog 170): Locked while (its words box comes and goes with the test)
+        else if (c.indexOf('sys-fldlock-if') >= 0) { var flH = !!(f.lock && typeof f.lock === 'object' && f.lock['if']), flO = Object.assign({}, f.lock && typeof f.lock === 'object' ? f.lock : {}); if (t.value.trim()) { flO['if'] = t.value.slice(0, LIMITS.formula); f.lock = flO; } else delete f.lock; if (flH !== !!f.lock) { markDirty(); allOrWait(t); return; } }   // 1.6.3 (backlog 170): Locked while (its words box comes and goes with the test)
         else if (c.indexOf('sys-fldlock-says') >= 0) { if (f.lock && typeof f.lock === 'object') { if (t.value.trim()) f.lock.says = t.value.slice(0, 200); else delete f.lock.says; } }
         else if (c.indexOf('sys-surch-if') >= 0) { var scO = Object.assign({}, f.surcharge && typeof f.surcharge === 'object' ? f.surcharge : {}); if (t.value.trim()) { scO['if'] = t.value.slice(0, LIMITS.formula); f.surcharge = scO; } else delete f.surcharge; }   // 1.6.2 Costs more while
         else if (c.indexOf('sys-surch-add') >= 0) { if (f.surcharge && typeof f.surcharge === 'object') { var scA = Math.round(Number(t.value)); if (isFinite(scA) && scA >= 1) f.surcharge.add = Math.min(99, scA); else delete f.surcharge.add; } }
@@ -752,7 +774,7 @@ function onInput(e) {
             var ndHad = typeof r.needs === 'string' && !!r.needs.trim(); if (t.value.trim()) r.needs = t.value.slice(0, LIMITS.formula); else delete r.needs;
             if (!ndHad && r.needs && !(typeof r.needsText === 'string' && r.needsText.trim())) { r.needsText = 'Not now'; var ndRw = t.closest('.sys-roll-needsrow'), ndTx = ndRw ? ndRw.querySelector('.sys-roll-needstext') : null; if (ndTx) ndTx.value = r.needsText; }
         }
-        else if (c.indexOf('sys-roll-xs') >= 0) { if (crossEdit(r, c, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.5.9 (book es/et plan 4a): When a value crosses
+        else if (c.indexOf('sys-roll-xs') >= 0) { if (crossEdit(r, c, t) === 'all') { markDirty(); allOrWait(t); return; } }   // 1.5.9 (book es/et plan 4a): When a value crosses
         else if (c.indexOf('sys-roll-evn') >= 0 || c.indexOf('sys-roll-ifn') >= 0) everyEdit(r, c, t);   // item 20 K5; backlog 152, fold 5: In a fight's number
         else return;
     } else return;
@@ -1052,7 +1074,7 @@ function onChange(e) {
     var ctx = fieldOfRow(t); if (!ctx) return;
     var f = ctx.f, r = ctx.r;
     if (f) {
-        if (c.indexOf('sys-kind') >= 0) { f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; if (f.unit === 'height' || f.unit === 'weight' ? f.kind !== 'text' : f.kind === 'text') delete f.unit; if (f.kind !== 'number' && f.kind !== 'formula' && f.kind !== 'skill') { delete f.unitShow; delete f.decMin; delete f.decMax; delete f.group; } if (f.kind !== 'formula' && f.kind !== 'resource') { delete f.round; delete f.roundTo; delete f.roundAt; } f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; if (f.kind === 'resource') hpPoolFill(f.id); markDirty(); renderAll(); return; }
+        if (c.indexOf('sys-kind') >= 0) { var kWas = f.kind; kindKeep(f, kWas, FIELD_KEEP); f.kind = t.value; delete f.formula; delete f.maxFormula; delete f.base; delete f.options; if (f.unit === 'height' || f.unit === 'weight' ? f.kind !== 'text' : f.kind === 'text') delete f.unit; if (f.kind !== 'number' && f.kind !== 'formula' && f.kind !== 'skill') { delete f.unitShow; delete f.decMin; delete f.decMax; delete f.group; } if (f.kind !== 'formula' && f.kind !== 'resource') { delete f.round; delete f.roundTo; delete f.roundAt; } f.def = f.kind === 'toggle' ? false : f.kind === 'text' || f.kind === 'select' ? '' : f.kind === 'resource' ? 'max' : 0; if (f.kind === 'resource' && f.min === undefined) f.min = 0; kindBack(f, f.kind, FIELD_KEEP); if (kWas === 'resource' && f.kind !== 'resource') hpPoolLeave(f.id); if (f.kind === 'resource') hpPoolFill(f.id); markDirty(); renderAll(); return; }
         if (c.indexOf('sys-edit') >= 0) f.edit = t.value;
         else if (c.indexOf('sys-vis') >= 0) f.vis = t.value;
         else if (c.indexOf('sys-hover-chk') >= 0) f.hover = t.checked;
@@ -1089,7 +1111,7 @@ function onChange(e) {
         else if (c.indexOf('sys-fielddie') >= 0) { if (t.value) f.rollDie = t.value; else delete f.rollDie; }   // 1.5.8: the die its roll button wears (Save keeps a name of the set)
         else return;
     } else if (r) {
-        if (c.indexOf('sys-roll-kind') >= 0) { if (r.label === 'New roll' && t.value === 'apply') r.label = 'New action'; else if (r.label === 'New action' && t.value !== 'apply') r.label = 'New roll'; if (t.value === 'apply') {   /* 1.6.3: a starting name follows Roll and Apply */ if (!Array.isArray(r.apply)) r.apply = [{ f: '', formula: '' }]; delete r.init; } else { delete r.apply; delete r.round; delete r.each; delete r.by; } markDirty(); renderAll(); return; }   // Stage 6 HUD H7: Roll | Apply (a formula typed before stays in the draft)
+        if (c.indexOf('sys-roll-kind') >= 0) { var rkWas = Array.isArray(r.apply) ? 'apply' : 'roll'; kindKeep(r, rkWas, ROLL_KEEP); if (r.label === 'New roll' && t.value === 'apply') r.label = 'New action'; else if (r.label === 'New action' && t.value !== 'apply') r.label = 'New roll'; if (t.value === 'apply') {   /* 1.6.3: a starting name follows Roll and Apply */ if (!Array.isArray(r.apply)) r.apply = [{ f: '', formula: '' }]; delete r.init; } else { delete r.apply; delete r.round; delete r.each; delete r.by; } kindBack(r, t.value === 'apply' ? 'apply' : 'roll', ROLL_KEEP); markDirty(); renderAll(); return; }   // Stage 6 HUD H7: Roll | Apply (a formula typed before stays in the draft)
         else if (c.indexOf('sys-apply-target') >= 0) { var chT = applyChangeOf(t, r); if (!chT) return; setChangeTarget(chT, t.value); markDirty(); renderAll(); return; }   // 1.6.0: a field, or an effect switched on or off
         else if (c.indexOf('sys-apply-link') >= 0) { var chLk = applyChangeOf(t, r); if (!chLk) return; if (t.value) chLk.link = t.value; else delete chLk.link; }   // 1.6.2 (12)
         else if (c.indexOf('sys-apply-op') >= 0) { var chO = applyChangeOf(t, r); if (!chO) return; delete chO.add; delete chO.set; delete chO.mark; delete chO.loss; if (t.value === 'add') chO.add = true; else if (t.value === 'set') chO.set = true; else if (t.value === 'loss') chO.loss = true; else if (MARK_HOW[t.value]) chO.mark = MARK_HOW[t.value]; }   // 1.6.2: or the fill rule
@@ -1176,7 +1198,7 @@ function onClick(e) {
         if (eact === 'up' && ei > 0) { draft.effects.splice(ei, 1); draft.effects.splice(ei - 1, 0, ed); }
         else if (eact === 'down' && ei < draft.effects.length - 1) { draft.effects.splice(ei, 1); draft.effects.splice(ei + 1, 0, ed); }
         else if (eact === 'dup') { var dd = clone(ed); dd.id = uid('e_'); if (dd.name) dd.name = dd.name + ' copy'; draft.effects.splice(ei + 1, 0, dd); }
-        else if (eact === 'del') { draft.effects.splice(ei, 1); }
+        else if (eact === 'del') { if (typeof usedAsk === 'function') { usedAsk('effect', ed, function() { var j = draft.effects.indexOf(ed); if (j >= 0) draft.effects.splice(j, 1); markDirty(); renderAll(); }); return; } draft.effects.splice(ei, 1); }   // 1.6.3 (finding 9): asked first where something uses it
         else if (eact === 'fxmodadd') {
             var tg = fxTargets(draft)[0]; if (!tg) return; ed.mods = Array.isArray(ed.mods) ? ed.mods : [];
             if (ed.mods.length >= LIMITS.effectMods) { toast('At most ' + LIMITS.effectMods + ' changes per effect.'); return; }
@@ -1195,7 +1217,7 @@ function onClick(e) {
         if (iact === 'up' && ii > 0) { draft.items.splice(ii, 1); draft.items.splice(ii - 1, 0, iitem); }
         else if (iact === 'down' && ii < draft.items.length - 1) { draft.items.splice(ii, 1); draft.items.splice(ii + 1, 0, iitem); }
         else if (iact === 'dup') { var di = clone(iitem); di.id = uid('i_'); if (di.name) di.name = di.name + ' copy'; draft.items.splice(ii + 1, 0, di); }
-        else if (iact === 'del') { draft.items.splice(ii, 1); }
+        else if (iact === 'del') { if (typeof usedAsk === 'function') { usedAsk('item', iitem, function() { var j = draft.items.indexOf(iitem); if (j >= 0) draft.items.splice(j, 1); markDirty(); renderAll(); }); return; } draft.items.splice(ii, 1); }   // 1.6.3 (finding 9)
         else if (iact === 'itemmodadd') {   // F6
             var tgI = fxTargets(draft)[0]; if (!tgI) return; iitem.mods = Array.isArray(iitem.mods) ? iitem.mods : [];
             if (iitem.mods.length >= LIMITS.effectMods) { toast('At most ' + LIMITS.effectMods + ' changes per item.'); return; }
@@ -1305,7 +1327,7 @@ function onClick(e) {
     if (act === 'up' && i > 0) { list.splice(i, 1); list.splice(i - 1, 0, item); }
     else if (act === 'down' && i < list.length - 1) { list.splice(i, 1); list.splice(i + 1, 0, item); }
     else if (act === 'dup') { var d = clone(item); d.id = uid(ctx.f ? 'f_' : 'r_'); if (ctx.f) { _keyAuto.add(d); d.key = keyFromLabel(d.label, d) || (d.key ? d.key + '2' : ''); } else if (d.key) d.key = d.key + '2'; list.splice(i + 1, 0, d); }   // 1.6.2: a copied field is a new one, so its short name follows its label as a new field's does
-    else if (act === 'del') { list.splice(i, 1); }
+    else if (act === 'del') { if (typeof usedAsk === 'function') { usedAsk(ctx.f ? 'field' : 'roll', item, function() { var j = list.indexOf(item); if (j >= 0) list.splice(j, 1); markDirty(); renderAll(); }); return; } list.splice(i, 1); }   // 1.6.3 (finding 9): a field, a list or a roll other parts use asks first
     else if (act === 'slidercl' && item.slider) { delete item.slider.lowColor; delete item.slider.midColor; delete item.slider.highColor; }   // Stage 5e: the track back to the theme's colors
     else if (act === 'rescolorclr') { delete item.color; delete item.colorBand; }   // Stage 6 look fold (L7): the pool back to the theme's colors
     else return;
@@ -1361,11 +1383,18 @@ function starterSaved() {   // after Save: the waiting packs written, and said
 // blasts and the Take damage window take damage off it. So it starts filled: the first pool the draft gets fills it while it is empty (id, the field
 // just made a pool), and a starter that holds a pool and names none starts on its first pool (no id). A pick already made is never changed, and a
 // system as it was saved is never touched here. An empty one is said under the Taking damage box
+// 1.6.3 (the review of the System editor, finding 34; Fulllion's pick of 2026-11-21): the first pool made still becomes the damage pool, and a
+// notice says so once a pool, naming where to change it, since a first pool named Mana would otherwise take every wound unseen. hpPoolFill.auto is
+// the pool this fill set in this draft: a field the fill made the damage pool that is turned to another kind lets it go again (hpPoolLeave), and the
+// next pool, if any, takes its place, so a kind picked by mistake leaves no field that is no pool as the damage pool. hpPoolFill.said holds the pools
+// a notice was given for. Both are kept on the function itself, so a suite that runs these two functions alone needs nothing more
 function hpPoolFill(id) {
     if (!draft) return; var cm = draft.combat && typeof draft.combat === 'object' && !Array.isArray(draft.combat) ? draft.combat : null; if (cm && cm.hpResource) return;
     var pool = id || ((draft.fields || []).filter(function(f) { return !!f && f.kind === 'resource' && typeof f.id === 'string' && !!f.id; })[0] || {}).id; if (!pool) return;
-    if (!cm) cm = draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; cm.hpResource = pool;
+    if (!cm) cm = draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; cm.hpResource = pool; hpPoolFill.auto = { d: draft, id: pool };
+    var said = hpPoolFill.said || (hpPoolFill.said = Object.create(null)); if (id && !said[pool] && typeof toast === 'function') { said[pool] = 1; var pf = (draft.fields || []).filter(function(f) { return !!f && f.id === pool; })[0]; toast('Damage now comes off ' + ((pf && (pf.label || pf.key)) || 'this pool') + '. Change it on the Combat tab, under Taking damage.'); }
 }
+function hpPoolLeave(id) { var cm = draft && draft.combat; var au = hpPoolFill.auto; if (!cm || cm.hpResource !== id || !au || au.d !== draft || au.id !== id) return; cm.hpResource = ''; hpPoolFill.auto = null; hpPoolFill(''); }
 function startFrom(id) {
     if (!draft) return;
     var apply = function(sys, packs) { draftSet(clone(sys)); draft.updated = 0; hpPoolFill(''); starterPacksSet(packs || null); ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };
@@ -1378,9 +1407,25 @@ function startFrom(id) {
             return starterPacksGet(st).then(function(texts) { apply(c, { name: st.name, texts: texts }); });
         }).catch(function() { toast('That preset could not be loaded.'); });
     };
-    if (draft.fields.length || draft.rolls.length) showConfirm('Replace the current fields, rolls and layout with this preset? Values your characters keep under other field ids stay stored but hidden until a field with that id exists again.', function(yes) { if (yes) go(); });
+    // 1.6.3 (the review of the System editor, findings 12 and 38): asked whenever the draft holds anything, in words that say it replaces all of it,
+    // by a button that names the act
+    if (draftHolds(draft)) showConfirm(REPLACE_WORDS('this preset'), function(yes) { if (yes) go(); }, { noEnter: true, yes: 'Replace' });
     else go();
 }
+// [sysedcheck:draftholds-start]
+// whether the draft holds anything a replace would lose: anything at all beyond what a blank system, as the editor opens one, holds once cleaned
+function draftHolds(d) {
+    if (!d) return false;
+    if ((d.fields || []).length || (d.rolls || []).length || (d.items || []).length || (d.effects || []).length) return true;
+    try {
+        var blank = emptySystem(); if (!Array.isArray(blank.fields)) blank.fields = []; if (!Array.isArray(blank.rolls)) blank.rolls = []; if (!blank.sheet || !Array.isArray(blank.sheet.sections)) blank.sheet = { sections: [] }; if (!Array.isArray(blank.items)) blank.items = []; if (!blank.combat || typeof blank.combat !== 'object') blank.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' };
+        var a = cleanSystem(d, { F: F(), gmView: true }), b = cleanSystem(blank, { F: F(), gmView: true }); if (!a || !b) return true;
+        ['name', 'updated'].forEach(function(k) { delete a[k]; delete b[k]; });
+        return JSON.stringify(a) !== JSON.stringify(b);
+    } catch (e) { return true; }
+}
+var REPLACE_WORDS = function(what) { return 'Replace everything in this system with ' + what + '? That is its fields, rolls, items, effects, lists, combat and rules, calendar and layout. Nothing changes until you Save, and Undo brings it back. Values your characters hold for fields the new system does not have stay stored but hidden until such a field exists again.'; };
+// [sysedcheck:draftholds-end]
 function exportSystem() {
     if (!draft) return;
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) return;
@@ -1395,11 +1440,20 @@ function importFile(file) {
     file.text().then(function(text) {
         var j = JSON.parse(text);
         var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('not a system');
+        // 1.6.3 (the review of the System editor, finding 5): asked first where the draft holds anything, as Start from asks, and said after how many
+        // characters hold values for fields the file does not have, which go out of sight once it is saved
+        var put = function() {
+        if (!draft) return;
         var v = validateSystem(c, F());
         draftSet(c); draft.updated = 0; ui('sysName').value = draft.name || ''; markDirty(); renderAll();
+        var cpI = getActiveCampaign(), hadI = {}, keepI = {}, nHid = 0; ((cpI && cpI.system && cpI.system.fields) || []).forEach(function(f) { if (f && f.id) hadI[f.id] = 1; }); c.fields.forEach(function(f) { if (f && f.id) keepI[f.id] = 1; });
+        Object.keys((cpI && cpI.chars) || {}).forEach(function(id) { var vs = cpI.chars[id] && cpI.chars[id].values; if (vs && typeof vs === 'object' && Object.keys(vs).some(function(k) { return hadI[k] && !keepI[k]; })) nHid++; });
         var dr = droppedCounts(j, c), drT = typeof droppedWords === 'function' ? droppedWords(dr) : Object.keys(dr).map(function(k) { return dr[k] + ' ' + (dr[k] === 1 ? k.slice(0, -1) : k); }).join(', ');   // Stage 6 library L0: what the file had that was left out is counted, never cut silently
         var nN = function(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
         toast('Imported ' + (c.name || 'a system') + ': ' + nN(c.fields.length, 'field') + ', ' + nN(c.rolls.length, 'roll') + (c.items && c.items.length ? ', ' + nN(c.items.length, 'item') : '') + (v.ok ? '.' : ', ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.') + (drT ? ' Left out (over the limits, or not valid): ' + drT + '.' : ''));
+        if (nHid) toast(nHid + (nHid === 1 ? ' character holds values' : ' characters hold values') + ' for fields this file does not have. After Save those stay stored but hidden, until such a field exists again.');
+        };
+        if (draftHolds(draft)) showConfirm(REPLACE_WORDS('the system in this file'), function(yes) { if (yes) put(); }, { noEnter: true, yes: 'Replace' }); else put();
     }).catch(function() { toast('That file is not a Waypoint system.'); });
 }
 // [split:body-end]

@@ -11,7 +11,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { CAL_LIMITS, F, LIGHT_UNITS, LIMITS, REST_MAX, afterCharChange, applyAction, budgetNote, calPreset, charById, cleanCalendar, clone, commitMany, dateOf, dayLength, draft, el, entryNames, entryPick, errorCell, everySecs, fmtDate, fmtSpan, fmtWhen, followQuiet, getActiveCampaign, gmViewFields, input, keepPlace, labeledSelect, lastChange, lastChangeSet, markDirty, patchErrors, pressHold, refreshErrors, renderAll, restAtOf, restRevKeep, rolled, save, secretFieldIds, segPut, select, tab, timeOf, toast, ui, uid } from './sheets.js';   // [split:glue]
+import { CAL_LIMITS, F, LIGHT_UNITS, LIMITS, REST_MAX, afterCharChange, applyAction, budgetNote, calPreset, charById, cleanCalendar, clone, commitMany, dateOf, dayLength, draft, el, entryNames, entryPick, errorCell, everySecs, fmtDate, fmtSpan, fmtWhen, followQuiet, getActiveCampaign, gmViewFields, input, keepPlace, labeledSelect, lastChange, lastChangeSet, markDirty, patchErrors, pressHold, refreshErrors, renderAll, restAtOf, restRevKeep, rolled, save, secretFieldIds, segPut, select, showConfirm, tab, timeOf, toast, ui, uid } from './sheets.js';   // [split:glue]
 export function sysedCal() {   // [split:glue]
 // [split:body-start]
 // [sinkcheck:calendarbox-start]
@@ -285,8 +285,14 @@ function calendarClick(b) {
     if (act === 'calpreset') {
         var pid = b.dataset.preset;
         if (_calK) { var mo0 = calMain(), oo = calOther(mo0); if (!oo) return true; var keep = { name: oo.name }; if (oo.at) keep.at = oo.at; var pz0 = pid === 'days' ? {} : calPreset(pid); if (!pz0) return true; delete pz0.hours; delete pz0.minutes; delete pz0.seconds; mo0.others[_calK - 1] = Object.assign(keep, pz0); markDirty(); renderAll(); return true; }
+        var putCal = function() {
         if (pid === 'days') { var keptO = draft.calendar && Array.isArray(draft.calendar.others) ? draft.calendar.others : null; delete draft.calendar; if (keptO) draft.calendar = { others: keptO }; } else { var pz = calPreset(pid); if (!pz) return true; if (draft.calendar && Array.isArray(draft.calendar.others)) pz.others = draft.calendar.others; draft.calendar = pz; }   // the other calendars stay
-        markDirty(); renderAll(); return true;
+        markDirty(); renderAll(); };
+        // 1.6.3 (the review of the System editor, finding 5): a preset replaces the calendar's periods, its week and its leap rules, so a calendar that
+        // holds periods is asked about first, by a button that names the act
+        var calHas = draft.calendar && Array.isArray(draft.calendar.periods) && draft.calendar.periods.length;
+        if (calHas && typeof showConfirm === 'function') showConfirm('Replace your calendar with this one? Its periods, week and leap rules go, and the other calendars are kept. Undo brings it back.', function(yes) { if (yes && draft) putCal(); }, { noEnter: true, yes: 'Replace' }); else putCal();
+        return true;
     }
     if (/^cal(lthen0|ruleadd|ruledel|turnadd|turndel)$/.test(act)) return leapClick(b);   // 1.6.2 (backlog 60): the leap rules
     var sm2 = /^cal(s|m)(add|del)$/.exec(act);   // 1.6.2 (backlog 147): a season or a moon added at the end, or a row removed

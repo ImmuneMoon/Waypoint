@@ -144,7 +144,7 @@ function rowEnd(list, dir) { var n = dir > 0 ? list.firstChild : list.lastChild;
 // A group: its id, its name, whether it starts open, and the classes that send a piece to it. Groups that are rarely used start folded, and open by
 // themselves where the row uses them
 var GROUPS = {
-    fields: { split: ['sys-row-main', 'sys-flags'], pull: ['sys-round', 'sys-roundto', 'sys-roundat'], head: ['sys-key', 'sys-label', 'sys-kind', 'sys-btns'], list: [
+    fields: { split: ['sys-row-main', 'sys-flags'], pull: ['sys-round', 'sys-roundto', 'sys-roundat'], head: ['sys-key', 'sys-label', 'sys-kind', 'sys-usedby', 'sys-btns'], list: [
         ['value', 'The number', 1, ['sys-def']],
         ['who', 'Who sees and changes it', 1, ['sys-edit', 'sys-vis', 'sys-live-sel', 'sys-fldlock-*']],
         ['sheet', 'How it shows', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row', 'sys-trackshape', 'sys-trackof']],
@@ -153,7 +153,7 @@ var GROUPS = {
         ['auto', 'Worked out and filled', 0, ['sys-wout-box']],   // 1.6.2 (auto apply)
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']],
         ['explain', 'What it means', 0, ['sys-explain']]] },   // 1.6.2 (backlog 218 fold 3)
-    rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-btns'], list: [
+    rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-usedby', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-drawfirst', 'sys-drawnrow', 'sys-roll-drawn', 'sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime', 'sys-roll-keepscene']],
         ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-togm', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
         ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-why', 'sys-roll-cost', 'sys-costhowrow', 'sys-costhow', 'sys-clockrow', 'sys-clockn', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
@@ -579,6 +579,9 @@ function reach(id, prop) {
     if (box && box.hidden) formToo(box); else if (box && box.focus) box.focus();
     return to;
 }
+// 1.6.3 (finding 16): the System editor's Used by opens a place as a press on an error does: the tab, the row, the box. Answers whether the place
+// was known, whether or not a box was found to land on
+function goTo(id, prop) { if (!errHost || !errHost.where(id)) return false; errShow(false); errHost.go(id, prop); log('usedby-go', { reached: !!reach(id, prop) }); return true; }
 function onErrPress(e) {
     var b = e.target && e.target.closest ? e.target.closest('.sys-err-go, #sysErrBtn') : null; if (!b) { if (!(e.target && e.target.closest && e.target.closest('#sysErrList'))) errShow(false); return; }
     e.stopPropagation();
@@ -611,5 +614,5 @@ function onNameInput(e) {
     var lb = tw.querySelector('.sys-dmgr-ylabel'), ky = tw.querySelector('.sys-dmgr-ykey'); th.textContent = (lb && lb.value) || (ky && ky.value) || 'Type ' + (+tw.dataset.yi + 1);
 }
 function wire() { var m = byId('systemModal'); if (m) { m.addEventListener('keydown', onKey); m.addEventListener('click', onGroupPress); m.addEventListener('click', onErrPress); m.addEventListener('input', onNameInput); m.addEventListener('focusin', onGroupFocus); } Object.keys(PICK).forEach(pickWire); notesWire(); }
-window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, layoutDrawn: layoutDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, errHost: function(h) { errHost = h; }, topicOf: function(id) { return own(ERR_TOPIC, id) ? ERR_TOPIC[id] : /^b_/.test(id) ? ['rules', 'budgets'] : null; }, topicName: function(s, t) { var l = own(TOPICS, s) ? TOPICS[s] : [], i; for (i = 0; i < l.length; i++) if (l[i][0] === t) return l[i][1]; return ''; }, arrange: arrangeOne, arrangeIn: arrangeIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
+window.wpSysUi = { topicPress: topicPress, combatDrawn: combatDrawn, rulesDrawn: rulesDrawn, layoutDrawn: layoutDrawn, marks: marks, pickDraw: pickDraw, pickSet: pickSet, pickReset: pickReset, moveIn: moveIn, errHost: function(h) { errHost = h; }, place: function(id) { return errHost ? errHost.where(id) : null; }, goTo: goTo, topicOf: function(id) { return own(ERR_TOPIC, id) ? ERR_TOPIC[id] : /^b_/.test(id) ? ['rules', 'budgets'] : null; }, topicName: function(s, t) { var l = own(TOPICS, s) ? TOPICS[s] : [], i; for (i = 0; i < l.length; i++) if (l[i][0] === t) return l[i][1]; return ''; }, arrange: arrangeOne, arrangeIn: arrangeIn, isPick: function(k) { return own(PICK, k); }, paneOf: function(k) { return own(PICK, k) ? PICK[k].pane : ''; }, host: function(h) { host = h; } };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();

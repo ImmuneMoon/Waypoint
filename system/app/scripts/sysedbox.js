@@ -13,7 +13,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { ALT_MAX, ANS_HALF, ANS_MAX, BADGE_MAX, F, LIMITS, SEND_HOPS_MAX, START_MAX, STORED, _sidePrev, ansShareWord, asksBox, canWrite, cleanBands, charById, charList, charsOf, checkLabel, cleanLooks, cleanRowDef, cleanSystem, cleanValue, clone, crewPick, deckTrial, deckTrialRead, dirty, dirtySet, draft, draftSet, el, emptySystem, errGo, fieldById, getActiveCampaign, glyphButton, grantEntries, grantName, input, isClient, labeledSelect, layKeep, laySync, layoutViewSet, lazySelect, makeResolver, nameAsks, nameWord, needsGmBox, net, numField, numInput, openSync, pageOptions, patchErrors, rangeUnitWord, readsOf, refreshErrors, renderAll, renderPreview, rollName, rollStationBox, rolled, save, select, showConfirm, sidePrevSet, startRows, starterPacksSet, startersFill, startersLoad, state, sysReaders, systemOf, tab, tabSet, toast, ui, valueOpts } from './sheets.js';   // [split:glue]
+import { ALT_MAX, ANS_HALF, ANS_MAX, BADGE_MAX, F, LIMITS, SEND_HOPS_MAX, START_MAX, STORED, _sidePrev, ansShareWord, asksBox, canWrite, cleanBands, charById, charList, charsOf, checkLabel, cleanLooks, cleanRowDef, cleanSystem, cleanValue, clone, crewPick, deckTrial, deckTrialRead, dirty, dirtySet, draft, draftSet, el, emptySystem, errGo, fieldById, getActiveCampaign, glyphButton, grantEntries, grantName, input, isClient, labeledSelect, layKeep, laySync, layoutViewSet, lazySelect, makeResolver, nameAsks, nameWord, needsGmBox, net, numField, numInput, openSync, pageOptions, patchErrors, rangeUnitWord, readsOf, refreshErrors, renderAll, renderPreview, rollName, rollStationBox, rolled, save, select, showConfirm, sidePrevSet, startRows, starterPacksSet, startersFill, startersLoad, state, sysReaders, systemOf, tab, tabSet, toast, ui, validateSystem, valueOpts } from './sheets.js';   // [split:glue]
 export function sysedBox() {   // [split:glue]
 // [split:body-start]
 var KIND_LABEL = { number: 'Number', formula: 'Derived', resource: 'Resource', skill: 'Skill', toggle: 'Toggle', text: 'Text', notes: 'Notes', select: 'Select', 'item-list': 'Item list', effects: 'Status effects' };
@@ -118,7 +118,9 @@ function open(which, topic) {
     if (!Array.isArray(draft.fields)) draft.fields = []; if (!Array.isArray(draft.rolls)) draft.rolls = []; if (!draft.sheet || !Array.isArray(draft.sheet.sections)) draft.sheet = { sections: [] };
     if (!Array.isArray(draft.items)) draft.items = []; if (!draft.combat || typeof draft.combat !== 'object') draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' };
     dirtySet(false); tabSet(which || 'fields'); layoutViewSet('sheet'); sidePrevSet(false);   // 1.6.2: Preview closed whenever the editor opens
+    histReset();   // 1.6.3 (finding 9): Undo starts empty each time the editor opens
     var m = ui('systemModal'); if (!m) return;
+    histWire(m);
     ui('sysCampName').textContent = camp.name || 'Campaign';
     ui('sysName').value = draft.name || '';
     if (ui('sysMakeRolls')) ui('sysMakeRolls').value = draft.makeRolls === 'gm' || draft.makeRolls === 'self' ? draft.makeRolls : '';   // 1.6.3 (finding 22): Rolls while making
@@ -133,7 +135,9 @@ function open(which, topic) {
 }
 function close(force) {
     var m = ui('systemModal'); if (!m || m.style.display === 'none') return;
-    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirtySet(false); close(true); } }, { noEnter: true }); return; }   // 1.6.2: a key pressed for something else never throws the changes away
+    // 1.6.2: a key pressed for something else never throws the changes away. 1.6.3 (finding 38, Fulllion's pick of 2026-11-21): the button that throws
+    // the work away says so, never a bare OK
+    if (dirty && !force) { showConfirm('Close the System editor without saving? Your changes to the fields, rolls and layout since the last Save are lost (characters are saved as you go).', function(yes) { if (yes) { dirtySet(false); close(true); } }, { noEnter: true, yes: 'Close without saving' }); return; }
     if (window.wpArrange && window.wpArrange.on()) window.wpArrange.set(false);
     m.style.display = 'none'; draftSet(null); starterPacksSet(null);
 }
@@ -742,7 +746,181 @@ function toneRow(obj) {   // R5: a tone beside each value name of a stat or a co
     return row;
 }
 // [systemcheck:badgebox-end]
-function markDirty() { dirtySet(true); var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); if (_sidePrev && tab !== 'layout') { clearTimeout(_sidePrevT); _sidePrevT = setTimeout(function() { if (_sidePrev && draft) renderPreview(); }, 250); } }   // 1.6.2: the preview beside a tab follows each edit
+// 1.6.2: the preview beside a tab follows each edit. 1.6.3 (the improvement week's review of the System editor): every change ends here, so this
+// is also where Undo notes a step (histNote, finding 9) and where the foot says there are unsaved changes (footDirty, finding 36: an Arrange move
+// marked the draft with no word in the foot, since only the full check rewrote that line)
+function markDirty() { dirtySet(true); var s = ui('sysSaveBtn'); if (s) s.classList.add('on'); if (_sidePrev && tab !== 'layout') { clearTimeout(_sidePrevT); _sidePrevT = setTimeout(function() { if (_sidePrev && draft) renderPreview(); }, 250); } histNote(); footDirty(); }
+// [sysedcheck:hist-start]
+// 1.6.3 (finding 36): the foot's line ends in "unsaved changes" exactly while the draft holds changes. the full check in sheets.js writes the whole line
+// after a full check; this only adds or takes off its last words, so a change that runs no check (an Arrange move, a press with its own listener)
+// says it at once, and a step of Undo back to what was saved takes it off again
+var FOOT_DIRTY = ' · unsaved changes';
+function footDirty() {
+    var ft = typeof ui === 'function' ? ui('sysFoot') : null; if (!ft || !ft.textContent) return;
+    var t = ft.textContent, has = t.slice(-FOOT_DIRTY.length) === FOOT_DIRTY;
+    if (dirty && !has) ft.textContent = t + FOOT_DIRTY; else if (!dirty && has) ft.textContent = t.slice(0, -FOOT_DIRTY.length);
+}
+// 1.6.3 (finding 9; Fulllion's pick of 2026-11-21: "Undo and Redo in its foot, with Ctrl+Z and Ctrl+Y inside the editor when the focus is not in
+// a text box, keeping the last 30 steps as Arrange does"). The draft as text before each step, at most HIST_MAX of them, kept in memory while the
+// editor is open and never saved. A step is noted where markDirty is called: the first change after a quiet moment remembers the draft as it was
+// (base), and the step is closed HIST_WAIT ms after the last change, or at once by a press, a focus moving to another box, Undo or Save, so a run
+// of typing in one box is one step and two presses are two. _hist.at is the draft as text at the last closed step, _hist.saved as the campaign holds it,
+// so a step back to it leaves no unsaved changes. Undo and Redo replace the draft whole (draftSet) and draw the editor again; what the editor
+// keeps beside the draft by object (a new field's name that its short name follows, a kind put aside) does not come back with it
+var HIST_MAX = 30, HIST_WAIT = 700, _hist = { at: '', saved: '', undo: [], redo: [], pend: false, base: '', t: 0, quiet: false, wired: false };
+function histText() { try { return draft ? JSON.stringify(draft) : ''; } catch (e) { return ''; } }
+function histReset() { clearTimeout(_hist.t); _hist.t = 0; _hist.undo = []; _hist.redo = []; _hist.pend = false; _hist.at = _hist.saved = histText(); histSync(); }
+function histSaved() { clearTimeout(_hist.t); _hist.t = 0; _hist.pend = false; _hist.at = _hist.saved = histText(); histSync(); }   // after Save: the draft as the campaign now holds it, no step
+function histNote() {
+    if (_hist.quiet || !draft) return;
+    if (!_hist.pend) { _hist.pend = true; _hist.base = _hist.at; }
+    clearTimeout(_hist.t); _hist.t = setTimeout(histFlush, HIST_WAIT);
+    histSync();
+}
+function histFlush() {
+    clearTimeout(_hist.t); _hist.t = 0; if (!_hist.pend) return false; _hist.pend = false;
+    var now = histText(); if (!now || now === _hist.base) { _hist.at = now || _hist.at; histSync(); return false; }
+    _hist.undo.push(_hist.base); if (_hist.undo.length > HIST_MAX) _hist.undo.shift(); _hist.redo = []; _hist.at = now; histSync(); return true;
+}
+function histStep(back) {
+    if (!draft) return false;
+    if (typeof window !== 'undefined' && window.wpFormBox && window.wpFormBox.isOpen && window.wpFormBox.isOpen()) window.wpFormBox.shut();   // a form open on a box is put away first, keeping what it built
+    histFlush();
+    var from = back ? _hist.undo : _hist.redo, to = back ? _hist.redo : _hist.undo; if (!from.length) { histSync(); return false; }
+    var snap = from.pop(); to.push(_hist.at); _hist.at = snap; _hist.quiet = true;
+    try { draftSet(JSON.parse(snap)); if (snap === _hist.saved) { dirtySet(false); var sb = ui('sysSaveBtn'); if (sb) sb.classList.remove('on'); } else markDirty(); } finally { _hist.quiet = false; }
+    renderAll(); if (typeof window !== 'undefined' && window.wpArrange && window.wpArrange.on && window.wpArrange.on()) renderPreview();
+    footDirty(); histSync(); return true;
+}
+function histSync() {
+    var u = typeof ui === 'function' ? ui('sysUndoBtn') : null, r = typeof ui === 'function' ? ui('sysRedoBtn') : null;
+    if (u) u.disabled = !_hist.undo.length && !_hist.pend; if (r) r.disabled = !_hist.redo.length || _hist.pend;
+}
+// The wiring, put on once the first time the editor opens: the two buttons, a press or a focus that closes a step, and Ctrl+Z, Ctrl+Y and
+// Ctrl+Shift+Z while the focus is not in a box that is typed in (there the box keeps its own undo). The editor's own keydown listener stops
+// every key at the editor, so the play map's undo never hears them
+function histTyping(t) {
+    if (!t || t.nodeType !== 1) return false; if (t.isContentEditable || t.tagName === 'TEXTAREA') return true;
+    return t.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|color|range|file)$/i.test(t.type || 'text');
+}
+function histKey(e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return false; var k = (e.key || '').toLowerCase(); if (k !== 'z' && k !== 'y') return false;
+    if (histTyping(e.target)) return false;
+    e.preventDefault(); histStep(k === 'z' && !e.shiftKey); return true;
+}
+function histWire(m) {
+    if (_hist.wired || !m || !m.addEventListener) return; _hist.wired = true;
+    var u = ui('sysUndoBtn'), r = ui('sysRedoBtn');
+    if (u) u.addEventListener('click', function() { histStep(true); }); if (r) r.addEventListener('click', function() { histStep(false); });
+    m.addEventListener('pointerdown', function() { if (_hist.pend) histFlush(); }, true);
+    m.addEventListener('focusin', function() { if (_hist.pend) histFlush(); }, true);
+    m.addEventListener('keydown', histKey);
+}
+// [sysedcheck:hist-end]
+// [sysedcheck:usedby-start]
+// 1.6.3 (finding 16; Fulllion's pick of 2026-11-21: "A field's and a roll's row gets Used by: what reads it (formulas, rolls, list columns, layout
+// placements, effects, library entries), each one press away, opening that row as an error press does. It is worked out when asked, never on every
+// redraw"). And finding 9: deleting a field, a roll, an item or an effect that other parts still use asks first and names them (usedAsk).
+// What uses a thing is found three ways, each over the draft as it stands:
+//  - the check of the whole system run twice, with the thing and without it: every line the second says that the first did not names a place that
+//    reads it (a formula reading a field's short name, a roll named by another, a list column, a needs);
+//  - its id written anywhere else in the draft: a placement on the sheet or the HUD, the damage pool, a change aimed at it, a roll naming it;
+//  - each entry of the campaign's library that holds its id, or whose rules read a field's short name or an item's.
+// Each place is one line, by its own name (sysui.js place, which is the error list's own), and a press opens it as an error's press does
+// (sysui.js goTo), or the Library window at that entry. USED_MAX lines at most are drawn
+var USED_MAX = 60, USED_LISTS = { field: 'fields', roll: 'rolls', item: 'items', effect: 'effects' };
+function usedThing(kind, id) { var l = draft && Array.isArray(draft[USED_LISTS[kind]]) ? draft[USED_LISTS[kind]] : []; return l.filter(function(x) { return x && x.id === id; })[0] || null; }
+function usedName(kind, x) { var w = { field: x && x.kind === 'item-list' ? 'the list ' : 'the field ', roll: 'the roll ', item: 'the item ', effect: 'the effect ' }[kind] || ''; var n = x ? (kind === 'item' || kind === 'effect' ? x.name : x.label) || x.key || '' : ''; return n ? w + '“' + n + '”' : w.trim() || 'this'; }
+// where a hit at a path of the draft stands: the row it is in, a placement, a topic of the Combat or Rules tab, or the tab itself
+function usedPlace(path) {
+    var top = path[0], U = typeof window !== 'undefined' ? window.wpSysUi : null;
+    if ((top === 'fields' || top === 'rolls' || top === 'items' || top === 'effects') && typeof path[1] === 'number') { var o = draft[top][path[1]]; return o && o.id ? { id: top === 'fields' && o.kind === 'item-list' && path[2] === 'list' ? 'list:' + o.id : o.id, prop: typeof path[2] === 'string' && path[2] !== 'list' ? path[2] : '' } : null; }
+    if (top === 'sheet') { var hud = path[1] === 'hud', at = hud ? 2 : 1, sec = path[at] === 'sections' ? (hud ? draft.sheet.hud : draft.sheet).sections[path[at + 1]] : null; var lw = 'Layout' + (hud ? ' of the HUD' : '') + (sec && sec.title ? ', ' + sec.title : ''); return sec && sec.id && path[at + 2] === 'fields' ? { id: 'plc:' + (hud ? 'hud' : 'sheet') + ':' + sec.id + ':' + path[at + 3], name: lw } : { id: 'plc:' + (hud ? 'hud' : 'sheet') + ':', name: lw }; }
+    if (top === 'calendar' || top === 'rests') return { id: 'calendar' };
+    if (top === 'combat') { var k1 = path[1]; if (k1 === 'hpResource' || k1 === 'damage') return { id: 'damage' }; if (U && U.topicOf && U.topicOf(k1)) return { id: k1 }; return { tab: 'combat' }; }
+    if (U && U.topicOf && U.topicOf(top)) return { id: top };
+    return { tab: 'rules' };
+}
+function usedWalk(v, path, want, skip, hit) {
+    if (v === skip) return;
+    if (typeof v === 'string') { if (v === want) hit(path); return; }
+    if (!v || typeof v !== 'object') return;
+    if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) usedWalk(v[i], path.concat([i]), want, skip, hit); return; }
+    Object.keys(v).forEach(function(k) { usedWalk(v[k], path.concat([k]), want, skip, hit); });
+}
+function usedBy(kind, id) {
+    var out = [], seen = {}, Fx = F(), U = typeof window !== 'undefined' ? window.wpSysUi : null, x = usedThing(kind, id); if (!x || !draft) return out;
+    var add = function(p, name) {
+        var k = p.lib ? 'lib:' + p.lib.join(':') : p.id || ('tab:' + p.tab); if (seen[k]) { seen[k].n++; return; }
+        var w = p.id && U && U.place ? U.place(p.id) : null, o = { id: p.id || '', prop: p.prop || '', tab: (w && w.tab) || p.tab || '', lib: p.lib || null, n: 1,
+            name: name || p.name || (w && w.name) || (p.tab === 'combat' ? 'The Combat tab' : p.tab === 'layout' ? 'Layout' : 'The Rules tab') };
+        seen[k] = o; out.push(o);
+    };
+    if (Fx) {   // the check, with the thing and without it
+        var cut = clone(draft); cut[USED_LISTS[kind]] = (cut[USED_LISTS[kind]] || []).filter(function(y) { return !(y && y.id === id); });
+        var a = cleanSystem(draft, { F: Fx, gmView: true }), b = cleanSystem(cut, { F: Fx, gmView: true });
+        if (a && b) {
+            var va = validateSystem(a, Fx), vb = validateSystem(b, Fx), key = function(e) { return (e.id || '') + '|' + (e.prop || '') + '|' + (e.message || ''); }, was = {};
+            (va.errors || []).concat(va.warnings || []).forEach(function(e) { was[key(e)] = 1; });
+            (vb.errors || []).concat(vb.warnings || []).forEach(function(e) { if (e && !was[key(e)] && e.id !== id) add({ id: e.id, prop: e.prop }); });
+        }
+    }
+    usedWalk(draft, [], id, x, function(p) { var pl = usedPlace(p); if (pl) add(pl); });   // its id, written elsewhere
+    if (kind === 'item' && typeof x.key === 'string' && x.key) usedWalk(draft, [], x.key, x, function(p) { if (p[p.length - 1] === 'key' && p.length > 3) { var pl = usedPlace(p); if (pl) add(pl); } });   // an item's key, where a change or a bonus aims at it
+    var LB = typeof window !== 'undefined' ? window.wpLibrary : null, cp = getActiveCampaign(), packs = cp && cp.library && Array.isArray(cp.library.packs) ? cp.library.packs : [];
+    if (LB && typeof LB.entriesOf === 'function') {   // the library's entries
+        var low = kind === 'field' || kind === 'item' ? String(x.key || '').toLowerCase() : '', quoted = '"' + id + '"';
+        var reads = function(t) { if (!low || !Fx || typeof t !== 'string' || !t.trim()) return false; var p = Fx.parse(t); return !!(p && p.ok) && p.names.some(function(nm) { var s = String(nm).toLowerCase().split('.'); return kind === 'field' ? s[0] === low : s[1] === low; }); };
+        packs.forEach(function(pk) {
+            if (!pk || typeof pk.id !== 'string') return;
+            (LB.entriesOf(pk.id) || []).forEach(function(e) {
+                if (!e || typeof e.id !== 'string') return; var txt = ''; try { txt = JSON.stringify(e); } catch (er) {}
+                var hit = txt.indexOf(quoted) >= 0 || [e.needsIf, e.damage, e.cost].concat((Array.isArray(e.mods) ? e.mods : []).map(function(m) { return m && m.vf; })).some(reads);
+                if (hit) add({ lib: [pk.id, e.id] }, 'Library: ' + (e.name || e.key || 'an entry'));
+            });
+        });
+    }
+    return out;
+}
+function usedGo(r) {
+    var U = typeof window !== 'undefined' ? window.wpSysUi : null;
+    if (r.lib) { var LW = window.wpLibraryWin; if (LW && LW.openAt) LW.openAt(r.lib[0], r.lib[1]); else if (LW && LW.open) LW.open(); return; }
+    if (r.id && U && U.goTo && U.goTo(r.id, r.prop)) return;   // the row, as a press on an error opens it
+    if (r.tab) { tabSet(r.tab); renderAll(); }
+}
+function usedDraw(list, rows) {
+    list.textContent = '';
+    if (!rows.length) { list.appendChild(el('div', 'sys-note', 'Nothing else in this system or its library reads it.')); return; }
+    list.appendChild(el('div', 'sys-note', rows.length === 1 ? 'One place reads it. Press it to go there.' : rows.length + ' places read it. Press one to go there.'));
+    rows.slice(0, USED_MAX).forEach(function(r) {
+        var g = el('button', 'sys-usedby-go'); g.type = 'button'; g.appendChild(el('span', 'sys-usedby-where', r.name)); if (r.n > 1) g.appendChild(el('span', 'sys-usedby-n', r.n + ' times'));
+        g.addEventListener('click', function(ev) { ev.preventDefault(); ev.stopPropagation(); usedGo(r); }); list.appendChild(g);
+    });
+    if (rows.length > USED_MAX) list.appendChild(el('div', 'sys-note', (rows.length - USED_MAX) + ' more are not listed.'));
+}
+// the button a field's and a roll's row carries, and the list under it. Its own listeners, with clicks kept from the tab's handlers
+function usedByBox(kind, obj) {
+    var box = el('span', 'sys-usedby'), b = el('button', 'tool ghost sys-btn sys-usedby-btn', 'Used by'), list = el('div', 'sys-usedby-list');
+    b.type = 'button'; b.title = 'What reads it: formulas, rolls, list columns, the layout, effects and library entries'; b.setAttribute('aria-expanded', 'false'); list.hidden = true;
+    b.addEventListener('click', function(e) {
+        e.preventDefault(); e.stopPropagation();
+        if (!list.hidden) { list.hidden = true; b.setAttribute('aria-expanded', 'false'); return; }
+        var rows = []; try { rows = usedBy(kind, obj && obj.id); } catch (er) { console.error(er); }
+        usedDraw(list, rows); list.hidden = false; b.setAttribute('aria-expanded', 'true');
+    });
+    ['input', 'change', 'click'].forEach(function(t) { box.addEventListener(t, function(e) { e.stopPropagation(); }); });
+    box.appendChild(b); box.appendChild(list); return box;
+}
+// finding 9: before a delete. Nothing uses it: go at once. Else one question, answered by its buttons alone, that names the first places
+function usedAsk(kind, obj, go) {
+    var rows = []; try { rows = usedBy(kind, obj && obj.id); } catch (er) { console.error(er); rows = []; }
+    if (!rows.length) { go(); return false; }
+    var names = rows.slice(0, 4).map(function(r) { return r.name; }), list = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    showConfirm('Delete ' + usedName(kind, obj) + '? ' + (rows.length === 1 ? 'One part of this system uses it: ' : rows.length + ' parts of this system use it: ') + list + (rows.length > 4 ? ' and ' + (rows.length - 4) + ' more' : '') + '. Each will then name something that is gone. Undo brings it back.',
+        function(yes) { if (yes) go(); }, { noEnter: true, noEscape: true, yes: 'Delete it' });
+    return true;
+}
+// [sysedcheck:usedby-end]
 // 1.6.2 (backlog 59; the owner's pick: "A Preview button on every tab"): the Layout tab's preview, moved beside whatever tab is open while Preview is
 // pressed, and back home on the Layout tab, which shows it anyway. Closed whenever the editor opens
 var _sidePrevT = 0, _prevHome = null;   // _sidePrev stands beside the editor's state (var draft)
@@ -795,5 +973,5 @@ function gmFacing(sys) {
 }
 // [systemcheck:gmfacing-end]
 // [split:body-end]
-return { KIND_HELP: KIND_HELP, KIND_LABEL: KIND_LABEL, altBox: altBox, answersBox: answersBox, badgeBox: badgeBox, bandBox: bandBox, bandWhens: bandWhens, callsBox: callsBox, close: close, defenseOverview: defenseOverview, explainBox: explainBox, fieldOf: fieldOf, formOn: formOn, gmFacing: gmFacing, markDirty: markDirty, open: open, openSyncOne: openSyncOne, ownSwBox: ownSwBox, partCapsBox: partCapsBox, partFitsBox: partFitsBox, reCleanChars: reCleanChars, rollExtras: rollExtras, sidePrevSync: sidePrevSync, standThenBox: standThenBox, startsBox: startsBox, startsSay: startsSay, swWordsBox: swWordsBox, tileBoxesBox: tileBoxesBox, tileStatesBox: tileStatesBox, toneRow: toneRow, tradeRulesBox: tradeRulesBox };   // [split:glue]
+return { KIND_HELP: KIND_HELP, KIND_LABEL: KIND_LABEL, altBox: altBox, answersBox: answersBox, badgeBox: badgeBox, bandBox: bandBox, bandWhens: bandWhens, callsBox: callsBox, close: close, defenseOverview: defenseOverview, explainBox: explainBox, fieldOf: fieldOf, formOn: formOn, gmFacing: gmFacing, histSaved: histSaved, markDirty: markDirty, open: open, openSyncOne: openSyncOne, ownSwBox: ownSwBox, partCapsBox: partCapsBox, partFitsBox: partFitsBox, reCleanChars: reCleanChars, rollExtras: rollExtras, sidePrevSync: sidePrevSync, standThenBox: standThenBox, startsBox: startsBox, startsSay: startsSay, swWordsBox: swWordsBox, tileBoxesBox: tileBoxesBox, tileStatesBox: tileStatesBox, toneRow: toneRow, tradeRulesBox: tradeRulesBox, usedAsk: usedAsk, usedByBox: usedByBox };   // [split:glue]
 }   // [split:glue]

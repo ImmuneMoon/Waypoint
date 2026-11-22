@@ -663,7 +663,7 @@ function onLayoutClick(b) {
         return true;
     }
     if (b.id === 'sysAddSection') { var secsA = layoutSections(); if (secsA.length >= LIMITS.sections) { toast('At most ' + LIMITS.sections + ' sections.'); return true; } secsA.push({ id: uid('s_'), title: '', cols: 2, fields: [] }); markDirty(); renderLayout(); var last = ui('sysLayoutSecs').lastElementChild; if (last) { var ti = last.querySelector('.sys-sec-title'); if (ti) ti.focus(); } return true; }
-    if (b.id === 'sysLayoutAuto') {   // rebuilds the sections; the tabs and the pinned band are kept (owner's call, Stage 5c) — the sections land on the first tab
+    if (b.id === 'sysLayoutAuto') { var doAuto = function() {   // rebuilds the sections; the tabs and the pinned band are kept (owner's call, Stage 5c) — the sections land on the first tab
         var keepGrp = sheetList('bandGroups'), keepHud = draft.sheet && draft.sheet.hud;   // Stage 6: the band's groups are kept with it (the new sections have no Pin yet, so they show)
         var cl = cleanSystem(draft, { F: F(), gmView: true }), keepId = sheetList('identity'), keepLed = sheetList('ledger'), keepTabs = layoutTabs().slice(), keepBand = (draft.sheet && Array.isArray(draft.sheet.band)) ? draft.sheet.band.slice() : [];
         var keepLook = (draft.sheet && draft.sheet.look && typeof draft.sheet.look === 'object') ? draft.sheet.look : null;   // Stage 5g: the shape lives in the Sheet look box — kept
@@ -671,7 +671,12 @@ function onLayoutClick(b) {
         if (keepId.length) draft.sheet.identity = keepId; if (keepLed.length) draft.sheet.ledger = keepLed;   // Stage 5d: the header block is kept as well
         if (keepGrp.length) draft.sheet.bandGroups = keepGrp; if (keepHud) draft.sheet.hud = keepHud;   // HUD frame HF1: the HUD is kept
         var keptAny = keepTabs.length || keepBand.length || keepId.length || keepLed.length;
-        markDirty(); renderLayout(); toast(keptAny ? 'The automatic layout is now yours to change; your tabs, header block and band are kept.' : 'The automatic layout is now yours to change.'); return true;
+        markDirty(); renderLayout(); toast(keptAny ? 'The automatic layout is now yours to change; your tabs, header block and band are kept.' : 'The automatic layout is now yours to change.'); };
+        // 1.6.3 (the review of the System editor, finding 5): it replaces every section of the sheet, so where there are sections it asks first, as
+        // the HUD's copy and Use the automatic layout ask, by a button that names the act. Arrange presses it only where there are none
+        var nAuto = layoutSections().length;
+        if (nAuto && typeof showConfirm === 'function') showConfirm('Replace your ' + nAuto + (nAuto === 1 ? ' section' : ' sections') + ' with the automatic layout? Your tabs, header block, band, sheet look and HUD are kept, and Undo brings your sections back.', function(yes) { if (yes) doAuto(); }, { noEnter: true, yes: 'Replace' }); else doAuto();
+        return true;
     }
     if (b.id === 'sysLayoutClear') { if (!layoutSections().length && !layoutTabs().length && !(draft.sheet && draft.sheet.band && draft.sheet.band.length) && !sheetList('identity').length && !sheetList('ledger').length) return true; showConfirm('Remove your layout? The sheet goes back to the automatic one (one section per kind, then the rolls), with no tabs, no identity rows or ledger figures and no pinned band (the Sheet look box and the HUD are kept).', function(yes) { if (yes) { var keepHud = draft.sheet && draft.sheet.hud, keepGrp2 = draft.sheet && draft.sheet.bandGroups; var keepShape = draft.sheet && draft.sheet.look; draft.sheet = { sections: [] }; if (keepShape) draft.sheet.look = keepShape; if (keepHud) { draft.sheet.hud = keepHud; if (keepGrp2 && Array.isArray(keepHud.band) && keepHud.band.some(function(q) { return q && q.g; })) draft.sheet.bandGroups = keepGrp2; } markDirty(); renderLayout(); } }); return true; }
     if (b.id === 'sysAddTab') { var tbs0 = layoutTabs(); if (tbs0.length >= LIMITS.tabs) { toast('At most ' + LIMITS.tabs + ' tabs.'); return true; } tbs0.push({ id: uid('t_'), label: 'Tab ' + (tbs0.length + 1) }); markDirty(); renderLayout(); return true; }

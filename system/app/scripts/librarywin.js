@@ -1150,3 +1150,9 @@ function guidePress(e) {
 })();
 
 window.wpLibraryWin = { open: open, close: close, flush: flush, refresh: refresh, isOpen: function() { return st.open; }, canTake: gmHere, takeEntry: takeEntry };
+// 1.6.3 (the review of the System editor, finding 16): the System editor's Used by opens the Library window at an entry that reads a field or a roll
+window.wpLibraryWin.openAt = function(packId, entryId) {
+    if (!st.open) open(); if (!st.open || !packById(packId)) return;
+    st.packId = packId; st.entryId = entryId; st.draftNew = null; st.sel = map(); st.anchor = null; st.q = ''; var s = ui('libSearch'); if (s) s.value = '';
+    renderAll();
+};

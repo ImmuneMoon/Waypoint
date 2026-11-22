@@ -5037,7 +5037,8 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && !/\.wb-item[^{]*> \.wb-room-name/.test(css)
         && wbS.includes("      if (window.wpRoomNamesEnd) window.wpRoomNamesEnd();   // 1.6.3: the room names this draw asked for, placed above the pieces (wbbuild.js), the rest taken away\n      positionHandles(activeMap);")
         && wbS.includes("      if (window.wpRoomNamesPlace) window.wpRoomNamesPlace();   // 1.6.3: a room's name follows its piece through a drag (wbbuild.js)")
-        && Q.includes('transform: scale(var(--wbz, 1)) translateX(-50%); transform-origin: 0 0;') && Q.includes('background: #14141c;') && Q.includes('pointer-events: none;') && Q.includes('font-size: 12px;'),
+        && Q.includes('transform: scale(var(--wbz, 1)) translateX(-50%); transform-origin: 0 0;') && Q.includes('background: #14141c;') && Q.includes('pointer-events: none;') && Q.includes('font-size: 12px;')
+        && css.includes('\n  body.stream-mode .wb-item.mappin > .mp-name { transform: translateX(-50%); transform-origin: 50% 50%; padding: 1px 6px; background: rgba(16,16,24,0.82); border: 0; box-shadow: none; color: #f1ead8; font-size: 11px; font-weight: inherit; }'),
         J([rnZ, !!plate, !!pin]));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

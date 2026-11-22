@@ -647,20 +647,28 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'res
     else { bad++; console.log('FAIL      a card keeps clear of what it names: ' + (spotErr || J({ spotOut, avoidWired }))); }
     // Finding 42: the chip of a paused tour stands above any toolbar it would cover (the chip slice run for real), and is placed so as the tour
     // pauses and when the window changes size
-    let chipOut = null, chipErr = '';
+    let chipOut = null, chipErr = '', chipSpotOut = null, chipSel = '';
     try {
-        const chipLift = new Function('"use strict";' + nl + cutM('chip') + nl + 'return chipLift;')();
+        const chipK = new Function('"use strict";' + nl + cutM('chip') + nl + 'return { chipLift, chipSpot, CHIP_SEL };')(), chipLift = chipK.chipLift;
         const R = (l, t, r, b) => ({ left: l, top: t, right: r, bottom: b });
         const c = R(350, 900, 726, 946);
         chipOut = [chipLift(c, [R(453, 882, 902, 934)], 964), chipLift(c, [], 964), chipLift(c, [R(800, 882, 1000, 934)], 964), chipLift(c, [R(453, 882, 902, 934), R(300, 830, 500, 870)], 964), chipLift(c, [R(400, 400, 600, 500)], 964), chipLift(c, undefined, 964)];
+        // The review of the click test firstrun: an open menu of a bar is an obstacle too (a menu opens 10 px above its bar, exactly where
+        // the chip lifted over the bar stood), and a lift past the top of the window, over a tall menu, stands the chip beside what is in
+        // its way at its own height instead. chipSpot answers null, { bottom } or { left } (the chip's middle).
+        chipSpotOut = [chipK.chipSpot(c, [R(453, 882, 902, 934)], 1280, 964), chipK.chipSpot(c, [R(453, 882, 902, 934), R(500, 600, 700, 872)], 1280, 964),
+            chipK.chipSpot(c, [R(453, 882, 902, 934), R(500, 30, 700, 872)], 1280, 964), chipK.chipSpot(c, [], 1280, 964), chipK.chipSpot(c, undefined, 1280, 964)];
+        chipSel = chipK.CHIP_SEL;
     } catch (e) { chipErr = String(e && e.stack || e); }
     const pauseA = lf.indexOf('function pauseTour() {'), pauseSrc = pauseA < 0 ? '' : lf.slice(pauseA, lf.indexOf(nl + '}' + nl, pauseA));
     const chipWired = /tour\.chip\.style\.display = 'flex';\n\s*placeChip\(\);\n?$/.test(pauseSrc) && lf.includes("window.addEventListener('resize', function() { if (tour.active && !tour.paused) place(); if (tour.active && tour.paused) placeChip(); });")
-        && /function placeChip\(\) \{[\s\S]*?document\.querySelectorAll\('\.floating-toolbar'\)[\s\S]*?chipLift\(c, bars, window\.innerHeight\)/.test(lf)
+        && /function placeChip\(\) \{[\s\S]*?document\.querySelectorAll\(CHIP_SEL\)[\s\S]*?chipSpot\(c, obs, window\.innerWidth, window\.innerHeight\)/.test(lf)
+        && lf.includes("function chipAgain() { if (tour.active && tour.paused) setTimeout(placeChip, 0); }") && lf.includes("['click', 'keyup', 'contextmenu'].forEach(function(t) { window.addEventListener(t, chipAgain, true); });")
+        && /\.floating-toolbar \.shape-menu \{[^}]*bottom: 100%;[^}]*margin-bottom: 10px;/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8'))
         && ['wbFloatingToolbar', 'wbEdgeTools', 'dataFloatingToolbar'].every(id => new RegExp('id="' + id + '" class="[^"]*\\bfloating-toolbar\\b').test(html));
-    if (!chipErr && J(chipOut) === J([92, null, null, 144, null, null]) && chipWired)
-        console.log('ok        1.6.3 (the release click test, finding 42) the chip of a paused tour stands 10 px above any toolbar it would cover, and above the next one where that lift meets it, and stays where the style sheet puts it otherwise (the chip slice run for real); it is placed as the tour pauses and again when the window changes size, by the play map\'s toolbar, its edge column and the Data Map\'s, wherever they stand');
-    else { bad++; console.log('FAIL      the chip of a paused tour: ' + (chipErr || J({ chipOut, chipWired }))); }
+    if (!chipErr && J(chipOut) === J([92, null, null, 144, null, null]) && J(chipSpotOut) === J([{ bottom: 92 }, { bottom: 374 }, { left: 255 }, null, null]) && chipSel === '.floating-toolbar, .floating-toolbar .shape-menu.show' && chipWired)
+        console.log('ok        1.6.3 (the release click test, finding 42) the chip of a paused tour stands 10 px above any toolbar it would cover, and above the next one where that lift meets it, and stays where the style sheet puts it otherwise (the chip slice run for real); an open menu of a bar counts as a toolbar, and a lift past the top of the window over a tall menu stands it beside what is in its way instead (the review of the click test firstrun); it is placed as the tour pauses, again when the window changes size and again after a click, a key or a right-click while paused, by the play map\'s toolbar, its edge column and the Data Map\'s, wherever they stand');
+    else { bad++; console.log('FAIL      the chip of a paused tour: ' + (chipErr || J({ chipOut, chipSpotOut, chipSel, chipWired }))); }
     // Finding 47: the Fog of war step frames Bren and the Cellar Lurker in the upper part of the map, clear of its card at the foot, with no
     // preview, whose pill said Viewing as the party beside a card that says "On your screen"
     let fogOut = null, fogErr = '';
@@ -680,10 +688,10 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'res
     else { bad++; console.log('FAIL      the Fog of war step\'s view: ' + (fogErr || J({ fogOut, tokOk, sqOk, step: fogStep.slice(-200) }))); }
     // Finding 43: the words a step says name the controls as they stand in 1.6.3, and show no key
     const stale = ['The arrow on its edge toggles it by hand', '<b>Render</b> shows the finished page', '<code>d20 + STRmod</code>', 'The <b>Sheet look</b> box at the top of Layout', 'Settings &#9656; Profile'].filter(t => lf.includes(t));
-    const fresh = [[stepOf('#sidebar'), 'a right-click on the empty map opens <b>Map properties</b>'], [lf, '<b>Edit</b>, <b>Read</b> and <b>Side by side</b> switch how the page is shown'], [stepOf('#systemBtn'), 'such as an attack of a d20 plus a bonus from Strength'],
+    const fresh = [[stepOf('#sidebar'), 'With nothing selected, <b>Map properties</b> opens the map&rsquo;s own settings. Here it is in the menu of the toolbar&rsquo;s first button, and on the play map a right-click on its empty ground opens it.'], [lf, '<b>Edit</b>, <b>Read</b> and <b>Side by side</b> switch how the page is shown'], [stepOf('#systemBtn'), 'such as an attack of a d20 plus a bonus from Strength'],
         [stepOf('#sysLayoutPreview'), '<b>Sheet look</b> in the Layout tab&rsquo;s list dresses the whole sheet'], [stepOf('#netBtn'), 'Your picture in the top row opens <b>your profile</b>']].filter(p => !p[0].includes(p[1])).map(p => p[1]);
     const stepsSrc = lf.slice(lf.indexOf('var STEPS = ['), lf.indexOf(nl + '];', lf.indexOf('var STEPS = [')));
-    const helpStale = ['Sheet look</b> box at the top of Layout', 'in the Sheet look box'].filter(t => html.includes(t));
+    const helpStale = ['Sheet look</b> box at the top of Layout', 'in the Sheet look box', 'The same box shapes the sheet', 'The Sheet look box dresses both'].filter(t => html.includes(t));   // the review of the click test firstrun: no line still calls Sheet look a box
     if (!stale.length && !fresh.length && !/<code>/.test(stepsSrc) && !helpStale.length && html.includes('id="propClose"') && html.includes('id="setProfileOpenBtn"') && /#renderPlannerBtn \{ display: none; \}/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')))
         console.log('ok        1.6.3 (the release click test, finding 43) the tour names the controls as they stand: the Properties panel by its own close and Map properties (no arrow on its edge since 1.6.2), a planner by Edit, Read and Side by side (Render is put away), Sheet look as a part of the Layout tab\'s list (in Help too), the profile by the picture in the top row, and no step shows a formula as code');
     else { bad++; console.log('FAIL      the tour\'s words: ' + J({ stale, fresh, helpStale })); }

@@ -810,7 +810,7 @@ var STEPS = [
       help: ['datamap', 'Linked maps: doors, stairs and warps'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { target: '#sidebar', title: 'The Properties panel',
-      html: 'Whatever you select is edited here. For a room that is its name, color, scene image, notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears. Its &times; closes it by hand, and a right-click on the empty map opens <b>Map properties</b>.',
+      html: 'Whatever you select is edited here. For a room that is its name, color, scene image, notes and the characters found there. Room notes and character info are <b>never sent to players</b>. The panel opens with a selection and closes when it clears. Its &times; closes it by hand. With nothing selected, <b>Map properties</b> opens the map&rsquo;s own settings. Here it is in the menu of the toolbar&rsquo;s first button, and on the play map a right-click on its empty ground opens it.',
       help: ['datamap', 'Rooms'],
       before: function() { openItem('map_tut_city'); goView('data'); state.selId = 'tut_palace'; render(); if (window.wpSyncRightPanel) window.wpSyncRightPanel(); openRightForTour(); } },
     { section: 'Play map & VTT features', target: '#wbFloatingToolbar', title: 'Play map tools',
@@ -1049,6 +1049,8 @@ function ensureDom() {
     });
     window.addEventListener('click', function() { if (tour.active) setTimeout(heal, 0); }, true);   // judged when it runs: a click that resumes the tour heals too
     window.addEventListener('keyup', function() { if (tour.active) setTimeout(heal, 0); }, true);
+    // a menu of a bar opens or closes on a click, a key or a right-click (which opens a tool's options): the paused chip is placed again
+    ['click', 'keyup', 'contextmenu'].forEach(function(t) { window.addEventListener(t, chipAgain, true); });
     // the card is dragged by its heading (never by a button in it); it goes back beside its target at the next step
     tour.card.addEventListener('pointerdown', function(e) {
         if (e.button || !e.target.closest || !e.target.closest('.tour-grip') || e.target.closest('button')) return;
@@ -1174,17 +1176,39 @@ function chipLift(c, bars, H) {
     }
     return lifted;
 }
+// What the chip keeps clear of (the review of the click test firstrun): every toolbar on screen and every menu of a toolbar that is open,
+// since a menu opens above its bar and ends exactly where a chip lifted over the bar would stand.
+var CHIP_SEL = '.floating-toolbar, .floating-toolbar .shape-menu.show';
+// Where the chip stands among those obstacles (obs, rectangles), c its rectangle where the style sheet puts it, W and H the window. The
+// answer is null (stay where the style sheet puts it), { bottom } (lifted, as chipLift says), or { left } (the chip's middle, at its own
+// height) where a lift would take it past the top of the window, as over a tall menu: the free spot at its own height nearest where it
+// stood, beside the obstacles that are in its way there, never off the window's sides.
+function chipSpot(c, obs, W, H) {
+    obs = Array.isArray(obs) ? obs : [];
+    var b = chipLift(c, obs, H); if (b === null) return null;
+    var h = c.bottom - c.top, w = c.right - c.left;
+    if (H - b - h >= 8) return { bottom: b };
+    var hits = function(x) { return obs.some(function(o) { return x < o.right && x + w > o.left && c.top < o.bottom && c.bottom > o.top; }); };
+    var cand = [12, W - w - 12];
+    obs.forEach(function(o) { if (c.top < o.bottom && c.bottom > o.top) cand.push(o.left - 10 - w, o.right + 10); });
+    var best = null;
+    cand.forEach(function(x) { if (x < 12 || x + w > W - 12 || hits(x)) return; if (best === null || Math.abs(x - c.left) < Math.abs(best - c.left)) best = x; });
+    return best === null ? { bottom: b } : { left: Math.round(best + w / 2) };
+}
 // [tutorialcheck:chip-end]
 // The chip placed for the toolbars on screen now: the play map's, its edge column, the Data Map's (each a .floating-toolbar), wherever
 // the layout of the map has put them.
 function placeChip() {
     var chip = tour.chip; if (!chip || chip.style.display === 'none') return;
-    chip.style.bottom = '';
+    chip.style.bottom = ''; chip.style.left = '';
     var c = shownRect(chip); if (!c) return;
-    var bars = Array.prototype.map.call(document.querySelectorAll('.floating-toolbar'), shownRect).filter(Boolean);
-    var b = chipLift(c, bars, window.innerHeight);
-    if (b !== null) chip.style.bottom = b + 'px';
+    var obs = Array.prototype.map.call(document.querySelectorAll(CHIP_SEL), shownRect).filter(Boolean);
+    var at = chipSpot(c, obs, window.innerWidth, window.innerHeight);
+    if (at && at.bottom !== undefined) chip.style.bottom = at.bottom + 'px';
+    if (at && at.left !== undefined) chip.style.left = at.left + 'px';   // its middle: the style sheet centers it on its left
 }
+// A menu of a bar opens or closes on a click, a key or a right-click; while the tour is paused the chip is placed again once it has.
+function chipAgain() { if (tour.active && tour.paused) setTimeout(placeChip, 0); }
 
 // [tutorialcheck:stage-start]
 // What a step's own setup opens, told by its target: the System editor, a sheet (or a HUD), Settings, Table Chat, the fog preview, a menu of the top row, a container's window.

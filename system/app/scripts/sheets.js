@@ -10,6 +10,7 @@ import { autoFills, autoStore } from './systemcore.js';   // 1.6.2 (auto apply)
 import { REST_MAX } from './systemcore.js';   // 1.6.2 (backlog 138 (j) fold R1)
 import { editHasLock, cleanFieldLock } from './systemcore.js';   // 1.6.3 (the review of backlog 170): whether a change can meet a field's Locked while, and what Save keeps of one
 import { laySync } from './systemcore.js';   // 1.6.2 Laid from: rows another list's rows lay, kept in step beside openSync
+import { lastsSays } from './systemcore.js';   // 1.6.3 (the review of the System editor, finding 21): an effect's Duration note in words, under its box
 import { lazyVars } from './systemcore.js';   // 1.6.3 (the combat review, findings 5 and 19): a sheet's names worked out as they are read
 import { picRef, cssColor } from './safecore.js';
 import { showConfirm, showPrompt } from './dialogs.js';
@@ -75,7 +76,7 @@ export { REST_MAX, applyAction, budgetNote, calPreset, commitMany, dateOf, dayLe
 export { CREW_NONE, DMG_LIM, HEIGHT_UNITS, LIGHT_UNITS, RANGE_UNITS, cleanDamageRules, cleanHeld, cleanOnRemove, saveDraft };   // [split:glue]
 export { CHAR_CATS, CSV, CUR_MAX, TABLE_KEY, TABLE_ROW_KEY, arcsBox, barsBox, blastBox, bodiesBox, bodyBox, checksBox, cleanTests, cleanValues, coverHitBox, csvTable, damageBox, darkBox, defendBox, defenseOverview, formulaSays, grantListFor, heightBox, holdsBox, keyWord, landBox, lightBox, mapKindsBox, nameFold, postureBox, rangeBox, readCsv, rowFocusBack, scenesBox, sensesBox, tableKeyOk, tableRangeSays, terrainBox, testFormula, travelBox, turnBox, valueNow };   // [split:glue]
 export { CHAMBER_CAP, COVER_HIT_ROWS, ROW_LOOK, altBox, badgeBox, capInline, dbxBtn, dbxCap, kindSel, labeledNum, listCrossRow, metricSel, onRemoveBox, ownSwBox, partCapsBox, partFitsBox, pickOne, placeSel, renderCombat, rollExtras, standThenBox, startsBox, swWordsBox, switchChangesBox, tileBoxesBox, tileStatesBox, toneRow, tradeRulesBox, unitWordsOn, upkeepBox, whyBox };   // [split:glue]
-export { NEEDS_WHY, STAT_KEY, _asPlayer, activeCharOf, answersBox, areaBox, askRow, bandBox, bandWhens, callsBox, cardBox, cleanRollSw, clockBox, costHow, costOptions, crossRow, dbxLocNames, dieSel, drawHow, entryNames, entryPick, everyRow, fieldOf, fightRow, fxHolds, fxTargets, grantBox, handKept, helpBox, hudFor, itemOfRow, keepPlace, kindsNamed, landDmgSel, lossOpts, lvlOnlyText, markOpts, markVal, modHowSel, modTiersText, modVal, noteRow, opVal, picPicker, playableChars, playerNames, postureList, resistBySel, resistOrBox, rollNeedsFails, rowAimInto, rowFocusOf, swDice, swGone, turnActs, withRowSel };   // [split:glue]
+export { NEEDS_WHY, STAT_KEY, _asPlayer, activeCharOf, answersBox, areaBox, lastsSays, askRow, bandBox, bandWhens, callsBox, cardBox, cleanRollSw, clockBox, costHow, costOptions, crossRow, dbxLocNames, dieSel, drawHow, entryNames, entryPick, everyRow, fieldOf, fightRow, fxHolds, fxTargets, grantBox, handKept, helpBox, hudFor, itemOfRow, keepPlace, kindsNamed, landDmgSel, lossOpts, lvlOnlyText, markOpts, markVal, modHowSel, modTiersText, modVal, noteRow, opVal, picPicker, playableChars, playerNames, postureList, resistBySel, resistOrBox, rollNeedsFails, rowAimInto, rowFocusOf, swDice, swGone, turnActs, withRowSel };   // [split:glue]
 export { CAL_LIMITS, FEEDS_MAX, KINDS, TIME_WORDS, callDrops, capFOk, catNear, catsGone, cleanCalendar, cleanCover, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanTier, cleanTurn, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, envSays, fitIfOk, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, itemReach, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, modsIfOk, onRemoveSays, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, secretFieldIds, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, tableSays, terrainSettleAll, turnHoldSays, turnRunSays, unheldRolls, unitOf, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll };   // [split:glue]
 export { ALT_MAX, ANS_HALF, ANS_MAX, BADGE_MAX, SEND_HOPS_MAX, START_MAX, STORED, _sidePrev, ansShareWord, asksBox, cleanBands, cleanLooks, cleanRowDef, cleanValue, crewPick, deckTrial, deckTrialRead, dirtySet, draftSet, emptySystem, errGo, fieldById, grantEntries, grantName, layKeep, laySync, nameAsks, nameWord, needsGmBox, numField, numInput, openSync, rangeUnitWord, readsOf, refreshErrors, renderAll, renderPreview, rollName, rollStationBox, sidePrevSet, starterPacksSet, startersFill, startersLoad, sysReaders, tabSet, valueOpts };   // [split:glue]
 export { BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, LOOK_PRESETS, PALETTE_KEYS, PAL_CAPS, PIN_GID, _arrChar, applySheetLookTo, arrCharSet, autoLayout, btnRow, buildSections, capBox, catChoices, catHome, catSplits, cleanPlaceCats, cleanSystem, clone, dirty, errorsById, fieldWord, fxLiveSet, glyphButton, headerEdits, hintBox, hudView, layoutView, layoutViewSet, lazySelect, pageOptions, paletteOf, pinTargetsAll, rollPick, sheetLook, showConfirm, startRows, syncFramePad, tabStandIns, tokenCtxFor, twinNamer, validKey, validateSystem };   // [split:glue]
@@ -3044,11 +3045,20 @@ function picPicker(inp) {
 }
 function glyphButton(inp, title) {   // title: the button's own words where its box is not one to type in (the Library window's Icon, a hidden box)
     var b = el('button', 'tool ghost sys-btn sys-glyph-btn'); b.type = 'button'; b.title = typeof title === 'string' && title ? title : 'Pick an icon (or type an emoji)';
-    var paint = function() { b.textContent = ''; var v = inp.value.trim(); b.appendChild(v ? iconNode(v, 'sys-glyph-cur') : el('span', 'sys-glyph-cur', '\u2026')); };
+    // 1.6.3 (the review of the System editor and the Library window, finding 35): where the box is hidden, the button's tooltip also names the pick in
+    // words (glyphWord), since the box that once showed it is out of sight
+    var base = b.title, paint = function() { b.textContent = ''; var v = inp.value.trim(); b.appendChild(v ? iconNode(v, 'sys-glyph-cur') : el('span', 'sys-glyph-cur', '\u2026')); if (inp.type === 'hidden') b.title = base + (v ? '. Now: ' + glyphWord(v) : '. None picked yet'); };
     paint();
     b.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); glyphPicker(inp, b, paint); });
     inp.addEventListener('input', paint);
     return b;
+}
+// 1.6.3 (finding 35): an icon's value in words: a bundled icon by its name, its hyphens as spaces, an emoji by the first word the picker files it
+// under, else the emoji itself. Never the stored form (icon:name)
+function glyphWord(v) {
+    var s = String(v || '').trim(); if (s.indexOf('icon:') === 0) return s.slice(5).replace(/-/g, ' ');
+    for (var i = 0; i < EMOJI_SET.length; i++) if (EMOJI_SET[i][0] === s) return EMOJI_SET[i][1].split(' ')[0];
+    return s;
 }
 function glyphPicker(inp, anchor, repaint) {
     closeGlyphPicker();
@@ -8402,7 +8412,7 @@ function fieldRow(f) {
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own color'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
     flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
-        var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'none'); flags.appendChild(capInline(rIcoIn, 'Icon: ')); flags.appendChild(glyphButton(rIcoIn));
+        var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'none'); rIcoIn.type = 'hidden'; flags.appendChild(capInline(rIcoIn, 'Icon: ')); flags.appendChild(glyphButton(rIcoIn, 'Pick an icon from Waypoint\u2019s own icons or the emoji'));   // 1.6.3 (finding 35): the box hidden, the picker shows the pick
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
         var rcl = el('label', 'sys-sec-color'), rci = el('input'); rci.type = 'color'; rci.className = 'sys-res-color'; rci.value = f.color || '#4db3d3'; rci.title = 'The pool\u2019s own color: its icon, its bar and its value on the band'; rcl.appendChild(el('span', 'sys-sec-style-lbl', 'Color')); rcl.appendChild(rci); flags.appendChild(rcl);   // L7
         if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No color'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colors'; flags.appendChild(rcc); }
@@ -8938,6 +8948,7 @@ window.wpSheets = { bellNote: bellNote, picPeek: picPeek, restDoes: restDoes, re
     readerKit: function() { return { exportView: exportView, charById: charById, tokenFlags: tokenFlags, facingTarget: facingTarget, stanceCtx: stanceCtx, el: el, saveTextFile: saveTextFile, systemOf: systemOf, F: F, isClient: isClient, canWrite: canWrite, newCharacter: newCharacter, linkToken: linkToken, afterCharChange: afterCharChange, openReview: openReview, gmFinder: gmFinder, renderViews: renderViews, sheetOpen: function() { return sheetOpen; } }; } };   // what an outside reader's page code reads the sheet by
 Object.assign(window.wpSheets, { facingTarget: facingTarget, dueBlock: dueBlock, takeDamage: takeDamage, canDamage: canDamage, damageFromRoll: damageFromRoll, damageOn: damageOn, aimNext: aimNext, durWord: dmgDurWord });   // 1.5.6, the damage step; 1.6.3: a weapon's durability in the system's words (net.js thruNote)
 Object.assign(window.wpSheets, { glyphButton: glyphButton, closeGlyphPicker: closeGlyphPicker });   // 1.6.3 (the editor coverage audit, gap 10): the Library window's Icon is picked by sight with the Items tab's own picker
+Object.assign(window.wpSheets, { entryPick: entryPick });   // 1.6.3 (the review of the System editor, finding 17): the Library window picks an entry of a list by its name with the Items tab's own picker
 // 1.6.3 (Fulllion's rulings of 2026-11-20): and the Library window's Strikes at picks a blast's hit location by name from the very list the Items tab
 // offers, the Taking damage locations, and says where a name finds none, by the same two readers
 Object.assign(window.wpSheets, { locNames: function(list, sys) { return dbxLocNames(list, sys); }, locFinds: function(list, at, sys) { return dbxLocFinds(list, at, sys); } });

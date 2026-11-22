@@ -14,7 +14,7 @@ import { CSV, readCsv, headsOf, headLooks, csvStats, csvTargets, guessMap, setTa
 import { itemReach, carriedBy, lvlOnlyRead, lvlOnlyText, modTiersRead, modTiersText, keyUses, keyUseSays, catNear, LIMITS, cleanRollSw, swDice, cleanAffs, cleanFlies } from './systemcore.js';
 
 var ROW_H = 28, FLUSH_MS = 1000, FORM_KEYS = ['name', 'key', 'category', 'icon', 'pic', 'vis', 'notes', 'desc', 'lvls', 'ref', 'gmNotes', 'damage', 'cost', 'throwSkill', 'tags', 'lvl', 'lvlOnly', 'stats', 'area', 'flies', 'rm', 'rmMsg', 'eq', 'eqMsg', 'again', 'rollSw', 'opens', 'grants', 'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsWarn', 'needsMsg'];
-var NEED_MAX = 80, NEED_PICK = 2000;   // 126b: the entries one entry needs, and the longest list its chooser offers
+var NEED_MAX = 80, NEED_PICK = 2000;   // 126b: the entries one entry needs. NEED_PICK is no cut any more (1.6.3, finding 23): the choosers search the whole library (entryChooser), and it stays only as the figure rowKeys' suggestions stop at
 var VIS = [['all', 'Players can see it'], ['gm', 'GM only']];
 var st = { open: false, campId: null, packId: null, entryId: null, q: '', shown: [], work: map(), dirty: map(), timer: null, draftNew: null, sel: map(), anchor: null, imp: null, fm: null, fmFor: null, fn: null, fnFor: null };   // fm (F6): the open entry's changes being edited
 var byName = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator(undefined, { sensitivity: 'base', numeric: true }).compare : function(a, b) { return String(a).localeCompare(String(b)); };
@@ -51,10 +51,11 @@ function keyGoneSays(oldKey, gone) {
     return keyUseSays(oldKey, keyUses(c.system, oldKey, allEntries().filter(function(x) { return x && x.id !== gone; })));
 }
 function tagList(v) { return String(v || '').split(',').map(function(t) { return t.trim(); }).filter(Boolean); }
-// the stats an entry can carry: the item lists' stat keys, each once, as the first list spells and labels it (a pick offers its choices)
+// the stats an entry can carry: the item lists' stat keys, each once, as the first list spells and labels it (a pick offers its choices). 1.6.3
+// (finding 22): each says the categories of every list that holds it (cats, lower case; null where a list names none, so it takes every category)
 function statDefs() {
     var out = [], seen = map();
-    itemLists().forEach(function(f) { (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(s) { var k = s && typeof s.key === 'string' ? s.key : ''; if (!k || seen[k.toLowerCase()]) return; seen[k.toLowerCase()] = 1; out.push({ key: k, label: s.label || k, set: s.set === true ? (Array.isArray(s.labels) ? s.labels.slice(0, 16) : []) : null, opts: s.kind === 'pick' && Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o.label === 'string' ? o.label : ''; }).filter(Boolean) : null }); }); });
+    itemLists().forEach(function(f) { var lc = Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(c) { return String(c).toLowerCase(); }) : null; (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(s) { var k = s && typeof s.key === 'string' ? s.key : ''; if (!k) return; if (seen[k.toLowerCase()]) { var was = seen[k.toLowerCase()]; was.cats = was.cats === null || lc === null ? null : was.cats.concat(lc); return; } var d = { key: k, label: s.label || k, set: s.set === true ? (Array.isArray(s.labels) ? s.labels.slice(0, 16) : []) : null, opts: s.kind === 'pick' && Array.isArray(s.opts) ? s.opts.map(function(o) { return o && typeof o.label === 'string' ? o.label : ''; }).filter(Boolean) : null, cats: lc }; seen[k.toLowerCase()] = d; out.push(d); }); });
     return out;
 }
 function catOptions() { var out = [], seen = map(); itemLists().forEach(function(f) { (Array.isArray(f.list.cats) ? f.list.cats : []).forEach(function(c) { if (typeof c === 'string' && c && !seen[c.toLowerCase()]) { seen[c.toLowerCase()] = 1; out.push(c); } }); }); return out; }
@@ -90,11 +91,26 @@ function open() {
     var cn = ui('libCampName'); if (cn) cn.textContent = c.name || '';
     shortSync();   // 1.6.2: Short names, as this computer last left it
     var s = ui('libSearch'); if (s) s.value = '';
-    m.style.display = 'flex'; state(''); renderAll(); guideOpen();
+    m.style.display = 'flex'; state(''); renderAll(); guideOpen(); draftNote();
     if (s) try { s.focus({ preventScroll: true }); } catch (e) {}
 }
-async function close() { if (!st.open) return; glyphClose(); await flush(); st.open = false; st.work = map(); st.imp = null; csvWide(false); st.g = null; guideSync(); var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b && !b.offsetParent) b = ui('campMenuBtn'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
+async function close() { if (!st.open) return; glyphClose(); leave(); await flush(); st.open = false; st.work = map(); st.imp = null; csvWide(false); st.g = null; guideSync(); var m = ui('libraryModal'); if (m) m.style.display = 'none'; var b = ui('sysOpenLibrary'); if (b && !b.offsetParent) b = ui('campMenuBtn'); if (b) try { b.focus({ preventScroll: true }); } catch (e) {} }   // back to the System editor, whose keys (Esc) then work
 function renderAll() { renderPacks(); renderPackBar(); renderList(); renderForm(); }
+// 1.6.3 (the review of the System editor and the Library window, finding 11; Fulllion's pick of 2026-11-21): the Library reads the system as it is
+// saved, never the System editor's draft, so a list, a stat or a category made there shows here only once it is saved. While the editor stands open
+// under this window with changes not saved yet (its Save button wears 'on', as markDirty leaves it), one line at the top says so, with a button
+// that presses the editor's own Save. Then the entry open is saved (leave), against the system as it now is, and the window is drawn again
+function sysUnsaved() { var sm = ui('systemModal'), sb = ui('sysSaveBtn'); return !!(sm && sm.style && sm.style.display && sm.style.display !== 'none' && sb && sb.classList && sb.classList.contains('on')); }
+function draftNote() { var n = ui('libDraftNote'); if (n) n.hidden = !(st.open && sysUnsaved()); }
+function draftSave() {
+    var sb = ui('sysSaveBtn'); if (!sb || !st.open || !sysUnsaved()) { draftNote(); return; }
+    var was = camp() ? camp().system : null;
+    sb.click();
+    // the save went through where the campaign holds another system object (saveDraft stores a fresh one), even if the editor marks itself again for
+    // a part it keeps waiting (a sense with no unit yet). Where it is the same object, the editor refused it and said why
+    if (!camp() || camp().system === was) { draftNote(); return; }
+    leave(); renderAll(); draftNote(); toast('The System editor\u2019s changes are saved. Its new lists, stats and categories show here now.');
+}
 // the library finished reading (library.js): what was loading can be shown now; an entry being edited stays as typed
 function refresh() { if (!st.open) return; renderPacks(); renderPackBar(); renderList(); if (!current()) renderForm(); }
 
@@ -108,7 +124,7 @@ function renderPacks() {
         b.appendChild(el('span', 'lib-pack-name', p.name));
         if (p.vis === 'gm') b.appendChild(el('span', 'sheet-chip sheet-chip-gm', 'GM'));
         b.appendChild(el('span', 'lib-pack-n', ready(p.id) ? String(workOf(p.id).length) : String(p.count)));
-        b.addEventListener('click', function() { st.packId = p.id; st.entryId = null; st.draftNew = null; st.sel = map(); st.anchor = null; st.q = ''; var s = ui('libSearch'); if (s) s.value = ''; var l = ui('libList'); if (l) l.scrollTop = 0; renderAll(); });
+        b.addEventListener('click', function() { leave(); st.packId = p.id; st.entryId = null; st.draftNew = null; st.sel = map(); st.anchor = null; st.q = ''; var s = ui('libSearch'); if (s) s.value = ''; var l = ui('libList'); if (l) l.scrollTop = 0; renderAll(); });
         box.appendChild(b);
     });
 }
@@ -136,7 +152,7 @@ function renderPackBar() {
     if (!ready(p.id)) bar.appendChild(el('div', 'lib-warn', LB().state() === 'loading' ? 'Reading this pack…' : 'This pack could not be read, so it cannot change here. Its file is kept as it is.'));
 }
 function newPack() {
-    showPrompt('Name the new pack', 'Gear', async function(name) { if (name === null || name === undefined || !st.open) return; var r = await LB().createPack(name); if (!r || r.error) { toast((r && r.error) || 'The pack could not be made.'); return; } st.packId = r.id; st.entryId = null; st.draftNew = null; st.sel = map(); renderAll(); guideAt('pack'); });
+    showPrompt('Name the new pack', 'Gear', async function(name) { if (name === null || name === undefined || !st.open) return; leave(); var r = await LB().createPack(name); if (!r || r.error) { toast((r && r.error) || 'The pack could not be made.'); return; } st.packId = r.id; st.entryId = null; st.draftNew = null; st.sel = map(); renderAll(); guideAt('pack'); });
 }
 // L2a2: a pack saved as a file — the GM's copy as held, or a players' copy as the players' view holds it (librarycore packFile)
 function exportPack(which) {
@@ -159,6 +175,7 @@ function importPick() {
         f.text().then(function(text) {
             if (!st.open) return;
             var d = readPackImport(text, gmCtx()); if (d.error) { toast(d.error); return; }
+            leave();   // 1.6.3 (finding 8): the entry open is saved before the import takes its place
             st.imp = { file: String(f.name || '').slice(0, 80), data: d, mode: 'new', target: importInto(d) }; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
         }).catch(function() { toast('That file could not be read.'); });
     });
@@ -181,6 +198,8 @@ function renderImport(form) {
     if (!targets.some(function(p) { return p.id === im.target; })) im.target = targets.length ? targets[0].id : null;
     if (im.csv) csvBox(form, im); else form.appendChild(el('div', 'lib-fhead', 'Import “' + d.name + '”'));   // 1.6.2: a spreadsheet says which column goes where first, then goes the way a pack file goes
     if (!im.csv) form.appendChild(el('div', 'lib-note', im.file + ' · ' + plural(d.entries.length) + (d.dropped ? ' (and ' + d.dropped + ' not valid)' : '') + '. Nothing changes until you press Import.'));
+    if (!im.csv && d.newIds) form.appendChild(el('div', 'lib-note', plural(d.newIds) + ' had no id Waypoint could use, so each was given one of its own.'));   // 1.6.3 (finding 39)
+    if (!im.csv) { var csP = csvCats(camp() && camp().system, '', d.entries); if (csP.off.length) form.appendChild(el('div', 'lib-warn', catOffWords('', csP.off))); if (csP.none) form.appendChild(el('div', 'lib-warn', plural(csP.none) + (csP.none === 1 ? ' has' : ' have') + ' no category, so a list that names categories will not offer ' + (csP.none === 1 ? 'it.' : 'them.'))); }   // 1.6.3 (finding 39): a pack file is checked as a spreadsheet is
     if (d.lostStats && d.lostStats.length) form.appendChild(el('div', 'lib-warn', 'Left out: stats no list of this system has \u2014 ' + d.lostStats.map(function(x) { return x.key + ' (' + x.n + ')'; }).join(', ') + '. Set up the lists first (or import the system) to keep them.'));   // Stage 6 F3
     var md = field(form, 'imMode', 'Import as', im.mode, { pairs: [['new', 'A new pack'], ['id', 'Merged into a pack, by id'], ['key', 'Merged into a pack, by key'], ['replace', 'Replacing a pack, by id']], title: 'By id: an entry of the same id is replaced. By key: an entry of the same key is replaced and keeps its id. Either way the rest are added. Replacing: the pack becomes the file, and the entries the file lacks are removed' });
     md.addEventListener('change', function() { im.mode = md.value; renderForm(); });
@@ -257,7 +276,7 @@ function csvOpen(fileName, bytes, pics) {
     var name = fileName.replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').trim().slice(0, LIB.packName), low = name.toLowerCase(), hit = packs().filter(function(p) { return String(p.name || '').trim().toLowerCase() === low; })[0];
     var cv = { file: fileName.slice(0, 80), table: t, hasHead: hasHead, heads: heads, list: list, stats: stats, map: mapped, cat: csvCatFor(list, mapped), pack: name, pics: Array.isArray(pics) ? pics : null };
     var im = { file: cv.file, csv: cv, data: null, mode: hit ? (mapped.indexOf('key') >= 0 ? 'key' : 'id') : 'new', target: hit ? hit.id : st.packId };   // a file named as a pack updates that pack, by default
-    csvApply(im); st.imp = im; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
+    if (typeof leave === 'function') leave(); csvApply(im); st.imp = im; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
     catLog('csv-read', { rows: t.rows.length, cols: heads.length, sep: t.sep === ',' ? 'comma' : t.sep === ';' ? 'semicolon' : t.sep === '\t' ? 'tab' : 'other', enc: t.enc, guessed: mapped.filter(Boolean).length, cutRows: t.cut.rows, cutCols: t.cut.cols, cutCells: t.cut.cells, open: t.open });
 }
 function csvCatFor(list, mapped) { if (mapped.indexOf('category') >= 0) return ''; var f = itemLists().filter(function(x) { return x.id === list; })[0]; return f && Array.isArray(f.list.cats) && typeof f.list.cats[0] === 'string' ? f.list.cats[0] : ''; }
@@ -302,7 +321,13 @@ function csvBox(form, im) {
     if (d.repeats) form.appendChild(el('div', 'lib-note', wd(d.repeats, 'row repeats', 'rows repeat') + ' the name and category of a row above. Each comes in as an entry of its own.'));
     var cs = csvCats(sys, cv.list, d.entries);
     if (cs.none) form.appendChild(el('div', 'lib-warn', wd(cs.none, 'entry has', 'entries have') + ' no category, so a list that names categories will not offer them.'));
-    if (cs.off.length) form.appendChild(el('div', 'lib-warn', 'No list takes these categories: ' + cs.off.slice(0, 8).join(', ') + (cs.off.length > 8 ? ', and more' : '') + '.'));
+    if (cs.off.length) form.appendChild(el('div', 'lib-warn', catOffWords(cv.list, cs.off)));
+}
+// 1.6.3 (the review of the System editor and the Library window, finding 39): the categories no list takes, said of the list chosen where one is (csvcore
+// csvCats reads that list alone then, and another list may well take them), else of every list. Plain words, eight names at most
+function catOffWords(listId, off) {
+    var f = listId ? itemLists().filter(function(x) { return x.id === listId; })[0] : null, names = off.slice(0, 8).join(', ') + (off.length > 8 ? ', and more' : '');
+    return f ? 'The list ' + (f.label || f.key || 'you picked') + ' does not take these categories: ' + names + '. It will not offer these entries.' : 'No list takes these categories: ' + names + '.';
 }
 // [catalogcheck:csvbox-end]
 
@@ -334,7 +359,7 @@ function drawRows() {
 // L2a2: choosing — a click one entry (its form), Ctrl-click adds or removes one, Shift-click the run from the last one clicked, Ctrl+A every
 // entry shown; several chosen show the bulk panel. What the search hides is never acted on
 function chosen() { return st.shown.filter(function(e) { return st.sel[e.id]; }).map(function(e) { return e.id; }); }
-function afterPick() { var ids = chosen(); st.entryId = ids.length === 1 ? ids[0] : null; st.draftNew = null; st.imp = null; drawRows(); renderForm(); }
+function afterPick() { leave(); var ids = chosen(); st.entryId = ids.length === 1 ? ids[0] : null; st.draftNew = null; st.imp = null; drawRows(); renderForm(); }
 function pickRow(e, ev) {
     var ids = st.shown.map(function(x) { return x.id; }), a = st.anchor ? ids.indexOf(st.anchor) : -1, b = ids.indexOf(e.id);
     if (ev && ev.shiftKey && a >= 0 && b >= 0) { st.sel = map(); for (var i = Math.min(a, b); i <= Math.max(a, b); i++) st.sel[ids[i]] = 1; }
@@ -354,6 +379,7 @@ function newCat() {
 }
 function newEntry() {
     if (!st.packId) { toast('Make a pack first.'); return; } if (!ready(st.packId)) return;
+    leave();   // 1.6.3 (finding 8): the entry open before it is saved first
     var id = newEntryId(taken()); if (!id) return;
     // 1.6.3 (Fulllion's rulings of 2026-11-20): a list offers only the categories it names, so a new entry starts on one a list takes (newCat)
     st.draftNew = { id: id, name: '', category: newCat(), vis: 'all' }; st.entryId = id; st.sel = map(); st.imp = null; guideAt('entry'); drawRows(); renderForm(); guideSync(); var n = ui('libF_name'); if (n) try { n.focus(); } catch (e) {}
@@ -400,6 +426,7 @@ function renderForm() {
     var form = ui('libForm'); if (!form) return; form.textContent = '';
     st.fs = null; st.fsFor = null;   // 1.6.0: and of its roll bonuses
     st.warns = [];   // 1.6.3: the lines under a box that say what another box needs (warnLine), made again with the form
+    st.base = null; st.baseFor = null;   // 1.6.3 (finding 8): what the entry's form read as it was drawn, set at its end (formBase); none for any other form
     if (typeof csvWide === 'function') csvWide(!!(st.imp && st.imp.csv));   // 1.6.2
     st.fm = null; st.fmFor = null; st.fn = null; st.fnFor = null; st.fo = null; st.foFor = null; st.fg = null; st.fgFor = null;   // 1.6.0 (v2, B4): and of what it grants   // 1.5.8: and of what it opens   // the owed review, 2026-10-09: the form is filled from the entry as it is stored, every box of it. The working copies of its changes and its needs outlived the form (a close, an import, another campaign), and Save entry wrote stale ones back
     if (st.imp) { renderImport(form); return; }
@@ -430,7 +457,7 @@ function renderForm() {
     field(form, 'vis', 'Who sees it', e.vis === 'gm' ? 'gm' : 'all', { pairs: VIS, title: 'A GM-only entry stays out of the players’ lists (one you give a character reaches its owner by name and notes)' });
     field(form, 'lvl', 'Starts at level', typeof e.lvl === 'number' ? e.lvl : '', { max: 4, title: 'A new row of it starts at this level (else the list’s)' });
     field(form, 'lvlOnly', 'Levels it may be', typeof lvlOnlyText === 'function' ? lvlOnlyText(e.lvlOnly) : '', { max: 200, ph: 'Any level. Or 2, 4 or 3 to 5', title: 'The levels it exists at, such as 2, 4 or 3 to 5. A list with named levels takes the names too. A new row starts at the first of them, and a player is refused any other. Blank: any level' });   // 1.6.0
-    var sd = statDefs(); if (sd.length) { form.appendChild(el('div', 'lib-fsub', 'Stats')); sd.forEach(function(s) { var inp = field(form, 'st_' + s.key.toLowerCase(), s.label, e.stats && e.stats[s.key] !== undefined ? e.stats[s.key] : '', s.opts ? { choices: s.opts } : { max: 40 }); inp.dataset.stat = s.key; if (s.set) placeTicks(form, inp, s.set); }); }
+    var sd = statDefs(); if (sd.length) { if (typeof statsBox === 'function') statsBox(form, e, sd); else { form.appendChild(el('div', 'lib-fsub', 'Stats')); sd.forEach(function(s) { var inp = field(form, 'st_' + s.key.toLowerCase(), s.label, e.stats && e.stats[s.key] !== undefined ? e.stats[s.key] : '', s.opts ? { choices: s.opts } : { max: 40 }); inp.dataset.stat = s.key; if (s.set) placeTicks(form, inp, s.set); }); } }
     field(form, 'notes', 'Notes', e.notes, { area: true, rows: 2, max: 1000, title: 'Shown with the row on the sheet (copied onto characters)' });
     field(form, 'desc', 'Description', e.desc, { area: true, rows: 5, max: LIB.desc, title: 'What it does, in full. Read in the library and in a row’s details on the sheet. A GM-only entry’s stays with you' });
     st.lt = null;
@@ -444,7 +471,7 @@ function renderForm() {
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
     fliesLibBox(form, e.flies);   // 1.6.2 (vehicles, fold (d)): what it is once launched
-    field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'Such as a skill’s target', title: 'What the Combat tab’s throw roll reads as ThrowSkill when it is thrown or placed. With none, no throw roll is made: it lands where it is aimed' });   // 1.6.3: what it is for, in words
+    field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'Such as a skill’s target', title: 'What the Combat tab’s throw roll is made against when it is thrown or placed, such as a skill’s target. With none, no throw roll is made: it lands where it is aimed' });   // 1.6.3: what it is for, in words
     if (typeof warnLine === 'function') warnLine(form, throwSays);   // 1.6.3 (Fulllion's rulings of 2026-11-20): a blast thrown with no skill is said under the box as it is typed
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
     modsBox(form, e);   // Stage 6 F6
@@ -462,10 +489,39 @@ function renderForm() {
         var eqIn = field(form, 'eqMsg', 'Message', e.eqMsg, { max: typeof LIMITS === 'object' && LIMITS ? LIMITS.rmMsg : 400, ph: 'Shown to the player (with a lock)' });   // 1.6.3 (the review of the audit's gaps 5 to 10): the cleaner keeps a switch-off message to LIMITS.rmMsg, as the Items tab's sys-item-eqtext does (200 before)
         if (typeof lockMsg === 'function') lockMsg(form, eqSel, eqIn, 'This message is shown only when the lock is Bound or Curse on contact. Save entry leaves it out otherwise.');
     }
+    if (typeof formRead === 'function') { st.base = formRead(); st.baseFor = e.id; }   // 1.6.3 (finding 8): the form as drawn, which leave() compares with
     if (typeof warnSync === 'function') {   // 1.6.3: the lines said once as the form is drawn, and again as anything in it is typed or picked
         warnSync();
         if (!form._wpWarn && form.addEventListener) { form._wpWarn = true; form.addEventListener('input', function() { warnSync(); }); form.addEventListener('change', function() { warnSync(); }); }   // the form is one element at every draw, so its listener is put on once
     }
+}
+// 1.6.3 (the review of the System editor and the Library window, finding 22): an entry's Stats show those of the lists that take its category, so a
+// piece of gear is not shown a skill's and a starship's figures. A list that names no category takes every one. Where the category is empty, or no
+// list names it, every stat shows. A stat that holds a figure always shows, so nothing stored is out of sight, and Show every stat shows the rest.
+// Every row is drawn, and one that does not belong is only put away (hidden), so a figure typed before the category changed is still read by
+// readForm and kept. statShown is the one rule, asked again as the category is typed
+function statShown(s, cat, has, all) {
+    if (all || has || s.cats === null) return true;
+    var c = String(cat || '').trim().toLowerCase(); if (!c) return true;
+    var named = itemLists().some(function(f) { return Array.isArray(f.list.cats) && f.list.cats.some(function(x) { return String(x).toLowerCase() === c; }); });
+    return !named || s.cats.indexOf(c) >= 0;
+}
+function statsBox(form, e, sd) {
+    var head = el('div', 'lib-fsub lib-stats-head'), say = el('span', 'lib-stats-more'), lb = el('label', 'lib-check lib-stats-all'), cb = el('input'), rows = [];
+    cb.type = 'checkbox'; cb.checked = st.statAll === true; lb.appendChild(cb); lb.appendChild(document.createTextNode(' Show every stat')); lb.title = 'Show the stats of lists that do not take this category too';
+    head.appendChild(document.createTextNode('Stats ')); head.appendChild(say); head.appendChild(lb); form.appendChild(head);
+    sd.forEach(function(s) {
+        var wrap = el('div', 'lib-stat'), inp = field(wrap, 'st_' + s.key.toLowerCase(), s.label, e.stats && e.stats[s.key] !== undefined ? e.stats[s.key] : '', s.opts ? { choices: s.opts } : { max: 40 }); inp.dataset.stat = s.key; if (s.set) placeTicks(wrap, inp, s.set);
+        form.appendChild(wrap); rows.push({ s: s, wrap: wrap, inp: inp });
+    });
+    var show = function() {
+        var cat = typeof libVal === 'function' && ui('libF_category') ? libVal('category') : e.category, off = 0;
+        rows.forEach(function(r) { var on = statShown(r.s, cat, String(r.inp.value || '').trim() !== '', cb.checked); r.wrap.hidden = !on; if (!on) off++; });
+        say.textContent = off ? '(' + off + ' more belong to lists that do not take this category)' : '';
+    };
+    cb.addEventListener('change', function() { st.statAll = cb.checked; show(); });
+    var ci = ui('libF_category'); if (ci && ci.addEventListener) ci.addEventListener('input', show);
+    show();
 }
 // 1.6.3 (Fulllion's rulings of 2026-11-20: a box other boxes depend on is required, and what it misses is said under it in plain words). A line
 // under a box, kept with the function that says its words: renderForm empties the list (st.warns) as it draws, says each once at its end, and
@@ -515,6 +571,24 @@ function glyphClose() { var WS = typeof window !== 'undefined' ? window.wpSheets
 // 126b (the owner: "the entries and levels something needs, no formula to write"): what an entry needs before a character may take it. The
 // needed entries are picked from a list, each with a least level where one matters, and the GM may add words of their own for a refusal. A
 // working copy while the form is open (Save entry keeps it). An entry's name is a text node
+// 1.6.3 (the review of the System editor and the Library window, finding 23): the choosers of What it needs, What it opens and What it grants cut the
+// library at its first 2,000 names, A to Z, so in a larger library the later names could never be picked. Each is now the app's own choice of many
+// with a search (uiparts.js find): every entry by name, a GM-only one said so, 200 shown at a time and a line saying how many more a search would
+// show, the first row the button's own words. A pick hands the entry's id to onPick. Where the parts are not there (a slice of this file run alone)
+// it is a plain list of every entry, never cut. Names are text: they come from files
+function entryChooser(ents, blank, title, off, onPick) {
+    var list = ents.slice().sort(function(a, b) { return byName(a.name, b.name); }), UIf = typeof window !== 'undefined' && window.wpUi && typeof window.wpUi.find === 'function' ? window.wpUi : null;
+    if (UIf) {
+        var w = UIf.find({ choices: list.map(function(x) { return { value: x.id, name: String(x.name || ''), sub: x.vis === 'gm' ? 'GM only' : '' }; }), blank: blank, value: '', label: title, placeholder: 'Search the library', set: function(v) { if (v) onPick(v); } });
+        w.classList.add('lib-entry-find'); w.title = title; if (off) { w.input.disabled = true; w.select.disabled = true; }
+        if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(w.select);   // a key step on the closed list opens it, never adds the entry it steps past
+        return w;
+    }
+    var sel = select([['', blank]].concat(list.map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; })), ''); sel.title = title; sel.disabled = !!off;
+    sel.addEventListener('change', function() { if (sel.value) onPick(sel.value); });
+    if (typeof window !== 'undefined' && window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(sel);
+    return sel;
+}
 function needsBox(form, e) {
     if (st.fnFor !== e.id || !st.fn) { st.fn = clone(Array.isArray(e.needs) ? e.needs : []); st.fnFor = e.id; }
     var dim = function() {};   // 1.6.3: set below, once the boxes it reads stand; draw() asks it as a need is added or taken off
@@ -527,9 +601,9 @@ function needsBox(form, e) {
         st.fn.forEach(function(n, ni) {
             var ln = el('div', 'lib-ctl lib-need'), nm = nameOf(n.id);
             ln.appendChild(el('span', 'lib-need-name', nm || 'An entry that is gone'));
-            var lv = el('input', 'field lib-mod-amt'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Level'; lv.value = typeof n.lvl === 'number' ? String(n.lvl) : ''; lv.title = 'The least level it must have. Leave it empty for any level'; ln.appendChild(lv);
+            var lv = el('input', 'field lib-mod-amt'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Any'; lv.value = typeof n.lvl === 'number' ? String(n.lvl) : ''; lv.title = 'The least level it must have. Leave it empty for any level'; ln.appendChild(capLib('At least level', lv));   // 1.6.3 (finding 40): captioned, so what the box is stays in sight once a figure is typed
             lv.addEventListener('input', function() { if (lv.value.trim() === '' || !isFinite(Number(lv.value))) delete n.lvl; else n.lvl = Number(lv.value); });
-            var fr = el('input', 'field lib-mod-amt lib-need-from'); fr.type = 'number'; fr.step = 'any'; fr.placeholder = 'From level'; fr.value = typeof n.from === 'number' ? String(n.from) : ''; fr.title = 'The level of THIS entry from which it is needed. Leave it empty to need it from the start'; ln.appendChild(fr);   // a level's own prerequisite
+            var fr = el('input', 'field lib-mod-amt lib-need-from'); fr.type = 'number'; fr.step = 'any'; fr.placeholder = 'Start'; fr.value = typeof n.from === 'number' ? String(n.from) : ''; fr.title = 'The level of THIS entry from which it is needed. Leave it empty to need it from the start'; ln.appendChild(capLib('From this entry\u2019s level', fr));   // a level's own prerequisite. 1.6.3 (finding 40): captioned
             fr.addEventListener('input', function() { if (fr.value.trim() === '' || !isFinite(Number(fr.value))) delete n.from; else n.from = Number(fr.value); });
             var sb = el('input', 'field lib-need-spec'); sb.type = 'text'; sb.placeholder = 'Subject'; sb.maxLength = 60; sb.value = typeof n.spec === 'string' ? n.spec : ''; sb.title = 'A subject or specialty it must be held for, such as Smell. Leave it empty for any'; ln.appendChild(sb);   // 1.6.0 Specialties
             sb.addEventListener('input', function() { var v = sb.value.trim(); if (v) n.spec = v; else delete n.spec; });
@@ -537,15 +611,12 @@ function needsBox(form, e) {
             box.appendChild(ln);
         });
         var taken = map(); st.fn.forEach(function(n) { if (!(typeof n.spec === 'string' && n.spec.trim())) taken[n.id] = 1; }); taken[e.id] = 1;   // 1.6.0 Specialties: an entry needed for a subject may be needed again for another
-        var opts = [['', '+ An entry it needs\u2026']].concat(all.filter(function(x) { return x && typeof x.id === 'string' && !taken[x.id]; }).sort(function(a, b) { return byName(a.name, b.name); }).slice(0, NEED_PICK).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; }));
-        var sel = select(opts, ''); sel.title = 'Pick an entry a character must carry before it may take this one'; sel.disabled = st.fn.length >= NEED_MAX;
-        sel.addEventListener('change', function() { if (!sel.value || st.fn.length >= NEED_MAX) return; st.fn.push({ id: sel.value }); draw(); });
-        box.appendChild(sel);
+        box.appendChild((typeof entryChooser === 'function' ? entryChooser : function(ents, blank, title, off, onPick) { var sel = select([['', blank]].concat(ents.slice().sort(function(a, b) { return byName(a.name, b.name); }).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; })), ''); sel.title = title; sel.disabled = !!off; sel.addEventListener('change', function() { if (sel.value) onPick(sel.value); }); return sel; })(all.filter(function(x) { return x && typeof x.id === 'string' && !taken[x.id]; }), '+ An entry it needs\u2026', 'Pick an entry a character must carry before it may take this one', st.fn.length >= NEED_MAX, function(v) { if (st.fn.length >= NEED_MAX) return; st.fn.push({ id: v }); draw(); }));   // 1.6.3 (finding 23): a search over the whole library
         dim();
     };
     draw();
-    var ruleIn = field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
-    form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));
+    var ruleIn = field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'What must be true of the character (optional)', title: 'Something that must be true of the character before it can be taken, such as a strength of 12 or more. It rolls no dice, and it can stand beside the entries above or alone' });
+    form.appendChild(el('div', 'lib-note', 'A rule is something that must be true of the character, such as a strength of 12 or more. Change builds it step by step. It rolls no dice.'));
     var fromIn = field(form, 'needsFrom', 'Rule from level', e.needsFrom, { max: 8, ph: 'The level of this entry from which the rule applies', title: 'Leave it empty for a rule that must be true to take the entry at all. It counts only beside a rule' });
     var fromSay = el('div', 'lib-warn lib-req'); fromSay.hidden = true; form.appendChild(fromSay);   // 1.6.3: what Rule from level needs, said as it is typed
     form.appendChild(el('div', 'lib-note', 'A need or a rule with a From level counts only once the row of this entry is at that level. A player who raises a level is judged as when they take the entry.'));
@@ -575,7 +646,7 @@ function opensBox(form, e) {
     if (st.foFor !== e.id || !st.fo) { st.fo = clone(Array.isArray(e.opens) ? e.opens : []); st.foFor = e.id; }
     var lists = itemLists(); if (!lists.length && !st.fo.length) return;
     form.appendChild(el('div', 'lib-fsub', 'What it opens'));
-    form.appendChild(el('div', 'lib-note', 'While a row of this entry is on and at the From level or above, each entry listed here shows by itself on the list beside it, at that list\u2019s first level. It goes when this row is off, and a bought row of it takes its place. On it, Row.opened is 1, so a cost can read 0.'));
+    form.appendChild(el('div', 'lib-note', 'While a row of this entry is on and at the From level or above, each entry listed here shows by itself on the list beside it, at that list\u2019s first level. It goes when this row is off, and a bought row of it takes its place. A cost can tell such a row apart, so it can cost nothing.'));
     var box = el('div', 'lib-mods lib-opens'); form.appendChild(box);
     var all = allEntries().concat(sysItems()), nameOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i]; return null; };
     var listFor = function(ent) { var cg = ent && typeof ent.category === 'string' ? ent.category.toLowerCase() : ''; var hit = lists.filter(function(f) { return Array.isArray(f.list.cats) && f.list.cats.some(function(c) { return String(c).toLowerCase() === cg; }); })[0]; return (hit || lists[0] || {}).id || ''; };
@@ -591,10 +662,7 @@ function opensBox(form, e) {
             box.appendChild(ln);
         });
         var taken = map(); st.fo.forEach(function(o) { taken[o.id] = 1; }); taken[e.id] = 1;
-        var opts = [['', '+ An entry it opens\u2026']].concat(all.filter(function(x) { return x && typeof x.id === 'string' && !taken[x.id]; }).sort(function(a, b) { return byName(a.name, b.name); }).slice(0, NEED_PICK).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; }));
-        var sel = select(opts, ''); sel.title = 'Pick an entry this one opens while its row is on'; sel.disabled = st.fo.length >= 8 || !lists.length;
-        sel.addEventListener('change', function() { if (!sel.value || st.fo.length >= 8) return; st.fo.push({ f: listFor(nameOf(sel.value)), id: sel.value, from: 1 }); draw(); });
-        box.appendChild(sel);
+        box.appendChild((typeof entryChooser === 'function' ? entryChooser : function(ents, blank, title, off, onPick) { var sel = select([['', blank]].concat(ents.slice().sort(function(a, b) { return byName(a.name, b.name); }).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; })), ''); sel.title = title; sel.disabled = !!off; sel.addEventListener('change', function() { if (sel.value) onPick(sel.value); }); return sel; })(all.filter(function(x) { return x && typeof x.id === 'string' && !taken[x.id]; }), '+ An entry it opens\u2026', 'Pick an entry this one opens while its row is on', st.fo.length >= 8 || !lists.length, function(v) { if (st.fo.length >= 8) return; st.fo.push({ f: listFor(nameOf(v)), id: v, from: 1 }); draw(); }));   // 1.6.3 (finding 23)
     };
     draw();
 }
@@ -606,11 +674,19 @@ function modTargets() {
     return out;
 }
 // 1.5.8: the list a change aims at one entry of, and the entries of the library and the system that list holds, each by its key, for the key box
+// 1.6.3 (the review of the System editor, finding 17): an entry of a list picked by its name, as the Items tab's change on one entry does. It is the
+// System editor's own picker (sheets.js entryPick, published on window.wpSheets), handed the list's entries as [short name, name] (rowKeys): the
+// box stays out of sight and a pick writes it as typing would, so the box's own listener keeps the draft. Another entry shows the box, for an
+// entry neither this window nor the system holds. With no picker at hand (a page of the suites) the box is handed back as it is
+function entryPickLib(ky, opts, blank) { var WS = typeof window !== 'undefined' ? window.wpSheets : null; return WS && typeof WS.entryPick === 'function' ? WS.entryPick(ky, opts, blank) : ky; }
+// 1.6.3 (the review of the System editor, finding 40): a small box with its caption above it, so a need's Level and From level say what they are
+// once a figure is typed (a placeholder goes then). The box keeps its own classes and listeners
+function capLib(cap, box) { var l = el('label', 'lib-capbox'); l.appendChild(el('span', 'lib-capbox-cap', cap)); l.appendChild(box); return l; }
 function rowListOf(fid) { return itemLists().filter(function(f) { return f.id === fid; })[0] || null; }
 function rowKeys(f) {
     var cats = f && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(s) { return String(s).toLowerCase(); }) : null, seen = map(), out = [];
     allEntries().concat(sysItems()).forEach(function(e) { if (!e || typeof e.key !== 'string' || !e.key || seen[e.key]) return; if (cats && cats.indexOf(String(e.category || '').toLowerCase()) < 0) return; seen[e.key] = 1; out.push([e.key, e.name || e.key]); });
-    return out.sort(function(a, b) { return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0; }).slice(0, 2000);
+    return out.sort(function(a, b) { return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0; }).slice(0, typeof LIB === 'object' && LIB ? LIB.entries : 2000);   // 1.6.3 (finding 23): a pack's whole size, never the first 2,000 names
 }
 // 1.6.0 roll switches (the owner, by prompt: "In the ± window"): the bonuses this entry offers to rolls, as the System editor's Roll bonuses box
 // has them: a name, how much it helps, and the rolls it offers itself to (a field's own roll, a system roll, any roll on a list's rows, or only
@@ -640,7 +716,7 @@ function swLibBox(form, e) {
             s.to.forEach(function(t, ti) {
                 var v = toVal(t), opts = targets.slice(); if (v && !opts.some(function(o) { return o[0] === v; })) opts.unshift([v, '(a roll that is gone)']);
                 var sel = select(opts, v); sel.title = 'A roll it offers itself to'; sel.addEventListener('change', function() { var nt = toOf(sel.value); if (nt) { s.to[ti] = nt; draw(); } }); ln.appendChild(sel);
-                if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Entry key, if any'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of the entry with this key. Blank: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); ln.appendChild(ky);
+                if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Another entry'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of this entry. Every entry: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); var tkL = rowListOf(t.l); ln.appendChild(entryPickLib(ky, tkL ? rowKeys(tkL) : [], 'Every entry'));
                     var lf = itemLists().filter(function(x) { return x.id === t.l; })[0], lrs = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls : [], ro = [['', 'Any roll']], rv = '';   // 1.6.0: only this roll of the list
                     lrs.forEach(function(r) { if (r && !Array.isArray(r.apply) && typeof r.label === 'string' && r.label.trim() && !ro.some(function(x) { return x[0].toLowerCase() === r.label.trim().toLowerCase(); })) ro.push([r.label.trim(), r.label.trim()]); });
                     if (typeof t.roll === 'string' && t.roll.trim()) { var rh = ro.filter(function(x) { return x[0] && x[0].toLowerCase() === t.roll.trim().toLowerCase(); })[0], rw = rh ? null : lrs.filter(function(r) { return r && !Array.isArray(r.apply) && typeof r.label === 'string' && Array.isArray(r.was) && r.was.some(function(x) { return typeof x === 'string' && x.toLowerCase() === t.roll.trim().toLowerCase(); }); })[0]; if (rh) rv = rh[0]; else if (rw) rv = rw.label.trim(); else { ro.push([t.roll, t.roll + ' (no roll of that name now)']); rv = t.roll; } }   // 1.6.2: a roll that had that label is that roll
@@ -686,9 +762,8 @@ function modsBox(form, e) {
             var sel = select(opts, val); sel.title = 'What this change affects'; ln.appendChild(sel);
             sel.addEventListener('change', function() { var tp = sel.value.split('|'); m.f = tp[0]; delete m.key; delete m.col; if (tp[1] === 'on') { m.op = 'on'; delete m.v; delete m.part; delete m.lvl; } else { m.op = m.op === 'max' || m.op === 'min' ? m.op : 'add'; if (typeof m.v !== 'number') m.v = 1; if (tp[1] === 'max') m.part = 'max'; else delete m.part; if (tp[1] === 'row') { var rl = rowListOf(m.f); m.key = ''; m.col = rl && rl.list.cols[0] ? rl.list.cols[0].key : ''; } } draw(); });
             if (val.slice(-4) === '|row') {   // 1.5.8: which entry, by its key, and which of the list's columns it adds to
-                var rl = rowListOf(m.f), ky = el('input', 'field lib-mod-key'), dlId = 'libRowKeys' + mi, dl = el('datalist');
-                dl.id = dlId; (rl ? rowKeys(rl) : []).forEach(function(k) { var op = el('option'); op.value = k[0]; op.label = k[1]; dl.appendChild(op); }); ln.appendChild(dl);
-                ky.type = 'text'; ky.setAttribute('list', dlId); ky.placeholder = 'Entry key'; ky.value = typeof m.key === 'string' ? m.key : ''; ky.title = 'The key of the entry it changes, such as Disguise. A character who does not have that entry yet still gets it on the entry’s default.'; ln.appendChild(ky);
+                var rl = rowListOf(m.f), ky = el('input', 'field lib-mod-key');
+                ky.type = 'text'; ky.placeholder = 'Another entry'; ky.value = typeof m.key === 'string' ? m.key : ''; ky.title = 'The entry it changes, such as Disguise. A character who does not have that entry yet still gets it on the entry’s default.'; ln.appendChild(entryPickLib(ky, rl ? rowKeys(rl) : [], 'Pick an entry'));
                 ky.addEventListener('input', function() { m.key = ky.value.trim(); });
                 var cs = select((rl ? rl.list.cols : []).map(function(c) { return [c.key, c.label || c.key]; }), m.col); cs.title = 'The column of that entry it adds to, such as its Target'; ln.appendChild(cs);
                 cs.addEventListener('change', function() { m.col = cs.value; });
@@ -727,7 +802,7 @@ function grantsBox(form, e) {
     if (st.fgFor !== e.id || !st.fg) { st.fg = clone(Array.isArray(e.grants) ? e.grants : []); st.fgFor = e.id; }
     var c = camp(), lists = ((c && c.system && c.system.fields) || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; }); if (!lists.length && !st.fg.length) return;
     form.appendChild(el('div', 'lib-fsub', 'What it grants'));
-    form.appendChild(el('div', 'lib-note', 'When a row of this entry is added, each entry listed here is added too, to the list beside it, free. With a From level it comes when the row reaches that level. They go when this row goes or its level falls below. On them, Row.granted is 1, so a cost can read 0. Tick Pays back, and Row.paysback is 1 on the row it grants. A Level sets the level it starts at.'));
+    form.appendChild(el('div', 'lib-note', 'When a row of this entry is added, each entry listed here is added too, to the list beside it, free. With a From level it comes when the row reaches that level. They go when this row goes or its level falls below. A cost can tell a granted row apart, so it can cost nothing. Tick Pays back and a cost can still count the row it grants as bought. A Level sets the level it starts at.'));
     var box = el('div', 'lib-mods lib-grants'); form.appendChild(box);
     var all = allEntries().concat(sysItems()), entOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i]; return null; };
     var listFor = function(ent) { var cg = ent && typeof ent.category === 'string' ? ent.category.toLowerCase() : ''; var hit = lists.filter(function(f) { return f.list && Array.isArray(f.list.cats) && f.list.cats.some(function(x) { return String(x).toLowerCase() === cg; }); })[0]; return (hit || lists[0] || {}).id || ''; };
@@ -747,7 +822,7 @@ function grantsBox(form, e) {
             oc.addEventListener('change', function() { if (oc.checked) g.once = true; else delete g.once; }); ln.appendChild(ol);
             var lv = el('input', 'field lib-mod-amt lib-grant-lvl'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Level'; lv.value = typeof g.lvl === 'number' ? String(g.lvl) : ''; lv.title = 'The level the row it grants starts at, held to that list\u2019s level rules. Leave it empty for the entry\u2019s own'; ln.appendChild(lv);   // 1.6.0: the level it grants at
             lv.addEventListener('input', function() { var n = Number(lv.value); if (lv.value.trim() === '' || !isFinite(n)) delete g.lvl; else g.lvl = n; });
-            var pl = el('label', 'lib-mod-lvl lib-grant-pay'), pc = el('input'); pc.type = 'checkbox'; pc.checked = g.pay === true; pl.appendChild(pc); pl.appendChild(el('span', null, ' Pays back')); pl.title = 'On the row it grants, Row.paysback reads 1, so a cost can count it as bought though it came free. Another entry may grant the same one without it';   // 1.6.0: Pays back
+            var pl = el('label', 'lib-mod-lvl lib-grant-pay'), pc = el('input'); pc.type = 'checkbox'; pc.checked = g.pay === true; pl.appendChild(pc); pl.appendChild(el('span', null, ' Pays back')); pl.title = 'A cost can count the row it grants as bought, though it came free. Another entry may grant the same one without it';   // 1.6.0: Pays back
             pc.addEventListener('change', function() { if (pc.checked) g.pay = true; else delete g.pay; }); ln.appendChild(pl);
             var gmr = el('div', 'lib-grant-more');   // 1.6.2 (body fold 1): what it names, on a line of its own
             var gnm = el('input', 'field lib-grant-nm'); gnm.type = 'text'; gnm.placeholder = 'Its own name'; gnm.value = typeof g.name === 'string' ? g.name : ''; gnm.title = 'A name for the row it grants in place of the entry\u2019s, such as Left Hand. Two grants of one entry with different names add a row each. Leave it empty for the entry\u2019s name'; gmr.appendChild(gnm);   // 1.6.2 (body fold 1)
@@ -772,12 +847,20 @@ function grantsBox(form, e) {
             var why = !ent ? 'Save keeps it, but that entry is gone, so nothing is granted.' : !lists.some(function(f) { return f.id === g.list; }) ? 'Save drops it: pick a list it is added to.' : '';
             if (why) box.appendChild(el('div', 'lib-warn', why));
         });
-        var opts = [['', '+ An entry it grants\u2026']].concat(all.filter(function(x) { return x && typeof x.id === 'string' && x.id !== e.id; }).sort(function(a, b) { return byName(a.name, b.name); }).slice(0, NEED_PICK).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; }));
-        var sel = select(opts, ''); sel.title = 'Pick an entry a row of this one grants'; sel.disabled = st.fg.length >= GRANT_LINES || !lists.length;
-        sel.addEventListener('change', function() { if (!sel.value || st.fg.length >= GRANT_LINES) return; st.fg.push({ list: listFor(entOf(sel.value)), entry: sel.value, qty: 1 }); draw(); });
-        box.appendChild(sel);
+        box.appendChild((typeof entryChooser === 'function' ? entryChooser : function(ents, blank, title, off, onPick) { var sel = select([['', blank]].concat(ents.slice().sort(function(a, b) { return byName(a.name, b.name); }).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; })), ''); sel.title = title; sel.disabled = !!off; sel.addEventListener('change', function() { if (sel.value) onPick(sel.value); }); return sel; })(all.filter(function(x) { return x && typeof x.id === 'string' && x.id !== e.id; }), '+ An entry it grants\u2026', 'Pick an entry a row of this one grants', st.fg.length >= GRANT_LINES || !lists.length, function(v) { if (st.fg.length >= GRANT_LINES) return; st.fg.push({ list: listFor(entOf(v)), entry: v, qty: 1 }); draw(); }));   // 1.6.3 (finding 23)
     };
     draw();
+}
+// 1.6.3 (the review of the System editor and the Library window, finding 8; Fulllion's pick of 2026-11-21): an entry's form is saved by itself when
+// it is left (another entry, a pack, + Entry, Duplicate, Escape or Close), with no question, and only where it differs from what it read as it was
+// drawn: renderForm keeps that reading (formRead, the entry readForm makes as text), so a figure the form fills by itself (a mine's trigger radius)
+// is no change, and a form nobody touched writes nothing. The save is saveEntry's own, asked as a leave: what would refuse it is said, and the
+// cleaner keeps what it keeps. Answers whether it saved
+function formRead() { try { return JSON.stringify(readForm()); } catch (er) { return null; } }
+function leave() {
+    var e = current(); if (!e || st.imp || !st.base || st.baseFor !== e.id || !ui('libF_name')) return false;
+    var now = formRead(); if (now === null || now === st.base) return false;
+    st.base = null; return saveEntry('leave') === true;
 }
 // the form as an entry: what the form shows replaced, anything it does not show (a bound item's secrets) kept as it was
 function readForm() {
@@ -996,27 +1079,36 @@ function entryNotes(raw) {
     (raw && Array.isArray(raw.rollSw) ? raw.rollSw : []).forEach(function(s, i) { var t = typeof swLibSays === 'function' ? swLibSays(s) : ''; if (t) out.push('Roll bonus ' + (i + 1) + ': ' + t); });
     return out.join(' ');
 }
+// 1.6.3 (the review of the System editor and the Library window, finding 8; Fulllion’s pick of 2026-11-21): how is 'leave' when the entry is saved because
+// the GM left it (another entry, a pack, + Entry, Duplicate, Escape or Close; leave). Then nothing refuses the save: what would have refused it is
+// said, the cleaner keeps what it keeps, and the form is not drawn again, since the caller draws what comes next. Answers true where it saved.
+// A press of Save entry hands its click event, which is no 'leave', so the button refuses as it always did
 function saveEntry() {
-    var e = current(); if (!e || !st.packId || !ready(st.packId)) return;
-    var raw = readForm(); if (!raw.name.trim()) { toast('Give the entry a name.'); return; }
-    var SCr = window.wpSystemCore, rlT = typeof raw.needsIf === 'string' ? raw.needsIf.trim() : ''; if (rlT && !(SCr && SCr.needRule && SCr.needRule(rlT, F()))) { toast('The rule under What it needs is not a formula this sheet can work out. A rule rolls no dice.'); return; }   // 126b: never dropped in silence
-    var kyT = typeof raw.key === 'string' ? raw.key.trim() : ''; if (kyT && SCr && SCr.cleanItemKey && !SCr.cleanItemKey(kyT, F())) { toast('\u201c' + kyT + '\u201d is not a usable key. A key is a letter, then letters, digits and _. It is not a word formulas already use, such as on, max, min, count or lvl.'); return; }   // 1.5.4: never dropped in silence (List.max.<name> is the list's highest)
-    if (st.fmFor === e.id && (st.fm || []).some(function(m) { return m && typeof m.col === 'string' && !/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(typeof m.key === 'string' ? m.key : ''); })) { toast('A change on one entry needs that entry’s key, such as Disguise. Pick it in the key box or remove the change.'); return; }   // 1.5.8
-    var loB = typeof raw.lvlOnly === 'string' && typeof lvlOnlyRead === 'function' ? lvlOnlyRead(raw.lvlOnly).bad : []; if (loB.length) { toast('Levels it may be: \u201c' + loB[0] + '\u201d cannot be read. Write a level, a named level, or a run such as 3 to 5.'); return; }   // 1.6.0: never dropped in silence
-    var trB = (Array.isArray(raw.mods) ? raw.mods : []).map(function(m) { return m && m.tiers !== undefined && typeof modTiersRead === 'function' ? modTiersRead(m.tiers).bad[0] : undefined; }).filter(function(x) { return x !== undefined; }); if (trB.length) { toast('Figure by level: \u201c' + trB[0] + '\u201d cannot be read. Write each as 2: +1, each level once.'); return; }
-    var c = cleanLibEntry(raw, gmCtx()); if (!c) { toast('That entry could not be kept.'); return; }
-    var bd = blastDrops(raw, c); if (bd) toast(bd);   // 1.5.8: what Save drops of the blast's extras
+    var how = arguments[0], lv = how === 'leave', said = [], tell = function(x) { if (!x) return; if (lv) said.push(x); else toast(x); }, no = function(x, lw) { if (!lv) { toast(x); return true; } said.push(lw || x + ' It was left out.'); return false; };
+    var e = current(); if (!e || !st.packId || !ready(st.packId)) return false;
+    var raw = readForm(); if (!raw.name.trim() && no('Give the entry a name.', 'It had no name, so it was kept as Item.')) return false;
+    var SCr = window.wpSystemCore, rlT = typeof raw.needsIf === 'string' ? raw.needsIf.trim() : ''; if (rlT && !(SCr && SCr.needRule && SCr.needRule(rlT, F()))) { if (no('The rule under What it needs is not a formula this sheet can work out. A rule rolls no dice.')) return false; }   // 126b: never dropped in silence
+    var kyT = typeof raw.key === 'string' ? raw.key.trim() : ''; if (kyT && SCr && SCr.cleanItemKey && !SCr.cleanItemKey(kyT, F())) { if (no('\u201c' + kyT + '\u201d is not a usable key. A key is a letter, then letters, digits and _. It is not a word formulas already use, such as on, max, min, count or lvl.')) return false; }   // 1.5.4: never dropped in silence (List.max.<name> is the list's highest)
+    if (st.fmFor === e.id && (st.fm || []).some(function(m) { return m && typeof m.col === 'string' && !/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(typeof m.key === 'string' ? m.key : ''); })) { if (no('A change on one entry needs that entry’s key, such as Disguise. Pick it in the key box or remove the change.')) return false; }   // 1.5.8
+    var loB = typeof raw.lvlOnly === 'string' && typeof lvlOnlyRead === 'function' ? lvlOnlyRead(raw.lvlOnly).bad : []; if (loB.length) { if (no('Levels it may be: \u201c' + loB[0] + '\u201d cannot be read. Write a level, a named level, or a run such as 3 to 5.')) return false; }   // 1.6.0: never dropped in silence
+    var trB = (Array.isArray(raw.mods) ? raw.mods : []).map(function(m) { return m && m.tiers !== undefined && typeof modTiersRead === 'function' ? modTiersRead(m.tiers).bad[0] : undefined; }).filter(function(x) { return x !== undefined; }); if (trB.length) { if (no('Figure by level: \u201c' + trB[0] + '\u201d cannot be read. Write each as 2: +1, each level once.')) return false; }
+    var c = cleanLibEntry(raw, gmCtx()); if (!c) { toast(lv ? 'The changes to the entry you left could not be kept.' : 'That entry could not be kept.'); return false; }
+    var bd = blastDrops(raw, c); tell(bd);   // 1.5.8: what Save drops of the blast's extras
     var list = workOf(st.packId), i = -1; list.forEach(function(x, k) { if (x.id === c.id) i = k; });
     var was = i >= 0 ? list[i] : null;
-    if (i < 0) { if (list.length >= LIB.entries) { toast('A pack holds at most ' + LIB.entries + ' entries.'); return; } list.push(c); } else list[i] = c;
+    if (i < 0) { if (list.length >= LIB.entries) { toast((lv ? 'The entry you left was not saved: a' : 'A') + ' pack holds at most ' + LIB.entries + ' entries.'); return false; } list.push(c); } else list[i] = c;
     var rt = was ? reachOf([was], [c]) : '';   // L4
     var kgS = was && typeof was.key === 'string' && was.key && was.key.toLowerCase() !== (typeof c.key === 'string' ? c.key : '').toLowerCase() ? keyGoneSays(was.key, '') : '';   // 1.6.2 (backlog 208): a key renamed
     var nrC = c.category && camp() ? catNear(camp().system, c.category) : '', ctS = nrC ? 'Its category \u201c' + c.category + '\u201d is not quite \u201c' + nrC + '\u201d, the one a list takes, so that list does not take it.' : '';
-    var tellE = [rt, kgS, ctS, entryNotes(raw)].filter(Boolean).join(' '); if (tellE) toast(tellE);   // 1.6.3: and what it keeps that does nothing
+    var tellE = [rt, kgS, ctS, entryNotes(raw)].filter(Boolean).join(' '); tell(tellE);   // 1.6.3: and what it keeps that does nothing
+    if (lv) {   // left: kept and written, the list and the packs' counts drawn again, and said once, with what it would have refused
+        if (st.draftNew && st.draftNew.id === c.id) st.draftNew = null; schedule(st.packId); renderPacks(); renderList(); guideAt('saved');
+        toast(['Saved \u201c' + c.name + '\u201d as you left it.'].concat(said).join(' ')); return true;
+    }
     st.draftNew = null; st.entryId = c.id; st.sel = map(); st.sel[c.id] = 1; st.anchor = c.id; schedule(st.packId); renderPacks(); renderList(); renderForm(); guideAt('saved');
     return true;   // 1.6.3: saved (every other way out of here answers nothing), which the Used by opener reads
 }
-function duplicateEntry() { var e = current(); if (!e || st.draftNew) return; var id = newEntryId(taken()); if (!id) return; var d = clone(e); d.id = id; d.name = (e.name + ' (copy)').slice(0, 60); delete d.key; st.draftNew = d; st.entryId = id; st.sel = map(); drawRows(); renderForm(); }
+function duplicateEntry() { if (st.draftNew) return; leave(); var e = current(); if (!e) return; var id = newEntryId(taken()); if (!id) return; var d = clone(e); d.id = id; d.name = (e.name + ' (copy)').slice(0, typeof LIMITS === 'object' && LIMITS && LIMITS.itemName ? LIMITS.itemName : 240); delete d.key; st.draftNew = d; st.entryId = id; st.sel = map(); drawRows(); renderForm(); }
 function deleteEntry() {
     var e = current(); if (!e) return;
     if (st.draftNew) { st.draftNew = null; st.entryId = null; drawRows(); renderForm(); guideSync(); return; }
@@ -1139,6 +1231,7 @@ function guidePress(e) {
     var c = ui('libClose'); if (c) c.addEventListener('click', close);
     var sk = ui('libShowKeys'); if (sk) sk.addEventListener('change', function() { try { if (sk.checked) localStorage.setItem('wp_sysShort', '1'); else localStorage.removeItem('wp_sysShort'); } catch (e) {} shortSync(); });
     var np = ui('libNewPack'); if (np) np.addEventListener('click', newPack);
+    var ds = ui('libDraftSave'); if (ds) ds.addEventListener('click', draftSave);   // 1.6.3 (finding 11)
     var im = ui('libImport'); if (im) im.addEventListener('click', importPick);
     var cs = ui('libCsv'); if (cs) cs.addEventListener('click', csvPick);
     m.addEventListener('click', guidePress, true);

@@ -713,7 +713,7 @@ const j = v => JSON.stringify(v);
             j(prW.values.f_wp[0].ct) === j({ Charges: 13, Hits: 0 }) && vW.some(m => /^Counter “Bad”, its most: /.test(m)), j([prW.values.f_wp, vW]));
         const hW = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), tW = fs.readFileSync(path.join(app, 'scripts', 'tutorial.js'), 'utf8');
         check('R2a Help: a list\'s Counters (key, label, start, most), kept on each row with minus and plus, read as Row.Charges or Weapons.Blaster.Charges, no total',
-            /A list&rsquo;s <b>Counters<\/b>, 120 at most, are numbers each row keeps/.test(hW) && /Each has a key, a label, where a row starts, and its most, a formula like <code>Row\.Shots<\/code>\./.test(hW) && /They read as <code>Row\.Charges<\/code> or <code>Weapons\.Pistol\.Charges<\/code>, and a counter has no total\./.test(hW));
+            /A list&rsquo;s <b>Counters<\/b>, 120 at most, are numbers each row keeps/.test(hW) && /Each has a key, a label, where a row starts, and its most, a figure of the row such as its shots\./.test(hW) && /A formula reads a counter on the row, or on a named entry, and a counter has no total\./.test(hW) && /<code>Row\.Charges<\/code>/.test(hW) /* 1.6.3 (the review of the System editor, finding 26, moved on purpose): Help says it in words, its formula names in Formulas as text */);
     }
     /* ---- Stage 6 HUD R2b: a list roll's consequences move the row's counters; what it needs; a list's action moves a counter ---- */
     {
@@ -784,7 +784,7 @@ const j = v => JSON.stringify(v);
         const shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), hM = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
         check('R3 the editor and sheet (source): a Malf box on a system roll and on a list roll, On malfunction among the Whens; a roll with a Malf names its entry (the host works the Malf out); Help says so',
             /input\('sys-roll-malf field'/.test(require('./checkkit').part('sysedroll.js')) && /input\('sys-list-malf field'/.test(require('./checkkit').part('sysedlist.js')) && /\['malf', 'On malfunction'\]\]/.test(require('./checkkit').part('sysedroll.js')) && /if \(\(Array\.isArray\(r\.then\) && r\.then\.length\) \|\| r\.malf \|\| r\.cost \|\| r\.dmg(?: \|\| r\.init === true)?\) \{ oR = oR \|\| \{\}; oR\.act = r\.id; \}/.test(shM) && /\|\| !!r\.needs \|\| !!r\.needsWhy \|\| !!r\.malf \|\| !!r\.cost \|\| !!r\.dmg \|\| !!r\.showIf;/.test(shM)
-            && /A roll&rsquo;s <b>Malf<\/b> is a formula, like <code>17<\/code> or <code>Row\.Malf<\/code>\. A natural total at or past it is a <b>malfunction<\/b>\./.test(hM));
+            && /A roll&rsquo;s <b>Malf<\/b> is a figure, such as 17, or a stat of its row\. A natural total at or past it is a <b>malfunction<\/b>\./.test(hM) /* 1.6.3 (the review of the System editor, finding 26, moved on purpose): Help says it in words, its formula names in Formulas as text */);
     }
     /* ---- 1.5.8 (the owner, 2026-10-25: "a roll's Then gets critical success and critical failure beside success and failure"): On a critical
        success, On a critical failure, and RollCrit in a consequence's amount ---- */
@@ -981,7 +981,7 @@ const j = v => JSON.stringify(v);
             check('1.6.0 the core\'s gap 14 said: Help and both release notes say Passes its count to, the notes under 1.6.0',
                 ixN.includes('<b>Passes its count to</b>') && notesN.every(t => { const i6 = t.indexOf('WAYPOINT 1.6.0'), i5 = t.indexOf('WAYPOINT 1.5.9'), k = t.indexOf('A counter that starts again each turn can pass its count'); return k > i6 && k < i5; }), '');
             check('1.6.0 said: Help and both release notes say the six options of the v2 combat module, the notes under 1.6.0',
-                ['<b>Or by location</b>', '<b>A die adds</b>', '<b>A die there adds</b>', '<b>Fragmentation reaches</b> may read FragDice', '<code>ThrowDistance</code>, the yards to the aim', 'its <b>Armor divisor</b> too', '<b>Starts again each turn</b>'].every(s => ixN.includes(s))
+                ['<b>Or by location</b>', '<b>A die adds</b>', '<b>A die there adds</b>', '<b>Fragmentation reaches</b> may read the dice it rolls', 'and the yards to the aim', '<code>FragDice</code>', '<code>ThrowDistance</code>', /* 1.6.3 (the review of the System editor, finding 26, moved on purpose): Help says it in words, its formula names in Formulas as text */ 'its <b>Armor divisor</b> too', '<b>Starts again each turn</b>'].every(s => ixN.includes(s))
                 && notesN.every(t => { const i6 = t.indexOf('WAYPOINT 1.6.0'), i5 = t.indexOf('WAYPOINT 1.5.9'); return ['A damage type can count the dice a blow rolled', 'A list\'s damage roll can name its armor divisor', 'What wears can hold eight layers', 'Fragmentation\'s reach can read BlastDice', 'The throw roll can read the thrown item\'s row', 'A list counter can start again'].every(s => { const k = t.indexOf(s); return k > i6 && k < i5; }); }), '');
         }
         const med = sD.rolls.find(r => r.id === 'r_med'), wake = sD.rolls.find(r => r.id === 'r_wake'), c0 = { id: 'c', values: {} };

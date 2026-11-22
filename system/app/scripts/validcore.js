@@ -51,9 +51,12 @@ function listWord(sys, f, p) {   // what follows a list's key
     if (p.length === 2 && a === 'on') return lower(last) === 'count' ? 'how many rows of ' + L + ' are switched on' : lower(last) === 'qty' ? 'how many ' + L + ' are switched on' : 'the total ' + W + ' of ' + L + ' switched on';
     if (p.length === 2 && (a === 'max' || a === 'min')) return 'the ' + (a === 'max' ? 'highest ' : 'lowest ') + W + ' in ' + L;
     if (p.length === 3 && a === 'on' && (lower(p[1]) === 'max' || lower(p[1]) === 'min')) return 'the ' + (lower(p[1]) === 'max' ? 'highest ' : 'lowest ') + W + ' in ' + L + ' switched on';
-    if (p.length === 2) return W + ' of ' + entryWord(sys, p[0]) + ' in ' + L;
+    if (p.length === 2) { var rwE = entryWord(sys, p[0]) + ' in ' + L, rwW = ROW_SAYS_OF[lower(last)]; return rwW ? rwW(rwE) : W + ' of ' + rwE; }   // 1.6.3 (finding 18): a row's own words said as what they ask, never has of Temper
     return humanName(p.join('.'));
 }
+// 1.6.3 (the review of the System editor, finding 18): what a name says of one entry of a list where it ends in a row's own word, in plain words.
+// A list's stat can never be keyed one of these (a stat's short name refuses the row's words), so they never stand for a stat
+var ROW_SAYS_OF = { has: function(e) { return 'whether they hold ' + e; }, lvl: function(e) { return 'the level of ' + e; }, qty: function(e) { return 'how many of ' + e + ' they hold'; }, on: function(e) { return 'whether ' + e + ' is switched on'; }, paid: function(e) { return 'what ' + e + ' cost'; }, count: function(e) { return 'how many rows of ' + e + ' they hold'; } };
 function nameWord(sys, name, rowSpec) {
     var s = String(name), l = lower(s); if (!isObj(sys) || !Array.isArray(sys.fields)) return humanName(s);
     var ix = keyIndexOf(sys); if (ix[l]) return fieldWord(ix[l]);
@@ -119,7 +122,7 @@ function nameAsks(sys, name) {
 }
 // 1.6.2 (the owner, of a message that spoke of what a formula knows: "this isnt readable for a normal user either"): a fault as the System editor says it. validateSystem's own text stays what suites and tools read; this is its one reading for a person, so a new message gets its names in words by itself
 function plainMessage(sys, text) {
-    var s = String(text === undefined || text === null ? '' : text), w = function(n) { return nameWord(sys, n); }, m = /^Unknown name "([^"]+)"(?: \u2014 did you mean "([^"]+)"\?)?$/.exec(s);
+    var s = String(text === undefined || text === null ? '' : text), w = function(n) { return nameWord(sys, n); }, m = /^Unknown name "([^"]+)"(?: \u2014 did you mean "([^"]+)"\?|\.)?$/.exec(s);   /* the review of the words (1.6.3): the formula engine ends one with no suggestion in a full stop, as a worked-out field fault reads it */
     if (m) return '\u201c' + humanName(m[1]) + '\u201d is nothing on this sheet.' + (m[2] ? ' Did you mean ' + w(m[2]) + '?' : '');
     m = /^Formulas refer to each other in a loop: (.+)$/.exec(s);
     if (m) return 'These each need the other, so none of them can be worked out: ' + m[1].split(' \u2192 ').map(w).join(', then ') + '.';
@@ -129,6 +132,7 @@ function plainMessage(sys, text) {
     s = s.replace('An amount cannot roll dice: roll first, and let the amount read the field the result goes in.', 'This amount cannot roll dice unless it is ticked Rolled.');
     s = s.replace(/^"([^"]+)" is a (choice|counter), so it has no (.+?): read one row \([^)]*\)\.$/, function(all, n, what, none) { var p = n.split('.'), lf = keyIndexOf(sys)[lower(p[0])], last = p[p.length - 1], lab = lf ? statWord(lf.list, last) : ''; return (lab ? lab + ' in ' + fieldWord(lf) : humanName(n)) + ' is a ' + what + ', so it has no ' + none + '.'; });
     s = s.replace(/^"([^"]+)" is known only in /, function(all, n) { return capWord(w(n)) + ' can only be read in '; }).replace(/^"([^"]+)" is known only where /, function(all, n) { return capWord(w(n)) + ' can only be read where '; });
+    s = s.replace(/^No item in (.+?) has the key "([^"]+)"(?:\. "[^"]+" then finds only rows whose own name says it, and with none it reads as not carried\.|: (it reads as not carried until a row its player can see has it\.))$/, function(all, list, key, tail) { return 'No entry of ' + list + ' is named \u201c' + humanName(key) + '\u201d. ' + (tail ? 'It reads as not carried until a row its player can see has it.' : 'It then finds only rows whose own name says it, and with none it reads as not carried.'); });   // 1.6.3 (finding 18)
     s = s.replace(/Stat (?:\u201c([^\u201d]+)\u201d|"([^"]+)")/g, function(all, a, b) { var k = a || b, lab = ''; (Array.isArray(sys && sys.fields) ? sys.fields : []).forEach(function(f) { if (!lab && isObj(f) && f.kind === 'item-list') lab = statWord(f.list, k); }); return lab || all; });
     return s.replace(/"([A-Za-z_][A-Za-z0-9_.]*)"/g, function(all, n) { var x = w(n); return x === humanName(n) ? all : '\u201c' + x + '\u201d'; });
 }
@@ -864,7 +868,10 @@ function validateSystem(sys, F) {
             if (isObj(a.lasts) && typeof a.lasts.n === 'string' && a.lasts.n) { checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.lasts', a.lasts.n, true, 'gm'); if (!affLastsSecs(sys, 1, a.lasts.u)) warnings.push({ id: it.id, prop: 'aff.' + ai + '.lasts', message: 'Lasts names a time unit the Combat tab does not have, so the effect lasts its own time.' }); }
         });
         if (it.cost) checkFormula({ id: it.id, key: it.id }, 'cost', it.cost, false, it.vis);
-        if (it.throwSkill && !ix[lower(it.throwSkill)]) warnings.push({ id: it.id, prop: 'throwSkill', message: 'Throw skill "' + it.throwSkill + '" is not a field.' });
+        // 1.6.3 (the review of the System editor library): what an item is thrown with may be a field or a figure of one row of a list (Skills, Throwing,
+        // Target, kept as one name), so it is judged by every name a formula can read (known, then listT, as a choice stat's option is), never by the field
+        // keys alone. Only a name that reads nothing is said, in words that never show the stored name
+        if (it.throwSkill && !(known[lower(it.throwSkill)] || listT(it.throwSkill))) warnings.push({ id: it.id, prop: 'throwSkill', message: 'What it is thrown with no longer names anything this sheet has, so the Combat tab’s throw roll cannot be made for it. Pick it again.' });
     });
     // Stage 6 F4b: an item's key names one row of each list it can be on (the list's categories, or every item): once there
     var keyErr = map();

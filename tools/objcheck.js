@@ -90,6 +90,34 @@ const slice = (s, t) => { const a = s.indexOf('// [' + t + '-start]'), b = s.ind
     check('1.6.3 (Fulllion\'s rulings of 2026-11-20) an object\'s Protection counts only beside a Cover or Blocks sight: with neither its box stands greyed with its figure and says to pick a Cover first, and its words never say Protection beside No cover; with a grade or Blocks sight the box is live (mapobjects.js formInto run for real, objcore objWords)',
         !!oc && J(oc.pro) === J([true, 3, 'Protection counts only for an object that gives cover or blocks sight. Pick a Cover first.', false, true, false])
         && O.objWords({ id: 'a', name: 'x', pro: 3 }) === 'No cover' && O.objWords({ id: 'a', name: 'x', sight: true, pro: 3 }) === 'Blocks sight · Protection 3' && O.objWords({ id: 'a', name: 'x', cover: 'half', pro: 4 }) === 'Half cover · Protection 4', ocErr || oc);
+    {   // 1.6.3 (the review of the System editor and the Library window, finding 30): a field's change keeps the focus and the list's place, and figures are the app's counters
+        let o30 = null, o30Err = '';
+        try {
+            const mkE = tag => ({ tag, kids: [], on: {}, dataset: {}, attrs: {}, value: '', appendChild(c) { this.kids.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, setAttribute(k, v) { this.attrs[k] = v; }, set textContent(v) { this.kids = []; this._t = v; }, get textContent() { return this._t || ''; } });
+            const el = (tag, cls, text) => { const e = mkE(tag); if (cls) e.className = cls; if (text !== undefined) e._t = String(text); return e; };
+            const btn = (cls, text, tip) => { const b = el('button', cls, text); if (tip) b.dataset.tip = tip; return b; };
+            const walk = (n, f, out = []) => { if (f(n)) out.push(n); (n.kids || []).forEach(k => walk(k, f, out)); return out; };
+            const camp = { id: 'c', objects: [{ id: 'crate', name: 'Crate', cover: 'half', pro: 2, w: 2, color: '#112233' }, { id: 'rug', name: 'Rug' }] }, stored = [], steps = [];
+            const step = o => { steps.push(o); const w = el('span', 'ui-step'); w.input = el('input'); Object.keys(o.data || {}).forEach(k => { w.input.dataset[k] = o.data[k]; }); w.kids.push(w.input); return w; };
+            const mkForm = win => new Function('OC', 'el', 'btn', 'listsOf', 'campNow', 'store', 'draw', 'pickPic', 'toast', 'save', 'log', 'nowOf', 'showConfirm', 'window', 'OBJ_LAND', '"use strict";\n' + slice(src, 'objcheck:form') + '\nreturn formInto;')(
+                () => O, el, btn, W.listsOf, () => camp, (kind, list) => { stored.push(list); camp.objects = list; return true; }, () => {}, () => {}, () => {}, () => {}, () => {}, o => o, () => {}, win, '#6b5b45');
+            const box = el('div'); mkForm({ wpUi: { step } })(box, camp.objects[0], 'own', camp.objects);
+            const keys = walk(box, n => !!(n.dataset && n.dataset.objk)).map(n => n.dataset.objk);
+            const asked = steps.map(s => [s.data.objk, s.value, s.min, s.max, !!s.off]);
+            steps[0].set(5); const pro = stored[stored.length - 1].find(x => x.id === 'crate').pro; steps[1].set(3); const wide = stored[stored.length - 1].find(x => x.id === 'crate').w;
+            const rugBox = el('div'); steps.length = 0; mkForm({ wpUi: { step } })(rugBox, { id: 'rug', name: 'Rug' }, 'own', camp.objects); const rugOff = steps[0].off === true;
+            const plainBox = el('div'); mkForm({})(plainBox, camp.objects[0], 'own', camp.objects); const plain = walk(plainBox, n => n.tag === 'input' && n.type === 'number').map(n => n.dataset.objk);
+            // draw() asks once for a drawing a moment later, and drawNow makes it through keepPlace, keyed by data-objk
+            const dA = src.indexOf('var _drawT = 0;'), dZ = src.indexOf('function drawList() {'), timers = [], kp = [];
+            const D = new Function('setTimeout', 'keepPlace', '$', 'OC', '_hold', 'drawList', '"use strict";\n' + src.slice(dA, dZ) + '\nreturn { draw, drawNow, objKeyOf };')(f => { timers.push(f); return 1; }, (root, fn, idOf) => { kp.push([root, idOf]); fn(); }, id => (id === 'objList' ? { id } : null), () => O, null, () => kp.push('drawn'));
+            D.draw(); D.draw(); const oneTimer = timers.length; timers[0](); D.draw();
+            o30 = { keys, asked, pro, wide, rugOff, plain, oneTimer, timersAfter: timers.length, kp: kp.length, key: D.objKeyOf({ dataset: { objk: 'crate:name' } }), none: D.objKeyOf({ dataset: {} }) };
+        } catch (e) { o30Err = String(e && e.stack || e).slice(0, 600); }
+        check('1.6.3 (finding 30) the Map objects window keeps the focus and its place after a field’s change: each control says which object and value it is for, a change asks for one drawing a moment later, once the focus has landed, and the drawing is made through io.js keepPlace keyed by them; Protection and the two sizes are the app’s own counters, Protection greyed with no cover, a plain number box where the parts are not there (mapobjects.js formInto and draw, run for real)',
+            !!o30 && ['crate:name', 'crate:cover', 'crate:pro', 'crate:color', 'crate:tick:Blocks sight', 'crate:tick:Stops tokens', 'crate:w', 'crate:h'].every(k => o30.keys.includes(k)) && J(o30.asked) === J([['crate:pro', 2, 0, 999, false], ['crate:w', 2, 1, 12, false], ['crate:h', 1, 1, 12, false]])
+            && o30.pro === 5 && o30.wide === 3 && o30.rugOff === true && J(o30.plain) === J(['crate:pro', 'crate:w', 'crate:h']) && o30.oneTimer === 1 && o30.timersAfter === 2 && o30.kp === 2 && o30.key === 'k:crate:name' && o30.none === null
+            && src.includes("import { save, toast, pressHold, keepPlace } from './io.js';") && src.includes('    keepPlace(box, drawList, objKeyOf);') && src.includes("    _win.edit = ''; _win.from = false; drawNow(); m.style.display = 'flex';"), o30Err || J(o30));
+    }
     // the wiring
     const ix = read('index.html'), net = fs.readFileSync(app('scripts/net.js'), 'latin1'), cln = read('scripts/cleanup.js'), io = read('scripts/io.js'), esc = read('scripts/esckey.js'), fog = read('scripts/fog.js'), ins = read('scripts/inspector.js'), wb = read('scripts/whiteboard.js');
     check('the window: its row in Add the GM\'s alone, its box, its script, Escape; words as text alone, no markup written', /id="addObjectsBtn"/.test(ix) && /body\.net-client #addObjectsBtn/.test(read('style.css')) && /id="objModal"/.test(ix) && /src="scripts\/mapobjects\.js"/.test(ix) && esc.includes("['objModal', 'objClose']") && !/innerHTML|insertAdjacentHTML|outerHTML/.test(src) && wb.includes('window.wpArmPlacement = armPlacement;'));

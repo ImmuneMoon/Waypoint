@@ -226,7 +226,7 @@ function renderLayout() {
     tabs.forEach(function(tb) {
         var tr = el('div', 'sys-row sys-tab'); tr.dataset.tid = tb.id;
         var tmain = el('div', 'sys-row-main');
-        var tIcoIn = input('sys-tab-icon field', tb.icon, 'An icon before the label on the sheet \u2014 an emoji or a bundled icon (optional)', 'Icon'); tmain.appendChild(tIcoIn); tmain.appendChild(glyphButton(tIcoIn));   // Stage 5g (Stage 6: the picker)
+        var tIcoIn = input('sys-tab-icon field', tb.icon, 'An icon before the label on the sheet \u2014 an emoji or a bundled icon (optional)', 'Icon'); tIcoIn.type = 'hidden'; tmain.appendChild(tIcoIn); tmain.appendChild(glyphButton(tIcoIn, 'Pick an icon from Waypoint\u2019s own icons or the emoji'));   // 1.6.3 (finding 35): the box hidden   // Stage 5g (Stage 6: the picker)
         tmain.appendChild(input('sys-tab-label field', tb.label, 'This tab\'s label on the sheet. It must be filled in', 'Tab label'));
         var tbErr = 'tablbl:' + layoutView + ':' + tb.id, tbEc = errorCell(tbErr); tbEc.dataset.errFor = tbErr; tmain.appendChild(tbEc);   // 1.6.3: a label it still needs, said under it
         tmain.appendChild(btnRow([['tabup', 'Move this tab left', '&#9650;'], ['tabdown', 'Move this tab right', '&#9660;'], ['tabdel', 'Remove this tab (its sections move to the first tab)', '&times;']]));
@@ -446,7 +446,7 @@ function renderLayout() {
     secs.forEach(function(sec) {
         var row = el('div', 'sys-row sys-sec'); row.dataset.sid = sec.id;
         var top = el('div', 'sys-row-main');
-        var sIcoIn = input('sys-sec-icon field', sec.icon, 'An icon before the title \u2014 an emoji or a bundled icon (optional)', 'Icon'); top.appendChild(sIcoIn); top.appendChild(glyphButton(sIcoIn));   // Stage 5g (Stage 6: the picker)
+        var sIcoIn = input('sys-sec-icon field', sec.icon, 'An icon before the title \u2014 an emoji or a bundled icon (optional)', 'Icon'); sIcoIn.type = 'hidden'; top.appendChild(sIcoIn); top.appendChild(glyphButton(sIcoIn, 'Pick an icon from Waypoint\u2019s own icons or the emoji'));   // 1.6.3 (finding 35): the box hidden   // Stage 5g (Stage 6: the picker)
         top.appendChild(input('sys-sec-title field', sec.title, 'The section\'s title on the sheet (empty = none)', 'Section title'));
         top.appendChild(select('sys-sec-cols', [[1, '1 column'], [2, '2 columns'], [3, '3 columns'], [4, '4 columns']], Math.max(1, Math.min(4, sec.cols || 1)), 'Fields per row in this section'));
         if (tabs.length) top.appendChild(select('sys-sec-tab', [['', 'No tab']].concat(tabs.map(function(t) { return [t.id, t.label || 'Tab']; })), sec.tab || '', 'Which tab this section appears on'));
@@ -735,6 +735,9 @@ function keyFromLabel(label, f) {
     var k = String(label || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/ +/).map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('').replace(/^[0-9]+/, '').slice(0, 24);
     if (!k) return '';
     var taken = {}; draft.fields.forEach(function(o) { if (o !== f && o && typeof o.key === 'string') taken[o.key.toLowerCase()] = 1; });
+    // 1.6.3 (the review of the System editor, finding 29): a name that is a word formulas use (Round, Floor, Max, If) makes a short name with Value
+    // after it (RoundValue), as a stat's takes Stat, so a field named Round is kept and is never dropped at Save for want of a short name
+    if (!validKey(k, F())) k = (k + 'Value').slice(0, 24);
     var out = k, n = 2; while (taken[out.toLowerCase()]) out = k + (n++);
     return validKey(out, F()) ? out : '';
 }

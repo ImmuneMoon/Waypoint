@@ -103,8 +103,12 @@ function formLib() {
     return out;
 }
 function formSource(inp) {
-    var cF = draft ? null : getActiveCampaign(), d = draft || (cF ? systemOf(cF) : null); if (!d) return null;
-    var ctx = inp && /^libF_/.test(inp.id || '') ? {} : formCtx(inp);
+    // 1.6.3 (the review of the System editor and the Library window, finding 11; Fulllion's pick of 2026-11-21: the Library never reads the unsaved
+    // draft): a box of the Library window reads the system as saved, even while the editor stands open under it with changes
+    // A box is the Library window's by where it stands (inside #libraryModal), or by a libF_ id or a lib- class where it stands in no page yet (the
+    // review of the System editor library: the change-by-a-formula box, lib-mod-amtf, has no id, and read the draft)
+    var libB = !!(inp && (/^libF_/.test(inp.id || '') || /(^|\s)lib-/.test(typeof inp.className === 'string' ? inp.className : '') || (typeof inp.closest === 'function' && inp.closest('#libraryModal')))), useD = draft && !libB, cF = useD ? null : getActiveCampaign(), d = useD ? draft : (cF ? systemOf(cF) : null); if (!d) return null;
+    var ctx = libB ? {} : formCtx(inp);
     return { sys: d, get lib() { return formLib(); }, subject: ctx.subject || '', trial: formTrial(d, ctx), get groups() { return readsOf(d, ctx); }, get wgroups() { return readsOf(d, Object.assign({}, ctx, { words: true })); }, get wlists() { return Array.isArray(ctx.only) ? [] : (d.fields || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.key === 'string' && f.key && f.key.indexOf('.') < 0; }).map(function(f) { return [f.key, f.label || f.key]; }); }, word: function(s) { return nameWord(d, s, ctx.list); } };   // wgroups (167 D): what a test of words may read
 }
 // [formcheck:source-end]
@@ -437,14 +441,16 @@ function swWordsBox(row, sw) {
     off.addEventListener('input', function() { var v = off.value.slice(0, LIMITS.label); if (v.trim()) sw.offLabel = v; else delete sw.offLabel; ch(); });
     var ic = input('sys-swicon field', typeof sw.icon === 'string' ? sw.icon : '', 'An icon on the switch\u2019s button, a bundled icon or an emoji. Empty: a check. It shows only with a word while off, and Save drops it without one', 'Icon');
     ic.addEventListener('input', function() { var v = ic.value.trim().slice(0, 32); if (v) sw.icon = v; else delete sw.icon; ch(); });
-    row.appendChild(off); row.appendChild(ic); if (typeof glyphButton === 'function') row.appendChild(glyphButton(ic));
+    // 1.6.3 (the review of the System editor library, finding 35): the box is hidden behind its picker, so no stored name such as icon:bolt stands in
+    // view; the picker sends input, which the listener above keeps. With no picker (a page of the suites) the box stays as it was
+    row.appendChild(off); row.appendChild(ic); if (typeof glyphButton === 'function') { ic.type = 'hidden'; row.appendChild(glyphButton(ic, 'Pick an icon from Waypoint’s own icons or the emoji')); }
 }
 function rollExtras(row, rr, sp, isApply) {
     if (typeof asksBox === 'function') row.appendChild(asksBox(rr));
     var ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
     var ic = input('sys-rlicon field', typeof rr.icon === 'string' ? rr.icon : '', isApply ? 'An icon on its button, a bundled icon or an emoji. Empty: a bolt' : 'An icon on its button after its die, a bundled icon or an emoji (optional)', 'Icon');
     ic.addEventListener('input', function() { var v = ic.value.trim().slice(0, 32); if (v) rr.icon = v; else delete rr.icon; ch(); });
-    row.appendChild(ic); if (typeof glyphButton === 'function') row.appendChild(glyphButton(ic));
+    row.appendChild(ic); if (typeof glyphButton === 'function') { ic.type = 'hidden'; row.appendChild(glyphButton(ic, 'Pick an icon from Waypoint’s own icons or the emoji')); }   // 1.6.3 (finding 35): the box hidden, as the switch's is
     if (typeof rollStationBox === 'function') { var rsL = rollStationBox(rr); if (rsL) row.appendChild(rsL); }   // 1.6.0
     if (!isApply && typeof needsGmBox === 'function') row.appendChild(needsGmBox(rr));   // 1.6.0
     if (isApply) { if (typeof rollJobBox === 'function') { var jbA = rollJobBox(rr, sp, ch, true); if (jbA) row.appendChild(jbA); } return; }   // 1.6.2 (the CORE session): an action may be a job too

@@ -4805,6 +4805,10 @@
   /* Stage 6 library L2a: the Library window — packs | the pack's entries (a list drawn only where it shows) | the chosen entry's form */
   #libraryModal .lib-box { width: 1180px; max-width: 97vw; height: 86vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-sizing: border-box; }
   #libraryModal .field { margin: 0; padding: 4px 8px; font-size: 12.5px; }   /* beats the base .field's form spacing */
+  /* the review of the System editor's words (1.6.3): the System editor's entry picker (sheets.js entryPick), which the Library window borrows for a roll
+     bonus and a change on one entry, wears the app's own look there too. In the System editor .sys-row select styles it, and the Library has no such row */
+  #libraryModal .sys-entrypick { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12.5px; max-width: 100%; box-sizing: border-box; }
+  #libraryModal .sys-entrypick:focus { outline: none; border-color: var(--gold); }
   .lib-head { display: flex; align-items: center; gap: 10px; }
   .lib-head h3 { margin: 0; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .lib-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr) 380px; gap: 10px; }
@@ -4840,6 +4844,14 @@
   .lib-frow > .lib-locpick ~ .field { grid-column: 2; }   /* 1.6.3: Strikes at's typed box, shown for Another location, stands under its pick */
   #libraryModal .lib-frow textarea.field { min-height: 0; resize: vertical; line-height: 1.4; }
   .lib-fsub { margin-top: 6px; color: var(--gold); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 1px solid var(--edge); padding-bottom: 2px; flex: none; }
+  /* 1.6.3 (the review of the System editor and the Library window, finding 22): the Stats heading's count of stats put away and its Show every stat tick
+     read as plain words beside the heading, never in its gold capitals */
+  .lib-stats-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .lib-stats-head .lib-stats-more, .lib-stats-head .lib-stats-all { text-transform: none; letter-spacing: normal; font-size: 11.5px; color: var(--dim); }
+  .lib-stats-head .lib-stats-all { margin-left: auto; color: var(--ink); }
+  .lib-stat[hidden] { display: none; }
+  /* 1.6.3 (finding 31): the words before the one pick of an item's Thrown with in the Items tab, as a caption */
+  .fb-onecap { color: var(--dim); font-size: 12px; align-self: center; }
   .lib-warn { color: var(--gold); font-size: 11.5px; line-height: 1.4; flex-basis: 100%; }
   .lib-fbtns { display: flex; gap: 8px; position: sticky; top: 0; z-index: 2; background: var(--panel2); padding: 6px 0 8px; margin-bottom: 4px; border-bottom: 1px solid var(--edge); flex: none; }   /* 1.6.2: at the form's top */
   .lib-pack-fold { flex: 1 1 100%; }
@@ -4908,6 +4920,10 @@
   .lib-pick-need { color: var(--gold); font-size: 11.5px; line-height: 1.4; margin: 4px 0; }
   .lib-need .lib-need-name { flex: 1 1 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   #libraryModal .lib-need .field { flex: 0 0 84px; min-width: 0; }
+  /* 1.6.3 (the review of the System editor, finding 40): a need's Level and From level, each with its caption above its box */
+  .lib-capbox { display: inline-flex; flex-direction: column; gap: 1px; flex: 0 0 118px; min-width: 0; }
+  .lib-capbox-cap { font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #libraryModal .lib-need .lib-capbox .field { flex: none; width: 100%; }
   .lib-pick-prev { overflow: auto; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 6px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; min-width: 0; }
   .lib-pick-name { font-weight: 600; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; overflow-wrap: anywhere; }
   .lib-pick-sub { color: var(--dim); font-size: 11px; }
@@ -5061,7 +5077,7 @@
   #declareBox .dc-head { font-weight: 600; color: var(--ink); }
   #declareBox .dc-out { color: var(--muted); font-size: 12px; }
   #declareBox .dc-reveal { align-self: flex-start; }
-  #systemModal:not(.sys-show-keys) .sys-list-statkey, #systemModal:not(.sys-show-keys) .sys-list-colkey, #systemModal:not(.sys-show-keys) .sys-list-ctkey, #systemModal:not(.sys-show-keys) .sys-dmgr-ykey, #systemModal:not(.sys-show-keys) .sys-dmgr-kkey, #systemModal:not(.sys-show-keys) .sys-item-key, #systemModal:not(.sys-show-keys) .sys-tbl-ckey, #systemModal:not(.sys-show-keys) .sys-list-names, #systemModal:not(.sys-show-keys) .sys-targetreads { display: none; }
+  #systemModal:not(.sys-show-keys) .sys-list-statkey, #systemModal:not(.sys-show-keys) .sys-list-colkey, #systemModal:not(.sys-show-keys) .sys-list-ctkey, #systemModal:not(.sys-show-keys) .sys-dmgr-ykey, #systemModal:not(.sys-show-keys) .sys-dmgr-kkey, #systemModal:not(.sys-show-keys) .sys-item-key, #systemModal:not(.sys-show-keys) .sys-tbl-ckey, #systemModal:not(.sys-show-keys) .sys-list-names, #systemModal:not(.sys-show-keys) .sys-targetreads, #systemModal:not(.sys-show-keys) .sys-list-feedkey { display: none; }
   #systemModal:not(.sys-show-keys) label:has(> .sys-env-key), #systemModal:not(.sys-show-keys) label:has(> .sys-tbl-key), #systemModal:not(.sys-show-keys) label:has(> .sys-link-key), #systemModal:not(.sys-show-keys) label:has(> .sys-key) { display: none; }
   #systemModal:not(.sys-show-keys) .sys-tbl-grid tr > :first-child { display: none; }
   #systemModal:not(.sys-show-keys) .sys-pick-key { display: none; }
@@ -5095,7 +5111,8 @@
   .sys-empty { color: var(--dim); font-size: 12px; padding: 14px; text-align: center; }
   .sys-kind-line { flex-basis: 100%; font-size: 11px; color: var(--dim); margin-top: 2px; }   /* 1.6.2: what a Derived field is, in a gray line */
   .sys-test { display: flex; flex-direction: column; gap: 4px; }
-  .sys-test > #sysTestBtn { align-self: flex-start; }   /* 1.6.2 (the builder trial): a button at its own width, as the other add buttons */
+  .sys-test > #sysTestBtn { align-self: flex-start; }
+  .sys-test-out > .sys-test-find { flex: 0 0 100%; max-width: 260px; font-family: inherit; }   /* 1.6.3 (finding 40): Find a field, above Work out every field's lines */   /* 1.6.2 (the builder trial): a button at its own width, as the other add buttons */
   .sys-test-out { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink); max-height: 120px; overflow: auto; display: flex; flex-wrap: wrap; gap: 2px 16px; }
   .sys-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--edge); padding-top: 8px; flex: none; position: relative; }
   #sysErrBtn { color: var(--red); white-space: nowrap; }

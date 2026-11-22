@@ -64,7 +64,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     const p1 = cleanPack({ format: 'waypoint-pack', v: 1, id: 'p_gear', rev: 3.7, entries: [...ents(3), { id: 'i_e1', name: 'Again' }, { name: 'no id' }, 'junk'] }, gm);
     check('a pack as stored: its format, id and revision (a whole number, never negative), its entries cleaned in order, one per id; each one left out counted with its reason',
         p1.pack.format === 'waypoint-pack' && p1.pack.v === 1 && p1.pack.id === 'p_gear' && p1.pack.rev === 3 && j(p1.pack.entries.map(e => e.id)) === j(['i_e0', 'i_e1', 'i_e2']) && p1.dropped === 3
-        && p1.reasons[0] === 'entry 4: the id i_e1 is already used' && /^entry 5: not a valid item/.test(p1.reasons[1]) && cleanPack({ id: 'p_x', rev: -5 }, gm).pack.rev === 0 && cleanPack({ id: 'p_x', rev: 1e12 }, gm).pack.rev === 1e9, j(p1));
+        && p1.reasons[0] === 'entry 4: the id i_e1 is already used' && /^entry 5: it is not an entry Waypoint can read$/.test(p1.reasons[1]) /* 1.6.3 (finding 39): said in words, never by the form an id takes (moved on purpose) */ && cleanPack({ id: 'p_x', rev: -5 }, gm).pack.rev === 0 && cleanPack({ id: 'p_x', rev: 1e12 }, gm).pack.rev === 1e9, j(p1));
     const seen = Object.create(null), pa = cleanPack({ id: 'p_a', entries: ents(2) }, gm, seen), pb = cleanPack({ id: 'p_b', entries: [{ id: 'i_e0', name: 'Dup' }, { id: 'i_new', name: 'New' }] }, gm, seen);
     check('an id stays unique across the whole library (the second pack\'s i_e0 is left out); not a pack: its id, or a wrong format, is no pack',
         pa.pack.entries.length === 2 && j(pb.pack.entries.map(e => e.id)) === j(['i_new']) && pb.dropped === 1 && cleanPack({ id: 'x', entries: [] }, gm) === null && cleanPack({ format: 'other', id: 'p_a' }, gm) === null && cleanPack(null, gm) === null && cleanPack([], gm) === null);
@@ -182,7 +182,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('L2a the Library window: text nodes only (nothing from an entry, a pack name or a file becomes markup); it never writes a pack it has not read (still loading or unreadable: writing it would leave nothing); a save replaces every field the form holds (each one entryFromForm makes) and keeps the rest (a bound item\'s secrets); it acts on the campaign it opened on',
             !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|setAttribute\('on/.test(winS)
             && /if \(!packById\(pid\) \|\| !ready\(pid\)\) \{ delete st\.dirty\[pid\]; continue; \}/.test(winS)
-            && /function saveEntry\(\) \{\n\s*var e = current\(\); if \(!e \|\| !st\.packId \|\| !ready\(st\.packId\)\) return;/.test(winS) && /if \(ready\(packId\)\) st\.work\[packId\] = list;/.test(winS)
+            && /function saveEntry\(\) \{\n\s*var how = arguments\[0\], lv = how === 'leave'[^\n]*\n\s*var e = current\(\); if \(!e \|\| !st\.packId \|\| !ready\(st\.packId\)\) return false;/.test(winS) /* 1.6.3 (finding 8): a save made as the GM leaves the entry (moved on purpose) */ && /if \(ready\(packId\)\) st\.work\[packId\] = list;/.test(winS)
             && /var out = clone\(e\), eqShown = !!ui\('libF_eq'\); FORM_KEYS\.forEach\(function\(k\) \{ if \(eqShown \|\| \(k !== 'eq' && k !== 'eqMsg'\)\) delete out\[k\]; \}\); return Object\.assign\(out, typed\);/.test(winS)
             && Object.keys(full).filter(k => k !== 'id').every(k => FK.includes(k)) && FK.length === Object.keys(full).length - 1
             && /function camp\(\) \{ var c = getActiveCampaign\(\); return c && c\.id === st\.campId \? c : null; \}/.test(winS) && /function ready\(packId\) \{ return !!\(camp\(\) && LB\(\) && LB\(\)\.ready && LB\(\)\.ready\(packId\)\); \}/.test(winS), j([FK, Object.keys(full)]));
@@ -214,7 +214,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const rt = readPackImport(JSON.stringify(gmF), gmC), bad = readPackImport(JSON.stringify({ format: 'waypoint-pack', name: 'X'.repeat(90), entries: [{ id: 'i_ok', name: 'Ok' }, { id: 'bad id', name: 'B' }, { id: 'i_ok', name: 'Again' }, 5] }), gmC);
         check('L2a2 readPackImport: a pack file comes back as it was exported (name, icon, GM-only mark, entries); its entries are cleaned in the GM\'s view, one per id, the rest counted with reasons; not JSON, not a pack, another format or too large is an error',
             rt.name === 'Gear' && rt.icon === '\u2694' && rt.vis === 'gm' && j(rt.entries) === j(gmF.entries) && rt.dropped === 0
-            && bad.name.length === LIB.packName && j(bad.entries.map(e => e.id)) === j(['i_ok']) && bad.dropped === 3 && bad.reasons.length === 3 && bad.vis === 'all'
+            && bad.name.length === LIB.packName && bad.entries.length === 2 && bad.entries[0].id === 'i_ok' && bad.entries[1].id === 'i_badid' /* the review of the System editor library: made from the file's own id now (moved on purpose) */ && bad.entries[1].name === 'B' && bad.newIds === 1 && bad.dropped === 2 && bad.reasons.length === 2 && bad.vis === 'all' /* 1.6.3 (finding 39): an entry whose id is no item id is given one of its own (moved on purpose) */
             && !!readPackImport('{', gmC).error && !!readPackImport('[]', gmC).error && !!readPackImport(JSON.stringify({ format: 'waypoint-system', entries: [] }), gmC).error && !!readPackImport(JSON.stringify({ name: 'x' }), gmC).error
             && /too large/.test(readPackImport(JSON.stringify({ entries: [], pad: 'x'.repeat(LIB.fileBytes) }), gmC).error || '') && !!readPackImport(null, gmC).error && !readPackImport(JSON.stringify({ entries: [] }), gmC).error, j([rt, bad]));
         const idOf = v => readPackImport(JSON.stringify({ id: v, entries: [] }), gmC).id;
@@ -299,7 +299,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             check('208 keyGoneSays (run for real): a key renamed or deleted says what still names it, nothing while another entry or an item holds it, and an entry going counts for nothing',
                 /^Formulas still read Skills\.Tracking, and they find nothing by that key now\. One change or roll bonus is still aimed at Tracking, and reaches nothing now\.$/.test(said) && held === '' && own === said && none === '' && new Function('camp', 'allEntries', 'sysItems', 'keyUses', 'keyUseSays', kgS + '\nreturn keyGoneSays;')(() => null, () => [], () => [], Sk.keyUses, Sk.keyUseSays)('Tracking', '') === '', j([said, held, own, none]));
             check('208 the Library saves and deletes through it, and says a category that is nearly one a list takes',
-                winT.includes("? keyGoneSays(was.key, '') : '';") && winT.includes('var kgD = typeof e.key === \'string\' && e.key ? keyGoneSays(e.key, e.id) : \'\';') && winT.includes("(kgD ? ' ' + kgD : '')") && winT.includes('catNear(camp().system, c.category)') && winT.includes("var tellE = [rt, kgS, ctS, entryNotes(raw)].filter(Boolean).join(' '); if (tellE) toast(tellE);"));   // 1.6.3: and what the entry keeps that does nothing (moved on purpose)
+                winT.includes("? keyGoneSays(was.key, '') : '';") && winT.includes('var kgD = typeof e.key === \'string\' && e.key ? keyGoneSays(e.key, e.id) : \'\';') && winT.includes("(kgD ? ' ' + kgD : '')") && winT.includes('catNear(camp().system, c.category)') && winT.includes("var tellE = [rt, kgS, ctS, entryNotes(raw)].filter(Boolean).join(' '); tell(tellE);"));   // 1.6.3 (finding 8): tell, which a save made as the GM leaves says once (moved on purpose)   // 1.6.3: and what the entry keeps that does nothing (moved on purpose)
         }
         check('L2a2 the window: an import is read only when 16 MB or less, through readPackImport in the GM\'s view, and changes nothing until Import (which needs something to add or update, a pack it has read, and the plan worked out again); a players\' copy is made from the players\' view (none: no stats); bulk actions act only on chosen entries the search shows, on packs it has read',
             /if \(f\.size > LIB\.fileBytes\) \{ toast\([^\n]*\); return; \}/.test(winT) && /var d = readPackImport\(text, gmCtx\(\)\); if \(d\.error\)/.test(winT)
@@ -477,7 +477,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('126b where a need is written and where the judge is handed on: the form gives an entry its needs as a copy of the form\'s own, with the GM\'s words, and no words where nothing is needed; the Library window has a What it needs box, built of text nodes with a chooser of at most two thousand entries and eight needs, read back at a save; the library\'s judge reads the GM\'s own copies, a system item first and then the entry with its pack folded in, never the players\' index; the players\' index and the stored hash are made with it, and a kept index follows the needs its own pack names; a players\' copy of a pack is made with it; a player\'s own app says true, for an entry and for the system, twice; the host answers a refusal with its words',
             j(ff.needs) === j([{ id: 'i_y', lvl: 2 }]) && ff.needsMsg === ' w ' && !('needs' in ff0) && !('needsMsg' in ff0) && ff2.needs !== ffSrc && j(ff2.needs) === j(ffSrc) && !('needsMsg' in ff2)
             && wnN.includes("    needsBox(form, e);   // 126b\n") && wnN.includes("var NEED_MAX = 80, NEED_PICK = 2000;") && wnN.includes("needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsWarn: g('needsWarn'), needsMsg: g('needsMsg') });") /* 1.6.2 (167 C): When it isn't met (moved on purpose) */ && /'mods', 'modsOn', 'needs', 'needsIf', 'needsFrom', 'needsWarn', 'needsMsg'\];/.test(wnN)
-            && wnN.includes("        sel.addEventListener('change', function() { if (!sel.value || st.fn.length >= NEED_MAX) return; st.fn.push({ id: sel.value }); draw(); });") && wnN.includes(".slice(0, NEED_PICK).map(function(x) { return [x.id, x.name + (x.vis === 'gm' ? ' (GM only)' : '')]; }));")
+            && wnN.includes("'+ An entry it needs\\u2026', 'Pick an entry a character must carry before it may take this one', st.fn.length >= NEED_MAX, function(v) { if (st.fn.length >= NEED_MAX) return; st.fn.push({ id: v }); draw(); }));") && !wnN.includes(".slice(0, NEED_PICK)") /* 1.6.3 (finding 23): the chooser searches the whole library, never cut at two thousand names (moved on purpose) */
             && lbN.includes("function needShown(id) {\n    var camp = getActiveCampaign(); if (!camp || typeof id !== 'string') return false;\n    var its = camp.system && Array.isArray(camp.system.items) ? camp.system.items : [];\n    for (var i = 0; i < its.length; i++) if (its[i] && its[i].id === id) return its[i].vis !== 'gm';\n    var e = entryFor(id); return !!e && e.vis !== 'gm';\n}")
             && !/function needShown\(id\) \{[^}]*player(Entry|IndexOf)/.test(lbN) && lbN.includes("libCtx({ fields: fields }, F(), false, needShown, needRuleShown)); ix.sig = sig;") && lbN.includes("packMeta(cp.pack.entries, libCtx(camp.system, F(), false, needShown, needRuleShown),") && lbN.includes("+ '|' + needSig(packId), m = _pidx[packId];") && lbN.includes("playerEntry: playerEntry, needShown: needShown, needRuleShown: needRuleShown };")
             && ntN.includes("var ctx = LC.libCtx(camp.system, window.wpFormula, false, true), once") && ntN.split('needShown: true })').length === 3 && require('./checkkit').part('netfog.js').includes("needShown: window.wpLibrary && window.wpLibrary.needShown ? window.wpLibrary.needShown : null, ruleShown: window.wpLibrary && window.wpLibrary.needRuleShown ? window.wpLibrary.needRuleShown : null });")
@@ -718,6 +718,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 { querySelectorAll: () => [], createTextNode: t => ({ text: t }) }, () => W.lb, L.entryFromForm, JSON.parse(fkM[1].replace(/'/g, '"')), S.lvlOnlyText);
             W.press = title => { const walk = n => { for (const k of n.kids || []) { if (k.title === title && k.on && k.on.click) return k; const f = walk(k); if (f) return f; } return null; }; const b = walk(form); if (!b) throw new Error('no control: ' + title); b.on.click(); };
             return W; };
+        {   // 1.6.3 (the review of the System editor, finding 40): a need's Level and From level each stand under a caption, so what a box is stays in sight
+            // once a figure is typed (renderForm run for real on the page of plain objects)
+            let capOk = false, capErr = '';
+            try {
+                const WC = formWorld(); WC.api.renderForm();
+                const caps = []; const walk = n => { (n.kids || []).forEach(k => { if (k && k.className === 'lib-capbox') caps.push(k); walk(k); }); }; walk(WC.form);
+                const words = caps.map(c => c.kids[0].textContent), boxes = caps.map(c => c.kids[1]);
+                capOk = caps.length === 4 && words.join('|') === 'At least level|From this entry\u2019s level|At least level|From this entry\u2019s level' && boxes[2].value === '2' && /lib-need-from/.test(boxes[1].className) && boxes.every(b => b.tag === 'input');
+            } catch (e) { capErr = String(e && e.stack || e).slice(0, 400); }
+            check('1.6.3 (finding 40) a need\u2019s Level and From level boxes each stand under a caption that says what they are, the box keeping its own class and value', capOk, capErr);
+        }
         let fw = null, fwErr = '';
         try {
             const W1 = formWorld(), take = r => [r.needs || null, r.mods || null, r.lvls || null];
@@ -736,7 +747,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         check('1.6.0 Levels it may be and Figure by level in the library: what the form typed is cleaned as an item\'s is, the same in both views and on a player\'s own app, where the entry hashes the same; the key stands before the needs; the Library window\'s form draws the box from the entry, reads it back as typed, and an empty box is no key (the real form, run for real); an index row stays a row of seven, its hash telling a changed entry; Save refuses what it cannot read in words, and the picker says the levels as text',
             !!fw && fw.onlyDrawn === '2, 3 to 5' && j(fw.onlyRead) === '[2,[3,5]]' && fw.onlyGone === false && fw.onlyTyped === '4, Adept' && j(eG.lvlOnly) === '[2,[3,5]]' && j(eP.lvlOnly) === j(eG.lvlOnly) && j(eC.lvlOnly) === j(eG.lvlOnly) && j(eG.mods[0].tiers) === '[{"at":2,"v":1},{"at":4,"v":0}]' && j(eP.mods) === j(eG.mods) && L.entryHash(eP) === L.entryHash(eC) && kLv.indexOf('lvlOnly') < kLv.indexOf('needs') && kLv.indexOf('needs') > 0
             && L.indexRow(Object.assign({}, eP, { needs: undefined, needsHid: undefined, needsMsg: undefined })).length === 7 && j(L.cleanIndexRow(L.indexRow({ id: 'i_x', name: 'X', lvlOnly: [2] }))) === j(L.indexRow({ id: 'i_x', name: 'X', lvlOnly: [2] })) && L.entryHash({ id: 'i_x', name: 'X', lvlOnly: [2] }) !== L.entryHash({ id: 'i_x', name: 'X' })
-            && winS2.includes("toast('Levels it may be: \\u201c' + loB[0] + '\\u201d cannot be read.") && winS2.includes("toast('Figure by level: \\u201c' + trB[0] + '\\u201d cannot be read.") && winS2.indexOf("var loB =") < winS2.indexOf('var c = cleanLibEntry(raw, gmCtx());') && require('fs').readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').includes("line(box, 'Levels it may be',"), fwErr || j([fw, eG, eP]));
+            && winS2.includes("no('Levels it may be: \\u201c' + loB[0] + '\\u201d cannot be read.") && winS2.includes("no('Figure by level: \\u201c' + trB[0] + '\\u201d cannot be read.") /* 1.6.3 (finding 8): no(), which refuses a press of Save entry and only says it on a leave (moved on purpose) */ && winS2.indexOf("var loB =") < winS2.indexOf('var c = cleanLibEntry(raw, gmCtx());') && require('fs').readFileSync(path.join(app, 'scripts', 'libpicker.js'), 'utf8').includes("line(box, 'Levels it may be',"), fwErr || j([fw, eG, eP]));
         // 1.5.8 (the owner, by prompt: "A change on one skill"): the Changes box aims a change at one entry of a list, by its key and a column
         let rw = null, rwErr = '';
         try {
@@ -763,15 +774,27 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             line.kids[0].value = 'f_st|add'; line.kids[0].on.change(); const back = JSON.stringify(stR.fm);
             const line2 = form.kids[1].kids[0]; line2.kids[0].value = 'f_sk|row'; line2.kids[0].on.change(); const fresh = JSON.stringify(stR.fm);
             const tierBox = form.kids[1].kids[0].kids.find(k => k.className === 'field lib-mod-tiers'), mt = () => stR.fm[0].tiers; tierBox.value = '1: +2, 2: 0'; tierBox.on.input(); const tierTyped = mt(); tierBox.value = ' '; tierBox.on.input();
-            rw = { tg, keys, kinds, val: val0, colOpts: colSel.opts, typed, back, fresh, tierTyped, tierGone: mt() };
+            // 1.6.3 (the review of the System editor, finding 17): with the Items tab's own picker at hand (window.wpSheets.entryPick, a stand-in here),
+            // the entry is picked by its name: the picker is handed the key box, the list's entries as [short name, name] and Pick an entry
+            const madeP = []; globalThis.window = { wpSheets: { entryPick: (inp, opts, blank) => { const w = { tag: 'span', className: 'sys-entry', kids: [inp], opts, blank }; madeP.push(w); return w; } } };
+            const formP = mkE('div'); try { api.modsBox(formP, { id: 'i_p', mods: [{ f: 'f_sk', op: 'add', v: 1, key: 'Sneak', col: 'Target' }] }); } finally { delete globalThis.window; }
+            const lineP = formP.kids[1].kids[0], pick = lineP.kids.find(k => k.className === 'sys-entry');
+            rw = { pickOk: !!pick && madeP.length === 1 && pick.kids[0].className === 'field lib-mod-key' && pick.kids[0].value === 'Sneak' && JSON.stringify(pick.opts) === JSON.stringify([['Climb', 'Climb'], ['Sneak', 'Sneak']]) && pick.blank === 'Pick an entry' && !lineP.kids.some(k => k.tag === 'datalist') };
+            rw = Object.assign(rw, { tg, keys, kinds, val: val0, colOpts: colSel.opts, typed, back, fresh, tierTyped, tierGone: mt() });
         } catch (e) { rwErr = String(e && e.stack || e).slice(0, 600); }
         const saveA = winS2.indexOf('function saveEntry() {'), saveS = winS2.slice(saveA, winS2.indexOf('\n}', saveA));
         check('1.5.8 the Changes box aims a change at one entry of a list (librarywin.js modTargets, rowListOf, rowKeys and modsBox, sliced and run for real on a page of plain objects): each item list with columns is a target of its own, "one entry"; the key box offers the library\'s and the system\'s entries of that list\'s categories by their key, sorted by name, never one with no key; a change aimed at a row shows its target, a key box with those suggestions and the list\'s columns, and what is typed is kept, trimmed; another target takes the key and the column off, and the one-entry target again starts with no key and the first column; Save refuses a change on one entry with no usable key, in words',
             !!rw && JSON.stringify(rw.tg) === JSON.stringify([['f_st|add', 'ST'], ['f_sk|row', 'Skills: one entry']]) && JSON.stringify(rw.keys) === JSON.stringify([['Climb', 'Climb'], ['Sneak', 'Sneak']])
-            && rw.tierTyped === '1: +2, 2: 0' && rw.tierGone === undefined && rw.val === 'f_sk|row' && rw.kinds.join(' ') === 'select datalist input.field lib-mod-key select input.field lib-mod-amt input.field lib-mod-amtf label.lib-mod-lvl input.field lib-mod-tiers button.tool ghost' /* 1.6.0: By level; 1.6.2 (205): By a formula (each moved on purpose) */.replace('select input.field lib-mod-amt', 'select select.field lib-mod-how input.field lib-mod-amt') /* 1.6.3 (the audit, gap 7): How, Adds, At least or At most (moved on purpose) */ && JSON.stringify(rw.colOpts) === JSON.stringify([['Target', 'Target'], ['Half', 'Half']])
+            && rw.tierTyped === '1: +2, 2: 0' && rw.tierGone === undefined && rw.val === 'f_sk|row' && rw.pickOk === true && rw.kinds.join(' ') === 'select input.field lib-mod-key select input.field lib-mod-amt input.field lib-mod-amtf label.lib-mod-lvl input.field lib-mod-tiers button.tool ghost' /* 1.6.0: By level; 1.6.2 (205): By a formula (each moved on purpose) */.replace('select input.field lib-mod-amt', 'select select.field lib-mod-how input.field lib-mod-amt') /* 1.6.3 (the audit, gap 7): How, Adds, At least or At most (moved on purpose) */ && JSON.stringify(rw.colOpts) === JSON.stringify([['Target', 'Target'], ['Half', 'Half']])
             && rw.typed === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: 'Climb', col: 'Half' }]) && rw.back === JSON.stringify([{ f: 'f_st', op: 'add', v: -2 }]) && rw.fresh === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: '', col: 'Target' }])
-            && saveS.includes("toast('A change on one entry needs that entry\u2019s key, such as Disguise. Pick it in the key box or remove the change.'); return; }") && saveS.indexOf('A change on one entry') < saveS.indexOf('cleanLibEntry(raw'),
+            && saveS.includes("{ if (no('A change on one entry needs that entry\u2019s key, such as Disguise. Pick it in the key box or remove the change.')) return false; }") /* 1.6.3 (finding 8, moved on purpose) */ && saveS.indexOf('A change on one entry') < saveS.indexOf('cleanLibEntry(raw'),
             rwErr || JSON.stringify(rw));
+        // the review of the System editor's words (1.6.3): the picker the Library window borrows (sys-entrypick, a select with no field class) wears the
+        // app's own look inside #libraryModal, where no .sys-row select rule reaches it: the panel's ground, the ink, the edge, and gold at its focus
+        { const cssP = require('fs').readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL), ruleP = (/\n  #libraryModal \.sys-entrypick \{([^}]*)\}/.exec(cssP) || [])[1] || '';
+          check('1.6.3 (the review of the words) the Library window’s entry picker wears the app’s own look: the panel’s ground and ink, its edge and corners, the window’s font, gold at its focus',
+            /background: var\(--panel\);/.test(ruleP) && /color: var\(--ink\);/.test(ruleP) && /border: 1px solid var\(--edge\);/.test(ruleP) && /border-radius: 6px;/.test(ruleP) && /font: inherit;/.test(ruleP)
+            && /\n  #libraryModal \.sys-entrypick:focus \{ outline: none; border-color: var\(--gold\); \}/.test(cssP), ruleP); }
         // 1.6.0 (v2, B4; a build session's sort, 2026-10-29): an entry grants rows of another list. The library's cleaner in both views, and the
         // form's Grants box (librarywin.js grantsBox, sliced and run for real on a page of plain objects) with what Save entry keeps
         let gq = null, gqErr = '';
@@ -913,18 +936,18 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const elG = (tag, cls, text) => { const e = rich(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = text; return e; };
             const modal = rich('div'); modal.id = 'libraryModal'; const sysModal = rich('div'); sysModal.id = 'systemModal';
             const docG = { listeners: 0, addEventListener() { this.listeners++; }, removeEventListener() { this.listeners--; } };
-            const G = new Function('el', 'iconNode', 'ui', 'EMOJI_SET', 'GLYPHS', 'PICKER_HIDE', 'GLYPH_WORDS', 'document', 'window', 'Event', '"use strict";\n' + shG.slice(gA, gB) + '\n' + shG.slice(bA, bB) + '\nreturn { glyphButton, glyphPicker, closeGlyphPicker, pop: () => _glyphPop };')(
+            const G = new Function('el', 'iconNode', 'ui', 'EMOJI_SET', 'GLYPHS', 'PICKER_HIDE', 'GLYPH_WORDS', 'document', 'window', 'Event', '"use strict";\n' + shG.slice(gA, gB) + '\n' + shG.slice(bA, bB) + '\nreturn { glyphButton, glyphPicker, closeGlyphPicker, glyphWord, pop: () => _glyphPop };')(
                 elG, v => elG('span', 'ico', v), id => (id === 'systemModal' ? sysModal : null), [['\u{1F9E0}', 'brain mind']], { bolt: 'M0 0', 'graduation-cap': 'M1 1' }, {}, {}, docG, { innerWidth: 1200, innerHeight: 800 }, class { constructor(t) { this.type = t; } });
             const W5 = formWorld({ real: true }); W5.entries[0] = Object.assign({}, W5.entries[0], { icon: 'icon:graduation-cap' }); modal.appendChild(W5.form);
             const shut = []; globalThis.window = { wpSheets: { glyphButton: G.glyphButton, closeGlyphPicker: () => { shut.push(1); G.closeGlyphPicker(); } } };
             let pick;
             try {
                 W5.api.renderForm(); const icon = W5.byId.libF_icon; icon.dispatchEvent = ev => { if (icon.on[ev.type]) icon.on[ev.type](ev); };
-                const btn = icon.parentNode.kids[icon.parentNode.kids.indexOf(icon) + 1], ev = { preventDefault() {}, stopPropagation() {} };
+                const btn = icon.parentNode.kids[icon.parentNode.kids.indexOf(icon) + 1], ev = { preventDefault() {}, stopPropagation() {} }, title0 = btn.title;
                 btn.on.click(ev); const pop1 = G.pop(), inModal = !!pop1 && pop1.parentNode === modal && !sysModal.kids.length;
                 const opts = (function find(n, out) { if (n.cls && n.cls.has('sys-glyph-opt')) out.push(n); (n.kids || []).forEach(k => find(k, out)); return out; })(pop1, []);
                 const boltOpt = opts.find(o => o.title === 'bolt'); boltOpt.on.click(ev);
-                pick = { inModal, gone: G.pop() === null && modal.kids.indexOf(pop1) < 0, value: icon.value, read: W5.api.readForm().icon, focusBtn: focused === btn, listeners: docG.listeners, title: btn.title };
+                pick = { inModal, gone: G.pop() === null && modal.kids.indexOf(pop1) < 0, value: icon.value, read: W5.api.readForm().icon, focusBtn: focused === btn, listeners: docG.listeners, title: btn.title, title0, words: [G.glyphWord('icon:graduation-cap'), G.glyphWord('\u{1F9E0}'), G.glyphWord('x'), G.glyphWord('')] };
                 btn.on.click(ev); const pop2 = G.pop(), shutBefore = shut.length; W5.api.renderForm();
                 pick.redraw = shut.length === shutBefore + 1 && G.pop() === null && modal.kids.indexOf(pop2) < 0;
             } finally { delete globalThis.window; }
@@ -932,6 +955,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         } catch (e) { gpErr = String(e && e.stack || e).slice(0, 700); }
         check('1.6.3, the review of the audit\'s gaps 5 to 10: the Items tab\'s own icon picker, run for real on the Library window\'s Icon, opens inside the Library window, writes the hidden box as an input so readForm reads the pick, hands the focus back to its button (a hidden box takes none) and says no word of typing; a pop left open goes when the form is drawn again, and close() takes it away too',
             !!gp && gp.inModal === true && gp.gone === true && gp.value === 'icon:bolt' && gp.read === 'icon:bolt' && gp.focusBtn === true && gp.listeners === 0 && /^Pick an icon from Waypoint/.test(gp.title) && !/type/i.test(gp.title) && gp.redraw === true
+            /* 1.6.3 (the review of the System editor and the Library window, finding 35): a hidden box's button names the pick in words, never its stored form */ && /\. Now: graduation cap$/.test(gp.title0) && /\. Now: bolt$/.test(gp.title) && !/icon:/.test(gp.title0 + gp.title) && JSON.stringify(gp.words) === JSON.stringify(['graduation cap', 'brain', 'x', ''])
             && winS2.includes('async function close() { if (!st.open) return; glyphClose();') && shV.includes('closeGlyphPicker: closeGlyphPicker });') && typeof globalThis.window === 'undefined',
             gpErr || j(gp));
         // 1.5.8: an entry's blast extras in the form (librarywin.js blastBox, dmgTypePairs, blastDrops and the real renderForm and readForm)
@@ -1142,8 +1166,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /^[0-9a-f]{8}$/.test(sigR0) && /^[0-9a-f]{8}$/.test(sigP) && sigR0 !== sigP && sigN === '' && stale === false && sigStale === sigR0 && fresh === true && viewsC === 2 && sigR1 !== sigR0 && sigP1 === sigP && afterSys === true && viewsD === 3
             && noCamp === false && noEng === false
             && lbS.includes("\nsetLibraryFind(entryFor);\nsetRuleJudge(needRuleShown);") && lbS.includes("if (typeof e.needsIf === 'string' && e.needsIf) s += '?' + id + (needRuleShown(e.needsIf) ? '+' : '-');") && !/function needRuleShown\(text\) \{[\s\S]{0,1600}player(Entry|IndexOf)/.test(lbS)
-            && winS2.includes("    var ruleIn = field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'A formula that must be true, such as ST >= 12 (optional)',") /* 1.6.3, the library batch: the box is kept, so what Rule from level needs is said as it is typed (moved on purpose) */ && winS2.includes("form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));")
-            && winS2.includes("if (typeof e.needsIf === 'string' && e.needsIf && rsN && rsN(e.needsIf) !== true) form.appendChild(el('div', 'lib-warn', LB().whole && LB().whole() !== true ? 'A pack of this campaign is not read, so no rule is shown to players for now. Your machine judges it alone.' : 'This rule reads something players may not read. They are not shown it, and your machine judges it alone.'));") && winS2.includes("if (rlT && !(SCr && SCr.needRule && SCr.needRule(rlT, F()))) { toast('The rule under What it needs is not a formula this sheet can work out. A rule rolls no dice.'); return; }")
+            && winS2.includes("    var ruleIn = field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'What must be true of the character (optional)',") /* 1.6.3, the library batch: the box is kept, so what Rule from level needs is said as it is typed (moved on purpose); 1.6.3 (finding 26): its words say the rule in words, no formula (moved on purpose) */ && winS2.includes("form.appendChild(el('div', 'lib-note', 'A rule is something that must be true of the character, such as a strength of 12 or more. Change builds it step by step. It rolls no dice.'));")
+            && winS2.includes("if (typeof e.needsIf === 'string' && e.needsIf && rsN && rsN(e.needsIf) !== true) form.appendChild(el('div', 'lib-warn', LB().whole && LB().whole() !== true ? 'A pack of this campaign is not read, so no rule is shown to players for now. Your machine judges it alone.' : 'This rule reads something players may not read. They are not shown it, and your machine judges it alone.'));") && winS2.includes("if (rlT && !(SCr && SCr.needRule && SCr.needRule(rlT, F()))) { if (no('The rule under What it needs is not a formula this sheet can work out. A rule rolls no dice.')) return false; }") /* 1.6.3 (finding 8, moved on purpose) */
             && ntS2.includes("var c = LC.cleanIndexRow(r, window.wpFormula); if (c && !ix.seen[c[0]]") && ntS2.includes("libPl: window.wpLibrary && window.wpLibrary.playerEntry ? function(id) { return window.wpLibrary.playerEntry(id); } : null });"),
             j([first, viewsA, viewsB, viewsC, viewsD, sigR0, sigR1, sigN, stale, fresh]));
     }
@@ -1224,6 +1248,131 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             tf({ lvlTone: 'accent' }, { tone: 'good' }) === 'good' && tf({ lvlTone: 'accent' }, {}) === 'accent' && tf({}, {}) === '' && tf(null, { tone: 'x' }) === ''
             && sh.includes("td.appendChild(el('span', 'sheet-item-lvltag' + (tnL ? ' sheet-tone-' + tnL : ''), r.tag));") && require('./checkkit').part('sysedlist.js').includes("labeledSelect('sys-list-lvltone', 'Level tags\\u2019 color',") && require('./checkkit').part('sysedtabs.js').includes("else if (c.indexOf('sys-list-lvltone') >= 0)")
             && lw.includes('function lvlToneBox(form, e) {') && lw.includes("if (typed.lvls && st.lt) typed.lvls.forEach(function(r) { if (r.tag && st.lt[r.lvl]) r.tone = st.lt[r.lvl]; else delete r.tone; });"));
+    }
+    {   // 1.6.3 (the review of the System editor and the Library window, batch library): findings 8, 11, 22, 23, 33 and 39, each run for real
+        const fs = require('fs'), W = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, '\n'), HTML = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const between = (a, b) => { const i = W.indexOf(a), k = W.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('librarycheck: not found ' + a); return W.slice(i, k); };
+        const cl = v => JSON.parse(JSON.stringify(v)), gmX = L.libCtx({ fields: [] }, F, true);
+        // finding 33: Duplicate keeps a long name, to the 240 an item's name holds (duplicateEntry, run for real)
+        let dup = null, dupErr = '';
+        try {
+            const dupSrc = between('function duplicateEntry(', '\nfunction deleteEntry(');
+            const runDup = (name, LIM) => { const st = { draftNew: null }; new Function('st', 'current', 'leave', 'newEntryId', 'taken', 'clone', 'map', 'drawRows', 'renderForm', 'LIMITS', '"use strict";\n' + dupSrc + '\nduplicateEntry();')(st, () => ({ id: 'i_a', name, key: 'K' }), () => {}, () => 'i_new', () => ({}), cl, () => Object.create(null), () => {}, () => {}, LIM); return st.draftNew; };
+            const long = 'A'.repeat(120), d1 = runDup(long, S.LIMITS), d2 = runDup('B'.repeat(239), S.LIMITS);
+            dup = { n1: d1.name.length, same: d1.name === long + ' (copy)', n2: d2.name.length, key: 'key' in d1, id: d1.id };
+        } catch (e) { dupErr = String(e && e.stack || e).slice(0, 400); }
+        check('1.6.3 (finding 33) Duplicate in the Library keeps a long name whole, to the 240 characters an entry’s name holds, never 60, as the bulk Duplicate does (duplicateEntry, run for real)',
+            !!dup && dup.same === true && dup.n1 === 127 && dup.n2 === S.LIMITS.itemName && S.LIMITS.itemName === 240 && dup.key === false && dup.id === 'i_new', dupErr || j(dup));
+        // finding 39: a hand-written pack's ids, its words, and the categories no list takes
+        const raw39 = [{ id: 'e_t1', name: 'One' }, { id: 'e_t2', name: 'Two', needs: [{ id: 'e_t1', lvl: 2 }], grants: [{ entry: 'e_t1', list: 'f_l' }], opens: [{ id: 'e_t1', f: 'f_l' }] }, { id: 'i_ok', name: 'Ok', needs: [{ id: 'i_ok2' }] }, 5, { name: 'No id' }];
+        const ix = L.importIds(raw39), n1 = ix.entries[0].id;
+        const rp = L.readPackImport(JSON.stringify({ format: 'waypoint-pack', name: 'Hand', entries: [{ id: 'e_t1', name: 'One' }, { id: 'e_t2', name: 'Two', needs: [{ id: 'e_t1' }] }, { id: 'e_t3', name: 'Three' }] }), gmX), rpOk = L.readPackImport(JSON.stringify({ format: 'waypoint-pack', name: 'Fine', entries: [{ id: 'i_a', name: 'A' }] }), gmX);
+        check('1.6.3 (finding 39) a pack whose entries have ids of another form is read, not refused: each such entry is given an id of its own, what the same file names by the old id is pointed at the new one, the file itself is not changed, and the window is told how many (librarycore importIds and readPackImport, run for real)',
+            /* the review of the System editor library: the new id is made from the file's own id now, no longer at random (moved on purpose) */ n1 === 'i_e_t1' && ix.made === 3 && ix.entries[1].needs[0].id === n1 && ix.entries[1].needs[0].lvl === 2 && ix.entries[1].grants[0].entry === n1 && ix.entries[1].opens[0].id === n1 && ix.entries[2] === raw39[2] && ix.entries[3] === 5 && /^i_/.test(ix.entries[4].id) && new Set(ix.entries.filter(e => e && e.id).map(e => e.id)).size === 4 && raw39[0].id === 'e_t1' && raw39[1].needs[0].id === 'e_t1'
+            && rp.entries.length === 3 && rp.newIds === 3 && rp.dropped === 0 && rp.entries[1].needs[0].id === rp.entries[0].id && !('newIds' in rpOk) && j(L.importIds([{ id: 'i_x', name: 'X' }])) === j({ entries: [{ id: 'i_x', name: 'X' }], made: 0 }), j([ix, rp.newIds]));
+        {   // the review of the System editor library: the same file gives the same ids at every import, so Merged into a pack, by id matches an earlier import
+            const fileR = [{ id: 'e-t1', name: 'One' }, { id: 'i_et1', name: 'Taken' }, { id: 'et1', name: 'Clash' }, { id: '???', name: 'Only a name' }, { id: '%%', name: '!!' }, { id: 'x'.repeat(40), name: 'Long' }, { id: 'x'.repeat(40) + 'y', name: 'Long two' }];
+            const a = L.importIds(fileR).entries.map(e => e.id), b = L.importIds(JSON.parse(JSON.stringify(fileR))).entries.map(e => e.id);
+            const p1 = L.readPackImport(JSON.stringify({ format: 'waypoint-pack', entries: fileR }), gmX).entries.map(e => e.id), p2 = L.readPackImport(JSON.stringify({ format: 'waypoint-pack', entries: fileR }), gmX).entries.map(e => e.id);
+            check('the review of the System editor library: an import makes an entry’s new id from the file’s own id (its letters, digits and _, cut to 24 and numbered where two clash or one is taken), else from its name, random only where neither has a letter or a digit, so the same file gives the same ids twice over (importIds and readPackImport, run for real)',
+                j(a.slice(0, 4)) === j(['i_et1_2', 'i_et1', 'i_et1_3', 'i_Onlyaname']) && /^i_[a-z0-9]{8}$/.test(a[4]) && a[5] === 'i_' + 'x'.repeat(24) && a[6] === 'i_' + 'x'.repeat(22) + '_2' && j(a.slice(0, 4).concat(a.slice(5))) === j(b.slice(0, 4).concat(b.slice(5))) && new Set(a).size === 7 && a.every(id => /^i_[A-Za-z0-9_]{1,24}$/.test(id))
+                && p1.length === 7 && j(p1.filter((x, i) => i !== 4)) === j(p2.filter((x, i) => i !== 4)), j([a, b, p1, p2]));
+        }
+        let cow = null, cowErr = '';
+        try {
+            const cowF = new Function('itemLists', '"use strict";\n' + between('function catOffWords(', '// [catalogcheck:csvbox-end]') + '\nreturn catOffWords;')(() => [{ id: 'f_w', label: 'Weapons', list: {} }, { id: 'f_k', key: 'Kit', list: {} }]);
+            cow = [cowF('f_w', ['Raw Materials']), cowF('', ['A', 'B']), cowF('f_k', ['A']), cowF('f_w', 'ABCDEFGHI'.split(''))];
+        } catch (e) { cowErr = String(e && e.stack || e).slice(0, 400); }
+        check('1.6.3 (finding 39) the categories an import holds that no list takes are said of the list chosen where one is, never of every list, and of every list where none is; a pack file is checked as a spreadsheet is, and the ids it gave are said; a refusal of an entry never names the form an id takes (catOffWords run for real, renderImport by its text)',
+            !!cow && cow[0] === 'The list Weapons does not take these categories: Raw Materials. It will not offer these entries.' && cow[1] === 'No list takes these categories: A, B.' && cow[2] === 'The list Kit does not take these categories: A. It will not offer these entries.' && /: A, B, C, D, E, F, G, H, and more\. It will not offer/.test(cow[3])
+            && W.includes("if (cs.off.length) form.appendChild(el('div', 'lib-warn', catOffWords(cv.list, cs.off)));") && W.includes("var csP = csvCats(camp() && camp().system, '', d.entries);") && W.includes("if (!im.csv && d.newIds) form.appendChild(el('div', 'lib-note', plural(d.newIds) + ' had no id Waypoint could use, so each was given one of its own.'));")
+            && !/needs an id like/.test(fs.readFileSync(path.join(app, 'scripts', 'librarycore.js'), 'utf8')), cowErr || j(cow));
+        // finding 23: the choosers of What it needs, What it opens and What it grants search the whole library (entryChooser, run for real)
+        let ec = null, ecErr = '';
+        try {
+            const ecSrc = between('function entryChooser(', '\nfunction needsBox(');
+            const ents = Array.from({ length: 2500 }, (_, i) => ({ id: 'i_' + String(i).padStart(5, '0'), name: 'Entry ' + String(2500 - i).padStart(4, '0'), vis: i === 7 ? 'gm' : 'all' }));
+            let got = null; const picked = [], blanks = [];
+            const findStub = o => { got = o; blanks.push(o.blank); const w = { classList: { add() {} }, input: {}, select: {} }; return w; };
+            const selStub = (opts, val) => { const s = { opts, value: val, on: {}, addEventListener(t, f) { this.on[t] = f; } }; return s; };
+            const byN = (a, b) => String(a).localeCompare(String(b));
+            const mk = win => new Function('window', 'select', 'byName', '"use strict";\n' + ecSrc + '\nreturn entryChooser;')(win, selStub, byN);
+            const w1 = mk({ wpUi: { find: findStub } })(ents, '+ An entry it needs…', 'Pick an entry', false, v => picked.push(v)); got.set('i_02499'); got.set('');
+            const w2 = mk({ wpUi: { find: findStub } })(ents, 'b', 't', true, () => {});
+            const s3 = mk(undefined)(ents, 'b', 't', false, v => picked.push(v)); s3.value = 'i_00003'; s3.on.change(); s3.value = ''; s3.on.change();
+            ec = { n: got.choices.length, first: got.choices[0].name, gm: (got.choices.find(c => c.value === 'i_00007') || {}).sub, blank: blanks[0], picked, off: [w2.input.disabled, w2.select.disabled], plainN: s3.opts.length, plainFirst: s3.opts[0][1], w1: !!w1 };
+        } catch (e) { ecErr = String(e && e.stack || e).slice(0, 400); }
+        check('1.6.3 (finding 23) the choosers of What it needs, What it opens and What it grants offer every entry of a library past two thousand, A to Z, a GM-only one said so, through the app’s own search (uiparts.js find), and a plain list of every entry where the parts are not there; a pick hands the entry on once and a blank pick nothing; no chooser is cut at two thousand names (entryChooser, run for real)',
+            !!ec && ec.n === 2500 && ec.first === 'Entry 0001' && ec.gm === 'GM only' && ec.blank === '+ An entry it needs…' && j(ec.picked) === j(['i_02499', 'i_00003']) && j(ec.off) === j([true, true]) && ec.plainN === 2501 && ec.plainFirst === 'b'
+            && !W.includes('.slice(0, NEED_PICK)') && (W.match(/\(typeof entryChooser === 'function' \? entryChooser : function\(ents, blank, title, off, onPick\)/g) || []).length === 3, ecErr || j(ec));
+        // finding 22: an entry's stats are those of the lists that take its category (statDefs, statShown and statsBox, run for real)
+        let sb = null, sbErr = '';
+        try {
+            const LISTS = [{ id: 'f_g', kind: 'item-list', list: { cats: ['Gear'], stats: [{ key: 'Wt', label: 'Weight' }, { key: 'Cost', label: 'Cost' }] } }, { id: 'f_s', kind: 'item-list', list: { cats: ['Skill'], stats: [{ key: 'Rank', label: 'Rank' }, { key: 'Cost', label: 'Cost' }] } }, { id: 'f_x', kind: 'item-list', list: { stats: [{ key: 'Note', label: 'Note' }] } }, { id: 'f_v', kind: 'item-list', list: { cats: ['Ship'], stats: [{ key: 'Hyper', label: 'Hyperdrive class' }] } }];
+            const src = between('function statDefs(', '\nfunction catOptions(') + '\n' + between('function statShown(', '// 1.6.3 (Fulllion\'s rulings of 2026-11-20: a box other boxes depend on is required');
+            const mkE = tag => ({ tag, kids: [], hidden: false, dataset: {}, value: '', on: {}, appendChild(c) { this.kids.push(c); return c; }, addEventListener(t, f) { this.on[t] = f; }, set textContent(v) { this._t = String(v); }, get textContent() { return this._t || ''; } });
+            const byId = {}, catIn = mkE('input'); catIn.value = 'Gear'; byId.libF_category = catIn;
+            const field = (wrap, id, label, value) => { const inp = mkE('input'); inp.id = 'libF_' + id; inp.value = value == null ? '' : String(value); byId[inp.id] = inp; wrap.appendChild(inp); return inp; };
+            const st = {}, form = mkE('div');
+            const api = new Function('itemLists', 'map', 'el', 'field', 'placeTicks', 'ui', 'libVal', 'st', 'document', '"use strict";\n' + src + '\nreturn { statDefs, statShown, statsBox };')(() => LISTS, () => Object.create(null), (t, c, x) => { const e = mkE(t); e.className = c; if (x !== undefined) e._t = x; return e; }, field, () => {}, id => byId[id] || null, id => String((byId['libF_' + id] || { value: '' }).value).trim(), st, { createTextNode: t => ({ t }) });
+            const sd = api.statDefs(), cost = sd.find(s => s.key === 'Cost');
+            api.statsBox(form, { id: 'i_a', category: 'Gear', stats: { Hyper: 3 } }, sd);
+            const shown = () => form.kids.filter(k => k.className === 'lib-stat' && !k.hidden).map(k => k.kids[0].dataset.stat), say = () => form.kids[0].kids[1].textContent;
+            const gear = shown(), gearSay = say();
+            catIn.value = 'Skill'; catIn.on.input(); const skill = shown();
+            catIn.value = ''; catIn.on.input(); const none = shown();
+            catIn.value = 'Furniture'; catIn.on.input(); const odd = shown();
+            catIn.value = 'gear'; catIn.on.input(); byId.libF_st_rank.value = '2'; catIn.on.input(); const typedKept = shown();
+            const all = form.kids[0].kids[2].kids[0]; all.checked = true; all.on.change(); const every = shown();
+            sb = { cost: cost.cats, note: sd.find(s => s.key === 'Note').cats, gear, gearSay, skill, none, odd, typedKept, every, kept: st.statAll };
+        } catch (e) { sbErr = String(e && e.stack || e).slice(0, 500); }
+        check('1.6.3 (finding 22) an entry’s Stats show those of the lists that take its category, a list that names none taking every one; every stat where the category is empty or no list names it; a stat that holds a figure always, so nothing stored is hidden; Show every stat the rest, remembered; how many are put away is said, and what is put away stays on the form for Save to read (statDefs, statShown and statsBox, run for real)',
+            !!sb && j(sb.cost) === j(['gear', 'skill']) && sb.note === null && j(sb.gear) === j(['Wt', 'Cost', 'Note', 'Hyper']) && /\(1 more belong to lists that do not take this category\)/.test(sb.gearSay)
+            && j(sb.skill) === j(['Cost', 'Rank', 'Note', 'Hyper']) && sb.none.length === 5 && sb.odd.length === 5 && j(sb.typedKept) === j(['Wt', 'Cost', 'Rank', 'Note', 'Hyper']) && sb.every.length === 5 && sb.kept === true, sbErr || j(sb));
+        // finding 11: the System editor's unsaved changes, said at the top with its own Save (sysUnsaved, draftNote and draftSave, run for real)
+        let dn = null, dnErr = '';
+        try {
+            const src = between('function sysUnsaved(', '\n/* ---- packs ---- */');
+            // the review of this batch: a save is known by the campaign holding another system object afterwards, as saveDraft stores a fresh one, so a save
+            // that leaves the button marked again for a part it keeps waiting (a sense with no unit yet) still draws the window again
+            const mk = () => { const cls = new Set(['on']), ev = [], cp = { system: {} }; const els = { systemModal: { style: { display: 'flex' } }, sysSaveBtn: { classList: { contains: c => cls.has(c) }, click() { ev.push('save'); if (this.refuse !== true) { cp.system = {}; if (this.keepOn !== true) cls.delete('on'); } } }, libDraftNote: { hidden: true } };
+                const st = { open: true }; const api = new Function('ui', 'st', 'leave', 'renderAll', 'toast', 'camp', '"use strict";\n' + src + '\nreturn { sysUnsaved, draftNote, draftSave };')(id => els[id] || null, st, () => ev.push('leave'), () => ev.push('render'), t => ev.push('toast:' + t), () => cp); return { els, ev, api, st }; };
+            const a = mk(); a.api.draftNote(); const shown = a.els.libDraftNote.hidden === false; a.api.draftSave(); const after = [a.els.libDraftNote.hidden, a.ev.slice()];
+            const b = mk(); b.els.sysSaveBtn.refuse = true; b.api.draftNote(); b.api.draftSave(); const refused = [b.els.libDraftNote.hidden, b.ev.slice()];
+            const c = mk(); c.els.systemModal.style.display = 'none'; c.api.draftNote(); const closed = c.els.libDraftNote.hidden;
+            const d2 = mk(); d2.api.draftSave(); d2.api.draftSave(); const twice = d2.ev.filter(x => x === 'save').length;
+            const k2 = mk(); k2.els.sysSaveBtn.keepOn = true; k2.api.draftSave(); const keptOn = [k2.els.libDraftNote.hidden, k2.ev.slice(0, 3)];
+            dn = { shown, after, refused, closed, twice, keptOn };
+        } catch (e) { dnErr = String(e && e.stack || e).slice(0, 400); }
+        check('1.6.3 (finding 11) while the System editor stands open under the Library with changes not saved, one line at the top says new lists, stats and categories show once they are saved, and its button presses the editor’s own Save: saved, the open entry is saved against the new system and the window drawn again; refused, nothing more; with the editor closed or saved, no line (sysUnsaved, draftNote and draftSave, run for real)',
+            !!dn && dn.shown === true && dn.after[0] === true && j(dn.after[1].slice(0, 3)) === j(['save', 'leave', 'render']) && /^toast:The System editor.s changes are saved/.test(dn.after[1][3]) && dn.refused[0] === false && j(dn.refused[1]) === j(['save']) && dn.closed === true && dn.twice === 1 && dn.keptOn[0] === false && j(dn.keptOn[1]) === j(['save', 'leave', 'render'])
+            && W.includes("    m.style.display = 'flex'; state(''); renderAll(); guideOpen(); draftNote();") && /<div id="libDraftNote" class="lib-guide lib-draft" hidden>[^\n]*id="libDraftSave"/.test(HTML) && W.includes("var ds = ui('libDraftSave'); if (ds) ds.addEventListener('click', draftSave);"), dnErr || j(dn));
+        // finding 8: an entry left is saved by itself, only where its form changed, and a leave never refuses (formRead, leave and saveEntry, run for real)
+        let lv = null, lvErr = '';
+        try {
+            const lvSrc = between('function formRead(', '// the form as an entry: what the form shows replaced');
+            let formNow = { name: 'A', notes: '' }; const calls = [], st = {}, nameBox = {};
+            const LV = new Function('current', 'st', 'ui', 'readForm', 'saveEntry', '"use strict";\n' + lvSrc + '\nreturn { formRead, leave };')(() => ({ id: 'i_a' }), st, id => (id === 'libF_name' ? nameBox : null), () => Object.assign({ id: 'i_a' }, formNow), how => { calls.push(how); return true; });
+            st.base = LV.formRead(); st.baseFor = 'i_a'; const untouched = LV.leave();
+            formNow.notes = 'typed'; const changed = LV.leave(), again = LV.leave();
+            st.base = LV.formRead(); st.baseFor = 'i_b'; formNow.notes = 'more'; const other = LV.leave(); st.baseFor = 'i_a'; st.imp = {}; const inImport = LV.leave();
+            const svSrc = between('function saveEntry() {', '\nfunction duplicateEntry(');
+            const runSave = (leave, raw0) => { const toasts = [], ev = [], list = [{ id: 'i_a', name: 'Old' }], st2 = { packId: 'p', entryId: 'i_a', draftNew: null, sel: {} };
+                const ret = new Function('current', 'st', 'ready', 'readForm', 'toast', 'window', 'F', 'lvlOnlyRead', 'modTiersRead', 'cleanLibEntry', 'gmCtx', 'blastDrops', 'workOf', 'LIB', 'reachOf', 'keyGoneSays', 'camp', 'catNear', 'entryNotes', 'map', 'schedule', 'renderPacks', 'renderList', 'renderForm', 'guideAt', '"use strict";\n' + svSrc + '\nreturn saveEntry(' + (leave ? "'leave'" : '{ type: \'click\' }') + ');')(
+                    () => ({ id: 'i_a', name: 'Old' }), st2, () => true, () => Object.assign({ id: 'i_a', name: 'Old', key: '', needsIf: '', mods: [] }, raw0), t => toasts.push(t), { wpSystemCore: S }, () => F, S.lvlOnlyRead, S.modTiersRead, r => L.cleanLibEntry(r, gmX), () => gmX, () => '', () => list, L.LIB, () => '', () => '', () => null, () => '', () => '', () => Object.create(null), () => ev.push('schedule'), () => ev.push('packs'), () => ev.push('list'), () => ev.push('form'), () => {});
+                return { ret, toasts, ev, name: list[0].name, st: st2 }; };
+            const badRule = { name: '', needsIf: 'ST >=' }, leaveBad = runSave(true, badRule), pressBad = runSave(false, badRule), leaveFine = runSave(true, { name: 'New name' });
+            lv = { untouched, changed, again, calls, other, inImport, leaveBad: [leaveBad.ret, leaveBad.name, leaveBad.toasts, leaveBad.ev], pressBad: [pressBad.ret, pressBad.name, pressBad.toasts, pressBad.ev], leaveFine: [leaveFine.ret, leaveFine.name, leaveFine.toasts, leaveFine.st.sel] };
+        } catch (e) { lvErr = String(e && e.stack || e).slice(0, 500); }
+        check('1.6.3 (finding 8; Fulllion’s pick of 2026-11-21) an entry’s form is saved by itself as it is left, with no question, only where it reads otherwise than as it was drawn, never for another entry’s form or an import’s; a save made as it is left refuses nothing, keeps what the cleaner keeps and says once what Save entry would have refused, and leaves what comes next to the caller, while a press of Save entry still refuses as before (formRead, leave and saveEntry, run for real)',
+            !!lv && lv.untouched === false && lv.changed === true && lv.again === false && j(lv.calls) === j(['leave']) && lv.other === false && lv.inImport === false
+            && lv.leaveBad[0] === true && lv.leaveBad[1] === 'Item' && lv.leaveBad[2].length === 1 && /^Saved “Item” as you left it\. It had no name, so it was kept as Item\. The rule under What it needs is not a formula this sheet can work out\. A rule rolls no dice\. It was left out\.$/.test(lv.leaveBad[2][0]) && j(lv.leaveBad[3]) === j(['schedule', 'packs', 'list'])
+            && lv.pressBad[0] === false && lv.pressBad[1] === 'Old' && j(lv.pressBad[2]) === j(['Give the entry a name.']) && j(lv.pressBad[3]) === '[]'
+            && lv.leaveFine[0] === true && lv.leaveFine[1] === 'New name' && j(lv.leaveFine[2]) === j(['Saved “New name” as you left it.']) && j(lv.leaveFine[3]) === '{}', lvErr || j(lv));
+        check('1.6.3 (finding 8) each way an entry is left saves it first: another entry, another pack, + Entry, Duplicate, Close and Escape (through close), an import or a spreadsheet taking its place, and a new pack; the form keeps what it read as it was drawn',
+            W.includes("function afterPick() { leave(); var ids = chosen();") && W.includes("b.addEventListener('click', function() { leave(); st.packId = p.id;") && W.includes("    leave();   // 1.6.3 (finding 8): the entry open before it is saved first") && W.includes("function duplicateEntry() { if (st.draftNew) return; leave(); var e = current();")
+            && W.includes("async function close() { if (!st.open) return; glyphClose(); leave(); await flush();") && W.includes("if (e.key === 'Escape') { e.preventDefault(); close(); }") && W.includes("    if (typeof leave === 'function') leave(); csvApply(im); st.imp = im;") && W.includes("leave();   // 1.6.3 (finding 8): the entry open is saved before the import takes its place")
+            && W.includes("if (typeof formRead === 'function') { st.base = formRead(); st.baseFor = e.id; }") && W.includes("st.base = null; st.baseFor = null;"));
     }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');

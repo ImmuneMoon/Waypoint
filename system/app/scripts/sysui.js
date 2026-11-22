@@ -168,7 +168,7 @@ var GROUPS = {
         ['bands', 'Result bands', 0, ['sys-bands']],
         ['then', 'What it changes', 1, ['sys-apply']],
         ['explain', 'What it means', 0, ['sys-explain']]] },   // 1.6.2 (backlog 218 fold 3)
-    items: { split: ['sys-row-main', 'sys-flags'], head: ['sys-item-name', 'sys-item-cat', 'sys-btns'], list: [
+    items: { split: ['sys-row-main', 'sys-flags'], head: ['sys-item-name', 'sys-item-cat', 'sys-item-catlist', 'sys-btns'], list: [   // 1.6.3 (finding 35): and the list of categories the Category box suggests
         ['what', 'What it is', 1, ['sys-item-damage', 'sys-item-cost', 'sys-item-throw', 'sys-item-key', 'sys-item-lvl', 'sys-item-only', 'sys-item-again', 'sys-item-notes']],
         ['look', 'Who sees it and how it looks', 1, ['sys-item-vis', 'sys-item-icon', 'sys-glyph-btn', 'sys-item-pic', 'sys-pic']],
         ['stats', 'Stats', 1, ['sys-item-stats']],
@@ -200,7 +200,7 @@ var GROUPS = {
         ['names', 'What formulas read', 0, ['sys-list-names']]] },
     effects: { split: ['sys-row-main', 'sys-flags'], head: ['sys-fx-icon', 'sys-glyph-btn', 'sys-fx-name', 'sys-fx-tone', 'sys-btns'], list: [
         ['changes', 'What it changes', 1, ['sys-fx-target', 'act:fxmodadd']],
-        ['time', 'How long it lasts', 1, ['sys-fx-dur', 'sys-fx-agbox', 'sys-fx-endsbox', 'sys-fx-restbox', 'sys-fx-egbox', 'sys-fx-autorow', 'sys-fx-endrow']],   // 1.6.2: and When it ends
+        ['time', 'How long it lasts', 1, ['sys-fx-dur', 'sys-fx-durline', 'sys-fx-agbox', 'sys-fx-endsbox', 'sys-fx-restbox', 'sys-fx-egbox', 'sys-fx-autorow', 'sys-fx-endrow']],   // 1.6.2: and When it ends
         ['val', 'Its number', 0, ['sys-fxv-box']],
         ['cover', 'Cover it gives', 0, ['sys-fx-coverbox']],   // 1.6.2
         ['who', 'Who sees it', 1, ['sys-fx-vis', 'sys-fx-notes']],
@@ -423,6 +423,12 @@ function boxIn(scope, prop) {
     if (rsP) {
         var rsB = scope.querySelectorAll('.sys-tbl')[+rsP[1]], rsR = rsB ? rsB.querySelectorAll('.sys-res-row')[+rsP[2]] : null, rsX = rsR ? rsR.querySelector('.sys-res-' + rsP[3]) : null;
         if (rsX) return rsX; if (rsR) return rsR; if (rsB) return rsB;
+    }
+    // the review of the System editor library: what an item is thrown with is a hidden box under its picks (formbox.js dresses it), so its fault lands on
+    // the pick standing just before it, the fb-opts box's first list, and on the hidden box only where it was never dressed. Fixed class names alone
+    if (prop === 'throwSkill') {
+        var tw = scope.querySelector('.sys-item-throw'), tb = tw ? tw.previousSibling : null, tp = tb && tb.classList && tb.classList.contains('fb-opts') && tb.querySelector ? tb.querySelector('.fb-optfig') : null;
+        if (tp) return tp; if (tw) return tw;
     }
     for (var i = 0; i < PROP_BOX.length; i++) {
         var m = PROP_BOX[i][0].exec(prop); if (!m) continue;

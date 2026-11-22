@@ -916,6 +916,18 @@ function usedDraw(list, rows) {
     });
     if (rows.length > USED_MAX) list.appendChild(el('div', 'sys-note', (rows.length - USED_MAX) + ' more are not listed.'));
 }
+// The list opens under its button, its right edge on the button's, and a box of the editor that scrolls cuts off what stands outside it.
+// Where the button stands near the left of its pane (a roll's head wraps it there) that cut the list in half, so the list is turned to open
+// to the right of the button's left edge wherever its left edge would stand outside the nearest box that cuts it off. Found by hand after
+// the two lanes of the System editor review were joined (1.6.3)
+function usedListPlace(list) {
+    if (typeof getComputedStyle !== 'function' || !list.getBoundingClientRect || !list.style) return;   // a page of plain objects in a suite has no layout
+    list.style.left = ''; list.style.right = '';
+    var cut = list.parentNode, r = list.getBoundingClientRect();
+    while (cut && cut.nodeType === 1 && cut !== document.body) { var o = getComputedStyle(cut); if (o.overflowX !== 'visible' || o.overflowY !== 'visible') break; cut = cut.parentNode; }
+    var left = cut && cut.nodeType === 1 ? cut.getBoundingClientRect().left : 0;
+    if (r.left < left + 4) { list.style.left = '0'; list.style.right = 'auto'; }
+}
 // the button a field's and a roll's row carries, and the list under it. Its own listeners, with clicks kept from the tab's handlers
 function usedByBox(kind, obj) {
     var box = el('span', 'sys-usedby'), b = el('button', 'tool ghost sys-btn sys-usedby-btn', 'Used by'), list = el('div', 'sys-usedby-list');
@@ -924,7 +936,7 @@ function usedByBox(kind, obj) {
         e.preventDefault(); e.stopPropagation();
         if (!list.hidden) { list.hidden = true; b.setAttribute('aria-expanded', 'false'); return; }
         var rows = []; try { rows = usedBy(kind, obj && obj.id); } catch (er) { console.error(er); }
-        usedDraw(list, rows); list.hidden = false; b.setAttribute('aria-expanded', 'true');
+        usedDraw(list, rows); list.hidden = false; usedListPlace(list); if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function() { if (!list.hidden) usedListPlace(list); });   // again once the row's head has settled, since a box drawn just now may still wrap it b.setAttribute('aria-expanded', 'true');
     });
     ['input', 'change', 'click'].forEach(function(t) { box.addEventListener(t, function(e) { e.stopPropagation(); }); });
     box.appendChild(b); box.appendChild(list); return box;

@@ -471,7 +471,7 @@ function renderForm() {
     field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
     fliesLibBox(form, e.flies);   // 1.6.2 (vehicles, fold (d)): what it is once launched
-    field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'Such as a skill’s target', title: 'What the Combat tab’s throw roll reads as ThrowSkill when it is thrown or placed. With none, no throw roll is made: it lands where it is aimed' });   // 1.6.3: what it is for, in words
+    field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'Such as a skill’s target', title: 'What the Combat tab’s throw roll is made against when it is thrown or placed, such as a skill’s target. With none, no throw roll is made: it lands where it is aimed' });   // 1.6.3: what it is for, in words
     if (typeof warnLine === 'function') warnLine(form, throwSays);   // 1.6.3 (Fulllion's rulings of 2026-11-20): a blast thrown with no skill is said under the box as it is typed
     field(form, 'gmNotes', 'GM notes', e.gmNotes, { area: true, rows: 3, max: LIB.gmNotes, title: 'Yours alone: never on a player’s screen' });
     modsBox(form, e);   // Stage 6 F6
@@ -601,9 +601,9 @@ function needsBox(form, e) {
         st.fn.forEach(function(n, ni) {
             var ln = el('div', 'lib-ctl lib-need'), nm = nameOf(n.id);
             ln.appendChild(el('span', 'lib-need-name', nm || 'An entry that is gone'));
-            var lv = el('input', 'field lib-mod-amt'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Level'; lv.value = typeof n.lvl === 'number' ? String(n.lvl) : ''; lv.title = 'The least level it must have. Leave it empty for any level'; ln.appendChild(lv);
+            var lv = el('input', 'field lib-mod-amt'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Any'; lv.value = typeof n.lvl === 'number' ? String(n.lvl) : ''; lv.title = 'The least level it must have. Leave it empty for any level'; ln.appendChild(capLib('At least level', lv));   // 1.6.3 (finding 40): captioned, so what the box is stays in sight once a figure is typed
             lv.addEventListener('input', function() { if (lv.value.trim() === '' || !isFinite(Number(lv.value))) delete n.lvl; else n.lvl = Number(lv.value); });
-            var fr = el('input', 'field lib-mod-amt lib-need-from'); fr.type = 'number'; fr.step = 'any'; fr.placeholder = 'From level'; fr.value = typeof n.from === 'number' ? String(n.from) : ''; fr.title = 'The level of THIS entry from which it is needed. Leave it empty to need it from the start'; ln.appendChild(fr);   // a level's own prerequisite
+            var fr = el('input', 'field lib-mod-amt lib-need-from'); fr.type = 'number'; fr.step = 'any'; fr.placeholder = 'Start'; fr.value = typeof n.from === 'number' ? String(n.from) : ''; fr.title = 'The level of THIS entry from which it is needed. Leave it empty to need it from the start'; ln.appendChild(capLib('From this entry\u2019s level', fr));   // a level's own prerequisite. 1.6.3 (finding 40): captioned
             fr.addEventListener('input', function() { if (fr.value.trim() === '' || !isFinite(Number(fr.value))) delete n.from; else n.from = Number(fr.value); });
             var sb = el('input', 'field lib-need-spec'); sb.type = 'text'; sb.placeholder = 'Subject'; sb.maxLength = 60; sb.value = typeof n.spec === 'string' ? n.spec : ''; sb.title = 'A subject or specialty it must be held for, such as Smell. Leave it empty for any'; ln.appendChild(sb);   // 1.6.0 Specialties
             sb.addEventListener('input', function() { var v = sb.value.trim(); if (v) n.spec = v; else delete n.spec; });
@@ -615,8 +615,8 @@ function needsBox(form, e) {
         dim();
     };
     draw();
-    var ruleIn = field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'A formula that must be true, such as ST >= 12 (optional)', title: 'A formula with no dice that must be true for the character. It reads the character as a list’s column does, and it can stand beside the entries above or alone' });
-    form.appendChild(el('div', 'lib-note', 'A rule is a formula that must be true for the character, such as ST >= 12. It rolls no dice.'));
+    var ruleIn = field(form, 'needsIf', 'Rule', e.needsIf, { max: 10000, ph: 'What must be true of the character (optional)', title: 'Something that must be true of the character before it can be taken, such as a strength of 12 or more. It rolls no dice, and it can stand beside the entries above or alone' });
+    form.appendChild(el('div', 'lib-note', 'A rule is something that must be true of the character, such as a strength of 12 or more. Change builds it step by step. It rolls no dice.'));
     var fromIn = field(form, 'needsFrom', 'Rule from level', e.needsFrom, { max: 8, ph: 'The level of this entry from which the rule applies', title: 'Leave it empty for a rule that must be true to take the entry at all. It counts only beside a rule' });
     var fromSay = el('div', 'lib-warn lib-req'); fromSay.hidden = true; form.appendChild(fromSay);   // 1.6.3: what Rule from level needs, said as it is typed
     form.appendChild(el('div', 'lib-note', 'A need or a rule with a From level counts only once the row of this entry is at that level. A player who raises a level is judged as when they take the entry.'));
@@ -646,7 +646,7 @@ function opensBox(form, e) {
     if (st.foFor !== e.id || !st.fo) { st.fo = clone(Array.isArray(e.opens) ? e.opens : []); st.foFor = e.id; }
     var lists = itemLists(); if (!lists.length && !st.fo.length) return;
     form.appendChild(el('div', 'lib-fsub', 'What it opens'));
-    form.appendChild(el('div', 'lib-note', 'While a row of this entry is on and at the From level or above, each entry listed here shows by itself on the list beside it, at that list\u2019s first level. It goes when this row is off, and a bought row of it takes its place. On it, Row.opened is 1, so a cost can read 0.'));
+    form.appendChild(el('div', 'lib-note', 'While a row of this entry is on and at the From level or above, each entry listed here shows by itself on the list beside it, at that list\u2019s first level. It goes when this row is off, and a bought row of it takes its place. A cost can tell such a row apart, so it can cost nothing.'));
     var box = el('div', 'lib-mods lib-opens'); form.appendChild(box);
     var all = allEntries().concat(sysItems()), nameOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i]; return null; };
     var listFor = function(ent) { var cg = ent && typeof ent.category === 'string' ? ent.category.toLowerCase() : ''; var hit = lists.filter(function(f) { return Array.isArray(f.list.cats) && f.list.cats.some(function(c) { return String(c).toLowerCase() === cg; }); })[0]; return (hit || lists[0] || {}).id || ''; };
@@ -674,6 +674,14 @@ function modTargets() {
     return out;
 }
 // 1.5.8: the list a change aims at one entry of, and the entries of the library and the system that list holds, each by its key, for the key box
+// 1.6.3 (the review of the System editor, finding 17): an entry of a list picked by its name, as the Items tab's change on one entry does. It is the
+// System editor's own picker (sheets.js entryPick, published on window.wpSheets), handed the list's entries as [short name, name] (rowKeys): the
+// box stays out of sight and a pick writes it as typing would, so the box's own listener keeps the draft. Another entry shows the box, for an
+// entry neither this window nor the system holds. With no picker at hand (a page of the suites) the box is handed back as it is
+function entryPickLib(ky, opts, blank) { var WS = typeof window !== 'undefined' ? window.wpSheets : null; return WS && typeof WS.entryPick === 'function' ? WS.entryPick(ky, opts, blank) : ky; }
+// 1.6.3 (the review of the System editor, finding 40): a small box with its caption above it, so a need's Level and From level say what they are
+// once a figure is typed (a placeholder goes then). The box keeps its own classes and listeners
+function capLib(cap, box) { var l = el('label', 'lib-capbox'); l.appendChild(el('span', 'lib-capbox-cap', cap)); l.appendChild(box); return l; }
 function rowListOf(fid) { return itemLists().filter(function(f) { return f.id === fid; })[0] || null; }
 function rowKeys(f) {
     var cats = f && Array.isArray(f.list.cats) && f.list.cats.length ? f.list.cats.map(function(s) { return String(s).toLowerCase(); }) : null, seen = map(), out = [];
@@ -708,7 +716,7 @@ function swLibBox(form, e) {
             s.to.forEach(function(t, ti) {
                 var v = toVal(t), opts = targets.slice(); if (v && !opts.some(function(o) { return o[0] === v; })) opts.unshift([v, '(a roll that is gone)']);
                 var sel = select(opts, v); sel.title = 'A roll it offers itself to'; sel.addEventListener('change', function() { var nt = toOf(sel.value); if (nt) { s.to[ti] = nt; draw(); } }); ln.appendChild(sel);
-                if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Entry key, if any'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of the entry with this key. Blank: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); ln.appendChild(ky);
+                if (t && typeof t.l === 'string') { var ky = el('input', 'field lib-mod-key'); ky.type = 'text'; ky.placeholder = 'Another entry'; ky.value = typeof t.key === 'string' ? t.key : ''; ky.title = 'Only on rows of this entry. Every entry: on every row of the list'; ky.addEventListener('input', function() { var k = ky.value.trim(); if (k) t.key = k; else delete t.key; }); var tkL = rowListOf(t.l); ln.appendChild(entryPickLib(ky, tkL ? rowKeys(tkL) : [], 'Every entry'));
                     var lf = itemLists().filter(function(x) { return x.id === t.l; })[0], lrs = lf && lf.list && Array.isArray(lf.list.rolls) ? lf.list.rolls : [], ro = [['', 'Any roll']], rv = '';   // 1.6.0: only this roll of the list
                     lrs.forEach(function(r) { if (r && !Array.isArray(r.apply) && typeof r.label === 'string' && r.label.trim() && !ro.some(function(x) { return x[0].toLowerCase() === r.label.trim().toLowerCase(); })) ro.push([r.label.trim(), r.label.trim()]); });
                     if (typeof t.roll === 'string' && t.roll.trim()) { var rh = ro.filter(function(x) { return x[0] && x[0].toLowerCase() === t.roll.trim().toLowerCase(); })[0], rw = rh ? null : lrs.filter(function(r) { return r && !Array.isArray(r.apply) && typeof r.label === 'string' && Array.isArray(r.was) && r.was.some(function(x) { return typeof x === 'string' && x.toLowerCase() === t.roll.trim().toLowerCase(); }); })[0]; if (rh) rv = rh[0]; else if (rw) rv = rw.label.trim(); else { ro.push([t.roll, t.roll + ' (no roll of that name now)']); rv = t.roll; } }   // 1.6.2: a roll that had that label is that roll
@@ -754,9 +762,8 @@ function modsBox(form, e) {
             var sel = select(opts, val); sel.title = 'What this change affects'; ln.appendChild(sel);
             sel.addEventListener('change', function() { var tp = sel.value.split('|'); m.f = tp[0]; delete m.key; delete m.col; if (tp[1] === 'on') { m.op = 'on'; delete m.v; delete m.part; delete m.lvl; } else { m.op = m.op === 'max' || m.op === 'min' ? m.op : 'add'; if (typeof m.v !== 'number') m.v = 1; if (tp[1] === 'max') m.part = 'max'; else delete m.part; if (tp[1] === 'row') { var rl = rowListOf(m.f); m.key = ''; m.col = rl && rl.list.cols[0] ? rl.list.cols[0].key : ''; } } draw(); });
             if (val.slice(-4) === '|row') {   // 1.5.8: which entry, by its key, and which of the list's columns it adds to
-                var rl = rowListOf(m.f), ky = el('input', 'field lib-mod-key'), dlId = 'libRowKeys' + mi, dl = el('datalist');
-                dl.id = dlId; (rl ? rowKeys(rl) : []).forEach(function(k) { var op = el('option'); op.value = k[0]; op.label = k[1]; dl.appendChild(op); }); ln.appendChild(dl);
-                ky.type = 'text'; ky.setAttribute('list', dlId); ky.placeholder = 'Entry key'; ky.value = typeof m.key === 'string' ? m.key : ''; ky.title = 'The key of the entry it changes, such as Disguise. A character who does not have that entry yet still gets it on the entry’s default.'; ln.appendChild(ky);
+                var rl = rowListOf(m.f), ky = el('input', 'field lib-mod-key');
+                ky.type = 'text'; ky.placeholder = 'Another entry'; ky.value = typeof m.key === 'string' ? m.key : ''; ky.title = 'The entry it changes, such as Disguise. A character who does not have that entry yet still gets it on the entry’s default.'; ln.appendChild(entryPickLib(ky, rl ? rowKeys(rl) : [], 'Pick an entry'));
                 ky.addEventListener('input', function() { m.key = ky.value.trim(); });
                 var cs = select((rl ? rl.list.cols : []).map(function(c) { return [c.key, c.label || c.key]; }), m.col); cs.title = 'The column of that entry it adds to, such as its Target'; ln.appendChild(cs);
                 cs.addEventListener('change', function() { m.col = cs.value; });
@@ -795,7 +802,7 @@ function grantsBox(form, e) {
     if (st.fgFor !== e.id || !st.fg) { st.fg = clone(Array.isArray(e.grants) ? e.grants : []); st.fgFor = e.id; }
     var c = camp(), lists = ((c && c.system && c.system.fields) || []).filter(function(f) { return f && f.kind === 'item-list' && typeof f.id === 'string'; }); if (!lists.length && !st.fg.length) return;
     form.appendChild(el('div', 'lib-fsub', 'What it grants'));
-    form.appendChild(el('div', 'lib-note', 'When a row of this entry is added, each entry listed here is added too, to the list beside it, free. With a From level it comes when the row reaches that level. They go when this row goes or its level falls below. On them, Row.granted is 1, so a cost can read 0. Tick Pays back, and Row.paysback is 1 on the row it grants. A Level sets the level it starts at.'));
+    form.appendChild(el('div', 'lib-note', 'When a row of this entry is added, each entry listed here is added too, to the list beside it, free. With a From level it comes when the row reaches that level. They go when this row goes or its level falls below. A cost can tell a granted row apart, so it can cost nothing. Tick Pays back and a cost can still count the row it grants as bought. A Level sets the level it starts at.'));
     var box = el('div', 'lib-mods lib-grants'); form.appendChild(box);
     var all = allEntries().concat(sysItems()), entOf = function(id) { for (var i = 0; i < all.length; i++) if (all[i] && all[i].id === id) return all[i]; return null; };
     var listFor = function(ent) { var cg = ent && typeof ent.category === 'string' ? ent.category.toLowerCase() : ''; var hit = lists.filter(function(f) { return f.list && Array.isArray(f.list.cats) && f.list.cats.some(function(x) { return String(x).toLowerCase() === cg; }); })[0]; return (hit || lists[0] || {}).id || ''; };
@@ -815,7 +822,7 @@ function grantsBox(form, e) {
             oc.addEventListener('change', function() { if (oc.checked) g.once = true; else delete g.once; }); ln.appendChild(ol);
             var lv = el('input', 'field lib-mod-amt lib-grant-lvl'); lv.type = 'number'; lv.step = 'any'; lv.placeholder = 'Level'; lv.value = typeof g.lvl === 'number' ? String(g.lvl) : ''; lv.title = 'The level the row it grants starts at, held to that list\u2019s level rules. Leave it empty for the entry\u2019s own'; ln.appendChild(lv);   // 1.6.0: the level it grants at
             lv.addEventListener('input', function() { var n = Number(lv.value); if (lv.value.trim() === '' || !isFinite(n)) delete g.lvl; else g.lvl = n; });
-            var pl = el('label', 'lib-mod-lvl lib-grant-pay'), pc = el('input'); pc.type = 'checkbox'; pc.checked = g.pay === true; pl.appendChild(pc); pl.appendChild(el('span', null, ' Pays back')); pl.title = 'On the row it grants, Row.paysback reads 1, so a cost can count it as bought though it came free. Another entry may grant the same one without it';   // 1.6.0: Pays back
+            var pl = el('label', 'lib-mod-lvl lib-grant-pay'), pc = el('input'); pc.type = 'checkbox'; pc.checked = g.pay === true; pl.appendChild(pc); pl.appendChild(el('span', null, ' Pays back')); pl.title = 'A cost can count the row it grants as bought, though it came free. Another entry may grant the same one without it';   // 1.6.0: Pays back
             pc.addEventListener('change', function() { if (pc.checked) g.pay = true; else delete g.pay; }); ln.appendChild(pl);
             var gmr = el('div', 'lib-grant-more');   // 1.6.2 (body fold 1): what it names, on a line of its own
             var gnm = el('input', 'field lib-grant-nm'); gnm.type = 'text'; gnm.placeholder = 'Its own name'; gnm.value = typeof g.name === 'string' ? g.name : ''; gnm.title = 'A name for the row it grants in place of the entry\u2019s, such as Left Hand. Two grants of one entry with different names add a row each. Leave it empty for the entry\u2019s name'; gmr.appendChild(gnm);   // 1.6.2 (body fold 1)

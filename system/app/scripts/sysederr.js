@@ -47,10 +47,14 @@ function saveDraft() {
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
     var rnW = rnS ? renamesSay(rnS) : []; if (nR && nR.logEvent) rnW.forEach(function(l) { nR.logEvent('items', l); });
     var v = validateSystem(clean, F()), goneS = typeof goneRefs === 'function' ? goneRefs(clean, typeof refKeys === 'function' ? refKeys(clean) : null) : [];   // 1.6.2 (backlog 208): what still names something that is gone is said at Save too
-    toast((reach.text ? reach.text + ' ' : '') + (orphaned ? orphaned + ' carried cop' + (orphaned === 1 ? 'y' : 'ies') + ' of deleted items kept. ' : '') + 'System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' with a bad key or kind dropped' : '') + (v.ok ? '.' : '; ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.'));
+    // 1.6.3 (the review of the System editor, finding 25): the editor is drawn again first, so its count of errors is the very one the foot shows,
+    // the editor's own lines under each box among them. The validator's count of the saved system alone left the two figures apart. A field Save
+    // dropped is said as one with no usable name, never a bad key
+    renderAll(); renderViews(null);
+    var edN = 0; Object.keys(errorsById).forEach(function(k) { edN += (errorsById[k] || []).length; });
+    toast((reach.text ? reach.text + ' ' : '') + (orphaned ? orphaned + ' carried cop' + (orphaned === 1 ? 'y' : 'ies') + ' of deleted items kept. ' : '') + 'System saved: ' + clean.fields.length + ' field' + (clean.fields.length === 1 ? '' : 's') + ', ' + clean.rolls.length + ' roll' + (clean.rolls.length === 1 ? '' : 's') + (dropped ? '; ' + dropped + ' field' + (dropped === 1 ? '' : 's') + ' with no usable name or kind dropped' : '') + (edN ? '; ' + edN + ' error' + (edN === 1 ? '' : 's') + ' to fix, listed at the foot.' : '.'));
     keysGone(prevSys, clean, typeof refKeys === 'function' ? refKeys(clean) : null).forEach(function(g) { var t = keyUseSays(g.key, keyUses(clean, g.key)); if (t) rnW.push(t); });   // an item's key changed or the item went
     rnW.concat(goneS.slice(0, 3).map(function(g) { return g.message; }), goneS.length > 3 ? [(goneS.length - 3) + ' more name something that is gone, each said under its own box.'] : []).forEach(function(l) { toast(l); });   // each a line in the bell, so none is cut, the last on screen
-    renderAll(); renderViews(null);
     if (window.appRender) window.appRender();   // the board and the Properties panel read the system too (a light's presets, the light names): drawn afresh from what was saved
 }
 // [systemcheck:refwarn-start]
@@ -128,7 +132,9 @@ function refreshErrors() {
         var lb = typeof f.label === 'string' ? f.label.trim() : '';
         if (!lb) return 'Give it a name, or Save drops this field.';
         var made = typeof keyFromLabel === 'function' ? keyFromLabel(lb, f) : '';
-        return made ? 'Its short name is empty, so Save drops this field. Type its name again and the short name follows, or tick \u201cShort names\u201d at the foot and type one.' : 'There is no letter A to Z in this name to make a short name from, so Save drops this field. Add one, or tick \u201cShort names\u201d at the foot and type one.';
+        if (made) return 'Its short name is empty, so Save drops this field. Type its name again and the short name follows, or tick \u201cShort names\u201d at the foot and type one.';
+        // 1.6.3 (finding 29): a name with letters that still makes no short name is told apart from one with none
+        return /[A-Za-z]/.test(lb) ? 'This name cannot make a short name, so Save drops this field. Add a word to it, or tick \u201cShort names\u201d at the foot and type one.' : 'There is no letter A to Z in this name to make a short name from, so Save drops this field. Add one, or tick \u201cShort names\u201d at the foot and type one.';
     };
     draft.fields.forEach(function(f) {
         var errs = [];
@@ -243,7 +249,7 @@ function refreshErrors() {
             if (to.vis === 'gm' && f.vis !== 'gm') (warningsById[f.id] = warningsById[f.id] || []).push({ prop: 'spill', message: (to.label || to.key || 'That pool') + ' is GM only, so players\u2019 own apps do not show the spill. The host still makes it.' });
         }
     });
-    (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Not a usable key: a letter, then letters, digits and _ (up to 40); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor). Save drops it.' }); });   // Stage 6 F4b
+    (draft.items || []).forEach(function(it) { if (it && it.key && !cleanItemKey(String(it.key), F())) (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'key', message: 'Its short name cannot be used, so Save drops it. Type another name, or tick \u201cShort names\u201d at the foot and type one.' }); });   // Stage 6 F4b. 1.6.3 (finding 28): said in words, with no list of the words formulas keep
     if (typeof lvlBoxSays === 'function') (draft.items || []).forEach(function(it) { lvlBoxSays(it).forEach(function(m) { (errorsById[it.id] = errorsById[it.id] || []).push({ message: m }); }); });   // 1.6.0: Levels it may be and By level, as the cleaner reads them
     if (typeof grantSays === 'function') (draft.items || []).forEach(function(it) { var gS = grantSays(it); gS.drop.forEach(function(m) { (errorsById[it.id] = errorsById[it.id] || []).push({ prop: 'grants', message: m }); }); gS.warn.forEach(function(m) { (warningsById[it.id] = warningsById[it.id] || []).push({ prop: 'grants', message: m }); }); });   // 1.6.0 (v2, B4): what Save does with an item's grants
     // Stage 6 F4c1: each list's stats as Save will read them (a key it drops, a repeat, past the cap, a price naming none, another list's spelling),
@@ -257,21 +263,23 @@ function refreshErrors() {
     var capS = LIMITS.listStats, firstSp = Object.create(null), keptAll = Object.create(null), keptBy = Object.create(null), firstDef = Object.create(null);
     draft.fields.forEach(function(f) {
         if (!f || f.kind !== 'item-list') return;
-        var sp = f.list && typeof f.list === 'object' ? f.list : {}, st = Array.isArray(sp.stats) ? sp.stats : [], errs = [], mine = Object.create(null), keptW = Object.create(null), n = 0, nm = f.label || f.key || 'another list';
+        var sp = f.list && typeof f.list === 'object' ? f.list : {}, st = Array.isArray(sp.stats) ? sp.stats : [], errs = [], mine = Object.create(null), mineW = Object.create(null), keptW = Object.create(null), n = 0, nm = f.label || f.key || 'another list';
         st.forEach(function(s, i) {
-            var k = s && typeof s === 'object' && typeof s.key === 'string' ? s.key : '';
+            // 1.6.3 (the review of the System editor, finding 28): a stat is said by the name the GM typed, never by its short name, which stands out of
+            // sight until Short names is ticked; a short name Save cannot use is said in words, with no list of the words formulas keep
+            var k = s && typeof s === 'object' && typeof s.key === 'string' ? s.key : '', sw = s && typeof s.label === 'string' && s.label.trim() ? s.label.trim() : k, sQ = 'Stat \u201c' + sw + '\u201d';
             if (!k.trim()) { errs.push({ message: 'Stat ' + (i + 1) + ' needs a name: Save drops it.' }); return; }
-            if (!statKey(k, F())) { errs.push({ message: 'Stat key "' + k + '" is not usable: a letter, then letters, digits and _ (up to 24, no spaces); not a word formulas already use (count, qty, on, has, lvl, paid, row; max, min, cur, ranks, base; a function or reserved word such as floor, and, true; constructor, toString). Save drops it.' }); return; }
-            var l = k.toLowerCase(); if (mine[l]) { errs.push({ message: 'Stat key "' + k + '" repeats "' + mine[l] + '" (keys ignore case): Save keeps the first.' }); return; }
-            mine[l] = k; if (++n > capS) return;
+            if (!statKey(k, F())) { errs.push({ message: sQ + ': its short name cannot be used. Type another name, or tick \u201cShort names\u201d at the foot and type one. Save drops it.' }); return; }
+            var l = k.toLowerCase(); if (mine[l]) { errs.push({ message: sQ + ' has the same short name as \u201c' + mineW[l] + '\u201d: Save keeps the first.' }); return; }
+            mine[l] = k; mineW[l] = sw; if (++n > capS) return;
             keptW[l] = 1;   // 1.5.4 With: the stats Save keeps of this list
-            if (typeof s.def === 'number' && isFinite(s.def) && Math.abs(s.def) > LIMITS.statAbs) errs.push({ message: 'Stat "' + k + '" has a default past ±1,000,000,000: Save drops it.' });
+            if (typeof s.def === 'number' && isFinite(s.def) && Math.abs(s.def) > LIMITS.statAbs) errs.push({ message: sQ + ' has a default past ±1,000,000,000: Save drops it.' });
             var suW = typeof unitOf === 'function' ? unitOf(s.unit) : typeof s.unit === 'string' ? s.unit.trim() : '';   // 1.5.4: a stat's unit, its Metric list and its decimals, as the cleaner reads them
-            if (suW && s.kind === 'pick') errs.push({ message: 'Stat "' + k + '" is a choice, so Save drops its unit.' });
-            if ((s.unitShow === 'swap' || s.unitShow === 'bare') && !(s.kind !== 'pick' && typeof cleanFieldUnit === 'function' && cleanFieldUnit(suW, 'number'))) errs.push({ message: 'Stat "' + k + '": Metric ' + (s.unitShow === 'swap' ? 'instead' : 'bare') + ' needs a unit that is a measure, such as lb or yd/s, so Save drops it.' });
-            decSaid(errs, 'Stat "' + k + '"', s.decMax, s.kind !== 'pick' && typeof cleanFieldUnit === 'function' && !!cleanFieldUnit(suW, 'number'));
+            if (suW && s.kind === 'pick') errs.push({ message: sQ + ' is a choice, so Save drops its unit.' });
+            if ((s.unitShow === 'swap' || s.unitShow === 'bare') && !(s.kind !== 'pick' && typeof cleanFieldUnit === 'function' && cleanFieldUnit(suW, 'number'))) errs.push({ message: sQ + ': Metric ' + (s.unitShow === 'swap' ? 'instead' : 'bare') + ' needs a unit that is a measure, such as lb or yd/s, so Save drops it.' });
+            decSaid(errs, sQ, s.decMax, s.kind !== 'pick' && typeof cleanFieldUnit === 'function' && !!cleanFieldUnit(suW, 'number'));
             keptAll[l] = 1; if (!firstDef[l]) firstDef[l] = s;
-            if (!firstSp[l]) firstSp[l] = { key: k, list: nm }; else if (firstSp[l].key !== k) errs.push({ message: 'Stat "' + k + '" is spelled "' + firstSp[l].key + '" on ' + firstSp[l].list + ': Save uses that spelling here too (one key, one spelling).' });
+            if (!firstSp[l]) firstSp[l] = { key: k, list: nm }; else if (firstSp[l].key !== k) errs.push({ message: sQ + ' shares its short name with a stat on ' + firstSp[l].list + ', written with other capitals there: Save uses that writing here too.' });
         });
         if (n > capS) errs.push({ message: 'At most ' + capS + ' stats a list: Save keeps the first ' + capS + '.' });
         if (typeof ctKeySays === 'function') ctKeySays(sp, F()).forEach(function(m) { errs.push({ message: m }); });   // the core handbook session's ask (a): a counter's key as the cleaner reads it

@@ -142,6 +142,12 @@ const R = 1;
     check('a field with no key takes one from its label, in words a formula can read', kit.keyFromLabel('2 Mind & Will', fA) === 'MindWill' && kit.keyFromLabel('', fA) === '' && kit.keyFromLabel('!!!', fA) === '');
     check('never one another field holds', kit.keyFromLabel('body strength', fA) === 'BodyStrength2');
     check('never a word the formula language keeps', kit.keyFromLabel('floor', fA) === 'Floor' && keyKit([]).keyFromLabel('fl', {}) === 'Fl');
+    {   // 1.6.3 (the review of the System editor, finding 29): a name that is a word formulas use (Round, Floor) makes its short name with Value after it, so
+        // the field is kept; a stand-in for validKey refusing those words as the real one does, beside the real keyFromLabel
+        const realKit = fields => new Function('draft', 'F', 'validKey', 'var _keyAuto = new WeakSet();\n' + shKl.slice(k0, k1) + '\nreturn { keyFromLabel: keyFromLabel };')({ fields }, () => null, k => /^[A-Za-z][A-Za-z0-9_]*$/.test(k) && !/^(round|floor|max|min|if|abs|clamp)$/i.test(k));
+        const rk = realKit([{ key: 'RoundValue', label: 'x' }]);
+        check('1.6.3 (finding 29) a field named Round, Floor or If takes RoundValue, FloorValue or IfValue, numbered past one another field holds, and is never left with no short name', realKit([]).keyFromLabel('Round', {}) === 'RoundValue' && realKit([]).keyFromLabel('floor', {}) === 'FloorValue' && realKit([]).keyFromLabel('If', {}) === 'IfValue' && rk.keyFromLabel('Round', {}) === 'RoundValue2' && realKit([]).keyFromLabel('Speed', {}) === 'Speed');
+    }
     fA.label = 'Speed'; kit.keyFollows(fA, tBox); const k1st = fA.key; fA.label = 'Speed Run'; kit.keyFollows(fA, tBox);
     check('it follows the label, and the box shows it', k1st === 'Speed' && fA.key === 'SpeedRun' && kb.value === 'SpeedRun');
     kit.auto.delete(fA); fA.label = 'Other words'; kit.keyFollows(fA, tBox);

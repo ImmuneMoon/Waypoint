@@ -1891,6 +1891,12 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         // default substitution"): the Fields tab's boxes others depend on. refreshErrors is run for real (sysederr.js, read by its own name), the adders and the
         // Shows as handler are the real lines of sysedtabs.js, and the cleaner is the real one, so each line said agrees with what Save does
         const reQ = kit.cutEnd('sysederr.js', '\nfunction refreshErrors() {').replace(/\n$/, '');
+        // 1.6.3 (the review of the System editor, findings 25 and 40): Save's notice counts the very errors the foot shows (the editor is drawn first),
+        // and Work out every field says a fault in words and offers Find a field over a long list
+        { const erT = kit.part('sysederr.js'), tbT = kit.part('sysedtabs.js');
+          check('1.6.3 (findings 25 and 40) Save draws the editor before its notice and counts the editor\u2019s own errors, the ones the foot shows; a field Save dropped is said as one with no usable name; Work out every field hands plainMessage the system and stands a Find box over more than 12 lines',
+            /renderAll\(\); renderViews\(null\);\n    var edN = 0; Object\.keys\(errorsById\)\.forEach\(function\(k\) \{ edN \+= \(errorsById\[k\] \|\| \[\]\)\.length; \}\);\n    toast\(/.test(erT.replace(/\r\n/g, NL)) && erT.includes("' with no usable name or kind dropped'") && erT.includes("' to fix, listed at the foot.'") && !erT.includes('v.errors.length + \' error')
+            && tbT.includes('plainMessage(clean, e.error)') && tbT.includes("if (lines.length > 12) { var fnd = el('input', 'field sys-test-find');")); }
         // the review of fields: refreshErrors asks keyFromLabel (sysedlayout.js, by its own name) whether a name still makes a short name, so it runs beside it
         const keyQ = (src => src.slice(src.indexOf('var _keyAuto = new WeakSet();'), src.indexOf('function arrSet(')))(kit.part('sysedlayout.js').replace(/\r\n/g, NL));
         const runQ = fields => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS', 'cleanFieldUnit', 'unitOf', 'cleanFormulaText', 'hasDice',

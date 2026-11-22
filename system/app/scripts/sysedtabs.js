@@ -1238,7 +1238,7 @@ function onClick(e) {
     }
     if (lcb && /^feed(add|del)$/.test(b.dataset.act || '')) {   // 1.6.0 Feeds: a Lists card's feed buttons
         var lsf = lcb.list || (lcb.list = {}), fArr = Array.isArray(lsf.feeds) ? lsf.feeds : [];
-        if (b.dataset.act === 'feedadd') { if (fArr.length >= FEEDS_MAX) { toast('At most ' + FEEDS_MAX + ' feeds a list.'); return; } fArr.push({ key: '' }); lsf.feeds = fArr; }
+        if (b.dataset.act === 'feedadd') { if (fArr.length >= FEEDS_MAX) { toast('At most ' + FEEDS_MAX + ' feeds a list.'); return; } var fkN = 1, fkT = {}; fArr.forEach(function(x) { if (x && typeof x.key === 'string') fkT[x.key.toLowerCase()] = 1; }); while (fkT['feed' + fkN]) fkN++; fArr.push({ key: 'Feed' + fkN }); lsf.feeds = fArr; }   // 1.6.3 (finding 17): a new feed's short name is made for it, the first FeedN no other feed of the list holds, and stands out of sight with the other short names
         else { var fRow = b.closest('.sys-list-feed'), fI = fRow ? +fRow.dataset.fi : -1; if (!(fI >= 0 && fI < fArr.length)) return; fArr.splice(fI, 1); }
         if (!fArr.length) delete lsf.feeds;
         markDirty(); renderAll(); return;
@@ -1311,7 +1311,12 @@ function runTest() {
     if (!draft || !F()) return;
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) return;
     var all = resolveAll(clean, null, F()), out = ui('sysTestOut'); out.textContent = '';
-    clean.fields.forEach(function(f) { var e = all[f.id]; var line = el('div', 'sys-test-line' + (e.error ? ' sys-err-line' : '')); line.textContent = (f.label || f.key) + ': ' + (e.error ? (typeof plainMessage === 'function' ? plainMessage(e.error) : e.error) : e.text); out.appendChild(line); });
+    // 1.6.3 (the review of the System editor, finding 40): a fault is said through plainMessage with the system first (it was handed the fault alone,
+    // and said nothing), and where there are many fields a Find box stands above them, which keeps only the lines that hold its words
+    var lines = [];
+    clean.fields.forEach(function(f) { var e = all[f.id]; var line = el('div', 'sys-test-line' + (e.error ? ' sys-err-line' : '')); line.textContent = (f.label || f.key) + ': ' + (e.error ? (typeof plainMessage === 'function' ? plainMessage(clean, e.error) : e.error) : e.text); lines.push(line); });
+    if (lines.length > 12) { var fnd = el('input', 'field sys-test-find'); fnd.type = 'search'; fnd.placeholder = 'Find a field'; fnd.setAttribute('aria-label', 'Find a field'); fnd.addEventListener('input', function(ev) { if (ev && ev.stopPropagation) ev.stopPropagation(); var q = fnd.value.trim().toLowerCase(); lines.forEach(function(l) { l.hidden = !!q && String(l.textContent).toLowerCase().indexOf(q) < 0; }); }); out.appendChild(fnd); }
+    lines.forEach(function(l) { out.appendChild(l); });
     if (!clean.fields.length) out.appendChild(el('div', 'sys-note', 'There is no field to work out yet.'));
 }
 // [systemcheck:starters-start]

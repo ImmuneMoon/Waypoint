@@ -240,9 +240,13 @@ function stepSays(st, say) {
     if (o === 'clamp') return 'held between ' + valSays(st.v, say) + ' and ' + valSays(st.w, say);
     return '';
 }
+// 1.6.3 (the review of the System editor, finding 20): steps run in order, each on all that came before, so a times, a divide or a power that
+// follows a plus or a minus is joined with ", then". Joined with a space alone it read as if it bound tighter: floor((STR - 10) / 2) said
+// "Strength minus 10 divided by 2", which reads as Strength minus 5. A step with nothing of lower rank before it is joined as it always was
+var THEN_OPS = { '*': 1, '/': 1, '^': 1 };
 function formSays(f, say) {
-    var out = '';
-    (f.steps || []).forEach(function(st) { var w = st.op === 'start' ? valSays(st.v, say) : stepSays(st, say); if (w) out = out ? out + (st.op === 'start' ? ' plus ' : STEP_WORDS[st.op] ? ' ' : ', ') + w : w; });
+    var out = '', low = false;
+    (f.steps || []).forEach(function(st) { var w = st.op === 'start' ? valSays(st.v, say) : stepSays(st, say); if (w) out = out ? out + (st.op === 'start' ? ' plus ' : STEP_WORDS[st.op] ? (low && THEN_OPS[st.op] ? ', then ' : ' ') : ', ') + w : w; if (st.op === '+' || st.op === '-') low = true; });
     if (f.check) out += ', a success if it ' + (CMP_WORDS[f.check.op] || f.check.op) + ' ' + formSays(f.check.r, say);
     return out;
 }

@@ -95,12 +95,12 @@ function onRemoveSays(sp, fields, Fe) {
 function gmStatSays(f, fields) {
     var errs = [], warns = [], sts = f && f.list && Array.isArray(f.list.stats) ? f.list.stats : [], low = function(k) { return String(k).toLowerCase(); };
     sts.forEach(function(s) {
-        if (!s || typeof s !== 'object' || s.vis !== 'gm') return; var k = typeof s.key === 'string' ? s.key : '';
-        if (s.split === true) errs.push('Stat \u201c' + k + '\u201d: GM only keeps it out of trades, so Save drops Split in trades.');
-        (fields || []).forEach(function(x) { if (!x || x === f || !x.list || !Array.isArray(x.list.stats)) return; if (x.list.stats.some(function(t) { return t && typeof t === 'object' && t.vis !== 'gm' && typeof t.key === 'string' && low(t.key) === low(k); })) warns.push('Stat \u201c' + k + '\u201d is GM only here, so players get it on no list, ' + (x.label || x.key || 'that list') + ' among them.'); });
+        if (!s || typeof s !== 'object' || s.vis !== 'gm') return; var k = typeof s.key === 'string' ? s.key : '', kw = typeof s.label === 'string' && s.label.trim() ? s.label.trim() : k;   // 1.6.3 (finding 18): a stat said by its name
+        if (s.split === true) errs.push('Stat \u201c' + kw + '\u201d: GM only keeps it out of trades, so Save drops Split in trades.');
+        (fields || []).forEach(function(x) { if (!x || x === f || !x.list || !Array.isArray(x.list.stats)) return; if (x.list.stats.some(function(t) { return t && typeof t === 'object' && t.vis !== 'gm' && typeof t.key === 'string' && low(t.key) === low(k); })) warns.push('Stat \u201c' + kw + '\u201d is GM only here, so players get it on no list, ' + (x.label || x.key || 'that list') + ' among them.'); });
     });
     // what the players' view loses because it names such a stat of any list: the GM keeps it, and a player's copy of the system does not have it
-    var gk = {}; (fields || []).forEach(function(x) { if (x && x.list && Array.isArray(x.list.stats)) x.list.stats.forEach(function(s) { if (s && typeof s === 'object' && s.vis === 'gm' && typeof s.key === 'string') gk[low(s.key)] = s.key; }); });
+    var gk = {}; (fields || []).forEach(function(x) { if (x && x.list && Array.isArray(x.list.stats)) x.list.stats.forEach(function(s) { if (s && typeof s === 'object' && s.vis === 'gm' && typeof s.key === 'string') gk[low(s.key)] = typeof s.label === 'string' && s.label.trim() ? s.label.trim() : s.key; }); });   // 1.6.3 (finding 18): each GM-only stat by its name
     if (!Object.keys(gk).length || !f || !f.list) return { errs: errs, warns: warns };
     var sp = f.list, obj = function(o) { return o && typeof o === 'object' ? o : {}; }, seen = {}, says = function(what, k) { var n = gk[low(k)]; if (typeof k !== 'string' || !Object.prototype.hasOwnProperty.call(gk, low(k)) || seen[what + '|' + n]) return; seen[what + '|' + n] = 1; warns.push(what + ' names \u201c' + n + '\u201d, a GM only stat, so players do not get it on this list.'); };
     [['Price', sp.price], ['Places split by', sp.placeBy], ['Sets by', sp.sets], ['Money', sp.money], ['One at a time', obj(sp.on).per], ['Where rows meet', obj(sp.on).over], ['Rows carry a look', obj(sp.look).by], ['Stands at a row of', obj(sp.at).by]].forEach(function(p) { says(p[0], p[1]); });
@@ -674,10 +674,12 @@ function dbxTidy() { var cm = dbxCm(); if (dbxObj(cm.damage) && !Object.keys(cm.
 function dbxField(id) { return (draft.fields || []).filter(function(f) { return f && f.id === id; })[0] || null; }
 function dbxKeys(listId, numOnly) {   // [key, words]: a list's stats, and its columns unless only number stats are wanted
     var f = dbxField(listId), sp = f && f.kind === 'item-list' && dbxObj(f.list) ? f.list : null, out = []; if (!sp) return out;
-    var take = function(s, col) { if (!dbxObj(s) || typeof s.key !== 'string' || !s.key) return; if (numOnly && (col || s.kind === 'pick')) return; out.push([s.key, typeof s.label === 'string' && s.label && s.label.toLowerCase() !== s.key.toLowerCase() ? s.label + ', ' + s.key : typeof s.label === 'string' && s.label ? s.label : s.key]); };
+    // 1.6.3 (the review of the System editor, finding 18): each by its name alone. Only where two share a name does the short name follow, to tell them apart
+    var take = function(s, col) { if (!dbxObj(s) || typeof s.key !== 'string' || !s.key) return; if (numOnly && (col || s.kind === 'pick')) return; out.push([s.key, typeof s.label === 'string' && s.label ? s.label : s.key]); };
     (Array.isArray(sp.stats) ? sp.stats : []).forEach(function(s) { take(s, false); });
     if (!numOnly) (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(s) { take(s, true); });
-    return out;
+    var twice = {}; out.forEach(function(o) { var l = o[1].toLowerCase(); twice[l] = (twice[l] || 0) + 1; });
+    return out.map(function(o) { return twice[o[1].toLowerCase()] > 1 && o[1] !== o[0] ? [o[0], o[1] + ', ' + o[0]] : o; });
 }
 function dbxOpts(first, opts, val) {   // a select's choices, a value that is no choice now kept and said so
     var o = [first].concat(opts); if (typeof val === 'string' && val && !opts.some(function(x) { return x[0] === val; })) o.push([val, 'One that is gone']); return o;

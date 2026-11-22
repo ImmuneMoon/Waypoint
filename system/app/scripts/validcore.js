@@ -51,9 +51,12 @@ function listWord(sys, f, p) {   // what follows a list's key
     if (p.length === 2 && a === 'on') return lower(last) === 'count' ? 'how many rows of ' + L + ' are switched on' : lower(last) === 'qty' ? 'how many ' + L + ' are switched on' : 'the total ' + W + ' of ' + L + ' switched on';
     if (p.length === 2 && (a === 'max' || a === 'min')) return 'the ' + (a === 'max' ? 'highest ' : 'lowest ') + W + ' in ' + L;
     if (p.length === 3 && a === 'on' && (lower(p[1]) === 'max' || lower(p[1]) === 'min')) return 'the ' + (lower(p[1]) === 'max' ? 'highest ' : 'lowest ') + W + ' in ' + L + ' switched on';
-    if (p.length === 2) return W + ' of ' + entryWord(sys, p[0]) + ' in ' + L;
+    if (p.length === 2) { var rwE = entryWord(sys, p[0]) + ' in ' + L, rwW = ROW_SAYS_OF[lower(last)]; return rwW ? rwW(rwE) : W + ' of ' + rwE; }   // 1.6.3 (finding 18): a row's own words said as what they ask, never has of Temper
     return humanName(p.join('.'));
 }
+// 1.6.3 (the review of the System editor, finding 18): what a name says of one entry of a list where it ends in a row's own word, in plain words.
+// A list's stat can never be keyed one of these (a stat's short name refuses the row's words), so they never stand for a stat
+var ROW_SAYS_OF = { has: function(e) { return 'whether they hold ' + e; }, lvl: function(e) { return 'the level of ' + e; }, qty: function(e) { return 'how many of ' + e + ' they hold'; }, on: function(e) { return 'whether ' + e + ' is switched on'; }, paid: function(e) { return 'what ' + e + ' cost'; }, count: function(e) { return 'how many rows of ' + e + ' they hold'; } };
 function nameWord(sys, name, rowSpec) {
     var s = String(name), l = lower(s); if (!isObj(sys) || !Array.isArray(sys.fields)) return humanName(s);
     var ix = keyIndexOf(sys); if (ix[l]) return fieldWord(ix[l]);
@@ -129,6 +132,7 @@ function plainMessage(sys, text) {
     s = s.replace('An amount cannot roll dice: roll first, and let the amount read the field the result goes in.', 'This amount cannot roll dice unless it is ticked Rolled.');
     s = s.replace(/^"([^"]+)" is a (choice|counter), so it has no (.+?): read one row \([^)]*\)\.$/, function(all, n, what, none) { var p = n.split('.'), lf = keyIndexOf(sys)[lower(p[0])], last = p[p.length - 1], lab = lf ? statWord(lf.list, last) : ''; return (lab ? lab + ' in ' + fieldWord(lf) : humanName(n)) + ' is a ' + what + ', so it has no ' + none + '.'; });
     s = s.replace(/^"([^"]+)" is known only in /, function(all, n) { return capWord(w(n)) + ' can only be read in '; }).replace(/^"([^"]+)" is known only where /, function(all, n) { return capWord(w(n)) + ' can only be read where '; });
+    s = s.replace(/^No item in (.+?) has the key "([^"]+)"(?:\. "[^"]+" then finds only rows whose own name says it, and with none it reads as not carried\.|: (it reads as not carried until a row its player can see has it\.))$/, function(all, list, key, tail) { return 'No entry of ' + list + ' is named \u201c' + humanName(key) + '\u201d. ' + (tail ? 'It reads as not carried until a row its player can see has it.' : 'It then finds only rows whose own name says it, and with none it reads as not carried.'); });   // 1.6.3 (finding 18)
     s = s.replace(/Stat (?:\u201c([^\u201d]+)\u201d|"([^"]+)")/g, function(all, a, b) { var k = a || b, lab = ''; (Array.isArray(sys && sys.fields) ? sys.fields : []).forEach(function(f) { if (!lab && isObj(f) && f.kind === 'item-list') lab = statWord(f.list, k); }); return lab || all; });
     return s.replace(/"([A-Za-z_][A-Za-z0-9_.]*)"/g, function(all, n) { var x = w(n); return x === humanName(n) ? all : '\u201c' + x + '\u201d'; });
 }

@@ -723,6 +723,9 @@ function keyFromLabel(label, f) {
     var k = String(label || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/ +/).map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('').replace(/^[0-9]+/, '').slice(0, 24);
     if (!k) return '';
     var taken = {}; draft.fields.forEach(function(o) { if (o !== f && o && typeof o.key === 'string') taken[o.key.toLowerCase()] = 1; });
+    // 1.6.3 (the review of the System editor, finding 29): a name that is a word formulas use (Round, Floor, Max, If) makes a short name with Value
+    // after it (RoundValue), as a stat's takes Stat, so a field named Round is kept and is never dropped at Save for want of a short name
+    if (!validKey(k, F())) k = (k + 'Value').slice(0, 24);
     var out = k, n = 2; while (taken[out.toLowerCase()]) out = k + (n++);
     return validKey(out, F()) ? out : '';
 }

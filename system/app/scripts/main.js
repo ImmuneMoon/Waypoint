@@ -1320,14 +1320,30 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       if (!c || c.name !== 'Default Campaign') return false;
       return Object.values(c.items || {}).every(function(it) { return !!it && it.type === 'map' && !(it.rooms || []).length && !(it.whiteboard || []).length; });
   }
+  // 1.6.3 (the review of the click test settings): whether a campaign is still wholly as the empty save's seed made it. wcSeedOnly reads its
+  // maps alone, which is enough to keep it off the welcome's list but not to delete it: a GM may have built a system, characters or a library
+  // in it and drawn nothing yet. So this also asks that nothing else of a campaign holds anything: no field, roll, item or effect of a
+  // system, no character, no library pack, no handout, no player and no sound or music
+  function wcSeedUntouched(c) {
+      if (!wcSeedOnly(c)) return false;
+      function holds(v) { return Array.isArray(v) ? v.length > 0 : (!!v && typeof v === 'object' && Object.keys(v).length > 0); }
+      var sys = c.system || {};
+      if (holds(sys.fields) || holds(sys.rolls) || holds(sys.items) || holds(sys.effects)) return false;
+      if (holds(c.chars) || holds(c.handouts) || holds(c.players) || holds(c.sounds) || holds(c.music)) return false;
+      if (c.library && holds(c.library.packs)) return false;
+      return true;
+  }
   // 1.6.3 (the release click test): the welcome's Start a campaign on an empty save left that seed beside the campaign the newcomer named, in the
-  // campaign menu, an export and a later import. Once Start a campaign has made the new campaign, the ids of every other campaign that is still
-  // only the untouched seed (never one from someone else's table) go: dialogs.js asks this through window.wpSeedDrops and deletes them
-  function wcSeedDrops(camps, keepId) {
-      return Object.keys(camps || {}).filter(function(id) { var c = camps[id]; return id !== keepId && !!c && !c._foreign && wcSeedOnly(c); });
+  // campaign menu, an export and a later import. Once Start a campaign has made the new campaign, the seed goes. Only the campaign this very
+  // launch seeded may go (seededId, which io.js load notes when it seeds an empty save), never the new one, never one from someone else's table,
+  // and only while wcSeedUntouched says nothing has been put in it (the review of the click test settings: a test by name and maps alone
+  // deleted a Default Campaign holding a GM's system and characters). dialogs.js asks this through window.wpSeedDrops and deletes what it names
+  function wcSeedDrops(camps, keepId, seededId) {
+      var c = seededId && camps ? camps[seededId] : null;
+      return (c && seededId !== keepId && !c._foreign && wcSeedUntouched(c)) ? [seededId] : [];
   }
   // [tutorialcheck:wcseed-end]
-  window.wpSeedDrops = wcSeedDrops;
+  window.wpSeedDrops = function(camps, keepId) { return wcSeedDrops(camps, keepId, window.wpSeededId); };
   // [tutorialcheck:wchost-start]
   // Host a game (the owner, 2026-10-31: "instead of the host a game going straight into waypoint, it should let you select which campaign you want to host,
   // then open that one and start the multiplayer game"). The list is this computer's own campaigns, the one last open first; a name reaches it as a text
@@ -1466,8 +1482,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var setPrefEl = document.getElementById('setWelcomePref'); if (setPrefEl) { setPrefEl.value = welcomePref(); setPrefEl.addEventListener('change', function() { setPref(this.value); }); }
       // Start a campaign on a save the tour is still owed to (nothing in it yet, the tour not seen): just enter — the tour starts in Waypoint proper, its
       // Tutorial campaign is the first one, and the naming prompt for their own campaign comes when the tour ends or is skipped (the owner's word,
-      // 2026-10-01: wpCampaignAfterTour, read by tutorial.js endTour). Otherwise the naming prompt at once, as ever
-      var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); window.wpSeedDrop = true; if (window.wpTutorial && window.wpTutorial.pending && window.wpTutorial.pending()) { window.wpCampaignAfterTour = true; return; } var b = document.getElementById('newCampBtn'); if (b) b.click(); });
+      // 2026-10-01: wpCampaignAfterTour, read by tutorial.js endTour). Otherwise the naming prompt at once, as ever. The press marks that the
+      // seed may go (wpSeedDrop) only where this launch seeded an empty save (wpSeededId), never on a save that already had campaigns
+      var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); window.wpSeedDrop = !!window.wpSeededId; if (window.wpTutorial && window.wpTutorial.pending && window.wpTutorial.pending()) { window.wpCampaignAfterTour = true; return; } var b = document.getElementById('newCampBtn'); if (b) b.click(); });
       // Import from the welcome: the tour (if still owed) holds until the file is chosen and the import's choice made or dropped
       var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); window.wpWelcomeImporting = true; var fi = document.getElementById('fileIn'); var done = function() { window.wpWelcomeImporting = false; }; if (fi) { fi.addEventListener('change', done, { once: true }); fi.addEventListener('cancel', done, { once: true }); } setTimeout(done, 60000); var b = document.getElementById('importBtn'); if (b) b.click(); });
       // Join a game → its OWN screen (profile + room code + live status); it stays up until the GM's snapshot lands (or an error).

@@ -360,6 +360,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
            state.appState.activeCampaignId = seedCamp.id;
 
+           // 1.6.3 (the review of the click test settings): the welcome's Start a campaign may take away the campaign seeded here, and only
+           // this one. It is noted in this window's memory alone, so a campaign seeded by an earlier launch, or a save that already had
+           // campaigns, is never named (main.js wcSeedDrops reads it)
+           window.wpSeededId = seedCamp.id;
+
         }
 
         

@@ -156,7 +156,7 @@ function validPageId(id) { return typeof id === 'string' && PAGE_ID.test(id) && 
 var FIELD_ID = /^f_[A-Za-z0-9_]{1,24}$/, ROLL_ID = /^r_[A-Za-z0-9_]{1,24}$/, SECTION_ID = /^s_[A-Za-z0-9_]{1,24}$/, TAB_ID = /^t_[A-Za-z0-9_]{1,24}$/, CHAR_ID = /^c_[A-Za-z0-9_]{1,24}$/, ITEM_ID = /^i_[A-Za-z0-9_]{1,24}$/, RID_RE = /^[A-Za-z0-9_-]{1,24}$/;
 var SHAPES = Object.freeze({ circle: 1 }), BLAST_AUTO = Object.freeze({ full: 1, roll: 1, measure: 1 });
 // Stage 6 F4a: a carried row's id (w_…; a legacy {defId, qty} row's is derived from its item) and the row ops a change may carry
-var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1, load: 1, restore: 1, chamber: 1, unchamber: 1, split: 1, look: 1, work: 1, place: 1 });   // 1.6.0, backlog 206: look, a row's look; work, a line of its work log (rowLookOp)   // 1.5.9 Chambers from: chamber, one unit of a round into a row's chamber; unchamber, the last one in back to its list   // restore (1.5.8): a removed row put back whole at its place (its Undo)   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
+var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove: 1, setQty: 1, keep: 1, undo: 1, set: 1, ov: 1, custom: 1, load: 1, restore: 1, chamber: 1, unchamber: 1, split: 1, look: 1, work: 1, place: 1, unfit: 1 });   // 1.6.3: unfit, a fitted part taken out of its host and kept as a loose row of its own list (applyRowOp's unfit branch)   // 1.6.0, backlog 206: look, a row's look; work, a line of its work log (rowLookOp)   // 1.5.9 Chambers from: chamber, one unit of a round into a row's chamber; unchamber, the last one in back to its list   // restore (1.5.8): a removed row put back whole at its place (its Undo)   // undo (Stage 6): a pickup taken back; set (F4b): a row's facts; ov (F4c2): a copy's own values; custom (F4c3): a character's own row, made or changed
 var CHAMBER_CAP = 320;   // 1.5.9 Chambers from: the most rounds a chamber holds (8 before 1.6.0, 32 before 1.6.2)
 var FEEDS_MAX = 20, FEED_STACK = 80;   // 1.6.0 Feeds: a list's feeds, and the kinds one feed holds stacked at once
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
@@ -3999,6 +3999,7 @@ function lockTouches(rw, q) {   // the cells a change of a row that is there wou
     var o = [], keys = function(m) { Object.keys(isObj(m) ? m : {}).forEach(function(k) { o.push('s:' + lower(k)); }); };
     if (!isObj(rw) || !isObj(q)) return o;
     if (q.op === 'setQty') return ['qty'];
+    if (q.op === 'unfit') return ['*'];   // 1.6.3: taking a part out of its host moves the whole row, so any cell its list locks now holds it (rowLockHit reads '*' as every locked cell)
     if (q.op === 'set') { if (isObj(q.facts)) { if (q.facts.lvl !== undefined) o.push('lvl'); if (q.facts.qty !== undefined) o.push('qty'); } return o; }
     if (q.op === 'ov') {
         var ov = isObj(rw.ov) ? rw.ov : {};
@@ -4022,11 +4023,12 @@ function rowLockHit(sys, char, f, list, q, F) {
     var spec = isObj(f) && isObj(f.list) ? f.list : null; if (!spec || !(isObj(spec.lock) || isObj(spec.lay)) || !isObj(q) || typeof q.rowId !== 'string') return null;
     var rw = null; (Array.isArray(list) ? list : []).forEach(function(r) { if (!rw && isObj(r) && rowIdOf(r) === q.rowId) rw = r; }); if (!rw) return null;
     var lc = layCells(spec, rw), lw = function() { var sf = isObj(spec.lay) && typeof spec.lay.from === 'string' && typeof fieldById === 'function' ? fieldById(sys, spec.lay.from) : null; return 'This row is laid by a row of ' + (sf && sf.label ? sf.label : 'another list') + '. Change that row instead.'; };   // Laid from: its source's own, the GM's hand too
-    if (lc && q.op === 'remove') return { ok: false, reason: 'value', msg: lw(), locked: true };
+    if (lc && (q.op === 'remove' || q.op === 'unfit')) return { ok: false, reason: 'value', msg: lw(), locked: true };   // 1.6.3: a laid row is not taken out of its host either: it follows its source
     var t = lockTouches(rw, q); if (!t.length) return null;
     if (lc && t.some(function(c) { return lc[c] === 1; })) return { ok: false, reason: 'value', msg: lw(), locked: true };
     if (!isObj(spec.lock)) return null;
     var lk = lockCells(sys, char, spec, F); if (!lk) return null;
+    if (t[0] === '*') return Object.keys(lk).length ? { ok: false, reason: 'value', msg: spec.lock.says || 'This part cannot be taken out while its rule holds.', locked: true } : null;   // 1.6.3 unfit: any locked cell holds the part where it is
     var hit = t.filter(function(c, i) { return lk[c] === 1 && t.indexOf(c) === i; }); if (!hit.length) return null;
     return { ok: false, reason: 'value', msg: spec.lock.says || ('This row’s ' + lockWords(spec, hit) + ' cannot be changed while its rule holds.'), locked: true };
 }
@@ -4146,6 +4148,20 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             }
             rwP.pl = q.at; extra.row = rowIdOf(rwP);
         }
+    } else if (q.op === 'unfit') {   // 1.6.3 (the port round test, before release; the book: a mod taken out cleanly comes out whole): a fitted part taken out of
+        // its host and kept. Only its `in` goes: it stays where it stands in its list, with its count, level, stats, counters, look and own values, and
+        // its own parts (a deep list) stay in it. It never stacks with a loose row. The right is the one a player's removal of a part needs (the gate at
+        // the top: the list's own edit right); Holds and Fits where are not judged, since a part taken out frees room. Refused for a file that fills a
+        // character (fl: a file never unfits), a row that is no part, a row kept from its player (hid, gone to them), a curse kept on, a host kept on
+        // or kept from its player; a laid row and a row Locked while were refused above by rowLockHit (lockTouches names unfit '*')
+        if (fl) return { ok: false, reason: 'field' };
+        var ixU = typeof q.rowId === 'string' && ROW_ID.test(q.rowId) ? at(q.rowId) : -1; if (ixU < 0 || (opts.player && list[ixU].hid === 1)) return { ok: false, reason: 'missing' };
+        var rwU = list[ixU], sayU = function(gmW) { return { ok: false, reason: 'value', msg: opts.player ? 'This part cannot be taken out now.' : gmW }; };   // a player is told nothing of a curse or a hidden host
+        if (typeof rwU.in !== 'string') return { ok: false, reason: 'value', msg: 'That row is not fitted in anything.' };
+        if (rwU.hid === 1) return sayU('This part is kept from its player, so it stays where it is.');
+        if (rwU.keptOn === 1) return sayU('This part is a curse kept on, so it stays where it is.');
+        var hoU = unfitHost(sys, char, f.id, list, rwU.in); if (hoU && (hoU.keptOn === 1 || hoU.hid === 1)) return sayU('Its host is kept on, so its parts stay in it.');   // a host that is gone leaves a dangling `in`: taking it out is allowed
+        delete rwU.in; extra.row = q.rowId; extra.qty = rwU.qty | 0; extra.unfit = true;
     } else if (q.op === 'restore') {   // 1.5.8: a removed row put back whole at its place, the very row (q.row, q.at) the caller kept from before it went: the GM's sheet, or the host's own record for a player (never the player's word)
         if (typeof q.rowId !== 'string' || !ROW_ID.test(q.rowId) || !isObj(q.row) || rowIdOf(q.row) !== q.rowId || at(q.rowId) >= 0) return { ok: false, reason: 'missing' };
         if (list.filter(function(r) { return !(isObj(r) && r.hid === 1); }).length >= LIMITS.carried) return { ok: false, reason: 'field' };
@@ -4667,6 +4683,17 @@ function partHostOk(sys, hspec, row) {
     if (!isObj(row) || (typeof row.in === 'string' && !(isObj(hspec) && isObj(hspec.parts) && hspec.parts.deep === true))) return false;
     var hs = isObj(hspec) && isObj(hspec.parts) && Array.isArray(hspec.parts.hosts) ? hspec.parts.hosts : null; if (!hs || !hs.length) return true;
     var rd = rowDef(sys, row); return !!(rd && isObj(rd.def)) && catIn(hs, rd.def.category);
+}
+// 1.6.3 unfit: the row a part's `in` names, in any list whose parts come from the part's list (fieldId; list, that list as the change holds it
+// now), or null where none is there. Unlike partHost it asks nothing of whether the row may hold parts: it only finds the host to judge
+function unfitHost(sys, char, fieldId, list, rid) {
+    var out = null;
+    (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).forEach(function(hf) {
+        if (out || !isObj(hf) || hf.kind !== 'item-list' || !isObj(hf.list) || !isObj(hf.list.parts) || !partsFromHas(hf.list.parts, fieldId)) return;
+        var hrows = hf.id === fieldId && Array.isArray(list) ? list : isObj(char) && isObj(char.values) && Array.isArray(char.values[hf.id]) ? char.values[hf.id] : [];
+        hrows.forEach(function(r) { if (!out && isObj(r) && rowIdOf(r) === rid) out = r; });
+    });
+    return out;
 }
 function partHost(sys, char, fieldId, rid, player) {
     var out = null;

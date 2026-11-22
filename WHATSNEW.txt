@@ -856,6 +856,9 @@ Smaller things
   a tool's options or a sheet still has the focus. A box you just typed in
   takes back its own typing first, and with nothing left to undo Waypoint
   says so.
+- A part fitted to a row can be taken out and kept. Press Take out on its
+  pill and it stays on its list as a row of its own, with its count, level
+  and stats, and any parts fitted to it stay in it.
 
 WAYPOINT 1.6.2 — What's New
 ============================

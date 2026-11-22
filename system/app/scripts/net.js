@@ -3971,7 +3971,7 @@ function rosterPayload() {
     });
     return out;
 }
-function broadcastRoster() { if (typeof landRosterMoved === 'function') landRosterMoved(); if (typeof window !== 'undefined' && typeof window.wpPlannerPlayers === 'function') window.wpPlannerPlayers(); broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); if (typeof refreshChatRecipients === 'function') refreshChatRecipients(); }   // 1.6.3 (finding 4): Table Chat's To list follows the roster. The release click test's finding 25: a page's Seen by ticks follow the players too. backlog 29: a player on another map is sent that map's trackers
+function broadcastRoster() { if (typeof landRosterMoved === 'function') landRosterMoved(); try { if (typeof window !== 'undefined' && typeof window.wpPlannerPlayers === 'function') window.wpPlannerPlayers(); } catch (e) { console.error(e); } broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); if (typeof refreshChatRecipients === 'function') refreshChatRecipients(); }   // 1.6.3 (finding 4): Table Chat's To list follows the roster. The release click test's finding 25: a page's Seen by ticks follow the players too. backlog 29: a player on another map is sent that map's trackers
 // [netcheck:roster-end]
 
 // Is this player currently on the given map? (self is always present to itself)
@@ -11066,7 +11066,9 @@ function banAsk(camp, pid) {
             dropWaitingFor(pid);   // Onboarding F1a: their waiting token goes at once, even inside the grace after they left
         }
         save();
-        if (typeof window !== 'undefined' && typeof window.wpPlannerPlayers === 'function') window.wpPlannerPlayers();   // the release click test, finding 25: a banned player leaves a page's Seen by ticks
+        // the release click test, finding 25: a banned player leaves a page's Seen by ticks. The review of that fix: a page editor that fails to
+        // draw never stops the notice and the History panel below
+        try { if (typeof window !== 'undefined' && typeof window.wpPlannerPlayers === 'function') window.wpPlannerPlayers(); } catch (e) { console.error(e); }
         toast((camp.bannedPlayers[pid].name || 'Player') + ' banned from this campaign.');
         renderPlayersPanel();
     }, { noEnter: true });

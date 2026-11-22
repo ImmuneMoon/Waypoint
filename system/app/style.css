@@ -3101,8 +3101,9 @@
   #mapTabList { display: flex; align-items: center; gap: 2px; flex: 0 1000000 auto; min-width: 0; overflow: hidden; }   /* the list gives way before the tab in front does, all of it: at 1000 the tab in front still gave a fraction of a pixel, and its name read "The I…" with room to spare */
   /* 1.6.3 (the release click test, finding 32): with a page in front at 1366 px the list still gave way to nothing and no map tab showed, so
      there was no one-click way back to a map. While a page is in front the list keeps room for a tab or so, and the page's own tab gives
-     way first (its name cut with an ellipsis). Held to 40% of the tabs' box, so a row squeezed to its plus alone is never overrun */
-  #mapTabFront.mt-onpage ~ #mapTabList { min-width: min(96px, 40%); }
+     way first (its name cut with an ellipsis). Held to 40% of the tabs' box, so a row squeezed to its plus alone is never overrun. Only a list
+     that holds a tab keeps that room: maptabs.js tabsDraw writes elements alone, so a list with no map tab is :empty and takes none */
+  #mapTabFront.mt-onpage ~ #mapTabList:not(:empty) { min-width: min(96px, 40%); }
   #mapTabList.clip { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); }
   .map-tab { flex: none; border: 0; background: none; color: var(--dim); cursor: pointer; font-family: inherit; }
   .map-tab:hover, .map-tab:focus-visible { background: var(--panel2); color: var(--ink); }

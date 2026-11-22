@@ -189,6 +189,7 @@
   #moreMenu #saveAsMenu { top: -6px; left: auto; right: 100%; margin: 0 7px 0 0; min-width: 210px; max-height: calc(100vh - 90px); overflow-y: auto; padding: 5px; background: var(--panel); border-color: var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #moreMenu #saveAsMenu .menu-item { display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 5px; font-size: 12.5px; }
   #moreMenu #saveAsMenu .menu-item > .ico { flex: none; color: var(--dim); }
+  #moreMenu #saveAsMenu .menu-item > small { margin-left: auto; padding-left: 12px; color: var(--faint); font-size: 11px; }   /* 1.6.3 (the release click test): Export this campaign and Full export say what each makes */
   #moreMenu #saveAsMenu .menu-divider { height: 1px; margin: 4px 2px; background: var(--edge); }
   #moreMenu #saveAsMenu button.menu-item { width: 100%; box-sizing: border-box; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; text-align: left; white-space: nowrap; cursor: pointer; }   /* a kind is a button, so the keyboard reaches it as it reaches every row of More */
   #moreMenu #saveAsMenu button.menu-item:hover, #moreMenu #saveAsMenu button.menu-item:focus-visible { background: var(--edge); color: var(--ink); outline: none; }

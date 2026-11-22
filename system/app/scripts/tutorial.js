@@ -663,8 +663,10 @@ function ensureTutorialRules(camp) {
         });
     });
 }
-// Creates the Tutorial campaign (or rebuilds it when asked) and makes it active
-function ensureTutorialCampaign(rebuild) {
+// Creates the Tutorial campaign (or rebuilds it when asked) and makes it active. then, where given, runs once the tour's pictures are in the
+// saves folder (at once where they already are), so a caller that goes on to draw the campaign asks for no picture that is not there yet; it
+// runs after 4 seconds all the same, so a copy that never answers holds nothing for good (1.6.3, the release click test)
+function ensureTutorialCampaign(rebuild, then) {
     var camp = tutorialCampaign();
     if (!camp || rebuild) {
         camp = buildTutorialCampaign();
@@ -692,10 +694,15 @@ function ensureTutorialCampaign(rebuild) {
     if (!(camp.tutorialChest >= 1)) { if (typeof ensureTutorialChest === 'function') ensureTutorialChest(camp); camp.tutorialChest = 1; }   // 1.6.2, once: the Armory chest the Containers step opens
     state.appState.activeCampaignId = TUTORIAL_CAMP_ID;
     state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null;
-    updateCampaignSelect(); updateSidebarNav(); render(); save(true);
+    // 1.6.3 (the release click test): while the tour's pictures are not yet copied into the saves folder, the campaign is drawn once the copy
+    // is done, not before it: a draw now asked for each picture before it was there, and the browser logged each as a red 404
+    var artWait = camp.tutorialArt !== 'installed';
+    updateCampaignSelect(); updateSidebarNav(); if (!artWait) render(); save(true);
     // a hosted Tutorial: that save sends the open item alone, so the cellar just changed goes to the table here, to each player through their own fog
     if ((litNow || senseNow) && hosting() && camp.activeItemId !== 'map_tut_fog' && window.wpNet.broadcastItemFiltered) window.wpNet.broadcastItemFiltered(camp.id, 'map_tut_fog');
-    installTutorialArt(function(copied) { camp.tutorialArt = 'installed'; save(true); if (copied) render(); });
+    var thenOnce = typeof then === 'function' ? (function() { var ran = false; return function() { if (ran) return; ran = true; then(); }; })() : null;
+    installTutorialArt(function(copied) { camp.tutorialArt = 'installed'; save(true); if (copied || artWait) render(); if (thenOnce) thenOnce(); });
+    if (thenOnce) { if (!artWait) thenOnce(); else setTimeout(thenOnce, 4000); }
     return camp;
 }
 
@@ -1339,14 +1346,18 @@ function startTour(at) {
     if (!canPersistLocal()) { toast('The tutorial runs on your own campaigns. Leave the session first.'); return; }
     guardSwitch(hosting() && state.appState.activeCampaignId !== TUTORIAL_CAMP_ID, function() {   // the tour opens the Tutorial campaign
         ensureDom();
-        ensureTutorialCampaign(false);   // starting at a section needs the demo campaign present (Welcome usually does this first)
         try { localStorage.setItem('wp_tourSeen', '1'); } catch (e) {}
-        var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
-        tour.active = true; tour.paused = false; tour.asking = false; tour.pos = null;
-        tour.chip.style.display = 'none';
-        tour.overlay.style.display = 'block';
-        document.body.classList.add('tour-on');
-        show(start, 1);
+        // starting at a section needs the demo campaign present (Welcome usually does this first). 1.6.3 (the release click test): the tour's
+        // first step is drawn once the tour's pictures are copied into the saves folder, since a step drawn before asked for each one before it
+        // was there, a red 404 each
+        ensureTutorialCampaign(false, function() {
+            var hm = document.getElementById('helpModal'); if (hm) hm.style.display = 'none';
+            tour.active = true; tour.paused = false; tour.asking = false; tour.pos = null;
+            tour.chip.style.display = 'none';
+            tour.overlay.style.display = 'block';
+            document.body.classList.add('tour-on');
+            show(start, 1);
+        });
     });
 }
 function endTour() {

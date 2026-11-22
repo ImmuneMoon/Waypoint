@@ -2067,7 +2067,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var v = skipped.filter(function(n) { return /^images\/video\//.test(n); }).length;
       return { images: nImg - (skipped.length - v), videos: nVid - v, missing: skipped.length };
   }
-  function exportDoneWords(r) { return 'Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.videos ? ', ' + r.videos + ' video(s)' : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').' + exportLeftWords(r); }
+  // 1.6.3 (the release click test): a count said in real words, "1 picture" and "3 pictures", never "image(s)"
+  function exportCount(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function exportDoneWords(r) { return 'Exported ' + r.name + ' (' + exportCount(r.images, 'picture', 'pictures') + (r.videos ? ', ' + exportCount(r.videos, 'video', 'videos') : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').' + exportLeftWords(r); }
   // ... and what could not be read at all: a library pack the campaign pins, or the list of the campaign's pictures that no map uses yet
   function exportLeftWords(r) {
       var n = r && r.libMissing > 0 ? Math.floor(r.libMissing) : 0;
@@ -2223,7 +2225,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       var isVideo = function(p) { return p.indexOf('/saves/images/video/') === 0; };
       var nVid = paths.filter(isVideo).length, nImg = paths.length - nVid;
-      toast('Bundling ' + nImg + ' image(s)' + (nVid ? ', ' + nVid + ' video(s)' : '') + (libFiles.length ? ' and ' + libFiles.length + ' library pack(s)' : '') + '\u2026');
+      toast('Bundling ' + exportCount(nImg, 'picture', 'pictures') + (nVid ? ', ' + exportCount(nVid, 'video', 'videos') : '') + (libFiles.length ? ' and ' + exportCount(libFiles.length, 'library pack', 'library packs') : '') + '\u2026');
       var zip = await import('./zip.js');
       var enc = new TextEncoder();
       var entries = [{ name: 'data.json', data: enc.encode(json) }].concat(libFiles);

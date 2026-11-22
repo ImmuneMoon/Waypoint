@@ -885,7 +885,19 @@ if (_layout) _layout.addEventListener('click', function() {
 
 /* ---------- snapshots (Settings ▸ Advanced) ---------- */
 function fmtBytes(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
-function snapLabel(b) { return /before-restore/.test(b.file) ? 'before a restore' : b.kept ? 'taken by hand' : 'at launch'; }
+// [campsafecheck:snaplabel-start]
+// What a snapshot is called in Settings. 1.6.3 (the release click test): a snapshot the Restore points window made is said by why it was made,
+// read from the save's notes (campsafecore.js cleanNotes, through the window, since a suite runs this alone); any other kept snapshot is a
+// safety copy, taken by Snapshot the Save Now or by Waypoint itself before a library move or a delete, and was called "taken by hand" for all
+function snapNotes() {
+    try { var C = window.wpCampSafeCore, app = state && state.appState; return C && app ? C.cleanNotes(app.restorePts) : null; } catch (e) { return null; }
+}
+function snapLabel(b) {
+    var notes = snapNotes(), n = notes && Object.prototype.hasOwnProperty.call(notes, b.file) ? notes[b.file] : null;
+    if (n) return n.kind === 'trial' ? 'start of a trial run' : n.kind === 'before' ? 'before a roll back' : 'restore point';
+    return /before-restore/.test(b.file) ? 'before a restore' : b.kept ? 'safety copy' : 'at launch';
+}
+// [campsafecheck:snaplabel-end]
 async function loadSnapshots() {
     var list = ui('setSnapList'); if (!list) return;
     var Ws = window.wpWebMode; if (Ws && typeof Ws.joinOnly === 'function' && (Ws.joinOnly() === true || (typeof Ws.has === 'function' && Ws.has('backups') === false && Ws.web() === true))) return;   // 1.6.2: nor a GM's page whose plan keeps no backups. 1.5.5: a website's plan that joins tables alone keeps no save to snapshot, and the list is put away (webmode.js)

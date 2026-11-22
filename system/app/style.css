@@ -3960,7 +3960,11 @@
   #trkStrip #combatStrip { position: static; top: auto; left: auto; transform: none; width: auto; max-width: none; flex-wrap: nowrap; gap: 8px; padding: 0 10px; font-size: 12.5px; }
   #trkStrip #combatStrip > .combat-strip-btn { padding: 1px 6px; }
   #trkStrip.trk-bar.trk-tight > .trk-lab { display: none; }   /* trackers.js fitBar: no room for the whole row */
-  #trkStrip.trk-tight #combatStrip .combat-strip-cur { min-width: 0; }
+  /* 1.6.3 (the release click test): in a tight bar whose turn it is takes one fixed width, from the longest name of the fight (at most 16 letters) and its face,
+     never the width of the name on turn, so Next turn stays under the pointer from turn to turn and the bar keeps its row; a longer name is cut with an
+     ellipsis, and its button still says the whole name in its tooltip */
+  #trkStrip.trk-tight #combatStrip .combat-strip-cur { flex: none; min-width: 0; width: calc(min(var(--strip-name, 0ch), 16ch) + 28px); overflow: hidden; white-space: nowrap; }
+  #trkStrip.trk-tight #combatStrip .combat-strip-cur > :not(img) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #combatStrip > :not(.combat-strip-round, .combat-strip-switch, .combat-strip-cur, .combat-strip-endturn, .combat-strip-morebtn, [data-act="prev"], [data-act="next"]) { display: none; }
   #combatStrip.is-mine > :is(.combat-strip-move, .combat-strip-acts) { display: inline; }
   body.stream-mode #combatStrip > .combat-strip-next { display: inline; }
@@ -4003,6 +4007,10 @@
   .combat-face { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1px solid var(--edge); flex: 0 0 26px; }
   .combat-face-empty { display: inline-flex; align-items: center; justify-content: center; color: var(--gold); background: var(--panel); }
   .combat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 1.6.3 (the release click test): in the combat roster a long name and its tags wrap inside the row, each tag whole, so holding, acting now or acted never
+     runs off the row's edge; the other lists that use these names keep their one line */
+  #combatRows .combat-name { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+  #combatRows .combat-tag { display: inline-block; white-space: nowrap; }
   .combat-tag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--edge); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
   .combat-row .combat-on { flex: none; width: 18px; height: 18px; margin: 0 3px; cursor: pointer; }   /* the live test, 2026-10-30: a press meant for the tick landed on the name, which finds the token */
   .combat-row .combat-init { width: 58px; flex: none; text-align: center; }   /* beats the base input.field { width: 100% }, or the box took the row and squeezed the name to nothing */

@@ -51,6 +51,20 @@ pendingChecks.push((async () => {
         check('1.6.0 ... after Apply now a Defense card says it is over (found by hand on a table: pressing its live Roll refused): the card of that very attempt is marked here and on its player\'s app alone, once, and a player\'s app takes the word from its host alone, for an attempt id alone',
             firstO === true && againO === false && chatO[0].over === 1 && !chatO[1].over && sentN === 1 && j(sentO[0]) === j(['p1', { type: 'due-over', att: A1 }]) && sentO.length === 1 && coldO && chatC[0].over === 1 && !chatC[1].over && rendC.length === 1, j([chatO, sentO, chatC]));
     }
+    {   // 1.6.3 (the release click test): a card answered by its roll is over, said as made, on the GM's copy and on its player's app, and a reload no longer calls
+        // it cut short (the card is over, so chatKeptSettle passes it by); the word comes last, so a landing's or a blast's own word stands (net.dueOver, run for real)
+        const A2 = 'a_dfnd0001', chatA = [{ due: { att: A2, charId: 'c_p', theirs: 1 } }, { due: { att: 'a_land0001', charId: 'c_p', theirs: 1 } }], sentA = [];
+        const netA = { active: true, role: 'host', roster: { p1: { id: 'u_a' } }, conns: [{ open: true, peer: 'p1', send: m => sentA.push(m) }] };
+        new Function('net', 'peerProfileId', 'sendFailed', 'pushChat', 'bellOut', 'chatLog', 'getActiveCampaign', 'own', 'renderChatSoon', pdSrc)(netA, c => netA.roster[c.peer].id, e => { throw e; }, () => {}, bellOut, chatA, () => ({ chars: { c_p: { id: 'c_p', ownerId: 'u_a' } } }), (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k), () => {});
+        netA.dueOver('a_land0001', 'land'); const ansA = netA.dueOver(A2, 'answered'), ansL = netA.dueOver('a_land0001', 'answered');
+        const doSrcA = between('// [netcheck:dueover-start]', '// [netcheck:dueover-end]', 'dueover'), chatP = [{ due: { att: A2 } }];
+        new Function('msg', 'conn', 'net', 'DC', 'chatLog', 'renderChatSoon', doSrcA)({ type: 'due-over', att: A2, say: 'answered' }, { peer: 'host1' }, { foreign: true, syncedPeer: 'host1', stream: false }, () => Dx, chatP, () => {});
+        const djA = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dice.js'), 'utf8'), rq = src.indexOf('        var restQ = function(resQ, heldQ) {'), rqEnd = src.indexOf('        var figCQ = ', rq), rr = src.indexOf('    var restR = function(res, heldR) {'), rrEnd = src.indexOf('    net.rollMade = typeof atR', rr);
+        check('1.6.3 (the release click test): the card a roll answered is over once its roll is made, said as made ("Its roll is made.") on the GM\'s copy and its player\'s app, after every other word, which stands where it came first; both roll paths say it last of all',
+            ansA === true && chatA[0].overSay === 'answered' && ansL === false && chatA[1].overSay === 'land' && j(sentA.filter(m => m.att === A2)) === j([{ type: 'due-over', att: A2, say: 'answered' }]) && chatP[0].over === 1 && chatP[0].overSay === 'answered'
+            && djA.includes("m.overSay === 'answered' ? 'Its roll is made.'") && rq > 0 && src.slice(rq, rqEnd).replace(/\r\n/g, '\n').includes("        if (q.att && typeof net.dueOver === 'function') net.dueOver(q.att, 'answered');\n        };\n")
+            && rr > 0 && src.slice(rr, rrEnd).includes("if (chR && typeof holdsRolled === 'function'") && src.slice(rrEnd - 300, rrEnd).includes("if (typeof o.att === 'string' && typeof net.dueOver === 'function') net.dueOver(o.att, 'answered');"), j([chatA, sentA, chatP]));
+    }
     check('The bell (wire feeds): a reminder hands its character\'s bell a note on the host (the one it posted) and on a player\'s machine (the cleaned one; not the GM\'s copy marked theirs, not from another peer, not a malformed one)',
         hostDue.length === 1 && hostDue[0][0] === 'c_p' && hostDue[0][1].due.label === 'Regenerate' && cliDue.length === 1 && cliDue[0][0] === 'c_p' && cliDue[0][1].due.why === 'turn', j([hostDue, cliDue]));
     check('The bell (source): bellOut hands sheets.js the note (a failure never breaks the message path); the feeds are guarded so a harness without it runs as before',

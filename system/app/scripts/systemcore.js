@@ -7128,7 +7128,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             crewC[k.id] = mem;
         }
         var sel = p.st ? mem.filter(function(m) { return m.s.indexOf(lower(p.st)) >= 0; }) : mem; if (pressOnly) sel = sel.filter(function(m) { return m.c.id === pressOnly; }); if (p.agg === 'count') return sel.length;
-        if (!sel.length && !pressOnly) refRec[l] = [{ n: l, c: 3, say: (p.st ? 'nobody at ' + p.st : 'nobody in ' + k.group) + ', read as 0', gm: false }];   // 1.6.2 (backlog 208, point 9): with no one there it reads 0, as a skill of 0 does; the card says which it was
+        if (!sel.length && !pressOnly) refRec[l] = [{ n: l, c: 3, say: (p.st ? 'No one at ' + p.st : 'No one linked as ' + k.group) + ', so it counted as 0', gm: false }];   /* 1.6.3 (the release click test): in plain words, said once on the card however many names read it */   // 1.6.2 (backlog 208, point 9): with no one there it reads 0, as a skill of 0 does; the card says which it was
         var best = null, sum = 0, gm = [], fgD = linkFig(k, p.name), fgN = null;   // the core handbook session's ask 6: a figure of the link's own, its formula worked out on each sheet
         if (fgD) { try { fgN = F.names(fgD.formula); } catch (e) { fgN = []; } if (gmOnlyNames(sys, fgN.map(function(x) { return { name: x }; })).length || gmDerivedNames(sys, F, fgN).length) gm.push({ through: k.group + '.' + rest, name: fgD.key, gm: true }); }   // one read from a GM-only value keeps a public roll private
         var fgV = !!fgD && (fgN || []).some(function(x) { return !!figVeh(k, ix, x); });   // the core handbook session's ask (after ask 6): the figure reads the vehicle doing the reading, as Vehicle.Class

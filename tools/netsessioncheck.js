@@ -1876,7 +1876,7 @@ pendingChecks.push((async () => {
     check('1.6.3 (the combat review, finding 1): after the GM\'s reload a kept card whose roll a blast still owes (wpBlastOwedHas) and one whose record came back stay live; one that could not come back is over, said once to the GM by character and card (a notice and the Game Record) so what is owed is rolled by hand; a player whose own card it was is told it is over as they come back, another player nothing; the player\'s app takes the word reload',
         j(states) === j(['live', 'live', 'reload', 'reload', 'live']) && said.length === 1 && /2 cards are over/.test(said[0]) && said[0].indexOf('Ava: Blast: 3 dice at 2 yd') >= 0 && said[0].indexOf('Raider: Big Hit') >= 0 && j(logged) === j(said)
         && j(sentA) === j([{ type: 'due-over', att: 'a_owedgone', say: 'reload' }]) && sentB.length === 0
-        && /msg\.say === 'missed' \|\| msg\.say === 'reload'\) m\.overSay = msg\.say;/.test(src) && /if \(typeof reloadOverTell === 'function'\) reloadOverTell\(conn, prof\.id\);/.test(src), j({ states, said, sentA, sentB }));
+        && /msg\.say === 'missed' \|\| msg\.say === 'reload' \|\| msg\.say === 'answered'\) m\.overSay = msg\.say;/.test(src) /* 1.6.3 (the release click test): and answered, a card its roll answered (moved on purpose) */ && /if \(typeof reloadOverTell === 'function'\) reloadOverTell\(conn, prof\.id\);/.test(src), j({ states, said, sentA, sentB }));
 }
 
 // 1.6.3 (the review of input): chatKeepOut writes each message out once, never every tail of the list again, and keeps the very text it kept before

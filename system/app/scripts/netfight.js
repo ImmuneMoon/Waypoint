@@ -691,7 +691,8 @@ function holdLostNow(camp, c, r) {
     try { return S.rollNeedsOk({ needs: text }, S.makeResolver(camp.system, hw.ch, Fh, tc), Fh) === true; } catch (e) { return false; }
 }
 function holdLostOn(camp, c, r) { var now = holdLostNow(camp, c, r); if (r.holdFor && r.holdFor.was === 1) { if (!now) delete r.holdFor.was; return false; } return now; }
-function holdSay(camp, c, r, line, step) { var hw = holdWho(camp, c, r); if (hw && hw.ch && typeof net.damageCard === 'function') net.damageCard(hw.ch, [line]); else toast((r.name || 'Someone') + ': ' + line); if (window.wpStepLog) window.wpStepLog('hold v1', step, { round: c.round }); }
+// 1.6.3 (the release click test): the line names the row's token as the turn strip does (net.tokNameOf), never the sheet's name alone
+function holdSay(camp, c, r, line, step) { var hw = holdWho(camp, c, r); if (hw && hw.ch && typeof net.damageCard === 'function') net.damageCard(hw.ch, [line], (typeof net.tokNameOf === 'function' ? net.tokNameOf(hw.ch, c.mapId, r.tokId) : '') || r.name || ''); else toast((r.name || 'Someone') + ': ' + line); if (window.wpStepLog) window.wpStepLog('hold v1', step, { round: c.round }); }
 function holdGoes(camp, c, r) { delete r.held; delete r.holdFor; r.hk = 1; holdSay(camp, c, r, 'The hold went in place of a lost action. The next action stays.', 'lost'); }
 function holdTurn(c, t, dir, t0) {   // the turn moved to t
     var camp = campNow();

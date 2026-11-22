@@ -95,6 +95,7 @@ function escMenus(doc, win) {
     var out = [];
     var pm = doc.getElementById('partyMenu'); if (pm && pm.classList.contains('show') && escShown(pm)) out.push({ el: pm, close: function() { pm.classList.remove('show'); } });
     var vp = doc.getElementById('voicePop'); if (escShown(vp)) out.push({ el: vp, close: function() { if (win.wpVoice && typeof win.wpVoice.escape === 'function') win.wpVoice.escape(); else vp.style.display = 'none'; } });   // voice.js: a push-to-talk key being picked is let go first
+    var sp = doc.getElementById('soundPop'); if (escShown(sp)) out.push({ el: sp, close: function() { sp.style.display = 'none'; } });   // 1.6.3 (the release click test): the Sound popover of the top row, closed by its display as sound.js closes it at a press elsewhere
     var ic = doc.getElementById('imgCatMenu'); if (escShown(ic)) out.push({ el: ic, close: function() { ic.classList.remove('show'); ic.style.display = 'none'; } });
     escEach(doc.querySelectorAll('.section-actions.show'), function(a) { if (escShown(a)) out.push({ el: a, close: function() { a.classList.remove('show'); a.style.left = ''; a.style.top = ''; } }); });
     escEach(doc.querySelectorAll('#selToolbar .st-color-pop'), function(p) { if (p.hidden !== true && escShown(p)) out.push({ el: p, close: function() { p.hidden = true; } }); });

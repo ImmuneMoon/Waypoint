@@ -662,9 +662,9 @@ const j = v => JSON.stringify(v);
         const refsFor = (crew, name) => { S.setCrewSource(() => crew); const v = makeResolver(cs0, veh, F), got = v(name), r = S.rollRefs(v, [{ name: name }]); S.setCrewSource(null); return { got, r }; };
         const em = refsFor([], 'Crew.Helm.max.Handling'), fu = refsFor([man], 'Crew.Helm.max.Handling'), cn = refsFor([], 'Crew.Helm.count'), al = refsFor([], 'Crew.max.Handling'), Dc = await import(url('dicecore.js'));
         check('208 an empty station reads 0 and the card says nobody is there, by the words the record\'s cleaner keeps; a held station says nothing, nor does a count',
-            em.got === 0 && j(em.r) === j([{ s: 'nobody at Helm, read as 0', c: 3 }]) && j(Dc.cleanRefs(em.r)) === j(em.r) && fu.got === 12 && fu.r === null && cn.r === null && j(al.r) === j([{ s: 'nobody in Crew, read as 0', c: 3 }]), j([em, fu, cn, al]));
+            em.got === 0 && j(em.r) === j([{ s: 'No one at Helm, so it counted as 0', c: 3 }]) /* 1.6.3 (the release click test): plain words (moved on purpose) */ && j(Dc.cleanRefs(em.r)) === j(em.r) && fu.got === 12 && fu.r === null && cn.r === null && j(al.r) === j([{ s: 'No one linked as Crew, so it counted as 0', c: 3 }]), j([em, fu, cn, al]));
         const thr = refsFor([], 'Veer');
-        check('208 ...through a field worked out from it too', j(thr.r) === j([{ s: 'nobody at Helm, read as 0', c: 3 }]), j(thr));
+        check('208 ...through a field worked out from it too', j(thr.r) === j([{ s: 'No one at Helm, so it counted as 0', c: 3 }]), j(thr));
         // what is gone, said at Save
         const goneSys = cleanSystem(edit(before, d => {
             d.rolls = [{ id: 'r_a', label: 'Dodge', formula: '1d6' }]; d.effects = [{ id: 'e_a', name: 'Dazed', rollSw: [{ name: 'Braced', v: 1, to: [{ r: 'r_gone' }] }] }];

@@ -1754,7 +1754,7 @@ pendingChecks.push((async () => {
         const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
         const nsD = src.split('\r\n').join('\n'), cut =(a, b) => { const i = nsD.indexOf(a), k = nsD.indexOf(b, i); if (i < 0 || k < 0) throw new Error('damage slice ' + a.slice(0, 40)); return nsD.slice(i, k); };
         const brD = cut('        // [netcheck:chardamage-start]', '        // [netcheck:chardamage-end]'), dlD = cut('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]');
-        const cardD = cut('net.damageCard = function(ch, lines) {', '// Turn-based combat T2 (owner, 2026-09-26)'), sendD = cut('net.charDamage = function(charId, q) {', '// 1.5.6, the damage step: what a blow did');
+        const cardD = cut('net.damageCard = function(ch, lines, name) {', /* 1.6.3 (the release click test): its third argument, a name for the line (moved on purpose) */ '// Turn-based combat T2 (owner, 2026-09-26)'), sendD = cut('net.charDamage = function(charId, q) {', '// 1.5.6, the damage step: what a blow did');
         const sysD = Sx.cleanSystem({ v: 1, name: 'D', rolls: [], fields: [
             { id: 'f_hp', key: 'HP', label: 'Hit Points', kind: 'resource', maxFormula: '12', def: 'max', min: -50, edit: 'owner', vis: 'all' },
             { id: 'f_ep', key: 'EP', label: 'Endurance', kind: 'resource', maxFormula: '10', def: 'max', min: 0, edit: 'owner', vis: 'all' },

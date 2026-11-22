@@ -577,7 +577,9 @@ function crossWhy(rec) {
     if (typeof rec.xs !== 'number' || !isFinite(rec.xs)) return rec.xf + ' crossed a step';
     return rec.xf + (rec.xd === 'up' ? ' rose to ' + fmtNum(rec.xs) + ' or more' : ' fell to ' + fmtNum(rec.xs) + ' or less');
 }
-function resistWhy(rec) { return !rec ? '' : 'resisting ' + (rec.by ? rec.by + '\u2019s attempt' : 'an attempt') + (typeof rec.m === 'number' ? ', made by ' + fmtNum(rec.m) : '') + (typeof rec.kn === 'string' && rec.kn ? ', ' + rec.kn : ''); }
+// 1.6.3 (the release click test): "made by 0" read as a person called 0. The attempt's kind stands beside it in brackets, and its margin is said as what it
+// is, how far the attempt succeeded by
+function resistWhy(rec) { return !rec ? '' : 'resisting ' + (rec.by ? rec.by + '\u2019s attempt' : 'an attempt') + (typeof rec.kn === 'string' && rec.kn ? ' (' + rec.kn + ')' : '') + (typeof rec.m === 'number' ? ', which succeeded by ' + fmtNum(rec.m) : ''); }
 // 1.6.0 (the by-hand test: a card that read a heavy hit's roll as a Major Wound): what a due card says of a Major Wound, in the system's own word, and nothing where the roll's own name says it already
 function dueMajor(rec) {
     var w = rec && typeof rec.mw === 'string' && rec.mw ? rec.mw : 'a Major Wound', bare = w.replace(/^an? /i, '').toLowerCase();

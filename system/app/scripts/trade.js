@@ -270,7 +270,10 @@ function canAsk(tok, map, sel) {   // { from, to, label } or null
     }
     if (!sel || sel === tok || !sel.isChar || !sel.charId || sel.charId === tok.charId || sel.waiting) return null;
     var ch = window.wpSheets && window.wpSheets.charById ? window.wpSheets.charById(sel.charId) : null; if (!ch || !(ch.npc || !ch.ownerId)) return null;
-    return { from: sel.charId, to: tok.charId, label: 'Trade as ' + (ch.name || sel.name || 'NPC') + ' with ' + (tok.charName || tok.name || 'them') + '…' };
+    // 1.6.3 (the release click test): the NPC is named by its token, as Target as on the same menu and the turn strip name it (whiteboard.js rowNameOf,
+    // window.wpRowNameOf: the token's own name, its sheet's only where another token on the map reads the same), never by its sheet's name alone
+    var asW = (typeof window.wpRowNameOf === 'function' && map ? String(window.wpRowNameOf(sel, map) || '').trim() : '') || sel.charName || sel.name || ch.name || 'NPC';
+    return { from: sel.charId, to: tok.charId, label: 'Trade as ' + asW + ' with ' + (tok.charName || tok.name || 'them') + '…' };
 }
 function ask(from, to) { var n = twNet(); if (!n || !n.tradeAsk) return; var r = n.tradeAsk(from, to); if (r && r.error && typeof toast === 'function') toast(r.error); }
 

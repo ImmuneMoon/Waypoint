@@ -279,19 +279,28 @@ function onCalendarChange(t) {
     else return true;   // the boxes' change events (their input events did the work)
     markDirty(); patchErrors(); calRefreshText(); return true;
 }
+// 1.6.3 (the review of the safety batch): what a preset replaces, said whole. A preset replaces the whole calendar object, not only its months
+var CAL_REPLACE_MAIN = 'Replace your calendar with this preset? All of it goes: its months, week, seasons, moons, hours, years and leap rules. The other calendars are kept. Undo brings it back.';
+var CAL_REPLACE_OTHER = 'Replace this calendar with the preset? All of it goes but its name and the day it starts on: its months, week, seasons, moons, years and leap rules. Your main calendar and the others are kept. Undo brings it back.';
 function calendarClick(b) {
     var act = b.dataset.act || '';
     if (calStripClick(b)) return true;   // 1.6.2 (backlog 60): which calendar the tab edits
     if (act === 'calpreset') {
         var pid = b.dataset.preset;
-        if (_calK) { var mo0 = calMain(), oo = calOther(mo0); if (!oo) return true; var keep = { name: oo.name }; if (oo.at) keep.at = oo.at; var pz0 = pid === 'days' ? {} : calPreset(pid); if (!pz0) return true; delete pz0.hours; delete pz0.minutes; delete pz0.seconds; mo0.others[_calK - 1] = Object.assign(keep, pz0); markDirty(); renderAll(); return true; }
+        // another calendar (the review of the safety batch): asked about too where it holds periods, and replaced whole but for its name and the day it starts on
+        if (_calK) {
+            var mo0 = calMain(), oo = calOther(mo0); if (!oo) return true; var pz0 = pid === 'days' ? {} : calPreset(pid); if (!pz0) return true; delete pz0.hours; delete pz0.minutes; delete pz0.seconds;
+            var kAt = _calK, putOther = function() { var mo1 = calMain(), oo1 = mo1.others && mo1.others[kAt - 1]; if (!oo1 || typeof oo1 !== 'object') return; var keep = { name: oo1.name }; if (oo1.at) keep.at = oo1.at; mo1.others[kAt - 1] = Object.assign(keep, pz0); markDirty(); renderAll(); };
+            if (Array.isArray(oo.periods) && oo.periods.length && typeof showConfirm === 'function') showConfirm(CAL_REPLACE_OTHER, function(yes) { if (yes && draft) putOther(); }, { noEnter: true, yes: 'Replace' }); else putOther();
+            return true;
+        }
         var putCal = function() {
         if (pid === 'days') { var keptO = draft.calendar && Array.isArray(draft.calendar.others) ? draft.calendar.others : null; delete draft.calendar; if (keptO) draft.calendar = { others: keptO }; } else { var pz = calPreset(pid); if (!pz) return true; if (draft.calendar && Array.isArray(draft.calendar.others)) pz.others = draft.calendar.others; draft.calendar = pz; }   // the other calendars stay
         markDirty(); renderAll(); };
         // 1.6.3 (the review of the System editor, finding 5): a preset replaces the calendar's periods, its week and its leap rules, so a calendar that
         // holds periods is asked about first, by a button that names the act
         var calHas = draft.calendar && Array.isArray(draft.calendar.periods) && draft.calendar.periods.length;
-        if (calHas && typeof showConfirm === 'function') showConfirm('Replace your calendar with this one? Its periods, week and leap rules go, and the other calendars are kept. Undo brings it back.', function(yes) { if (yes && draft) putCal(); }, { noEnter: true, yes: 'Replace' }); else putCal();
+        if (calHas && typeof showConfirm === 'function') showConfirm(CAL_REPLACE_MAIN, function(yes) { if (yes && draft) putCal(); }, { noEnter: true, yes: 'Replace' }); else putCal();
         return true;
     }
     if (/^cal(lthen0|ruleadd|ruledel|turnadd|turndel)$/.test(act)) return leapClick(b);   // 1.6.2 (backlog 60): the leap rules

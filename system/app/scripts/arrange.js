@@ -205,5 +205,8 @@ window.wpArrange = {
         if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function() { if (st.on && !st.drag) drawLayer(); });
         undoSync();
     },
-    undo: function() { if (!st.hist.length || !st.host) return; st.host.restore(JSON.parse(st.hist.pop())); log('undo', { steps: st.hist.length }); undoSync(); }
+    undo: function() { if (!st.hist.length || !st.host) return; st.host.restore(JSON.parse(st.hist.pop())); log('undo', { steps: st.hist.length }); undoSync(); },
+    // 1.6.3 (the review of the System editor's safety batch): the editor's own Undo or Redo put the draft back whole, so the section snapshots kept
+    // here are let go; an Arrange Undo would otherwise bring back a move the editor's Undo just took back
+    forget: function() { st.hist = []; undoSync(); }
 };

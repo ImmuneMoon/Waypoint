@@ -1014,6 +1014,7 @@ function saveEntry() {
     var nrC = c.category && camp() ? catNear(camp().system, c.category) : '', ctS = nrC ? 'Its category \u201c' + c.category + '\u201d is not quite \u201c' + nrC + '\u201d, the one a list takes, so that list does not take it.' : '';
     var tellE = [rt, kgS, ctS, entryNotes(raw)].filter(Boolean).join(' '); if (tellE) toast(tellE);   // 1.6.3: and what it keeps that does nothing
     st.draftNew = null; st.entryId = c.id; st.sel = map(); st.sel[c.id] = 1; st.anchor = c.id; schedule(st.packId); renderPacks(); renderList(); renderForm(); guideAt('saved');
+    return true;   // 1.6.3: saved (every other way out of here answers nothing), which the Used by opener reads
 }
 function duplicateEntry() { var e = current(); if (!e || st.draftNew) return; var id = newEntryId(taken()); if (!id) return; var d = clone(e); d.id = id; d.name = (e.name + ' (copy)').slice(0, 60); delete d.key; st.draftNew = d; st.entryId = id; st.sel = map(); drawRows(); renderForm(); }
 function deleteEntry() {
@@ -1150,9 +1151,20 @@ function guidePress(e) {
 })();
 
 window.wpLibraryWin = { open: open, close: close, flush: flush, refresh: refresh, isOpen: function() { return st.open; }, canTake: gmHere, takeEntry: takeEntry };
-// 1.6.3 (the review of the System editor, finding 16): the System editor's Used by opens the Library window at an entry that reads a field or a roll
+// [sysedcheck:libleave-start]
+// 1.6.3 (the review of the safety batch): whether the entry form holds work the pack does not, a new entry or a stored one changed. The form is read
+// as Save reads it and both sides are cleaned the same way, so a form drawn and left alone holds nothing to keep
+function formUnsaved() {
+    var e = current(); if (!e || !ui('libF_name')) return false;
+    try { var a = cleanLibEntry(readForm(), gmCtx()), b = cleanLibEntry(clone(e), gmCtx()); return JSON.stringify(a || null) !== JSON.stringify(b || null); } catch (x) { return false; }
+}
+// 1.6.3 (the review of the System editor, finding 16): the System editor's Used by opens the Library window at an entry that reads a field or a roll.
+// It leaves the entry open there as Fulllion's pick (8) of 2026-11-21 has every leave do: one with unsaved work is saved first, with no question,
+// and where Save refuses it (its own notice says why) the Library stays on it, so nothing the GM typed is thrown away
 window.wpLibraryWin.openAt = function(packId, entryId) {
     if (!st.open) open(); if (!st.open || !packById(packId)) return;
+    if (formUnsaved() && saveEntry() !== true) { toast('The entry open in the Library has changes that could not be saved, so the Library stays on it.'); return; }
     st.packId = packId; st.entryId = entryId; st.draftNew = null; st.sel = map(); st.anchor = null; st.q = ''; var s = ui('libSearch'); if (s) s.value = '';
     renderAll();
 };
+// [sysedcheck:libleave-end]

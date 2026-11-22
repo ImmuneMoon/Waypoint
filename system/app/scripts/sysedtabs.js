@@ -1394,7 +1394,15 @@ function hpPoolFill(id) {
     if (!cm) cm = draft.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; cm.hpResource = pool; hpPoolFill.auto = { d: draft, id: pool };
     var said = hpPoolFill.said || (hpPoolFill.said = Object.create(null)); if (id && !said[pool] && typeof toast === 'function') { said[pool] = 1; var pf = (draft.fields || []).filter(function(f) { return !!f && f.id === pool; })[0]; toast('Damage now comes off ' + ((pf && (pf.label || pf.key)) || 'this pool') + '. Change it on the Combat tab, under Taking damage.'); }
 }
-function hpPoolLeave(id) { var cm = draft && draft.combat; var au = hpPoolFill.auto; if (!cm || cm.hpResource !== id || !au || au.d !== draft || au.id !== id) return; cm.hpResource = ''; hpPoolFill.auto = null; hpPoolFill(''); }
+// 1.6.3 (the review of the safety batch): the pool the fill made the damage pool, turned to another kind, hands damage to the next pool, and the
+// move is said each time it happens, never in silence; where no pool is left, that is said too. A pool picked by hand is never let go
+function hpPoolLeave(id) {
+    var cm = draft && draft.combat; var au = hpPoolFill.auto; if (!cm || cm.hpResource !== id || !au || au.d !== draft || au.id !== id) return;
+    cm.hpResource = ''; hpPoolFill.auto = null;
+    var nx = (draft.fields || []).filter(function(f) { return !!f && f.kind === 'resource' && typeof f.id === 'string' && !!f.id && f.id !== id; })[0];
+    if (nx) { cm.hpResource = nx.id; hpPoolFill.auto = { d: draft, id: nx.id }; (hpPoolFill.said || (hpPoolFill.said = Object.create(null)))[nx.id] = 1; }
+    if (typeof toast === 'function') toast(nx ? 'Damage now comes off ' + (nx.label || nx.key || 'the next pool') + '. Change it on the Combat tab, under Taking damage.' : 'No pool is left for damage to come off. Once you make one, pick it on the Combat tab, under Taking damage.');
+}
 function startFrom(id) {
     if (!draft) return;
     var apply = function(sys, packs) { draftSet(clone(sys)); draft.updated = 0; hpPoolFill(''); starterPacksSet(packs || null); ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };

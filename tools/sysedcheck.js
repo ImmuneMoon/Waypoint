@@ -2305,12 +2305,13 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
     {
         // Undo and Redo, and the foot's unsaved changes (sysedbox.js, its hist slice, run for real on drafts of the test's own)
         const hSrc = kit.cut('sysedbox.js', '// [sysedcheck:hist-start]', '// [sysedcheck:hist-end]');
-        const els = {}, mkEl = id => (els[id] = els[id] || { id, disabled: false, textContent: '', classList: { add() {}, remove() {} }, lis: {}, addEventListener(t, fn) { (this.lis[t] = this.lis[t] || []).push(fn); } });
+        const els = {}, mkEl = id => (els[id] = els[id] || { id, value: '', disabled: false, textContent: '', classList: { add() {}, remove() {} }, lis: {}, addEventListener(t, fn) { (this.lis[t] = this.lis[t] || []).push(fn); } });
+        const winH = { wpArrange: { forgot: 0, on() { return false; }, forget() { this.forgot++; } } };   // the review of the safety batch: Arrange's own steps let go at each Undo or Redo
         const timers = []; let renders = 0;
         const HB = new Function('ui', 'window', 'setTimeout', 'clearTimeout', 'renderAll', 'renderPreview',
             'var draft = null, dirty = false; function dirtySet(v) { dirty = v; } function draftSet(d) { draft = d; } function markDirty() { dirtySet(true); histNote(); footDirty(); }' + NL + hSrc +
             NL + 'return { get d() { return draft; }, set d(v) { draft = v; }, get dirty() { return dirty; }, mark: markDirty, reset: histReset, saved: histSaved, flush: histFlush, step: histStep, key: histKey, wire: histWire, st: function() { return _hist; } };')
-            (mkEl, {}, (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, () => {}, () => { renders++; }, () => {});
+            (mkEl, winH, (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, () => {}, () => { renders++; }, () => {});
         mkEl('sysFoot').textContent = '2 fields · no errors';
         HB.d = { fields: [{ id: 'f_a', label: 'A' }] }; HB.reset(); const u0 = mkEl('sysUndoBtn').disabled;
         HB.d.fields.push({ id: 'f_b', label: 'B' }); HB.mark(); const pend = HB.st().pend, u1 = mkEl('sysUndoBtn').disabled, foot1 = mkEl('sysFoot').textContent, wait = timers[timers.length - 1].ms;
@@ -2348,6 +2349,35 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         // finding 38: a question that throws work away names its act
         check('1.6.3 (finding 38) Close without saving names its act on its button, and keeps noEnter',
             bxP.includes("{ noEnter: true, yes: 'Close without saving' }"));
+        // the review of the safety batch: Undo and Redo write the head's three boxes (the name, Rolls while making, the reader's mark) from the
+        // draft they put back, since Save reads those boxes in place of the draft; Arrange's own steps are let go at each step
+        HB.d = { name: 'Old', makeRolls: 'gm', mark: 'R', fields: [] }; HB.reset(); const fg0 = winH.wpArrange.forgot;
+        HB.d.name = 'New'; delete HB.d.makeRolls; HB.d.mark = 'S'; HB.mark(); HB.flush();
+        mkEl('sysName').value = 'New'; mkEl('sysMakeRolls').value = ''; mkEl('sysMark').value = 'S';
+        HB.step(true); const hdU = [mkEl('sysName').value, mkEl('sysMakeRolls').value, mkEl('sysMark').value], dirtyU = HB.dirty, fgU = winH.wpArrange.forgot - fg0;
+        HB.step(false); const hdR = [mkEl('sysName').value, mkEl('sysMakeRolls').value, mkEl('sysMark').value], fgR = winH.wpArrange.forgot - fg0;
+        const shH = kit.joined('sheets.js'), arH = fs.readFileSync(path.join(app, 'scripts', 'arrange.js'), 'utf8');
+        check('the review of the safety batch: Undo and Redo write the name box, Rolls while making and the reader\'s mark from the draft they put back (an undone Start from, Import or Rolls while making never comes back at Save), and a step back to the saved draft leaves no unsaved changes; the name box and the mark write the draft as they are typed, so a rename is a step; the open editor fills the boxes the same way; and Arrange\'s own steps are let go at each Undo or Redo, so its Undo never brings back a move the editor took back',
+            j(hdU) === j(['Old', 'gm', 'R']) && dirtyU === false && fgU === 1 && j(hdR) === j(['New', '', 'S']) && fgR === 2
+            && shH.includes("nm.addEventListener('input', function() { if (draft) draft.name = (nm.value || '').trim().slice(0, LIMITS.name); markDirty(); patchErrors(); });")
+            && shH.includes("mkI.addEventListener('input', function() { if (!draft) return; var v = (mkI.value || '').trim(); if (v) draft.mark = v; else delete draft.mark; markDirty(); });")
+            && bxP.includes('    headFill();   // the name, Rolls while making') && arH.includes('forget: function() { st.hist = []; undoSync(); }'),
+            j({ hdU, dirtyU, fgU, hdR, fgR }));
+        // the review of the safety batch: the Library's openAt (Used by's way to an entry) leaves the entry open there as pick (8) has every
+        // leave do: saved first where it holds work, and where Save refuses it the Library stays on it (librarywin.js, its libleave slice, run for real)
+        const lwT = fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').replace(/\r\n/g, NL), lwA = lwT.indexOf('// [sysedcheck:libleave-start]'), lwB = lwT.indexOf('// [sysedcheck:libleave-end]');
+        const llRun = (formName, saves, draftNew) => ({ st: { open: true, packId: 'p1', entryId: draftNew ? 'n' : 'a', draftNew: draftNew || null, sel: {}, q: '' }, log: { saved: 0, toasts: [], renders: 0 } });
+        const llGo = (formName, saves, draftNew) => { const r = llRun(formName, saves, draftNew); const win = { wpLibraryWin: {} };
+            const LL2 = new Function('st', 'current', 'ui', 'cleanLibEntry', 'readForm', 'gmCtx', 'clone', 'saveEntry', 'open', 'packById', 'map', 'renderAll', 'toast', 'window', lwT.slice(lwA, lwB) + NL + 'return window.wpLibraryWin.openAt;')(
+                r.st, () => r.st.draftNew || ({ a: { id: 'a', name: 'Axe' }, b: { id: 'b', name: 'Bow' } })[r.st.entryId] || null, id => (id === 'libF_name' ? {} : id === 'libSearch' ? { value: 'x' } : null),
+                e => (e && e.name ? { id: e.id, name: e.name } : null), () => ({ id: r.st.draftNew ? 'n' : r.st.entryId, name: formName }), () => ({}), o => JSON.parse(JSON.stringify(o)),
+                () => { r.log.saved++; return saves ? true : undefined; }, () => {}, id => id === 'p1', () => ({}), () => { r.log.renders++; }, s => r.log.toasts.push(s), win);
+            LL2('p1', 'b'); return { at: r.st.entryId, saved: r.log.saved, toasts: r.log.toasts.length, renders: r.log.renders }; };
+        const llSame = llGo('Axe', true), llSaved = llGo('Axe 2', true), llRefused = llGo('Axe 3', false), llBlankNew = llGo('', false, { id: 'n', name: '' }), llTypedNew = llGo('Club', false, { id: 'n', name: '' });
+        check('the review of the safety batch: Used by\'s way into the Library window (openAt, run for real) moves at once from an entry whose form holds nothing new, saves an entry with changes first and then moves, and where Save refuses them stays on the entry and says why, so nothing typed is thrown away; a new entry left blank holds nothing, one typed in is kept the same way',
+            j(llSame) === j({ at: 'b', saved: 0, toasts: 0, renders: 1 }) && j(llSaved) === j({ at: 'b', saved: 1, toasts: 0, renders: 1 }) && j(llRefused) === j({ at: 'a', saved: 1, toasts: 1, renders: 0 })
+            && j(llBlankNew) === j({ at: 'b', saved: 0, toasts: 0, renders: 1 }) && j(llTypedNew) === j({ at: 'n', saved: 1, toasts: 1, renders: 0 }) && lwT.includes('    return true;   // 1.6.3: saved'),
+            j({ llSame, llSaved, llRefused, llBlankNew, llTypedNew }));
         // Used by and the question before a delete (sysedbox.js, its usedby slice, run for real with the real cleaner and check)
         const uSrc = kit.cut('sysedbox.js', '// [sysedcheck:usedby-start]', '// [sysedcheck:usedby-end]');
         const sysU = { v: 1, name: 'Used', fields: [
@@ -2381,6 +2411,10 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             && tbP.includes("usedAsk(ctx.f ? 'field' : 'roll', item, function() {") && tbP.includes("usedAsk('item', iitem, function() {") && tbP.includes("usedAsk('effect', ed, function() {")
             && /function goTo\(id, prop\) \{ if \(!errHost \|\| !errHost\.where\(id\)\) return false; errShow\(false\); errHost\.go\(id, prop\);/.test(fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8'))
             && fs.readFileSync(path.join(app, 'scripts', 'librarywin.js'), 'utf8').includes('window.wpLibraryWin.openAt = function(packId, entryId) {'));
+        {   // the review of the safety batch: a Used by line is a plain place to go, so it wears no gold (gold is for what is on or in hand)
+            const cssU = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), goR = (cssU.match(/\n  \.sys-usedby-go \{[^\n]*/) || [''])[0], hvR = (cssU.match(/\n  \.sys-usedby-go:hover[^\n]*/) || [''])[0];
+            check('the review of the safety batch: Used by\'s lines wear a neutral edge and a neutral hover tint, never gold', !!goR && !!hvR && !/gold|224,165,79/.test(goR + hvR) && /var\(--edge\)/.test(goR), j({ goR, hvR }));
+        }
         // finding 0: a changed kind that clears what characters hold (sysederr.js, its kindloss slice, run for real with the real cleanValue)
         const KL = new Function('STORED', 'cleanValue', 'valueOpts', kit.cut('sysederr.js', '// [sysedcheck:kindloss-start]', '// [sysedcheck:kindloss-end]') + NL + 'return { kindLoss: kindLoss, kindLossWords: kindLossWords };')(S.STORED, cleanValue, S.valueOpts);
         const prevK = { fields: [{ id: 'f_s', label: 'Strength', kind: 'number' }, { id: 'f_hp', label: 'HP', kind: 'resource' }, { id: 'f_d', label: 'Dodge', kind: 'number' }, { id: 'f_n', label: 'Name', kind: 'text' }, { id: 'f_k', label: 'Skill', kind: 'number' }] };
@@ -2419,8 +2453,12 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         drH.fields[0].kind = 'number'; HP.leave('f_mana'); const p2 = drH.combat.hpResource;
         drH.fields[0].kind = 'resource'; HP.leave('f_mana'); HP.fill('f_mana'); const p3 = drH.combat.hpResource, nT = toastsH.length;
         drH.combat.hpResource = 'f_mana'; HP.leave('f_mana'); const p4 = drH.combat.hpResource;
-        check('1.6.3 (finding 34) the first pool made still becomes the damage pool, and a notice says so once, naming the Combat tab\'s Taking damage; a pool the fill picked that is turned to another kind lets it go to the next pool with no second notice; a pick made by hand is never let go',
-            p1 === 'f_mana' && j(t1) === j(['Damage now comes off Mana. Change it on the Combat tab, under Taking damage.']) && p2 === 'f_hp' && p3 === 'f_hp' && nT === 1 && p4 === 'f_mana', j({ p1, t1, p2, p3, nT, p4 }));
+        const toastsH1 = [], drH1 = { fields: [{ id: 'f_only', label: 'Life', kind: 'resource' }], combat: { hpResource: '' } }, HP1 = new Function('toast', 'draft0', 'var draft = draft0;' + NL + tbP.slice(tbP.indexOf('function hpPoolFill(id) {'), tbP.indexOf('function startFrom(id) {')) + NL + 'return { fill: hpPoolFill, leave: hpPoolLeave };')(t => toastsH1.push(t), drH1);
+        HP1.fill('f_only'); drH1.fields[0].kind = 'number'; HP1.leave('f_only'); const p5 = drH1.combat.hpResource, t5 = toastsH1.slice(1);
+        // moved on purpose (the review of the safety batch): the move to the next pool was silent; it is now said, and so is no pool left
+        check('1.6.3 (finding 34) the first pool made still becomes the damage pool, and a notice says so once, naming the Combat tab\'s Taking damage; a pool the fill picked that is turned to another kind hands damage to the next pool and says so, and where no pool is left says that; a pick made by hand is never let go',
+            p1 === 'f_mana' && j(t1) === j(['Damage now comes off Mana. Change it on the Combat tab, under Taking damage.']) && p2 === 'f_hp' && p3 === 'f_hp' && nT === 2 && toastsH[1] === 'Damage now comes off Hit points. Change it on the Combat tab, under Taking damage.' && p4 === 'f_mana'
+            && p5 === '' && j(t5) === j(['No pool is left for damage to come off. Once you make one, pick it on the Combat tab, under Taking damage.']), j({ p1, t1, p2, p3, nT, toastsH, p4, p5, t5 }));
         // findings 5, 12 and 38: Start from, Import, the automatic layout and a calendar preset ask first where there is something to replace
         const DH = new Function('cleanSystem', 'emptySystem', 'F', kit.cut('sysedtabs.js', '// [sysedcheck:draftholds-start]', '// [sysedcheck:draftholds-end]') + NL + 'return { holds: draftHolds, words: REPLACE_WORDS };')(cleanSystem, emptySystem, () => F);
         const blank = () => { const b = emptySystem(); b.fields = b.fields || []; b.rolls = b.rolls || []; b.sheet = b.sheet && Array.isArray(b.sheet.sections) ? b.sheet : { sections: [] }; b.items = b.items || []; b.combat = b.combat || { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; return b; };
@@ -2431,7 +2469,22 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 (findings 5, 12 and 38) Start from and Import ask whenever the draft holds anything, by a button that says Replace; Import says after how many characters hold values for fields the file does not have; the calendar\'s presets ask where the calendar holds periods',
             tbP.includes("if (draftHolds(draft)) showConfirm(REPLACE_WORDS('this preset'), function(yes) { if (yes) go(); }, { noEnter: true, yes: 'Replace' });") && tbP.includes("if (draftHolds(draft)) showConfirm(REPLACE_WORDS('the system in this file'), function(yes) { if (yes) put(); }, { noEnter: true, yes: 'Replace' }); else put();")
             && tbP.includes(' for fields this file does not have. After Save those stay stored but hidden, until such a field exists again.') && !/Replace the current fields, rolls and layout/.test(tbP)
-            && kit.part('sysedcal.js').includes("showConfirm('Replace your calendar with this one? Its periods, week and leap rules go, and the other calendars are kept. Undo brings it back.', function(yes) { if (yes && draft) putCal(); }, { noEnter: true, yes: 'Replace' }); else putCal();"));
+            && kit.part('sysedcal.js').includes("showConfirm(CAL_REPLACE_MAIN, function(yes) { if (yes && draft) putCal(); }, { noEnter: true, yes: 'Replace' }); else putCal();"));   // moved on purpose: the words are named, and say the whole calendar goes
+        {   // the review of the safety batch: a preset on another calendar asks too, and both questions say the whole calendar goes (sysedcal.js calendarClick, run for real)
+            const Ccal = await import(url('calendarcore.js')), askC = [];
+            const mkCal = () => new Function('draft', 'calPreset', 'markDirty', 'renderAll', 'showConfirm', kit.cut('sysedcal.js', '// [sinkcheck:calendarbox-start]', '// [sinkcheck:calendarbox-end]') + NL + 'return { click: calendarClick, setK: function(k) { _calK = k; }, M: CAL_REPLACE_MAIN, O: CAL_REPLACE_OTHER };');
+            const drC = { calendar: { periods: [{ name: 'Moon', days: 28 }], others: [{ name: 'Elder', at: 40, periods: [{ name: 'Tide', days: 9 }], moons: [{ name: 'Pale', cycle: 20 }] }, { name: 'Blank', at: 3 }] } };
+            const CC = mkCal()(drC, Ccal.calPreset, () => {}, () => {}, (q, cb, o) => askC.push({ q, cb, o }));
+            const pbt = id => ({ dataset: { act: 'calpreset', preset: id } });
+            CC.setK(1); CC.click(pbt('twelve')); const stayed = j(drC.calendar.others[0]), q1 = askC[0]; if (q1) q1.cb(true); const o1 = drC.calendar.others[0];
+            CC.setK(2); CC.click(pbt('twelve')); const noAsk = askC.length, o2 = drC.calendar.others[1];
+            CC.setK(0); CC.click(pbt('twelve')); const q3 = askC[1];
+            check('the review of the safety batch: a calendar preset picked on another calendar that holds months asks first, by a button that says Replace and keeps noEnter, and on a yes replaces it whole but for its name and the day it starts on; another calendar with no months is replaced at once; the main calendar\'s question and the other\'s say all of it goes, seasons and moons among it',
+                stayed === j({ name: 'Elder', at: 40, periods: [{ name: 'Tide', days: 9 }], moons: [{ name: 'Pale', cycle: 20 }] }) && !!q1 && q1.q === CC.O && q1.o.noEnter === true && q1.o.yes === 'Replace'
+                && o1.name === 'Elder' && o1.at === 40 && !('moons' in o1) && Array.isArray(o1.periods) && o1.periods.length === 12 && noAsk === 1 && o2.name === 'Blank' && o2.at === 3 && o2.periods.length === 12
+                && !!q3 && q3.q === CC.M && /All of it goes: its months, week, seasons, moons, hours, years and leap rules\./.test(CC.M) && /All of it goes but its name and the day it starts on: its months, week, seasons, moons, years and leap rules\./.test(CC.O),
+                j({ stayed, q1: q1 && q1.q, o1, noAsk, o2, q3: q3 && q3.q }));
+        }
         // finding 5: Start from the automatic layout asks where there are sections (sysedlayout.js onLayoutClick, run for real)
         const clkS = kit.cut('sysedlayout.js', 'function onLayoutClick(b) {', '\n}\n') + '\n}\n', askL = [];
         const CLPs = ['ui', 'layoutView', 'renderLayout', 'cleanSystem', 'draft', 'F', 'LIMITS', 'autoLayout', 'uid', 'clone', 'markDirty', 'toast', 'showConfirm', 'layoutSections', 'layoutRoot', 'sheetList', 'layoutTabs', 'draftHasHud'];
@@ -2440,6 +2493,16 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         CLs({ id: 'sysLayoutAuto', dataset: {}, closest: () => null }); const keptL = DRL.sheet.sections.map(s => s.id);
         if (askL[0]) askL[0].cb(false); const keptNo = DRL.sheet.sections.map(s => s.id); if (askL[0]) askL[0].cb(true); const after = DRL.sheet.sections.map(s => s.id);
         DRL.sheet.sections = []; CLs({ id: 'sysLayoutAuto', dataset: {}, closest: () => null }); const noAsk = askL.length;
+        {   // the review of the safety batch: the other three questions of onLayoutClick that throw layout work away name their act on the button and keep noEnter
+            const askH = [], DRH = { v: 1, name: 'L', fields: [{ id: 'f_a', key: 'A', label: 'A', kind: 'number' }], rolls: [], sheet: { sections: [{ id: 's_one', title: 'One', cols: 2, fields: [] }], hud: { title: 'H', sections: [{ id: 's_h', title: 'H', cols: 2, fields: [] }] } } };
+            const mkCL = (view, secs) => new Function(...CLPs, clkS + '\nreturn onLayoutClick;')(() => null, view, () => {}, cleanSystem, DRH, () => F, S.LIMITS, S.autoLayout, p => p + 'u', o => JSON.parse(JSON.stringify(o)), () => {}, () => {}, (q, cb, o) => askH.push({ q, o }), () => secs, () => DRH.sheet, () => [], () => [], () => true);
+            mkCL('hud', DRH.sheet.hud.sections)({ id: 'sysLayoutAuto', dataset: {}, closest: () => null });
+            mkCL('hud', DRH.sheet.hud.sections)({ id: 'sysLayoutClear', dataset: {}, closest: () => null });
+            mkCL('sheet', DRH.sheet.sections)({ id: 'sysLayoutClear', dataset: {}, closest: () => null });
+            const ansH = askH.map(a => [a.q.split('?')[0], a.o && a.o.noEnter, a.o && a.o.yes, /Undo brings/.test(a.q)]);
+            check('the review of the safety batch: the HUD copy asks by Replace, Remove the HUD and Remove your layout by Remove, each keeping noEnter and saying Undo brings it back',
+                j(ansH) === j([['Replace the HUD\u2019s sections with a copy of the sheet\u2019s', true, 'Replace', true], ['Remove the HUD', true, 'Remove', true], ['Remove your layout', true, 'Remove', true]]), j(ansH));
+        }
         check('1.6.3 (findings 5 and 38) Start from the automatic layout asks before it replaces the sheet\'s sections, naming how many, by a button that says Replace; a No keeps them, a Yes rebuilds them; with no sections it rebuilds at once with no question, as Arrange presses it',
             j(keptL) === j(['s_mine']) && j(keptNo) === j(['s_mine']) && askL.length >= 1 && /^Replace your 1 section with the automatic layout\?/.test(askL[0].q) && askL[0].o.yes === 'Replace' && askL[0].o.noEnter === true && j(after) !== j(['s_mine']) && after.length > 0 && noAsk === 1,
             j({ keptL, keptNo, after, noAsk, q: askL[0] && askL[0].q }));

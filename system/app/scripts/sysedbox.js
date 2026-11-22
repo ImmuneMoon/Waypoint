@@ -122,9 +122,8 @@ function open(which, topic) {
     var m = ui('systemModal'); if (!m) return;
     histWire(m);
     ui('sysCampName').textContent = camp.name || 'Campaign';
-    ui('sysName').value = draft.name || '';
-    if (ui('sysMakeRolls')) ui('sysMakeRolls').value = draft.makeRolls === 'gm' || draft.makeRolls === 'self' ? draft.makeRolls : '';   // 1.6.3 (finding 22): Rolls while making
-    if (ui('sysMark')) { ui('sysMark').value = typeof draft.mark === 'string' ? draft.mark : ''; var mkR = ui('sysMark').closest('.sys-flags'); if (mkR) mkR.hidden = !draft.mark && !sysReaders();   // 1.6.2: a word for an outside reader, which a table without one has no use for
+    headFill();   // the name, Rolls while making (1.6.3, finding 22) and the reader's mark, as Undo writes them too
+    if (ui('sysMark')) { var mkR = ui('sysMark').closest('.sys-flags'); if (mkR) mkR.hidden = !draft.mark && !sysReaders();   // 1.6.2: a word for an outside reader, which a table without one has no use for
     }
     m.style.display = 'flex';
     starterPacksSet(null); startersLoad().then(function(l) { startersFill(ui('sysStartSel'), l); });   // 1.6.2: the starters from their list, none waiting
@@ -782,6 +781,15 @@ function histFlush() {
     var now = histText(); if (!now || now === _hist.base) { _hist.at = now || _hist.at; histSync(); return false; }
     _hist.undo.push(_hist.base); if (_hist.undo.length > HIST_MAX) _hist.undo.shift(); _hist.redo = []; _hist.at = now; histSync(); return true;
 }
+// 1.6.3 (the review of the safety batch): the three boxes in the editor's head that Save reads in place of the draft (the system's name, Rolls
+// while making and the reader's mark) are written from the draft as the editor opens and after each step of Undo or Redo, so a step taken back
+// never comes back at Save through a box that still shows the newer value
+function headFill() {
+    if (!draft || typeof ui !== 'function') return;
+    var nm = ui('sysName'); if (nm) nm.value = typeof draft.name === 'string' ? draft.name : '';
+    var mr = ui('sysMakeRolls'); if (mr) mr.value = draft.makeRolls === 'gm' || draft.makeRolls === 'self' ? draft.makeRolls : '';
+    var mk = ui('sysMark'); if (mk) mk.value = typeof draft.mark === 'string' ? draft.mark : '';
+}
 function histStep(back) {
     if (!draft) return false;
     if (typeof window !== 'undefined' && window.wpFormBox && window.wpFormBox.isOpen && window.wpFormBox.isOpen()) window.wpFormBox.shut();   // a form open on a box is put away first, keeping what it built
@@ -789,6 +797,10 @@ function histStep(back) {
     var from = back ? _hist.undo : _hist.redo, to = back ? _hist.redo : _hist.undo; if (!from.length) { histSync(); return false; }
     var snap = from.pop(); to.push(_hist.at); _hist.at = snap; _hist.quiet = true;
     try { draftSet(JSON.parse(snap)); if (snap === _hist.saved) { dirtySet(false); var sb = ui('sysSaveBtn'); if (sb) sb.classList.remove('on'); } else markDirty(); } finally { _hist.quiet = false; }
+    headFill();
+    // Arrange keeps its own steps of the sections: after the editor's Undo or Redo they are let go, so Arrange's Undo never brings back a move
+    // this step took back
+    if (typeof window !== 'undefined' && window.wpArrange && typeof window.wpArrange.forget === 'function') window.wpArrange.forget();
     renderAll(); if (typeof window !== 'undefined' && window.wpArrange && window.wpArrange.on && window.wpArrange.on()) renderPreview();
     footDirty(); histSync(); return true;
 }

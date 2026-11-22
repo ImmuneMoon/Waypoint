@@ -8508,7 +8508,10 @@ var _sysedTabs = sysedTabs(), autoBox = _sysedTabs.autoBox, clockBox = _sysedTab
     var c = ui('sysClose'); if (c) c.addEventListener('click', function() { close(false); });
     if (window.wpArrange) { window.wpArrange.host(arrHost()); var arB = ui('sysArrange'); if (arB) arB.addEventListener('click', function() { arrSet(!window.wpArrange.on()); }); var arU = ui('sysArrUndo'); if (arU) arU.addEventListener('click', function() { window.wpArrange.undo(); }); }   // 1.6.2
     var s = ui('sysSaveBtn'); if (s) s.addEventListener('click', saveDraft);
-    var nm = ui('sysName'); if (nm) nm.addEventListener('input', function() { markDirty(); patchErrors(); });
+    // 1.6.3 (the review of the safety batch): the name box writes the draft as it is typed, as Save would, so a rename is a step of Undo and a step
+    // back to the saved draft compares as saved; the reader's mark likewise
+    var nm = ui('sysName'); if (nm) nm.addEventListener('input', function() { if (draft) draft.name = (nm.value || '').trim().slice(0, LIMITS.name); markDirty(); patchErrors(); });
+    var mkI = ui('sysMark'); if (mkI) mkI.addEventListener('input', function() { if (!draft) return; var v = (mkI.value || '').trim(); if (v) draft.mark = v; else delete draft.mark; markDirty(); });
     m.addEventListener('input', onInput);
     m.addEventListener('change', onChange);
     m.addEventListener('click', onClick);

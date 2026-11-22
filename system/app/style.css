@@ -4805,6 +4805,10 @@
   /* Stage 6 library L2a: the Library window — packs | the pack's entries (a list drawn only where it shows) | the chosen entry's form */
   #libraryModal .lib-box { width: 1180px; max-width: 97vw; height: 86vh; display: flex; flex-direction: column; padding: 14px 18px 12px; gap: 8px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; box-sizing: border-box; }
   #libraryModal .field { margin: 0; padding: 4px 8px; font-size: 12.5px; }   /* beats the base .field's form spacing */
+  /* the review of the System editor's words (1.6.3): the System editor's entry picker (sheets.js entryPick), which the Library window borrows for a roll
+     bonus and a change on one entry, wears the app's own look there too. In the System editor .sys-row select styles it, and the Library has no such row */
+  #libraryModal .sys-entrypick { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12.5px; max-width: 100%; box-sizing: border-box; }
+  #libraryModal .sys-entrypick:focus { outline: none; border-color: var(--gold); }
   .lib-head { display: flex; align-items: center; gap: 10px; }
   .lib-head h3 { margin: 0; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .lib-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr) 380px; gap: 10px; }

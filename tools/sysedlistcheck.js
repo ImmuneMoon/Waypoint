@@ -1159,6 +1159,14 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 Keeps paying, dropped whole by Save, says why under the list: no pool, no amount, an amount with dice; and nothing where it is kept',
             J(upS[0]) === J([['list.uppool', 'A row that keeps paying needs a pool to pay from. Pick one, or Save drops what it keeps paying.']]) && J(upS[1]) === J([['list.upamt', 'A row that keeps paying needs how much it pays, a plain figure such as 3, or Save drops what it keeps paying.']])
             && J(upS[2]) === J([['list.upamt', 'What a row keeps paying rolls dice, and it must be a plain figure, so Save drops it.']]) && upS[3].length === 0, J(upS));
+        // the review of the System editor's words (1.6.3): a feed's short name stands out of sight until Short names is ticked, so a short name Save cannot
+        // use, and one another feed already has, are said as a short name, with how to reach the box, never naming a key (the real refreshErrors)
+        const fdG = { id: 'f_fd', key: 'Guns', label: 'Guns', kind: 'item-list', list: { counters: [{ key: 'c1', label: 'One' }, { key: 'c2', label: 'Two' }, { key: 'c3', label: 'Three' }],
+            feeds: [{ key: '1bad', from: 'f_mag', ct: 'c1' }, { key: 'Cell', from: 'f_mag', ct: 'c2' }, { key: 'cell', from: 'f_mag', ct: 'c3' }] } };
+        const fdS = (runQ({ name: 'D', rolls: [], items: [], sheet: { sections: [] }, fields: [mag, fdG] }).e['list:f_fd'] || []).map(x => x.message);
+        check('1.6.3 (the review of the words) a feed whose short name cannot be used, or repeats another feed’s, is said as a short name with Short names to tick, never as a key',
+            fdS.indexOf('Feed 1: its short name cannot be used. Tick “Short names” at the foot and type another, of letters, digits and _, starting with a letter. Save drops it.') >= 0
+            && fdS.indexOf('Feed 3 has the same short name as another feed. Tick “Short names” at the foot and type another. Save drops it.') >= 0 && !fdS.some(m => /\bkey\b|1bad|\bcell\b/i.test(m)), J(fdS));
         // 1.6.3 Layers under a list's places (the campaign build's ask of 2026-11-20; Fulllion, by prompt: "One Layer formula"): Worn in layers ticked with
         // its box empty is said on that box until it is filled, since the rule and Row.covered both read it, and each reason Save drops a layer is said
         // there too, since the validator reads the cleaned system (listCleanSays, run in the real refreshErrors); a layer Save keeps is said nothing

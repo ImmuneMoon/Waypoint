@@ -1771,14 +1771,31 @@ function parseLasts(text, sys) {
     return hit ? { n: n, u: hit.key, secs: hit.secs } : null;
 }
 // 1.6.3 (finding 21): what an effect's Duration note is read as, in words, for the gray line under the System editor's Duration box: '' for no note,
-// else that it runs out by itself after so long, or that it is no time and lasts until someone ends it
-function lastsSays(text, sys) {
-    if (typeof text !== 'string' || !text.trim()) return '';
+// else that it runs out by itself after so long, or that it is no time and lasts until someone ends it.
+// The review of the System editor's words (1.6.3): a rest may end an effect whose note is no time, so the line asks the very judge the Rests box and
+// restEndsFx ask (fxEndsWith), with the effect's own Ends with pick (def.endsRest), before it warns. lastsRest answers the rest that ends it,
+// { name, ends: true }; a note that names a rest not ticked to end effects answers { name, ends: false }, since that rest ends nothing yet; else
+// null. A pick counts as ending, since picking a rest ticks it in the editor; No rest ('-') leaves every rest out
+function lastsRest(text, sys, def) {
+    var rests = isObj(sys) && Array.isArray(sys.rests) ? sys.rests.filter(function(r) { return isObj(r) && typeof r.name === 'string' && !!r.name.trim(); }) : [];
+    var pick = isObj(def) && typeof def.endsRest === 'string' ? def.endsRest : ''; if (!rests.length || pick === '-') return null;
+    var others = rests.map(function(r) { return r.name; }), d = { dur: typeof text === 'string' ? text : '' }, hit = null, named = null; if (pick) d.endsRest = pick;
+    rests.forEach(function(r) { if (!fxEndsWith(d, null, r, others)) return; if (pick || r.ends === true) { if (!hit) hit = r; } else if (!named) named = r; });
+    return hit ? { name: hit.name.trim(), ends: true } : named ? { name: named.name.trim(), ends: false } : null;
+}
+// def: the effect being edited (its endsRest), optional. A line that begins Not read or Names is a warning, any other a plain line
+function lastsSays(text, sys, def) {
+    var rs = lastsRest(text, sys, def), rsW = rs && rs.ends ? 'Ends with ' + rs.name + ' for each who rests' : '';
+    if (typeof text !== 'string' || !text.trim()) return rsW ? rsW + ', or when someone ends it.' : '';
     var l = parseLasts(text, sys), n = l ? l.n : 0, one = n === 1;
-    if (!l || !(lastsSecs({ dur: text }, sys) > 0)) return 'Not read as a time, so it lasts until someone ends it. Write a number and a unit, such as 3 rounds or 10 minutes.';
+    if (!l || !(lastsSecs({ dur: text }, sys) > 0)) {
+        if (rsW) return rsW + ', or when someone ends it.';
+        if (rs) return 'Names ' + rs.name + ', but that rest ends no effects yet, so this lasts until someone ends it. Tick \u201cEnds effects that last until this rest\u201d on it in the Rests box.';
+        return 'Not read as a time, so it lasts until someone ends it. Write a number and a unit, such as 3 rounds or 10 minutes.';
+    }
     var unit = l.u === 'turns' ? (one ? 'round' : 'rounds') : Object.prototype.hasOwnProperty.call(TIME_SECS, l.u) ? (one ? l.u.replace(/s$/, '') : l.u) : null;
     if (!unit) { var t = isObj(sys) && isObj(sys.combat) && isObj(sys.combat.turn) && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : [], hit = t.filter(function(x) { return isObj(x) && x.key === l.u; })[0]; unit = hit && typeof hit.label === 'string' && hit.label ? lower(hit.label) : 'unit'; if (!one) unit += /(s|sh|ch|x)$/.test(unit) ? 'es' : 's'; }
-    return 'Runs out by itself after ' + n + ' ' + unit + (l.u === 'turns' ? ', on its character\u2019s turns in a fight.' : '.');
+    return 'Runs out by itself after ' + n + ' ' + unit + (l.u === 'turns' ? ', on its character\u2019s turns in a fight.' : '.') + (rsW ? ' ' + rsW + ' too.' : '');
 }
 function lastsSecs(core, sys) {   // in game seconds, or 0 (never runs out by itself)
     var l = isObj(core) ? parseLasts(core.dur, sys) : null; if (!l) return 0;

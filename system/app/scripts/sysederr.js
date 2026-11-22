@@ -364,8 +364,9 @@ function refreshErrors() {
                 var who = 'Feed ' + (fi + 1), kk = fd && typeof fd.key === 'string' ? fd.key.trim() : '', ctk = fd && typeof fd.ct === 'string' ? fd.ct.trim().toLowerCase() : '', fsrc = null;
                 if (!fd || typeof fd !== 'object') return;
                 draft.fields.forEach(function(x) { if (!fsrc && x && x.id === fd.from) fsrc = x; });
-                if (!/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(kk) || kk in Object.prototype) { errs.push({ message: who + ' needs a key of letters, digits and _, starting with a letter. Save drops it.' }); return; }
-                if (fdKs[kk.toLowerCase()]) { errs.push({ message: who + ' repeats the key ' + kk + '. Save drops it.' }); return; }
+                // the review of the words (1.6.3): a feed's short name stands out of sight until Short names is ticked, so it is said as a short name, never as a key it names
+                if (!/^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(kk) || kk in Object.prototype) { errs.push({ message: who + ': its short name cannot be used. Tick \u201cShort names\u201d at the foot and type another, of letters, digits and _, starting with a letter. Save drops it.' }); return; }
+                if (fdKs[kk.toLowerCase()]) { errs.push({ message: who + ' has the same short name as another feed. Tick \u201cShort names\u201d at the foot and type another. Save drops it.' }); return; }
                 if (!fsrc || fsrc.kind !== 'item-list' || fsrc.id === f.id) { errs.push({ message: who + ' loads from no other item list. Save drops it.' }); return; }
                 if (!(fsrc.list && typeof fsrc.list === 'object' && fsrc.list.lvl && typeof fsrc.list.lvl === 'object')) { errs.push({ message: who + ' loads from ' + (fsrc.label || fsrc.key || 'that list') + ', whose rows have no level to hold what they carry. Tick Rows have a level there, or Save drops it.' }); return; }
                 if (!ctk || !fdCts.some(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === ctk; })) { errs.push({ message: who + ' needs one of this list\u2019s counters to hold what is loaded. Save drops it.' }); return; }

@@ -789,6 +789,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && rw.typed === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: 'Climb', col: 'Half' }]) && rw.back === JSON.stringify([{ f: 'f_st', op: 'add', v: -2 }]) && rw.fresh === JSON.stringify([{ f: 'f_sk', op: 'add', v: -2, key: '', col: 'Target' }])
             && saveS.includes("{ if (no('A change on one entry needs that entry\u2019s key, such as Disguise. Pick it in the key box or remove the change.')) return false; }") /* 1.6.3 (finding 8, moved on purpose) */ && saveS.indexOf('A change on one entry') < saveS.indexOf('cleanLibEntry(raw'),
             rwErr || JSON.stringify(rw));
+        // the review of the System editor's words (1.6.3): the picker the Library window borrows (sys-entrypick, a select with no field class) wears the
+        // app's own look inside #libraryModal, where no .sys-row select rule reaches it: the panel's ground, the ink, the edge, and gold at its focus
+        { const cssP = require('fs').readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL), ruleP = (/\n  #libraryModal \.sys-entrypick \{([^}]*)\}/.exec(cssP) || [])[1] || '';
+          check('1.6.3 (the review of the words) the Library window’s entry picker wears the app’s own look: the panel’s ground and ink, its edge and corners, the window’s font, gold at its focus',
+            /background: var\(--panel\);/.test(ruleP) && /color: var\(--ink\);/.test(ruleP) && /border: 1px solid var\(--edge\);/.test(ruleP) && /border-radius: 6px;/.test(ruleP) && /font: inherit;/.test(ruleP)
+            && /\n  #libraryModal \.sys-entrypick:focus \{ outline: none; border-color: var\(--gold\); \}/.test(cssP), ruleP); }
         // 1.6.0 (v2, B4; a build session's sort, 2026-10-29): an entry grants rows of another list. The library's cleaner in both views, and the
         // form's Grants box (librarywin.js grantsBox, sliced and run for real on a page of plain objects) with what Save entry keeps
         let gq = null, gqErr = '';

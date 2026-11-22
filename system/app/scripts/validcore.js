@@ -122,7 +122,7 @@ function nameAsks(sys, name) {
 }
 // 1.6.2 (the owner, of a message that spoke of what a formula knows: "this isnt readable for a normal user either"): a fault as the System editor says it. validateSystem's own text stays what suites and tools read; this is its one reading for a person, so a new message gets its names in words by itself
 function plainMessage(sys, text) {
-    var s = String(text === undefined || text === null ? '' : text), w = function(n) { return nameWord(sys, n); }, m = /^Unknown name "([^"]+)"(?: \u2014 did you mean "([^"]+)"\?)?$/.exec(s);
+    var s = String(text === undefined || text === null ? '' : text), w = function(n) { return nameWord(sys, n); }, m = /^Unknown name "([^"]+)"(?: \u2014 did you mean "([^"]+)"\?|\.)?$/.exec(s);   /* the review of the words (1.6.3): the formula engine ends one with no suggestion in a full stop, as a worked-out field fault reads it */
     if (m) return '\u201c' + humanName(m[1]) + '\u201d is nothing on this sheet.' + (m[2] ? ' Did you mean ' + w(m[2]) + '?' : '');
     m = /^Formulas refer to each other in a loop: (.+)$/.exec(s);
     if (m) return 'These each need the other, so none of them can be worked out: ' + m[1].split(' \u2192 ').map(w).join(', then ') + '.';

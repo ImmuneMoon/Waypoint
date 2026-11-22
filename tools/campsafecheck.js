@@ -40,9 +40,21 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const list = [{ file: 'data-2026-10-26-09-00-00.json', size: 9, at: 200 }, { file: 'keep-2026-10-26-10-00-00.json', size: 9, at: 300 }, { file: 'keep-2026-10-26-11-00-00-before-restore.json', size: 9, at: 350 },
         { file: 'keep-e.json', size: 9, at: 400 }, { file: 'keep-f.json', size: 9, at: 100 }, { file: 'evil.txt', at: 500 }, { file: 'keep-g.json', at: 0 }, null];
     const rows = C.pointRows(list, cn, 'camp_1'), rows2 = C.pointRows(list, cn, 'camp_2');
-    check('pointRows lists the snapshots newest first, good names only, each said for this campaign: Before a roll back, Start of a trial run and Restore point where it was made for it, else Before a restore, At launch or Taken by hand; one made for another campaign is said by how the save took it',
-        j(rows.map(r => [r.file, r.label, r.mine])) === j([['keep-e.json', 'Before a roll back', true], ['keep-2026-10-26-11-00-00-before-restore.json', 'Before a restore', false], ['keep-2026-10-26-10-00-00.json', 'Start of a trial run', true], ['data-2026-10-26-09-00-00.json', 'At launch', false], ['keep-f.json', 'Taken by hand', false]])
-        && rows2[3].label === 'Restore point' && rows2[3].mine === true && rows2[2].label === 'Taken by hand' && C.pointRows(Array.from({ length: 90 }, (_, i) => ({ file: 'keep-' + i + '.json', at: i + 1 })), {}, 'c').length === 60 && j(C.pointRows('x', {}, 'c')) === '[]', j(rows));
+    // 1.6.3 (the release click test), moved on purpose: a snapshot with no note is a Safety copy, never "Taken by hand" (Waypoint takes some itself),
+    // and one made for another campaign says so
+    check('pointRows lists the snapshots newest first, good names only, each said for this campaign: Before a roll back, Start of a trial run and Restore point where it was made for it, For another campaign where it was made for another, else Before a restore, At launch or Safety copy',
+        j(rows.map(r => [r.file, r.label, r.mine])) === j([['keep-e.json', 'Before a roll back', true], ['keep-2026-10-26-11-00-00-before-restore.json', 'Before a restore', false], ['keep-2026-10-26-10-00-00.json', 'Start of a trial run', true], ['data-2026-10-26-09-00-00.json', 'For another campaign', false], ['keep-f.json', 'Safety copy', false]])
+        && rows2[3].label === 'Restore point' && rows2[3].mine === true && rows2[2].label === 'For another campaign' && C.pointRows(Array.from({ length: 90 }, (_, i) => ({ file: 'keep-' + i + '.json', at: i + 1 })), {}, 'c').length === 60 && j(C.pointRows('x', {}, 'c')) === '[]', j(rows));
+    // 1.6.3 (the release click test): a snapshot is of the whole save, so one older than the campaign cannot hold it. The list leaves out every
+    // snapshot taken before the campaign was made (read from its id, camp_ and the time it was made), but one a note says was made for it; an id
+    // that names no time leaves nothing out
+    const born = 1795317811244, bornList = [{ file: 'keep-before.json', at: born - 60000 }, { file: 'keep-noted.json', at: born - 1000 }, { file: 'keep-after.json', at: born + 5000 }, { file: 'data-launch.json', at: born - 1 }];
+    const bornNotes = C.cleanNotes({ 'keep-noted.json': { camp: 'camp_' + born, kind: 'point', at: born - 1000 } });
+    const bornRows = C.pointRows(bornList, bornNotes, 'camp_' + born), testRows = C.pointRows(bornList, {}, 'camp_' + born + '_7'), tutRows = C.pointRows(bornList, {}, 'camp_tutorial');
+    check('1.6.3 (the release click test): campBorn reads when a campaign was made from its id (camp_ and 13 digits, a test copy\'s _ and a number after), 0 for any other id; pointRows leaves out every snapshot taken before that, but one noted for this very campaign, and an id that names no time leaves nothing out',
+        C.campBorn('camp_' + born) === born && C.campBorn('camp_' + born + '_12') === born && C.campBorn('camp_tutorial') === 0 && C.campBorn('camp_123') === 0 && C.campBorn(null) === 0 && C.campBorn('xcamp_' + born) === 0
+        && j(bornRows.map(r => [r.file, r.label])) === j([['keep-after.json', 'Safety copy'], ['keep-noted.json', 'Restore point']])
+        && j(testRows.map(r => r.file)) === j(['keep-after.json']) && j(tutRows.map(r => r.file)) === j(['keep-after.json', 'data-launch.json', 'keep-noted.json', 'keep-before.json']), j([bornRows, testRows.map(r => r.file), tutRows.map(r => r.file)]));
     const snapLib = { v: 1, dir: 'l_abcdefgh', packs: [{ id: 'p_a', rev: 3 }, { id: 'p_b', rev: 1 }, { id: 'p_c', rev: 0 }, { id: 'p_d', rev: 2 }] };
     const lr = C.libRepair(snapLib, { p_a: [7, 6, 5, 4, 3], p_b: [9, 8, 7, 6, 5], p_d: [] });
     check('libRepair: a pinned revision still on disk is kept; one that is gone is written back past every revision on disk (or past its own where none is) and pinned so; a pack never written needs nothing; the snapshot\'s own manifest is never changed; no library is null',
@@ -183,9 +195,33 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const Wl = world({ noList: true }); await Wl.cs.openPoints();
     const Wu = world({ usable: false }); await Wu.cs.openPoints(); Wu.cs.startTrial(); await Wu.cs.makeTestCopy();
     check('the Restore points window (openPoints, run for real): every snapshot newest first as a row of text, its time, its kind (a point made for this campaign marked as its own) and a Roll back button; a press puts the window away and asks again with Roll back, and a yes rolls back; a list that cannot be read is said; on someone else\'s table nothing is asked',
-        rowsW.length === 2 && rowsW.every(r => r.kids.length === 3 && r.kids[2].textContent === 'Roll back' && r.kids[2].tag === 'button') && rowsW[0].kids[1].textContent === 'Restore point' && rowsW[0].className === 'cs-row mine' && rowsW[1].kids[1].textContent === 'Taken by hand'
+        rowsW.length === 2 && rowsW.every(r => r.kids.length === 3 && r.kids[2].textContent === 'Roll back' && r.kids[2].tag === 'button') && rowsW[0].kids[1].textContent === 'Restore point' && rowsW[0].className === 'cs-row mine' && rowsW[1].kids[1].textContent === 'Safety copy' /* 1.6.3, moved on purpose */
         && Wn.dismissed === 1 && Wn.asked[1][1] === 'Roll back' && Wn.asked[0][1] === 'Make a restore point' && Wn.state.appState.campaigns.camp_1.items.m1.meta.title === 'Then'
         && /could not be listed/.test(Wl.toasts[0]) && Wu.asked.length === 0 && Wu.calls.length === 0 && Wu.toasts.length === 3, j([rowsW.map(r => r.kids.map(k => k.textContent)), Wn.asked.map(x => x.slice(0, 3)), Wl.toasts, Wu.toasts]));
+
+    // 1.6.3 (the release click test): the notice after a roll back names the campaign as it now is, by the snapshot's name, never by the name it
+    // had when the window opened (a campaign renamed after its restore point)
+    const Wr = world({ backups: { 'keep-old.json': snapSave }, answers: [(cb, opts) => { const row = opts.body.kids.filter(k => k.className.indexOf('cs-row') === 0)[0]; row.kids[2].on.click(); cb(false); }, true] });
+    Wr.state.appState.campaigns.camp_1.name = 'Renamed Hour';
+    await Wr.cs.openPoints(); await tick();
+    check('1.6.3 (the release click test): a roll back of a campaign renamed since its restore point says the campaign by its name as it now is, the snapshot\'s, and the campaign is that name again',
+        Wr.state.appState.campaigns.camp_1.name === 'Saga' && Wr.toasts.some(t => /^Saga is back as it was at /.test(t)) && !Wr.toasts.some(t => /Renamed Hour is back/.test(t)), j(Wr.toasts));
+    // 1.6.3 (the release click test): the question a new campaign asks of a system is a whole sentence, and its lead says what a copy is in plain words
+    check('1.6.3 (the release click test): New campaign\'s system question is a whole sentence, its lead says the new campaign gets a copy of its own, so a change in one never changes the other, and what is and is not copied; Help says the same',
+        src.includes("D.confirm('Start this campaign with a system?', function(ans)") && src.includes("lead.textContent = 'Pick a campaign whose system this one starts with: its fields, rolls, rules and library. Or start with none. The new campaign gets a copy of its own, so a change in one never changes the other. Its maps, planners and characters are not copied. Its character templates are.';")
+        && !/change apart|Use the system of/.test(src) && read('index.html').includes('<li>The new campaign gets a copy of its own, so a change in one never changes the other. Its maps, planners and characters are not copied. Its character templates are.</li>') && !/change apart/.test(read('index.html')));
+
+    // 1.6.3 (the release click test): Settings' list of snapshots says why the Restore points window made one, by the save's notes, and calls
+    // any other kept snapshot a safety copy, never "taken by hand" (settings.js snapNotes and snapLabel, sliced and run for real with the real core)
+    {
+        const st = read('scripts/settings.js'), a0 = st.indexOf('// [campsafecheck:snaplabel-start]'), z0 = st.indexOf('// [campsafecheck:snaplabel-end]');
+        const lab = a0 > 0 && z0 > a0 ? new Function('window', 'state', st.slice(a0, z0) + '\nreturn snapLabel;') : null;
+        const appS = { restorePts: { 'keep-p.json': { camp: 'camp_1', kind: 'point', at: 5 }, 'keep-t.json': { camp: 'camp_1', kind: 'trial', at: 6 }, 'keep-b.json': { camp: 'camp_2', kind: 'before', at: 7 } } };
+        const L = lab ? lab({ wpCampSafeCore: C }, { appState: appS }) : null, L0 = lab ? lab({}, { appState: appS }) : null;
+        const said = L ? ['keep-p.json', 'keep-t.json', 'keep-b.json', 'keep-x.json', 'keep-2026-before-restore.json', 'data-2026.json'].map(f => L({ file: f, kept: /^keep-/.test(f) })) : [];
+        check('1.6.3 (the release click test): Settings says a snapshot by why it was made: restore point, start of a trial run, before a roll back, from the save\'s notes; any other kept one is a safety copy, never taken by hand; before a restore and at launch as before; with no core at hand, by how the save took it',
+            j(said) === j(['restore point', 'start of a trial run', 'before a roll back', 'safety copy', 'before a restore', 'at launch']) && !!L0 && L0({ file: 'keep-p.json', kept: true }) === 'safety copy' && !/taken by hand/.test(st.slice(a0, z0).replace(/\/\/[^\n]*/g, '')), j(said));
+    }
 
     /* ================= the page, the words, the wiring ================= */
     const ix = read('index.html'), css = read('style.css'), csSrc = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''), coreSrc = read('scripts/campsafecore.js');

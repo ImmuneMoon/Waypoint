@@ -1551,6 +1551,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const sD = stage(null), oldOne = older(); oldOne.tutorialLight = 2; const sE = stage(oldOne, true);
             const later = older(); later.tutorialLight = 3; later.tutorialSenses = 1; const laterPre = both(later), sF = stage(later);
             const noCellar = older(); delete noCellar.items.map_tut_fog; noCellar.tutorialLight = 1; const sG = stage(noCellar);
+            // 1.6.3 (the release click test): the Tutorial's start draws nothing while its pictures are not yet copied into the saves folder (a draw then
+            // asked for each picture before it was there, a red 404 each); the draw comes in the copy's own answer. One whose art is in draws at once
+            const artIn = older(); artIn.tutorialArt = 'installed'; const sArt = stage(artIn);
+            check('1.6.3 (the release click test): a new Tutorial, or one whose pictures are not copied yet, is not drawn before its pictures are copied (no render before the copy is asked for, the save still made), and the copy\'s answer draws it; one whose pictures are in is drawn at once, as before (ensureTutorialCampaign run for real)',
+                !/render/.test(sD.log) && /save/.test(sD.log) && /,art$/.test(sD.log) && /render,save/.test(sArt.log)
+                && tuF.includes('var artWait = camp.tutorialArt !== \'installed\';') && tuF.includes('updateCampaignSelect(); updateSidebarNav(); if (!artWait) render(); save(true);')
+                && tuF.includes('installTutorialArt(function(copied) { camp.tutorialArt = \'installed\'; save(true); if (copied || artWait) render(); if (thenOnce) thenOnce(); });')
+                && tuF.includes('if (thenOnce) { if (!artWait) thenOnce(); else setTimeout(thenOnce, 4000); }')
+                && /function startTour\(at\) \{[\s\S]*?ensureTutorialCampaign\(false, function\(\) \{[\s\S]*?show\(start, 1\);\n\s*\}\);\n\s*\}\);\n\}/.test(tuF), lj([sD.log, sArt.log]));
             check('Lighting L6: the Tutorial\'s start, run for real — an older Tutorial gains the lights once and is marked done (2), one from before lighting is first made dark and then lit (a GM\'s own map light kept), and a later start brings back neither a brazier nor a torch, a rule or a text the GM took away; a mark past 2 is left as it is',
                 sA.camp === l5 && l5pre !== l5post && l5post === newBoth && l5flag === 2 && /save/.test(sA.log) && !/build/.test(sA.log) && sA.st.appState.activeCampaignId === 'camp_tutorial' && sA.st.selWbId === null
                 && cutPost === cutPre && l5.tutorialLight === 2 && !item(l5.items.map_tut_fog, 'tut_wb_brazier') && item(l5.items.map_tut_fog, 'tut_wb_bren7').light === undefined && l5.system.combat.light === undefined && !/build/.test(sB.log)

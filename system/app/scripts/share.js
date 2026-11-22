@@ -187,6 +187,9 @@ async function open(scope, share) {
     _s.built = false;
     var pk = el('shareCoverPick'); if (pk) pk.disabled = false;
     _s.off = _s.share ? SC.privOff(_s.stores) : {};   // 1.6.2 (backlog 227): on Full export a private tag starts unticked; the two exports start with every tick on, as before
+    // 1.6.3 (the release click test): Full export and Export this campaign open the same sheet, and where the campaign has no players and no
+    // private tag nothing starts unticked, so the two make the same file. The line under the counts says how they differ, or that they do not
+    if (all && _s.share && _s.scope === 'campaign') { all.hidden = false; all.textContent = (_s.tally.players.n > 0 || Object.keys(_s.off).length) ? 'Your players and private pictures start unticked, so the file can go to someone else.' : 'Nothing here starts unticked, so as it stands this makes the same file as Export this campaign.'; }
     _s.cover = '';   // the review of backlog 227: the remembered cover comes back only where it goes in as the sheet starts, never one its tag leaves out
     if (_s.pics.indexOf(mem.cover) >= 0 && outRaw().indexOf(mem.cover) < 0) _s.cover = mem.cover;
     drawCover(); drawKinds();

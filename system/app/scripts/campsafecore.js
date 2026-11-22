@@ -37,17 +37,30 @@ function cleanTrials(raw) {
     return out;
 }
 
-// What a snapshot is called in the list: a point made for this campaign by its kind, else by how the save took it
+// What a snapshot is called in the list: a point made for this campaign by its kind, a point made for another campaign said as such, else
+// by how the save took it. 1.6.3 (the release click test): a keep- file with no note is a safety copy, taken by Waypoint itself (before a
+// library move, a delete) or by Snapshot the Save Now in Settings, and was called "Taken by hand", which read backwards beside a restore
+// point the GM really made by hand
 function pointLabel(row, notes, campId) {
     var n = row && notes && own(notes, row.file) ? notes[row.file] : null;
     if (n && n.camp === campId) return n.kind === 'trial' ? 'Start of a trial run' : n.kind === 'before' ? 'Before a roll back' : 'Restore point';
+    if (n) return 'For another campaign';
     if (/before-restore/.test(row.file)) return 'Before a restore';
-    return /^data-/.test(row.file) ? 'At launch' : 'Taken by hand';
+    return /^data-/.test(row.file) ? 'At launch' : 'Safety copy';
+}
+// When a campaign was made, read from its id (models.js makes it camp_ and Date.now(), a test copy adds _ and a number): 0 where the id
+// says nothing of it (the Tutorial's own id, an id from a file of another shape), so nothing is left out for such a campaign
+function campBorn(campId) {
+    var m = /^camp_(\d{13})(?:_|$)/.exec(typeof campId === 'string' ? campId : '');
+    return m ? Number(m[1]) : 0;
 }
 // The snapshots the dialog lists, newest first: the server's list ({ file, size, at }) kept to good names, each with its words. At most
-// LIMITS.rows
+// LIMITS.rows. 1.6.3 (the release click test): a snapshot is of the whole save, so one older than the campaign cannot hold it, and Roll back
+// on it only said so; such a snapshot is left out unless a note says it was made for this very campaign
 function pointRows(list, notes, campId) {
+    var born = campBorn(campId);
     return (Array.isArray(list) ? list : []).filter(function(r) { return isObj(r) && typeof r.file === 'string' && BACKUP_FILE.test(r.file) && stamp(r.at) > 0; })
+        .filter(function(r) { return !born || stamp(r.at) >= born || !!(notes && own(notes, r.file) && notes[r.file].camp === campId); })
         .sort(function(a, b) { return stamp(b.at) - stamp(a.at); }).slice(0, LIMITS.rows)
         .map(function(r) { return { file: r.file, at: stamp(r.at), label: pointLabel(r, notes, campId), mine: !!(notes && own(notes, r.file) && notes[r.file].camp === campId) }; });
 }
@@ -115,6 +128,6 @@ function systemRows(camps, activeId) {
 // where it stood (snapshot names, counts, an HTTP status), never a campaign's name or anything of its content; the shared step log's words
 function logLine(step, facts) { return stepLine('campsafe v' + VERSION, step, facts); }
 
-var API = { VERSION: VERSION, BACKUP_FILE: BACKUP_FILE, LIMITS: LIMITS, cleanNotes: cleanNotes, cleanTrials: cleanTrials, pointLabel: pointLabel, pointRows: pointRows, libRepair: libRepair, testCopy: testCopy, systemCopy: systemCopy, systemRows: systemRows, logLine: logLine };
+var API = { VERSION: VERSION, BACKUP_FILE: BACKUP_FILE, LIMITS: LIMITS, cleanNotes: cleanNotes, cleanTrials: cleanTrials, pointLabel: pointLabel, campBorn: campBorn, pointRows: pointRows, libRepair: libRepair, testCopy: testCopy, systemCopy: systemCopy, systemRows: systemRows, logLine: logLine };
 if (typeof window !== 'undefined') window.wpCampSafeCore = API;
-export { VERSION, BACKUP_FILE, LIMITS, cleanNotes, cleanTrials, pointLabel, pointRows, libRepair, testCopy, systemCopy, systemRows, logLine };
+export { VERSION, BACKUP_FILE, LIMITS, cleanNotes, cleanTrials, pointLabel, campBorn, pointRows, libRepair, testCopy, systemCopy, systemRows, logLine };

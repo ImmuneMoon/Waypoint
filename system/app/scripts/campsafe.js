@@ -135,14 +135,14 @@ function csFlows(D) {
     function pickSystem(done) {
         var rows = C.systemRows(app().campaigns, app().activeCampaignId); if (!rows.length) { done(null); return; }
         var box = ui.createElement('div'), lead = ui.createElement('div'), sel = ui.createElement('select'), tick = ui.createElement('label'), cb = ui.createElement('input'), words = ui.createElement('span');
-        box.className = 'cs-list cs-sys-box'; lead.className = 'cs-lead'; lead.textContent = 'Start with no system, or with a copy of one of yours. After that the two change apart. Maps, planners and characters stay behind. Its templates come along.'; box.appendChild(lead);
+        box.className = 'cs-list cs-sys-box'; lead.className = 'cs-lead'; lead.textContent = 'Pick a campaign whose system this one starts with: its fields, rolls, rules and library. Or start with none. The new campaign gets a copy of its own, so a change in one never changes the other. Its maps, planners and characters are not copied. Its character templates are.'; box.appendChild(lead);
         sel.className = 'tool cs-sys'; sel.title = 'The campaign whose system this one starts with';
         var add = function(v, t) { var o = ui.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
         add('', 'No system yet'); rows.forEach(function(r) { add(r.id, r.name); }); box.appendChild(sel);
         tick.className = 'cs-tick'; cb.type = 'checkbox'; cb.checked = true; tick.appendChild(cb); tick.appendChild(words); box.appendChild(tick);
         var sync = function() { var r = rows.filter(function(x) { return x.id === sel.value; })[0]; tick.hidden = !r || !r.pages; words.textContent = r ? ' Bring its handbook pages (' + r.pages + ')' : ''; };
         sel.addEventListener('change', sync); sync();
-        D.confirm('Use the system of', function(ans) { if (ans !== true) return; done(sel.value ? { from: sel.value, pages: cb.checked === true } : null); }, { yes: 'Create', body: box });
+        D.confirm('Start this campaign with a system?', function(ans) { if (ans !== true) return; done(sel.value ? { from: sel.value, pages: cb.checked === true } : null); }, { yes: 'Create', body: box });
     }
     // Fills a new campaign from the pick, before it is listed. A pack that cannot be copied leaves it with no system, and says so
     async function fillFrom(into, pick) {
@@ -179,7 +179,7 @@ function csFlows(D) {
                 var rw = picked; picked = null;
                 D.confirm('Roll ' + name(c) + ' back to how it was at ' + when(rw.at) + '? Waypoint makes a restore point of it as it is now first.', async function(yes) {
                     if (yes !== true) return;
-                    if (await rollBack(rw.file, c.id)) D.toast(name(c) + ' is back as it was at ' + when(rw.at) + '.');
+                    if (await rollBack(rw.file, c.id)) D.toast(name(app().campaigns[c.id] || c) + ' is back as it was at ' + when(rw.at) + '.');   // 1.6.3 (the release click test): named as it now is, the snapshot's own campaign, never by the name typed before the roll back
                 }, { yes: 'Roll back' });
                 return;
             }

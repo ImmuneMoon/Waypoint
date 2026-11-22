@@ -105,7 +105,7 @@ for (const t of targets) {
     // the welcome's Start a campaign: on a save the tour is owed to it enters and notes that the naming prompt is owed (wpCampaignAfterTour), the prompt
     // not opened; else the prompt as ever. Import from the welcome holds the tour (wpWelcomeImporting) until the file is chosen or dropped. endTour opens
     // the owed prompt once, after the tour or its Skip
-    const startPinned = /wcStartBtn'\); if \(startBtn\) startBtn\.addEventListener\('click', function\(\) \{ saveWcProfile\(\); hideWelcome\(\); if \(window\.wpTutorial && window\.wpTutorial\.pending && window\.wpTutorial\.pending\(\)\) \{ window\.wpCampaignAfterTour = true; return; \} var b = document\.getElementById\('newCampBtn'\); if \(b\) b\.click\(\); \}\);/.test(mainLf);
+    const startPinned = /wcStartBtn'\); if \(startBtn\) startBtn\.addEventListener\('click', function\(\) \{ saveWcProfile\(\); hideWelcome\(\); window\.wpSeedDrop = !!window\.wpSeededId; if \(window\.wpTutorial && window\.wpTutorial\.pending && window\.wpTutorial\.pending\(\)\) \{ window\.wpCampaignAfterTour = true; return; \} var b = document\.getElementById\('newCampBtn'\); if \(b\) b\.click\(\); \}\);/.test(mainLf);
     const importPinned = /wcLoadBtn'\); if \(loadBtn\) loadBtn\.addEventListener\('click', function\(\) \{ saveWcProfile\(\); hideWelcome\(\); window\.wpWelcomeImporting = true;[^\n]*fi\.addEventListener\('change', done, \{ once: true \}\); fi\.addEventListener\('cancel', done, \{ once: true \}\);[^\n]*importBtn'\); if \(b\) b\.click\(\); \}\);/.test(mainLf);
     const endPinned = /function endTour\(\) \{\n[\s\S]*?if \(window\.wpCampaignAfterTour === true\) \{ window\.wpCampaignAfterTour = false; var nbT = document\.getElementById\('newCampBtn'\), awayT = !!\(window\.wpNet && window\.wpNet\.foreign\); if \(nbT && !awayT\) setTimeout\(function\(\) \{ nbT\.click\(\); \}, 300\); \}[^\n]*\n\}/.test(lf)
         && /if \(q\('tourSkip'\)\) q\('tourSkip'\)\.addEventListener\('click', endTour\);/.test(lf) && /q\('tourKeepEnd'\)\.addEventListener\('click', function\(\) \{ endTour\(\);/.test(lf) && /q\('tourDiscardEnd'\)\.addEventListener\('click', function\(\) \{ endTour\(\); discardTutorialCampaign\(\); \}\);/.test(lf)
@@ -119,6 +119,33 @@ for (const t of targets) {
         && wcSeedOnly({ name: 'Default Campaign', items: { m: { type: 'map', rooms: [], whiteboard: [{ id: 'w' }] } } }) === false && wcSeedOnly({ name: 'My New Campaign', items: {} }) === false && wcSeedOnly({ name: 'Tutorial', items: { m: emptyMap() } }) === false
         && wcSeedOnly(null) === false && wcSeedOnly({ name: 'Default Campaign' }) === true
         && /var ids = Object\.keys\(camps\)\.filter\(function\(id\) \{ return !wcSeedOnly\(camps\[id\]\); \}\);\n\s*if \(!ids\.length\) \{ var wcWait = !state\.appState \|\| state\.appState\.activeCampaignId === null; box\.style\.visibility = wcWait \? 'hidden' : ''; box\.style\.display = wcWait \? '' : 'none'; return; \}/.test(mainLf);
+    // 1.6.3 (the release click test): the welcome's Start a campaign on an empty save left the seeded Default Campaign beside the newcomer's own
+    // campaign. wcSeedDrops (run for real, in the same slice) names every other campaign that is still only the untouched seed, never the new one
+    // nor one from someone else's table; the welcome's press marks it (wpSeedDrop, pinned above), New campaign reads the mark once and deletes them,
+    // never while a table is hosted (dialogs.js, pinned)
+    const wcSeedDrops = new Function('"use strict";' + nl + seedSrc + nl + 'return wcSeedDrops;')();
+    const dlgLf = fs.readFileSync(path.join(app, 'scripts', 'dialogs.js'), 'utf8').replace(/\r\n/g, nl);
+    const dropCamps = { s: { name: 'Default Campaign', items: { m: emptyMap() } }, t: { name: 'Tutorial', items: { m: emptyMap() } }, n: { name: 'Default Campaign', items: {} }, f: { name: 'Default Campaign', items: {}, _foreign: true },
+        used: { name: 'Default Campaign', items: { m: { type: 'map', rooms: [], whiteboard: [{ id: 'w' }] } } }, mine: { name: 'First Hour', items: {} } };
+    // the review of the click test settings moved these pins on purpose: only the campaign this launch seeded (its id, the third argument) may go,
+    // never another untouched-looking Default Campaign ('n', an empty one, stays droppable only as the seeded id), and only while nothing at all
+    // has been put in it: a Default Campaign holding a system field and a character beside an empty map is never named
+    const built = { name: 'Default Campaign', items: { m: emptyMap() }, system: { fields: [{ id: 'f1', key: 'Str' }], rolls: [] }, chars: { c1: { id: 'c1', name: 'Kael' } } };
+    const touchedCases = [{ system: { fields: [], rolls: [{ id: 'r' }] } }, { chars: { c: {} } }, { library: { packs: [{ id: 'p' }] } }, { handouts: { h: {} } }, { players: { p: {} } }, { sounds: [{ id: 's' }] }, { music: { playlists: [] , x: 1 } }]
+        .map(extra => Object.assign({ name: 'Default Campaign', items: { m: emptyMap() } }, extra));
+    const dropOk = JSON.stringify(wcSeedDrops(dropCamps, 'mine', 's')) === JSON.stringify(['s']) && JSON.stringify(wcSeedDrops(dropCamps, 'mine', 'n')) === JSON.stringify(['n'])
+        && JSON.stringify(wcSeedDrops(dropCamps, 'mine')) === '[]' && JSON.stringify(wcSeedDrops(dropCamps, 's', 's')) === '[]' && JSON.stringify(wcSeedDrops(dropCamps, 'mine', 'f')) === '[]'
+        && JSON.stringify(wcSeedDrops(dropCamps, 'mine', 'used')) === '[]' && JSON.stringify(wcSeedDrops(dropCamps, 'mine', 't')) === '[]' && JSON.stringify(wcSeedDrops(dropCamps, 'mine', 'gone')) === '[]'
+        && JSON.stringify(wcSeedDrops(null, 'x', 'x')) === '[]'
+        && JSON.stringify(wcSeedDrops({ b: built, mine: { name: 'First Hour', items: {} } }, 'mine', 'b')) === '[]'
+        && touchedCases.every(c => JSON.stringify(wcSeedDrops({ z: c }, 'mine', 'z')) === '[]')
+        && JSON.stringify(wcSeedDrops({ z: { name: 'Default Campaign', items: { m: emptyMap() }, system: { fields: [], rolls: [] }, chars: {}, library: { packs: [] } } }, 'mine', 'z')) === JSON.stringify(['z'])
+        && /\n  \/\/ \[tutorialcheck:wcseed-end\]\n  window\.wpSeedDrops = function\(camps, keepId\) \{ return wcSeedDrops\(camps, keepId, window\.wpSeededId\); \};/.test(mainLf)
+        && /var seedCamp = createNewCampaign\('Default Campaign'\);[\s\S]{0,800}?window\.wpSeededId = seedCamp\.id;/.test(fs.readFileSync(path.join(app, 'scripts', 'io.js'), 'utf8').replace(/\r\n/g, nl))
+        && /var dropSeed = window\.wpSeedDrop === true; window\.wpSeedDrop = false;/.test(dlgLf)
+        && /state\.appState\.campaigns\[newCamp\.id\] = newCamp;\n\s*if \(dropSeed && typeof window\.wpSeedDrops === 'function' && !\(window\.wpNet && window\.wpNet\.active\)\) window\.wpSeedDrops\(state\.appState\.campaigns, newCamp\.id\)\.forEach\(function\(id\) \{ delete state\.appState\.campaigns\[id\]; resetHistory\(id\); \}\);/.test(dlgLf);
+    if (dropOk) console.log('ok        1.6.3 (the release click test): Start a campaign on an empty save leaves no Default Campaign behind: wcSeedDrops (run for real) names only the campaign this launch seeded (io.js notes its id), and only while nothing at all is in it (a system, a character, a library, a handout: never named), never the new one or one from someone else\'s table; the welcome marks its press only where this launch seeded, and New campaign reads the mark once and deletes it, never while hosting');
+    else { bad++; console.log('FAIL      1.6.3: Start a campaign on an empty save leaves no Default Campaign behind (wcSeedDrops)', JSON.stringify([wcSeedDrops(dropCamps, 'mine', 's'), wcSeedDrops({ b: built }, 'mine', 'b')])); }
     if (seedOk) console.log('ok        a fresh Waypoint lists no campaign to continue: the seeded Default Campaign with nothing in it (no room, no drawing, no planner or page) is left off the welcome\'s list and the box hidden, run for real; one with anything in it, or under any other name, is listed');
     else { bad++; console.log('FAIL      a fresh Waypoint lists no campaign to continue (wcSeedOnly)'); }
     // "Show this on launch" is set once from the welcome: the wclaunch slice run for real on a stub page — the row shown while nothing is stored, the first
@@ -584,6 +611,117 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'res
         && mainFile.includes("if (rec.campId) wcHostPick(rec.campId, document, function() { saveWcProfile(); hideWelcome(); }); else showHostView();") && mainFile.includes("if (typeof wcResumeDraw === 'function') wcResumeDraw(document, wcJoinOnly() ? null : wcResumeRec(window.wpNet, (state.appState && state.appState.campaigns) || {}));");
     if (!ok) { bad++; console.log('FAIL      Resume your table: ' + JSON.stringify({ recs, shown, hidden })); }
     else console.log('ok        1.6.3 (the multiplayer review, finding 6) the welcome offers Resume your table while a crash-resume code is fresh: the code as text and the campaign it was hosted for where that is this computer\'s own (none for one that is gone, someone else\'s or a prototype\'s name), nothing at a table, with no code or with a code that is no text; a press opens that campaign and starts its table through wcHostPick, else the host view');
+}
+// 1.6.3, the release click test of a new GM's first run (findings 41, 42, 43, 47 and 48): the tour's own code run for real
+{
+    const nl = String.fromCharCode(10), lf = src.replace(/\r\n/g, nl), J = JSON.stringify;
+    const cutM = name => { const a = lf.indexOf('// [tutorialcheck:' + name + '-start]'), z = lf.indexOf('// [tutorialcheck:' + name + '-end]'); if (a < 0 || z < a) throw new Error('tutorialcheck: the ' + name + ' slice is not marked in tutorial.js'); return lf.slice(a, z); };
+    const setLf = fs.readFileSync(path.join(app, 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, nl);
+    const spA = setLf.indexOf('// [lookcheck:setparts-start]'), spZ = setLf.indexOf('// [lookcheck:setparts-end]');
+    // Finding 41: Settings' parts module (settings.js setPartsMake, run for real) on a page of plain objects. Setting a details' open flag
+    // queues one toggle event an element, fired later in the order queued, as a browser does; Settings' own button asks the module to show
+    // the part last open, as settings.js's click handler does.
+    const world = body => {
+        const queue = [], groups = ['profile', 'screen', 'vtt'].map(k => { let open = false; const g = { hidden: false, style: {}, getAttribute: a => (a === 'data-group' ? k : null), querySelector: () => ({ textContent: k }), classList: { add() {}, remove() {} } };
+            Object.defineProperty(g, 'open', { get: () => open, set: v => { v = !!v; if (v !== open) { open = v; if (queue.indexOf(g) < 0) queue.push(g); } } }); return g; });
+        const nav = { firstChild: null, removeChild() {}, appendChild() {}, querySelectorAll: () => [] };
+        const modal = { style: { display: 'none' } };
+        const doc = { querySelectorAll: s => (s === '#settingsModal details.set-group' ? groups : []), getElementById: id => (id === 'setNav' ? nav : id === 'settingsModal' ? modal : id === 'setPartsBody' ? { scrollTop: 0 } : id === 'settingsBtn' ? btn : null),
+            createElement: () => ({ setAttribute() {}, addEventListener() {}, classList: { toggle() {} } }), querySelector: s => (s === '#settingsModal details.set-group[data-group="vtt"]' ? groups[2] : null) };
+        const store = { m: {}, getItem(k) { return k in this.m ? this.m[k] : null; }, setItem(k, v) { this.m[k] = String(v); } };
+        const P = new Function('"use strict";' + nl + setLf.slice(spA, spZ) + nl + 'return setPartsMake;')()(doc, {}, store);
+        const btn = { click: () => { modal.style.display = 'flex'; P.open(); } };
+        const win = { wpSetParts: P };
+        const T = new Function('document', 'window', 'localStorage', '"use strict";' + nl + body + nl + 'return { open: openSettingsForTour, close: closeSettingsForTour };')(doc, win, store);
+        const flush = () => { while (queue.length) P.toggled(queue.shift()); };
+        const shown = () => groups.filter(g => g.open).map(g => g.getAttribute('data-group')).join(',') + '|' + P.state().cur + '|' + modal.style.display;
+        return { T, P, flush, shown, store };
+    };
+    const oldBody = "var _vttGroupWas = null;\nfunction vttGroup() { return document.querySelector('#settingsModal details.set-group[data-group=\"vtt\"]'); }\nfunction openSettingsForTour() {\n    var sb = document.getElementById('settingsBtn'); if (sb) sb.click();\n    var g = vttGroup(); if (!g) return;\n    if (_vttGroupWas === null) { var saved = null; try { saved = JSON.parse(localStorage.getItem('wp_setGroups') || 'null'); } catch (e) {} _vttGroupWas = !!(saved && saved.vtt); }\n    g.open = true;\n}\nfunction closeSettingsForTour() {\n    var m = document.getElementById('settingsModal'); if (m) m.style.display = 'none';\n    if (_vttGroupWas === null) return;\n    var g = vttGroup(); if (g) g.open = _vttGroupWas;\n    _vttGroupWas = null;\n}";
+    let setOut = null, setErr = '';
+    try {
+        const ctl = world(oldBody); ctl.T.open(); ctl.flush();   // the control: the code before this fold shows Profile, the bug as the click test saw it
+        const w = world(cutM('settour')); w.T.open(); const now = w.shown(); w.flush(); const after = w.shown(); w.T.open(); w.flush(); const again = w.shown(); w.T.close(); w.flush(); const closed = w.shown();
+        const w2 = world(cutM('settour')); w2.store.setItem('wp_setPart', 'vtt'); w2.T.open(); w2.flush(); const fromVtt = w2.shown(); w2.T.close(); w2.flush(); const closed2 = w2.shown();
+        setOut = [ctl.shown(), now, after, again, closed, fromVtt, closed2];
+    } catch (e) { setErr = String(e && e.stack || e); }
+    if (!setErr && J(setOut) === J(['profile|profile|flex', 'vtt|vtt|flex', 'vtt|vtt|flex', 'vtt|vtt|flex', 'profile|profile|none', 'vtt|vtt|flex', 'vtt|vtt|none']))
+        console.log('ok        1.6.3 (the release click test, finding 41) the tour\'s This campaign step shows the This campaign part of Settings on its first opening of a session (settings.js\'s parts module and the settour slice run for real, with toggle events fired later as a browser fires them): the code before showed Profile, the part the window had just picked; the part shown before comes back when the step is left, and This campaign stays where it was the part before');
+    else { bad++; console.log('FAIL      the This campaign step and Settings\' parts: ' + (setErr || J(setOut))); }
+    // Finding 48: where a card stands (the cardspot slice run for real). With no rectangle to keep clear of it is exactly what place() gave
+    // before; Designing the sheet keeps clear of the System editor's tabs and its Sheet | HUD row; Dice stands beside Table Chat.
+    let spotOut = null, spotErr = '';
+    try {
+        const cardSpot = new Function('"use strict";' + nl + cutM('cardspot') + nl + 'return cardSpot;')();
+        const old = (r, cw, ch, W, H) => (r.right + 16 + cw <= W ? { x: r.right + 16, y: r.top } : r.left - 16 - cw >= 0 ? { x: r.left - 16 - cw, y: r.top } : r.bottom + 16 + ch <= H ? { x: r.left, y: r.bottom + 16 } : { x: r.left, y: r.top - 16 - ch });
+        const R = (l, t, r, b) => ({ left: l, top: t, right: r, bottom: b });
+        const plain = [R(10, 10, 60, 60), R(600, 300, 700, 400), R(40, 148, 1036, 854), R(0, 0, 1076, 964), R(300, 800, 500, 900), R(20, 900, 1050, 950)].every(r => J(cardSpot(r, [], 380, 300, 1076, 964)) === J(old(r, 380, 300, 1076, 964)) && J(cardSpot(r, undefined, 380, 300, 1076, 964)) === J(old(r, 380, 300, 1076, 964)));
+        const over = (s, cw, ch, a) => s.x < a.right && s.x + cw > a.left && s.y < a.bottom && s.y + ch > a.top;
+        const tabs = R(40, 112, 1036, 139), bar = R(40, 148, 1036, 180), lay = R(40, 148, 1036, 854);
+        const sheetS = cardSpot(lay, [tabs, bar], 380, 436, 1076, 964), sheetOld = old(lay, 380, 436, 1076, 964);
+        const chat = R(672, 666, 992, 884), dice = R(893, 841, 925, 873), diceS = cardSpot(dice, [chat], 380, 300, 1076, 964), diceOld = old(dice, 380, 300, 1076, 964);
+        const clampY = (y, ch) => Math.max(12, Math.min(y, 964 - ch - 12));
+        spotOut = { plain, sheet: [sheetS, !over(sheetS, 380, 436, tabs), !over(sheetS, 380, 436, bar), sheetS.x >= 12 && sheetS.x + 380 <= 1064 && sheetS.y >= 12 && sheetS.y + 436 <= 952, over({ x: sheetOld.x, y: clampY(sheetOld.y, 436) }, 380, 436, tabs)],
+            dice: [diceS, !over({ x: diceS.x, y: clampY(diceS.y, 300) }, 380, 300, chat), over({ x: diceOld.x, y: clampY(diceOld.y, 300) }, 380, 300, chat)] };
+    } catch (e) { spotErr = String(e && e.stack || e); }
+    const stepOf = t => { const i = lf.indexOf("target: '" + t + "', "); return i < 0 ? '' : lf.slice(i, lf.indexOf(nl + '    {', i + 5)); };
+    const placeA = lf.indexOf('function place() {'), placeSrc = placeA < 0 ? '' : lf.slice(placeA, lf.indexOf(nl + '}' + nl, placeA));
+    const avoidWired = /var av = \(Array\.isArray\(step\.avoid\) \? step\.avoid : \[\]\)\.map\(function\(sel\) \{ return shownRect\(document\.querySelector\(sel\)\); \}\)\.filter\(Boolean\);\n\s*var at = cardSpot\(r, av, cw, ch, W, H\); x = at\.x; y = at\.y;/.test(placeSrc)
+        && stepOf('#sysLayout').includes("avoid: ['#systemModal .sys-tabs', '#sysLayout .sys-toolbar'],") && stepOf('#diceBtn').includes("avoid: ['#chatPanel'],")
+        && html.includes('<div class="sys-tabs">') && /id="sysLayout"[^>]*>\s*<div class="sys-toolbar"><span id="sysLayoutView"/.test(html) && html.includes('<div id="chatPanel"');
+    if (!spotErr && spotOut.plain && J(spotOut.sheet.slice(1)) === J([true, true, true, true]) && J(spotOut.sheet[0]) === J({ x: 656, y: 418 }) && J(spotOut.dice) === J([{ x: 276, y: 841 }, true, true]) && avoidWired)
+        console.log('ok        1.6.3 (the release click test, finding 48) a card keeps clear of what its step names (the cardspot slice run for real): with nothing to keep clear of the spot is exactly what place() gave before, over six targets; Designing the sheet stands in the Layout tab\'s lower right corner, clear of the tabs and the Sheet | HUD row the card before covered; Dice stands left of Table Chat, which the card before covered; place() asks it with each step\'s avoid, and both steps name what they keep clear of');
+    else { bad++; console.log('FAIL      a card keeps clear of what it names: ' + (spotErr || J({ spotOut, avoidWired }))); }
+    // Finding 42: the chip of a paused tour stands above any toolbar it would cover (the chip slice run for real), and is placed so as the tour
+    // pauses and when the window changes size
+    let chipOut = null, chipErr = '', chipSpotOut = null, chipSel = '';
+    try {
+        const chipK = new Function('"use strict";' + nl + cutM('chip') + nl + 'return { chipLift, chipSpot, CHIP_SEL };')(), chipLift = chipK.chipLift;
+        const R = (l, t, r, b) => ({ left: l, top: t, right: r, bottom: b });
+        const c = R(350, 900, 726, 946);
+        chipOut = [chipLift(c, [R(453, 882, 902, 934)], 964), chipLift(c, [], 964), chipLift(c, [R(800, 882, 1000, 934)], 964), chipLift(c, [R(453, 882, 902, 934), R(300, 830, 500, 870)], 964), chipLift(c, [R(400, 400, 600, 500)], 964), chipLift(c, undefined, 964)];
+        // The review of the click test firstrun: an open menu of a bar is an obstacle too (a menu opens 10 px above its bar, exactly where
+        // the chip lifted over the bar stood), and a lift past the top of the window, over a tall menu, stands the chip beside what is in
+        // its way at its own height instead. chipSpot answers null, { bottom } or { left } (the chip's middle).
+        chipSpotOut = [chipK.chipSpot(c, [R(453, 882, 902, 934)], 1280, 964), chipK.chipSpot(c, [R(453, 882, 902, 934), R(500, 600, 700, 872)], 1280, 964),
+            chipK.chipSpot(c, [R(453, 882, 902, 934), R(500, 30, 700, 872)], 1280, 964), chipK.chipSpot(c, [], 1280, 964), chipK.chipSpot(c, undefined, 1280, 964)];
+        chipSel = chipK.CHIP_SEL;
+    } catch (e) { chipErr = String(e && e.stack || e); }
+    const pauseA = lf.indexOf('function pauseTour() {'), pauseSrc = pauseA < 0 ? '' : lf.slice(pauseA, lf.indexOf(nl + '}' + nl, pauseA));
+    const chipWired = /tour\.chip\.style\.display = 'flex';\n\s*placeChip\(\);\n?$/.test(pauseSrc) && lf.includes("window.addEventListener('resize', function() { if (tour.active && !tour.paused) place(); if (tour.active && tour.paused) placeChip(); });")
+        && /function placeChip\(\) \{[\s\S]*?document\.querySelectorAll\(CHIP_SEL\)[\s\S]*?chipSpot\(c, obs, window\.innerWidth, window\.innerHeight\)/.test(lf)
+        && lf.includes("function chipAgain() { if (tour.active && tour.paused) setTimeout(placeChip, 0); }") && lf.includes("['click', 'keyup', 'contextmenu'].forEach(function(t) { window.addEventListener(t, chipAgain, true); });")
+        && /\.floating-toolbar \.shape-menu \{[^}]*bottom: 100%;[^}]*margin-bottom: 10px;/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8'))
+        && ['wbFloatingToolbar', 'wbEdgeTools', 'dataFloatingToolbar'].every(id => new RegExp('id="' + id + '" class="[^"]*\\bfloating-toolbar\\b').test(html));
+    if (!chipErr && J(chipOut) === J([92, null, null, 144, null, null]) && J(chipSpotOut) === J([{ bottom: 92 }, { bottom: 374 }, { left: 255 }, null, null]) && chipSel === '.floating-toolbar, .floating-toolbar .shape-menu.show' && chipWired)
+        console.log('ok        1.6.3 (the release click test, finding 42) the chip of a paused tour stands 10 px above any toolbar it would cover, and above the next one where that lift meets it, and stays where the style sheet puts it otherwise (the chip slice run for real); an open menu of a bar counts as a toolbar, and a lift past the top of the window over a tall menu stands it beside what is in its way instead (the review of the click test firstrun); it is placed as the tour pauses, again when the window changes size and again after a click, a key or a right-click while paused, by the play map\'s toolbar, its edge column and the Data Map\'s, wherever they stand');
+    else { bad++; console.log('FAIL      the chip of a paused tour: ' + (chipErr || J({ chipOut, chipSpotOut, chipSel, chipWired }))); }
+    // Finding 47: the Fog of war step frames Bren and the Cellar Lurker in the upper part of the map, clear of its card at the foot, with no
+    // preview, whose pill said Viewing as the party beside a card that says "On your screen"
+    let fogOut = null, fogErr = '';
+    try {
+        const fA = lf.indexOf('var FOG_FRAME = '), fZ = lf.indexOf(nl + 'function openLeft() {', fA);
+        const calls = [], timers = [], wrap = { clientWidth: 800, clientHeight: 900, scrollLeft: 0, scrollTop: 0 };
+        const run = (view, z) => new Function('document', 'window', 'state', 'setTimeout', 'tour', 'STEPS', '"use strict";' + nl + lf.slice(fA, fZ) + nl + 'return frameFogStep;')(
+            { getElementById: id => (id === 'whiteboardWrap' ? wrap : null) }, { wpView: view }, { zoomLevel: z }, (f, ms) => { timers.push(ms); f(); }, { active: true, paused: false, i: 0 }, [{ target: '#fogModeBtn' }]);
+        run({ place: (w, bx, by, sx, sy) => calls.push([w === wrap, bx, by, sx, sy]) }, 1)();
+        run(null, 2)();
+        fogOut = [calls, timers, wrap.scrollLeft, wrap.scrollTop];
+    } catch (e) { fogErr = String(e && e.stack || e); }
+    const fogStep = stepOf('#fogModeBtn');
+    const tokOk = lf.includes("sqTok(15000, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren7'") && lf.includes("sqTok(15400, 15000, pic('slime_sq.jpg', { id: 'tut_wb_lurker'"), sqOk = /function sqTok\(x, y[^)]*\) \{[^\n]*w: 50, h: 50/.test(lf) || /function sqTok\([^)]*\)[\s\S]{0,300}?50/.test(lf);
+    if (!fogErr && J(fogOut) === J([[[true, 15225, 15025, 400, 270], [true, 15225, 15025, 400, 270]], [60, 60], 15225 * 2 - 400, 15025 * 2 - 270]) && fogStep.includes("window.wpFog.setPreview('off'); frameFogStep(); } },") && !/setPreview\('party'\)/.test(lf) && tokOk && sqOk)
+        console.log('ok        1.6.3 (the release click test, finding 47) the Fog of war step frames the middle of Bren and the Cellar Lurker at a third of the map\'s height, through the view\'s own place (by scroll and zoom where there is none), once at its setup and again a moment later; it sets no preview, which drew the same veil and said Viewing as the party beside a card that says On your screen');
+    else { bad++; console.log('FAIL      the Fog of war step\'s view: ' + (fogErr || J({ fogOut, tokOk, sqOk, step: fogStep.slice(-200) }))); }
+    // Finding 43: the words a step says name the controls as they stand in 1.6.3, and show no key
+    const stale = ['The arrow on its edge toggles it by hand', '<b>Render</b> shows the finished page', '<code>d20 + STRmod</code>', 'The <b>Sheet look</b> box at the top of Layout', 'Settings &#9656; Profile'].filter(t => lf.includes(t));
+    const fresh = [[stepOf('#sidebar'), 'With nothing selected, <b>Map properties</b> opens the map&rsquo;s own settings. Here it is in the menu of the toolbar&rsquo;s first button, and on the play map a right-click on its empty ground opens it.'], [lf, '<b>Edit</b>, <b>Read</b> and <b>Side by side</b> switch how the page is shown'], [stepOf('#systemBtn'), 'such as an attack of a d20 plus a bonus from Strength'],
+        [stepOf('#sysLayoutPreview'), '<b>Sheet look</b> in the Layout tab&rsquo;s list dresses the whole sheet'], [stepOf('#netBtn'), 'Your picture in the top row opens <b>your profile</b>']].filter(p => !p[0].includes(p[1])).map(p => p[1]);
+    const stepsSrc = lf.slice(lf.indexOf('var STEPS = ['), lf.indexOf(nl + '];', lf.indexOf('var STEPS = [')));
+    const helpStale = ['Sheet look</b> box at the top of Layout', 'in the Sheet look box', 'The same box shapes the sheet', 'The Sheet look box dresses both'].filter(t => html.includes(t));   // the review of the click test firstrun: no line still calls Sheet look a box
+    if (!stale.length && !fresh.length && !/<code>/.test(stepsSrc) && !helpStale.length && html.includes('id="propClose"') && html.includes('id="setProfileOpenBtn"') && /#renderPlannerBtn \{ display: none; \}/.test(fs.readFileSync(path.join(app, 'style.css'), 'utf8')))
+        console.log('ok        1.6.3 (the release click test, finding 43) the tour names the controls as they stand: the Properties panel by its own close and Map properties (no arrow on its edge since 1.6.2), a planner by Edit, Read and Side by side (Render is put away), Sheet look as a part of the Layout tab\'s list (in Help too), the profile by the picture in the top row, and no step shows a formula as code');
+    else { bad++; console.log('FAIL      the tour\'s words: ' + J({ stale, fresh, helpStale })); }
 }
 if (ver !== pkg) console.log('note      tutorial version ' + ver + ' vs app ' + pkg + ' — bump TUTORIAL_VERSION if the tour or demo changed this release');
 if (bad) { console.log('\n' + bad + ' tutorial target(s) missing.'); process.exit(1); }

@@ -2640,12 +2640,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
 
         // a page of plain objects: elements with a parent chain, ids and tags for closest(), and one document whose listeners run in order
         const mkEl = (tag, o) => Object.assign({ nodeType: 1, tagName: tag, type: '', id: '', parent: null, isContentEditable: false,
-            closest(sel) { const alts = sel.split(',').map(x => x.trim()); for (let n = this; n; n = n.parent) if (alts.some(a => a[0] === '#' ? n.id === a.slice(1) : n.tagName === a.toUpperCase())) return n; return null; },
+            closest(sel) { const alts = sel.split(',').map(x => x.trim()); for (let n = this; n; n = n.parent) if (alts.some(a => a === '[id$="Modal"]' ? /Modal$/.test(n.id) : a[0] === '#' ? n.id === a.slice(1) : n.tagName === a.toUpperCase())) return n; return null; },
             contains(x) { for (let n = x; n; n = n.parent) if (n === this) return true; return false; },
             listeners: [] }, o || {});
         const body = mkEl('BODY'); body.classList = { on: false, contains: c => c === 'lay-edit' && body.classList.on };
         const sidebar = mkEl('DIV', { id: 'sidebar', parent: body }), sheet = mkEl('DIV', { id: 'sheetPanel', parent: body }), wrap = mkEl('DIV', { id: 'whiteboardWrap', parent: body });
-        const planner = mkEl('DIV', { id: 'plannerBlocks', parent: body }), piece = mkEl('DIV', { parent: wrap });
+        const planner = mkEl('DIV', { id: 'plannerBlocks', parent: body }), piece = mkEl('DIV', { parent: wrap }), setWin = mkEl('DIV', { id: 'settingsModal', parent: body });
         sheet.listeners.push(e => e.stopPropagation());   // the sheet stops every key at itself (sheets.js)
         const doc = { cap: {}, bub: {}, body, activeElement: body, addEventListener(type, fn, capture) { ((capture ? this.cap : this.bub)[type] = (capture ? this.cap : this.bub)[type] || []).push(fn); } };
         const fire = (type, target, o) => {
@@ -2685,6 +2685,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             fire('input', name, { inputType: 'insertText' });
             fire('pointerdown', piece); R.afterMapPress = chord(name, 'z');   // a press on the map: the user is back on the map
             fire('input', name, { inputType: 'insertText' }); focus(box); focus(name); R.refocused = chord(name, 'z');
+            // the window comes back from another program: the focus comes back to the same box, whose typing the browser can still take back
+            fire('input', name, { inputType: 'insertText' }); focus(name); steps.length = 0; let e0 = fire('keydown', name, { key: 'z', ctrlKey: true }); api.answered(); flush(); R.windowBack = steps.join(',') + (e0.prevented ? '!' : '');
+            // a field of a window over the map keeps the chord as it always did: nothing of the map is taken back out of sight behind it
+            const wBox = mkEl('INPUT', { type: 'checkbox', parent: setWin }), wSel = mkEl('SELECT', { parent: setWin });
+            focus(wBox); R.windowBox = chord(wBox, 'z'); focus(wSel); R.windowSelect = chord(wSel, 'y');
             fire('input', name, { inputType: 'insertText' }); fire('pointerdown', name); R.pressInBox = name._wpTypedHere === true ? 'kept' : 'lost'; api.answered();
             focus(sBtn); R.sheetButton = chord(sBtn, 'z');
             focus(sNum); R.sheetNumber = chord(sNum, 'y');
@@ -2698,7 +2703,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             persist = false; R.cannotWrite = chord(box, 'z') + chord(sBtn, 'z') + chord(body, 'z'); persist = true;
         }
         const want = { checkbox: 'undo!', checkboxRedo: 'redo!', checkboxShiftZ: 'redo!', select: 'undo!', range: 'undo!', untyped: 'undo!', typedBrowser: '', typedDry: 'undo', typedAfterDry: 'undo!',
-            afterMapPress: 'undo!', refocused: 'undo!', pressInBox: 'kept', sheetButton: 'undo!', sheetNumber: 'redo!', sheetTyped: '|stopped', styledBox: '', plannerField: 'undo!', page: 'undo!', pageRedo: 'redo!',
+            afterMapPress: 'undo!', refocused: 'undo!', windowBack: '', windowBox: '', windowSelect: '', pressInBox: 'kept', sheetButton: 'undo!', sheetNumber: 'redo!', sheetTyped: '|stopped', styledBox: '', plannerField: 'undo!', page: 'undo!', pageRedo: 'redo!',
             plainZ: '', layEdit: '', asking: '', cannotWrite: '' };
         check('1.6.3 Ctrl+Z and Ctrl+Y undo and redo the map wherever the user is, unless a field holds typing of its own (io.js mapchord and mapkeys, run for real): a checkbox, a select, a range and a box nobody typed in hand the chord to the map; a typed box lets the browser try first and the map takes the press once it has nothing left; a press on the map or a new focus ends the typing; a sheet\'s button and number box reach the map through its shield, its typed box keeps the chord; a styled box keeps its own, a planner field goes to the planner; never while the layout is edited, a question is up or the window may not write',
             !!api && srcK.includes('document.addEventListener(\'keydown\'') && JSON.stringify(R) === JSON.stringify(want), JSON.stringify(R));

@@ -1827,6 +1827,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var dir = chordDirOf(e);
       if (!dir || !t || t.nodeType !== 1) return false;
       if (typeof t.closest === 'function' && t.closest('#plannerBlocks')) return false;
+      // a field of a window that covers the map (Settings, the Library, the Calendar, a generator's dialog: every such window's id ends in
+      // Modal) keeps the chord as before, so a Ctrl+Z there never takes back a step of the map out of sight behind it (the review of 2026-11-22)
+      if (typeof t.closest === 'function' && t.closest('[id$="Modal"]')) return false;
       if (t.isContentEditable) return false;
       if (fieldHolds(t)) {
           nativeProbe = t;
@@ -1845,8 +1848,10 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
   // Typing marks a text field, by an input that puts text in or takes it out (never a change a script makes, which names no inputType)
   document.addEventListener('input', function(e) { var t = e.target; if (t && t.nodeType === 1 && /^(insert|delete)/.test(String(e.inputType || ''))) t._wpTypedHere = true; }, true);
-  // a field that gets the focus has typed nothing yet
-  document.addEventListener('focusin', function(e) { var t = e.target; if (t && t.nodeType === 1) t._wpTypedHere = false; }, true);
+  // a field that gets the focus has typed nothing yet, but for the very field that had it last: the focus coming back to it as the window
+  // comes back from another program (the review of 2026-11-22) keeps its typing, which the browser can still take back
+  var chordLastFocus = null;
+  document.addEventListener('focusin', function(e) { var t = e.target; if (t && t.nodeType === 1) { if (t !== chordLastFocus) t._wpTypedHere = false; chordLastFocus = t; } }, true);
   // a press on the play map or the Data Map means the user is back on the map, so the field that still holds the focus is no longer typed in
   document.addEventListener('pointerdown', function(e) {
       var t = e.target, ae = document.activeElement;

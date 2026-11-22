@@ -5655,7 +5655,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div class="lib-fbtns"><button class="tool lib-save" id="uploadApply" type="button">Apply</button><button class="tool ghost" id="uploadReject" type="button" title="Take none of it">Keep as it is</button></div>
     </div>
 </div>
-<div id="libraryModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100004; align-items:center; justify-content:center;">
+<div id="libraryModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100004; align-items:center; justify-content:center;" tabindex="-1">
     <div class="lib-box" role="dialog" aria-label="Library">
         <div class="lib-head"><h3><i class="wib wi-lib"></i> Library of <span id="libCampName" style="color:var(--ink); font-weight:500;"></span></h3><span id="libState" class="sys-note"></span><span style="flex:1;"></span><label class="lib-short" title="Shows each entry&rsquo;s key, the short name a formula reads it by. The same switch as the System editor&rsquo;s."><input type="checkbox" id="libShowKeys"> Short names</label><button class="tool ghost" id="libClose" title="Close (a change still pending is written first)">&times;</button></div>
         <div id="libGuide" class="lib-guide" hidden></div>
@@ -5676,7 +5676,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         </div>
     </div>
 </div>
-<div id="systemModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;">
+<div id="systemModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:var(--overlay); z-index:100000; align-items:center; justify-content:center;" tabindex="-1">
     <div class="sys-box" style="background:var(--panel2); border:1px solid var(--gold); border-radius:8px;">
         <div class="sys-head"><h3 style="margin:0; color:var(--gold); white-space:nowrap;"><i class="wib wi-cog"></i> System of <span id="sysCampName" style="color:var(--ink); font-weight:500;"></span></h3><input type="text" id="sysName" class="field sys-name" placeholder="The system&rsquo;s name" maxlength="60" title="A name for this system"><span style="flex:1;"></span><select id="sysStartSel" class="tool" title="Replace the fields, rolls and layout with a preset or a blank system"><option value="">Start from&hellip;</option><option value="blank">Blank</option><option value="d20">Basic d20</option></select><button class="tool ghost" id="sysExportBtn" title="Save this system as a .wpsystem.json file">Export</button><button class="tool ghost" id="sysPreviewBtn" aria-pressed="false" title="Show the sheet beside any tab, as it will look, following your edits">Preview</button><button class="tool ghost" id="sysImportBtn" title="Load a .wpsystem.json file into the editor (Save keeps it)">Import</button><button class="tool ghost" id="sysClose" title="Close (unsaved changes are dropped after a confirm)">&times;</button></div>
         <div id="sysCapNote" class="sys-note" style="display:none;" role="status"></div>

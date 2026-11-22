@@ -2629,6 +2629,85 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     }
 
 
+    {   // 1.6.3 (Fulllion: "ctrl z should undo, ctrl y should redo"): the map's undo chord, the key handler and its helpers run for real on a page
+        // of plain objects (io.js, the [cleanupcheck:mapchord] and [cleanupcheck:mapkeys] slices, with the planner's fieldUndoChord from its
+        // [textcheck:undochord] slice). Before it, a Properties checkbox, a select or a box nobody typed in kept the chord for itself, and the
+        // floating boxes (the sheet, a HUD, Table Chat) stopped it at themselves, so Ctrl+Z on the map did nothing while the Undo button worked
+
+        const ioK = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'io.js'), 'utf8').split('\r\n').join('\n');
+        const cutK = (a, z) => { const i = ioK.indexOf('  // [' + a + '-start]'), j = ioK.indexOf('  // [' + z + '-end]'); return i >= 0 && j > i ? ioK.slice(i, j) : ''; };
+        const srcK = cutK('cleanupcheck:mapchord', 'cleanupcheck:mapkeys'), undoK = cutK('textcheck:undochord', 'textcheck:undochord');
+
+        // a page of plain objects: elements with a parent chain, ids and tags for closest(), and one document whose listeners run in order
+        const mkEl = (tag, o) => Object.assign({ nodeType: 1, tagName: tag, type: '', id: '', parent: null, isContentEditable: false,
+            closest(sel) { const alts = sel.split(',').map(x => x.trim()); for (let n = this; n; n = n.parent) if (alts.some(a => a[0] === '#' ? n.id === a.slice(1) : n.tagName === a.toUpperCase())) return n; return null; },
+            contains(x) { for (let n = x; n; n = n.parent) if (n === this) return true; return false; },
+            listeners: [] }, o || {});
+        const body = mkEl('BODY'); body.classList = { on: false, contains: c => c === 'lay-edit' && body.classList.on };
+        const sidebar = mkEl('DIV', { id: 'sidebar', parent: body }), sheet = mkEl('DIV', { id: 'sheetPanel', parent: body }), wrap = mkEl('DIV', { id: 'whiteboardWrap', parent: body });
+        const planner = mkEl('DIV', { id: 'plannerBlocks', parent: body }), piece = mkEl('DIV', { parent: wrap });
+        sheet.listeners.push(e => e.stopPropagation());   // the sheet stops every key at itself (sheets.js)
+        const doc = { cap: {}, bub: {}, body, activeElement: body, addEventListener(type, fn, capture) { ((capture ? this.cap : this.bub)[type] = (capture ? this.cap : this.bub)[type] || []).push(fn); } };
+        const fire = (type, target, o) => {
+            const e = Object.assign({ type, target, key: '', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, stopped: false, prevented: false,
+                stopPropagation() { this.stopped = true; }, preventDefault() { this.prevented = true; } }, o || {});
+            (doc.cap[type] || []).forEach(fn => { if (!e.stopped) fn(e); });
+            for (let n = target; n && !e.stopped; n = n.parent) if (type === 'keydown') n.listeners.forEach(fn => { if (!e.stopped) fn(e); });
+            if (!e.stopped) (doc.bub[type] || []).forEach(fn => { if (!e.stopped) fn(e); });
+            return e;
+        };
+        const timers = [], steps = [], toasts = [];
+        let persist = true, asking = false;
+        const win = { wpFloats: { boxes: () => [sheet] } };
+        let api = null;
+        try {
+            api = new Function('document', 'window', 'setTimeout', 'stepHistory', 'canPersistLocal', 'askHeld', 'toast', 'undo', 'redo', 'menuHeld',
+                'var nativeProbe = null;\n' + undoK + '\n' + srcK + '\nreturn { answered: function() { nativeProbe = null; } };')(
+                doc, win, fn => timers.push(fn), d => steps.push(d), () => persist, () => asking, m => toasts.push(m), () => steps.push('undo'), () => steps.push('redo'), () => false);
+        } catch (err) { api = null; }
+        const flush = () => { while (timers.length) timers.shift()(); };
+        const focus = el => { doc.activeElement = el; fire('focusin', el); };
+        const chord = (el, key, shift) => { steps.length = 0; const e = fire('keydown', el, { key, ctrlKey: true, shiftKey: !!shift }); flush(); return steps.join(',') + (e.prevented ? '!' : ''); };
+        const R = {};
+        if (api) {
+            const box = mkEl('INPUT', { type: 'checkbox', parent: sidebar }), sel = mkEl('SELECT', { parent: sidebar }), name = mkEl('INPUT', { type: 'text', parent: sidebar });
+            const rng = mkEl('INPUT', { type: 'range', parent: sidebar }), sBtn = mkEl('BUTTON', { parent: sheet }), sNum = mkEl('INPUT', { type: 'number', parent: sheet });
+            const ce = mkEl('DIV', { isContentEditable: true, parent: sheet }), pf = mkEl('INPUT', { type: 'text', parent: planner });
+            focus(box); R.checkbox = chord(box, 'z'); R.checkboxRedo = chord(box, 'y'); R.checkboxShiftZ = chord(box, 'Z', true);
+            focus(sel); R.select = chord(sel, 'z');
+            focus(rng); fire('input', rng, {}); R.range = chord(rng, 'z');
+            focus(name); R.untyped = chord(name, 'z');
+            // typed in: the browser takes back its own typing first (an 'input' answers it), and the map's history only once it has nothing left
+            fire('input', name, { inputType: 'insertText' });
+            steps.length = 0; let e1 = fire('keydown', name, { key: 'z', ctrlKey: true }); api.answered(); flush(); R.typedBrowser = steps.join(',') + (e1.prevented ? '!' : '');
+            R.typedDry = chord(name, 'z');   // the browser's undo has nothing left there: the map's history takes the press
+            R.typedAfterDry = chord(name, 'z');   // and the field is spent
+            fire('input', name, { inputType: 'insertText' });
+            fire('pointerdown', piece); R.afterMapPress = chord(name, 'z');   // a press on the map: the user is back on the map
+            fire('input', name, { inputType: 'insertText' }); focus(box); focus(name); R.refocused = chord(name, 'z');
+            fire('input', name, { inputType: 'insertText' }); fire('pointerdown', name); R.pressInBox = name._wpTypedHere === true ? 'kept' : 'lost'; api.answered();
+            focus(sBtn); R.sheetButton = chord(sBtn, 'z');
+            focus(sNum); R.sheetNumber = chord(sNum, 'y');
+            fire('input', sNum, { inputType: 'insertText' }); steps.length = 0; let e2 = fire('keydown', sNum, { key: 'z', ctrlKey: true }); R.sheetTyped = steps.join(',') + (e2.prevented ? '!' : '') + '|' + (e2.stopped ? 'stopped' : 'open'); api.answered(); flush();
+            focus(ce); R.styledBox = chord(ce, 'z');
+            focus(pf); R.plannerField = chord(pf, 'z');
+            focus(body); R.page = chord(body, 'z'); R.pageRedo = chord(body, 'y');
+            R.plainZ = (() => { steps.length = 0; fire('keydown', body, { key: 'z' }); return steps.join(','); })();
+            focus(box); body.classList.on = true; R.layEdit = chord(box, 'z') + chord(sBtn, 'z'); body.classList.on = false;
+            asking = true; R.asking = chord(box, 'z') + chord(sBtn, 'z'); asking = false;
+            persist = false; R.cannotWrite = chord(box, 'z') + chord(sBtn, 'z') + chord(body, 'z'); persist = true;
+        }
+        const want = { checkbox: 'undo!', checkboxRedo: 'redo!', checkboxShiftZ: 'redo!', select: 'undo!', range: 'undo!', untyped: 'undo!', typedBrowser: '', typedDry: 'undo', typedAfterDry: 'undo!',
+            afterMapPress: 'undo!', refocused: 'undo!', pressInBox: 'kept', sheetButton: 'undo!', sheetNumber: 'redo!', sheetTyped: '|stopped', styledBox: '', plannerField: 'undo!', page: 'undo!', pageRedo: 'redo!',
+            plainZ: '', layEdit: '', asking: '', cannotWrite: '' };
+        check('1.6.3 Ctrl+Z and Ctrl+Y undo and redo the map wherever the user is, unless a field holds typing of its own (io.js mapchord and mapkeys, run for real): a checkbox, a select, a range and a box nobody typed in hand the chord to the map; a typed box lets the browser try first and the map takes the press once it has nothing left; a press on the map or a new focus ends the typing; a sheet\'s button and number box reach the map through its shield, its typed box keeps the chord; a styled box keeps its own, a planner field goes to the planner; never while the layout is edited, a question is up or the window may not write',
+            !!api && srcK.includes('document.addEventListener(\'keydown\'') && JSON.stringify(R) === JSON.stringify(want), JSON.stringify(R));
+        steps.length = 0; toasts.length = 0;
+        check('1.6.3 an empty undo or redo history says so in a notice, and a flushed edit still only saves (io.js stepHistory)',
+            ioK.includes("if (!from || !from.length) { if (flushed) save(true); else toast(dir === 'undo' ? 'Nothing to undo.' : 'Nothing to redo.'); return; }"));
+    }
+
+
     {   // 1.6.0: a running fight is the host's own
         const icF = { fights: { on: 'f_aaaaaaa1', list: { f_aaaaaaa1: { mapId: 'm1' } } }, items: {} }; cleanImportItems(icF, {});
         check('1.6.0 a campaign file brings no running fight with it: Replace and Merge both clean a file through the item cleaners, which drop it', !('fights' in icF));

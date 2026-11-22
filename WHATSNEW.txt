@@ -852,6 +852,10 @@ Smaller things
   not the Handbook alone.
 - Starting a campaign from the welcome screen no longer leaves an empty
   Default Campaign behind.
+- Ctrl+Z and Ctrl+Y undo and redo the map even while a box in Properties,
+  a tool's options or a sheet still has the focus. A box you just typed in
+  takes back its own typing first, and with nothing left to undo Waypoint
+  says so.
 
 WAYPOINT 1.6.2 — What's New
 ============================

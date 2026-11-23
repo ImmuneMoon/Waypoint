@@ -195,11 +195,16 @@ document.querySelectorAll('.set-unit-btn').forEach(function(b) {
 
 /* Stream window: a second window showing only the play map, as players see it, for screen-sharing */
 var _streamBtn = ui('setStreamBtn');
+// [videocheck:streamopen-start]
+// 1.6.4 (the beta's last look): on a website plan that does not host, ?stream=1 is no stream window (stream.js streamWebJoin) and would
+// open a second full copy of the app, so the press says why and opens nothing. The Multiplayer window's button presses this one
 if (_streamBtn) _streamBtn.addEventListener('click', function() {
+    if (typeof window.wpStreamRefused === 'function' && window.wpStreamRefused()) { toast('Your plan does not include hosting, so there is no stream window.'); return; }
     var w = window.open(location.origin + '/?stream=1', 'waypointStream', 'width=1280,height=720');
     if (!w) { toast('Could not open the window. Allow pop-ups for Waypoint.'); return; }
     toast('Stream window opened. Share that window in Discord/OBS; use its map picker to focus a map.');
 });
+// [videocheck:streamopen-end]
 var _netStreamBtn = ui('netStreamBtn');   // the viewing of 2026-11-09 (the owner: "it can be in the multiplayer menu too"): the Multiplayer window's button presses the one above
 if (_netStreamBtn) _netStreamBtn.addEventListener('click', function() { if (_streamBtn) _streamBtn.click(); });
 // [videocheck:streamholdset-start]

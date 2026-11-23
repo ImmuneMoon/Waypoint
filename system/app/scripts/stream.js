@@ -17,6 +17,9 @@ import { esc } from './safecore.js';
 // for nothing once it has
 function streamWebJoin() { var W = typeof window !== 'undefined' ? window.wpWebMode : null; return !!(W && typeof W.joinOnly === 'function' && (W.joinOnly() === true || (typeof W.has === 'function' && W.web() === true && W.has('host') === false))); }   // 1.6.2: nor a GM's page whose plan does not host
 // [netcheck:streamweb-end]
+// 1.6.4 (the beta's last look): the one judge of whether this page may have a stream window, published for the main window's
+// Open stream window (settings.js), so a plan that does not host never opens a second copy of the app
+window.wpStreamRefused = streamWebJoin;
 // [videocheck:streamidle-start]
 // 1.6.2 (the owner, 2026-11-10: "the stream map could have a feature where if the gm isnt interacting with it, it could pick a PC at random after a
 // idle timeframe and follow them", "with a setting to turn that on an off", "and have it deliberately pick someone the GM chooses ahead of time
@@ -97,7 +100,7 @@ if (on) {
         if (charSel.dataset.sig === sig) return;
         charSel.dataset.sig = sig;
         var html = '<option value="">No one</option>';
-        list.forEach(function(c) { html += '<option value="' + esc(c.key) + '"' + (c.key === charFocus ? ' selected' : '') + '>' + (c.name + ', on ' + c.map).replace(/[<>&]/g, '') + '</option>'; });
+        list.forEach(function(c) { html += '<option value="' + esc(c.key) + '"' + (c.key === charFocus ? ' selected' : '') + '>' + esc(c.name + ', on ' + c.map) + '</option>'; });
         charSel.innerHTML = html;
         if (sel) { sel.disabled = !!charFocus; sel.title = charFocus ? 'The map follows the focused character; clear "Focus on" to pick a map' : 'Follow the GM\'s current map, or focus one map until you change it'; }
     }
@@ -152,6 +155,9 @@ if (on) {
     window.wpStreamHeld = function() { return held === 'freeze'; };
     // [videocheck:streamhold-end]
 
+    // [videocheck:streammaps-start]
+    // The Showing list: every map of the campaign by its title. 1.6.4 (the beta's last look): a title is escaped as text, never stripped, so
+    // a map named Rats & Ruins reads so, as the Focus on list's names do
     function refreshSelect(camp) {
         if (!sel) return;
         var maps = Object.values(camp.items).filter(function(i) { return i.type === 'map'; });
@@ -160,9 +166,10 @@ if (on) {
         sel.dataset.sig = sig;
         var html = '<option value="">The map the GM is on</option>';
         maps.sort(function(a, b) { return String(a.meta && a.meta.title || '').localeCompare(String(b.meta && b.meta.title || '')); });
-        maps.forEach(function(m) { html += '<option value="' + esc(m.id) + '"' + (m.id === focus ? ' selected' : '') + '>' + String(m.meta && m.meta.title || m.id).replace(/[<>&]/g, '') + '</option>'; });
+        maps.forEach(function(m) { html += '<option value="' + esc(m.id) + '"' + (m.id === focus ? ' selected' : '') + '>' + esc(String(m.meta && m.meta.title || m.id)) + '</option>'; });
         sel.innerHTML = html;
     }
+    // [videocheck:streammaps-end]
     if (sel) sel.addEventListener('change', function() { focus = sel.value; charFocus = ''; lastCam = ''; try { localStorage.setItem('wp_streamFocus', focus); localStorage.setItem('wp_streamChar', ''); } catch (e) {} tick(); });
     // 1.6.2 (the owner, 2026-11-10: "it should have a dedicated button you press to expand it like the others do in the playmap", then "the button can be
     // an arrow next to the showing indicator"): the arrow beside the live dot folds the bar to the dot and the arrow, and the same arrow opens it

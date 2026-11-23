@@ -22,7 +22,7 @@ function netOf() { return window.wpNet || null; }
 function hosting() { var n = netOf(); return !!(n && n.active && n.role === 'host'); }
 
 var panelOpen = false, showing = null, uploading = null, lastSig = '';
-var live = null;                      // V2: the showing to the table — { id, cap: the captured stream }
+var live = null;                      // V2: the showing to the table — { id, cap: the captured stream, pids: who it was shown to, null for everyone }
 var aud = { all: true, pids: {} };    // who the next showing goes to: everyone, or the ticked profiles (keys '$' + profile id)
 var loop = false;                     // the stage's Loop tick
 var tableSig = '';
@@ -208,7 +208,8 @@ function startShowing() {
     if (!cap || !cap.getVideoTracks().length) { stopTracks(cap); toast('This video cannot be shown from here yet. Press play once, then Show to players.'); return; }
     var who = n.videoShow(cap, v.name, pids, el.videoWidth, el.videoHeight);
     if (!who) { stopTracks(cap); toast('It could not be shown: is the table still up?'); return; }
-    live = { id: v.id, cap: cap };
+    // 1.6.4 (the beta's last look): keep who it was shown to, so the stream window plays only a showing to everyone (streamPost)
+    live = { id: v.id, cap: cap, pids: pids };
     renderTable(true);
     streamPost(); streamTicking(true);
     toast('Showing "' + v.name + '" to ' + (pids ? (who.names.concat(who.waiting).join(', ') || 'the players you ticked') : 'everyone') + ': what plays here plays for them.');
@@ -235,7 +236,9 @@ function stageMsg(v, el, isLive) {
 function streamPost() {
     if (!streamChan || window.wpStream || !canWrite()) return;
     var el = ui('videoEl'), v = showing ? lib().find(function(x) { return x.id === showing; }) : null;
-    try { streamChan.postMessage(stageMsg(v, el, !!live)); } catch (e) {}
+    // 1.6.4 (the beta's last look): a showing to chosen players is no showing to the stream window, which the GM screen-shares to
+    // everyone. It posts none, as scene.js sceneStage refuses a scene shown to some players alone
+    try { streamChan.postMessage(stageMsg(v, el, !!live && !live.pids)); } catch (e) {}
 }
 var _streamTick = null;
 function streamTicking(on) { if (on && !_streamTick) _streamTick = setInterval(streamPost, 1000); else if (!on && _streamTick) { clearInterval(_streamTick); _streamTick = null; } }

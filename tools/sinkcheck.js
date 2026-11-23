@@ -2007,6 +2007,32 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && FCs.isPortal({ nodeId: 'r1' }, null) === false && FCs.isPortal({ nodeId: 'r1' }, {}) === false && FCs.isPortal({ nodeId: 'r1' }, { rooms: 'x' }) === false && FCs.isPortal({ targetMapId: 'm2' }, null) === true);
         // the board
         const wbPl = read('whiteboard.js'), escPl = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        // 1.6.4 doors that lead somewhere: Properties' Leads to and When shut (inspector.js, the doorleads slice, run for real). The list names the
+        // doors and rooms of the map the door leads to from the campaign, so every name goes through esc and nothing of a hostile name reaches the
+        // markup; a door picked pairs both ways and lets go of the pairs either had; Automatic and a room let go of the pair, the far door's
+        // pairing back with it; When shut keeps only true on a door that leads somewhere; on a player's app or the stream window nothing is set
+        {
+            const mkDl = (camp, gm) => { const calls = { saves: 0, toasts: [], barriers: [], sent: [] }; const api = new Function('env', "'use strict';\nvar window = env.window, save = env.save, render = env.render, renderInspector = env.renderInspector, toast = env.toast, getActiveCampaign = env.camp, findLandingRoom = env.flr, esc = env.esc, portalLockGm = env.gm;\n" + slice('inspector.js', 'doorleads') + '\nreturn { html: doorLeadsHtml, set: setDoorLeads, stopHtml: doorStopFieldHtml, stop: setDoorStop, unpair: doorUnpair };')(
+                { window: { wpFogCore: FCs, wpHistBarrier: ids => calls.barriers.push(ids), wpNet: { active: true, role: 'host', sendItem: (c, i) => calls.sent.push(i) } }, save: () => { calls.saves++; }, render: () => {}, renderInspector: () => {}, toast: t => calls.toasts.push(t), camp: () => camp, flr: () => null, esc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'), gm: () => gm !== false }); api.calls = calls; return api; };
+            const HN = '<img src=x onerror=alert(1)>"q&', HNe = '&lt;img src=x onerror=alert(1)&gt;&quot;q&amp;';
+            const door = (id, more) => Object.assign({ id, type: 'rect', x: 0, y: 0, w: 50, h: 50, blocksSight: true, sightType: 'door' }, more || {});
+            const dlCamp = () => ({ id: 'c', items: {
+                m1: { id: 'm1', type: 'map', meta: { title: 'Here' }, rooms: [], whiteboard: [door('a', { targetMapId: 'm2', name: 'Front' }), door('c', { targetMapId: 'm2', targetDoorId: 'b2' })] },
+                m2: { id: 'm2', type: 'map', meta: { title: 'There' }, rooms: [{ id: 'r1', name: HN }], whiteboard: [door('b', { name: HN }), door('b2', { targetMapId: 'm1', targetDoorId: 'c' }), { id: 'w', type: 'rect', blocksSight: true, sightType: 'wall' }] } } });
+            const C1 = dlCamp(), A1 = mkDl(C1), h1 = A1.html(C1.items.m1.whiteboard[0]);
+            const C2 = dlCamp(), A2 = mkDl(C2), a2 = C2.items.m1.whiteboard[0], b2 = C2.items.m2.whiteboard[0];
+            b2.targetMapId = 'm1'; b2.targetDoorId = 'c'; C2.items.m1.whiteboard[1].targetDoorId = 'b';   // b paired with c before
+            A2.set(a2, 'd:b', C2.items.m1);
+            const paired = [a2.targetDoorId, b2.targetMapId, b2.targetDoorId, 'targetDoorId' in C2.items.m1.whiteboard[1]];
+            A2.set(a2, 'r:r1', C2.items.m1); const toRoom = [a2.targetRoomId, 'targetDoorId' in a2, 'targetDoorId' in b2, b2.targetMapId];
+            const C3 = dlCamp(), A3 = mkDl(C3, false), a3 = C3.items.m1.whiteboard[0]; A3.set(a3, 'd:b', C3.items.m1); A3.stop(a3, true, C3.items.m1);
+            const C4 = dlCamp(), A4 = mkDl(C4), a4 = C4.items.m1.whiteboard[0], m14 = C4.items.m1; A4.stop(a4, true, m14); const st1 = a4.doorStop; A4.stop(a4, 'yes', m14); const st2 = 'doorStop' in a4; const w4 = { id: 'q', type: 'rect', targetMapId: 'm2' }; A4.stop(w4, true, m14);
+            check('1.6.4 doors that lead somewhere (Properties, run for real): Leads to lists the doors and rooms of the map a door leads to, every name escaped and none of a hostile name\'s markup in it, the wall and the door itself not listed; a door picked pairs the two both ways and the far door lets go of the door it was paired with; a room picked lets go of the pair both ways and the far door keeps its map; nothing is set on a player\'s app; When shut keeps only true, and only on a door that leads somewhere',
+                h1.includes('<option value="d:b">' + HNe + '</option>') && h1.includes('>' + HNe + '</option></optgroup>') && !/<img/.test(h1) && h1.includes('value="d:b2"') && !h1.includes('value="d:a"') && !h1.includes('value="d:w"') && h1.includes('value="r:r1"') && h1.includes('id="wbDoorLeads"')
+                && j(paired) === j(['b', 'm1', 'a', false]) && A2.calls.barriers.length === 2 && j(toRoom) === j(['r1', false, false, 'm1'])
+                && !('targetDoorId' in a3) && !('doorStop' in a3) && A3.calls.saves === 0 && st1 === true && st2 === false && !('doorStop' in w4) && A4.stopHtml(a4, m14).includes('id="wbDoorStop"') && A4.stopHtml(w4, m14) === '',
+                j({ paired, toRoom, bar: A2.calls.barriers, st1, st2, a3: [a3.targetDoorId, a3.doorStop, A3.calls.saves], h1: h1.slice(380, 900) }));
+        }
         const mkWp = win => { const escd = [], api = new Function('window', 'esc', "'use strict';\n" + slice('whiteboard.js', 'portallock') + '\nreturn { on: portalLockOn, tip: portalLockTip, row: portalLockRow, set: portalLockSet };')(Object.assign({ wpFogCore: FCs }, win || {}), s => { escd.push(s); return escPl(s); }); api.escd = escd; return api; };
         const WP = mkWp({ wpNet: { active: true, role: 'host' } }), WPoff = mkWp(), WPc = mkWp({ wpNet: { active: true, role: 'client' } }), WPs = mkWp({ wpStream: true, wpNet: { active: true, role: 'host' } });
         const pL = () => ({ id: 'a', type: 'rect', name: HOSTILE, targetMapId: 'm2', portalLock: true }), pU = () => ({ id: 'b', type: 'rect', name: HOSTILE, targetMapId: 'm2' }), pN = () => ({ id: 'c', type: 'rect', nodeId: 'r1' }), nP = () => ({ id: 'd', type: 'rect', portalLock: true });

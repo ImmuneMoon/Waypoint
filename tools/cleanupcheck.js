@@ -1212,6 +1212,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     !!outPa && jl(paOf(outPa.campaigns.cPa.items.mPa)) === jl(paWant) && jl(paOf(icPa.items.mPa)) === jl(paWant) && jl(paOf(icPaN.items.mPa)) === jl(paWant) && icPa.items.mPa.whiteboard.length === 17,
                     jl([outPa && paOf(outPa.campaigns.cPa.items.mPa), paOf(icPa.items.mPa), paOf(icPaN.items.mPa)]));
             }
+            // 1.6.4 doors that lead somewhere: a door's When shut option (doorStop) and the door it is paired with (targetDoorId) from a file
+            {
+                const dd = (id, more) => Object.assign({ id, type: 'rect', x: 0, y: 0, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mDo2' }, more);
+                const doMap = () => ({ id: 'mDo', type: 'map', meta: { title: 'D' }, rooms: [], links: [], whiteboard: [dd('d1', { doorStop: true, targetDoorId: 'dFar_1' }), dd('d2', { doorStop: 'yes', targetDoorId: '__proto__' }), dd('d3', { doorStop: 1, targetDoorId: 'a b' }), dd('d4', { targetDoorId: { id: 'x' } }),
+                    dd('d5', { doorStop: true, targetDoorId: 'x'.repeat(161) }), { id: 'w6', type: 'rect', x: 0, y: 0, w: 50, h: 50, blocksSight: true, sightType: 'wall', doorStop: true, targetDoorId: 'dFar_1' }, { id: 'p7', type: 'rect', x: 0, y: 0, w: 50, h: 50, targetMapId: 'mDo2', doorStop: true, targetDoorId: 'dFar_1' }, dd('d8', { barrier: true, blocksSight: undefined, doorStop: true, targetDoorId: 'x.y:z-1' })] });
+                const doFile = () => ({ campaigns: { cDo: { id: 'cDo', name: 'D', items: { mDo: doMap(), mDo2: { id: 'mDo2', type: 'map', meta: { title: 'E' }, rooms: [], links: [], whiteboard: [] } } } } });
+                const outDo = cleanImport(JSON.parse(jl(doFile())), depsL), icDo = { items: { mDo: doMap() } }; cleanImportItems(icDo, depsL); const icDoN = { items: { mDo: doMap() } }; cleanImportItems(icDoN, { DR: DOC, sanitize });
+                const doOf = m => m.whiteboard.map(w => ('doorStop' in w ? w.doorStop : '-') + '|' + ('targetDoorId' in w ? w.targetDoorId : '-'));
+                const doWant = ['true|dFar_1', '-|-', '-|-', '-|-', 'true|-', '-|-', '-|-', 'true|x.y:z-1'];
+                check('import (1.6.4, doors that lead somewhere): a door\'s When shut option comes in only as true and the door it is paired with only as an id a piece may have, each only on a door (a wall\'s or a see-through barrier\'s), on Replace and on Merge: a word, a number, an object, a prototype\'s name, an id with a space or past 160 characters none, nor either on a plain wall or a portal that is no door; with no cleaner on hand neither comes in; the doors themselves stay',
+                    !!outDo && jl(doOf(outDo.campaigns.cDo.items.mDo)) === jl(doWant) && jl(doOf(icDo.items.mDo)) === jl(doWant) && jl(doOf(icDoN.items.mDo)) === jl(Array(8).fill('-|-')) && icDoN.items.mDo.whiteboard.length === 8 && icDo.items.mDo.whiteboard[0].targetMapId === 'mDo2',
+                    jl([outDo && doOf(outDo.campaigns.cDo.items.mDo), doOf(icDo.items.mDo), doOf(icDoN.items.mDo)]));
+            }
             // a portal's own lock (the owner, 2026-10-03): a portal piece's portalLock from a file
             const plMap = () => ({ id: 'mPl', type: 'map', meta: { title: 'P' }, rooms: [{ id: 'r1', name: 'Gate', targetMapId: 'mPl2' }], links: [], whiteboard: [{ id: 'p1', type: 'rect', x: 0, y: 0, w: 50, h: 50, targetMapId: 'mPl2', portalLock: true }, { id: 'p2', type: 'rect', x: 0, y: 0, w: 50, h: 50, targetMapId: 'mPl2', portalLock: 'yes' },
                 { id: 'p3', type: 'circle', x: 0, y: 0, w: 50, h: 50, targetMapId: 'mPl2', portalLock: { on: true } }, { id: 'p4', type: 'rect', x: 0, y: 0, w: 50, h: 50, targetMapId: 'mPl2', portalLock: 1 }, { id: 'p5', type: 'rect', x: 0, y: 0, w: 50, h: 50, targetMapId: 'mPl2', portalLock: false }, { id: 'p6', type: 'rect', x: 0, y: 0, w: 50, h: 50, targetMapId: 'mPl2' },

@@ -1257,6 +1257,75 @@ pendingChecks.push((async () => {
             J2({ gl, gr, sides, bl }));
     } catch (e) { check(TL, false, 'threw: ' + (e && e.stack || e)); }
 })());
+// 1.6.4: doors that lead somewhere (Fulllion, 2026-11-23, by prompt; docs/TODO_BACKLOG.md "Doors that lead somewhere"). The real
+// net.tokenDropped and the doorway slice (doorCrossFor, doorStopSpot, doorPark, doorNearTok, doorWayOf, doorSetDown, doorTravel) with the real
+// hostTravel (travelBar rides in its slice), freeSpotNear, stepOffPortal, portalUnder, ensurePlayerToken, offlinePlayerTravel and npcTravel, over
+// the real fogcore and the real fog.js judge (arrivalOk, arrivalIn, moveBlocked). Two maps on a square grid: on m1 door A in a wall row with a
+// room below it, on m2 door B in a wall row; A and B are paired. The GM's own drag is the hand here (the pos gate's cut is netdragcheck's)
+pendingChecks.push((async () => {
+    const T1 = 'doors that lead somewhere (1.6.4, run for real): a move across a shut, unlocked door that leads somewhere opens it and takes the token through: a player at the table is moved to the far map (one stage word), the token left behind stands just short of the door on the side it came from, and on the far map their token stands just outside the paired door on the far side, the side the way it was going points to, facing that way; going back out through the paired door lands it just outside the door it came in by, where it began; an NPC and a player who is away go the same way, an NPC\'s token left behind hidden';
+    const T2 = 'doors that lead somewhere (1.6.4, run for real): no crossing, no way through, and the door as it was — a token set down on the door, a turn in place on it and a move beside it go nowhere; a locked door and one set to stop tokens while shut stay shut and the GM is told why; a hidden door and a secret door lead nowhere; a crossing refused by Lock travel between maps tells its player and leaves the door shut; a door with no pair lands as a portal does, and so does one whose pair is hidden on its map; where the far side of the paired door is in a wall the token lands on the other side';
+    try {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js'));
+        const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fogV = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
+        const body = (a, b, l) => fnSrc(a, b, l) + b;
+        const code = ownKeySrc + fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand, cross) {', '\n// The portal item under a token\'s center', 'hostTravel') + '\n' + body('function freeSpotNear(', '\n}\n', 'freeSpotNear') + body('function stepOffPortal(', '\n}\n', 'stepOffPortal') + body('function portalUnder(item, map) {', '\n}\n', 'portalUnder')
+            + between('// [netcheck:doorway-start]', '// [netcheck:doorway-end]', 'doorway') + '\n'
+            + body('function tokenFromChar(ch, pid) {', '\n}\n', 'tokenFromChar') + body('function spawnSpot(', '\n}\n', 'spawnSpot') + body('function ensurePlayerToken(pid, mapId, landRoomId, opts) {', '\n}\n', 'ensurePlayerToken') + body('function offlinePlayerTravel(item, map, cross) {', '\n}\n', 'offlinePlayerTravel') + body('function npcTravel(item, map, cross) {', '\n}\n', 'npcTravel') + body('net.tokenDropped = function(item, map, gmHand, from, cross) {', '\n};\n', 'tokenDropped');
+        const cell = (id, c, r, more) => Object.assign({ id, type: 'rect', x: c * 50, y: r * 50, w: 50, h: 50, blocksSight: true, sightType: 'wall' }, more || {});
+        const world = o => {
+            o = o || {};
+            const dA = cell('dA', 2, 2, Object.assign({ sightType: 'door', name: 'Front door', targetMapId: 'm2', targetDoorId: 'dB' }, o.dA || {})), dB = cell('dB', 5, 5, Object.assign({ sightType: 'door', name: 'Back door', targetMapId: 'm1', targetDoorId: 'dA' }, o.dB || {}));
+            const tA = Object.assign({ id: 'tA', type: 'image', isChar: true, charId: 'c_p', charName: 'Ann', ownerId: o.npc ? undefined : 'u_p', x: 100, y: 150, w: 50, h: 50, rot: 0, front: 0 }, o.tA || {});
+            if (o.npc) delete tA.ownerId;
+            const m1 = { id: 'm1', type: 'map', meta: { title: 'Here', gridType: 'square', updated: 1 }, rooms: [], whiteboard: [cell('w1', 1, 2), dA, cell('w2', 3, 2), tA] };
+            const m2 = { id: 'm2', type: 'map', meta: { title: 'There', gridType: 'square', updated: 1 }, rooms: [], whiteboard: [cell('w3', 4, 5), dB, cell('w4', 6, 5)].concat(o.m2 || []) };
+            const camp = { id: 'c1', activeItemId: 'm1', chars: { c_p: { id: 'c_p', name: 'Ann', ownerId: o.npc ? '' : 'u_p', npc: !!o.npc, values: {}, made: 1 } }, players: { u_p: { name: 'P', charId: 'c_p' } }, items: { m1, m2 } };
+            const win = { wpFogCore: FCx, wpSystemCore: Sx, wpVtt: { on: () => true, campaignOn: () => true, mode: () => 'host' } };
+            win.wpFog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogV + '\nreturn { arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveBlocked: moveBlocked };')(win, { getElementById: () => null }, () => null, () => camp, { appState: { campaigns: { c1: camp } } });
+            const conn = mkConn('pA'), toasts = [], net = { active: true, role: 'host', paused: false, travelLocked: !!o.travelLocked, roster: o.away || o.npc ? {} : { pA: { id: 'u_p', name: 'P', location: 'm1', color: '#112233' } }, conns: [conn], broadcastItemFiltered() {} };
+            const api = new Function('net', 'getActiveCampaign', 'getActiveMap', '_travelDenyLast', 'sendFailed', 'findLandingRoom', 'landingPoint', 'renderRoster', 'broadcastRoster', 'save', 'toast', 'logEvent', 'window', 'pausedById', 'SC', 'healBindings', 'sheetsOnFor', 'render', 'settleWaiting', 'cleanFace',
+                code + '\nreturn { drop: function(tok, map, gm, from) { return net.tokenDropped(tok, map, gm, from); } };')(net, () => camp, () => m1, {}, e => { throw e; }, () => null, () => null, () => {}, () => {}, () => {}, t => toasts.push(t), () => {}, win, () => false, () => Sx, () => {}, () => true, () => {}, () => [], () => null);
+            const W = { camp, m1, m2, dA, dB, tA, conn, net, toasts, api };
+            W.go = (x, y, from, gm) => { const f = from === false ? null : from || { x: W.tA.x, y: W.tA.y }; W.tA.x = x; W.tA.y = y; return W.api.drop(W.tA, W.m1, gm === undefined ? true : gm, f); };
+            W.far = () => m2.whiteboard.filter(w => w.isChar && w.charId === 'c_p').map(w => [w.x, w.y, w.front || 0, !!w.hidden]);
+            W.near = () => [W.tA.x, W.tA.y, !!W.tA.hidden];
+            W.sent = t => conn.sent.filter(m => m.type === t);
+            return W;
+        };
+        const J2 = v => JSON.stringify(v);
+        // T1: through and back. Ann at (2,3) walks north across door A, shut, and is dropped past it at (2,1)
+        const P = world(), wentP = P.go(100, 50), locP = P.net.roster.pA.location;
+        const stageP = P.sent('stage'), farP = P.far();
+        const backTok = P.m2.whiteboard.find(w => w.isChar && w.charId === 'c_p'), backFrom = { x: backTok.x, y: backTok.y };
+        P.net.roster.pA.location = 'm2'; backTok.x = 250; backTok.y = 300;   // ...and walks back south across door B
+        const wentBack = P.api.drop(backTok, P.m2, true, backFrom), mineM1 = P.m1.whiteboard.filter(w => w.isChar && w.charId === 'c_p');
+        const okP = wentP === true && locP === 'm2' && P.net.roster.pA.location === 'm1' && P.dA.doorOpen === true && stageP.length === 1 && stageP[0].stage.itemId === 'm2' && J2(P.near().slice(0, 2)) === J2([100, 150])
+            && J2(farP) === J2([[250, 200, 0, false]]) && wentBack === true && P.dB.doorOpen === true && mineM1.length === 1 && J2([mineM1[0].x, mineM1[0].y, mineM1[0].front]) === J2([100, 150, 180]) && J2([backTok.x, backTok.y]) === J2([250, 200]);
+        const N = world({ npc: true }), wentN = N.go(100, 50), farN = N.far();
+        const A = world({ away: true }), wentA = A.go(100, 50), farA = A.far();
+        check(T1, okP && wentN === true && J2(farN) === J2([[250, 200, 0, false]]) && J2(N.near()) === J2([100, 150, true]) && N.dA.doorOpen === true && wentA === true && J2(farA) === J2([[250, 200, 0, false]]) && J2(A.near().slice(0, 2)) === J2([100, 150]),
+            J2({ wentP, stage: stageP.length, near: P.near(), farP, door: P.dA.doorOpen, wentBack, mineM1: mineM1.map(w => [w.x, w.y, w.front]), backTok: [backTok.x, backTok.y], wentN, farN, nearN: N.near(), wentA, farA }));
+        // T2: no crossing, and the ways a crossing goes nowhere
+        const S1 = world(), onIt = S1.go(100, 100, false), S2 = world({ tA: { x: 100, y: 100 } }), turn = S2.go(100, 100, { x: 100, y: 100 }), S3 = world(), beside = S3.go(200, 150, { x: 200, y: 200 });
+        const L = world({ dA: { doorLock: true } }), wentL = L.go(100, 50), K = world({ dA: { doorStop: true } }), wentK = K.go(100, 50), KO = world({ dA: { doorStop: true, doorOpen: true } }), wentKO = KO.go(100, 50);
+        const H = world({ dA: { hidden: true } }), wentH = H.go(100, 50), Sc = world({ dA: { secret: true } }), wentSc = Sc.go(100, 50);
+        const Lk = world({ travelLocked: true }), wentLk = Lk.go(100, 50, null, undefined);
+        const Lk2 = world({ travelLocked: true }); Lk2.tA.y = 50; const wentLk2 = Lk2.api.drop(Lk2.tA, Lk2.m1, undefined, { x: 100, y: 150 });   // a player's own crossing (no GM's word)
+        const U = world({ dA: { targetDoorId: undefined } }), wentU = U.go(100, 50), farU = U.far();
+        const HB = world({ dB: { hidden: true } }), wentHB = HB.go(100, 50), farHB = HB.far();
+        const WB = world({ m2: [cell('w5', 5, 4)] }), wentWB = WB.go(100, 50), farWB = WB.far();
+        check(T2, onIt === false && turn === false && beside === false && [S1, S2, S3].every(W => !('doorOpen' in W.dA) && W.net.roster.pA.location === 'm1')
+            && wentL === false && !('doorOpen' in L.dA) && J2(L.toasts) === J2(['That door is locked. Unlock it to go through.']) && wentK === false && !('doorOpen' in K.dA) && J2(K.toasts) === J2(['That door is shut. Open it to go through.']) && wentKO === true
+            && wentH === false && wentSc === false && !('doorOpen' in Sc.dA)
+            && wentLk === false && wentLk2 === false && !('doorOpen' in Lk2.dA) && Lk2.sent('travelDenied').length === 1 && Lk2.net.roster.pA.location === 'm1'
+            && wentU === true && farU.length === 1 && !(farU[0][0] === 250 && farU[0][1] === 200) && wentHB === true && farHB.length === 1 && !(farHB[0][0] === 250 && farHB[0][1] === 200)
+            && wentWB === true && J2(farWB) === J2([[250, 300, 180, false]]),
+            J2({ onIt, turn, beside, wentL, lt: L.toasts, wentK, kt: K.toasts, wentKO, wentH, wentSc, wentLk, wentLk2, den: Lk2.sent('travelDenied').length, wentU, farU, wentHB, farHB, wentWB, farWB }));
+    } catch (e) { check(T1, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // R2 security (cluster H, #4): a player's travel through a door — the real travel branch run with the real hostTravel, stepOffPortal, freeSpotNear,
 // portalUnder, turnCombatOf and moveMode: the token the GM locked, or one a Refuse-order fight holds off its turn, keeps its player on the map;
 // a travel by double-click moves no token that is not on the portal; a drop on the portal still steps off

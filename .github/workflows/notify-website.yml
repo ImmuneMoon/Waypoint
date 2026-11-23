@@ -3,6 +3,10 @@
 # which only the repository's owner can do, never on anything a fork can start, and its own token is given no permission. The secret
 # WEBSITE_DISPATCH_TOKEN is the owner's (a fine-grained token for the website repository alone, Contents read and write); without it
 # the step fails and nothing else happens. shelfcheck holds all of this.
+# From 1.6.4 the release tool sends this same dispatch itself (node tools/release.js --publish, with the owner's token from the
+# environment), right after it puts the release on Waypoint's download host. This workflow stays while releases still go to GitHub
+# too during the changeover (--github): a second wake for the same release is harmless, since the website reads and checks the
+# release itself and records it once. It goes when GitHub releases stop.
 name: Tell the website
 
 on:

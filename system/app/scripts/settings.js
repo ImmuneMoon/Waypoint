@@ -95,6 +95,7 @@ function syncPanel() {
     var ryState = ui('setRelayState');
     if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') !== '1' ? 'off — direct first' : (window.wpNet && window.wpNet.relayActive && window.wpNet.relayActive()) ? 'on — relay only' : 'on, but no relay set — connecting directly';   // the truth: the switch does nothing without a relay on this computer
     var ryBlock = ui('setRelayBlock'); if (ryBlock && localStorage.getItem('wp_relayOnly') === '1') ryBlock.style.display = 'block';   // and the switch is in view whenever it is on (it follows the saves folder; the relay does not)
+    siteRelaySync();   // 1.6.4: and what the plan's relay is doing
     var go = ui('setGridOpacity');
     var gpct = Math.round(gridOpacity() * 100);
     if (go) go.value = gpct;
@@ -418,11 +419,37 @@ function loadTurnFields() {
         if (p) p.value = localStorage.getItem('turn_pass') || '';
     } catch (e) {}
     var st = ui('setTurnState');
-    if (st) st.textContent = (window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()) ? 'configured' : 'none \u2014 direct connections only';
+    if (st) st.textContent = turnStateWord(window.wpNet);
     var rb = ui('setRelayBlock'), hasRelay = !!(window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()), relayFlag = false;
     try { relayFlag = localStorage.getItem('wp_relayOnly') === '1'; } catch (e) {}
     if (rb) rb.style.display = (hasRelay || relayFlag) ? 'block' : 'none';   // shown with a relay — and whenever the switch is on without one (it follows the saves folder; the relay does not), so it can be seen and switched off
+    siteRelaySync();
 }
+// [nettransportcheck:turnword-start]
+/* The word beside "Relay server": which relay carries this computer's connections now. The GM's own relay, typed in below, comes first.
+   1.6.4 (Fulllion, 2026-11-22: "Count the plan's relay"): with none of their own, the plan's relay from the website counts too, while it
+   carries the table this computer hosts (net.js relayServers answers it only then), so the word never says "direct connections only" right
+   above the line that says the plan's relay is in use. Handed the page's net object, so a suite runs it alone. */
+function turnStateWord(N) {
+    if (N && typeof N.turnConfig === 'function' && N.turnConfig()) return 'configured';
+    var r = N && typeof N.relayServers === 'function' ? N.relayServers() : null;
+    if (r && r.length) return 'your plan\u2019s relay';
+    return 'none \u2014 direct connections only';
+}
+// [nettransportcheck:turnword-end]
+/* 1.6.4: the plan's relay, in one plain line under the relay box (#setSiteRelay). net.js siteRelayWords says it, from this session's last
+   ask: the month's use against the allowance, the warning near it and when it starts again, or why there is no plan relay (not linked,
+   the plan, the allowance used up, the website busy). Nothing before the first Host, and nothing while the website's relay is switched off.
+   net.js calls window.wpSiteRelaySync after each ask, so an open Settings follows. While the plan's relay carries the table, Firewall-friendly
+   connections is shown as it is with a relay of your own. */
+function siteRelaySync() {
+    var el = ui('setSiteRelay'); if (!el) return;
+    var w = window.wpNet && typeof window.wpNet.siteRelayWords === 'function' ? window.wpNet.siteRelayWords() : '';
+    el.textContent = w; el.hidden = !w;
+    var st = ui('setTurnState'); if (st && !(_turnTest && _turnTest.disabled)) st.textContent = turnStateWord(window.wpNet);   // the word follows the plan's relay as hosting starts and ends and after each ask, but never over a Test still running
+    var rb = ui('setRelayBlock'); if (rb && window.wpNet && typeof window.wpNet.relayServers === 'function' && window.wpNet.relayServers()) rb.style.display = 'block';
+}
+window.wpSiteRelaySync = siteRelaySync;
 function saveTurnFields() {
     var u = ui('setTurnUrls'), n = ui('setTurnUser'), p = ui('setTurnPass');
     try {
@@ -1028,7 +1055,8 @@ function appVersionPromise() {   // the newer of the shell's version and the app
 })();
 
 /* ---------- updates ----------
-   /api/update-check asks the shell to look at the newest GitHub Release. If the front end alone
+   /api/update-check asks the shell to look at the newest release on Waypoint's website (from 1.6.4;
+   a GitHub release until 1.6.3). If the front end alone
    changed, Update now downloads it, the shell swaps system/app in place and we reload. If the
    release needs a newer shell, the button becomes Get installer instead. A quiet check runs a
    few seconds after launch; a newer version raises the header Update button and a notice.
@@ -1039,8 +1067,8 @@ function appVersionPromise() {   // the newer of the shell's version and the app
    can take it (canSelfInstall): the shell downloads the installer, checks it, runs it and Waypoint
    reopens; Get installer and its steps remain for every case where that cannot be done. */
 var _upd = { info: null, shellOld: null, shell: null, selfBusy: false, selfFailed: false, selfText: '', failNote: '', failSeen: '' };
-var SHELL_WANTED = '1.6.3';   // 1.6.3 asks before closing the main window while it hosts a table (shellguard.closeGuard: the page's own question, End the session for everyone or Close and let players wait); 1.6.2 adds /api/cloud (cloudsync.js: cloud saves, the shell's half) and hides account.json and cloud.json from /saves/; 1.6.0 adds /api/account (account.js: this install linked to a Waypoint website account, the key kept in saves/account.json); 1.5.9 carries the outside sheet reader's folder (system/app/private) across an update and a restore; 1.5.6 adds the right-click menu of a text box, Cut, Copy, Paste and Select all (shellguard.editMenuTemplate); 1.5.0 added /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
-var RELEASES_PAGE = 'https://github.com/ImmuneMoon/Waypoint/releases/latest';
+var SHELL_WANTED = '1.6.4';   // 1.6.4 reads updates from Waypoint's website (the signed list, the files on its download host) and opens that site's pages from the walk-through; 1.6.3 asks before closing the main window while it hosts a table (shellguard.closeGuard: the page's own question, End the session for everyone or Close and let players wait); 1.6.2 adds /api/cloud (cloudsync.js: cloud saves, the shell's half) and hides account.json and cloud.json from /saves/; 1.6.0 adds /api/account (account.js: this install linked to a Waypoint website account, the key kept in saves/account.json); 1.5.9 carries the outside sheet reader's folder (system/app/private) across an update and a restore; 1.5.6 adds the right-click menu of a text box, Cut, Copy, Paste and Select all (shellguard.editMenuTemplate); 1.5.0 added /api/library (the item library's pack files beside the save), serves a file in byte ranges under its media type (servefile.js: a video seeks without being read whole), takes only signed updates, keeps a way back and updates its own core; 1.4.6 added /api/delete-image (Image Library → Delete picture)   // the core this app expects; older cores are walked through the installer. It is the version tools/shellrev.json records as the core's last change: updatercheck holds the two together, and a release's manifest says the same as minShell
+var RELEASES_PAGE = '';   // 1.6.4: none of the page's own. The shell names the page the walk-through opens (a check's page, which it gives even when the check failed): the page names no address of the site itself (accountcheck holds that)
 function vcmp(x, y) { var p = String(x).split('-')[0].split('.').map(Number), q = String(y).split('-')[0].split('.').map(Number); for (var k = 0; k < 3; k++) { if ((p[k] || 0) !== (q[k] || 0)) return (p[k] || 0) - (q[k] || 0); } return 0; }
 // Is the core older than this app wants? The shell says so itself from 1.3.6 on; before that, the
 // snapshot route is missing (404), which is just as telling.
@@ -1107,7 +1135,10 @@ function updateUI() {
     if (inst) { inst.textContent = self ? 'Update' : 'Get installer'; inst.title = self ? SELF_TITLE : INST_TITLE; }
     if (!st || !row) return;
     if (!i) { st.textContent = ''; row.style.display = 'none'; return; }
-    if (i.error) { st.textContent = 'could not check (' + (i.error.length > 40 ? 'offline?' : i.error) + ')'; row.style.display = 'none'; return; }
+    // A failed check: the shell's own refusals of a list (one not signed by Waypoint, one that cannot be read, an address off
+    // Waypoint's update site) are said in full as one plain line, since a tampered list must not read as being offline; any
+    // other error, a network one or an HTTP answer, is said as itself where it is short and as offline? where it is not.
+    if (i.error) { var said = plainLine(i.error), own = /no update offered|refused/.test(said); st.textContent = 'could not check (' + (own || said.length <= 40 ? said : 'offline?') + ')'; row.style.display = 'none'; return; }
     if (!i.newer && _upd.shellOld) { st.textContent = 'app ' + (window.wpAppVersion || i.current) + ' — core needs the installer'; row.style.display = 'flex'; if (now) now.style.display = 'none'; if (inst) inst.style.display = 'block'; return; }
     if (!i.newer) { st.textContent = 'up to date (' + i.current + ')'; row.style.display = 'none'; return; }
     st.textContent = _upd.selfText || (i.latest + ' available');
@@ -1383,7 +1414,8 @@ if (_updInst) _updInst.addEventListener('click', function() { var i = _upd.info;
     if (later) later.addEventListener('click', function() { hide(); toast('No download started. The Update button stays in the top bar until you install it.'); });
     if (close) close.addEventListener('click', hide);
     if (go) go.addEventListener('click', function() {
-        var target = m.dataset.url; if (!target) { hide(); return; }
+        // with no address to open (an older core whose check failed names no page), say where the installer comes from in words, never nothing
+        var target = m.dataset.url; if (!target) { hide(); toast("Download the newest Waypoint_Setup.exe from Waypoint's website. Then close Waypoint, run it, and open Waypoint again."); return; }
         fetch('/api/open-external', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: target }) })
             .then(function(r) { if (!r.ok) throw new Error(); hide(); toast('Downloading in your browser. When it finishes: close Waypoint, run the Waypoint_Setup.exe you just downloaded (never one from anywhere else), and open Waypoint again.'); })
             .catch(function() { hide(); toast('Open this in a browser: ' + target); });
@@ -1536,7 +1568,7 @@ function acctRename() {
 }
 function acctRefresh() {
     return acctApi('GET', '/api/account').then(function(r) {
-        var j = r.status === 200 ? r.json : { err: true }; ACCT.linked = j.linked === true;
+        var j = r.status === 200 ? r.json : { err: true }; ACCT.linked = j.linked === true; acctRelayFollow(r.status === 200, j.linked === true);
         if (!ACCT.poll && j.linked !== true && j.pending && typeof j.pending.userCode === 'string' && typeof j.pending.url === 'string' && j.pending.userCode !== ACCT.stopped) { ACCT.url = j.pending.url; ACCT.code = j.pending.userCode; acctDraw({ code: j.pending.userCode }); acctStep('resumed', {}); acctPoll(5); return j; }   // a wait this page did not begin (a reload, another window) is taken up again
         if (!ACCT.poll) acctDraw(j); return j;
     });
@@ -1564,10 +1596,19 @@ function acctTake(how, given) {   // given: the account's copy already in hand (
 }
 function acctSync(why) {
     if (!ACCT.linked) return Promise.resolve(false);
-    return acctApi('POST', '/api/account/prefs', acctPrefs()).then(function(r) { if (r.status === 200) { acctMark(); acctStep('sent', { why: why }); return true; } if (r.json.gone || r.json.error === 'unlinked') { ACCT.linked = false; acctRefresh(); } acctStep('send-failed', { why: why, status: r.status }); return false; });
+    return acctApi('POST', '/api/account/prefs', acctPrefs()).then(function(r) { if (r.status === 200) { acctMark(); acctStep('sent', { why: why }); return true; } if (r.json.gone || r.json.error === 'unlinked') { ACCT.linked = false; acctRelayFollow(true, false); acctRefresh(); } acctStep('send-failed', { why: why, status: r.status }); return false; });
 }
 function acctSoon() { if (!ACCT.linked) return; if (ACCT.timer) clearTimeout(ACCT.timer); ACCT.timer = setTimeout(function() { ACCT.timer = null; if (acctSig() !== (localStorage.getItem('wp_acctSig') || '')) acctSync('change'); }, 2000); }
-function acctUnlink(why) { acctStopPoll(); return acctApi('DELETE', '/api/account').then(function() { ACCT.linked = false; acctStep('unlinked', { why: why }); return acctRefresh(); }); }
+function acctUnlink(why) { acctStopPoll(); return acctApi('DELETE', '/api/account').then(function() { ACCT.linked = false; acctRelayFollow(true, false); acctStep('unlinked', { why: why }); return acctRefresh(); }); }
+// 1.6.4: the plan's relay follows the link (the review of 2026-11-17). An answer that says this computer is not linked (a read of the account,
+// an unlink, a key the site no longer knows) lets a held set go at once (net.js siteRelayForget), so a computer unlinked from its account
+// hosts on no relay of the account's; one that says it is linked takes back a "not linked" said before (siteRelayLinked). read is false
+// where this computer's own server could not be read, which says nothing either way.
+function acctRelayFollow(read, linked) {
+    var N = window.wpNet; if (!N || !read) return;
+    if (linked) { if (typeof N.siteRelayLinked === 'function') N.siteRelayLinked(); }
+    else if (typeof N.siteRelayForget === 'function') N.siteRelayForget();
+}
 // Once the key is here: the account read first, then decided on, and only then the first sync
 function acctDecide() {
     return acctApi('GET', '/api/account').then(function(r) {

@@ -64,15 +64,26 @@ function webLinkOk(port, url) {
     return u.href;
 }
 
-// The one address the update walk-through may open in the system browser: this project's own release pages on github.com
-// (the installer's download link, a release's page, the list). Nothing else on that site, no other host, no port, no user
-// name; the path is judged after the URL parser has resolved it. Returns the address to open, or null.
-function releaseLink(target, repo) {
-    if (typeof target !== 'string' || target.length > 2000 || typeof repo !== 'string' || !repo) return null;
+// The one address the update walk-through may open in the system browser (1.6.4: updates come from Waypoint's own website).
+// site is main.js's one constant, https://waypointvtt.com. Opened: a page of that very site (a release's notes, the
+// download page) that is not under /api/ and carries no query, and a release's installer on its download host,
+// downloads.<the site's host>/waypoint/<version>/Waypoint_Setup.exe, exactly. Nothing on any other host, not the site under
+// http, no port, no user name or password; the path is judged after the URL parser has resolved it, so a dot-dot never
+// climbs out of /waypoint/. (Narrowed in review, 2026-11-16: only the app's own pages can ask, but an open redirect on the
+// site must not let the walk-through open anything else.) Returns the address to open, or null.
+// Until 1.6.3 this was this project's own release pages on github.com.
+function releaseLink(target, site) {
+    if (typeof target !== 'string' || target.length > 2000 || typeof site !== 'string' || !site) return null;
+    let s; try { s = new URL(site); } catch (e) { return null; }
+    if (s.protocol !== 'https:' || s.port || s.username || s.password || !s.hostname) return null;
     let u; try { u = new URL(target); } catch (e) { return null; }
-    if (u.protocol !== 'https:' || u.hostname !== 'github.com' || u.port || u.username || u.password) return null;
-    const base = '/' + repo + '/releases';
-    return (u.pathname === base || u.pathname.startsWith(base + '/')) ? u.href : null;
+    if (u.protocol !== 'https:' || u.port || u.username || u.password || u.search) return null;
+    // a page of the site: never under /api/ (in any letter case), and no query, so neither a route of the site nor a
+    // redirect the site might take from a query can be reached from here (updater.js sitePage holds a notes page to the same)
+    if (u.hostname === s.hostname) return /^\/api(\/|$)/i.test(u.pathname) ? null : u.href;
+    // on the download host only a release's installer, by its exact name, as the update list names it, and no fragment
+    if (u.hostname === 'downloads.' + s.hostname && !u.hash && /^\/waypoint\/[0-9A-Za-z][0-9A-Za-z.-]{0,39}\/Waypoint_Setup\.exe$/.test(u.pathname)) return u.href;
+    return null;
 }
 
 /* ---------- permissions ---------- */

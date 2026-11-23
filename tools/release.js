@@ -1,13 +1,57 @@
-/* Build a Waypoint release: app zip + checksum + signature + manifest + installer + its signature, then
-   (optionally) publish it as a GitHub Release with the assets attached.
+/* Build a Waypoint release: app zip + checksum + signature + manifest + installer + its signature + the site's signed list,
+   then (optionally) publish it on Waypoint's own website, and during the changeover on GitHub too.
 
    Usage:
-     node tools/release.js                 build into dist/<version>/ and print what to upload
-     node tools/release.js --publish       also create the GitHub Release (needs GITHUB_TOKEN with
-                                           "contents: write" on the repo) and upload the assets
+     node tools/release.js                    build into dist/<version>/ and print what to publish
+     node tools/release.js --publish          also put the files and the signed list on Waypoint's download host
+                                              (Cloudflare R2, through its S3 API: WAYPOINT_R2_ENDPOINT, WAYPOINT_R2_BUCKET,
+                                              WAYPOINT_R2_KEY_ID, WAYPOINT_R2_SECRET) and wake the website
+                                              (repository_dispatch waypoint-release, with WAYPOINT_DISPATCH_TOKEN, to
+                                              WAYPOINT_DISPATCH_REPO, by default the website repository sitepub.js names)
+     node tools/release.js --publish --github also create the GitHub Release as before (GITHUB_TOKEN with "contents:
+                                              write" on the repo), after the site: installs of 1.6.3 and older still read
+                                              their updates there, so it is kept while installs move (the safe order the
+                                              owner approved on 2026-11-16: the December installer ships to both)
+     node tools/sitepub.js --check            the checklist step after: does the live site name this release, as an
+                                              install reads it? (exit 0 yes, 1 no; writes nothing)
+   Any other option is refused, --github without --publish too, so a word mistyped never builds a release that is not
+   published as it was meant to be.
 
-   Reads the version from system/resources/app/package.json, the repo slug from UPDATE_REPO in
-   system/resources/app/main.js, and the release notes from the top section of WHATSNEW.txt.
+   Reads the version from system/resources/app/package.json and the release notes from the top section of WHATSNEW.txt,
+   which must be this version's section (the build is refused otherwise, before it writes anything). From 1.6.4 an install
+   reads its updates from Waypoint's own website (main.js UPDATE_SITE): the build writes dist/<version>/envelope.json, the
+   signed list the site serves (tools/sitepub.js: the manifest of the zip and the installer, each with its address on the
+   download host, its size, digest and own signature, the notes as plain text and the page that shows them,
+   https://waypointvtt.com/whats-new#<version>, signed with Ed25519 over "waypoint-manifest\n" and its text), reads it back at
+   once exactly as an install will and refuses to build where an install would not take it as written. --publish puts the
+   five files on the download host first, then the list as waypoint/<version>/manifest.json, then, last of all, the same list
+   as waypoint/latest.json (sitepub.sitePublish): a version already there is never written over, and a put that fails stops
+   before either list, so no install is ever offered what is half there. The notes the app itself shows
+   (system/app/assets/whatsnew.txt) must begin with the very section WHATSNEW.txt begins with, or nothing is built.
+   Every setting a publication needs is asked for before the build writes anything, and each refusal is one plain line.
+
+   Finishing, never rebuilding (the review of 2026-11-17). With --publish the bucket is looked at BEFORE anything is built. Where
+   it holds nothing of this version, the build goes on. Where it holds the version, whole or in part, nothing is built, so
+   dist/<version>/ (whose files are the very ones on the bucket: an installer compiled and signed again would differ in its
+   bytes) is never written over: the run checks that the bucket holds this very build, puts only what is missing (latest.json
+   among it, where an earlier run stopped on it), wakes the website where latest.json was put now, and with --github goes on
+   to the GitHub Release. So a run stopped by a network blip, or a GitHub step that failed, is finished by running the same
+   command again. The GitHub Release is made as a draft, its six assets uploaded, and only then published, so installs of 1.6.3
+   never see a release short of its files; a draft an earlier run left is taken away first. Child processes (the tour's check,
+   the archiver, Inno Setup, the code-signing command) are handed the environment without the bucket's token, the dispatch
+   token, GITHUB_TOKEN and the signing key's path (CHILD_ENV).
+   The checklist, in order, for a release that ships the installer: --publish --github (the site, then the dispatch, then
+   GitHub); then node tools/sitepub.js --check must say the site names this version (an install of it reports up to date, an
+   older one is offered it) before the release is announced.
+
+   Stripped. The app folder that is zipped and packed into the installer is the stage's copy with its comments taken out
+   (tools/stripcore.js stripTree, which keeps every name and every line, so an error report still points at the right
+   function and line). Where stripTree refuses a file the build stops, naming it: nothing is zipped, compiled or published.
+   The stage's copy keeps each file's own times.
+
+   Test hosts. Only a test of this tool (tools/updatercheck.js) may point the dispatch or the GitHub Release at a stand-in on
+   this machine (WAYPOINT_RELEASE_TEST_DISPATCH, WAYPOINT_RELEASE_TEST_GITHUB), or the bucket at an address of this machine,
+   and only with WAYPOINT_RELEASE_TEST=1 set: a stand-in named without it refuses the build (sitepub.testHosts).
    The manifest's minShell is the version in which the core last changed (everything under
    system/resources/app, and installer.iss): an install whose core is older takes the installer, not the
    one-click update. It is a recorded fact, not a constant to remember: tools/shellrev.json, kept by
@@ -44,16 +88,39 @@ const ROOT = path.join(__dirname, '..');
 const SYSTEM = path.join(ROOT, 'system');
 const pkg = JSON.parse(fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'package.json'), 'utf8'));
 const VERSION = pkg.version;
-const mainSrc = fs.readFileSync(path.join(SYSTEM, 'resources', 'app', 'main.js'), 'utf8');
-const REPO = (mainSrc.match(/const UPDATE_REPO = '([^']+)'/) || [])[1];
+const REPO = 'ImmuneMoon/Waypoint';   // the public GitHub repository releases are still published to while installs move to the website (1.6.4)
 const ISCC = process.env.ISCC || 'D:\\Files\\Programs\\Inno Setup 6\\ISCC.exe';
-const PUBLISH = process.argv.includes('--publish');
+// The options this tool takes, and nothing else: an option it does not know (an old --publish-site among them) refuses the run before
+// anything is read or written, so a mistyped word never builds a release that is not published as it was meant to be.
+const OPTIONS = ['--publish', '--github', '--notes-only'];
+{
+    const odd = process.argv.slice(2).filter(a => OPTIONS.indexOf(a) < 0);
+    if (odd.length) { console.error('Not built: ' + odd[0] + ' is no option of this tool (it takes ' + OPTIONS.join(', ') + (odd[0] === '--publish-site' ? '; --publish now puts the release on the site' : '') + ').'); process.exit(1); }
+}
+const PUBLISH = process.argv.includes('--publish');   // 1.6.4: put the files and the signed list on Waypoint's download host, and wake the website
+const GITHUB = process.argv.includes('--github');     // with --publish: the GitHub Release too, as before, while installs move
 const NOTES_ONLY = process.argv.includes('--notes-only');   // just regenerate RELEASE_NOTES.md
 const SIGNTOOL = process.env.WAYPOINT_SIGNTOOL;
+const sitepub = require('./sitepub.js');
+const stripcore = require('./stripcore.js');
+if (GITHUB && !PUBLISH) { console.error('Not built: --github goes with --publish (the site first, then GitHub), never alone.'); process.exit(1); }
+if (NOTES_ONLY && PUBLISH) { console.error('Not built: --notes-only builds no release to publish.'); process.exit(1); }
+// Where a test's stand-ins are: { test: false } for every real run. A stand-in named without WAYPOINT_RELEASE_TEST=1 refuses the run.
+const TEST = sitepub.testHosts(process.env);
+if (TEST.why) { console.error(TEST.why); process.exit(1); }
 const signkey = require('./signkey.js');
 const shellrev = require('./shellrev.js');
 const updater = require('../system/resources/app/updater.js');
 const { UPDATE_PUBKEY } = require('../system/resources/app/updatekey.js');
+// What every child process is handed (the review of 2026-11-17): this environment without the secrets only this process uses (the
+// bucket's token, the dispatch token, GITHUB_TOKEN) and the signing key's path, so the tour's check, the archiver, Inno Setup (whose
+// preprocessor can read the environment) and the owner's code-signing command never see them. Names are matched in any letter case,
+// as Windows reads them.
+const CHILD_ENV = (() => {
+    const e = Object.assign({}, process.env);
+    for (const k of Object.keys(e)) if (/^(WAYPOINT_R2_\w+|WAYPOINT_DISPATCH_TOKEN|GITHUB_TOKEN|WAYPOINT_SIGNING_KEY)$/i.test(k)) delete e[k];
+    return e;
+})();
 
 // The Electron this build packs (system/version, written by the runtime's own package) against the one the shell's
 // package.json records: null when they agree, else one plain line for the builder to read.
@@ -80,13 +147,73 @@ if (!NOTES_ONLY) {
     }
     SIGNKEY = k.key;
 }
+// The publication needs the bucket and its token, the website's dispatch token and repository, and with --github GitHub's token:
+// all asked for before the first thing the build writes, so a run never uploads half and then stops for a missing word.
+let R2 = null, DISPATCH = null;
+if (PUBLISH) {
+    R2 = sitepub.r2Config(process.env, { test: TEST.test === true });
+    if (R2.why) { console.error(R2.why); process.exit(1); }
+    const token = typeof process.env.WAYPOINT_DISPATCH_TOKEN === 'string' ? process.env.WAYPOINT_DISPATCH_TOKEN.trim() : '';
+    if (!token) { console.error('Not built: WAYPOINT_DISPATCH_TOKEN is not set (--publish tells the website that the release is there; the owner\'s token for the website repository).'); process.exit(1); }
+    const repo = sitepub.repoOk(process.env.WAYPOINT_DISPATCH_REPO === undefined ? sitepub.WEBSITE_REPO : process.env.WAYPOINT_DISPATCH_REPO);
+    if (!repo) { console.error('Not built: WAYPOINT_DISPATCH_REPO is not a repository\'s name (owner/name).'); process.exit(1); }
+    DISPATCH = { token, repo, origin: TEST.dispatch || 'https://api.github.com' };
+    if (GITHUB && !(typeof process.env.GITHUB_TOKEN === 'string' && process.env.GITHUB_TOKEN.trim())) { console.error('Not built: GITHUB_TOKEN is not set (--github): nothing built or uploaded.'); process.exit(1); }
+}
+
+// Before the build (the review of 2026-11-17): with --publish the bucket is looked at first (sitepub.siteState: each key of this version,
+// its list where it is there, and latest.json; nothing is written), so a version the bucket holds, whole or in part, is never rebuilt over
+// dist/<version>/, whose files are the very ones put there. Answers null where nothing of this version is in the bucket and the build goes
+// on; else what the bucket holds, and the run then builds nothing and finishes the release from dist/<version>/ as it is (or, where dist
+// holds no list and the bucket holds the version's own, puts latest.json alone). Each refusal is one plain line, before anything is
+// written: a token the bucket refuses, a latest.json that names a newer version or is no list of the shell's key, a list on the bucket
+// that is not dist's own, a part-way run whose build dist no longer holds, and --github where dist holds no list.
+async function siteBefore() {
+    const site = sitepub.siteOf(ROOT), distAt = path.join(ROOT, 'dist', VERSION), refuse = why => { console.error('Not built: ' + why); process.exit(1); };
+    let st = null, lv = null;
+    try { st = await sitepub.siteState({ cfg: R2, version: VERSION }); lv = sitepub.latestOf(st, UPDATE_PUBKEY, site); }
+    catch (e) { refuse(String(e && e.message || e).replace(/^Not uploaded to the site: /, '')); }
+    const there = Object.keys(st.there);
+    if (!there.length) {
+        if (lv !== null && updater.cmpVersion(lv, VERSION) >= 0) refuse('the site already names ' + lv + ' as the newest (' + sitepub.LATEST_KEY + '), and ' + VERSION + ' is not newer: build the next version.');
+        return null;
+    }
+    let local = null; try { local = fs.readFileSync(path.join(distAt, sitepub.ENVELOPE_NAME)); } catch (e) { local = null; }
+    if (st.env && local && !st.env.equals(local)) refuse('version ' + VERSION + ' is already on the site (' + st.envKey + ') from another build: dist/' + VERSION + '/' + sitepub.ENVELOPE_NAME + ' is not the list put there, and a release on the download host is never replaced. Nothing was built or put: build the next version.');
+    if (!st.env && !local) refuse(there[0] + (there.length > 1 ? ' and ' + (there.length - 1) + ' more are' : ' is') + ' already in the bucket, though no list of ' + VERSION + ' is (an earlier run stopped part way, and no install has seen it), and dist/' + VERSION + '/ no longer holds that build. Nothing is rebuilt over it: delete ' + st.base + ' in the bucket by hand and run again, or build the next version.');
+    if (!local && GITHUB) refuse('version ' + VERSION + ' is on the site, but dist/' + VERSION + '/ does not hold the build that was put there, so its GitHub Release cannot be made from here. Run --publish alone to finish the site, and --github where that build is.');
+    console.log('Version ' + VERSION + ' is in the bucket already (' + there.length + ' of its ' + st.keys.length + ' keys' + (st.env ? ', its list among them' : '') + '): nothing is built, and the release is finished from ' + (local ? 'dist/' + VERSION + '/ as it is' : 'the list on the bucket') + '.');
+    return st;
+}
+
+// The run itself, after the settings above (the review of 2026-11-17 made it a function, so the bucket can be asked before the build):
+// the build's own checks, the build into dist/<version>/, the notes, and with --publish the site, the dispatch and the GitHub Release.
+// Where the bucket already holds this version (RESUME) nothing is checked for a build or built: the release is finished from dist as it is.
+// Called once, at the end of this file; whatever it throws is said in one line and ends the run with exit 1.
+async function main() {
+// With --publish, what the bucket holds decides whether this run builds (siteBefore, above)
+const RESUME = PUBLISH ? await siteBefore() : null;
 // And the core's record is the core's: minShell is read from it, so a stale one would send app files to cores too old for them.
 let SHELL_SINCE = null;
-if (!NOTES_ONLY) {
+if (!NOTES_ONLY && !RESUME) {
     const rev = shellrev.status(ROOT);
     if (!rev.ok) { console.error('Not built: ' + rev.why + '.'); process.exit(1); }
     if (updater.cmpVersion(rev.since, VERSION) > 0) { console.error('Not built: tools/shellrev.json says the core last changed in ' + rev.since + ', which is newer than this release (' + VERSION + '). Correct the version in package.json, or the record (node tools/shellrev.js writes it).'); process.exit(1); }
     SHELL_SINCE = rev.since;
+}
+// The notes the site and GitHub show are WHATSNEW.txt's newest section, so that section must be this release's: written first. And the
+// notes the app itself shows (system/app/assets/whatsnew.txt, which the zip and the installer carry) must begin with the very same
+// section (the review of 2026-11-17), so the site and the app never say two things of one release.
+if (!NOTES_ONLY && !RESUME) {
+    let wn = ''; try { wn = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8'); } catch (e) { wn = ''; }
+    const top = sitepub.topVersion(wn);
+    if (top !== VERSION) { console.error('Not built: WHATSNEW.txt\'s newest section is ' + (top ? 'for ' + top : 'missing') + ', not for this release (' + VERSION + '): write its notes first, under a heading WAYPOINT ' + VERSION + '.'); process.exit(1); }
+    let wa = null; try { wa = fs.readFileSync(path.join(SYSTEM, 'app', 'assets', 'whatsnew.txt'), 'utf8'); } catch (e) { wa = null; }
+    if (wa === null || sitepub.topSection(wa) !== sitepub.topSection(wn)) {
+        const at = wa === null ? null : sitepub.topVersion(wa);
+        console.error('Not built: system/app/assets/whatsnew.txt, the notes the app itself shows, ' + (wa === null ? 'is missing' : 'does not begin with the section WHATSNEW.txt begins with (its newest is ' + (at ? 'for ' + at : 'missing') + ')') + ': copy WHATSNEW.txt\'s newest section there too.');
+        process.exit(1);
+    }
 }
 
 // The repository's private/ folder (an outside sheet reader of the owner's own, git-ignored) never ships. A build is refused while the app
@@ -122,7 +249,7 @@ function hiddenOf(root, rels) {
     const ps = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
     const script = "$ErrorActionPreference = 'Stop'; $i = 0; foreach ($b in [Console]::In.ReadToEnd().Split([char]10)) { if ($b.Trim()) { if ([IO.File]::GetAttributes([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($b.Trim()))) -band [IO.FileAttributes]::Hidden) { $i }; $i++ } }";
     const input = rels.map(r => Buffer.from(path.join(root, r), 'utf16le').toString('base64')).join('\n') + '\n';
-    let out = ''; try { out = execFileSync(ps, ['-NoProfile', '-NonInteractive', '-Command', script], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, timeout: 120000 }); } catch (e) { return null; }
+    let out = ''; try { out = execFileSync(ps, ['-NoProfile', '-NonInteractive', '-Command', script], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, timeout: 120000, env: typeof CHILD_ENV === 'object' && CHILD_ENV ? CHILD_ENV : process.env }); } catch (e) { return null; }
     const at = String(out).split(/\s+/).filter(Boolean);
     return at.every(s => /^\d+$/.test(s) && +s < rels.length) ? at.map(s => rels[+s]) : null;
 }
@@ -191,7 +318,7 @@ function stageCopy(root, stage, hidden) {
 // [servercheck:stage-end]
 // Before the first thing this build writes: what the stage will hold is read (a file of the list that is missing, or a link, refuses
 // the build here), and no private folder is in it or in the app folder.
-if (!NOTES_ONLY) {
+if (!NOTES_ONLY && !RESUME) {
     const sl = stageList(ROOT);
     if (sl.why) { console.error(sl.why); process.exit(1); }
     let issP = ''; try { issP = fs.readFileSync(path.join(ROOT, 'installer.iss'), 'utf8'); } catch (e) { issP = ''; }
@@ -204,12 +331,13 @@ if (!NOTES_ONLY) {
 }
 
 const dist = path.join(ROOT, 'dist', VERSION);
-fs.mkdirSync(dist, { recursive: true });
+if (!RESUME) fs.mkdirSync(dist, { recursive: true });   // a run that finishes a release writes nothing here
 const zipName = 'waypoint-app-' + VERSION + '.zip';
 const zipPath = path.join(dist, zipName);
+let SITE_WANT = null, SITE = null;   // what the site's list names, once 3d has written and checked it: the upload holds the files on disk to it
 const ASSETS = ['Waypoint_Setup.exe', 'Waypoint_Setup.exe.sig', zipName, zipName + '.sha256', zipName + '.sig', 'manifest.json'];   // what a release carries: all of it, or it is not published
 
-if (!NOTES_ONLY) {
+if (!NOTES_ONLY && !RESUME) {
 // 0a. README names this release (pushed together with the published release)
 {
     const readmePath = path.join(ROOT, 'README.md');
@@ -223,38 +351,65 @@ if (!NOTES_ONLY) {
 fs.writeFileSync(path.join(SYSTEM, 'app', 'version.json'), JSON.stringify({ version: VERSION, minShell: SHELL_SINCE }) + '\n');
 
 // 0b. the interactive tutorial must still point at real controls (a moved button fails the build)
-execSync('node "' + path.join(__dirname, 'tutorialcheck.js') + '"', { stdio: 'inherit' });
+execSync('node "' + path.join(__dirname, 'tutorialcheck.js') + '"', { stdio: 'inherit', env: CHILD_ENV });
 
-// 1. app zip (PowerShell's Compress-Archive: deflate entries, which updater.js reads)
-console.log('Zipping system/app ->', zipName);
-if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-execSync(`powershell -NoProfile -Command "Compress-Archive -Force -Path '${path.join(SYSTEM, 'app', '*')}' -DestinationPath '${zipPath}'"`, { stdio: 'inherit' });
-const sha = crypto.createHash('sha256').update(fs.readFileSync(zipPath)).digest('hex');
-fs.writeFileSync(zipPath + '.sha256', sha + '  ' + zipName + '\n');
-
-// 1b. the signature over the zip's name, its digest and the version — then checked exactly as an install will check it
-const sig = signkey.signZip(zipName, sha, VERSION, SIGNKEY);
-if (!updater.verifyUpdate(UPDATE_PUBKEY, zipName, sha, VERSION, sig)) { console.error('Not built: the signature just made does not check against the public key in updatekey.js.'); process.exit(1); }
-fs.writeFileSync(zipPath + '.sig', sig + '\n');
-
-// 2. manifest
-fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify({ version: VERSION, minShell: SHELL_SINCE, built: new Date().toISOString(), electron: typeof pkg.electron === 'string' ? pkg.electron : null }, null, 2));   // electron: the runtime the installer packs, as package.json records it
-
-// 3. installer, compiled from the stage: a clean copy of what an install needs (stageCopy, above), made fresh, so installer.iss packs
-//    nothing else. Its OutputDir=. puts the installer beside it in the stage, and every step after this one takes it from there.
+// 1. the stage: a clean copy of what an install needs (stageCopy, above), made fresh, so installer.iss packs nothing else. Its app
+//    folder is then stripped of comments (1.6.4): the raw copy is moved aside into dist/<version>/app-unstripped, stripTree writes the
+//    stripped one back in its place (refusing, by the file's name, where a stripped file would not read as its source does), each
+//    file and folder keeps its own times, and the raw copy goes. Both the app zip and the installer are made from the stripped copy.
 const STAGE = path.join(dist, 'stage');
 console.log('Copying what an install needs into ' + path.relative(ROOT, STAGE) + '...');
 const staged = stageCopy(ROOT, STAGE);
 if (staged.why) { console.error(staged.why); process.exit(1); }
 console.log('  ' + staged.files + ' files, ' + Math.round(staged.bytes / 1048576) + ' MB');
+const STAGE_APP = path.join(STAGE, 'system', 'app');
+{
+    const RAW = path.join(dist, 'app-unstripped');
+    fs.rmSync(RAW, { recursive: true, force: true });
+    fs.renameSync(STAGE_APP, RAW);
+    let rep = null;
+    try { rep = stripcore.stripTree(RAW, STAGE_APP); } catch (e) { console.error('Not built: ' + String(e && e.message || e).replace(/\s+/g, ' ').replace(/\.$/, '') + '.'); process.exit(1); }
+    // the folders stripTree does not make (it copies files: an empty folder would be lost) and every file's and folder's own times
+    const keepTimes = rel => {
+        const from = rel ? path.join(RAW, rel) : RAW, to = rel ? path.join(STAGE_APP, rel) : STAGE_APP;
+        fs.mkdirSync(to, { recursive: true });
+        for (const e of fs.readdirSync(from, { withFileTypes: true })) {
+            const r = rel ? rel + '/' + e.name : e.name;
+            if (e.isDirectory()) keepTimes(r);
+            else { const st = fs.statSync(path.join(from, e.name)); fs.utimesSync(path.join(to, e.name), st.atime, st.mtime); }
+        }
+        const st = fs.statSync(from); fs.utimesSync(to, st.atime, st.mtime);
+    };
+    keepTimes('');
+    fs.rmSync(RAW, { recursive: true, force: true });
+    console.log('  comments taken out of ' + rep.stripped.length + ' files: ' + Math.round(rep.saved / 1024) + ' KB less');
+}
+
+// 2. app zip of the stage's stripped app folder (PowerShell's Compress-Archive: deflate entries, which updater.js reads)
+console.log('Zipping the stripped system/app ->', zipName);
+if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+execSync(`powershell -NoProfile -Command "Compress-Archive -Force -Path '${path.join(STAGE_APP, '*')}' -DestinationPath '${zipPath}'"`, { stdio: 'inherit', env: CHILD_ENV });
+const sha = crypto.createHash('sha256').update(fs.readFileSync(zipPath)).digest('hex');
+fs.writeFileSync(zipPath + '.sha256', sha + '  ' + zipName + '\n');
+
+// 2b. the signature over the zip's name, its digest and the version — then checked exactly as an install will check it
+const sig = signkey.signZip(zipName, sha, VERSION, SIGNKEY);
+if (!updater.verifyUpdate(UPDATE_PUBKEY, zipName, sha, VERSION, sig)) { console.error('Not built: the signature just made does not check against the public key in updatekey.js.'); process.exit(1); }
+fs.writeFileSync(zipPath + '.sig', sig + '\n');
+
+// 2c. the manifest GitHub's release carries, for installs of 1.6.3 and older
+fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify({ version: VERSION, minShell: SHELL_SINCE, built: new Date().toISOString(), electron: typeof pkg.electron === 'string' ? pkg.electron : null }, null, 2));   // electron: the runtime the installer packs, as package.json records it
+
+// 3. installer, compiled from the stage (made and stripped in step 1). Its OutputDir=. puts the installer beside it in the stage, and
+//    every step after this one takes it from there.
 console.log('Compiling installer with Inno Setup...');
-execSync(`"${ISCC}" "${path.join(STAGE, 'installer.iss')}"`, { stdio: 'inherit' });
+execSync(`"${ISCC}" "${path.join(STAGE, 'installer.iss')}"`, { stdio: 'inherit', env: CHILD_ENV });
 const SETUP = path.join(STAGE, 'Waypoint_Setup.exe');
 // 3b. code-signing the installer is optional (a certificate is a separate purchase): only when WAYPOINT_SIGNTOOL says how
 if (SIGNTOOL) {
     const exe = '"' + SETUP + '"';
     console.log('Code-signing the installer (WAYPOINT_SIGNTOOL)...');
-    execSync(SIGNTOOL.includes('{file}') ? SIGNTOOL.split('{file}').join(exe) : SIGNTOOL + ' ' + exe, { stdio: 'inherit' });
+    execSync(SIGNTOOL.includes('{file}') ? SIGNTOOL.split('{file}').join(exe) : SIGNTOOL + ' ' + exe, { stdio: 'inherit', env: CHILD_ENV });
 } else {
     console.log('The installer is not code-signed (WAYPOINT_SIGNTOOL is not set): Windows will say it does not recognize the publisher.');
 }
@@ -267,6 +422,24 @@ fs.copyFileSync(SETUP, path.join(dist, 'Waypoint_Setup.exe'));
 fs.writeFileSync(path.join(dist, 'Waypoint_Setup.exe.sig'), setupSig + '\n');
 // the stage is a copy, and goes once the installer is out of it. A build that stops before here leaves it to be looked at; the next one makes it fresh.
 fs.rmSync(STAGE, { recursive: true, force: true });
+
+// 3d. the signed list Waypoint's website serves (1.6.4): the manifest of this release (the zip and the installer, each by its exact
+//     name, with its address on the download host, its size, digest and own signature, and the notes as plain text), signed over
+//     "waypoint-manifest\n" and its text, written as dist/<version>/envelope.json. It is read back at once exactly as an install
+//     will read it, with the key the shell carries, and held to what was written: a list an install would refuse, or would read
+//     otherwise, stops the build here, so the writer can never drift from the shell's cleanManifest.
+{
+    const site = sitepub.siteOf(ROOT), zipBytes = fs.readFileSync(zipPath), setupBytes = fs.readFileSync(path.join(dist, 'Waypoint_Setup.exe'));
+    const files = [sitepub.fileEntry(site, VERSION, zipName, zipBytes, sig), sitepub.fileEntry(site, VERSION, 'Waypoint_Setup.exe', setupBytes, setupSig)];
+    const want = { version: VERSION, minShell: SHELL_SINCE, electron: typeof pkg.electron === 'string' ? pkg.electron : null, published: new Date().toISOString(),
+        notes: sitepub.notesText(fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8')), notesUrl: sitepub.notesUrlOf(site, VERSION), files };
+    const envText = sitepub.envelopeOf(sitepub.siteManifest(want), SIGNKEY);
+    want.files = {}; for (const f of files) want.files[f.name] = { size: f.size, sha256: f.sha256 };
+    const why = sitepub.envelopeCheck(envText, UPDATE_PUBKEY, site, want);
+    if (why) { console.error('Not built: the site\'s list is not one an install takes as written (' + why + ').'); process.exit(1); }
+    fs.writeFileSync(path.join(dist, sitepub.ENVELOPE_NAME), envText);
+    SITE_WANT = want; SITE = site;
+}
 }
 
 // 4. notes: the top section of WHATSNEW.txt, turned into markdown for the GitHub Release body.
@@ -292,43 +465,92 @@ function buildNotes() {
     flush();
     return out.join('\n') + '\n';
 }
-const notes = buildNotes();
+// A run that builds nothing (a resume) writes no notes: the GitHub Release takes the ones its build wrote, read at that step.
+const notes = RESUME ? null : buildNotes();
+if (!RESUME) {
 fs.writeFileSync(path.join(dist, 'RELEASE_NOTES.md'), notes);
 
 console.log('\nBuilt', dist);
 console.log('  ' + fs.readdirSync(dist).join('\n  '));
 if (RUNTIME_NOTE) console.warn(RUNTIME_NOTE);   // said last, where it is read: the build goes on either way
+}
 
 if (!PUBLISH) {
-    console.log('\nTo publish: create a GitHub Release tagged', VERSION, 'on', REPO || '<set UPDATE_REPO in main.js>', 'and attach every file above,\nor run again with --publish and GITHUB_TOKEN set.');
+    if (!NOTES_ONLY) console.log('\nTo publish: run again with --publish (the R2 bucket, its token and WAYPOINT_DISPATCH_TOKEN set), and with --github too\nwhile installs of 1.6.3 and older still read GitHub (GITHUB_TOKEN set); then node tools/sitepub.js --check.');
     process.exit(0);
 }
 
-// 5. publish via the GitHub API
-if (!REPO) { console.error('UPDATE_REPO is not set in main.js'); process.exit(1); }
+// 5. publish: the site, then the dispatch, then (with --github) the GitHub Release through its API
+
 const TOKEN = process.env.GITHUB_TOKEN;
-if (!TOKEN) { console.error('GITHUB_TOKEN is not set'); process.exit(1); }
+// GitHub's API, and where its uploads may go: api.github.com and uploads.github.com, or a test's stand-in on this machine
+// (read only with WAYPOINT_RELEASE_TEST=1). An upload address the release names anywhere else is refused, never followed.
+const GH_API = TEST.github || 'https://api.github.com', GH_UPLOADS = TEST.github || 'https://uploads.github.com';
 function api(method, url, body, contentType) {
     return new Promise((resolve, reject) => {
         const u = new URL(url);
         const data = body == null ? null : (Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body)));
-        const req = https.request(u, { method, headers: { 'User-Agent': 'Waypoint-release', 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/vnd.github+json', 'Content-Type': contentType || 'application/json', 'Content-Length': data ? data.length : 0 } }, res => {
+        const req = (u.protocol === 'http:' ? require('http') : https).request(u, { method, headers: { 'User-Agent': 'Waypoint-release', 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/vnd.github+json', 'Content-Type': contentType || 'application/json', 'Content-Length': data ? data.length : 0 } }, res => {
             const chunks = []; res.on('data', c => chunks.push(c));
             res.on('end', () => { const txt = Buffer.concat(chunks).toString('utf8'); if (res.statusCode >= 300) return reject(new Error(method + ' ' + url + ' -> ' + res.statusCode + ' ' + txt.slice(0, 300))); try { resolve(JSON.parse(txt)); } catch (e) { resolve(txt); } });
         });
         req.on('error', reject); if (data) req.write(data); req.end();
     });
 }
-(async () => {
+    // 5a. the site first (1.6.4): the files, then the version's signed list, then latest.json, on the download host. Where this run
+    //     built nothing (RESUME), sitePublish holds dist/<version>/ to what the bucket holds and puts only what is missing.
+    if (!SITE_WANT && !RESUME) throw new Error('Not uploaded to the site: no list was built in this run.');
+    console.log('\nPutting ' + VERSION + ' on Waypoint\'s download host');
+    const up = await sitepub.sitePublish({ cfg: R2, dist, version: VERSION, pubKey: UPDATE_PUBKEY, site: SITE || sitepub.siteOf(ROOT), want: SITE_WANT, log: console.log });
+    if (up.keys.length) console.log('On the download host: ' + up.keys.join(', '));
+    if (up.latest === 'put') {
+        // 5b. the website is woken to record it. The release is up whatever GitHub answers here: a dispatch that is not taken is said, the
+        //     GitHub Release still follows, and the run ends with exit 1 so it is not missed (the site still records it at its daily look).
+        let told = null;
+        try { told = await sitepub.dispatch(DISPATCH.token, DISPATCH.repo, DISPATCH.origin); } catch (e) { told = String(e && e.message || e); }
+        if (told === 204) console.log('The website was told (' + DISPATCH.repo + '): it records the release within minutes.');
+        else { console.error('The release is on the download host, but the website was not told (' + (typeof told === 'number' ? 'GitHub answered ' + told : told) + '): it records the release at its daily look.'); process.exitCode = 1; }
+    } else {
+        // nothing new for the site's watcher: latest.json was this very list before the run, or names a newer version and is left alone
+        console.log(up.latest === 'already' ? 'The site already names ' + VERSION + ' as the newest (' + sitepub.LATEST_KEY + ', this very list): the website is not woken again.'
+            : 'The site names ' + up.newest + ', a newer version, as the newest: ' + sitepub.LATEST_KEY + ' is left as it is, and the list of ' + VERSION + ' stands in its own folder.');
+        if (!GITHUB && !up.keys.length) throw new Error('Not uploaded to the site: version ' + VERSION + ' is already on the site' + (up.local ? ' as this very build' : '') + ', and nothing was built or put. To finish its GitHub Release, run with --publish --github; otherwise build the next version.');
+    }
+    console.log('Before the installer goes out: node tools/sitepub.js --check must say the site names ' + VERSION + '.');
+    if (!GITHUB) return;
+    // 5c. the GitHub Release, as before, for installs of 1.6.3 and older: only from the very build that is on the site
+    if (!up.local) throw new Error('Not published to GitHub: dist/' + VERSION + '/ does not hold the build that is on the site.');
     const missing = ASSETS.filter(f => !fs.existsSync(path.join(dist, f)));
     if (missing.length) throw new Error('Not published: ' + missing.join(', ') + ' missing from ' + dist + ' (build first, without --notes-only)');   // never a release without its signature: no install would take it
-    console.log('\nCreating release', VERSION, 'on', REPO);
-    const rel = await api('POST', 'https://api.github.com/repos/' + REPO + '/releases', { tag_name: VERSION, name: 'Waypoint Alpha ' + VERSION, body: notes, draft: false, prerelease: false });
+    let body = notes;
+    if (body === null) { try { body = fs.readFileSync(path.join(dist, 'RELEASE_NOTES.md'), 'utf8'); } catch (e) { throw new Error('Not published to GitHub: RELEASE_NOTES.md is missing from ' + dist + '.'); } }
+    // A release of this tag already there (the review of 2026-11-17): a published one with every asset is done; one short of an asset
+    // is the owner's to mend by hand; a draft an earlier run left (an upload that failed part way) is taken away and made again.
+    const rels = await api('GET', GH_API + '/repos/' + REPO + '/releases?per_page=100');
+    const old = Array.isArray(rels) ? rels.find(r => r && r.tag_name === VERSION) : null;
+    if (old && !old.draft) {
+        const have = (Array.isArray(old.assets) ? old.assets : []).map(a => a && a.name), lack = ASSETS.filter(f => have.indexOf(f) < 0);
+        if (!lack.length) { console.log('The GitHub Release of ' + VERSION + ' is there already, with its six assets: ' + old.html_url); return; }
+        throw new Error('Not published to GitHub: the release of ' + VERSION + ' is published there already but lacks ' + lack.join(', ') + ': upload them to it by hand from ' + dist + '.');
+    }
+    if (old) {
+        if (!Number.isInteger(old.id)) throw new Error('Not published to GitHub: a draft of ' + VERSION + ' is there, and GitHub named no id for it.');
+        console.log('Taking away the draft of ' + VERSION + ' an earlier run left');
+        await api('DELETE', GH_API + '/repos/' + REPO + '/releases/' + old.id);
+    }
+    // Made as a draft, which no install sees, its six assets uploaded, and only then published (the review of 2026-11-17): an upload that
+    // fails leaves a draft alone, which the next run takes away.
+    console.log('\nCreating release', VERSION, 'on', REPO, '(a draft until its assets are up)');
+    const rel = await api('POST', GH_API + '/repos/' + REPO + '/releases', { tag_name: VERSION, name: 'Waypoint Alpha ' + VERSION, body, draft: true, prerelease: false });
+    if (!Number.isInteger(rel.id)) throw new Error('Not published to GitHub: GitHub named no id for the draft it made.');
     const uploadBase = String(rel.upload_url).replace(/\{.*$/, '');
+    if (uploadBase.indexOf(GH_UPLOADS + '/') !== 0) throw new Error('Not published to GitHub: the release names its uploads at ' + uploadBase.slice(0, 120) + ', which is not ' + GH_UPLOADS + '.');
     for (const f of ASSETS) {
         const p = path.join(dist, f);
         console.log('Uploading', f, '(' + Math.round(fs.statSync(p).size / 1024) + ' KB)');
         await api('POST', uploadBase + '?name=' + encodeURIComponent(f), fs.readFileSync(p), 'application/octet-stream');
     }
-    console.log('Published:', rel.html_url);
-})().catch(e => { console.error(e.message); process.exit(1); });
+    const done = await api('PATCH', GH_API + '/repos/' + REPO + '/releases/' + rel.id, { draft: false });
+    console.log('Published:', (done && done.html_url) || rel.html_url);
+}
+main().catch(e => { console.error(String(e && e.message || e)); process.exit(1); });

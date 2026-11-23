@@ -37,8 +37,8 @@ function call(h, method, p, body) {
         check('siteBase: the apex alone, or a local test site named by WAYPOINT_SITE (http on localhost or 127.0.0.1 with a port), never any other address',
             A.SITE === 'https://waypointvtt.com' && A.siteBase({}) === A.SITE && A.siteBase({ WAYPOINT_SITE: 'http://localhost:3002' }) === 'http://localhost:3002' && A.siteBase({ WAYPOINT_SITE: 'http://127.0.0.1:3002' }) === 'http://127.0.0.1:3002'
             && ['https://evil.example', 'http://localhost', 'http://localhost:3002/', 'http://www.waypointvtt.com', 'https://localhost:3002', 'http://localhost.evil.example:3002'].every(o => A.siteBase({ WAYPOINT_SITE: o }) === A.SITE));
-        check('the routes are the page\'s own six (1.6.2: the computer\'s name the last), and what an account keeps is the profile pack\'s four stores, never wp_hostId',
-            J(A.ACCOUNT_ROUTES) === J(['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt', '/api/account/name']) && J(A.PREF_KEYS) === J(['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms']));
+        check('the routes are the page\'s own seven (1.6.2: the computer\'s name; 1.6.4: the plan\'s relay the last), and what an account keeps is the profile pack\'s four stores, never wp_hostId',
+            J(A.ACCOUNT_ROUTES) === J(['/api/account', '/api/account/link', '/api/account/poll', '/api/account/prefs', '/api/account/adopt', '/api/account/name', '/api/account/relay']) && J(A.PREF_KEYS) === J(['wp_profile', 'wp_tableKeys', 'wp_gmPins', 'wp_gmRooms']));
         const cp = A.cleanPrefs({ updated: 12.7, prefs: { wp_profile: '{"id":"p_a"}', wp_hostId: 'u_x', wp_theme: 'dark', wp_tableKeys: 5, __proto__: { wp_gmPins: 'x' } } });
         check('cleanPrefs keeps only the four stores as strings, a whole positive time, and nothing a prototype holds; cleanAccount keeps a mail, a player id by its pattern, played only as true and a color as #rrggbb',
             J(cp) === J({ updated: 12, prefs: { wp_profile: '{"id":"p_a"}' } }) && A.cleanPrefs(null) === null && A.cleanPrefs({ prefs: 'x' }) === null
@@ -123,10 +123,56 @@ function call(h, method, p, body) {
         try { fs.rmSync(saves, { recursive: true, force: true }); } catch (e) {}
     }
 
+    /* ---- 1.6.4: the plan's relay (POST /api/account/relay), asked of a site of the suite's own on the page's behalf ---- */
+    {
+        const saves = fs.mkdtempSync(path.join(os.tmpdir(), 'wp-relay-')), file = path.join(saves, 'account.json'), logs = [];
+        const T0 = 5e12, now = () => T0, CRED = 'S3cretCredential+/=', USER = '1762900000:tag';
+        const mkH = (S, base) => A.makeHandler({ savesDir: saves, base: base || 'https://waypointvtt.com', version: '1.6.4', fetch: S.fetch, now, readBody, bodyCap: 65536, log: s => logs.push(s) });
+        const good = { urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turns:turn.cloudflare.com:443?transport=tcp', 'turn:evil.example:3478', 'stun:stun.cloudflare.com:3478', 'turn:turn.cloudflare.com:53'], username: USER, credential: CRED };
+        const usage = { used: 41e9, allowance: 50e9, warning: true, over: false, resets: T0 + 86400000, extra: 'x' };
+        // unlinked: nothing is asked of the site
+        const S0 = siteStub(), u0 = await call(mkH(S0), 'POST', '/api/account/relay');
+        fs.writeFileSync(file, JSON.stringify({ key: KEY, keyId: 'k1', linkedAt: 1, name: 'Desk' }));
+        const S = siteStub(), h = mkH(S);
+        S.answer['POST /api/relay'] = { status: 200, json: { iceServers: [good, { urls: 'turn:a.waypointvtt.com:3478', username: 'u', credential: 'c' }, { urls: ['turn:turn.cloudflare.com'], username: 'bad\u0007', credential: 'c' }, 'junk'], expires: T0 + 12 * 3600000, usage } };
+        const ok = await call(h, 'POST', '/api/account/relay'), c0 = S.calls[0];
+        check('1.6.4 the plan\'s relay (account.js, run for real against a site of the suite\'s own): an unlinked computer is answered 409 unlinked and the site is asked nothing; a linked one asks POST /api/relay with no body, the key as a bearer and no redirect followed; the answer keeps only turn: and turns: addresses on the relay service\'s host or the site\'s own domain, never port 53, a STUN entry or another host, drops a server whose username or credential is no short printable text, and hands the page the cleaned set, when it runs out and the month\'s use, never the key',
+            u0.status === 409 && J(u0.json) === J({ error: 'unlinked' }) && S0.calls.length === 0
+            && c0.m === 'POST' && c0.p === '/api/relay' && c0.auth === 'Bearer ' + KEY && c0.body === undefined && c0.redirect === 'error'
+            && ok.status === 200 && J(ok.json.iceServers) === J([{ urls: ['turn:turn.cloudflare.com:3478?transport=udp', 'turns:turn.cloudflare.com:443?transport=tcp'], username: USER, credential: CRED }, { urls: ['turn:a.waypointvtt.com:3478'], username: 'u', credential: 'c' }])
+            && ok.json.expires === T0 + 12 * 3600000 && J(ok.json.usage) === J({ used: 41e9, allowance: 50e9, warning: true, over: false, resets: T0 + 86400000 }) && !('test' in ok.json) && !ok.text.includes('wpk_'), J([u0, c0, ok.json]));
+        check('1.6.4 the plan\'s relay leaves no credential in a log line: what is logged says only how many servers came back',
+            logs.every(l => !l.includes(CRED) && !l.includes(USER) && !l.includes('cloudflare')) && logs.includes('relay: got 2 servers') && logs.includes('relay: not linked, nothing asked'), J(logs));
+        const ask = async (status, json, base) => { const Sx = siteStub(); Sx.answer['POST /api/relay'] = status === null ? null : { status, json }; return call(mkH(Sx, base), 'POST', '/api/account/relay'); };
+        const r403 = await ask(403, { error: 'plan' }), rAll = await ask(403, { error: 'allowance', usage: { used: 51e9, allowance: 50e9, warning: false, over: true, resets: T0 + 1 } }), r404 = await ask(404, { error: 'not found' }), r429 = await ask(429, {}), r503 = await ask(503, { error: 'unavailable' }), rDown = await ask(null), r500 = await ask(500, {});
+        const rNone = await ask(200, { iceServers: [{ urls: ['turn:evil.example:3478'], username: 'u', credential: 'c' }], expires: T0 + 3600000 }), rOld = await ask(200, { iceServers: [good], expires: T0 - 1 }), rFar = await ask(200, { iceServers: [good], expires: T0 + 72 * 3600000 });
+        const loopSet = { iceServers: [{ urls: ['turn:127.0.0.1:3478?transport=udp'], username: 'waypoint-dev', credential: 'waypoint-dev' }], expires: T0 + 3600000 };
+        const rLoopProd = await ask(200, loopSet), rLoopTest = await ask(200, loopSet, 'http://localhost:3210');
+        check('1.6.4 every refusal of the plan\'s relay is said by its own word: the plan, the allowance with its use, the switch off, too many asks, the relay service down, the site unreachable or answering otherwise; an answer with no usable address, a set already out of date or one said to last past two days is no relay; a loopback relay (the site\'s fake one) is taken only from a loopback test site, and the page is then told test',
+            r403.status === 403 && J(r403.json) === J({ error: 'plan' }) && rAll.status === 403 && rAll.json.error === 'allowance' && rAll.json.usage.over === true && r404.status === 404 && r404.json.error === 'off'
+            && r429.status === 429 && r429.json.error === 'slow' && r503.status === 503 && r503.json.error === 'unavailable' && rDown.status === 502 && rDown.json.error === 'offline' && r500.status === 502 && r500.json.error === 'site'
+            && [rNone, rOld, rFar, rLoopProd].every(x => x.status === 502 && x.json.error === 'site') && rLoopTest.status === 200 && rLoopTest.json.test === true && rLoopTest.json.iceServers[0].urls[0] === 'turn:127.0.0.1:3478?transport=udp',
+            J([r403, rAll, r404, r429, r503, rDown, r500, rNone, rOld, rFar, rLoopProd, rLoopTest].map(x => [x.status, x.json])));
+        const S401 = siteStub(); S401.answer['POST /api/relay'] = { status: 401, json: { error: 'unlinked' } }; const r401 = await call(mkH(S401), 'POST', '/api/account/relay');
+        check('1.6.4 a key the site no longer knows (401) is let go as every other account call lets it go, and the page is told unlinked',
+            r401.status === 401 && r401.json.error === 'unlinked' && !fs.existsSync(file), J([r401, fs.existsSync(file)]));
+        fs.writeFileSync(file, JSON.stringify({ key: KEY, keyId: 'k1', linkedAt: 1, name: 'Desk' }));
+        let aborted = false; const Sw = { fetch: (url, o) => new Promise((res, rej) => { if (o.signal) o.signal.addEventListener('abort', () => { aborted = true; rej(new Error('aborted')); }); }) };
+        const tw0 = Date.now(), rSlow = await call(mkH(Sw), 'POST', '/api/account/relay'), tw = Date.now() - tw0;
+        check('1.6.4 the site is waited on for 4 seconds at most for the relay, never the 10 every other call takes: hosting waits on it',
+            rSlow.status === 502 && rSlow.json.error === 'offline' && aborted && tw >= 3900 && tw < 6000, J([rSlow, tw, aborted]));
+        check('1.6.4 the relay\'s address rule: turn: and turns: on turn.cloudflare.com, waypointvtt.com and its subdomains, a port 1 to 65535 but 53, ?transport=udp or tcp and nothing else after the host; no other scheme, host or suffix, no user part, no path, no other query',
+            ['turn:turn.cloudflare.com', 'turns:turn.cloudflare.com:443?transport=tcp', 'TURN:Turn.Cloudflare.com:3478?transport=UDP', 'turn:waypointvtt.com:3478', 'turn:relay.eu.waypointvtt.com:5349'].every(u => A.relayUrlOk(u))
+            && ['stun:turn.cloudflare.com:3478', 'turn:turn.cloudflare.com:53', 'turn:turn.cloudflare.com:0', 'turn:turn.cloudflare.com:65536', 'turn:evilwaypointvtt.com', 'turn:waypointvtt.com.evil.example', 'turn:u@turn.cloudflare.com', 'turn:turn.cloudflare.com/x', 'turn:turn.cloudflare.com?transport=sctp', 'turn:turn.cloudflare.com:3478?transport=udp&x=1', 'turn:127.0.0.1:3478', 'turn:localhost', ' turn:turn.cloudflare.com', 7, null].every(u => !A.relayUrlOk(u))
+            && A.relayUrlOk('turn:127.0.0.1:3478', true) && A.relayUrlOk('turn:localhost:3478', true) && !A.relayUrlOk('turn:10.0.0.1:3478', true)
+            && J(A.cleanRelayUsage({ used: -1, allowance: 5 })) === 'null' && J(A.cleanRelayUsage({ used: 1.7, allowance: 9, warning: 'yes', over: 1 })) === J({ used: 1, allowance: 9, warning: false, over: false }) && A.cleanRelayUsage([]) === null);
+        try { fs.rmSync(saves, { recursive: true, force: true }); } catch (e) {}
+    }
+
     /* ---- both servers route the account alike, and only the shell's own module talks to the site ---- */
     {
         const main = fs.readFileSync(path.join(ROOT, 'system', 'resources', 'app', 'main.js'), 'utf8'), dev = fs.readFileSync(path.join(ROOT, 'tools', 'dev-server.js'), 'utf8');
-        const appDir = path.join(ROOT, 'system', 'app', 'scripts'), pageNamesSite = fs.readdirSync(appDir).filter(f => /\.js$/.test(f)).filter(f => /waypointvtt\.com/.test(fs.readFileSync(path.join(appDir, f), 'utf8').split('signal.waypointvtt.com').join('')));   /* 1.6.2 (backlog 220): the signaling server is the peer server Peer dials, never the site's API, and the page policy names it alone */
+        const appDir = path.join(ROOT, 'system', 'app', 'scripts'), pageNamesSite = fs.readdirSync(appDir).filter(f => /\.js$/.test(f)).filter(f => /waypointvtt\.com/.test(fs.readFileSync(path.join(appDir, f), 'utf8').split('signal.waypointvtt.com').join('').split("SITE_RELAY_DOMAIN = 'waypointvtt.com'").join('')));   /* 1.6.2 (backlog 220): the signaling server is the peer server Peer dials, never the site's API, and the page policy names it alone; 1.6.4: net.js names the domain once more, as the one a relay address of the plan's may stand under, which it never fetches */
         check('both servers hand the five routes to account.js\'s handler, made with the site\'s address from siteBase, and no page script names the site but its signaling server (the page asks its own server alone)',
             /if \(account\.ACCOUNT_ROUTES\.includes\(url\.pathname\)\) \{ accountHandler\(req, res, url\); return; \}/.test(main) && /if \(account\.ACCOUNT_ROUTES\.includes\(url\.pathname\)\) \{ accountHandler\(req, res, url\); return; \}/.test(dev)
             && /account\.makeHandler\(\{ savesDir, base: account\.siteBase\(process\.env\)/.test(main) && /account\.makeHandler\(\{ savesDir, base: account\.siteBase\(process\.env\)/.test(dev) && pageNamesSite.length === 0, J(pageNamesSite));
@@ -145,8 +191,8 @@ function call(h, method, p, body) {
             const answers = o.answers || {};
             const fetchS = (p, op) => { const m = (op && op.method) || 'GET', key = m + ' ' + p; calls.push(key + (op && op.body ? ' ' + op.body : '')); const a = answers[key]; const r = typeof a === 'function' ? a(op && op.body ? JSON.parse(op.body) : null) : a || { status: 200, json: {} }; return Promise.resolve({ status: r.status, json: () => Promise.resolve(r.json || {}) }); };
             const dialogs = { showConfirm: (q, cb, opts) => { asked.push({ q, opts }); setTimeout(() => cb(o.pick), 0); } };
-            const win = { wpProfileCore: PC.default || PC, wpNet: { active: false, hostId: () => 'u_mine' } };
-            const body = sSrc.slice(pc0, pc1).replace('function profWire() {', 'function profWireOff() {') + '\n' + sSrc.slice(a0, a1).replace(/import\('\.\/dialogs\.js'\)/g, 'Promise.resolve(DIALOGS)') + '\nreturn { acctDecide: acctDecide, ACCT: ACCT, acctPlayed: acctPlayed, acctRefresh: acctRefresh, acctStop: typeof acctStop === "function" ? acctStop : null, acctStopPoll: acctStopPoll };';
+            const win = { wpProfileCore: PC.default || PC, wpNet: Object.assign({ active: false, hostId: () => 'u_mine' }, o.net || {}) };
+            const body = sSrc.slice(pc0, pc1).replace('function profWire() {', 'function profWireOff() {') + '\n' + sSrc.slice(a0, a1).replace(/import\('\.\/dialogs\.js'\)/g, 'Promise.resolve(DIALOGS)') + '\nreturn { acctDecide: acctDecide, ACCT: ACCT, acctPlayed: acctPlayed, acctRefresh: acctRefresh, acctStop: typeof acctStop === "function" ? acctStop : null, acctStopPoll: acctStopPoll, acctUnlink: acctUnlink };';
             const api = new Function('window', 'localStorage', 'fetch', 'ui', 'toast', 'DIALOGS', 'location', 'syncPanel', "'use strict';\n" + body)(win, ls, fetchS, el, t => toasts.push(t), dialogs, { search: '' }, () => {});
             return { api, calls, toasts, asked, store, els };
         };
@@ -162,6 +208,17 @@ function call(h, method, p, body) {
             await r0.api.acctRefresh(); const again = !!r0.api.ACCT.poll; r0.api.acctStopPoll();
             check('Stop ends the wait: the page stops asking, tells its server to end the wait (DELETE /api/account/link), and draws Link to my account again; a server that still holds the wait for that code (one older than the page) does not start it again at the next read',
                 before === true && !!r0.api.acctStop && after === false && again === false && r0.calls.includes('DELETE /api/account/link') && codeHidden === true && linkShown && /^Link this computer/.test(lineAfter), J([before, after, again, r0.calls, lineAfter]));
+        }
+        // 1.6.4, the review of 2026-11-17: the plan's relay follows the link. A read that says not linked, and an unlink, let the held set go
+        // (net.js siteRelayForget); a read that says linked takes back a "not linked" said before (siteRelayLinked); a read that failed says nothing
+        {
+            const told = []; const relayNet = { siteRelayForget: () => told.push('forget'), siteRelayLinked: () => told.push('linked') };
+            const rf1 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'GET /api/account': { status: 200, json: { linked: false } } } }); await rf1.api.acctRefresh(); const t1 = told.splice(0);
+            const rf2 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'GET /api/account': acct(true) } }); await rf2.api.acctRefresh(); const t2 = told.splice(0);
+            const rf3 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'GET /api/account': { status: 500, json: {} } } }); await rf3.api.acctRefresh(); const t3 = told.splice(0);
+            const rf4 = run({ local: { wp_profile: PROF }, net: relayNet, answers: { 'DELETE /api/account': { status: 200, json: {} }, 'GET /api/account': { status: 200, json: { linked: false } } } }); await rf4.api.acctUnlink('test'); const t4 = told.splice(0);
+            check('1.6.4 the plan\'s relay follows the link: a read of the account that says not linked lets a held relay go, one that says linked takes back a not linked said before, a read that failed says nothing, and an unlink lets it go',
+                J(t1) === J(['forget']) && J(t2) === J(['linked']) && J(t3) === J([]) && t4[0] === 'forget', J([t1, t2, t3, t4]));
         }
         // 1: an account that played nowhere adopts this computer's player, and nothing is sent before the account is read
         const r1 = run({ local: { wp_profile: PROF }, answers: { 'GET /api/account': acct(false), 'POST /api/account/adopt': b => ({ status: 200, json: { updated: 77, prefs: Object.assign({}, b.prefs, { wp_profile: J({ id: 'p_here', name: 'Kael', color: '#5976cf' }) }) } }) } });

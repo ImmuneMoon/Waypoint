@@ -429,3 +429,6 @@ jobs:
       - name: placescheck, a map's places (the one judge of a place, what a player has seen, the Places here box, a legend and their wiring)
         if: ${{ !cancelled() }}
         run: node tools/placescheck.js
+      - name: stripcheck, the release build's comment stripper (JavaScript, CSS and HTML read with real tokenizers, a seeded fuzz run by V8, the real app stripped and proved)
+        if: ${{ !cancelled() }}
+        run: node tools/stripcheck.js

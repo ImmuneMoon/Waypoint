@@ -20,7 +20,9 @@ function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 function topicIn(set, id) { var l = own(TOPICS, set) ? TOPICS[set] : []; for (var i = 0; i < l.length; i++) if (l[i][0] === id) return true; return false; }
 // The topics in view, as this computer kept them: only a topic of its set
 function topicsRead(store) {
-    var out = { combat: TOPICS.combat[0][0], rules: TOPICS.rules[0][0], layout: TOPICS.layout[0][0] };
+    // 1.6.4 (Fulllion, 2026-11-23: "Open on Point budgets"): About this system leads the Rules tab's list, but the tab still opens on Point budgets,
+    // as it did before, until this computer has kept another topic; the Combat and Layout tabs open on their first topic
+    var out = { combat: TOPICS.combat[0][0], rules: 'budgets', layout: TOPICS.layout[0][0] };
     try { var v = JSON.parse(store.getItem('wp_sysTopics') || '{}'); ['combat', 'rules', 'layout'].forEach(function(s) { if (v && typeof v === 'object' && own(v, s) && topicIn(s, v[s])) out[s] = v[s]; }); } catch (e) {}
     return out;
 }

@@ -41,7 +41,12 @@ var PLAIN = { id: 1, key: 1, kind: 1, vis: 1, edit: 1, label: 1, labels: 1, name
     category: 1, cats: 1, options: 1, unit: 1, unitShow: 1, place: 1, paidPlace: 1, money: 1, words: 1, columns: 1, cells: 1, dir: 1, u: 1, each: 1,
     side: 1, op: 1, again: 1, stack: 1, posture: 1, postureKeep: 1, part: 1, endGroup: 1, over: 1, when: 1, from: 1, s: 1, c: 1, ct: 1, by: 1, job: 1,
     slot: 1, capBy: 1, sets: 1, placeBy: 1, apart: 1, fall: 1, attemptKey: 1, burst: 1, shape: 1, dtype: 1, dtype2: 1, dtype3: 1, dkind: 1, offLabel: 1,
-    rank: 1, free: 1, at: 1, toGm: 1, priceCol: 1, needsMsg: 1, msg: 1, rmMsg: 1, hint: 1, explain: 1, title: 1, text: 1, dur: 1, f: 1, fx: 1, entry: 1 };
+    rank: 1, free: 1, at: 1, toGm: 1, priceCol: 1, needsMsg: 1, msg: 1, rmMsg: 1, hint: 1, explain: 1, title: 1, text: 1, dur: 1, f: 1, fx: 1, entry: 1,
+    tip: 1, low: 1, high: 1, stations: 1, hosts: 1, is: 1, caption: 1, def: 1, sub: 1 };
+// a box of words by its name's ending too (needsText, fitSays, throwSays, a message), whatever its owner calls it (the review of the merge)
+function plainProp(prop) { return !!PLAIN[prop] || /(Says|Text|Msg|Words|Label|Note|Notes)$/.test(String(prop)); }
+// a word in any text that is exactly an id (a formula's Fx.e_x.on, a reference such as f_weapons#3), bounded by what no id holds
+var ID_WORD = /(^|[^A-Za-z0-9_])([a-z]_[A-Za-z0-9_]{1,24})(?![A-Za-z0-9_])/g;
 
 function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 function low(s) { return String(s || '').toLowerCase(); }
@@ -121,37 +126,57 @@ function mergePlan(src, draft, ticked, o) {
     var srcKey = Object.create(null); MERGE_KINDS.slice(0, 2).forEach(function(m) { thingsOf(src, m).forEach(function(x) { if (typeof x.key === 'string' && x.key && !srcKey[low(x.key)]) srcKey[low(x.key)] = byId[x.id]; }); });
     var linkOf = function(s) {
         var dl = thingsOf(draft, s.m), same = dl.filter(function(y) { return y.id === s.x.id; })[0]; if (same) return same.id;
-        if (s.k === 'field' || s.k === 'list') { var df = typeof s.x.key === 'string' && s.x.key ? dFieldKey[low(s.x.key)] : null; return df && (df.kind === 'item-list') === (s.k === 'list') ? df.id : ''; }
+        if (s.k === 'field' || s.k === 'list') { var df = typeof s.x.key === 'string' && s.x.key ? dFieldKey[low(s.x.key)] : null; return df && df.kind === s.x.kind ? df.id : ''; }   // of the same kind only: a change that switches a toggle is dropped on a number
         if (s.k === 'item') { var di = (typeof s.x.key === 'string' && s.x.key && dItemKey[low(s.x.key)]) || (typeof s.x.name === 'string' && dItemName[low(s.x.name.trim())]) || null; return di && typeof di.id === 'string' ? di.id : ''; }
         var nm = low(nameOf(s.k, s.x)); if (!nm) return ''; var hit = dl.filter(function(y) { return low(nameOf(s.k, y)) === nm; })[0]; return hit ? hit.id : '';
     };
     var gaps = [], gapSeen = Object.create(null), lacks = Object.create(null);
     var gap = function(p, s, how) { var g = p.x.id + '>' + s.x.id; if (gapSeen[g]) return; gapSeen[g] = 1; lacks[s.x.id] = 1; gaps.push({ from: { k: p.k, id: idMap[p.x.id], name: nameOf(p.k, p.x) }, to: { k: s.k, id: s.x.id, name: nameOf(s.k, s.x) }, how: how }); };
-    // a formula's names rewritten where a picked short name changed, and read for a field of the file left unticked
+    // every word of a text that is exactly the id of something in the file: a picked one's new id, else the draft's own, else left and said
+    var ids = function(p, str) {
+        return str.replace(ID_WORD, function(all, before, id) {
+            if (idMap[id]) return before + idMap[id];
+            var s = byId[id]; if (!s) return all;
+            var ln = linkOf(s); if (ln) return before + ln;
+            gap(p, s, 'id'); return all;
+        });
+    };
+    // a formula's names rewritten where a picked short name changed, and read for a field of the file left unticked. A short name may hold dots
+    // (Skill.Acrobatics), so a name is matched by its longest leading part that is a short name: of a picked field, of a field of the file, or of
+    // the draft's. A lone lower-case word is renamed where it is a short name that changed, but never said as lacking: it is more often a pick
     var formula = function(p, str) {
-        if (!F || typeof F.parse !== 'function' || /^[a-z][a-z0-9_]*$/.test(str)) return str;   // a lone lower-case word is a pick or a stat's key
-        var pr = null; try { pr = F.parse(str); } catch (e) { pr = null; } if (!pr || !pr.ok) return str;
+        if (!F || typeof F.parse !== 'function') return str;
+        var lone = /^[a-z][a-z0-9_]*$/.test(str), pr = null; try { pr = F.parse(str); } catch (e) { pr = null; } if (!pr || !pr.ok) return str;
         var edits = [];
         nameNodes(pr.ast, []).forEach(function(nd) {
             if (str.substr(nd.pos, nd.len) !== nd.text) return;   // where the engine's place for the name is not the text's own, it is left alone
-            var parts = nd.text.split('.'), first = low(parts[0]), changed = false;
-            if (keyMap[first]) { parts[0] = keyMap[first]; changed = true; }
-            else if (srcKey[first] && ticked[srcKey[first].x.id] !== true && !dFieldKey[first]) gap(p, srcKey[first], 'reads');
-            if (parts.length > 1 && itemKeyMap[low(parts[1])]) { parts[1] = itemKeyMap[low(parts[1])]; changed = true; }
+            var parts = nd.text.split('.'), changed = false, at = 1;
+            for (var i = parts.length; i >= 1; i--) {
+                var pre = low(parts.slice(0, i).join('.'));
+                if (keyMap[pre]) { parts = [keyMap[pre]].concat(parts.slice(i)); changed = true; break; }
+                if (srcKey[pre]) { if (!lone && ticked[srcKey[pre].x.id] !== true && !dFieldKey[pre]) gap(p, srcKey[pre], 'reads'); parts = [parts.slice(0, i).join('.')].concat(parts.slice(i)); break; }
+                if (dFieldKey[pre]) { parts = [parts.slice(0, i).join('.')].concat(parts.slice(i)); break; }
+            }
+            if (parts.length > at && itemKeyMap[low(parts[at])]) { parts[at] = itemKeyMap[low(parts[at])]; changed = true; }   // a list's entry by its short name, as a list's column reads it
             if (changed && !edits.some(function(e) { return e.at === nd.pos; })) edits.push({ at: nd.pos, len: nd.len, text: parts.join('.') });   // a node met twice in the tree is rewritten once
         });
         edits.sort(function(a, b) { return b.at - a.at; }).forEach(function(e) { str = str.slice(0, e.at) + e.text + str.slice(e.at + e.len); });
         return str;
     };
-    var walk = function(p, v, prop, path) {
+    // a name a box of words shows in braces (a label "Punch attack {UnarmedAtk}", a caption) follows as a formula's does
+    var braces = function(p, str) { return str.indexOf('{') < 0 ? str : str.replace(/\{([^{}]{1,300})\}/g, function(all, inner) { return '{' + formula(p, inner) + '}'; }); };
+    var walk = function(p, v, prop, path, host) {
         if (typeof v === 'string') {
             if (idMap[v]) return idMap[v];
             var s = byId[v]; if (s) { var ln = linkOf(s); if (ln) return ln; gap(p, s, 'id'); return v; }
-            if (prop === 'key' && path.length > 1 && path.indexOf('stats') < 0 && itemKeyMap[low(v)]) return itemKeyMap[low(v)];   // a change or a bonus aimed at an item by its short name
-            return PLAIN[prop] ? v : formula(p, v);
+            // a change or a bonus aimed at an item by its short name: a nested key of a part that is no column, counter or stat (each of those
+            // carries a label or a formula, and its key is the list's own)
+            if (prop === 'key' && path.length > 1 && path.indexOf('stats') < 0 && isObj(host) && !('label' in host) && !('formula' in host) && itemKeyMap[low(v)]) return itemKeyMap[low(v)];
+            var t = ids(p, v);
+            return plainProp(prop) ? braces(p, t) : formula(p, t);
         }
-        if (Array.isArray(v)) return v.map(function(x, i) { return walk(p, x, prop, path.concat([i])); });
-        if (isObj(v)) { var out = {}; Object.keys(v).forEach(function(k) { out[k] = walk(p, v[k], k, path.concat([k])); }); return out; }
+        if (Array.isArray(v)) return v.map(function(x, i) { return walk(p, x, prop, path.concat([i]), host); });
+        if (isObj(v)) { var out = {}; Object.keys(v).forEach(function(k) { out[k] = walk(p, v[k], k, path.concat([k]), v); }); return out; }
         return v;
     };
     var things = picked.map(function(p) {
@@ -164,7 +189,8 @@ function mergePlan(src, draft, ticked, o) {
     // the limits: what the draft holds and the pick together, by the LIMITS entry each counts against
     var over = [], counts = Object.create(null); picked.forEach(function(p) { counts[p.m.cap] = (counts[p.m.cap] || 0) + 1; });
     Object.keys(counts).forEach(function(c) { var m = MERGE_KINDS.filter(function(x) { return x.cap === c; })[0], has = isObj(draft) && Array.isArray(draft[m.list]) ? draft[m.list].length : 0, max = lim[c]; if (typeof max === 'number' && has + counts[c] > max) over.push({ title: c === 'fields' ? 'fields and lists' : m.title.toLowerCase(), n: has + counts[c], max: max }); });
-    return { things: things, n: things.length, idMap: idMap, keyMap: keyMap, gaps: gaps, over: over, lacks: Object.keys(lacks) };
+    var file = isObj(src) && typeof src.name === 'string' ? src.name : ''; gaps.forEach(function(g) { g.file = file; });   // which file a gap is of, so a later merge points it only at a thing of that same file
+    return { things: things, n: things.length, idMap: idMap, keyMap: keyMap, gaps: gaps, over: over, lacks: Object.keys(lacks), file: file };
 }
 
 // The plan put into the draft, in the file's order at the end of each list. rec is what the editor keeps of earlier merges' gaps while it is
@@ -176,7 +202,7 @@ function mergeApply(draft, plan, rec) {
     plan.things.forEach(function(t) { if (!Array.isArray(draft[t.list])) draft[t.list] = []; draft[t.list].push(t.obj); got[t.k] = (got[t.k] || 0) + 1; });
     if (Array.isArray(rec)) {
         rec.forEach(function(g) {
-            var to = plan.idMap[g.to.id]; if (!to) return; var th = findThing(draft, g.from.id); if (!th) return;
+            var to = plan.idMap[g.to.id]; if (!to || (g.file || '') !== (plan.file || '')) return; var th = findThing(draft, g.from.id); if (!th) return;
             var swap = function(v) { if (typeof v === 'string') return v === g.to.id ? to : v; if (Array.isArray(v)) return v.map(swap); if (isObj(v)) { Object.keys(v).forEach(function(k) { if (k !== 'id') v[k] = swap(v[k]); }); return v; } return v; };
             swap(th.x);
         });
@@ -222,11 +248,25 @@ function gapWords(g) {
 function open(src, host) {
     var offer = mergeOffer(src, host.kindWord);
     if (!offer.length) { host.toast('That file holds no fields, lists, rolls, items, effects or point budgets to merge.'); return; }
-    var ticked = Object.create(null), plan = null, boxes = [], heads = [];
+    var ticked = Object.create(null), plan = null, boxes = [], heads = [], checkT = 0;
+    // what the editor's own check of the whole system would say after Merge that it does not say now, worked out a moment after the ticks
+    // settle (it reads the whole system): it names what the pick uses that Merge does not bring, such as a linked sheet, a library entry or a
+    // Combat tab setting. host.faults answers those lines in the editor's words; a host without it says nothing here
+    var faults = el('div', 'sm-says-faults');
+    var checkSoon = function() {
+        clearTimeout(checkT); faults.textContent = ''; if (typeof host.faults !== 'function' || !plan || !plan.n || plan.over.length) return;
+        var at = plan; checkT = setTimeout(function() {
+            if (at !== plan) return; var d = host.draft(), lines = []; try { var cand = clone(d); mergeApply(cand, at, null); lines = host.faults(cand) || []; } catch (e) { lines = []; }
+            if (at !== plan || !lines.length) return;
+            faults.appendChild(el('div', 'sm-gaps-lead', lines.length === 1 ? 'After Merge the editor will also say one thing to fix:' : 'After Merge the editor will also say ' + lines.length + ' things to fix, such as:'));
+            lines.slice(0, 3).forEach(function(t) { faults.appendChild(el('div', 'sm-gap', t)); });
+        }, 350);
+    };
     var body = el('div', 'sm-box'), lead = el('div', 'sm-lead', 'Tick what to bring into this system. Each comes in new, beside what you have, and a name this system already uses gets a number after it. Nothing is saved until you Save, and Undo takes the whole merge back.');
     var find = el('input', 'field sm-find'); find.type = 'search'; find.placeholder = 'Find by name'; find.setAttribute('aria-label', 'Find by name');
     var list = el('div', 'sm-list'), says = el('div', 'sm-says'), count = el('div', 'sm-count');
-    body.appendChild(lead); body.appendChild(find); body.appendChild(list); body.appendChild(count); body.appendChild(says);
+    body.appendChild(lead); if (host.left) body.appendChild(el('div', 'sm-lead', 'Left out of the file as it was read (over the limits, or not valid): ' + host.left + '.'));
+    body.appendChild(find); body.appendChild(list); body.appendChild(count); body.appendChild(says);
     offer.forEach(function(g) {
         var sec = el('div', 'sm-group'), hd = el('label', 'sys-check sm-head'), all = el('input'); all.type = 'checkbox'; hd.appendChild(all); hd.appendChild(document.createTextNode(' ' + g.title + ' (' + g.rows.length + ')')); sec.appendChild(hd);
         var mine = [];
@@ -254,6 +294,7 @@ function open(src, host) {
             says.appendChild(tk);
             says.appendChild(el('div', 'sm-gaps-tail', 'Merge them as they are and the editor says each again under its row, until you pick one this system has.'));
         }
+        says.appendChild(faults); checkSoon();
     };
     // Find by name: a row whose name and gray words hold every word typed stays, and a kind with no such row is put away with its heading
     find.addEventListener('input', function() { var q = find.value; heads.forEach(function(h) { var any = false; h.mine.forEach(function(cb) { var lb = cb.parentNode; lb.hidden = !!q && !findMatch(lb._find, q); if (!lb.hidden) any = true; }); h.sec.hidden = !any; }); });
@@ -261,7 +302,7 @@ function open(src, host) {
     body.addEventListener('change', function(e) { if (e.target !== find) redraw(); });
     redraw();
     host.confirm('Merge from “' + (host.name || src.name || 'this file') + '”', function(yes) {
-        if (yes !== true) return;
+        clearTimeout(checkT); if (yes !== true) return;
         var p = mergePlan(src, host.draft(), ticked, host); if (!p.n || p.over.length) return;
         var got = host.apply(p) || {};
         var words = MERGE_KINDS.filter(function(m) { return got[m.k]; }).map(function(m) { return nOf(got[m.k], m.word); });

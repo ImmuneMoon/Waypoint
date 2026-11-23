@@ -1533,17 +1533,26 @@ function mergeFile(file) {
     if (!file || !draft) return;
     var M = typeof window !== 'undefined' ? window.wpSysMerge : null; if (!M || typeof M.open !== 'function') return;
     file.text().then(function(text) {
-        var c = cleanSystem(JSON.parse(text), { F: F(), gmView: true }); if (!c) throw new Error('not a system');
-        return c;
-    }).then(function(c) {
-        M.open(c, { name: c.name, F: F(), limits: LIMITS, keyCap: LIMITS.key, uid: uid, keyOk: function(k) { return validKey(k, F()); }, itemKeyOk: function(k) { return !!cleanItemKey(k, F()); },
+        var j = JSON.parse(text), c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('not a system');
+        return { j: j, c: c };
+    }).then(function(got0) {
+        var c = got0.c, dr = droppedCounts(got0.j, c), left = typeof droppedWords === 'function' ? droppedWords(dr) : '';   // what the file had that was left out, said as Import says it
+        // the editor's whole check before and after: each line the merged draft would add, in the words the editor says it in (plainMessage)
+        var faults = function(cand) {
+            var a = cleanSystem(draft, { F: F(), gmView: true }), b = cleanSystem(cand, { F: F(), gmView: true }); if (!a || !b) return [];
+            var was = {}, out = [], say = function(e) { return typeof plainMessage === 'function' ? plainMessage(cand, e.message) : e.message; };
+            validateSystem(a, F()).errors.forEach(function(e) { was[say(e)] = 1; });
+            validateSystem(b, F()).errors.forEach(function(e) { var w = say(e); if (!was[w]) { was[w] = 1; out.push(w); } });
+            return out;
+        };
+        try { M.open(c, { name: c.name, left: left, faults: faults, F: F(), limits: LIMITS, keyCap: LIMITS.key, uid: uid, keyOk: function(k) { return validKey(k, F()); }, itemKeyOk: function(k) { return !!cleanItemKey(k, F()); },
             kindWord: function(f) { return KIND_LABEL[f.kind] || ''; }, draft: function() { return draft; }, confirm: showConfirm, toast: toast,
             apply: function(plan) {
                 if (!draft) return {};
                 var got = M.apply(draft, plan), pool = plan.things.filter(function(t) { return t.k === 'field' && t.obj.kind === 'resource'; })[0];
                 if (pool) hpPoolFill(pool.obj.id);
                 markDirty(); renderAll(); return got;
-            } });
+            } }); } catch (e) { console.error(e); toast('The merge window could not open.'); }
     }, function() { toast('That file is not a Waypoint system.'); });
 }
 // [split:body-end]

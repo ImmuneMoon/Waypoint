@@ -4066,7 +4066,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
     var at = function(rid) { for (var i = 0; i < list.length; i++) if (rowIdOf(list[i]) === rid) return i; return -1; };
     var capJudge = function(ix, was, stood) { if (fl) return null; var oh = stood === true ? null : lvlOnlyHit(sys, spec, list, ix, was); if (oh) { if (opts.player) return { ok: false, reason: 'value', msg: lvlOnlySays(spec, oh), cap: true }; extra.onlySays = lvlOnlySays(spec, oh); }   // 1.6.0 Levels it may be: a player refused in words, the GM told. stood: a split and a restore leave a row at the level it stood at, so a row already outside its levels is not shut out of its own stack or its Undo
         var ch = lvlCapHit(sys, spec, list, ix, was); if (!ch) return null; if (opts.player) return { ok: false, reason: 'value', msg: lvlCapSays(f, spec, ch, false), cap: true }; extra.capSays = lvlCapSays(f, spec, ch, true); return null; };   // 1.6.0 At most at a level: a player refused in words, the GM told
-    if (q.op !== 'add' && typeof q.rowId === 'string') { var oxA = at(q.rowId); if (oxA >= 0 && isObj(list[oxA]) && typeof list[oxA].opn === 'string' && (opts.player || q.op !== 'remove')) return { ok: false, reason: 'opened' }; }   // 1.5.8: an opened row comes and goes with what opens it (openSync); only the GM may take one off, and it comes back while it is opened
+    if (q.op !== 'add' && typeof q.rowId === 'string') { var oxA = at(q.rowId); if (oxA >= 0 && isObj(list[oxA]) && typeof list[oxA].opn === 'string' && (opts.player || q.op !== 'remove')) return q.op === 'buyoff' && opts.player ? { ok: false, reason: 'value', msg: buyOffNo(sys, list[oxA]) } : { ok: false, reason: 'opened' }; }   // 1.5.8: an opened row comes and goes with what opens it (openSync); only the GM may take one off, and it comes back while it is opened
     if (!fl && q.op !== 'add') { var lkH = rowLockHit(sys, char, f, list, q, F); if (lkH) return lkH; }   // 1.6.2 Locked while: a locked cell is nobody's to change, the GM's hand too (a file that fills a character still lays it)
     if (q.op === 'load') return rowLoad(sys, char, f, list, spec, q, opts, at, vo, F);   // 1.5.8 Loads from
     if (q.op === 'chamber' || q.op === 'unchamber') return rowChamber(sys, char, f, list, spec, q, opts, at, vo, F);   // 1.5.9 Chambers from
@@ -4313,10 +4313,10 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
             if (nq > cur) { extra.added = nq - cur; if (opts.player && rmode && !mkR) { extra.note = rmode; extra.name = rd.def.name || 'Item'; } }   // more of it: a pickup (the Undo, the GM's notice)
             var inGr = gr >= 0 && cur - nq <= gr;
             if (mode === 'bound' && nq < cur && !inGr) {
-                if (!(byEq && opts.onGrace)) { var st0 = { ok: false, reason: 'stays', msg: msg, name: nm }; if (byEq) st0.eq = true; return st0; }
+                if (!(byEq && opts.onGrace)) { var st0 = { ok: false, reason: 'stays', msg: msg || (q.op === 'buyoff' ? buyOffNo(sys, list[idx]) : ''), name: nm }; if (byEq) st0.eq = true; return st0; }
                 extra.onGraceUsed = true;   // the switch's grace let it go: spent
             }
-            if (q.op === 'buyoff' && opts.player && !mkR && (mode === 'curse' || list[idx].keptOn === 1)) return { ok: false, reason: 'value', msg: msg || ((rd && rd.def && rd.def.name ? rd.def.name : 'This row') + ' cannot be bought off.') };   // 1.6.4 (Fulllion, 2026-11-23, by prompt: "Refuse for a cursed row"): a row the GM keeps (a curse on it or kept on) is never a player's to buy off; refused in the GM's own words where set, nothing charged. The GM's own hand still buys it off
+            if (q.op === 'buyoff' && opts.player && !mkR && (mode === 'curse' || list[idx].keptOn === 1)) return { ok: false, reason: 'value', msg: msg || buyOffNo(sys, list[idx]) };   // 1.6.4 (Fulllion, 2026-11-23, by prompt: "Refuse for a cursed row", then "Ordinary words"): a row the GM keeps (a curse on it or kept on) is never a player's to buy off; refused in the GM's own words where set, else in the words a bound or an opened row's buy off gets too, so nothing hints at a curse; nothing charged. The GM's own hand still buys it off
             if (nq < cur) extra.undone = cur - nq;
             var hostWas = nq <= 0 ? rowIdOf(list[idx]) : '';   // 1.6.0 R14: a host that leaves takes its parts with it
             var gbWas = nq <= 0 && typeof list[idx].gb === 'string' && typeof list[idx].defId === 'string' ? { refill: list[idx].gb, fid: f.id, entry: list[idx].defId } : null;   // 1.6.0 (a builder audit): a row a grant backed, taken off: the grant fills again
@@ -8697,6 +8697,9 @@ function buyOffCost(sys, char, fieldId, rowId, F) {
     return { name: name, label: cf.label || cf.key || 'points', n: n, has: has, short: n !== null && bo.add !== true && has + 1e-9 < n };
 }
 // The question a sheet asks first, and the words a refusal leads with
+// The one sentence a player's buy off is refused in for the row's own rules where the GM wrote no words of its own: a bound row, an opened row, a
+// cursed row or one kept on alike (Fulllion, 2026-11-23, by prompt: "Ordinary words"), so a refusal never tells a curse from any other
+function buyOffNo(sys, row) { var d = rowDef(sys, row); return (d && isObj(d.def) && typeof d.def.name === 'string' && d.def.name ? d.def.name : 'This row') + ' cannot be bought off.'; }
 function buyOffSays(b) { return isObj(b) ? 'Buying off ' + b.name + ' costs ' + fmtNum(b.n) + ' ' + b.label + '.' : ''; }
 // The judgment before anything moves: { ok: true, b, tell? } or a refusal. A cost that cannot be worked out refuses everyone. q.cost, where a
 // sheet sends the figure it asked with, is only compared: a figure that has moved since refuses, so nobody pays what they were not asked. A

@@ -759,7 +759,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
                       tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
                                      '<div class="rn">' + esc(wItem.name || (wItem.type === 'trigger' ? 'Portal zone' : 'Portal')) + '</div>' +
                                      '<div class="rc" style="color:var(--gold)">&rarr; ' + esc(destP && destP.meta && destP.meta.title || 'another map') + '</div>' +
-                                     lockTipP + (lockTipP && isClientP ? '' : '<div class="rc" style="color:var(--dim); font-size:11px;">' + (isClientP ? 'Drop your token here, or stand next to it and double-click, to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') +
+                                     lockTipP + (lockTipP && isClientP ? '' : '<div class="rc" style="color:var(--dim); font-size:11px;">' + portalWayWords(wItem, isClientP) + '</div>') +
                                      '</div>';
                       if (destP) portalPicFill(tt, wItem.targetMapId);   // 1.6.0: a small picture of the map it leads to, beside its name
                       tt.style.display = 'block';
@@ -790,7 +790,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
                   var lockTT = destTT && destTT.meta && destTT.meta.playerLock ? ' \u00b7 ' + (isClientTT ? 'closed for now' : 'locked for players') : '';
                   var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + lockTT + '</div>' : '';
                   var lockTipTT = portalLockTip(wItem, activeMap, !!isClientTT);   // a portal's own lock: a player is told it is locked in place of how to travel
-                  var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc" style="color:var(--gold)">' + (isClientTT ? 'Drop your token here, or stand next to it and double-click, to travel' : 'Double-click to travel · drop a player\'s token here to send them through') + '</div>') : '';
+                  var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc" style="color:var(--gold)">' + portalWayWords(wItem, isClientTT) + '</div>') : '';
 
                   var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
 
@@ -3691,6 +3691,13 @@ window.wpFitToGrid = fitToGrid;
       var r = document.createElement('div'); r.className = 'menu-item cm-trade wib wi-trade'; r.title = 'Open a barter window with them: each side puts items and money on the table, and both confirm'; r.textContent = q.label;
       r.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; T.ask(q.from, q.to); });
       cMenu.appendChild(r); return true;
+  }
+  // How a portal is gone through, in the words its card shows (fixed words, no campaign text). 1.6.4 (doors that lead somewhere): a door that
+  // leads somewhere is gone through by walking a token across it (net.js doorCrossFor), so its card says that in place of dropping a token on it
+  function portalWayWords(item, client) {
+      var FC = window.wpFogCore, door = !!(FC && typeof FC.isDoor === 'function' && FC.isDoor(item));
+      if (door) return client ? 'Walk your token through it, or stand next to it and double-click, to travel' : 'Double-click to travel · move a token through it to send it across';
+      return client ? 'Drop your token here, or stand next to it and double-click, to travel' : 'Double-click to travel · drop a player\'s token here to send them through';
   }
   // [sinkcheck:portallock-start]
   // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map") on the board: what a hover says of

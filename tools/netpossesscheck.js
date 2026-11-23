@@ -30,7 +30,7 @@ pendingChecks.push((async () => {
     const J = v => JSON.stringify(v);
     const mhSrc = require('./checkkit').part('netfog.js').indexOf('// [netcheck:mapheld-start]') >= 0 ? bw('mapheld', 'netfog.js') : '';   // absent on the code before this fold: the cases then fail, not the run
     const niBody = has('needitem') ? bw('needitem') : (() => { const a = src.indexOf("} else if (msg.type === 'needItem' && net.role === 'host') {"), b = src.indexOf("\n    } else if (msg.type === 'stage'", a); return src.slice(src.indexOf('\n', a) + 1, b); })();
-    const trSrc = fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel');
+    const trSrc = fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand, cross) {', '\n// The portal item under a token\'s center', 'hostTravel');
     const modSrc = ['var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {}, bannedIds = {}, _travelDenyLast = {};',
         'var fxLib = function() { return {}; }, itemLib = function() { return {}; }, withHoverLines = function(v) { return v; };',
         ownKeySrc, siSrc(), mhSrc, fnSrc('function sanitizeAppState(', '\nfunction fogNow()', 'sanitizeAppState', 'netfog.js'), bw('foglit', 'netfog.js'), fnSrc('function anyFog(', '\n}\n', 'anyFog', 'netfog.js') + '\n}\n', lineOf('function mapFogged('), lineOf('var FOG_DIFF_ADD_MAX = ', 'netfog.js'),
@@ -896,7 +896,7 @@ pendingChecks.push((async () => {
     check('the review of 1.6.3 (finding 13): an accepted drag notes the places it passes, about half a cell apart, with its facing, the drop itself not among them and 400 at most, thinned evenly; an accepted drop hands them to fog.js memHostPath a moment later, with the other open drags held at their start, and never twice (the pos gate\'s two lines, run for real)',
         j(frR.path) === j([{ x: 30, y: 0, rot: 90, front: 0 }, { x: 70, y: 5, rot: 90, front: 0 }, { x: 200, y: 0, rot: 90, front: 0 }]) && frBig.path.length <= 400 && frBig.path.length > 200 && frBig.path[0].x === 30 && frBig.path[frBig.path.length - 1].x === 30000
         && before === 0 && j(ran) === j([['mA', 'k1', 'u_a', 'tA', 2]]) && j(landed) === j(['mA']) && frD.path === null && again === 1
-        && src.indexOf(recLine) > src.indexOf('        if (fbW && conn && conn.open && typeof conn.send === ') && src.indexOf(recLine) < src.indexOf('        if (msg.final) {', src.indexOf(recLine)) && src.indexOf('            net.tokenDropped(w, map);') < src.indexOf(dropLine) && src.indexOf(dropLine) < src.indexOf('window.wpRecord.moved(map, w, frW')
+        && src.indexOf(recLine) > src.indexOf('        if ((fbW || doorW) && conn && conn.open && typeof conn.send === ') && src.indexOf(recLine) < src.indexOf('        if (msg.final) {', src.indexOf(recLine)) && src.indexOf('            net.tokenDropped(w, map);') < src.indexOf(dropLine) && src.indexOf(dropLine) < src.indexOf('window.wpRecord.moved(map, w, frW')
         && /if \(wasHost && typeof fogDragSweep === 'function'\) fogDragSweep\(true\);[^\n]*\n\s*if \(wasHost && window\.wpFog && typeof window\.wpFog\.memFlush === 'function'\) \{ try \{ window\.wpFog\.memFlush\(true\);/.test(src), j([frR.path, frBig.path.length, ran, landed, again]));
 }
 

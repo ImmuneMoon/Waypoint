@@ -3173,6 +3173,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     took === true && html1 === '<p>see ' + OPEN('#wp:@:char:c2') + 'Captain Vex</a> </p><p>Bren <b>rides</b><br></br>on</p>' && d1 === d0 + 1 && J(spot1.links) === J([[4, 15]]) && spot1.at === 16
                     && took2 === true && html2 === '<p>see ' + OPEN('#wp:@:char:c2') + 'Captain Vex</a> </p><p>' + OPEN('#wp:@:map:m4') + 'Bren</a> <b>rides</b><br></br>on</p>' && J(sels) === J([[16, 16], [17, 17]]) && d2 === d1 + 1 && d3 === d2
                     && undo1 === html1 && undo2 === '<p>see Captain Vex</p><p>Bren <b>rides</b><br></br>on</p>' && J(no) === J([false, false, false]), J([took, html1, d0, d1, at1, took2, html2, d2, d3, sels, undo1, undo2, no]));
+                // the review of 2026-11-23: a caret held by an element (the empty paragraph Enter leaves, <p><br></p>) is at the END of the paragraph
+                // above by its offset alone; it is no caret of that line, so the name there is not offered on the empty line, and Tab there is Tab
+                const C = mkBlock([['p', {}, 'see Captain Vex'], ['p', {}, ['br', {}]], ['p', {}, ['b', {}, 'Bren'], ['br', {}]]]);
+                const OC = new Function(...Object.keys(deps2), linkSrc + '\n' + slice('planner.js', 'mention') + '\n' + slice('planner.js', 'offer') + '\nreturn { offerSpot, offerTake };')(...Object.values(Object.assign({}, deps2, { document: C.doc, window: C.dom.window, stepBoundary: el => C.H.stepBoundary(el), getActiveMap: () => C.pg.map })));
+                const ps = C.body.childNodes, at = (n, o) => { C.body.focus(); C.dom.sel.setBaseAndExtent(n, o, n, o); return OC.offerSpot(C.body); };
+                const eEmpty = at(ps[1], 0), eAfterB = at(ps[2], 1), eBeforeB = at(ps[2], 0), eText = at(ps[0].firstChild, 15);
+                C.body._wpComp = true; const eComp = at(ps[0].firstChild, 15), tComp = OC.offerTake(C.body, 4, 15, '#wp:@:char:c2'); C.body._wpComp = false;
+                check('1.6.4 a text block’s caret held by an element (the review): on the empty line under a paragraph it is no caret of that paragraph, so nothing is offered; right after an element that holds text it is that text’s; before anything on a line, none; and during a composition there is no offer and nothing is taken',
+                    eEmpty === null && J(eAfterB) === J({ text: 'Bren', at: 4, base: 15, links: [], self: '#wp:@:page:p1' }) && eBeforeB === null && J(eText) === J({ text: 'see Captain Vex', at: 15, base: 0, links: [], self: '#wp:@:page:p1' })
+                    && eComp === null && tComp === false && C.stored() === C.pg.map.blocks[0].content && !/<a /.test(C.stored()), J([eEmpty, eAfterB, eBeforeB, eText, eComp, tComp]));
             }
         }
     }

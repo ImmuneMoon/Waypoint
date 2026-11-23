@@ -2302,12 +2302,22 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return segs;
   }
   function offerSpot(el) {
-      if (!offerCan(el) || tsState.comp) return null;
+      if (!offerCan(el) || tsState.comp || el._wpComp) return null;   // a composition under way, in a field (tsState.comp) or a text block (_wpComp): the words are the engine's
       if (el.classList.contains('rte-body')) {
           var r = rteSel(el), gs = window.getSelection ? window.getSelection() : null; if (!r || r[0] !== r[1]) return null;
           var at = r[0], segs = offerLines(el), an = gs && gs.anchorNode, seg = null;
-          if (an && an.nodeType === 3) seg = segs.filter(function(g) { return g.xs.some(function(x) { return x.n === an; }); })[0] || null;
-          if (!seg) seg = segs.filter(function(g) { return g.a < at && at <= g.z; })[0] || segs.filter(function(g) { return g.a === at; })[0] || null;
+          // the caret's line is the one its text node stands in. A caret held by an element (an empty paragraph's <p><br></p>, a place
+          // between two elements) belongs to the text right before it within that element, and to none where nothing stands before it: its
+          // offset alone would name the END of the paragraph above, whose words must not be offered on the empty line below (the review)
+          var tn = an && an.nodeType === 3 ? an : null;
+          if (!tn && an && an.nodeType === 1 && an.childNodes) {
+              for (var k = Math.min(gs.anchorOffset, an.childNodes.length) - 1; k >= 0 && !tn; k--) {
+                  var c = an.childNodes[k]; if (c.nodeType === 3) { tn = c; break; }
+                  if (c.nodeType === 1 && (RTE_BLOCKS[rteTag(c)] || rteTag(c) === 'BR' || rteTag(c) === 'IMG' || rteTag(c) === 'HR')) break;
+                  if (c.nodeType === 1) { var ts = rteTexts(c); if (ts.length) tn = ts[ts.length - 1].n; }
+              }
+          }
+          if (tn) seg = segs.filter(function(g) { return g.xs.some(function(x) { return x.n === tn; }); })[0] || null;
           if (!seg) return null;
           var text = seg.xs.map(function(x) { return x.n.nodeValue; }).join(''), links = [];
           seg.xs.forEach(function(x) { if (rteAnchor(el, x.n)) links.push([x.a - seg.a, x.a - seg.a + x.n.nodeValue.length]); });
@@ -2334,7 +2344,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   function offerTake(el, s, e, href) {
       href = TF.cleanLink(href);
-      if (!offerCan(el) || !href || !TF.mentionLink(href) || !(s >= 0 && e > s)) return false;
+      if (!offerCan(el) || !href || !TF.mentionLink(href) || !(s >= 0 && e > s) || tsState.comp || el._wpComp) return false;   // never during a composition: the text nodes are the engine's
       if (el.classList.contains('rte-body')) {
           var r = rteSel(el), cur = r ? r[1] : e, segs = offerLines(el), seg = segs.filter(function(g) { return g.a <= s && e <= g.z; })[0]; if (!seg) return false;
           stepBoundary();

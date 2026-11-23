@@ -59,7 +59,7 @@ function mentionQuery(before) { var m = /(?:^|[\s(\[{])@([^\s@]{0,40})$/.exec(St
      page, a map or a character of its own name;
    - words that already stand in a link or a mention, or right after an @ (the @ list's own), are never offered;
    - only the longest name the caret stands in, at the end of, or one space after is offered, so there is one offer at a time. */
-var OFFER_MIN = 3, OFFER_BACK = 160, OFFER_WORD = /[\p{L}\p{N}]/u;
+var OFFER_MIN = 3, OFFER_BACK = 160, OFFER_WORD = /[\p{L}\p{N}\p{M}]/u;
 // Words so common in a game's notes that a name made only of them would be offered all the time. Lower case, with no accents
 var OFFER_COMMON = Object.create(null);
 ('a an the and or but nor of to in on at by for with from into onto upon off over under up down out about after before again also as is are was were be been '
@@ -74,26 +74,30 @@ var OFFER_COMMON = Object.create(null);
     + 'kitchen library cellar attic bedroom study vault armory chapel stairs courtyard garden entrance exit hallway corridor barracks stable well '
     + 'world region area level floor quest quests task tasks goal goals hooks hook background history lore notes misc other').split(' ').forEach(function(w) { if (w) OFFER_COMMON[w] = 1; });
 // One character as matching reads it, kept one character long so that offsets into the folded text are offsets into the text: lower case,
-// with no accent, a curly apostrophe as a straight one, and any space but a line break as a plain space (a line break stays, and is no space)
+// with no accent, a curly apostrophe (U+2018, U+2019, U+02BC) as a straight one, and any space but a line break as a plain space (a line break
+// stays, and is no space). An accent typed as a mark of its own after its letter stays a mark, which offerRun steps over
 function offerFold1(c) {
     if (c === '\n') return c;
     if (/\s/.test(c)) return ' ';
-    if (c === '‘' || c === '’' || c === 'ʼ') return "'";
+    var cc = c.charCodeAt(0); if (cc === 0x2018 || cc === 0x2019 || cc === 0x2bc) return "'";
     var l = c.toLowerCase(); if (l.length !== 1) l = c;
-    try { var d = l.normalize('NFD'); if (d.length > 1 && /^[̀-ͯ]+$/.test(d.slice(1))) l = d.charAt(0); } catch (e) {}
+    try { var d = l.normalize('NFD'); if (d.length > 1 && /^\p{M}+$/u.test(d.slice(1))) l = d.charAt(0); } catch (e) {}
     return l;
 }
 function offerFold(s) { var t = String(s == null ? '' : s), out = ''; for (var i = 0; i < t.length; i++) out += offerFold1(t.charAt(i)); return out; }
+// A letter, a digit or a mark (an accent typed on its own after its letter is part of that letter's word)
 function offerWordAt(t, i) { return i >= 0 && i < t.length && OFFER_WORD.test(t.charAt(i)); }
-// The names a text may offer, from what mentionAll lists: { first: { word: [{ f, href, kind }] }, n }, keyed by each name's first word, so a
-// match at the caret looks up only the names that begin with the word in front of it. f: the name folded, with its spaces as single spaces
+function offerMark(t, i) { return i >= 0 && i < t.length && /\p{M}/u.test(t.charAt(i)); }
+// The names a text may offer, from what mentionAll lists: { first: { word: [{ f, href, kind }] }, n, max }, keyed by each name's first word, so
+// a match at the caret looks up only the names that begin with the word in front of it. f: the name folded, with its spaces as single spaces and
+// no marks of its own; max: the longest f, which bounds how far past the caret a match is looked for
 function mentionIndex(all) {
-    var by = Object.create(null), seen = Object.create(null), n = 0;
+    var by = Object.create(null), seen = Object.create(null), n = 0, max = 0;
     (Array.isArray(all) ? all : []).forEach(function(x) {
         if (!x || typeof x.href !== 'string' || typeof x.label !== 'string') return;
         var raw = x.word === 'Room' && typeof x.name === 'string' ? x.name : x.label;   // a room by its own name, never by "Map › Room"
         if (x.kind === 'map' && x.word === 'Map' && raw === 'A map') return;           // a map with no title of its own
-        var f = offerFold(raw).replace(/\s+/g, ' ').trim(); if (!f) return;
+        var f = offerFold(raw).replace(/\p{M}/gu, '').replace(/\s+/g, ' ').trim(); if (!f) return;
         var words = f.split(/[^\p{L}\p{N}]+/u).filter(Boolean), letters = (f.match(/[\p{L}\p{N}]/gu) || []).length;
         if (letters < OFFER_MIN || !words.length || words.every(function(w) { return OFFER_COMMON[w] === 1; }) || !offerWordAt(f, 0)) return;
         // Two things of one name. A room loses to a page, a map or a character of its name (a room on a data map often stands for the very map
@@ -105,39 +109,46 @@ function mentionIndex(all) {
             else if (tier === o.tier && o.href !== x.href) o.href = '';
             return;
         }
-        var e = { f: f, href: x.href, kind: x.kind, tier: tier }; seen[f] = e; n++;
+        var e = { f: f, href: x.href, kind: x.kind, tier: tier }; seen[f] = e; n++; if (f.length > max) max = f.length;
         (by[words[0]] = by[words[0]] || []).push(e);
     });
-    return { first: by, n: n };
+    return { first: by, n: n, max: max };
 }
-// Where the folded text t holds the name f from p on, with any run of spaces for one space: the offset its match ends at, or -1
+// Where the folded text t holds the name f from p on, with any run of spaces for one space and the marks after a letter stepped over: the
+// offset its match ends at (after any marks on its last letter), or -1
 function offerRun(t, p, f) {
     var j = p;
     for (var i = 0; i < f.length; i++) {
         if (f.charAt(i) === ' ') { if (t.charAt(j) !== ' ') return -1; while (t.charAt(j) === ' ') j++; continue; }
         if (t.charAt(j) !== f.charAt(i)) return -1;
-        j++;
+        j++; while (offerMark(t, j)) j++;
     }
     return j;
 }
-// The one offer at the caret: { s, e, href, kind } — the longest name whose words the caret stands in, right after or one space after, as whole words, that
-// lies in no link (avoid: [[s, e], ...], in the text's own offsets) and is not self (the page being written in) — or null.
-// text: the words around the caret (a field's text, or the paragraph of a text block); at: the caret's offset in it
+// The one offer at the caret: { s, e, href, kind } — the longest name whose words the caret stands in, right after or one space after (never
+// right before: a caret at a name's start is no offer), as whole words, that lies in no link (avoid: [[s, e], ...], in the text's own offsets)
+// and is not self (the page being written in) — or null. text: the words around the caret (a field's text, or the line of a text block); at:
+// the caret's offset in it. Only the stretch from OFFER_BACK characters before the caret to the longest name past it is read (a Journal note
+// may hold 60,000 characters, and this runs as the caret moves): its offsets are the text's less lo
 function mentionOffer(ix, text, at, avoid, self) {
-    var t = offerFold(text), best = null;
-    if (!ix || !ix.n || typeof at !== 'number' || at < 0 || at > t.length) return null;
-    for (var p = Math.max(0, at - OFFER_BACK); p <= at && p < t.length; p++) {
-        if (!offerWordAt(t, p) || offerWordAt(t, p - 1)) continue;   // a word starts here
+    var src = String(text == null ? '' : text), best = null;
+    if (!ix || !ix.n || typeof at !== 'number' || at < 0 || at > src.length) return null;
+    var lo = Math.max(0, at - OFFER_BACK - 1), t = offerFold(src.slice(lo, Math.min(src.length, at + (ix.max || 0) * 2 + 2))), a = at - lo;
+    for (var p = Math.max(0, a - OFFER_BACK); p < a && p < t.length; p++) {
+        if (!offerWordAt(t, p) || offerWordAt(t, p - 1) || offerMark(t, p)) continue;   // a word starts here
+        if (p === 0 && lo > 0) continue;                             // (the character before it was cut off: lo leaves one in, so this is no start)
         if (t.charAt(p - 1) === '@') continue;                       // the @ list's own words
-        var q = p; while (offerWordAt(t, q)) q++;
-        var list = ix.first[t.slice(p, q)]; if (!list) continue;
+        var q = p, w = ''; while (offerWordAt(t, q)) { if (!offerMark(t, q)) w += t.charAt(q); q++; }   // the word in front, its marks left out as the index leaves them
+        var list = ix.first[w]; if (!list) continue;
         for (var k = 0; k < list.length; k++) {
             var x = list[k]; if (!x.href || x.href === self) continue;
             var e = offerRun(t, p, x.f);
             if (e < 0 || offerWordAt(t, e)) continue;   // whole words: no letter right after
-            if (e < at && !(e === at - 1 && t.charAt(e) === ' ')) continue;   // reaching the caret, or one space short of it (a name just typed and the space after it)
-            if ((Array.isArray(avoid) ? avoid : []).some(function(r) { return Array.isArray(r) && p < r[1] && e > r[0]; })) continue;
-            if (!best || e - p > best.e - best.s) best = { s: p, e: e, href: x.href, kind: x.kind };
+            if (e >= t.length && lo + t.length < src.length) continue;   // (the stretch read ended there: what follows is not known to be no letter)
+            if (e < a && !(e === a - 1 && t.charAt(e) === ' ')) continue;   // reaching the caret, or one space short of it (a name just typed and the space after it)
+            var S = p + lo, E = e + lo;
+            if ((Array.isArray(avoid) ? avoid : []).some(function(r) { return Array.isArray(r) && S < r[1] && E > r[0]; })) continue;
+            if (!best || E - S > best.e - best.s) best = { s: S, e: E, href: x.href, kind: x.kind };
         }
     }
     return best;
@@ -252,16 +263,21 @@ function take(el, text) { var out = el ? mentionTake(el._wpMen, text) : []; if (
    after each change and each move of the caret (once a frame at most) it asks the text box module whether the box takes offers and what the
    words around the caret are (planner.js wpTextBox.offerCan, offerSpot), matches them against the index, and draws the one offer as a CSS
    highlight named wp-offer (style.css ::highlight(wp-offer)): a look laid over the words by the browser, which never enters the box, its
-   spans or anything stored. Tab with an offer showing, or a press on its words, makes it a mention through the box's own link path
+   spans or anything stored. Tab with an offer showing, or a plain click on its words, makes it a mention through the box's own link path
    (wpTextBox.offerTake: one undo step); Tab anywhere else, and every other key, does what it always did. Where the browser draws no
    highlights there is no offer at all, so Tab is never taken for words that show nothing.
    The index is made once per campaign change, never per key: it is kept while the campaign is the same object holding as many items and
-   characters, and made again at most every OFFER_STALE ms while typing goes on, so a rename shows within a few seconds. */
-var OFFER_STALE = 5000, OFFER_HL = 'wp-offer';
-var off = { el: null, s: 0, e: 0, href: '', kind: '', range: null, ix: null, ixCamp: null, ixSig: '', ixAt: 0, raf: 0 };
+   characters, and made again at most every OFFER_STALE ms while typing goes on, so a rename shows within a few seconds. Even those counts
+   are asked at most every OFFER_PEEK ms, so a frame of typing in a large campaign costs no walk over it.
+   While a composition is under way (an IME, a dead key, the emoji picker) there is no offer and nothing takes one: the words are the
+   engine's until it ends (off.comp). */
+var OFFER_STALE = 5000, OFFER_PEEK = 1000, OFFER_HL = 'wp-offer', OFFER_DRAG = 4;
+var off = { el: null, s: 0, e: 0, href: '', kind: '', range: null, ix: null, ixCamp: null, ixSig: '', ixAt: 0, peekAt: 0, raf: 0, comp: false, down: null };
 function offerDraws() { return typeof CSS !== 'undefined' && !!CSS && !!CSS.highlights && typeof Highlight === 'function'; }
 function offerIx() {
     var camp = getActiveCampaign(), now = Date.now();
+    if (off.ix && off.ixCamp === camp && now - off.peekAt < OFFER_PEEK && now - off.ixAt < OFFER_STALE) return off.ix;   // asked a moment ago
+    off.peekAt = now;
     var sig = camp ? Object.keys(camp.items || {}).length + ':' + Object.keys(camp.chars || {}).length : '';
     if (off.ix && off.ixCamp === camp && off.ixSig === sig && now - off.ixAt < OFFER_STALE) return off.ix;
     off.ix = mentionIndex(mentionAll(camp)); off.ixCamp = camp; off.ixSig = sig; off.ixAt = now;
@@ -276,7 +292,7 @@ function offerNow() {
     off.raf = 0;
     var tb = window.wpTextBox, a = typeof document !== 'undefined' ? document.activeElement : null;
     var el = a && a.classList && (a.classList.contains('ts-box') || a.classList.contains('rte-body')) ? a : null;
-    if (!el || !offerDraws() || !tb || typeof tb.offerSpot !== 'function' || (st.menu && !st.menu.hidden) || !tb.offerCan(el)) { offerHide(); return; }
+    if (!el || off.comp || !offerDraws() || !tb || typeof tb.offerSpot !== 'function' || (st.menu && !st.menu.hidden) || !tb.offerCan(el)) { offerHide(); return; }
     var sp = tb.offerSpot(el), hit = sp ? mentionOffer(offerIx(), sp.text, sp.at, sp.links, sp.self) : null;
     var rg = hit ? tb.offerRange(el, sp.base + hit.s, sp.base + hit.e) : null;
     if (!rg) { offerHide(); return; }
@@ -297,28 +313,43 @@ function offerTake() {
 // only while the box that shows it has the focus, no @ list is open and no composition is under way. The offer is worked out once more first,
 // so a key pressed before the next frame never takes words that changed
 function offerKey(e) {
-    if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || !off.el) return;
+    if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || off.comp || !off.el) return;
     if (document.activeElement !== off.el || (st.menu && !st.menu.hidden)) return;
     offerNow(); if (!off.el) return;
     e.preventDefault(); e.stopPropagation();
     offerTake();
 }
-// A press on the offered words takes it (the box keeps its caret); a press anywhere else is the page's as ever
+// A click on the offered words takes it. Only a plain click: the press is the page's as ever (the caret goes where it was pressed), and the
+// offer is taken as the button comes up, where it came down, with no key held and no drag between, so a drag that selects, Shift and a click,
+// and a double or triple click to select are never a mention (the review of 2026-11-23). The offer is worked out again first, and must still
+// be the very words pressed on
+function offerHit(e) {
+    if (!off.el || !off.range || !(e.target && off.el.contains(e.target))) return false;
+    var rs = []; try { rs = off.range.getClientRects(); } catch (err) { return false; }
+    var x = e.clientX, y = e.clientY;
+    return Array.prototype.some.call(rs, function(r) { return x >= r.left && x <= r.right && y >= r.top - 2 && y <= r.bottom + 2; });
+}
 function offerPress(e) {
-    if (!off.el || !off.range || e.button !== 0 || !(e.target && off.el.contains(e.target))) return;
-    var rs = []; try { rs = off.range.getClientRects(); } catch (err) { return; }
-    var x = e.clientX, y = e.clientY, on = Array.prototype.some.call(rs, function(r) { return x >= r.left && x <= r.right && y >= r.top - 2 && y <= r.bottom + 2; });
-    if (!on) return;
-    e.preventDefault(); e.stopPropagation();
+    off.down = null;
+    if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || (e.detail || 1) > 1 || off.comp || !offerHit(e)) return;
+    off.down = { x: e.clientX, y: e.clientY, el: off.el, s: off.s, e: off.e, href: off.href };
+}
+function offerUp(e) {
+    var d = off.down; off.down = null;
+    if (!d || e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || (e.detail || 1) > 1 || off.comp) return;
+    if (Math.abs(e.clientX - d.x) > OFFER_DRAG || Math.abs(e.clientY - d.y) > OFFER_DRAG) return;
+    offerNow();
+    if (off.el !== d.el || off.s !== d.s || off.e !== d.e || off.href !== d.href || !offerHit(e)) return;
     offerTake();
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
     document.addEventListener('input', offerSoon);
     document.addEventListener('selectionchange', offerSoon);
-    document.addEventListener('compositionstart', offerHide, true);
-    document.addEventListener('compositionend', offerSoon, true);
+    document.addEventListener('compositionstart', function() { off.comp = true; off.down = null; offerHide(); }, true);
+    document.addEventListener('compositionend', function() { off.comp = false; offerSoon(); }, true);
     document.addEventListener('focusout', function() { setTimeout(function() { if (off.el && document.activeElement !== off.el) offerHide(); }, 0); });
     document.addEventListener('mousedown', offerPress, true);
+    document.addEventListener('mouseup', offerUp, true);
     window.addEventListener('keydown', offerKey, true);
 }
 window.wpMention = { all: mentionAll, find: mentionFind, query: mentionQuery, take: take, close: close, offer: function() { return off.el ? { s: off.s, e: off.e, href: off.href } : null; } };

@@ -6873,7 +6873,7 @@ function sbxApi() { var w = typeof window !== 'undefined' ? window.wpTextBox : n
 function sbxOn() {
     if (_sbx.on) return _sbx.on === 1;
     var w = sbxApi(), p = w ? ui('sheetPanel') : null, h = w ? ui('hudLayer') : null; if (!w || !p || !h) return false;   // (asked again at the next draw)
-    _sbx.on = w.host({ id: 'sheet', roots: [p, h], doc: sbxDoc, field: sbxField, name: sbxName, links: function() { return true; }, sizes: sbxSizes, barHost: sbxBarHost, changed: sbxChanged, left: sbxLeft }) ? 1 : 2;
+    _sbx.on = w.host({ id: 'sheet', roots: [p, h], doc: sbxDoc, field: sbxField, name: sbxName, links: function() { return true; }, sizes: sbxSizes, barHost: sbxBarHost, barBy: function(box) { return typeof sbxQnBar === 'function' ? sbxQnBar(box) : null; }, barUnder: function(box) { return typeof sbxQnBar === 'function' && !!sbxQnBar(box); }, changed: sbxChanged, left: sbxLeft }) ? 1 : 2;
     return _sbx.on === 1;
 }
 // Whether the view being built may hold boxes: it stands under one of the host's roots and is no Layout preview, print or window of its own
@@ -7154,13 +7154,23 @@ function qnPage(body, c, camp, sys, o) {
         bar.appendChild(add);
     }
     page.appendChild(bar);
-    if (o.pop && write) page.appendChild(el('div', 'sheet-qn-hint', 'Add to my Journal and Share are on the sheet in the main window.'));
     if (!list.length) page.appendChild(el('div', 'sheet-qn-empty', write ? 'No notes yet. Press + Note to write one.' : 'No notes yet.'));
     list.forEach(function(n) { page.appendChild(qnEntry(c, camp, n, write, o)); });
     body.appendChild(page);
+    if (!body._qnRoom && body.addEventListener) { body._qnRoom = true; body.addEventListener('focusin', qnRoomUnder); }   // once a body: it is the same element at every draw
     if (typeof sbxFill === 'function') sbxFill(body, c);
     if (_qnShareShow) { _qnShareShow = false; var pk = body.querySelector('.sheet-qn-share'); if (pk && typeof pk.scrollIntoView === 'function') { try { pk.scrollIntoView({ block: 'nearest' }); } catch (e) {} } }
     if (_qnFocus) { var fid = _qnFocus, fx = body.querySelector('[data-fid="qn"][data-part="' + fid + '"]'); if (fx) { _qnFocus = ''; try { fx.focus({ preventScroll: false }); } catch (e) {} } }
+}
+// 1.6.4 (Fulllion, 2026-11-23: the bar "under the note's row, as in the Journal"): the text box puts its bar under a note's card only where
+// there is room for it below, and above it where there is none. So when a note's text takes the focus, the page is scrolled until there is
+// room for the bar under that card (the page keeps space at its foot for the last one, style.css .sheet-qn). A body that scrolls nothing
+// (a window of its own, where the plain box has no bar) is left as it is
+var QN_BAR_ROOM = 64;
+function qnRoomUnder(e) {
+    var body = e && e.currentTarget, t = e && e.target, card = t && t.closest && t.classList && t.classList.contains('sheet-qn-text') ? t.closest('.sheet-qn-entry') : null;
+    if (!card || !body || !body.getBoundingClientRect || body.scrollHeight <= body.clientHeight) return;
+    var need = card.getBoundingClientRect().bottom + QN_BAR_ROOM - body.getBoundingClientRect().bottom; if (need > 0) body.scrollTop += Math.ceil(need);
 }
 // One note: its title and time, its text, and what may be done with it
 function qnEntry(c, camp, n, write, o) {
@@ -7189,18 +7199,18 @@ function qnEntry(c, camp, n, write, o) {
     }
     if (write) {
         var acts = el('div', 'sheet-qn-acts');
-        if (!o.pop) {
+        {   // 1.6.4 (Fulllion, 2026-11-23): in a window of its own too, made by the main window (qnJournal, qnSend)
             var jb = el('button', 'tool ghost sheet-qn-journal', 'Add to my Journal'); jb.type = 'button'; jb.title = 'Copy this note into your Journal. The copy is yours to keep, whatever happens to this note';
             jb.addEventListener('click', function() { qnJournal(c.id, n.id); }); acts.appendChild(jb);
             if (qnPeople().length) {
                 var sb = el('button', 'tool ghost sheet-qn-sharebtn', 'Share…'); sb.type = 'button'; sb.title = 'Send this note to someone at the table. It lands in their Journal'; sb.setAttribute('aria-expanded', _qnShare === k ? 'true' : 'false');
-                sb.addEventListener('click', function() { qnStore(c.id, n.id); _qnShare = _qnShare === k ? '' : k; _qnShareShow = !!_qnShare; renderViews(c.id); }); acts.appendChild(sb);
+                sb.addEventListener('click', function() { qnStore(c.id, n.id); _qnShare = _qnShare === k ? '' : k; _qnShareShow = !!_qnShare; qnDraw(c.id); }); acts.appendChild(sb);
             }
         }
         var db = el('button', 'tool ghost sheet-qn-del', 'Delete'); db.type = 'button'; db.title = 'Delete this note from the sheet';
         db.addEventListener('click', function() { qnAskDelete(c.id, n.id, 'Delete the note “' + qnName(n) + '” from this sheet? A copy in a Journal stays.'); }); acts.appendChild(db);
         row.appendChild(acts);
-        if (!o.pop && _qnShare === k) row.appendChild(qnPicker(c, n));
+        if (_qnShare === k) row.appendChild(qnPicker(c, n));
     }
     return row;
 }
@@ -7224,20 +7234,34 @@ function qnAskDelete(charId, id, words) {
 }
 // Add to my Journal: the note as it stands now (what is typed in its box included) is copied into this viewer's own Journal, under the
 // campaign on screen (handouts.js wpJournalAddNote picks the journal: the GM's own campaign's, or the table's), with its look. Then the
-// question, Delete or Keep. The copy is made whatever the answer, and is a page of its own from then on
+// question, Delete or Keep. The copy is made whatever the answer, and is a page of its own from then on. In a window of its own (Fulllion,
+// 2026-11-23: there too) the main window makes the copy (popSheetDo's qnJournal, qnJournalAdd), as it makes every press of that window,
+// and the question is asked here, where the press was made
 function qnJournal(charId, id) {
     if (typeof sbxFlush === 'function') sbxFlush(); qnStore(charId, id);   // the words typed a moment ago are the words copied
-    var camp = getActiveCampaign(), c = charById(charId, camp), n = qnFind(c, id); if (!c || !n) return;
-    var add = window.wpJournalAddNote; if (typeof add !== 'function') { toast('The Journal is not available here.'); return; }
+    var ask = function() { showConfirm('Added to your Journal. Delete this note from the sheet? Your Journal keeps its copy either way.', function(yes) { if (!yes) return; var cc = charById(charId); if (cc) qnDo(cc, { op: 'del', id: id }); }, { yes: 'Delete', no: 'Keep', noEnter: true }); };
+    if (typeof popFwd === 'function' && popFwd('qnJournal', [charId, id])) { ask(); return; }
+    var r = qnJournalAdd(charId, id); if (r) r.then(function(ok) { if (ok) ask(); });
+}
+// The copy itself, made on the window that holds the campaign: a promise of whether it was made, or null where there is nothing to copy.
+// Asked by qnJournal and, for a window of its own, by popSheetDo
+function qnJournalAdd(charId, id) {
+    var camp = getActiveCampaign(), c = charById(charId, camp), n = qnFind(c, id); if (!c || !n) return null;
+    var add = window.wpJournalAddNote; if (typeof add !== 'function') { toast('The Journal is not available here.'); return null; }
     var nt = net(), client = isClient(), meta = { campId: camp.id, gmId: client ? String((nt && nt.gmId) || '') : String((nt && nt.myId) || ''), campaign: String(camp.name || ''), gm: client && nt && nt.notepad ? String(nt.notepad.gm || '') : '' };
     var title = n.t || ('A note on ' + c.name);
-    Promise.resolve(add(meta, title, n.x, n.lk)).then(function() {
-        showConfirm('Added to your Journal. Delete this note from the sheet? Your Journal keeps its copy either way.', function(yes) { if (!yes) return; var cc = charById(charId); if (cc) qnDo(cc, { op: 'del', id: id }); }, { yes: 'Delete', no: 'Keep', noEnter: true });
-    }).catch(function() { toast('That note could not be added to your Journal.'); });
+    return Promise.resolve(add(meta, title, n.x, n.lk)).then(function() { return true; }).catch(function() { toast('That note could not be added to your Journal.'); return false; });
+}
+// The page drawn again where it stands: the panel and the HUDs (renderViews), or a sheet in a window of its own (its last draw, _lastInto)
+function qnDraw(charId) {
+    renderViews(charId);
+    var W = typeof window !== 'undefined' ? window : null; if (W && W.wpPopout && _lastInto && _lastInto.container && _lastInto.container.isConnected && _lastInto.charId === charId) renderSheetInto(_lastInto.container, _lastInto.charId, _lastInto.camp);
 }
 // Who a note may be shared with at the table, as the Journal's own Share offers it: every other player connected, by the name this screen
-// gives them (net.js playerName), and the GM for a player. [{ to, name }]; none away from a table
+// gives them (net.js playerName), and the GM for a player. [{ to, name }]; none away from a table. A window of its own has no table of its
+// own: it reads the list the main window sends it with each sheet (popSheetPush, cleaned by popout.js)
 function qnPeople() {
+    var P = typeof popAs === 'function' ? popAs() : null; if (P) return Array.isArray(P.people) ? P.people : [];   // a window of its own: the list its main window sent with the sheet (popSheetPush)
     var n = net(); if (!(n && n.active && (n.role === 'client' || n.role === 'host'))) return [];
     var me = myId(), out = [], nm = typeof n.playerName === 'function' ? n.playerName : function(id, fb) { return fb || 'Player'; };
     if (n.role === 'client') out.push({ to: 'gm', name: 'The GM' });
@@ -7252,7 +7276,7 @@ function qnPicker(c, n) {
     allC.addEventListener('change', function() { picks.forEach(function(ck) { ck.checked = allC.checked; ck.disabled = allC.checked; }); });
     var row = el('div', 'sheet-qn-sharerow'), send = el('button', 'tool sheet-qn-send', 'Send'), cancel = el('button', 'tool ghost sheet-qn-cancel', 'Cancel'); send.type = 'button'; cancel.type = 'button';
     send.addEventListener('click', function() { var to = allC.checked ? ['*'] : picks.filter(function(ck) { return ck.checked; }).map(function(ck) { return ck.dataset.to; }); if (!to.length) { toast('Tick who gets it first.'); return; } qnSend(c.id, n.id, to); });
-    cancel.addEventListener('click', function() { _qnShare = ''; renderViews(c.id); });
+    cancel.addEventListener('click', function() { _qnShare = ''; qnDraw(c.id); });
     row.appendChild(send); row.appendChild(cancel); box.appendChild(row);
     return box;
 }
@@ -7265,16 +7289,17 @@ function qnPicker(c, n) {
 var QN_SHARE_GAP = 1100, QN_SHARE_MOST = 6, _qnSendNext = 0;
 function qnSend(charId, id, to) {
     if (typeof sbxFlush === 'function') sbxFlush(); qnStore(charId, id);
+    if (typeof popFwd === 'function' && popFwd('qnSend', [charId, id, to.slice(0, 40)])) { _qnShare = ''; qnDraw(charId); toast('Sent from the main Waypoint window. It lands in their Journal.'); return; }   // a window of its own: the main window sends it, spaced as there
     var c = charById(charId), n = qnFind(c, id), nt = net(); if (!c || !n || !nt || typeof nt.shareEntry !== 'function') return;
     var client = isClient(), list = to.indexOf('*') >= 0 ? (client ? ['*', 'gm'] : ['*']) : to.slice(0, 40), left = client && list.length > QN_SHARE_MOST ? list.length - QN_SHARE_MOST : 0;
     if (left) list = list.slice(0, QN_SHARE_MOST);
     var entry = { id: n.id, kind: 'text', title: n.t || ('A note on ' + c.name), caption: '', text: n.x, notes: '', tags: [] };
     if (n.lk) entry.look = n.lk;   // item 35: with its look; the host cleans it for the text as it relays it, and each reader again
-    if (!client) { var sentG = 0; list.forEach(function(t) { if (nt.shareEntry({ to: t, entry: entry })) sentG++; }); if (sentG) { _qnShare = ''; renderViews(charId); } return; }
+    if (!client) { var sentG = 0; list.forEach(function(t) { if (nt.shareEntry({ to: t, entry: entry })) sentG++; }); if (sentG) { _qnShare = ''; qnDraw(charId); } return; }
     var now = Date.now(), at = Math.max(now, _qnSendNext);
     list.forEach(function(t, k) { var wait = at + k * QN_SHARE_GAP - now; if (wait <= 0) nt.shareEntry({ to: t, entry: entry }); else setTimeout(function() { nt.shareEntry({ to: t, entry: entry }); }, wait); });
     _qnSendNext = at + list.length * QN_SHARE_GAP;
-    _qnShare = ''; renderViews(charId);
+    _qnShare = ''; qnDraw(charId);
     toast('“' + entry.title + '” is on its way. It lands in ' + (list.length === 1 && list[0] !== '*' ? 'their Journal.' : 'the Journal of each one.') + (left ? ' ' + left + ' more were not sent: send it to them again in a minute.' : ''));
 }
 // [notescheck:page-end]
@@ -7288,6 +7313,10 @@ function sbxQn(key) {
     var m = SBX_QN.exec(String(key)), c = m ? charById(m[1]) : null, n = c ? qnFind(c, m[2]) : null;
     return n ? { c: c, n: n } : null;
 }
+// 1.6.4 (Fulllion, 2026-11-23: the bar "under the note's row, as in the Journal"): a note's box has the text box's bar stand under the
+// note's whole card (its title, time, text and buttons), so the bar covers nothing of the note in hand. The card for a note's box, else
+// null (every field's box keeps the bar where it always stood). Asked by the sheet host's barBy and barUnder (sbxOn)
+function sbxQnBar(box) { return box && box.classList && box.classList.contains('sheet-qn-text') && box.closest ? box.closest('.sheet-qn-entry') : null; }
 // The format of a note's stored look, cleaned for its stored text by the rule of a Journal note, or none
 function sbxQnFmt(p) { var r = p.n.lk ? lookClean(p.n.lk, p.n.x, lookRules.NOTE) : null; return r ? r.fmt : undefined; }
 // A note's text as the box reads and writes it: the draft where one is open, else what is stored; as sbxField does for a field
@@ -8489,8 +8518,10 @@ function ownFileUp(c, j) {
     var fill = pf ? charFromJson(view, j, pf.find, pf.findKey) : null, now = Date.now(), pr = fill && S && S.revProposal ? S.revProposal(sys, c, fill, F(), { view: view, lib: pf.lib, now: now }) : null;
     if (!pr || !Array.isArray(pr.changes)) return { error: 'That character file could not be read here.' };
     var stale = typeof S.charStale === 'function' && S.charStale(sys, c);
+    var qnF = fill.qnotes && typeof S.qnoteMerge === 'function' && S.qnoteMerge(c.qnotes, fill.qnotes).added ? fill.qnotes : null;   // 1.6.4: the file's quick notes this character does not have yet
+    if (!pr.changes.length && !stale && qnF) { var qmN = S.qnoteMerge(c.qnotes, qnF); c.qnotes = qmN.list; qnSaved(c); return { said: qmN.added + (qmN.added === 1 ? ' note' : ' notes') + ' from the file added to ' + c.name + '\u2019s Notes page. Nothing else differs.' }; }   // nothing else to review: the notes alone are added
     if (!pr.changes.length && !stale) return { error: 'Nothing to change: the sheet already matches that file.' };
-    var up = { id: 'up_gm' + now.toString(36), charId: c.id, from: '', name: 'Your file', at: now, changes: pr.changes, own: true }; if (stale) up.rev = true;   // an out-of-date character: applying it makes it current
+    var up = { id: 'up_gm' + now.toString(36), charId: c.id, from: '', name: 'Your file', at: now, changes: pr.changes, own: true }; if (stale) up.rev = true; if (qnF) up.qnotes = qnF;   // 1.6.4: added with Apply   // an out-of-date character: applying it makes it current
     return { up: up };
 }
 function gmUploadRead(c, j, txt, name) {
@@ -8508,6 +8539,7 @@ function gmUpload(id) {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
             var cNow = charById(id), r = cNow ? gmUploadRead(cNow, j, txt, file.name) : { error: 'That character is no longer here.' };
             if (r.error) { toast(r.error); return; }
+            if (r.said) { toast(r.said); return; }   // 1.6.4: a file whose only news was its notes, added at once
             openReview(id, r.up);
         });
     });
@@ -8593,7 +8625,8 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
     });
     var apply = ui('uploadApply'), rej = ui('uploadReject'), SCr = window.wpSystemCore, rdA = up.reader && SCr && SCr.readerById ? SCr.readerById(up.reader) : null, noRd = !!up.reader && !rdA;   // the reader that read the file applies it (its own row op)
     if (noRd) head.textContent += '. It was read by a sheet reader this Waypoint does not have, so it cannot be applied here.';
-    if (up.rev === true && realC.length) head.textContent += '. A new sheet for an out-of-date character: applying it makes the character current.';   // 1.6.0 (backlog 190)
+    if (up.rev === true && realC.length) head.textContent += '. A new sheet for an out-of-date character: applying it makes the character current.';
+    if (up.own === true && Array.isArray(up.qnotes) && up.qnotes.length) head.textContent += '. Apply also adds the notes of the file that its Notes page does not have yet.';   // 1.6.4: the file's quick notes the character does not have yet   // 1.6.0 (backlog 190)
     var count = function() { var n = Object.keys(ticks).filter(function(k) { return ticks[k]; }).length; apply.textContent = !n && up.rev === true ? 'Mark current' : 'Apply ' + n + (n === 1 ? ' change' : ' changes'); apply.disabled = (!n && up.rev !== true) || noRd; };
     count();
     var stale = function(cmp) {   // 1.5.5: an entry the player changed while the Review was open (an ask that grew, was replaced or taken back) is applied and removed by nobody: it is shown again as it stands
@@ -8619,6 +8652,7 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
         }   // the values are replaced whole: no single field to Revert
         if (typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.proposalMarks === 'function') window.wpSystemCore.afApply(ch2, window.wpSystemCore.proposalMarks(sys, up, acc));   // 1.6.2 (auto apply): an accepted figure the file says a fill wrote is marked, any other is typed
         if (up.rev === true && window.wpSystemCore && typeof window.wpSystemCore.sheetRevOf === 'function') { var srA = window.wpSystemCore.sheetRevOf(sys); if (srA) { ch2.sheetRev = srA; if (window.wpStepLog) window.wpStepLog('sheetrev v1', 'current', { by: 'review', changes: r.done }); } }   // 1.6.0 (backlog 190): approved: current
+        if (up.own === true && up.qnotes && window.wpSystemCore && typeof window.wpSystemCore.qnoteMerge === 'function') { var qmA = window.wpSystemCore.qnoteMerge(ch2.qnotes, up.qnotes); if (qmA.added) ch2.qnotes = qmA.list; }   // 1.6.4: the GM's own file's quick notes join the character's with Apply
         cmp.uploads = (Array.isArray(cmp.uploads) ? cmp.uploads : []).filter(function(u) { return !u || u.id !== up.id; });
         afterCharChange(ch2, true);
         var n2 = net(); if (up.own !== true && n2 && n2.uploadDone) n2.uploadDone(up.charId, r.done, realC.length);
@@ -9570,12 +9604,13 @@ function popCampOf(camp, c) {
     out.chars = {}; Object.keys(ids).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(cs, id)) out.chars[id] = cs[id]; });
     return out;
 }
-function popSigOf(w, camp, c) { return JSON.stringify(c) + '\n' + (typeof dialSigFor === 'function' ? dialSigFor(c.id, camp) : '') + '\n' + (w.sys === camp.system ? 's' : 'S') + '\n' + (isClient() ? 'p' : 'g'); }
+function popSigOf(w, camp, c) { return JSON.stringify(c) + '\n' + (typeof dialSigFor === 'function' ? dialSigFor(c.id, camp) : '') + '\n' + (w.sys === camp.system ? 's' : 'S') + '\n' + (isClient() ? 'p' : 'g') + (typeof qnPeople === 'function' ? '\n' + JSON.stringify(qnPeople()) : ''); }   // 1.6.4: and who is at the table, which the window's Share lists
 function popSheetPush(id, fresh) {
     var w = _popWant[id], camp = getActiveCampaign(); if (!w || !_popBC || !camp || camp.id !== w.camp) return false;
     var c = charById(w.char, camp); if (!c || !canOpen(c.id)) return false;
     var sig = popSigOf(w, camp, c); if (!fresh && sig === w.sig) return false;
     var msg = { type: 'sheetData', to: id, from: _popSelf, gm: !isClient(), me: String(myId() || ''), camp: popCampOf(camp, c) };
+    if (typeof qnPeople === 'function') msg.people = qnPeople();   // 1.6.4: who a note may be shared with, for the window's Share
     if (fresh || w.sys !== camp.system) { msg.system = camp.system; w.sys = camp.system; }
     try { _popBC.postMessage(msg); } catch (e) { return false; }
     w.sig = popSigOf(w, camp, c); return true;
@@ -9608,7 +9643,9 @@ function popSheetDo(m) {
         if (typeof a[1] === 'string') rowsJ.forEach(function(r) { if (!rowJ && rowIdOf(r) === a[1]) rowJ = r; });
         if (rowJ && typeof rowSheetDo === 'function') rowSheetDo(c, f, rowJ, typeof a[2] === 'string' ? a[2] : '', a[3] === true);
     }
-    else if (m.op === 'qnDo') { if (a[1] && typeof a[1] === 'object' && typeof qnDo === 'function') qnDo(c, a[1]); }   // 1.6.4: a quick note changed in a sheet's window of its own
+    else if (m.op === 'qnDo') { if (a[1] && typeof a[1] === 'object' && typeof qnDo === 'function') qnDo(c, a[1]); }
+    else if (m.op === 'qnJournal') { if (typeof a[1] === 'string' && typeof qnJournalAdd === 'function') qnJournalAdd(c.id, a[1]); }   // 1.6.4: Add to my Journal pressed there; the window asks Delete or Keep itself
+    else if (m.op === 'qnSend') { if (typeof a[1] === 'string' && Array.isArray(a[2]) && a[2].every(function(t) { return typeof t === 'string' && t.length <= 80; }) && typeof qnSend === 'function') qnSend(c.id, a[1], a[2].slice(0, 40)); }   // 1.6.4: Share pressed there, sent from here   // 1.6.4: a quick note changed in a sheet's window of its own
     else if (m.op === 'askStats') { if ((f = fOf(a[0])) && typeof a[1] === 'string' && a[2] && typeof a[2] === 'object' && typeof askStatsOf === 'function') askStatsOf(c, f, a[1], a[2], a[3] && typeof a[3] === 'object' ? a[3] : null); }   // a player's ask for their copy's stats, sent by the main window
     else return false;
     if (window.wpStepLog) window.wpStepLog('popsheet v1', 'press', { op: m.op });

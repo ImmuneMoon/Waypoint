@@ -289,6 +289,9 @@ if (spec) {
             if (m.from !== mainId) { mainId = m.from; if (!m.system) { sysC = null; want(true); return; } }
             if (m.system && typeof m.system === 'object') sysC = m.system; if (!sysC) { want(true); return; }
             var was = window.wpPopoutAs, as = { gm: m.gm === true, me: typeof m.me === 'string' ? m.me : '' };
+            // 1.6.4 (a Notes page on every sheet): who a note may be shared with at the table, as the main window lists them (sheets.js qnPeople):
+            // at most 40, each a recipient's id ('gm' for the GM) and a name of one line, as text; the main window sends the share itself
+            as.people = (Array.isArray(m.people) ? m.people : []).filter(function(x) { return x && typeof x === 'object' && typeof x.to === 'string' && x.to && x.to.length <= 80 && typeof x.name === 'string'; }).slice(0, 40).map(function(x) { return { to: x.to, name: x.name.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60) }; });
             if (!was || was.gm !== as.gm || was.me !== as.me) lastSig = '';   // another role draws another sheet
             seen = Date.now(); window.wpPopoutAs = as; if (fallT) { clearInterval(fallT); fallT = null; }
             var cp = m.camp; cp.system = sysC; var data = { activeCampaignId: cp.id, campaigns: {} }; data.campaigns[cp.id] = cp;

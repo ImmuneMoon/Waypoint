@@ -11,6 +11,7 @@ import { docToMarkdown, mdEscapeText, fmtFromInline } from './docmd.js';
 import { cleanFmt, runsOf, SIZE_EM } from './textfmt.js';
 import { LIMITS as DOC_LIMITS } from './docrender.js';
 import { recShapeOk } from './lookcore.js';
+import { cleanQnotes } from './qnotecore.js';   // 1.6.4: a character's quick notes travel in its file and on its readable page
 import { hashText } from './librarycore.js';
 import { esc } from './safecore.js';
 
@@ -75,6 +76,7 @@ function charToJson(sys, view, all, opts) {
     if (typeof opts.picture === 'string' && opts.picture.length <= PICTURE_MAX && PIC_RE.test(opts.picture)) out.picture = opts.picture;
     out.values = values;
     if (nLooks) out.looks = looks;   // keyed as the values are; absent with no look, so such a file is byte for byte as it was
+    var qnO = cleanQnotes(view && view.qnotes); if (qnO) out.qnotes = qnO;   // 1.6.4 (Fulllion, 2026-11-23: the file includes the notes): the character's quick notes as its copy holds them, absent with none
     var flO = view && isObj(view.af) ? Object.keys(view.af).filter(function(k) { return view.af[k] === 1 && Object.prototype.hasOwnProperty.call(values, k); }) : []; if (flO.length) out.filled = flO;   // 1.6.2 (auto apply): the figures a fill wrote (the host's marks), by the values' keys; absent with none
     out.computed = computed;
     return out;
@@ -174,6 +176,7 @@ function charFromJson(view, j, find, findKey) {
         if (fileFilled && fileFilled.indexOf(fid) >= 0 && (k === 'number' || k === 'toggle' || k === 'text')) (out.filled = out.filled || []).push(f.id);   // 1.6.2 (auto apply): a figure the file says a fill wrote
         if (fileLooks && (k === 'text' || k === 'notes') && own(fileLooks, fid)) { if (!out.looks) out.looks = {}; out.looks[f.id] = recShapeOk(fileLooks[fid]) ? clone(fileLooks[fid]) : null; }   // item 35 (a look that is no record: null, which ends the text's old look where the fill is applied, as a look that does not clean does)
     });
+    var qnI = cleanQnotes(j.qnotes); if (qnI) out.qnotes = qnI;   // 1.6.4: the file's quick notes, cleaned (each look only for its very words); where the fill lands they join the character's (qnotecore qnoteMerge)
     lnQ.forEach(function(x) { var o = {}; if (x.o.tp) o.tp = x.o.tp; ['up', 'pl'].forEach(function(k) { if (typeof x.o[k] === 'string' && own(idMap, x.o[k])) o[k] = idMap[x.o[k]]; else if (x.o[k + 'At']) o[k + 'At'] = x.o[k + 'At']; }); if (Object.keys(o).length) x.q.link = o; });   // 1.6.2 (body fold 2): fillMaking lays them once every row stands
     grQ.forEach(function(x) { if (x.gb !== undefined) { if (own(idMap, x.gb)) { x.q.gb = idMap[x.gb]; if (typeof x.gl === 'number' && isFinite(x.gl)) x.q.gl = x.gl; } return; } if (own(idMap, x.gr)) { x.q.gr = idMap[x.gr]; if (x.gp) x.q.gp = 1; } });   // 1.6.0 (v2, B4): a granted row keeps its mark (systemcore fillMaking takes it as it comes); 1.6.0: and its Pays back
     return out;
@@ -399,6 +402,19 @@ function sheetToMarkdown(sys, view, all, opts) {
             if (B.length === mark + 1) B.pop();
         });
     } else rest.forEach(function(s) { sectionBlocks(s, false); });
+    // 1.6.4 (Fulllion, 2026-11-23: the readable page includes the notes): the character's quick notes after its sheet, under a heading of their
+    // own, newest first as on the Notes page: each its title (or the time it was written) in bold, then its text line by line with its look,
+    // written plain where the block would be longer than the page sanitiser reads (as a notes field is). None, no heading
+    var qnP = (cleanQnotes(view && view.qnotes) || []).slice().reverse();
+    if (qnP.length) {
+        B.push({ type: 'h2', title: 'Quick notes' });   // (a heading of its own: a system's section may well be called Notes)
+        qnP.forEach(function(n) {
+            var d = new Date(n.at || 0), p2 = function(v) { return (v < 10 ? '0' : '') + v; }, when = n.at ? d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) : '';
+            var head = '<p><b>' + esc(plain(n.t || when || 'A note')) + '</b>' + (n.t && when ? ' <i>' + esc(when) + '</i>' : ''), st = n.x && n.lk ? styledText(n.x, n.lk, true) : null;
+            if (st && (head + '<br>' + st + '</p>').length > DOC_LIMITS.html) st = null;
+            B.push(textBlock(head + (n.x ? '<br>' + (st || lines(n.x)) : '') + '</p>'));
+        });
+    }
     var meta = { title: name }; if (opts.gm === true) meta.players = false;   // brought in as a handbook page, the GM's copy stays the GM's
     return docToMarkdown({ type: 'doc', meta: meta, blocks: B }).text;
 }

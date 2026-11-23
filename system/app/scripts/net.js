@@ -7526,6 +7526,7 @@ function handleMessage(msg, conn) {
             if (!rF || !rF.ok) { ansU({ reason: 'unread' }); return; }
             var leftF = rF.left + (typeof fillF.lost === 'number' && isFinite(fillF.lost) ? Math.max(0, fillF.lost | 0) : 0);   // rows the file named and nothing here could place (read on the players' view: no oracle)
             var nmF = fillF && net.cleanCharName ? net.cleanCharName(fillF.name) : ''; if (nmF) chU.name = nmF;   // a file names the character it fills, as the player may while making
+            var qmF = fillF && typeof Su.qnoteMerge === 'function' ? Su.qnoteMerge(chU.qnotes, fillF.qnotes) : null; if (qmF && qmF.added) chU.qnotes = qmF.list;   // 1.6.4 (Fulllion, 2026-11-23: the file brings the notes back): the file's quick notes join the character's, theirs to write
             chU.values = rF.values; chU.updated = nowU;
             if (rF.looks) chU.looks = rF.looks; else delete chU.looks;   // item 35: the looks after the fill, cleaned against the values as kept (a text the fill changed has lost its old look) if (typeof Su.fillMarks === 'function') { delete chU.af; Su.afApply(chU, Su.fillMarks(campU.system, fillF, rF.values)); }   // 1.6.2 (auto apply): the figures the file says a fill wrote go on following what fills them
             if (net.sendCharTo) net.sendCharTo(profU.id, qu.charId);   // theirs alone while it is made
@@ -7554,6 +7555,10 @@ function handleMessage(msg, conn) {
             }
             prU.changes = prU.changes.filter(function(ch) { return doneU[ch.id] !== true; });
         }
+        // 1.6.4 (Fulllion, 2026-11-23: the file brings the notes back): a character file's quick notes join the character's at once. They are its
+        // player's to write as ever, so nothing of them waits for the GM's Review: each new one is counted with what applied at once, and the
+        // character is sent whole to everyone who holds its notes
+        if (isFileU && fillR && typeof Su.qnoteMerge === 'function') { var qmR = Su.qnoteMerge(chU.qnotes, fillR.qnotes); if (qmR.added) { chU.qnotes = qmR.list; chU.updated = nowU; wroteU = true; autoU += qmR.added; [chU.ownerId].concat(Array.isArray(chU.shareWith) ? chU.shareWith : []).forEach(function(pid, i, all) { if (typeof pid === 'string' && pid && all.indexOf(pid) === i) sendCharTo(pid, chU.id); }); if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chU.id); } }
         var joinU = rdU && typeof Su.joinedClean === 'function' ? Su.joinedClean(prU.joined, Object.create(null)) : [];   // 1.6.2: what the reader read for the sheets its rows own, judged by the GM in the same Review
         if (prU.changes.length || joinU.length || staleU) {   // an out-of-date character's new sheet waits for the GM even where it changes nothing: applying it makes the character current
             var nU = prU.changes.concat.apply(prU.changes, joinU.map(function(j) { return j.changes; })).filter(function(ch) { return !ch || ch.kind !== 'note'; }).length;   // 1.6.0: a note is no change in any count

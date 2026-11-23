@@ -1673,7 +1673,8 @@ function cleanTurn(t) {
     });
     if (us.length) out.units = us;
     if (as.length) out.acts = as;
-    if (typeof t.trade === 'string') { var trK = lower(t.trade); as.forEach(function(a) { if (lower(a.key) === trK) out.trade = a.key; }); }   // 1.6.0 A trade in a fight: the action it spends, spelled as the list spells it (absent: a trade costs nothing, as ever; net.js tradePayers)
+    if (typeof t.trade === 'string') { var trK = lower(t.trade); as.forEach(function(a) { if (lower(a.key) === trK) out.trade = a.key; }); }
+    if (typeof t.drop === 'string') { var drK = lower(t.drop); as.forEach(function(a) { if (lower(a.key) === drK) out.drop = a.key; }); }   // 1.6.4 Drop here and Pick up in a fight: the action they spend, spelled as the list spells it (absent: free; net.js dropCost)   // 1.6.0 A trade in a fight: the action it spends, spelled as the list spells it (absent: a trade costs nothing, as ever; net.js tradePayers)
     var rnT = cleanFormulaText(t.run);   // 1.6.0 A move by giving up an action: run, a second formula, the most a turn may move that way, kept only beside a move and runCost, the action it spends, spelled as the list spells it (absent: one allowance, as ever; net.js runStart)
     if (rnT && mv && typeof t.runCost === 'string') { var rcK = lower(t.runCost); as.forEach(function(a) { if (lower(a.key) === rcK) { out.run = rnT; out.runCost = a.key; } }); }
     return Object.keys(out).length ? out : null;

@@ -8,9 +8,11 @@ import { getActiveCampaign, getActiveMap } from './models.js';
 import { state } from './state.js';
 import { save, toast, toastAction } from './io.js';
 import * as BC from './boxcore.js';
-import { applyRowOp, glyphPath, uid, cleanPic, tradeApply } from './systemcore.js';
+import { applyRowOp, glyphPath, uid, cleanPic, tradeApply, rowIdOf } from './systemcore.js';
 import { picRef } from './safecore.js';
 import * as F from './formula.js';
+import { showPrompt } from './dialogs.js';
+import { gridFor, squareGrid, cellOf, cellCenter, cellKey } from './fogcore.js';   // 1.6.4: the cell a pile lies in
 
 var _box = { mapId: null, pieceId: null, sel: null, list: null };
 function step(s, f) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('boxes v1', s, f || {}); } catch (e) {} }
@@ -29,13 +31,13 @@ function holds(w, on, ask) {
     if (on) {
         if (boxOf(camp, w)) return '';
         camp.boxes = camp.boxes && typeof camp.boxes === 'object' ? camp.boxes : Object.create(null);
-        var id = BC.newBoxId(Math.random, camp.boxes); if (!id) return 'This campaign holds as many containers as it can.';
+        if (typeof pileRoom === 'function') pileRoom(camp); var id = BC.newBoxId(Math.random, camp.boxes); if (!id) return 'This campaign holds as many containers as it can.';
         if (Object.keys(camp.boxes).length >= BC.BOX_MAX) return 'This campaign holds as many containers as it can.';
         camp.boxes[id] = { id: id, values: {} }; w.box = id; save(); step('holds', { on: true }); if (typeof window.appRender === 'function') window.appRender();
         return 'It holds items now. Open contents to put some in.';
     }
     var b = boxOf(camp, w), n = b ? BC.boxCount(sysOf(camp), b) : 0;
-    var drop = function() { if (b) delete camp.boxes[w.box]; delete w.box; save(); step('holds', { on: false, n: n }); if (_box.pieceId === w.id) close(); if (typeof window.appRender === 'function') window.appRender(); };
+    var drop = function() { if (b) delete camp.boxes[w.box]; delete w.box; delete w.pile; save(); step('holds', { on: false, n: n }); if (_box.pieceId === w.id) close(); if (typeof window.appRender === 'function') window.appRender(); };
     if (n > 0 && ask) { ask('It holds ' + n + ' item' + (n === 1 ? '' : 's') + '. Take them out with it? They cannot be put back.', function(ok) { if (ok) drop(); else if (typeof window.appRender === 'function') window.appRender(); }); return ''; }
     drop(); return '';
 }
@@ -83,13 +85,15 @@ function change(fid, q, what, back) {
     var camp = getActiveCampaign(), w = piece(), b = boxOf(camp, w); if (!gmMay() || !b) { close(); return; }
     var r = BC.boxOp(sysOf(camp), b, fid, q, F, applyRowOp);
     if (!r.ok) { toast(r.reason === 'full' ? 'That list holds as many rows as it can.' : r.reason === 'gm' ? 'A container holds only what players may see, since they will take it.' : 'That cannot be put in this container.'); step('change-refused', { what: what, reason: r.reason }); return; }
-    b.values = r.values; save(); step(what, {}); draw(); if (typeof window.appRender === 'function') window.appRender(); refocus(back);
+    b.values = r.values;
+    if (pileSync(camp, getActiveMap(), w) === 'gone') { save(); step(what, { pile: 'gone' }); close(); toast('The pile is empty now, so it is gone from the map.'); if (typeof window.appRender === 'function') window.appRender(); return; }   // 1.6.4: a pile emptied goes
+    save(); step(what, {}); draw(); if (typeof window.appRender === 'function') window.appRender(); refocus(back);
 }
 // A row's own picture, the GM's: through boxcore boxPic, one save
 function setPic(fid, rowId, path) {
     var camp = getActiveCampaign(), w = piece(), b = boxOf(camp, w); if (!gmMay() || !b) { close(); return; }
     var r = BC.boxPic(sysOf(camp), b, fid, rowId, path); if (!r.ok) { toast(r.reason === 'pic' ? 'Pick one of this campaign\u2019s own pictures.' : 'That is no longer in it.'); return; }
-    b.values = r.values; save(); step(path ? 'pic' : 'nopic', {}); draw(); if (typeof window.appRender === 'function') window.appRender(); refocus(['.box-picbtn']);
+    b.values = r.values; pileSync(camp, getActiveMap(), w); save(); step(path ? 'pic' : 'nopic', {}); draw(); if (typeof window.appRender === 'function') window.appRender(); refocus(['.box-picbtn']);
 }
 // Fold 2b (the owner, 2026-11-12: "A. Open for everyone", "A. Yes, a key you name"): the lock, the GM's. Locked, a player next to it sees
 // only its rolls and, where they carry it, its key; a pass or the key opens it for everyone, and Locked comes unticked here
@@ -98,6 +102,24 @@ function setLock(patchL, back) {
     var lk = BC.cleanLock(Object.assign({}, b.lock || {}, patchL), sysOf(camp)); if (lk) b.lock = lk; else delete b.lock;
     save(); step('lock', { on: !!(lk && lk.on), rolls: lk && lk.rolls ? lk.rolls.length : 0, key: !!(lk && lk.key) }); draw(); refocus(back);
 }
+// 1.6.4 (Fulllion, 2026-11-23: "there should be differen types of locked containers, those players can see the contents of but cant interact
+// unless unlocked, and those where they cant"): What players see while locked. Solid (a chest, a safe): only that it is locked. See-through (a
+// display case, a cage): what is inside, as tiles and counts, with nothing to take or put until it is opened
+function seeInto(lk) {
+    var wrap = el('label', 'box-seewrap'), sv = el('select', 'box-see'); sv.title = 'What players next to it see while it is locked';
+    [['', 'Solid'], ['thru', 'See-through']].forEach(function(o) { var op = el('option', '', o[1]); op.value = o[0]; sv.appendChild(op); }); sv.value = lk && lk.see === 'thru' ? 'thru' : '';
+    if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(sv);
+    sv.addEventListener('change', function() { setLock({ see: sv.value === 'thru' ? 'thru' : '' }, ['.box-see']); });
+    wrap.appendChild(el('span', 'box-lockcap', 'Players see')); wrap.appendChild(sv); return wrap;
+}
+// 1.6.4 (the addendum: "in containers the gm allows, like unlocked ones"): the GM's tick, Players may put in, on by default for a container with no
+// lock, off for one with a lock. A locked one takes nothing from a player until it is opened, whatever the tick says
+function putTickInto(body, b) {
+    var lb = el('label', 'box-puttick'), cb = el('input', 'box-puton'); cb.type = 'checkbox'; cb.checked = BC.boxPutTick(b);
+    lb.title = 'Players next to it may put things of their own in. While it is locked, nothing goes in until it is opened.';
+    cb.addEventListener('change', function() { var c2 = getActiveCampaign(), w2 = piece(), b2 = boxOf(c2, w2); if (!gmMay() || !b2) return; b2.put = cb.checked; save(); step('put-tick', { on: cb.checked }); draw(); refocus(['.box-puton']); });
+    lb.appendChild(cb); lb.appendChild(el('span', '', 'Players may put in')); body.appendChild(lb);
+}
 function keyLabel(camp, sys, id) {
     var it = (Array.isArray(sys.items) ? sys.items : []).filter(function(x) { return x && x.id === id; })[0]; if (it) return it.name || 'Key';
     var LB = window.wpLibrary, e = LB && typeof LB.entryFor === 'function' ? LB.entryFor(id) : null; return e && typeof e.name === 'string' && e.name ? e.name : 'A library entry';
@@ -105,7 +127,8 @@ function keyLabel(camp, sys, id) {
 function lockInto(body, camp, b, sys) {
     var lk = b.lock || {}, box = el('div', 'box-lock'), head = el('label', 'box-locktick'), cb = el('input', 'box-lockon'); cb.type = 'checkbox'; cb.checked = lk.on === true;
     cb.addEventListener('change', function() { setLock({ on: cb.checked }, ['.box-lockon']); });
-    head.appendChild(cb); head.appendChild(el('span', 'wib ' + (lk.on === true ? 'wi-padlock' : 'wi-unlock') + ' box-lockic')); head.appendChild(el('span', '', lk.on === true ? 'Locked' : 'Lock')); box.appendChild(head);
+    head.appendChild(cb); head.appendChild(el('span', 'wib ' + (lk.on === true ? 'wi-padlock' : 'wi-unlock') + ' box-lockic')); head.appendChild(el('span', '', lk.on === true ? 'Locked' : 'Lock'));
+    var top = el('div', 'box-lockhead'); top.appendChild(head); top.appendChild(seeInto(lk)); box.appendChild(top);   // 1.6.4: beside Lock, what players see while it is locked
     if (lk.on !== true) { body.appendChild(box); return; }
     var rolls = (Array.isArray(sys.rolls) ? sys.rolls : []).filter(function(r) { return BC.lockRollOk(r); }), chosen = Array.isArray(lk.rolls) ? lk.rolls : [];
     var l1 = el('div', 'box-lockline'); l1.appendChild(el('span', 'box-lockcap', 'Opens with'));
@@ -145,18 +168,31 @@ function takenInto(body, camp, b) {
     });
     body.appendChild(box);
 }
+// 1.6.4: the map and piece that hold a box, or null
+function boxPieceAt(camp, boxId) { var hit = null; Object.keys(camp.items || {}).some(function(k) { var m = camp.items[k]; return !!m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { if (w && w.box === boxId) { hit = { map: m, w: w }; return true; } return false; }); }); return hit; }
+// 1.6.4: a pile whose last thing was taken, laid again where it lay so a take of it can go back (its map still there)
+function pileRelay(camp, b) {
+    var a = b && b.at, m = a && camp.items && Object.prototype.hasOwnProperty.call(camp.items, a.map) ? camp.items[a.map] : null; if (!m || m.type !== 'map' || m.stub === true) return null;
+    if (!Array.isArray(m.whiteboard)) m.whiteboard = [];
+    var here = pileHere(camp, m, pileSpot(m, { x: a.x, y: a.y, w: a.s, h: a.s })), hb = here ? boxOf(camp, here) : null; if (here && hb) return { map: m, w: here, into: hb };   // the review: one pile a cell, so it goes back into the pile lying there
+    var w = { id: uid('wb'), type: 'image', src: '', x: a.x, y: a.y, w: a.s, h: a.s, color: 'transparent', layer: 'back-mid', name: 'Pile', box: b.id }; m.whiteboard.push(w);
+    return { map: m, w: w, relaid: true };
+}
 // A take put back: the trade's own rule from the character to the container, as much as they still hold, one save; the take leaves the list
 function putBack(boxId, takeId) {
     var camp = getActiveCampaign(); if (!gmMay() || !camp || !camp.boxes || !Object.prototype.hasOwnProperty.call(camp.boxes, boxId)) return;
-    if (!BC.boxesNamed(camp.items)[boxId]) { toast('That container is no longer on a map, so nothing can go back into it.'); return; }   // the review: a deleted piece's store goes at the next load
     var b = camp.boxes[boxId], sys = sysOf(camp), rec = (Array.isArray(b.taken) ? b.taken : []).filter(function(r) { return r.id === takeId; })[0]; if (!rec) { toast('That take is no longer listed.'); return; }
+    var at = boxPieceAt(camp, boxId); if (!at && BC.boxIsPile(b)) at = pileRelay(camp, b);   // 1.6.4: a pile emptied by takes is laid again where it lay
+    if (!at) { toast('That container is no longer on a map, so nothing can go back into it.'); return; }   // the review: a deleted piece's store goes at the next load
+    var relaid = at.relaid === true;
     var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, rec.ch) ? camp.chars[rec.ch] : null, plan = ch ? BC.putBackPlan(sys, ch, rec) : { lines: [], gone: rec.lines.length, held: 0 };
     var drop = function() { b.taken = b.taken.filter(function(r) { return r.id !== takeId; }); if (!b.taken.length) delete b.taken; };
-    if (!plan.lines.length) { drop(); save(); step('putback', { moved: 0, held: plan.held }); toast(!ch ? 'That character is gone.' : plan.held ? 'What is left of it is kept on ' + (ch.name || 'that sheet') + ', or holds parts of their own, so it stays.' : 'Nothing of it is on ' + (ch.name || 'that sheet') + ' any more.'); redrawGm(); return; }
-    var res = tradeApply(sys, ch, BC.boxChar(b), plan.lines, [], 'gm', 'gm', {}); if (!res || !res.ok) { toast((res && res.msg) || 'It cannot go back.'); step('putback-refused', {}); return; }
+    if (!plan.lines.length) { drop(); if (relaid) pileSync(camp, at.map, at.w); save(); step('putback', { moved: 0, held: plan.held }); toast(!ch ? 'That character is gone.' : plan.held ? 'What is left of it is kept on ' + (ch.name || 'that sheet') + ', or holds parts of their own, so it stays.' : 'Nothing of it is on ' + (ch.name || 'that sheet') + ' any more.'); redrawGm(); return; }
+    var tb = at.into || b, res = tradeApply(sys, ch, BC.boxChar(tb), plan.lines, [], 'gm', 'gm', {}); if (!res || !res.ok) { if (relaid) pileSync(camp, at.map, at.w); toast((res && res.msg) || 'It cannot go back.'); step('putback-refused', {}); return; }
     ch.values = ch.values || {}; Object.keys(res.valuesA).forEach(function(k) { ch.values[k] = res.valuesA[k]; }); ch.updated = Date.now();
-    var v = Object.assign({}, b.values || {}); Object.keys(res.valuesB).forEach(function(k) { if (Array.isArray(res.valuesB[k]) && res.valuesB[k].length) v[k] = res.valuesB[k]; else delete v[k]; }); b.values = v;
-    drop(); save();
+    var v = Object.assign({}, tb.values || {}); Object.keys(res.valuesB).forEach(function(k) { if (Array.isArray(res.valuesB[k]) && res.valuesB[k].length) v[k] = res.valuesB[k]; else delete v[k]; }); tb.values = v;
+    drop(); if (tb !== b && !b.taken && !BC.boxesNamed(camp.items)[b.id]) delete camp.boxes[b.id];   // its record spent, the box that held it goes
+    pileSync(camp, at.map, at.w); save(); pileTell(camp, at.map);
     var n = window.wpNet, words = res.linesA.join(', ') || 'it', name = boxName(camp, boxId);
     if (n && n.active && n.role === 'host' && typeof n.syncCharDelta === 'function' && Object.keys(res.valuesA).length) n.syncCharDelta(ch.id, res.valuesA);
     if (window.wpSheets && typeof window.wpSheets.charChanged === 'function') window.wpSheets.charChanged(ch.id);
@@ -164,6 +200,8 @@ function putBack(boxId, takeId) {
     toast('Put ' + words + ' back in ' + name + (plan.gone || plan.held ? '. Some of it is no longer on ' + (ch.name || 'that sheet') + ', or stays with them.' : '.')); step('putback', { moved: plan.lines.length, gone: plan.gone, held: plan.held, told: b.tell !== false });
     redrawGm(); if (typeof window.appRender === 'function') window.appRender();
 }
+// 1.6.4: a change of a pile's piece on a map the GM is not looking at reaches the players who hold that map (a save sends the map on screen)
+function pileTell(camp, map) { var n = window.wpNet, on = getActiveMap(); if (n && n.active && n.role === 'host' && typeof n.sendItem === 'function' && map && (!on || on.id !== map.id)) { try { n.sendItem(camp.id, map.id); } catch (e) {} } }
 function boxName(camp, boxId) { var found = ''; Object.keys(camp.items || {}).some(function(k) { var m = camp.items[k]; return m && m.type === 'map' && Array.isArray(m.whiteboard) && m.whiteboard.some(function(w) { if (w && w.box === boxId) { found = typeof w.name === 'string' && w.name ? w.name : ''; return true; } return false; }); }); return found || 'the container'; }
 function redrawGm() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) { draw(); refocus(['.box-putback', '.box-tile', '.box-item']); } }
 // The notice of a take, on the GM's machine, with Put back while it shows
@@ -178,7 +216,8 @@ function draw() {
     var body = document.getElementById('boxBody'); if (!body) return; while (body.firstChild) body.removeChild(body.firstChild);
     var tiles = BC.boxTiles(sys, b), lists = BC.boxLists(sys);
     if (!lists.length) { body.appendChild(el('div', 'muted box-say', 'Your system has no list ticked Tradable that players see, so a container has nowhere to keep things. Tick Tradable on a list in the System editor.')); return; }
-    lockInto(body, camp, b, sys);   // fold 2b
+    if (BC.boxIsPile(b)) body.appendChild(el('div', 'muted box-say box-pilesay', 'Dropped here. Anyone next to it may take from it or put things in. Emptied, it goes.'));   // 1.6.4: a pile is never locked
+    else { lockInto(body, camp, b, sys); putTickInto(body, b); }   // fold 2b; 1.6.4 Players may put in
     var grid = el('div', 'box-grid'); grid.setAttribute('role', 'list');
     tiles.forEach(function(t) {
         var b2 = el('button', 'box-tile' + (_box.sel === t.rowId ? ' on' : '')); b2.type = 'button'; b2.dataset.row = t.rowId; b2.setAttribute('role', 'listitem');
@@ -300,7 +339,7 @@ function view(msg) {
     var shown = p.style.display !== 'none', same = shown && _box.player && _box.pieceId === msg.itemId, tok = _ask && _ask.itemId === msg.itemId ? _ask.tok : (same ? _box.tok : null); if (!tok) return;   // only an ask that waits or the window open on it (the review)
     if (msg.gone === true) { if (same) { _box.player = false; p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; } _ask = null; return; }   // the host closed it: nothing to tell it back
     _ask = null; var want = same ? _box.want : null;
-    _box = { player: true, mapId: msg.mapId, pieceId: msg.itemId, tok: tok, sel: same ? _box.sel : null, qty: same ? _box.qty : 1, list: null, tiles: cleanTiles(msg.tiles), locked: cleanLocked(msg.locked), name: typeof msg.name === 'string' ? msg.name.slice(0, 120) : '' };
+    _box = { player: true, mapId: msg.mapId, pieceId: msg.itemId, tok: tok, sel: same ? _box.sel : null, qty: same ? _box.qty : 1, list: null, tiles: cleanTiles(msg.tiles), locked: cleanLocked(msg.locked), name: typeof msg.name === 'string' ? msg.name.slice(0, 120) : '', put: msg.put === true, pile: msg.pile === true, putSel: same ? _box.putSel : null, putQty: same ? _box.putQty : 1 };   // 1.6.4: put, whether they may put in; pile, a dropped pile
     if (!_box.tiles.some(function(t) { return t.rowId === _box.sel; })) { _box.sel = null; _box.qty = 1; }
     var was = p.style.display !== 'none'; p.style.display = ''; if (!was && window.wpFloats && typeof window.wpFloats.reveal === 'function') window.wpFloats.reveal(p);
     var f = document.activeElement, cls = f && p.contains(f) && f.className ? '.' + String(f.className).split(' ')[0] : null;
@@ -309,10 +348,10 @@ function view(msg) {
 }
 // Fold 2b: locked, the host sends its rolls and the key the character carries, as plain words; a press of a roll names it to the host and
 // then makes that roll from the character's own sheet, which the host judges as any roll; the key asks the host to open it
-function cleanLocked(raw) {
+function cleanLocked(raw) {   // 1.6.4: see, See-through: its tiles shown and nothing taken
     if (!raw || typeof raw !== 'object') return null; var cut = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; };
     var rolls = (Array.isArray(raw.rolls) ? raw.rolls.slice(0, 12) : []).filter(function(r) { return r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.id); }).slice(0, 3).map(function(r) { return { id: r.id, label: cut(r.label, 60) || 'Roll' }; });
-    var out = { rolls: rolls }; var k = cut(raw.key, 80); if (k) out.key = k; if (raw.held === true) out.held = true; if (typeof raw.go === 'string' && rolls.some(function(r) { return r.id === raw.go; })) out.go = raw.go; return out;
+    var out = { rolls: rolls }; var k = cut(raw.key, 80); if (k) out.key = k; if (raw.held === true) out.held = true; if (raw.see === true) out.see = true; if (typeof raw.go === 'string' && rolls.some(function(r) { return r.id === raw.go; })) out.go = raw.go; return out;
 }
 function lockTok() { var map = getActiveMap(); return map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === _box.tok; }) : null; }
 function tryRoll(id) {
@@ -329,16 +368,16 @@ function lockedInto(body) {
     lk.rolls.forEach(function(r) { var b = el('button', 'tool box-try', r.label); b.type = 'button'; b.dataset.roll = r.id; b.title = 'Roll ' + r.label + ' to open it'; b.addEventListener('click', function() { tryRoll(r.id); }); btns.appendChild(b); });
     if (lk.key) { var kb = el('button', 'tool box-usekey', 'Use ' + lk.key); kb.type = 'button'; kb.title = 'Open it with the ' + lk.key + ' you carry'; kb.addEventListener('click', useKey); btns.appendChild(kb); }
     if (btns.firstChild) wrap.appendChild(btns); else wrap.appendChild(el('div', 'muted box-say', 'Only the GM can open it.'));
-    if (lk.rolls.length && ch) wrap.appendChild(el('div', 'box-lockwho', (ch.name || 'Your character') + ' rolls. Nothing in it shows until it opens.'));
+    if (lk.rolls.length && ch) wrap.appendChild(el('div', 'box-lockwho', (ch.name || 'Your character') + ' rolls. ' + (lk.see ? 'You can see inside, and nothing comes out until it opens.' : 'Nothing in it shows until it opens.')));
     body.appendChild(wrap);
 }
 function take(more) { var n = window.wpNet; if (!_box.player || !n || typeof n.boxAsk !== 'function') return; var r = n.boxAsk('take', _box.mapId, _box.pieceId, Object.assign({ tok: _box.tok }, more)); if (r && r.error) toast(r.error); step('take', { all: !!more.all }); }
 function drawPlayer() {
     var p = P(); if (!p) return; var nm = document.getElementById('boxName'); if (nm) nm.textContent = _box.name || 'Container';
     var body = document.getElementById('boxBody'); if (!body) return; while (body.firstChild) body.removeChild(body.firstChild);
-    if (_box.locked) { lockedInto(body); return; }   // fold 2b
+    if (_box.locked) { lockedInto(body); if (_box.locked.see) seenInto(body, _box.tiles || []); return; }   // fold 2b; 1.6.4 See-through: what is inside, as tiles to look at
     var tiles = _box.tiles || [];
-    if (!tiles.length) { body.appendChild(el('div', 'muted box-say', 'It is empty.')); return; }
+    if (!tiles.length) { body.appendChild(el('div', 'muted box-say', 'It is empty.')); if (_box.put) putBar(body); return; }
     var grid = el('div', 'box-grid'); grid.setAttribute('role', 'list');
     tiles.forEach(function(t) {
         var b2 = el('button', 'box-tile' + (_box.sel === t.rowId ? ' on' : '')); b2.type = 'button'; b2.dataset.row = t.rowId; b2.setAttribute('role', 'listitem');
@@ -365,21 +404,151 @@ function drawPlayer() {
     }
     var all = el('button', 'tool box-all', 'Take all'); all.type = 'button'; all.title = 'Put everything in it in your own sheet'; all.addEventListener('click', function() { take({ all: true }); });
     var foot = el('div', 'box-add'); foot.appendChild(all); body.appendChild(foot);
+    if (_box.put) putBar(body);   // 1.6.4 Put in
+}
+// 1.6.4: a See-through container, locked: its tiles and counts, each with what it says on hover, and nothing to press
+function seenInto(body, tiles) {
+    if (!tiles.length) { body.appendChild(el('div', 'muted box-say', 'It is empty.')); return; }
+    var grid = el('div', 'box-grid box-seen'); grid.setAttribute('role', 'list');
+    tiles.forEach(function(t) { var d = el('div', 'box-tile box-look'); d.setAttribute('role', 'listitem'); d.tabIndex = 0; d.title = tipOf(t); d.setAttribute('aria-label', t.name + (t.qty > 1 ? ', ' + t.qty : '')); var ic = el('span', 'box-ic'); iconInto(ic, t); d.appendChild(ic); if (t.qty > 1) d.appendChild(el('span', 'box-n', t.qty)); d.appendChild(el('span', 'box-nm', t.name)); grid.appendChild(d); });
+    body.appendChild(grid);
+}
+// 1.6.4 Put in (the addendum: "players need to be able to place in containers too along with gms"): a row of the character it was opened with,
+// or a count of it, put in from their own sheet. The rows offered are the ones the trade would let them give; the host judges it again
+function putBar(body) {
+    var camp = getActiveCampaign(), tk = lockTok(), sys = sysOf(camp), S = window.wpSystemCore, n = window.wpNet, ch = tk && camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, tk.charId) ? camp.chars[tk.charId] : null;
+    var wrap = el('div', 'box-putbar'), mine = sys ? BC.boxLists(sys).filter(function(f) { return f.edit === 'owner'; }).map(function(f) { return f.id; }) : [];
+    var rows = ch && S && typeof S.tradeOfferable === 'function' ? S.tradeOfferable(sys, ch, 'player').filter(function(o) { return !o.no && mine.indexOf(o.fid) >= 0; }) : [], key = function(o) { return o.fid + '|' + o.rowId; };
+    wrap.appendChild(el('span', 'box-lockcap', 'Put in'));
+    if (!rows.length) { wrap.appendChild(el('span', 'muted box-putnone', 'Nothing of ' + ((ch && ch.name) || 'yours') + ' can go in.')); body.appendChild(wrap); return; }
+    if (!rows.some(function(o) { return key(o) === _box.putSel; })) { _box.putSel = key(rows[0]); _box.putQty = rows[0].qty; }
+    var cur = rows.filter(function(o) { return key(o) === _box.putSel; })[0], q = Math.max(1, Math.min(cur.qty, _box.putQty | 0 || cur.qty)); _box.putQty = q;
+    var sel = el('select', 'box-putsel'); sel.title = 'Something of your own to put in';
+    rows.forEach(function(o) { var op = el('option', '', o.name + (o.qty > 1 ? ' ×' + o.qty : '')); op.value = key(o); sel.appendChild(op); }); sel.value = _box.putSel;
+    if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(sel);
+    sel.addEventListener('change', function() { _box.putSel = sel.value; var o = rows.filter(function(x) { return key(x) === sel.value; })[0]; _box.putQty = o ? o.qty : 1; drawPlayer(); refocus(['.box-putsel']); });
+    wrap.appendChild(sel);
+    var stp = null, U = window.wpUi && window.wpUi.step ? window.wpUi : null;
+    if (cur.qty > 1 && U) { stp = U.step({ value: q, min: 1, max: cur.qty, label: 'How many to put in', lessTip: 'Put in fewer', moreTip: 'Put in more', lessCls: 'box-pless', moreCls: 'box-pmore', valCls: 'box-pqin', set: function(k) { _box.putQty = k; drawPlayer(); refocus(['.box-pqin', '.box-pmore', '.box-pless']); } }); wrap.appendChild(stp); }
+    var go = el('button', 'tool box-put', 'Put in'); go.type = 'button'; go.title = 'Move it from your own sheet into this';
+    go.addEventListener('click', function() { if (stp && typeof stp.flush === 'function') stp.flush(); if (!_box.player || !n || typeof n.boxAsk !== 'function') return; var r = n.boxAsk('put', _box.mapId, _box.pieceId, { tok: _box.tok, fid: cur.fid, rowId: cur.rowId, qty: Math.max(1, Math.min(cur.qty, _box.putQty | 0 || 1)) }); if (r && r.error) toast(r.error); step('put-ask', {}); });
+    wrap.appendChild(go); body.appendChild(wrap);
 }
 // [boxcheck:player-end]
+// [boxcheck:drop-start]
+// 1.6.4 (Fulllion, 2026-11-23, by prompt): Drop here. A row of a sheet, or a count of it, leaves the sheet and lands at its token's cell as a
+// PILE: a container the drop makes, holding exactly what was dropped. One pile a cell: a drop where a pile lies joins it. The pile wears the
+// first thing in it (its picture, else its icon) with a count when there is more than one. Anyone next to it takes from it as from any
+// container, and a pile emptied goes. The move runs on the machine that owns the campaign (the GM's own hand here, a player's through the
+// host's drop branch in net.js), through boxcore moveIn, one save. These run on the host alone: nothing of a box leaves it
+function pileGrid(map) { var gt = map && map.meta ? map.meta.gridType : null; return gridFor(gt === 'square' || gt === 'hex' ? gt : 'off', null, map && map.meta ? map.meta.cell : null) || squareGrid(50); }   // a map with no grid and no cell of its own: a 50 px square, as a gridless board reads one
+// Where a pile at a token lies: the cell under the token's middle, a square of three fifths of a cell at its center
+function pileSpot(map, tok) {
+    var g = pileGrid(map), c = cellOf((tok.x || 0) + (tok.w || 0) / 2, (tok.y || 0) + (tok.h || 0) / 2, g), mid = cellCenter(c, g), s = Math.max(12, Math.round((g.type === 'square' ? g.size : g.h) * 0.6));
+    return { key: cellKey(c, g), x: Math.round(mid.x - s / 2), y: Math.round(mid.y - s / 2), s: s };
+}
+// The pile already lying in that cell, shown (a pile the GM hid is passed over, so a drop is never hidden from its dropper)
+function pileHere(camp, map, spot) {
+    var g = pileGrid(map); return (Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(w) { var b = w && !w.hidden ? boxOf(camp, w) : null; return !!b && BC.boxIsPile(b) && BC.boxPieceOk(w) && cellKey(cellOf((w.x || 0) + (w.w || 0) / 2, (w.y || 0) + (w.h || 0) / 2, g), g) === spot.key; })[0] || null;
+}
+// A pile's piece follows what it holds: its face, its picture and its name, and where it lies (so Put back can lay it again). Emptied, the
+// piece goes; its box stays while a take of it is listed, for Put back, until the next load tidies it. Answers 'gone', 'kept' or ''
+function pileSync(camp, map, w) {
+    var b = boxOf(camp, w); if (!b || !BC.boxIsPile(b) || !map || !Array.isArray(map.whiteboard)) return '';
+    var face = BC.pileFace(sysOf(camp), b); b.at = { map: map.id, x: w.x || 0, y: w.y || 0, s: Math.max(4, Math.min(2000, w.w || 30)) };   // where it lay last, even as it goes (the review)
+    if (!face) { var i = map.whiteboard.indexOf(w); if (i >= 0) map.whiteboard.splice(i, 1); if (!(Array.isArray(b.taken) && b.taken.length)) delete camp.boxes[b.id]; return 'gone'; }
+    w.pile = { n: face.n, k: face.k }; if (face.icon && !face.pic) w.pile.icon = face.icon; w.src = face.pic || ''; w.name = face.k > 1 ? face.name + ' and more' : face.name;
+    return 'kept';
+}
+// The drop: what moves (boxcore moveIn, all or none), then the pile it lands in, found or made. Changes the campaign in memory; the caller saves
+// and tells the table. Answers { ok, lines, valuesA, w, made } or { ok: false, msg }
+function dropInto(camp, map, tok, ch, fid, rowId, qty, who) {
+    if (!camp || !map || map.type !== 'map' || !tok || !ch) return { ok: false, msg: 'That character has no token on this map.' };
+    var spot = pileSpot(map, tok), w = pileHere(camp, map, spot), box = w ? boxOf(camp, w) : null, id = box ? box.id : null;
+    if (!box) { pileRoom(camp); var have = camp.boxes && typeof camp.boxes === 'object' ? camp.boxes : Object.create(null); if (Object.keys(have).length >= BC.BOX_MAX) return { ok: false, msg: 'This campaign holds as many containers as it can.' }; id = BC.newBoxId(Math.random, have); if (!id) return { ok: false, msg: 'This campaign holds as many containers as it can.' }; box = { id: id, values: {}, pile: true }; }
+    var r = BC.moveIn(sysOf(camp), ch, box, fid, rowId, qty, who, F); if (!r.ok) return { ok: false, msg: r.msg || 'That cannot be dropped now.' };
+    ch.values = ch.values || {}; Object.keys(r.valuesA).forEach(function(k) { ch.values[k] = r.valuesA[k]; }); ch.updated = Date.now();
+    var made = false;
+    if (!w) {
+        camp.boxes = camp.boxes && typeof camp.boxes === 'object' ? camp.boxes : Object.create(null); camp.boxes[id] = box;
+        if (!Array.isArray(map.whiteboard)) map.whiteboard = [];
+        w = { id: uid('wb'), type: 'image', src: '', x: spot.x, y: spot.y, w: spot.s, h: spot.s, color: 'transparent', layer: 'back-mid', name: 'Pile', box: id }; map.whiteboard.push(w); made = true;   // under the tokens: it lies at their feet
+    }
+    box.values = r.values; pileSync(camp, map, w);
+    return { ok: true, lines: r.lines, valuesA: r.valuesA, w: w, made: made };
+}
+// The review: an emptied pile keeps its box for Put back until the next load, so a full store lets the oldest such box go (one no piece names) to make
+// room, rather than refuse a drop or a container
+function pileRoom(camp) {
+    var st = camp && camp.boxes && typeof camp.boxes === 'object' ? camp.boxes : null; if (!st || Object.keys(st).length < BC.BOX_MAX) return;
+    var named = BC.boxesNamed(camp.items), old = null; Object.keys(st).forEach(function(id) { var b = st[id]; if (named[id] || !BC.boxIsPile(b)) return; var t = Array.isArray(b.taken) && b.taken[0] ? b.taken[0].at || 0 : 0; if (!old || t < old.t) old = { id: id, t: t }; });
+    if (old) delete st[old.id];
+}
+// [boxcheck:drop-end]
+// The token a character drops at: on the map on screen, the selected one of theirs, else the first. A player's: shown and their own
+function dropTok(map, charId, player) {
+    var sel = state && Array.isArray(state.selWbIds) ? state.selWbIds : [], mine = (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(x) { return x && x.isChar && !x.waiting && x.charId === charId && !(player && x.hidden); });
+    return mine.filter(function(x) { return sel.indexOf(x.id) >= 0; })[0] || mine[0] || null;
+}
+// Whether a row shows Drop here: an item of a list a container may hold, on a character with a token on the map on screen. The GM's for any
+// sheet; a player's for a sheet of their own (or shared with them) on a list they change. The host judges it again
+function dropOk(c, f, entry) {
+    var camp = getActiveCampaign(), map = getActiveMap(), sys = sysOf(camp), n = window.wpNet; if (!c || !f || !entry || entry.hid === 1 || !camp || !map || !sys || window.wpStream) return false;
+    if (!BC.boxLists(sys).some(function(x) { return x.id === f.id; })) return false;
+    if (c.making === 1 || c.making === true || c.partial) return false;
+    if (gmMay()) return !!dropTok(map, c.id, false);
+    if (!n || !n.active || n.role !== 'client' || n.stream || typeof n.dropAsk !== 'function' || f.edit !== 'owner') return false;
+    if (!(c.ownerId === n.myId || c.shared === 1)) return false;
+    return !!dropTok(map, c.id, true);
+}
+// Drop here, pressed: one row drops at once, a stack asks how many (all of it by default). No are-you-sure: Put back and a pick-up undo it
+function drop(c, f, entry) {
+    var rid = entry ? rowIdOf(entry) : '', q = Math.max(1, Math.floor(Number(entry && entry.qty)) || 1), noQ = !!(f && f.list && f.list.noQty); if (typeof rid !== 'string') return;
+    if (q <= 1 || noQ) { dropGo(c.id, f.id, rid, 1); return; }
+    showPrompt('Drop how many? From 1 to ' + q + '.', String(q), function(v) {
+        if (v === null || v === undefined) return; var k = Number(String(v).trim());
+        if (!(k >= 1) || k !== Math.floor(k) || k > q) { toast('Drop a whole number from 1 to ' + q + '.'); return; }
+        dropGo(c.id, f.id, rid, k);
+    });
+}
+function dropGo(charId, fid, rowId, qty) {
+    var camp = getActiveCampaign(), map = getActiveMap(), n = window.wpNet; if (!camp || !map) return;
+    if (!gmMay()) {   // a player's: the host judges it and answers in words
+        var tp = dropTok(map, charId, true); if (!tp || !n || typeof n.dropAsk !== 'function') { toast('You need a token of this character on this map.'); return; }
+        var rp = n.dropAsk(map.id, tp.id, fid, rowId, qty); if (rp && rp.error) toast(rp.error); step('drop-ask', {}); return;
+    }
+    var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null, tk = dropTok(map, charId, false);
+    if (!ch || !tk) { toast('That character has no token on this map.'); return; }
+    var r = dropInto(camp, map, tk, ch, fid, rowId, qty, 'gm'); if (!r.ok) { toast(r.msg); step('drop-refused', {}); return; }
+    save();
+    if (n && n.active && n.role === 'host' && typeof n.syncCharDelta === 'function' && Object.keys(r.valuesA).length) n.syncCharDelta(ch.id, r.valuesA);
+    if (window.wpSheets && typeof window.wpSheets.charChanged === 'function') window.wpSheets.charChanged(ch.id);
+    toast((ch.name || 'They') + ' dropped ' + (r.lines.join(', ') || 'it') + '. A pick-up or Put back undoes it.'); step('drop', { made: r.made, gm: true });
+    redrawGm(); if (typeof window.appRender === 'function') window.appRender();
+}
+// The face a pile wears on the map: what lies on top (its picture is the piece's own, drawn as any picture; else its icon here) and a count
+// badge for more than one. Drawn by the board from the piece alone, so the GM and a player draw it alike, and nothing of the box is read
+function pileFace(node, item) {
+    var pf = item && item.pile && typeof item.pile === 'object' ? BC.cleanPileFace(item.pile) : null, ic = node.querySelector(':scope > .wb-pile-ic'), bd = node.querySelector(':scope > .wb-pile-n');
+    node.classList.toggle('wb-pile', !!pf);
+    if (!pf) { if (ic) ic.remove(); if (bd) bd.remove(); return; }
+    var want = item.src ? '' : (pf.icon || '?'); if (ic && ic.dataset.icon !== want) { ic.remove(); ic = null; }
+    if (want && !ic) { ic = el('span', 'wb-pile-ic'); ic.dataset.icon = want; iconInto(ic, { icon: /^icon:/.test(want) || want !== '?' ? want : '', name: item.name || '?' }); node.appendChild(ic); }
+    var nw = pf.n > 1 ? String(pf.n > 999 ? '999+' : pf.n) : ''; if (!nw) { if (bd) bd.remove(); } else { if (!bd) { bd = el('span', 'wb-pile-n'); node.appendChild(bd); } if (bd.textContent !== nw) bd.textContent = nw; }
+}
 // A copy of a container (Duplicate, a paste) gets a container of its own with a copy of what it holds, or none where the store is full: two
 // pieces never share one (the review)
 function copyFor(it) {
     var camp = getActiveCampaign(); if (!it || typeof it !== 'object' || it.box === undefined) return;
     var src = boxOf(camp, it); delete it.box; if (!src || !gmMay() || !camp.boxes || Object.keys(camp.boxes).length >= BC.BOX_MAX) return;
     var id = BC.newBoxId(Math.random, camp.boxes); if (!id) return;
-    camp.boxes[id] = { id: id, values: JSON.parse(JSON.stringify(src.values || {})) }; it.box = id; step('copy', {});
+    camp.boxes[id] = { id: id, values: JSON.parse(JSON.stringify(src.values || {})) }; if (BC.boxIsPile(src)) camp.boxes[id].pile = true; it.box = id; step('copy', {});
 }
 function has(w) { return !!boxOf(getActiveCampaign(), w); }
 // The window follows the app: a piece gone, another map or another campaign closes it; otherwise its name follows the piece's
 function sync() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player) { var mp = getActiveMap(), n = window.wpNet; if (!mp || mp.id !== _box.mapId || !n || !n.active || n.role !== 'client') close(); return; } if (!piece() || !boxOf(getActiveCampaign(), piece()) || !gmMay()) { close(); return; } var nm = document.getElementById('boxName'), w = piece(); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container'; }   // never drawn again under a press: only its own changes draw it
 if (typeof window !== 'undefined') {
-    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, steal: steal, stealGo: stealGo, stealOn: stealOn, view: view, bodyHas: bodyHas, bodyOpen: bodyOpen, tookNote: tookNote, putBack: putBack, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
+    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, steal: steal, stealGo: stealGo, stealOn: stealOn, view: view, bodyHas: bodyHas, bodyOpen: bodyOpen, tookNote: tookNote, putBack: putBack, dropOk: dropOk, drop: drop, dropInto: dropInto, pileSync: pileSync, pileFace: pileFace, pileTell: pileTell, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 }
 export { open, close, sync, holds, boxPieceOk };

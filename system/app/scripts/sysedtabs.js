@@ -38,7 +38,7 @@ function turnTradeOpts(tn) {
     (Array.isArray(tn.acts) ? tn.acts : []).forEach(function(a) { if (a && typeof a === 'object' && typeof a.key === 'string' && a.key.trim()) out.push([a.key, 'Spends ' + (typeof a.label === 'string' && a.label ? a.label : a.key)]); });
     return out;
 }
-function turnTradeFollow(tn, was, now) { if (was && tn.trade === was) { if (now) tn.trade = now; else delete tn.trade; } if (was && tn.runCost === was) { if (now) tn.runCost = now; else delete tn.runCost; } }
+function turnTradeFollow(tn, was, now) { if (was && tn.drop === was) { if (now) tn.drop = now; else delete tn.drop; } if (was && tn.trade === was) { if (now) tn.trade = now; else delete tn.trade; } if (was && tn.runCost === was) { if (now) tn.runCost = now; else delete tn.runCost; } }
 // 1.6.0 A move by giving up an action: the actions it may spend, a pick of none first, and what Save does with the pair, as the cleaner reads it
 function turnRunOpts(tn) {
     var out = [['', 'Pick the action']];
@@ -98,6 +98,8 @@ function turnBox(box, cm) {
     });
     wrap.appendChild(labeledSelect('sys-turn-trade', 'A trade in a fight', turnTradeOpts(tn), typeof tn.trade === 'string' ? tn.trade : '', 'What giving something in a trade spends in a fight, from the actions above. Who only takes spends nothing. It also keeps Trade with on an NPC in a fight'));
     lineUnder(wrap, 'Whoever gives spends this as the trade completes. One who only takes spends nothing.');
+    wrap.appendChild(labeledSelect('sys-turn-drop', 'Dropping or picking up in a fight', turnTradeOpts(tn), typeof tn.drop === 'string' ? tn.drop : '', 'What dropping something on the map, or picking it up from a pile, spends in a fight, from the actions above'));   // 1.6.4
+    lineUnder(wrap, 'A player spends this each time they drop something or pick something up. Your own hand spends nothing.');
     if (wrap.lastChild && wrap.lastChild.classList) wrap.lastChild.classList.add('sys-combat-wide');   // 1.6.0: its words are longer than its list
     var err = errorCell('combat'); err.dataset.errFor = 'combat'; wrap.appendChild(err);
     box.appendChild(wrap);
@@ -117,6 +119,8 @@ function onTurnInput(t) {
         else if (c.indexOf('sys-turn-' + g + 'n') >= 0) { var nv = Number(t.value); if (g === 'act') { var nt = String(t.value || '').trim(); if (/^[0-9]+$/.test(nt)) { x.n = nv; delete x.nf; } else if (nt) { x.nf = nt.slice(0, LIMITS.formula); if (typeof x.n !== 'number') x.n = 1; } else { x.n = 1; delete x.nf; } } else if (t.value.trim() && isFinite(nv)) x.secs = nv; else delete x.secs; }   // 192: a whole number, or a formula
         else return true;
         var tsT = g === 'act' && rw.parentNode ? rw.parentNode.querySelector('.sys-turn-trade') : null;   // the list of actions a trade may spend follows what is typed
+        var tsD = g === 'act' && rw.parentNode ? rw.parentNode.querySelector('.sys-turn-drop') : null;   // 1.6.4: and the drop's list
+        if (tsD) { var keepD = typeof tn.drop === 'string' ? tn.drop : ''; while (tsD.firstChild) tsD.removeChild(tsD.firstChild); turnTradeOpts(tn).forEach(function(o) { tsD.appendChild(opt(o[0], o[1], o[0] === keepD)); }); }
         if (tsT) { var keepT = typeof tn.trade === 'string' ? tn.trade : ''; while (tsT.firstChild) tsT.removeChild(tsT.firstChild); turnTradeOpts(tn).forEach(function(o) { tsT.appendChild(opt(o[0], o[1], o[0] === keepT)); }); }
         var trT = g === 'act' && rw.parentNode ? rw.parentNode.querySelector('.sys-turn-runact') : null;   // ... and so does the list of what a move may spend
         if (trT) { var keepR = typeof tn.runCost === 'string' ? tn.runCost : ''; while (trT.firstChild) trT.removeChild(trT.firstChild); turnRunOpts(tn).forEach(function(o) { trT.appendChild(opt(o[0], o[1], o[0] === keepR)); }); }
@@ -129,6 +133,7 @@ function onTurnChange(t) {
     else if (c.indexOf('sys-turn-diag') >= 0) { var tn = turnDraft(); if (t.value === 'one' || t.value === 'alt') tn.diag = t.value; else delete tn.diag; }
     else if (c.indexOf('sys-turn-faceby') >= 0) { var tnF = turnDraft(); if (t.value === 'turn') tnF.faceBy = 'turn'; else delete tnF.faceBy; }   // 1.6.2 (backlog 70)
     else if (c.indexOf('sys-turn-trade') >= 0) { var tnT = turnDraft(); if (t.value) tnT.trade = t.value; else delete tnT.trade; }   // 1.6.0
+    else if (c.indexOf('sys-turn-drop') >= 0) { var tnD = turnDraft(); if (t.value) tnD.drop = t.value; else delete tnD.drop; }   // 1.6.4
     else if (c.indexOf('sys-turn-runact') >= 0) { var tnR = turnDraft(); if (t.value) tnR.runCost = t.value; else delete tnR.runCost; }   // 1.6.0
     else if (c.indexOf('sys-turn-off') >= 0) { var tnO = turnDraft(); if (t.value === 'refuse' || t.value === 'warn') tnO.off = t.value; else delete tnO.off; }   // 1.6.0
     else if (c.indexOf('sys-turn-holdnames') >= 0) { var tnN = turnDraft(); if (t.value === 'names') tnN.holdNames = true; else { delete tnN.holdNames; delete tnN.holdLost; } markDirty(); renderAll(); return true; }   // 1.6.0: its formula's box comes and goes with it

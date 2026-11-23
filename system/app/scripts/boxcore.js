@@ -6,7 +6,7 @@
    hold. Only the item lists ticked Tradable that players see may hold a container's items, since a player takes them into the same list of
    their own sheet, as a trade moves a row. */
 
-import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom, tradeOfferable, makeResolver, tradeCarry } from './systemcore.js';
+import { cleanChar, rowDef, rowIdOf, fieldById, cleanPic, rowKeptFrom, tradeOfferable, makeResolver, tradeCarry, tradeApply, applyRowOp } from './systemcore.js';
 
 // [boxcheck:core-start]
 var BOX_ID = /^c_bx[A-Za-z0-9]{4,20}$/, BOX_MAX = 500;
@@ -28,6 +28,7 @@ function cleanLock(v, sys) {
     var ids = map(); (isObj(sys) && Array.isArray(sys.rolls) ? sys.rolls : []).forEach(function(r) { if (lockRollOk(r)) ids[r.id] = 1; });
     var rolls = []; (Array.isArray(v.rolls) ? v.rolls.slice(0, 12) : []).forEach(function(id) { if (typeof id === 'string' && ids[id] === 1 && rolls.indexOf(id) < 0 && rolls.length < LOCK_ROLLS) rolls.push(id); });
     var out = {}; if (v.on === true) out.on = true; if (rolls.length) out.rolls = rolls; if (typeof v.key === 'string' && KEY_ID.test(v.key)) out.key = v.key;
+    if (v.see === 'thru') out.see = 'thru';   // 1.6.4: What players see while locked, See-through (a display case, a cage); absent, Solid
     return Object.keys(out).length ? out : null;
 }
 function lockRollOk(r) { return isObj(r) && typeof r.id === 'string' && r.init !== true && typeof r.formula === 'string' && !!r.formula && !Array.isArray(r.apply); }   // a roll, never the initiative roll nor an apply action (the review)
@@ -101,8 +102,10 @@ function cleanBox(raw, sys, id) {
     var vin = map(); if (isObj(raw.values)) Object.keys(raw.values).forEach(function(k) { if (keep[k] && Array.isArray(raw.values[k])) vin[k] = raw.values[k]; });
     var c = cleanChar({ id: id, name: 'Container', npc: true, values: vin }, sys, { state: 'host' }), out = { id: id, values: {} };
     if (c && isObj(c.values)) Object.keys(c.values).forEach(function(k) { if (keep[k] && Array.isArray(c.values[k]) && c.values[k].length) out.values[k] = c.values[k]; });
-    var lk = cleanLock(raw.lock, sys); if (lk) out.lock = lk;   // fold 2b
+    var lk = raw.pile === true ? null : cleanLock(raw.lock, sys); if (lk) out.lock = lk;   // fold 2b; 1.6.4 (the review): a pile is never locked
     var tk = cleanTaken(raw.taken); if (tk.length) out.taken = tk; if (raw.tell === false) out.tell = false;   // fold 2c
+    if ((raw.put === true || raw.put === false) && raw.pile !== true) out.put = raw.put;   // 1.6.4: the GM's own tick, Players may put in; absent, its default (boxPutDefault)
+    if (raw.pile === true) { out.pile = true; var at = cleanPileAt(raw.at); if (at) out.at = at; }   // 1.6.4: a pile a drop made, and where it lay (so Put back can lay it again once it is gone)
     return out;
 }
 // The store: an object with no prototype by box id, BOX_MAX at most. Anything else none
@@ -157,12 +160,74 @@ function boxesNamed(items) { var out = map(); (isObj(items) ? Object.keys(items)
 function boxesTidy(camp) {
     var out = { boxes: 0, pieces: 0 }; if (!isObj(camp)) return out; var store = isObj(camp.boxes) ? camp.boxes : null, named = boxesNamed(camp.items);
     if (store) Object.keys(store).forEach(function(id) { if (!named[id]) { delete store[id]; out.boxes++; } });
-    (isObj(camp.items) ? Object.keys(camp.items) : []).forEach(function(k) { var it = camp.items[k]; if (!isObj(it) || !Array.isArray(it.whiteboard)) return; it.whiteboard.forEach(function(w) { if (isObj(w) && w.box !== undefined && !(boxIdOk(w.box) && store && Object.prototype.hasOwnProperty.call(store, w.box) && boxPieceOk(w))) { delete w.box; out.pieces++; } }); });
+    (isObj(camp.items) ? Object.keys(camp.items) : []).forEach(function(k) { var it = camp.items[k]; if (!isObj(it) || !Array.isArray(it.whiteboard)) return; it.whiteboard.forEach(function(w) { if (isObj(w) && w.box !== undefined && !(boxIdOk(w.box) && store && Object.prototype.hasOwnProperty.call(store, w.box) && boxPieceOk(w))) { delete w.box; out.pieces++; } if (isObj(w) && w.pile !== undefined && w.box === undefined) delete w.pile; }); });   // 1.6.4 (the review): a pile's face goes with its box
     return out;
 }
 // What a part of a campaign carries (an export of a map): the containers its pieces name, copied
-function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) { out[id] = JSON.parse(JSON.stringify(store[id])); delete out[id].taken; delete out[id].tell; } }); return out; }   // a part exported for another campaign carries no record of who took what (the review of fold 2c)
+function boxesOf(store, items) { var out = map(), named = boxesNamed(items); if (isObj(store)) Object.keys(named).forEach(function(id) { if (Object.prototype.hasOwnProperty.call(store, id)) { out[id] = JSON.parse(JSON.stringify(store[id])); delete out[id].taken; delete out[id].tell; delete out[id].at; } }); return out; }   // a part exported for another campaign carries no record of who took what (the review of fold 2c), nor where a pile of this one lay
+// ---- 1.6.4: Drop here, Pick up, Put in (Fulllion, 2026-11-23, by prompt; docs/TODO_BACKLOG.md "Drop items in the world") ----
+// A pile is a container a drop made: the piece holds the box id as any container does, and its box says pile. It always takes items and is
+// never locked. at: where it lay ({ map, x, y, s }), so that Put back can lay it again after the last thing in it was taken and it went
+var PILE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+function cleanPileAt(v) {
+    if (!isObj(v) || typeof v.map !== 'string' || !PILE_ID.test(v.map)) return null; var n = function(x, lo, hi) { return typeof x === 'number' && isFinite(x) && x >= lo && x <= hi; };
+    return n(v.x, -1e7, 1e7) && n(v.y, -1e7, 1e7) && n(v.s, 4, 2000) ? { map: v.map, x: v.x, y: v.y, s: v.s } : null;
+}
+function boxIsPile(box) { return isObj(box) && box.pile === true; }
+// Players may put in, read by the GM's tick: on by default for a container with no lock set up, off for one that has a lock (its rolls or its key
+// kept while it stands open). The GM's own tick wins either way. A pile always takes items
+function boxLockSet(box) { var lk = isObj(box) && isObj(box.lock) ? box.lock : null; return !!lk && (lk.on === true || (Array.isArray(lk.rolls) && lk.rolls.length > 0) || typeof lk.key === 'string'); }
+function boxPutDefault(box) { return !boxLockSet(box); }
+function boxPutTick(box) { return isObj(box) && (box.put === true || box.put === false) ? box.put : boxPutDefault(box); }
+// May a player put something in now? Never while it is locked (Fulllion: "players cant place or take there until it is" opened)
+function boxPutOk(box) { if (!isObj(box)) return false; if (boxIsPile(box)) return true; if (boxLocked(box)) return false; return boxPutTick(box); }
+// See-through: a locked container whose contents players next to it may see, but not take or put in, until it is opened
+function boxSeeThru(box) { return isObj(box) && isObj(box.lock) && box.lock.see === 'thru' && !boxIsPile(box); }
+// A row (or a count of it) leaving a character's sheet into a container: judged first as the trade judges what a side may give (a list ticked
+// Tradable that players see, never a row kept on them, one granted with another, a worn piece its lock keeps on, a row the player may not give
+// away), then as a removal of that row from the sheet is judged (applyRowOp: Locked while, a laid row, an opened row, bound), so a drop or a
+// put is refused where taking the row off the sheet would be. Answers { ok, line } or { ok: false, reason, msg }. who 'player' or 'gm'
+var MOVE_SAYS = { list: 'Only an item of a list ticked Tradable can leave the sheet.', gone: 'That row is no longer on the sheet.', making: 'Finish making the character first.' };
+function moveJudge(sys, ch, fid, rowId, qty, who, F) {
+    if (!isObj(ch) || !isObj(sys) || typeof fid !== 'string' || typeof rowId !== 'string') return { ok: false, reason: 'gone', msg: MOVE_SAYS.gone };
+    if (ch.making === 1 || ch.making === true || ch.partial) return { ok: false, reason: 'making', msg: MOVE_SAYS.making };
+    var f = fieldById(sys, fid); if (!f || boxLists(sys).indexOf(f) < 0 || (who === 'player' && f.edit !== 'owner')) return { ok: false, reason: 'list', msg: MOVE_SAYS.list };
+    var o = tradeOfferable(sys, ch, who === 'player' ? 'player' : 'gm').filter(function(x) { return x.fid === fid && x.rowId === rowId; })[0];
+    if (!o) return { ok: false, reason: 'gone', msg: MOVE_SAYS.gone };
+    if (o.no) return { ok: false, reason: 'held', msg: o.no };
+    var n = typeof qty === 'number' && isFinite(qty) ? Math.floor(qty) : o.qty; if (n < 1) return { ok: false, reason: 'gone', msg: MOVE_SAYS.gone }; n = Math.min(n, o.qty);
+    var q = n >= o.qty ? { op: 'remove', rowId: rowId } : { op: 'setQty', rowId: rowId, qty: o.qty - n };
+    var g = applyRowOp(sys, ch, fid, q, F, { player: who === 'player' });
+    if (!g || !g.ok) return { ok: false, reason: (g && g.reason) || 'value', msg: (g && g.msg) || 'That cannot be taken off the sheet now.' };
+    if (g.hid) return { ok: false, reason: 'held', msg: 'It cannot be given away.' };   // a kept curse: it would stay on them, kept from their sight
+    return { ok: true, line: { fid: fid, rowId: rowId, qty: n } };
+}
+// The move itself, all or none, through the trade's own rule from the character to the container (the parts a row holds and the rows it granted
+// go with it, a worn piece goes off, a stack lands on a like row, the container's list caps hold). Answers { ok, valuesA: the character's lists
+// that changed, values: the container's whole values after it, lines: what moved in words } or a refusal as moveJudge words one
+function moveIn(sys, ch, box, fid, rowId, qty, who, F) {
+    var j = moveJudge(sys, ch, fid, rowId, qty, who, F); if (!j.ok) return j;
+    var res = tradeApply(sys, ch, boxChar(isObj(box) ? box : { values: {} }), [j.line], [], who === 'player' ? 'player' : 'gm', 'gm', {});
+    if (!res || !res.ok) return { ok: false, reason: (res && res.reason) || 'value', msg: (res && res.msg) || 'It cannot go in there.' };
+    var v = JSON.parse(JSON.stringify(isObj(box) && isObj(box.values) ? box.values : {})); Object.keys(res.valuesB).forEach(function(k) { if (Array.isArray(res.valuesB[k]) && res.valuesB[k].length) v[k] = res.valuesB[k]; else delete v[k]; });
+    return { ok: true, valuesA: res.valuesA, values: v, lines: res.linesA, line: j.line };
+}
+// A pile's face, what the map shows of it: the first thing in it, its picture (else its icon), and how many there are in all (n) of how many
+// kinds (k). None for a pile with nothing in it, which goes
+function pileFace(sys, box) {
+    var all = boxTiles(sys, box); if (!all.length) return null;
+    var can = map(); tradeOfferable(sys, boxChar(box), 'gm').forEach(function(o) { if (!o.no) can[o.fid + '|' + o.rowId] = 1; });   // the review: only what a player could be shown (never a GM-only part that came with a row), as the window shows it
+    var t = all.filter(function(x) { return can[x.fid + '|' + x.rowId] === 1; }); if (!t.length) return { n: 1, k: 1, name: 'Pile' };
+    var n = t.reduce(function(s, x) { return s + x.qty; }, 0);
+    var o = { n: Math.min(n, 1e6), k: Math.min(t.length, 400), name: txt(t[0].name, 120) || 'Item' }; if (t[0].pic) o.pic = t[0].pic; else if (t[0].icon) o.icon = txt(t[0].icon, 40);
+    return o;
+}
+// A pile's face as a piece carries it on the wire and in a file: its count, its kinds and its icon (its picture is the piece's own src)
+function cleanPileFace(v) {
+    if (!isObj(v)) return null; var n = Math.floor(Number(v.n)), k = Math.floor(Number(v.k)); if (!(n >= 1 && n <= 1e6) || !(k >= 1 && k <= 400)) return null;
+    var o = { n: n, k: k }; var ic = txt(v.icon, 40); if (ic) o.icon = ic; return o;
+}
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { bodyNpc: bodyNpc, bodyLootable: bodyLootable, bodyOfferOk: bodyOfferOk, noLootOf: noLootOf, TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { bodyNpc, bodyLootable, bodyOfferOk, noLootOf, TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { cleanPileAt: cleanPileAt, boxIsPile: boxIsPile, boxLockSet: boxLockSet, boxPutDefault: boxPutDefault, boxPutTick: boxPutTick, boxPutOk: boxPutOk, boxSeeThru: boxSeeThru, moveJudge: moveJudge, moveIn: moveIn, pileFace: pileFace, cleanPileFace: cleanPileFace, bodyNpc: bodyNpc, bodyLootable: bodyLootable, bodyOfferOk: bodyOfferOk, noLootOf: noLootOf, TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { cleanPileAt, boxIsPile, boxLockSet, boxPutDefault, boxPutTick, boxPutOk, boxSeeThru, moveJudge, moveIn, pileFace, cleanPileFace, bodyNpc, bodyLootable, bodyOfferOk, noLootOf, TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

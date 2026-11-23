@@ -457,7 +457,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.box; if (w.boxed !== 1) delete w.boxed; if (w.furn !== undefined) { var FUh = window.wpFurnCore, fuh = FUh && w.type === 'image' ? FUh.cleanFurn(w.furn) : null; if (fuh) w.furn = fuh; else delete w.furn; } delete w.nullFx; delete w.fly; delete w.hazard; delete w.follow; delete w.burns; delete w.reaction; delete w.darkStep; delete w.cloud; if (w.place !== undefined && w.place !== true && w.place !== false) delete w.place; if (w.placeName !== undefined) { var PCh = window.wpPlaceCore, pnH = PCh && typeof PCh.cleanPlaceName === 'function' ? PCh.cleanPlaceName(w.placeName) : ''; if (pnH) w.placeName = pnH; else delete w.placeName; } for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.coverPro !== undefined) { var FChp = window.wpFogCore, cHp = FChp && FChp.cleanCoverPro ? FChp.cleanCoverPro(w.coverPro) : 0; if (cHp) w.coverPro = cHp; else delete w.coverPro; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.pl !== undefined) { var plH = typeof SC === 'function' && SC() && typeof SC().cleanPlook === 'function' ? SC().cleanPlook(w.pl) : null; if (plH) w.pl = plH; else delete w.pl; } if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; delete w.standPic; delete w.standHid; delete w.standScene; delete w.standJournal; delete w.standWho; delete w.standSeen; delete w.standDone; if (w.zoneHidden !== undefined) delete w.zoneHidden; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.terrainKind !== undefined) { var FCtk = window.wpFogCore, tkH = w.terrain !== undefined && FCtk && FCtk.cleanTerrainKind ? FCtk.cleanTerrainKind(w.terrainKind) : null; if (tkH) w.terrainKind = tkH; else delete w.terrainKind; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.toShow !== undefined || w.showFor !== undefined) { var FCsh = window.wpFogCore; if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; } } if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow; if (w.trim !== undefined) { var FCtq = window.wpFogCore, trq = FCtq && typeof FCtq.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCtq.cleanTrim(w.trim) : null; if (trq) w.trim = trq; else delete w.trim; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.box; if (w.boxed !== 1) delete w.boxed; if (w.furn !== undefined) { var FUh = window.wpFurnCore, fuh = FUh && w.type === 'image' ? FUh.cleanFurn(w.furn) : null; if (fuh) w.furn = fuh; else delete w.furn; } if (w.pile !== undefined) { var BXc = window.wpBoxCore, pfC = BXc && typeof BXc.cleanPileFace === 'function' && w.type === 'image' && !w.isChar ? BXc.cleanPileFace(w.pile) : null; if (pfC) w.pile = pfC; else delete w.pile; } delete w.nullFx; delete w.fly; delete w.hazard; delete w.follow; delete w.burns; delete w.reaction; delete w.darkStep; delete w.cloud; if (w.place !== undefined && w.place !== true && w.place !== false) delete w.place; if (w.placeName !== undefined) { var PCh = window.wpPlaceCore, pnH = PCh && typeof PCh.cleanPlaceName === 'function' ? PCh.cleanPlaceName(w.placeName) : ''; if (pnH) w.placeName = pnH; else delete w.placeName; } for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.coverPro !== undefined) { var FChp = window.wpFogCore, cHp = FChp && FChp.cleanCoverPro ? FChp.cleanCoverPro(w.coverPro) : 0; if (cHp) w.coverPro = cHp; else delete w.coverPro; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.pl !== undefined) { var plH = typeof SC === 'function' && SC() && typeof SC().cleanPlook === 'function' ? SC().cleanPlook(w.pl) : null; if (plH) w.pl = plH; else delete w.pl; } if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; delete w.standPic; delete w.standHid; delete w.standScene; delete w.standJournal; delete w.standWho; delete w.standSeen; delete w.standDone; if (w.zoneHidden !== undefined) delete w.zoneHidden; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.terrainKind !== undefined) { var FCtk = window.wpFogCore, tkH = w.terrain !== undefined && FCtk && FCtk.cleanTerrainKind ? FCtk.cleanTerrainKind(w.terrainKind) : null; if (tkH) w.terrainKind = tkH; else delete w.terrainKind; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.toShow !== undefined || w.showFor !== undefined) { var FCsh = window.wpFogCore; if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; } } if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow; if (w.trim !== undefined) { var FCtq = window.wpFogCore, trq = FCtq && typeof FCtq.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCtq.cleanTrim(w.trim) : null; if (trq) w.trim = trq; else delete w.trim; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
@@ -1032,6 +1032,7 @@ function wireWbItem(w, cloned) {
     delete w.boxed;   // the mark is worked out here and nowhere else (the review)
     if (w.isChar && !w.waiting && typeof lootOf === 'function' && lootOf(w)) w.boxed = 1;   // fold 3: a body that can be looted wears the chest for players too
     if (w.box !== undefined) { if (typeof w.box === 'string' && /^c_bx[A-Za-z0-9]{4,20}$/.test(w.box)) w.boxed = 1; delete w.box; }   // 1.6.2 (backlog 42): a container's box id is the GM's own; players are told only that it is one
+    if (w.pile !== undefined) { var BXw = window.wpBoxCore, pfW = BXw && typeof BXw.cleanPileFace === 'function' && w.type === 'image' && !w.isChar ? BXw.cleanPileFace(w.pile) : null; if (pfW) w.pile = pfW; else delete w.pile; }   // 1.6.4: a pile's face (its count, its kinds, its icon), as boxcore cleans it; what it holds stays the GM's
     if (w.mine !== undefined) delete w.mine;   // 1.5.8 explosives: a placed mine's blast (its damage formula, who placed it) is the GM's: a hidden mine is not sent at all, and a shown one goes as a plain trigger zone
     if (w.page !== undefined) delete w.page;   // 1.5.4 (pageshelf.js): a pin, the page a piece opens, is the GM's own link and names a planner: never on the wire
     if (w.pageAt !== undefined) delete w.pageAt;   // 1.6.0 (pageshelf.js): and the part of that page the pin names, the GM's as the pin is
@@ -3019,6 +3020,17 @@ net.boxAsk = function(op, mapId, itemId, more) {
     return { ok: true };
 };
 // [netcheck:boxask-end]
+// [netcheck:dropask-start]
+// 1.6.4 Drop here (Fulllion, 2026-11-23): a player drops a row of their own sheet, or a count of it, at a token of theirs on the map they stand on;
+// the host judges every step, lays the pile and answers in words (no optimistic change on the player's app)
+net.dropAsk = function(mapId, tok, fid, rowId, qty) {
+    if (!net.active || net.role !== 'client' || net.stream) return { error: 'Not at a table.' };
+    if (!net.foreign || !net.syncedPeer || !net.conns[0] || !net.conns[0].open || net.conns[0].peer !== net.syncedPeer) return { error: 'Not at the table yet.' };
+    var m = { type: 'drop', mapId: String(mapId || ''), tok: String(tok || ''), fid: String(fid || ''), rowId: String(rowId || '') }; if (typeof qty === 'number' && isFinite(qty)) m.qty = Math.floor(qty);
+    try { net.conns[0].send(m); } catch (e) { return { error: 'Could not reach the GM.' }; }
+    return { ok: true };
+};
+// [netcheck:dropask-end]
 // [netcheck:boxhost-start]
 // The host's record of who has a container open: by campaign, map and piece, each player's connection and the token it was opened with, and
 // what they were last sent. Memory alone: forgotten at a new table, a connection's entries dropped when it closes (the review)
@@ -3038,7 +3050,10 @@ function boxViewMsg(camp, map, w, box) {
     var BC = window.wpBoxCore, Sv = SC(), body = box && box.body ? box.body : null, tiles = BC ? BC.boxTiles(camp.system, body ? { values: body.values } : box) : [], can = Object.create(null), nl = body && BC && typeof BC.noLootOf === 'function' ? BC.noLootOf(body) : null;
     if (Sv && typeof Sv.tradeOfferable === 'function' && BC) Sv.tradeOfferable(camp.system, body || BC.boxChar(box), 'gm').forEach(function(o) { if (!o.no && !(nl && nl[o.rowId]) && !(body && typeof BC.bodyOfferOk === 'function' && !BC.bodyOfferOk(camp.system, body, o.rowId))) can[o.fid + '|' + o.rowId] = 1; });   // fold 3: never a row the GM ticked Never looted
     tiles = tiles.filter(function(x) { return can[x.fid + '|' + x.rowId] === 1; });
-    return { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', tiles: tiles.slice(0, 400).map(function(x) { var o = { fid: x.fid, rowId: x.rowId, name: x.name, qty: x.qty, icon: x.icon, notes: x.notes, list: x.list }; if (x.pic) o.pic = x.pic; return o; }) };
+    var out = { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', tiles: tiles.slice(0, 400).map(function(x) { var o = { fid: x.fid, rowId: x.rowId, name: x.name, qty: x.qty, icon: x.icon, notes: x.notes, list: x.list }; if (x.pic) o.pic = x.pic; return o; }) };
+    if (!body && BC && typeof BC.boxPutOk === 'function' && BC.boxPutOk(box)) out.put = true;   // 1.6.4: they may put in (a pile always; a container where the GM's tick allows and it is not locked; never a body)
+    if (!body && BC && typeof BC.boxIsPile === 'function' && BC.boxIsPile(box)) out.pile = true;
+    return out;
 }
 // Everyone with a container open is judged again: a container gone, hidden or no longer one closes their window; a player no longer on that map,
 // whose token went or is no longer next to it, or whose connection closed is let go; the rest are sent what it holds where that changed (a take,
@@ -3079,6 +3094,7 @@ function boxLockedMsg(camp, map, w, box, ch, held, go) {   // go: the roll a try
     var m = { type: 'box-view', mapId: map.id, itemId: w.id, name: typeof w.name === 'string' ? w.name.slice(0, 120) : '', locked: { rolls: rolls } };
     var kr = BC && lk.key && ch ? BC.keyRowOf(ch, lk.key, camp.system) : null; if (kr) m.locked.key = BC.keyName(camp.system, kr);
     if (held === true) m.locked.held = true; if (typeof go === 'string' && rolls.some(function(r) { return r.id === go; })) m.locked.go = go;
+    if (BC && typeof BC.boxSeeThru === 'function' && BC.boxSeeThru(box)) { m.locked.see = true; m.tiles = boxViewMsg(camp, map, w, box).tiles; }   // 1.6.4 See-through: what is inside, to a player next to it alone (this is sent only to one whose token stands there)
     return m;
 }
 // A player's try lands: its roll was the one they named, for that character, within two minutes. A pass opens it for everyone (the owner:
@@ -3094,7 +3110,8 @@ function boxTryAfter(conn, charId, act, pass, att) {   // att (fold 3b): the att
     if (!box || !BC.boxPieceOk(w) || !BC.boxLocked(box)) return;
     var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, charId) ? camp.chars[charId] : null, send = function(m) { try { conn.send(m); } catch (e) { sendFailed(e); } };
     var k = boxKey(camp, map, w), vw = _boxViews[k] = _boxViews[k] || { peers: Object.create(null), sig: '' }; vw.peers[conn.peer] = t.tok; vw.lsig = vw.lsig || Object.create(null);
-    if (pass !== true) { vw.lsig[conn.peer] = JSON.stringify(boxLockedMsg(camp, map, w, box, ch, false)); send(boxLockedMsg(camp, map, w, box, ch, true)); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-held', {}); return; }
+    if (pass !== true) { var prT = net.roster[conn.peer], tkT = (map.whiteboard || []).find(function(x) { return x && x.id === t.tok; }), hm = boxLockedMsg(camp, map, w, box, ch, true); if (!(prT && prT.location === map.id && tkT && !tkT.hidden && allyNear(map, tkT, w, true))) { delete hm.tiles; delete hm.locked.see; }   // 1.6.4 (the review): what a See-through one holds goes only to one still next to it
+        vw.lsig[conn.peer] = JSON.stringify(boxLockedMsg(camp, map, w, box, ch, false)); send(hm); if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-held', {}); return; }
     boxUnlock(camp, map, w, box, ch, 'opened'); boxSweep();   // everyone with a window on it is sent what it holds (the review)
     if (window.wpStepLog) window.wpStepLog('boxes v1', 'lock-open', { by: 'roll' });
 }
@@ -3142,6 +3159,26 @@ function stealRolled(camp, pass, was) {   // the NPC's roll against a pickpocket
     var th = camp && camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, st.charId) ? camp.chars[st.charId] : null, mapC = camp && camp.items && Object.prototype.hasOwnProperty.call(camp.items, st.mapId) ? camp.items[st.mapId] : null, wC = mapC && Array.isArray(mapC.whiteboard) ? mapC.whiteboard.find(function(x) { return x && x.id === st.itemId; }) : null;
     var said = ((wC && wC.name) || 'An NPC') + ' noticed ' + ((th && th.name) || 'someone') + ' at their pockets.'; logEvent('items', said); toast(said);
     if (window.wpStepLog) window.wpStepLog('boxes v1', 'steal-caught', {});
+}
+// 1.6.4: a pile's piece changed (laid, joined, taken from, gone): saved, and the map sent to its holders as a door's change is (the map on screen
+// by the save, another map by itself)
+function pileSent(camp, map) {
+    var on = getActiveMap(), here = !!on && on.id === map.id; save(true);
+    if (!here && net.sendItem) net.sendItem(camp.id, map.id);
+    if (here && window.wpFog) window.wpFog.redraw();
+    if (typeof window.appRender === 'function') window.appRender();
+}
+// 1.6.4: what dropping and picking up cost in a fight (combat.turn.drop, the system's Turns box, beside a trade's cost; none named: free), judged on
+// the host as a trade's is: a player's side in a fight spends it, out of turn as the system's Out of turn says; the GM's hand spends nothing.
+// look true: the words of a refusal, or '' (nothing spent); else it spends
+function dropAct(camp) { var tn = camp && camp.system && camp.system.combat ? camp.system.combat.turn : null, k = tn ? tn.drop : '', a = null; if (typeof k === 'string' && k && typeof actsOf === 'function') actsOf(camp).forEach(function(x) { if (!a && x && x.key === k) a = x; }); return a; }
+function dropCost(camp, ch, pr, conn, look) {
+    var a = dropAct(camp); if (!a || !ch || !pr || typeof actsCombat !== 'function' || !actsCombat(camp, ch.id, pr) || typeof actSpend !== 'function') return '';
+    var nm = String(ch.name || 'A character').slice(0, 60), off = typeof offTurnOf === 'function' ? offTurnOf(camp, ch.id) : '';
+    if (look) { if (off === 'refuse') { if (typeof offTurnTell === 'function') offTurnTell(nm, nm + ' tried to drop or pick up something out of turn.'); return 'It is not ' + nm + '\u2019s turn.'; } return actSpend(camp, ch.id, pr, a.key, conn, nm, true) || ''; }
+    actSpend(camp, ch.id, pr, a.key, conn, nm);
+    if (off === 'warn') { if (typeof offTurnTell === 'function') offTurnTell(nm, nm + ' dropped or picked up something out of turn.'); if (typeof turnNote === 'function') turnNote(conn, 'It is not your turn. The GM is told.', ch.id); }
+    return '';
 }
 function boxForget() { _boxViews = Object.create(null); _boxTries = Object.create(null); _boxSteal = Object.create(null); }
 function boxForgetConn(peer) { delete _boxTries[peer]; delete _boxSteal[peer]; Object.keys(_boxViews).forEach(function(k) { delete _boxViews[k].peers[peer]; if (!Object.keys(_boxViews[k].peers).length) delete _boxViews[k]; }); }
@@ -7548,8 +7585,25 @@ function handleMessage(msg, conn) {
             try { conn.send(mB); } catch (e) { sendFailed(e); }
             logEvent('items', (chB.name || 'A character') + ' opened ' + (wB.name || 'a container') + '.'); return;
         }
+        if (msg.op === 'put') {   // 1.6.4 Put in: a row of the character's own, or a count of it, into a container that takes it now (a pile always; never a body)
+            if (bodyB || stB || typeof BCb.boxPutOk !== 'function' || !BCb.boxPutOk(boxB)) { sayB(BCb.boxLocked && BCb.boxLocked(boxB) ? 'locked' : 'noput'); return; }
+            var qP = typeof msg.qty === 'number' && isFinite(msg.qty) ? Math.floor(msg.qty) : 0; if (typeof msg.fid !== 'string' || typeof msg.rowId !== 'string' || qP < 1) { sayB('mine'); return; }
+            var pileP = typeof BCb.boxIsPile === 'function' && BCb.boxIsPile(boxB); if (pileP) { var cP = dropCost(campB, chB, prB, conn, true); if (cP) { try { conn.send({ type: 'box-deny', reason: 'value', msg: cP }); } catch (e) { sendFailed(e); } return; } }   // the review: putting on a pile is a drop, and costs as one
+            var resP = BCb.moveIn(campB.system, chB, boxB, msg.fid, msg.rowId, qP, 'player', window.wpFormula);
+            if (!resP.ok) { try { conn.send({ type: 'box-deny', reason: 'value', msg: String(resP.msg || '').slice(0, 200) }); } catch (e) { sendFailed(e); } return; }
+            chB.values = chB.values || {}; Object.keys(resP.valuesA).forEach(function(k) { chB.values[k] = resP.valuesA[k]; }); chB.updated = Date.now(); boxB.values = resP.values; if (pileP) dropCost(campB, chB, prB, conn, false);
+            if (Object.keys(resP.valuesA).length) net.syncCharDelta(chB.id, resP.valuesA);   // the sheet first: a pile's save below sends the window again, read against it (the live check)
+            if (window.wpSheets) window.wpSheets.charChanged(chB.id);
+            if (BCb.boxIsPile(boxB) && window.wpBoxes && typeof window.wpBoxes.pileSync === 'function' && window.wpBoxes.pileSync(campB, mapB, wB)) pileSent(campB, mapB); else saveRemoteSoon();
+            var saidP = (chB.name || 'A character') + ' put ' + (resP.lines.join(', ') || 'something') + ' in ' + (wB.name || 'a container') + '.'; logEvent('items', saidP); toast(saidP);   // the GM is told
+            try { conn.send({ type: 'box-took', say: 'put', lines: resP.lines.slice(0, 40) }); } catch (e) { sendFailed(e); }
+            boxSweep(); if (window.wpBoxes && typeof window.wpBoxes.redraw === 'function') window.wpBoxes.redraw();
+            if (window.wpStepLog) window.wpStepLog('boxes v1', 'put', { pile: BCb.boxIsPile(boxB) }); return;
+        }
         if (msg.op !== 'take') return;
         if (BCb.boxLocked && BCb.boxLocked(boxB)) { sayB('locked'); return; }   // fold 2b: nothing is taken from a locked one
+        var pileT = !bodyB && !stB && typeof BCb.boxIsPile === 'function' && BCb.boxIsPile(boxB);   // 1.6.4: a pick-up from a pile costs what the system's Turns box names
+        if (pileT) { var cT = dropCost(campB, chB, prB, conn, true); if (cT) { try { conn.send({ type: 'box-deny', reason: 'value', msg: cT }); } catch (e) { sendFailed(e); } return; } }
         var Sb = SC(); if (!Sb || typeof Sb.tradeApply !== 'function') return; var sysB = campB.system, stand = bodyB || BCb.boxChar(boxB), nlB = bodyB && typeof BCb.noLootOf === 'function' ? BCb.noLootOf(bodyB) : null, canB = Sb.tradeOfferable(sysB, stand, 'gm').filter(function(o) { return !o.no && !(stB && o.rowId !== grB.rowId) && !(nlB && nlB[o.rowId]) && (!bodyB || (BCb.boxLists(sysB).some(function(f) { return f.id === o.fid; }) && typeof BCb.bodyOfferOk === 'function' && BCb.bodyOfferOk(sysB, bodyB, o.rowId))); }), linesB = [];   // fold 3: a body gives only what its lists ticked Tradable hold, never a row Never looted
         if (msg.all === true) canB.forEach(function(o) { linesB.push({ fid: o.fid, rowId: o.rowId, qty: o.qty }); });
         else { var oB = canB.filter(function(o) { return o.fid === msg.fid && o.rowId === msg.rowId; })[0], qB = typeof msg.qty === 'number' && isFinite(msg.qty) ? Math.floor(msg.qty) : 0; if (oB && qB >= 1) linesB.push({ fid: oB.fid, rowId: oB.rowId, qty: Math.min(qB, oB.qty) }); }
@@ -7562,19 +7616,50 @@ function handleMessage(msg, conn) {
         if (bodyB) { bodyB.values = bodyB.values || {}; Object.keys(resB.valuesA).forEach(function(k) { bodyB.values[k] = resB.valuesA[k]; }); bodyB.updated = Date.now(); }   // fold 3: off the body's own sheet
         else { var vB = Object.assign({}, boxB.values || {}); Object.keys(resB.valuesA).forEach(function(k) { if (Array.isArray(resB.valuesA[k]) && resB.valuesA[k].length) vB[k] = resB.valuesA[k]; else delete vB[k]; }); boxB.values = vB; }
         chB.values = chB.values || {}; Object.keys(resB.valuesB).forEach(function(k) { chB.values[k] = resB.valuesB[k]; }); chB.updated = Date.now();
-        saveRemoteSoon();
+        if (pileT) dropCost(campB, chB, prB, conn, false); else saveRemoteSoon();   // 1.6.4: a pile is saved once its face follows, below
         if (Object.keys(resB.valuesB).length) net.syncCharDelta(chB.id, resB.valuesB);
         if (window.wpSheets) window.wpSheets.charChanged(chB.id);
         if (bodyB) { if (Object.keys(resB.valuesA).length) net.syncCharDelta(bodyB.id, resB.valuesA); if (window.wpSheets) window.wpSheets.charChanged(bodyB.id); }
         var saidB = (chB.name || 'A character') + (stB ? ' stole ' : ' took ') + (resB.linesA.join(', ') || 'something') + ' from ' + ((bodyB && bodyB.name) || wB.name || 'a container') + '.';
         var tlB = typeof BCb.takenLines === 'function' ? BCb.takenLines(sysB, befB, resB.valuesB) : [], tidB = '';   // fold 2c: remembered, so the GM may put it back
         if (tlB.length && !bodyB) { tidB = 't_' + Math.random().toString(36).slice(2, 12).replace(/[^a-z0-9]/g, '') + 'x'; boxB.taken = BCb.cleanTaken([{ id: tidB, at: Date.now(), ch: chB.id, by: chB.name, lines: tlB }].concat(boxB.taken || [])); }
+        if (pileT && window.wpBoxes && typeof window.wpBoxes.pileSync === 'function') { window.wpBoxes.pileSync(campB, mapB, wB); pileSent(campB, mapB); }   // 1.6.4: its face follows; emptied, it goes (its box kept for Put back)
         logEvent('items', saidB); if (tidB && window.wpBoxes && typeof window.wpBoxes.tookNote === 'function') window.wpBoxes.tookNote(boxB.id, tidB, saidB); else toast(saidB);
         try { conn.send({ type: 'box-took', lines: resB.linesA.slice(0, 40) }); if (stB) conn.send(viewB()); } catch (e) { sendFailed(e); }
         boxSweep();   // everyone with it open is sent what is left (the review: and judged again)
         if (window.wpBoxes && typeof window.wpBoxes.redraw === 'function') window.wpBoxes.redraw();
         if (window.wpStepLog) window.wpStepLog('boxes v1', 'take', { lines: linesB.length, all: msg.all === true });
         // [netcheck:box-end]
+    } else if (msg.type === 'drop' && net.role === 'host') {
+        // [netcheck:drop-start]
+        // 1.6.4 Drop here (Fulllion, 2026-11-23, by prompt; the 48th host branch): a player drops a row of their own sheet, or a count of it, at a
+        // character token of theirs. Judged on the host's own copy: an admitted player on that map, a shown token of a character handed to them,
+        // the row as boxcore moveJudge judges it (Tradable, a list they change, nothing that keeps it on them, a removal the sheet allows), and what
+        // the system's Turns box says a drop costs in a fight. The move and the pile are boxes.js dropInto's, one save; the GM is told
+        if (typeof msg.mapId !== 'string' || typeof msg.tok !== 'string' || typeof msg.fid !== 'string' || typeof msg.rowId !== 'string') return;
+        var prD = net.roster[conn.peer]; if (!prD || !prD.id) return;
+        if (!allow('drop', { perMs: 120, burst: 6, windowMs: 3000, table: 200 }, conn.peer)) return;
+        var sayD = function(reason, words) { var m = { type: 'box-deny', reason: reason }; if (typeof words === 'string' && words) m.msg = words.slice(0, 200); try { conn.send(m); } catch (e) { sendFailed(e); } };
+        if (net.paused || peerPaused(conn.peer)) { sayD('paused'); return; }
+        var campD = getActiveCampaign(), Bd = window.wpBoxes; if (!campD || !window.wpBoxCore || !Bd || typeof Bd.dropInto !== 'function') return;
+        var mapD = Object.prototype.hasOwnProperty.call(campD.items || {}, msg.mapId) ? campD.items[msg.mapId] : null;
+        if (!mapD || mapD.type !== 'map' || mapD.stub === true) return;
+        if (prD.location !== mapD.id) { sayD('value', 'Your token is on another map now.'); return; }   // the review: on that very map, never a player placed nowhere
+        var tokD = (mapD.whiteboard || []).find(function(x) { return x && x.id === msg.tok; });
+        var chD = tokD && tokD.isChar && !tokD.waiting && !tokD.hidden && typeof tokD.charId === 'string' && campD.chars && Object.prototype.hasOwnProperty.call(campD.chars, tokD.charId) ? campD.chars[tokD.charId] : null;
+        if (!chD || chD.making || !handsTo(chD, prD.id)) { sayD('value', 'Drop it from a character token of your own on this map.'); return; }
+        var qD = typeof msg.qty === 'number' && isFinite(msg.qty) ? Math.floor(msg.qty) : undefined; if (qD !== undefined && qD < 1) { sayD('value', 'Drop a whole number of it.'); return; }
+        var cD = dropCost(campD, chD, prD, conn, true); if (cD) { sayD('value', cD); return; }   // what a drop costs in a fight, judged before anything moves
+        var resD = Bd.dropInto(campD, mapD, tokD, chD, msg.fid, msg.rowId, qD, 'player'); if (!resD || !resD.ok) { sayD('value', resD && resD.msg); return; }
+        dropCost(campD, chD, prD, conn, false);
+        if (Object.keys(resD.valuesA).length) net.syncCharDelta(chD.id, resD.valuesA);   // the sheet first, then the save that sends the pile
+        if (window.wpSheets) window.wpSheets.charChanged(chD.id);
+        pileSent(campD, mapD);
+        var saidD = (chD.name || 'A character') + ' dropped ' + (resD.lines.join(', ') || 'something') + '.'; logEvent('items', saidD); toast(saidD);   // the GM is told
+        try { conn.send({ type: 'box-took', say: 'drop', lines: resD.lines.slice(0, 40) }); } catch (e) { sendFailed(e); }
+        boxSweep(); if (window.wpBoxes && typeof window.wpBoxes.redraw === 'function') window.wpBoxes.redraw();
+        if (window.wpStepLog) window.wpStepLog('boxes v1', 'drop', { made: resD.made === true });
+        // [netcheck:drop-end]
     } else if (msg.type === 'box-view' && net.role === 'client') {
         // [netcheck:boxview-start]
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;   // from the synced host alone, never in the stream window
@@ -7583,8 +7668,8 @@ function handleMessage(msg, conn) {
     } else if ((msg.type === 'box-deny' || msg.type === 'box-took' || msg.type === 'box-steal') && net.role === 'client') {
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         if (msg.type === 'box-steal') { if (window.wpBoxes && typeof window.wpBoxes.stealGo === 'function') window.wpBoxes.stealGo(msg); return; }   // fold 3b: cleaned there
-        if (msg.type === 'box-took') { var tkL = (Array.isArray(msg.lines) ? msg.lines.slice(0, 40) : []).filter(function(x) { return typeof x === 'string'; }).map(function(x) { return x.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120); }); toast('You took ' + (tkL.join(', ') || 'it') + '.'); return; }
-        var BOX_SAYS = { steal: 'You cannot pick that pocket now.', locked: 'It is locked.', far: 'Move a token of yours next to it to open it.', token: 'Open it with a character token of your own.', gone: 'That is no longer in it.', paused: 'The table is paused.' };
+        if (msg.type === 'box-took') { var tkL = (Array.isArray(msg.lines) ? msg.lines.slice(0, 40) : []).filter(function(x) { return typeof x === 'string'; }).map(function(x) { return x.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 120); }); toast((msg.say === 'drop' ? 'You dropped ' : msg.say === 'put' ? 'You put in ' : 'You took ') + (tkL.join(', ') || 'it') + '.'); return; }   // 1.6.4: a drop and a put are answered alike
+        var BOX_SAYS = { noput: 'Nothing can be put in that.', mine: 'Pick something of your own to put in.', steal: 'You cannot pick that pocket now.', locked: 'It is locked.', far: 'Move a token of yours next to it to open it.', token: 'Open it with a character token of your own.', gone: 'That is no longer in it.', paused: 'The table is paused.' };
         toast(Object.prototype.hasOwnProperty.call(BOX_SAYS, msg.reason) ? BOX_SAYS[msg.reason] : typeof msg.msg === 'string' && msg.msg ? msg.msg.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 200) : 'You cannot take that now.');
     } else if (msg.type === 'door-deny' && net.role === 'client') {
         toast(msg.reason === 'locked' ? 'The GM has that door locked.' : msg.reason === 'far' ? 'Move a token next to that door to open it.' : 'Cannot open that door right now.');

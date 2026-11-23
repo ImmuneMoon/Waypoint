@@ -58,7 +58,10 @@ pending.push((async function() {
     check('the plan: a pack the library has not read stays home and is counted', plan.unread === 1);
     check('the plan: the pictures the system and its packs name, less the one under a private tag', j(plan.pics) === j(['/saves/images/items/sword.png', '/saves/images/gear/rope.png']) && j(plan.priv) === j(['/saves/images/maps/hall.jpg']));
     const many = Array.from({ length: 40 }, (x, i) => ({ meta: { id: 'p_' + i, name: 'P' + i }, entries: [] }));
-    check('the plan: at most 32 packs; the rest are counted as left home', Z.wholePlan(clean, many, LC.libCtx(sys, F, true), []).packs.length === 32 && Z.wholePlan(clean, many, LC.libCtx(sys, F, true), []).unread === 8);
+    const manyP = Z.wholePlan(clean, many, LC.libCtx(sys, F, true), []);
+    check('the plan: at most 32 packs; the rest are counted apart from a pack not read, and said so', manyP.packs.length === 32 && manyP.overPacks === 8 && manyP.unread === 0 && /Left out: 8 packs past the 32 one file holds\./.test(Z.exportWords(Object.assign({ packs: 32, pics: 0 }, manyP, { pics: 0, priv: 0, over: 0 }))));
+    check('a picture named at a path no picture may travel by (an escape, a kind the app does not show) is counted, never passed over in silence; the Journal, video and sound folders are not pictures to count', Z.oddPics([j({ a: '/saves/images/my%20map.png', b: '/saves/images/x.avif', c: '/saves/images/ok.png', d: '/saves/images/journal/a.png', e: '/saves/images/x.avif', f: '/saves/images/readme.txt' })]) === 2
+        && Z.exportWords({ packs: 1, pics: 1, unread: 0, missing: 0, priv: 0, over: 0, overPacks: 0, odd: 2 }) === 'System exported whole, with 1 library pack and 1 picture. Left out: 2 pictures whose file names Waypoint cannot carry.');
 
     const built = await Z.buildWhole(clean, D);
     const zr = await ZIP.zipOpen(built.blob), names = zr.entries.map(e => e.name);
@@ -77,7 +80,7 @@ pending.push((async function() {
     files['/saves/images/gear/rope.png'] = new Uint8Array([137, 80, 78, 71, 9, 9]);
 
     /* ---- the words ---- */
-    check('Export’s question names what goes, in real words', Z.askWords(2, 1) === 'Export this system whole, as one .zip with its 2 library packs and 1 picture? Another GM can Import it into any campaign. System alone saves only the .wpsystem.json, as before.' && /its 1 library pack\?/.test(Z.askWords(1, 0)) && /its 3 pictures\?/.test(Z.askWords(0, 3)));
+    check('Export’s question names what goes, in real words', Z.askWords(2, 1) === 'Export this system whole, as one .zip with its 2 library packs and 1 picture? Another GM can Import it into any campaign. System alone saves only the system, as a .wpsystem.json.' && /its 1 library pack\?/.test(Z.askWords(1, 0)) && /its 3 pictures\?/.test(Z.askWords(0, 3)));
     check('Export’s closing words: what went, what was left out and why, a private picture said apart', Z.exportWords(built) === 'System exported whole, with 2 library packs and 2 pictures. Left out: 1 pack this computer could not read. 1 picture under a private tag stayed on this computer.' && Z.exportWords({ packs: 1, pics: 0, unread: 0, missing: 2, priv: 0, over: 0 }) === 'System exported whole, with 1 library pack and 0 pictures. Left out: 2 pictures not found in your saves folder.', Z.exportWords(built));
 
     /* ---- read back ---- */
@@ -101,7 +104,7 @@ pending.push((async function() {
         ['images/../data.json', 'x'], ['images/journal/a.png', 'x'], ['images/video/a.png', 'x'], ['images/a%2e.png', 'x'], ['images/a.exe', 'x'], ['images/ok.png', 'x'], ['notes.txt', 'x'], ['data2.json', 'x']]), cleanJ, { F });
     check('a .zip without a manifest is read by its system file; packs in their number’s order, whatever the archive’s', !odd.error && j(odd.texts) === j([gmCopy('p_gear'), gmCopy('p_tricks')]));
     check('left out and counted: a pack that is no pack, a picture at no plain picture path (walks, the Journal, a video, an escape, no picture), any other file', odd.left.badPacks === 1 && odd.left.badPics === 5 && odd.left.other === 3 && j(odd.pics.map(e => e.name)) === j(['images/ok.png']), j(odd.left));
-    check('the words say what was left out, in real words', Z.importWords(odd) === 'It brings 2 library packs with 3 entries and 1 picture. They are added to this campaign when you Save, and nothing of yours is replaced. Until then, an entry the system names from them shows as missing. Left out: 1 pack that is not a Waypoint pack, 5 pictures whose paths are not plain picture paths, 3 files a system file does not carry.', Z.importWords(odd));
+    check('the words say what was left out, in real words', Z.importWords(odd) === 'It brings 2 library packs with 3 entries and 1 picture. They are added to this campaign when you Save, and nothing of yours is replaced. Until then, an entry the system names from them shows as missing. Left out: 1 pack that is not a Waypoint pack, 5 pictures whose paths are not plain picture paths, 3 files a system’s .zip does not use.', Z.importWords(odd));
     const only = await Z.readWhole(mk([['system.wpsystem.json', sysT]]), cleanJ, { F });
     check('a .zip with the system alone brings nothing more and says nothing more', !only.error && only.texts.length === 0 && only.pics.length === 0 && Z.importWords(only) === '');
     // a damaged entry: the system's bytes changed after the archive was made fail its checksum
@@ -161,7 +164,7 @@ pending.push((async function() {
             + 'function importAsk(jj, c, whole) { W.puts.push([jj, c, whole]); if (whole) { if (whole.waiting) starterPacksSet(whole.waiting); if (whole.says) toast(whole.says); } }\n'
             + 'var state = { appState: { imageCats: W.shared } }; var window = { wpLibrary: W.camp && W.lib, wpStepLog: function() {} }; if (W.starterPacks) window.wpLibrary = { starterPacks: W.starterPacks };\n'
             + 'var document = { createElement: function() { return { click: function() {}, remove: function() {} }; }, body: { appendChild: function() {} } }; var URL = { createObjectURL: function() { return "blob:x"; }, revokeObjectURL: function() {} }; function setTimeout() {}\n'
-            + 'function fetch() { return Promise.reject(new Error("no")); }\n'
+            + 'function fetch() { return Promise.reject(new Error("no")); } var console = { error: function() {} };\n'
             + exportSrc.replace("function sysZip() { return import('./syszip.js'); }", 'function sysZip() { return Promise.resolve(W.zip); }').replace('document.body.appendChild(a); a.click();', 'W.downloads.push([name, blob]); document.body.appendChild(a); a.click();')
             + importSrc + '\nreturn { exportIt: function() { exportSystem(); }, importWhole: importWhole, bundleSaved: bundleSaved, deps: sysZipDeps };';
         W.F = F; W.lib = lib; W.shared = stores[0];
@@ -184,7 +187,7 @@ pending.push((async function() {
     check('Cancel at the question writes nothing', E4.alone.length === 0 && E4.downloads.length === 0);
     const E5 = editor({ zip: Object.assign({}, Z, { buildWhole: async () => { throw new Error('the archive came out wrong'); } }), camp: Object.assign({}, camp, { system: sys }), ans: true, draft: clean });
     E5.api.exportIt(); await tick();
-    check('an export that fails says so and saves nothing', E5.downloads.length === 0 && /The export could not be made: the archive came out wrong\. Nothing was saved\./.test(E5.toasts.join('|')));
+    check('an export that fails says so and saves nothing', E5.downloads.length === 0 && E5.toasts.includes('The export could not be made. Nothing was saved.'));
     const deps = E3.api.deps(camp);
     check('what syszip.js is handed: the campaign, the library, the formula module, both tag stores', deps.camp === camp && deps.F === F && deps.stores[0] === stores[0] && deps.stores[1] === camp.imageCats && typeof deps.fetch === 'function' && typeof deps.log === 'function');
 
@@ -196,10 +199,18 @@ pending.push((async function() {
     const I3 = editor({ zip: Z, camp, draft: {} }); I3.cleanSys = cleanJ; I3.api.importWhole(mk([['system.wpsystem.json', sysT]])); await tick();
     check('Import of a .zip holding the system alone waits for nothing', I3.puts.length === 1 && I3.waiting === undefined && I3.puts[0][2].waiting === null);
     check('pinned: a .wpsystem.json goes exactly as it went: read as text, cleaned, then the same question and words; a .zip turns off before it is read', fileSrc.includes("if (/\\.zip$/i.test(String(file.name || ''))) { importWhole(file); return; }") && fileSrc.includes("    file.text().then(function(text) {\n        var j = JSON.parse(text);\n        var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('not a system');\n        importAsk(j, c, null);\n    }).catch(function() { toast('That file is not a Waypoint system.'); });")
-        && tabs.includes("        if (whole) { if (whole.waiting) starterPacksSet(whole.waiting); if (whole.says) toast(whole.says); }"));
-    let wrote = null; const S1 = editor({ zip: Object.assign({}, Z, { savePictures: async (p, b) => { S1.order = (S1.order || '') + 'p'; return { ok: p.length, kept: 0, fail: 0 }; } }), camp, starterPacks: async (t, op) => { S1.order += 'l'; wrote = [t, op]; return { packs: 2, add: 3, update: 0, skip: 0, bad: 0 }; } });
+        && tabs.includes("        starterPacksSet(whole && whole.waiting ? whole.waiting : null);") && tabs.includes("        if (whole && whole.says) toast(whole.says);"));
+    check('pinned (the review, finding 2): any import lets go of what an earlier import or Start from left waiting, so it never lands beside another system', /function importAsk\(j, c, whole\) \{[\s\S]*?draftSet\(c\);[\s\S]*?starterPacksSet\(whole && whole\.waiting \? whole\.waiting : null\);[\s\S]*?\n\}/.test(tabs));
+    { const E6b = editor({ zip: Object.assign({}, Z, { campPlan: (c, d) => Z.campPlan(c, Object.assign({}, d, { lib: { ready: () => false, entriesOf: () => [] } })) }), camp: Object.assign({}, camp, { system: sys }), ans: true, draft: plainSys }); E6b.api.exportIt(); await tick();
+      check('Export while the library is still being read says so and writes nothing, never the system alone in silence', E6b.alone.length === 0 && E6b.asks.length === 0 && E6b.toasts[0] === 'The library of this campaign is still being read. Try Export again in a moment.', j(E6b.toasts)); }
+    { const E7 = editor({ zip: Object.assign({}, Z, { campPlan: () => { throw new Error('x'); } }), camp: Object.assign({}, camp, { system: sys }), ans: true, draft: clean }); E7.api.exportIt(); await tick();
+      check('Export whose whole file cannot be made ready says so, then writes the system alone', E7.alone.length === 1 && E7.toasts[0] === 'The whole system could not be made ready, so the system alone is exported.', j(E7.toasts)); }
+    let wrote = null; const S1 = editor({ zip: Object.assign({}, Z, { savePictures: async (p, b) => { S1.order = (S1.order || '') + 'p'; return { ok: p.length, kept: 0, fail: 0 }; } }), camp, starterPacks: async (t, op) => { S1.order = (S1.order || '') + 'l'; wrote = [t, op]; return { packs: 2, add: 3, update: 0, skip: 0, bad: 0 }; } });
     S1.api.bundleSaved(I1.waiting); await tick();
-    check('Save: the pictures first, then the packs by id, then one line of what came in', S1.order === 'pl' && wrote[0].length === 2 && wrote[1].byId === true && S1.toasts[0] === 'From the imported system. Library: 2 packs, 3 entries added. Pictures: 2 added.', j(S1.toasts));
+    check('Save: the packs first, by id, while the saved campaign is on screen, then the pictures, then one line of what came in', S1.order === 'lp' && wrote[0].length === 2 && wrote[1].byId === true && S1.toasts[0] === 'From the imported system. Library: 2 packs, 3 entries added. Pictures: 2 added.', j(S1.toasts));
+    let wrote2 = null; const S2 = editor({ zip: Object.assign({}, Z, { savePictures: async (p) => ({ ok: p.length, kept: 0, fail: 0 }) }), camp, starterPacks: async (t) => { wrote2 = t; return { packs: 2, add: 3, update: 0, skip: 0, bad: 0 }; } });
+    S2.api.bundleSaved(I1.waiting); S2.camp = { id: 'c9', system: sys }; await tick();
+    check('Save: should another campaign be on screen when the packs would be written, they are not, and that is said; the pictures still go', wrote2 === null && S2.toasts[0] === 'From the imported system. Another campaign is open now, so the packs were not added. Pictures: 2 added.', j(S2.toasts));
     check('pinned: Save hands a waiting .zip to bundleSaved, and a starter goes on as before', tabs.includes("var sp = _starterPacks; starterPacksSet(null); if (sp && sp.bundle === true && typeof bundleSaved === 'function') { bundleSaved(sp); return; }") && tabs.includes("    if (!sp || !window.wpLibrary || !window.wpLibrary.starterPacks) return;\n    window.wpLibrary.starterPacks(sp.texts).then(function(r) {"));
 
     check('pinned: the top bar’s Import, handed a system’s .zip, points to the System editor in place of saying it is no Waypoint export', read('main.js').includes("if (entries.some(function(en) { return en.name === 'system.wpsystem.json'; })) { toast('This zip is a whole system. Bring it in with Import in the System editor.'); return; }"));

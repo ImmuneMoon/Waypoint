@@ -24,9 +24,9 @@
      - a picture's path must be a plain picture path (fogcore cleanTexSrc, the one rule a picture's path meets everywhere in the app):
        under images/, no walking segment, no escape, no Journal, video or sound folder, a picture's own extension. Any other is refused
    Nothing is written at import. The packs and pictures wait with the draft until Save, as a starter's packs do (sysedtabs.js
-   starterSaved): the pictures are then written with keep=1, so never over a file already there, and the packs merged into the library by
-   its own import plan (library.js starterPacks with byId: into the pack of the same id, else of the same name, else a new pack; librarycore
-   packImportPlan by id, nothing removed).
+   starterSaved, then sysedtabs.js bundleSaved): first the packs are merged into the library by its own import plan, while the saved
+   campaign is still the one on screen (library.js starterPacks with byId: into the pack of the same id, else of the same name, else a new
+   pack; librarycore packImportPlan by id, nothing removed), then the pictures are written with keep=1, so never over a file already there.
 
    Every step writes one line to the app's log through D.log (steplog.js stepLog), area "syszip v1": counts and step names only, never a
    system's name or content. A failure is traced there: export-start, export-pack, export-pics, export-done or export-fail; import-start,
@@ -70,6 +70,20 @@ function picsNamed(texts) {
     });
     return out;
 }
+// How many distinct paths the texts name under saves/images that end as a picture file does, yet are no plain picture path (a name with a
+// percent escape, a kind of picture the app does not show): they cannot travel, and the closing words count them (the review, finding 4)
+function oddPics(texts) {
+    var seen = Object.create(null), n = 0;
+    (Array.isArray(texts) ? texts : []).forEach(function(t) {
+        if (typeof t !== 'string') return;
+        t.replace(/\/saves\/images\/[^"\\]+/g, function(m) {
+            var p = m.replace(/['")>,;]+$/, '');
+            if (!seen[p] && cleanTexSrc(p) !== p && /\.(png|jpe?g|gif|webp|svg|avif|bmp|tiff?|ico)$/i.test(p) && !/^\/saves\/images\/(journal|video|audio)\//i.test(p)) { seen[p] = 1; n++; }
+            return m;
+        });
+    });
+    return n;
+}
 // The pictures among paths that wear a private tag of the Image Library (stores: the shared store and the campaign's, as Full export
 // reads them). Such a picture stays on this computer, its path kept where it is named, as a picture left out of a Full export does
 function privatePics(paths, stores) {
@@ -94,17 +108,18 @@ function entryPic(name) {
 //   clean: the system, cleaned in the GM's view, its name set (sysedtabs.js exportSystem)
 //   packs: [{ meta: the manifest's pack ({ id, name, icon, vis }), entries: its entries, or null where the pack could not be read }]
 //   ctx: the library's GM context (librarycore libCtx of the campaign's saved system), stores: the Image Library's tag stores
-// Answers { sysText, packs: [{ name, text }], pics: [paths], priv: [paths left home], unread: packs not read }
+// Answers { sysText, packs: [{ name, text }], pics: [paths], priv: [paths left home], unread: packs not read, overPacks: packs past MAX_PACKS,
+// odd: how many picture files are named at a path no picture may travel by (the review of 2026-11-23, finding 4) }
 function wholePlan(clean, packs, ctx, stores) {
-    var sysText = JSON.stringify(clean, null, 1), out = [], unread = 0;
+    var sysText = JSON.stringify(clean, null, 1), out = [], unread = 0, overPacks = 0;
     (Array.isArray(packs) ? packs : []).forEach(function(p) {
         if (!p || !isObj(p.meta) || !Array.isArray(p.entries)) { unread++; return; }
-        if (out.length >= MAX_PACKS) { unread++; return; }
+        if (out.length >= MAX_PACKS) { overPacks++; return; }
         out.push({ name: 'packs/' + (out.length + 1) + '.wppack.json', text: JSON.stringify(packFile(p.meta, p.entries, ctx), null, 1) });
     });
     var named = picsNamed([sysText].concat(out.map(function(x) { return x.text; }))), priv = privatePics(named, stores);
     var pics = named.filter(function(p) { return priv.indexOf(p) < 0; }).slice(0, MAX_PICS);
-    return { sysText: sysText, packs: out, pics: pics, priv: priv, over: Math.max(0, named.length - priv.length - MAX_PICS), unread: unread };
+    return { sysText: sysText, packs: out, pics: pics, priv: priv, over: Math.max(0, named.length - priv.length - MAX_PICS), unread: unread, overPacks: overPacks, odd: oddPics([sysText].concat(out.map(function(x) { return x.text; }))) };
 }
 // The manifest: what the file is, and what it holds, so a reader knows it at once
 function manifestOf(clean, plan, nPics) {
@@ -148,7 +163,7 @@ async function buildWhole(clean, D) {
         if (back.entries.length !== entries.length + pics.length) throw new Error('its list of files did not read back');
     } catch (e) { log('export-fail', { where: 'archive' }); throw e; }
     log('export-done', { bytes: blob.size, packs: plan.packs.length, pics: pics.length });
-    return { blob: blob, packs: plan.packs.length, pics: pics.length, unread: plan.unread, priv: plan.priv.length, missing: missing, over: plan.over };
+    return { blob: blob, packs: plan.packs.length, pics: pics.length, unread: plan.unread, priv: plan.priv.length, missing: missing, over: plan.over, overPacks: plan.overPacks, odd: plan.odd };
 }
 // The file's name: the system's name, as "System alone" makes it, and .wpsystem.zip
 function zipName(name) { return (String(name || 'system').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) || 'system') + '.wpsystem.zip'; }
@@ -159,7 +174,7 @@ function zipName(name) { return (String(name || 'system').replace(/[^A-Za-z0-9_ 
 // the .zip, "System alone" the .wpsystem.json exactly as before
 function askWords(nPacks, nPics) {
     var parts = []; if (nPacks) parts.push(count(nPacks, 'library pack', 'library packs')); if (nPics) parts.push(count(nPics, 'picture', 'pictures'));
-    return 'Export this system whole, as one .zip with its ' + parts.join(' and ') + '? Another GM can Import it into any campaign. System alone saves only the .wpsystem.json, as before.';
+    return 'Export this system whole, as one .zip with its ' + parts.join(' and ') + '? Another GM can Import it into any campaign. System alone saves only the system, as a .wpsystem.json.';
 }
 // What a whole export made, and what stayed home, in plain words
 function exportWords(r) {
@@ -167,6 +182,8 @@ function exportWords(r) {
     if (r.unread) left.push(count(r.unread, 'pack', 'packs') + ' this computer could not read');
     if (r.missing) left.push(count(r.missing, 'picture', 'pictures') + ' not found in your saves folder');
     if (r.over) left.push(count(r.over, 'picture', 'pictures') + ' past the ' + MAX_PICS + ' one file holds');
+    if (r.overPacks) left.push(count(r.overPacks, 'pack', 'packs') + ' past the ' + MAX_PACKS + ' one file holds');
+    if (r.odd) left.push(count(r.odd, 'picture', 'pictures') + ' whose file names Waypoint cannot carry');
     if (left.length) s += ' Left out: ' + left.join(', ') + '.';
     if (r.priv) s += ' ' + count(r.priv, 'picture', 'pictures') + ' under a private tag stayed on this computer.';
     return s;
@@ -184,8 +201,8 @@ function importWords(b) {
     if (b.left.badPics) left.push(count(b.left.badPics, 'picture whose path is not a plain picture path', 'pictures whose paths are not plain picture paths'));
     if (b.left.overPacks) left.push(count(b.left.overPacks, 'pack', 'packs') + ' past the ' + MAX_PACKS + ' one file may bring');
     if (b.left.overPics) left.push(count(b.left.overPics, 'picture', 'pictures') + ' past the ' + MAX_PICS + ' one file may bring');
-    if (b.left.big) left.push(count(b.left.big, 'file', 'files') + ' larger than this file can hold');
-    if (b.left.other) left.push(count(b.left.other, 'file', 'files') + ' a system file does not carry');
+    if (b.left.big) left.push(count(b.left.big, 'pack', 'packs') + ' over 16 MB');
+    if (b.left.other) left.push(count(b.left.other, 'file', 'files') + ' a system\u2019s .zip does not use');
     if (left.length) s += (s ? ' ' : '') + 'Left out: ' + left.join(', ') + '.';
     return s;
 }
@@ -277,6 +294,6 @@ async function savePictures(pics, budget, D) {
 }
 // [syszipcheck:save-end]
 
-var API = { FORMAT: FORMAT, V: V, MANIFEST: MANIFEST, SYSTEM: SYSTEM, MAX_PACKS: MAX_PACKS, MAX_PICS: MAX_PICS, picsNamed: picsNamed, privatePics: privatePics, picEntry: picEntry, entryPic: entryPic, wholePlan: wholePlan, campPlan: campPlan, manifestOf: manifestOf, buildWhole: buildWhole, zipName: zipName, askWords: askWords, exportWords: exportWords, importWords: importWords, savedWords: savedWords, readWhole: readWhole, savePictures: savePictures };
-export { FORMAT, V, MANIFEST, SYSTEM, MAX_PACKS, MAX_PICS, picsNamed, privatePics, picEntry, entryPic, wholePlan, campPlan, manifestOf, buildWhole, zipName, askWords, exportWords, importWords, savedWords, readWhole, savePictures };
+var API = { FORMAT: FORMAT, V: V, MANIFEST: MANIFEST, SYSTEM: SYSTEM, MAX_PACKS: MAX_PACKS, MAX_PICS: MAX_PICS, picsNamed: picsNamed, oddPics: oddPics, privatePics: privatePics, picEntry: picEntry, entryPic: entryPic, wholePlan: wholePlan, campPlan: campPlan, manifestOf: manifestOf, buildWhole: buildWhole, zipName: zipName, askWords: askWords, exportWords: exportWords, importWords: importWords, savedWords: savedWords, readWhole: readWhole, savePictures: savePictures };
+export { FORMAT, V, MANIFEST, SYSTEM, MAX_PACKS, MAX_PICS, picsNamed, oddPics, privatePics, picEntry, entryPic, wholePlan, campPlan, manifestOf, buildWhole, zipName, askWords, exportWords, importWords, savedWords, readWhole, savePictures };
 export default API;

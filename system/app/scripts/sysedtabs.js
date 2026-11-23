@@ -1506,15 +1506,20 @@ function exportSystem() {
     if (!libX.length && JSON.stringify(clean).indexOf('/saves/images/') < 0) { exportAlone(clean); return; }
     sysZip().then(function(Z) {
         var D = sysZipDeps(cpX), plan = Z.campPlan(clean, D);
-        if (!plan.packs.length && !plan.pics.length) { exportAlone(clean); return; }
+        if (!plan.packs.length && !plan.pics.length) {
+            // the review of 2026-11-23 (finding 3): packs listed but none read yet (the library still loading after a campaign switch) is said,
+            // never passed over for the system alone with no word
+            if (plan.unread) { toast('The library of this campaign is still being read. Try Export again in a moment.'); return; }
+            exportAlone(clean); return;
+        }
         showConfirm(Z.askWords(plan.packs.length, plan.pics.length), function(ans) {
             if (ans === 'alt') { exportAlone(clean); return; }
             if (ans !== true) return;
             toast('Making the export…');
             Z.buildWhole(clean, D).then(function(r) { sysDownload(Z.zipName(clean.name), r.blob); toast(Z.exportWords(r)); })
-                .catch(function(e) { toast('The export could not be made: ' + ((e && e.message) || 'the archive could not be written') + '. Nothing was saved.'); });
+                .catch(function(e) { console.error(e); toast('The export could not be made. Nothing was saved.'); });   // the review (finding 6): plain words; the archive's own reason goes to the console and the step log
         }, { noEnter: true, yes: 'Whole system', alt: 'System alone' });
-    }).catch(function() { exportAlone(clean); });   // the module cannot be had: the system alone, as before
+    }).catch(function(e) { console.error(e); toast('The whole system could not be made ready, so the system alone is exported.'); exportAlone(clean); });   // the module cannot be had: the system alone, and why (the review, finding 3)
 }
 // The module that makes and reads a whole system's .zip, loaded the first time it is needed (as main.js loads zip.js)
 function sysZip() { return import('./syszip.js'); }
@@ -1561,7 +1566,8 @@ function importAsk(j, c, whole) {
         var nN = function(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
         toast('Imported ' + (c.name || 'a system') + ': ' + nN(c.fields.length, 'field') + ', ' + nN(c.rolls.length, 'roll') + (c.items && c.items.length ? ', ' + nN(c.items.length, 'item') : '') + (v.ok ? '.' : ', ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.') + (drT ? ' Left out (over the limits, or not valid): ' + drT + '.' : ''));
         if (nHid) toast(nHid + (nHid === 1 ? ' character holds values' : ' characters hold values') + ' for fields this file does not have. After Save those stay stored but hidden, until such a field exists again.');
-        if (whole) { if (whole.waiting) starterPacksSet(whole.waiting); if (whole.says) toast(whole.says); }   // 1.6.4: its packs and pictures wait for Save, and what it brings is said
+        starterPacksSet(whole && whole.waiting ? whole.waiting : null);   // 1.6.4 (the review of 2026-11-23, finding 2): what this file brings waits for Save, and anything an earlier import or Start from left waiting is let go, so it never lands beside another system
+        if (whole && whole.says) toast(whole.says);   // 1.6.4: what a system's .zip brings is said
         };
         if (draftHolds(draft)) showConfirm(REPLACE_WORDS('the system in this file'), function(yes) { if (yes) put(); }, { noEnter: true, yes: 'Replace' }); else put();
 }
@@ -1583,11 +1589,17 @@ function importWhole(file) {
 // After Save, a system's .zip read back: its pictures written into the saves folder, each asked to keep a file already there, so never over one (syszip.js
 // savePictures), then its packs merged into the library by its own import plan, into the pack of the same id, else of the same name, else
 // a new one, nothing removed (library.js starterPacks with byId). What came in is said once, in plain words
+// The review of 2026-11-23 (finding 1): the packs go first, while the campaign that was saved is still the one on screen, and the pictures
+// after, since a large copy takes a while and a picture belongs to no campaign. cid: that campaign's id, taken when Save was pressed; should
+// another be on screen by then, the packs are not written and that is said
 function bundleSaved(sp) {
+    var cpB = getActiveCampaign(), cid = cpB ? cpB.id : null;
     sysZip().then(function(Z) {
-        return Z.savePictures(sp.pics, sp.budget, sysZipDeps()).then(function(pr) {
-            var L = window.wpLibrary, lp = !sp.texts.length ? Promise.resolve(null) : L && typeof L.starterPacks === 'function' ? L.starterPacks(sp.texts, { byId: true }) : Promise.resolve({ error: 'The library could not be reached, so the packs were not added.' });
-            return lp.then(function(lr) { var w = Z.savedWords(sp.pics.length ? pr : null, lr); if (w) toast(w); if (typeof renderAll === 'function' && draft) renderAll(); });
+        var L = window.wpLibrary, now = getActiveCampaign();
+        var lp = !sp.texts.length ? Promise.resolve(null) : !now || now.id !== cid ? Promise.resolve({ error: 'Another campaign is open now, so the packs were not added.' }) : L && typeof L.starterPacks === 'function' ? L.starterPacks(sp.texts, { byId: true }) : Promise.resolve({ error: 'The library could not be reached, so the packs were not added.' });
+        return lp.then(function(lr) {
+            if (sp.pics.length > 20) toast('Adding ' + sp.pics.length + ' pictures\u2026');   // the review (finding 5): a long copy is said as it starts
+            return Z.savePictures(sp.pics, sp.budget, sysZipDeps()).then(function(pr) { var w = Z.savedWords(sp.pics.length ? pr : null, lr); if (w) toast(w); if (typeof renderAll === 'function' && draft) renderAll(); });
         });
     }).catch(function() { toast('The packs and pictures of the imported system could not be added.'); });
 }

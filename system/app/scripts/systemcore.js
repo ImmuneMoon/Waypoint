@@ -26,7 +26,7 @@ import { tradeCore } from './tradecore.js';   // [split:glue]
 import { moneyCore } from './moneycore.js';   // [split:glue]
 export { fontKnown, rollCheckAst, spelledIn, statOf };   // [split:glue]
 export { grantOwn, itemListIds, moneyR };   // [split:glue]
-export { DATE_MORE, MOON_PHASES, attRowNames, blowNamed, calNames, calOf, callSays, deckOf, fxLibOf, gmEntryKeys, hostWord, keyIndexOf, listKeyed, loadSrcAny, lvlNamed, measureKindOf, moneyCurNamed, moneyCurs, phaseNamed, placeNamed, seasonNamed, targetReadKey, valueNamed };   // [split:glue]
+export { DATE_MORE, MOON_PHASES, attRowNames, blowNamed, calNames, calOf, callSays, deckOf, fxLibOf, gmEntryKeys, hostWord, keyIndexOf, listKeyed, loadSrcAny, lvlNamed, measureKindOf, moneyCurNamed, moneyCurs, onBeforeLoop, phaseNamed, placeNamed, seasonNamed, targetReadKey, valueNamed };   // [split:glue]
 export { AT_NOT, BLAST_AUTO, CTRL_KEEP_NL, CTRL_RE, FUNC_NAMES, FXROW_ID, FX_END_GROUP, ITEM_KEY, LIST_WORDS, LOOK_RULES, MAP_UNITS, PART_FITS, PATH_RE, POSTURE_ID, READER_MARK, REST_ID, SECTION_ID, SENSE_RANGE_KINDS, TAB_ID, TIME_SECS, applyTargets, atIndex, callsInto, capIsIn, capIsList, capTexts, catIn, charView, cleanApplyChanges, cleanCalendar, cleanDecks, cleanFxTimer, cleanLabels, cleanLookSpec, cleanNameLists, cleanNum, cleanObjects, cleanRec, cleanRow, cleanRowCross, cleanSpreads, cleanUpkeep, clockNInto, costKey, costNInto, cutPoints, decCount, everyTargets, fitTextOk, fxIndex, fxShareEnd, fxValNum, fxVf, gmStatsOut, groundYd, hideOffInto, labelHead, makeRec, norm180, pickLabel, rangeModNum, resistByInto, rowCt, rowLookRoom, senseField, statDefOf, statNum, swRollIs, whyGmCut };   // [split:glue]
 export { LINK_NAME, charsIn };   // [split:glue]
 export { CTRL_RE_G, _crewSrc, _holdSrc, _inVeh, _linkSrc, str };   // [split:glue]
@@ -2537,7 +2537,7 @@ function combatChars(mp, combat, chars) {
     return out;
 }
 // [split:timecore.js]
-var _timeCore = timeCore(), applyRound = _timeCore.applyRound, chainsShallow = _timeCore.chainsShallow, needsHeld = _timeCore.needsHeld, ruleRunCtx = _timeCore.ruleRunCtx, timeRuleRun = _timeCore.timeRuleRun, turnCounters = _timeCore.turnCounters;   // [split:glue]
+var _timeCore = timeCore(), applyRound = _timeCore.applyRound, chainsShallow = _timeCore.chainsShallow, needsHeld = _timeCore.needsHeld, onBeforeLoop = _timeCore.onBeforeLoop, ruleRunCtx = _timeCore.ruleRunCtx, timeRuleRun = _timeCore.timeRuleRun, turnCounters = _timeCore.turnCounters;   // [split:glue]
 function applyScope(sys, char, act, gm, F) {
     if (gm || !sys || !Array.isArray(sys.fields) || !isObj(act) || act.vis === 'gm' || !char || char.npc || !char.ownerId || !Array.isArray(act.apply) || !act.apply.length) return 'gm';
     if (act.apply.some(function(c) { if (!isObj(c) || typeof c.deck !== 'string') return false; var t = deckOf(sys.decks, c.deck); return !t || t.vis === 'gm'; })) return 'gm';   // 1.6.2 (G9)
@@ -7489,10 +7489,26 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     // that the rows before it took all of something (two hands, three slots). It reads the same whether this row is on or not, so a row that is
     // off shows what it would get. Only on a list with a switch; undefined where the list has no such stat or column, so the name is unknown.
     // A column that reads onBefore of itself, or of a column that comes back to it, would need its own figure on every row before it to work
-    // out its own: the resolver refuses it as a loop (L.obBusy, as coveredOf's layBusy guards a layer), and the validator says so on the column
+    // out its own: the resolver refuses it as a loop, and the validator says so under the column.
+    // 1.6.4 (the review of Row.onBefore, point (a), Fulllion's pick of 2026-11-23): that loop is decided from the definitions alone, by timecore's
+    // onBeforeLoop, once a resolver for each column of a list (L.obLoop), before any row is read. It once was caught only as the resolver went
+    // (L.obBusy), and since every column a resolver works out is kept, a column read through another row (Row.up.*, Host.*, Row.parts.*,
+    // Here.*) answered a figure when the rows were asked from the top down and a loop when a later row was asked first: the host and the
+    // owner's copy could disagree. Now the total is refused on every row, whatever was asked before it, with the same words each time, and the
+    // validator asks the same function, so the System editor names the very loop the sheet refuses. Why a refusal and not a figure worked out
+    // row by row: Row.onBefore shipped refusing a column that adds up itself (Help says so), and a refusal in every order keeps that rule whole
+    // where working it out would quietly allow a new shape. L.obBusy stays as the last guard, for a path the walk of names does not
+    // follow (a layer's formula, a host's room): a column's loop through what a formula names is refused before it can come to that.
+    // One limit: a GM-only column's formula is null on a player's copy, so a walk there stops at it, and that copy reads the column as GM only
+    // (the validator warns of a visible formula that reads a GM-only one, since players do not see its figure)
     function onBeforeVal(L, x, w) {
         var sg = w.split('.'); if (sg.length !== 2 || sg[0] !== 'onbefore' || !L.spec || !isObj(L.spec.on)) return undefined;
         var k = sg[1], st = L.st[k]; if (!(st && st.kind !== 'pick') && !L.cl[k]) return undefined;   // a number stat or a column; a choice has no total
+        if (!st && L.cl[k]) {   // a column (a stat of the same key is what the row reads, and a stat never loops)
+            if (!L.obLoop) L.obLoop = map();
+            if (!(k in L.obLoop)) { var lp = null; try { lp = onBeforeLoop(sys, F, L.f, k); } catch (e) { lp = null; } L.obLoop[k] = lp && lp.length ? lp : 0; }   // a walk that throws decides nothing, and the last guard stands
+            if (L.obLoop[k]) return { error: { message: 'Formulas refer to each other in a loop: ' + L.obLoop[k].join(' → '), pos: 0, len: 0 } };   // the validator's own words for its loops, read in plain words by plainMessage
+        }
         if (x.virt || !isObj(x.r)) return 0;
         var me = rowAt(L, x); if (me < 0) return 0;
         if (!L.obBusy) L.obBusy = map();

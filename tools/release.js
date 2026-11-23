@@ -159,6 +159,9 @@ if (PUBLISH) {
     if (!repo) { console.error('Not built: WAYPOINT_DISPATCH_REPO is not a repository\'s name (owner/name).'); process.exit(1); }
     DISPATCH = { token, repo, origin: TEST.dispatch || 'https://api.github.com' };
     if (GITHUB && !(typeof process.env.GITHUB_TOKEN === 'string' && process.env.GITHUB_TOKEN.trim())) { console.error('Not built: GITHUB_TOKEN is not set (--github): nothing built or uploaded.'); process.exit(1); }
+    // 1.6.4 (Fulllion, 2026-11-23: "Yes, sign 1.6.4"): the install words say the installer is code-signed, so a release that is published
+    // is never built with an unsigned installer. A build that is not published, and a test's run with its stand-ins, may still leave it unsigned
+    if (!SIGNTOOL && TEST.test !== true) { console.error('Not built: WAYPOINT_SIGNTOOL is not set, and a published installer is never left not code-signed (the install words say it is signed).'); process.exit(1); }
 }
 
 // Before the build (the review of 2026-11-17): with --publish the bucket is looked at first (sitepub.siteState: each key of this version,
@@ -403,7 +406,8 @@ fs.writeFileSync(path.join(dist, 'manifest.json'), JSON.stringify({ version: VER
 // 3. installer, compiled from the stage (made and stripped in step 1). Its OutputDir=. puts the installer beside it in the stage, and
 //    every step after this one takes it from there.
 console.log('Compiling installer with Inno Setup...');
-execSync(`"${ISCC}" "${path.join(STAGE, 'installer.iss')}"`, { stdio: 'inherit', env: CHILD_ENV });
+// 1.6.4: the release's own version goes in as AppVer, which installer.iss reads for the installed-apps list and the file's version
+execSync(`"${ISCC}" /DAppVer=${VERSION} "${path.join(STAGE, 'installer.iss')}"`, { stdio: 'inherit', env: CHILD_ENV });
 const SETUP = path.join(STAGE, 'Waypoint_Setup.exe');
 // 3b. code-signing the installer is optional (a certificate is a separate purchase): only when WAYPOINT_SIGNTOOL says how
 if (SIGNTOOL) {

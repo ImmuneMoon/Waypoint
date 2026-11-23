@@ -34,7 +34,7 @@ Download `Waypoint_Setup.exe` from Waypoint's website, waypointvtt.com, and run 
 
 ### The Windows warning
 
-Windows may warn that it does not recognize the publisher: Waypoint's installer is not code-signed yet. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own website, or through the app's own update button; if it came from anywhere else, do not run it.
+Waypoint's installer is code-signed by Fulllion Creative Works, LLC, the name Windows shows as its publisher. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own website, or through the app's own update button; if it came from anywhere else, do not run it.
 
 One-click updates inside the app are signed: your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates & about ▸ Restore the previous version** puts the app back as it was before the last update. From 1.5.0 on an update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
 

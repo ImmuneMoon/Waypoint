@@ -3,7 +3,11 @@
 ; migrates old save formats on first launch (after snapshotting the original
 ; into saves\backups). Build with: ISCC installer.iss
 
-#define AppVer "1.5.0"
+; 1.6.4: tools/release.js hands the release's own version to ISCC as /DAppVer=<version>, so the installed-apps list and the
+; file's version show it (this file said 1.5.0 from 1.5.0 to 1.6.3). The line below counts only for a build by hand with no /D.
+#ifndef AppVer
+#define AppVer "1.6.4"
+#endif
 
 [Setup]
 AppId={{5E99FC64-B981-4209-A480-DB2444535359}

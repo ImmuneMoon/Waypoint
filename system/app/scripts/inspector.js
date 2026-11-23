@@ -1205,6 +1205,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               (linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links
               (typeof boxFieldHtml === 'function' ? boxFieldHtml(w) : '')+   // 1.6.2 (backlog 42): Holds items
               (window.wpPlaces && typeof window.wpPlaces.fieldHtml === 'function' ? window.wpPlaces.fieldHtml(w) : '')+   // 1.6.3: the Place tick and its name, the GM's (places.js)
+              nameShowFieldHtml(w, activeMap)+   // 1.6.4: Show its name on the map, on a place pin or a room's place
               inspFoldOpen('look', 'Look', 'Color, size, turn, layer and lock')+   // 1.6.2: the folds
               (w.type !== 'image' && w.type !== 'trigger' && w.type !== 'light' ? '<div class="field"><label>' + (w.type === 'text' ? 'Text Color' : w.type === 'path' ? 'Pen Color' : 'Fill Color') + '</label><div class="color-row">' + ((w.type === 'path' || w.type === 'text') ? penHtml : colorHtml) + '</div></div>' : '') +
               (w.type === 'text' ? textStyleHtml(w) : '') +
@@ -1370,6 +1371,8 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbPagePinAt) _el_wbPagePinAt.addEventListener('change', function() { setItemPagePinAt(w, this.value); });
             if (typeof boxFieldWire === 'function') boxFieldWire(w);   // 1.6.2 (backlog 42): Holds items and Open contents
             if (window.wpPlaces && typeof window.wpPlaces.fieldWire === 'function') window.wpPlaces.fieldWire(w);   // 1.6.3: the Place tick and its name
+            var _el_wbNameShow = document.getElementById('wbNameShow');   // 1.6.4: Show its name on the map, kept only as false
+            if (_el_wbNameShow) _el_wbNameShow.addEventListener('change', function() { setNameShow(w, this.checked, false, activeMap); });
             var _el_wbPortalLock = document.getElementById('wbPortalLock');   // a portal's own lock: true or no key
             if (_el_wbPortalLock) _el_wbPortalLock.addEventListener('change', function() { setItemPortalLock(w, this.checked, activeMap); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
@@ -1669,6 +1672,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_mapScenePage = document.getElementById('mapScenePage');
             if (_el_mapScenePage) _el_mapScenePage.addEventListener('change', function() { setMapScenePage(activeMap, this.value); });
             if (_el_mapScenePage && window.wpPageShelf && typeof window.wpPageShelf.scenePageField === 'function') pageFindUp(_el_mapScenePage, window.wpPageShelf.scenePageField(activeMap), 'Scene page');   // 1.6.3 (finding 14): a search beside the list
+            inspector.insertAdjacentHTML('beforeend', mapNameShowFieldHtml(activeMap));   // 1.6.4: Show names on this map, under the scene page
+            var _el_mapNameShow = document.getElementById('mapNameShow');
+            if (_el_mapNameShow) _el_mapNameShow.addEventListener('change', function() { setNameShow(activeMap.meta, this.checked, true); });
 
         }
 
@@ -2569,6 +2575,38 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
   }
   // A piece that stops being a portal (Portal to Map set to None, its node unlinked, its node's room no longer leading to a map) loses its lock: a lock nobody can see is no lock to keep.
   // Only where the rule can be asked: with no core on hand nothing is taken away
+  // 1.6.4 (Fulllion, mid-game 2026-11-22: "why are the labels over map areas the players play on?", and by prompt, hiding one label: "Both").
+  // A name label on the map may be put away one at a time (a piece's Show its name on the map) or all at once (the map's Show names on this
+  // map in Map properties). Each is ticked to start and kept only when unticked, as nameShow: false, on the piece or in the map's meta. It
+  // is the GM's choice about the map, so it travels to players (net.js keeps it only as false both ways) and a pin's name is put away on their
+  // app too. The place itself stays in Places here and on every legend. The piece's row stands on a place pin and on a piece linked to a room
+  // of this map (the piece that wears the room's name plate is the largest of them, wbbuild.js roomNamePlaces)
+  function nameShowFieldOk(w, map) {
+      if (!portalLockGm() || !w || w.isChar || w.waiting || w.gmNoteFor || w.type === 'text') return false;
+      return w.type === 'mappin' || !!(w.nodeId && map && Array.isArray(map.rooms) && map.rooms.some(function(r) { return r && r.id === w.nodeId; }));
+  }
+  function nameShowFieldHtml(w, map) {
+      if (!nameShowFieldOk(w, map)) return '';
+      return '<div class="field check-row"><input type="checkbox" id="wbNameShow" ' + (nameShowSame(w, map).some(function(x) { return x.nameShow === false; }) ? '' : 'checked') + '> <label for="wbNameShow" title="Untick to put this name away on the play map. The place stays in Places here and on legends."><i class="wib wi-marker"></i> Show its name on the map</label></div>';
+  }
+  function mapNameShowFieldHtml(map) {
+      if (!portalLockGm() || !map || map.type !== 'map' || !map.meta) return '';
+      return '<div class="field check-row"><input type="checkbox" id="mapNameShow" ' + (map.meta.nameShow === false ? '' : 'checked') + '> <label for="mapNameShow" title="Untick to put away every room, portal and place pin name on this map. Places here and legends still list them."><i class="wib wi-marker"></i> Show names on this map</label></div>';
+  }
+  // The pieces one tick speaks for: a pin alone, or every piece of the map linked to the same room, since the room's ONE plate stands on its
+  // largest piece (the review: unticked on a door of a room whose plate stands on its area, the name stayed; and a piece made larger later took
+  // the plate back). wbbuild.js roomNamePlaces puts a room's name away while any of them is unticked, and ticking it again clears them all
+  function nameShowSame(w, map) {
+      if (!w || w.type === 'mappin' || !w.nodeId || !map || !Array.isArray(map.whiteboard)) return w ? [w] : [];
+      return map.whiteboard.filter(function(x) { return x && x.nodeId === w.nodeId; });
+  }
+  // The tick on a piece (rec is the piece, map its map) or on the map (rec is its meta, ofMap true): no key when ticked, false when not. One save
+  function setNameShow(rec, on, ofMap, map) {
+      if (!rec || typeof rec !== 'object' || !portalLockGm()) return;
+      if (on) (ofMap ? [rec] : nameShowSame(rec, map)).forEach(function(x) { delete x.nameShow; }); else rec.nameShow = false;
+      save(); render();
+      toast(ofMap ? (on ? 'Names show on this map.' : 'Names on this map are put away. Places here still lists them.') : (on ? 'Its name shows on the map.' : 'Its name is put away. Places here still lists it.'));
+  }
   function portalLockTidy(w, map) { var FC = window.wpFogCore; if (w && w.portalLock !== undefined && FC && typeof FC.isPortal === 'function' && !FC.isPortal(w, map)) delete w.portalLock; }
   // [sinkcheck:portallockbox-end]
   // 1.6.3 (the review of finding 8's fold): a trigger zone that gains a Portal to Map, a Link Node or a mine is no plain message zone, so it shows

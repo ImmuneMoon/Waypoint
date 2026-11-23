@@ -1565,6 +1565,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
   function sightSync(id) { var F = window.wpFog; if (F && F.setOutline) F.setOutline(id); }
   function updateSelToolbar(am) {
       try { doorNearSync(am); } catch (e) {}   // 1.5.6: the doors beside a token of yours, again as the selection or a token moves
+      if (window.wpRoomNamesNear) window.wpRoomNamesNear();   // 1.6.4: a room's name plate shows full size on a selected piece or a lit door (wbbuild.js window.wpRoomNamesNear)
       var bar = document.getElementById('selToolbar');
       if (!bar) return;
       var clientView = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';

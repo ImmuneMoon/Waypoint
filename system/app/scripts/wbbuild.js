@@ -846,6 +846,7 @@ function rnPlace(tag) {
     var off = !it || !el || el.isConnected === false || (el.style && el.style.display === 'none') || !!(cl && (cl.contains('il-off') || cl.contains('wb-flat-in')));
     tag.classList.toggle('rn-off', off);
     tag.classList.toggle('rn-hid', !!(cl && cl.contains('wb-hidden-gm') && !cl.contains('wb-room-area')));
+    rnNear(tag);
     if (off) return;
     var x = +it.x || 0, y = +it.y || 0, w = typeof it.w === 'number' ? it.w : 100, h = typeof it.h === 'number' ? it.h : 100;
     var mid = !!cl && RN_MID.some(function(k) { return cl.contains(k); }), cx = x + w / 2, cy = y + h / 2, ax = cx, ay = mid ? y : cy;   /* a cut or round piece (a door hex): just above its top edge, so the token standing on it stays in sight */
@@ -855,6 +856,42 @@ function rnPlace(tag) {
     if (tag.style.left !== L) tag.style.left = L;
     if (tag.style.top !== T) tag.style.top = T;
 }
+// 1.6.4 (Fulllion, mid-game: "why are the labels over map areas the players play on?"): zoomed out, the plates shrink and then go away
+// (settings.js namesZoom, style.css). A plate stays at full size and on top while its piece is under the pointer, selected (alone or one of
+// several), or a door lit by a token beside it (wb-door-near). The plate takes no pointer and stands outside its piece, so it cannot read the
+// piece's :hover in the style sheet: rnNear copies these onto the plate as rn-near. The pointer is read by one listener, at most once a frame
+// (rnHover): a plate is pointed at while the pointer stands inside its piece's box on the board (so a room's area, which takes no pointer,
+// counts too) or on any other piece of the same room, a door on it say. The box is the piece's own, unturned: near enough for a name
+var _rnPt = null, _rnRaf = 0, _rnHovEl = null, _rnHovRoom = null;
+function rnNear(tag) {
+    var cl = tag && tag._el && tag._el.classList;
+    tag.classList.toggle('rn-near', !!cl && (tag._hov === true || cl.contains('sel') || cl.contains('wb-msel') || cl.contains('wb-door-near')));
+}
+window.wpRoomNamesNear = function() { for (var id in _rnPlates) rnNear(_rnPlates[id]); };   // asked again once the board has lit its doors (the selection bar's refresh)
+function rnHover() {
+    _rnRaf = 0; var e = _rnPt; _rnPt = null; if (!e) return;
+    var wrap = wbWrap || document.getElementById('whiteboardWrap');
+    var inB = !!(wrap && e.target && e.target.closest && e.target.closest('#whiteboardWrap')), bx = NaN, by = NaN;
+    if (inB) { var r = wrap.getBoundingClientRect(); bx = wbX(e.clientX, e.clientY, r, wrap); by = wbY(e.clientX, e.clientY, r, wrap); }
+    var el = inB ? e.target.closest('#whiteboard .wb-item') : null;
+    if (el !== _rnHovEl) {   // the room of the piece under the pointer, looked up only when that piece changes
+        _rnHovEl = el; _rnHovRoom = null;
+        var hid = el && el.dataset ? el.dataset.id : null, am = hid && typeof getActiveMap === 'function' ? getActiveMap() : null;
+        var hw = am && Array.isArray(am.whiteboard) ? am.whiteboard.find(function(x) { return x && x.id === hid; }) : null;
+        if (hw && hw.nodeId) _rnHovRoom = hw.nodeId;
+    }
+    for (var id in _rnPlates) {
+        var t = _rnPlates[id], w = t._item, on = false;
+        if (w && inB) {
+            var x = +w.x || 0, y = +w.y || 0, ww = typeof w.w === 'number' ? w.w : 100, hh = typeof w.h === 'number' ? w.h : 100;
+            on = (bx >= x && bx <= x + ww && by >= y && by <= y + hh) || (!!_rnHovRoom && w.nodeId === _rnHovRoom);
+        }
+        if (t._hov !== on) { t._hov = on; rnNear(t); }
+    }
+}
+if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') document.addEventListener('pointermove', function(e) {
+    for (var k in _rnPlates) { _rnPt = e; if (!_rnRaf) _rnRaf = requestAnimationFrame(rnHover); return; }   // with no plate on the board there is nothing to look up
+}, { passive: true });
 window.wpRoomNamesPlace = function() { for (var id in _rnPlates) rnPlace(_rnPlates[id]); };
 window.wpRoomNamesEnd = function() {
     for (var id in _rnPlates) { var t = _rnPlates[id]; if (t._gen !== _rnGen) { if (t.parentNode) t.parentNode.removeChild(t); delete _rnPlates[id]; } else rnPlace(t); }
@@ -866,14 +903,16 @@ function roomNamesOn() { if (_roomNames === null) { try { _roomNames = localStor
 function roomNamePlaces(am) {
     _rnGen++;   // 1.6.3: a new draw; the plates it does not ask for go at its end (wpRoomNamesEnd)
     if (!roomNamesOn() || window.wpStream || !buildMay() || !am || !Array.isArray(am.rooms) || !am.rooms.length || !Array.isArray(am.whiteboard)) return null;
-    var byRoom = Object.create(null), best = Object.create(null), out = Object.create(null);
+    if (am.meta && am.meta.nameShow === false) return null;   // 1.6.4: the map's own switch, Show names on this map, unticked in Map properties
+    var byRoom = Object.create(null), best = Object.create(null), out = Object.create(null), off = Object.create(null);
     am.rooms.forEach(function(r) { if (r && typeof r.id === 'string') byRoom[r.id] = r; });
     am.whiteboard.forEach(function(w) {
+        if (w && w.nodeId && w.nameShow === false) off[w.nodeId] = 1;   // 1.6.4: any piece of the room unticked Show its name on the map (inspector.js keeps them alike)
         if (!w || !w.nodeId || !byRoom[w.nodeId] || w.isChar || w.waiting || w.gmNoteFor || w.type === 'text' || !isFinite(w.x) || !isFinite(w.y)) return;
         var a = Math.max(0, typeof w.w === 'number' ? w.w : 100) * Math.max(0, typeof w.h === 'number' ? w.h : 100);
         if (!best[w.nodeId] || a > best[w.nodeId].a) best[w.nodeId] = { a: a, id: w.id };
     });
-    Object.keys(best).forEach(function(rid) { out[best[rid].id] = byRoom[rid]; });
+    Object.keys(best).forEach(function(rid) { if (!off[rid]) out[best[rid].id] = byRoom[rid]; });   // 1.6.4: a room the GM unticked Show its name on the map for wears none
     return out;
 }
 function roomNameSync(el, item, places) {

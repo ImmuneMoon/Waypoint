@@ -1,3 +1,17 @@
+WAYPOINT 1.6.4 — What's New (draft)
+============================
+
+Names on the map
+- Room, portal and place pin names no longer cover the ground you play
+  on when you zoom out. Below 100% they get smaller, and below 40% they
+  go away. Point at a piece or select it and its name shows at full
+  size.
+- A place pin's name sits to the right of the pin now, out of the way
+  of the spot it marks.
+- Hide one name with Show its name on the map in its Properties, or
+  every name on a map with Show names on this map in Map properties.
+  Your players' pins follow, and Places here still lists every place.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

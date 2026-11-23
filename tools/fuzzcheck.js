@@ -1407,7 +1407,7 @@ function mutations(tpl) {
         clockOff += 2500; conns.p1.close(); flushTimers(); await drain(); flushTimers();
         b = sentLog.length; conns.p1 = connect('peer_p1'); const rb3 = await admit(conns.p1, { id: 'u_p1', name: 'Ayla' }, K1); flushTimers(); await drain(); flushTimers();
         const h3 = { ok: rb3.ok, name: net.roster.peer_p1 && net.roster.peer_p1.name, note: notesOf(b).filter(n => n.indexOf('peer_p1:') === 0) };
-        const hOff = net.nameSetTable(campP, 'u_p1', '');
+        b = sentLog.length; const hOff = net.nameSetTable(campP, 'u_p1', ''), hBack = { name: net.roster.peer_p1.name, rec: campP.players.u_p1.name, note: notesOf(b), roster: sentLog.slice(b).filter(s => s.m.type === 'roster').length };   // their own name back at once (Fulllion, 2026-11-24)
         delete campP.players.u_p1.gmName; await resetWorld();
         check('host: a seated player\'s profile-set (1.6.4, the 47th host branch) puts their new name, color and picture on the roster everyone holds and the name on their record, cleaned as a hello\'s is, the GM\'s own name for them kept and the GM told once; the same again sends, saves and says nothing; a hostile color and picture are dropped; another player\'s id, the waiting peer and a stranger change nothing; ten a minute are taken from one player',
             JSON.stringify(r1) === JSON.stringify(['peer_p1:Ayla Vale:#33aa66:pic', 'peer_p2:Ayla Vale:#33aa66:pic']) && t1.length === 1 && t1[0] === 'Ayla is now called Ayla Vale. You still call them The ranger.' && s1 === 1
@@ -1421,11 +1421,12 @@ function mutations(tpl) {
             && JSON.stringify(g2) === JSON.stringify({ note: ['peer_p1:Someone at this table already goes by Br\u0430m, so you are still Name 9 here. Pick another name in Your profile.'], name: 'Name 9' })
             && JSON.stringify(g3) === JSON.stringify({ name: 'BRAM', rec: 'BRAM' })
             && JSON.stringify(g4) === JSON.stringify({ ok: true, p2: 'Bram', p1: 'Player 2', rec1: 'Player 2', wanted: 'BRAM', note: ['peer_p1:Bram is back, and this table knows them by that name, so you are Player 2 here for now. Pick another name in Your profile.'], told: 1 })
-            && JSON.stringify(tset) === JSON.stringify({ ok: true, name: 'Ranger' }) && JSON.stringify(hOff) === JSON.stringify({ ok: true, off: true })
+            && JSON.stringify(tset) === JSON.stringify({ ok: true, name: 'Ranger' }) && JSON.stringify(hOff) === JSON.stringify({ ok: true, off: true, back: 'Ayla' })
+            && JSON.stringify(hBack) === JSON.stringify({ name: 'Ayla', rec: 'Ayla', note: ['peer_p1:The GM took off the name you went by at this table, so you go by your own name, Ayla, here again.'], roster: 2 })
             && JSON.stringify(h1) === JSON.stringify({ note: ['peer_p1:Your new name is yours everywhere else. At this table you still go by Ranger, the name the GM set for you here.'], name: 'Ranger', color: '#445566', rec: 'Ranger' })
             && JSON.stringify(h2) === JSON.stringify({ note: ['peer_p2:Someone at this table already goes by RANGER, so you are still Bram here. Pick another name in Your profile.'], name: 'Bram' })
             && JSON.stringify(h3) === JSON.stringify({ ok: true, name: 'Ranger', note: ['peer_p1:At this table you go by Ranger, the name the GM set for you here. Your own name stays yours everywhere else.'] }),
-            { r1, t1, s1, n1, r2, t2, s2, r3, t3, n3, r4, n4, r5, r6, took, last, c1, c2, c3, g1, g2, g3, g4, tset, h1, h2, h3, hOff });
+            { r1, t1, s1, n1, r2, t2, s2, r3, t3, n3, r4, n4, r5, r6, took, last, c1, c2, c3, g1, g2, g3, g4, tset, h1, h2, h3, hOff, hBack });
     }
     {   // the review of multiplayer speed (finding 9's two words, the 46th host branch): a player's handout-want sends again only the handouts the host's
         // own record says it showed that very player, each once and to that player alone. Another player's handout, an id the world does not hold, a key a

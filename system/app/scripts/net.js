@@ -6621,6 +6621,7 @@ function handleMessage(msg, conn) {
         // Peer-supplied avatar: accept only a small image data URL, else drop it
         if (!safeAvatar(prof.avatar)) delete prof.avatar;   // the whole data URL (a valid prefix with a quote-breaking tail used to pass)
         prof.name = cleanRosterName(prof.name);   // cap a peer-supplied name; control, bidi-override and zero-width characters out
+        prof.appName = prof.name;   // 1.6.4: the name their own app goes by, kept beside the roster entry where a table name stands in its place (never sent: rosterPayload names its fields)
         if (!(typeof prof.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(prof.color))) delete prof.color;    // a chosen roster color, hex only
         // Bans first: a removed peer gets no version notice and no password try
         if (own(bannedIds, prof.id)) { denyJoin(conn, 'You were removed from this session.'); return; }
@@ -8901,6 +8902,7 @@ function handleMessage(msg, conn) {
         if (!pcP || !validProfileId(pcP.id) || !inP || typeof inP !== 'object' || Array.isArray(inP)) return;
         if (inP.id !== undefined && inP.id !== pcP.id) return;   // its own profile only
         if (!allow('profile-set', { perMs: 250, burst: 10, windowMs: 60000, table: 300 }, pcP.id)) return;   // by the player, so a new connection starts no new count; spaced a quarter second, so two sends a stalled link delivers together both land (a player's app sends at most 8 a minute, 2 s apart)
+        Object.keys(net.roster).forEach(function(kA) { var rA = net.roster[kA]; if (rA && rA.id === pcP.id) rA.appName = cleanRosterName(inP.name); });   // 1.6.4: the name their app goes by now, whatever is judged of it below (Rename's clearing gives it back at once)
         var nmP = cleanRosterName(inP.name), colP = typeof inP.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(inP.color) ? inP.color : '', avP = safeAvatar(inP.avatar) ? inP.avatar : '';
         var campT0 = getActiveCampaign(), recT0 = campT0 && campT0.players && typeof campT0.players === 'object' && own(campT0.players, pcP.id) && typeof campT0.players[pcP.id] === 'object' ? campT0.players[pcP.id] : null;
         if (recT0 && typeof recT0.tableName === 'string' && (typeof nameKey !== 'function' || (nameKey(recT0.tableName) && !nameReserved(recT0.tableName))) && cleanRosterName(pcP.name) !== nmP) {   // 1.6.4 (Fulllion: a table name "should only count for that campaign"): the GM set what they go by here; their own new name is theirs everywhere else and changes nothing at this table, and they are told so; a color or a picture still goes through below
@@ -12015,8 +12017,21 @@ function nameSetTable(camp, pid, raw) {
     if (blank) {
         if (typeof r.tableName !== 'string') return { why: 'same' };
         delete r.tableName;
-        nameNote(pid, 'The GM took off the name you went by at this table. Your own name comes back the next time you join or change it.');
-        return { ok: true, off: true };
+        // Fulllion (2026-11-24): clearing it while they are seated puts their own name back at once. Their app has told this host the name it goes
+        // by (its hello, and each change since: appName on the roster entry), so that name is taken now, judged as a rename is: one kept for the
+        // GM, in use here or another's table name leaves them under the name they had, told why. Away, their own name comes back as they next join
+        var keyS = Object.keys(net.roster).filter(function(k) { var q = net.roster[k]; return q && q.id === pid && typeof q.appName === 'string'; })[0];
+        if (!keyS) { nameNote(pid, 'The GM took off the name you went by at this table. Your own name comes back the next time you join or change it.'); return { ok: true, off: true }; }
+        var ownN = cleanRosterName(net.roster[keyS].appName), nowN = cleanRosterName(net.roster[keyS].name);
+        if (nameKey(ownN) && !nameReserved(ownN) && !nameTaken(pid, ownN)) {
+            if (ownN !== nowN) nameSetOn(pid, ownN);
+            nameNote(pid, 'The GM took off the name you went by at this table, so you go by your own name, ' + ownN + ', here again.');
+            if (net.active && net.role === 'host') broadcastRoster();
+            return { ok: true, off: true, back: ownN };
+        }
+        if (nameKey(ownN) && !nameReserved(ownN)) r.wanted = ownN;   // the wish kept: Player History offers to give it to them
+        nameNote(pid, 'The GM took off the name you went by at this table. Your own name, ' + ownN + ', is not free here, so you go by ' + nowN + ' for now. Pick another name in Your profile.');
+        return { ok: true, off: true, kept: nowN, own: ownN };
     }
     if (nameReserved(nm)) return { why: 'reserved' };
     if (typeof r.tableName === 'string' && r.tableName === nm) return { why: 'same' };
@@ -12407,7 +12422,7 @@ function nameRenameAsk(camp, pid) {
         if (res.why === 'taken') { toast(cleanRosterName(inp.value) + ' is ' + (res.who === 'you' ? 'your own name' : res.who + '’s name') + ' at this table already. Rename one of them first.'); renderPlayersPanel(); return; }
         if (!res.ok) { renderPlayersPanel(); return; }
         save(); gmNamesMoved();
-        var line = res.off ? who + ' goes by their own name again from their next join.' : who + ' goes by ' + res.name + ' at this table now.';
+        var line = !res.off ? who + ' goes by ' + res.name + ' at this table now.' : res.back ? who + ' goes by their own name, ' + res.back + ', again.' : res.kept ? who + ' keeps ' + res.kept + ' for now: their own name, ' + res.own + ', is not free here.' : who + ' goes by their own name again from their next join.';
         toast(line); logEvent('player', line, { w: res.off ? who : res.name, x: 'Table name', d: '' });
     }, { noEnter: true, yes: 'Rename', body: box, shown: function() { try { inp.focus(); inp.select(); } catch (e) {} } });
 }

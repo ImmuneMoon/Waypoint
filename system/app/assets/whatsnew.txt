@@ -112,7 +112,8 @@ Names changed at the table [DRAFT]
   table, for this campaign only. Everyone at the table sees it, and it
   holds when they rejoin or change their own name. Their own name in
   the app and on the website stays theirs. Pick any name you like, as
-  long as no other player here has exactly that name.
+  long as no other player here has exactly that name. Leave it empty
+  and they go back to their own name at once.
 - GM and Game Master are kept for you. Names that only look alike, such
   as one spelled with a Cyrillic letter, count as the same name.
 

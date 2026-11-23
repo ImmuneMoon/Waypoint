@@ -6873,7 +6873,7 @@ function sbxApi() { var w = typeof window !== 'undefined' ? window.wpTextBox : n
 function sbxOn() {
     if (_sbx.on) return _sbx.on === 1;
     var w = sbxApi(), p = w ? ui('sheetPanel') : null, h = w ? ui('hudLayer') : null; if (!w || !p || !h) return false;   // (asked again at the next draw)
-    _sbx.on = w.host({ id: 'sheet', roots: [p, h], doc: sbxDoc, field: sbxField, name: sbxName, links: function() { return true; }, sizes: sbxSizes, barHost: sbxBarHost, barBy: function(box) { return typeof sbxQnBar === 'function' ? sbxQnBar(box) : null; }, barUnder: function(box) { return typeof sbxQnBar === 'function' && !!sbxQnBar(box); }, changed: sbxChanged, left: sbxLeft }) ? 1 : 2;
+    _sbx.on = w.host({ id: 'sheet', roots: [p, h], doc: sbxDoc, field: sbxField, name: sbxName, links: function() { return true; }, offers: function(key) { return typeof sbxOffers === 'function' && sbxOffers(key); }, sizes: sbxSizes, barHost: sbxBarHost, barBy: function(box) { return typeof sbxQnBar === 'function' ? sbxQnBar(box) : null; }, barUnder: function(box) { return typeof sbxQnBar === 'function' && !!sbxQnBar(box); }, changed: sbxChanged, left: sbxLeft }) ? 1 : 2;
     return _sbx.on === 1;
 }
 // Whether the view being built may hold boxes: it stands under one of the host's roots and is no Layout preview, print or window of its own
@@ -7317,6 +7317,10 @@ function sbxQn(key) {
 // note's whole card (its title, time, text and buttons), so the bar covers nothing of the note in hand. The card for a note's box, else
 // null (every field's box keeps the bar where it always stood). Asked by the sheet host's barBy and barUnder (sbxOn)
 function sbxQnBar(box) { return box && box.classList && box.classList.contains('sheet-qn-text') && box.closest ? box.closest('.sheet-qn-entry') : null; }
+// 1.6.4, mentions offered as you type (Fulllion, 2026-11-23: "Pages, planners, notes"; the sheet's Notes page included once it was built):
+// a name typed in a note's text is offered as a mention (mention.js, planner.js offerCan asks the host per key). Only a note's box: the sheet's
+// other text and notes fields are no place for offers, so a key that names no note on this screen gets none
+function sbxOffers(key) { return !!sbxQn(key); }
 // The format of a note's stored look, cleaned for its stored text by the rule of a Journal note, or none
 function sbxQnFmt(p) { var r = p.n.lk ? lookClean(p.n.lk, p.n.x, lookRules.NOTE) : null; return r ? r.fmt : undefined; }
 // A note's text as the box reads and writes it: the draft where one is open, else what is stored; as sbxField does for a field

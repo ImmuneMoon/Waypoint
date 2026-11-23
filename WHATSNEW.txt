@@ -130,9 +130,10 @@ Buying a row off [DRAFT]
 
 Mentions as you type [DRAFT]
 - Type the name of a page, a map, a room or a character in a page, a
-  planner or one of your own Journal notes, and it gets a faint dotted
-  underline. Press Tab or click it and it becomes a mention, the same
-  as picking it after @. Keep typing and it stays plain words.
+  planner, a character's Notes page or one of your own Journal notes,
+  and it gets a faint dotted underline. Press Tab or click it and it
+  becomes a mention, the same as picking it after @. Keep typing and it
+  stays plain words.
 - Short names and names made of everyday words, such as The Tavern,
   are never underlined, and neither is a name two things share.
 

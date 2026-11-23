@@ -592,9 +592,11 @@ var WAS_MAX = 20;
 // 1.6.4: the GM's own name for a player (Player History's box, net.js cleanGmName): one line, control, bidi-override and zero-width
 // characters out, runs of spaces made one, at most 40; anything else, or a blank, goes
 function cleanGmNameIn(p) {
-    if (p.gmName === undefined) return;
-    var g = typeof p.gmName === 'string' ? p.gmName.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40).trim() : '';
+    var g = p.gmName === undefined ? '' : typeof p.gmName === 'string' ? p.gmName.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40).trim() : '';
     if (g) p.gmName = g; else delete p.gmName;
+    // a name the player wants (Player History offers to give it to them), cleaned as a name is; when the record took its name, a time
+    if (p.wanted !== undefined) { var w = typeof p.wanted === 'string' ? p.wanted.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; if (w) p.wanted = w; else delete p.wanted; }
+    if (p.nameAt !== undefined && !(typeof p.nameAt === 'number' && isFinite(p.nameAt) && p.nameAt > 0)) delete p.nameAt;
 }
 function cleanWas(p) {
     var out = [];

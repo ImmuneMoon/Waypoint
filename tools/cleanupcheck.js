@@ -1308,11 +1308,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // bidi-override and zero-width characters out and runs of spaces made one; one that is no text, or blank, goes. The player's own name is untouched
         {
             const J4 = JSON.stringify;
-            const icG = { items: {}, players: { u_a: { name: 'Pat', gmName: '  The\u202e  bard\n' }, u_b: { name: 'Bo', gmName: 'x'.repeat(60) }, u_c: { name: 'Cy', gmName: { a: 1 } }, u_d: { name: 'Di', gmName: ' \u200b ' }, u_e: { name: 'Ed' } } };
+            const icG = { items: {}, players: { u_w: { name: 'Wren', wanted: ' Pat\u202e ', nameAt: 'soon' }, u_v: { name: 'Vic', wanted: 7, nameAt: 1790000000000 }, u_a: { name: 'Pat', gmName: '  The\u202e  bard\n' }, u_b: { name: 'Bo', gmName: 'x'.repeat(60) }, u_c: { name: 'Cy', gmName: { a: 1 } }, u_d: { name: 'Di', gmName: ' \u200b ' }, u_e: { name: 'Ed' } } };
             cleanImportItems(icG, deps);
             const g = icG.players;
             check('import: the GM\'s own name for a player (1.6.4) comes in one line of at most 40, the control, bidi-override and zero-width characters out; one that is no text, or blank, goes; the player\'s own name and a record without one are untouched',
-                g.u_a.gmName === 'The bard' && g.u_b.gmName === 'x'.repeat(40) && !('gmName' in g.u_c) && !('gmName' in g.u_d) && !('gmName' in g.u_e) && g.u_a.name === 'Pat' && g.u_c.name === 'Cy',
+                g.u_w.wanted === 'Pat' && !('nameAt' in g.u_w) && !('wanted' in g.u_v) && g.u_v.nameAt === 1790000000000   /* 1.6.4: a name the player wants, cleaned as a name; when the record took its name, a time */
+                && g.u_a.gmName === 'The bard' && g.u_b.gmName === 'x'.repeat(40) && !('gmName' in g.u_c) && !('gmName' in g.u_d) && !('gmName' in g.u_e) && g.u_a.name === 'Pat' && g.u_c.name === 'Cy',
                 J4(g));
         }
         // The owed review, 2026-10-09 (backlog 137). (a) The item cleaners ran only for an item whose type was exactly 'map', 'planner' or 'doc',

@@ -1410,7 +1410,7 @@ function starterPacksGet(st) {   // the starter's packs as text, all or none
     return Promise.all(st.packs.map(function(p) { return fetch('assets/systems/' + p, { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.text(); }); }));
 }
 function starterSaved() {   // after Save: the waiting packs written, and said
-    var sp = _starterPacks; starterPacksSet(null); if (sp && sp.bundle === true && typeof bundleSaved === 'function') { bundleSaved(sp); return; }   // 1.6.4: a system's .zip read back waits the same way, with its pictures (bundleSaved, below)
+    var sp = _starterPacks; starterPacksSet(null); if (sp && sp.bundle === true && typeof bundleSaved === 'function') return bundleSaved(sp);   // 1.6.4: a system's .zip read back waits the same way, with its pictures (bundleSaved, below); Save waits on the promise it answers
     if (!sp || !window.wpLibrary || !window.wpLibrary.starterPacks) return;
     window.wpLibrary.starterPacks(sp.texts).then(function(r) {
         if (!r || r.error) { toast((r && r.error) || 'The starter\u2019s packs could not be added.'); return; }
@@ -1591,17 +1591,30 @@ function importWhole(file) {
 // a new one, nothing removed (library.js starterPacks with byId). What came in is said once, in plain words
 // The review of 2026-11-23 (finding 1): the packs go first, while the campaign that was saved is still the one on screen, and the pictures
 // after, since a large copy takes a while and a picture belongs to no campaign. cid: that campaign's id, taken when Save was pressed; should
-// another be on screen by then, the packs are not written and that is said
+// another be on screen by then, the packs are not written and that is said.
+// 1.6.4 (Fulllion, 2026-11-23, "Save waits"): answers a promise that settles once the packs are in (or could not be), never waiting on
+// the pictures; Save (in sysederr.js) says what it saved, its count of errors among it, only then. It never rejects, so Save
+// always says it
+var PICTURES_SAID_AT_START = 20;   // a copy of more pictures than this is said as it starts, since it may take a while
 function bundleSaved(sp) {
-    var cpB = getActiveCampaign(), cid = cpB ? cpB.id : null;
-    sysZip().then(function(Z) {
-        var L = window.wpLibrary, now = getActiveCampaign();
-        var lp = !sp.texts.length ? Promise.resolve(null) : !now || now.id !== cid ? Promise.resolve({ error: 'Another campaign is open now, so the packs were not added.' }) : L && typeof L.starterPacks === 'function' ? L.starterPacks(sp.texts, { byId: true }) : Promise.resolve({ error: 'The library could not be reached, so the packs were not added.' });
-        return lp.then(function(lr) {
-            if (sp.pics.length > 20) toast('Adding ' + sp.pics.length + ' pictures\u2026');   // the review (finding 5): a long copy is said as it starts
-            return Z.savePictures(sp.pics, sp.budget, sysZipDeps()).then(function(pr) { var w = Z.savedWords(sp.pics.length ? pr : null, lr); if (w) toast(w); if (typeof renderAll === 'function' && draft) renderAll(); });
+    var savedCampaign = getActiveCampaign(), savedCampaignId = savedCampaign ? savedCampaign.id : null, markPacksIn = null;
+    var packsIn = new Promise(function(resolve) { markPacksIn = resolve; });
+    sysZip().then(function(sysZipModule) {
+        var library = window.wpLibrary, onScreen = getActiveCampaign();
+        var packsWritten = !sp.texts.length ? Promise.resolve(null)
+            : !onScreen || onScreen.id !== savedCampaignId ? Promise.resolve({ error: 'Another campaign is open now, so the packs were not added.' })
+            : library && typeof library.starterPacks === 'function' ? library.starterPacks(sp.texts, { byId: true })
+            : Promise.resolve({ error: 'The library could not be reached, so the packs were not added.' });
+        return packsWritten.then(function(libraryResult) {
+            markPacksIn();   // the packs are in: Save may count its errors now
+            if (sp.pics.length > PICTURES_SAID_AT_START) toast('Adding ' + sp.pics.length + ' pictures\u2026');   // the review (finding 5): a long copy is said as it starts
+            return sysZipModule.savePictures(sp.pics, sp.budget, sysZipDeps()).then(function(pictureResult) {
+                var words = sysZipModule.savedWords(sp.pics.length ? pictureResult : null, libraryResult); if (words) toast(words);
+                if (typeof renderAll === 'function' && draft) renderAll();
+            });
         });
-    }).catch(function() { toast('The packs and pictures of the imported system could not be added.'); });
+    }).catch(function() { markPacksIn(); toast('The packs and pictures of the imported system could not be added.'); });
+    return packsIn;
 }
 // [syszipcheck:import-end]
 // [split:body-end]

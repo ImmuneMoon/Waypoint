@@ -78,7 +78,7 @@ const j = JSON.stringify;
     check('away from the GM’s own campaign nothing is written', !!r5.error && D.saved.length === 0);
 
     /* ---- wired ---- */
-    check('wired (pinned): Save writes the waiting packs after the system is stored, the editor’s open and close let them go, the list fills Start from, the library publishes the function', require('./checkkit').part('sysederr.js').includes("    save(true);\n    starterSaved();") && require('./checkkit').part('sysedbox.js').includes("starterPacksSet(null); startersLoad().then(function(l) { startersFill(ui('sysStartSel'), l); });") && require('./checkkit').part('sysedbox.js').includes("m.style.display = 'none'; draftSet(null); starterPacksSet(null);") && lib.includes(' importFiles: importFiles, starterPacks: starterPacks,'));
+    check('wired (pinned): Save writes the waiting packs after the system is stored, the editor’s open and close let them go, the list fills Start from, the library publishes the function', /    save\(true\);\n(?:    \/\/[^\n]*\n)*    var packsIn = starterSaved\(\);\n/.test(require('./checkkit').part('sysederr.js')) && require('./checkkit').part('sysedbox.js').includes("starterPacksSet(null); startersLoad().then(function(l) { startersFill(ui('sysStartSel'), l); });") && require('./checkkit').part('sysedbox.js').includes("m.style.display = 'none'; draftSet(null); starterPacksSet(null);") && lib.includes(' importFiles: importFiles, starterPacks: starterPacks,'));
     check('no CORE file is in the app before the lawyer clears it', !fs.existsSync(path.join(APP, 'assets', 'systems', 'core.json')) && !fs.readdirSync(path.join(APP, 'assets', 'systems')).some(f => /^core/i.test(f)));
 
     summed = true;

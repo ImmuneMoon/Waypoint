@@ -1138,7 +1138,7 @@ pendingChecks.push((async () => {
         j(runTv('po', {})) === j(['po']) && j(runTv('po', { hidden: true, trap: true })) === '[]' && j(runTv('po', { hidden: true })) === '[]' && j(runTv('po', { hidden: 1, trap: true })) === '[]' && j(runTv('nope', {})) === j([null])
         && j(runTv('po', {}, { paused: true })) === '[]' && j(runTv('po', {}, { limited: true })) === '[]', j([runTv('po', {}), runTv('po', { hidden: true, trap: true }), runTv('nope', {})]));
     const trSrcD = fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel');
-    const puSrc = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n', tdSrc = fnSrc('net.tokenDropped = function(item, map, gmHand) {', '\n};\n', 'tokenDropped') + '\n};\n';
+    const puSrc = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n', tdSrc = fnSrc('net.tokenDropped = function(item, map, gmHand, from) {', '\n};\n', 'tokenDropped') + '\n};\n';
     const runDropX = (portalOver, at, o) => {   // o: travelLocked, playerLock (the destination closed to players), paused (this player)
         o = o || {};
         const tok = { id: 'tok', isChar: true, ownerId: 'u_p', x: at[0], y: at[1], w: 60, h: 52 }, toasts = [];
@@ -1201,7 +1201,7 @@ pendingChecks.push((async () => {
         const Sx = await import('file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).split(String.fromCharCode(92)).join('/'));
         const body = (a, b, l) => fnSrc(a, b, l) + b;
         const code = ownKeySrc + fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel') + '\n' + body('function freeSpotNear(', '\n}\n', 'freeSpotNear') + body('function stepOffPortal(', '\n}\n', 'stepOffPortal') + body('function portalUnder(item, map) {', '\n}\n', 'portalUnder')
-            + body('function tokenFromChar(ch, pid) {', '\n}\n', 'tokenFromChar') + body('function spawnSpot(', '\n}\n', 'spawnSpot') + body('function ensurePlayerToken(pid, mapId, landRoomId, opts) {', '\n}\n', 'ensurePlayerToken') + body('function offlinePlayerTravel(item, map) {', '\n}\n', 'offlinePlayerTravel') + body('function npcTravel(item, map) {', '\n}\n', 'npcTravel') + body('net.tokenDropped = function(item, map, gmHand) {', '\n};\n', 'tokenDropped');
+            + body('function tokenFromChar(ch, pid) {', '\n}\n', 'tokenFromChar') + body('function spawnSpot(', '\n}\n', 'spawnSpot') + body('function ensurePlayerToken(pid, mapId, landRoomId, opts) {', '\n}\n', 'ensurePlayerToken') + body('function offlinePlayerTravel(item, map) {', '\n}\n', 'offlinePlayerTravel') + body('function npcTravel(item, map) {', '\n}\n', 'npcTravel') + body('net.tokenDropped = function(item, map, gmHand, from) {', '\n};\n', 'tokenDropped');
         const run = (o) => {   // o: owner (the dragged token's), charOwner (the character's), npc, away (the player is not at the table), there (the far map's tokens), arrive (no drop: they arrive on the far map; 'none': with no token of it anywhere)
             const tok = Object.assign({ id: 'tok', isChar: true, charId: 'c_p', charName: 'Ann', x: 0, y: 0, w: 60, h: 52 }, o.owner ? { ownerId: o.owner } : {});
             const from = { id: 'm1', type: 'map', meta: { title: 'Here', gridType: 'square' }, rooms: [], whiteboard: [tok, { id: 'po', targetMapId: 'm2', x: 0, y: 0, w: 60, h: 52 }] }, dest = { id: 'm2', type: 'map', meta: { title: 'There' }, rooms: [], whiteboard: o.there || [] };
@@ -1226,7 +1226,7 @@ pendingChecks.push((async () => {
     const trSrcT = fnSrc('function hostTravel(conn, traveler, portal, fromMap, gmHand) {', '\n// The portal item under a token\'s center', 'hostTravel');
     const fsSrc = fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', soSrc = fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', puSrcT = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n';
     const tcSrc = fnSrc('function turnCombatOf(', '\n}\n', 'turnCombatOf') + '\n}\n' + lineOf('function moveMode(') + '\n' + ordersSrc + '\n';
-    const tdSrcT = fnSrc('net.tokenDropped = function(item, map, gmHand) {', '\n};\n', 'tokenDropped') + '\n};\n';
+    const tdSrcT = fnSrc('net.tokenDropped = function(item, map, gmHand, from) {', '\n};\n', 'tokenDropped') + '\n};\n';
     const runTravel = (o) => {   // o: at (the token's place), locked, combat ('mine' | 'theirs': whose turn), order (the campaign's rule), turns (the feature), drop (through net.tokenDropped instead of the message)
         o = o || {};
         const tok = Object.assign({ id: 'tok', isChar: true, ownerId: 'u_p', charId: 'c_p', x: o.at ? o.at[0] : 2000, y: o.at ? o.at[1] : 2000, w: 60, h: 52 }, o.locked ? { locked: true } : {});
@@ -1269,7 +1269,7 @@ pendingChecks.push((async () => {
     const barSrcL = between('// [netcheck:travelbar-start]', '// [netcheck:travelbar-end]', 'travelbar');
     const fsL = fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n', soL = fnSrc('function stepOffPortal(', '\n}\n', 'stepOffPortal') + '\n}\n', puL = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n';
     const tcL = fnSrc('function turnCombatOf(', '\n}\n', 'turnCombatOf') + '\n}\n' + lineOf('function moveMode(') + '\n' + ordersSrc + '\n';
-    const tdL = fnSrc('net.tokenDropped = function(item, map, gmHand) {', '\n};\n', 'tokenDropped') + '\n};\n';
+    const tdL = fnSrc('net.tokenDropped = function(item, map, gmHand, from) {', '\n};\n', 'tokenDropped') + '\n};\n';
     const npL = fnSrc('function npcTravel(item, map) {', '\n// [netcheck:pos-start]', 'npcTravel'), ofL = fnSrc('function offlinePlayerTravel(item, map) {', '\n// An NPC token dropped on a portal', 'offlinePlayerTravel');
     const DENY = j({ type: 'travelDenied', reason: 'portal' }), TRAP = 'P stepped on a hidden trap tile that is locked for players: nothing happened, and they were told nothing.';
     const mkL = o => {   // o: at (the token's place), portal (over the locked portal 'po'), travelLocked, playerLock (the destination closed), tokLocked, combat ('theirs')
@@ -1285,7 +1285,7 @@ pendingChecks.push((async () => {
         const net = { active: true, role: 'host', paused: false, travelLocked: !!o.travelLocked, roster: { pA: { id: 'u_p', name: 'P', location: 'm1' }, pB: { id: 'u_q', name: 'Q', location: 'm1' } }, conns: [cA, cB], broadcastItemFiltered: (c, i) => bcast.push(i),
             combats: o.combat ? { m1: { mapId: 'm1', round: 1, turn: 1, rows: [{ id: 'r_p', tokId: 'tok' }, { id: 'r_o', tokId: 'orc' }] } } : {} };
         const api = new Function('net', 'peerPaused', 'allow', 'getActiveCampaign', 'turnNote', '_travelDenyLast', 'sendFailed', 'findLandingRoom', 'landingPoint', 'renderRoster', 'broadcastRoster', 'ensurePlayerToken', 'save', 'toast', 'logEvent', 'window', 'npcTravel', 'offlinePlayerTravel', 'pausedById', 'Date',
-            ownKeySrc + trSrcL + '\n' + fsL + soL + puL + tcL + tdL + '\nreturn { travel: function(msg, conn) {\n' + tvSrcL + '\n}, drop: function(item, map, gm) { return arguments.length > 2 ? net.tokenDropped(item, map, gm) : net.tokenDropped(item, map); }, direct: hostTravel, bar: travelBar };')(
+            ownKeySrc + trSrcL + '\n' + fsL + soL + puL + tcL + tdL + '\nreturn { travel: function(msg, conn) {\n' + tvSrcL + '\n}, drop: function(item, map, gm) { return arguments.length > 2 ? net.tokenDropped(item, map, gm) : net.tokenDropped(item, map); }, dropFrom: function(item, map, gm, from) { return net.tokenDropped(item, map, gm, from); }, direct: hostTravel, bar: travelBar };')(
             net, () => false, () => true, () => camp, (c, t) => notes.push(t), {}, e => { throw e; }, () => null, () => null, () => {}, () => {}, () => {}, () => {}, t => toasts.push(t), () => {}, { wpVtt: { on: () => true } }, () => 'npc', () => 'offline', () => false, { now: () => clock.t });
         const W = { api, net, camp, from, tok, po, cA, cB, toasts, notes, bcast, clock };
         W.ask = (via, c) => { api.travel({ type: 'travel', viaItemId: via || 'po' }, c || cA); return W; };
@@ -1295,6 +1295,24 @@ pendingChecks.push((async () => {
         W.at = () => [tok.x, tok.y];
         return W;
     };
+    {   // 1.6.4 (the owner, from his game on 1.6.3: "we need to be sure only tokens go through when placed on top of one", and "the character tokens sometimes never move off of the teleporter portal")
+        // a drop travels only where it brought the token onto the portal: a drag that began on that very portal goes nowhere, for a player and for the GM's hand
+        const T1 = mkL({ at: [0, 1000] }), t1 = [T1.api.dropFrom(T1.tok, T1.from, undefined, { x: 0, y: 1000 }), T1.loc()];
+        const T2 = mkL({ at: [0, 1000] }), t2 = [T2.api.dropFrom(T2.tok, T2.from, undefined, { x: 2000, y: 2000 }), T2.loc()];
+        const T3 = mkL({ at: [0, 1000] }), t3 = [T3.api.dropFrom(T3.tok, T3.from, true, { x: 10, y: 1010 }), T3.loc()];
+        const T4 = mkL({ at: [0, 1000], portal: { portalLock: false } }), t4 = [T4.api.dropFrom(T4.tok, T4.from, undefined, { x: 0, y: 0 }), T4.loc()];
+        const T5 = mkL({ at: [0, 1000] }), t5 = [T5.api.dropFrom(T5.tok, T5.from, undefined, { x: 'a', y: 0 }), T5.loc()];
+        check('1.6.4 a token travels only when its drop put it on the portal: a drag that began on that very portal (a turn or a nudge inside it) goes nowhere, for a player and for the GM\'s hand; one that began off it, or on another portal, travels; a start that is no place is judged as before',
+            j(t1) === j([false, 'm1']) && j(t2) === j([true, 'm2']) && j(t3) === j([false, 'm1']) && j(t4) === j([true, 'm2']) && j(t5) === j([true, 'm2']), j([t1, t2, t3, t4, t5]));
+        // a spot to stand on is never on a portal: the first ring's first cell is a second portal, so the token lands elsewhere
+        const FS = new Function('window', puL + fsL + '\nreturn freeSpotNear;')({});
+        const pA = { id: 'pA', targetMapId: 'm2', x: 500, y: 500, w: 50, h: 50 }, pB = { id: 'pB', targetMapId: 'm2', x: 450, y: 450, w: 50, h: 50 }, pH = { id: 'pH', targetMapId: 'm2', x: 550, y: 450, w: 50, h: 50, hidden: true };
+        const mP = { id: 'mP', type: 'map', meta: { gridType: 'square' }, rooms: [], whiteboard: [pA, pB, pH] };
+        const sp = FS(mP, 525, 525, 50, 50, null, pA), onAny = [pA, pB].some(p => sp.x < p.x + p.w && sp.x + 50 > p.x && sp.y < p.y + p.h && sp.y + 50 > p.y);
+        const mP0 = { id: 'mP0', type: 'map', meta: { gridType: 'square' }, rooms: [], whiteboard: [pA] }, sp0 = FS(mP0, 525, 525, 50, 50, null, pA);
+        check('1.6.4 a token set down beside a portal is never set down on another portal of the map (a hidden portal that is no trap is no portal and may be stood on), and with one portal the spot is the one it always was',
+            !onAny && j(sp) === j({ x: 500, y: 450 }) && j(sp0) === j({ x: 450, y: 450 }), j([sp, sp0]));
+    }
     // (1) a travel request through a locked portal
     const A = mkL(); A.ask(); const a1 = [A.loc(), A.cA.sent.map(m => j(m)), A.toasts.length, A.notes.length, A.at(), A.bcast.length];
     A.clock.t += 3999; A.ask(); const a2 = A.cA.sent.length;                 // within 4 s of the first: nothing more
@@ -1345,8 +1363,8 @@ pendingChecks.push((async () => {
         j(g1) === j([true, 'm2', 1, 0, true, true]) && gNot.every(r => j(r) === j([false, 'm1', 1])) && gDirect.every(r => j(r) === j([false, 'm1'])) && j(gDirectT) === j([true, 'm2'])
         && j(g2) === j([false, 'm1', [j({ type: 'travelDenied' })]]) && j(g3) === j([false, 'm1', [j({ type: 'travelDenied', reason: 'closed', map: 'There' })]]) && j(g4) === j([true, 'm2', 0]), j([g1, gNot, gDirect, gDirectT, g2, g3, g4]));
     check('portal lock (the GM\'s own hand, source): the word that it is the GM\'s hand is given in one place, the board\'s own drag on this machine (datamap.js), and by no message — the pos gate calls net.tokenDropped with a player\'s token and its map alone, the travel branch calls hostTravel with four arguments, and net.tokenDropped hands hostTravel true only for true',
-        j(allCalls) === j(['datamap.js:tokenDropped(item, am, true)', 'net.js:tokenDropped(w, map)']) && /var traveled = !!\(window\.wpNet && window\.wpNet\.tokenDropped && window\.wpNet\.tokenDropped\(item, am, true\)\);/.test(dmT)
-        && /\n            net\.tokenDropped\(w, map\);   \/\/ landed on a portal\? the player travels\n/.test(src) && tvSrcL.includes('        hostTravel(conn, traveler, portal, fromMap);\n') && src.includes('    return hostTravel(conn, net.roster[peerId], portal, map, gmHand === true);\n')
+        j(allCalls) === j(['datamap.js:tokenDropped(item, am, true, fromT)', 'net.js:tokenDropped(w, map, undefined, frW)']) && /var traveled = !!\(window\.wpNet && window\.wpNet\.tokenDropped && window\.wpNet\.tokenDropped\(item, am, true, fromT\)\);/.test(dmT)
+        && /\n            net\.tokenDropped\(w, map, undefined, frW\);   \/\/ landed on a portal\? the player travels \(1\.6\.4: only where the drag began off it\)\n/.test(src) && tvSrcL.includes('        hostTravel(conn, traveler, portal, fromMap);\n') && src.includes('    return hostTravel(conn, net.roster[peerId], portal, map, gmHand === true);\n')
         && (src.match(/hostTravel\(/g) || []).length === 3, j(allCalls));
     // (7) the GM's other hands, run for real with a locked portal under the token: an NPC walked through, an absent player's token walked through
     const runGm = (kind, lock) => {
@@ -1432,7 +1450,7 @@ pendingChecks.push((async () => {
 }
 // hidden pieces: an NPC the GM walks through a portal hidden arrives hidden (npcTravel, run for real with the real sanitizeItem): players see nothing of it on either map
 {
-    const npSrc = fnSrc('function npcTravel(item, map) {', '\n// [netcheck:pos-start]', 'npcTravel'), puSrcN = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n', tdSrcN = fnSrc('net.tokenDropped = function(item, map, gmHand) {', '\n};\n', 'tokenDropped') + '\n};\n';
+    const npSrc = fnSrc('function npcTravel(item, map) {', '\n// [netcheck:pos-start]', 'npcTravel'), puSrcN = fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\n', tdSrcN = fnSrc('net.tokenDropped = function(item, map, gmHand, from) {', '\n};\n', 'tokenDropped') + '\n};\n';
     const fxA2 = src.indexOf('// Conditions C1 (docs/CONDITIONS_PLAN.md): the effects the table sees'), fxB2 = src.indexOf('/* ---------- fog of war (1.5.0 FV2): per-recipient creature drop');
     const runNpc = o => {   // the GM's NPC (no owner) dropped on a visible portal to m2; o.hidden: it is hidden; o.there: m2 already holds a left-behind copy of its name, hidden
         const npc = Object.assign({ id: 'npc1', type: 'image', isChar: true, charName: 'Lurker', gmInfo: 'secret', x: 0, y: 0, w: 60, h: 52 }, o.hidden ? { hidden: true } : {});

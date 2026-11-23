@@ -3367,9 +3367,12 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand) {
     ensurePlayerToken(traveler.id, pRoom.targetMapId, landRoom && landRoom.id);
     // a token already on the destination stays where the GM left it, unless it is still on the landing node
     var landPtD = landRoom && landingPoint(destMap, landRoom), nodeEl = landPtD && landPtD.wbItemId ? (destMap.whiteboard || []).find(function(o) { return o.id === landPtD.wbItemId; }) : null;
-    var mineDA = nodeEl ? (destMap.whiteboard || []).filter(function(w) { return w.isChar && w.ownerId === traveler.id; }) : [], mineD = mineDA.find(function(w) { return w.charId; }) || mineDA[0];
-    if (mineD && mineD.x < nodeEl.x + (nodeEl.w || 0) && mineD.x + (mineD.w || 60) > nodeEl.x && mineD.y < nodeEl.y + (nodeEl.h || 0) && mineD.y + (mineD.h || 52) > nodeEl.y) {
-        var spotD = freeSpotNear(destMap, landPtD.wbX, landPtD.wbY, mineD.w || 60, mineD.h || 52, mineD.id, nodeEl);
+    var mineDA = (destMap.whiteboard || []).filter(function(w) { return w.isChar && w.ownerId === traveler.id; }), mineD = mineDA.find(function(w) { return w.charId; }) || mineDA[0];
+    var onNodeD = !!(mineD && nodeEl && mineD.x < nodeEl.x + (nodeEl.w || 0) && mineD.x + (mineD.w || 60) > nodeEl.x && mineD.y < nodeEl.y + (nodeEl.h || 0) && mineD.y + (mineD.h || 52) > nodeEl.y), onPortD = mineD ? portalUnder(mineD, destMap) : null;   // 1.6.4: or on any portal of the map (the owner: tokens left standing on a portal)
+    if (onNodeD || onPortD) {
+        var byLandD = onNodeD && landPtD && landPtD.wbX != null && landPtD.wbY != null;   // on the landing piece: beside it, as before; on another portal: off it, where it stands (the review of 1.6.4: never sent across the map)
+        var bxD = byLandD ? landPtD.wbX : mineD.x + (mineD.w || 60) / 2, byD = byLandD ? landPtD.wbY : mineD.y + (mineD.h || 52) / 2;
+        var spotD = freeSpotNear(destMap, bxD, byD, mineD.w || 60, mineD.h || 52, mineD.id, byLandD ? nodeEl : onPortD || nodeEl);
         mineD.x = spotD.x; mineD.y = spotD.y;
         if (window.wpSeatHex) window.wpSeatHex(mineD, destMap);
         net.applyingRemote = true; save(true); net.applyingRemote = false;
@@ -3488,6 +3491,11 @@ function trapToast(traveler, portal, text) {
 // where it arrives, which it can walk off, and never beyond a wall. With no fog module, or none of those on the map, exactly as before
 function freeSpotNear(map, cx, cy, w, h, avoidId, portal, from) {
     var others = (map.whiteboard || []).filter(function(o) { return (o.isChar || o.waiting) && o.id !== avoidId; });   // Onboarding F1a: a waiting token holds its spot too
+    // 1.6.4 (the owner, from his game on 1.6.3: "the character tokens sometimes never move off of the teleporter portal"): a spot is never one
+    // where any portal of the map would catch the token, by the very test a drop is judged by (portalUnder), not only the one portal handed in.
+    // A token set down on a portal could not step off cleanly and was sent back by its next move. The portals are gathered once a call
+    var portalMap = { whiteboard: (map.whiteboard || []).filter(function(o) { return !!o && (o.nodeId || o.targetMapId) && o.id !== avoidId; }), rooms: map.rooms };
+    function onPortal(x, y) { return portalMap.whiteboard.length > 0 && typeof portalUnder === 'function' && !!portalUnder({ id: '', x: x, y: y, w: w, h: h }, portalMap); }   // the empty id names no piece, so no portal is passed over as the token itself
     var sq = !!(map && map.meta && map.meta.gridType === 'square');   // grid-shaped tokens: a square grid seats in its 50 px cells
     var LSQ = sq && typeof window === 'object' && window && window.wpLatticeOf ? window.wpLatticeOf(map) : null, SZ = LSQ && LSQ.size > 0 ? LSQ.size : 50;   // the map's own cell (backlog 38)
     function seated(x, y) {   // where a token placed at (x, y) ends up after seating on this map (a hex cell, a square cell)
@@ -3500,6 +3508,7 @@ function freeSpotNear(map, cx, cy, w, h, avoidId, portal, from) {
     }
     function clashes(x, y) {
         if (portal && x < portal.x + (portal.w || 0) && x + w > portal.x && y < portal.y + (portal.h || 0) && y + h > portal.y) return true;
+        if (onPortal(x, y)) return true;   // 1.6.4: no portal of the map catches a token set down here
         return others.some(function(o) { return x < o.x + (o.w || 0) && x + w > o.x && y < o.y + (o.h || 0) && y + h > o.y; });
     }
     var F = typeof window === 'object' && window && window.wpFog && typeof window.wpFog.arrivalOk === 'function' ? window.wpFog : null;
@@ -3557,9 +3566,14 @@ function portalUnder(item, map) {
    player's token through a door) and for player drops arriving over the wire.
    gmHand: true only from the board's own drag on this machine (datamap.js), never from a message — the pos gate passes nothing, so a
    player's drop is judged in full; the GM's own drop passes a portal locked for players (hostTravel), as every act of the GM's does. */
-net.tokenDropped = function(item, map, gmHand) {
+net.tokenDropped = function(item, map, gmHand, from) {
     try { if (typeof window !== 'undefined' && window.wpSheets && window.wpSheets.tagsMoved && item && map) window.wpSheets.tagsMoved(map, item.id); } catch (e) { console.error(e); }   // 1.6.2 (vehicles, fold (c), part two): a mark judged at the end of its holder's move
     if (!item || !item.isChar || !map) return false;
+    // 1.6.4 (the owner, from his game: "we need to be sure only tokens go through when placed on top of one"): a character token travels only when
+    // its drop put it on the portal. from is where its drag began (the GM's own drag hands its start, the pos gate the open drag's): a token that
+    // stood on that very portal already (a turn in place, a nudge inside it, a token set down on a portal) goes nowhere; a double-click still
+    // asks for travel through the travel branch. With no from, as before
+    if (from && isFinite(Number(from.x)) && isFinite(Number(from.y))) { var pNowD = portalUnder(item, map); if (!pNowD) return false; if (portalUnder({ id: item.id, x: Number(from.x), y: Number(from.y), w: item.w, h: item.h }, map) === pNowD) return false; }
     if (!item.ownerId) return npcTravel(item, map);                                   // an NPC: the GM's own token, moves through
     var atTable = net.active && net.role === 'host' && Object.keys(net.roster).some(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
     if (!atTable) return offlinePlayerTravel(item, map);                             // between sessions, or the player is not connected: the GM walks their character through
@@ -3605,8 +3619,9 @@ function offlinePlayerTravel(item, map) {
         var spot = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, null, nodeEl);
         mine.x = spot.x; mine.y = spot.y;
         dest.whiteboard.push(mine); placed = true;
-    } else if (nodeEl && mine.x < nodeEl.x + (nodeEl.w || 0) && mine.x + (mine.w || 60) > nodeEl.x && mine.y < nodeEl.y + (nodeEl.h || 0) && mine.y + (mine.h || 52) > nodeEl.y) {
-        var spot2 = freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, mine.id, nodeEl);
+    } else if ((nodeEl && mine.x < nodeEl.x + (nodeEl.w || 0) && mine.x + (mine.w || 60) > nodeEl.x && mine.y < nodeEl.y + (nodeEl.h || 0) && mine.y + (mine.h || 52) > nodeEl.y) || portalUnder(mine, dest)) {   // 1.6.4: or on any portal of the map
+        var onNodeO = !!(nodeEl && mine.x < nodeEl.x + (nodeEl.w || 0) && mine.x + (mine.w || 60) > nodeEl.x && mine.y < nodeEl.y + (nodeEl.h || 0) && mine.y + (mine.h || 52) > nodeEl.y);   // the review of 1.6.4: on another portal it steps off where it stands, never to the landing room or the map's home point
+        var spot2 = onNodeO ? freeSpotNear(dest, sx, sy, mine.w || 60, mine.h || 52, mine.id, nodeEl) : freeSpotNear(dest, mine.x + (mine.w || 60) / 2, mine.y + (mine.h || 52) / 2, mine.w || 60, mine.h || 52, mine.id, portalUnder(mine, dest));
         mine.x = spot2.x; mine.y = spot2.y;
     }
     if (S && S.ownedTokenPlan) { var opsO = S.ownedTokenPlan(camp, { keep: mine.id, mapId: dest.id, all: !sheetsOnFor(camp) }); S.applyOwnerOps(camp, opsO); if (typeof passNote === 'function') passNote(camp, dest, opsO); }   // one owned token of the character there; the GM is told of a token that passes to them
@@ -3647,8 +3662,9 @@ function npcTravel(item, map) {
         dest.whiteboard.push(there); placed = true;
     } else {
         if (!item.hidden) delete there.hidden;   // the character is there now: players may see it — unless the GM walked it through hidden; then the one there stays hidden too
-        if (nodeEl && there.x < nodeEl.x + (nodeEl.w || 0) && there.x + (there.w || 60) > nodeEl.x && there.y < nodeEl.y + (nodeEl.h || 0) && there.y + (there.h || 52) > nodeEl.y) {
-            var spot2 = freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, there.id, nodeEl);
+        if ((nodeEl && there.x < nodeEl.x + (nodeEl.w || 0) && there.x + (there.w || 60) > nodeEl.x && there.y < nodeEl.y + (nodeEl.h || 0) && there.y + (there.h || 52) > nodeEl.y) || portalUnder(there, dest)) {   // 1.6.4: or on any portal of the map
+            var onNodeN = !!(nodeEl && there.x < nodeEl.x + (nodeEl.w || 0) && there.x + (there.w || 60) > nodeEl.x && there.y < nodeEl.y + (nodeEl.h || 0) && there.y + (there.h || 52) > nodeEl.y);   // the review of 1.6.4: on another portal it steps off where it stands
+            var spot2 = onNodeN ? freeSpotNear(dest, sx, sy, there.w || 60, there.h || 52, there.id, nodeEl) : freeSpotNear(dest, there.x + (there.w || 60) / 2, there.y + (there.h || 52) / 2, there.w || 60, there.h || 52, there.id, portalUnder(there, dest));
             there.x = spot2.x; there.y = spot2.y;
         }
     }
@@ -3746,7 +3762,7 @@ function handlePos(msg, conn) {
             if (!stillW) saveRemoteSoon();
             if (typeof marksOwnMoved === 'function') marksOwnMoved(msg.itemId, [w], pr.id);   // senses S4b: their own drop on its turn takes their marks afresh
             if (typeof fogArm === 'function' && skN !== null && frW.sk !== skN) fogArm(msg.itemId);   // fold M7: it landed somewhere it sees from differently than where the drag began: catch the copies up
-            net.tokenDropped(w, map);   // landed on a portal? the player travels
+            net.tokenDropped(w, map, undefined, frW);   // landed on a portal? the player travels (1.6.4: only where the drag began off it)
             if (Array.isArray(frW.path) && frW.path.length && window.wpFog && typeof window.wpFog.memHostPath === 'function') { var pathD = frW.path, mapD = map, wD = w, campD = camp, pidD = pr.id; frW.path = null; setTimeout(function() { try { var runD = function() { window.wpFog.memHostPath(mapD, campD, pidD, wD, pathD); }; if (typeof fogLanded === 'function') fogLanded(mapD.id, runD); else runD(); } catch (e) { console.error(e); } }, 0); }   // the review of 1.6.3 (finding 13): the ground the token was dragged through is noted as their explored ground too (judged a moment after the drop, with every other open drag held at its start)
             if (!stillW && typeof window !== 'undefined' && window.wpRecord) window.wpRecord.moved(map, w, frW, pr && pr.name);   // 1.6.0: the game record
         }

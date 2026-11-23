@@ -1889,13 +1889,20 @@ function cleanSystemNow(sys, opts) {
         bud = bud.filter(function(b) { return [b.has, b.spent].every(function(t) { var pb = F.parse(t); return !!(pb && pb.ok && Array.isArray(pb.names)) && !gmDerivedNames(sysBu, F, pb.names).length; }); });
         if (bud.length) out.budgets = bud;
     }
-    // 1.6.4 Buy off: a line recorded on a list players see, where the charged field is GM-only or the cost reads a GM-only value, is bare (the row's
-    // name and its note, no figure and no field's name), so the GM's own buy off tells players nothing hidden. Worked out here, never taken from a file
+    // 1.6.4 Buy off: whether its cost reads a GM-only value at any depth (a GM-only field, a figure worked out from one, a GM-only stat of the row),
+    // judged over the GM's view as a point budget's is. In the players' view such a list has no Buy off (the figure they were asked would tell
+    // the value, and their own sheet could not work out the host's). In the GM's view a line recorded on a list players see is bare where the
+    // charged field is GM-only or the cost reads such a value (the row's name and its note, no figure and no field's name), so the GM's own buy
+    // off tells players nothing hidden. Worked out here, never taken from a file
+    var sysBo = null;
     out.fields.forEach(function(f) {
-        var bo = f.kind === 'item-list' && isObj(f.list) && isObj(f.list.buyOff) && isObj(f.list.buyOff.ledger) ? f.list.buyOff : null; if (!bo) return; delete bo.ledger.bare; if (!gmView) return;
+        var bo = f.kind === 'item-list' && isObj(f.list) && isObj(f.list.buyOff) ? f.list.buyOff : null; if (!bo) return; if (isObj(bo.ledger)) delete bo.ledger.bare;
+        sysBo = sysBo || { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects };
+        var rawF = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return isObj(x) && x.id === f.id; })[0], rawSt = rawF && isObj(rawF.list) && Array.isArray(rawF.list.stats) ? rawF.list.stats : [], pbo = F.parse(bo.cost);
+        var gmRd = !(pbo && pbo.ok && Array.isArray(pbo.names)) || gmDerivedNames(sysBo, F, pbo.names).length > 0 || pbo.names.some(function(n) { var sg = lower(n).split('.'); return sg[0] === 'row' && sg.length > 1 && rawSt.some(function(s) { return isObj(s) && s.vis === 'gm' && typeof s.key === 'string' && lower(s.key) === sg[1]; }); });
+        if (!gmView) { if (gmRd) delete f.list.buyOff; return; }
+        if (!isObj(bo.ledger)) return;
         var cfB = out.fields.filter(function(x) { return x.id === bo.f; })[0], lfB = out.fields.filter(function(x) { return x.id === bo.ledger.to; })[0]; if (!lfB || lfB.vis === 'gm') return;
-        var sysBo = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects }, pbo = F.parse(bo.cost);
-        var gmRd = !(pbo && pbo.ok && Array.isArray(pbo.names)) || gmDerivedNames(sysBo, F, pbo.names).length > 0 || pbo.names.some(function(n) { var sg = lower(n).split('.'); return sg[0] === 'row' && sg.length > 1 && (Array.isArray(f.list.stats) ? f.list.stats : []).some(function(s) { return isObj(s) && s.vis === 'gm' && lower(s.key) === sg[1]; }); });
         if ((cfB && cfB.vis === 'gm') || gmRd) bo.ledger.bare = true;
     });
     var envR = cleanEnv(sys.env, fieldIds, F);   // 1.6.0: the environment readings, against this view's fields (a reading whose field players do not hold is not theirs)

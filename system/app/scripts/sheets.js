@@ -7337,7 +7337,8 @@ function goneNote(c, f, g) {
     if (!rid || v.some(function(r) { return rowIdOf(r) === rid; })) return;   // still there (a quantity lowered, a curse kept): nothing to put back
     var sys = systemOf(getActiveCampaign()), rd = sys ? rowDef(sys, g.row) : null, nm = rd && rd.def && rd.def.name ? rd.def.name : 'The item', after = JSON.stringify(v), cid = c.id;
     if (typeof toastAction !== 'function') return;
-    toastAction(nm + (g.bought ? ' was bought off.' : ' was removed.') + (typeof g.tell === 'string' && g.tell ? ' ' + g.tell : ''), 'Undo', function() {   // 1.6.4: a Buy off's Undo takes its charge and its line back too (rmBack)
+    var shG = g.bought && typeof g.short === 'number' && g.short > 0 ? g.short : 0, cfG = shG && sys && f.list && f.list.buyOff ? fieldById(sys, f.list.buyOff.f) : null;   // 1.6.4 (Fulllion: "Tell the player too"): on a list that only warns, how far short it went, said beside the Undo
+    toastAction(nm + (g.bought ? (shG ? ' was bought off, ' + (typeof fmtNum === 'function' ? fmtNum(shG) : String(shG)) + (cfG && (cfG.label || cfG.key) ? ' ' + (cfG.label || cfG.key) : '') + ' short.' : ' was bought off.') : ' was removed.') + (typeof g.tell === 'string' && g.tell ? ' ' + g.tell : ''), 'Undo', function() {   // 1.6.4: a Buy off's Undo takes its charge and its line back too (rmBack)
         var camp = getActiveCampaign(), cN = charById(cid, camp); if (!cN) return;
         var cur = cN.values && Array.isArray(cN.values[f.id]) ? cN.values[f.id] : [];
         if (!isClient() && JSON.stringify(cur) !== after) { toast(nm + ' cannot come back: the list changed since.'); return; }
@@ -7350,11 +7351,11 @@ function goneNote(c, f, g) {
 // (goneWait) and its notice waits for the change that takes it off (goneFire, from charChanged), within a few seconds
 var _goneWait = [];
 function goneLocal(charId, gone) { var camp = getActiveCampaign(), sys = systemOf(camp), c = charById(charId, camp); if (!c || !sys || !Array.isArray(gone)) return 0; var n = 0; gone.forEach(function(g) { var f = g && typeof g.f === 'string' ? fieldById(sys, g.f) : null; if (f && g.row) { var gx = { row: g.row, at: g.at }; if (g.parts) gx.parts = g.parts; if (g.grants) gx.grants = g.grants; goneNote(c, f, gx); n++; } }); return n; }
-function goneWait(charId, fid, rid, bought) {   // bought (1.6.4): the host's word says a Buy off of theirs took it
+function goneWait(charId, fid, rid, bought, short) {   // bought (1.6.4): the host's word says a Buy off of theirs took it; short: how far short it went, on a list that only warns
     var c = charById(charId), rows = c && c.values && Array.isArray(c.values[fid]) ? c.values[fid] : [], at = -1;
     for (var i = 0; i < rows.length; i++) if (rowIdOf(rows[i]) === rid) { at = i; break; }
     if (at < 0) return false;
-    _goneWait = _goneWait.filter(function(w) { return w.until > Date.now(); }).slice(-7); _goneWait.push({ charId: charId, f: fid, row: clone(rows[at]), at: at, until: Date.now() + 5000, bought: bought === true });
+    _goneWait = _goneWait.filter(function(w) { return w.until > Date.now(); }).slice(-7); _goneWait.push({ charId: charId, f: fid, row: clone(rows[at]), at: at, until: Date.now() + 5000, bought: bought === true, short: typeof short === 'number' && isFinite(short) && short > 0 ? short : 0 });
     return true;
 }
 function goneFire(id) {
@@ -7363,7 +7364,7 @@ function goneFire(id) {
         if (w.until <= now) return false; if (id !== null && id !== undefined && id !== w.charId) return true;
         var c = charById(w.charId, camp), f = sys ? fieldById(sys, w.f) : null, rows = c && c.values && Array.isArray(c.values[w.f]) ? c.values[w.f] : [], rid = rowIdOf(w.row);
         if (!c || !f) return false; if (rows.some(function(r) { return rowIdOf(r) === rid; })) return true;   // the change has not landed yet
-        goneNote(c, f, { row: w.row, at: w.at, bought: w.bought === true }); n++; return false;
+        goneNote(c, f, { row: w.row, at: w.at, bought: w.bought === true, short: w.short }); n++; return false;
     });
     return n;
 }

@@ -1852,6 +1852,14 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 BUI.buyOffHere(rowB, fB) && !BUI.buyOffHere({ id: 'w_h', hid: 1 }, fB) && !BUI.buyOffHere({ id: 'w_o', opn: 'w_x' }, fB) && !BUI.buyOffHere(rowB, { id: 'f_z', list: {} })
                 && j(items.map(x => [x[0], x[1]])) === j([['Buy off', 'Costs 6 Points'], ['Remove', 'Free: nothing is charged']]) && asked.length === 1 && asked[0][0] === 'Buying off ' + bad + ' costs 6 Points.' && asked[0][1].noEnter === true
                 && j(made) === j([{ op: 'buyoff', rowId: 'w_x', cost: 6 }, 'plain']), j([items.map(x => [x[0], x[1]]), asked, made]));
+            // 1.6.4 (Fulllion: "Tell the player too"): the player's own notice of a buy off on a list that only warns says how far short it went, beside its Undo
+            const said = [], chG = { id: 'c_g', values: { f_q: [{ id: 'w_q', defId: 'i_q', qty: 1 }, { id: 'w_r', defId: 'i_r', qty: 1 }] } }, sysG = { fields: [{ id: 'f_q', list: { buyOff: { cost: 'Row.tier', f: 'f_m' } } }, { id: 'f_m', kind: 'number', label: 'Marks' }] };
+            const GN = new Function('getActiveCampaign', 'systemOf', 'rowDef', 'rowIdOf', 'toastAction', 'charById', 'isClient', 'toast', 'commitItem', 'LIMITS', 'fieldById', 'fmtNum', 'clone',
+                (() => { const t = read('sheets.js'), i = t.indexOf('function goneNote('), k = t.indexOf('// [systemcheck:gonethen-end]'); if (i < 0 || k < i) throw new Error('sinkcheck: goneNote not found'); return t.slice(i, k); })() + '\nreturn { goneWait: goneWait, goneFire: goneFire };')(
+                () => ({}), () => sysG, (s, r) => ({ def: { name: r.id === 'w_q' ? 'Short Fuse' : bad } }), r => r.id, (m, l) => said.push([m, l]), () => chG, () => true, () => {}, () => {}, { undoMs: 1000 }, (s, id) => s.fields.find(x => x.id === id) || null, String, x => JSON.parse(JSON.stringify(x)));
+            GN.goneWait('c_g', 'f_q', 'w_q', true, 4); GN.goneWait('c_g', 'f_q', 'w_r', true); chG.values.f_q = []; GN.goneFire('c_g');
+            check('1.6.4 a player\'s notice of a buy off (sheets.js goneWait, goneFire and goneNote, run for real): on a list that only warns it says how far short it went, in the charged field\'s own word, beside its Undo; one that was paid says it was bought off; a row\'s name stays text',
+                j(said) === j([['Short Fuse was bought off, 4 Marks short.', 'Undo'], [bad + ' was bought off.', 'Undo']]), j(said));
         }
         const SN = mkSf(campS, nlO), zN = { id: 'z', type: 'rect', nulls: ['sn_hear0001'] };
         SN.setItemNulls(zN, '0', true); const n1 = j(zN.nulls); SN.setItemNulls(zN, '1', false); const n2 = j(zN.nulls); SN.setItemNulls(zN, '0', 'yes'); const n3 = 'nulls' in zN; const nSaves = SN.calls.saves;

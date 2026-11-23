@@ -2125,43 +2125,92 @@ pendingChecks.push((async () => {
             && back === 2 && j(later) === j(['Ayla Starling is now called Bo. You still call them The ranger.']) && logs.length === 3,
             j({ s1, held, s2, back, later, logs }));
     }
-    // Fulllion, 2026-11-23 ("Refuse it, tell the GM"): no one at the table goes by a name someone else there goes by (the nameclash slice run for real)
+    // Fulllion, 2026-11-23 ("Refuse it, tell the GM", then "yes, the known, but able to be swapped if needed easily", "Yes, reserve GM words",
+    // "Yes, catch look-alikes"): no one at the table goes by a name someone else there goes by (the nameclash slice run for real)
     {
         const cS = between('// [netcheck:nameclash-start]', '// [netcheck:nameclash-end]', 'nameclash');
-        const said = [], logs = [], sent = []; let now = 7e6, me = { name: 'Gale' };
-        const netC = { conns: [{ peer: 'pA', open: true }, { peer: 'pB', open: true }, { peer: 'pC', open: false }, { peer: 'pW', open: true }],
-            roster: { pA: { id: 'u_a', name: 'Ayla' }, pB: { id: 'u_b', name: 'Bram  Stone' }, pC: { id: 'u_c', name: 'Cato' } } };
-        const campC = { players: { u_a: { name: 'Ayla' }, u_d: { name: 'Dana' }, u_e: { name: 'Bram Stone' } } };
-        const C = new Function('net', 'own', 'cleanRosterName', 'getProfile', 'toast', 'logEvent', 'Date', 'getActiveCampaign', '_satIds', 'sendFailed', cS + '\nreturn { nameKey, nameClash, clashTell, clashJudge, clashKeptSay, CLASH_WORDS };')(
-            netC, H.own, H.cleanRosterName, () => me, t => said.push(t), (k, t, o) => logs.push([t, o.x]), { now: () => now }, () => campC, { u_d: 1, u_e: 1 }, () => {});
-        const hits = [C.nameClash('u_x', '  bram stone '), C.nameClash('u_b', 'BRAM STONE'), C.nameClash('u_x', 'cato'), C.nameClash('u_x', 'GALE'), C.nameClash('u_x', 'Player'), C.nameClash('u_x', 'player'), C.nameClash('u_x', ''),
-            C.nameClash('u_x', 'Ay\u200bla'), C.nameClash('u_x', 'Ａyla'), C.nameClash('u_x', 'Ay­la'), C.nameClash('u_x', 'Waiting'), C.nameClash('u_x', 'Aylа')].map(h => h ? (h.gm ? 'gm' : h.id) : null);
-        me = { name: '' }; const noGm = C.nameClash('u_x', 'Player'); me = { name: 'Gale' };
-        // the GM's notices: a rename once in 30 s a player and once in 2 s in all; tries to join once in 30 s in all, the rest counted into the next
-        C.clashTell('u_a', 'Ayla', 'Bram Stone'); C.clashTell('u_a', 'Ayla', 'Bram Stone'); const t1 = said.length;
-        now += 3000; C.clashTell('u_x', '', 'ayla'); now += 3000; C.clashTell('u_y', '', 'ayla'); now += 3000; C.clashTell('u_z', '', 'ayla'); const t2 = said.length;
-        now += 31000; C.clashTell('u_w', '', 'cato'); const t3 = said.slice(2);
-        now += 1000; C.clashTell('u_v', '', 'ayla', true); const t4 = said.length;
-        // a joiner: a stranger under a name in use is turned away; a player seated this session comes back under their record's name and is told why
-        // after their snapshot; one whose record's name is in use too comes back under it all the same; a name of their own is never judged
-        now += 31000; const pS = { id: 'u_s', name: 'ayla' }, pD = { id: 'u_d', name: 'AYLA' }, pE = { id: 'u_e', name: 'Ayla' }, pF = { id: 'u_d', name: 'Dana' };
-        const jd = [C.clashJudge(pS, 'pS'), C.clashJudge(pD, 'pD'), pD.name, C.clashJudge(pE, 'pE'), pE.name, C.clashJudge(pF, 'pF')];
-        netC.roster.pD = { id: 'u_d', name: 'Dana' }; const cD = { peer: 'pD', send: m => sent.push(m) }; C.clashKeptSay(cD); C.clashKeptSay(cD);
-        check('1.6.4 a name already at the table (the nameclash slice run for real): another player\'s admitted and connected now, or the GM\'s own profile name, read without case and with runs of spaces as one after the roster\'s cleaning and with the forms of one letter made one (a full-width A, a soft hyphen or a zero-width space no way round it); not the player\'s own, not one whose connection closed, not "Player" in any case (no name chosen), and a letter of another script is another name; the GM is told of a rename at most once in 30 s a player and once in 2 s in all, of tries to join at most once in 30 s in all with how many more came, and always where their own yes is undone; a joiner under a name in use is turned away in words of its own, while a player seated here this session comes back under their record\'s name, told why once after their snapshot',
-            j(hits) === j(['u_b', null, null, 'gm', null, null, null, 'u_a', 'u_a', 'u_a', null, null]) && noGm === null && t1 === 1 && t2 === 2
-            && j(t3) === j(['Someone tried to join as cato, which someone at the table already goes by. They were asked to pick another name. 2 more tries like it came before this one.']) && t4 === 4
-            && said[0] === 'Ayla tried to take the name Bram Stone, which someone at the table already goes by. They keep the name Ayla.'
-            && j(jd) === j([true, false, 'Dana', false, 'Bram Stone', false]) && j(sent) === j([{ type: 'turn-note', text: 'Someone at this table already goes by AYLA, so you are still Dana here. Pick another name in Your profile.' }])
-            && logs.every(l => l[1] === 'Name already in use') && C.CLASH_WORDS === 'Someone at this table already goes by that name. Pick another name, then join again.',
-            j({ hits, noGm, said, jd, sent }));
+        const mkN = () => {
+            const W = { said: [], logs: [], notes: [], saves: 0, rosters: 0, now: 7e6, me: { name: 'Gale' } };
+            const cn = (peer, open) => ({ peer, open, send: m => W.notes.push(peer + ':' + m.text) });
+            W.net = { active: true, role: 'host', conns: [cn('pA', true), cn('pB', true), cn('pC', false), cn('pW', true), cn('pY', true)],
+                roster: { pA: { id: 'u_a', name: 'Ayla' }, pB: { id: 'u_b', name: 'Bram  Stone' }, pC: { id: 'u_c', name: 'Cato' }, pY: { id: 'u_ay', name: 'BO' } } };
+            W.camp = { players: { u_a: { name: 'Ayla', key: 'k1' }, u_d: { name: 'Dana', key: 'k2' }, u_e: { name: 'Bram Stone', key: 'k3' },
+                u_bo: { name: 'Bo', key: 'k4', firstSeen: 100 }, u_ay: { name: 'BO', key: 'k5', firstSeen: 50, nameAt: 5000 }, u_nk: { name: 'bo' } } };
+            W.C = new Function('net', 'own', 'validProfileId', 'cleanRosterName', 'getProfile', 'toast', 'logEvent', 'Date', 'getActiveCampaign', '_satIds', 'sendFailed', 'save', 'broadcastRoster',
+                cS + '\nreturn { nameKey, nameSame, nameReserved, nameClash, nameOwner, nameFree, clashTell, clashJudge, clashKeptSay, nameWanters, nameGive, CLASH_WORDS, CLASH_GM_WORDS };')(
+                W.net, H.own, H.validProfileId, H.cleanRosterName, () => W.me, t => W.said.push(t), (k, t, o) => W.logs.push([t, o.x]), { now: () => W.now }, () => W.camp, { u_d: 1, u_e: 1, u_a: 1 }, () => {}, () => { W.saves++; }, () => { W.rosters++; });
+            return W;
+        };
+        const A = mkN(), C = A.C;
+        const keys = [C.nameKey('K\u0430el') === C.nameKey('Kael'), C.nameKey('\u039aael') === C.nameKey('kael'), C.nameSame('AyIa', 'Ayla'), C.nameSame('B0', 'bo'), C.nameKey('\uff21yla') === C.nameKey('ayla'),
+            C.nameKey('Ay\u00adla') === C.nameKey('Ayla'), C.nameKey('\u0420\u0430\u0441') === C.nameKey('Pac'), C.nameKey('Player'), C.nameKey('PLAYER'), C.nameKey('Kael') === C.nameKey('Kaei'), C.nameKey('Bo') === C.nameKey('Bob'),
+            C.nameSame('MIA', 'Mia'), C.nameSame('KAI', 'Kai'), C.nameSame('Ian', 'Lan'), C.nameSame('ELI', 'Ell'), C.nameSame('PIayer', 'Player'), C.nameKey('P1ayer')];
+        const resv = ['GM', 'g m', 'Game  Master', 'gamemaster', 'G\u0410ME MASTER', '\u0262M', 'Gemma', 'Gm Bob', 'Game Masters'].map(C.nameReserved);
+        const hits = [C.nameClash('u_x', '  bram stone '), C.nameClash('u_b', 'BRAM STONE'), C.nameClash('u_x', 'cato'), C.nameClash('u_x', 'GALE'), C.nameClash('u_x', 'player'),
+            C.nameClash('u_x', 'Ay\u200bla'), C.nameClash('u_x', 'Ayl\u0430'), C.nameClash('u_x', 'Waiting')].map(h => h ? (h.gm ? 'gm' : h.id) : null);
+        check('1.6.4 names are compared by one key (the nameclash slice run for real): look-alike letters of the Cyrillic and Greek alphabets read as the Latin ones they look like, and by a second key as seen, a capital I, a small l and a 1 one mark and 0 an o (so MIA is Mia and AyIa is Ayla, while Lan is not Ian), the forms of one letter made one, characters that show as nothing taken out, case and spaces as one; "Player" has none; GM, Game Master and Gamemaster in any case, spacing or look-alike letters are kept for the GM; a name is in use where another player admitted and connected now, or the GM, goes by it',
+            j(keys) === j([true, true, true, true, true, true, true, '', '', false, false, true, true, false, false, false, '']) && j(resv) === j([true, true, true, true, true, false, false, false, false])
+            && j(hits) === j(['u_b', null, null, 'gm', null, 'u_a', 'u_a', null]), j({ keys, resv, hits }));
+        // the GM's notices, folded as before
+        C.clashTell('u_a', 'Ayla', 'Bram Stone'); C.clashTell('u_a', 'Ayla', 'Bram Stone'); const t1 = A.said.length;
+        A.now += 3000; C.clashTell('u_x', '', 'ayla'); A.now += 3000; C.clashTell('u_y', '', 'ayla'); A.now += 3000; C.clashTell('u_z', '', 'ayla'); const t2 = A.said.length;
+        A.now += 31000; C.clashTell('u_w', '', 'cato'); const t3 = A.said.slice(2);
+        A.now += 1000; C.clashTell('u_v', '', 'GM', true, true); const t4 = A.said.slice(3);
+        check('1.6.4 the GM is told of a rename at most once in 30 s a player and once in 2 s in all, of tries to join at most once in 30 s in all with how many more came, and always where their own yes is undone, a name kept for the GM said as such',
+            t1 === 1 && t2 === 2 && j(t3) === j(['Someone tried to join as cato, which someone at the table already goes by. They were asked to pick another name. 2 more tries like it came before this one.'])
+            && j(t4) === j(['Someone tried to join as GM, which is kept for the GM. They were asked to pick another name.']) && A.logs.every(l => l[1] === 'Name already in use'), j(A.said));
+        // the name's holder: the record that has held it the longest with a table key. At the gate a claim of it goes on to the key; proven, the
+        // holder takes it back and whoever went by it is given a name for now, told why, and wants it back; anyone else is turned away
+        const B = mkN(), CB = B.C;
+        const own1 = [CB.nameOwner(CB.nameKey('bo')), CB.nameOwner(CB.nameKey('Dana')), CB.nameOwner(CB.nameKey('nobody'))];
+        const gate = CB.clashJudge({ id: 'u_bo', name: 'Bo' }, 'pBo', false, 'gate'), gateNk = CB.clashJudge({ id: 'u_nk', name: 'bo' }, 'pNk', false, 'gate');
+        const unproven = CB.clashJudge({ id: 'u_bo', name: 'Bo' }, 'pBo', true, '');
+        const proven = CB.clashJudge({ id: 'u_bo', name: 'Bo' }, 'pBo', false, 'proven');
+        const after = [B.net.roster.pY.name, B.camp.players.u_ay.name, B.camp.players.u_ay.wanted, typeof B.camp.players.u_ay.nameAt === 'number' && B.camp.players.u_ay.nameAt > 5000, B.saves];
+        const toldBack = B.said.filter(t => /^Bo is back and keeps their name\./.test(t)), noteBack = B.notes.slice();
+        check('1.6.4 a name\'s holder keeps it (Fulllion: "yes, the known"): the record holding it the longest with a table key, whoever reconnects first; at the gate a claim of it goes on to prove the key, a claim by a record with no key is turned away; unproven (a join the GM let in) it is turned away; proven, the holder takes it back: the player who went by it is "Player 2" for now on the roster and the record, told why, wants the name back, and the GM is told',
+            j(own1) === j(['u_bo', 'u_d', '']) && gate === '' && gateNk === 'clash' && unproven === 'clash' && proven === ''
+            && j(after) === j(['Player 2', 'Player 2', 'BO', true, 1]) && toldBack.length === 1 && j(noteBack) === j(['pY:Bo is back, and this table knows them by that name, so you are Player 2 here for now. Pick another name in Your profile.']),
+            j({ own1, gate, gateNk, unproven, proven, after, said: B.said, noteBack }));
+        // the GM gives the name back in Player History (nameGive): the record that wants it goes by it, the one that had it is given a name for now
+        // and wants it; both told; the roster sent again. Only to a record that wants this very name
+        B.notes.length = 0; B.net.roster.pBo = { id: 'u_bo', name: 'Bo' }; B.net.conns.push({ peer: 'pBo', open: true, send: m => B.notes.push('pBo:' + m.text) });
+        const wants = CB.nameWanters(B.camp, 'u_bo'), refuse = CB.nameGive(B.camp, 'u_bo', 'u_nk'), gave = CB.nameGive(B.camp, 'u_bo', 'u_ay');
+        const swapped = [B.camp.players.u_ay.name, B.camp.players.u_ay.wanted, B.camp.players.u_bo.name, B.camp.players.u_bo.wanted, B.net.roster.pY.name, B.net.roster.pBo.name, B.rosters, CB.nameWanters(B.camp, 'u_ay')];
+        check('1.6.4 the GM can swap a name (Fulllion: "able to be swapped if needed easily"): Player History offers to give a record\'s name to each record that wants it; given, that player goes by it on the roster and the record, the one who had it is given a name for now and wants it back, both are told and the roster goes again; a record that does not want the name is given nothing',
+            j(wants) === j(['u_ay']) && refuse === '' && gave === 'Player 3' && j(swapped) === j(['Bo', undefined, 'Player 3', 'Bo', 'Bo', 'Player 3', 1, ['u_bo']])
+            && j(B.notes) === j(['pY:The GM gave you the name Bo.', 'pBo:The GM gave the name Bo to another player, so you are Player 3 here. Pick another name in Your profile.']),
+            j({ wants, refuse, gave, swapped, notes: B.notes }));
+        // older records (no nameAt, from before names were judged): one alone is the holder, two leave it to the GM's Give; two that took a name at
+        // the same moment go to the one seen last; a name is never given while someone else at the table goes by it; a name for now avoids the one given
+        const E = mkN(), CE = E.C;
+        Object.assign(E.camp.players, { u_o1: { name: 'Rin', key: 'x1', firstSeen: 1 }, u_o2: { name: 'rin', key: 'x2', firstSeen: 2 }, u_t1: { name: 'Tam', key: 'x3', nameAt: 900, lastSeen: 10 }, u_t2: { name: 'TAM', key: 'x4', nameAt: 900, lastSeen: 20 } });
+        const holders = [CE.nameOwner(CE.nameKey('rin')), CE.nameOwner(CE.nameKey('tam')), CE.nameOwner(CE.nameKey('bo'))];
+        E.camp.players.u_nk.wanted = 'Bo'; E.camp.players.u_nk.key = 'k6';
+        const busy = CE.nameGive(E.camp, 'u_bo', 'u_nk'), untouched = [E.camp.players.u_bo.name, E.camp.players.u_nk.name, E.notes.length], free = CE.nameFree('u_x', 'Player 2');
+        check('1.6.4 the holder by age (the review of the holder): a record from before names were judged holds its name where it is the only such record, and where two such records share it the table names no holder (the GM gives it); two that took a name at the same moment go to the one seen last; a name is never given while someone else at the table goes by it, and nothing changes; a name for now is never the name being given',
+            j(holders) === j(['', 'u_t2', 'u_bo']) && busy === 'busy' && j(untouched) === j(['Bo', 'bo', 0]) && free === 'Player 3', j({ holders, busy, untouched, free }));
+        // a stranger, a name kept for the GM, and players seated here this session (u_d, u_e, u_a) who come back
+        const D = mkN(), CD = D.C;
+        const pS = { id: 'u_s', name: 'ayla' }, pG = { id: 'u_s2', name: 'Game Master' }, pD = { id: 'u_d', name: 'AYLA' }, pE = { id: 'u_e', name: 'Ayla' }, pF = { id: 'u_d', name: 'Dana' }, pR = { id: 'u_e', name: 'gm' };
+        const jd = [CD.clashJudge(pS, 'pS'), CD.clashJudge(pG, 'pG'), CD.clashJudge(pD, 'pD'), pD.name, D.camp.players.u_d.wanted, CD.clashJudge(pE, 'pE'), pE.name, CD.clashJudge(pF, 'pF'), CD.clashJudge(pR, 'pR'), pR.name, D.camp.players.u_s];
+        D.net.roster.pD = { id: 'u_d', name: 'Dana' }; D.net.roster.pR = { id: 'u_e', name: 'Player 2' }; const sent = [];
+        CD.clashKeptSay({ peer: 'pD', send: m => sent.push(m.text) }); CD.clashKeptSay({ peer: 'pD', send: m => sent.push(m.text) }); CD.clashKeptSay({ peer: 'pR', send: m => sent.push(m.text) });
+        check('1.6.4 a joiner under a name in use, or one kept for the GM, is turned away in words of its own; a player seated here this session comes back under their record\'s name, told why once after their snapshot (no wish kept for a join that proved no key); one whose record\'s name is in use too, and who is not its holder proven, comes back under a name for now, never beside the one who goes by it',
+            j(jd) === j(['clash', 'reserved', '', 'Dana', null, '', 'Player 2', '', '', 'Player 2', null])
+            && j(sent) === j(['Someone at this table already goes by AYLA, so you are Dana here. Pick another name in Your profile.', 'GM and Game Master are kept for the GM, so you are Player 2 here. Pick another name in Your profile.'])
+            && CD.CLASH_WORDS === 'Someone at this table already goes by that name. Pick another name, then join again.' && CD.CLASH_GM_WORDS === 'GM and Game Master are kept for the GM. Pick another name, then join again.',
+            j({ jd, sent }));
         const nn3 = src.replace(/\r\n/g, '\n');
-        const wired3 = [nn3.includes("var clashH = typeof nameClash === 'function' ? nameClash(prof.id, prof.name) : null;") && nn3.indexOf('var clashH = ') > nn3.indexOf("if (!pwRight) { pwMiss(); return; }") && nn3.indexOf('var clashH = ') < nn3.indexOf('var keyed0 = '),
-            nn3.includes("    if (typeof clashJudge === 'function' && clashJudge(prof, conn.peer, true)) { denyJoin(conn, CLASH_WORDS); return; }") && nn3.indexOf('clashJudge(prof, conn.peer, true)') < nn3.indexOf('net.roster[conn.peer] = prof;'),
+        const wired3 = [nn3.includes("var clashH = typeof clashJudge === 'function' ? clashJudge(prof, conn.peer, false, 'gate') : '';") && nn3.indexOf('var clashH = ') > nn3.indexOf("if (!pwRight) { pwMiss(); return; }") && nn3.indexOf('var clashH = ') < nn3.indexOf('var keyed0 = '),
+            nn3.includes("    var clashA = typeof clashJudge === 'function' ? clashJudge(prof, conn.peer, true, provenKey ? 'proven' : '') : '';") && nn3.indexOf('var clashA = ') < nn3.indexOf('net.roster[conn.peer] = prof;'),
             nn3.indexOf('var clashP = ') > nn3.indexOf("if (!allow('profile-set',") && nn3.indexOf('var clashP = ') < nn3.indexOf('var wasP = cleanRosterName(pcP.name), movN ='),
-            nn3.includes("var inP = function() { if (typeof clashJudge === 'function' && clashJudge(prof, conn.peer)) { denyJoin(conn, CLASH_WORDS); return; }"),
-            nn3.indexOf("clashJudge(next.prof, next.conn.peer, true)") > 0 && nn3.indexOf("clashJudge(next.prof, next.conn.peer, true)") < nn3.indexOf("mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves())"),
-            nn3.includes("    if (snapOk && typeof clashKeptSay === 'function') clashKeptSay(conn);") && nn3.indexOf('clashKeptSay(conn);') > nn3.indexOf('conn.send(snap); snapOk = true;')];
-        check('1.6.4 the name is judged where a name comes to the table: at the hello gate after the bans, the version and the password and before the key or the GM is asked; once a key is proven, before an old connection is closed for the new one; before Same person as moves anything; again as a player is let in, before the roster takes them; by profile-set after its limit, before what moved is worked out; and a seated player back under their old name is told after their snapshot',
+            nn3.includes("var inP = function() { var clashI = typeof clashJudge === 'function' ? clashJudge(prof, conn.peer, false, 'proven') : '';"),
+            nn3.indexOf("clashJudge(next.prof, next.conn.peer, true, '')") > 0 && nn3.indexOf("clashJudge(next.prof, next.conn.peer, true, '')") < nn3.indexOf("mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves())"),
+            nn3.includes("    if (snapOk && typeof clashKeptSay === 'function') clashKeptSay(conn);") && nn3.indexOf('clashKeptSay(conn);') > nn3.indexOf('conn.send(snap); snapOk = true;'),
+            nn3.includes("if (nameMovedA) { rec.nameAt = Date.now();") && nn3.includes("recP.nameAt = Date.now(); delete recP.wanted;"),
+            nn3.includes("    } else if (btn.dataset.namegive) {\n        nameGiveAsk(camp, btn.dataset.namefrom, btn.dataset.namegive);") && nn3.includes("'<button class=\"tool ghost player-act\" data-namegive=\"' + escTextRoster(wid) + '\" data-namefrom=\"' + escTextRoster(pid) + '\"")];
+        check('1.6.4 the name is judged where a name comes to the table: at the hello gate after the bans, the version and the password and before the key or the GM is asked; once a key is proven, before an old connection is closed for the new one; before Same person as moves anything; again as a player is let in (proven or not), before the roster takes them; by profile-set after its limit; a seated player back under their old name is told after their snapshot; a record keeps when it took its name; Player History gives a name in one press',
             wired3.every(Boolean), j(wired3));
     }
     check('1.6.4 profile-set is wired: the host\'s join snapshot says profileSet: true; a player\'s app reads it as true only and sends a change made while it waited; every join forgets it, a retry\'s too; each hello notes what it told the host; each write of the profile asks for a send',

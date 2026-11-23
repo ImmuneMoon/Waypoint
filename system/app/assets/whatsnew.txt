@@ -85,6 +85,12 @@ Names changed at the table [DRAFT]
 - No two at the table share a name. A player who joins or renames to a
   name another player or you already go by is asked to pick another,
   and you get a short note saying who tried which name.
+- A player your table already knows by a name keeps it. If someone else
+  took it while they were away, they get it back when they return, and
+  the other player goes by "Player 2" for now. To give a name to another
+  player instead, press Give in Player History.
+- GM and Game Master are kept for you. Names that only look alike, such
+  as one spelled with a Cyrillic letter, count as the same name.
 
 WAYPOINT 1.6.3 — What's New
 ============================

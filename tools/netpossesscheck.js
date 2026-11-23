@@ -107,6 +107,17 @@ pendingChecks.push((async () => {
     const STUB = (id, title, meta) => ({ type: 'map', id, stub: true, meta: Object.assign({ title }, meta || {}), whiteboard: [], rooms: [], links: [], cats: {} });
     const SENT_B = /SENTINEL_TEXT_B|SENTINEL_TOK_B|noteB|tokB/, SENT_C = /SENTINEL_TEXT_C|noteC/, SENT_F = /SENTINEL_ORC_F|orcF|tAf/;
 
+    // 1.6.4: the GM's own name for a player (Player History's box) is kept on the player's record, which no snapshot carries: not a player's,
+    // not the stream window's (sanitizeAppState, run for real)
+    {
+        const W = mkW(), keepP = W.camp.players;
+        W.camp.players = { u_a: { name: 'Ana', gmName: 'SENTINEL_GMNAME_A', key: 'SENTINEL_KEY_A' }, u_b: { name: 'Bo', gmName: 'SENTINEL_GMNAME_B' } };
+        const snaps = [W.api.snapshot(W.state.appState, 'u_a', { mA: 1 }), W.api.snapshot(W.state.appState, 'u_b', {}), W.api.snapshot({ activeCampaignId: 'k', campaigns: { k: W.camp } })].map(J);
+        const still = W.camp.players.u_a.gmName === 'SENTINEL_GMNAME_A';
+        W.camp.players = keepP;
+        check('1.6.4 no snapshot carries the GM\'s own name for a player, nor any player record: a player\'s, another player\'s, the stream window\'s; the GM\'s own copy keeps it',
+            snaps.every(s => !/SENTINEL_GMNAME|SENTINEL_KEY|gmName|"u_a":{"name"/.test(s)) && still, snaps.map(s => s.length));
+    }
     // (1) the join snapshot: the map they land on whole, every other map of the hosted campaign as its stub (name, lock, nesting; nothing on it)
     {
         const W = mkW(), snap = W.join(W.a1, 'mA'), it = snap.appState.campaigns.k.items;

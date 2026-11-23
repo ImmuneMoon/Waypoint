@@ -1304,6 +1304,17 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 J3(p.u_s.was) === J3(['u_old']) && J3(p.u_l.was) === J3(long.slice(10)) && !('was' in p.u_o) && !('was' in p.u_e) && !('was' in p.u_n) && !('was' in solo) && p.u_l.name === 'L',
                 J3([p, solo]));
         }
+        // 1.6.4: the GM's own name for a player (Player History's box, net.js cleanGmName) comes in as one line of at most 40, the control,
+        // bidi-override and zero-width characters out and runs of spaces made one; one that is no text, or blank, goes. The player's own name is untouched
+        {
+            const J4 = JSON.stringify;
+            const icG = { items: {}, players: { u_a: { name: 'Pat', gmName: '  The\u202e  bard\n' }, u_b: { name: 'Bo', gmName: 'x'.repeat(60) }, u_c: { name: 'Cy', gmName: { a: 1 } }, u_d: { name: 'Di', gmName: ' \u200b ' }, u_e: { name: 'Ed' } } };
+            cleanImportItems(icG, deps);
+            const g = icG.players;
+            check('import: the GM\'s own name for a player (1.6.4) comes in one line of at most 40, the control, bidi-override and zero-width characters out; one that is no text, or blank, goes; the player\'s own name and a record without one are untouched',
+                g.u_a.gmName === 'The bard' && g.u_b.gmName === 'x'.repeat(40) && !('gmName' in g.u_c) && !('gmName' in g.u_d) && !('gmName' in g.u_e) && g.u_a.name === 'Pat' && g.u_c.name === 'Cy',
+                J4(g));
+        }
         // The owed review, 2026-10-09 (backlog 137). (a) The item cleaners ran only for an item whose type was exactly 'map', 'planner' or 'doc',
         // while the app draws every item that is neither a planner nor a page as a map: a file's 'Map' or 'board' kept its whole play map as
         // written, a text box's markup included, and on Merge an item with no type did too. (b) Merge ran the item cleaners alone, never the

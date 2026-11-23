@@ -239,6 +239,11 @@ check('the handout a scene is saved as (handouts.js wpHandoutFor): the one named
         J(out) === J(['HK-24', 'Trevor', 'Hshif', 'Hshif', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player', 'a former player'])
         && (hsrc.match(/\.map\(function\(pid\) \{ return playerWord\(camp, pid\); \}\)\.filter\(function\(w, i, all\) \{ return all\.indexOf\(w\) === i; \}\)/g) || []).length === 2
         && !/return p && p\.name \? p\.name : pid;/.test(hsrc) && !/\|\| p\.name \|\| pid;/.test(hsrc), J(out));
+    // 1.6.4: the GM's own name for a player (Player History's box) comes before the record's own name where no character is known; a character still comes first
+    const campG = { players: { u_a: { name: 'Ayla', gmName: 'The tall one' }, u_b: { name: 'Bram', gmName: 'Shorty', charName: 'Wisp' }, u_c: { name: 'Cato', gmName: '  ' }, u_new: { name: 'N', gmName: 'Newt', was: ['u_old'] } } };
+    const outG = ['u_a', 'u_b', 'u_c', 'u_old'].map(pid => PWd(campG, pid));
+    check('1.6.4 the Handouts window names a player by the GM\'s own name for them where no character is known (playerWord, run for real): the character first, then the GM\'s name, then their own; a blank one is none; a merged id by the record that holds it',
+        J(outG) === J(['The tall one', 'Wisp', 'Cato', 'Newt']), J(outG));
 }
 console.log(NL + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

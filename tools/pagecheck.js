@@ -2167,6 +2167,11 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J(R.gone) === J(['a player no longer listed'])
             && /DR\.renderDoc\(it, \{ who: typeof DR\.seeWho === 'function' \? DR\.seeWho\(camp\) : null,/.test(fs.readFileSync(path.join(app, 'scripts', 'docpanel.js'), 'latin1'))
             && /DR\.renderDoc\(it, \{ who: typeof DR\.seeWho === 'function' \? DR\.seeWho\(camp\) : null,/.test(fs.readFileSync(path.join(app, 'scripts', 'popout.js'), 'latin1')), J(R));
+        // 1.6.4: the GM's own name for a player (Player History's box) is the name Seen by says, told apart from a namesake as any name is
+        const campG = { players: { u_m1: { name: 'Mira', gmName: 'Captain' }, u_m2: { name: 'Mira' }, u_c: { name: 'Cato', gmName: 'Mira' }, u_b: { name: 'Bo', gmName: '   ' } }, chars: {} };
+        const LG = DRs.seeLabels(campG);
+        check('1.6.4 Seen by names a player by the GM\'s own name for them where set (docrender.js seeLabels, run for real), else their own; a GM\'s name that matches another player\'s is told apart as any two alike are, and a blank one is none',
+            LG.u_m1 === 'Captain' && LG.u_c === 'Mira (no character)' && LG.u_m2 === 'Mira (no character) 2' && LG.u_b === 'Bo', J(LG));
         const head = S.seeRowHtml(2, { id: 'h', type: 'h2', title: 'Turn Order', hide: true }, camp), headOpen = S.seeRowHtml(2, { id: 'h', type: 'h2', title: 'Turn Order' }, camp), text = S.seeRowHtml(3, { id: 't', type: 'text', hide: true }, camp);
         const ixS = read('index.html');
         check('1.6.3 (the release click test, finding 28) a heading kept back says that only the heading is kept, and how to keep its section: on a kept h1, h2 or h3 alone, never on an open heading or on another kind of block; Help says so',
@@ -2187,7 +2192,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const netS = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1');
         check('1.6.3 (the release click test, finding 25, found live) a join changes the campaign\'s players with no redraw of the app, so the host\'s roster and Ban ask the page editor itself (planner.js plannerPlayersMoved, run for real): a page whose Seen by ticks changed is drawn at once, or once the GM leaves the editor where they are typing in it, and nothing is drawn where nothing changed or the editor never drew this page',
             J(pm) === J(['none', 'same', 'drawn', 1, 'held', true, 1]) && plS.includes('  window.wpPlannerPlayers = plannerPlayersMoved;')
-            && (netS.match(/typeof window\.wpPlannerPlayers === 'function'\) window\.wpPlannerPlayers\(\);/g) || []).length === 2, J(pm));
+            && (netS.match(/typeof window\.wpPlannerPlayers === 'function'\) window\.wpPlannerPlayers\(\);/g) || []).length === 3, J(pm));   // 1.6.4, a deliberate change of this pin: Player History's name box (net.js gmNamesMoved) is a third way the players change
         const pg = { id: 'd1', type: 'doc', meta: { title: 'Combat' }, blocks: [{ id: 'k', type: 'text', hide: true }] }, pl = { id: 'p1', type: 'planner', meta: {}, blocks: [] };
         const c2 = { id: 'c', items: {}, chars: {}, players: { u_a: { name: 'Mira', lastSeen: 1, joinCount: 1, key: 'x' } } };
         const s0 = pe(pg, c2), p0 = pe(pl, c2);

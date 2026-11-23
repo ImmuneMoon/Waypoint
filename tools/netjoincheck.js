@@ -342,7 +342,7 @@ pendingChecks.push((async () => {
     check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host has 31 message branches (video-up of item 21 among them, and voice-up of voice chat, 1.5.9, the newest) (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34; 1.6.0 B5, a deliberate change of this pin: hit-ask, a player asking which locations their target has, makes them 35; 1.6.0, a deliberate change of this pin: sheet-out, a player asking the host\'s reader for a file of their own character, makes them 36; 1.6.2, a deliberate change of this pin: show-ask, a player asking to put drawings on the map, makes them 37)',
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
-        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 46 /* 1.6.3 (the multiplayer review, finding 9): handout-want, the 46th; (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 47 /* 1.6.4 (a player's name changed at the table, a deliberate change of this pin): profile-set, the 47th; 1.6.3 (the multiplayer review, finding 9): handout-want, the 46th; (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */, js([ban1, banAway, banClient, kickCalls, kickedSends]));
 
     // 1.6.3 (the improvement week's review of multiplayer, finding 31): Ban asks first, by name and with its buttons alone; a no bans, kicks
     // and saves nothing (banAsk run for real with a question answered no), and the yes the checks above ran asked one question each
@@ -596,7 +596,7 @@ pendingChecks.push((async () => {
     Q.api.knows(true); Q.api.refresh(); const knownQ = Q.sel.style.display;
     check('the review of multiplayer chat (the whisper slice, run for real): until the host\'s snapshot says whispers: true a player\'s app shows no To list, for a key that is missing, a word, a number or an object alike, and a line it sends goes to everyone with no whom in it, whatever the hidden list held; once the host says true the list shows. The host says it in its snapshot, and the snapshot branch reads it, as a fresh join forgets it',
         j(knowQ) === j(['none', 'none', 'none', 'none']) && j(oldHost) === j([1, 'global', false, 'global', null]) && knownQ === 'block'
-        && /pausedSelf: !!\(net\.pausedPlayers && net\.pausedPlayers\[prof\.id\]\), whispers: true, travelLocked:/.test(src) && src.includes("if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }")
+        && /pausedSelf: !!\(net\.pausedPlayers && net\.pausedPlayers\[prof\.id\]\), whispers: true, (?:profileSet: true, )?travelLocked:/.test(src) && src.includes("if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }")
         && src.includes("if (!isRetry && !probe) { _joinSlow = false; if (typeof whispersKnow === 'function') whispersKnow(false); }"), j({ knowQ, oldHost, knownQ }));
     // The review of multiplayer chat (1.6.3): a player's roll made while a whisper is picked goes to the GM only and says so. A typed /r through
     // sendChat, run for real with a stand-in roller, and any roll a player's app sends through net.diceRoll (whisperRollPriv)
@@ -1975,4 +1975,157 @@ pendingChecks.push((async () => {
     check('1.6.3 (a password set mid-session): a removed player stays out, the roster\'s x refusing them before any password or proof; let back in, they are no longer seated and the password holds for them; Turn away (the approval code, run for real) takes the seat off; admitPlayer notes a seat, kickPlayer drops it and the session\'s end forgets them all (wired)',
         kOut && kBack && wOut && wired, J([denied(K, 'pK'), denied(K, 'pK2'), wOut, asks.length, wired]));
 })());
+
+/* ================= 1.6.4: the GM's own name for a player (Player History's box) ================= */
+// Fulllion, 2026-11-22 ("Both, after release"): what the GM calls a player, kept on the record as gmName, read on the GM's machine alone and
+// never sent. The gmname, chatwho and gmnamebox slices run for real on a campaign of plain objects, as a host, as a player's app and as a chat pop-out
+{
+    const gS = between('// [netcheck:gmname-start]', '// [netcheck:gmname-end]', 'gmname');
+    const wS = between('// [netcheck:chatwho-start]', '// [netcheck:chatwho-end]', 'chatwho');
+    const bS = between('// [netcheck:gmnamebox-start]', '// [netcheck:gmnamebox-end]', 'gmnamebox');
+    const mkCampG = () => ({ players: { u_ayla: { name: 'Ayla', gmName: 'Tall\u202e one\n' }, u_bram: { name: 'Bram' }, u_cato: { name: '' } } });
+    const mkG = (role, active, camp, win) => {
+        const net = { role, active, myId: role === 'host' ? 'u_gm' : 'u_me' }, out = { saves: 0, toasts: [], drawn: [], steps: [] };
+        win = win || {};
+        const api = new Function('net', 'own', 'validProfileId', 'getActiveCampaign', 'window', 'chatGmSide', 'save', 'toast', 'renderRoster', 'refreshChatRecipients', 'renderChat', 'renderPlayersPanel', '_playersList', 'console', 'setTimeout',
+            gS + '\n' + wS + '\n' + bS + '\nreturn { cleanGmName, gmNameOf, playerName, recName, chatWho, chatNamesOut, chatNamesIn, gmNameSet };')(
+            net, H.own, H.validProfileId, () => camp, win, () => !(net.active && net.role === 'client'), () => { out.saves++; }, t => out.toasts.push(String(t)),
+            () => out.drawn.push('roster'), () => out.drawn.push('to'), () => out.drawn.push('chat'), () => out.drawn.push('panel'), null, { error() { out.drawn.push('error'); } }, f => { out.drawn.push('soon'); f(); });
+        return { api, out, net, win };
+    };
+    const G = mkG('host', true, mkCampG()), A = G.api;
+    const cleans = [A.cleanGmName('  Big \u202e Bob\n\t'), A.cleanGmName('x'.repeat(50)).length, A.cleanGmName(5), A.cleanGmName(null), A.cleanGmName('  \u200b '), A.cleanGmName('a\u0000b')];
+    const host = [A.playerName('u_ayla', 'Ayla'), A.playerName('u_bram', 'Bram'), A.playerName('u_bram'), A.playerName('u_none'), A.playerName('constructor', 'Zed'), A.playerName('__proto__'), A.playerName('u_cato', ''),
+        A.recName({ gmName: '  ', name: 'Nell' }), A.recName({ gmName: 7 }, 'fb'), A.recName(null, 'fb'), A.gmNameOf('u_ayla'), A.gmNameOf('u_bram')];
+    const who = [A.chatWho({ id: 'u_ayla', name: 'Ayla' }), A.chatWho({ id: 'u_ayla', name: 'GM', gm: true }), A.chatWho({ id: 'u_bram', name: 'Bram' }), A.chatWho({}), A.chatWho(null), A.chatWho({ id: 'names', name: 'Name' })];
+    const namesOut = JSON.parse(j(A.chatNamesOut()));
+    // a player's app at the table: the host's campaign carries no records; even a copy that did names nobody by the GM's word
+    const P = mkG('client', true, mkCampG()), PA = P.api;
+    const player = [PA.playerName('u_ayla', 'Ayla'), PA.gmNameOf('u_ayla'), PA.chatWho({ id: 'u_ayla', name: 'Ayla' }), PA.chatNamesOut()];
+    // the GM off the table (Player History of their own campaign): the GM's name stands
+    const off = mkG('host', false, mkCampG()).api.playerName('u_ayla', 'Ayla');
+    // a chat pop-out of the GM's: only the names its main window sent, each cleaned again; anything else clears them
+    const W = mkG('host', false, null, { wpPopout: true }), WA = W.api;
+    WA.chatNamesIn({ u_ayla: 'Tall\u202e one', 'bad id!': 'x', u_cato: 5, constructor: 'P', u_dan: '' });
+    const pop1 = [WA.chatWho({ id: 'u_ayla', name: 'Ayla' }), WA.chatWho({ id: 'u_cato', name: 'Cato' }), WA.chatWho({ id: 'constructor', name: 'C' }), WA.chatWho({ id: 'u_dan', name: 'Dan' })];
+    WA.chatNamesIn([['u_ayla', 'x']]); const pop2 = WA.chatWho({ id: 'u_ayla', name: 'Ayla' });
+    WA.chatNamesIn({ u_ayla: 'Again' }); WA.chatNamesIn(null); const pop3 = WA.chatWho({ id: 'u_ayla', name: 'Ayla' });
+    check('1.6.4 the GM\'s own name for a player (the gmname and chatwho slices run for real): cleaned to one line of at most 40 with control, bidi-override and zero-width characters out, blank as none; on the GM\'s screen a player is named by it first, then the name given, then their record\'s, then Player, a prototype key never read; a chat line or card names its sender by it, a GM\'s line and the app\'s own keep theirs; the names a GM\'s pop-out is sent are the records that have one; on a player\'s app at the table nothing of it is read and no names go to a pop-out; off the table the GM\'s own campaign still reads it; a pop-out takes only clean names under profile ids from its main window and forgets them on anything else',
+        j(cleans) === j(['Big Bob', 40, '', '', '', 'a b']) && j(host) === j(['Tall one', 'Bram', 'Bram', 'Player', 'Zed', 'Player', 'Player', 'Nell', 'fb', 'fb', 'Tall one', ''])
+        && j(who) === j(['Tall one', 'GM', 'Bram', 'Player', 'Player', 'Name']) && j(namesOut) === j({ u_ayla: 'Tall one' })
+        && j(player) === j(['Ayla', '', 'Ayla', null]) && off === 'Tall one' && j(pop1) === j(['Tall one', 'Cato', 'C', 'Dan']) && pop2 === 'Ayla' && pop3 === 'Ayla',
+        j({ cleans, host, who, namesOut, player, off, pop1, pop2, pop3 }));
+    // Player History's box (gmNameSet): a name set, cleaned, saved and drawn everywhere at once; the same again changes nothing; blank takes it off;
+    // a record not there, a prototype key or no campaign writes nothing; a page editor that fails to draw never stops the rest
+    const campB = mkCampG(), B = mkG('host', true, campB), BA = B.api; let pl = 0; B.win.wpPlannerPlayers = () => { pl++; };
+    const s1 = BA.gmNameSet(campB, 'u_bram', '  Big\u202e  Bram '), r1 = j(campB.players.u_bram), sv1 = B.out.saves, dr1 = B.out.drawn.slice(), t1 = B.out.toasts.slice();
+    const s2 = BA.gmNameSet(campB, 'u_bram', 'Big Bram'), sv2 = B.out.saves;
+    B.win.wpPlannerPlayers = () => { throw new Error('page'); };
+    const s3 = BA.gmNameSet(campB, 'u_bram', '   '), r3 = j(campB.players.u_bram), sv3 = B.out.saves, dr3 = B.out.drawn.slice(dr1.length), t3 = B.out.toasts[1];
+    const bad = [BA.gmNameSet(campB, 'u_none', 'X'), BA.gmNameSet(campB, '__proto__', 'X'), BA.gmNameSet(campB, 'constructor', 'X'), BA.gmNameSet(null, 'u_bram', 'X'), BA.gmNameSet(campB, 5, 'X')];
+    check('1.6.4 Player History\'s box (the gmnamebox slice run for real): a name typed is cleaned and kept on the record as gmName beside the player\'s own name, saved once, and the roster, the page editor\'s Seen by, Table Chat\'s To list and lines and the panel are drawn again, the GM told it is theirs alone; the same name again saves nothing; an empty box takes it off; a record not there, a prototype key, a number or no campaign writes nothing; a page editor that throws stops none of the rest',
+        s1 === true && r1 === j({ name: 'Bram', gmName: 'Big Bram' }) && sv1 === 1 && j(dr1) === j(['soon', 'roster', 'to', 'chat', 'panel']) && pl === 1 && /^You call Bram "Big Bram" now\. Only you see it\.$/.test(t1[0] || '')
+        && s2 === false && sv2 === 1 && s3 === true && r3 === j({ name: 'Bram' }) && sv3 === 2 && j(dr3) === j(['soon', 'roster', 'error', 'to', 'chat', 'panel']) && /^Back to the name Bram gave themselves\.$/.test(t3 || '')
+        && bad.every(b => b === false) && B.out.saves === 2 && !H.own(Object.prototype, 'gmName'),
+        j({ s1, r1, sv1, dr1, t1, s2, sv2, s3, r3, sv3, dr3, t3, bad }));
+    // Merge into keeps the GM's name: the kept record's own, else the one that goes; Same person as carries it to the new id
+    const apG = src.slice(src.indexOf('// [netcheck:approval-start]'), src.indexOf('// [netcheck:approval-end]'));
+    const FG = new Function('own', 'validProfileId', 'net', 'showConfirm', 'admitPlayer', 'toast', 'getActiveCampaign', 'pendingJoins', 'approvalOpen', 'bannedIds', 'denyJoin', apG + '\nreturn { mergeRecords, takeOver };')(H.own, H.validProfileId, {}, () => {}, () => {}, () => {}, () => null, [], false, {}, () => {});
+    const mkM = (kg, og) => ({ players: { u_old: Object.assign({ name: 'Kael (app)' }, og ? { gmName: og } : {}), u_kept: Object.assign({ name: 'Kael (web)' }, kg ? { gmName: kg } : {}) }, chars: {}, items: {} });
+    const m1 = mkM('', 'The bard'), m2 = mkM('Kael', 'The bard'), m3 = mkM('', ''), t4 = { players: { u_old: { name: 'Rin', gmName: 'Rinny', key: 'K' } }, chars: {}, items: {} };
+    FG.mergeRecords(m1, 'u_old', 'u_kept'); FG.mergeRecords(m2, 'u_old', 'u_kept'); FG.mergeRecords(m3, 'u_old', 'u_kept'); FG.takeOver(t4, 'u_old', 'u_new');
+    check('1.6.4 Merge into and Same person as keep the GM\'s own name for the person (mergeRecords and takeOver run for real): the kept record keeps its own, takes the other\'s where it has none, and a record with none on either side gains none; a hand-over carries it to the new id',
+        m1.players.u_kept.gmName === 'The bard' && m2.players.u_kept.gmName === 'Kael' && !('gmName' in m3.players.u_kept) && t4.players.u_new.gmName === 'Rinny' && !t4.players.u_old,
+        j([m1.players, m2.players, m3.players, t4.players]));
+    // where it is read: every GM-side place that names a player asks the one reader, and the box is drawn by the panel
+    const nn = src.replace(/\r\n/g, '\n'), pj = f => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', f), 'utf8');
+    const wired = [
+        nn.includes("var shown = typeof playerName === 'function' ? playerName(p.id, p.name || p.id) : (p.name || p.id), name = escTextRoster(shown);"),
+        nn.includes("var gmP = typeof cleanGmName === 'function' ? cleanGmName(p.gmName) : '';") && nn.includes("'<div><b>' + escTextRoster(gmP || p.name || pid) + '</b>' +"),
+        nn.includes("'<label class=\"player-gmname-row\">Your name for them <input type=\"text\" class=\"player-gmname\" data-gmname=\"' + escTextRoster(pid) + '\" maxlength=\"40\" value=\"' + escTextRoster(gmP) + '\""),
+        nn.includes("who.textContent = m.from.id === net.myId ? 'You' : (typeof chatWho === 'function' ? chatWho(m.from) : (m.from.name || 'Player'));"),
+        nn.includes("names: typeof chatNamesOut === 'function' ? chatNamesOut() : null"),
+        nn.includes("try { if (typeof n.chatWho === 'function') out += '|' + n.chatWho(r.from); } catch (e) { out += '|?'; }"),
+        (pj('dice.js').match(/n && typeof n\.chatWho === 'function' \? n\.chatWho\(rec\.from\) : \(rec\.from\.name \|\| 'Player'\)/g) || []).length === 2,
+        ['charlist.js', 'timepanel.js', 'sheets.js'].every(f => pj(f).includes("if (n && typeof n.playerName === 'function') Object.keys(out).forEach(function(pid) { out[pid] = n.playerName(pid, out[pid]); });")),
+        nn.includes("    setTimeout(gmNamesMoved, 0);") && nn.includes("if (_playersList) _playersList.addEventListener('focusout', function(e) {\n    var box = e.target && e.target.closest ? e.target.closest('.player-gmname') : null; if (!box || !box.isConnected) return;\n    gmNameSet(getActiveCampaign(), box.dataset.gmname, box.value);"),
+        pj('whiteboard.js').includes("name: playsL || (window.wpNet && typeof window.wpNet.playerName === 'function' ? window.wpNet.playerName(p.id, p.name || 'Player') : (p.name || 'Player')),"),
+        // the record never ships: the snapshot drops camp.players whole, and nothing on the wire names gmName
+        /delete camp\.players;/.test(require('./checkkit').part('netfog.js')) && !/gmName/.test(require('./checkkit').part('netfog.js')),
+    ];
+    check('1.6.4 the GM\'s own name is read where a player is named on the GM\'s screen (the roster chip with their own name under the pointer, Player History\'s name and box, a chat line, a whisper\'s tag, the pop-out\'s names, a kept card drawn again when it moves, the roll and apply cards, the owner names of the sheets, Characters and the timers, the party strip) and never on the wire (camp.players goes from every snapshot whole)',
+        wired.every(Boolean), j(wired));
+}
+
+/* ================= 1.6.4: a player's name changed at the table reaches it at once (the player's half) ================= */
+// The profileup slice run for real on a player's app of plain objects: what is sent, when, to whom, and never to a host that did not say it takes it
+{
+    const pS = between('// [netcheck:profileup-start]', '// [netcheck:profileup-end]', 'profileup');
+    const mkP = () => {
+        const out = { sent: [], timers: [], now: 1e6 }, c = { peer: 'host1', open: true, send: m => out.sent.push(JSON.parse(j(m))) };
+        const net = { active: true, role: 'client', syncedPeer: 'host1', conns: [c] };
+        let prof = { id: 'u_me', name: 'Ayla', color: '#112233', face: 'default' };
+        const tm = { set: (f, ms) => { const t = { f, at: out.now + ms, on: true }; out.timers.push(t); return t; }, clear: t => { if (t) t.on = false; } };
+        const run = ms => { out.now += ms; out.timers.filter(t => t.on && t.at <= out.now).forEach(t => { t.on = false; t.f(); }); };
+        const api = new Function('net', 'getProfile', 'cleanRosterName', 'safeAvatar', 'sendFailed', 'setTimeout', 'clearTimeout', 'Date',
+            pS + '\nreturn { know: profileSetKnow, out: profileOut, note: profileSentNote, soon: profileSoon, send: profileSend, link: profileLink };')(
+            net, () => prof, H.cleanRosterName, H.safeAvatar, () => out.sent.push('failed'), tm.set, tm.clear, { now: () => out.now });
+        return { api, out, net, c, run, set: p => { prof = Object.assign({}, prof, p); }, prof: () => prof };
+    };
+    // an older host: its snapshot said nothing, so nothing is ever sent
+    const O = mkP(); O.api.note(O.prof()); O.api.know(undefined); O.set({ name: 'Ayla Vale' }); O.api.soon(); O.run(5000); const oldHost = [O.api.send(), O.out.sent.length, O.out.timers.length];
+    O.api.know('yes'); const oldTruthy = [O.api.send(), O.out.sent.length];
+    // a host that takes it: a change a moment after it is written, once; the same again nothing; the face never; cleaned as the host cleans a hello
+    const P = mkP(); P.api.note(P.prof()); P.api.know(true);
+    P.api.soon(); P.run(5000); const unchanged = P.out.sent.length;
+    P.set({ name: '  Ayla\u202e Vale ', face: 'emoji:x' }); P.api.soon(); P.run(500); const early = P.out.sent.length; P.run(1000); const first = P.out.sent.slice();
+    P.api.soon(); P.run(5000); const again = P.out.sent.length;
+    P.set({ face: 'pic:wolf' }); P.api.soon(); P.run(5000); const faceOnly = P.out.sent.length;
+    // the next change 0.5 s later waits for the gap, then goes; a hostile color and picture never go
+    P.set({ color: 'red;x', avatar: 'data:image/png;base64,AA"x' }); const hostile = P.api.send();
+    P.run(500); P.set({ name: 'Ayla V.' }); const tooSoon = P.api.send(); const heldN = P.out.sent.length; P.run(2500); const spaced = P.out.sent.slice(1);
+    // at most eight a minute: the ninth waits for the minute
+    const M = mkP(); M.api.note(M.prof()); M.api.know(true); let nSent = 0;
+    for (let i = 0; i < 9; i++) { M.set({ name: 'N' + i }); M.run(2100); M.api.send(); nSent = M.out.sent.length; }
+    const ninthHeld = nSent === 8; M.run(60000); const ninthLater = M.out.sent.length === 9 && M.out.sent[8].profile.name === 'N8';
+    // not at the table, the GM's own app, a closed link or another host's connection: nothing
+    const L = mkP(); L.api.note(L.prof()); L.api.know(true); L.set({ name: 'Zed' });
+    L.net.role = 'host'; const asHost = L.api.send(); L.net.role = 'client'; L.c.open = false; const closed = L.api.send(); L.c.open = true; L.net.syncedPeer = 'other'; const other = L.api.send(); L.net.syncedPeer = 'host1'; L.net.active = false; const off = L.api.send();
+    L.net.active = true; L.api.know(false); const forgot = L.api.send(); L.api.know(true); const back = L.api.send();
+    check('1.6.4 a seated player\'s profile goes to the GM a moment after it changes (the profileup slice run for real): never to a host whose join snapshot did not say profileSet: true (an older host; a word other than true); a change goes once, as what a roster carries of it (its name, color and picture cleaned as the host cleans a hello\'s, with the profile\'s id) and never the token face; nothing goes when nothing moved since the hello or the last send; a second change inside the gap waits for it, then goes; eight a minute at most, the ninth a minute later; off the table, on the GM\'s own app, over a closed link, to another host\'s connection or once the join begins again nothing goes',
+        j(oldHost) === j([false, 0, 0]) && j(oldTruthy) === j([false, 0]) && unchanged === 0 && early === 0
+        && j(first) === j([{ type: 'profile-set', profile: { name: 'Ayla Vale', color: '#112233', id: 'u_me' } }]) && again === 1 && faceOnly === 1
+        && hostile === true && tooSoon === false && heldN === 2 && j(spaced) === j([{ type: 'profile-set', profile: { name: 'Ayla Vale', id: 'u_me' } }, { type: 'profile-set', profile: { name: 'Ayla V.', id: 'u_me' } }])
+        && ninthHeld && ninthLater && [asHost, closed, other, off, forgot].every(x => x === false) && back === true && L.out.sent.length === 1,
+        j({ oldHost, oldTruthy, unchanged, early, first, again, faceOnly, tooSoon, heldN, spaced, nSent, ninthLater, L: [asHost, closed, other, off, forgot, back] }));
+    // where it is wired: the host's snapshot says it, a player's app reads it as true only and forgets it as each join begins, each hello notes what
+    // it told, and a write of the profile asks for a send
+    const nn = src.replace(/\r\n/g, '\n'), stg = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, '\n');
+    const wired2 = [nn.includes('whispers: true, profileSet: true, travelLocked'), nn.includes("if (typeof profileSetKnow === 'function') { profileSetKnow(msg.profileSet); profileSoon(); }"),
+        /if \(!isRetry && !probe\) \{ _joinSlow = false;[^\n]*\n    if \(typeof profileSetKnow === 'function'\) profileSetKnow\(false\);/.test(nn),
+        nn.includes("try { conn.send(helloA); } catch (e) { sendFailed(e); }\n            if (typeof profileSentNote === 'function') profileSentNote(helloA.profile);"),
+        nn.includes("if (typeof profileSentNote === 'function') profileSentNote(profile);   // 1.6.4: what the host was last told of this profile\n            conn.send({ type: 'hello', profile: profile,"),
+        stg.includes("function meSoon(k) {\n    if (k === 'wp_profile' && typeof window !== 'undefined' && window.wpNet && typeof window.wpNet.profileSoon === 'function') { try { window.wpNet.profileSoon(); } catch (e) {} }")];
+    // the GM is told of a new name at most once in 30 s a player; names changed inside that time are told as one when it ends, from the name
+    // told last to the name the roster holds then, and not at all where it went back (the proftell slice run for real)
+    {
+        const tS = between('// [netcheck:proftell-start]', '// [netcheck:proftell-end]', 'proftell');
+        const said = [], logs = [], timers = []; let now = 5e6;
+        const netT = { active: true, role: 'host', roster: { pA: { id: 'u_a', name: 'Ayla' } } };
+        const TT = new Function('net', 'own', 'cleanRosterName', 'gmNameOf', 'toast', 'logEvent', 'setTimeout', 'Date', tS + '\nreturn profileTell;')(
+            netT, H.own, H.cleanRosterName, id => id === 'u_a' ? 'The ranger' : '', t => said.push(t), (k, t) => logs.push(t), (f, ms) => { timers.push({ f, ms }); return timers.length; }, { now: () => now });
+        TT('u_a', 'Ayla', 'Ayla Vale'); const s1 = said.slice();
+        now += 5000; netT.roster.pA.name = 'Ayla V.'; TT('u_a', 'Ayla Vale', 'Ayla V.'); now += 3000; netT.roster.pA.name = 'Ayla Starling'; TT('u_a', 'Ayla V.', 'Ayla Starling');
+        const held = [said.length, timers.length, timers[0] && timers[0].ms];
+        now += 22000; timers[0].f(); const s2 = said.slice(1);
+        now += 1000; netT.roster.pA.name = 'Ayla Q'; TT('u_a', 'Ayla Starling', 'Ayla Q'); now += 1000; netT.roster.pA.name = 'Ayla Starling'; TT('u_a', 'Ayla Q', 'Ayla Starling'); now += 30000; timers[1].f(); const back = said.length;
+        now += 31000; netT.roster.pA.name = 'Bo'; TT('u_a', 'Ayla Starling', 'Bo'); const later = said.slice(2);
+        check('1.6.4 a new name is told to the GM at most once in 30 s a player (the proftell slice run for real): the first at once with the GM\'s own name for them; two more inside the time are held as one telling, said when it ends from the name told last to the one the roster holds then; a name that went back is not told; after the time a new name is told at once; each telling is a line of the Game Record too',
+            j(s1) === j(['Ayla is now called Ayla Vale. You still call them The ranger.']) && j(held) === j([1, 1, 25000]) && j(s2) === j(['Ayla Vale is now called Ayla Starling. You still call them The ranger.'])
+            && back === 2 && j(later) === j(['Ayla Starling is now called Bo. You still call them The ranger.']) && logs.length === 3,
+            j({ s1, held, s2, back, later, logs }));
+    }
+    check('1.6.4 profile-set is wired: the host\'s join snapshot says profileSet: true; a player\'s app reads it as true only and sends a change made while it waited; every join forgets it, a retry\'s too; each hello notes what it told the host; each write of the profile asks for a send',
+        wired2.every(Boolean), j(wired2));
+}
 T.finish();

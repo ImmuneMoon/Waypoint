@@ -3193,7 +3193,7 @@ window.wpFitToGrid = fitToGrid;
               // whose pieces are not sent, so a teammate there is never found by their token. Such a chip says where the roster puts them and
               // names the character the app knows they play (stubPlays), and never says they have no token yet, which it cannot tell
               var stubL = !!(locMap && locMap.stub === true), playsL = stubL ? stubPlays(camp, p.id) : '';
-              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: playsL || p.name || 'Player', src: fvP ? (fvP.img || null) : (avOk ? p.avatar : null), emoji: fvP && fvP.emoji ? fvP.emoji : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
+              list.push({ key: 'p:' + p.id, ownerId: p.id, tokId: null, name: playsL || (window.wpNet && typeof window.wpNet.playerName === 'function' ? window.wpNet.playerName(p.id, p.name || 'Player') : (p.name || 'Player')), src: fvP ? (fvP.img || null) : (avOk ? p.avatar : null), emoji: fvP && fvP.emoji ? fvP.emoji : null, avatar: true, color: p.color || null, waiting: !!(window.wpSystemCore && window.wpSystemCore.waitingTokensOf && window.wpSystemCore.waitingTokensOf(camp, p.id).length),
                           mapId: p.location || null, map: locMap && locMap.meta && locMap.meta.title || 'no map yet', noToken: !stubL });
           });
       }
@@ -3485,7 +3485,7 @@ window.wpFitToGrid = fitToGrid;
       // known, every row says what it said before. who: for a row's words, whoS: before 's, hideW: the trackers row's ending
       function partyWho(camp, ownerId, rosterP, name, isChar) {
           var rec = ownerId && camp && camp.players && typeof camp.players === 'object' && Object.prototype.hasOwnProperty.call(camp.players, ownerId) ? camp.players[ownerId] : null;
-          var pn = (rosterP && typeof rosterP.name === 'string' && rosterP.name.trim()) || (rec && typeof rec.name === 'string' && rec.name.trim()) || '';
+          var pn = (rec && typeof rec.gmName === 'string' && rec.gmName.trim()) || (rosterP && typeof rosterP.name === 'string' && rosterP.name.trim()) || (rec && typeof rec.name === 'string' && rec.name.trim()) || '';   // 1.6.4: the GM's own name for them first (Player History)
           return { who: pn ? (isChar && name && name !== pn ? pn + ' (' + name + ')' : pn) : name, whoS: pn || name, hideW: pn || 'them' };
       }
       // [boardcheck:partywho-end]
@@ -3556,7 +3556,7 @@ window.wpFitToGrid = fitToGrid;
       function giveList(camp, pid) {
           var S = window.wpSystemCore; if (!S || !S.activeCharOf || !camp || !camp.chars) return [];
           var act = S.activeCharOf(camp, pid).id, names = {}, out = [];
-          Object.keys(camp.players || {}).forEach(function(k) { var r = camp.players[k]; if (r && typeof r.name === 'string') names[k] = r.name; });
+          Object.keys(camp.players || {}).forEach(function(k) { var r = camp.players[k]; if (r && typeof r.gmName === 'string' && r.gmName) names[k] = r.gmName; else if (r && typeof r.name === 'string') names[k] = r.name; });   // 1.6.4: the GM's own name first
           var cs = Object.keys(camp.chars).map(function(k) { return camp.chars[k]; }).filter(function(c) { return c && typeof c === 'object' && !c.npc && c.making !== 1; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); });
           var live = !!(window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.isConnected && window.wpNet.isConnected(pid));
           cs.forEach(function(c) { if (c.ownerId !== pid) return; if (c.id !== act) out.push({ act: 'giveTo', cid: c.id, label: c.name + ' (theirs, kept) \u2014 play it now' }); else if (live) out.push({ act: 'giveTo', cid: c.id, label: c.name + ' (plays) \u2014 put its token on their map' }); });   // putting it back needs them at the table
@@ -3575,7 +3575,7 @@ window.wpFitToGrid = fitToGrid;
               var campT = getActiveCampaign(), pidT = key.slice(2), cidT = b.dataset.cid, chT = campT && campT.chars && Object.prototype.hasOwnProperty.call(campT.chars, cidT) ? campT.chars[cidT] : null;
               if (!chT || !window.wpSheets) return;
               var doGive = function() { if (window.wpSheets.giveCharacter(pidT, cidT, { pic: _givePic })) toast(chT.name + ' given.'); if (window.wpRenderPartyStrip) window.wpRenderPartyStrip(); };
-              if (chT.ownerId && chT.ownerId !== pidT) showConfirm('Give ' + chT.name + ' to ' + ((campT.players && Object.prototype.hasOwnProperty.call(campT.players, pidT) && campT.players[pidT] && campT.players[pidT].name) || 'this player') + '? Their current player loses it: its sheet closes for them, and its tokens go to the new player.', function(yes) { if (yes) doGive(); });
+              if (chT.ownerId && chT.ownerId !== pidT) showConfirm('Give ' + chT.name + ' to ' + ((campT.players && Object.prototype.hasOwnProperty.call(campT.players, pidT) && campT.players[pidT] && ((typeof campT.players[pidT].gmName === 'string' && campT.players[pidT].gmName.trim()) || campT.players[pidT].name)) || 'this player') + '? Their current player loses it: its sheet closes for them, and its tokens go to the new player.', function(yes) { if (yes) doGive(); });
               else doGive();
               return;
           }
@@ -7534,7 +7534,7 @@ function tableMenuParts(e, role) {
     var n = window.wpNet, camp = getActiveCampaign(), html = '';
     var wrap = document.getElementById('whiteboardWrap'), b = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 }, z = state.zoomLevel || 1;
     var pt = wrap ? { x: wbX(e.clientX, e.clientY, b, wrap), y: wbY(e.clientX, e.clientY, b, wrap) } : { x: e.clientX / z, y: e.clientY / z };
-    var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: camp.players[id].name || id }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
+    var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: (n && typeof n.recName === 'function' ? n.recName(camp.players[id], id) : camp.players[id].name || id) }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
     function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
     function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '"><i class="wib wi-bring"></i> Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
     if (role === 'client') {

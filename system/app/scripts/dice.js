@@ -202,7 +202,7 @@ function renderCard(m) {
     var wrap = el('div', 'chat-roll' + (priv ? ' whisper' : ''));
     if (wrap.dataset && typeof rec.id === 'string') wrap.dataset.rid = rec.id;   // 1.6.2, backlog 212: the animated dice find their own card by it
     var mine = n && ((rec.from.gm && (!n.active || n.role === 'host')) || (n.myId && rec.from.id === n.myId));
-    var who = el('b', null, mine ? 'You' : (rec.from.name || 'Player'));
+    var who = el('b', null, mine ? 'You' : (n && typeof n.chatWho === 'function' ? n.chatWho(rec.from) : (rec.from.name || 'Player')));   // 1.6.4: on the GM's side, the GM's own name for the player
     who.style.color = rec.from.gm ? 'var(--gold)' : 'hsl(' + playerHue(rec.from.id) + ', 55%, 68%)';
     wrap.appendChild(who);
     if (rec.from.gm) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-gm', 'GM')); }
@@ -477,7 +477,7 @@ function renderApply(m) {
     var rec = m.apply, n = net(), priv = rec.priv === 'gm';
     var wrap = el('div', 'chat-roll chat-apply' + (priv ? ' whisper' : ''));
     var mine = n && ((rec.from.gm && (!n.active || n.role === 'host')) || (n.myId && rec.from.id === n.myId));
-    var who = el('b', null, mine ? 'You' : (rec.from.name || 'Player'));
+    var who = el('b', null, mine ? 'You' : (n && typeof n.chatWho === 'function' ? n.chatWho(rec.from) : (rec.from.name || 'Player')));   // 1.6.4: on the GM's side, the GM's own name for the player
     who.style.color = rec.from.gm ? 'var(--gold)' : 'hsl(' + playerHue(rec.from.id) + ', 55%, 68%)';
     wrap.appendChild(who);
     if (rec.from.gm) { wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(el('span', 'chat-gm', 'GM')); }

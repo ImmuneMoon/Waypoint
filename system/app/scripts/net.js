@@ -257,6 +257,33 @@ function rememberGmRoom(code, gmId) { var c = roomCodeOf(code); return (c && val
 function safeAvatar(v) { return typeof v === 'string' && v.length <= 200000 && /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/.test(v); }
 // A display name a peer may show: control, bidi-override and zero-width characters out, trimmed, at most 40; 'Player' when blank.
 function cleanRosterName(v) { var s = typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; return s || 'Player'; }
+// [netcheck:gmname-start]
+// 1.6.4 (Fulllion, 2026-11-22, "Both, after release"): the GM's own name for a player. Player History has a box on each known player for what
+// the GM calls them. It is kept on the player's record as gmName and read on the GM's machine alone: Player History, the Multiplayer roster,
+// the party strip and its menu, chat lines and roll cards, Table Chat's To list, Seen by and the handouts' words, the pickers of Same person
+// as and Merge into, and the Maps sidebar's faces. It is never sent: camp.players never ships (sanitizeAppState), and the roster, a chat line,
+// a whisper and a card carry the player's own profile name as before, which is what the other players see. A player's profile name stays theirs.
+// cleanGmName: one line (control, bidi-override and zero-width characters out, runs of spaces made one), at most 40; '' when blank: no name of
+// the GM's own, and the record's name shows
+function cleanGmName(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40).trim() : ''; }
+// The GM's own name for this player id on this machine, '' where there is none. Never on a player's app at a table: it holds the host's
+// campaign, which carries no records. Read from the campaign on screen
+function gmNameOf(id) {
+    if (typeof id !== 'string' || !id || (net.active && net.role === 'client')) return '';
+    var camp = getActiveCampaign(), P = camp && camp.players && typeof camp.players === 'object' ? camp.players : null, r = P && own(P, id) ? P[id] : null;
+    return r && typeof r === 'object' ? cleanGmName(r.gmName) : '';
+}
+// A record's name for the GM's screen, where the code holds the record itself: the GM's own name, else the record's name, else fb, else 'Player'
+function recName(r, fb) { var g = r && typeof r === 'object' ? cleanGmName(r.gmName) : ''; return g || (r && typeof r === 'object' && typeof r.name === 'string' && r.name.trim() ? r.name : (typeof fb === 'string' && fb ? fb : 'Player')); }
+// The one name the GM's screen shows for a player by id: the GM's own name for them where set, else the name given (the roster's, a chat
+// line's), else their record's, else 'Player'. On a player's app it is the name given
+function playerName(id, fb) {
+    var g = gmNameOf(id); if (g) return g;
+    if (typeof fb === 'string' && fb.trim()) return fb;
+    var camp = net.active && net.role === 'client' ? null : getActiveCampaign(), r = camp && camp.players && typeof camp.players === 'object' && own(camp.players, id) ? camp.players[id] : null;
+    return recName(r, 'Player');
+}
+// [netcheck:gmname-end]
 // Onboarding F3: a character's name a player chose — the same characters out (control, bidi-override, zero-width), trimmed, at most 60; '' when blank
 function cleanCharName(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60).trim() : ''; }
 // Onboarding F1b: a player's token FACE — 'photo' (their profile picture), 'default' (the silhouette on their color), 'pic:<name>' (one of
@@ -307,6 +334,7 @@ function cleanWaitingItem(w) {
     return o;
 }
 // [netcheck:helpers-end]
+net.cleanGmName = cleanGmName; net.playerName = playerName; net.recName = recName;   // 1.6.4 (the gmname slice above): for the other modules that name a player on the GM's screen (the party strip, the sheets' owner names, Characters, the timers)
 net.charFacePlan = charFacePlan; net.cleanCharName = cleanCharName; net.cleanFace = cleanFace; net.FACE_PICS = FACE_PICS.slice(); net.faceView = function(p, color) { return faceView(p, color, window.wpDefaultAvatar); };   // Onboarding F1b: faces, one rule for every screen (after the helpers: FACE_PICS is only assigned there)
 // What a client accepts from a host, beyond the shape checks the wire already does.
 // [netcheck:rosterclean-start]
@@ -734,12 +762,12 @@ net.playersOnMap = function(mapId) {
     if (!mapId) return [];
     var out = [], seen = {};
     Object.values(net.roster || {}).forEach(function(p) {
-        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: p.name || p.id, avatar: p.avatar, connected: true, hue: playerHue(p.id), color: p.color || null, at: arriveAt(p.id, mapId, undefined, getActiveCampaign()) }); seen[p.id] = 1; }
+        if (p && p.id && p.location === mapId) { out.push({ id: p.id, name: typeof playerName === 'function' ? playerName(p.id, p.name || p.id) : (p.name || p.id), avatar: p.avatar, connected: true, hue: playerHue(p.id), color: p.color || null, at: arriveAt(p.id, mapId, undefined, getActiveCampaign()) }); seen[p.id] = 1; }
     });
     var camp = getActiveCampaign();
     if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) {
         var rec = camp.players[pid];
-        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: rec.name || pid, avatar: null, connected: false, hue: playerHue(pid), color: rec.color || null, at: arrivedOn(pid, mapId, camp) });
+        if (rec && !seen[pid] && rec.lastMap === mapId) out.push({ id: pid, name: typeof recName === 'function' ? recName(rec, pid) : (rec.name || pid), avatar: null, connected: false, hue: playerHue(pid), color: rec.color || null, at: arrivedOn(pid, mapId, camp) });
     });
     return out;
 };
@@ -759,7 +787,8 @@ function renderRoster() {
         } else {
             var camp = getActiveCampaign();
             el.innerHTML = players.map(function(p) {
-                var name = escTextRoster(p.name || p.id);
+                var shown = typeof playerName === 'function' ? playerName(p.id, p.name || p.id) : (p.name || p.id), name = escTextRoster(shown);   // 1.6.4: the GM's own name for them where set (their own name under the pointer)
+                var ownT = shown !== (p.name || p.id) && p.name ? ' title="Their own name: ' + escTextRoster(p.name) + '"' : '';
                 var initials = name.trim().split(/\s+/).map(function(s) { return s[0]; }).join('').slice(0, 2).toUpperCase();
                 var it = camp && p.location && own(camp.items, p.location) ? camp.items[p.location] : null;
                 var locTitle = it && it.meta && it.meta.title ? it.meta.title : (p.location || '');
@@ -784,7 +813,7 @@ function renderRoster() {
                     ? '<span class="roster-paused">Paused</span><button class="roster-resume" data-resume="' + escTextRoster(peerKey) + '" title="Paused by you. Press to let them play again."><i class="wib wi-play"></i></button>'
                     : '';
                 return '<span class="roster-chip' + (p.stale ? ' roster-stale' : '') + (pausedMark ? ' roster-held' : '') + '"' + jump + '>' + face +
-                    '<span>' + name + '</span>' + staleMark + pausedMark + sub + kick + '</span>';
+                    '<span' + ownT + '>' + name + '</span>' + staleMark + pausedMark + sub + kick + '</span>';
             }).join('');
         }
     }
@@ -5624,7 +5653,7 @@ function admitPlayer(conn, prof, provenKey) {
     net.roster[conn.peer] = prof;
     if (typeof satNote === 'function') satNote(prof.id);   // 1.6.3: seated this session: a later password does not keep them out of a reconnect (the hello gate's pwSat)
     renderRoster();
-    toast((prof.name || 'A player') + ' joined.');
+    toast((typeof playerName === 'function' ? playerName(prof.id, prof.name || 'A player') : (prof.name || 'A player')) + ' joined.');   // 1.6.4: by the GM's own name for them where there is one
     logEvent('player', (prof.name || 'A player') + ' joined', { w: prof.name || 'A player', x: 'Joined the table', d: typeof playsOf === 'function' ? playsOf(prof.id) : '' });
     // remember this player on the campaign so token ownership can outlive the session
     setTimeout(function() { sendMissedHandouts(conn, prof); }, 2500);
@@ -5658,7 +5687,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), whispers: true, travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), whispers: true, profileSet: true, travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + '. Something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -5796,7 +5825,8 @@ function playerPick(camp, ids, label, o) {
     var none = d.createElement('option'); none.value = ''; none.textContent = 'Pick a player…'; sel.appendChild(none);
     ids.forEach(function(pid) {
         var r = camp.players[pid] || {}, plays = Sp && Sp.playsAs ? Sp.playsAs(camp, pid) : '', seen = Number(r.lastSeen) || 0, op = d.createElement('option');
-        op.value = pid; op.textContent = String(r.name || 'A player').slice(0, 60) + (plays ? ', plays ' + String(plays).slice(0, 60) : '') + (seen > 1e11 ? ' · last seen ' + new Date(seen).toLocaleDateString() : '');
+        var gmP = typeof cleanGmName === 'function' ? cleanGmName(r.gmName) : '', ownP = typeof r.name === 'string' && r.name.trim() ? r.name : '';   // 1.6.4: the GM's own name first, their own beside it
+        op.value = pid; op.textContent = String(gmP ? gmP + (ownP && ownP !== gmP ? ' (' + ownP + ')' : '') : (ownP || 'A player')).slice(0, gmP ? 90 : 60) + (plays ? ', plays ' + String(plays).slice(0, 60) : '') + (seen > 1e11 ? ' · last seen ' + new Date(seen).toLocaleDateString() : '');
         sel.appendChild(op);
         if (want && low(r.name) === want && (!def || seen > (Number((camp.players[def] || {}).lastSeen) || 0))) def = pid;
     });
@@ -5814,7 +5844,7 @@ function playerPick(camp, ids, label, o) {
         while (list.firstChild) list.removeChild(list.firstChild);
         ticks = { chars: Object.create(null), toks: Object.create(null) };
         var pid = typeof o.from === 'string' ? o.from : pick(); if (!pid) return;
-        var ow = ownedOf(camp, pid), nm = String((camp.players[pid] || {}).name || 'That player').slice(0, 60), say = d.createElement('div'); say.className = 'player-pick-say';
+        var ow = ownedOf(camp, pid), nm = String(typeof recName === 'function' ? recName(camp.players[pid], 'That player') : ((camp.players[pid] || {}).name || 'That player')).slice(0, 60), say = d.createElement('div'); say.className = 'player-pick-say';
         say.textContent = ow.chars.length || ow.toks.length ? 'What moves. Untick anything that stays with ' + nm + '.' : nm + ' owns no characters or tokens.';
         list.appendChild(say);
         ow.chars.forEach(function(c) {
@@ -5905,6 +5935,7 @@ function mergeRecords(camp, oldId, keptId, sel) {
         nr.lastSeen = Math.max(Number(o.lastSeen) || 0, Number(k.lastSeen) || 0) || nr.lastSeen;
         nr.joinCount = (Number(o.joinCount) || 0) + (Number(k.joinCount) || 0);
         var w = wasList(k.was, wasList(o.was, [oldId])); if (w.length) nr.was = w; else delete nr.was;
+        if (!(typeof k.gmName === 'string' && k.gmName) && typeof o.gmName === 'string' && o.gmName) nr.gmName = o.gmName;   // 1.6.4: the GM's own name for the person: the kept record's, else the one that goes
         delete camp.players[oldId];
     }
     camp.players[keptId] = nr;
@@ -5947,7 +5978,7 @@ function processNextApproval() {
             if (ans === 'gone') { approvalOpen = false; pickLog('same-back', { picked: false }); approvalGone(); return; }
             if (ans !== true) { pickLog('same-back', { picked: false }); askMain(); return; }
             var pid = pk ? pk.pick() : null; if (!pid) { pickLog('same-back', { picked: false }); askMain(); return; }   // nothing picked moves nothing: never a default
-            var recS = campQ.players[pid] || {}, nmS = String(recS.name || 'a player'), Sp = typeof SC === 'function' ? SC() : null, plays = Sp && Sp.playsAs ? Sp.playsAs(campQ, pid) : '';
+            var recS = campQ.players[pid] || {}, nmS = String(typeof recName === 'function' ? recName(recS, 'a player') : (recS.name || 'a player')), Sp = typeof SC === 'function' ? SC() : null, plays = Sp && Sp.playsAs ? Sp.playsAs(campQ, pid) : '';
             approvalOpen = false;
             if (!net.active || net.role !== 'host') return;
             if (!next.conn.open) { pickLog('same-failed', { at: 'dropped' }); toast(who + ' had already dropped. You will be asked again when they come back.'); processNextApproval(); return; }
@@ -6396,6 +6427,7 @@ function handleMessage(msg, conn) {
             if (typeof proof === 'string' && proof) helloA.proof = proof;
             if (validCn(conn.wpCn)) helloA.cn = conn.wpCn;   // the nonce this connection's snapshot is to be signed over (the same as in the first hello)
             try { conn.send(helloA); } catch (e) { sendFailed(e); }
+            if (typeof profileSentNote === 'function') profileSentNote(helloA.profile);   // 1.6.4: what the host was last told of this profile
         };
         if (keyA && nonceA && chA) hmacHex(keyA, authData(nonceA, conn.peer, chA.mine, chA.theirs)).then(sayA); else sayA(null);
     // [netcheck:gate-end]
@@ -6429,6 +6461,7 @@ function handleMessage(msg, conn) {
         // [netcheck:snapkey-end]
         if (!conn.wpSeenTaken && typeof msg.gmId === 'string') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent; once per connection and only from an id sent as text, as the key is taken, so a host cannot fill the list with names of its own
         if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }   // the review of multiplayer chat: a host that judges whispers says so (whispers: true), read as true only
+        if (typeof profileSetKnow === 'function') { profileSetKnow(msg.profileSet); profileSoon(); }   // 1.6.4: a host that takes a seated player's new name says so (profileSet: true, read as true only); a change made while this app waited goes now
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         if (typeof reconnHold === 'function' && net.reconnecting) reconnHold(false);   // 1.6.3 (finding 15): back at the table, the board is let go
         syncSessionButtons();
@@ -8466,6 +8499,35 @@ function handleMessage(msg, conn) {
             if (msg.kind === 'time' && lineH.scope === 'whisper' && fromH.gm && typeof timeNote === 'function') timeNote(lineH); else pushChat(lineH);   // 1.5.6: a time rule's note, as this player chose
         }
         // [netcheck:chat-end]
+    } else if (msg.type === 'profile-set' && net.role === 'host') {
+        // [netcheck:profileset-start]
+        // 1.6.4: a seated player's own profile changed (the profileup slice sends it). Judged as a hello's identity is: from an admitted connection
+        // alone (the gate above), for the player that connection is and never another (a profile id that is not theirs is dropped), cleaned by the
+        // hello's own rules (cleanRosterName, a hex color, safeAvatar; nothing else of it is read), and limited on its own. What moved is put on every
+        // connection of that player on the roster and, for the name, on their record (camp.players[id].name, saved, as admitPlayer writes it; the
+        // GM's own name for them, gmName, stays). The roster goes to everyone again, and a new name is told to the GM quietly: a toast and a line
+        // of the Game Record. Nothing that did not move is saved, sent or said
+        var pcP = net.roster[conn.peer], inP = msg.profile;
+        if (!pcP || !validProfileId(pcP.id) || !inP || typeof inP !== 'object' || Array.isArray(inP)) return;
+        if (inP.id !== undefined && inP.id !== pcP.id) return;   // its own profile only
+        if (!allow('profile-set', { perMs: 250, burst: 10, windowMs: 60000, table: 300 }, pcP.id)) return;   // by the player, so a new connection starts no new count; spaced a quarter second, so two sends a stalled link delivers together both land (a player's app sends at most 8 a minute, 2 s apart)
+        var nmP = cleanRosterName(inP.name), colP = typeof inP.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(inP.color) ? inP.color : '', avP = safeAvatar(inP.avatar) ? inP.avatar : '';
+        var wasP = cleanRosterName(pcP.name), movN = wasP !== nmP || pcP.name !== nmP, movC = (typeof pcP.color === 'string' ? pcP.color : '') !== colP, movA = (typeof pcP.avatar === 'string' ? pcP.avatar : '') !== avP;
+        if (!movN && !movC && !movA) return;
+        Object.keys(net.roster).forEach(function(kP) {
+            var rP = net.roster[kP]; if (!rP || rP.id !== pcP.id) return;
+            rP.name = nmP;
+            if (colP) rP.color = colP; else delete rP.color;
+            if (avP) rP.avatar = avP; else delete rP.avatar;
+        });
+        var campP = getActiveCampaign(), recP = campP && campP.players && typeof campP.players === 'object' && own(campP.players, pcP.id) && typeof campP.players[pcP.id] === 'object' ? campP.players[pcP.id] : null;
+        if (recP && recP.name !== nmP) { recP.name = nmP; net.applyingRemote = true; save(true); net.applyingRemote = false; }
+        renderRoster();
+        broadcastRoster();
+        if (wasP !== nmP && typeof profileTell === 'function') profileTell(pcP.id, wasP, nmP);   // the proftell slice: at most once in 30 s a player, the rest told as one
+        try { var pmP = ui('playersModal'); if (pmP && pmP.style && pmP.style.display === 'flex' && typeof renderPlayersPanel === 'function') renderPlayersPanel(); } catch (e) { console.error(e); }
+        if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') { try { window.wpStepLog('players v1', 'profile-set', { name: wasP !== nmP, color: movC, avatar: movA }); } catch (e) {} }
+        // [netcheck:profileset-end]
     } else if (msg.type === 'chat-history' && net.role === 'client') {
         if (!fromHost(conn)) return;
         var histD = window.wpDiceCore, histF = window.wpFormula;
@@ -9623,6 +9685,7 @@ function joinSession(code, name, isRetry, probe) {
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
     if (!isRetry && !probe) { _joinSlow = false; if (typeof whispersKnow === 'function') whispersKnow(false); }   // the review of multiplayer chat: a new walk through the generations, and no whisper until this table's snapshot says it knows them
+    if (typeof profileSetKnow === 'function') profileSetKnow(false);   // 1.6.4: nothing of the profile goes to a host until its snapshot says it takes it (a retry's host too)
     if (!isRetry && !probe) joinTrustReset();   // security (2026-10-01): a join the player began — what the last one refused is forgotten (a yes the player just gave holds for this one)
     var nextGen = null;   // (set once this attempt's connection exists) on to the next generation of the code, or the end of the join
     var profile = setProfileName(name || getProfile().name || 'Player');
@@ -9690,6 +9753,7 @@ function joinSession(code, name, isRetry, probe) {
             reconn.gen = gen;
             net.active = true;
             var pwIn = ui('netJoinPassInput');
+            if (typeof profileSentNote === 'function') profileSentNote(profile);   // 1.6.4: what the host was last told of this profile
             conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION, cn: conn.wpCn });   // before the first heartbeat: the host admits nothing that speaks first; no key rides here — a known id is challenged and answers with a proof (the auth branch), so nothing of a previous table reaches a host unasked
             hostWait(conn);   // security (2026-10-01): a host this app knows the GM of has HOST_PROOF_MS to prove itself (its 'gmhello'); one that does not is not waited on
             startHeartbeat();
@@ -10998,7 +11062,7 @@ function chatTextInto(tx, text, men) {
 function chatEntryNode(m) {   // one text entry, built from nodes: nothing from the wire is ever parsed as HTML
     var whisper = m.scope === 'whisper', wrap = document.createElement('div');
     wrap.style.cssText = whisper ? 'margin-bottom:7px; border-left:2px solid var(--violet); padding-left:7px; font-style:italic;' : 'margin-bottom:7px;';
-    var who = document.createElement('b'); who.style.color = playerColor(m.from); who.textContent = m.from.id === net.myId ? 'You' : (m.from.name || 'Player'); wrap.appendChild(who);
+    var who = document.createElement('b'); who.style.color = playerColor(m.from); who.textContent = m.from.id === net.myId ? 'You' : (typeof chatWho === 'function' ? chatWho(m.from) : (m.from.name || 'Player')); wrap.appendChild(who);   // 1.6.4: on the GM's side, the GM's own name for the player
     if (m.from.gm) { var g = document.createElement('span'); g.className = 'chat-gm'; g.textContent = 'GM'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(g); }
     if (whisper) { var t = document.createElement('span'); t.className = 'chat-tag'; t.textContent = whisperTag(m); wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(t); }   // 1.6.3 (finding 12): whisper to whom
     var tm = document.createElement('span'); tm.className = 'chat-time'; tm.textContent = chatTime(m.ts); wrap.appendChild(tm);
@@ -11048,10 +11112,12 @@ function chatEnv() {
 // draws a kept card again whenever this moves, so a button whose roll the host no longer keeps goes, and one granted since comes. A new reader of
 // such state in a roll's card joins this function
 function chatOuter(m) {
+    var n0 = window.wpNet; if (m && m.apply && !m.roll) { try { return n0 && typeof n0.chatWho === 'function' ? 'a|' + n0.chatWho(m.apply.from) : ''; } catch (e) { return '?'; } }   // 1.6.4: an apply card shows its sender's name too
     var r = m && m.roll, n = window.wpNet; if (!r || typeof r.id !== 'string' || !n) return '';
     var out = '';
     try { if (typeof n.toGmSig === 'function') out += String(n.toGmSig(r.id)); } catch (e) { out += '?'; }
     try { if (typeof n.revealOk === 'function') out += '|' + (n.revealOk(r.id) ? 1 : 0); } catch (e) { out += '|?'; }
+    try { if (typeof n.chatWho === 'function') out += '|' + n.chatWho(r.from); } catch (e) { out += '|?'; }   // 1.6.4: the name the card shows for its sender (the GM's own name for them, which the GM may change)
     return out;
 }
 function renderChat() {
@@ -11136,11 +11202,11 @@ if (_chatBC && window.wpPopout && typeof window.addEventListener === 'function')
 // and loads with net.active false, so it takes the main window's word, sent with every chatSync (false until one comes); the stream window never
 var _chatPopGm = false;
 function chatGmSide() { if (window.wpStream) return false; if (window.wpPopout) return _chatPopGm === true; return !(typeof net !== 'undefined' && net && net.active && net.role === 'client'); }   // net read when asked, never as the module loads (a suite runs this slice alone)
-function broadcastChatSync() { if (!_chatBC || window.wpStream) return; try { _chatBC.postMessage({ type: 'chatSync', log: JSON.parse(JSON.stringify(chatLog)), look: _cardLook, gm: chatGmSide() }); } catch (e) {} }
+function broadcastChatSync() { if (!_chatBC || window.wpStream) return; try { _chatBC.postMessage({ type: 'chatSync', log: JSON.parse(JSON.stringify(chatLog)), look: _cardLook, gm: chatGmSide(), names: typeof chatNamesOut === 'function' ? chatNamesOut() : null }); } catch (e) {} }   // 1.6.4: and the GM's own names for players (a window of this app's own, never the wire)
 if (_chatBC) _chatBC.addEventListener('message', function(e) {
     var d = e.data; if (!d || !d.type || window.wpStream) return;   // the stream window holds no chat of its own: it neither answers nor sends for a pop-out
     if (window.wpPopout) {
-        if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; _cardLook = d.look || null; _chatPopGm = d.gm === true; renderChat(); }   // the review of rolls: and whether the main window is the GM's (true only)   // the main window's card colors (checked again in cardLookNow)
+        if (d.type === 'chatSync') { chatLog = Array.isArray(d.log) ? d.log : []; _cardLook = d.look || null; _chatPopGm = d.gm === true; if (typeof chatNamesIn === 'function') chatNamesIn(d.gm === true ? d.names : null); renderChat(); }   // the review of rolls: and whether the main window is the GM's (true only)   // the main window's card colors (checked again in cardLookNow)
         else if (d.type === 'chatHello' && chatPopHere()) { try { _chatBC.postMessage({ type: 'chatReq' }); } catch (e2) {} }   // 1.6.3 (finding 33): a main window that loaded after this pop-out asks who is there
     } else {
         if (d.type === 'chatReq') { _chatPopAsked = true; broadcastChatSync(); }
@@ -11154,6 +11220,33 @@ window.wpChat = { openPanel: function() { var cp = ui('chatPanel'); if (cp && ch
 // A roll opens Table Chat if it was closed; that auto-open dismisses itself after a few seconds (a fresh roll extends
 // it). If the chat was already open, or the user opens/touches it, it stays — cancelChatDismiss() clears the flag.
 var _chatRollOpened = false, _chatDismissTimer = null;   // false; true: a roll opened it; a view's name: a roll borrowed it for that view while it was up on another (1.5.4)
+// [netcheck:chatwho-start]
+// 1.6.4: the name a chat line, a roll or apply card and a whisper's tag show for whoever sent it. On the GM's side it is the GM's own name for
+// that player (Player History's box, gmNameOf), else the name the line came with, which the line keeps: the chat history a latecomer is sent
+// and every copy a player gets carry the player's own name. A GM's line and a line of the app's own (a tracker's, a rest's) keep their names.
+// A chat in a window of its own holds no campaign: it takes the main window's names with each chatSync (chatNamesOut), only from a main
+// window that is the GM's, cleaned as they come in (chatNamesIn)
+var _chatPopNames = null;
+function chatWho(from) {
+    var f = from && typeof from === 'object' ? from : {}, id = typeof f.id === 'string' ? f.id : '', nm = typeof f.name === 'string' && f.name ? f.name : 'Player';
+    if (!id || f.gm === true) return nm;
+    if (typeof window !== 'undefined' && window && window.wpPopout) return _chatPopNames && own(_chatPopNames, id) ? _chatPopNames[id] : nm;
+    if (typeof chatGmSide === 'function' && !chatGmSide()) return nm;
+    return (typeof gmNameOf === 'function' ? gmNameOf(id) : '') || nm;
+}
+function chatNamesOut() {   // (the main window) { id: the GM's own name } for every record that has one, or null on a player's app and where there is none
+    if (typeof chatGmSide === 'function' && !chatGmSide()) return null;
+    var camp = getActiveCampaign(), P = camp && camp.players && typeof camp.players === 'object' ? camp.players : null, out = null;
+    if (P) Object.keys(P).forEach(function(id) { var g = validProfileId(id) && P[id] && typeof P[id] === 'object' ? cleanGmName(P[id].gmName) : ''; if (g) { out = out || Object.create(null); out[id] = g; } });
+    return out;
+}
+function chatNamesIn(v) {   // (a chat pop-out) the names the main window sent, each cleaned again; anything else clears them
+    var out = null;
+    if (v && typeof v === 'object' && !Array.isArray(v)) Object.keys(v).slice(0, 500).forEach(function(id) { var g = validProfileId(id) ? cleanGmName(v[id]) : ''; if (g) { out = out || Object.create(null); out[id] = g; } });
+    _chatPopNames = out;
+}
+net.chatWho = chatWho;   // dice.js names a card's sender through it
+// [netcheck:chatwho-end]
 net.chatGmSide = chatGmSide;   // the review of rolls (finding 3): dice.js typedInto asks it (bound past the card colors’ slice, which a suite runs alone)
 function cancelChatDismiss() { if (_chatDismissTimer) { clearTimeout(_chatDismissTimer); _chatDismissTimer = null; } _chatRollOpened = false; }
 // [floatcheck:chatback-start]
@@ -11218,6 +11311,75 @@ var _whisperNames = Object.create(null);   // profile id -> the name last listed
 // join snapshot (whispers: true), read as true only here, and until it does a player's app shows no To list and never sends a whisper. Set
 // by the snapshot branch, and forgotten as a player begins a join (joinSession). The GM's own app always knows them
 var _whispersOk = false;
+// [netcheck:profileup-start]
+// 1.6.4 (Fulllion, 2026-11-22, "Both, after release"): a player's name changed at the table reaches it at once. Before, a name, color or picture
+// changed in Your profile while seated reached the GM only at the next join (admitPlayer takes the hello's profile). Now a player's app sends
+// 'profile-set' with what a roster carries of the profile (its name, its color and its picture, cleaned by the rules the host cleans a hello
+// by, with the profile's id so the host can refuse one that is not this connection's) a moment after the profile is written (settings.js's
+// wrap of wp_profile writes asks profileSoon), only where it moved since the hello or the last send, and only to a host whose join snapshot
+// said it takes the message (profileSet: true, read as true only here, forgotten as each join begins), so an older host is sent nothing. The
+// token face is not sent: it shapes the player's token, which the host makes as they arrive, so it waits for the next join. Sends are spaced
+// (PROF_GAP_MS) and at most PROF_MAX in a minute, inside the host's own limit, so the last change is never the one a limit drops
+var PROF_SOON_MS = 1200, PROF_GAP_MS = 2000, PROF_MAX = 8;
+var _profSetOk = false, _profSentSig = '', _profSoon = null, _profTimes = [];
+function profileSetKnow(v) { _profSetOk = v === true; if (!_profSetOk && _profSoon) { clearTimeout(_profSoon); _profSoon = null; } }   // forgotten: a send still waiting goes with it
+function profileOut(p) {   // what a roster carries of a profile, cleaned as the host cleans a hello's
+    var o = { name: cleanRosterName(p && p.name) };
+    if (p && typeof p.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.color)) o.color = p.color;
+    if (p && safeAvatar(p.avatar)) o.avatar = p.avatar;
+    return o;
+}
+function profileSentNote(p) { try { _profSentSig = JSON.stringify(profileOut(p)); } catch (e) { _profSentSig = ''; } }   // what the host was last told: a hello's profile, a send's
+function profileLink() {   // the connection to the table this app is seated at, where its host takes the message; else null
+    var c = net.conns && net.conns[0];
+    return net.active && net.role === 'client' && _profSetOk && net.syncedPeer && c && c.open && c.peer === net.syncedPeer ? c : null;
+}
+function profileSoon(ms) {
+    if (!profileLink()) return;
+    if (_profSoon) clearTimeout(_profSoon);
+    _profSoon = setTimeout(function() { _profSoon = null; profileSend(); }, typeof ms === 'number' && ms > 0 ? ms : PROF_SOON_MS);
+}
+function profileSend() {   // true where it sent; a send too soon after the last waits its turn
+    var c = profileLink(); if (!c) return false;
+    var p = getProfile(), o = profileOut(p), sig = JSON.stringify(o);
+    if (sig === _profSentSig) return false;
+    var now = Date.now(); _profTimes = _profTimes.filter(function(t) { return now - t < 60000 && now >= t; });
+    var wait = _profTimes.length ? Math.max(PROF_GAP_MS - (now - _profTimes[_profTimes.length - 1]), _profTimes.length >= PROF_MAX ? 60000 - (now - _profTimes[0]) + 50 : 0) : 0;
+    if (wait > 0) { profileSoon(wait); profileStep('profile-wait', { ms: Math.round(wait) }); return false; }
+    o.id = p.id;
+    try { c.send({ type: 'profile-set', profile: o }); } catch (e) { sendFailed(e); profileStep('profile-failed', { at: 'send' }); return false; }
+    _profSentSig = sig; _profTimes.push(now);
+    profileStep('profile-sent', { color: !!o.color, picture: !!o.avatar });
+    return true;
+}
+function profileStep(step, facts) { try { if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') window.wpStepLog('players v1', step, facts || {}); } catch (e) {} }   // each step to the app's log, as counts and flags alone
+net.profileSoon = profileSoon;
+// [netcheck:profileup-end]
+// [netcheck:proftell-start]
+// 1.6.4 (the review of profile-set): (the host) how a seated player's new name is told to the GM, quietly: a toast and a line of the Game
+// Record, at most once in PROF_TELL_MS for each player. A name changed again inside that time is told once when it ends, from the name told
+// last to the name the roster holds then (and not at all where it went back), so one player renaming without end cannot fill the GM's
+// screen or push the session's record out
+var PROF_TELL_MS = 30000, _profTold = Object.create(null);
+function profileSay(id, from, to) {
+    var gmN = typeof gmNameOf === 'function' ? gmNameOf(id) : '';
+    toast(from + ' is now called ' + to + (gmN ? '. You still call them ' + gmN : '') + '.');
+    logEvent('player', from + ' changed their name to ' + to, { w: to, x: 'Changed their name', d: 'Was ' + from });
+}
+function profileTell(id, from, to) {
+    var now = Date.now(), r = own(_profTold, id) ? _profTold[id] : (_profTold[id] = { at: 0, last: '', t: null });
+    if (r.t) return;   // one telling is held already: it says the name the roster holds when it comes
+    if (now - r.at >= PROF_TELL_MS || now < r.at) { profileSay(id, from, to); r.at = now; r.last = to; return; }
+    if (!r.last) r.last = from;
+    r.t = setTimeout(function() {
+        r.t = null;
+        if (!net.active || net.role !== 'host') return;
+        var key = Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === id; })[0], nowN = key ? cleanRosterName(net.roster[key].name) : '';
+        if (!nowN || nowN === r.last) return;
+        profileSay(id, r.last, nowN); r.at = Date.now(); r.last = nowN;
+    }, Math.max(0, PROF_TELL_MS - (now - r.at)));
+}
+// [netcheck:proftell-end]
 function whispersKnow(v) { _whispersOk = v === true; }
 function whisperKnows() { return net.role !== 'client' || _whispersOk; }
 // A player's roll made while a whisper is picked in the To list goes to the GM only, said in these words. Without it a player who picked
@@ -11240,7 +11402,7 @@ function whisperConns(pid) {   // (the host) every open, admitted connection of 
 }
 function whisperChoices() {   // the To list's rows past Everyone: [{ v, name }], the GM first on a player's app, each player once, never this app's own player
     var out = [], seen = Object.create(null);
-    if (net.role === 'host') (net.conns || []).forEach(function(c) { var p = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!p || !validProfileId(p.id) || seen[p.id]) return; seen[p.id] = 1; out.push({ v: 'p:' + p.id, name: String(p.name || 'Player').slice(0, 60) }); });
+    if (net.role === 'host') (net.conns || []).forEach(function(c) { var p = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!p || !validProfileId(p.id) || seen[p.id]) return; seen[p.id] = 1; out.push({ v: 'p:' + p.id, name: String(typeof playerName === 'function' ? playerName(p.id, p.name || 'Player') : (p.name || 'Player')).slice(0, 60) }); });   // 1.6.4: the GM's own name for them (a row's words only: a whisper sent carries the roster's name)
     else {
         out.push({ v: 'gm', name: 'GM' });
         Object.keys(net.roster || {}).forEach(function(pid) { var p = net.roster[pid]; if (!p || pid === net.myId || !validProfileId(pid) || seen[pid]) return; seen[pid] = 1; out.push({ v: 'p:' + pid, name: String(p.name || 'Player').slice(0, 60) }); });
@@ -11263,6 +11425,7 @@ function whisperTarget(v) {
 function whisperTag(m) {
     var toId = m && typeof m.toId === 'string' ? m.toId : '', toName = m && typeof m.toName === 'string' ? m.toName : '';
     if (toId && (toId === net.myId || (toId === 'gm' && net.role === 'host'))) return 'whisper to you';
+    if (toId && toId !== 'gm' && toName && typeof chatWho === 'function') toName = chatWho({ id: toId, name: toName });   // 1.6.4: on the GM's side, the GM's own name for the player it went to (never sent: the line keeps the name it came with)
     return toName ? 'whisper to ' + toName : 'whisper';
 }
 function refreshChatRecipients() {
@@ -11378,16 +11541,19 @@ function renderPlayersPanel() {
     ids.sort(function(a, b) { return (players[b].lastSeen || 0) - (players[a].lastSeen || 0); });
     ids.forEach(function(pid) {
         var p = players[pid];
+        var gmP = typeof cleanGmName === 'function' ? cleanGmName(p.gmName) : '';   // 1.6.4: the GM's own name for them, '' where none
         var isBanned = !!bans[pid];
         html += '<div class="player-row' + (isBanned ? ' banned' : '') + '">' +
             '<img class="roster-avatar" src="' + (window.wpDefaultAvatar ? window.wpDefaultAvatar(p.color || ('hsl(' + playerHue(pid) + ',55%,60%)')) : '') + '" alt="">' +   // no photo → the color-tinted silhouette default (the name shows beside it)
             '<div class="player-info">' +
-                '<div><b>' + escTextRoster(p.name || pid) + '</b>' +
+                '<div><b>' + escTextRoster(gmP || p.name || pid) + '</b>' +
+                (gmP && typeof p.name === 'string' && p.name.trim() && p.name !== gmP ? ' <span class="player-own-name" title="The name they gave themselves">(' + escTextRoster(p.name) + ')</span>' : '') +   // 1.6.4: their own name beside the GM's
                 (online[pid] ? ' <span class="player-online">● online</span>' : '') +
                 (isBanned ? ' <span class="player-bantag">BANNED</span>' : '') +
                 (!isBanned && typeof outList === 'function' && net.active && net.role === 'host' && outList().some(function(o) { return o.id === pid; }) ? ' <span class="player-bantag">REMOVED THIS SESSION</span>' : '') +   // 1.6.3 (finding 22): Let back in is under Removed this session
                 playsLabel(camp, pid, p) + '</div>' +
                 '<div class="player-meta">first ' + fmtDay(p.firstSeen) + ' · last ' + fmtDay(p.lastSeen) + ' · ' + countOf(p.joinCount) + ' join' + (countOf(p.joinCount) === 1 ? '' : 's') + '</div>' +
+                '<label class="player-gmname-row">Your name for them <input type="text" class="player-gmname" data-gmname="' + escTextRoster(pid) + '" maxlength="40" value="' + escTextRoster(gmP) + '" placeholder="' + escTextRoster(typeof p.name === 'string' && p.name.trim() ? p.name.slice(0, 40) : 'Their own name') + '" title="What you call this player. Only you see it: they and the other players keep seeing the name they gave themselves. Leave it empty to use their own name." spellcheck="false" autocomplete="off"></label>' +   // 1.6.4: the GM's own name for them (gmNameSet)
             '</div>' +
             (isBanned
                 ? '<button class="tool ghost player-act" data-unban="' + escTextRoster(pid) + '">Unban</button>'
@@ -11426,7 +11592,10 @@ function renderPlayersPanel() {
                 '<button class="tool ghost player-act" data-unban="' + escTextRoster(pid) + '">Unban</button></div>';
         });
     }
+    var focG = typeof document !== 'undefined' && document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('player-gmname') ? document.activeElement : null;   // 1.6.4: a name being typed in a box survives a redraw (a join, a leave)
+    var focKeep = focG ? { pid: focG.dataset.gmname, v: focG.value, s: focG.selectionStart, e: focG.selectionEnd } : null;
     list.innerHTML = html;
+    if (focKeep) { var boxes = list.querySelectorAll('.player-gmname'); for (var iG = 0; iG < boxes.length; iG++) if (boxes[iG].dataset.gmname === focKeep.pid) { boxes[iG].value = focKeep.v; boxes[iG].focus(); try { boxes[iG].setSelectionRange(focKeep.s, focKeep.e); } catch (eG) {} break; } }
 }
 
 // [netcheck:banask-start]
@@ -11436,7 +11605,7 @@ function renderPlayersPanel() {
 // once, the campaign is saved and the panel drawn again. A no, or an answer that comes after another campaign was opened, changes nothing
 function banAsk(camp, pid) {
     if (!camp || typeof pid !== 'string' || !pid) return;
-    var nm = (camp.players && own(camp.players, pid) && camp.players[pid] && camp.players[pid].name) || 'this player';
+    var nm = camp.players && own(camp.players, pid) && camp.players[pid] ? (typeof recName === 'function' ? recName(camp.players[pid], 'this player') : (camp.players[pid].name || 'this player')) : 'this player';   // 1.6.4: the GM's own name for them where set
     showConfirm('Ban ' + nm + ' from this campaign? They are removed now and refused in later sessions until you unban them.', function(yes) {
         if (!yes || getActiveCampaign() !== camp) { renderPlayersPanel(); return; }
         camp.bannedPlayers = camp.bannedPlayers || {};
@@ -11460,7 +11629,7 @@ function banAsk(camp, pid) {
 // back this session (net.forgotten, read by syncLastMaps), so their next join waits for the GM's Allow like a stranger's.
 function forgetPlayer(camp, fid) {
     if (!camp || !camp.players || !own(camp.players, fid)) return;
-    var nm = camp.players[fid].name || 'Player', here = Object.values(net.roster).some(function(p) { return p && p.id === fid; });
+    var nm = typeof recName === 'function' ? recName(camp.players[fid], 'Player') : (camp.players[fid].name || 'Player'), here = Object.values(net.roster).some(function(p) { return p && p.id === fid; });
     var mkIds = function() { return Object.keys(camp.chars || {}).filter(function(k) { var x = camp.chars[k]; return x && x.ownerId === fid && x.making === 1; }); };   // Onboarding F3b: a character they are still making was theirs alone: it goes with them
     showConfirm('Forget ' + nm + '? Their history in this campaign goes, and they\'ll need your approval to join again.' + (mkIds().length ? ' The character they are still making goes too.' : '') + (here ? ' They stay at the table for now.' : ''), function(yes) {
         if (!yes || getActiveCampaign() !== camp || !camp.players || !own(camp.players, fid)) { renderPlayersPanel(); return; }
@@ -11480,7 +11649,7 @@ function mergeAsk(camp, oldId) {
     if (!camp || !camp.players || !own(camp.players, oldId)) return;
     var on = Object.create(null); Object.values(net.roster).forEach(function(p) { if (p && p.id) on[p.id] = 1; });
     if (on[oldId]) { toast('Merge a player while they are not at the table.'); return; }
-    var nmO = String(camp.players[oldId].name || 'Player'), cands = Object.keys(camp.players).filter(function(pid) { return pid !== oldId && !on[pid]; })
+    var nmO = String(typeof recName === 'function' ? recName(camp.players[oldId], 'Player') : (camp.players[oldId].name || 'Player')), cands = Object.keys(camp.players).filter(function(pid) { return pid !== oldId && !on[pid]; })
         .sort(function(a, b) { return (Number(camp.players[b].lastSeen) || 0) - (Number(camp.players[a].lastSeen) || 0); });
     if (!cands.length) { toast('There is no other player here to merge into.'); return; }
     var ask = function() {   // 1.5.7: the players to merge into in one list, most recently seen first. 1.6.0: it opens on the same name or on none, and lists what moves
@@ -11489,7 +11658,7 @@ function mergeAsk(camp, oldId) {
         showConfirm('Merge "' + nmO + '" into another player? The one you pick keeps its name and table key, and takes the ticked characters and tokens. ' + nmO + '\'s record goes once nothing is left in it.', function(ans) {
             if (ans !== true || getActiveCampaign() !== camp) { pickLog('merge-back', { picked: false }); renderPlayersPanel(); return; }
             var kid = pk ? pk.pick() : null; if (!kid) { pickLog('merge-back', { picked: false }); renderPlayersPanel(); return; }   // nothing picked merges nothing: never a default
-            var nmK = String((camp.players[kid] || {}).name || 'Player');
+            var nmK = String(typeof recName === 'function' ? recName(camp.players[kid], 'Player') : ((camp.players[kid] || {}).name || 'Player'));
             if (Object.values(net.roster).some(function(p) { return p && (p.id === oldId || p.id === kid); })) { pickLog('merge-failed', { at: 'online' }); toast('One of them is at the table now. Merge when neither is.'); renderPlayersPanel(); return; }
             var mv = mergeRecords(camp, oldId, kid, pk.moves());
             if (mv) { save(); if (typeof logEvent === 'function') logEvent('player', nmO + ' merged into ' + nmK + ': ' + movedLog(mv, nmO)); toast(nmO + ' merged into ' + nmK + '. ' + movedSay(mv, nmO)); pickLog('merge-done', movedFacts(mv)); if (typeof render === 'function') render(); }
@@ -11537,6 +11706,47 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
     }
     renderPlayersPanel();
 });
+
+// [netcheck:gmnamebox-start]
+// 1.6.4: Player History's box, "Your name for them". A change (Enter, or leaving the box) is kept on the player's record as gmName, cleaned
+// (cleanGmName), or taken off where the box is left empty, and saved; everything on this screen that names the player follows at once:
+// the roster and the party strip, Table Chat (its lines, cards and To list), a page's Seen by ticks, and the panel itself. Nothing is sent:
+// the record never leaves this machine. A record the panel no longer shows (forgotten meanwhile, another campaign opened) is not written
+function gmNameSet(camp, pid, v) {
+    if (!camp || !camp.players || typeof camp.players !== 'object' || typeof pid !== 'string' || !own(camp.players, pid) || typeof camp.players[pid] !== 'object') return false;
+    var rec = camp.players[pid], g = cleanGmName(v), was = cleanGmName(rec.gmName);
+    if (g === was) { if (rec.gmName !== undefined && !g) delete rec.gmName; return false; }
+    if (g) rec.gmName = g; else delete rec.gmName;
+    save();
+    setTimeout(gmNamesMoved, 0);   // after the event that set it: a Tab or a press on another box moves the focus first, so the redraw keeps the box now in use
+    var own0 = typeof rec.name === 'string' && rec.name.trim() ? rec.name : 'this player';
+    toast(g ? 'You call ' + own0 + ' "' + g + '" now. Only you see it.' : 'Back to the name ' + own0 + ' gave themselves.');
+    if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') { try { window.wpStepLog('players v1', 'gm-name', { set: !!g }); } catch (e) {} }
+    return true;
+}
+// Everything on the GM's screen that names a player is drawn again. A hook another module draws from never stops the rest (each in a try)
+function gmNamesMoved() {
+    try { renderRoster(); } catch (e) { console.error(e); }
+    try { if (typeof window !== 'undefined' && typeof window.wpPlannerPlayers === 'function') window.wpPlannerPlayers(); } catch (e) { console.error(e); }
+    try { if (typeof refreshChatRecipients === 'function') refreshChatRecipients(); if (typeof renderChat === 'function') renderChat(); } catch (e) { console.error(e); }
+    try { renderPlayersPanel(); } catch (e) { console.error(e); }
+}
+net.gmNameSet = gmNameSet;
+if (_playersList) _playersList.addEventListener('change', function(e) {
+    var box = e.target && e.target.closest ? e.target.closest('.player-gmname') : null; if (!box) return;
+    gmNameSet(getActiveCampaign(), box.dataset.gmname, box.value);
+});
+// Leaving the box keeps it too: a box drawn again while it was being typed in (a join, a player's new name) holds the typing but does not
+// fire change for it, so the name would be lost. gmNameSet changes nothing where the name is the same
+if (_playersList) _playersList.addEventListener('focusout', function(e) {
+    var box = e.target && e.target.closest ? e.target.closest('.player-gmname') : null; if (!box || !box.isConnected) return;
+    gmNameSet(getActiveCampaign(), box.dataset.gmname, box.value);
+});
+if (_playersList) _playersList.addEventListener('keydown', function(e) {   // Enter keeps the name at once, as leaving the box does
+    var box = e.target && e.target.closest ? e.target.closest('.player-gmname') : null; if (!box || e.key !== 'Enter') return;
+    e.preventDefault(); box.blur();
+});
+// [netcheck:gmnamebox-end]
 
 /* ---------- wire up the modal ---------- */
 var _netBtn = ui('netBtn');

@@ -589,6 +589,13 @@ function cleanupInfo() { return { lastRun: lastRun, tiers: lastTiers, ledgerSize
 // 1.6.0: a player record's was, every id folded into it, as net.js wasList writes it: a list of plain ids, oldest first, an older build's one
 // id kept as its first, the last WAS_MAX; anything else goes
 var WAS_MAX = 20;
+// 1.6.4: the GM's own name for a player (Player History's box, net.js cleanGmName): one line, control, bidi-override and zero-width
+// characters out, runs of spaces made one, at most 40; anything else, or a blank, goes
+function cleanGmNameIn(p) {
+    if (p.gmName === undefined) return;
+    var g = typeof p.gmName === 'string' ? p.gmName.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40).trim() : '';
+    if (g) p.gmName = g; else delete p.gmName;
+}
 function cleanWas(p) {
     var out = [];
     (Array.isArray(p.was) ? p.was : typeof p.was === 'string' ? [p.was] : []).forEach(function(x) { if (typeof x === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(x) && !(x in Object.prototype) && out.indexOf(x) < 0) out.push(x); });
@@ -602,7 +609,7 @@ function cleanImportItems(ic, deps) {
     // a campaign with no items yet still has players
     if (ic.players !== undefined) {
         if (!isObj(ic.players)) delete ic.players;
-        else Object.keys(ic.players).forEach(function(pid) { var p = ic.players[pid]; if (isObj(p)) { delete p.key; cleanWas(p); if (!(typeof p.lastAt === 'number' && isFinite(p.lastAt) && p.lastAt > 0)) delete p.lastAt; }   /* 1.6.2: when they arrived on their last map, only as a time */ else delete ic.players[pid]; });
+        else Object.keys(ic.players).forEach(function(pid) { var p = ic.players[pid]; if (isObj(p)) { delete p.key; cleanWas(p); cleanGmNameIn(p); if (!(typeof p.lastAt === 'number' && isFinite(p.lastAt) && p.lastAt > 0)) delete p.lastAt; }   /* 1.6.2: when they arrived on their last map, only as a time */ else delete ic.players[pid]; });
     }
     if (!isObj(ic.items)) { ic.items = {}; return; }
     var DR = deps && deps.DR, san = deps && typeof deps.sanitize === 'function' ? deps.sanitize : null, FC = deps && deps.FC && typeof deps.FC.cleanLight === 'function' ? deps.FC : null, TFd = deps && deps.TF && typeof deps.TF.cleanFont === 'function' ? deps.TF : null, GENd = deps && deps.GEN && typeof deps.GEN.cleanGen === 'function' ? deps.GEN : null, CITYd = deps && deps.CITY && typeof deps.CITY.cleanCity === 'function' ? deps.CITY : null, WORLDd = deps && deps.WORLD && typeof deps.WORLD.cleanWorld === 'function' ? deps.WORLD : null, BLASTd = deps && deps.BLAST && typeof deps.BLAST.cleanMine === 'function' ? deps.BLAST : typeof window !== 'undefined' && window.wpBlastCore && typeof window.wpBlastCore.cleanMine === 'function' ? window.wpBlastCore : null, SCd = deps && deps.SC && typeof deps.SC.cleanTokBars === 'function' ? deps.SC : typeof window !== 'undefined' && window.wpSystemCore && typeof window.wpSystemCore.cleanTokBars === 'function' ? window.wpSystemCore : null;   // 1.5.8: the mine cleaner the deps name, else the page's own

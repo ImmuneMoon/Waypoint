@@ -15,7 +15,9 @@ var TOPICS = {
     layout: [['sections', 'Sections', 'The sheet\u2019s sections, and what stands in each.'], ['tabs', 'Tabs', 'A tab strip that groups the sections.'], ['look', 'Sheet look', 'The font, colors, titles and labels of the whole sheet.'], ['header', 'Header', 'What stands under the name.'], ['band', 'Pinned band', 'Figures and rolls kept in view on every tab.']]
 };
 // Which topic a word of the editor's error boxes stands in
-var ERR_TOPIC = { bodies: ['combat', 'bodies'], combat: ['combat', 'turns'], initiative: ['combat', 'initiative'], checks: ['combat', 'outcomes'], damage: ['combat', 'damage'], coverhit: ['combat', 'cover'], blastdefend: ['combat', 'blasts'], range: ['combat', 'range'], height: ['combat', 'height'], light: ['combat', 'light'], senses: ['combat', 'senses'], postures: ['combat', 'postures'], holds: ['combat', 'holds'], budgets: ['rules', 'budgets'], env: ['rules', 'env'], links: ['rules', 'links'], tables: ['rules', 'tables'], results: ['rules', 'results'], values: ['rules', 'values'], tags: ['rules', 'tags'], money: ['rules', 'money'], charcats: ['rules', 'cats'] };   // 1.6.3 (lane B batch "rules"): the Rules tab's names and result tables
+var ERR_TOPIC = { bodies: ['combat', 'bodies'], combat: ['combat', 'turns'], initiative: ['combat', 'initiative'], checks: ['combat', 'outcomes'], damage: ['combat', 'damage'], coverhit: ['combat', 'cover'], blastdefend: ['combat', 'blasts'], range: ['combat', 'range'], height: ['combat', 'height'], light: ['combat', 'light'], senses: ['combat', 'senses'], postures: ['combat', 'postures'], holds: ['combat', 'holds'], budgets: ['rules', 'budgets'], env: ['rules', 'env'], links: ['rules', 'links'], tables: ['rules', 'tables'], results: ['rules', 'results'], values: ['rules', 'values'], tags: ['rules', 'tags'], money: ['rules', 'money'], charcats: ['rules', 'cats'], tests: ['rules', 'tests'], decks: ['rules', 'decks'], names: ['rules', 'names'], arcs: ['combat', 'arcs'], mapkinds: ['combat', 'mapkinds'], bars: ['combat', 'bars'], terrain: ['combat', 'terrain'] };   // 1.6.3 (lane B batch "rules"): the Rules tab's names and result tables
+// 1.6.4 (the beta's last look): the Rules tab's Tests now say what Save drops of them under their box (tests), and Used by names a place in the
+// Decks, Name lists, Arcs, Map kinds, Token bars and Terrain topics by its topic (sysedbox.js usedPlace), so each has its word here
 function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 function topicIn(set, id) { var l = own(TOPICS, set) ? TOPICS[set] : []; for (var i = 0; i < l.length; i++) if (l[i][0] === id) return true; return false; }
 // The topics in view, as this computer kept them: only a topic of its set
@@ -380,6 +382,14 @@ var PROP_BOX = [[/^loot$/, ['sys-loot-if']], [/^(?:apply|then)\.(\d+)$/, ['sys-a
 function formToo(b) { if (b && b.hidden && window.wpFormBox && typeof window.wpFormBox.openFor === 'function') window.wpFormBox.openFor(b); return b; }
 function boxIn(scope, prop) {
     if (typeof prop !== 'string' || !scope) return null;
+    // 1.6.4 (the beta's last look): a fault of one of the Rules tab's Tests (tests.<place>.label, .dice or .hit) lands on that test's own box. A pool test
+    // alone has a hit box, so the nth box of its class is not the nth test: the row whose data-ti is the test's place, else that row. The place is compared,
+    // never put in a selector
+    var tsT = /^tests\.(\d+)\.(label|dice|hit)$/.exec(prop);
+    if (tsT) {
+        var tRows = scope.querySelectorAll('.sys-test-row'), tRow = null; for (var tq = 0; tq < tRows.length && !tRow; tq++) if (tRows[tq].dataset && tRows[tq].dataset.ti === tsT[1]) tRow = tRows[tq];
+        return tRow ? tRow.querySelector('.sys-test-' + tsT[2]) || tRow : null;
+    }
     // 1.6.3 (the review of defense fold 3, finding 8): a line of When it answers an attack lands on its own box in its own line's row, in its roll's box (a
     // list's roll by its place, the box's data-ri), since How many hits and How much gets through stand only on the lines that use them, so the nth of a class is
     // not the nth line. The box itself where the line's row is not drawn. Fixed class names alone: the place is compared, never put in a selector
@@ -603,7 +613,9 @@ function reach(id, prop) {
     for (i = 0; i < cells.length && !cell; i++) if (cells[i].dataset.errFor === id) cell = cells[i];
     if (!cell) return null;
     for (var lp = cell; lp && lp !== modal; lp = lp.parentNode) if (lp.parentNode && lp.parentNode.id === 'sysLayoutSecs' && lp.dataset && topicIn('layout', lp.dataset.topic)) { showTopic('layout', lp.dataset.topic); break; }
-    var scope = cell.closest('.sys-row') || (hasClass(cell.previousSibling || {}, 'sys-list-card') ? cell.previousSibling : cell.parentNode), box = boxIn(scope, prop), to = box && box.hidden && box.parentNode ? box.parentNode : box || cell;   // a box under a form: its form
+    // 1.6.4 (the beta's last look): a point budget's error cell stands right after its own row (renderBudgets), so that row is the scope, as a list's
+    // card is. With the whole box as the scope, a fault of Budget 2's Has landed on Budget 1's Has box
+    var prevC = cell.previousSibling || {}, scope = cell.closest('.sys-row') || (hasClass(prevC, 'sys-list-card') || hasClass(prevC, 'sys-bud-row') ? prevC : cell.parentNode), box = boxIn(scope, prop), to = box && box.hidden && box.parentNode ? box.parentNode : box || cell;   // a box under a form: its form
     for (var n = to; n && n !== modal; n = n.parentNode) if (n.tagName === 'DETAILS') { n.open = true; if (n.dataset && n.dataset.grp) groupsTouched[n.dataset.grp] = 1; }
     if (to.scrollIntoView) to.scrollIntoView({ block: 'center' });
     if (box && box.hidden) formToo(box); else if (box && box.focus) box.focus();

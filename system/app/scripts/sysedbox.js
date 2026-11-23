@@ -849,14 +849,19 @@ function histWire(m) {
 var USED_MAX = 60, USED_LISTS = { field: 'fields', roll: 'rolls', item: 'items', effect: 'effects' };
 function usedThing(kind, id) { var l = draft && Array.isArray(draft[USED_LISTS[kind]]) ? draft[USED_LISTS[kind]] : []; return l.filter(function(x) { return x && x.id === id; })[0] || null; }
 function usedName(kind, x) { var w = { field: x && x.kind === 'item-list' ? 'the list ' : 'the field ', roll: 'the roll ', item: 'the item ', effect: 'the effect ' }[kind] || ''; var n = x ? (kind === 'item' || kind === 'effect' ? x.name : x.label) || x.key || '' : ''; return n ? w + '“' + n + '”' : w.trim() || 'this'; }
+// 1.6.4 (the beta's last look): the draft's own key turned into the word the editor files a topic's faults under (sysui.js ERR_TOPIC), so a place
+// in the Blasts, Turns, Cover, Range, Arcs, Map kinds, Token bars, Terrain, Sheet categories, Money, Decks, Tests or Name lists topic is named by its
+// topic and a press opens that topic, never just the tab on whatever topic it showed last. A key the editor files under its own word needs none
+var USED_TOPIC = { blast: 'blastdefend', turn: 'combat', cover: 'coverhit', targetHit: 'range', targetReads: 'range', arcs: 'arcs', mapKinds: 'mapkinds', mapStart: 'mapkinds', travel: 'mapkinds', bars: 'bars', terrain: 'terrain', charCats: 'charcats', currencies: 'money', decks: 'decks', spreads: 'decks', tests: 'tests', names: 'names' };
+function usedTopic(k) { return Object.prototype.hasOwnProperty.call(USED_TOPIC, k) ? USED_TOPIC[k] : k; }
 // where a hit at a path of the draft stands: the row it is in, a placement, a topic of the Combat or Rules tab, or the tab itself
 function usedPlace(path) {
     var top = path[0], U = typeof window !== 'undefined' ? window.wpSysUi : null;
     if ((top === 'fields' || top === 'rolls' || top === 'items' || top === 'effects') && typeof path[1] === 'number') { var o = draft[top][path[1]]; return o && o.id ? { id: top === 'fields' && o.kind === 'item-list' && path[2] === 'list' ? 'list:' + o.id : o.id, prop: typeof path[2] === 'string' && path[2] !== 'list' ? path[2] : '' } : null; }
     if (top === 'sheet') { var hud = path[1] === 'hud', at = hud ? 2 : 1, sec = path[at] === 'sections' ? (hud ? draft.sheet.hud : draft.sheet).sections[path[at + 1]] : null; var lw = 'Layout' + (hud ? ' of the HUD' : '') + (sec && sec.title ? ', ' + sec.title : ''); return sec && sec.id && path[at + 2] === 'fields' ? { id: 'plc:' + (hud ? 'hud' : 'sheet') + ':' + sec.id + ':' + path[at + 3], name: lw } : { id: 'plc:' + (hud ? 'hud' : 'sheet') + ':' + (sec && sec.id ? sec.id + ':' : ''), name: lw }; }   // 1.6.3 (the release click test): a part of the section itself names the section, so the press lands on its row
     if (top === 'calendar' || top === 'rests') return { id: 'calendar' };
-    if (top === 'combat') { var k1 = path[1]; if (k1 === 'hpResource' || k1 === 'damage') return { id: 'damage' }; if (U && U.topicOf && U.topicOf(k1)) return { id: k1 }; return { tab: 'combat' }; }
-    if (U && U.topicOf && U.topicOf(top)) return { id: top };
+    if (top === 'combat') { var k1 = usedTopic(path[1]); if (k1 === 'hpResource' || k1 === 'damage') return { id: 'damage' }; if (U && U.topicOf && U.topicOf(k1)) return { id: k1 }; return { tab: 'combat' }; }
+    var tk = usedTopic(top); if (U && U.topicOf && U.topicOf(tk)) return { id: tk };
     return { tab: 'rules' };
 }
 function usedWalk(v, path, want, skip, hit) {
@@ -932,12 +937,20 @@ function usedListPlace(list) {
 function usedByBox(kind, obj) {
     var box = el('span', 'sys-usedby'), b = el('button', 'tool ghost sys-btn sys-usedby-btn', 'Used by'), list = el('div', 'sys-usedby-list');
     b.type = 'button'; b.title = 'What reads it: formulas, rolls, list columns, the layout, effects and library entries'; b.setAttribute('aria-expanded', 'false'); list.hidden = true;
+    // 1.6.4 (the beta's last look): the list is shut in one place, which says so to a screen reader (aria-expanded) and lets go of the press that
+    // closes it from elsewhere. Escape with the focus in it shuts it and gives the focus back to its button (esckey.js leaves that press to the box, by
+    // its class used-open), and a press anywhere outside it shuts it too
+    var doc = typeof document !== 'undefined' ? document : null, away = function(ev) { if (!(ev && ev.target && box.contains && box.contains(ev.target))) shut(); };
+    var shut = function() { list.hidden = true; b.setAttribute('aria-expanded', 'false'); if (box.classList) box.classList.remove('used-open'); if (doc && typeof doc.removeEventListener === 'function') doc.removeEventListener('pointerdown', away, true); };
     b.addEventListener('click', function(e) {
         e.preventDefault(); e.stopPropagation();
-        if (!list.hidden) { list.hidden = true; b.setAttribute('aria-expanded', 'false'); return; }
+        if (!list.hidden) { shut(); return; }
         var rows = []; try { rows = usedBy(kind, obj && obj.id); } catch (er) { console.error(er); }
-        usedDraw(list, rows); list.hidden = false; usedListPlace(list); if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function() { if (!list.hidden) usedListPlace(list); });   // again once the row's head has settled, since a box drawn just now may still wrap it b.setAttribute('aria-expanded', 'true');
+        usedDraw(list, rows); list.hidden = false; b.setAttribute('aria-expanded', 'true'); if (box.classList) box.classList.add('used-open'); if (doc && typeof doc.addEventListener === 'function') doc.addEventListener('pointerdown', away, true);
+        usedListPlace(list);
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function() { if (!list.hidden) usedListPlace(list); });   // again once the row's head has settled, since a box drawn just now may still wrap it
     });
+    box.addEventListener('keydown', function(e) { if (e.key !== 'Escape' || list.hidden) return; e.preventDefault(); e.stopPropagation(); shut(); if (b.focus) b.focus(); });
     ['input', 'change', 'click'].forEach(function(t) { box.addEventListener(t, function(e) { e.stopPropagation(); }); });
     box.appendChild(b); box.appendChild(list); return box;
 }

@@ -54,6 +54,19 @@ function turnRunSays(tn, kept) {
     return out;
 }
 // [systemcheck:turntrade-end]
+// 1.6.4 (the review of the beta's last look): an action's short name now follows its name while the row is new, out of sight, so a roll that
+// costs that action must follow it too, or its Costs list says the action is gone and Save drops the cost. When an action's short name changes
+// (onTurnInput) or the action is removed (turnClick), every system roll and every list's roll whose cost named the old short name (read without
+// case, as the validator and the Costs list compare it) takes the new one, or loses its cost and how many it spends where there is none.
+// Nothing moves while another action still goes by the old short name, since the cost then still names that one.
+function turnCostFollow(was, now) {
+    if (!was || typeof draft === 'undefined' || !draft) return;
+    var lw = String(was).toLowerCase();
+    if (turnActs().some(function(a) { return a.key.toLowerCase() === lw; })) return;
+    function follow(r) { if (!r || typeof r !== 'object' || typeof r.cost !== 'string' || r.cost.toLowerCase() !== lw) return; if (now) r.cost = now; else { delete r.cost; delete r.costN; } }
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(follow);
+    (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(fl) { if (fl && fl.list && Array.isArray(fl.list.rolls)) fl.list.rolls.forEach(follow); });
+}
 function turnBox(box, cm) {
     var tn = cm.turn && typeof cm.turn === 'object' && !Array.isArray(cm.turn) ? cm.turn : {}, wrap = el('div', 'sys-turn');
     wrap.appendChild(el('div', 'sys-turn-head', 'Turns'));
@@ -85,10 +98,14 @@ function turnBox(box, cm) {
         wrap.appendChild(el('span', 'sys-num-cap', g[2]));
         arr.forEach(function(x0, i) {
             var x = x0 && typeof x0 === 'object' ? x0 : {}, rw = el('div', 'sys-flags sys-turn-' + g[0]); rw.dataset.ti = String(i);
-            var k = input('sys-turn-' + g[0] + 'key field', typeof x.key === 'string' ? x.key : '', g[0] === 'act' ? 'Its name, which a roll costs: Action, Bonus, Reaction, Maneuver' : 'Its name in an effect\u2019s length: segment, watch (not a word the list already has: second, minute, hour, day, turn, round)', 'Key'); k.maxLength = 24; rw.appendChild(k);
-            var l = input('sys-turn-' + g[0] + 'label field', typeof x.label === 'string' ? x.label : '', 'What the sheet shows (blank: the key)', 'Label'); l.maxLength = LIMITS.label; rw.appendChild(l);
-            var n = el('input', 'field sys-turn-' + g[0] + 'n'); n.type = g[0] === 'act' ? 'text' : 'number';
-            if (g[0] === 'act') { n.maxLength = LIMITS.formula; n.value = typeof x.nf === 'string' && x.nf ? x.nf : String(typeof x.n === 'number' ? x.n : 1); n.placeholder = '1'; n.title = 'How many a turn allows: a whole number from 1 to 9, or a formula of the character\u2019s names, worked out at their turn\u2019s start, such as 1 + ExtraReady'; }   // 192
+            // 1.6.4 (the beta's last look; the rule that a builder reads names, never keys): the name comes first and is the only box a builder needs. The
+            // short name beside it stands out of sight unless Short names is ticked at the foot (style.css), and follows the name while it is new or
+            // empty (KEY_FOLLOW, keyBoxFollow), staying what it is once saved, so a rename breaks nothing. A row saved before with no name shows its
+            // short name grayed in the name box
+            var l = input('sys-turn-' + g[0] + 'label field', typeof x.label === 'string' ? x.label : '', g[0] === 'act' ? 'Its name, which a roll costs: Action, Bonus action, Reaction, Maneuver' : 'Its name in an effect\u2019s length: Segment, Watch. Not one Waypoint already knows: second, minute, hour, day, turn, round', typeof x.key === 'string' && x.key ? x.key : 'Name'); l.maxLength = LIMITS.label; rw.appendChild(l);
+            var k = input('sys-turn-' + g[0] + 'key field', typeof x.key === 'string' ? x.key : '', 'Its short name, which rules and an effect\u2019s length may read', 'Short name'); k.maxLength = 24; if ((x._new || !x.key) && k.dataset) k.dataset.follow = '1'; rw.appendChild(k);
+            var n = el('input', g[0] === 'act' ? 'field sys-turn-actn' : 'field sys-turn-tun'); n.type = g[0] === 'act' ? 'text' : 'number';   // 1.6.4: each class written whole, since an action's count is a form (formbox.js names it)
+            if (g[0] === 'act') { n.maxLength = LIMITS.formula; n.value = typeof x.nf === 'string' && x.nf ? x.nf : String(typeof x.n === 'number' ? x.n : 1); n.placeholder = '1'; n.title = 'How many a turn allows, worked out for each character at the start of their turn'; }   // 192. 1.6.4 (the beta's last look): a form (formbox.js), so its tooltip asks for no formula
             else { n.min = '0'; n.step = 'any'; n.value = typeof x.secs === 'number' ? String(x.secs) : ''; n.placeholder = 'Seconds'; n.title = 'How long one lasts, in seconds (a watch: 14400)'; }
             rw.appendChild(n);
             [['up', '\u25b2', 'Move up'], ['down', '\u25bc', 'Move down'], ['del', '\u00d7', 'Remove']].forEach(function(bd) { var bb = el('button', 'tool ghost sys-btn', bd[1]); bb.dataset.act = 't' + g[0] + bd[0]; bb.title = bd[2]; (typeof segPut === 'function' ? segPut(rw, bb) : rw.appendChild(bb)); });
@@ -114,7 +131,7 @@ function onTurnInput(t) {
     else if (c.indexOf('sys-turn-secs') >= 0) { var sv = Number(t.value); if (t.value.trim() && isFinite(sv)) tn.secs = sv; else delete tn.secs; }
     else if (rw) {
         var g = rw.classList.contains('sys-turn-act') ? 'act' : 'tu', arr = tn[g === 'act' ? 'acts' : 'units'], x = Array.isArray(arr) && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!x) return true;
-        if (c.indexOf('sys-turn-' + g + 'key') >= 0) { var wasK = x.key; x.key = t.value.slice(0, 24); if (g === 'act') turnTradeFollow(tn, wasK, x.key); }
+        if (c.indexOf('sys-turn-' + g + 'key') >= 0) { var wasK = x.key; x.key = t.value.slice(0, 24); if (g === 'act') { turnTradeFollow(tn, wasK, x.key); turnCostFollow(wasK, x.key); } if (typeof document !== 'undefined' && document.activeElement === t) { delete x._new; if (t.dataset) delete t.dataset.follow; } }   // 1.6.4: a short name typed by hand under Short names stays, and no longer follows the name
         else if (c.indexOf('sys-turn-' + g + 'label') >= 0) { if (t.value.trim()) x.label = t.value.slice(0, LIMITS.label); else delete x.label; }
         else if (c.indexOf('sys-turn-' + g + 'n') >= 0) { var nv = Number(t.value); if (g === 'act') { var nt = String(t.value || '').trim(); if (/^[0-9]+$/.test(nt)) { x.n = nv; delete x.nf; } else if (nt) { x.nf = nt.slice(0, LIMITS.formula); if (typeof x.n !== 'number') x.n = 1; } else { x.n = 1; delete x.nf; } } else if (t.value.trim() && isFinite(nv)) x.secs = nv; else delete x.secs; }   // 192: a whole number, or a formula
         else return true;
@@ -146,15 +163,24 @@ function onTurnChange(t) {
     else return c.indexOf('sys-turn-') >= 0;   // the boxes' change events (their input events did the work)
     markDirty(); patchErrors(); return true;
 }
+// 1.6.4 (the beta's last look): a new action or time unit starts named, Action 1 or Time unit 1, the first number no row's name or short name holds,
+// and its short name made from that name (Action1, TimeUnit1). It carries _new, which the cleaner never keeps, so its short name follows the name
+// typed over it until it is saved
+function turnNewRow(arr, g) {
+    var word = g === 'act' ? 'Action' : 'Time unit', kw = g === 'act' ? 'Action' : 'TimeUnit', n = 1, low = function(v) { return typeof v === 'string' ? v.trim().toLowerCase() : ''; };
+    var taken = function(i) { return arr.some(function(x) { return !!x && typeof x === 'object' && (low(x.label) === low(word + ' ' + i) || low(x.key) === low(kw + i)); }); };
+    while (taken(n)) n++;
+    return g === 'act' ? { label: word + ' ' + n, key: kw + n, n: 1, _new: true } : { label: word + ' ' + n, key: kw + n, secs: 60, _new: true };
+}
 function turnClick(b) {
     var m = /^t(act|tu)(add|up|down|del)$/.exec(b.dataset.act || ''); if (!m) return false;
     var tn = turnDraft(), key = m[1] === 'act' ? 'acts' : 'units', cap = m[1] === 'act' ? LIMITS.turnActs : LIMITS.turnUnits, arr = Array.isArray(tn[key]) ? tn[key] : (tn[key] = []);
     var rw = b.closest('.sys-turn-' + m[1]), i = rw ? +rw.dataset.ti : -1;
-    if (m[2] === 'add') { if (arr.length >= cap) { toast('At most ' + cap + '.'); return true; } arr.push(m[1] === 'act' ? { key: '', n: 1 } : { key: '', secs: 60 }); }
+    if (m[2] === 'add') { if (arr.length >= cap) { toast('At most ' + cap + '.'); return true; } arr.push(turnNewRow(arr, m[1])); }
     else if (!(i >= 0 && i < arr.length)) return true;
     else if (m[2] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
     else if (m[2] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
-    else { var goneT = arr.splice(i, 1)[0]; if (m[1] === 'act' && goneT) turnTradeFollow(tn, goneT.key, ''); }
+    else { var goneT = arr.splice(i, 1)[0]; if (m[1] === 'act' && goneT) { turnTradeFollow(tn, goneT.key, ''); turnCostFollow(goneT.key, ''); } }
     markDirty(); renderAll(); return true;
 }
 // [systemcheck:capnote-start]
@@ -398,7 +424,7 @@ function lvlBoxSays(it) {
 }
 function itemOfRow(target) { var row = target.closest && target.closest('.sys-item-row'); if (!row) return null; return (draft.items || []).find(function(x) { return x.id === row.dataset.iid; }) || null; }
 // 1.6.2 (the owner: no key a user reads or types, ever): a name box is the only box a builder needs. The short name beside it stands out of sight, fills itself in from the name while it is new, and stays what it is once saved, so that a rename breaks nothing. The System editor's foot has a tick that shows them. A key that names ANOTHER thing is a different matter: it wants a pick
-var KEY_FOLLOW = { 'sys-list-statlabel': ['sys-list-statkey', '.sys-list-stat', 1], 'sys-list-collabel': ['sys-list-colkey', '.sys-list-col', 1], 'sys-list-ctlabel': ['sys-list-ctkey', '.sys-list-ct', 1], 'sys-env-label': ['sys-env-key', '.sys-env-row'], 'sys-tbl-label': ['sys-tbl-key', '.sys-tbl-head'], 'sys-tbl-clabel': ['sys-tbl-ckey', 'th'], 'sys-tbl-rlabel': ['sys-tbl-rkey', 'tr'], 'sys-link-label': ['sys-link-key', '.sys-link-row'], 'sys-dmgr-ylabel': ['sys-dmgr-ykey', '.sys-dmgr-type'], 'sys-dmgr-klabel': ['sys-dmgr-kkey', '.sys-dmgr-kind'] };
+var KEY_FOLLOW = { 'sys-list-statlabel': ['sys-list-statkey', '.sys-list-stat', 1], 'sys-list-collabel': ['sys-list-colkey', '.sys-list-col', 1], 'sys-list-ctlabel': ['sys-list-ctkey', '.sys-list-ct', 1], 'sys-env-label': ['sys-env-key', '.sys-env-row'], 'sys-tbl-label': ['sys-tbl-key', '.sys-tbl-head'], 'sys-tbl-clabel': ['sys-tbl-ckey', 'th'], 'sys-tbl-rlabel': ['sys-tbl-rkey', 'tr'], 'sys-link-label': ['sys-link-key', '.sys-link-row'], 'sys-dmgr-ylabel': ['sys-dmgr-ykey', '.sys-dmgr-type'], 'sys-dmgr-klabel': ['sys-dmgr-kkey', '.sys-dmgr-kind'], 'sys-turn-actlabel': ['sys-turn-actkey', '.sys-turn-act'], 'sys-turn-tulabel': ['sys-turn-tukey', '.sys-turn-tu'] };   // 1.6.4 (the beta's last look): an action's and a time unit's short name follows its name
 // [systemcheck:autobox-start]
 // 1.6.2 (auto apply): a field's two options, its own listeners (the Fields tab's dispatcher never hears them) and classes no handler there reads.
 // Worked out until typed: a form whose figure the field reads while nothing is typed. Typing it fills: rows of another number, toggle, height or weight
@@ -1587,10 +1613,22 @@ function importAsk(j, c, whole) {
 function mergeFile(file) {
     if (!file || !draft) return;
     var M = typeof window !== 'undefined' ? window.wpSysMerge : null; if (!M || typeof M.open !== 'function') return;
-    file.text().then(function(text) {
+    // 1.6.4 (the beta's last look): a whole system's .zip, which Export makes as Whole system, is read through syszip.js as Import reads it (each entry
+    // judged first, nothing written), and only its system is merged: Merge adds a system's own parts, so its library packs and pictures stay in the
+    // file, and a notice says so. Before this, such a file was called "not a Waypoint system"
+    var zipped = /\.zip$/i.test(String(file.name || '')), stays = '';
+    var read = zipped ? sysZip().then(function(Z) {
+        return Z.readWhole(file, function(j) { return cleanSystem(j, { F: F(), gmView: true }); }, sysZipDeps()).then(function(b) {
+            if (!b || b.error) { var er = new Error('zip'); er.say = b && b.error ? b.error : ''; throw er; }
+            if ((b.texts && b.texts.length) || (b.pics && b.pics.length)) stays = 'Its library packs and pictures stay in the file, since Merge brings only the system\u2019s own parts. Import would bring them too, but it replaces this whole system.';   // 1.6.4 (the review): say that Import replaces the system, never only that it brings more
+            return { j: b.json, c: b.system };
+        });
+    }) : file.text().then(function(text) {
         var j = JSON.parse(text), c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('not a system');
         return { j: j, c: c };
-    }).then(function(got0) {
+    });
+    read.then(function(got0) {
+        if (stays) toast(stays);
         var c = got0.c, dr = droppedCounts(got0.j, c), left = typeof droppedWords === 'function' ? droppedWords(dr) : '';   // what the file had that was left out, said as Import says it
         // the editor's whole check before and after: each line the merged draft would add, in the words the editor says it in (plainMessage)
         var faults = function(cand) {
@@ -1608,7 +1646,7 @@ function mergeFile(file) {
                 if (pool) hpPoolFill(pool.obj.id);
                 markDirty(); renderAll(); return got;
             } }); } catch (e) { console.error(e); M.logStep('open-failed', {}); toast('The merge window could not open.'); }
-    }, function() { M.logStep('read-failed', {}); toast('That file is not a Waypoint system.'); });
+    }, function(er) { M.logStep('read-failed', {}); toast(er && er.say ? er.say : zipped ? 'That file could not be read as a Waypoint system.' : 'That file is not a Waypoint system.'); });
 }
 // [syszipcheck:import-start]
 // 1.6.4 (Export a system whole): a system's .zip read back. syszip.js readWhole opens it without unpacking it and judges each entry first

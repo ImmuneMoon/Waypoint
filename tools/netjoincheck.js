@@ -470,7 +470,7 @@ pendingChecks.push((async () => {
     h.hello(c, { id: 'u_k', name: 'K' }); await h.settle(); const nonce = h.lastSent('w1', 'auth').m.nonce;
     h.hello(c, { id: 'u_k', name: 'K', color: '#12ab34', avatar: 'data:text/html;base64,AAAA', location: 'map_secret', evil: { deep: 1 }, gm: true }, { key: 'z'.repeat(32), proof: hmacRef('z'.repeat(32), 'wp-auth|' + nonce + '|waypoint-c1' + FPTAIL) }); await h.settle();
     const prof = h.admitted[0] && h.admitted[0].prof;
-    check('hello: only id/name/color survive from the profile (a bad avatar and any extra field are dropped)', prof && Object.keys(prof).sort().join() === 'color,id,name' && prof.color === '#12ab34', JSON.stringify(h.admitted));
+    check('hello: only id/name/color survive from the profile (a bad avatar and any extra field are dropped), beside the host\'s own copy of the name the player\'s app goes by (appName, 1.6.4, a deliberate change of this pin: the cleaned name itself, never a field the peer sent, and never in the roster sent out)', prof && Object.keys(prof).sort().join() === 'appName,color,id,name' && prof.color === '#12ab34' && prof.appName === prof.name, JSON.stringify(h.admitted));
 })());
 {
     const h = harness(); const c = h.conn('s1');
@@ -2203,6 +2203,19 @@ pendingChecks.push((async () => {
             && j(said) === j(['At this table you go by Ranger, the name the GM set for you here. Your own name stays yours everywhere else.'])
             && j(away) === j(['table', true, 'Player 2']) && j(off) === j({ ok: true, off: true }) && j(offAt) === j([undefined, 'Ranger']) && j(offAgain) === j({ why: 'same' }),
             j({ set1, at1, refusals, lookAlike, owner, jq, said, away, off, offAt, offAgain }));
+        // Fulllion, 2026-11-24: clearing a table name while the player is seated puts their own name back at once: the name their app goes by
+        // (appName, from its hello and each change since), judged as a rename is; one not free here leaves them under the name they had, told why
+        const U = mkN(), CU = U.C;
+        U.net.roster.pA.appName = 'Ayla Own'; CU.nameSetTable(U.camp, 'u_a', 'Ranger'); U.notes.length = 0; U.rosters = 0;
+        const back = CU.nameSetTable(U.camp, 'u_a', ''), backAt = [U.net.roster.pA.name, U.camp.players.u_a.name, U.camp.players.u_a.tableName, U.rosters, U.notes.slice()];
+        CU.nameSetTable(U.camp, 'u_a', 'Ranger'); U.notes.length = 0; U.net.roster.pA.appName = 'bram stone';
+        const blocked = CU.nameSetTable(U.camp, 'u_a', ''), blockedAt = [U.net.roster.pA.name, U.camp.players.u_a.wanted, U.notes.slice()];
+        CU.nameSetTable(U.camp, 'u_a', 'Ranger'); U.notes.length = 0; U.net.roster.pA.appName = 'Game Master';
+        const gmWord = CU.nameSetTable(U.camp, 'u_a', ''), gmAt = U.net.roster.pA.name;
+        check('1.6.4 clearing a table name while the player is seated (Fulllion: their own name back at once): the name their app goes by is put back on the roster and their record and the roster goes again, they are told; one in use here, or kept for the GM, leaves them under the name they had for now, told why (a wish kept for a name in use)',
+            j(back) === j({ ok: true, off: true, back: 'Ayla Own' }) && j(backAt) === j(['Ayla Own', 'Ayla Own', undefined, 1, ['pA:The GM took off the name you went by at this table, so you go by your own name, Ayla Own, here again.']])
+            && j(blocked) === j({ ok: true, off: true, kept: 'Ranger', own: 'bram stone' }) && j(blockedAt) === j(['Ranger', 'bram stone', ['pA:The GM took off the name you went by at this table. Your own name, bram stone, is not free here, so you go by Ranger for now. Pick another name in Your profile.']])
+            && j(gmWord) === j({ ok: true, off: true, kept: 'Ranger', own: 'Game Master' }) && gmAt === 'Ranger', j({ back, backAt, blocked, blockedAt, gmWord }));
         // the review of table names: someone else at the table who goes by a table name is pushed aside only by its holder proven (unproven, the
         // holder is turned away); a table name is never pushed aside, and two the GM picked that look alike both stand; the holder of a table name
         // is found by a name that looks like it; a word kept for the GM, as a table name from a file, is never enforced; a name of no letters is none

@@ -830,12 +830,14 @@ function refreshErrorsNow() {
             var seen = Object.create(null), cap = g[0] === 'acts' ? LIMITS.turnActs : LIMITS.turnUnits;
             (Array.isArray(tnE[g[0]]) ? tnE[g[0]] : []).forEach(function(x, i) {
                 // 1.6.4 (the beta's last look): a row is said by its name where it has one, and a fault of its short name is said by what it does, never
-                // by the short name's syntax: the short name follows the name and stands out of sight unless Short names is ticked at the foot
+                // by the short name's syntax: the short name follows the name and stands out of sight unless Short names is ticked at the foot.
+                // 1.6.4 (the review): a short name typed by hand, or one saved before, no longer follows the name, so a renaming alone cannot put
+                // a clash right; the two short name faults also say how to change the short name itself
                 var k = x && typeof x.key === 'string' ? x.key : '', nm = (x && typeof x.label === 'string' && x.label.trim()) || g[1] + ' ' + (i + 1), kind = g[0] === 'acts' ? 'action' : 'time unit';
                 if (i >= cap) tErr.push({ message: nm + ': at most ' + cap + ', so Save drops it.' });
                 else if (!KEY.test(k)) tErr.push({ message: nm + ' needs a name that makes a short name. Type a name with a letter in it, or tick \u201cShort names\u201d at the foot and give it one. Until then Save drops it.' });
-                else if (seen[k.toLowerCase()]) tErr.push({ message: nm + ': another ' + kind + ' already goes by this name, so Save drops it. Give it another name.' });
-                else if (g[0] === 'units' && TIME_WORDS[k.toLowerCase()] === 1) tErr.push({ message: nm + ': Waypoint already knows ' + k.toLowerCase() + ' as a length of time, so Save drops this unit. Give it another name, such as Watch.' });
+                else if (seen[k.toLowerCase()]) tErr.push({ message: nm + ': another ' + kind + ' already goes by this name, so Save drops it. Give it another name, or tick \u201cShort names\u201d at the foot and give it another short name.' });
+                else if (g[0] === 'units' && TIME_WORDS[k.toLowerCase()] === 1) tErr.push({ message: nm + ': Waypoint already knows ' + k.toLowerCase() + ' as a length of time, so Save drops this unit. Give it another name, such as Watch, or tick \u201cShort names\u201d at the foot and give it another short name.' });
                 else if (g[0] === 'units' && !(typeof x.secs === 'number' && x.secs > 0 && x.secs <= 1e9)) tErr.push({ message: nm + ' needs its length in seconds: Save drops it.' });
                 else if (g[0] === 'acts' && !(typeof x.n === 'number' && Math.floor(x.n) === x.n && x.n >= 1 && x.n <= 9)) tErr.push({ message: nm + ': a turn allows 1 to 9, so Save keeps 1.' });
                 if (KEY.test(k)) seen[k.toLowerCase()] = 1;

@@ -442,7 +442,10 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             epT('turn.move') === 'Move per turn: ' && epT('cost') === 'Costs: ' && epT('list') === '' && epT('key') === 'Short name: '
             && /var actsR = turnActs\(\); if \(actsR\.length \|\| r\.cost\) top\.appendChild\(select\('sys-roll-cost'/.test(require('./checkkit').part('sysedroll.js')) && /if \(actsL\.length \|\| rr\.cost\) \{ var rco = el\('select', 'sys-list-rollcost'\)/.test(require('./checkkit').part('sysedlist.js'))
             /* 1.6.4 (the beta's last look, a deliberate change of this pin): a short name's faults are said by what they do, never by its syntax */
-            && /as a length of time, so Save drops this unit\. Give it another name, such as Watch\./.test(require('./checkkit').part('sysederr.js')) && /needs a name that makes a short name\. Type a name with a letter in it, or tick \\u201cShort names\\u201d at the foot and give it one\. Until then Save drops it\./.test(require('./checkkit').part('sysederr.js')) && /box\.appendChild\(listCard\(f, cats, tgL, draft\.combat && draft\.combat\.turn/.test(require('./checkkit').part('sysedlist.js'))
+            /* 1.6.4 (the review of the beta's last look, moved on purpose): both short name clashes also say how to give it another short name, since a
+               short name typed by hand or saved before no longer follows the name */
+            && /as a length of time, so Save drops this unit\. Give it another name, such as Watch, or tick \\u201cShort names\\u201d at the foot and give it another short name\./.test(require('./checkkit').part('sysederr.js'))
+            && /already goes by this name, so Save drops it\. Give it another name, or tick \\u201cShort names\\u201d at the foot and give it another short name\./.test(require('./checkkit').part('sysederr.js')) && /needs a name that makes a short name\. Type a name with a letter in it, or tick \\u201cShort names\\u201d at the foot and give it one\. Until then Save drops it\./.test(require('./checkkit').part('sysederr.js')) && /box\.appendChild\(listCard\(f, cats, tgL, draft\.combat && draft\.combat\.turn/.test(require('./checkkit').part('sysedlist.js'))
             && /<li><b>Turns<\/b>, on the Combat tab, describe your game&rsquo;s turn for turn-based combat\./.test(hmT));
         // the ruler (whiteboard.js): the square grid counts a diagonal as the system says
         const wbT = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL).replace(/\r/g, '');
@@ -3002,8 +3005,23 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const tickZ = () => new Promise(r => setTimeout(r, 0)), zipFile = { name: 'Pools.zip', text: () => Promise.reject(new Error('binary')) };
         MFZ(zipFile); for (let q = 0; q < 6; q++) await tickZ(); const zOk = logZ.slice();
         logZ.length = 0; zipAns = { error: 'That is a campaign export. Bring it in with Import on the top bar.' }; MFZ(zipFile); for (let q = 0; q < 6; q++) await tickZ(); const zBad = logZ.slice();
-        check('1.6.4 (the beta’s last look) Merge from a file reads a whole system’s .zip for its system alone (mergeFile, run for real): the window opens on the system it holds, its packs and pictures are said to stay in the file, and a zip that is no system’s is said in plain words, never called not a Waypoint system',
-            j(zOk) === j(['toast Its library packs and pictures stay in the file: Merge brings only the system’s own parts. Import brings them all.', 'open Pools']) && j(zBad) === j(['step read-failed', 'toast That is a campaign export. Bring it in with Import on the top bar.']), j([zOk, zBad]));
+        check('1.6.4 (the beta’s last look; the review moved this pin on purpose, so the notice says Import replaces the whole system) Merge from a file reads a whole system’s .zip for its system alone (mergeFile, run for real): the window opens on the system it holds, its packs and pictures are said to stay in the file, and a zip that is no system’s is said in plain words, never called not a Waypoint system',
+            j(zOk) === j(['toast Its library packs and pictures stay in the file, since Merge brings only the system’s own parts. Import would bring them too, but it replaces this whole system.', 'open Pools']) && j(zBad) === j(['step read-failed', 'toast That is a campaign export. Bring it in with Import on the top bar.']), j([zOk, zBad]));
+    }
+    {   // 1.6.4 (the review of the beta's last look): an action's short name follows its name while the row is new, out of sight, so a roll's cost
+        // that names it must follow too (sysedtabs.js turnCostFollow, run for real through onTurnInput and turnClick): a system roll and a list's roll
+        // take the new short name, read without case; a removed action takes the cost and how many it spends off; nothing moves while another
+        // action still goes by the old short name
+        const trC = kit.cut('sysedtabs.js', 'function turnActs() {', 'function renderAll() {');
+        const dC = { rolls: [{ id: 'r_a', cost: 'Action1', costN: 2 }, { id: 'r_b', cost: 'Bonus' }], fields: [{ id: 'f_g', kind: 'items', list: { rolls: [{ label: 'Swing', cost: 'action1' }] } }], combat: { turn: { acts: [{ label: 'Action 1', key: 'Action1', n: 1, _new: true }, { label: 'Bonus', key: 'Bonus', n: 1 }] } } };
+        const edC = new Function('draft', 'LIMITS', 'markDirty', 'renderAll', 'patchErrors', 'toast', 'TURN_UNITS', 'el', 'input', 'select', 'labeledSelect', 'errorCell', trC + NL + 'return { onTurnInput: onTurnInput, turnClick: turnClick };')(dC, LIMITS, () => {}, () => {}, () => {}, () => {}, S.TURN_UNITS, null, null, null, null, null);
+        const rowC = ti => ({ dataset: { ti: String(ti) }, classList: { contains: c => c === 'sys-turn-act' }, parentNode: null });
+        const costsC = () => j([dC.rolls[0], dC.fields[0].list.rolls[0], dC.rolls[1]]);
+        edC.onTurnInput({ className: 'sys-turn-actkey field', value: 'Attack', dataset: { follow: '1' }, closest: () => rowC(0) }); const renC = costsC();
+        edC.turnClick({ dataset: { act: 'tactdel' }, closest: () => rowC(0) }); const delC = costsC();
+        dC.combat.turn.acts.push({ label: 'Bonus too', key: 'Bonus', n: 1 }); edC.onTurnInput({ className: 'sys-turn-actkey field', value: 'Boon', dataset: {}, closest: () => rowC(0) }); const twinC = costsC();
+        check('1.6.4 (the review of the beta’s last look) an action renamed while new keeps the rolls that cost it: a system roll’s and a list roll’s cost follow its short name, a removed action takes them off with how many they spend, and a short name another action still has moves nothing',
+            renC === j([{ id: 'r_a', cost: 'Attack', costN: 2 }, { label: 'Swing', cost: 'Attack' }, { id: 'r_b', cost: 'Bonus' }]) && delC === j([{ id: 'r_a' }, { label: 'Swing' }, { id: 'r_b', cost: 'Bonus' }]) && twinC === j([{ id: 'r_a' }, { label: 'Swing' }, { id: 'r_b', cost: 'Bonus' }]), j([renC, delC, twinC]));
     }
 
     await T.finish();

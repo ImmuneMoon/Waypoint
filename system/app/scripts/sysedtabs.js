@@ -54,6 +54,19 @@ function turnRunSays(tn, kept) {
     return out;
 }
 // [systemcheck:turntrade-end]
+// 1.6.4 (the review of the beta's last look): an action's short name now follows its name while the row is new, out of sight, so a roll that
+// costs that action must follow it too, or its Costs list says the action is gone and Save drops the cost. When an action's short name changes
+// (onTurnInput) or the action is removed (turnClick), every system roll and every list's roll whose cost named the old short name (read without
+// case, as the validator and the Costs list compare it) takes the new one, or loses its cost and how many it spends where there is none.
+// Nothing moves while another action still goes by the old short name, since the cost then still names that one.
+function turnCostFollow(was, now) {
+    if (!was || typeof draft === 'undefined' || !draft) return;
+    var lw = String(was).toLowerCase();
+    if (turnActs().some(function(a) { return a.key.toLowerCase() === lw; })) return;
+    function follow(r) { if (!r || typeof r !== 'object' || typeof r.cost !== 'string' || r.cost.toLowerCase() !== lw) return; if (now) r.cost = now; else { delete r.cost; delete r.costN; } }
+    (Array.isArray(draft.rolls) ? draft.rolls : []).forEach(follow);
+    (Array.isArray(draft.fields) ? draft.fields : []).forEach(function(fl) { if (fl && fl.list && Array.isArray(fl.list.rolls)) fl.list.rolls.forEach(follow); });
+}
 function turnBox(box, cm) {
     var tn = cm.turn && typeof cm.turn === 'object' && !Array.isArray(cm.turn) ? cm.turn : {}, wrap = el('div', 'sys-turn');
     wrap.appendChild(el('div', 'sys-turn-head', 'Turns'));
@@ -118,7 +131,7 @@ function onTurnInput(t) {
     else if (c.indexOf('sys-turn-secs') >= 0) { var sv = Number(t.value); if (t.value.trim() && isFinite(sv)) tn.secs = sv; else delete tn.secs; }
     else if (rw) {
         var g = rw.classList.contains('sys-turn-act') ? 'act' : 'tu', arr = tn[g === 'act' ? 'acts' : 'units'], x = Array.isArray(arr) && arr[i] && typeof arr[i] === 'object' ? arr[i] : null; if (!x) return true;
-        if (c.indexOf('sys-turn-' + g + 'key') >= 0) { var wasK = x.key; x.key = t.value.slice(0, 24); if (g === 'act') turnTradeFollow(tn, wasK, x.key); if (typeof document !== 'undefined' && document.activeElement === t) { delete x._new; if (t.dataset) delete t.dataset.follow; } }   // 1.6.4: a short name typed by hand under Short names stays, and no longer follows the name
+        if (c.indexOf('sys-turn-' + g + 'key') >= 0) { var wasK = x.key; x.key = t.value.slice(0, 24); if (g === 'act') { turnTradeFollow(tn, wasK, x.key); turnCostFollow(wasK, x.key); } if (typeof document !== 'undefined' && document.activeElement === t) { delete x._new; if (t.dataset) delete t.dataset.follow; } }   // 1.6.4: a short name typed by hand under Short names stays, and no longer follows the name
         else if (c.indexOf('sys-turn-' + g + 'label') >= 0) { if (t.value.trim()) x.label = t.value.slice(0, LIMITS.label); else delete x.label; }
         else if (c.indexOf('sys-turn-' + g + 'n') >= 0) { var nv = Number(t.value); if (g === 'act') { var nt = String(t.value || '').trim(); if (/^[0-9]+$/.test(nt)) { x.n = nv; delete x.nf; } else if (nt) { x.nf = nt.slice(0, LIMITS.formula); if (typeof x.n !== 'number') x.n = 1; } else { x.n = 1; delete x.nf; } } else if (t.value.trim() && isFinite(nv)) x.secs = nv; else delete x.secs; }   // 192: a whole number, or a formula
         else return true;
@@ -167,7 +180,7 @@ function turnClick(b) {
     else if (!(i >= 0 && i < arr.length)) return true;
     else if (m[2] === 'up') { if (i > 0) arr.splice(i - 1, 0, arr.splice(i, 1)[0]); }
     else if (m[2] === 'down') { if (i < arr.length - 1) arr.splice(i + 1, 0, arr.splice(i, 1)[0]); }
-    else { var goneT = arr.splice(i, 1)[0]; if (m[1] === 'act' && goneT) turnTradeFollow(tn, goneT.key, ''); }
+    else { var goneT = arr.splice(i, 1)[0]; if (m[1] === 'act' && goneT) { turnTradeFollow(tn, goneT.key, ''); turnCostFollow(goneT.key, ''); } }
     markDirty(); renderAll(); return true;
 }
 // [systemcheck:capnote-start]
@@ -1607,7 +1620,7 @@ function mergeFile(file) {
     var read = zipped ? sysZip().then(function(Z) {
         return Z.readWhole(file, function(j) { return cleanSystem(j, { F: F(), gmView: true }); }, sysZipDeps()).then(function(b) {
             if (!b || b.error) { var er = new Error('zip'); er.say = b && b.error ? b.error : ''; throw er; }
-            if ((b.texts && b.texts.length) || (b.pics && b.pics.length)) stays = 'Its library packs and pictures stay in the file: Merge brings only the system\u2019s own parts. Import brings them all.';
+            if ((b.texts && b.texts.length) || (b.pics && b.pics.length)) stays = 'Its library packs and pictures stay in the file, since Merge brings only the system\u2019s own parts. Import would bring them too, but it replaces this whole system.';   // 1.6.4 (the review): say that Import replaces the system, never only that it brings more
             return { j: b.json, c: b.system };
         });
     }) : file.text().then(function(text) {

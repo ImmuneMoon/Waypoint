@@ -101,6 +101,9 @@ Names changed at the table [DRAFT]
   while at your table shows the change at once, on your roster and on
   everyone's, with no need to rejoin. You get a short note when a name
   changes, and your own name for them stays.
+- No two at the table share a name. A player who joins or renames to a
+  name another player or you already go by is asked to pick another,
+  and you get a short note saying who tried which name.
 
 WAYPOINT 1.6.3 — What's New
 ============================

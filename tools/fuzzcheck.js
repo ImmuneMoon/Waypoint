@@ -1014,8 +1014,9 @@ function mutations(tpl) {
             'box': { type: 'box', op: 'open', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1' },   // 1.6.2 (backlog 42): a container asked to open; the world holds none, so it answers nothing and changes nothing
             'send-on': { type: 'send-on', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 4): Send it on, on a card a defense left its own player; no attack waits here, so it is refused in words and sends nothing on
             'land-take': { type: 'land-take', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 1): Take it on a defense card, its own player's alone; no attack waits here, so it is refused in words and lands nothing
-            'handout-want': { type: 'handout-want', campId: 'c1', ids: ['h_none', 'h_p2only', '__proto__'] },
-            'profile-set': { type: 'profile-set', profile: { id: 'u_p1', name: 'Ayla Vale', color: '#33aa66' } },   // 1.6.4 (the 47th host branch): a seated player's own profile changed, its name and color new   // 1.6.3 (the multiplayer review, finding 9): a player's app asks again for handouts it was shown; this world showed this player none, so nothing is sent to anyone
+            'handout-want': { type: 'handout-want', campId: 'c1', ids: ['h_none', 'h_p2only', '__proto__'] },   // 1.6.3 (the multiplayer review, finding 9): a player's app asks again for handouts it was shown; this world showed this player none, so nothing is sent to anyone
+            'profile-set': { type: 'profile-set', profile: { id: 'u_p1', name: 'Ayla Vale', color: '#33aa66' } },   // 1.6.4 (the 47th host branch): a seated player's own profile changed, its name and color new
+            'profile-set-clash': { type: 'profile-set', profile: { id: 'u_p1', name: ' BRAM ' } },   // 1.6.4 (Fulllion, 2026-11-23: "Refuse it, tell the GM"): a name the other player at the table goes by
             'card-act': { type: 'card-act', id: 'r_nosuchhe', key: 'accept' },   // 1.6.2 (G5): a press on a held roll's card, its roller's alone; none is held here
             'show-ask': { type: 'show-ask', campId: 'c1', itemId: 'm_open', ids: ['stroke_show', 'draw_show', 'stroke_onmap'] },   // 1.6.2: an ask to put a drawing on the map changes nothing by itself
             'door-req-secret': { type: 'door-req', mapId: 'm_open', itemId: 'door_secret' },   // fold B5: a secret door: a door request naming it is answered as a wall's is — with nothing — and changes nothing
@@ -1243,6 +1244,7 @@ function mutations(tpl) {
         'chat': o => o.p2.some(m => m.type === 'chat' && m.text === 'hello table' && m.from.id === 'u_p1' && !m.from.gm) && !o.p1.some(m => m.type === 'chat'),
         'voice-up': () => rec.voice.length === 1 && rec.voice[0] === 'player:join:peer_p1',
         'profile-set': o => [o.p1, o.p2].every(s => s.some(m => m.type === 'roster' && Array.isArray(m.roster) && m.roster.some(r => r.id === 'u_p1' && r.name === 'Ayla Vale' && r.color === '#33aa66'))) && rec.toasts.some(t => /^Ayla is now called Ayla Vale\./.test(t)),   // 1.6.4: everyone's roster follows, the GM told
+        'profile-set-clash': o => o.p1.some(m => m.type === 'turn-note' && m.text === 'Someone at this table already goes by BRAM, so you are still Ayla here. Pick another name in Your profile.') && !o.p1.some(m => m.type === 'roster') && !o.p2.some(m => m.type === 'roster') && rec.toasts.some(t => /^Ayla tried to take the name BRAM, which someone at the table already goes by\./.test(t)),   // 1.6.4: refused, the player told why, the GM told, nobody's roster moved
         'handout-want': o => !o.p1.some(m => m.type === 'handout') && !o.p2.some(m => m.type === 'handout')   // 1.6.3 (finding 9): no handout reaches anyone for an ask naming none this player was shown
     };
     /* ---------- generic fuzz over every host type from each sender ---------- */
@@ -1301,6 +1303,17 @@ function mutations(tpl) {
         const r2 = rosterOf(b), t2 = rec.toasts.length, s2 = rec.saves.length;
         b = sentLog.length; await fireHost('p1', 'profile-set', 'a hostile picture and color', { type: 'profile-set', profile: { name: 'Ayla Vale', color: 'red;x', avatar: 'data:image/png;base64,AA"onerror=x' } });
         const r3 = rosterOf(b), t3 = rec.toasts.length, n3 = [net.roster.peer_p1.color === undefined, net.roster.peer_p1.avatar === undefined];
+        // 1.6.4 (Fulllion, 2026-11-23: "Refuse it, tell the GM"): a name the other player at the table goes by is refused, the old one kept, the player
+        // told why and the GM told; a color with it still goes through. A joiner under a name already at the table is turned away in words of its own
+        b = sentLog.length; await fireHost('p1', 'profile-set', 'a name another player goes by', { type: 'profile-set', profile: { id: 'u_p1', name: ' bram ', color: '#123456' } });
+        const c1 = { roster: rosterOf(b), note: sentLog.slice(b).filter(s => s.m.type === 'turn-note').map(s => s.to + ':' + s.m.text), toasts: rec.toasts.slice(), rec: campP.players.u_p1.name, name: net.roster.peer_p1.name };
+        clockOff += 2500; const cx = connect('peer_cx'); hello(cx, { id: 'u_cx', name: 'AYLA  vale' }); flushTimers(); await drain(); flushTimers();
+        const c2 = { denied: cx.sent.filter(m => m.type === 'denied').map(m => m.reason), let: !!net.roster.peer_cx, told: rec.toasts.filter(t => /^Someone tried to join as AYLA  vale/.test(t)).length };
+        // a player seated here this session (p2, Bram) whose app now says a name in use (a rename the host refused, which their app still holds)
+        // comes back on a reconnect under their record's name, told why after their snapshot: never turned away and looping on their reconnects
+        clockOff += 2500; conns.p2.close(); flushTimers(); await drain(); flushTimers();
+        conns.p2 = connect('peer_p2'); const rb = await admit(conns.p2, { id: 'u_p2', name: 'ayla vale' }, K2); flushTimers(); await drain(); flushTimers();
+        const c3 = { ok: rb.ok, name: net.roster.peer_p2 && net.roster.peer_p2.name, note: conns.p2.sent.filter(m => m.type === 'turn-note').map(m => m.text), denied: conns.p2.sent.filter(m => m.type === 'denied').length, rec: campP.players.u_p2.name };
         b = sentLog.length; await fireHost('p1', 'profile-set', 'another player id', { type: 'profile-set', profile: { id: 'u_p2', name: 'Not Bram' } });
         const r4 = sentLog.slice(b).filter(s => s.m.type === 'roster').length, n4 = [net.roster.peer_p2.name, campP.players.u_p2.name, net.roster.peer_p1.name];
         if (!conns.w.open) { conns.w = connect('peer_w'); hello(conns.w, { id: 'u_w', name: 'Waiting' }); }
@@ -1316,8 +1329,11 @@ function mutations(tpl) {
             JSON.stringify(r1) === JSON.stringify(['peer_p1:Ayla Vale:#33aa66:pic', 'peer_p2:Ayla Vale:#33aa66:pic']) && t1.length === 1 && t1[0] === 'Ayla is now called Ayla Vale. You still call them The ranger.' && s1 === 1
             && JSON.stringify(n1) === JSON.stringify(['Ayla Vale', 'The ranger', 'Ayla Vale', true]) && r2.length === 0 && t2 === 0 && s2 === 0
             && JSON.stringify(r3) === JSON.stringify(['peer_p1:Ayla Vale::', 'peer_p2:Ayla Vale::']) && t3 === 0 && n3.every(Boolean)
-            && r4 === 0 && JSON.stringify(n4) === JSON.stringify(['Bram', 'Bram', 'Ayla Vale']) && r5 === 0 && r6 === 0 && took === 10 && last === 'Name 9',
-            { r1, t1, s1, n1, r2, t2, s2, r3, t3, n3, r4, n4, r5, r6, took, last });
+            && r4 === 0 && JSON.stringify(n4) === JSON.stringify(['Bram', 'Bram', 'Ayla Vale']) && r5 === 0 && r6 === 0 && took === 10 && last === 'Name 9'
+            && JSON.stringify(c1) === JSON.stringify({ roster: ['peer_p1:Ayla Vale:#123456:', 'peer_p2:Ayla Vale:#123456:'], note: ['peer_p1:Someone at this table already goes by bram, so you are still Ayla Vale here. Pick another name in Your profile.'], toasts: ['Ayla Vale tried to take the name bram, which someone at the table already goes by. They keep the name Ayla Vale.'], rec: 'Ayla Vale', name: 'Ayla Vale' })
+            && JSON.stringify(c2) === JSON.stringify({ denied: ['Someone at this table already goes by that name. Pick another name, then join again.'], let: false, told: 1 })
+            && JSON.stringify(c3) === JSON.stringify({ ok: true, name: 'Bram', note: ['Someone at this table already goes by ayla vale, so you are still Bram here. Pick another name in Your profile.'], denied: 0, rec: 'Bram' }),
+            { r1, t1, s1, n1, r2, t2, s2, r3, t3, n3, r4, n4, r5, r6, took, last, c1, c2, c3 });
     }
     {   // the review of multiplayer speed (finding 9's two words, the 46th host branch): a player's handout-want sends again only the handouts the host's
         // own record says it showed that very player, each once and to that player alone. Another player's handout, an id the world does not hold, a key a

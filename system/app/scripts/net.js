@@ -5644,6 +5644,7 @@ function denyJoin(conn, reason) {
 function admitPlayer(conn, prof, provenKey) {
     if (!conn.open) return;
     if (typeof net.syncMapStubs === 'function') net.syncMapStubs();   // possession: tell before reading — a map renamed, re-nested or made whose save has not run yet (this admission's own save, a remote one, takes its place) reaches the players already at the table now, before the newcomer is on the roster; below, what the stubs say is read for the snapshot
+    if (typeof clashJudge === 'function' && clashJudge(prof, conn.peer, true)) { denyJoin(conn, CLASH_WORDS); return; }   // 1.6.4: judged again as they are let in: another may have taken the name while they waited (the GM told even inside the quiet time, as their yes is undone)
     if (_waitGrace[prof.id]) { clearTimeout(_waitGrace[prof.id]); delete _waitGrace[prof.id]; }   // Onboarding F1a: back inside the grace, their waiting token is where they left it
     var issuedKey = null;
     var land = landingFor(prof);   // their own last map or the fallback under "Player's last location", else the GM's stage
@@ -5691,6 +5692,7 @@ function admitPlayer(conn, prof, provenKey) {
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + '. Something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
+    if (snapOk && typeof clashKeptSay === 'function') clashKeptSay(conn);   // 1.6.4: a seated player back under their old name is told why, after their snapshot
     if (snapOk && typeof fogSeedSnapshot === 'function') fogSeedSnapshot(conn, snap);   // fold M5: what each of its fogged maps holds
     if (snapOk && typeof combatsSentSeed === 'function') combatsSentSeed(conn, snap.combats);   // fold 2's review: the fights it holds now
     if (snapOk && typeof hidNoteAll === 'function') hidNoteAll();   // hidden pieces: the drawings of theirs the GM hid, which this copy lacks
@@ -5982,6 +5984,7 @@ function processNextApproval() {
             approvalOpen = false;
             if (!net.active || net.role !== 'host') return;
             if (!next.conn.open) { pickLog('same-failed', { at: 'dropped' }); toast(who + ' had already dropped. You will be asked again when they come back.'); processNextApproval(); return; }
+            if (typeof clashJudge === 'function' && clashJudge(next.prof, next.conn.peer, true)) { denyJoin(next.conn, CLASH_WORDS); pickLog('same-failed', { at: 'name' }); processNextApproval(); return; }   // 1.6.4: a name now in use: turned away before anything moves
             var campT = getActiveCampaign(), mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves()) : false;
             if (mv) { toast(who + ' takes over from ' + nmS + (plays && mv.bound ? ', playing ' + plays : '') + '. ' + movedSay(mv, nmS)); if (typeof logEvent === 'function') logEvent('player', who + ' took over from ' + nmS + ': ' + movedLog(mv, nmS)); pickLog('same-done', movedFacts(mv)); }
             else pickLog('same-failed', { at: 'record' });
@@ -6376,6 +6379,8 @@ function handleMessage(msg, conn) {
         // squatted generation of the code or another GM's table never opens this one. A valid proof goes straight in, as a matching
         // key did before. A key sent in clear (a client from before the proof) is ignored. No valid proof — a wrong one, the key
         // itself, no answer — or a stranger, and the GM decides (Allow/Deny, flagged as a known name without its key).
+        var clashH = typeof nameClash === 'function' ? nameClash(prof.id, prof.name) : null;   // 1.6.4: a name someone at the table already goes by is turned away, to pick another
+        if (clashH && (typeof clashJudge !== 'function' || clashJudge(prof, conn.peer))) { denyJoin(conn, CLASH_WORDS); return; }   // (clashJudge: a player seated here this session comes back under their record's name instead)
         var camp0 = getActiveCampaign();
         var rec0 = (camp0 && camp0.players && own(camp0.players, prof.id)) ? camp0.players[prof.id] : null;
         var keyed0 = !!(rec0 && typeof rec0.key === 'string' && rec0.key);
@@ -6391,7 +6396,7 @@ function handleMessage(msg, conn) {
                 var dupV = liveDupOf(conn, prof.id);   // 1.6.3 (finding 17): judged with the proof below
                 var campV = getActiveCampaign(), recV = (campV && campV.players && own(campV.players, prof.id)) ? campV.players[prof.id] : null;
                 var keyOk0 = !!(want && recV && recV.key === key0 && sameStr(want, msg.proof)), bound0 = !!(ch0 && fp0 && fp0[0] === ch0.theirs && fp0[1] === ch0.mine);   // the key still the one proven (the GM may have re-issued it meanwhile) — and proven over THIS connection: the pair the proof covers is the pair this side reads
-                var inP = function() { if (liveDupOf(conn, prof.id) && dupDrop(conn, prof.id)) logEvent('table', (prof.name || 'A player') + ' came back on a new connection. The old one was closed.'); admitPlayer(conn, prof, key0); };
+                var inP = function() { if (typeof clashJudge === 'function' && clashJudge(prof, conn.peer)) { denyJoin(conn, CLASH_WORDS); return; }   /* 1.6.4: judged before an old connection is closed for this one */ if (liveDupOf(conn, prof.id) && dupDrop(conn, prof.id)) logEvent('table', (prof.name || 'A player') + ' came back on a new connection. The old one was closed.'); admitPlayer(conn, prof, key0); };
                 if (keyOk0 && bound0 && pwSat && validCn(msg.cn) && !cm.signed) {   // 1.6.3: a seated player proven with no password: the host's early proof and the snapshot's signature are begun now, once the key has passed
                     if (!cm.hailed) { cm.hailed = true; cm.hail = gmHail(cm, msg.cn, conn); }
                     cm.signed = gmPresign(cm, msg.cn, key0, conn);
@@ -8512,6 +8517,12 @@ function handleMessage(msg, conn) {
         if (inP.id !== undefined && inP.id !== pcP.id) return;   // its own profile only
         if (!allow('profile-set', { perMs: 250, burst: 10, windowMs: 60000, table: 300 }, pcP.id)) return;   // by the player, so a new connection starts no new count; spaced a quarter second, so two sends a stalled link delivers together both land (a player's app sends at most 8 a minute, 2 s apart)
         var nmP = cleanRosterName(inP.name), colP = typeof inP.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(inP.color) ? inP.color : '', avP = safeAvatar(inP.avatar) ? inP.avatar : '';
+        var clashP = cleanRosterName(pcP.name) !== nmP && typeof nameClash === 'function' ? nameClash(pcP.id, nmP) : null;
+        if (clashP) {   // 1.6.4: a name someone at the table goes by: refused, the old name kept on the roster and the record, the player told why and the GM told; a color or a picture with it still goes through below
+            try { conn.send({ type: 'turn-note', text: 'Someone at this table already goes by ' + nmP + ', so you are still ' + cleanRosterName(pcP.name) + ' here. Pick another name in Your profile.' }); } catch (e) { sendFailed(e); }
+            clashTell(pcP.id, pcP.name, nmP);
+            nmP = cleanRosterName(pcP.name);
+        }
         var wasP = cleanRosterName(pcP.name), movN = wasP !== nmP || pcP.name !== nmP, movC = (typeof pcP.color === 'string' ? pcP.color : '') !== colP, movA = (typeof pcP.avatar === 'string' ? pcP.avatar : '') !== avP;
         if (!movN && !movC && !movA) return;
         Object.keys(net.roster).forEach(function(kP) {
@@ -11380,6 +11391,74 @@ function profileTell(id, from, to) {
     }, Math.max(0, PROF_TELL_MS - (now - r.at)));
 }
 // [netcheck:proftell-end]
+// [netcheck:nameclash-start]
+// 1.6.4 (Fulllion, 2026-11-23, on a player taking another player's name at the table: "Refuse it, tell the GM"). No one at the table goes by
+// a name someone else there already goes by. Judged on the host alone, from the roster it holds, never from a player's word: the names of the
+// OTHER players admitted and connected now, and the GM's own profile name. A record of someone who left is no clash (they are not at the
+// table), and neither is a name the GM gave a player in Player History (gmName, the GM's side alone, never sent). Two names are the same
+// read without case and with runs of spaces as one, after the roster's own cleaning (cleanRosterName). "Player", the name of one who chose
+// none, is no clash. It is asked at the hello gate (a joiner is turned away in words of its own, CLASH_WORDS, to pick another name), again as
+// a player is let in (another may have taken the name while they waited, and before Same person as moves anything), and by profile-set (the
+// new name is refused, the old one kept, and the player told why). A player seated at this table this session (_satIds) who comes back is
+// never turned away by it: they come back under the name the host last took for them (their record's), told why where their app says
+// another (a rename it refused, which their app still holds, would otherwise turn every reconnect away). The GM is told, quietly, at most
+// once in CLASH_TELL_MS a player and once in 2 s in all; tries to join under a name in use are told at most once in CLASH_TELL_MS in all,
+// with how many more came meanwhile, so someone knocking under ever new ids cannot fill the GM's screen or the session's record
+var CLASH_WORDS = 'Someone at this table already goes by that name. Pick another name, then join again.';
+var CLASH_TELL_MS = 30000, _clashTold = Object.create(null), _clashAny = 0, _clashJoinAt = 0, _clashJoinMore = 0, _clashKept = Object.create(null);
+// The key two names are compared by: the roster's cleaning, then the forms of one letter made one (NFKC: a full-width A is an A), a few more
+// characters that show as nothing taken out, case and runs of spaces as one. "Player", the name of one who chose none, has no key. Letters of
+// another script that look alike (a Cyrillic a) are other letters: telling those apart needs a table of look-alikes this app does not hold
+function nameKey(v) {
+    var s = cleanRosterName(v); try { s = s.normalize('NFKC'); } catch (e) {}
+    s = s.replace(/[­͏ᅟᅠ᠎ㅤﾠ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return s === 'player' ? '' : s;
+}
+function nameClash(id, name) {   // (the host) who at the table other than id goes by this name: { gm: true }, { id, name }, or null
+    var k = nameKey(name); if (!k) return null;
+    var me = typeof getProfile === 'function' ? getProfile() : null;
+    if (me && nameKey(me.name) === k) return { gm: true };
+    var hit = null;
+    (net.conns || []).forEach(function(c) { var p = !hit && c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (p && p.id !== id && nameKey(p.name) === k) hit = { id: p.id, name: cleanRosterName(p.name) }; });
+    return hit;
+}
+function clashTell(id, was, tried, always) {   // (the host) the GM told, quietly: a toast and a line of the Game Record. always: the GM's own yes was just turned into a no, so it is said
+    var now = Date.now(), key = typeof id === 'string' ? id : '', more = '';
+    if (!always) {
+        if (own(_clashTold, key) && now >= _clashTold[key] && now - _clashTold[key] < CLASH_TELL_MS) return;
+        if (now >= _clashAny && now - _clashAny < 2000) return;
+        if (!was) { if (now >= _clashJoinAt && now - _clashJoinAt < CLASH_TELL_MS) { _clashJoinMore++; return; } _clashJoinAt = now; }
+    }
+    if (!was && _clashJoinMore) { more = ' ' + _clashJoinMore + ' more tr' + (_clashJoinMore === 1 ? 'y' : 'ies') + ' like it came before this one.'; _clashJoinMore = 0; }
+    if (Object.keys(_clashTold).length >= 200) _clashTold = Object.create(null);
+    _clashTold[key] = now; _clashAny = now;
+    var t = cleanRosterName(tried);
+    var line = was ? cleanRosterName(was) + ' tried to take the name ' + t + ', which someone at the table already goes by. They keep the name ' + cleanRosterName(was) + '.'
+        : 'Someone tried to join as ' + t + ', which someone at the table already goes by. They were asked to pick another name.' + more;
+    toast(line);
+    logEvent('player', line, { w: was ? cleanRosterName(was) : t, x: 'Name already in use', d: t });
+}
+// (the host) whether this joiner is turned away for their name: true where they are (the GM told). A player seated here this session is never
+// turned away by it: where their app says a name in use they come back under their record's name (prof.name is set to it), and a word for
+// them waits under the connection's peer (_clashKept) for after their snapshot (clashKeptSay). always: as clashTell's
+function clashJudge(prof, peer, always) {
+    if (!prof || !nameClash(prof.id, prof.name)) return false;
+    var camp = getActiveCampaign(), rec = camp && camp.players && typeof camp.players === 'object' && own(camp.players, prof.id) ? camp.players[prof.id] : null;
+    if (typeof _satIds !== 'undefined' && own(_satIds, prof.id) && rec && typeof rec === 'object' && nameKey(rec.name)) {
+        var kept = cleanRosterName(rec.name);
+        if (nameKey(kept) !== nameKey(prof.name)) { if (typeof peer === 'string' && peer) _clashKept[peer] = cleanRosterName(prof.name); clashTell(prof.id, kept, prof.name, always); prof.name = kept; }
+        return false;
+    }
+    clashTell(prof.id, '', prof.name, always);
+    return true;
+}
+function clashKeptSay(conn) {   // (the host) after a seated player's snapshot: why they are under their old name
+    if (!conn || !own(_clashKept, conn.peer)) return;
+    var tried = _clashKept[conn.peer]; delete _clashKept[conn.peer];
+    var p = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!p) return;
+    try { conn.send({ type: 'turn-note', text: 'Someone at this table already goes by ' + tried + ', so you are still ' + cleanRosterName(p.name) + ' here. Pick another name in Your profile.' }); } catch (e) { sendFailed(e); }
+}
+// [netcheck:nameclash-end]
 function whispersKnow(v) { _whispersOk = v === true; }
 function whisperKnows() { return net.role !== 'client' || _whispersOk; }
 // A player's roll made while a whisper is picked in the To list goes to the GM only, said in these words. Without it a player who picked

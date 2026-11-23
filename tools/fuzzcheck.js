@@ -1024,6 +1024,7 @@ function mutations(tpl) {
             'char-pic': { type: 'char-pic', rid: 'r9', charId: 'c_p1', face: 'default', img: 'data:image/png;base64,iVBORw0KGgo=' },
             'char-make': { type: 'char-make', rid: 'r10', name: 'Hero' },
             'char-name': { type: 'char-name', rid: 'r11', charId: 'c_p1', name: 'Ayla the Bold' },
+            'char-qnote': { type: 'char-qnote', rid: 'r11q', charId: 'c_p1', op: 'add', id: 'q_fuzz0001', t: 'Plan', x: 'a quick note', lk: { fmt: { b: true }, sig: win.wpLook.textSig('a quick note') } },   // 1.6.4 (a Notes page on every sheet, the 48th host branch): a quick note on their own character
             'char-done': { type: 'char-done', rid: 'r12', charId: 'c_p1' },
             'char-delete': { type: 'char-delete', rid: 'r12d', charId: 'c_p1' },
             'char-ask': { type: 'char-ask', rid: 'r12a', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_x', stats: { wt: 2 } },   // 1.5.5: an ask for a copy's stats; this world's system has no ask rule
@@ -1225,6 +1226,7 @@ function mutations(tpl) {
         'char-pic': o => rec.pics.length === 1 && o.p1.some(m => m.type === 'char-pic-ans' && m.ok === true),
         'char-make': o => o.p1.some(m => m.type === 'char-make-ans' && m.reason === 'have'),
         'char-name': o => o.p1.some(m => m.type === 'char-name-ans' && m.reason === 'notmaking'),
+        'char-qnote': o => o.p1.some(m => m.type === 'char-qnote-ans' && m.ok === true) && Array.isArray(campH().chars.c_p1.qnotes) && campH().chars.c_p1.qnotes.some(n => n.id === 'q_fuzz0001' && n.x === 'a quick note' && !!n.lk) && o.p1.some(m => m.type === 'char' && m.char && m.char.id === 'c_p1' && Array.isArray(m.char.qnotes)) && !o.p2.some(m => (m.type === 'char' && m.char && m.char.qnotes) || (m.type === 'chars' && JSON.stringify(m.chars || {}).indexOf('q_fuzz0001') >= 0)),   // 1.6.4: kept on the host's copy with its look, sent whole to its owner alone
         'char-done': o => o.p1.some(m => m.type === 'char-done-ans' && m.reason === 'notmaking'),
         'char-delete': o => o.p1.some(m => m.type === 'char-delete-ans' && m.reason === 'inplay'),
         'char-ask': o => o.p1.some(m => m.type === 'char-ask-ans' && typeof m.reason === 'string') && !(campH().uploads || []).some(u => u && u.ask === true),

@@ -1253,7 +1253,8 @@
   #streamBar.folded #streamHideBtn .ico { transform: rotate(-90deg); }
   #streamVideo { position: fixed; inset: 0; z-index: 99990; background: #000; display: flex; align-items: center; justify-content: center; }
   #streamVideo video { width: 100%; height: 100%; object-fit: contain; background: #000; }
-  #streamCover { position: fixed; inset: 0; z-index: 99995; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }   /* backlog 34: the stream's cover card */
+  #streamCover { position: fixed; inset: 0; z-index: 99995; background: var(--bg); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }   /* backlog 34: the stream's cover card, under the bar (100000) so Showing and Focus on stay in reach while covered */
+  #streamBar.covered .stream-fight { display: none; }   /* 1.6.4 (the review of the beta's last look): while covered the bar keeps its lists and its fold arrow, and puts away its round, its turn and whom it follows (stream.js holdApply sets the class) */
   #streamCoverName { font-size: 40px; font-weight: 600; color: var(--gold); text-align: center; padding: 0 24px; }
   #streamCoverWords { font-size: 18px; color: var(--muted); }
   #streamScene { position: fixed; inset: 0; z-index: 99991; background: rgba(0,0,0,0.88); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
@@ -3903,7 +3904,7 @@
      the Add menu's Image row, which the site answers 403; files, Import and Export As; backups, the snapshots */
   body.web #updateBtn, body.web #updateBanner, body.web #installerModal, body.web #wcUpdate, body.web #settingsModal .set-devmode, body.web #settingsModal .set-group[data-group="updates"],
   body.web #settingsModal .set-saves, body.web #profileModal .set-acct, body.web #wcPromise, body.web-no-files #wcLoadBtn,
-  body.web-no-host #wcHostBtn, body.web-no-host #netPaneHostBtn, body.web-no-host #netPaneHost, body.web-no-host #netPlayersBtn, body.web-no-host #netEndBtn,
+  body.web-no-host #wcHostBtn, body.web-no-host #netPaneHostBtn, body.web-no-host #netPaneHost, body.web-no-host #netPlayersBtn, body.web-no-host #netEndBtn, body.web-no-host #settingsModal .set-stream,
   body.web-no-uploads #imgLibBtn, body.web-no-uploads #handoutsBtn, body.web-no-uploads #soundLibUpload, body.web-no-uploads .music-add, body.web-no-uploads .vid-add, body.web-no-uploads #addImageBtn, body.web-no-files #moreFiles, body.web-no-files #importCharBtn,
   body.web-no-backups #setSnapNowBtn, body.web-no-backups #setSnapNowBtn + .set-line, body.web-no-backups #settingsModal .set-snaps, body.web-no-backups #settingsModal .set-group[data-group="backups"] { display: none !important; }
   .set-acct-line { margin-top: 3px; font-size: 10.5px; color: var(--dim); line-height: 1.4; }   /* the account's state, words a script sets: a set-line's look, not one of Settings' fixed lines */

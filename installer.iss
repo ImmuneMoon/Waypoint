@@ -7,8 +7,9 @@
 
 [Setup]
 AppId={{5E99FC64-B981-4209-A480-DB2444535359}
-AppName=Waypoint VTT™
-; the installed-apps list reads the plain name: the mark shows on the installer's title screen alone
+AppName=Waypoint VTT
+; 1.6.4 (Fulllion, 2026-11-23, by prompt: "™ on the first mention only"): the name every page, the title bar and the
+; installed-apps list read is plain; the mark stands on the welcome page (InitializeWizard) and in the license text alone
 UninstallDisplayName=Waypoint VTT
 AppVersion={#AppVer}
 AppPublisher=Fulllion Creative Works, LLC
@@ -148,6 +149,8 @@ end;
 
 procedure InitializeWizard;
 begin
+  { 1.6.4: the first mention carries the mark; the update branch below writes its own welcome with it too }
+  WizardForm.WelcomeLabel1.Caption := 'Welcome to the Waypoint VTT™ Setup Wizard';
   { /UPDATE=1 (a scripted or app-driven update) skips the choice page: plain update in place }
   if IsUpdate() and (ExpandConstant('{param:UPDATE|0}') <> '1') then
   begin

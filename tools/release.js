@@ -451,7 +451,7 @@ function mdText(s) { return String(s).replace(/[\\`*_~\[\]<>#|&!]/g, '\\$&'); }
 // [updatercheck:notes-end]
 function buildNotes() {
     const all = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n');
-    const top = (all.split(/\n(?=WAYPOINT \d)/)[0] || '').trim().split('\n');
+    const top = (all.split(/\n(?=WAYPOINT (?:VTT )?\d)/)[0] || '').trim().split('\n');
     const out = ['# Waypoint VTT Alpha ' + VERSION];
     let bullet = null;
     const flush = () => { if (bullet) { out.push('- ' + mdText(bullet)); bullet = null; } };

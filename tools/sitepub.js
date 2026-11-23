@@ -76,7 +76,7 @@ function siteOf(root) {
    own version is not this one, so the notes the site shows (notesText, which reads that top section) are always this release's. */
 function topVersion(whatsnew) {
     const first = String(whatsnew || '').replace(/^﻿/, '').split(/\r?\n/)[0] || '';
-    const m = /^WAYPOINT (\S+)/.exec(first);
+    const m = /^WAYPOINT (?:VTT )?(\S+)/.exec(first);   // 1.6.4: the heading names the product Waypoint VTT ("WAYPOINT VTT 1.6.4"); an older section reads "WAYPOINT 1.6.3"
     return m ? m[1] : null;
 }
 
@@ -84,13 +84,13 @@ function topVersion(whatsnew) {
    byte order mark, the line ends (CRLF or LF) and the white space at its ends left out. tools/release.js refuses to build where the
    notes the app itself shows (system/app/assets/whatsnew.txt) do not begin with the very section WHATSNEW.txt begins with (the
    review of 2026-11-17: the notes the site shows and the notes the app shows are one text). */
-function topSection(whatsnew) { return (String(whatsnew || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split(/\n(?=WAYPOINT \d)/)[0] || '').trim(); }
+function topSection(whatsnew) { return (String(whatsnew || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').split(/\n(?=WAYPOINT (?:VTT )?\d)/)[0] || '').trim(); }
 
 /* A release's notes as plain text: the top section of WHATSNEW.txt (the text up to the next "WAYPOINT <n>" heading) with its
    title and its ==== underline left off, line ends as LF, white space trimmed, cut at the most an install shows. */
 function notesText(whatsnew) {
     const all = String(whatsnew || '').replace(/\r\n/g, '\n');
-    const lines = (all.split(/\n(?=WAYPOINT \d)/)[0] || '').split('\n');
+    const lines = (all.split(/\n(?=WAYPOINT (?:VTT )?\d)/)[0] || '').split('\n');
     const body = lines.slice(/^=+\s*$/.test(lines[1] || '') ? 2 : 1).join('\n').trim();
     return Array.from(body).slice(0, updater.NOTES_MAX).join('');
 }

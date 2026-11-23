@@ -1,5 +1,5 @@
-WAYPOINT 1.6.4 — What's New
-============================
+WAYPOINT VTT 1.6.4 — What's New
+================================
 
 A new name
 - Waypoint is called Waypoint VTT™ now. After this update the window

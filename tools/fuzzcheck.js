@@ -851,6 +851,14 @@ function mutations(tpl) {
         try { await imp(f); } catch (e) { skipped.push(f + ': ' + e.message); }
     }
     const SC = window.wpSystemCore, F = window.wpFormula, DC = window.wpDiceCore, FC = window.wpFogCore, BC = window.wpBuildCore;
+    {   // 1.6.4 (Drop here): containers' pure half, read by the drop, a pick-up and a pile on the wire, and boxes.js's drop slice run for real as the
+        // host's wpBoxes (the rest of boxes.js is the GM's window, which needs a page)
+        try { await imp('boxcore.js'); } catch (e) { skipped.push('boxcore.js: ' + e.message); }
+        const FCm = await imp('fogcore.js'), bsrc = fs.readFileSync(path.join(ROOT, 'boxes.js'), 'utf8'), da = bsrc.indexOf('// [boxcheck:drop-start]'), dz = bsrc.indexOf('// [boxcheck:drop-end]'); let nU = 0;
+        const boxOf = (camp, w) => camp && w && typeof w.box === 'string' && camp.boxes && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null;
+        const DP = new Function('BC', 'F', 'uid', 'boxOf', 'sysOf', 'gridFor', 'squareGrid', 'cellOf', 'cellCenter', 'cellKey', bsrc.slice(da, dz) + '\nreturn { dropInto, pileSync };')(window.wpBoxCore, F, p => { if (typeof p !== 'string') throw new Error('uid needs its prefix'); return p + 'fz' + (++nU); }, boxOf, c => c && c.system, FCm.gridFor, FCm.squareGrid, FCm.cellOf, FCm.cellCenter, FCm.cellKey);
+        window.wpBoxes = { dropInto: DP.dropInto, pileSync: DP.pileSync, redraw() {} };
+    }
     check('the core modules load for real (dicecore, systemcore, fogcore, buildcore, formula, vtt…)', !!(SC && F && DC && FC && BC && typeof BC.pieceProps === 'function' && window.wpVtt) && skipped.length === 0, { skipped, buildcore: typeof BC, pieceProps: BC ? typeof BC.pieceProps : 'no buildcore' });
 
     // an outside sheet reader of the suite's own (none ships with the app; systemcore registerReader), so that the host's upload path past readerFor
@@ -1021,6 +1029,8 @@ function mutations(tpl) {
             'throw-req': { type: 'throw-req', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_1', mapId: 'm_open', x: 200, y: 200 },
             'door-req': { type: 'door-req', mapId: 'm_open', itemId: 'door1' },
             'box': { type: 'box', op: 'open', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1' },   // 1.6.2 (backlog 42): a container asked to open; the world holds none, so it answers nothing and changes nothing
+            'box-put': { type: 'box', op: 'put', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1', fid: 'f_inv', rowId: 'w_1', qty: 1 },   // 1.6.4 Put in: into a door, which is no container: answered nothing, nothing moved
+            'drop': { type: 'drop', mapId: 'm_open', tok: 'tok_p1', fid: 'f_inv', rowId: 'w_1', qty: 1 },   // 1.6.4 (the 48th host branch): Drop here from a list this world does not tick Tradable: refused in words, nothing laid
             'send-on': { type: 'send-on', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 4): Send it on, on a card a defense left its own player; no attack waits here, so it is refused in words and sends nothing on
             'land-take': { type: 'land-take', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 1): Take it on a defense card, its own player's alone; no attack waits here, so it is refused in words and lands nothing
             'handout-want': { type: 'handout-want', campId: 'c1', ids: ['h_none', 'h_p2only', '__proto__'] },   // 1.6.3 (the multiplayer review, finding 9): a player's app asks again for handouts it was shown; this world showed this player none, so nothing is sent to anyone
@@ -1076,7 +1086,7 @@ function mutations(tpl) {
     async function resetWorld() {
         const camp = stubs.getActiveCampaign();
         camp.items = clone(pristine.items); camp.chars = clone(pristine.chars); camp.players = Object.assign({}, clone(pristine.players), { u_p1: Object.assign({}, camp.players.u_p1 || {}, { key: K1 }), u_p2: Object.assign({}, camp.players.u_p2 || {}, { key: K2 }) }); camp.turnRules = {}; camp.activeItemId = 'm_open';
-        camp.sessionLog = (camp.sessionLog || []).slice(-50); delete camp.uploads;
+        camp.sessionLog = (camp.sessionLog || []).slice(-50); delete camp.uploads; delete camp.boxes;   // 1.6.4: a pile a probe laid goes with the world
         // a player a probe left on another map is brought back as the host brings one — a summon to the GM's map: that map given whole again, the stage
         // word, the map they left taken back — so the host's record of what each connection holds agrees with where the roster says its player is
         Object.keys(net.roster).forEach(k => { const c = net.conns.find(x => x.peer === k); if (net.roster[k].location !== 'm_open' && c && c.open) net.summonPlayer(k); net.roster[k].location = 'm_open'; net.roster[k].detached = false; });
@@ -1112,9 +1122,11 @@ function mutations(tpl) {
             if (!m[3] && tokA && !tokB && tokA.type === 'path' && tokA.toShow !== true) return false;   // 1.6.2: a new drawing of a player's is one to show, whatever their copy says: a drawing goes on the map by the GM's word alone
             if (!m[3] && tokA && !tokB && tokA.type === 'path' && hasOwn(tokA, 'tip') && tokA.tip !== 'square' && tokA.tip !== 'flat') return false;   // Match a wall, round three: a new drawing of a player's keeps the nib it was drawn with only as square or flat (round is no key at all). The Fill tip would make it a filled region, and a number or a text of markup is no nib
             if (!m[3] && tokB && !tokA && tokB.type === 'path' && tokB.byPlayer === true && (tokB.blocksSight || tokB.barrier === true)) return false;   // 49 (c): a drawing the GM made a wall or a barrier is the GM's piece from then on — no message of a player's erases it, their own included
+            if (!m[3] && ((msg.type === 'drop' && tokA && !tokB) || (msg.type === 'box' && tokB && !tokA)) && (tokA || tokB).type === 'image' && typeof (tokA || tokB).box === 'string' && !!(tokA || tokB).pile) return true;   // 1.6.4: a pile laid by a drop, or gone with the last thing taken from it
             if (!m[3]) { const obj = tokA || tokB; return !!obj && ((obj.type === 'path' && obj.byPlayer === true && obj.ownerId === pid) || (msg.type === 'hello' && obj.ownerId === pid) || ((msg.type === 'travel' || msg.type === 'pos' || msg.type === 'item' || msg.type === 'char-token' || msg.type === 'char-done') && (obj.ownerId === pid || obj.waiting))); }
             const tok = tokB || tokA; if (!tok) return false;
             const key = m[3].split(/[.[]/)[0];
+            if ((msg.type === 'drop' || msg.type === 'box') && typeof tok.box === 'string' && tok.pile && /^(pile|src|name)$/.test(key)) return true;   // 1.6.4: a pile's face follows what it holds, at a drop, a pick-up or a put
             if (key === 'toShow' || key === 'showFor') return false;   // 1.6.2: whether a drawing stands to show or on the map is the GM's, on a player's own drawing too: no message of a player's sets it or clears it once the drawing stands
             if (key === 'barrier' || key === 'blocksSight' || key === 'blastStop' || key === 'fogHand') return false;   // what stops movement, sight or a blast is the GM's alone, on a player's own drawing too
             if (key === 'zoneHidden') return false;   // 1.6.3 (finding 8): whether players see a trigger zone is the GM's alone: no message of a player's sets or clears it on any piece
@@ -1143,6 +1155,7 @@ function mutations(tpl) {
         if (msg.type === 'char-item' && msg.op === 'buyoff' && (m = p.match(/^\.app\.campaigns\.c1\.chars\.([^.]+)\.([^.[]+)(?:\.([^.[]+))?/)) && m[2] !== 'updated' && !(m[2] === 'values' && ['f_flaw', 'f_xpt', 'f_spent'].indexOf(m[3]) >= 0)) return false;   // 1.6.4 Buy off: it moves its own list, the field it charges and the list it records on, and nothing else of the character
         if ((m = p.match(/^\.app\.campaigns\.c1\.chars(?:\.([^.]+))?/))) { if (!m[1]) return msg.type === 'char-make' || msg.type === 'char-token'; const c = after.app.campaigns.c1.chars[m[1]] || before.app.campaigns.c1.chars[m[1]]; return !!c && c.ownerId === pid && !c.npc; }
         if (/^\.app\.campaigns\.c1\.(sessionLog|uploads)(\.|\[|$)/.test(p)) return true;
+        if (/^\.app\.campaigns\.c1\.boxes(\.|\[|$)/.test(p)) return msg.type === 'drop' || (msg.type === 'box' && (msg.op === 'take' || msg.op === 'put'));   // 1.6.4: a pile's store, changed by a drop, a pick-up or a put alone
         if ((m = p.match(/^\.app\.campaigns\.c1\.players(?:\.([^.]+))?/))) return !m[1] || m[1] === pid;
         if ((m = p.match(/^\.roster\.([^.]+)/))) { const r = after.roster[m[1]] || before.roster[m[1]]; return !!r && r.id === pid; }
         if ((m = p.match(/^\.targets\.([^.]+)/))) return m[1] === pid;
@@ -1236,6 +1249,8 @@ function mutations(tpl) {
         'char-style': o => !!(campH().chars.c_p1.looks && campH().chars.c_p1.looks.f_class && campH().chars.c_p1.looks.f_class.fmt.b === true) && o.p1.some(m => m.type === 'charstyle-ack') && o.p1.some(m => m.type === 'charStyle') && !o.p2.some(m => m.type === 'charStyle'),
         'door-req': () => tokH('door1').doorOpen === true,
         'box': o => !o.p1.concat(o.p2 || []).some(m => m.type === 'box-view' || m.type === 'box-took'),
+        'box-put': o => !o.p1.concat(o.p2 || []).some(m => m.type === 'box-view' || m.type === 'box-took') && !campH().boxes,   // 1.6.4
+        'drop': o => o.p1.some(m => m.type === 'box-deny' && /Tradable/.test(m.msg || '')) && !o.p1.concat(o.p2).some(m => m.type === 'box-took') && !campH().boxes && !campH().items.m_open.whiteboard.some(w => w.pile),   // 1.6.4: refused in words, nothing laid
         'door-req-secret': o => JSON.stringify(tokH('door_secret')) === JSON.stringify(pristine.items.m_open.whiteboard.find(w => w.id === 'door_secret')) && !o.p1.concat(o.p2).some(m => m.type === 'door-deny' || m.type === 'item' || m.type === 'itemDelta'),   // fold B5: a secret door: as the GM left it, nobody told a thing
         'door-req-line': o => LINE_DOOR_IDS.every(id => JSON.stringify(tokH(id)) === JSON.stringify(pristine.items.m_open.whiteboard.find(w => w.id === id))) && tokH('door_line').doorLock === true && !o.p1.concat(o.p2).some(m => m.type === 'door-deny' || m.type === 'item' || m.type === 'itemDelta'),   // Match a wall: the three secret doors drawn as lines as the GM left them, nobody told a thing (not even that the one named is locked)
         'char-pic': o => rec.pics.length === 1 && o.p1.some(m => m.type === 'char-pic-ans' && m.ok === true),
@@ -1304,6 +1319,33 @@ function mutations(tpl) {
         await fireHost('s', 'voice-up', 'from a stranger', cloneMsg(host.tpl['voice-up'])); const v3 = rec.voice.slice();
         await fireHost('p1', 'voice@host', 'the GM\'s own word sent at the GM', cloneMsg(host.tpl['voice@host'])); const v4 = rec.voice.slice();
         check('host: voice chat\'s voice-up reaches voice.js from an admitted player alone, with the connection it came on; the waiting peer\'s and a stranger\'s reach nothing, and a voice word sent at the host has no branch', JSON.stringify([v1, v2, v3, v4]) === JSON.stringify([['player:join:peer_p1'], [], [], []]), [v1, v2, v3, v4]);
+    }
+    {   // 1.6.4 (the 49th host branch, drop): Drop here, Pick up and a pile on the wire. With the world's Inventory ticked Tradable for the block, the
+        // same drop from p2 (a token not theirs) moves nothing; p1 drops two of three ropes and a pile is laid at tok_p1's cell holding them, sent to
+        // p2 wearing its face and the container mark, never its box id or what it holds; p1 picks both up again and the pile goes from the map
+        await resetWorld();
+        const campD = campH(), sysWas = campD.system;
+        campD.system = clone(sysWas); campD.system.fields.find(f => f.id === 'f_inv').list = { trade: true };
+        campD.chars.c_p1.values.f_inv = [{ id: 'w_1', defId: 'i_rope', qty: 3 }];
+        const DROP = { type: 'drop', mapId: 'm_open', tok: 'tok_p1', fid: 'f_inv', rowId: 'w_1', qty: 2 };
+        await fireHost('p2', 'drop', 'p1\'s drop sent by p2', cloneMsg(DROP));
+        const noMove = !campH().boxes && campH().chars.c_p1.values.f_inv[0].qty === 3 && !campH().items.m_open.whiteboard.some(w => w.pile);
+        const b = sentLog.length;
+        await fireHost('p1', 'drop', 'two of three, from a list ticked Tradable', cloneMsg(DROP));
+        const pileW = campH().items.m_open.whiteboard.find(w => w.pile), toP2 = sentLog.slice(b).filter(s => s.to === 'peer_p2');
+        const seenW = [].concat(...toP2.map(s => piecesIn(s.m))).filter(w => pileW && w.id === pileW.id), boxId = pileW && pileW.box;
+        const leaks = toP2.some(s => { const j = JSON.stringify(s.m); return (boxId && j.indexOf(boxId) >= 0) || j.indexOf('"values"') >= 0 && j.indexOf('c_bx') >= 0; });
+        check('host: the drop (1.6.4, the 49th host branch) from another player moves nothing; from its own player it lays a pile at the token\'s cell holding what was dropped, the sheet keeps the rest, and the other player is sent the pile wearing its face and the container mark, never its box id',
+            noMove && !!pileW && pileW.layer === 'back-mid' && campH().chars.c_p1.values.f_inv[0].qty === 1 && !!campH().boxes && campH().boxes[boxId].values.f_inv[0].qty === 2
+            && seenW.length > 0 && seenW.every(w => w.boxed === 1 && !('box' in w) && w.pile && w.pile.n === 2 && w.pile.k === 1) && !leaks && conns.p1.sent.some(m => m.type === 'box-took' && m.say === 'drop'),
+            JSON.stringify([noMove, pileW, seenW.slice(0, 1)]).slice(0, 400));
+        await fireHost('p1', 'box', 'opens the pile', { type: 'box', op: 'open', mapId: 'm_open', itemId: pileW ? pileW.id : 'x', tok: 'tok_p1' });
+        const view = conns.p1.sent.filter(m => m.type === 'box-view').slice(-1)[0], row = view && view.tiles && view.tiles[0];
+        await fireHost('p1', 'box', 'picks it all up', { type: 'box', op: 'take', mapId: 'm_open', itemId: pileW ? pileW.id : 'x', tok: 'tok_p1', all: true });
+        check('host: Pick up (1.6.4): the pile opens as a container that takes things, its tiles alone; taking all of it puts it back on the sheet and the pile goes from the map',
+            !!view && view.pile === true && view.put === true && !!row && row.qty === 2 && !JSON.stringify(view).includes('c_bx') && campH().chars.c_p1.values.f_inv.reduce((s, r) => s + r.qty, 0) === 3 && !campH().items.m_open.whiteboard.some(w => w.pile),
+            JSON.stringify([view, campH().chars.c_p1.values.f_inv]).slice(0, 400));
+        campD.system = sysWas; delete campD.boxes;
     }
     {   // 1.6.4 (the 47th host branch, profile-set): a seated player's own profile changed. From p1, a new name, color and picture reach the roster
         // everyone holds and the name their record, the GM's own name for them kept and the GM told once; the same again sends, saves and says nothing;

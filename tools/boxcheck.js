@@ -177,7 +177,7 @@ const J = JSON.stringify;
         check('the container window writes no markup: every word set as text, the glyph a bundled icon\'s file from the app\'s own table, drawn as the sheet draws one (the review of the item card, backlog 225, moved on purpose), its notes in a tooltip',
             !/innerHTML|insertAdjacentHTML|outerHTML/.test(bx) && bx.includes("var s = el('span', 'box-glyph wp-glyph')") && bx.includes('glyphPath(t.icon)') && bx.includes('b2.title = tipOf(t);') && bx.includes("e.textContent = String(text)"));
         check('every change goes through boxOp with the real applyRowOp, is one save and is logged as boxes v1; the window closes when its piece, its map or its campaign is gone, and is drawn again only by its own changes',
-            bx.includes('var r = BC.boxOp(sysOf(camp), b, fid, q, F, applyRowOp);') && bx.includes('b.values = r.values; save(); step(what, {});') && bx.includes("window.wpStepLog('boxes v1', s, f || {})")
+            bx.includes('var r = BC.boxOp(sysOf(camp), b, fid, q, F, applyRowOp);') && bx.includes('    b.values = r.values;\n') && bx.includes('    save(); step(what, {}); draw();') && bx.includes("window.wpStepLog('boxes v1', s, f || {})")
             && /function sync\(\) \{[^\n]*close\(\); return; \}[^\n]*nm\.textContent/.test(bx) && !/function sync\(\)[^\n]*draw\(\)/.test(bx));
         check('the library\'s picker opens with the list\'s own categories, and an entry put in from it goes through the same change', bx.includes("LP.open({ anchor: lb,") && bx.includes("change(fid, { op: 'add', defId: id, rowId: uid('w_'), qty: qty || 1 }, 'add-lib', ['.box-lib', '.box-item'])"));
     }
@@ -205,7 +205,7 @@ const J = JSON.stringify;
         check('the page: the window with its close, the module after the layers, its styles',
             (ix.match(/id="boxPanel"/g) || []).length === 1 && ix.includes('id="boxClose"') && ix.includes('id="boxBody"') && ix.indexOf('scripts/ilayers.js') < ix.indexOf('scripts/boxes.js') && css.includes('#boxBody .box-grid {') && css.includes('#boxPanel {') && css.includes('#contextMenu .menu-item.cm-box-open > * { pointer-events: none; }'));
         check('fold 2b: the GM\u2019s lock above the tiles and the player\u2019s padlock view, drawn with no markup; the padlock the owner picked; Help and both notes say it',
-            read('scripts/boxes.js').includes('    lockInto(body, camp, b, sys);   // fold 2b') && read('scripts/boxes.js').includes("    if (_box.locked) { lockedInto(body); return; }   // fold 2b") && !/innerHTML|insertAdjacentHTML/.test(read('scripts/boxes.js'))
+            read('scripts/boxes.js').includes('    else { lockInto(body, camp, b, sys); putTickInto(body, b); }   // fold 2b; 1.6.4 Players may put in') && read('scripts/boxes.js').includes("    if (_box.locked) { lockedInto(body); if (_box.locked.see) seenInto(body, _box.tiles || []); return; }") && !/innerHTML|insertAdjacentHTML/.test(read('scripts/boxes.js'))
             && css.includes("M5.5 11h13a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1V12a1 1 0 0 1 1-1zM8 11V7.5a4 4 0 0 1 8 0V11M12 14.5v2.5") && css.includes('.wi-padlock { --wi:')
             && ix.includes('Tick <b>Lock</b> in its window to lock it. The padlock beside it closes and it reads Locked.') && ix.includes('A pass, or the key, opens it for everyone, and the tick comes off.') && read('scripts/boxes.js').includes("(lk.on === true ? 'wi-padlock' : 'wi-unlock')")
             && fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').includes('- A container can be locked.') && read('assets/whatsnew.txt').includes('- A container can be locked.'));
@@ -239,7 +239,7 @@ const J = JSON.stringify;
             const ixL = read('index.html'), wnL = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), waL = read('assets/whatsnew.txt');
             check('Help and both notes say it', ixL.includes('A fallen NPC can be searched like a container. Tick <b>Can be looted</b>') && ixL.includes('<b>Never looted</b>') && wnL.includes('- A fallen NPC can be searched like a container.') && waL.includes('- A fallen NPC can be searched like a container.'));
         }
-        check('Help says it, in its plain words', ix.includes('<li><b>Containers:</b> a picture, a shape or a map object can hold items') && ix.includes('What it holds stays on your computer until a player opens it. You are told who took what.') && ix.includes('Only lists ticked Tradable that players see can hold them, as a trade moves them.'));
+        check('Help says it, in its plain words', ix.includes('<li><b>Containers:</b> a picture, a shape or a map object can hold items') && ix.includes('What it holds stays on your computer until a player opens it. You are told who dropped, put in and took what.') && ix.includes('Only lists ticked Tradable that players see can hold them, as a trade moves them.'));
         const wn = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), wa = read('assets/whatsnew.txt');
         check('both release notes say it, alike', wn.includes('- A picture, a shape or a map object can now hold items.') && wa.includes('- A picture, a shape or a map object can now hold items.'));
     }
@@ -405,8 +405,8 @@ const J = JSON.stringify;
                 tkn.length === 2 && tkn[0].lines[0].name === 'Coin' && tkn[1].ch === 'c_kael' && tkn[1].by === 'Kael' && J(tkn[1].lines.map(l => [l.rowId, l.qty])) === J([['w_r', 2]]) && /^t_[a-z0-9]+x$/.test(tkn[1].id) && note.length === 2 && note[1].indexOf('took c_bxchest0001 ' + tkn[0].id + ' Kael took Coin') === 0 && !P2.toasts.length, J([tkn, note]));
             const putS = read('scripts/boxes.js');
             check('putting back: the window lists the takes with Put back and Tell the player, the take moved back by the trade\u2019s own rule from the character, its line to the player only while Tell the player is ticked; nothing of it on the wire',
-                putS.includes('    takenInto(body, camp, b);   // fold 2c') && putS.includes("var res = tradeApply(sys, ch, BC.boxChar(b), plan.lines, [], 'gm', 'gm', {});") && putS.includes("if (b.tell !== false && n && typeof n.showTell === 'function' && typeof ch.ownerId === 'string' && ch.ownerId) n.showTell(ch.ownerId, 'The GM put ' + words + ' back in ' + name + '.');")
-                && putS.includes("function tookNote(boxId, takeId, said) { toastAction(said, 'Put back', function() { putBack(boxId, takeId); }); }   // the host's branch draws the window again, with no focus moved (the review)") && putS.includes("if (!BC.boxesNamed(camp.items)[boxId]) { toast('That container is no longer on a map, so nothing can go back into it.'); return; }") && require('./checkkit').part('netfog.js').includes('delete camp.boxes;'));
+                putS.includes('    takenInto(body, camp, b);   // fold 2c') && putS.includes("var tb = at.into || b, res = tradeApply(sys, ch, BC.boxChar(tb), plan.lines, [], 'gm', 'gm', {});") && putS.includes("if (b.tell !== false && n && typeof n.showTell === 'function' && typeof ch.ownerId === 'string' && ch.ownerId) n.showTell(ch.ownerId, 'The GM put ' + words + ' back in ' + name + '.');")
+                && putS.includes("function tookNote(boxId, takeId, said) { toastAction(said, 'Put back', function() { putBack(boxId, takeId); }); }   // the host's branch draws the window again, with no focus moved (the review)") && putS.includes("    if (!at) { toast('That container is no longer on a map, so nothing can go back into it.'); return; }   // the review: a deleted piece's store goes at the next load") && require('./checkkit').part('netfog.js').includes('delete camp.boxes;'));
         }
         const W = mk();
         W.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, W.conn);
@@ -483,6 +483,149 @@ const J = JSON.stringify;
         check('the mark: on the GM\'s screen a container\'s mark opens its window, on a player\'s app a container the host marked asks to open it; none on a piece that is none, in the stream window or on a hidden one; the chest\'s drawing and its words',
             gm.kids.length === 1 && gm.kids[0].className === 'wb-box wi-chest' && gm.kids[0].dataset.tip === 'Open contents' && pl.kids[0].dataset.tip === 'Open it' && JSON.stringify(opened) === '["p1"]' && JSON.stringify(asked) === '["p2"]' && none.every(e => e.kids.length === 0)
             && read('style.css').includes('.wi-chest { --wi:') && read('style.css').includes('.wb-item > .wb-box {') && read('style.css').includes('.wb-item.hexagon > .wb-box { left: calc(25% + 2px); top: 2px; } .wb-item.diamond > .wb-box { left: calc(50% - 11px); top: 4px; }'), JSON.stringify([opened, asked]));
+    }
+    /* ---- 1.6.4: Drop here, Pick up, Put in, See-through (Fulllion, 2026-11-23, by prompt) ---- */
+    {
+        const FC = await import(url.pathToFileURL(app('scripts/fogcore.js')).href);
+        const sysD = S.cleanSystem({ v: 1, name: 'D', fields: [
+            { id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { trade: true, on: { label: 'Worn' } } },
+            { id: 'f_trait', key: 'Traits', label: 'Traits', kind: 'item-list', edit: 'owner', list: {} }],
+            items: [{ id: 'i_rope', key: 'Rope', name: 'Rope', icon: 'icon:check' }, { id: 'i_sword', key: 'Sword', name: 'Sword', pic: '/saves/images/sword.png' }, { id: 'i_ring', key: 'Ring', name: 'Bound ring', eq: 'bound' }, { id: 'i_brave', key: 'Brave', name: 'Brave' }] }, { F, gmView: true });
+        // the core: the tick, See-through, a pile's face
+        const lk = BC.cleanLock({ on: true, see: 'thru' }, sysD), lk2 = BC.cleanLock({ see: 'glass' }, sysD);
+        const cb3 = BC.cleanBox({ values: {}, put: false }, sysD, 'c_bxpile00003'), cb = BC.cleanBox({ values: {}, put: false, lock: { on: true }, pile: true, at: { map: 'm1', x: 10, y: 20, s: 30 } }, sysD, 'c_bxpile00001'), cb2 = BC.cleanBox({ values: {}, put: 'yes', pile: 1, at: { map: 'bad id!', x: 1, y: 1, s: 30 } }, sysD, 'c_bxpile00002');
+        check('1.6.4: What players see while locked keeps See-through only as its one word, beside the lock; a container keeps the GM’s Players may put in only as true or false, and a pile its mark and where it lay, cleaned',
+            J(lk) === J({ on: true, see: 'thru' }) && lk2 === null && cb3.put === false && !('put' in cb) && !('lock' in cb) && cb.pile === true && J(cb.at) === J({ map: 'm1', x: 10, y: 20, s: 30 }) && !('put' in cb2) && !('pile' in cb2) && !('at' in cb2), J([lk, lk2, cb, cb2]));
+        const plain = { values: {} }, locked = { values: {}, lock: { on: true } }, opened = { values: {}, lock: { rolls: ['r'] } }, ticked = { values: {}, lock: { rolls: ['r'] }, put: true }, unticked = { values: {}, put: false }, pile = { values: {}, pile: true, put: false };
+        check('1.6.4: Players may put in reads on by default for a container with no lock and off for one with a lock (opened, its rolls kept); the GM’s tick wins; a locked one takes nothing whatever the tick says; a pile always takes; See-through only on a lock that says so',
+            BC.boxPutOk(plain) && !BC.boxPutOk(locked) && !BC.boxPutOk(opened) && BC.boxPutOk(ticked) && !BC.boxPutOk(unticked) && BC.boxPutOk(pile) && !BC.boxPutOk(Object.assign({}, ticked, { lock: { on: true } }))
+            && BC.boxPutTick(plain) === true && BC.boxPutTick(opened) === false && BC.boxSeeThru({ lock: { on: true, see: 'thru' } }) && !BC.boxSeeThru(locked) && !BC.boxSeeThru({ pile: true, lock: { see: 'thru' } }));
+        const face = BC.pileFace(sysD, { values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 3 }, { id: 'w_2', defId: 'i_sword', qty: 1 }] } }), face2 = BC.pileFace(sysD, { values: { f_inv: [{ id: 'w_2', defId: 'i_sword', qty: 1 }] } });
+        check('1.6.4: a pile’s face is what lies on top, its picture or else its icon, with how many in all and of how many kinds; none for an empty pile; on the wire only its count, its kinds and its icon, cleaned',
+            J(face) === J({ n: 4, k: 2, name: 'Rope', icon: 'icon:check' }) && face2.pic === '/saves/images/sword.png' && BC.pileFace(sysD, { values: {} }) === null
+            && J(BC.cleanPileFace({ n: 4, k: 2, icon: 'icon:check\u0007', name: 'x', pic: 'y' })) === J({ n: 4, k: 2, icon: 'icon:check ' }) && BC.cleanPileFace({ n: 0, k: 1 }) === null && BC.cleanPileFace({ n: 2, k: 401 }) === null && BC.cleanPileFace('x') === null, J([face, face2]));
+        // the move: judged as the trade and the removal judge it, then the trade's own rule
+        const ch = () => ({ id: 'c_k', name: 'Kael', ownerId: 'u_p1', values: { f_inv: [{ id: 'w_r', defId: 'i_rope', qty: 5 }, { id: 'w_s', defId: 'i_sword', qty: 1, on: true }, { id: 'w_b', defId: 'i_ring', qty: 1, on: true }], f_trait: [{ id: 'w_t', defId: 'i_brave', qty: 1 }] } });
+        const m1 = BC.moveIn(sysD, ch(), { values: {} }, 'f_inv', 'w_r', 2, 'player', F), m2 = BC.moveIn(sysD, ch(), { values: { f_inv: [{ id: 'w_x', defId: 'i_rope', qty: 1 }] } }, 'f_inv', 'w_r', 9, 'player', F);
+        const m3 = BC.moveIn(sysD, ch(), { values: {} }, 'f_inv', 'w_s', 1, 'player', F);
+        check('1.6.4: a drop or a put moves a count of a stack, or all of it (a count past it is all of it), off the sheet and into the container through the trade’s own rule, a like stack there joined; a worn piece goes in taken off',
+            m1.ok && J(m1.valuesA.f_inv.map(r => [r.id, r.qty])) === J([['w_r', 3], ['w_s', 1], ['w_b', 1]]) && m1.values.f_inv[0].qty === 2 && J(m1.lines) === J(['Rope x2'])
+            && m2.ok && J(m2.valuesA.f_inv.map(r => r.id)) === J(['w_s', 'w_b']) && J(m2.values.f_inv.map(r => [r.defId, r.qty])) === J([['i_rope', 6]])
+            && m3.ok && m3.values.f_inv[0].on === false, J([m1, m2, m3]));
+        const r1 = BC.moveJudge(sysD, ch(), 'f_trait', 'w_t', 1, 'player', F), r2 = BC.moveJudge(sysD, ch(), 'f_inv', 'w_b', 1, 'player', F), r3 = BC.moveJudge(sysD, ch(), 'f_inv', 'w_gone', 1, 'player', F), r4 = BC.moveJudge(sysD, Object.assign(ch(), { making: 1 }), 'f_inv', 'w_r', 1, 'player', F), r5 = BC.moveJudge(sysD, ch(), 'f_inv', 'w_b', 1, 'gm', F);
+        check('1.6.4: refused, with words: a row of a list not ticked Tradable, a bound piece worn (a player’s hand; the GM’s takes it), a row that is gone, a character still in the making',
+            !r1.ok && r1.reason === 'list' && /Tradable/.test(r1.msg) && !r2.ok && /while it is on/.test(r2.msg) && !r3.ok && r3.reason === 'gone' && !r4.ok && r4.reason === 'making' && r5.ok, J([r1, r2, r3, r4, r5]));
+        const sysL = S.cleanSystem({ v: 1, name: 'L', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { trade: true, lock: { if: '1', cells: ['qty'], says: 'Strapped down while riding.' } } }], items: [{ id: 'i_rope', key: 'Rope', name: 'Rope' }] }, { F, gmView: true });
+        const rL = BC.moveJudge(sysL, { id: 'c', ownerId: 'u', values: { f_inv: [{ id: 'w_r', defId: 'i_rope', qty: 2 }] } }, 'f_inv', 'w_r', 1, 'player', F);
+        check('1.6.4: a removal the sheet itself refuses refuses the drop, in the sheet’s own words (Locked while, through applyRowOp)', !rL.ok && rL.msg === 'Strapped down while riding.', J(rL));
+        // boxes.js: the pile, run for real on a page of plain objects
+        const bsrc = read('scripts/boxes.js'), da = bsrc.indexOf('// [boxcheck:drop-start]'), dz = bsrc.indexOf('// [boxcheck:drop-end]');
+        let n = 0; const uid = p => { if (typeof p !== 'string') throw new Error('uid needs its prefix'); return p + 'u' + (++n); };
+        const boxOf = (camp, w) => camp && w && typeof w.box === 'string' && camp.boxes && Object.prototype.hasOwnProperty.call(camp.boxes, w.box) ? camp.boxes[w.box] : null;
+        const DP = new Function('BC', 'F', 'uid', 'boxOf', 'sysOf', 'gridFor', 'squareGrid', 'cellOf', 'cellCenter', 'cellKey', bsrc.slice(da, dz) + '\nreturn { pileSpot, pileHere, pileSync, dropInto };')(BC, F, uid, boxOf, c => c.system, FC.gridFor, FC.squareGrid, FC.cellOf, FC.cellCenter, FC.cellKey);
+        const mkW = () => { const camp = { id: 'k', system: sysD, chars: { c_k: ch() }, items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [{ id: 'tk', type: 'image', isChar: true, charId: 'c_k', x: 100, y: 100, w: 50, h: 50 }, { id: 'tk2', type: 'image', isChar: true, charId: 'c_k', x: 300, y: 100, w: 50, h: 50 }] } } }; return { camp, map: camp.items.m1, tk: camp.items.m1.whiteboard[0], tk2: camp.items.m1.whiteboard[1] }; };
+        const W1 = mkW(), d1 = DP.dropInto(W1.camp, W1.map, W1.tk, W1.camp.chars.c_k, 'f_inv', 'w_r', 2, 'player'), pw = d1.w, pb = W1.camp.boxes && W1.camp.boxes[pw && pw.box];
+        check('1.6.4: Drop here lays a pile at the token’s cell, under the tokens: a picture piece that holds a box marked pile, three fifths of a cell at its middle, wearing what lies on top and a count, holding exactly what was dropped',
+            d1.ok && d1.made === true && pw.type === 'image' && pw.layer === 'back-mid' && pw.x === 110 && pw.y === 110 && pw.w === 30 && pw.h === 30 && J(pw.pile) === J({ n: 2, k: 1, icon: 'icon:check' }) && pw.src === '' && pw.name === 'Rope'
+            && pb.pile === true && J(pb.values.f_inv.map(r => [r.defId, r.qty])) === J([['i_rope', 2]]) && J(pb.at) === J({ map: 'm1', x: 110, y: 110, s: 30 }) && W1.camp.chars.c_k.values.f_inv[0].qty === 3 && BC.boxPieceOk(pw), J([d1, pb]));
+        const d2 = DP.dropInto(W1.camp, W1.map, W1.tk, W1.camp.chars.c_k, 'f_inv', 'w_s', 1, 'gm'), d3 = DP.dropInto(W1.camp, W1.map, W1.tk2, W1.camp.chars.c_k, 'f_inv', 'w_r', 1, 'player');
+        check('1.6.4: one pile a cell: a drop where a pile lies joins it, its face then the first thing and a count of everything; a drop in another cell lays a pile of its own',
+            d2.ok && d2.made === false && d2.w === pw && J(pw.pile) === J({ n: 3, k: 2, icon: 'icon:check' }) && pw.name === 'Rope and more' && d3.ok && d3.made === true && d3.w !== pw && Object.keys(W1.camp.boxes).length === 2 && W1.map.whiteboard.length === 4, J([pw, d3.w]));
+        const bad = DP.dropInto(W1.camp, W1.map, W1.tk, W1.camp.chars.c_k, 'f_trait', 'w_t', 1, 'player'), cnt = W1.map.whiteboard.length;
+        pb.values = {}; const gone = DP.pileSync(W1.camp, W1.map, pw);
+        const W2 = mkW(), e1 = DP.dropInto(W2.camp, W2.map, W2.tk, W2.camp.chars.c_k, 'f_inv', 'w_r', 1, 'player'), b2 = W2.camp.boxes[e1.w.box]; b2.taken = [{ id: 't_abcd', ch: 'c_k', by: 'Kael', lines: [{ fid: 'f_inv', rowId: 'w_r', qty: 1, name: 'Rope' }] }]; b2.values = {}; const gone2 = DP.pileSync(W2.camp, W2.map, e1.w);
+        check('1.6.4: a refused drop lays nothing; a pile emptied goes from the map with its box, but its box stays while a take of it is listed, for Put back',
+            !bad.ok && cnt === 4 && gone === 'gone' && W1.map.whiteboard.indexOf(pw) < 0 && !(pw.box in W1.camp.boxes) && gone2 === 'gone' && W2.map.whiteboard.length === 2 && (e1.w.box in W2.camp.boxes), J([bad, gone, gone2]));
+        // the host: the drop branch and Put in, run for real
+        const net = read('scripts/net.js'), bw = (a, z) => { const i = net.indexOf('// [netcheck:' + a + '-start]'), j = net.indexOf('// [netcheck:' + a + '-end]'); if (i < 0 || j < i) throw new Error('slice ' + a); return net.slice(i, j); };
+        const mkH = (o) => {
+            o = o || {}; const W = mkW(), camp = W.camp; camp.chars.c_a = { id: 'c_a', name: 'Ava', ownerId: 'u_p2', values: {} }; W.map.whiteboard.push({ id: 'ta', type: 'image', isChar: true, charId: 'c_a', ownerId: 'u_p2', x: 150, y: 100, w: 50, h: 50 });
+            if (o.chest) { camp.boxes = { c_bxchest0001: Object.assign({ id: 'c_bxchest0001', values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 1 }] } }, o.chest) }; W.map.whiteboard.push({ id: 'chest', type: 'image', name: 'Old chest', x: 150, y: 150, w: 50, h: 50, box: 'c_bxchest0001' }); }
+            if (o.combat) camp.system = S.cleanSystem(Object.assign({}, camp.system, { combat: { turn: { acts: [{ key: 'act', label: 'Action', n: 1 }], drop: 'act' } } }), { F, gmView: true });
+            const sent = [], told = [], logs = [], toasts = [], steps = [], conn = { peer: 'pA', open: true, send: m => sent.push(m) }, other = { peer: 'pB', open: true, send: m => told.push(m) };
+            const N = { roster: { pA: { id: 'u_p1', location: 'm1' }, pB: { id: 'u_p2', location: 'm1' } }, conns: [conn, other], paused: false, syncCharDelta: (id, v) => steps.push('delta ' + id + ' ' + Object.keys(v).join(',')), sendItem: (c, m) => steps.push('sendItem ' + m) };
+            const win = { wpFormula: F, wpBoxCore: BC, wpSheets: { charChanged: id => steps.push('changed ' + id), playerSystem: c => c.system }, wpBoxes: { dropInto: DP.dropInto, pileSync: DP.pileSync, redraw: () => steps.push('gm redraw'), tookNote: (bid, tid, said) => steps.push('took ' + said) }, wpStepLog: (n2, s, f) => steps.push(n2 + ' ' + s) };
+            const spent = [];
+            const fn = new Function('net', 'window', 'getActiveCampaign', 'getActiveMap', 'save', 'allow', 'peerPaused', 'handsTo', 'allyNear', 'SC', 'saveRemoteSoon', 'logEvent', 'toast', 'sendFailed', 'actsOf', 'actsCombat', 'actSpend', 'offTurnOf',
+                bw('boxhost') + '\nreturn { box: function(msg, conn) {\n' + bw('box') + '\n}, drop: function(msg, conn) {\n' + bw('drop') + '\n}, cost: dropCost };');
+            const api = fn(N, win, () => camp, () => W.map, f => steps.push(f ? 'save now' : 'save'), () => true, () => false, (c2, pid) => !!c2 && c2.ownerId === pid, (m, x, y) => Math.abs((x.x || 0) - (y.x || 0)) < 120 && Math.abs((x.y || 0) - (y.y || 0)) < 120, () => S, () => steps.push('save'), (k, s) => logs.push(s), s => toasts.push(s), () => {},
+                c2 => (c2.system.combat && c2.system.combat.turn && c2.system.combat.turn.acts) || [], () => !!o.combat, (c2, id, pr, key, cn, nm, look) => { if (look) return o.spent ? 'No Action left this turn.' : ''; spent.push(key); return ''; }, () => '');
+            return Object.assign(W, { api, sent, told, logs, toasts, steps, conn, other, spent });
+        };
+        const H1 = mkH(); H1.api.drop({ type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 2 }, H1.conn);
+        const pileH = H1.map.whiteboard.find(w => w.pile), tookH = H1.sent.find(m => m.type === 'box-took');
+        check('1.6.4, the host’s drop branch (run for real): the row comes off the sheet into a pile at the token, saved at once and the map sent, the sheet sent; the player told, the GM told who dropped what',
+            !!pileH && H1.camp.chars.c_k.values.f_inv[0].qty === 3 && tookH && tookH.say === 'drop' && J(tookH.lines) === J(['Rope x2']) && H1.logs[0] === 'Kael dropped Rope x2.' && H1.toasts[0] === 'Kael dropped Rope x2.'
+            && H1.steps.includes('save now') && H1.steps.includes('delta c_k f_inv') && H1.steps.includes('changed c_k'), J([H1.sent, H1.steps]));
+        const H2 = mkH(); H2.api.drop({ type: 'drop', mapId: 'm1', tok: 'ta', fid: 'f_inv', rowId: 'w_r' }, H2.conn); H2.api.drop({ type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_trait', rowId: 'w_t' }, H2.conn); H2.api.drop({ type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 0 }, H2.conn);
+        H2.N = null; H2.api.drop({ type: 'drop', mapId: 'nope', tok: 'tk', fid: 'f_inv', rowId: 'w_r' }, H2.conn);
+        check('1.6.4: refused with words, nothing moved and nothing laid: another player’s token, a list not ticked Tradable, a count of none; a map that is not there answers nothing',
+            H2.sent.length === 3 && H2.sent.every(m => m.type === 'box-deny' && m.reason === 'value' && typeof m.msg === 'string' && m.msg) && /Tradable/.test(H2.sent[1].msg) && H2.map.whiteboard.length === 3 && !H2.camp.boxes && H2.camp.chars.c_k.values.f_inv[0].qty === 5, J(H2.sent));
+        const H3 = mkH({ combat: true }); H3.api.drop({ type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 1 }, H3.conn);
+        const H4 = mkH({ combat: true, spent: true }); H4.api.drop({ type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 1 }, H4.conn);
+        check('1.6.4: in a fight a drop spends what the system’s Turns box names, judged before anything moves: with it spent already, refused in words and nothing dropped',
+            J(H3.spent) === J(['act']) && !!H3.map.whiteboard.find(w => w.pile) && H4.sent[0].type === 'box-deny' && H4.sent[0].msg === 'No Action left this turn.' && !H4.map.whiteboard.find(w => w.pile) && H4.spent.length === 0, J([H3.spent, H4.sent]));
+        // Pick up: a take from a pile, and the pile gone once empty
+        const H5 = mkH(); H5.api.drop({ type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 2 }, H5.conn); const pid = H5.map.whiteboard.find(w => w.pile).id, pbid = H5.map.whiteboard.find(w => w.pile).box;
+        H5.api.box({ type: 'box', op: 'open', mapId: 'm1', itemId: pid, tok: 'ta' }, H5.other); const pv = H5.told.find(m => m.type === 'box-view');
+        const rowA = pv && pv.tiles[0]; H5.api.box({ type: 'box', op: 'take', mapId: 'm1', itemId: pid, tok: 'ta', fid: 'f_inv', rowId: rowA.rowId, qty: 2 }, H5.other);
+        check('1.6.4 Pick up: a pile opens for anyone next to it as a container, saying it takes things; taking the last of it moves it to the taker’s sheet and the pile goes from the map, its box kept for Put back; the GM is told',
+            pv && pv.pile === true && pv.put === true && J(pv.tiles.map(t => [t.name, t.qty])) === J([['Rope', 2]]) && H5.camp.chars.c_a.values.f_inv[0].qty === 2 && !H5.map.whiteboard.some(w => w.id === pid)
+            && !!H5.camp.boxes[pbid] && H5.camp.boxes[pbid].taken.length === 1 && H5.told.some(m => m.type === 'box-view' && m.gone === true) && H5.steps.some(s => s === 'took Ava took Rope x2 from Rope.'), J([pv, H5.told, H5.steps]));
+        // Put in: a container that allows it, a locked one, a See-through one
+        const H6 = mkH({ chest: {} }); H6.api.box({ type: 'box', op: 'put', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 2 }, H6.conn);
+        const putOk = J(H6.camp.boxes.c_bxchest0001.values.f_inv.map(r => [r.defId, r.qty])) === J([['i_rope', 3]]) && H6.camp.chars.c_k.values.f_inv[0].qty === 3 && H6.sent.some(m => m.type === 'box-took' && m.say === 'put') && H6.logs[0] === 'Kael put Rope x2 in Old chest.';
+        const H7 = mkH({ chest: { lock: { on: true } } }); H7.api.box({ type: 'box', op: 'put', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 2 }, H7.conn);
+        const H8 = mkH({ chest: { put: false } }); H8.api.box({ type: 'box', op: 'put', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 2 }, H8.conn);
+        check('1.6.4 Put in: into a container that allows it, from the sheet through the same rule, the GM told; a locked one refuses (locked), and one the GM unticked refuses (noput), nothing moved',
+            putOk && H7.sent[0].reason === 'locked' && H8.sent[0].reason === 'noput' && [H7, H8].every(X => X.camp.chars.c_k.values.f_inv[0].qty === 5 && X.camp.boxes.c_bxchest0001.values.f_inv[0].qty === 1), J([H6.sent, H7.sent, H8.sent]));
+        const H9 = mkH({ chest: { lock: { on: true, see: 'thru' } } }), H10 = mkH({ chest: { lock: { on: true } } });
+        H9.api.box({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, H9.conn); H10.api.box({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, H10.conn);
+        H9.api.box({ type: 'box', op: 'take', mapId: 'm1', itemId: 'chest', tok: 'tk', fid: 'f_inv', rowId: 'w_1', qty: 1 }, H9.conn);
+        check('1.6.4 See-through: a locked one shows a player next to it its tiles and counts with the padlock, and takes nothing; a Solid one shows nothing of what it holds',
+            H9.sent[0].locked && H9.sent[0].locked.see === true && J(H9.sent[0].tiles.map(t => [t.name, t.qty])) === J([['Rope', 1]]) && !H9.sent[0].put && H9.sent[1].reason === 'locked' && H9.camp.boxes.c_bxchest0001.values.f_inv.length === 1
+            && H10.sent[0].locked && !H10.sent[0].tiles && !H10.sent[0].locked.see, J([H9.sent, H10.sent]));
+        // the ask, the wire, the words
+        const dA = net.indexOf('// [netcheck:dropask-start]'), dZ = net.indexOf('// [netcheck:dropask-end]'), outD = [];
+        const ND = { active: true, role: 'client', stream: false, foreign: true, syncedPeer: 'h', conns: [{ open: true, peer: 'h', send: m => outD.push(m) }] }; new Function('net', net.slice(dA, dZ))(ND);
+        ND.dropAsk('m1', 'tk', 'f_inv', 'w_r', 2.7); ND.dropAsk('m1', 'tk', 'f_inv', 'w_r');
+        check('1.6.4: the drop ask, run for real: its map, token, list, row and a whole count, or no count for the whole of it',
+            J(outD) === J([{ type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 2 }, { type: 'drop', mapId: 'm1', tok: 'tk', fid: 'f_inv', rowId: 'w_r' }]), J(outD));
+        const cu = read('scripts/cleanup.js'), sh = read('scripts/sheets.js').replace(/\r\n/g, '\n'), wb = read('scripts/whiteboard.js'), css = read('style.css');
+        check('1.6.4: a pile’s face is cleaned by boxcore on the wire both ways and at a load; the board draws it from the piece alone; the row’s right-click menu offers Drop here; its mark reads Pick up to a player',
+            net.includes("if (w.pile !== undefined) { var BXw = window.wpBoxCore,") && net.includes("if (w.pile !== undefined) { var BXc = window.wpBoxCore,") && cu.includes("if (w.pile !== undefined) { var BXp = typeof window !== 'undefined' ? window.wpBoxCore : null,")
+            && wb.includes("window.wpBoxes.pileFace(el, item); }") && sh.includes("if (dOk) rowLibItem(pop, 'Drop here',") && wb.includes("item.pile ? 'Pick up' : 'Open it'; if (mark") && css.includes('.wb-item.wb-pile > .wb-pile-n {'));
+        const sc = read('scripts/systemcore.js'), ed = require('./checkkit').part('sysedtabs.js');
+        const sysC = S.cleanSystem({ v: 1, name: 'C', fields: [], combat: { turn: { acts: [{ key: 'Act', label: 'Action', n: 1 }], drop: 'act', trade: 'ACT' } } }, { F, gmView: true }), sysC2 = S.cleanSystem({ v: 1, name: 'C', fields: [], combat: { turn: { acts: [{ key: 'Act', n: 1 }], drop: 'nope' } } }, { F, gmView: true });
+        check('1.6.4: Dropping or picking up in a fight, the system’s option beside a trade’s cost: kept as the action list spells it, none for an action that is not there; in the Turns box, following a renamed action',
+            sysC.combat.turn.drop === 'Act' && !('drop' in ((sysC2.combat || {}).turn || {})) && ed.includes("labeledSelect('sys-turn-drop', 'Dropping or picking up in a fight'") && ed.includes("if (was && tn.drop === was) {") && sc.includes("if (typeof t.drop === 'string')"), J([sysC.combat, sysC2.combat]));
+    }
+    {   // 1.6.4: Help in its plain words and both release-note drafts
+        const ixD = read('index.html'), wnD = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), waD = read('assets/whatsnew.txt');
+        check('1.6.4: Help says Drop here, the pile, Pick up, Put in, Players see and Players may put in, and the fight\u2019s cost; both release-note drafts carry it, marked a draft',
+            ixD.includes('<li><b>Drop here</b>, on an item&rsquo;s right-click menu on a sheet,') && ixD.includes('presses <b>Pick up</b> on it to take from it, or to put things in. An empty pile goes.') && ixD.includes('Beside Lock, <b>Players see</b> is <b>Solid</b> or <b>See-through</b>.')
+            && ixD.includes('<li><b>Players may put in</b> lets a player next to it put things in from their own sheet.') && ixD.includes('<li><b>Dropping or picking up in a fight</b>, in Turns,')
+            && [wnD, waD].every(t => t.includes('Drop it, pick it up [DRAFT]\n- Right-click an item on a sheet and pick Drop here.') && t.indexOf('Drop it, pick it up [DRAFT]') < t.indexOf('WAYPOINT 1.6.3')));
+    }
+    {   // 1.6.4, the review's findings
+        const sysR = S.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { trade: true, parts: { from: 'f_inv' } } }], items: [{ id: 'i_sword', key: 'Sword', name: 'Sword' }, { id: 'i_gem', key: 'Gem', name: 'Cursed gem', vis: 'gm', pic: '/saves/images/gem.png' }] }, { F, gmView: true });
+        const fR = BC.pileFace(sysR, { values: { f_inv: [{ id: 'w_g', defId: 'i_gem', qty: 1, in: 'w_s' }, { id: 'w_s', defId: 'i_sword', qty: 1 }] } }), fG = BC.pileFace(sysR, { values: { f_inv: [{ id: 'w_g', defId: 'i_gem', qty: 1 }] } });
+        check('1.6.4 (the review): a pile\u2019s face never shows a GM-only entry that came with a row, by name, picture or count; a pile holding only such a thing shows a bare pile',
+            fR && fR.name === 'Sword' && fR.n === 1 && fR.k === 1 && !fR.pic && !JSON.stringify(fR).includes('gem') && J(fG) === J({ n: 1, k: 1, name: 'Pile' }), J([fR, fG]));
+        const campT = { boxes: { c_bxpile00009: { id: 'c_bxpile00009', values: {} } }, items: { m: { type: 'map', whiteboard: [{ id: 'a', type: 'image', box: 'c_bxgone00001', pile: { n: 2, k: 1 } }, { id: 'b', type: 'image', pile: { n: 1, k: 1 } }] } } };
+        BC.boxesTidy(campT);
+        check('1.6.4 (the review): a load\u2019s tidy takes a pile\u2019s face off a piece whose box is gone, and the GM unticking Holds items takes it too',
+            campT.items.m.whiteboard.every(w => !('pile' in w) && !('box' in w)) && read('scripts/boxes.js').includes('delete w.box; delete w.pile; save();'), J(campT.items.m.whiteboard));
+        const bsrc2 = read('scripts/boxes.js'), ra = bsrc2.indexOf('function pileRoom(camp) {'), rz = bsrc2.indexOf('// [boxcheck:drop-end]');
+        const room = new Function('BC', bsrc2.slice(ra, rz) + '\nreturn pileRoom;')(BC), st = {}; for (let i = 0; i < 500; i++) st['c_bx' + String(i).padStart(6, '0')] = { values: {} };
+        st.c_bx000003 = { values: {}, pile: true, taken: [{ at: 50 }] }; st.c_bx000007 = { values: {}, pile: true, taken: [{ at: 20 }] }; st.c_bx000008 = { values: {}, pile: true };
+        const campQ = { boxes: st, items: { m: { type: 'map', whiteboard: [{ id: 'p', box: 'c_bx000008' }] } } }; room(campQ);
+        check('1.6.4 (the review): with the store full, an emptied pile\u2019s box kept for Put back makes room, the oldest first; a container or a pile on the map never does',
+            Object.keys(st).length === 499 && !('c_bx000007' in st) && 'c_bx000003' in st && 'c_bx000008' in st, Object.keys(st).length);
+        const nt = read('scripts/net.js');
+        check('1.6.4 (the review): a drop needs its player on that very map; putting on a pile costs what a drop costs; a failed try shows a See-through one\u2019s contents only to one still next to it; Put back into a cell with a pile joins it',
+            nt.includes("if (prD.location !== mapD.id) { sayD('value', 'Your token is on another map now.'); return; }") && nt.includes("if (pileP) { var cP = dropCost(campB, chB, prB, conn, true);") && nt.includes("if (pileP) dropCost(campB, chB, prB, conn, false);")
+            && nt.includes("allyNear(map, tkT, w, true))) { delete hm.tiles; delete hm.locked.see; }") && bsrc2.includes("if (here && hb) return { map: m, w: here, into: hb };"));
     }
     summed = true; console.log('\n' + pass + ' passed, ' + fail + ' failed.'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FAIL      boxcheck threw: ' + (e && e.stack || e)); summed = true; process.exitCode = 1; });

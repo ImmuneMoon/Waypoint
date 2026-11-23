@@ -4611,11 +4611,14 @@ function rowLibPacks(x, y, entry, c, f, spec) {
     rowLibShow(pop, x, y);
 }
 function rowLibHook(line, entry, rd, c, f, spec, gm) {
-    if (!rowLibOk(rd, entry, gm)) return;
+    var lib = rowLibOk(rd, entry, gm), B = typeof window !== 'undefined' ? window.wpBoxes : null, dr = !!(_fxLive && entry && entry.hid !== 1 && B && typeof B.dropOk === 'function');   // 1.6.4 Drop here, judged at the press as the map stands then (boxes.js dropOk)
+    if (!lib && !dr) return;
     line.addEventListener('contextmenu', function(e) {
+        var dOk = dr && B.dropOk(c, f, entry); if (!lib && !dOk) return;
         e.preventDefault(); e.stopPropagation();
         var rc = e.clientX || e.clientY ? null : line.getBoundingClientRect(), x = rc ? rc.left : e.clientX, y = rc ? rc.bottom : e.clientY, pop = rowLibPop();   // the keyboard's menu key has no place of its own
-        rowLibItem(pop, 'Add to the library', 'Make it an entry anyone can take', function() { rowLibPacks(x, y, entry, c, f, spec); });
+        if (dOk) rowLibItem(pop, 'Drop here', 'Leave it on the map where ' + (c.name || 'they') + ' stands', function() { closeLoadMenu(); var cN = typeof charById === 'function' ? charById(c.id) : c; B.drop(cN || c, f, entry); });   // 1.6.4
+        if (lib) rowLibItem(pop, 'Add to the library', 'Make it an entry anyone can take', function() { rowLibPacks(x, y, entry, c, f, spec); });
         rowLibShow(pop, x, y);
     });
 }

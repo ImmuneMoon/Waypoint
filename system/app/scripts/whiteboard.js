@@ -1098,6 +1098,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
 
               if (imEl.getAttribute('src') !== wantSrc) imEl.src = wantSrc;
               trimDraw(el, imEl, item);   // 1.6.2 (backlog 37): a picture cut to the cells kept
+              if ((item.pile || el.classList.contains('wb-pile')) && window.wpBoxes && typeof window.wpBoxes.pileFace === 'function') { imEl.style.display = item.pile && !item.src ? 'none' : ''; window.wpBoxes.pileFace(el, item); }   // 1.6.4: a dropped pile wears what lies on top, its icon where it has no picture, and a count
               // A player's copy while the picture's bytes are still on their way (or never came): the character's
               // initials stand in, so a token is never an invisible box with a facing wedge and chips floating around it.
               if (el.dataset.picGone && el.dataset.picGone !== imEl.getAttribute('src')) { delete el.dataset.picGone; el.classList.remove('pic-missing'); }   // 1.6.2: another picture now
@@ -4357,7 +4358,7 @@ window.wpFitToGrid = fitToGrid;
   // 1.6.2 (backlog 42, fold 2): a container's mark, a real button at the top left of its piece. On the GM's screen it opens the window; on a
   // player's app it asks the host to open it with a token of theirs next to it (the piece wears boxed from the host, never its box id). Never
   // in the stream window
-  function boxMarkSync(el, item, hidden) {
+  function boxMarkSync(el, item, hidden) {   // 1.6.4: a dropped pile's mark reads Pick up on a player's app
       var B = window.wpBoxes, n = window.wpNet, mark = el.querySelector(':scope > .wb-box');
       var body = !!B && B.gmMay() && item.isChar && typeof B.bodyHas === 'function' && B.bodyHas(item), gm = !!B && B.gmMay() && ((typeof item.box === 'string' && B.has(item)) || body), pl = !gm && item.boxed === 1 && !!n && n.active && n.role === 'client' && !n.stream;   // fold 3: a lootable body wears it too
       if (hidden || window.wpStream || !(gm || pl)) { if (mark) mark.remove(); return; }
@@ -4367,7 +4368,7 @@ window.wpFitToGrid = fitToGrid;
           mark.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var B2 = window.wpBoxes, id = mark.dataset.id; if (!B2 || !id) return; if (B2.gmMay()) { if (mark.dataset.body === '1' && typeof B2.bodyOpen === 'function') B2.bodyOpen(id); else B2.open(id); } else B2.ask(id); });
           el.appendChild(mark);
       }
-      mark.dataset.body = body ? '1' : ''; var words = body ? 'Can be looted: open its sheet' : gm ? 'Open contents' : item.isChar ? 'Search the body' : 'Open it'; if (mark.dataset.id !== item.id || mark.dataset.tip !== words) { mark.dataset.id = item.id; mark.dataset.tip = words; mark.setAttribute('aria-label', words); }
+      mark.dataset.body = body ? '1' : ''; var words = body ? 'Can be looted: open its sheet' : gm ? 'Open contents' : item.isChar ? 'Search the body' : item.pile ? 'Pick up' : 'Open it'; if (mark.dataset.id !== item.id || mark.dataset.tip !== words) { mark.dataset.id = item.id; mark.dataset.tip = words; mark.setAttribute('aria-label', words); }
   }
   // [boxcheck:mark-end]
   function pagePinSync(el, item, hidden) {

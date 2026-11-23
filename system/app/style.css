@@ -6102,6 +6102,14 @@
   .sheet-locked .sheet-read { color: inherit; background: transparent; border-color: transparent; }
   .sheet-lockmark { margin-left: 4px; font-size: .9em; color: var(--muted, currentColor); opacity: .8; }   /* 1.6.3 (backlog 170): a field held by its Locked while, beside its label; the field's box carries the words as its tooltip */
   .sheet-read a { color: var(--blue); }
+  /* 1.6.4: a closed field says why where it is pressed (sheets.js closedMark, whyShow). The box takes the focus, and its line floats under it, over
+     what is below, so the sheet's row stays level and nothing moves when it shows. Words only, never a window */
+  .sheet-field.sheet-why-at { cursor: help; }
+  .sheet-field.sheet-why-at:focus { outline: none; }
+  .sheet-field.sheet-why-at:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .sheet-field.sheet-why-on { position: relative; }
+  .sheet-why-line { position: absolute; left: 0; top: calc(100% + 2px); z-index: 40; min-width: 100%; width: max-content; max-width: min(280px, 90vw); box-sizing: border-box; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 6px; background: var(--panel); color: var(--ink); font-size: 12px; font-weight: normal; font-style: normal; line-height: 1.4; text-align: left; text-transform: none; letter-spacing: normal; white-space: normal; box-shadow: 0 2px 8px rgba(0,0,0,.35); pointer-events: auto; cursor: default; }
+  .sheet-why-line.sheet-why-up { top: auto; bottom: calc(100% + 2px); }   /* under the last row of a sheet or a HUD there is no room below: it stands above the field (sheets.js whyFit) */
   /* ... the header's own bare box, and a one-line text in an Inline rows section, which sizes there as the plain input does */
   .sheet-idn-edit .sheet-box.ts-box { min-width: 0; min-height: 0; border: 0; background: transparent; padding: 4px; font-size: 14px; line-height: 1.3; color: inherit; }   /* the header input's own sizes (.sheet-hdr-edit input.field) */
   .sheet-field.sheet-inline-row > .sheet-box, .sheet-field.sheet-inline-row > .sheet-read.sheet-text { flex: 1 1 7em; width: auto; min-width: 0; }

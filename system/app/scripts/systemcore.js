@@ -594,7 +594,7 @@ function cleanField(f, F, gmView) {
         var step = cleanNum(f.step, 1); out.step = step > 0 ? step : 1;
         out.def = clampNum(cleanNum(f.def, 0), out.min, out.max);
         if (k === 'skill') { var b = cleanFormulaText(f.base); out.base = b === null ? (f.base === null ? null : '') : b; }
-        if (k === 'number' && isObj(f.override)) { var ovW = cleanFormulaText(f.override.when), ovV = cleanFormulaText(f.override.value); if (ovW && ovV) out.override = { when: ovW, value: ovV }; }   // 205 (6): the field reads value, closed to editing, while when holds (both formulas, no dice)
+        if (k === 'number' && isObj(f.override)) { var ovW = cleanFormulaText(f.override.when), ovV = cleanFormulaText(f.override.value); if (ovW && ovV) { out.override = { when: ovW, value: ovV }; var ovS = typeof f.override.says === 'string' ? cutText(f.override.says.replace(/[\r\n]+/g, ' ').replace(CTRL_RE_G, ' ').trim(), 200) : ''; if (ovS) out.override.says = ovS; } }   // 1.6.4: its own words (says), one line of 200 at most, cut as a lock's are and kept only beside the override itself; the sheet shows them when the closed number is pressed. 205 (6): the field reads value, closed to editing, while when holds (both formulas, no dice)
         else if (k === 'number' && f.override === null) out.override = null;   // ... blanked in the players' view: it read a GM-only value
     } else if (k === 'formula') {
         var fm = cleanFormulaText(f.formula); out.formula = fm === null ? (f.formula === null ? null : '') : fm;

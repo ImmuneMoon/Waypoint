@@ -1097,6 +1097,21 @@ const dice = read('scripts/dice.js');
             && !/innerHTML|insertAdjacentHTML|outerHTML|document\.write/.test(ek) && !/[^\x00-\x7f]/.test(ek));
     }
     // 10. said
+    // 1.6.4: a closed field's line of why (sheets.js closedKey, its own Escape) goes before the window it stands in: in a sheet shown in a window
+    // Escape closes (sheetViewModal) the first Escape is the line's and the window stays; with no line up Escape closes it as before; in the sheet
+    // panel the line goes and the sheet stays
+    {
+        const P = page(), I = P.ids; P.mk('sheetViewModal', { display: 'none', z: 100000 }); P.shut('sheetViewModal', 'sheetViewCloseBtn'); show(P, 'sheetViewModal');
+        const fld = P.mk('viewField', { cls: ['sheet-field', 'sheet-why-at', 'sheet-why-on'], in: I.sheetViewModal });
+        const away = (x, e) => { e.preventDefault(); e.stopPropagation(); x.cls.delete('sheet-why-on'); };   // what closedKey does
+        const r1 = P.press(fld, { inner: e => away(fld, e) }), s1 = [I.sheetViewModal.style.display, fld.cls.has('sheet-why-on'), I.sheetViewCloseBtn.clicks];
+        const r2 = P.press(fld), s2 = [I.sheetViewModal.style.display, I.sheetViewCloseBtn.clicks];
+        const Q = page(); show(Q, 'sheetPanel'); const fq = Q.mk('sheetField', { cls: ['sheet-field', 'sheet-why-at', 'sheet-why-on'], in: Q.ids.sheetPanel });
+        const q1 = Q.press(fq, { inner: e => away(fq, e) }), qS = [Q.ids.sheetPanel.style.display, fq.cls.has('sheet-why-on')];
+        const SHUT = { stopped: true, free: false, mapUse: false, prevented: true };
+        check('1.6.4 a closed field\'s line of why keeps Escape first (esckey.js run for real, escKeep): in a sheet shown in a window the first Escape puts the line away and the window stays, the next closes it; in the sheet the line goes and the sheet stays',
+            J([r1, s1, r2, s2, q1, qS]) === J([SHUT, ['flex', false, 0], SHUT, ['none', 1], SHUT, ['flex', false]]), J([r1, s1, r2, s2, q1, qS]));
+    }
     {
         const wn = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')].map(t => t.replace(/\r\n/g, '\n'));
         const N1 = "- Escape closes the one thing on top, one press at a time. A\n  right-click menu goes first, then an open menu, then the window on\n  top. Help, Settings, Multiplayer, the calendar, the Journal, the\n  combat roster and the other windows now close on Escape, and so\n  does the map's right-click menu. Nothing behind it hears the key:\n  your target and the tool in your hand stay as they are until\n  nothing else is open, and the dice roller no longer closes along\n  with what Escape was pressed for.\n"

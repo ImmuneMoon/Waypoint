@@ -334,8 +334,24 @@ function cleanTiles(raw) {
     var cut = function(v, n) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n) : ''; };
     return (Array.isArray(raw) ? raw.slice(0, 400) : []).map(function(x) { if (!x || typeof x !== 'object' || typeof x.rowId !== 'string' || typeof x.fid !== 'string') return null; var q = Math.floor(Number(x.qty)); return { fid: cut(x.fid, 40), rowId: cut(x.rowId, 40), name: cut(x.name, 240) || 'Item', qty: q >= 1 && q <= 1e6 ? q : 1, icon: cut(x.icon, 40), notes: cut(x.notes, 600), list: cut(x.list, 60), pic: cleanPic(x.pic) }; }).filter(Boolean);
 }
+// 1.6.4 (Fulllion, 2026-11-23): a See-through container's mark lists what it holds on hover. Resting on the mark asks the host, at most every three
+// seconds, and the host answers only where this player can see that spot; the answer is the mark's tip for a minute, and the tip on screen now
+var _peekAnswers = Object.create(null);
+var PEEK_KEEP_MS = 60000, PEEK_ASK_GAP_MS = 3000, PEEK_TILES_SAID = 12;   // how long an answer stands as the tip, how often a mark may ask, how many items its words name
+function peekTip(id) { var answer = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_peekAnswers, id) ? _peekAnswers[id] : null; return answer && answer.words && Date.now() - answer.at < PEEK_KEEP_MS ? answer.words : ''; }
+function peek(id) {
+    var n = window.wpNet, map = getActiveMap(); if (!n || typeof n.boxAsk !== 'function' || !map || typeof id !== 'string' || window.wpStream) return;
+    var answer = Object.prototype.hasOwnProperty.call(_peekAnswers, id) ? _peekAnswers[id] : (_peekAnswers[id] = { at: 0, asked: 0, words: '' }); if (Date.now() - answer.asked < PEEK_ASK_GAP_MS) return; answer.asked = Date.now();
+    n.boxAsk('peek', map.id, id, {}); step('peek', {});
+}
+function peekGot(msg) {
+    var tiles = cleanTiles(msg.tiles), words = tiles.length ? 'Locked. Inside: ' + tiles.slice(0, PEEK_TILES_SAID).map(function(t) { return t.name + (t.qty > 1 ? ' \u00d7' + t.qty : ''); }).join(', ') + (tiles.length > PEEK_TILES_SAID ? ', and more' : '') + '.' : 'Locked. It is empty inside.';
+    var answer = Object.prototype.hasOwnProperty.call(_peekAnswers, msg.itemId) ? _peekAnswers[msg.itemId] : (_peekAnswers[msg.itemId] = { asked: 0 }); answer.at = Date.now(); answer.words = words;
+    document.querySelectorAll('#whiteboard .wb-box').forEach(function(markEl) { if (markEl.dataset.id !== msg.itemId) return; markEl.dataset.tip = words; markEl.setAttribute('aria-label', words); var tipOnScreen = document.getElementById('wpTip'); if (tipOnScreen && tipOnScreen.style.display === 'block' && markEl.matches(':hover')) tipOnScreen.textContent = words; });   // found by comparing, never a selector built from an id
+}
 function view(msg) {
     var p = P(), map = getActiveMap(); if (!p || !msg || typeof msg.itemId !== 'string' || typeof msg.mapId !== 'string' || !map || map.id !== msg.mapId) return;
+    if (msg.peek === true) { peekGot(msg); return; }   // 1.6.4: what a See-through container holds, for its mark's tip; never the window
     var shown = p.style.display !== 'none', same = shown && _box.player && _box.pieceId === msg.itemId, tok = _ask && _ask.itemId === msg.itemId ? _ask.tok : (same ? _box.tok : null); if (!tok) return;   // only an ask that waits or the window open on it (the review)
     if (msg.gone === true) { if (same) { _box.player = false; p.style.display = 'none'; _box = { mapId: null, pieceId: null, sel: null, list: null }; } _ask = null; return; }   // the host closed it: nothing to tell it back
     _ask = null; var want = same ? _box.want : null;
@@ -534,7 +550,9 @@ function pileFace(node, item) {
     if (!pf) { if (ic) ic.remove(); if (bd) bd.remove(); return; }
     var want = item.src ? '' : (pf.icon || '?'); if (ic && ic.dataset.icon !== want) { ic.remove(); ic = null; }
     if (want && !ic) { ic = el('span', 'wb-pile-ic'); ic.dataset.icon = want; iconInto(ic, { icon: /^icon:/.test(want) || want !== '?' ? want : '', name: item.name || '?' }); node.appendChild(ic); }
-    var nw = pf.n > 1 ? String(pf.n > 999 ? '999+' : pf.n) : ''; if (!nw) { if (bd) bd.remove(); } else { if (!bd) { bd = el('span', 'wb-pile-n'); node.appendChild(bd); } if (bd.textContent !== nw) bd.textContent = nw; }
+    var nw = String(pf.n > 999 ? '999+' : pf.n);   // Fulllion, 2026-11-23: the count peeks out beside the token over the pile, so a pile is never hidden; a press on it opens the pile as its mark does
+    if (!bd) { bd = el('button', 'wb-pile-n'); bd.type = 'button'; ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { bd.addEventListener(ev, function(e) { e.stopPropagation(); }); }); bd.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var id = bd.dataset.id; if (!id || window.wpStream) return; if (gmMay()) open(id); else ask(id); }); node.appendChild(bd); }
+    var bw = (pf.k > 1 ? pf.n + ' things lie here' : pf.n > 1 ? pf.n + ' lie here' : 'Something lies here') + '. Press to open it.'; if (bd.dataset.id !== item.id) bd.dataset.id = item.id; if (bd.textContent !== nw) bd.textContent = nw; if (bd.dataset.tip !== bw) { bd.dataset.tip = bw; bd.setAttribute('aria-label', bw); }
 }
 // A copy of a container (Duplicate, a paste) gets a container of its own with a copy of what it holds, or none where the store is full: two
 // pieces never share one (the review)
@@ -548,7 +566,7 @@ function has(w) { return !!boxOf(getActiveCampaign(), w); }
 // The window follows the app: a piece gone, another map or another campaign closes it; otherwise its name follows the piece's
 function sync() { var p = P(); if (!p || p.style.display === 'none') return; if (_box.player) { var mp = getActiveMap(), n = window.wpNet; if (!mp || mp.id !== _box.mapId || !n || !n.active || n.role !== 'client') close(); return; } if (!piece() || !boxOf(getActiveCampaign(), piece()) || !gmMay()) { close(); return; } var nm = document.getElementById('boxName'), w = piece(); if (nm) nm.textContent = (typeof w.name === 'string' && w.name) ? w.name : 'Container'; }   // never drawn again under a press: only its own changes draw it
 if (typeof window !== 'undefined') {
-    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, steal: steal, stealGo: stealGo, stealOn: stealOn, view: view, bodyHas: bodyHas, bodyOpen: bodyOpen, tookNote: tookNote, putBack: putBack, dropOk: dropOk, drop: drop, dropInto: dropInto, pileSync: pileSync, pileFace: pileFace, pileTell: pileTell, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
+    window.wpBoxes = { open: open, close: close, sync: sync, holds: holds, pieceOk: boxPieceOk, gmMay: gmMay, has: has, copyFor: copyFor, ask: ask, steal: steal, stealGo: stealGo, stealOn: stealOn, view: view, bodyHas: bodyHas, bodyOpen: bodyOpen, tookNote: tookNote, putBack: putBack, peek: peek, peekTip: peekTip, dropOk: dropOk, drop: drop, dropInto: dropInto, pileSync: pileSync, pileFace: pileFace, pileTell: pileTell, redraw: function() { var p = P(); if (p && p.style.display !== 'none' && !_box.player) draw(); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 }
 export { open, close, sync, holds, boxPieceOk };

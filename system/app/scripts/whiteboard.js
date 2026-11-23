@@ -4323,10 +4323,11 @@ window.wpFitToGrid = fitToGrid;
       if (!mark) {
           mark = document.createElement('button'); mark.type = 'button'; mark.className = 'wb-box wi-chest';
           ['pointerdown', 'mousedown', 'dblclick'].forEach(function(ev) { mark.addEventListener(ev, function(e) { e.stopPropagation(); }); });
+          mark.addEventListener('pointerenter', function() { var B3 = window.wpBoxes; if (mark.dataset.see === '1' && B3 && typeof B3.peek === 'function') B3.peek(mark.dataset.id); });   // 1.6.4: a See-through container asks the host what it holds, for its tip
           mark.addEventListener('click', function(e) { e.stopPropagation(); e.preventDefault(); var B2 = window.wpBoxes, id = mark.dataset.id; if (!B2 || !id) return; if (B2.gmMay()) { if (mark.dataset.body === '1' && typeof B2.bodyOpen === 'function') B2.bodyOpen(id); else B2.open(id); } else B2.ask(id); });
           el.appendChild(mark);
       }
-      mark.dataset.body = body ? '1' : ''; var words = body ? 'Can be looted: open its sheet' : gm ? 'Open contents' : item.isChar ? 'Search the body' : item.pile ? 'Pick up' : 'Open it'; if (mark.dataset.id !== item.id || mark.dataset.tip !== words) { mark.dataset.id = item.id; mark.dataset.tip = words; mark.setAttribute('aria-label', words); }
+      mark.dataset.body = body ? '1' : ''; var words = body ? 'Can be looted: open its sheet' : gm ? 'Open contents' : item.isChar ? 'Search the body' : item.pile ? 'Pick up' : 'Open it'; var see = pl && item.boxSee === 1 && !item.isChar; mark.dataset.see = see ? '1' : ''; if (see) words = (B && typeof B.peekTip === 'function' && B.peekTip(item.id)) || 'Locked, and you can see inside. Rest here to see what it holds.'; if (mark.dataset.id !== item.id || mark.dataset.tip !== words) { mark.dataset.id = item.id; mark.dataset.tip = words; mark.setAttribute('aria-label', words); }
   }
   // [boxcheck:mark-end]
   function pagePinSync(el, item, hidden) {

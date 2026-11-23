@@ -446,7 +446,7 @@ const J = JSON.stringify;
             JSON.stringify(changed) === JSON.stringify([3, 3]) && quiet && walked[0] && JSON.stringify(walked[1]) === JSON.stringify(['pA']) && hiddenNow[0] && hiddenNow[1], JSON.stringify([changed, walked, hiddenNow]));
         const Q = mk(); Q.api.run({ type: 'box', op: 'open', mapId: 'm1', itemId: 'chest', tok: 'tk' }, Q.conn); Q.api.forgetConn('pA');
         check('a closed connection is let go of (the review), and the host\'s save asks the sweep', !Q.api.views()['k1|m1|chest'] && net.includes("if (net.active && net.role === 'host' && typeof boxSweep === 'function' && Object.keys(_boxViews).length) boxSweep();") && require('./checkkit').part('netfog.js').includes("if (typeof boxForgetConn === 'function') boxForgetConn(peer);"));
-        check('no stale mark goes out: the wire works boxed out every time, a file\'s is dropped, and next to is judged on the map\'s own lattice (the review)', net.includes("    delete w.boxed;   // the mark is worked out here and nowhere else (the review)") && read('scripts/cleanup.js').includes("            delete w.boxed;   // 1.6.2 (backlog 42)") && require('./checkkit').part('netfight.js').includes("C.gridFor(gt === 'square' || gt === 'hex' ? gt : 'off', null, map.meta && map.meta.cell)"));
+        check('no stale mark goes out: the wire works boxed out every time, a file\'s is dropped, and next to is judged on the map\'s own lattice (the review)', net.includes("    delete w.boxed;   // the mark is worked out here and nowhere else (the review)") && read('scripts/cleanup.js').includes("            delete w.boxed; delete w.boxSee;   // 1.6.2 (backlog 42)") && require('./checkkit').part('netfight.js').includes("C.gridFor(gt === 'square' || gt === 'hex' ? gt : 'off', null, map.meta && map.meta.cell)"));
         check('the player\'s app takes a view from the synced host alone and never in the stream window, and says a refusal in its own words', net.includes("} else if (msg.type === 'box-view' && net.role === 'client') {") && bw('boxview').includes("if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;") && net.includes("far: 'Move a token of yours next to it to open it.'"));
     }
 
@@ -594,17 +594,17 @@ const J = JSON.stringify;
         const cu = read('scripts/cleanup.js'), sh = read('scripts/sheets.js').replace(/\r\n/g, '\n'), wb = read('scripts/whiteboard.js'), css = read('style.css');
         check('1.6.4: a pile’s face is cleaned by boxcore on the wire both ways and at a load; the board draws it from the piece alone; the row’s right-click menu offers Drop here; its mark reads Pick up to a player',
             net.includes("if (w.pile !== undefined) { var BXw = window.wpBoxCore,") && net.includes("if (w.pile !== undefined) { var BXc = window.wpBoxCore,") && cu.includes("if (w.pile !== undefined) { var BXp = typeof window !== 'undefined' ? window.wpBoxCore : null,")
-            && wb.includes("window.wpBoxes.pileFace(el, item); }") && sh.includes("if (dOk) rowLibItem(pop, 'Drop here',") && wb.includes("item.pile ? 'Pick up' : 'Open it'; if (mark") && css.includes('.wb-item.wb-pile > .wb-pile-n {'));
+            && wb.includes("window.wpBoxes.pileFace(el, item); }") && sh.includes("if (dOk) rowLibItem(pop, 'Drop here',") && wb.includes("item.pile ? 'Pick up' : 'Open it'; var see = pl && item.boxSee === 1 && !item.isChar;") && css.includes('.wb-item.wb-pile > .wb-pile-n {'));
         const sc = read('scripts/systemcore.js'), ed = require('./checkkit').part('sysedtabs.js');
         const sysC = S.cleanSystem({ v: 1, name: 'C', fields: [], combat: { turn: { acts: [{ key: 'Act', label: 'Action', n: 1 }], drop: 'act', trade: 'ACT' } } }, { F, gmView: true }), sysC2 = S.cleanSystem({ v: 1, name: 'C', fields: [], combat: { turn: { acts: [{ key: 'Act', n: 1 }], drop: 'nope' } } }, { F, gmView: true });
         check('1.6.4: Dropping or picking up in a fight, the system’s option beside a trade’s cost: kept as the action list spells it, none for an action that is not there; in the Turns box, following a renamed action',
-            sysC.combat.turn.drop === 'Act' && !('drop' in ((sysC2.combat || {}).turn || {})) && ed.includes("labeledSelect('sys-turn-drop', 'Dropping or picking up in a fight'") && ed.includes("if (was && tn.drop === was) {") && sc.includes("if (typeof t.drop === 'string')"), J([sysC.combat, sysC2.combat]));
+            sysC.combat.turn.drop === 'Act' && !('drop' in ((sysC2.combat || {}).turn || {})) && ed.includes("labeledSelect('sys-turn-drop', 'Taking, dropping or putting in, in a fight'") && ed.includes("if (was && tn.drop === was) {") && sc.includes("if (typeof t.drop === 'string')"), J([sysC.combat, sysC2.combat]));
     }
     {   // 1.6.4: Help in its plain words and both release-note drafts
         const ixD = read('index.html'), wnD = fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), waD = read('assets/whatsnew.txt');
         check('1.6.4: Help says Drop here, the pile, Pick up, Put in, Players see and Players may put in, and the fight\u2019s cost; both release-note drafts carry it, marked a draft',
             ixD.includes('<li><b>Drop here</b>, on an item&rsquo;s right-click menu on a sheet,') && ixD.includes('presses <b>Pick up</b> on it to take from it, or to put things in. An empty pile goes.') && ixD.includes('Beside Lock, <b>Players see</b> is <b>Solid</b> or <b>See-through</b>.')
-            && ixD.includes('<li><b>Players may put in</b> lets a player next to it put things in from their own sheet.') && ixD.includes('<li><b>Dropping or picking up in a fight</b>, in Turns,')
+            && ixD.includes('<li><b>Players may put in</b> lets a player next to it put things in from their own sheet.') && ixD.includes('<li><b>Taking, dropping or putting in, in a fight</b> is in Turns.') && ixD.includes('Press the count to open the pile.') && ixD.includes('reads what it holds by resting the pointer on its chest')
             && [wnD, waD].every(t => t.includes('Drop it, pick it up [DRAFT]\n- Right-click an item on a sheet and pick Drop here.') && t.indexOf('Drop it, pick it up [DRAFT]') < t.indexOf('WAYPOINT 1.6.3')));
     }
     {   // 1.6.4, the review's findings
@@ -624,8 +624,43 @@ const J = JSON.stringify;
             Object.keys(st).length === 499 && !('c_bx000007' in st) && 'c_bx000003' in st && 'c_bx000008' in st, Object.keys(st).length);
         const nt = read('scripts/net.js');
         check('1.6.4 (the review): a drop needs its player on that very map; putting on a pile costs what a drop costs; a failed try shows a See-through one\u2019s contents only to one still next to it; Put back into a cell with a pile joins it',
-            nt.includes("if (prD.location !== mapD.id) { sayD('value', 'Your token is on another map now.'); return; }") && nt.includes("if (pileP) { var cP = dropCost(campB, chB, prB, conn, true);") && nt.includes("if (pileP) dropCost(campB, chB, prB, conn, false);")
+            nt.includes("if (prD.location !== mapD.id) { sayD('value', 'Your token is on another map now.'); return; }") && nt.includes("var putRefusal = dropCost(campB, chB, prB, conn, true); { if (putRefusal) {") && nt.includes("boxB.values = resP.values; dropCost(campB, chB, prB, conn, false);")
             && nt.includes("allyNear(map, tkT, w, true))) { delete hm.tiles; delete hm.locked.see; }") && bsrc2.includes("if (here && hb) return { map: m, w: here, into: hb };"));
+    }
+    {   // 1.6.4, Fulllion's answers of 2026-11-23: one setting rules taking, dropping and putting in; a See-through mark lists what it holds on
+        // hover, for anyone who can see that spot; a pile's count peeks out beside the token over it, and a press on it opens the pile
+        const FC2 = await import(url.pathToFileURL(app('scripts/fogcore.js')).href);
+        const sysA = S.cleanSystem({ v: 1, name: 'A', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { trade: true } }], items: [{ id: 'i_rope', key: 'Rope', name: 'Rope' }, { id: 'i_ruby', key: 'Ruby', name: 'Ruby' }], combat: { turn: { acts: [{ key: 'act', label: 'Action', n: 1 }], drop: 'act' } } }, { F, gmView: true });
+        const net = read('scripts/net.js'), bw = (a, z) => { const i = net.indexOf('// [netcheck:' + a + '-start]'), j = net.indexOf('// [netcheck:' + a + '-end]'); return net.slice(i, j); };
+        const mkA = (o) => {
+            o = o || {};
+            const box = Object.assign({ id: 'c_bxcase00001', values: { f_inv: [{ id: 'w_r', defId: 'i_ruby', qty: 2 }] } }, o.box || {});
+            const camp = { id: 'k', system: sysA, boxes: { c_bxcase00001: box }, chars: { c_k: { id: 'c_k', name: 'Kael', ownerId: 'u_p1', values: { f_inv: [{ id: 'w_1', defId: 'i_rope', qty: 3 }] } } },
+                items: { m1: { id: 'm1', type: 'map', meta: { gridType: 'square' }, whiteboard: [{ id: 'case', type: 'rect', name: 'Display case', x: 150, y: 100, w: 50, h: 50, box: 'c_bxcase00001' }, { id: 'tk', type: 'image', isChar: true, charId: 'c_k', ownerId: 'u_p1', x: 100, y: 100, w: 50, h: 50 }] } } };
+            const sent = [], spent = [], conn = { peer: 'pA', open: true, send: m => sent.push(m) };
+            const N = { roster: { pA: { id: 'u_p1', location: o.loc === undefined ? 'm1' : o.loc } }, conns: [conn], paused: false, syncCharDelta: () => {} };
+            const win = { wpFormula: F, wpBoxCore: BC, wpSheets: { charChanged: () => {}, playerSystem: c => c.system }, wpBoxes: { redraw() {}, pileSync() { return ''; } }, wpFog: { canSeePoint: () => o.sees !== false } };
+            const api = new Function('net', 'window', 'getActiveCampaign', 'getActiveMap', 'save', 'allow', 'peerPaused', 'handsTo', 'allyNear', 'SC', 'saveRemoteSoon', 'logEvent', 'toast', 'sendFailed', 'actsOf', 'actsCombat', 'actSpend', 'offTurnOf',
+                bw('boxhost') + '\nreturn function(msg, conn) {\n' + bw('box') + '\n};')(N, win, () => camp, () => camp.items.m1, () => {}, () => true, () => false, (c2, pid) => !!c2 && c2.ownerId === pid, () => o.near !== false, () => S, () => {}, () => {}, () => {}, () => {},
+                c2 => c2.system.combat.turn.acts, () => true, (c2, id, pr, key, cn, nm, look) => { if (look) return o.spent ? 'No Action left this turn.' : ''; spent.push(key); return ''; }, () => '');
+            return { api, camp, box, sent, spent, conn };
+        };
+        const T1 = mkA(); T1.api({ type: 'box', op: 'take', mapId: 'm1', itemId: 'case', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 1 }, T1.conn);
+        const T2 = mkA(); T2.api({ type: 'box', op: 'put', mapId: 'm1', itemId: 'case', tok: 'tk', fid: 'f_inv', rowId: 'w_1', qty: 1 }, T2.conn);
+        const T3 = mkA({ spent: true }); T3.api({ type: 'box', op: 'take', mapId: 'm1', itemId: 'case', tok: 'tk', fid: 'f_inv', rowId: 'w_r', qty: 1 }, T3.conn); T3.api({ type: 'box', op: 'put', mapId: 'm1', itemId: 'case', tok: 'tk', fid: 'f_inv', rowId: 'w_1', qty: 1 }, T3.conn);
+        check('1.6.4 (Fulllion: one setting rules all three): in a fight a take from an ordinary container and a put into one spend what the Turns box names, as a drop does; with it spent, both are refused in words and nothing moves',
+            J(T1.spent) === J(['act']) && T1.box.values.f_inv[0].qty === 1 && J(T2.spent) === J(['act']) && T2.camp.chars.c_k.values.f_inv[0].qty === 2
+            && T3.sent.length === 2 && T3.sent.every(m => m.type === 'box-deny' && m.msg === 'No Action left this turn.') && T3.box.values.f_inv[0].qty === 2 && T3.camp.chars.c_k.values.f_inv[0].qty === 3, J([T1.spent, T2.spent, T3.sent]));
+        const P1 = mkA({ box: { lock: { on: true, see: 'thru' } }, near: false }), P2 = mkA({ box: { lock: { on: true, see: 'thru' } }, sees: false }), P3 = mkA({ box: { lock: { on: true } } }), P4 = mkA({ box: { lock: { on: true, see: 'thru' } }, loc: 'm2' });
+        [P1, P2, P3, P4].forEach(X => X.api({ type: 'box', op: 'peek', mapId: 'm1', itemId: 'case' }, X.conn));
+        check('1.6.4 (Fulllion: a See-through mark lists what it holds on hover, for anyone who can see that spot): a peek is answered with its tiles to a player on that map who sees the spot, near it or not; a spot the fog hides from them, a Solid container and another map answer nothing',
+            P1.sent.length === 1 && P1.sent[0].peek === true && J(P1.sent[0].tiles.map(t => [t.name, t.qty])) === J([['Ruby', 2]]) && !JSON.stringify(P1.sent[0]).includes('c_bx') && P2.sent.length === 0 && P3.sent.length === 0 && P4.sent.length === 0, J([P1.sent, P2.sent, P3.sent, P4.sent]));
+        const bx = read('scripts/boxes.js'), wbS = read('scripts/whiteboard.js'), css = read('style.css'), cu = read('scripts/cleanup.js');
+        check('1.6.4: the wire marks a See-through container boxSee and nothing more, a player\u2019s app keeps it only on a container, a load drops a file\u2019s; the mark asks on hover at most every three seconds and shows the answer as its tip',
+            net.includes("seeCore.boxSeeThru(seeBox)) w.boxSee = 1; }") && net.includes("if (w.boxSee !== 1 || w.boxed !== 1) delete w.boxSee;") && cu.includes('delete w.boxed; delete w.boxSee;')
+            && wbS.includes("if (mark.dataset.see === '1' && B3 && typeof B3.peek === 'function') B3.peek(mark.dataset.id);") && bx.includes("if (Date.now() - answer.asked < PEEK_ASK_GAP_MS) return; answer.asked = Date.now();") && bx.includes('PEEK_ASK_GAP_MS = 3000') && bx.includes("if (msg.peek === true) { peekGot(msg); return; }"));
+        check('1.6.4 (Fulllion: keep piles under tokens, the count peeking out beside the token): a pile always wears its count, set out past the edge of its cell, a button that opens the pile as its mark does',
+            bx.includes("var nw = String(pf.n > 999 ? '999+' : pf.n);") && bx.includes("if (gmMay()) open(id); else ask(id);") && css.includes('.wb-item.wb-pile > .wb-pile-n { position: absolute; left: 136%; top: 50%; transform: translateY(-50%);'));
     }
     summed = true; console.log('\n' + pass + ' passed, ' + fail + ' failed.'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FAIL      boxcheck threw: ' + (e && e.stack || e)); summed = true; process.exitCode = 1; });

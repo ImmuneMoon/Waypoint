@@ -108,8 +108,9 @@ Names changed at the table [DRAFT]
 Drop it, pick it up [DRAFT]
 - Right-click an item on a sheet and pick Drop here. It lands on the
   map under that character's token as a small pile wearing the item's
-  picture, with a count when there's more than one. A stack asks how
-  many first. "Drop your weapons" finally means something.
+  picture and its count. The count peeks out beside any token standing
+  on it. A stack asks how many first. "Drop your weapons" finally means
+  something.
 - Anyone whose token stands next to the pile can pick it up, the same
   way they take from a chest. Once it's empty, it's gone. You get a
   note each time, and Put back still works.
@@ -117,9 +118,12 @@ Drop it, pick it up [DRAFT]
   Each container has a Players may put in tick, on unless it has a
   lock, and nothing goes in or out of a locked one until it's opened.
 - A locked container can be See-through, for a display case or a cage.
-  Players next to it see what's inside and can't touch it yet.
-- Building a system? Dropping or picking up in a fight can cost an
-  action, set in Turns beside what a trade costs.
+  Players next to it see what's inside and can't touch it yet. Anyone
+  who can see it can rest the pointer on its chest to read what it
+  holds.
+- Building a system? Taking, dropping or putting things in during a
+  fight can cost an action, one setting in Turns beside what a trade
+  costs.
 
 WAYPOINT 1.6.3 — What's New
 ============================

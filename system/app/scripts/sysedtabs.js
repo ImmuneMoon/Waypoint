@@ -98,8 +98,8 @@ function turnBox(box, cm) {
     });
     wrap.appendChild(labeledSelect('sys-turn-trade', 'A trade in a fight', turnTradeOpts(tn), typeof tn.trade === 'string' ? tn.trade : '', 'What giving something in a trade spends in a fight, from the actions above. Who only takes spends nothing. It also keeps Trade with on an NPC in a fight'));
     lineUnder(wrap, 'Whoever gives spends this as the trade completes. One who only takes spends nothing.');
-    wrap.appendChild(labeledSelect('sys-turn-drop', 'Dropping or picking up in a fight', turnTradeOpts(tn), typeof tn.drop === 'string' ? tn.drop : '', 'What dropping something on the map, or picking it up from a pile, spends in a fight, from the actions above'));   // 1.6.4
-    lineUnder(wrap, 'A player spends this each time they drop something or pick something up. Your own hand spends nothing.');
+    wrap.appendChild(labeledSelect('sys-turn-drop', 'Taking, dropping or putting in, in a fight', turnTradeOpts(tn), typeof tn.drop === 'string' ? tn.drop : '', 'What a player spends in a fight to take from a container or a pile, drop something on the map, or put something in, from the actions above'));   // 1.6.4
+    lineUnder(wrap, 'A player spends this each time they take, drop or put in. A body’s search and a pickpocket keep their own rules. Your own hand spends nothing.');
     if (wrap.lastChild && wrap.lastChild.classList) wrap.lastChild.classList.add('sys-combat-wide');   // 1.6.0: its words are longer than its list
     var err = errorCell('combat'); err.dataset.errFor = 'combat'; wrap.appendChild(err);
     box.appendChild(wrap);

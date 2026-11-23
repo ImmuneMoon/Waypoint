@@ -1030,6 +1030,7 @@ function mutations(tpl) {
             'throw-req': { type: 'throw-req', charId: 'c_p1', fieldId: 'f_inv', rowId: 'w_1', mapId: 'm_open', x: 200, y: 200 },
             'door-req': { type: 'door-req', mapId: 'm_open', itemId: 'door1' },
             'box': { type: 'box', op: 'open', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1' },   // 1.6.2 (backlog 42): a container asked to open; the world holds none, so it answers nothing and changes nothing
+            'box-peek': { type: 'box', op: 'peek', mapId: 'm_open', itemId: 'door1' },   // 1.6.4: what a See-through container holds, asked from its mark; a door is none, so it answers nothing
             'box-put': { type: 'box', op: 'put', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1', fid: 'f_inv', rowId: 'w_1', qty: 1 },   // 1.6.4 Put in: into a door, which is no container: answered nothing, nothing moved
             'drop': { type: 'drop', mapId: 'm_open', tok: 'tok_p1', fid: 'f_inv', rowId: 'w_1', qty: 1 },   // 1.6.4 (the 48th host branch): Drop here from a list this world does not tick Tradable: refused in words, nothing laid
             'send-on': { type: 'send-on', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 4): Send it on, on a card a defense left its own player; no attack waits here, so it is refused in words and sends nothing on
@@ -1250,6 +1251,7 @@ function mutations(tpl) {
         'char-style': o => !!(campH().chars.c_p1.looks && campH().chars.c_p1.looks.f_class && campH().chars.c_p1.looks.f_class.fmt.b === true) && o.p1.some(m => m.type === 'charstyle-ack') && o.p1.some(m => m.type === 'charStyle') && !o.p2.some(m => m.type === 'charStyle'),
         'door-req': () => tokH('door1').doorOpen === true,
         'box': o => !o.p1.concat(o.p2 || []).some(m => m.type === 'box-view' || m.type === 'box-took'),
+        'box-peek': o => !o.p1.concat(o.p2 || []).some(m => m.type === 'box-view'),   // 1.6.4
         'box-put': o => !o.p1.concat(o.p2 || []).some(m => m.type === 'box-view' || m.type === 'box-took') && !campH().boxes,   // 1.6.4
         'drop': o => o.p1.some(m => m.type === 'box-deny' && /Tradable/.test(m.msg || '')) && !o.p1.concat(o.p2).some(m => m.type === 'box-took') && !campH().boxes && !campH().items.m_open.whiteboard.some(w => w.pile),   // 1.6.4: refused in words, nothing laid
         'door-req-secret': o => JSON.stringify(tokH('door_secret')) === JSON.stringify(pristine.items.m_open.whiteboard.find(w => w.id === 'door_secret')) && !o.p1.concat(o.p2).some(m => m.type === 'door-deny' || m.type === 'item' || m.type === 'itemDelta'),   // fold B5: a secret door: as the GM left it, nobody told a thing

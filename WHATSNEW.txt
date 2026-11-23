@@ -66,6 +66,12 @@ Closed fields say why [DRAFT]
 - Building a system? A number that is Taken from another figure has a
   Says box now, for the words that line shows.
 
+Handed out in list order [DRAFT]
+- Building a system? A list with a switch can now tell each row where it
+  stands among the rows switched on, and how much of a figure the rows
+  before it have taken. Two hands go to the first weapons readied, and a
+  later weapon can tell it has none left, with no figure to set by hand.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

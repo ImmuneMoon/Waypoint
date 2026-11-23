@@ -1496,6 +1496,63 @@ const j = v => JSON.stringify(v);
         check('1.6.3 Layers: the GM’s notice and a player’s own app say what is worn under what in the notice that says what came off',
             shL.includes('.concat(window.wpSystemCore.underSays && Array.isArray(res.underRows) ? res.underRows.slice(0, 4).map(window.wpSystemCore.underSays) : [])') && ntL.includes(".concat(typeof S.underSays === 'function' && Array.isArray(res.underRows) ? res.underRows.slice(0, 4).map(S.underSays) : [])"));
     }
+    {   // 1.6.4 (asked for by a campaign's system build on 2026-11-22, for anything handed out in list order): Row.onPlace, a row's place among its list's
+        // rows switched on, and Row.onBefore.<w>, a number stat or a column added up over the rows switched on before it. Run for real through cleanSystem,
+        // the resolver, the owner's own copy (charFor), the validator, the words and the GM-only judge, on invented sheets
+        const J = JSON.stringify;
+        // a list of weapons with a switch: Hands a stat, Sec a GM-only stat, Grip a choice, three columns that read the new names, and one that reads a GM-only stat
+        const armsL = (more, cols) => ({ id: 'f_arms', key: 'Arms', label: 'Arms', kind: 'item-list', vis: 'all', edit: 'owner', list: Object.assign({ on: { label: 'Readied' },
+            stats: [{ key: 'Hands', label: 'Hands' }, { key: 'Sec', label: 'Secret', vis: 'gm' }, { key: 'Grip', label: 'Grip', kind: 'pick', opts: [{ label: 'Light', name: 'Note' }] }],
+            cols: cols || [{ key: 'Place', label: 'Place', formula: 'Row.onPlace' }, { key: 'Before', label: 'Hands before', formula: 'Row.onBefore.Hands' },
+                { key: 'Got', label: 'Got its hands', formula: 'if(Row.Hands <= 2 - Row.onBefore.Hands, 1, 0)' }, { key: 'Hid', label: 'Hidden figure', formula: 'Row.Sec * 2' }] }, more || {}) });
+        const itemsO = [{ id: 'i_knife', name: 'Pebbles’ longknife', stats: { Hands: 1, Sec: 3 } }, { id: 'i_pike', name: 'Kael’s pike', stats: { Hands: 2, Sec: 1 } },
+            { id: 'i_hatch', name: 'Hatchet', stats: { Hands: 1, Sec: 5 } }, { id: 'i_net', name: 'Weighted net', stats: { Hands: 1 } }];
+        const sysO = (more, cols) => ({ v: 1, name: 'O', rolls: [], fields: [{ id: 'f_n', key: 'Note', label: 'Note', kind: 'number', base: 0 }, armsL(more, cols)], items: itemsO, sheet: { sections: [] } });
+        const gO = cleanSystem(sysO(), { F, gmView: true }), pO = cleanSystem(sysO(), { F, gmView: false });
+        // Pebbles: the longknife readied, Kael's pike carried but off, the hatchet readied; then a net the GM keeps from her (hid) and one a curse keeps on (keptOn), both before the hatchet
+        const three = [{ id: 'w_k', defId: 'i_knife', qty: 1, on: true }, { id: 'w_p', defId: 'i_pike', qty: 1, on: false }, { id: 'w_h', defId: 'i_hatch', qty: 1, on: true }];
+        const chO = rows => ({ id: 'c_o', name: 'Pebbles', ownerId: 'u_p', values: { f_arms: rows } });
+        const withKept = three.slice(0, 2).concat([{ id: 'w_x', defId: 'i_net', qty: 1, on: true, hid: 1 }, { id: 'w_y', defId: 'i_net', qty: 1, on: true, keptOn: 1 }], three.slice(2));
+        const cells = (sys, ch) => { const rv = makeResolver(sys, ch, F); return ch.values.f_arms.filter(r => r.hid !== 1).map(r => ['Row.onPlace', 'Row.onBefore.Hands', 'Row.Place', 'Row.Before', 'Row.Got'].map(n => rv.row('f_arms', r.id)(n))); };
+        const c3 = cells(gO, chO(three)), cK = cells(gO, chO(withKept));
+        const itemsById = {}; gO.items.forEach(i => { itemsById[i.id] = i; });
+        const own = S.charFor(chO(withKept), pO, 'u_p', { items: itemsById, full: gO }), ownC = S.cleanChar(own, pO), cOwn = cells(pO, ownC);
+        check('1.6.4 Row.onPlace and Row.onBefore.<w> (the resolver, run for real): the longknife is 1st with 0 hands before it, the pike, off, reads place 0 and the 1 hand before it and gets none of its 2, the hatchet is 2nd with 1 hand before it and gets its hand; read by name and through a column alike',
+            J(c3) === J([[1, 0, 1, 0, 1], [0, 1, 0, 1, 0], [2, 1, 2, 1, 1]]), J(c3));
+        check('1.6.4 a row kept from its player (hid) and one the GM keeps on (keptOn, which its owner sees off) count for nothing: the hatchet reads the same with both before it, the kept-on net is itself place 0, and the owner’s own copy (charFor) works out the very same figures as the host',
+            J(cK.filter((x, i) => i !== 2)) === J(c3) && J(cK[2]) === J([0, 1, 0, 1, 1]) && !!own && !own.values.f_arms.some(r => r.id === 'w_x') && J(cOwn) === J(cK), J([cK, cOwn]));
+        // a roll at another level reads a copy of the row (fn.row with a level, its pid the row it came from): it stands where its row stands (found in review)
+        const gLv = cleanSystem(sysO({ lvl: { label: 'Level', min: 0, max: 5, def: 1 } }), { F, gmView: true }), rvLv = makeResolver(gLv, chO(three.map(r => r.id === 'w_h' ? Object.assign({}, r, { lvl: 3 }) : r)), F), atLv = ['Row.onPlace', 'Row.onBefore.Hands', 'Row.Place'].map(n => rvLv.row('f_arms', 'w_h', 2)(n));
+        check('1.6.4 a row read at another level (a roll at a chosen level) stands where the row stands: the hatchet, at level 3, read at level 2 is still 2nd with 1 hand before it',
+            J(atLv) === J([2, 1, 2]), J(atLv));
+        // the guard: a column that reads onBefore of itself is a loop, in the resolver and in the validator; a column that reads onBefore of another is not
+        const selfCols = [{ key: 'Take', label: 'Take', formula: 'Row.Hands + Row.onBefore.Take' }, { key: 'Need', label: 'Need', formula: 'Row.Hands * 2' }, { key: 'Left', label: 'Left', formula: '4 - Row.onBefore.Need' }];
+        const gS = cleanSystem(sysO(null, selfCols), { F, gmView: true }), rvS = makeResolver(gS, chO(three), F);
+        const take = rvS.row('f_arms', 'w_h')('Row.Take'), takeFirst = rvS.row('f_arms', 'w_k')('Row.Take'), left = ['w_k', 'w_p', 'w_h'].map(id => rvS.row('f_arms', id)('Row.Left'));
+        const vS = validateSystem(gS, F), vO = validateSystem(gO, F);
+        const isErr = v => v === undefined || (v !== null && typeof v === 'object');
+        check('1.6.4 a column that adds up itself over the rows before is refused as a loop (L.obBusy, as coveredOf’s layBusy): the hatchet’s Take cannot be worked out, and the validator says the loop on that column; a column that adds up another column (Left, 4 less the Need before) works out: 4, 2, 2',
+            isErr(take) && J(left) === J([4, 2, 2]) && (vS.errors || []).some(e => /loop/i.test(e.message)) && !(vO.errors || []).length, J([take, takeFirst, left, vS.errors, vO.errors]));
+        // the validator: known only on a list with a switch, onBefore only of a number stat or a column; a list that keys onPlace reads its own stat
+        const noSw = { v: 1, name: 'N', rolls: [], fields: [{ id: 'f_bag', key: 'Bag', label: 'Bag', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Hands' }], cols: [{ key: 'P', formula: 'Row.onPlace' }, { key: 'B', formula: 'Row.onBefore.Hands' }] } }], items: [], sheet: { sections: [] } };
+        const vN = validateSystem(noSw, F), vPick = validateSystem(sysO(null, [{ key: 'G', formula: 'Row.onBefore.Grip' }]), F);
+        const keyed = cleanSystem(sysO(null, [{ key: 'onPlace', label: 'Own place', formula: '7' }, { key: 'P2', formula: 'Row.onPlace' }]), { F, gmView: true }), kv = makeResolver(keyed, chO(three), F).row('f_arms', 'w_h')('Row.P2');
+        check('1.6.4 the validator: Row.onPlace and Row.onBefore.<w> are unknown on a list with no switch, onBefore of a choice is unknown, and a list that keys its own onPlace reads it (ROW_SOFT)',
+            ['Row.onPlace', 'Row.onBefore.Hands'].every(n => (vN.errors || []).some(e => e.message.indexOf('Unknown name "' + n + '"') >= 0)) && (vPick.errors || []).some(e => e.message.indexOf('Unknown name "Row.onBefore.Grip"') >= 0)
+            && S.ROW_WORDS.onplace === 1 && !('onbefore' in S.ROW_WORDS) && kv === 7, J([vN.errors, vPick.errors, kv]));
+        // a form offers them in words (readsOf, nameWord), never as a key, and only on a list with a switch
+        const spO = gO.fields[1].list, offered = S.readsOf(gO, { list: spO }), flat = offered.reduce((a, g) => a.concat(g.items.map(x => x.s)), []), offNo = S.readsOf(noSw, { list: noSw.fields[0].list }).reduce((a, g) => a.concat(g.items.map(x => x.s)), []);
+        const grp = offered.filter(g => g.name === 'The rows switched on before it')[0];
+        check('1.6.4 a form offers Row.onPlace among This row and Row.onBefore of each number stat and column under The rows switched on before it, in words; none on a list with no switch, none of a choice',
+            flat.indexOf('Row.onPlace') >= 0 && !!grp && J(grp.items.map(x => x.s)) === J(['Row.onBefore.Hands', 'Row.onBefore.Sec', 'Row.onBefore.Place', 'Row.onBefore.Before', 'Row.onBefore.Got', 'Row.onBefore.Hid'])
+            && grp.items[0].label === 'The total Hands of the rows switched on before this one' && S.nameWord(gO, 'Row.onPlace', spO) === 'this row’s place among the rows switched on'
+            && !offNo.some(n => /onplace|onbefore/i.test(n)) && !flat.some(n => /onbefore\.grip/i.test(n)), J([flat, offNo]));
+        // the GM-only judge goes by the stat or the column it adds up: a GM-only stat, or a column that reads one, keeps the roll the GM's; Hands does not
+        const rr = n => S.rowRollNames(gO, chO(three), 'f_arms', 'w_h', [{ name: n }], F);
+        check('1.6.4 the GM-only judge (rowRollNames, gmReadsIn) reads Row.onBefore.<w> as <w>: Hands leaves the roll a player’s, the GM-only Secret keeps it the GM’s, and so does a column that reads it',
+            rr('Row.onBefore.Hands').gm === false && rr('Row.onBefore.Sec').gm === true && rr('Row.onBefore.Hid').gm === true && rr('Row.Hid').gm === true
+            && S.critSecret(gO, { critAt: 'Row.onBefore.Hid' }, F, { f: 'f_arms' }) === true && S.critSecret(gO, { critAt: 'Row.onBefore.Hands' }, F, { f: 'f_arms' }) === false, J([rr('Row.onBefore.Hands'), rr('Row.onBefore.Sec'), rr('Row.onBefore.Hid')]));
+    }
     {   // 1.6.0, the campaign build's three gaps: an up timer stops at its row's most; a list switch's Shown where; a file filling a character in the making sets its counters
         const J = JSON.stringify;
         const rawU = { v: 1, name: 'U', rolls: [], fields: [{ id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', list: { on: { label: 'Lit', showIf: 'Row.Kind = 1' }, stats: [{ key: 'Kind' }, { key: 'Cap' }],

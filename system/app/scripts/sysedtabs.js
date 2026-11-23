@@ -190,6 +190,7 @@ function renderAll() {
     if (tab === 'rules') renderEnv();   // 1.6.0: the Environment readings box
     if (tab === 'rules') renderTables();   // 1.6.0: the Tables box
     if (tab === 'rules') renderNames();   // 1.6.2 (backlog 147): the Name lists box
+    if (tab === 'rules') renderAbout();   // 1.6.4: the About this system box
     if (tab === 'rules' && typeof renderCharCats === 'function') renderCharCats();   // 1.6.2 (218, fold 2): the Sheet categories box
     if (tab === 'rules') renderResults();   // 1.6.2 (G7)
     if (tab === 'rules') renderValues();   // 1.6.2 (G8)
@@ -1368,6 +1369,37 @@ function startersLoad() {
     if (_starters) return Promise.resolve(_starters);
     return fetch('assets/systems/starters.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) { _starters = cleanStarters(j); return _starters; }).catch(function() { return null; });
 }
+// [sysedcheck:about-start]
+// 1.6.4 (backlog: a system's About text; asked 2026-11-23 by the system build): the Rules tab's About this system box. Two boxes under captions:
+// What it is, a few lines (a textarea whose line breaks are kept), and Credits, one line. They write draft.about as they are typed, as the
+// name box writes the name, and an about with nothing in it is taken off the draft, so a system nobody wrote one for saves as before. Save
+// cleans it (the About cleaner in cleancore.js: the limits, the line breaks, the control characters). The gray line under it says where the
+// words show: a new campaign's system picker (campsafe.js pickSystem) and the About window, for everyone at the table (its block in sheets.js).
+// The lines are held to LIMITS.aboutLines as they are typed, as maxLength holds the characters, so Save never takes a line off unseen. The box
+// has listeners of its own, so the editor's dispatchers (onInput, onChange) never read it. renderTab draws it whenever the Rules tab opens.
+function renderAbout() {
+    var box = ui('sysAbout'); if (!box || !draft) return; box.textContent = '';
+    var ab = draft.about && typeof draft.about === 'object' ? draft.about : {}, wrap = el('div', 'sys-budgets sys-about');
+    wrap.appendChild(el('div', 'sys-light-head', 'About this system'));
+    var sl = el('label', 'sys-combat-item sys-about-item'); sl.appendChild(el('span', 'sys-num-cap', 'What it is'));
+    var sa = el('textarea', 'sys-about-says field'); sa.rows = 4; sa.maxLength = LIMITS.aboutSays; sa.value = typeof ab.says === 'string' ? ab.says : ''; sa.placeholder = 'A few lines on your game'; sa.title = 'A few lines on what your system is. ' + LIMITS.aboutLines + ' lines at most';
+    sl.appendChild(sa); wrap.appendChild(sl);
+    var cl = el('label', 'sys-combat-item sys-about-item'); cl.appendChild(el('span', 'sys-num-cap', 'Credits'));
+    var cr = input('sys-about-credits field', typeof ab.credits === 'string' ? ab.credits : '', 'One line on who made it', 'Who made it'); cr.maxLength = LIMITS.aboutCredits;
+    cl.appendChild(cr); wrap.appendChild(cl);
+    wrap.appendChild(el('div', 'sys-note', 'Shown where a new campaign picks a system to start with, and in About Waypoint for everyone at your table.'));
+    box.appendChild(wrap);
+    if (!box._abWired) { box._abWired = true;
+        box.addEventListener('input', function(e) { var tg = e.target; if (!draft || !tg || !tg.classList || !(tg.classList.contains('sys-about-says') || tg.classList.contains('sys-about-credits'))) return; e.stopPropagation();
+            var a = draft.about && typeof draft.about === 'object' ? draft.about : {};
+            if (tg.classList.contains('sys-about-says')) { var ln = tg.value.split('\n'); if (ln.length > LIMITS.aboutLines) tg.value = ln.slice(0, LIMITS.aboutLines).join('\n'); if (tg.value.trim()) a.says = tg.value.slice(0, LIMITS.aboutSays); else delete a.says; }
+            else { if (tg.value.trim()) a.credits = tg.value.slice(0, LIMITS.aboutCredits); else delete a.credits; }
+            if (a.says || a.credits) draft.about = a; else delete draft.about;
+            markDirty(); });
+        box.addEventListener('change', function(e) { if (e.target && e.target.closest && e.target.closest('.sys-about')) e.stopPropagation(); });
+    }
+}
+// [sysedcheck:about-end]
 function startersFill(sel, list) {   // the Start from list: Start from, Blank, then each starter by its name, as option elements with text
     if (!sel || !Array.isArray(list) || !list.length) return;
     while (sel.options.length > 2) sel.remove(2);
@@ -1429,7 +1461,8 @@ function hpPoolLeave(id) {
 }
 function startFrom(id) {
     if (!draft) return;
-    var apply = function(sys, packs) { draftSet(clone(sys)); draft.updated = 0; hpPoolFill(''); starterPacksSet(packs || null); ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.'); };
+    // 1.6.4 (a system's About text): the words said at the pick end with the credits of what it started from, where it has some; its whole About is on the Rules tab
+    var apply = function(sys, packs) { draftSet(clone(sys)); draft.updated = 0; hpPoolFill(''); starterPacksSet(packs || null); ui('sysName').value = draft.name || ''; markDirty(); renderAll(); toast(id === 'blank' ? 'Starting from a blank system.' : 'Starting from ' + draft.name + '. Save to keep it' + (packs ? ', with its ' + packs.texts.length + ' library pack' + (packs.texts.length === 1 ? '' : 's') : '') + '.' + (draft.about && draft.about.credits ? ' ' + draft.about.credits : '')); };
     var go = function() {
         if (id === 'blank') { apply(emptySystem()); return; }
         var st = starterOf(id);

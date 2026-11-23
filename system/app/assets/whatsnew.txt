@@ -78,6 +78,19 @@ A starter for a new campaign [DRAFT]
 - New campaign now offers Waypoint VTT’s own starters beside your
   campaigns when it asks which system to start with.
 
+Choices in the ledger [DRAFT]
+- Building a system? A ledger figure in the sheet's header can be a
+  choice now, a select or a number with value names. The sheet shows it
+  as a list you pick from right there, so a budget can start from a
+  chosen tier beside the points earned and their total.
+
+A system's About [DRAFT]
+- Building a system? The Rules tab has an About this system box now, for
+  a few lines on what your game is and a line of credits. They show when
+  a new campaign picks a system to start with, and in About Waypoint for
+  everyone at your table, your players too. They travel with the system
+  when you export it.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

@@ -282,9 +282,9 @@ const j = v => JSON.stringify(v);
         ];
         const hs = cleanSystem({ v: 1, name: 'H', fields: hf, rolls: [], sheet: { sections: [{ id: 's_a', title: 'Details', cols: 1, fields: [{ id: 'f_t', w: 1 }, { id: 'f_x', w: 1 }] }], identity: ['f_t', 'f_s', 'f_n', 'f_g', 'f_f', 'f_r', 'f_k'].map(id => ({ id })), ledger: ['f_p', 'f_v', 'f_f'].map(id => ({ id })) } }, { F, gmView: true });
         const he = S.headerEdits(hs), heIds = Object.keys(he).sort();
-        check('look L3: headerEdits — identity rows that are text, a select, a number or a toggle, and ledger numbers without value names; never a formula, a skill, a resource or a named ledger number; a prototype-free set', j(heIds) === j(['f_g', 'f_n', 'f_p', 'f_s', 'f_t']) && Object.getPrototypeOf(he) === null && Object.keys(S.headerEdits({ fields: hf })).length === 0 && Object.keys(S.headerEdits(null)).length === 0, j(heIds));
+        check('look L3: headerEdits — identity rows that are text, a select, a number or a toggle, and ledger numbers (since 1.6.4 a named one too, a list in place) and selects; never a formula, a skill or a resource; a prototype-free set', j(heIds) === j(['f_g', 'f_n', 'f_p', 'f_s', 'f_t', 'f_v']) && Object.getPrototypeOf(he) === null && Object.keys(S.headerEdits({ fields: hf })).length === 0 && Object.keys(S.headerEdits(null)).length === 0, j(heIds));
         const al = S.autoLayout(hs), alIds = al.sections.flatMap(s => s.fields.map(p => p.id));
-        check('look L3: the automatic layout leaves out exactly the fields the header edits (formulas, skills and resources in the header still get their section)', ['f_t', 'f_s', 'f_n', 'f_g', 'f_p'].every(id => alIds.indexOf(id) < 0) && ['f_f', 'f_r', 'f_k', 'f_v', 'f_x'].every(id => alIds.indexOf(id) >= 0), j(alIds));
+        check('look L3: the automatic layout leaves out exactly the fields the header edits (formulas, skills and resources in the header still get their section)', ['f_t', 'f_s', 'f_n', 'f_g', 'f_p', 'f_v'].every(id => alIds.indexOf(id) < 0) && ['f_f', 'f_r', 'f_k', 'f_x'].every(id => alIds.indexOf(id) >= 0), j(alIds));
         const vw = S.validateSystem(hs, F).warnings.filter(w => w.prop === 'layout');
         check('look L3: validateSystem warns when a field the header edits is also placed in a section (and only then)', vw.length === 1 && vw[0].id === 'f_t' && /edited in the header and placed again in Details/.test(vw[0].message), j(vw));
         const sh3 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), hb3 = sh3.slice(sh3.indexOf('function headerBlocks('), sh3.indexOf('function buildSections(')), idn = sh3.slice(sh3.indexOf('function idnControl('), sh3.indexOf('function accentInk('));
@@ -906,5 +906,53 @@ const j = v => JSON.stringify(v);
             J([cleanOk, words, locked, hudW, hudMk, popW, run, rows, typed, restOk]));
     }
 
+    {   // 1.6.4 (backlog: a ledger figure that is a choice is edited as one; asked 2026-11-22 by the system build for a budget that starts from a
+        // chosen tier): the cleaner keeps a select in the ledger now (LEDGER_KINDS), and the sheet's real headerBlocks, with its real ledgerList and
+        // idnControl and the real lock rule (liveField, fieldOpen), runs on a page that refuses markup (tools/boxdom.js). A ledger figure that is a
+        // number with value names, or a select, is a list in place, the very control identity rows use, for whoever may change it: the GM, a
+        // player's own field that is theirs; a named number stays a list on a locked sheet (it is live there) while a select waits for Edit sheet.
+        // Where the viewer may not change it, on another player's view, and on paper it reads as its chosen word. A plain number keeps the
+        // ledger's own box; a formula is read. A pick commits the index or the word, as identity rows do.
+        const J = JSON.stringify;
+        const raw = { v: 1, name: 'Budget', rolls: [], fields: [
+            { id: 'f_tier', key: 'Tier', label: 'Starting tier', kind: 'number', def: 0, labels: ['Novice', 'Seasoned', 'Veteran'], vis: 'all', edit: 'owner' },
+            { id: 'f_pace', key: 'Pace', label: 'Pace', kind: 'select', options: ['Slow', 'Quick'], def: 'Slow', vis: 'all', edit: 'owner' },
+            { id: 'f_earn', key: 'Earned', label: 'Earned', kind: 'number', def: 0, vis: 'all', edit: 'owner' },
+            { id: 'f_tot', key: 'Total', label: 'Total', kind: 'formula', formula: 'Tier * 10 + Earned', vis: 'all' },
+            { id: 'f_gmp', key: 'Band', label: 'Band', kind: 'select', options: ['Low', 'High'], def: 'Low', vis: 'all', edit: 'gm' }],
+            sheet: { sections: [], ledger: ['f_tier', 'f_pace', 'f_earn', 'f_tot', 'f_gmp'].map(id => ({ id })) } };
+        const G = cleanSystem(raw, { F, gmView: true });
+        const shG = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), cutG = (a, b) => { const i = shG.indexOf(a), k = shG.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('ledger slice: ' + a); return shG.slice(i, k); };
+        const hbS = cutG('function headerBlocks(', '// Stage 5g: the text color for a label on a filled accent'), lkS = cutG('function liveField(', 'function lockedNow(');
+        const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, mk = (t, c, x) => { const e = doc.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.appendChild(doc.createTextNode(String(x))); return e; };
+        const optG = (v, t, sel) => { const o = mk('option', null, t); o.value = v; if (sel) o.selected = true; return o; }, commits = [], PAPER = { on: false };
+        const X = new Function('el', 'opt', 'commit', 'fxMark', 'fmtNum', 'headerEntry', 'imgSrc', 'lookPaper', 'window', 'var _lockNow = false;' + NL + lkS + NL + hbS + NL
+            + 'return { head: headerBlocks, lock: function(v) { _lockNow = v; } };')(mk, optG, (c, f, v) => commits.push([f.id, v]), () => null, S.fmtNum, S.headerEntry, x => x, () => PAPER.on, {});
+        const ch = { id: 'c_1', name: 'Wren', ownerId: 'u_a', values: { f_tier: 1, f_pace: 'Quick', f_earn: 4, f_gmp: 'High' } };
+        // each ledger figure as [label, what stands in its box]: a list (its picked word, its length and its data-part), a number box (its value and part), or read words
+        const draw = (c, gm, own, opts) => { const o = opts || {}; X.lock(!!o.locked); PAPER.on = !!o.paper; const head = mk('div', 'sheet-head');
+            try { X.head(head, G, c, S.resolveAll(G, c, F, null), gm, own); } finally { X.lock(false); PAPER.on = false; }
+            return head.all().filter(n => n.classList.contains('sheet-ledger-fig')).map(fig => { const sel = fig.all().filter(n => n.tagName === 'SELECT')[0], inp = fig.all().filter(n => n.tagName === 'INPUT')[0];
+                const lab = fig.childNodes[0].textContent; if (sel) { const on = sel.childNodes.filter(o => o.selected)[0]; return [lab, 'list', on ? on.textContent : null, sel.childNodes.length, sel.dataset.part]; }
+                if (inp) return [lab, 'box', inp.value, inp.dataset.part]; return [lab, 'read', fig.childNodes[1].textContent]; }); };
+        const gmOpen = draw(ch, true, false), own = draw(ch, false, true), ownLocked = draw(ch, false, true, { locked: true }), other = draw(ch, false, false), paper = draw(ch, true, false, { paper: true });
+        const making = draw(Object.assign({}, ch, { making: 1 }), false, true), copy = draw(Object.assign({}, ch, { partial: 1 }), false, true);
+        const T1 = ['Starting tier', 'list', 'Seasoned', 3, 'idn'], P1 = ['Pace', 'list', 'Quick', 2, 'idn'], E1 = ['Earned', 'box', '4', 'hdr'], TOT = ['Total', 'read', '14'];
+        const want = { gmOpen: [T1, P1, E1, TOT, ['Band', 'list', 'High', 2, 'idn']], own: [T1, P1, E1, TOT, ['Band', 'read', 'High']],
+            ownLocked: [T1, ['Pace', 'read', 'Quick'], ['Earned', 'read', '4'], TOT, ['Band', 'read', 'High']],
+            other: [['Starting tier', 'read', 'Seasoned'], ['Pace', 'read', 'Quick'], ['Earned', 'read', '4'], TOT, ['Band', 'read', 'High']],
+            paper: [['Starting tier', 'read', 'Seasoned'], ['Pace', 'read', 'Quick'], E1, TOT, ['Band', 'read', 'High']],
+            making: [T1, P1, E1, TOT, ['Band', 'list', 'High', 2, 'idn']], copy: [] };   // while a character is made its player sets every field, the GM's too (idnOk)
+        const got = { gmOpen, own, ownLocked, other, paper, making, copy };
+        // a pick commits, as an identity row's does: the index for a named number, the word for a select
+        const headP = mk('div', 'sheet-head'); X.head(headP, G, ch, S.resolveAll(G, ch, F, null), true, false);
+        const sels = headP.all().filter(n => n.tagName === 'SELECT'); sels[0].value = '2'; sels[0].fire('change'); sels[1].value = 'Slow'; sels[1].fire('change');
+        const css = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const restOk = S.LEDGER_KINDS.select === 1 && J(G.sheet.ledger.map(q => q.id)) === J(['f_tier', 'f_pace', 'f_earn', 'f_tot', 'f_gmp']) && S.headerEdits(G).f_pace === 1 && S.headerEdits(G).f_tier === 1 && S.headerEdits(G).f_tot === undefined
+            && J(cleanSystem({ v: 1, name: 'N', rolls: [], fields: raw.fields.slice(2, 4), sheet: { sections: [], ledger: [{ id: 'f_earn' }, { id: 'f_tot' }] } }, { F, gmView: true }).sheet.ledger) === J([{ id: 'f_earn' }, { id: 'f_tot' }])
+            && css.includes('.sheet-ledger .sheet-idn-edit { padding: 0; }') && !/innerHTML/.test(hbS);
+        check('1.6.4 a ledger figure that is a choice is edited as one (cleanSystem keeps a select in the ledger; the real headerBlocks, ledgerList, idnControl and lock rule on a page that refuses markup): a named number and a select are the identity rows\' own list in place for the GM and for a player\'s own field, a named number stays a list on a locked sheet while a select waits, the GM\'s field is read by a player, another player and paper read the chosen word, a copy shows none of it, a plain number keeps its own box and a formula is read; a pick commits the index or the word',
+            J(got) === J(want) && J(commits) === J([['f_tier', 2], ['f_pace', 'Slow']]) && restOk, J([Object.keys(want).filter(k => J(got[k]) !== J(want[k])).map(k => [k, got[k]]), commits, restOk]));   // the detail names only the views that differ
+    }
     await T.finish();
 })();

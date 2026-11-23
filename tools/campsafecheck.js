@@ -177,6 +177,19 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const WF = worldS({ failPost: { lib: true } }), intoF = { id: 'camp_9', name: 'New', items: {} }, doneF = await WF.cs.fillFrom(intoF, { from: 'camp_1', pages: true });
     check('New campaign\'s question: No system yet is what is pSys by default, Cancel makes nothing, with no system to offer nothing is asked, and a pack that cannot be copied leaves a campaign with no system, its folder taken away, says so and logs where',
         pN === null && pC === 'none' && pO === null && !WO.asked.length && doneF === false && !intoF.system && WF.calls.indexOf('DELETE /api/library?dir=l_newnewnw') >= 0 && /no system yet/.test(WF.toasts[0]) && WF.logs.some(l => /system-fail/.test(l)), j([pN, pC, pO, doneF, WF.toasts]));
+    {   // 1.6.4 (backlog: a system's About text): a new campaign's system picker (pickSystem, run for real) shows the picked campaign's system's About
+        // under the list, cleaned by the app's own cleaner (the dep D.about calls systemcore's cleanAbout, as campsafe.js wires it): its lines and its
+        // credits as text, hidden while nothing is picked and for a system with none
+        const SCa = await import(url('systemcore.js'));
+        const appA = appS(); appA.campaigns.camp_1.system.about = { says: 'Roads\r\nand rivers', credits: 'By an invented studio' }; appA.campaigns.camp_5 = { id: 'camp_5', name: 'Plain', system: { v: 1, fields: [{ id: 'f_c' }] }, items: {} };
+        const seenA = [], look = body => { const ab = body.kids.filter(k => k.className === 'cs-sys-about')[0]; return ab ? [ab.hidden, ab.kids.map(k => [k.className, k.textContent, !!k.hidden])] : null; };
+        const WA = worldS({ app: appA, answers: [(cb, opts) => { const sel = opts.body.kids.filter(k => k.tag === 'select')[0]; seenA.push(look(opts.body)); sel.value = 'camp_1'; sel.on.change(); seenA.push(look(opts.body)); sel.value = 'camp_5'; sel.on.change(); seenA.push(look(opts.body)); cb(false); }] });
+        WA.D.about = sys => (sys && typeof SCa.cleanAbout === 'function' ? SCa.cleanAbout(sys.about) : null); WA.cs.pickSystem(() => {});
+        const csA = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'campsafe.js'), 'utf8');
+        check('1.6.4 a new campaign\'s system picker shows the picked system\'s About (pickSystem run for real, the real cleaner behind D.about): hidden until a system is picked, then its lines with their break and its credits as text, hidden again for a system with none; campsafe.js hands the cleaner to the flows',
+            j(seenA) === j([[true, [['wp-about-says', '', true], ['wp-about-credits', '', true]]], [false, [['wp-about-says', 'Roads\nand rivers', false], ['wp-about-credits', 'By an invented studio', false]]], [true, [['wp-about-says', '', true], ['wp-about-credits', '', true]]]])
+            && csA.includes("about: function(sys) { var sc = window.wpSystemCore; return sys && sc && typeof sc.cleanAbout === 'function' ? sc.cleanAbout(sys.about) : null; },"), j(seenA));
+    }
     // a test copy
     const Cw = world({ app: { activeCampaignId: 'camp_1', campaigns: { camp_1: { id: 'camp_1', name: 'Saga', items: { m1: { id: 'm1' } }, library: { v: 1, dir: 'l_abcdefgh', packs: [{ id: 'p_a', rev: 2 }] } } } }, lib: { l_abcdefgh: { 'p_a.2': packText } } });
     await Cw.cs.makeTestCopy();

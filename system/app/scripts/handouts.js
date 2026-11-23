@@ -968,6 +968,11 @@ function jbxField(key) {
         font: function() { return n.font || ''; }, setFont: function(v) { n.font = typeof v === 'string' ? v : ''; } };
 }
 function jbxChanged(key) { var row = jbxRow(key); if (row) noteSaveSoon(row); }
+// 1.6.4 (mentions offered as you type; Fulllion, 2026-11-23: "Pages, planners, notes"): a name typed in a note of your own is offered as a
+// mention of what the campaign holds (mention.js, planner.js offerCan). Only in a note of the campaign that is open: the Journal also holds notes
+// of other campaigns and Personal notes, where the open campaign's pages and characters would be the wrong things to name. A note's key is
+// "journal/note" (jbxKeyOf), and the journal of the campaign on screen is journalHere's (the GM's own campaign, or the table this app sits at)
+function jbxOffers(key) { var h = typeof journalHere === 'function' ? journalHere() : null; return !!h && typeof h.key === 'string' && !!h.key && typeof key === 'string' && key.indexOf(h.key + '/') === 0 && !!jbxNote(key); }
 // A key pressed on a control of the bar while it stands in the Journal's window box is the bar's alone. The box has no key shield of its own
 // (the list, the search and the picker each have one), and the page reads every key that reaches the document: undo, Delete, the arrows
 function jbxBarKey(e) { var t = e && e.target; if (t && t.closest && t.closest('.ts-bar')) e.stopPropagation(); }
@@ -978,7 +983,7 @@ function jbxOn() {
     if (_jbx.on) return _jbx.on === 1;
     var w = jbxApi(); if (!w || !jbxLook() || !_jList || !_jList.parentNode) return false;
     var yes = function() { return true; };
-    _jbx.on = w.host({ id: 'journal', roots: [_jList], doc: function() { return 'journal'; }, field: jbxField, name: function() { return 'Note'; }, links: yes, sizes: yes, fonts: yes, barHost: function() { return _jList.parentNode; }, barArea: function() { return _jList; }, barBy: function(box) { return box && box.closest ? box.closest('.journal-entry') : null; }, barUnder: yes, changed: jbxChanged, left: function() {} }) ? 1 : 2;
+    _jbx.on = w.host({ id: 'journal', roots: [_jList], doc: function() { return 'journal'; }, field: jbxField, name: function() { return 'Note'; }, links: yes, offers: jbxOffers, sizes: yes, fonts: yes, barHost: function() { return _jList.parentNode; }, barArea: function() { return _jList; }, barBy: function(box) { return box && box.closest ? box.closest('.journal-entry') : null; }, barUnder: yes, changed: jbxChanged, left: function() {} }) ? 1 : 2;
     if (_jbx.on === 1) _jList.parentNode.addEventListener('keydown', jbxBarKey);
     return _jbx.on === 1;
 }

@@ -1830,7 +1830,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           r.addEventListener('scroll', tsPlace, true);
       });
   }
-  // A host registers: { id, roots, field(key), doc(), name(key), links(key), sizes(key), barHost(box), changed(key, kind), left(key) }. Only id,
+  // A host registers: { id, roots, field(key), doc(), name(key), links(key), sizes(key), barHost(box), changed(key, kind), left(key) } (and
+  // offers(key) since 1.6.4: a name typed in that box is offered as a mention, offerCan). Only id,
   // roots and field are needed. What a host answers is read with care: a host that throws or answers oddly gets the cautious reading (no
   // field, no link, no size), and is never trusted for more than text and a format that textfmt.js cleans as it reads it.
   function tsxHost(rec) {
@@ -1842,7 +1843,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       tsHosts.forEach(function(h) { others = others.concat(h.roots); });
       for (var ri = 0; ri < roots.length; ri++) { if (others.some(function(o) { return near(o, roots[ri]); })) return false; others.push(roots[ri]); }
       var ask = function(name, none) { return function(a, b) { try { return typeof rec[name] === 'function' ? rec[name](a, b) : none; } catch (err) { if (typeof console !== 'undefined' && console.error) console.error(err); return none; } }; };
-      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), mentions: ask('mentions', false), sizes: ask('sizes', false), fonts: ask('fonts', false), barHost: ask('barHost', null), barArea: ask('barArea', null), barBy: ask('barBy', null), barUnder: ask('barUnder', false), changed: ask('changed', null), left: ask('left', null) };
+      var q = { field: ask('field', null), doc: ask('doc', ''), name: ask('name', ''), links: ask('links', false), mentions: ask('mentions', false), offers: ask('offers', false), sizes: ask('sizes', false), fonts: ask('fonts', false), barHost: ask('barHost', null), barArea: ask('barArea', null), barBy: ask('barBy', null), barUnder: ask('barUnder', false), changed: ask('changed', null), left: ask('left', null) };
       var hx = {
           id: rec.id, roots: roots,
           // a host's field as the box reads it: its text a string or nothing, its format an object or none. What it holds is the host's, and may come from a file
@@ -1856,6 +1857,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           name: function(key) { var v = q.name(key); return typeof v === 'string' ? v.slice(0, 80) : ''; },
           links: function(key) { return q.links(key) === true; },
           mentions: function(key) { return q.mentions(key) === true; },   // 1.6.2 (166 f): a place that takes no link may take a mention (the table notepad)
+          offers: function(key) { return q.offers(key) === true; },   // 1.6.4: a name typed here is offered as a mention (mention.js); only where the host says so, per key (the Journal's own notes, the sheet's notes page)
           sizes: function(key) { return q.sizes(key) === true; },
           fonts: function(key) { return q.fonts(key) === true; },
           barHost: function(box) { return q.barHost(box) || null; },
@@ -2258,8 +2260,105 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return true;
   }
   // [textcheck:mention-end]
+  // [textcheck:offer-start]
+  /* 1.6.4, mentions offered as you type (Fulllion, 2026-11-23, by prompt: "Dotted underline, Tab accepts"; "Pages, planners, notes"). mention.js
+     finds the name at the caret and draws the offer; these four answer it for a box of this module or a text block, in the box's own offsets.
+     offerCan: where offers are made. A planner's or a page's plain field (never a flowchart label, which takes no mention) and a page's text
+     block; a host's field only where its host says so for that key (the host's offers(key): the Journal's own notes do, and the sheet's notes
+     page can switch it on the same way). The table notepad and Table Chat never do: the pad's host does not ask, and chat's box is no box here.
+     offerSpot: the words around a collapsed caret, { text, at, base, links, self }: a field's whole text (a line break is no space, so a name
+     is never found across one), or in a text block the run of text between two paragraph or line breaks the caret stands in; base is where
+     that text starts in the box, links the stretches of it that are links or mentions already, self the mention of the page being written in
+     (which is never offered to itself). null with a selection, during a composition, or with the caret elsewhere.
+     offerRange: a DOM range over the box's characters s to e, for the highlight; null where it cannot be made.
+     offerTake: the characters s to e made a mention, as they stand (the words typed are kept; a read view draws the chip in the current name).
+     A field takes it through the bar's own Link press (tsPress: one step, a host's field through its host), a text block through its own link
+     setter between two step boundaries (one step), as the @ path writes a mention. The caret goes back where it was; at the very end of a text
+     block's paragraph a no-break space follows the mention, as the @ path writes one, so what is typed next does not run into the link. */
+  function offerCan(el) {
+      if (!mentionCan(el)) return false;
+      if (el.classList.contains('rte-body')) return !!(el.closest && el.closest('#plannerBlocks'));
+      var d = tsDesc(el); if (!d) return false;
+      if (d.k === 'x') { var hx = tsHostBy(d.h); return !!hx && hx.offers(d.key); }
+      return true;
+  }
+  function offerSelf(el) { if (tsHostOf(el)) return ''; var am = getActiveMap(); return am && typeof am.id === 'string' ? '#wp:@:page:' + am.id : ''; }
+  // A text block's text cut at its paragraphs and line breaks: [{ a, z, xs }], each a run of text nodes with no break inside, in the box's offsets
+  function offerLines(body) {
+      var segs = [], cur = [], at = 0;
+      var cut = function() { if (cur.length) segs.push({ a: cur[0].a, z: at, xs: cur }); cur = []; };
+      (function go(n) {
+          for (var i = 0; i < n.childNodes.length; i++) {
+              var c = n.childNodes[i];
+              if (c.nodeType === 3) { cur.push({ n: c, a: at }); at += c.nodeValue.length; continue; }
+              if (c.nodeType !== 1) continue;
+              var tg = rteTag(c), brk = !!RTE_BLOCKS[tg] || tg === 'BR' || tg === 'IMG' || tg === 'HR';
+              if (brk) cut();
+              if (tg !== 'BR') go(c);
+              if (brk) cut();
+          }
+      })(body);
+      cut();
+      return segs;
+  }
+  function offerSpot(el) {
+      if (!offerCan(el) || tsState.comp) return null;
+      if (el.classList.contains('rte-body')) {
+          var r = rteSel(el), gs = window.getSelection ? window.getSelection() : null; if (!r || r[0] !== r[1]) return null;
+          var at = r[0], segs = offerLines(el), an = gs && gs.anchorNode, seg = null;
+          if (an && an.nodeType === 3) seg = segs.filter(function(g) { return g.xs.some(function(x) { return x.n === an; }); })[0] || null;
+          if (!seg) seg = segs.filter(function(g) { return g.a < at && at <= g.z; })[0] || segs.filter(function(g) { return g.a === at; })[0] || null;
+          if (!seg) return null;
+          var text = seg.xs.map(function(x) { return x.n.nodeValue; }).join(''), links = [];
+          seg.xs.forEach(function(x) { if (rteAnchor(el, x.n)) links.push([x.a - seg.a, x.a - seg.a + x.n.nodeValue.length]); });
+          return { text: text, at: at - seg.a, base: seg.a, links: links, self: offerSelf(el) };
+      }
+      var s = tsSelOf(el); if (!s || s.s !== s.e) return null;
+      var am = tsBlocksOf(el), d = tsDesc(el), fld = am && d ? tsField(am.blocks, d) : null; if (!fld) return null;
+      var shown = typeof el._tsText === 'string' ? el._tsText : '', fmt = fld.fmt(), stored = fld.text();
+      if (fmt !== undefined && shown !== stored) fmt = TF.respan(stored, shown, fmt, undefined, true);   // as tsPaint draws it
+      var ls = [], k = 0;
+      TF.runsOf(shown, fmt).forEach(function(run) { if (run.link) ls.push([k, k + run.t.length]); k += run.t.length; });
+      return { text: shown, at: s.e, base: 0, links: ls, self: offerSelf(el) };
+  }
+  function offerRange(el, s, e) {
+      if (!el || !(s < e) || typeof document === 'undefined' || typeof document.createRange !== 'function') return null;
+      var a, z;
+      if (el.classList.contains('rte-body')) {
+          var xs = rteTexts(el), A = null, Z = null;
+          xs.forEach(function(x) { var n = x.n.nodeValue.length; if (!A && s >= x.a && s < x.a + n) A = { node: x.n, offset: s - x.a }; if (!Z && e > x.a && e <= x.a + n) Z = { node: x.n, offset: e - x.a }; });
+          a = A; z = Z;
+      } else { a = tsPointAt(el, s); z = tsPointAt(el, e); }
+      if (!a || !z) return null;
+      try { var rg = document.createRange(); rg.setStart(a.node, a.offset); rg.setEnd(z.node, z.offset); return rg; } catch (err) { return null; }
+  }
+  function offerTake(el, s, e, href) {
+      href = TF.cleanLink(href);
+      if (!offerCan(el) || !href || !TF.mentionLink(href) || !(s >= 0 && e > s)) return false;
+      if (el.classList.contains('rte-body')) {
+          var r = rteSel(el), cur = r ? r[1] : e, segs = offerLines(el), seg = segs.filter(function(g) { return g.a <= s && e <= g.z; })[0]; if (!seg) return false;
+          stepBoundary();
+          if (!rteLinkSet(el, s, e, href)) { stepBoundary(); return false; }
+          if (cur === e && e === seg.z) {   // the caret was at the very end of its paragraph: a no-break space after the mention, and the caret after it
+              var last = rteTexts(el).filter(function(x) { return x.a < e && e <= x.a + x.n.nodeValue.length; })[0], an = last ? rteAnchor(el, last.n) : null;
+              if (an && an.parentNode) { an.parentNode.insertBefore(document.createTextNode(' '), an.nextSibling); cur = e + 1; }
+          }
+          rteSelect(el, [cur, cur]);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el._wpNativeDirty = false;   // nodes made behind the browser's own text undo: Ctrl+Z is the planner's history
+          stepBoundary();
+          return true;
+      }
+      var s0 = tsSelOf(el), at = s0 ? s0.e : e, n = typeof el._tsText === 'string' ? el._tsText.length : 0; if (e > n) return false;
+      tsState.box = el; tsSelect(el, s, e);
+      var ok = tsPress({ link: href });
+      tsSelect(el, at, at); tsNote(el);
+      return ok === true;
+  }
+  // [textcheck:offer-end]
   window.wpTextBox = {
       mentionCan: mentionCan, mentionAt: mentionAt, mention: mentionPut,   // 1.6.2 (backlog 166 f)
+      offerCan: offerCan, offerSpot: offerSpot, offerRange: offerRange, offerTake: offerTake,   // 1.6.4: mentions offered as you type (mention.js)
       selOf: function(box) { var s = box && box.classList && box.classList.contains('ts-box') ? tsSelOf(box) : null; return s ? { s: s.s, e: s.e } : null; },
       select: function(box, s, e) { return !!box && tsSelect(box, s, e); },
       restore: function(sel) {

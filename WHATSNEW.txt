@@ -115,6 +115,14 @@ Buying a row off [DRAFT]
   line away. A player who can't pay is turned away with the reason, or
   let through with a word to you, whichever you pick.
 
+Mentions as you type [DRAFT]
+- Type the name of a page, a map, a room or a character in a page, a
+  planner or one of your own Journal notes, and it gets a faint dotted
+  underline. Press Tab or click it and it becomes a mention, the same
+  as picking it after @. Keep typing and it stays plain words.
+- Short names and names made of everyday words, such as The Tavern,
+  are never underlined, and neither is a name two things share.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

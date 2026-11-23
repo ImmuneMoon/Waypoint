@@ -1828,6 +1828,46 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && escM.includes('#mentionMenu:not([hidden])') && ix.includes('<script type="module" src="scripts/timepanel.js"></script>\n<script type="module" src="scripts/mention.js"></script>') && ix.includes('<b>@-mentions.</b>'));
 }
 
+/* ---------- 1.6.4: mentions offered as you type (mention.js, the mentionpick and mentionoffer slices, run for real) ---------- */
+{
+    const mj = read('scripts/mention.js'), OF = new Function(sliceOf(mj, 'mentionpick') + '\n' + sliceOf(mj, 'mentionoffer') + '\nreturn { mentionAll, mentionIndex, mentionOffer, OFFER_COMMON };')();
+    const camp = { id: 'k', items: {
+        p1: { type: 'planner', meta: { title: 'Session Zero' } }, p2: { type: 'doc', meta: { title: 'House rules' } }, p3: { type: 'doc', meta: { title: 'The Tavern' } },
+        p4: { type: 'doc', meta: { title: 'Twin' } }, p5: { type: 'doc', meta: { title: 'twin' } }, p6: { type: 'doc', meta: { title: 'Al' } }, p7: { type: 'doc', meta: { title: 'Céline' } },
+        m1: { type: 'map', meta: { title: 'Old Fort' }, rooms: [{ id: 'r1', name: 'The ford' }, { id: 'r2', name: 'Kitchen' }, { id: 'r3', name: 'Crow Hollow' }] },
+        m2: { type: 'map', meta: { title: 'Eldara' }, rooms: [{ id: 'r1', name: 'Old Fort' }, { id: 'r2', name: 'Crow Hollow' }] },
+        m3: { type: 'map', meta: { stub: false }, rooms: [] }, m4: { type: 'map', meta: { title: 'Bren' } } },
+        chars: { c1: { name: 'Bren of Hollowvale' }, c2: { name: 'Captain Vex', npc: true }, c3: { name: 'Vex' } } };
+    const IX = OF.mentionIndex(OF.mentionAll(camp)), hit = (t, at, avoid, self) => { const h = OF.mentionOffer(IX, t, at === undefined ? t.length : at, avoid, self); return h ? [t.slice(h.s, h.e), h.href] : null; };
+    const names = Object.keys(IX.first).sort(), flat = [].concat(...Object.values(IX.first)).map(x => x.f + '=' + x.href).sort();
+    check('1.6.4 the names a text may offer (mentionIndex, run on mentionAll): pages, planners, maps, rooms by their own name and characters, folded to lower case with no accent; a name of fewer than three letters, one made only of common words and a map with no title left out; a name two things of one standing share offered as neither; a room gives way to a page, a map or a character of its name',
+        J(flat) === J(['bren of hollowvale=#wp:@:char:c1', 'bren=#wp:@:map:m4', 'captain vex=#wp:@:char:c2', 'celine=#wp:@:page:p7', 'crow hollow=', 'eldara=#wp:@:map:m2', 'old fort=#wp:@:map:m1', 'session zero=#wp:@:page:p1', 'the ford=#wp:@:map:m1:r1', 'twin=', 'vex=#wp:@:char:c3'])
+        && J(names) === J(['bren', 'captain', 'celine', 'crow', 'eldara', 'old', 'session', 'the', 'twin', 'vex']) && OF.OFFER_COMMON.tavern === 1 && OF.OFFER_COMMON.house === 1 && OF.mentionIndex(null).n === 0, J(flat));
+    check('1.6.4 the one offer at the caret (mentionOffer, run for real): whole words, ignoring case and accents, any run of spaces for one; the longest name the caret stands in, at the end of or one space after; never a word that only begins or ends the same, never across a line break, never two spaces on',
+        J(hit('we met bren of hollowvale')) === J(['bren of hollowvale', '#wp:@:char:c1']) && J(hit('we met BREN  of Hollowvale')) === J(['BREN  of Hollowvale', '#wp:@:char:c1'])
+        && J(hit('see Captain Vex')) === J(['Captain Vex', '#wp:@:char:c2']) && J(hit('see Vex')) === J(['Vex', '#wp:@:char:c3']) && J(hit('ask Céline')) === J(['Céline', '#wp:@:page:p7']) && J(hit('ask CELINE')) === J(['CELINE', '#wp:@:page:p7'])
+        && J(hit('the Old Fort, at dawn', 7)) === J(['Old Fort', '#wp:@:map:m1']) && J(hit('the Old Fort ')) === J(['Old Fort', '#wp:@:map:m1']) && hit('the Old Fort  ') === null && hit('the Old Fort, ') === null
+        && J(hit('Bren’s horse', 4)) === J(['Bren', '#wp:@:map:m4']) && hit('Brenna') === null && J(hit('Bren', 2)) === J(['Bren', '#wp:@:map:m4']) && hit('xBren') === null && hit('Old\nFort') === null && J(hit('Bren of\nHollowvale')) === J(null)
+        && J(hit('Bren of\nHollowvale', 4)) === J(['Bren', '#wp:@:map:m4']) && hit('Session Zero is long', 0) !== null && hit('Session Zero is long', 16) === null && hit('') === null && hit('Vex', 9) === null && hit('Vex', -1) === null, J([hit('Bren of\nHollowvale'), hit('Bren’s horse', 4)]));
+    check('1.6.4 what is never offered: words already in a link or a mention, words right after an @ (the @ list’s own), the page being written in, a common-words name, a short one, a name two things share, and none from an empty index',
+        J(hit('see Captain Vex', undefined, [[4, 11]])) === J(['Vex', '#wp:@:char:c3']) && hit('see Captain Vex', undefined, [[4, 15]]) === null && J(hit('see Captain Vex', undefined, [[0, 3]])) === J(['Captain Vex', '#wp:@:char:c2']) && J(hit('see Captain Vex', undefined, [[4, 7]])) === J(['Vex', '#wp:@:char:c3'])
+        && hit('@Eldara') === null && J(hit('@ Eldara')) === J(['Eldara', '#wp:@:map:m2']) && hit('in Session Zero', undefined, [], '#wp:@:page:p1') === null && J(hit('in Session Zero', undefined, [], '#wp:@:page:p2')) === J(['Session Zero', '#wp:@:page:p1'])
+        && hit('The Tavern') === null && hit('Al') === null && hit('Twin') === null && hit('Crow Hollow') === null && J(hit('to Old Fort')) === J(['Old Fort', '#wp:@:map:m1']) && OF.mentionOffer({ first: {}, n: 0 }, 'Vex', 3) === null && OF.mentionOffer(null, 'Vex', 3) === null,
+        J([hit('see Captain Vex', undefined, [[4, 7]]), hit('@ Eldara')]));
+    const big = Array.from({ length: 300 }, (_, i) => 'word' + i).join(' ') + ' Captain Vex';
+    check('1.6.4 a long text costs only the stretch before the caret: the name at the end of a long field is still found, and one far behind the caret is not looked at', J(hit(big)) === J(['Captain Vex', '#wp:@:char:c2']) && hit('Captain Vex ' + 'x'.repeat(400)) === null);
+    const mlive = read('scripts/mention.js'), plO = read('scripts/planner.js'), hoO = read('scripts/handouts.js'), wnO = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n'), read('assets/whatsnew.txt')];
+    check('1.6.4 offers wired (pinned): drawn as a CSS highlight, never in the box; Tab heard at the window first and only with an offer showing, no @ list open and no composition; a press on the words takes it; the index kept per campaign and remade at most every few seconds; the planner publishes the four answers and a host opts in per key; the Journal opts in for the open campaign’s own notes and the notepad does not; Help and both release notes say it',
+        mlive.includes("CSS.highlights.set(OFFER_HL, new Highlight(rg));") && mlive.includes("var OFFER_STALE = 5000, OFFER_HL = 'wp-offer';") && mlive.includes("window.addEventListener('keydown', offerKey, true);") && mlive.includes("document.addEventListener('mousedown', offerPress, true);")
+        && mlive.includes("if (e.key !== 'Tab' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || !off.el) return;") && mlive.includes("if (document.activeElement !== off.el || (st.menu && !st.menu.hidden)) return;")
+        && mlive.includes("if (off.ix && off.ixCamp === camp && off.ixSig === sig && now - off.ixAt < OFFER_STALE) return off.ix;") && !/innerHTML|insertAdjacentHTML/.test(sliceOf(mj, 'mentionoffer'))
+        && plO.includes('offerCan: offerCan, offerSpot: offerSpot, offerRange: offerRange, offerTake: offerTake,') && plO.includes("offers: function(key) { return q.offers(key) === true; },") && plO.includes("offers: ask('offers', false),")
+        && hoO.includes('links: yes, offers: jbxOffers, sizes: yes,') && /_pad\.on = w\.host\(\{ id: 'pad',[^\n]*links: no, mentions: yes, sizes: yes,/.test(read('scripts/net.js')) && !/_pad\.on = w\.host\([^\n]*offers/.test(read('scripts/net.js'))
+        && css.includes('::highlight(wp-offer) { text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--gold);')
+        && ix.includes('<li><b>Mentions as you type.</b> In a page, a planner or a Journal note of your own, a name you type gets a faint dotted underline when it matches a page, a map, a room or a character.')
+        && wnO.every(t => t.includes('Mentions as you type [DRAFT]\n- Type the name of a page, a map, a room or a character in a page, a\n')));
+}
+
 /* ---------- 1.6.2, backlog 107 (a): Mentioned in (the namedin slice, run for real) ---------- */
 {
     const { makeDom } = require('./boxdom.js');

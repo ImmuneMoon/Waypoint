@@ -858,26 +858,33 @@ function arrivalIn(map, w, x, y) {
 // fogcore barrierOn), a pen line as its strokes (pathSegs), a filled region and any other shape as its closed outline (pathSegs closed with its
 // holes, outlineSegs turned as drawn). Kept per map on its save stamp. Past LIMITS.wallSegs strokes the map judges nothing, as before
 var _landWalls = Object.create(null);
+// The kept list is read again where the map's save stamp, its list of pieces, or the count of its doors that stand open has changed (a door
+// opened by a traveler on a map that is not on the GM's screen changes no stamp)
 function landWalls(map, C) {
-    var stamp = ((map.meta && map.meta.updated) || 0), hit = _landWalls[map.id];
-    if (hit && hit.stamp === stamp && hit.wb === map.whiteboard) return hit;
-    var segs = [], rings = [], wb = Array.isArray(map.whiteboard) ? map.whiteboard : [], cap = C.LIMITS.wallSegs, over = false;
+    var wb = Array.isArray(map.whiteboard) ? map.whiteboard : [], stamp = ((map.meta && map.meta.updated) || 0), open = 0, hit = _landWalls[map.id];
+    for (var o = 0; o < wb.length; o++) { var d = wb[o]; if (d && d.sightType === 'door' && d.doorOpen) open++; }
+    if (hit && hit.stamp === stamp && hit.wb === map.whiteboard && hit.n === wb.length && hit.open === open) return hit;
+    var segs = [], rings = [], cap = C.LIMITS.wallSegs, over = false;
     for (var i = 0; i < wb.length && !over; i++) {
         var p = wb[i]; if (!eligibleBlocker(p) && !(typeof C.barrierOn === 'function' && C.barrierOn(p))) continue;
         var closed = p.type !== 'path' || p.tip === 'fill', ps = p.type === 'path' ? C.pathSegs(p) : (typeof C.outlineSegs === 'function' ? C.outlineSegs(p) : []);
-        for (var k = 0; k < ps.length; k++) { segs.push(ps[k]); if (closed) rings.push(ps[k]); }
+        for (var k = 0; k < ps.length; k++) segs.push(ps[k]);
+        if (closed && ps.length) rings.push(ps);
         if (segs.length > cap) over = true;
     }
-    var res = { stamp: stamp, wb: map.whiteboard, segs: over ? [] : segs, rings: over ? [] : rings };
+    var res = { stamp: stamp, wb: map.whiteboard, n: wb.length, open: open, segs: over ? [] : segs, rings: over ? [] : rings };
     _landWalls[map.id] = res;
     return res;
 }
-// A point inside a closed wall outline (an even count of its edges to the left of it is outside): the edges of every closed piece together,
-// so a filled region's hole is outside it
+// A point inside a closed wall outline: inside any one closed piece, each judged by itself (an odd count of its own edges to the left of the
+// point; a filled region's hole is outside it), so a point inside two pieces that overlap, a door drawn over a wall, still reads as inside
 function landInside(L, px, py) {
-    var n = 0, r = L.rings;
-    for (var i = 0; i < r.length; i++) { var s = r[i]; if ((s[1] > py) !== (s[3] > py) && px < s[0] + (py - s[1]) * (s[2] - s[0]) / (s[3] - s[1])) n++; }
-    return n % 2 === 1;
+    for (var j = 0; j < L.rings.length; j++) {
+        var r = L.rings[j], n = 0;
+        for (var i = 0; i < r.length; i++) { var s = r[i]; if ((s[1] > py) !== (s[3] > py) && px < s[0] + (py - s[1]) * (s[2] - s[0]) / (s[3] - s[1])) n++; }
+        if (n % 2 === 1) return true;
+    }
+    return false;
 }
 // Whether a wall stroke s ([x1, y1, x2, y2]) passes through the box x1..x2, y1..y2: an end inside it, or a crossing of one of its four edges
 function landCuts(s, x1, y1, x2, y2) {

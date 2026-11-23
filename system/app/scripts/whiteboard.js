@@ -1016,6 +1016,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
           // [sinkcheck:secretcue-start]
           el.classList.toggle('wb-secret', doorIt === true && !item.hidden && !clientView && !window.wpStream && !!(window.wpFogCore && typeof window.wpFogCore.secretOn === 'function' && window.wpFogCore.secretOn(item)));   // the map builder, a secret door: a dashed edge and the word secret, on the GM's screen alone (the players hold a wall there, with no key that says otherwise)
           // [sinkcheck:secretcue-end]
+          if (typeof landArrow === 'function') landArrow(el, item, doorIt && !clientView);   // 1.6.4: the side a door lands its travelers on, on the GM's own screen
 
           el.classList.toggle('wb-hidden-ph', hideFromMe);
           el.classList.toggle('wb-waiting', !!item.waiting && !hideFromMe);   // Onboarding F1a: the dashed ring — never on a hidden stub (an element is reused when an item is hidden)
@@ -1163,6 +1164,8 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
               if (el.dataset.tip !== lgT) el.dataset.tip = lgT;
           } else if (item.type === 'maplegend') {   // 1.6.3: a legend of the map's places (places.js), drawn with the lines this screen's own viewer may see
               if (window.wpPlaces && typeof window.wpPlaces.legendDraw === 'function') window.wpPlaces.legendDraw(el, item, activeMap);
+          } else if (item.type === 'arrive') {   // 1.6.4: an Arrive here marker, the GM's alone (arriveDraw)
+              arriveDraw(el, item);
           } else if (item.type === 'mappin') {   // 1.6.3: a place pin, the map pin on a plate and the place's name under it (places.js)
               if (window.wpPlaces && typeof window.wpPlaces.pinDraw === 'function') window.wpPlaces.pinDraw(el, item, activeMap);
           } else if(item.type === 'path') {
@@ -3692,6 +3695,38 @@ window.wpFitToGrid = fitToGrid;
       r.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; T.ask(q.from, q.to); });
       cMenu.appendChild(r); return true;
   }
+  // 1.6.4 (Fulllion's ruling of 2026-11-23, "Side pick + arrival marker"): an Arrive here marker (a piece of type 'arrive') is a small dashed
+  // ring with its name under it, on the GM's screen alone: the host sends it to nobody (net.js wireWbItem), so no player's board ever holds one.
+  // A portal names it in Properties' Leads to, and net.js doorWayOf sets its travelers down beside it. The name is set as text, never as markup
+  function arriveDraw(el, item) {
+      el.classList.add('wb-arrive');
+      var lb = el.querySelector(':scope > .wb-arrive-name');
+      if (!lb) { el.textContent = ''; lb = document.createElement('span'); lb.className = 'wb-arrive-name'; el.appendChild(lb); }
+      var nm = String(typeof item.name === 'string' ? item.name : '').trim().slice(0, 80) || 'Arrive here';
+      if (lb.textContent !== nm) lb.textContent = nm;
+  }
+  // The ruling's arrow on a door: where the GM picked the side a door lands its travelers on (Properties' Lands on, the door's landSide), a small
+  // arrow in the door's middle points that way, on the GM's own screen (on = a door, and not a player's app or the stream window). It is turned
+  // by the door's own axis times the side (fogcore doorAxis, doorFace), less the door's own turn, since the arrow turns with the door it sits in.
+  // A door with no side picked wears none. Fixed markup only
+  function landArrow(el, item, on) {
+      var a = el.querySelector(':scope > .wb-land-arrow'), FC = window.wpFogCore;
+      var s = on && FC && typeof FC.cleanLandSide === 'function' ? FC.cleanLandSide(item.landSide) : null, ax = s !== null && typeof FC.doorAxis === 'function' ? FC.doorAxis(item) : null;
+      if (!ax) { if (a) a.remove(); return; }
+      var deg = FC.doorFace(ax.nx * s, ax.ny * s) - (Number(item.rot) || 0);
+      if (!a) { a = document.createElement('div'); a.className = 'wb-land-arrow'; a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 9h-4.5v9h-5v-9H5z"/></svg>'; a.title = 'Travelers who come in by this door land on this side (Lands on, in its Properties)'; el.appendChild(a); }
+      var tf = 'translate(-50%, -50%) rotate(' + deg + 'deg)'; if (a.style.transform !== tf) a.style.transform = tf;
+  }
+  // Add's Arrive here (#addArriveBtn): the board's placement of a 40 px marker at the next click, the GM's alone (never on a player's app or in
+  // the stream window, where the menu's row does nothing)
+  (function() {
+      var b = document.getElementById('addArriveBtn'); if (!b) return;
+      b.addEventListener('click', function() {
+          var n = window.wpNet; if (window.wpStream || (n && n.active && n.role === 'client')) return;
+          armPlacement('arrive', { w: 40, h: 40, color: '#4fb3a0', name: 'Arrive here' }, 'arrival marker'); if (window.wpPlace) window.wpPlace.sized = true;
+          toast('Click the map where travelers should come out. Then name a portal’s Leads to after it.');
+      });
+  })();
   // How a portal is gone through, in the words its card shows (fixed words, no campaign text). 1.6.4 (doors that lead somewhere): a door that
   // leads somewhere is gone through by walking a token across it (net.js doorCrossFor), so its card says that in place of dropping a token on it
   function portalWayWords(item, client) {

@@ -6887,6 +6887,12 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && J1([D.doorFace(0, -1), D.doorFace(1, 0), D.doorFace(0, 1), D.doorFace(-1, 0)]) === J1([0, 90, 180, 270])
             && J1(keys) === J1(['wbk2x9a', null, null, null, null, null, null, true, false, false]) && D.DOOR_SQUARE === 1.25 && D.DOOR_HEAD === 0.5,
             J1({ through, none, turnedX, stop, stopL, land, keys }));
+        // Fulllion's ruling of the same day ("Side pick + arrival marker"): a door's own axis, and a picked side that wins over the way walked
+        const ax = [D.doorAxis(sq), D.doorAxis(wide), D.doorAxis({ type: 'rect', x: 0, y: 0, w: 10, h: 100 }), D.doorAxis(ln), D.doorAxis(null)].map(r);
+        const picked = [D.doorLanding(sq, { x: 0, y: -1 }, 50, 50, 1), D.doorLanding(sq, { x: 0, y: 1 }, 50, 50, -1), D.doorLanding(ln, { x: 0, y: -1 }, 50, 50, 1), D.doorLanding(sq, { x: 0, y: -1 }, 50, 50, 'yes')].map(L => [L.x, L.y, L.face]);
+        check('1.6.4 a door\'s picked landing side (fogcore, run for real): a door\'s own axis is across its first way through (down for a door as wide as tall or wider, right for a tall one, down for a level line drawn left to right); a side picked along it, or against it, is where a token lands and the way it faces whichever way it walked, and anything but 1 or -1 is no pick; cleanLandSide keeps those two alone',
+            J1(ax) === J1([{ nx: 0, ny: 1, T: 25 }, { nx: 0, ny: 1, T: 5 }, { nx: 1, ny: 0, T: 5 }, { nx: 0, ny: 1, T: 3 }, null]) && J1(picked) === J1([[125, 176, 180], [125, 74, 0], [125, 129, 180], [125, 74, 0]])
+            && J1([1, -1, 0, '1', true, null, 2].map(D.cleanLandSide)) === J1([1, -1, null, null, null, null, null]), J1({ ax, picked }));
     }
     {   // 1.6.3 (the improvement week's review of multiplayer, finding 18; Fulllion, 2026-11-21): a player's own tokens, a waiting one among them, stand
         // over their own fog, the ground around them dark. ownClearList, ownClearShape and ownClear (the ownclear slice, run for real on a recording

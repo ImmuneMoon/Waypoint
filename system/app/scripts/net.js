@@ -457,7 +457,7 @@ function sanitizeRichText(html) {
 }
 net.sanitizeRichText = sanitizeRichText;
 // A play map as a client keeps it: text items rebuilt, category colors that are colors, collections bounded.
-function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.box; if (w.boxed !== 1) delete w.boxed; if (w.furn !== undefined) { var FUh = window.wpFurnCore, fuh = FUh && w.type === 'image' ? FUh.cleanFurn(w.furn) : null; if (fuh) w.furn = fuh; else delete w.furn; } delete w.nullFx; delete w.fly; delete w.hazard; delete w.follow; delete w.burns; delete w.reaction; delete w.darkStep; delete w.cloud; if (w.place !== undefined && w.place !== true && w.place !== false) delete w.place; if (w.placeName !== undefined) { var PCh = window.wpPlaceCore, pnH = PCh && typeof PCh.cleanPlaceName === 'function' ? PCh.cleanPlaceName(w.placeName) : ''; if (pnH) w.placeName = pnH; else delete w.placeName; } for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.coverPro !== undefined) { var FChp = window.wpFogCore, cHp = FChp && FChp.cleanCoverPro ? FChp.cleanCoverPro(w.coverPro) : 0; if (cHp) w.coverPro = cHp; else delete w.coverPro; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.pl !== undefined) { var plH = typeof SC === 'function' && SC() && typeof SC().cleanPlook === 'function' ? SC().cleanPlook(w.pl) : null; if (plH) w.pl = plH; else delete w.pl; } if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; delete w.standPic; delete w.standHid; delete w.standScene; delete w.standJournal; delete w.standWho; delete w.standSeen; delete w.standDone; if (w.zoneHidden !== undefined) delete w.zoneHidden; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; delete w.targetDoorId; delete w.doorStop; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.terrainKind !== undefined) { var FCtk = window.wpFogCore, tkH = w.terrain !== undefined && FCtk && FCtk.cleanTerrainKind ? FCtk.cleanTerrainKind(w.terrainKind) : null; if (tkH) w.terrainKind = tkH; else delete w.terrainKind; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.toShow !== undefined || w.showFor !== undefined) { var FCsh = window.wpFogCore; if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; } } if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow; if (w.trim !== undefined) { var FCtq = window.wpFogCore, trq = FCtq && typeof FCtq.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCtq.cleanTrim(w.trim) : null; if (trq) w.trim = trq; else delete w.trim; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner   // 1.6.4 (doors that lead somewhere): the door a door is paired with and its When shut option are the host's alone, never kept from a host
+function cleanHostWbItem(w) { if (!w || typeof w !== 'object' || typeof w.id !== 'string') return null; if (w.waiting) return cleanWaitingItem(w); delete w.box; if (w.boxed !== 1) delete w.boxed; if (w.furn !== undefined) { var FUh = window.wpFurnCore, fuh = FUh && w.type === 'image' ? FUh.cleanFurn(w.furn) : null; if (fuh) w.furn = fuh; else delete w.furn; } delete w.nullFx; delete w.fly; delete w.hazard; delete w.follow; delete w.burns; delete w.reaction; delete w.darkStep; delete w.cloud; if (w.place !== undefined && w.place !== true && w.place !== false) delete w.place; if (w.placeName !== undefined) { var PCh = window.wpPlaceCore, pnH = PCh && typeof PCh.cleanPlaceName === 'function' ? PCh.cleanPlaceName(w.placeName) : ''; if (pnH) w.placeName = pnH; else delete w.placeName; } for (var gi = 0; gi < 6; gi++) { var gk = ['x', 'y', 'w', 'h', 'rot', 'front'][gi], gv = w[gk], gc = gi < 4 ? 1e7 : 1e6; if (gv === undefined) continue; if (typeof gv !== 'number' || !isFinite(gv)) delete w[gk]; else if (gv > gc) w[gk] = gc; else if (gv < -gc) w[gk] = -gc; } if (w.type === 'text') w.text = sanitizeRichText(w.text); if (w.font !== undefined) { var TFf = window.wpTextFmt, fn = TFf && TFf.cleanFont ? TFf.cleanFont(w.font) : undefined; if (fn) w.font = fn; else delete w.font; } if (w.coverAs !== undefined) { var FCha = window.wpFogCore, cHa = FCha && FCha.cleanCoverAs ? FCha.cleanCoverAs(w.coverAs) : ''; if (cHa) w.coverAs = cHa; else delete w.coverAs; } if (w.coverPro !== undefined) { var FChp = window.wpFogCore, cHp = FChp && FChp.cleanCoverPro ? FChp.cleanCoverPro(w.coverPro) : 0; if (cHp) w.coverPro = cHp; else delete w.coverPro; } if (w.light !== undefined) cleanHostLight(w); if (w.senses !== undefined || w.blind !== undefined) cleanHostTokSenses(w); if (w.fxb !== undefined) cleanHostFxb(w); if (w.tbr !== undefined || w.bars !== undefined) cleanHostBars(w); if (w.pl !== undefined) { var plH = typeof SC === 'function' && SC() && typeof SC().cleanPlook === 'function' ? SC().cleanPlook(w.pl) : null; if (plH) w.pl = plH; else delete w.pl; } if (w.smoke !== undefined && w.smoke !== true) delete w.smoke; if (w.secret !== undefined || w.seenColor !== undefined || w.seenTexture !== undefined || w.seenWidth !== undefined || w.seenOpacity !== undefined || w.seenTip !== undefined) { delete w.secret; delete w.seenColor; delete w.seenTexture; delete w.seenWidth; delete w.seenOpacity; delete w.seenTip; } if (w.mine !== undefined) delete w.mine; delete w.standPic; delete w.standHid; delete w.standScene; delete w.standJournal; delete w.standWho; delete w.standSeen; delete w.standDone; if (w.zoneHidden !== undefined) delete w.zoneHidden; if (w.pageAt !== undefined) delete w.pageAt; if (w.page !== undefined) delete w.page; if (w.fogHand !== undefined && w.fogHand !== 'hide' && w.fogHand !== 'show') delete w.fogHand; if (w.blastStop !== undefined && w.blastStop !== true) delete w.blastStop; if (w.barrier !== undefined && w.barrier !== true) delete w.barrier; delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide; if (w.type === 'arrive') return null; if (w.portalLock !== undefined && w.portalLock !== true) delete w.portalLock; if (w.terrain !== undefined) { var FCt = window.wpFogCore, tr = FCt && FCt.cleanTerrain ? FCt.cleanTerrain(w.terrain) : null; if (tr) w.terrain = tr; else delete w.terrain; } if (w.terrainKind !== undefined) { var FCtk = window.wpFogCore, tkH = w.terrain !== undefined && FCtk && FCtk.cleanTerrainKind ? FCtk.cleanTerrainKind(w.terrainKind) : null; if (tkH) w.terrainKind = tkH; else delete w.terrainKind; } if (w.height !== undefined) { var FCh = window.wpFogCore, ht = FCh && FCh.cleanHeight ? FCh.cleanHeight(w.height) : null; if (ht) w.height = ht; else delete w.height; } if (w.toShow !== undefined || w.showFor !== undefined) { var FCsh = window.wpFogCore; if (FCsh && typeof FCsh.keepShow === 'function') FCsh.keepShow(w); else { delete w.toShow; delete w.showFor; } } if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow; if (w.trim !== undefined) { var FCtq = window.wpFogCore, trq = FCtq && typeof FCtq.cleanTrim === 'function' && w.type === 'image' && !w.isChar ? FCtq.cleanTrim(w.trim) : null; if (trq) w.trim = trq; else delete w.trim; } if (w.texSrc !== undefined || w.texTile !== undefined) { var FCq = window.wpFogCore, tsi = FCq && typeof FCq.cleanTexSrc === 'function' ? FCq.cleanTexSrc(w.texSrc) : null, tti = tsi && typeof FCq.cleanTexTile === 'function' ? FCq.cleanTexTile(w.texTile) : null; if (tsi) w.texSrc = tsi; else delete w.texSrc; if (tti) w.texTile = tti; else delete w.texTile; } if (w.texture !== undefined) { var FCx = window.wpFogCore, tx = FCx && FCx.cleanTexture ? FCx.cleanTexture(w.texture) : null; if (tx) w.texture = tx; else delete w.texture; } if (w.ground !== undefined) { var FCg = window.wpFogCore, gr = FCg && FCg.cleanGround ? FCg.cleanGround(w.ground) : null; if (gr) w.ground = gr; else delete w.ground; } return w; }   // senses S7b: smoke only as true; see-through barriers (1.5.1): barrier only as true; a portal's own lock: portalLock only as true; difficult terrain T1: its cost, 2-10, or none; item 19 H1: a piece's height, yards; item 19b H5: a piece's ground height, yards (a pit below 0); map builder B1: a piece's texture only as a name of the app's own list (fogcore cleanTexture), none without the cleaner   // 1.6.4 (doors that lead somewhere): the door a door is paired with and its When shut option are the host's alone, never kept from a host
 // Senses S2b: a token's own ranges, kept on a token of this player's alone (the host sends no other), cleaned again; none from a hostile host
 // on anyone else's token, and none with no cleaner on hand. S3: the GM's Blind tick likewise, and only as true
 function cleanHostTokSenses(w) { var FCs = window.wpFogCore, mine = !!w.ownerId && w.ownerId === net.myId, ts = FCs && FCs.cleanTokSenses && mine ? FCs.cleanTokSenses(w.senses) : null; if (ts) w.senses = ts; else delete w.senses; if (!(mine && w.blind === true)) delete w.blind; }
@@ -980,6 +980,7 @@ function sanitizeItem(item, reader) {
 // where something is hidden; a box in its place told them where a hidden creature, a secret door or a trap tile was)
 function wireWbItem(w, cloned) {
     if (w.gmNoteFor || w.hidden) return null;
+    if (w.type === 'arrive') return null;   // 1.6.4: an Arrive here marker is the GM's alone, sent to no player and no stream window, as a hidden piece is not
     // 1.6.3 (the owner's ruling of 2026-11-17, finding 8 of the improvement week's review): a trigger zone the GM unticked Players see this zone
     // (fogcore zoneHid) is sent to no player and to no stream window, as a hidden piece is not, so its outline is drawn nowhere but the GM's
     // screen; its message still comes up for a player's token that goes in (triggerFire reads the host's own map). With no core at hand any
@@ -990,7 +991,7 @@ function wireWbItem(w, cloned) {
     }
     if (!cloned) w = JSON.parse(JSON.stringify(w), wireNum);
     if (w.zoneHidden !== undefined) delete w.zoneHidden;
-    delete w.targetDoorId; delete w.doorStop;   // 1.6.4 (doors that lead somewhere): the door a door is paired with and its When shut option are the GM's, read by the host alone: never sent, on any piece
+    delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide;   // 1.6.4 (doors that lead somewhere): the door a door is paired with, its When shut option, the Arrive here marker a portal names and the side a door lands on are the GM's, read by the host alone: never sent, on any piece
     // 1.6.3, a map's places (placecore.js): a place's tick and its name go with a shown piece, the tick only as true or false (false: a room's pin or a
     // teleporter the GM unticked) and the name as placecore cleans it. Never on a secret door, whose copy is a wall, nor on a plain wall, which
     // leaves in one shape: a key that a place keeps would tell one wall from another. With no core at hand the name does not go
@@ -3453,6 +3454,9 @@ function travelBar(traveler, portal, fromMap, destMap, cross) {
     // 1.6.4 (doors that lead somewhere): a move that went through the door reaches it. The host judged that crossing itself (doorCrossFor in
     // the pos gate, from where the drag began, the walls judging the walk to the door), so no token of theirs need stand on it or beside it
     if (cross && typeof cross === 'object' && cross.door === portal) return null;
+    // 1.6.4 (the review of doors that lead somewhere): a door that is shut and stays shut (the GM locked it, or set it to stop tokens until it is
+    // opened) lets no player through by a double-click either, as it lets none through by walking: the reason door, in fixed words
+    if (portal && portal.sightType === 'door' && (portal.blocksSight === true || portal.barrier === true) && portal.doorOpen !== true && (portal.doorLock === true || portal.doorStop === true)) return { reason: 'door', gm: 'through a door that is shut' };
     var reach = portalReach(traveler, portal, fromMap);
     if (reach === 'wall') return { reason: 'wall', gm: 'from beyond a wall' };
     if (!reach) return { reason: 'far', gm: 'from too far away' };
@@ -3645,6 +3649,7 @@ function portalUnder(item, map) {
 // the token's stored top-left where the move began and where it ended. The answer is fogcore doorThrough's (t, the point, the way across the
 // door, half a line's width), with door (the piece) and dir (the unit way the move went) added. Only a door players may go through counts:
 // shown, not secret, a portal by isPortal
+var DOOR_PAST = 3;   // how far past a door, in token widths, a move that went through it may end
 function doorCrossFor(map, tok, from, to) {
     var F = typeof window === 'object' && window ? window.wpFogCore : null;
     if (!F || typeof F.doorThrough !== 'function' || !map || !Array.isArray(map.whiteboard) || !tok || !from || !to) return null;
@@ -3652,9 +3657,14 @@ function doorCrossFor(map, tok, from, to) {
     if (!isFinite(fx) || !isFinite(fy) || !isFinite(tx) || !isFinite(ty)) return null;
     var a = { x: fx + tw / 2, y: fy + th / 2 }, b = { x: tx + tw / 2, y: ty + th / 2 }, len = Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)), best = null;
     if (!(len > 0)) return null;
+    // (the review of this fold) a move counts as going through a door only where it ends near it: within DOOR_PAST token widths past the
+    // point it met the door. A long drag across a room whose straight line happens to pass a door in another wall (the GM's own hand, which no
+    // wall stops, or a player's under the walls rule Warn or Off) takes nobody anywhere
+    var past = DOOR_PAST * Math.max(tw, th);
     map.whiteboard.forEach(function(d) {
         if (!d || typeof d !== 'object' || d.id === tok.id || d.hidden || !F.isDoor(d) || F.secretOn(d) || !F.isPortal(d, map)) return;
         var c = F.doorThrough(d, a, b);
+        if (c && Math.sqrt((b.x - c.x) * (b.x - c.x) + (b.y - c.y) * (b.y - c.y)) > past) return;
         if (c && (!best || c.t < best.t)) { c.door = d; best = c; }
     });
     if (best) best.dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
@@ -3687,14 +3697,27 @@ function doorNearTok(fromMap, ownerId, door) {
     });
     return best;
 }
-// A door that leads to a door: the door on dest it is paired with (portal.targetDoorId), and the way the token was going (dir, a unit
-// vector): the crossing's own way; else, where nobody crossed (a travel by double-click, an NPC dropped on it), the way from tok to the
-// door; else none (the far door's own side, fogcore doorLanding). near: where a token of 60 by 52 is first set down there. null where the portal
-// is no door or names no door, where the piece it names is no door on dest any more, or is hidden or secret there: a token is never set
-// down beside a door the players cannot see, and lands as any portal's traveler does
+// Where a portal sets its traveler down on dest, where it says more than a room does. Two ways, the first that holds:
+// 1. An Arrive here marker (1.6.4, Fulllion's ruling of 2026-11-23, "Side pick + arrival marker"): ANY portal with a map of its own (a
+//    teleport hex, a plain portal piece, a door) may name one (portal.targetArriveId), a GM-only piece of type 'arrive' on dest (never sent:
+//    wireWbItem gives nothing for it). The answer is { marker, near: its middle }; doorSetDown sets the token down on the free spot nearest it
+//    that it can walk to from it (freeSpotNear judges every spot from the marker), so never across a wall from it.
+// 2. A door that leads to a door: the door on dest it is paired with (portal.targetDoorId), and the way the token was going (dir, a unit
+//    vector): the crossing's own way; else, where nobody crossed (a travel by double-click, an NPC dropped on it), the way from tok to the
+//    door; else none (the far door's own side, fogcore doorLanding). side: the side the GM picked for that far door (its landSide: Lands on in
+//    Properties, fogcore cleanLandSide), which wins over the way it was going. near: where a token of 60 by 52 is first set down there.
+// null where neither holds: the portal names no marker that is a marker on dest, and is no door or names no door, or the piece it names is no
+// door on dest any more, or is hidden or secret there (a token is never set down beside a door the players cannot see). Then it lands as any
+// portal's traveler does
 function doorWayOf(portal, dest, cross, tok) {
     var F = typeof window === 'object' && window ? window.wpFogCore : null;
-    if (!F || typeof F.doorLanding !== 'function' || !portal || !dest || !Array.isArray(dest.whiteboard) || !F.isDoor(portal) || typeof portal.targetDoorId !== 'string' || !portal.targetDoorId) return null;
+    if (!F || typeof F.doorLanding !== 'function' || !portal || !dest || !Array.isArray(dest.whiteboard)) return null;
+    if (typeof portal.targetArriveId === 'string' && portal.targetArriveId && portal.targetMapId) {
+        var mk = dest.whiteboard.find(function(d) { return !!d && d.id === portal.targetArriveId && d.type === 'arrive'; });
+        var mx = mk ? Number(mk.x) + (Number(mk.w) || 0) / 2 : NaN, my = mk ? Number(mk.y) + (Number(mk.h) || 0) / 2 : NaN;
+        if (mk && isFinite(mx) && isFinite(my)) return { marker: mk, dir: null, near: { x: mx, y: my } };
+    }
+    if (!F.isDoor(portal) || typeof portal.targetDoorId !== 'string' || !portal.targetDoorId) return null;
     var door = dest.whiteboard.find(function(d) { return !!d && d.id === portal.targetDoorId; });
     if (!door || !F.isDoor(door) || door.hidden || F.secretOn(door)) return null;
     var dir = cross && cross.dir ? cross.dir : null;
@@ -3702,19 +3725,29 @@ function doorWayOf(portal, dest, cross, tok) {
         var vx = Number(portal.x) + (Number(portal.w) || 0) / 2 - (Number(tok.x) + (Number(tok.w) || 60) / 2), vy = Number(portal.y) + (Number(portal.h) || 0) / 2 - (Number(tok.y) + (Number(tok.h) || 52) / 2), vl = Math.sqrt(vx * vx + vy * vy);
         if (vl >= 1) dir = { x: vx / vl, y: vy / vl };
     }
-    var L = F.doorLanding(door, dir, 60, 52);
-    return L ? { door: door, dir: dir, near: { x: L.x, y: L.y } } : null;
+    var side = typeof F.cleanLandSide === 'function' ? F.cleanLandSide(door.landSide) : null;
+    // (the review of this fold) with no side picked, the side is carried over door to door: a token that goes through this door the way its
+    // own axis points (fogcore doorAxis) lands on the side the far door's axis points to, and the other way round. Two doors drawn alike lead
+    // on the way it was going; two drawn at right angles still bring a token that walks back out to the side it came in from
+    var axP = side === null && dir && typeof F.doorAxis === 'function' ? F.doorAxis(portal) : null, dotP = axP ? axP.nx * dir.x + axP.ny * dir.y : 0;
+    if (axP && Math.abs(dotP) > 1e-6) side = dotP > 0 ? 1 : -1;
+    var L = F.doorLanding(door, dir, 60, 52, side);
+    return L ? { door: door, dir: dir, side: side, near: { x: L.x, y: L.y } } : null;
 }
-// Sets a token down just outside the paired door on the far map: on the side the way it was going points to, or on the other side where that
-// one is in a wall or out of the play area (fog.js arrivalOk, judged from the door: from its middle for a shaped door, whose own cell a move
-// from it never counts, and from just off the line for a door drawn as a line); then freeSpotNear finds the free spot nearest it that it can
+// Sets a token down just outside the paired door on the far map: on the side doorWayOf names (picked, carried over, or the way it was going),
+// or on the other side where that one is in a wall or out of the play area (fog.js arrivalOk, judged from just outside the door's face on that
+// side); then freeSpotNear finds the free spot nearest it that it can
 // walk to from that side, never on the door or on any portal. Where the table plays with Token facing, it faces the way it was going (its rot
 // plus front, the part the facing dial turns). Answers true where it moved the token
+// An Arrive here marker (way.marker): the free spot nearest its middle that the token can walk to from there, kept off every portal
+// (freeSpotNear); the token's facing is left as it was
 function doorSetDown(map, tok, way) {
     var F = typeof window === 'object' && window ? window.wpFogCore : null; if (!F || typeof F.doorLanding !== 'function' || !tok || !way) return false;
-    var w = Number(tok.w) || 60, h = Number(tok.h) || 52, L = F.doorLanding(way.door, way.dir, w, h); if (!L) return false;
+    var w = Number(tok.w) || 60, h = Number(tok.h) || 52;
+    if (way.marker) { var pm = freeSpotNear(map, way.near.x, way.near.y, w, h, tok.id, null, { x: way.near.x, y: way.near.y }); tok.x = pm.x; tok.y = pm.y; if (window.wpSeatHex) window.wpSeatHex(tok, map); return true; }
+    var L = F.doorLanding(way.door, way.dir, w, h, way.side); if (!L) return false;
     var fog = window.wpFog, line = way.door.type === 'path' && way.door.tip !== 'fill';
-    var fromOf = function(s) { var nl = Math.sqrt((s.x - L.cx) * (s.x - L.cx) + (s.y - L.cy) * (s.y - L.cy)) || 1; return line ? { x: L.cx + (s.x - L.cx) / nl * (L.half + 1), y: L.cy + (s.y - L.cy) / nl * (L.half + 1) } : { x: L.cx, y: L.cy }; };
+    var fromOf = function(s) { var nl = Math.sqrt((s.x - L.cx) * (s.x - L.cx) + (s.y - L.cy) * (s.y - L.cy)) || 1, k = ((line ? L.half : L.off) || 0) + 1; return { x: L.cx + (s.x - L.cx) / nl * k, y: L.cy + (s.y - L.cy) / nl * k }; };   // the review: from just outside the door's face on that side, never from inside the door (a shut door's own outline walled off both sides on a map with no grid); arrivalOk refuses a spot whose own cell is a wall's
     var ok = function(s) { if (!fog || typeof fog.arrivalOk !== 'function') return true; var f = fromOf(s); try { return fog.arrivalOk(map, tok, f.x - w / 2, f.y - h / 2, s.x - w / 2, s.y - h / 2) !== false; } catch (e) { return true; } };
     var side = !ok(L) && ok(L.alt) ? L.alt : L;
     var p = freeSpotNear(map, side.x, side.y, w, h, tok.id, way.door, ok(side) ? { x: side.x, y: side.y } : fromOf(side));   // judged from the side picked where it is open, so a crowd there never spills to the door's other side
@@ -3738,15 +3771,20 @@ function doorTravel(item, map, gmHand, cross) {
         return false;
     }
     cross.tok = item;
-    if (shut) door.doorOpen = true;   // opened as the token goes through: every save the travel makes carries it
-    var went = false;
+    // (the review of this fold) the door opens, and is shut again, with every kept judgement of sight and movement read afresh (fog.js
+    // invalidateVision): the travel's own saves run as the table's, which judge nothing again, and the map need not be the one on screen
+    var fogD = typeof window === 'object' && window ? window.wpFog : null, seeAgain = function() { if (fogD && typeof fogD.invalidateVision === 'function') { try { fogD.invalidateVision(); } catch (e) { console.error(e); } } };
+    var went = false, pidD = item.ownerId ? Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; }) : null;
+    // (the review) a player at the table travels through a door by their own character's token alone: a pet or a mount of theirs that crosses
+    // first in a drag of several is set down at the door, and their character goes on with the rest of the drag
+    if (item.ownerId && pidD && net.active && net.role === 'host') { var SD = typeof SC === 'function' ? SC() : null, campDA = getActiveCampaign(), actD = SD && typeof SD.activeCharOf === 'function' && campDA ? SD.activeCharOf(campDA, item.ownerId) : null; if (actD && actD.id && item.charId && item.charId !== actD.id) return false; }
+    if (shut) { door.doorOpen = true; seeAgain(); }   // opened as the token goes through: every save the travel makes carries it
     if (!item.ownerId) went = npcTravel(item, map, cross);
     else {
-        var pidD = Object.keys(net.roster).find(function(k) { return net.roster[k] && net.roster[k].id === item.ownerId; });
         if (!(net.active && net.role === 'host' && pidD)) went = offlinePlayerTravel(item, map, cross);
         else if (!net.paused && !pausedById(item.ownerId)) went = hostTravel(net.conns.find(function(c) { return c.peer === pidD; }), net.roster[pidD], door, map, gmHand === true, cross);
     }
-    if (!went) { if (shut) { if (had) door.doorOpen = was; else delete door.doorOpen; } return false; }
+    if (!went) { if (shut) { if (had) door.doorOpen = was; else delete door.doorOpen; seeAgain(); } return false; }
     if (shut) {   // the door stands open now: the map goes out once more with it (broadcastItemFiltered judges what each player sees there afresh)
         if (window.wpSoundOn && typeof window.wpSoundOn.door === 'function') { try { window.wpSoundOn.door(map, door, false, item.ownerId || null); } catch (e) { console.error(e); } }
         var campD = getActiveCampaign();
@@ -3804,7 +3842,7 @@ function offlinePlayerTravel(item, map, cross) {   // cross (1.6.4): a move that
     var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
     var dWayT = typeof doorWayOf === 'function' ? doorWayOf(portal, dest, cross, item) : null;   // 1.6.4: a door paired with a door on the far map lands beside that door
-    if (dWayT) { sx = dWayT.near.x; sy = dWayT.near.y; nodeEl = dWayT.door; }
+    if (dWayT) { sx = dWayT.near.x; sy = dWayT.near.y; nodeEl = dWayT.door || null; }
     if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
     // the one resolver (their token there, else an unowned one of their character, else a copy of the dragged token), then the chooser
@@ -3854,7 +3892,7 @@ function npcTravel(item, map, cross) {   // cross (1.6.4): a move that went thro
     var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
     var dWayT = typeof doorWayOf === 'function' ? doorWayOf(portal, dest, cross, item) : null;   // 1.6.4: a door paired with a door on the far map lands beside that door
-    if (dWayT) { sx = dWayT.near.x; sy = dWayT.near.y; nodeEl = dWayT.door; }
+    if (dWayT) { sx = dWayT.near.x; sy = dWayT.near.y; nodeEl = dWayT.door || null; }
     if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
     var key = item.charName || '';
@@ -6795,7 +6833,8 @@ function handleMessage(msg, conn) {
         else if (msg.reason === 'here') toast('This map is locked. Nobody leaves it until the GM opens it.');   // the map they stand on is locked for players (closed both ways): fixed words
         else if (msg.reason === 'portal') toast('That way is locked. The GM will unlock it when the time comes.');   // a portal's own lock: fixed words, nothing of the message in them
         else if (msg.reason === 'far') toast('Move your token next to it first. Then double-click it to go through.');   // 1.6.3 (finding 2): a token of theirs is not on the portal or next to it; fixed words
-        else if (msg.reason === 'wall') toast('A wall is in the way. Walk your token to it first.');   // 1.6.3, the review of finding 2: a token of theirs is next to it, past a wall or a closed door; fixed words
+        else if (msg.reason === 'wall') toast('A wall is in the way. Walk your token to it first.');
+        else if (msg.reason === 'door') toast('That door is shut. It has to be opened first.');   // 1.6.4: a door that leads somewhere, shut and locked or set to stop tokens; fixed words   // 1.6.3, the review of finding 2: a token of theirs is next to it, past a wall or a closed door; fixed words
         else toast('Travel between maps is locked right now. The GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         // [netcheck:travelmsg-start]

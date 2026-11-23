@@ -911,10 +911,11 @@ pendingChecks.push((async () => {
     {
         const hasK = (w, k) => !!w && Object.prototype.hasOwnProperty.call(w, k), keysOf = (m, id) => { const w = m && m.whiteboard.find(x => x.id === id); return w ? ['targetDoorId', 'doorStop'].filter(k => hasK(w, k)).join(' ') + '|' + (w.sightType || '') + '|' + (w.targetMapId || '') : null; };
         const Wd = S7({}), mD = Wd.camp.items.mA;
-        mD.whiteboard.push({ id: 'dPair', type: 'rect', x: 600, y: 600, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mB', targetDoorId: 'dFar', doorStop: true },
+        mD.whiteboard.push({ id: 'dPair', type: 'rect', x: 600, y: 600, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mB', targetDoorId: 'dFar', doorStop: true, landSide: -1, targetArriveId: 'mkFar' },
+            { id: 'mkHere', type: 'arrive', name: 'Hall arrival', x: 640, y: 700, w: 40, h: 40 },   // the ruling: an Arrive here marker, the GM's alone
             { id: 'pDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 700, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [10, 10]], color: '#e9e9f0', strokeWidth: 3 });
         mD.meta = Object.assign({}, mD.meta, { updated: (mD.meta && mD.meta.updated || 0) + 1 }); Wd.clearSent(); Wd.net.sendItem('k', 'mA');
-        const sentD = [keysOf(Wd.last(Wd.a1), 'dPair'), keysOf(Wd.last(Wd.b1), 'dPair'), keysOf(Wd.api.clean(mD), 'dPair')], allD = J(Wd.a1.sent.concat(Wd.a2.sent, Wd.b1.sent));
+        const sentD = [keysOf(Wd.last(Wd.a1), 'dPair'), keysOf(Wd.last(Wd.b1), 'dPair'), keysOf(Wd.api.clean(mD), 'dPair')], allD = J(Wd.a1.sent.concat(Wd.a2.sent, Wd.b1.sent)) + J(Wd.api.clean(mD));
         Wd.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { id: 'mA', type: 'map', whiteboard: [
             { id: 'dPair', type: 'rect', x: 600, y: 600, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mB' },   // the GM's door sent back with neither key
             Object.assign({}, Wd.tok('tA'), { targetDoorId: 'dPair', doorStop: true }),   // her own token sent with both
@@ -923,8 +924,8 @@ pendingChecks.push((async () => {
         const hostD = Wd.tok('dPair'), afterD = [hostD.targetDoorId, hostD.doorStop, hasK(Wd.tok('tA'), 'targetDoorId'), hasK(Wd.tok('tA'), 'doorStop'), hasK(Wd.tok('pDraw'), 'targetDoorId'), hasK(Wd.tok('pDraw'), 'doorStop'), !!Wd.tok('wbnewD') && (hasK(Wd.tok('wbnewD'), 'targetDoorId') || hasK(Wd.tok('wbnewD'), 'doorStop'))];
         const chS = lineOf('function cleanHostWbItem(w) {'), wireS = fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem');
         check('1.6.4 doors that lead somewhere (the wire, the real sends and patch path): a shown door that leads somewhere reaches each player and the shared clone as a door and a portal without the door it is paired with or its When shut option; neither name is in anything sent; a player\'s map copy that leaves both off the GM\'s door, or sets them on her own token and drawings, changes neither on the host; the wire drops both from every piece and a player\'s app takes neither from a host',
-            J(sentD) === J(['|door|mB', '|door|mB', '|door|mB']) && !/targetDoorId|doorStop|dFar/.test(allD) && J(afterD) === J(['dFar', true, false, false, false, false, false])
-            && wireS.includes('    delete w.targetDoorId; delete w.doorStop;') && chS.includes('delete w.targetDoorId; delete w.doorStop;'), J([sentD, afterD]));
+            J(sentD) === J(['|door|mB', '|door|mB', '|door|mB']) && !/targetDoorId|doorStop|dFar|landSide|targetArriveId|mkFar|mkHere|Hall arrival|"arrive"/.test(allD) && J(afterD) === J(['dFar', true, false, false, false, false, false])
+            && wireS.includes('    delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide;') && chS.includes('delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide;') && wireS.includes("    if (w.type === 'arrive') return null;") && chS.includes("if (w.type === 'arrive') return null;"), J([sentD, afterD]));   /* the ruling: the side a door lands on, the marker a portal names and the marker itself never leave the host either */
     }
     // a piece's fog mark (1.5.4: Under fog, Always revealed) on the wire, in the same one-module world: host to player with a shown piece and only
     // as its two words; player to host nothing sets it and nothing clears it

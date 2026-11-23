@@ -469,7 +469,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             // with a malfunction, a roll with no dice, In a fight with its round, several runs a fire): the path as the app runs it, the old path, and
             // the hash of what the old path gave, made by the code before the change (1.5.5, the commit "Words — the sheet website the outside
             // reader was made for is named in no tracked file") and pinned here
-            const SEED_PIN = '6657a41a043e21545a5a22911b5d8a07827977741a19f83ffe2e5fabfd2fc8b6';
+            const SEED_PIN = 'ad0175ac6379c864f88bd25150d12b19e7a636025735f4e575c1c5691f134602';   // moved on purpose in 1.6.4: a number snapped to its step keeps no float noise (cleancore stepRound), and only those figures changed (38 of 21,468, each by less than 1e-9)
             const seedSys = seed => {
                 const R = lcg(seed * 7919 + 1), RI = n => Math.floor(R() * n), fields = [], nA = 4 + RI(4), nD = 5 + RI(25), deep = R() < 0.15;
                 for (let i = 0; i < nA; i++) fields.push({ id: 'f_a' + i, key: 'A' + i, kind: 'number', def: 8 + RI(6), step: R() < 0.3 ? 0.5 : 1 });

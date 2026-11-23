@@ -2011,7 +2011,15 @@ function cleanValue(field, v, opts) {
     }
     return undefined;
 }
-function stepRound(n, field) { var step = field.step > 0 ? field.step : 1, base = field.min !== undefined ? field.min : 0; return base + Math.round((n - base) / step) * step; }
+// A number snapped to its step. base + k * step is worked in floating point, so 1.49 came out as 1.4900000000000002 (found 2026-11-22, the
+// save rewrite check): the answer is rounded to the decimals the step and the base are written with, at most 10, which every snapped figure
+// holds exactly. A step or base the computer writes in e-notation keeps the old sum, since it has no decimals to count
+function stepPlaces(v) { var s = String(v); if (s.indexOf('e') >= 0) return -1; var d = s.indexOf('.'); return d < 0 ? 0 : s.length - d - 1; }
+function stepRound(n, field) {
+    var step = field.step > 0 ? field.step : 1, base = field.min !== undefined ? field.min : 0, out = base + Math.round((n - base) / step) * step;
+    var pl = Math.max(stepPlaces(step), stepPlaces(base)); if (stepPlaces(step) < 0 || stepPlaces(base) < 0 || pl > 10 || !isFinite(out)) return out;
+    var r = Number(out.toFixed(pl)); return isFinite(r) ? r : out;
+}
 // Onboarding F1c: a character's own face — the rule of net.js cleanFace, word for word (netcheck compares the two): 'photo', 'default',
 // 'pic:<name>' from this list, or ONE emoji; anything else is ''
 var FACE_PICS = ['bren', 'chef', 'golems', 'innkeeper', 'king', 'liriel', 'minotaur_archer', 'minotaur_soldier', 'orc', 'priestess', 'sage', 'slime', 'smith', 'spriggan', 'tharic'];

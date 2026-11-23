@@ -114,6 +114,47 @@ function gmStatSays(f, fields) {
     return { errs: errs, warns: warns };
 }
 // [sinkcheck:onremovebox-end]
+// [systemcheck:buyoffbox-start]
+// 1.6.4 Buy off on a list's card (Fulllion, 2026-11-23, by prompt: a general option, never one system's word): a tick, Can be bought off, and
+// while it is ticked the cost (a formula of the row with no dice), the number field it is charged to and whether it is taken from that field
+// or added to it, what a player who cannot pay meets (Refuse or Warn, as point budgets choose), and where a line is recorded: an item list, a
+// number stat of it for the figure, and a few words of note. Values and text only. Save cleans it (the core’s cleaners, the list’s own and then the whole system
+// against the fields), and the errors part says what Save drops (sysederr.js)
+function buyOffBox(card, sp) {
+    var bo = sp.buyOff && typeof sp.buyOff === 'object' && !Array.isArray(sp.buyOff) ? sp.buyOff : null, rw = el('div', 'sys-list-boughtoff');
+    rw.appendChild(checkLabel('sys-list-boughton', !!bo, 'Can be bought off', 'A row of this list may be bought off for a cost, charged to a number field. The row’s ⋯ menu then holds Buy off beside Remove, which stays free. Undo brings the row back and takes the charge and its line away'));
+    if (bo) {
+        var sl = function(cls, os, cur, title) { var s = el('select', cls); os.forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if (o[0] === cur) op.selected = true; s.appendChild(op); }); s.value = cur; s.title = title; return s; };   // values and text only
+        var am = input('sys-list-boughtcost field', typeof bo.cost === 'string' ? bo.cost : '', 'What buying off a row costs: a formula of the row, read as the sheet stands just before, such as Row.tier * 2. Row names are read. No dice. The figure is kept as it was then', 'Cost (e.g. Row.tier)'); am.maxLength = LIMITS.formula; rw.appendChild(am);
+        var nums = (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && f.kind === 'number'; }).map(function(f) { return [f.id, 'Charged to ' + (f.label || f.key || f.id)]; }), cf = typeof bo.f === 'string' ? bo.f : '';
+        if (!nums.some(function(o) { return o[0] === cf; })) nums.unshift([cf, cf ? '(a field that is gone)' : 'Pick a number field']);
+        rw.appendChild(sl('sys-list-boughtf', nums, cf, 'The number field the cost is charged to, such as Points or Gold'));
+        rw.appendChild(sl('sys-list-boughthow', [['', 'Taken from it'], ['add', 'Added to it']], bo.add === true ? 'add' : '', 'Taken from a field that holds what is left to spend, or added to one that counts what was spent. A point budget that reads the field judges it as it judges any change'));
+        rw.appendChild(sl('sys-list-boughtover', [['', 'Refuse a player who cannot pay'], ['warn', 'Let a player through and warn the GM']], bo.over === 'warn' ? 'warn' : '', 'When a player buys a row off and the field holds less than the cost. Refused, they are told why. You may always buy one off, and are told. Only a cost taken from the field is judged so'));
+        var lg = bo.ledger && typeof bo.ledger === 'object' && !Array.isArray(bo.ledger) ? bo.ledger : null, lt = lg && typeof lg.to === 'string' ? lg.to : '';
+        var lists = [['', 'Records no line']].concat((draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && f.kind === 'item-list' && f.list !== sp; }).map(function(f) { return [f.id, 'Records a line on ' + (f.label || f.key || f.id)]; }));
+        if (lt && !lists.some(function(o) { return o[0] === lt; })) lists.push([lt, '(a list that is gone)']);
+        rw.appendChild(sl('sys-list-boughtled', lists, lt, 'An item list where each buy off is recorded as a line: the row’s name, the figure and a few words of note. Undo takes the line away'));
+        if (lt) {
+            var lf = (draft.fields || []).filter(function(f) { return f && f.id === lt; })[0], sts = lf && lf.list && Array.isArray(lf.list.stats) ? lf.list.stats.filter(function(s) { return s && typeof s.key === 'string' && s.key && s.kind !== 'pick'; }) : [], lb = typeof lg.by === 'string' ? lg.by : '';
+            var lbK = sts.filter(function(s) { return s.key.toLowerCase() === lb.toLowerCase(); })[0], so = [['', 'The figure in its note alone']].concat(sts.map(function(s) { return [s.key, 'The figure in its ' + (s.label || s.key)]; }));
+            if (lb && !lbK) so.push([lb, '(a stat that is gone)']);
+            rw.appendChild(sl('sys-list-boughtby', so, lbK ? lbK.key : lb, 'A number stat of that list that holds the figure, so a formula can add the lines up'));
+            var sy = input('sys-list-boughtsays field', typeof lg.says === 'string' ? lg.says : '', 'A few words on each line before the figure. Left empty, the line says Bought off', 'Note (Bought off)'); sy.maxLength = 60; rw.appendChild(sy);
+        }
+    }
+    card.appendChild(rw);
+}
+function buyOffChange(lsc, t, c) {   // the box's ticks and lists; the cost and the note are typed (sysedtabs.js, as they are typed)
+    if (c.indexOf('sys-list-boughton') >= 0) { if (t.checked) lsc.buyOff = { cost: '' }; else delete lsc.buyOff; return; }
+    var bo = lsc.buyOff && typeof lsc.buyOff === 'object' ? lsc.buyOff : null; if (!bo) return;
+    if (c.indexOf('sys-list-boughtf') >= 0) { if (t.value) bo.f = String(t.value).slice(0, 64); else delete bo.f; }
+    else if (c.indexOf('sys-list-boughthow') >= 0) { if (t.value === 'add') bo.add = true; else delete bo.add; }
+    else if (c.indexOf('sys-list-boughtover') >= 0) { if (t.value === 'warn') bo.over = 'warn'; else delete bo.over; }
+    else if (c.indexOf('sys-list-boughtled') >= 0) { if (t.value) bo.ledger = { to: String(t.value).slice(0, 64) }; else delete bo.ledger; }   // another list: its stat and note start again
+    else if (c.indexOf('sys-list-boughtby') >= 0) { if (bo.ledger && typeof bo.ledger === 'object') { if (t.value) bo.ledger.by = String(t.value).slice(0, 40); else delete bo.ledger.by; } }
+}
+// [systemcheck:buyoffbox-end]
 // [systemcheck:switchchanges-start]
 // 1.6.2 (167 B; the owner, by prompt: "On and off, and from a file too"): When switched on and When switched off, on a list with a switch: a line
 // a change as On removal's (a field, how, a formula of the row), one more empty line while there is room. Values and text only. Save cleans
@@ -1522,5 +1563,5 @@ function heightClick(b) {
 }
 // [sinkcheck:heightbox2-end]
 // [split:body-end]
-return { arcsBox: arcsBox, barsBox: barsBox, barsClick: barsClick, bodiesBox: bodiesBox, checksBox: checksBox, damageBox: damageBox, damageClick: damageClick, damageSays: damageSays, darkBox: darkBox, dbxLocFinds: dbxLocFinds, dbxLocNames: dbxLocNames, dbxBtn: dbxBtn, dbxCap: dbxCap, gmStatSays: gmStatSays, heightBox: heightBox, heightClick: heightClick, holdsBox: holdsBox, kindsNamed: kindsNamed, lightBox: lightBox, lightClick: lightClick, mapKindsBox: mapKindsBox, onBarsChange: onBarsChange, onChecksInput: onChecksInput, onDamageChange: onDamageChange, onDamageInput: onDamageInput, onHeightChange: onHeightChange, onHeightInput: onHeightInput, onHoldChange: onHoldChange, onHoldInput: onHoldInput, onLightChange: onLightChange, onLightInput: onLightInput, onPostureChange: onPostureChange, onPostureInput: onPostureInput, onRangeChange: onRangeChange, onRangeInput: onRangeInput, onRemoveBox: onRemoveBox, onRemoveChange: onRemoveChange, onRemoveSays: onRemoveSays, postureBox: postureBox, postureClick: postureClick, rangeBox: rangeBox, rangeBy: rangeBy, rangeClick: rangeClick, scenesBox: scenesBox, switchChangesBox: switchChangesBox, switchChangesChange: switchChangesChange, switchChangesSays: switchChangesSays, terrainBox: terrainBox, terrainSettleAll: terrainSettleAll, travelBox: travelBox, upkeepBox: upkeepBox, upkeepChange: upkeepChange };   // [split:glue]
+return { buyOffBox: buyOffBox, buyOffChange: buyOffChange, arcsBox: arcsBox, barsBox: barsBox, barsClick: barsClick, bodiesBox: bodiesBox, checksBox: checksBox, damageBox: damageBox, damageClick: damageClick, damageSays: damageSays, darkBox: darkBox, dbxLocFinds: dbxLocFinds, dbxLocNames: dbxLocNames, dbxBtn: dbxBtn, dbxCap: dbxCap, gmStatSays: gmStatSays, heightBox: heightBox, heightClick: heightClick, holdsBox: holdsBox, kindsNamed: kindsNamed, lightBox: lightBox, lightClick: lightClick, mapKindsBox: mapKindsBox, onBarsChange: onBarsChange, onChecksInput: onChecksInput, onDamageChange: onDamageChange, onDamageInput: onDamageInput, onHeightChange: onHeightChange, onHeightInput: onHeightInput, onHoldChange: onHoldChange, onHoldInput: onHoldInput, onLightChange: onLightChange, onLightInput: onLightInput, onPostureChange: onPostureChange, onPostureInput: onPostureInput, onRangeChange: onRangeChange, onRangeInput: onRangeInput, onRemoveBox: onRemoveBox, onRemoveChange: onRemoveChange, onRemoveSays: onRemoveSays, postureBox: postureBox, postureClick: postureClick, rangeBox: rangeBox, rangeBy: rangeBy, rangeClick: rangeClick, scenesBox: scenesBox, switchChangesBox: switchChangesBox, switchChangesChange: switchChangesChange, switchChangesSays: switchChangesSays, terrainBox: terrainBox, terrainSettleAll: terrainSettleAll, travelBox: travelBox, upkeepBox: upkeepBox, upkeepChange: upkeepChange };   // [split:glue]
 }   // [split:glue]

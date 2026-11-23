@@ -638,6 +638,46 @@ pendingChecks.push((async () => {
         && j(bk.answer) === j([{ type: 'char-ack', rid: 'q2' }]) && backU === 30 && backRow && !('onRemove' in pvL), j([sw, rm, bk, afterU, backU, rec, lg]));
 })());
 
+// 1.6.4 Buy off on the wire (the real char-item handler and delta): on a list set to Warn a player who cannot pay goes through, is told in the
+// answer and the GM is told and logs it; the row-gone word (marked bought) comes before the answer and the host keeps the charge and the line for
+// the Undo; a cursed row bought off is charged and kept from her as a removal keeps it, with no Undo; On removal runs beside the charge; a cost
+// that reads a GM-only value takes Buy off out of the players' view, and a ledger list of no item kind is dropped while the charge stays
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const ciSrc = between('// [netcheck:charitem-start]', '// [netcheck:charitem-end]', 'charitem'), dlSrc = between('// [netcheck:chardelta-start]', '// [netcheck:chardelta-end]', 'chardelta');
+    const ntSrc = (() => { const i = src.indexOf('function itemNotice('), k = src.indexOf('net.syncChars = function', i); if (i < 0 || k < 0) throw new Error('netcheck: itemNotice not found'); return src.slice(i, k); })();
+    const rawB = { v: 1, name: 'B', rolls: [], fields: [{ id: 'f_p', key: 'Marks', label: 'Marks', kind: 'number', vis: 'all', edit: 'gm' }, { id: 'f_t', key: 'Tally', label: 'Tally', kind: 'number', vis: 'all', edit: 'gm' }, { id: 'f_g', key: 'Secret', label: 'Secret', kind: 'number', vis: 'gm', edit: 'gm' },
+        { id: 'f_led', key: 'Owed', label: 'Owed', kind: 'item-list', vis: 'all', edit: 'gm', list: {} },
+        { id: 'f_l', key: 'Quirks', label: 'Quirks', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'tier', label: 'Tier' }], onRemove: [{ f: 'f_t', formula: '1', add: true }], buyOff: { cost: 'Row.tier + 1', f: 'f_p', over: 'warn', ledger: { to: 'f_led', says: 'Paid away' } } } },
+        { id: 'f_s', key: 'Hidden', label: 'Hidden', kind: 'item-list', edit: 'owner', vis: 'all', list: { buyOff: { cost: 'Secret', f: 'f_p', ledger: { to: 'f_t' } } } }],
+        items: [{ id: 'i_a', name: 'Short Fuse', stats: { tier: 4 } }, { id: 'i_c', name: 'Old Hex', stats: { tier: 1 }, rm: 'curse', rmMsg: 'It clings.' }] };
+    const sysB = Sx.cleanSystem(rawB, { F: Fx, gmView: true });
+    const camp = { id: 'k', system: sysB, chars: { c_1: { id: 'c_1', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_p: 3, f_t: 0, f_g: 7, f_led: [], f_s: [{ id: 'w_s', defId: 'i_a', qty: 1 }], f_l: [{ id: 'w_a', defId: 'i_a', qty: 1 }, { id: 'w_c', defId: 'i_c', qty: 1 }] } } } };
+    const out = { answer: [], owner: [] }, box = b => m => { packCheck(m); b.push(JSON.parse(JSON.stringify(m))); }, connA = { peer: 'pA', send: box(out.answer) };
+    const net = { active: true, role: 'host', paused: false, conns: [{ peer: 'pA', open: true, send: box(out.owner) }], roster: { pA: { id: 'u_a' } } };
+    const told = [], logged = [], win = { wpFormula: Fx, wpVtt: { on: () => true }, wpSheets: { playerSystem: c => Sx.cleanSystem(c.system, { F: Fx, gmView: false }), charChanged() {} }, wpDiceCore: null };
+    const H = new Function('net', 'SC', 'window', 'peerPaused', 'getActiveCampaign', 'saveRemoteSoon', 'sendFailed', 'peerProfileId', 'lim', 'toast', 'logEvent',
+        'var charLimit = lim, _charSlowSaid = {}, _charPending = {}, _charHost = {}, _rowGrace = {};\n' + dlSrc + '\n' + ntSrc + '\nreturn { handle: function(msg, conn) {\n' + ciSrc + '\n}, grace: function() { return _rowGrace; } };')(
+        net, () => Sx, win, () => false, () => camp, () => {}, e => { throw e; }, c => (net.roster[c.peer] ? net.roster[c.peer].id : null), { allow: () => true }, t => told.push(t), (k, t) => logged.push(t));
+    const SEND = (rid, q) => { out.answer.length = 0; out.owner.length = 0; H.handle(Object.assign({ type: 'char-item', rid, charId: 'c_1', fieldId: 'f_l' }, q), connA); return { answer: out.answer.slice(), owner: out.owner.slice() }; };
+    const vals = () => camp.chars.c_1.values;
+    const b1 = SEND('q1', { op: 'buyoff', rowId: 'w_a', cost: 5 }), v1 = JSON.parse(JSON.stringify(vals())), rec = H.grace()['c_1|f_l|w_a|gone'];
+    const lineOk = v1.f_led.length === 1 && v1.f_led[0].def.name === 'Short Fuse' && v1.f_led[0].note === 'Paid away: 5 Marks' && !v1.f_led[0].own;
+    const recOk = !!rec && rec.rmBack && rec.rmBack.f_p.b === 3 && rec.rmBack.f_p.a === -2 && rec.rmBack.f_led.cut === v1.f_led[0].id && rec.rmBack.f_t.b === 0;
+    const b2 = SEND('q2', { op: 'buyoff', rowId: 'w_c' }), v2 = JSON.parse(JSON.stringify(vals())), recC = H.grace()['c_1|f_l|w_c|gone'];
+    const b3 = SEND('q3', { fieldId: 'f_s', op: 'buyoff', rowId: 'w_s', cost: 0 }), v3 = JSON.parse(JSON.stringify(vals()));
+    const pv = win.wpSheets.playerSystem(camp), pvL = Sx.fieldById(pv, 'f_l').list, pvS = Sx.fieldById(pv, 'f_s').list, gvS = Sx.fieldById(sysB, 'f_s').list;
+    check('1.6.4 Buy off (the real char-item branch): on a list set to Warn, Ana with 3 Marks buys off Short Fuse for 5: the row-gone word marked bought comes before the plain answer (the notice of her Undo would take the place of any words), one delta tells her the row, the Marks at -2, the line and On removal\'s Tally; the GM is told and the log keeps it; the host keeps the charge, the line and On removal for the Undo; a cursed row bought off is charged and kept from her, with no Undo kept; a cost reading a GM-only value is in no players\' view, and a ledger that is no item list goes while the charge stays; a message of hers on that list is refused as a list with no Buy off, telling nothing of the figure and moving nothing',
+        b1.answer.length === 2 && b1.answer[0].type === 'row-gone' && b1.answer[0].items[0].b === 1 && b1.answer[1].type === 'char-ack' && !b1.answer[1].msg
+        && b1.owner.length === 1 && b1.owner[0].values.f_p === -2 && b1.owner[0].values.f_t === 1 && Array.isArray(b1.owner[0].values.f_led) && v1.f_l.length === 1 && lineOk && recOk
+        && told.some(t => /Ana bought off Short Fuse for 5 Marks\. Buying off/.test(t)) && logged.some(t => /Ana bought off Short Fuse/.test(t))
+        && v2.f_p === -4 && v2.f_l.length === 1 && v2.f_l[0].hid === 1 && v2.f_led.length === 2 && !recC && !b2.answer.some(m => m.type === 'row-gone') && b2.answer.some(m => m.type === 'char-ack' && m.msg === 'It clings.')
+        && b3.answer.length === 1 && b3.answer[0].type === 'char-deny' && b3.answer[0].reason === 'field' && !b3.answer[0].msg && v3.f_s.length === 1 && v3.f_p === v2.f_p && !b3.owner.length
+        && !!pvL.buyOff && !(pvS && pvS.buyOff) && !!gvS.buyOff && !('ledger' in gvS.buyOff),
+        j([b1, b2, v1, v2, rec, told, logged, pvS, gvS]));
+})());
+
 // Stage 6 F4b follow-up: a refused attempt repeated is one notice per quiet window — the real char-item handler, delta and notice on one host;
 // the player still gets every refusal, the GM one notice, and the next one after the window counts the tries that went unsaid
 pendingChecks.push((async () => {

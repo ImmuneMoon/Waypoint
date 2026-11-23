@@ -651,6 +651,9 @@ function mkCampaign(SC, F) {
     fx.rolls.push({ id: 'r_heal', label: 'Heal', apply: [{ f: 'f_hp', formula: '2', add: true }] });
     fx.fields.push({ id: 'f_gmword', key: 'GMWord', label: 'GM word', kind: 'text', edit: 'gm', vis: 'gm', hover: false }, { id: 'f_gmtxt', key: 'GMTxt', label: 'GM text', kind: 'text', edit: 'gm', vis: 'all', hover: false });   // item 35: a text only the GM sees and edits (no look of a player's reaches it, and its words never leave)
     fx.combat = { light: { presets: [{ name: 'Torch', bright: 2, dim: 4, unit: 'yd', pick: true }] } };
+    fx.fields.push({ id: 'f_xpt', key: 'Xpt', label: 'Points', kind: 'number', edit: 'gm', vis: 'all' }, { id: 'f_spent', key: 'SpentList', label: 'Spent', kind: 'item-list', edit: 'gm', vis: 'all', list: { stats: [{ key: 'paidout', label: 'Paid' }] } },
+        { id: 'f_flaw', key: 'Flaws', label: 'Flaws', kind: 'item-list', edit: 'owner', vis: 'all', list: { stats: [{ key: 'tier', label: 'Tier' }], buyOff: { cost: 'Row.tier * 2', f: 'f_xpt', ledger: { to: 'f_spent', by: 'paidout' } } } });   // 1.6.4 Buy off: a list whose rows can be bought off, charged to a number field the player may not edit, with its line recorded on a list of the GM's
+    fx.items.push({ id: 'i_flaw', name: 'Grim Temper', stats: { tier: 3 } });
     fx.listRules = { uploadFacts: true };   // setting B: a player's own row facts from an uploaded sheet apply at once, through the reader's own row op
     const sys = SC.cleanSystem(fx, { F, gmView: true, libCats: {} });
     const tok = (id, o) => Object.assign({ id, type: 'circle', isChar: true, w: 50, h: 50, layer: 'middle' }, o);
@@ -658,7 +661,7 @@ function mkCampaign(SC, F) {
         id: 'c1', name: 'Fuzz Campaign', activeItemId: 'm_open', system: sys, soundOn: [{ ev: { k: 'door' }, snd: 's_gong', n: 'the hidden gong' }],
         players: { u_p1: { name: 'Ayla', key: K1 }, u_p2: { name: 'Bram', key: K2 }, u_p3: { name: 'Cato', key: K3 } }, bannedPlayers: {}, sessionLog: [], turnRules: {},
         chars: {
-            c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', npc: false, values: { f_str: 14, f_dex: 12, f_gmfig: 7, f_hp: { cur: 10, max: 12 }, f_inv: [], f_class: 'Ranger', f_gmword: 'the secret word', f_gmtxt: 'a title the GM gave' }, updated: 1 },
+            c_p1: { id: 'c_p1', name: 'Ayla', ownerId: 'u_p1', npc: false, values: { f_str: 14, f_dex: 12, f_gmfig: 7, f_hp: { cur: 10, max: 12 }, f_inv: [], f_xpt: 10, f_flaw: [{ id: 'w_fl', defId: 'i_flaw', qty: 1 }], f_spent: [], f_class: 'Ranger', f_gmword: 'the secret word', f_gmtxt: 'a title the GM gave' }, updated: 1 },
             c_p2: { id: 'c_p2', name: 'Bram', ownerId: 'u_p2', npc: false, values: { f_str: 9, f_gmfig: 3, f_class: 'Bard' }, updated: 1 },
             c_npc: { id: 'c_npc', name: 'Orc', npc: true, hideFig: true, values: { f_str: 16, f_gmfig: 99, f_class: 'Brute' }, updated: 1 }
         },
@@ -1005,6 +1008,7 @@ function mutations(tpl) {
             'turn-end': { type: 'turn-end', mapId: 'm_open', row: 'row_p1' },
             'char-upload': { type: 'char-upload', rid: 'r4', charId: 'c_p1', sheet: { name: 'Ayla', attributes: { ST: 12 }, items: [{ name: 'Rope' }] } },
             'char-item': { type: 'char-item', rid: 'r5', charId: 'c_p1', fieldId: 'f_inv', op: 'add', defId: 'i_rope', rowId: 'w_1', qty: 1 },
+            'char-item-buyoff': { type: 'char-item', rid: 'r5b', charId: 'c_p1', fieldId: 'f_flaw', op: 'buyoff', rowId: 'w_fl', cost: 6 },   // 1.6.4 Buy off: her own row bought off for the figure she was asked with (the host works it out again and charges its own)
             'lib-idx': { type: 'lib-idx', rid: 'r6', campId: 'c1', packId: 'p_core', page: 0 },
             'lib-get': { type: 'lib-get', rid: 'r7', campId: 'c1', packId: 'p_core', ids: ['i_rope'] },
             'char-effect': { type: 'char-effect', rid: 'r8', charId: 'c_p1', fieldId: 'f_fx', op: 'add', ref: 'e_ward', rowId: 'x_1' },
@@ -1127,6 +1131,7 @@ function mutations(tpl) {
             if (msg.type === 'door-req' && tok.sightType === 'door' && key === 'doorOpen' && !tok.doorLock && !tok.hidden) return true;
             return false;
         }
+        if (msg.type === 'char-item' && msg.op === 'buyoff' && (m = p.match(/^\.app\.campaigns\.c1\.chars\.([^.]+)\.([^.[]+)(?:\.([^.[]+))?/)) && m[2] !== 'updated' && !(m[2] === 'values' && ['f_flaw', 'f_xpt', 'f_spent'].indexOf(m[3]) >= 0)) return false;   // 1.6.4 Buy off: it moves its own list, the field it charges and the list it records on, and nothing else of the character
         if ((m = p.match(/^\.app\.campaigns\.c1\.chars(?:\.([^.]+))?/))) { if (!m[1]) return msg.type === 'char-make' || msg.type === 'char-token'; const c = after.app.campaigns.c1.chars[m[1]] || before.app.campaigns.c1.chars[m[1]]; return !!c && c.ownerId === pid && !c.npc; }
         if (/^\.app\.campaigns\.c1\.(sessionLog|uploads)(\.|\[|$)/.test(p)) return true;
         if ((m = p.match(/^\.app\.campaigns\.c1\.players(?:\.([^.]+))?/))) return !m[1] || m[1] === pid;
@@ -1214,6 +1219,7 @@ function mutations(tpl) {
         'turn-end': () => net.combats.f_open0001.turn === 1 && net.combats.f_open0002.turn === 0,
         'char-upload': o => o.p1.some(m => m.type === 'char-upload-ans' && typeof m.n === 'number') && (campH().uploads || []).some(u => u.charId === 'c_p1' && u.reader === 'fuzz'),   // read by the suite's own reader (FUZZ_READER): the proposal waits for the GM with the reader's id, and the answer counts it
         'char-item': o => Array.isArray(campH().chars.c_p1.values.f_inv) && campH().chars.c_p1.values.f_inv.length === 1 && o.p1.some(m => m.type === 'char-ack'),
+        'char-item-buyoff': o => { const v = campH().chars.c_p1.values; return v.f_flaw.length === 0 && v.f_xpt === 4 && v.f_spent.length === 1 && v.f_spent[0].def.name === 'Grim Temper' && v.f_spent[0].def.stats.paidout === 6 && o.p1.some(m => m.type === 'char-ack') && o.p1.some(m => m.type === 'row-gone' && m.items[0].b === 1); },   // 1.6.4: the row gone, 6 taken from 10, the line recorded, the Undo's word sent first
         'lib-idx': o => o.p1.some(m => m.type === 'lib-idx-ans'),
         'char-effect': o => o.p1.some(m => m.type === 'char-ack') && Array.isArray(campH().chars.c_p1.values.f_fx) && campH().chars.c_p1.values.f_fx.length === 1,
         'char-style': o => !!(campH().chars.c_p1.looks && campH().chars.c_p1.looks.f_class && campH().chars.c_p1.looks.f_class.fmt.b === true) && o.p1.some(m => m.type === 'charstyle-ack') && o.p1.some(m => m.type === 'charStyle') && !o.p2.some(m => m.type === 'charStyle'),
@@ -1568,6 +1574,28 @@ function mutations(tpl) {
             && campU.chars.c_p2.values.f_partU[0].in === 'w_h2' && outU.some(x => x[0] === 'char-ack' && x[1] === 'u1')
             && outU.some(x => x[0] === 'char-deny' && x[1] === 'u2' && x[2] === 'missing') && outU.some(x => x[0] === 'char-deny' && x[1] === 'u3' && x[2] === 'owner') && outU.some(x => x[0] === 'char-deny' && x[1] === 'u4'),
             { rows: rowsU, p2: campU.chars.c_p2.values.f_partU, out: outU });
+    }
+    {   // 1.6.4 Buy off (op buyoff) through the real char-item branch, each judged by the write oracle: a player who cannot pay is refused in words and
+        // nothing moves; a figure that moved since she was asked refuses; a row of a list that cannot be bought off, and another player's row, change
+        // nothing; then her buy off goes through and her Undo (a restore, judged on the host's own record) brings the row and the points back and takes
+        // the line away, while a restore that names a figure of its own is still the host's record alone
+        await resetWorld(); const campB = stubs.getActiveCampaign(), vB = () => campB.chars.c_p1.values, sbB = sentLog.length;
+        vB().f_xpt = 4; const ok1 = { type: 'char-item', rid: 'b1', charId: 'c_p1', fieldId: 'f_flaw', op: 'buyoff', rowId: 'w_fl' };
+        await fireHost('p1', 'char-item buyoff', 'she cannot pay', ok1); const poor = [vB().f_flaw.length, vB().f_xpt, vB().f_spent.length];
+        vB().f_xpt = 10;
+        await fireHost('p1', 'char-item buyoff', 'a figure that moved', Object.assign({}, ok1, { rid: 'b2', cost: 2 })); const moved = [vB().f_flaw.length, vB().f_xpt];
+        vB().f_inv = [{ id: 'w_rp', defId: 'i_rope', qty: 1 }];
+        await fireHost('p1', 'char-item buyoff', 'a list that cannot be bought off', Object.assign({}, ok1, { rid: 'b3', fieldId: 'f_inv', rowId: 'w_rp' }));
+        await fireHost('p1', 'char-item buyoff', 'another player\'s row', Object.assign({}, ok1, { rid: 'b4', charId: 'c_p2' }));
+        await fireHost('p1', 'char-item buyoff', 'well-formed: her own row', Object.assign({}, ok1, { rid: 'b5', cost: 6 })); const bought = [vB().f_flaw.length, vB().f_xpt, vB().f_spent.length, vB().f_inv.length];
+        await fireHost('p1', 'char-item restore', 'her Undo, naming a row of her own making', { type: 'char-item', rid: 'b6', charId: 'c_p1', fieldId: 'f_flaw', op: 'restore', rowId: 'w_fl', row: { id: 'w_fl', defId: 'i_flaw', qty: 9 }, rmBack: { f_xpt: { b: 99, a: 4 } } });
+        const back = [vB().f_flaw.length, vB().f_flaw[0] && vB().f_flaw[0].qty, vB().f_xpt, vB().f_spent.length];
+        const outB = sentLog.slice(sbB).filter(x => x.to === conns.p1.peer).map(x => [x.m.type, x.m.rid || null, x.m.reason || null, x.m.msg || null]);
+        check('host: Buy off (op buyoff, 1.6.4) through the real char-item branch, each judged by the write oracle: with 4 points she is refused in words and nothing moves; a figure that moved since she was asked is refused; a list that cannot be bought off and another player\'s row change nothing; her own buy off takes 6 of her 10 points and records its line; her Undo comes back by the host\'s record alone (the row as it stood, the points back to 10, the line gone)',
+            JSON.stringify(poor) === '[1,4,0]' && outB.some(x => x[0] === 'char-deny' && x[1] === 'b1' && /costs 6 Points, and Ayla has 4/.test(x[3] || '')) && JSON.stringify(moved) === '[1,10]' && outB.some(x => x[0] === 'char-deny' && x[1] === 'b2' && /changed since/.test(x[3] || ''))
+            && outB.some(x => x[0] === 'char-deny' && x[1] === 'b3' && x[2] === 'field') && outB.some(x => x[0] === 'char-deny' && x[1] === 'b4' && x[2] === 'owner')
+            && JSON.stringify(bought) === '[0,4,1,1]' && outB.some(x => x[0] === 'char-ack' && x[1] === 'b5') && outB.some(x => x[0] === 'row-gone') && JSON.stringify(back) === '[1,1,10,0]' && outB.some(x => x[0] === 'char-ack' && x[1] === 'b6'),
+            { poor, moved, bought, back, out: outB });
     }
     {   // the GM-only field through the players' paths: a roll naming it, an edit of it, an apply reading it
         await resetWorld(); const sb = sentLog.length;

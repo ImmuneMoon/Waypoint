@@ -5523,6 +5523,16 @@ function mkSend(type, m, done) {
 net.charMake = function(name, done) { return mkSend('char-make', { name: cleanCharName(name) }, done); };
 net.charLook = function(charId, look, done) { var S = SC(), lk = look === null ? null : S && typeof S.cleanPlook === 'function' ? S.cleanPlook(look) : null; if (look !== null && !lk) return { error: 'That look cannot be used.' }; return mkSend('char-plook', { charId: String(charId), look: lk }, done); };   // 1.6.2, backlog 35: a player's look for their own character, or null to clear it
 net.charCat = function(charId, cat, done) { var ct = typeof cat === 'string' && (cat === '' || cat === '-' || /^[A-Za-z][A-Za-z0-9_]{0,23}$/.test(cat)) ? cat : null; if (ct === null) return { error: 'That is not a category.' }; return mkSend('char-name', { charId: String(charId), cat: ct }, done); };   // 1.6.2 (218, fold 2)
+// 1.6.4 (a Notes page on every character sheet): a change to a quick note of a character this player holds whole, their own or one shared with
+// them: q is { op: 'add' | 'set' | 'del', id, t?, x?, lk? } (qnotecore.js). Its shape is judged here as the host will judge it (cleanQnoteMsg),
+// then it waits for the host's answer as a character's other asks do (mkSend); the host sends its own copy of the character back either way.
+// Asked by sheets.js qnDo, which lays the change on this app's copy once it is on its way
+var QN_NET_WHY = { get paused() { return typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.'; }, off: 'Notes are not kept on sheets at this table.', missing: 'That character is gone.', owner: 'That character is not yours.', slow: 'A moment between notes, please.', full: 'This sheet holds as many notes as it can (50). Delete one to write another.', have: 'That note is there already.', note: 'That note is no longer on this sheet.', value: 'That note could not be kept.' };
+net.charQnote = function(charId, q, done) {
+    var S = SC(), m = S && typeof S.cleanQnoteMsg === 'function' && q && typeof q === 'object' ? S.cleanQnoteMsg({ rid: 'k0', charId: String(charId), op: q.op, id: q.id, t: q.t, x: q.x, lk: q.lk }) : null; if (!m) return { error: QN_NET_WHY.value };
+    var o = { charId: m.charId, op: m.op, id: m.id }; ['t', 'x', 'lk'].forEach(function(k) { if (m[k] !== undefined) o[k] = m[k]; });
+    return mkSend('char-qnote', o, done);
+};
 net.charName = function(charId, name, done) { var nm = cleanCharName(name); if (!nm) return { error: 'That name cannot be used.' }; return mkSend('char-name', { charId: String(charId), name: nm }, done); };
 net.charDone = function(charId, done) { return mkSend('char-done', { charId: String(charId) }, done); };
 net.charDelete = function(charId, done) { return mkSend('char-delete', { charId: String(charId) }, done); };
@@ -6815,13 +6825,13 @@ function handleMessage(msg, conn) {
         var PIC_WHY = { get paused() { return typeof heldSay === 'function' ? heldSay('The table is paused.') : 'The table is paused.'; }, off: 'Character sheets are off here.', slow: 'A moment between pictures, please.', missing: 'That character is gone.', owner: 'That character is not yours.', bad: 'That picture could not be used.', failed: 'The GM could not save that picture.' };
         if (typeof pP.done === 'function') pP.done(msg.ok === true ? { ok: true } : { error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(PIC_WHY, msg.reason) ? PIC_WHY[msg.reason] : 'The GM could not take it.' });   // only a reason of our own is shown
         // [netcheck:charpicans-end]
-    } else if ((msg.type === 'char-ask-ans' || msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-plook-ans' || msg.type === 'char-done-ans' || msg.type === 'char-delete-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans' || msg.type === 'tok-light-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
+    } else if ((msg.type === 'char-ask-ans' || msg.type === 'char-make-ans' || msg.type === 'char-name-ans' || msg.type === 'char-plook-ans' || msg.type === 'char-qnote-ans' || msg.type === 'char-done-ans' || msg.type === 'char-delete-ans' || msg.type === 'char-token-ans' || msg.type === 'tok-pic-ans' || msg.type === 'tok-light-ans') && net.role === 'client') {   // Onboarding F3: the host's answer to one of ours
         // [netcheck:charmakeans-start]
         if (typeof msg.rid !== 'string' || !Object.prototype.hasOwnProperty.call(_mkPending, msg.rid)) return;
         var pK = _mkPending[msg.rid]; delete _mkPending[msg.rid]; clearTimeout(pK.timer);
         if (typeof pK.done !== 'function') return;
         if (msg.ok === true) { var aK = { ok: true, charId: typeof msg.charId === 'string' && /^c_[A-Za-z0-9_]{1,24}$/.test(msg.charId) ? msg.charId : null }; if (msg.kept === true) aK.kept = true; if (msg.back === true) aK.back = true; pK.done(aK); }
-        else { var WK = pK.kind === 'char-ask' ? ASK_WHY : pK.kind === 'tok-pic' ? TOK_WHY : pK.kind === 'tok-light' ? LIGHT_WHY : MK_WHY; pK.done({ error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(WK, msg.reason) ? WK[msg.reason] : 'The GM could not do that.' }); }   // in the words of what we asked
+        else { var WK = pK.kind === 'char-qnote' ? QN_NET_WHY : pK.kind === 'char-ask' ? ASK_WHY : pK.kind === 'tok-pic' ? TOK_WHY : pK.kind === 'tok-light' ? LIGHT_WHY : MK_WHY; pK.done({ error: typeof msg.reason === 'string' && Object.prototype.hasOwnProperty.call(WK, msg.reason) ? WK[msg.reason] : 'The GM could not do that.' }); }   // in the words of what we asked
         // [netcheck:charmakeans-end]
     } else if (msg.type === 'char-review' && net.role === 'client') {   // Onboarding F3: what the GM did with our character
         // [netcheck:charreview-start]
@@ -7840,6 +7850,38 @@ function handleMessage(msg, conn) {
         chL.updated = Date.now(); saveRemoteSoon(); net.syncChar(chL.id); plMoved(chL.id); ansL({ ok: true });
         if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chL.id);
         // [netcheck:charplook-end]
+    } else if (msg.type === 'char-qnote' && net.role === 'host') {
+        // [netcheck:charqnote-start]
+        // 1.6.4 (a Notes page on every character sheet; Fulllion, 2026-11-23, by prompt: the sheet's owner, the GM and everyone it is shared with read
+        // the page): a player changes a quick note of a character they hold whole, their own or one shared with them (handsTo), never an NPC's nor a
+        // teammate's. The request's shape is judged first, in constant time (systemcore cleanQnoteMsg: nothing is answered to a malformed one), then
+        // the table's pause, sheets on, the character and its hands, the system's Notes page switch and a limiter of its own, and last the change
+        // itself on the host's own copy (qnoteOp, which stamps a new note with this clock and cleans the look for the text it will keep). A change
+        // is saved and sent whole to every hand that holds the notes (sendCharTo: each through what their copy may hold). A refusal past the
+        // limiter sends the asker the host's copy back, so their app shows the notes as they stand here. The limiter comes first (the review of
+        // this fold, finding 1): a whole copy can be 200 KB, so no refusal that sends one is ever given faster than the limiter allows, and a
+        // refusal by the limiter itself sends none (their app puts its own list back on any refusal, sheets.js qnDo)
+        var SQ = SC(); if (!SQ || typeof SQ.cleanQnoteMsg !== 'function' || typeof SQ.qnoteOp !== 'function') return;
+        var qQ = SQ.cleanQnoteMsg(msg); if (!qQ) return;
+        var ansQ = function(o) { o.type = 'char-qnote-ans'; o.rid = qQ.rid; try { conn.send(o); } catch (e) { sendFailed(e); } };
+        var prQ = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!prQ) return;
+        var campQ = getActiveCampaign(), chQ = campQ && campQ.chars && own(campQ.chars, qQ.charId) ? campQ.chars[qQ.charId] : null;
+        if (!chQ || !campQ.system) { ansQ({ reason: 'missing' }); return; }
+        if (chQ.npc || !chQ.ownerId || chQ.partial || !handsTo(chQ, prQ.id)) { ansQ({ reason: 'owner' }); return; }
+        if (!allow('charqnote', { perMs: 250, burst: 10, windowMs: 10000, table: 120 }, conn.peer)) { ansQ({ reason: 'slow' }); return; }
+        var backQ = function(why) { ansQ({ reason: why }); sendCharTo(prQ.id, chQ.id); };
+        if (net.paused || peerPaused(conn.peer)) { backQ('paused'); return; }
+        if ((window.wpVtt && !window.wpVtt.on('sheets')) || (typeof SQ.notesOn === 'function' && !SQ.notesOn(campQ.system))) { backQ('off'); return; }
+        var rQ = SQ.qnoteOp(chQ.qnotes, qQ, Date.now());
+        if (!rQ.ok) { backQ(rQ.reason === 'missing' ? 'note' : rQ.reason === 'full' || rQ.reason === 'have' ? rQ.reason : 'value'); return; }
+        if (!rQ.same) {
+            if (rQ.list) chQ.qnotes = rQ.list; else delete chQ.qnotes;
+            chQ.updated = Date.now(); saveRemoteSoon();
+            [chQ.ownerId].concat(Array.isArray(chQ.shareWith) ? chQ.shareWith : []).forEach(function(pid, i, all) { if (typeof pid === 'string' && pid && all.indexOf(pid) === i) sendCharTo(pid, chQ.id); });
+            if (window.wpSheets && window.wpSheets.charChanged) window.wpSheets.charChanged(chQ.id);
+        }
+        ansQ({ ok: true });
+        // [netcheck:charqnote-end]
     } else if (msg.type === 'char-done' && net.role === 'host') {
         // [netcheck:chardone-start]
         // Onboarding F3: the owner says their character is finished — one in the making goes LIVE at once (in play, unless the GM gave them one to

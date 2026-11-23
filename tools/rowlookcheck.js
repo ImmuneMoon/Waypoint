@@ -85,7 +85,7 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     const sh = read('scripts/sheets.js'), slice = between(sh, '// [systemcheck:sheetbox-start]', '// [systemcheck:sheetbox-end]');
     check('the sheet’s text box host keys a row’s text as charId:fieldId:rowId:part, a note, an own row’s name and description, and an effect’s name',
         /var SBX_ROW = \/\^\(c_\[A-Za-z0-9_\]\{1,24\}\):\(f_\[A-Za-z0-9_\]\{1,24\}\):\(\(\?:w\|x\)_\[A-Za-z0-9_\]\{1,24\}\):\(note\|name\|desc\|fx\)\$\//.test(slice)
-        && /function sbxIsKey\(key\) \{ return typeof key === 'string' && \(SBX_KEY\.test\(key\) \|\| SBX_ROW\.test\(key\)\); \}/.test(slice)
+        && /function sbxIsKey\(key\) \{ return typeof key === 'string' && \(SBX_KEY\.test\(key\) \|\| SBX_ROW\.test\(key\) \|\| \(typeof SBX_QN !== 'undefined' && SBX_QN\.test\(key\)\)\); \}/.test(slice)   /* 1.6.4 (a deliberate change of this pin): a quick note's text is a key of the box too (notescheck) */
         && /var rf = sbxRowField\(key\); if \(rf\) return rf;/.test(slice) && /if \(SBX_ROW\.test\(key\)\) return sbxRowCommit\(key, d\);/.test(slice), slice.length);
     check('a row’s text is committed by its own op, the text and its look together: a note by the row’s set, a name and a description by the custom op, an effect’s name by the effect made again whole',
         /commitItem\(p\.c, p\.f, \{ op: 'set', rowId: rowIdOf\(p\.row\), facts: \{ note: d\.text, nlk: rec \|\| null \} \}\)/.test(slice)

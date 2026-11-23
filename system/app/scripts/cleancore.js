@@ -1575,6 +1575,7 @@ function cleanSheet(sheet, fieldIds, rollIds, pages, gmView) {   // pages: null 
     var identity = idList(sheet.identity, IDENTITY_KINDS, LIMITS.identity, fieldIds); if (identity) out.identity = identity;
     var ledger = idList(sheet.ledger, LEDGER_KINDS, LIMITS.ledger, fieldIds); if (ledger) out.ledger = ledger;
     var look = cleanLook(sheet.look); if (look) out.look = look;   // Stage 5g: the sheet's shape (shared by the sheet and its HUD)
+    if (sheet.notes === false) out.notes = false;   // 1.6.4 (Fulllion, 2026-11-23: the Notes page "optional in the system builder", "On everywhere" by default): kept only as off, in both views, so a system that never set it has the page (qnotecore.js reads it)
     var hc = hs ? cleanHud(hs, hb, fieldIds, rollIds, pages, groups.ids, gmView) : null;   // HF2b: before the sheet's sections, whose HUD buttons need to know the HUD survived (and its tabs)
     if (Array.isArray(sheet.sections)) out.sections = cleanSections(sheet.sections, { fieldIds: fieldIds, rollIds: rollIds, pages: pages, tabIds: tabs.ids, groupIds: groups.ids, hudTabs: hc ? hc.tabIds : null, gmView: gmView });
     if (hc) out.hud = hc.hud;   // HF1: the last key, absent when dropped

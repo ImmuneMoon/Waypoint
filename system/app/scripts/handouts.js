@@ -323,6 +323,7 @@ async function receiveHandout(msg) {
     if (bytes.length > MAX_BYTES) return;
     var kind = picKind(bytes); if (!kind) return;   // bytes that are no picture are not stored under a picture's name, whatever the sender calls them
     var mime = kind.mime, ext = kind.ext;
+    if (msg.at !== undefined) placePicKeep(msg, bytes, mime);   // 1.6.4: a place's picture, kept small for that place's line (placeAt judges at; not waited for)
     var title = String(msg.title || 'Handout').slice(0, 120), caption = String(msg.caption || '').slice(0, 4000);
     if (sc.scene && !sc.keep) {   // a scene the GM keeps out of the Journals: shown from this machine's memory alone, nothing written
         if (!sceneLive(id, sg)) return;
@@ -1565,6 +1566,68 @@ window.wpHandoutFor = function(src, title, caption, hid) {
     return h.id;
 };
 window.wpHandoutName = function(src) { return niceName(src); };
+// 1.6.4 (a picture on a zone or a place; Fulllion, 2026-11-22): the handout a picture of the campaign's own is shown as when a player's token
+// stands where the GM put it (net.js standFire). This campaign's picture handout of that very picture, else a new one titled as handed in
+// (standFire hands in none, so it takes the picture's own name: a place's name could tell a player of a place they never saw). Unlike wpHandoutFor above, an existing handout keeps the title and caption
+// the GM gave it. Answers its id, or '' where there is no campaign or the picture is no picture of the app's own
+window.wpHandoutOf = function(src, title) {
+    var camp = getActiveCampaign(), p = picRef(src); if (!camp || !p || /^(data|blob):/i.test(p)) return '';
+    var hs = handoutsOf(camp), h = Object.keys(hs).map(function(k) { return hs[k]; }).find(function(x) { return x && x.kind !== 'text' && x.src === src; }) || null;
+    if (h) return h.id;
+    var id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    hs[id] = { id: id, title: String(title || '').slice(0, 120) || niceName(src).slice(0, 120), caption: '', src: src, createdAt: Date.now() };
+    save(true);
+    if (ui('handoutsModal') && ui('handoutsModal').style.display === 'flex') renderHandouts();
+    return id;
+};
+// [placescheck:placepic-start]
+// 1.6.4: a place's picture on a player's own list. When the GM's picture on a place is shown to this player because their token stood
+// there, the host's handout says which place (at: { map, wb }, to the stander alone: net.js revealHandout). This app keeps a small copy of
+// the picture (a JPEG of 96 pixels at most a side, as a data address) under the table's Journal key (journalKey: the campaign and the GM),
+// the map and the piece, in this computer's local storage (placePics, 200 at most, the oldest going first), and places.js draws it on
+// that place's line in Places here and on a legend (wpPlacePic). Nothing is sent, and nothing is kept of a place the player never stood
+// on: the host says at only then. A share from a player, a reconnect's replay or an at that is no pair of ids keeps nothing
+var PLACE_PIC_KEY = 'placePics', PLACE_PIC_MAX = 200, PLACE_PIC_EDGE = 96;   // no wp_ name on purpose: bootprefs.js copies every wp_ key into the settings file, and pictures do not belong there (the review)
+// The map and piece ids a handout's at names, or null (each a plain id of 80 characters at most)
+function placeAt(msg) {
+    var a = msg && typeof msg === 'object' && !msg.sharedBy && msg.replay !== true ? msg.at : null, okId = function(v) { return typeof v === 'string' && /^[A-Za-z0-9_-]{1,80}$/.test(v); };
+    return a && typeof a === 'object' && !Array.isArray(a) && okId(a.map) && okId(a.wb) ? { map: a.map, wb: a.wb } : null;
+}
+// A kept small picture as places.js may draw it: a JPEG data address and nothing else, 60,000 characters at most
+function placePicOk(u) { return typeof u === 'string' && u.length <= 60000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+={0,2}$/.test(u); }
+// The kept list, cleaned ([{ k, u }]); [] where there is none or it does not read. Read from storage once a run and then kept in memory
+// (_placePics), since places.js asks for every line at every redraw; placePicKeep writes both
+var _placePics = null;
+function placePicList() {
+    if (_placePics) return _placePics;
+    try { var o = JSON.parse(localStorage.getItem(PLACE_PIC_KEY) || 'null'); _placePics = o && Array.isArray(o.list) ? o.list.filter(function(e) { return !!e && typeof e.k === 'string' && e.k.length <= 300 && placePicOk(e.u); }) : []; } catch (e) { _placePics = []; }
+    return _placePics;
+}
+// Keeps the small copy of a picture handout's bytes for the place its at names (asked by receiveHandout, not waited for). The newest copy
+// of a place replaces its older one and goes to the end, so the list drops the places stood on longest ago first
+async function placePicKeep(msg, bytes, mime) {
+    var at = placeAt(msg), jk = at ? journalKey(msg) : ''; if (!at || !jk) return;
+    try {
+        if (typeof createImageBitmap !== 'function') return;
+        var bmp = await createImageBitmap(new Blob([bytes], { type: mime }));
+        var sc = Math.min(1, PLACE_PIC_EDGE / Math.max(1, bmp.width, bmp.height)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(bmp.width * sc)); c.height = Math.max(1, Math.round(bmp.height * sc));
+        c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); if (typeof bmp.close === 'function') bmp.close();
+        var u = c.toDataURL('image/jpeg', 0.8); if (!placePicOk(u)) return;
+        var k = jk + '|' + at.map + '|' + at.wb, list = placePicList().filter(function(e) { return e.k !== k; });
+        list.push({ k: k, u: u }); if (list.length > PLACE_PIC_MAX) list = list.slice(-PLACE_PIC_MAX);
+        _placePics = list; localStorage.setItem(PLACE_PIC_KEY, JSON.stringify({ list: list }));
+    } catch (e) { return; }   // a picture this browser cannot draw, or a full storage: the line simply shows no picture
+    if (window.wpPlaces && typeof window.wpPlaces.sync === 'function') window.wpPlaces.sync(true);
+}
+// The small picture this player keeps for a place of the table being played (the campaign on screen, the GM the snapshot named), or ''.
+// places.js asks it for each line of a player's list
+window.wpPlacePic = function(mapId, wbId) {
+    var jk = journalKey({ campId: state.appState.activeCampaignId, gmId: net.gmId }); if (!jk || !net.gmId || typeof mapId !== 'string' || typeof wbId !== 'string') return '';
+    var k = jk + '|' + mapId + '|' + wbId, hit = placePicList().filter(function(e) { return e.k === k; })[0];
+    return hit ? hit.u : '';
+};
+// [placescheck:placepic-end]
 // 1.6.3 (the review of pages, finding 17; Fulllion, 2026-11-21): Hand out… on a planner's or a page's block (planner.js handoutOf). A text
 // handout of this campaign made from the words handed in, cut as the Handouts window cuts them, saved, and the Handouts window opened at
 // it with its title box focused and its row lit, so the GM checks the words and shows it with the row's own Show to table or Give to. Nothing

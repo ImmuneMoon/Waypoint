@@ -2177,3 +2177,69 @@ pendingChecks.push((async () => {
 }
 
 T.finish();
+{ const { pathToFileURL } = require('url'); pendingChecks.push((async () => {
+    // 1.6.4 (Fulllion, 2026-11-22, by prompt): a picture on a trigger zone or a place. net.js standFire run for real with the real placecore at a
+    // player's final drop (who is shown it, how, and what the host records on the piece; the secrecy of a zone's message), and revealHandout run
+    // for real with the real sceneKeys (the place's at goes to its stander alone, on the picture message, beside the scene's keys)
+    const J = JSON.stringify;
+    const PCn = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'placecore.js')).href);
+    const sfS = between('// [netcheck:standfire-start]', '// [netcheck:standfire-end]', 'standfire');
+    const runSF = (pieces, o) => {
+        o = o || {}; const shown = [], tok = Object.assign({ id: 't1', isChar: true, ownerId: 'u_a', x: 210, y: 210, w: 50, h: 50 }, o.tok || {});
+        const map = { id: 'm1', type: 'map', rooms: [], whiteboard: [tok].concat(pieces) }, camp = { handouts: Object.assign({ h1: { id: 'h1', title: 'Map', src: '/saves/images/m.png' }, h2: { id: 'h2', kind: 'text', title: 'Letter', text: 'x' } }, o.hs || {}) };
+        const net = { roster: Object.assign({ pA: { id: 'u_a', location: 'm1' }, pB: { id: 'u_b', location: 'm1' }, pC: { id: 'u_c', location: 'm2' } }, o.roster || {}), revealHandout: (hid, pids, x) => shown.push([hid, pids, x]) };
+        const made = [], win = { wpPlaceCore: PCn, wpHandoutOf: (src, title) => { made.push([src, title, net.applyingRemote === true]); return 'h_new'; } };
+        const SF = new Function('net', 'window', sfS + '\nreturn standFire;')(net, win);
+        (o.drops || [o.from === undefined ? { x: 0, y: 0 } : o.from]).forEach(fr => SF({ peer: o.peer || 'pA', send() {} }, camp, map, tok, fr));
+        return { shown: JSON.parse(J(shown)), made, pieces };
+    };
+    const Z = k => Object.assign({ id: 'z1', type: 'trigger', x: 200, y: 200, w: 100, h: 100, standPic: '/saves/images/Altar.png' }, k);
+    const dflt = runSF([Z()], { drops: [{ x: 0, y: 0 }, { x: 0, y: 0 }] }), byHid = runSF([Z({ standPic: undefined, standHid: 'h1' })]), place = runSF([{ id: 'p1', type: 'mappin', x: 220, y: 220, w: 40, h: 40, place: true, placeName: 'Old Well', standPic: '/saves/images/Well.png' }]);
+    check('1.6.4 a picture on a zone (standFire, run for real): a player\'s own token carried into it shows the zone\'s picture to that player alone, big and kept the first time and big alone after; the picture of the campaign\'s own goes as its handout, never under the zone\'s own name; a picture handout goes as itself; no place is named for a zone; the record goes on the zone',
+        J(dflt.shown) === J([['h_new', ['u_a'], { scene: true, keep: true, at: null }], ['h_new', ['u_a'], { scene: true, keep: false, at: null }]]) && J(dflt.made) === J([['/saves/images/Altar.png', '', true], ['/saves/images/Altar.png', '', true]]) && J(dflt.pieces[0].standSeen) === J({ u_a: 2 })
+        && J(byHid.shown) === J([['h1', ['u_a'], { scene: true, keep: true, at: null }]]) && !byHid.made.length,
+        J([dflt.shown, byHid.shown]));
+    const zPlace = runSF([Z({ place: true })]);
+    check('1.6.4 on a place, a zone ticked Place among them, the stander is told which place (at: the map and the piece, to them alone); a new handout is titled by the picture\'s own name, never a place\'s, and its save is no step of the GM\'s (applyingRemote while it is made)',
+        J(place.shown) === J([['h_new', ['u_a'], { scene: true, keep: true, at: { pid: 'u_a', map: 'm1', wb: 'p1' } }]]) && J(place.made) === J([['/saves/images/Well.png', '', true]]) && J(zPlace.shown[0][2].at) === J({ pid: 'u_a', map: 'm1', wb: 'z1' }), J([place, zPlace.shown]));
+    const allOn = runSF([Z({ standWho: 'all' })], { drops: [{ x: 0, y: 0 }, { x: 0, y: 0 }] }), once = runSF([Z({ standWho: 'once', standJournal: false })], { drops: [{ x: 0, y: 0 }, { x: 0, y: 0 }] });
+    check('1.6.4 Everyone on this map, once: the stander and every player on that map (never one on another map), kept, and never again; Each player once with no Journal copy: big once, then nothing',
+        J(allOn.shown) === J([['h_new', ['u_a', 'u_b'], { scene: true, keep: true, at: null }]]) && allOn.pieces[0].standDone === true && J(allOn.pieces[0].standSeen) === J({ u_a: 2, u_b: 1 })
+        && J(once.shown) === J([['h_new', ['u_a'], { scene: true, keep: false, at: null }]]), J([allOn.shown, once.shown]));
+    const quiet = [
+        runSF([Z({ hidden: true })]), runSF([Z({ mine: { dmg: '1d6' } })]), runSF([Z()], { from: { x: 210, y: 210 } }), runSF([Z()], { from: { x: 220, y: 230 } }), runSF([Z({ x: 300 })]),
+        runSF([Z({ standPic: 'https://evil.example/a.png' })]), runSF([Z({ standPic: undefined, standHid: 'h2' })]), runSF([Z({ standPic: undefined, standHid: 'h9' })]), runSF([Z()], { peer: 'pX' }),
+        runSF([{ id: 'r', type: 'rect', x: 200, y: 200, w: 100, h: 100, standPic: '/saves/images/a.png' }]), runSF([Z({ standScene: false, standSeen: { u_a: 2 } })])
+    ];
+    check('1.6.4 a picture says nothing for a zone the GM hid, a mine, a gesture that began on it (a turn in place, a shuffle inside), a token off it, a picture that is no board picture, a text or missing handout, a peer the roster does not know, a piece that is no place, or a stander who has it already with no scene to show; nothing is recorded then',
+        quiet.every(r => r.shown.length === 0) && quiet.every(r => r.pieces.every(p => p.standSeen === undefined || J(p.standSeen) === J({ u_a: 2 }))), J(quiet.map(r => r.shown)));
+    const zh = runSF([Z({ zoneHidden: true })]), first = runSF([Z({ standPic: undefined }), Z({ id: 'z2', standPic: '/saves/images/Second.png' })]), firstPic = runSF([Z({ id: 'z0', standPic: '/saves/images/First.png' }), Z({ id: 'z2', standPic: '/saves/images/Second.png' })]);
+    check('1.6.4 a zone the GM unticked Players see this zone still shows its picture, as its message still comes up; the first piece found that carries a picture is the one that shows',
+        zh.shown.length === 1 && J(first.made) === J([['/saves/images/Second.png', '', true]]) && J(firstPic.made) === J([['/saves/images/First.png', '', true]]), J([zh.shown, first.made, firstPic.made]));
+    // the review of this feature: a piece with nothing to show now is passed over (a pin inside a hall); one that may carry no picture for now is left as it is
+    const hall = { id: 'hall', type: 'rect', x: 0, y: 0, w: 1000, h: 1000, place: true, placeName: 'Hall', standPic: '/saves/images/Hall.png', standWho: 'once' }, pinIn = { id: 'p2', type: 'mappin', x: 220, y: 220, w: 40, h: 40, place: true, standPic: '/saves/images/Pin.png' };
+    const inHall = runSF([hall, pinIn], { from: { x: 100, y: 100 } }), hallSeen = runSF([Object.assign({}, hall, { standSeen: { u_a: 2 } }), pinIn], { from: { x: 5000, y: 5000 } }), gone = runSF([Z({ standPic: undefined, standHid: 'h9' }), Z({ id: 'z2', standPic: '/saves/images/Second.png' })]);
+    const mineKept = runSF([Z({ mine: { dmg: '1d6' }, standWho: 'once' })]), secretKept = runSF([{ id: 'sd', type: 'rect', x: 200, y: 200, w: 100, h: 100, blocksSight: true, sightType: 'door', secret: true, place: true, standPic: '/saves/images/a.png' }]);
+    check('1.6.4 a piece with nothing to show now is passed over, so one under it may show its own: a pin inside a hall the token walked about in, a pin inside a hall already seen once, a zone after one whose handout is gone; a piece that may carry no picture for now (a mine, a secret door) is left as it is, its picture kept for when it may again',
+        J(inHall.made) === J([['/saves/images/Pin.png', '', true]]) && J(hallSeen.made) === J([['/saves/images/Pin.png', '', true]]) && J(gone.made) === J([['/saves/images/Second.png', '', true]])
+        && !mineKept.shown.length && mineKept.pieces[0].standPic === '/saves/images/Altar.png' && mineKept.pieces[0].standWho === 'once' && !secretKept.shown.length && secretKept.pieces[0].standPic === '/saves/images/a.png', J([inHall.made, hallSeen.made, gone.made, mineKept.pieces, secretKept.pieces]));
+    const odd = runSF([Z({ standWho: 'all' })], { roster: { pA: { id: 'u.a:1', location: 'm1' } } });
+    check('1.6.4 a player whose id holds a dot or a colon (net.js validProfileId allows them) is shown it and remembered like any other', J(odd.shown) === J([['h_new', ['u.a:1', 'u_b'], { scene: true, keep: true, at: null }]]) && J(odd.pieces[0].standSeen) === J({ 'u.a:1': 2, u_b: 1 }), J(odd));
+    check('1.6.4 the pos gate asks standFire at a final drop after the zone\'s message, a mine and a zone\'s sound, through typeof, and a throw in it never stops the rest of the drop',
+        /if \(window\.wpSoundOn\) window\.wpSoundOn\.zoneDrop\(map, w, frW\);[^\n]*\n\s*if \(typeof standFire === 'function'\) \{ try \{ standFire\(conn, camp, map, w, frW\); \} catch \(e\) \{ console\.error\(e\); \} \}/.test(src));
+
+    // revealHandout, run for real: at only for the stander, only on the picture message
+    const rvS = (() => { const i = src.indexOf('net.revealHandout = function(hid, pids, o) {'), e = src.indexOf('\n};\n', i); return src.slice(i, e + 3); })(), skS = between('// [netcheck:scenekeys-start]', '// [netcheck:scenekeys-end]', 'scenekeys');
+    const runRV = async (o, kind) => {
+        const sent = { a: [], b: [] }, camp = { id: 'c1', name: 'C', handouts: { h1: kind === 'text' ? { id: 'h1', kind: 'text', title: 'L' } : { id: 'h1', title: 'Map', src: '/saves/images/m.png' } } };
+        const net = { active: true, role: 'host', conns: [{ open: true, peer: 'pA', send: m => sent.a.push(m) }, { open: true, peer: 'pB', send: m => sent.b.push(m) }], roster: { pA: { id: 'u_a', name: 'A' }, pB: { id: 'u_b', name: 'B' } } };
+        const win = { wpHandoutPayload: async h => h.kind === 'text' ? { kind: 'text', text: 'x' } : { mime: 'image/png', data: new Uint8Array(2) } };
+        const p = new Promise(res => { new Function('net', 'window', 'getActiveCampaign', 'getProfile', 'hostId', 'toast', 'sendFailed', 'save', 'logEvent', 'document', 'CustomEvent', skS + rvS + '\nreturn net.revealHandout;')(net, win, () => camp, () => ({ id: 'u_gm', name: 'GM' }), () => 'u_gm', () => {}, e => { throw e; }, () => {}, () => res(), { dispatchEvent() {} }, function() {})('h1', ['u_a', 'u_b'], o); setTimeout(res, 50); });
+        await p; return { a: sent.a.map(m => ({ at: m.at, scene: m.scene, nokeep: m.nokeep })), b: sent.b.map(m => ({ at: m.at, scene: m.scene, nokeep: m.nokeep })), rev: camp.handoutReveals };
+    };
+    const rv1 = await runRV({ scene: true, keep: false, at: { pid: 'u_a', map: 'm1', wb: 'p1' } }), rv2 = await runRV({ scene: false, keep: true, at: { pid: 'u_a', map: 'm1', wb: 'p1' } }), rv3 = await runRV({ scene: true, at: { pid: 'u_a', map: 5, wb: 'p1' } }), rvT = await runRV({ at: { pid: 'u_a', map: 'm1', wb: 'p1' } }, 'text');
+    check('1.6.4 revealHandout (run for real): a place\'s at goes on the picture message to its stander alone (the other player gets the same picture without it), beside a scene\'s keys or none; an at that is no three texts, or a text handout, says no place; a scene kept out of the Journals records no reveal, as before',
+        J(rv1.a) === J([{ at: { map: 'm1', wb: 'p1' }, scene: true, nokeep: true }]) && J(rv1.b) === J([{ scene: true, nokeep: true }]) && !rv1.rev
+        && J(rv2.a) === J([{ at: { map: 'm1', wb: 'p1' } }]) && J(rv2.b) === J([{}]) && !!rv2.rev && !!rv2.rev.u_a.h1 && !!rv2.rev.u_b.h1
+        && J(rv3.a) === J([{ scene: true }]) && J(rvT.a) === J([{}]), J([rv1, rv2, rv3, rvT]));
+})()); }

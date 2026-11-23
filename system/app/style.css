@@ -4123,6 +4123,12 @@
   #placesBody .places-line:hover { background: var(--bg); } #placesBody .places-line:focus-visible { border-color: var(--gold); outline: none; } #placesBody .places-line.on { background: var(--bg); border-color: var(--edge); }
   #placesBody .places-n { flex: none; min-width: 1.6em; color: var(--dim); font-variant-numeric: tabular-nums; } #placesBody .places-name { flex: 1; min-width: 0; overflow-wrap: anywhere; } #placesBody .places-to { flex: none; color: var(--dim); }
   #placesBody .places-line.unseen .places-name { color: var(--dim); } #placesBody .places-unseen { flex: none; color: var(--faint); font-size: 12px; }
+  /* 1.6.4: a picture on a place: a player's small copy of what they saw there, at the line's end; the GM's mark that one is here (places.js picInto) */
+  #placesBody .places-pic { flex: none; align-self: center; width: 34px; height: 34px; object-fit: cover; border-radius: 4px; border: 1px solid var(--edge); } #placesBody .places-pic.gm { width: auto; height: auto; border: 0; color: var(--dim); font-size: 12px; }
+  .wb-item.maplegend .lg-pic { flex: none; align-self: center; width: 1.8em; height: 1.8em; object-fit: cover; border-radius: 3px; } .wb-item.maplegend .lg-pic.gm { width: auto; height: auto; opacity: .7; }
+  /* 1.6.4: Properties' Picture here (places.js standHtml) */
+  .stand-pic-now { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; } .stand-pic-now img { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid var(--edge); } .stand-pic-now span { overflow-wrap: anywhere; }
+  .stand-pic-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; } .stand-pic-row select { flex: 1; min-width: 8em; } #wbStandWho { width: 100%; }
   #placesBody .places-card { margin: 2px 6px 6px 30px; padding: 7px 8px; background: var(--bg); border: 1px solid var(--edge); border-radius: 6px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
   #placesBody .places-card-closed { color: var(--red); } #placesBody .places-card-pic img { display: block; max-width: 100%; max-height: 140px; border-radius: 4px; }
   .wb-item.mappin { overflow: visible; } .wb-item.mappin > .mp-glyph { position: absolute; inset: 0; border-radius: 50%; background: rgba(16,16,24,0.88); border: 1px solid rgba(255,255,255,0.35); box-sizing: border-box; pointer-events: none; }

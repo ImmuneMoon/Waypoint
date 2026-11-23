@@ -823,13 +823,91 @@ function moveBlocked(map, w, fx, fy, tx, ty) {
 // where it could WALK there (moveBlocked: the walls and the barriers, the very rule a player's move is judged by, so a spot in a wall's cell or
 // beyond a wall is none; a secret door is a wall, an open door is not) and, where the map has a play area (pieces marked fogged, as fogMask
 // reads them), only where the token's center stands inside it. The one judge net.js freeSpotNear asks of every spot it tries. No grid: any spot
+// 1.6.4 (Fulllion, 2026-11-23, relayed: "my players still appear outside walls with portals ... sometimes not every time"). Two holes were
+// found and closed here, both read in a test world (netpiececheck, "1.6.4 arrival"):
+// 1. A spot IN a wall's cell passed whenever it was the cell the token arrives in, since a move never counts its own start cell (moveClear).
+//    So a landing point that stands in a wall (a door, or a landing piece laid on a wall line) could seat the token in the wall itself, and
+//    its fallback did. Now the spot's own middle cell is refused where a wall or a barrier holds it (arrivalIn), whatever the move says.
+// 2. A map with no lattice (no grid and no fog cell) judged nothing at all (moveBlocked answers false with no grid), so once the spots
+//    inside a room were taken the next arrival was set down past its walls. There the walls are read as their outlines and lines
+//    (arrivalWalled): a spot is refused where the straight line from the arrival point to it crosses a wall, or where it stands inside one.
+//    This is the landing's rule alone: how a player's own move is judged on such a map is unchanged
 function arrivalOk(map, w, fx, fy, tx, ty) {
     if (!map || map.type !== 'map') return true;
     if (moveBlocked(map, w, fx, fy, tx, ty)) return false;
-    var C = core(), grid = gridForMap(map); if (!C || !grid) return true;
+    var C = core(), grid = gridForMap(map);
+    if (C && !grid) return !arrivalWalled(map, w, fx, fy, tx, ty);
+    if (!C || !grid) return true;
+    if (arrivalIn(map, w, tx, ty)) return false;
     var mask = fogMask(map, activeCamp(), grid); if (!mask || mask.mode !== 'set') return true;   // no play area marked: the whole map is in play
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
     return inMask(mask, C.cellKey(C.cellOf(tx + hw, ty + hh, grid), grid));
+}
+// Whether a token of w's size set down at (x, y), its stored top-left, would stand IN a wall or a see-through barrier: on a map with a lattice,
+// where its middle cell is one the walls and barriers hold (moveSetFor over blockersFor, the set a move is judged by: a closed door is one, an
+// open door is not, a secret door is); with no lattice, where its middle lies inside a wall's outline (arrivalWalled's pieces). freeSpotNear
+// (net.js) asks it of the point a token arrives at, and arrivalOk of every spot
+function arrivalIn(map, w, x, y) {
+    var C = core(); if (!C || !map || map.type !== 'map') return false;
+    var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, grid = gridForMap(map);
+    if (!grid) return landInside(landWalls(map, C), x + hw, y + hh);
+    var bl = moveSetFor(map, grid, blockersFor(map, grid)); if (!bl) return false;
+    return bl[C.cellKey(C.cellOf(x + hw, y + hh, grid), grid)] === 1;
+}
+// The walls a landing on a map with no lattice is judged by: every piece that would stop sight or is a see-through barrier (eligibleBlocker,
+// fogcore barrierOn), a pen line as its strokes (pathSegs), a filled region and any other shape as its closed outline (pathSegs closed with its
+// holes, outlineSegs turned as drawn). Kept per map on its save stamp. Past LIMITS.wallSegs strokes the map judges nothing, as before
+var _landWalls = Object.create(null);
+function landWalls(map, C) {
+    var stamp = ((map.meta && map.meta.updated) || 0), hit = _landWalls[map.id];
+    if (hit && hit.stamp === stamp && hit.wb === map.whiteboard) return hit;
+    var segs = [], rings = [], wb = Array.isArray(map.whiteboard) ? map.whiteboard : [], cap = C.LIMITS.wallSegs, over = false;
+    for (var i = 0; i < wb.length && !over; i++) {
+        var p = wb[i]; if (!eligibleBlocker(p) && !(typeof C.barrierOn === 'function' && C.barrierOn(p))) continue;
+        var closed = p.type !== 'path' || p.tip === 'fill', ps = p.type === 'path' ? C.pathSegs(p) : (typeof C.outlineSegs === 'function' ? C.outlineSegs(p) : []);
+        for (var k = 0; k < ps.length; k++) { segs.push(ps[k]); if (closed) rings.push(ps[k]); }
+        if (segs.length > cap) over = true;
+    }
+    var res = { stamp: stamp, wb: map.whiteboard, segs: over ? [] : segs, rings: over ? [] : rings };
+    _landWalls[map.id] = res;
+    return res;
+}
+// A point inside a closed wall outline (an even count of its edges to the left of it is outside): the edges of every closed piece together,
+// so a filled region's hole is outside it
+function landInside(L, px, py) {
+    var n = 0, r = L.rings;
+    for (var i = 0; i < r.length; i++) { var s = r[i]; if ((s[1] > py) !== (s[3] > py) && px < s[0] + (py - s[1]) * (s[2] - s[0]) / (s[3] - s[1])) n++; }
+    return n % 2 === 1;
+}
+// Whether a wall stroke s ([x1, y1, x2, y2]) passes through the box x1..x2, y1..y2: an end inside it, or a crossing of one of its four edges
+function landCuts(s, x1, y1, x2, y2) {
+    var inB = function(x, y) { return x > x1 && x < x2 && y > y1 && y < y2; };
+    if (inB(s[0], s[1]) || inB(s[2], s[3])) return true;
+    var E = [[x1, y1, x2, y1], [x2, y1, x2, y2], [x2, y2, x1, y2], [x1, y2, x1, y1]];
+    for (var i = 0; i < 4; i++) {
+        var e = E[i], rx = s[2] - s[0], ry = s[3] - s[1], sx = e[2] - e[0], sy = e[3] - e[1], den = rx * sy - ry * sx; if (Math.abs(den) < 1e-12) continue;
+        var qx = e[0] - s[0], qy = e[1] - s[1], t = (qx * sy - qy * sx) / den, u = (qx * ry - qy * rx) / den;
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return true;
+    }
+    return false;
+}
+// On a map with no lattice: a spot (tx, ty) is walled off from the arrival point (fx, fy), both stored top-lefts, where the straight line from
+// the one middle to the other crosses a wall's stroke or outline, where the spot's middle stands inside a wall, or where a wall runs through
+// the token's own box there (two pixels in from its edge, so a token set down against a wall still passes): with no cells to seat it in, a
+// token whose middle is inside a room could still lie across the room's wall
+function arrivalWalled(map, w, fx, fy, tx, ty) {
+    var C = core(); if (!C || typeof C.pathSegs !== 'function') return false;
+    var L = landWalls(map, C); if (!L.segs.length) return false;
+    var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, ax = fx + hw, ay = fy + hh, bx = tx + hw, by = ty + hh;
+    if (landInside(L, bx, by)) return true;
+    var rx = bx - ax, ry = by - ay;
+    for (var i = 0; i < L.segs.length; i++) {
+        var s = L.segs[i], sx = s[2] - s[0], sy = s[3] - s[1], den = rx * sy - ry * sx; if (Math.abs(den) < 1e-12) continue;
+        var qx = s[0] - ax, qy = s[1] - ay, t = (qx * sy - qy * sx) / den, u = (qx * ry - qy * rx) / den;
+        if (t > 1e-9 && t <= 1 && u >= -1e-9 && u <= 1 + 1e-9) return true;   // the line from the arrival point to the spot meets the wall (a spot on the wall's line counts as past it)
+        if (landCuts(s, tx + 2, ty + 2, tx + 2 * hw - 2, ty + 2 * hh - 2)) return true;
+    }
+    return false;
 }
 // See-through barriers (1.5.1; the owner's ruling of 2026-10-03: "active force fields are see through and impassible"): what stops a player's
 // token on a map — the walls (the fog's own sight-blocker set, handed in) and every barrier, a piece flagged barrier that stops movement and
@@ -3321,7 +3399,7 @@ function pieceSeen(map, w) { var j = seenJudge(map); return j ? j(w) : true; }  
 // [placescheck:pieceseen-end]
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

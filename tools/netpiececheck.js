@@ -1218,6 +1218,45 @@ pendingChecks.push((async () => {
             j([playerDrop, adopted, awayDrop, noPlayer, npcDrop, made, copied]));
     } catch (e) { check(T, false, 'threw: ' + (e && e.stack || e)); }
 })());
+// 1.6.4 (Fulllion, 2026-11-23, relayed: "my players still appear outside walls with portals ... sometimes not every time"): the two holes the
+// 1.5.9 judge still had, read in a test world first. The real freeSpotNear and portalUnder over the real vision half of fog.js (arrivalOk,
+// arrivalIn, moveBlocked, moveSetFor) and fogcore. (1) A map with no lattice judged no wall at all, so once a room's spots were taken the next
+// arrival came down past its walls; (2) an arrival point that stands IN a wall (a door, a landing piece on a wall line, a city's solid
+// building) reached both sides of it, since a move never counts its own start cell, and could seat the token in the wall itself
+pendingChecks.push((async () => {
+    const TL = '1.6.4 arrival (run for real): on a map with no grid a room of pen lines and a room drawn as a filled region keep every arrival inside or on the arrival point, never across a wall or lying over one (twelve arrivals into a room of nine); a landing point that is a shut door in a room\'s wall sets every one of twelve arrivals on one side of that wall and none in it, where before they came down on both sides; a landing point inside a solid block of wall sets the token down just outside the block, never in it; the judge stays fog.js arrivalOk, with arrivalIn published beside it';
+    try {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js'));
+        const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fogV = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
+        const camp = { id: 'k', items: {}, chars: {}, players: {} };
+        const win = { wpFogCore: FCx, wpSystemCore: Sx, wpVtt: { on: () => true, campaignOn: () => true, mode: () => 'host' } };
+        const fog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogV + '\nreturn { arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveBlocked: moveBlocked };')(win, { getElementById: () => null }, () => null, () => camp, { appState: { campaigns: { k: camp } } });
+        const F = new Function('window', fnSrc('function freeSpotNear(', '\n}\n', 'freeSpotNear') + '\n}\n' + fnSrc('function portalUnder(item, map) {', '\n}\n', 'portalUnder') + '\n}\nreturn { freeSpotNear: freeSpotNear };')({ wpFog: fog });
+        let n = 0; const M = (grid, wb) => { const m = { id: 'ml' + (++n), type: 'map', meta: { title: 'T', gridType: grid, updated: n }, rooms: [], whiteboard: wb }; camp.items[m.id] = m; return m; };
+        const J2 = v => JSON.stringify(v), tok = (id, p) => Object.assign({ id, isChar: true, w: 50, h: 50 }, p);
+        const fill = (m, k, cx, cy, from, portal) => { const out = []; for (let i = 0; i < k; i++) { const p = F.freeSpotNear(m, cx, cy, 50, 50, null, portal || null, from); m.whiteboard.push(tok('a' + n + '_' + i, p)); out.push(p); } return out; };
+        const inRoom = p => p.x >= 400 && p.x + 50 <= 650 && p.y >= 400 && p.y + 50 <= 650, atCenter = p => p.x === 500 && p.y === 500;
+        // a room 250 by 250 at (400, 400): four pen lines, and a filled region with a hole
+        const line = (id, x1, y1, x2, y2) => { const x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.abs(x2 - x1) || 1, h = Math.abs(y2 - y1) || 1; return { id, type: 'path', blocksSight: true, sightType: 'wall', x, y, w, h, baseW: w, baseH: h, pts: [[x1 - x, y1 - y], [x2 - x, y2 - y]], strokeWidth: 4 }; };
+        const lines = [line('L1', 400, 400, 650, 400), line('L2', 650, 400, 650, 650), line('L3', 650, 650, 400, 650), line('L4', 400, 650, 400, 400)];
+        const region = { id: 'R', type: 'path', tip: 'fill', blocksSight: true, x: 400, y: 400, w: 250, h: 250, baseW: 250, baseH: 250, pts: [[0, 0], [250, 0], [250, 250], [0, 250]], holes: [[[50, 50], [200, 50], [200, 200], [50, 200]]] };
+        const gl = fill(M('off', lines.slice()), 12, 525, 525), gr = fill(M('off', [region]), 12, 525, 525);
+        const regionIn = p => p.x >= 450 && p.x + 50 <= 600 && p.y >= 450 && p.y + 50 <= 600;
+        // a shut door in the north wall of a room of wall cells (cells 8 to 12, the room 9 to 11), the landing point on the door
+        const wc = (id, x, y, w, h) => ({ id, type: 'rect', x, y, w, h, blocksSight: true });
+        const door = { id: 'D', type: 'rect', x: 500, y: 400, w: 50, h: 50, blocksSight: true, sightType: 'door' };
+        const mD = M('square', [wc('n1', 400, 400, 100, 50), wc('n2', 550, 400, 100, 50), wc('s', 400, 600, 250, 50), wc('w', 400, 450, 50, 150), wc('e', 600, 450, 50, 150), door]);
+        const dl = fill(mD, 12, 525, 425, null, door), sides = dl.map(p => p.y < 400 ? 'out' : p.y >= 450 && p.y < 600 ? 'in' : 'wall');
+        // a solid block of wall three cells wide, the landing point at its middle
+        const mB = M('square', [wc('blk', 400, 400, 150, 150)]), bl = F.freeSpotNear(mB, 475, 475, 50, 50, null, null);
+        check(TL, gl.every(p => inRoom(p) || atCenter(p)) && gl.filter(inRoom).length === 12 && gr.every(p => regionIn(p) || atCenter(p))
+            && new Set(sides).size === 1 && sides[0] !== 'wall' && !(bl.x >= 400 && bl.x < 550 && bl.y >= 400 && bl.y < 550) && fog.arrivalIn(mB, { w: 50, h: 50 }, bl.x, bl.y) === false
+            && /moveBlocked: moveBlocked, arrivalOk: arrivalOk, arrivalIn: arrivalIn,/.test(fogT),
+            J2({ gl, gr, sides, bl }));
+    } catch (e) { check(TL, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // R2 security (cluster H, #4): a player's travel through a door — the real travel branch run with the real hostTravel, stepOffPortal, freeSpotNear,
 // portalUnder, turnCombatOf and moveMode: the token the GM locked, or one a Refuse-order fight holds off its turn, keeps its player on the map;
 // a travel by double-click moves no token that is not on the portal; a drop on the portal still steps off

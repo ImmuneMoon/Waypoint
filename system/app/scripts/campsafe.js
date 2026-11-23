@@ -141,7 +141,15 @@ function csFlows(D) {
         add('', 'No system yet'); rows.forEach(function(r) { add(r.id, r.name); }); box.appendChild(sel);
         tick.className = 'cs-tick'; cb.type = 'checkbox'; cb.checked = true; tick.appendChild(cb); tick.appendChild(words); box.appendChild(tick);
         var sync = function() { var r = rows.filter(function(x) { return x.id === sel.value; })[0]; tick.hidden = !r || !r.pages; words.textContent = r ? ' Bring its handbook pages (' + r.pages + ')' : ''; };
-        sel.addEventListener('change', sync); sync();
+        // 1.6.4 (backlog: a system's About text): the picked system's About under the list, as text nodes, cleaned by the app's own cleaner
+        // (D.about, systemcore's cleanAbout); with none, or nothing picked, the block stays hidden
+        var abBox = ui.createElement('div'), abSays = ui.createElement('div'), abCred = ui.createElement('div');
+        abBox.className = 'cs-sys-about'; abSays.className = 'wp-about-says'; abCred.className = 'wp-about-credits'; abBox.appendChild(abSays); abBox.appendChild(abCred); box.appendChild(abBox);
+        var showAbout = function() {
+            var src = sel.value ? app().campaigns[sel.value] : null, ab = src && typeof D.about === 'function' ? D.about(src.system) : null;
+            abBox.hidden = !ab; abSays.textContent = ab && ab.says ? ab.says : ''; abSays.hidden = !(ab && ab.says); abCred.textContent = ab && ab.credits ? ab.credits : ''; abCred.hidden = !(ab && ab.credits);
+        };
+        sel.addEventListener('change', function() { sync(); showAbout(); }); sync(); showAbout();   // one listener: the tick and the About follow the pick together
         D.confirm('Start this campaign with a system?', function(ans) { if (ans !== true) return; done(sel.value ? { from: sel.value, pages: cb.checked === true } : null); }, { yes: 'Create', body: box });
     }
     // Fills a new campaign from the pick, before it is listed. A pack that cannot be copied leaves it with no system, and says so
@@ -194,6 +202,7 @@ function csFlows(D) {
 var CS = csFlows({
     core: CORE, doc: document, fetch: function(u, o) { return fetch(u, o); }, state: function() { return state; }, camp: getActiveCampaign, now: function() { return Date.now(); },
     debug: function() { return !!window.wpCampSafeDebug; }, usable: canPersistLocal, hosting: function() { var n = window.wpNet; return !!(n && n.active); },
+    about: function(sys) { var sc = window.wpSystemCore; return sys && sc && typeof sc.cleanAbout === 'function' ? sc.cleanAbout(sys.about) : null; },   // 1.6.4: a system's About, cleaned, for pickSystem
     save: function() { save(true); }, toast: toast, confirm: showConfirm, alert: showAlert, uniqueName: function(s) { return getUniqueCampaignTitle(s, null); },
     dismiss: function() { var b = document.getElementById('customConfirmCancel'); if (b) b.click(); },
     migrate: function(d) { return migrateAppState(d).data; }, newDir: function() { return newDir(); },

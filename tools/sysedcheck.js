@@ -658,7 +658,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         const ixB = fs.readFileSync(path.join(app, 'index.html'), 'utf8').replace(/\r\n/g, NL), cssB = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL);
         const epB = new Function(one('function errPrefix(') + NL + 'return errPrefix;')();
         check('126 the budgets are wired: the Lists tab draws the box under its two rules, in a place of its own in the page; typing, a change and a press in the editor each reach the box\'s handler; a budget\'s validator message reads Has or Spent, and its caret is under the formula it names; the sheet draws the strip under its head, never for a character held only for its hover, and a sheet in a window of its own has it at its top; the GM\'s three ways of changing a sheet each ask for the notice before the value is stored, through typeof, since other suites run them alone; a player\'s app has words for the refusal; the styles of the strip and of the box',
-            /\n    var slEl = ui\('sysLists'\);[^\n]*\n    if \(tab === 'rules'\) renderBudgets\(\);/.test(require('./checkkit').part('sysedtabs.js')) && ixB.includes('<div id="sysRulesBox" data-lid="rules"><div id="sysBudgets" data-topic="budgets"></div><div id="sysEnv" data-topic="env"></div><div id="sysLinks" data-topic="links"></div><div id="sysTables" data-topic="tables"></div>')   /* 1.6.0: the Environment readings box under the budgets' (moved on purpose), and the Linked sheets box under the readings; the linked sheets strip under the budgets' */
+            /\n    var slEl = ui\('sysLists'\);[^\n]*\n    if \(tab === 'rules'\) renderBudgets\(\);/.test(require('./checkkit').part('sysedtabs.js')) && ixB.includes('<div id="sysRulesBox" data-lid="rules"><div id="sysAbout" data-topic="about"></div><div id="sysBudgets" data-topic="budgets"></div><div id="sysEnv" data-topic="env"></div><div id="sysLinks" data-topic="links"></div><div id="sysTables" data-topic="tables"></div>')   /* 1.6.0: the Environment readings box under the budgets' (moved on purpose), and the Linked sheets box under the readings; the linked sheets strip under the budgets' */
             && /\n    if \(onInitInput\(t\)\) return;[^\n]*\n    if \(onBudgetInput\(t\)\) return;/.test(require('./checkkit').part('sysedtabs.js')) && /\n    if \(onInitChange\(t\)\) return;[^\n]*\n    if \(onBudgetChange\(t\)\) return;/.test(require('./checkkit').part('sysedtabs.js')) && /\n    if \(calendarClick\(b\)\) return;[^\n]*\n    if \(budgetClick\(b\)\) return;/.test(require('./checkkit').part('sysedtabs.js'))
             && epB('has') === 'Has: ' && epB('spent') === 'Spent: ' && epB('turn.move') === 'Move per turn: ' && sh.includes("    if (/^b_/.test(id)) { var bdF = (draft.budgets || []).find(function(x) { return x && x.id === id; }); return bdF && (prop === 'has' || prop === 'spent') && typeof bdF[prop] === 'string' ? bdF[prop] : ''; }")
             && sh.includes("    renderReviewBar(c, camp, gm);\n    var bdB = ui('sheetBudgets'); if (bdB) bdB.style.display = !c.partial && budgetBar(bdB, sys, c) ? '' : 'none';") && ixB.includes('<div id="sheetBudgets" class="sheet-budgets" role="status" style="display:none;"></div><div id="sheetDebts" class="sheet-debts" style="display:none;"></div><div id="sheetLinks" class="sheet-lks" style="display:none;"></div><div id="sheetReviewBar" class="sheet-review-bar" role="status" style="display:none;"></div><div id="sheetStaleBar" class="sheet-review-bar sheet-stale-bar" role="status" style="display:none;"></div><div id="sheetBody"></div>')
@@ -2658,6 +2658,64 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('1.6.3 (the release click test) the Layout tab: a place\'s row wraps with its name keeping room, a section\'s lists never run past its card, its places keep their height in it, and the browser lays out only the sections in view',
             /\.sys-pl \{ display: flex; flex-wrap: wrap;/.test(cssR) && cssR.includes('.sys-pl-name { flex: 1 1 120px; min-width: 0;') && cssR.includes('.sys-sec-style select { max-width: 100%; }') && cssR.includes('.sys-sec > .sys-pl-list { flex-shrink: 0; }')
             && cssR.includes('#sysLayoutSecs > .sys-sec { content-visibility: auto; contain-intrinsic-size: auto 400px; }') && cssR.includes('.sys-pl.sys-reached, .sys-sec.sys-reached {'));
+    }
+    {   // 1.6.4 (backlog: a system's About text; asked 2026-11-23 by the system build for its credit line): a system's about { says, credits }. The
+        // cleaner keeps says as a few lines (line breaks kept, a CR LF made a break, other control characters a space, cut at LIMITS.aboutLines lines
+        // and LIMITS.aboutSays characters) and credits as one line (LIMITS.aboutCredits), the same in both views, cleaned again to the same; a part
+        // that says nothing goes, and an about with neither is no key, so a system without one cleans as it did. A cut is counted by
+        // droppedCounts (what a system's import says it left out), and the export (cleanSystem of the draft) carries it. The Rules tab's real
+        // About box (sysedtabs.js renderAbout, sliced by its markers) and the About window's real block (sheets.js aboutSystemShow) run on a page
+        // that refuses markup (tools/boxdom.js)
+        const J = JSON.stringify;
+        const base = { v: 1, name: 'Tales', rolls: [], fields: [{ id: 'f_a', key: 'Grit', label: 'Grit', kind: 'number', def: 1, vis: 'all' }] };
+        const raw = Object.assign({}, base, { about: { says: '  A small game of\r\nroads and rivers.\rBy lamplight.\u0007 ', credits: ' Made by an invented studio\nfor testing ' } });
+        const G = cleanSystem(raw, { F, gmView: true }), P = cleanSystem(raw, { F, gmView: false }), none = cleanSystem(base, { F, gmView: true });
+        const want = { says: 'A small game of\nroads and rivers.\nBy lamplight.', credits: 'Made by an invented studio for testing' };
+        const longSays = Array.from({ length: 20 }, (x, i) => 'Line ' + i).join('\n'), wideSays = 'w'.repeat(LIMITS.aboutSays + 50);
+        const gL = cleanSystem(Object.assign({}, base, { about: { says: longSays } }), { F, gmView: true }), wideRaw = Object.assign({}, base, { about: { says: wideSays, credits: 'c'.repeat(LIMITS.aboutCredits + 9) } }), gW = cleanSystem(wideRaw, { F, gmView: true });
+        const empties = [{ says: ' \n ', credits: '' }, { says: 7, credits: null }, 'words', null, []].map(a => J(cleanSystem(Object.assign({}, base, { about: a }), { F, gmView: true })) === J(none));
+        const cleanOk = J(G.about) === J(want) && J(P.about) === J(want) && J(cleanSystem(G, { F, gmView: true })) === J(G) && J(cleanSystem(P, { F, gmView: false })) === J(P) && !('about' in none) && empties.every(Boolean)
+            && J(cleanSystem(Object.assign({}, base, { about: { credits: 'Only credits' } }), { F, gmView: true }).about) === J({ credits: 'Only credits' })
+            && gL.about.says.split('\n').length === LIMITS.aboutLines && gL.about.says === longSays.split('\n').slice(0, LIMITS.aboutLines).join('\n')
+            && gW.about.says.length === LIMITS.aboutSays && gW.about.credits.length === LIMITS.aboutCredits && S.droppedCounts(wideRaw, gW).texts === 2 && !('texts' in S.droppedCounts(raw, G))
+            && LIMITS.aboutSays === 800 && LIMITS.aboutLines === 12 && LIMITS.aboutCredits === 200;
+        // the export writes cleanSystem of the draft, and the import reads a file through cleanSystem: both keep it
+        const tabsA = kit.part('sysedtabs.js').replace(/\r\n/g, NL);
+        const exportOk = /function exportSystem\(\) \{\n    if \(!draft\) return;\n    var clean = cleanSystem\(draft, \{ F: F\(\), gmView: true \}\);/.test(tabsA) && J(cleanSystem(JSON.parse(J(G)), { F, gmView: true }).about) === J(want);
+        // the About box, run for real
+        const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, mk = (t, c, x) => { const e = doc.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.appendChild(doc.createTextNode(String(x))); return e; };
+        const host = mk('div'); host.id = 'sysAbout'; doc.body.appendChild(host);
+        const inp = (cls, value, title, ph) => { const i = mk('input', cls); i.type = 'text'; i.value = value == null ? '' : String(value); if (title) i.title = title; if (ph) i.placeholder = ph; return i; };
+        const ED = { draft: { name: 'Tales', fields: [], rolls: [] }, dirty: 0 };
+        const RA = new Function('el', 'input', 'ui', 'markDirty', 'LIMITS', 'ED', 'var draft = ED.draft;' + NL + kit.cut('sysedtabs.js', '// [sysedcheck:about-start]', '// [sysedcheck:about-end]') + NL + 'return renderAbout;')(
+            mk, inp, id => (id === 'sysAbout' ? host : null), () => { ED.dirty++; }, LIMITS, ED);
+        RA();
+        const taOf = () => host.all().filter(n => n.tagName === 'TEXTAREA')[0], crOf = () => host.all().filter(n => n.tagName === 'INPUT')[0];
+        const drawn = [taOf().value, crOf().value, taOf().maxLength, crOf().maxLength, host.all().filter(n => n.classList.contains('sys-num-cap')).map(n => n.textContent), host.all().filter(n => n.classList.contains('sys-note')).map(n => n.textContent)];
+        const steps = [];
+        taOf().value = 'Two lines\nof words'; taOf().fire('input'); steps.push(J(ED.draft.about));
+        crOf().value = 'By someone invented'; crOf().fire('input'); steps.push(J(ED.draft.about));
+        taOf().value = '   '; taOf().fire('input'); steps.push(J(ED.draft.about));
+        crOf().value = ''; crOf().fire('input'); steps.push('about' in ED.draft ? J(ED.draft.about) : 'none');
+        ED.draft.about = { says: 'Kept\nhere', credits: 'Me' }; RA(); steps.push([taOf().value, crOf().value]);
+        const many = Array.from({ length: 14 }, (x, i) => 'L' + i); taOf().value = many.join('\n'); taOf().fire('input'); steps.push([taOf().value.split('\n').length, ED.draft.about.says === many.slice(0, LIMITS.aboutLines).join('\n')]);
+        const boxOk = J(drawn) === J(['', '', LIMITS.aboutSays, LIMITS.aboutCredits, ['What it is', 'Credits'], ['Shown where a new campaign picks a system to start with, and in About Waypoint for everyone at your table.']])
+            && J(steps) === J([J({ says: 'Two lines\nof words' }), J({ says: 'Two lines\nof words', credits: 'By someone invented' }), J({ credits: 'By someone invented' }), 'none', ['Kept\nhere', 'Me'], [LIMITS.aboutLines, true]]) && ED.dirty === 5;
+        // the About window's block, run for real: the open campaign's system, cleaned again, as text nodes
+        const shA = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), aI = shA.indexOf('function aboutSystemShow('), aK = shA.indexOf('\n}\n', aI) + 3;
+        const win = mk('div', 'about-system'); win.id = 'aboutSystem'; win.hidden = true; doc.body.appendChild(win); const SY = { now: null };
+        const AS = new Function('el', 'ui', 'systemOf', 'cleanAbout', 'LIMITS', shA.slice(aI, aK) + NL + 'return aboutSystemShow;')(mk, id => (id === 'aboutSystem' ? win : null), () => SY.now, S.cleanAbout, LIMITS);
+        const winOf = () => [win.hidden, win.childNodes.map(n => [n.className, n.textContent])];
+        SY.now = Object.assign({}, raw); AS(); const wGm = winOf(); SY.now = P; AS(); const wPl = winOf(); SY.now = none; AS(); const wNone = winOf(); SY.now = null; AS(); const wNo = winOf();
+        const head = ['about-system-head', 'This campaign’s system'], rowsW = [head, ['about-system-name', 'Tales'], ['wp-about-says', want.says], ['wp-about-credits', want.credits]];
+        const winOk = J(wGm) === J([false, rowsW]) && J(wPl) === J([false, rowsW]) && J(wNone) === J([true, []]) && J(wNo) === J([true, []]);
+        // where it stands: the Rules tab's first topic and its box, drawn with the tab; the About window's block and its listener; the style sheet; Help
+        const ixA = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), uiA = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8'), cssA = fs.readFileSync(path.join(app, 'style.css'), 'utf8');
+        const wireOk = uiA.includes("rules: [['about', 'About this system', ") && ixA.includes('<div id="sysRulesBox" data-lid="rules"><div id="sysAbout" data-topic="about"></div>') && tabsA.includes("    if (tab === 'rules') renderAbout();")
+            && ixA.includes('<div id="aboutSystem" class="about-system" hidden></div>') && shA.includes("var abW = ui('aboutBtn'); if (abW) abW.addEventListener('click', aboutSystemShow);")
+            && cssA.includes('.wp-about-says { white-space: pre-line;') && ixA.includes('<li><b>About this system</b> is a few lines on what your system is, and one line of credits.') && ixA.includes('Your GM&rsquo;s system may say what it is and who made it. Read it in <b>About Waypoint</b>, under the More menu.');
+        check('1.6.4 a system\'s About text (cleanSystem both views; droppedCounts; the Rules tab\'s real About box and the About window\'s real block on a page that refuses markup): says keeps its line breaks and is cut at its lines and characters, credits is one line, the same for the GM and the players and cleaned again to the same; empty parts and junk leave no key, so a system without one cleans as before; a cut is counted; the export carries it; the box writes the draft as typed, holds its lines to the limit as they are typed, and takes an empty about off; the About window shows the name, the lines and the credits for the GM and for a player, and stays hidden with none',
+            cleanOk && exportOk && boxOk && winOk && wireOk, J([cleanOk, exportOk, boxOk, drawn, steps, ED.dirty, winOk, wGm, wPl, wireOk]));
     }
 
     await T.finish();

@@ -49,6 +49,7 @@ import { tileLayout, tileStep, tileSide } from './tilecore.js';   // 1.6.2 (body
 import { tileDrawOf, tileMakeOf, tileNode, tileMarkNode } from './tiledraw.js';   // 1.6.2 (body fold 6)
 import { setValueSource, setValueSink, valueNow, cleanValues, setDeckSource, setDeckSink, handKept } from './systemcore.js';   // 1.6.2 (G8)
 import { tileThenRuns, rowKeptFrom } from './systemcore.js';   // 1.6.2 (body fold 8)
+import { cleanAbout } from './systemcore.js';   // 1.6.4: a system's About text, for the About window (aboutSystemShow)
 import { standFitSays } from './systemcore.js';   // 1.6.2 (body fold 5)   // 1.6.0 Fits where (the core handbook session's ask 18)
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold, tableRangeSays } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
@@ -432,6 +433,20 @@ function pageOptions(cur, none) {
     var opts = none === null ? list : [['', none]].concat(list);
     if (cur && !list.some(function(o) { return o[0] === cur; })) opts.push([cur, '(page not found)']);
     return opts;
+}
+// 1.6.4 (backlog: a system's About text): the About window (More, About Waypoint) says what the open campaign's system is and who made it,
+// for everyone at the table: the GM reads their own system, a joined player the copy the table sent, which the host cleaned for players
+// (cleanSystem keeps about the same in both views). It is cleaned again here (cleanAbout) and drawn as text nodes: the system's name, its
+// lines with their breaks (the style sheet keeps them) and its credits. With no About, or no system, the block stays hidden and the window is
+// as it was. whiteboard.js opens the window on the same press; the wire below adds this listener beside it.
+function aboutSystemShow() {
+    var box = ui('aboutSystem'); if (!box) return;
+    var sys = systemOf(), ab = sys ? cleanAbout(sys.about) : null;
+    box.textContent = ''; box.hidden = !ab; if (!ab) return;
+    box.appendChild(el('div', 'about-system-head', 'This campaign\u2019s system'));
+    var nm = typeof sys.name === 'string' ? sys.name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, LIMITS.name) : ''; if (nm) box.appendChild(el('div', 'about-system-name', nm));
+    if (ab.says) box.appendChild(el('div', 'wp-about-says', ab.says));
+    if (ab.credits) box.appendChild(el('div', 'wp-about-credits', ab.credits));
 }
 function charsOf(camp) { camp = camp || getActiveCampaign(); if (!camp) return {}; if (!camp.chars || typeof camp.chars !== 'object') camp.chars = {}; return camp.chars; }
 function charList(camp) { return Object.values(charsOf(camp)).filter(function(c) { return c && typeof c === 'object'; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); }); }
@@ -8735,6 +8750,7 @@ var _sysedTabs = sysedTabs(), autoBox = _sysedTabs.autoBox, clockBox = _sysedTab
     var delBt = ui('sheetDelete'); if (delBt) delBt.addEventListener('click', function() { if (sheetOpen) askDeleteSheet(sheetOpen); });
     var cfI = ui('sysCharFilter'); if (cfI) cfI.addEventListener('input', charFilter);
     charsWire();   // 1.6.2 (backlog 59 f): Manage characters
+    var abW = ui('aboutBtn'); if (abW) abW.addEventListener('click', aboutSystemShow);   // 1.6.4: the About window says the campaign's system's About
     var nsB = ui('sysNewSheets'); if (nsB) nsB.addEventListener('click', askNewSheets);   // 1.6.0 (backlog 190)
     var mrS = ui('sysMakeRolls'); if (mrS) mrS.addEventListener('change', function() { if (!draft) return; if (mrS.value === 'gm' || mrS.value === 'self') draft.makeRolls = mrS.value; else delete draft.makeRolls; markDirty(); });   // 1.6.3 (finding 22): Rolls while making
     var acB = ui('sysSheetsCurrent'); if (acB) acB.addEventListener('click', allSheetsCurrent);

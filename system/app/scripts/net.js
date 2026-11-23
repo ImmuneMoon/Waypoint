@@ -523,6 +523,7 @@ function cleanHostMap(m) {
     if (m.meta && typeof m.meta === 'object' && m.meta.nameShow !== undefined && m.meta.nameShow !== false) delete m.meta.nameShow;   // 1.6.4: Show names on this map, only as false
     if (Array.isArray(m.whiteboard)) m.whiteboard = m.whiteboard.slice(0, 6000).map(cleanHostWbItem).filter(Boolean); else m.whiteboard = [];
     if (Array.isArray(m.rooms)) m.rooms = m.rooms.slice(0, 600); else m.rooms = [];
+    m.rooms.forEach(function(r) { if (r && typeof r === 'object') delete r.targetArriveId; });   // 1.6.4: the Arrive here marker a room's link names is the host's alone, never kept from a host
     if (m.stub === true) { m.whiteboard = []; m.rooms = []; m.links = []; } else if (m.stub !== undefined) delete m.stub;   // possession: a stub holds nothing (whatever a host put on it); the mark is true or absent
     var flC = window.wpFogCore && window.wpFogCore.cleanFogLit ? window.wpFogCore.cleanFogLit(m.fogLit) : null; if (flC) m.fogLit = flC; else delete m.fogLit;   // lighting L3: the lit cells the host sent this player, cleaned again
     if (m.lightsCapped !== true) delete m.lightsCapped;
@@ -971,6 +972,7 @@ function sanitizeItem(item, reader) {
     var named = Object.create(null); m.whiteboard.forEach(function(w) { if (w && typeof w.nodeId === 'string' && w.nodeId) named[w.nodeId] = true; });
     m.rooms = (m.rooms || []).filter(function(r) { return !!r && typeof r.id === 'string' && named[r.id] === true; });
     m.rooms.forEach(function(r) { delete r.characters; });
+    m.rooms.forEach(function(r) { delete r.targetArriveId; });   // 1.6.4: the Arrive here marker a room's link names is the GM's, as a piece's is (wireWbItem)
     m.links = m.links.filter(function(lk) { return Array.isArray(lk) && named[lk[0]] === true && named[lk[1]] === true; });
     return m;
 }
@@ -3428,7 +3430,16 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand, cross) {
     }
     var destMap = tCamp.items[pRoom.targetMapId];
     var landSrc = portal.targetMapId ? { id: null, name: portal.name, targetRoomId: portal.targetRoomId } : pRoom;
-    var dWay = typeof doorWayOf === 'function' ? doorWayOf(portal, destMap, cross, cross && cross.tok ? cross.tok : doorNearTok(fromMap, traveler.id, portal)) : null;   // 1.6.4: a door paired with a door on the far map lands beside that door
+    var dWay = typeof doorWayOf === 'function' ? doorWayOf(portal, destMap, cross, cross && cross.tok ? cross.tok : doorNearTok(fromMap, traveler.id, portal), portal.targetMapId ? null : pRoom) : null;
+    // 1.6.4 (Fulllion, 2026-11-23, by prompt: "a double-click on a shut door portal opens it, for whoever may open that door"): a player who goes
+    // through a shut door by double-click (no crossing: a walk through it was opened by doorTravel) opens it, and it stays open. travelBar has
+    // asked that they may: not locked, a token of theirs beside it. A secret door is no door to them, and its request never comes this far
+    var FCo = typeof window === 'object' && window ? window.wpFogCore : null, openedT = false;
+    if (!cross && portal.sightType === 'door' && (portal.blocksSight === true || portal.barrier === true) && portal.doorOpen !== true && portal.doorLock !== true && !(FCo && typeof FCo.secretOn === 'function' ? FCo.secretOn(portal) : portal.secret === true)) {
+        portal.doorOpen = true; openedT = true;
+        if (window.wpFog && typeof window.wpFog.invalidateVision === 'function') window.wpFog.invalidateVision();   // sight and movement through it read again
+        if (window.wpSoundOn && typeof window.wpSoundOn.door === 'function') { try { window.wpSoundOn.door(fromMap, portal, false, traveler.id); } catch (e) { console.error(e); } }
+    }   // 1.6.4: a door paired with a door on the far map lands beside that door
     var landRoom = dWay ? null : findLandingRoom(landSrc, destMap);
     if (window.wpHistFlush) window.wpHistFlush();   // the GM's pending edit is its own step before either map is written for the player
     traveler.location = pRoom.targetMapId;
@@ -3439,6 +3450,7 @@ function hostTravel(conn, traveler, portal, fromMap, gmHand, cross) {
     var left = crossTok || mineF.find(function(w) { return portalUnder(w, fromMap) === portal; });   // only the token on the portal steps off (not a pet beside it, and never one elsewhere on the map: a travel by double-click moves no token across the map — through walls, out of turn or one the GM locked)
     if (left) { if (crossTok && typeof doorPark === 'function') doorPark(left, cross, fromMap); else stepOffPortal(left, portal, fromMap); net.broadcastItemFiltered(tCamp.id, fromMap.id); }
     if (left) { net.applyingRemote = true; save(true); net.applyingRemote = false; }   // the step-off reaches disk now, not on the GM's next save
+    if (openedT && !left) { net.broadcastItemFiltered(tCamp.id, fromMap.id); net.applyingRemote = true; save(true); net.applyingRemote = false; }   // 1.6.4: the door opened by a double-click goes out and reaches disk
     if (dWay) ensurePlayerToken(traveler.id, pRoom.targetMapId, null, { near: dWay.near });   // 1.6.4: a new token is first made beside the paired door
     else ensurePlayerToken(traveler.id, pRoom.targetMapId, landRoom && landRoom.id);
     // a token already on the destination stays where the GM left it, unless it is still on the landing node
@@ -3492,9 +3504,11 @@ function travelBar(traveler, portal, fromMap, destMap, cross) {
     // 1.6.4 (doors that lead somewhere): a move that went through the door reaches it. The host judged that crossing itself (doorCrossFor in
     // the pos gate, from where the drag began, the walls judging the walk to the door), so no token of theirs need stand on it or beside it
     if (cross && typeof cross === 'object' && cross.door === portal) return null;
-    // 1.6.4 (the review of doors that lead somewhere): a door that is shut and stays shut (the GM locked it, or set it to stop tokens until it is
-    // opened) lets no player through by a double-click either, as it lets none through by walking: the reason door, in fixed words
-    if (portal && portal.sightType === 'door' && (portal.blocksSight === true || portal.barrier === true) && portal.doorOpen !== true && (portal.doorLock === true || portal.doorStop === true)) return { reason: 'door', gm: 'through a door that is shut' };
+    // 1.6.4 (the review of doors that lead somewhere, and Fulllion's answer of 2026-11-23: "a double-click on a shut door portal opens it, for
+    // whoever may open that door"): a shut door the GM locked lets no player through by a double-click, as it lets none through by walking, and a
+    // player never opens it: the reason door, in fixed words. Any other shut door is one a player beside it may open (the door branch's own
+    // rule: unlocked, and a token of theirs next to it, which the reach below asks), so hostTravel opens it as they go through
+    if (portal && portal.sightType === 'door' && (portal.blocksSight === true || portal.barrier === true) && portal.doorOpen !== true && portal.doorLock === true) return { reason: 'door', gm: 'through a door that is locked' };
     var reach = portalReach(traveler, portal, fromMap);
     if (reach === 'wall') return { reason: 'wall', gm: 'from beyond a wall' };
     if (!reach) return { reason: 'far', gm: 'from too far away' };
@@ -3687,7 +3701,6 @@ function portalUnder(item, map) {
 // the token's stored top-left where the move began and where it ended. The answer is fogcore doorThrough's (t, the point, the way across the
 // door, half a line's width), with door (the piece) and dir (the unit way the move went) added. Only a door players may go through counts:
 // shown, not secret, a portal by isPortal
-var DOOR_PAST = 3;   // how far past a door, in token widths, a move that went through it may end
 function doorCrossFor(map, tok, from, to) {
     var F = typeof window === 'object' && window ? window.wpFogCore : null;
     if (!F || typeof F.doorThrough !== 'function' || !map || !Array.isArray(map.whiteboard) || !tok || !from || !to) return null;
@@ -3695,15 +3708,19 @@ function doorCrossFor(map, tok, from, to) {
     if (!isFinite(fx) || !isFinite(fy) || !isFinite(tx) || !isFinite(ty)) return null;
     var a = { x: fx + tw / 2, y: fy + th / 2 }, b = { x: tx + tw / 2, y: ty + th / 2 }, len = Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)), best = null;
     if (!(len > 0)) return null;
-    // (the review of this fold) a move counts as going through a door only where it ends near it: within DOOR_PAST token widths past the
-    // point it met the door. A long drag across a room whose straight line happens to pass a door in another wall (the GM's own hand, which no
-    // wall stops, or a player's under the walls rule Warn or Off) takes nobody anywhere
-    var past = DOOR_PAST * Math.max(tw, th);
+    // Fulllion, 2026-11-23, by prompt: "A token counts as crossing once it stands one cell past the door". So a move counts only where it ends
+    // with the token past the door (never on it) and standing in the first cell beyond it: its middle no further past the door than half its own
+    // reach that way and half a cell more (doorThrough's past), the map's cell being its lattice's (a square's size, a hex's height; with no
+    // lattice the token's own size). A long drag across a room whose straight line happens to pass a door in another wall (the GM's own hand,
+    // which no wall stops, or a player's under the walls rule Warn or Off) takes nobody anywhere
+    var meta = map.meta || {}, grid = typeof F.gridFor === 'function' ? F.gridFor(meta.gridType || 'off', map.fog && map.fog.cell, meta.cell) : null;
+    var cellD = grid ? (grid.type === 'square' ? grid.size : Math.max(grid.h || 0, 1.5 * (grid.s || 0))) : Math.max(tw, th);
     map.whiteboard.forEach(function(d) {
         if (!d || typeof d !== 'object' || d.id === tok.id || d.hidden || !F.isDoor(d) || F.secretOn(d) || !F.isPortal(d, map)) return;
-        var c = F.doorThrough(d, a, b);
-        if (c && Math.sqrt((b.x - c.x) * (b.x - c.x) + (b.y - c.y) * (b.y - c.y)) > past) return;
-        if (c && (!best || c.t < best.t)) { c.door = d; best = c; }
+        var c = F.doorThrough(d, a, b); if (!c) return;
+        var reachD = (Math.abs(c.nx) * tw + Math.abs(c.ny) * th) / 2;
+        if (!(c.past >= 0) || c.past > reachD + cellD / 2 + 1) return;   // on the door, or further than the first cell past it
+        if (!best || c.t < best.t) { c.door = d; best = c; }
     });
     if (best) best.dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
     return best;
@@ -3747,11 +3764,14 @@ function doorNearTok(fromMap, ownerId, door) {
 // null where neither holds: the portal names no marker that is a marker on dest, and is no door or names no door, or the piece it names is no
 // door on dest any more, or is hidden or secret there (a token is never set down beside a door the players cannot see). Then it lands as any
 // portal's traveler does
-function doorWayOf(portal, dest, cross, tok) {
+// room (Fulllion's answer of 2026-11-23: "Offer the Arrive here markers on a room's link on the Data Map too"): for a portal that leads on by the
+// room it is linked to (no map of its own), that room, whose own targetArriveId names the marker
+function doorWayOf(portal, dest, cross, tok, room) {
     var F = typeof window === 'object' && window ? window.wpFogCore : null;
     if (!F || typeof F.doorLanding !== 'function' || !portal || !dest || !Array.isArray(dest.whiteboard)) return null;
-    if (typeof portal.targetArriveId === 'string' && portal.targetArriveId && portal.targetMapId) {
-        var mk = dest.whiteboard.find(function(d) { return !!d && d.id === portal.targetArriveId && d.type === 'arrive'; });
+    var mkId = portal.targetMapId ? portal.targetArriveId : room && typeof room === 'object' && room.targetMapId === dest.id ? room.targetArriveId : null;
+    if (typeof mkId === 'string' && mkId) {
+        var mk = dest.whiteboard.find(function(d) { return !!d && d.id === mkId && d.type === 'arrive'; });
         var mx = mk ? Number(mk.x) + (Number(mk.w) || 0) / 2 : NaN, my = mk ? Number(mk.y) + (Number(mk.h) || 0) / 2 : NaN;
         if (mk && isFinite(mx) && isFinite(my)) return { marker: mk, dir: null, near: { x: mx, y: my } };
     }
@@ -3879,7 +3899,7 @@ function offlinePlayerTravel(item, map, cross) {   // cross (1.6.4): a move that
     var sx = (landPt && landPt.wbX != null) ? landPt.wbX : ((dest.meta || {}).homeX || 15000);
     var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
-    var dWayT = typeof doorWayOf === 'function' ? doorWayOf(portal, dest, cross, item) : null;   // 1.6.4: a door paired with a door on the far map lands beside that door
+    var dWayT = typeof doorWayOf === 'function' ? doorWayOf(portal, dest, cross, item, portal.targetMapId ? null : pRoom) : null;   // 1.6.4: a door paired with a door on the far map lands beside that door, and a portal or a room that names an Arrive here marker beside the marker
     if (dWayT) { sx = dWayT.near.x; sy = dWayT.near.y; nodeEl = dWayT.door || null; }
     if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
@@ -3929,7 +3949,7 @@ function npcTravel(item, map, cross) {   // cross (1.6.4): a move that went thro
     var sx = (landPt && landPt.wbX != null) ? landPt.wbX : ((dest.meta || {}).homeX || 15000);
     var sy = (landPt && landPt.wbY != null) ? landPt.wbY : ((dest.meta || {}).homeY || 15000);
     var nodeEl = landPt && landPt.wbItemId ? (dest.whiteboard || []).find(function(o) { return o.id === landPt.wbItemId; }) : null;
-    var dWayT = typeof doorWayOf === 'function' ? doorWayOf(portal, dest, cross, item) : null;   // 1.6.4: a door paired with a door on the far map lands beside that door
+    var dWayT = typeof doorWayOf === 'function' ? doorWayOf(portal, dest, cross, item, portal.targetMapId ? null : pRoom) : null;   // 1.6.4: a door paired with a door on the far map lands beside that door, and a portal or a room that names an Arrive here marker beside the marker
     if (dWayT) { sx = dWayT.near.x; sy = dWayT.near.y; nodeEl = dWayT.door || null; }
     if (window.wpHistFlush) window.wpHistFlush();   // pending GM typing becomes its own step before the two maps are written
     dest.whiteboard = dest.whiteboard || [];
@@ -6887,7 +6907,7 @@ function handleMessage(msg, conn) {
         else if (msg.reason === 'portal') toast('That way is locked. The GM will unlock it when the time comes.');   // a portal's own lock: fixed words, nothing of the message in them
         else if (msg.reason === 'far') toast('Move your token next to it first. Then double-click it to go through.');   // 1.6.3 (finding 2): a token of theirs is not on the portal or next to it; fixed words
         else if (msg.reason === 'wall') toast('A wall is in the way. Walk your token to it first.');
-        else if (msg.reason === 'door') toast('That door is shut. It has to be opened first.');   // 1.6.4: a door that leads somewhere, shut and locked or set to stop tokens; fixed words   // 1.6.3, the review of finding 2: a token of theirs is next to it, past a wall or a closed door; fixed words
+        else if (msg.reason === 'door') toast('That door is locked. The GM has to unlock it first.');   // 1.6.4: a door that leads somewhere, shut and locked; fixed words   // 1.6.3, the review of finding 2: a token of theirs is next to it, past a wall or a closed door; fixed words
         else toast('Travel between maps is locked right now. The GM will open it when the time comes.');
     } else if (msg.type === 'travel' && net.role === 'host') {
         // [netcheck:travelmsg-start]

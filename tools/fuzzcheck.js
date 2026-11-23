@@ -666,7 +666,8 @@ function mkCampaign(SC, F) {
             c_npc: { id: 'c_npc', name: 'Orc', npc: true, hideFig: true, values: { f_str: 16, f_gmfig: 99, f_class: 'Brute' }, updated: 1 }
         },
         items: {
-            m_open: { id: 'm_open', type: 'map', meta: { title: 'Open Field', gridType: 'square' }, fog: { cell: 50 }, rooms: [], links: [], whiteboard: [
+            m_open: { id: 'm_open', type: 'map', meta: { title: 'Open Field', gridType: 'square' }, fog: { cell: 50 }, rooms: [{ id: 'n_gate', name: 'Gate', x: 0, y: 0, targetMapId: 'm_fog', targetArriveId: 'arrive_cellar' }], links: [], whiteboard: [   /* 1.6.4: a room whose link names an Arrive here marker (Fulllion's answer of 2026-11-23); the tile gate_tile names it */
+                { id: 'gate_tile', type: 'rect', nodeId: 'n_gate', name: 'Gate', x: 600, y: 900, w: 50, h: 50, layer: 'bottom' },
                 tok('tok_p1', { charId: 'c_p1', ownerId: 'u_p1', charName: 'Ayla', name: 'Ayla', x: 100, y: 100 }),
                 tok('tok_p2', { charId: 'c_p2', ownerId: 'u_p2', charName: 'Bram', name: 'Bram', x: 100, y: 300 }),
                 tok('tok_p1plain', { ownerId: 'u_p1', charName: 'Plain', name: 'Plain', x: 100, y: 160 }),

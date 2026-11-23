@@ -179,18 +179,24 @@ Doors that lead somewhere [DRAFT]
   other. A token comes out just outside the other door, facing the way
   it was walking, and walking back through puts it right where it came
   in.
-- A shut door opens as a token walks into it. To keep it shut until
-  someone opens it, pick It stops tokens until opened under When shut.
-  A locked door always stays shut, even to a double-click.
+- A shut door opens as a token walks into it, or as a player standing
+  beside it double-clicks it to go through. To keep it shut until someone
+  opens it, pick It stops tokens until opened under When shut. A locked
+  door always stays shut.
+- A token goes through once it stands one cell past the door. Stopping
+  in the doorway, or a long drag that ends far beyond it, goes nowhere.
 - Lands on, in a door's Properties, picks the side its travelers come
   out on, so nobody steps out backwards. An arrow on the door shows you
   the side, and Flip turns it round.
 
 Arrive here markers [DRAFT]
 - Add has a new Arrive here marker. Drop it inside a room, then pick it
-  under Leads to on any portal, a teleport tile as much as a door.
-  Travelers come out on the free spots around it, never through a wall
-  from it. Only you see the marker.
+  under Leads to on any portal, a teleport tile as much as a door, or
+  under Landing Room on a room's link in the Data Map. Travelers come out
+  on the free spots around it, never through a wall from it. Only you see
+  the marker.
+- With Properties open, the View, Grid and Snap buttons in the map's
+  corner move to its left, so they no longer cover it in a small window.
 
 Landing inside the walls [DRAFT]
 - A player who travels no longer comes out past a room's walls on a map

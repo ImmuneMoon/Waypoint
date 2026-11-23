@@ -690,6 +690,12 @@
     #wbEdgeTools .shape-menu { left: auto !important; right: 100% !important; bottom: 0 !important; top: auto !important; transform: none !important; margin: 0 10px 0 0 !important; width: max-content; }   /* max-content: a box that opens to the left of a narrow column is as wide as its words */
     body.stream-mode #wbEdgeTools { display: none !important; }   /* the stream window shows the map alone: the column goes with the bar */
     body.net-client #wbEdgeTools { gap: 0; }   /* a player's column holds the one button */
+    /* 1.6.4 (Fulllion, 2026-11-23: "Fix in 1.6.4 the corner buttons covering Properties at narrow sizes"): Properties stands at the right edge
+       (#sidebar, fixed, z-index 9000) and this column of View, Grid and Snap stands over the boxes as every bar at rest does (9500), so in a short
+       or narrow window a tall Properties ran under it and its rows (a door's Flip among them) could not be pressed. While Properties is open the
+       column stands to its left, as the hidden top row's header does (below), and never further than the window's left edge allows.
+       A column the GM placed somewhere of their own (lay-at) stays where it was put */
+    body:not(.stream-mode):has(#sidebar:not(.collapsed):not([style*="none"])) #main > #wbEdgeTools:not(.lay-at) { right: min(calc(28px + var(--lay-propr, 0px) + var(--rightw, 320px)), calc(100vw - 64px)); }
     /* The View menu's Show group: a row is ticked while its thing is shown (whiteboard.js syncViewTicks) */
     #wbCenterMenu .view-show-label { border-top: 1px solid #333; margin-top: 4px; padding: 8px 12px 3px; }
     #wbEdgeTools #wbCenterMenu { bottom: -80px !important; max-height: calc(100vh - 274px); overflow-y: auto; }   /* the tallest of the column's menus stands on the column's foot, and scrolls in a short window: no row is cut off */

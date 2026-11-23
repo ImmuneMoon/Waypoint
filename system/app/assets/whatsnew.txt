@@ -119,7 +119,8 @@ Buying a row off [DRAFT]
 - A buy off can leave a line on another list with the row's name and
   what it cost. Undo brings the row back and takes the charge and the
   line away. A player who can't pay is turned away with the reason, or
-  let through with a word to you, whichever you pick.
+  let through with a word to you, whichever you pick. A row you keep on
+  a player as a curse stays theirs, Buy off or not.
 
 WAYPOINT 1.6.3 — What's New
 ============================

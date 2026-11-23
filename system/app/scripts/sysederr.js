@@ -177,6 +177,7 @@ function refreshErrors() {
 function refreshErrorsNow() {
     Object.keys(errorsById).forEach(function(k) { delete errorsById[k]; }); Object.keys(warningsById).forEach(function(k) { delete warningsById[k]; });   // 1.6.3: emptied in place (a part may not assign its root's name); nothing keeps either map across this
     if (!draft || !F()) return;
+    var boPvOnce;   // 1.6.4 Buy off: the players' view of the draft, worked out once a refresh and only where a list can be bought off (undefined: not yet)
     if (typeof placeCatErrs === 'function') placeCatErrs();   // 1.5.5: what Save does with a list's places in the Layout tab
     var seenKey = Object.create(null);
     // 1.6.3 (the review of fields): what is said of a field with no short name, which Save drops whole. Where its name still makes one, the short name
@@ -453,6 +454,12 @@ function refreshErrorsNow() {
             var boL = boD.ledger && typeof boD.ledger === 'object' && typeof boD.ledger.to === 'string' && boD.ledger.to ? (draft.fields || []).filter(function(x) { return x && x.id === boD.ledger.to; })[0] : null;
             if (boD.ledger && typeof boD.ledger === 'object' && boD.ledger.to && (!boL || boL.kind !== 'item-list' || boL === f)) errs.push({ message: 'Can be bought off records its line on a list that is gone. Save drops the line and keeps the charge.' });
             else if (boL && boL.vis === 'gm' && f.vis !== 'gm') boW.push({ message: 'Can be bought off records its line on a GM-only list, so players do not see the line.' });
+            if (boF && boF.kind === 'number' && boF.vis !== 'gm' && boC && boC.buyOff && typeof cleanSystem === 'function') {   // 1.6.4 (Fulllion, 2026-11-23): a cost that reads a GM-only value takes Buy off out of the players' view (cleancore.js), which the cleaner says by its own judgment
+                if (boPvOnce === undefined) { try { boPvOnce = cleanSystem(draft, { F: F(), gmView: false }); } catch (e) { boPvOnce = null; } }
+                var boPv = boPvOnce;
+                var boPf = boPv && Array.isArray(boPv.fields) ? boPv.fields.filter(function(x) { return x && x.id === f.id; })[0] : null;
+                if (boPf && !(boPf.list && boPf.list.buyOff)) boW.push({ message: 'Can be bought off: its cost reads a GM-only value, so players get no Buy off on this list. You still buy rows off on their sheets.' });
+            }
             if (!boW.length) delete warningsById['list:' + f.id];
         }
         if (typeof switchChangesSays === 'function') switchChangesSays(sp, draft.fields, F()).forEach(function(m) { errs.push({ message: m }); });   // 1.6.2 (167 B): a switch's changes, as the cleaner reads them

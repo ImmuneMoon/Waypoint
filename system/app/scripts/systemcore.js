@@ -2777,10 +2777,10 @@ function showsIf(text, vars, F) {
 // Stage 6 HUD H7: a player's press of an apply action on their own character — { rid, charId, act, label? }. The host finds the action in the
 // player's own view and works everything out (nothing else rides along); the label is the button as drawn, the card's title as a roll's is
 // 1.6.0: the host's word that a press of this player's used up rows of theirs (row-gone): { charId, items: [{ f, r }] }, at most 8, or null.
-// 1.6.4: an item may say b: 1, a row their own Buy off took off, so its notice says it was bought off
+// 1.6.4: an item may say b: 1, a row their own Buy off took off, so its notice says it was bought off, and with it s, how far short it went on a list that only warns
 function cleanRowGone(msg) {
     if (!isObj(msg) || typeof msg.charId !== 'string' || !CHAR_ID.test(msg.charId) || !Array.isArray(msg.items) || !msg.items.length || msg.items.length > 8) return null;
-    var items = []; for (var i = 0; i < msg.items.length; i++) { var it = msg.items[i]; if (!isObj(it) || typeof it.f !== 'string' || !FIELD_ID.test(it.f) || typeof it.r !== 'string' || !ROW_ID.test(it.r) || (it.b !== undefined && it.b !== 1)) return null; var ig = { f: it.f, r: it.r }; if (it.b === 1) ig.b = 1; items.push(ig); }
+    var items = []; for (var i = 0; i < msg.items.length; i++) { var it = msg.items[i]; if (!isObj(it) || typeof it.f !== 'string' || !FIELD_ID.test(it.f) || typeof it.r !== 'string' || !ROW_ID.test(it.r) || (it.b !== undefined && it.b !== 1) || (it.s !== undefined && (it.b !== 1 || typeof it.s !== 'number' || !fin(it.s) || it.s <= 0 || it.s > LIMITS.statAbs))) return null; var ig = { f: it.f, r: it.r }; if (it.b === 1) ig.b = 1; if (it.s !== undefined) ig.s = it.s; items.push(ig); }
     return { charId: msg.charId, items: items };
 }
 function cleanCharApply(msg) {
@@ -4313,6 +4313,7 @@ function applyRowOp(sys, char, fieldId, q, F, opts) {
                 if (!(byEq && opts.onGrace)) { var st0 = { ok: false, reason: 'stays', msg: msg, name: nm }; if (byEq) st0.eq = true; return st0; }
                 extra.onGraceUsed = true;   // the switch's grace let it go: spent
             }
+            if (q.op === 'buyoff' && opts.player && !mkR && (mode === 'curse' || list[idx].keptOn === 1)) return { ok: false, reason: 'value', msg: msg || ((rd && rd.def && rd.def.name ? rd.def.name : 'This row') + ' cannot be bought off.') };   // 1.6.4 (Fulllion, 2026-11-23, by prompt: "Refuse for a cursed row"): a row the GM keeps (a curse on it or kept on) is never a player's to buy off; refused in the GM's own words where set, nothing charged. The GM's own hand still buys it off
             if (nq < cur) extra.undone = cur - nq;
             var hostWas = nq <= 0 ? rowIdOf(list[idx]) : '';   // 1.6.0 R14: a host that leaves takes its parts with it
             var gbWas = nq <= 0 && typeof list[idx].gb === 'string' && typeof list[idx].defId === 'string' ? { refill: list[idx].gb, fid: f.id, entry: list[idx].defId } : null;   // 1.6.0 (a builder audit): a row a grant backed, taken off: the grant fills again
@@ -8712,7 +8713,7 @@ function buyOffPut(sys, char, f, w, extra, vo, opts) {
     var sv = storedOf(cf, char), was = Object.prototype.hasOwnProperty.call(also, cf.id) ? also[cf.id] : sv, wn = typeof was === 'number' && fin(was) ? was : 0;
     if (bo.add !== true && wn + 1e-9 < b.n) {   // cannot pay, judged on the field as On removal left it: Refuse stops a player in words; Warn, and the GM's own hand, go through and tell says why
         var sh = 'Buying off ' + b.name + ' costs ' + fmtNum(b.n) + ' ' + b.label + ', and ' + (isObj(char) && typeof char.name === 'string' && char.name ? char.name : 'the character') + ' has ' + fmtNum(wn) + '.';
-        if (opts && opts.player && bo.over !== 'warn') return { ok: false, reason: 'value', msg: sh, pay: true }; w = Object.assign({}, w, { tell: sh });
+        if (opts && opts.player && bo.over !== 'warn') return { ok: false, reason: 'value', msg: sh, pay: true }; w = Object.assign({}, w, { tell: sh }); extra.buyShort = b.n - wn;   // buyShort (Fulllion, by prompt: "Tell the player too"): how far short, for the player's own notice
     }
     var nv = cleanValue(cf, bo.add === true ? wn + b.n : wn - b.n, vo); if (nv === undefined) return { ok: false, reason: 'value' };
     if (!isObj(back[cf.id])) back[cf.id] = { b: typeof sv === 'number' && fin(sv) ? sv : 0 }; else back[cf.id] = Object.assign({}, back[cf.id]);

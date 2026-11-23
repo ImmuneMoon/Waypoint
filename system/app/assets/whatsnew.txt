@@ -120,11 +120,12 @@ Merging from another system file [DRAFT]
   editor, brings in just the fields, lists, rolls, items, effects or
   point budgets you tick from another system file. Import still
   replaces the whole system.
-- What you bring comes in new, beside what you have. A short name you
-  already use gets a number after it, and the formulas you bring that
-  read it follow. Anything you ticked that still needs something your
-  system lacks is named before you merge, with a button to tick that
-  too. Undo takes the whole merge back.
+- What you bring comes in new, beside what you have. A name you already
+  use gets a number after it, as Bleeding 2, and the formulas you bring
+  follow a renamed field. Something you left unticked is found in your
+  system by its name and kind. Anything still missing is named before
+  you merge, with a button to tick it too. Undo takes the whole merge
+  back.
 
 WAYPOINT 1.6.3 — What's New
 ============================

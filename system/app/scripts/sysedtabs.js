@@ -1552,8 +1552,8 @@ function mergeFile(file) {
                 var got = M.apply(draft, plan), pool = plan.things.filter(function(t) { return t.k === 'field' && t.obj.kind === 'resource'; })[0];
                 if (pool) hpPoolFill(pool.obj.id);
                 markDirty(); renderAll(); return got;
-            } }); } catch (e) { console.error(e); toast('The merge window could not open.'); }
-    }, function() { toast('That file is not a Waypoint system.'); });
+            } }); } catch (e) { console.error(e); M.logStep('open-failed', {}); toast('The merge window could not open.'); }
+    }, function() { M.logStep('read-failed', {}); toast('That file is not a Waypoint system.'); });
 }
 // [split:body-end]
 return { autoBox: autoBox, clockBox: clockBox, costHow: costHow, costOptions: costOptions, drawHow: drawHow, entryNames: entryNames, entryPick: entryPick, errGo: errGo, errSay: errSay, errWhere: errWhere, exportSystem: exportSystem, fieldWord: fieldWord, grantBox: grantBox, grantEntries: grantEntries, grantListFor: grantListFor, grantName: grantName, grantSays: grantSays, importFile: importFile, itemOfRow: itemOfRow, keyWord: keyWord, lvlBoxSays: lvlBoxSays, mergeFile: mergeFile, onChange: onChange, onClick: onClick, onInput: onInput, pickModel: pickModel, pickMove: pickMove, pickOne: pickOne, pickOpen: pickOpen, renderAll: renderAll, rowFocusBack: rowFocusBack, rowFocusOf: rowFocusOf, runTest: runTest, standSays: standSays, startFrom: startFrom, starterSaved: starterSaved, startersFill: startersFill, startersLoad: startersLoad, turnActs: turnActs, turnBox: turnBox, turnHoldSays: turnHoldSays, turnRunSays: turnRunSays };   // [split:glue]

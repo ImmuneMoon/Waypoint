@@ -126,7 +126,13 @@ function mergePlan(src, draft, ticked, o) {
     var srcKey = Object.create(null); MERGE_KINDS.slice(0, 2).forEach(function(m) { thingsOf(src, m).forEach(function(x) { if (typeof x.key === 'string' && x.key && !srcKey[low(x.key)]) srcKey[low(x.key)] = byId[x.id]; }); });
     var linkOf = function(s) {
         var dl = thingsOf(draft, s.m), same = dl.filter(function(y) { return y.id === s.x.id; })[0]; if (same) return same.id;
-        if (s.k === 'field' || s.k === 'list') { var df = typeof s.x.key === 'string' && s.x.key ? dFieldKey[low(s.x.key)] : null; return df && df.kind === s.x.kind ? df.id : ''; }   // of the same kind only: a change that switches a toggle is dropped on a number
+        // a field or a list: the draft's of the same short name, else of the same name, and of the same kind only (Fulllion, 2026-11-23: "link to this
+        // system's thing of the same name and kind"; a change that switches a toggle is dropped on a number)
+        if (s.k === 'field' || s.k === 'list') {
+            var df = typeof s.x.key === 'string' && s.x.key ? dFieldKey[low(s.x.key)] : null; if (df && df.kind === s.x.kind) return df.id;
+            var labelLow = low(String(s.x.label || '').trim()), sameLabel = labelLow ? (isObj(draft) && Array.isArray(draft.fields) ? draft.fields : []).filter(function(y) { return isObj(y) && typeof y.id === 'string' && y.kind === s.x.kind && low(String(y.label || '').trim()) === labelLow; })[0] : null;
+            return sameLabel ? sameLabel.id : '';
+        }
         if (s.k === 'item') { var di = (typeof s.x.key === 'string' && s.x.key && dItemKey[low(s.x.key)]) || (typeof s.x.name === 'string' && dItemName[low(s.x.name.trim())]) || null; return di && typeof di.id === 'string' ? di.id : ''; }
         var nm = low(nameOf(s.k, s.x)); if (!nm) return ''; var hit = dl.filter(function(y) { return low(nameOf(s.k, y)) === nm; })[0]; return hit ? hit.id : '';
     };
@@ -179,18 +185,33 @@ function mergePlan(src, draft, ticked, o) {
         if (isObj(v)) { var out = {}; Object.keys(v).forEach(function(k) { out[k] = walk(p, v[k], k, path.concat([k]), v); }); return out; }
         return v;
     };
+    // names (Fulllion, 2026-11-23: "number duplicate names of effects, rolls and items too (Bleeding 2), as fields are"): an effect, a roll or an
+    // item whose name the draft, or an earlier pick of this merge, already uses gets a number after it, 2, 3 and on, cut to fit the name's limit.
+    // A field's and a list's label stays as it is: its short name tells it apart
+    var NAME_OF = { roll: 'label', effect: 'name', item: 'name' }, nameCap = { roll: lim.label || 60, effect: lim.name || 60, item: lim.itemName || 240 }, takenName = {};
+    Object.keys(NAME_OF).forEach(function(k) { var t = takenName[k] = Object.create(null); thingsOf(draft, kindOf(k)).forEach(function(y) { var n = typeof y[NAME_OF[k]] === 'string' ? y[NAME_OF[k]].trim() : ''; if (n) t[low(n)] = 1; }); });
+    var freeName = function(k, nm) {
+        var base = String(nm).trim(), out = base, n = 2, t = takenName[k];
+        while (t[low(out)] && n < 10000) { var tail = ' ' + (n++); out = base.slice(0, nameCap[k] - tail.length).trim() + tail; }
+        t[low(out)] = 1; return out;
+    };
+    // the roll that orders a fight is one in a system (the editor's tick clears the others): a merged roll that carries it keeps it only where the
+    // draft names none and no earlier pick of this merge took it; else it comes in as a plain roll, and the merge's notice says so (initOff)
+    var initTaken = (isObj(draft) && Array.isArray(draft.rolls) ? draft.rolls : []).some(function(r) { return isObj(r) && r.init === true; }), initOff = '';
     var things = picked.map(function(p) {
         var src0 = clone(p.x), id0 = src0.id, key0 = src0.key; delete src0.id; delete src0.key;
         var obj = walk(p, src0, '', []); var out = { id: idMap[id0] };
         if (p.k === 'field' || p.k === 'list') out.key = newKey[id0] || ''; else if (p.k === 'item' && typeof key0 === 'string' && key0) out.key = newKey[id0] || '';
         Object.keys(obj).forEach(function(k) { out[k] = obj[k]; });
+        var np = NAME_OF[p.k]; if (np && typeof out[np] === 'string' && out[np].trim()) out[np] = freeName(p.k, out[np]);   // the walked name, so a {name} in a roll's label has followed first
+        if (p.k === 'roll' && out.init === true) { if (initTaken) { delete out.init; initOff = initOff || out.label || 'A roll'; } else initTaken = true; }
         return { k: p.k, list: p.m.list, from: id0, obj: out };
     });
     // the limits: what the draft holds and the pick together, by the LIMITS entry each counts against
     var over = [], counts = Object.create(null); picked.forEach(function(p) { counts[p.m.cap] = (counts[p.m.cap] || 0) + 1; });
     Object.keys(counts).forEach(function(c) { var m = MERGE_KINDS.filter(function(x) { return x.cap === c; })[0], has = isObj(draft) && Array.isArray(draft[m.list]) ? draft[m.list].length : 0, max = lim[c]; if (typeof max === 'number' && has + counts[c] > max) over.push({ title: c === 'fields' ? 'fields and lists' : m.title.toLowerCase(), n: has + counts[c], max: max }); });
     var file = isObj(src) && typeof src.name === 'string' ? src.name : ''; gaps.forEach(function(g) { g.file = file; });   // which file a gap is of, so a later merge points it only at a thing of that same file
-    return { things: things, n: things.length, idMap: idMap, keyMap: keyMap, gaps: gaps, over: over, lacks: Object.keys(lacks), file: file };
+    return { things: things, n: things.length, idMap: idMap, keyMap: keyMap, gaps: gaps, over: over, lacks: Object.keys(lacks), file: file, initOff: initOff };
 }
 
 // The plan put into the draft, in the file's order at the end of each list. rec is what the editor keeps of earlier merges' gaps while it is
@@ -234,6 +255,9 @@ function mergeSays(draft, clean, rec) {
 }
 
 // ---- the window ----
+// Every feature logs its steps (CLAUDE.md): one line a step through the app's step log, its words 'sysmerge v1' and the step's name, carrying
+// structure only (counts, yes or no), never a name or anything of the file's content. sysedtabs.js mergeFile logs its own two failures through it
+function logMergeStep(step, fields) { try { if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') window.wpStepLog('sysmerge v1', step, fields || {}); } catch (e) {} }
 var _rec = [];   // the gaps of this session's merges that the editor still says (mergeSays), while their things stand
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 function joinWords(list) { return list.length < 2 ? list.join('') : list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1]; }
@@ -247,7 +271,8 @@ function gapWords(g) {
 // confirm (showConfirm), toast, apply(plan) (the change, made by the editor) }
 function open(src, host) {
     var offer = mergeOffer(src, host.kindWord);
-    if (!offer.length) { host.toast('That file holds no fields, lists, rolls, items, effects or point budgets to merge.'); return; }
+    if (!offer.length) { logMergeStep('empty', {}); host.toast('That file holds no fields, lists, rolls, items, effects or point budgets to merge.'); return; }
+    var offered = {}; offer.forEach(function(g) { offered[g.k] = g.rows.length; }); logMergeStep('start', offered);
     var ticked = Object.create(null), plan = null, boxes = [], heads = [], checkT = 0;
     // what the editor's own check of the whole system would say after Merge that it does not say now, worked out a moment after the ticks
     // settle (it reads the whole system): it names what the pick uses that Merge does not bring, such as a linked sheet, a library entry or a
@@ -302,20 +327,21 @@ function open(src, host) {
     body.addEventListener('change', function(e) { if (e.target !== find) redraw(); });
     redraw();
     host.confirm('Merge from “' + (host.name || src.name || 'this file') + '”', function(yes) {
-        clearTimeout(checkT); if (yes !== true) return;
+        clearTimeout(checkT); if (yes !== true) { logMergeStep('cancelled', {}); return; }
         var p = mergePlan(src, host.draft(), ticked, host); if (!p.n || p.over.length) return;
         var got = host.apply(p) || {};
+        logMergeStep('merged', { field: got.field || 0, list: got.list || 0, roll: got.roll || 0, item: got.item || 0, effect: got.effect || 0, budget: got.budget || 0, gaps: p.gaps.length, renamed: Object.keys(p.keyMap).length, initOff: !!p.initOff });
         var words = MERGE_KINDS.filter(function(m) { return got[m.k]; }).map(function(m) { return nOf(got[m.k], m.word); });
         var nGap = {}; p.gaps.forEach(function(g) { nGap[g.from.id] = 1; }); var gN = Object.keys(nGap).length;
         // a sheet laid out by hand shows only the fields placed on it, so new fields and lists wait on the Layout tab until they are placed
         var dr = host.draft(), laid = !!(dr && dr.sheet && Array.isArray(dr.sheet.sections) && dr.sheet.sections.length) && !!(got.field || got.list);
-        host.toast('Merged ' + joinWords(words) + '. ' + (gN ? (gN === 1 ? 'One of them uses' : gN + ' of them use') + ' something this system lacks, said under its row. ' : '') + (laid ? 'Place the new fields on the sheet from the Layout tab. ' : '') + 'Save keeps the merge, and Undo takes it back.');
+        host.toast('Merged ' + joinWords(words) + '. ' + (gN ? (gN === 1 ? 'One of them uses' : gN + ' of them use') + ' something this system lacks, said under its row. ' : '') + (laid ? 'Place the new fields on the sheet from the Layout tab. ' : '') + (p.initOff ? '“' + p.initOff + '” does not order a fight, since this system already has a roll that does. Change that on its row. ' : '') + 'Save keeps the merge, and Undo takes it back.');
     }, { body: body, yes: 'Merge', noEnter: true, ready: function() { return !!plan && plan.n > 0 && !plan.over.length; }, shown: function() { try { find.focus(); } catch (e) {} } });
 }
 // what the editor asks: the window, the change, and what it says under a row
 function apply(draft, plan) { return mergeApply(draft, plan, _rec); }
 function says(draft, clean) { return mergeSays(draft, clean, _rec); }
 
-var API = { open: open, apply: apply, says: says, mergeOffer: mergeOffer, mergePlan: mergePlan, mergeApply: mergeApply, mergeSays: mergeSays, MERGE_KINDS: MERGE_KINDS };
+var API = { open: open, apply: apply, says: says, logStep: logMergeStep, mergeOffer: mergeOffer, mergePlan: mergePlan, mergeApply: mergeApply, mergeSays: mergeSays, MERGE_KINDS: MERGE_KINDS };
 if (typeof window !== 'undefined') window.wpSysMerge = API;
-export { open, apply, says, mergeOffer, mergePlan, mergeApply, mergeSays, MERGE_KINDS };
+export { open, apply, says, logMergeStep, mergeOffer, mergePlan, mergeApply, mergeSays, MERGE_KINDS };

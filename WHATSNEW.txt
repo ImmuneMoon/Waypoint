@@ -72,6 +72,11 @@ Handed out in list order [DRAFT]
   before it have taken. Two hands go to the first weapons readied, and a
   later weapon can tell it has none left, with no figure to set by hand.
 
+Your own name for a player [DRAFT]
+- Player History has a box on each player for what you call them. Your
+  roster, party strip, chat and Player History use it. Only you see it,
+  and your players keep seeing the name each gave themselves.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

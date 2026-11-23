@@ -1130,6 +1130,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                     var campNow = getActiveCampaign();
                     if (campNow && campNow.players) Object.keys(campNow.players).forEach(function(pid) { playersKnown[pid] = campNow.players[pid].name || pid; });
                     if (window.wpNet && window.wpNet.roster) Object.values(window.wpNet.roster).forEach(function(p) { if (p && p.id) playersKnown[p.id] = p.name || p.id; });
+                    if (window.wpNet && typeof window.wpNet.playerName === 'function') Object.keys(playersKnown).forEach(function(pid) { playersKnown[pid] = window.wpNet.playerName(pid, playersKnown[pid]); });   // 1.6.4: the GM's own name for a player where set
                     var ownerOpts = '<option value="">&mdash; GM controlled &mdash;</option>' + Object.keys(playersKnown).map(function(pid) {
                         return '<option value="'+esc(pid)+'"'+(w.ownerId===pid?' selected':'')+'>'+esc(playersKnown[pid])+'</option>';
                     }).join('');

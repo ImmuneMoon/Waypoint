@@ -214,7 +214,7 @@ function playsOf(camp, pid, p) { var S = window.wpSystemCore; return (S && S.pla
 // The name is the character they play where one is known, else the record's own name; an id no record names reads "a former player"
 function playerWord(camp, pid) {
     var P = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}, own = function(k) { return Object.prototype.hasOwnProperty.call(P, k) && P[k] && typeof P[k] === 'object'; };
-    var nameOf = function(id) { var p = P[id], nm = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return playsOf(camp, id, p) || nm; };
+    var nameOf = function(id) { var p = P[id], nm = typeof p.gmName === 'string' && p.gmName.trim() ? p.gmName.trim() : typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return playsOf(camp, id, p) || nm; };   // 1.6.4: the GM's own name for them before the record's
     if (typeof pid === 'string' && own(pid)) { var n0 = nameOf(pid); if (n0) return n0; }
     var by = typeof pid === 'string' ? Object.keys(P).filter(function(k) { return own(k) && Array.isArray(P[k].was) && P[k].was.indexOf(pid) >= 0; })[0] : null;
     return (by && nameOf(by)) || 'a former player';
@@ -1521,7 +1521,7 @@ function renderHandouts() {
     // labeled by the character they play. Connected players get a handout at once; others when they join.
     var givePlayers = Object.keys(camp.players || {})
         .filter(function(pid) { return !(camp.bannedPlayers && camp.bannedPlayers[pid]); })
-        .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p), pn = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return { id: pid, label: pa ? (pa + (pn ? ' — ' + pn : '')) : (pn || 'A player') }; })   // 1.6.3 (finding 35): never a profile id
+        .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p), pn = typeof p.gmName === 'string' && p.gmName.trim() ? p.gmName.trim() : typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return { id: pid, label: pa ? (pa + (pn ? ' — ' + pn : '')) : (pn || 'A player') }; })   // 1.6.3 (finding 35): never a profile id
         .sort(function(a, b) { return String(a.label).localeCompare(String(b.label)); });
     var giveOpts = '<option value="">Give to…</option><option value="*">Anyone (the whole table)</option>'
         + givePlayers.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.label) + '</option>'; }).join('');

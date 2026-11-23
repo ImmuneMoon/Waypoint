@@ -202,6 +202,7 @@ function namesOf(camp) {
     var out = Object.create(null), n = window.wpNet;
     if (camp && camp.players && typeof camp.players === 'object') Object.keys(camp.players).forEach(function(pid) { var p = camp.players[pid]; if (p && typeof p === 'object') out[pid] = p.name || pid; });
     if (n && n.roster && typeof n.roster === 'object') Object.keys(n.roster).forEach(function(k) { var p = n.roster[k]; if (p && p.id) out[p.id] = p.name || p.id; });
+    if (n && typeof n.playerName === 'function') Object.keys(out).forEach(function(pid) { out[pid] = n.playerName(pid, out[pid]); });   // 1.6.4: on the GM's screen, the GM's own name for a player where set
     return out;
 }
 // The section as the campaign has it now. Put away, with its icon on the rail, where there is nothing to list for this screen: the stream

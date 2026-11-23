@@ -436,10 +436,13 @@ function pageOptions(cur, none) {
 function charsOf(camp) { camp = camp || getActiveCampaign(); if (!camp) return {}; if (!camp.chars || typeof camp.chars !== 'object') camp.chars = {}; return camp.chars; }
 function charList(camp) { return Object.values(charsOf(camp)).filter(function(c) { return c && typeof c === 'object'; }).sort(function(a, b) { return String(a.name).localeCompare(String(b.name)); }); }
 function charById(id, camp) { var cs = charsOf(camp); return typeof id === 'string' && id && Object.prototype.hasOwnProperty.call(cs, id) && cs[id] && typeof cs[id] === 'object' ? cs[id] : null; }   // own keys only: a '__proto__' charId from a file is no character
+// The names to SHOW for the players, by id. On the GM's screen a name the GM gave a player in Player History (1.6.4, gmName) comes first,
+// so these are for display alone: never stored on anything that is sent, and never put in a message (a character's name, a card)
 function playerNames(camp) {
     var out = Object.create(null);   // keyed by player ids (the host's roster on a player): never a prototype hit
     if (camp && camp.players) Object.keys(camp.players).forEach(function(pid) { out[pid] = camp.players[pid].name || pid; });
     var n = net(); if (n && n.roster) Object.values(n.roster).forEach(function(p) { if (p && p.id) out[p.id] = p.name || p.id; });
+    if (n && typeof n.playerName === 'function') Object.keys(out).forEach(function(pid) { out[pid] = n.playerName(pid, out[pid]); });   // 1.6.4: on the GM's screen, the GM's own name for a player where set
     return out;
 }
 // The owner's name for the sheet's subtitle and the character picker. A player's copy of the table knows only who is at it now
@@ -7770,7 +7773,10 @@ function inviteMaking(pid) {
     if (S.newCharRules(camp, sheetsOnIn(camp)).create === 'off') return false;
     var cs = charsOf(camp), had = Object.keys(cs).filter(function(k) { return cs[k] && cs[k].ownerId === pid && cs[k].making === 1; })[0];
     if (had) { toast('They are making ' + cs[had].name + ' already.'); return false; }
-    var raw = playerNames(camp)[pid] || '', nm = (n && n.cleanCharName ? n.cleanCharName(raw) : String(raw).slice(0, 60)) || 'Character', id = S.uid('c_');
+    // the player's OWN name, never the one the GM calls them (playerNames shows gmName first): this name goes to the player and to the table
+    var rosOwn = ''; var nI = net(); if (nI && nI.roster) Object.keys(nI.roster).forEach(function(k) { var p = nI.roster[k]; if (p && p.id === pid && typeof p.name === 'string' && p.name) rosOwn = p.name; });
+    var recOwn = camp.players && Object.prototype.hasOwnProperty.call(camp.players, pid) && camp.players[pid] && typeof camp.players[pid] === 'object' ? (typeof camp.players[pid].name === 'string' && camp.players[pid].name ? camp.players[pid].name : pid) : '';
+    var raw = rosOwn || recOwn || '', nm = (n && n.cleanCharName ? n.cleanCharName(raw) : String(raw).slice(0, 60)) || 'Character', id = S.uid('c_');
     while (Object.prototype.hasOwnProperty.call(cs, id)) id = S.uid('c_');
     cs[id] = { id: id, name: nm, ownerId: pid, portrait: '', npc: false, values: {}, updated: Date.now(), making: 1, made: 1, invited: 1 };
     if (typeof startsGiven === 'function') startsGiven(camp.system, cs[id], 'invite');   // 1.6.0 Starts with

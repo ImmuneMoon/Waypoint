@@ -198,6 +198,11 @@ const j = v => JSON.stringify(v);
                     { who: 'Scorch', whoS: 'Scorch', hideW: 'them' }, { who: 'Brakka', whoS: 'Brakka', hideW: 'them' }, { who: 'this player', whoS: 'this player', hideW: 'them' }, { who: 'this character', whoS: 'this character', hideW: 'them' }])
                 && wbS2.includes("var pw = partyWho(camp, ownerId, rosterP, name, !!loc);") && (wbS2.match(/'Summon ' \+ pw\.who \+ /g) || []).length === 3 && wbS2.includes("label: (pausedP ? 'Resume ' : 'Pause ') + pw.who });")
                 && wbS2.includes("'Hide table trackers from ' + pw.hideW });") && !wbS2.includes("' (just this player)'"), j(pwOut));
+            // 1.6.4: the GM's own name for the player (Player History's box) before the roster's and the record's
+            const campG = { players: { u_m: { name: 'Mira', gmName: 'Captain' }, u_b: { name: 'Bo', gmName: '  ' } } };
+            const pwG = [PW(campG, 'u_m', { id: 'u_m', name: 'Mira' }, 'HK-24', true), PW(campG, 'u_m', null, 'Mira', false), PW(campG, 'u_b', { name: 'Bo' }, 'Rook', true)];
+            check('1.6.4 the party chip\'s menu names the player by the GM\'s own name for them first (partyWho, run for real), the roster\'s then the record\'s where none or a blank one is set',
+                j(pwG) === j([{ who: 'Captain (HK-24)', whoS: 'Captain', hideW: 'Captain' }, { who: 'Captain', whoS: 'Captain', hideW: 'Captain' }, { who: 'Bo (Rook)', whoS: 'Bo', hideW: 'Bo' }]), j(pwG));
         }
         // 152 fold 4b (the owner's answer 1, 2026-10-19: a Rules run switch on each NPC, "placed somewhere easy to use quickly"): a tick row among the GM's
         // own on an NPC token's menu, its state calendar.js's to answer and to set (gmfight run for real, with a switch of the suite's own)

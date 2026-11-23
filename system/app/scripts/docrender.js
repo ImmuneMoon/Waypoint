@@ -913,7 +913,7 @@ function seeLabels(camp) {
     var pl = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}, chars = camp && camp.chars && typeof camp.chars === 'object' ? camp.chars : {};
     var out = Object.create(null), name = Object.create(null), groups = Object.create(null);
     Object.keys(pl).filter(function(id) { return SEE_ID.test(id) && pl[id] && typeof pl[id] === 'object'; }).sort().forEach(function(id) {
-        var n = String(pl[id].name || '').trim().slice(0, 60) || 'A player', k = n.toLowerCase().replace(/\s+/g, ' ');
+        var n = String((typeof pl[id].gmName === 'string' && pl[id].gmName.trim()) || pl[id].name || '').trim().slice(0, 60) || 'A player', k = n.toLowerCase().replace(/\s+/g, ' ');   // 1.6.4: the GM's own name for the player where set (Player History)
         name[id] = n; (groups[k] = groups[k] || []).push(id);
     });
     Object.keys(groups).forEach(function(k) {

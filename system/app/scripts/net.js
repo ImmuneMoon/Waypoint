@@ -13063,10 +13063,11 @@ if (_copyBtn) _copyBtn.addEventListener('click', function() {
 // 1.6.3 (the multiplayer review, finding 13; the owner, 2026-11-21: a fresh code each session stays, "I had assumed that a new one each time was
 // best for security and safety", with a Copy invite button): one short plain line to paste to players, naming the room code. The password is
 // never in it: where one is set the line says it comes apart.
-// 1.6.4 (the beta list's Copy join link): the line leads with the website's join link, waypointvtt.com/join/ and the code as shown, which
+// 1.6.4 (the beta list's Copy join link): the line leads with the website's join page (JOIN_LINK) and the code as shown, which
 // the website reads as Waypoint reads a typed code (its src/lib/room-code.ts, held to net.js by its check:room-code), so a marked WP code
 // works too. The code stays in the line for a player who opens Waypoint VTT on their computer and types it. The link is followed by a
-// space, never a full stop, so a chat program that turns it into a link takes nothing after it. JOIN_LINK is the one place it is named
+// space, never a full stop, so a chat program that turns it into a link takes nothing after it. JOIN_LINK is the one place it is named: it is
+// words for players to press, never an address this page asks (accountcheck passes over that one line alone)
 var JOIN_LINK = 'https://waypointvtt.com/join/';
 function inviteLine(code, pw) { return 'Join my Waypoint VTT table at ' + JOIN_LINK + encodeURIComponent(code) + ' or press Join a game in Waypoint VTT and type the room code ' + code + '.' + (pw ? ' I will send you the password.' : ''); }
 // [netcheck:invite-end]

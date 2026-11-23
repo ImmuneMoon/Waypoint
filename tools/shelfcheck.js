@@ -1870,7 +1870,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && plO.includes('offerCan: offerCan, offerSpot: offerSpot, offerRange: offerRange, offerTake: offerTake,') && plO.includes("offers: function(key) { return q.offers(key) === true; },") && plO.includes("offers: ask('offers', false),")
         && hoO.includes('links: yes, offers: jbxOffers, sizes: yes,') && /_pad\.on = w\.host\(\{ id: 'pad',[^\n]*links: no, mentions: yes, sizes: yes,/.test(read('scripts/net.js')) && !/_pad\.on = w\.host\([^\n]*offers/.test(read('scripts/net.js'))
         && css.includes('::highlight(wp-offer) { text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--gold);')
-        && ix.includes('<li><b>Mentions as you type.</b> Type the name of a page, a map, a room or a character in a page, a planner or a Journal note of your own. It gets a faint dotted underline.')
+        && ix.includes('<li><b>Mentions as you type.</b> Type the name of a page, a map, a room or a character in a page, a planner, a sheet&rsquo;s Notes page or a Journal note of your own. It gets a faint dotted underline.')
         && wnO.every(t => t.includes('Mentions as you type [DRAFT]\n- Type the name of a page, a map, a room or a character in a page, a\n')));
 }
 

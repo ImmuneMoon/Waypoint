@@ -1658,6 +1658,35 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && !/sessionStorage|wp_textStyleOpen|textStyleBar|textStyleToggle|textStyleBody/.test(plannerSrc));
     }
 
+    /* ---- 1.6.4: mentions offered as you type, the box's half (planner.js offerCan, offerSpot, offerTake, run for real on the page of plain
+       objects; mention.js, which matches the names and draws the offer, has its own checks in shelfcheck) ---- */
+    {
+        const MB = () => [{ id: 'h', type: 'h2', title: 'Ask Captain Vex' }, { id: 'n', type: 'node', title: 'Inn', cols: ['A', 'B'], rows: [{ col1: 'see Vex\nthen Bren', col2: 'x' }] },
+            { id: 'f', type: 'flowchart', nodes: [{ id: 'n1', text: 'Captain Vex', shape: 'rect', color: 'neutral' }], edges: [] }];
+        const po = mkPage({ map: mapOf(MB()) }).wire().rebuild(), TB = po.dom.window.wpTextBox, H = mkHist(po), ti = () => po.tsBox({ idx: 0, k: 'title' }), ce = () => po.tsBox({ idx: 1, k: 'cell', ri: 0, ci: 0 }), lab = po.tsBox({ idx: 2, k: 'node', ni: 0 });
+        po.focus(ti(), 15); const sp1 = TB.offerSpot(ti()); po.focus(ti(), 4, 11); const spSel = TB.offerSpot(ti()); po.focus(ce(), 7); const sp2 = TB.offerSpot(ce());
+        const cans = [TB.offerCan(ti()), TB.offerCan(ce()), TB.offerCan(lab), TB.offerCan(null), TB.offerCan(po.plain('div', 'field', { idx: 0 }))];
+        check('1.6.4 offers, where and what (offerCan, offerSpot, run for real): a planner’s plain fields take them and a flowchart label does not; the words around a collapsed caret are the field’s whole text with the caret’s offset, the stretches that are links already and the page being written in, which is never offered to itself; a selection has none',
+            J(cans) === J([true, true, false, false, false]) && J(sp1) === J({ text: 'Ask Captain Vex', at: 15, base: 0, links: [], self: '#wp:@:page:p1' }) && spSel === null && J(sp2) === J({ text: 'see Vex\nthen Bren', at: 7, base: 0, links: [], self: '#wp:@:page:p1' }), J([cans, sp1, spSel, sp2]));
+        po.focus(ti(), 15); const d0 = J(H.depth()), took = TB.offerTake(ti(), 4, 15, '#wp:@:char:c2'), after = [po.map.blocks[0].title, J(po.map.blocks[0].fmt), J(po.range(ti())), J(H.depth())], linksNow = TB.offerSpot(ti()).links;
+        const bad = [TB.offerTake(ti(), 0, 3, 'https://a.example/'), TB.offerTake(ti(), 3, 3, '#wp:@:char:c2'), TB.offerTake(ti(), 4, 99, '#wp:@:char:c2'), TB.offerTake(lab, 0, 7, '#wp:@:char:c2'), TB.offerTake(ti(), 0, 3, 'javascript:x')], same = J(po.map.blocks[0].fmt);
+        po.dom.fire(ti(), 'keydown', keyEv({ key: 'z', ctrlKey: true })); const undone = [po.map.blocks[0].title, J(po.map.blocks[0].fmt || null)];
+        check('1.6.4 an offer taken (offerTake, run for real): the words stay as typed and become a mention through the bar’s own link press, ONE step of the planner’s history that one undo takes back; the caret is where it was; its words then count as a link, so they are not offered again; an address that is no mention, an empty or out-of-range stretch and a label change nothing',
+            took === true && J(after) === J(['Ask Captain Vex', J({ title: { spans: [{ s: 4, e: 15, link: '#wp:@:char:c2' }] } }), '[15,15]', J([JSON.parse(d0)[0] + 1, 0])]) && J(linksNow) === J([[4, 15]])
+            && J(bad) === J([false, false, false, false, false]) && same === after[1] && J(undone) === J(['Ask Captain Vex', 'null']), J([took, after, d0, linksNow, bad, undone]));
+        // a host's box: only where its host says so, per key; a host that does not answer, or answers anything but true, gets none
+        const hp = mkPage({ map: mapOf(MB()) }).wire().rebuild(), HT = hp.dom.window.wpTextBox, store = { a: { text: 'met Bren' }, b: { text: 'met Bren' } };
+        const fieldOf = key => { const o = store[key]; return o ? { text: () => o.text, fmt: () => o.fmt, setFmt: f => { if (f) o.fmt = f; else delete o.fmt; }, setText: v => { o.text = v; } } : null; };
+        const rootY = hp.dom.mk('div', '', {}, 'yes'), rootN = hp.dom.mk('div', '', {}, 'no'); hp.doc.body.appendChild(rootY); hp.doc.body.appendChild(rootN);
+        const regs = [HT.host({ id: 'yes', roots: [rootY], doc: () => 'd', field: fieldOf, links: () => true, offers: key => key === 'a' }), HT.host({ id: 'no', roots: [rootN], doc: () => 'd', field: fieldOf, links: () => true, offers: () => 'yes' })];
+        const hb = (root, key) => { const el = hp.dom.mk('div', ''); el.rect = { left: 0, top: 0, right: 300, bottom: 30 }; root.appendChild(el); HT.dress(el, { key, multi: true }); HT.fill(el); return el; };
+        const ya = hb(rootY, 'a'), yb = hb(rootY, 'b'), na = hb(rootN, 'a');
+        hp.focus(ya, 8); const hs = HT.offerSpot(ya), htook = HT.offerTake(ya, 4, 8, '#wp:@:map:m4');
+        check('1.6.4 a host’s box takes offers only where its host says so for that key (offers(key) answering true): the Journal’s own notes do, the table notepad never asks; a host’s words are never another page’s, so nothing is passed over as the page being written in; one taken goes through the host’s own link path',
+            J(regs) === J([true, true]) && J([HT.offerCan(ya), HT.offerCan(yb), HT.offerCan(na)]) === J([true, false, false]) && J(hs) === J({ text: 'met Bren', at: 8, base: 0, links: [], self: '' })
+            && htook === true && J(store.a.fmt) === J({ spans: [{ s: 4, e: 8, link: '#wp:@:map:m4' }] }) && HT.offerTake(na, 4, 8, '#wp:@:map:m4') === false && store.b.fmt === undefined, J([regs, hs, htook, store]));
+    }
+
     /* ---- boxes outside the planner: a host's (item 35, fold 1a-i). The same box and the same bar serve a sheet, a Journal note and the notepad;
        no host exists in the app yet, so a host of the suite's own stands in: plain { text, fmt } records, two panels, and a recorder ---- */
     {
@@ -3126,6 +3155,34 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                     && /\+ '<label class="ts-linklab rte-linklab" title="' \+ esc\(RTE_LINK_TITLE\) \+ '">Link <input type="text" class="ts-link rte-link" placeholder="https:\/\/\\u2026" spellcheck="false" autocomplete="off" aria-label="Link address" tabindex="-1"><\/label><button type="button" class="rte-btn rte-pagebtn" tabindex="-1" title="Link to a page or a section of one: pick it from the list, or type part of its name to narrow the list.">Page\\u2026<\/button><span class="rte-sep"><\/span>';/.test(all)
                     && !/link/i.test(all.slice(all.indexOf('var RTE_CMDS = ['), all.indexOf('// Symbols the bar can drop in at the cursor.'))) && /if \(a && a\.classList && a\.classList\.contains\('rte-body'\)\) \{ rteSyncBar\(a\); rteLinkSync\(a\); var gs = window\.getSelection\(\);/.test(all)
                     && /function rteLinkSync\(body\) \{\n\s*var box = rteLinkBox\(body\); if \(!box\) return;/.test(linkSrc) && /a text block styles a selection, not the whole block/.test(all), [ev.defaultPrevented, B.box.value]);
+            }
+            {   /* 1.6.4, mentions offered as you type in a text block: planner.js's offer slice run for real on mkBlock's box, beside the link slice it reads */
+                const B = mkBlock([['p', {}, 'see Captain Vex'], ['p', {}, 'Bren ', ['b', {}, 'rides'], ['br', {}], 'on']]);
+                const sels = [], deps2 = { TF, document: B.doc, window: B.dom.window, stepBoundary: el => B.H.stepBoundary(el), rteSelect: (b, off) => { sels.push(off.slice()); B.dom.engine.caret(b, off[0], off[1]); }, Event: function(type) { this.type = type; }, getActiveMap: () => B.pg.map, tsState: { comp: false }, tsHostOf: () => null };
+                const O = new Function(...Object.keys(deps2), linkSrc + '\n' + slice('planner.js', 'mention') + '\n' + slice('planner.js', 'offer') + '\nreturn { offerCan, offerSpot, offerTake, offerLines };')(...Object.values(deps2));
+                const lines = O.offerLines(B.body).map(g => [g.a, g.z]);
+                B.caret(15); const s1 = O.offerSpot(B.body); B.caret(19); const s2 = O.offerSpot(B.body); B.caret(27); const s3 = O.offerSpot(B.body); B.sel(4, 11); const sSel = O.offerSpot(B.body);
+                check('1.6.4 offers in a text block (offerLines, offerSpot, run for real): the text is cut at its paragraphs and line breaks, so a name is never found across one and the words around the caret are those of its own line, with where that line starts in the block; a selection has none',
+                    J(lines) === J([[0, 15], [15, 25], [25, 27]]) && J(s1) === J({ text: 'see Captain Vex', at: 15, base: 0, links: [], self: '#wp:@:page:p1' }) && J(s2) === J({ text: 'Bren rides', at: 4, base: 15, links: [], self: '#wp:@:page:p1' })
+                    && J(s3) === J({ text: 'on', at: 2, base: 25, links: [], self: '#wp:@:page:p1' }) && sSel === null && O.offerCan(B.body) === true, J([lines, s1, s2, s3, sSel]));
+                const d0 = B.depth(); B.caret(15); const took = O.offerTake(B.body, 4, 15, '#wp:@:char:c2'), html1 = B.stored(), d1 = B.depth(), at1 = J(O.offerSpot(B.body)), spot1 = O.offerSpot(B.body);
+                B.caret(17); const took2 = O.offerTake(B.body, 16, 20, '#wp:@:map:m4'), html2 = B.stored(), d2 = B.depth();
+                const no = [O.offerTake(B.body, 0, 3, 'https://a.example/'), O.offerTake(B.body, 3, 3, '#wp:@:char:c2'), O.offerTake(B.body, 12, 18, '#wp:@:char:c2')], d3 = B.depth();
+                B.H.undo(); const undo1 = B.stored(); B.H.undo(); const undo2 = B.stored();
+                check('1.6.4 an offer taken in a text block (offerTake, run for real): its words become a mention through the block’s own link setter, ONE step that one undo takes back; at the very end of a paragraph a no-break space follows it and the caret goes after that, as the @ path writes one; inside a line the caret stays where it was and nothing is added; then its words count as a link; an address that is no mention, an empty stretch and one across two paragraphs change nothing',
+                    took === true && html1 === '<p>see ' + OPEN('#wp:@:char:c2') + 'Captain Vex</a> </p><p>Bren <b>rides</b><br></br>on</p>' && d1 === d0 + 1 && J(spot1.links) === J([[4, 15]]) && spot1.at === 16
+                    && took2 === true && html2 === '<p>see ' + OPEN('#wp:@:char:c2') + 'Captain Vex</a> </p><p>' + OPEN('#wp:@:map:m4') + 'Bren</a> <b>rides</b><br></br>on</p>' && J(sels) === J([[16, 16], [17, 17]]) && d2 === d1 + 1 && d3 === d2
+                    && undo1 === html1 && undo2 === '<p>see Captain Vex</p><p>Bren <b>rides</b><br></br>on</p>' && J(no) === J([false, false, false]), J([took, html1, d0, d1, at1, took2, html2, d2, d3, sels, undo1, undo2, no]));
+                // the review of 2026-11-23: a caret held by an element (the empty paragraph Enter leaves, <p><br></p>) is at the END of the paragraph
+                // above by its offset alone; it is no caret of that line, so the name there is not offered on the empty line, and Tab there is Tab
+                const C = mkBlock([['p', {}, 'see Captain Vex'], ['p', {}, ['br', {}]], ['p', {}, ['b', {}, 'Bren'], ['br', {}]]]);
+                const OC = new Function(...Object.keys(deps2), linkSrc + '\n' + slice('planner.js', 'mention') + '\n' + slice('planner.js', 'offer') + '\nreturn { offerSpot, offerTake };')(...Object.values(Object.assign({}, deps2, { document: C.doc, window: C.dom.window, stepBoundary: el => C.H.stepBoundary(el), getActiveMap: () => C.pg.map })));
+                const ps = C.body.childNodes, at = (n, o) => { C.body.focus(); C.dom.sel.setBaseAndExtent(n, o, n, o); return OC.offerSpot(C.body); };
+                const eEmpty = at(ps[1], 0), eAfterB = at(ps[2], 1), eBeforeB = at(ps[2], 0), eText = at(ps[0].firstChild, 15);
+                C.body._wpComp = true; const eComp = at(ps[0].firstChild, 15), tComp = OC.offerTake(C.body, 4, 15, '#wp:@:char:c2'); C.body._wpComp = false;
+                check('1.6.4 a text block’s caret held by an element (the review): on the empty line under a paragraph it is no caret of that paragraph, so nothing is offered; right after an element that holds text it is that text’s; before anything on a line, none; and during a composition there is no offer and nothing is taken',
+                    eEmpty === null && J(eAfterB) === J({ text: 'Bren', at: 4, base: 15, links: [], self: '#wp:@:page:p1' }) && eBeforeB === null && J(eText) === J({ text: 'see Captain Vex', at: 15, base: 0, links: [], self: '#wp:@:page:p1' })
+                    && eComp === null && tComp === false && C.stored() === C.pg.map.blocks[0].content && !/<a /.test(C.stored()), J([eEmpty, eAfterB, eBeforeB, eText, eComp, tComp]));
             }
         }
     }

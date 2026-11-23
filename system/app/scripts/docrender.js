@@ -894,6 +894,37 @@ function keptWords(b, who) {
     return 'Kept from players. Seen by ' + s.length + (s.length === 1 ? ' player' : ' players');
 }
 function keptOpen(b, i, who) { return '<div class="pv-blk pv-kept" data-blk="' + i + '" data-kept="' + esc(keptWords(b, who)) + '">'; }
+// 1.6.3 (the release click test, finding 26): the words that name each player the campaign knows, for the page editor's Seen by ticks and for the
+// mark a kept block wears, the same in the main window, the panel over the map and a window of its own. A player is named by their name, cut
+// to 60 characters. Where two or more share a name (compared ignoring case and the spaces around it), each gets one tell after it in
+// brackets: the character they play (their record's charName, else a sheet whose ownerId is their id), else the day they last joined, else
+// no character. Labels that still read alike get a number, in the order of the players' ids. camp: a campaign (its players and chars are
+// read by own keys, a banned player counted too, since a kept block may still name one). Answers an object with no prototype: id to label
+var SEE_ID = /^[A-Za-z0-9_.:-]{1,80}$/;
+function seeTell(p, id, chars) {
+    if (typeof p.charName === 'string' && p.charName.trim()) return p.charName.trim().slice(0, 40);
+    var ks = Object.keys(chars);
+    for (var i = 0; i < ks.length; i++) { var c = chars[ks[i]]; if (c && typeof c === 'object' && c.ownerId === id && typeof c.name === 'string' && c.name.trim()) return c.name.trim().slice(0, 40); }
+    var t = typeof p.lastSeen === 'number' && isFinite(p.lastSeen) ? new Date(p.lastSeen) : null;
+    if (t && !isNaN(t.getTime())) { try { return 'last joined ' + t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) {} }
+    return 'no character';
+}
+function seeLabels(camp) {
+    var pl = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}, chars = camp && camp.chars && typeof camp.chars === 'object' ? camp.chars : {};
+    var out = Object.create(null), name = Object.create(null), groups = Object.create(null);
+    Object.keys(pl).filter(function(id) { return SEE_ID.test(id) && pl[id] && typeof pl[id] === 'object'; }).sort().forEach(function(id) {
+        var n = String(pl[id].name || '').trim().slice(0, 60) || 'A player', k = n.toLowerCase().replace(/\s+/g, ' ');
+        name[id] = n; (groups[k] = groups[k] || []).push(id);
+    });
+    Object.keys(groups).forEach(function(k) {
+        var g = groups[k]; if (g.length < 2) { out[g[0]] = name[g[0]]; return; }
+        var count = Object.create(null);
+        g.forEach(function(id) { var l = name[id] + ' (' + seeTell(pl[id], id, chars) + ')', lk = l.toLowerCase(); count[lk] = (count[lk] || 0) + 1; out[id] = count[lk] > 1 ? l + ' ' + count[lk] : l; });
+    });
+    return out;
+}
+// renderDoc's opts.who: listed ids to their labels, an id the campaign no longer knows said as such
+function seeWho(camp) { var L = seeLabels(camp); return function(ids) { return (Array.isArray(ids) ? ids : []).map(function(id) { return typeof id === 'string' && L[id] ? L[id] : 'a player no longer listed'; }); }; }
 var NO_FLOAT_IN_COLS = { callout: 1, flare: 1 };
 function cleanBlock(b, used, ctx) {
     if (!b || typeof b !== 'object' || DOC_BLOCKS.indexOf(b.type) < 0) return null;
@@ -1293,6 +1324,6 @@ function diagramBad(root, gm, doc) {
     return n;
 }
 
-var API = { cleanSee: cleanSee, blockKept: blockKept, blockSeen: blockSeen, docKept: docKept, keptIn: keptIn, unlinkKept: unlinkKept, keptWords: keptWords, SEE_MAX: SEE_MAX, pageHidBy: pageHidBy, pageHidSays: pageHidSays, diagramBad: diagramBad, headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
+var API = { seeLabels: seeLabels, seeWho: seeWho, cleanSee: cleanSee, blockKept: blockKept, blockSeen: blockSeen, docKept: docKept, keptIn: keptIn, unlinkKept: unlinkKept, keptWords: keptWords, SEE_MAX: SEE_MAX, pageHidBy: pageHidBy, pageHidSays: pageHidSays, diagramBad: diagramBad, headJoin: headJoin, cleanHeadJoin: cleanHeadJoin, headHtml: headHtml, rowJoin: rowJoin, rowHtml: rowHtml, joinCols: joinCols, cleanRowJoin: cleanRowJoin, cellHtml: cellHtml, cellLines: cellLines, fmtSlice: fmtSlice, docFontName: docFontName, docFontCss: docFontCss, docFontOptions: docFontOptions, VERSION: VERSION, pageHid: pageHid, hbFold: hbFold, hbSections: hbSections, hbHeadings: hbHeadings, hbText: hbText, HB_LIMIT: HB_LIMIT, LIMITS: LIMITS, DOC_BLOCKS: DOC_BLOCKS.slice(), sanitizeHtml: sanitizeHtml, sanitizeBare: sanitizeBare, fmtHtml: fmtHtml, fmtRich: fmtRich, cleanBlockFmts: cleanBlockFmts, labelFmt: labelFmt, fieldFmt: fieldFmt, colFmtOf: colFmtOf, cellFmtOf: cellFmtOf, cleanDoc: cleanDoc, renderDoc: renderDoc, proseHtml: proseHtml, nl: nl, compileFlowchart: compileFlowchart, stripMermaidLinks: stripMermaidLinks, mermaidPre: mermaidPre, diagramLink: diagramLink, linkLine: linkLine, readLinkLine: readLinkLine, esc: esc, cleanDocStyle: cleanDocStyle, mergeDocStyle: mergeDocStyle, docStyleCss: docStyleCss, docBgImage: docBgImage, DOC_FONTS: DOC_FONTS };
 if (typeof window !== 'undefined') window.wpDocRender = API;
-export { cleanSee, blockKept, blockSeen, docKept, keptIn, unlinkKept, keptWords, SEE_MAX, pageHidBy, pageHidSays, diagramBad, DIAGRAM_BAD, plainLines, headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };
+export { seeLabels, seeWho, cleanSee, blockKept, blockSeen, docKept, keptIn, unlinkKept, keptWords, SEE_MAX, pageHidBy, pageHidSays, diagramBad, DIAGRAM_BAD, plainLines, headJoin, cleanHeadJoin, headHtml, rowJoin, rowHtml, joinCols, cleanRowJoin, cellHtml, cellLines, fmtSlice, docFontName, docFontCss, docFontOptions, VERSION, pageHid, hbFold, hbSections, hbHeadings, hbText, HB_LIMIT, LIMITS, DOC_BLOCKS, sanitizeHtml, sanitizeBare, fmtHtml, fmtRich, cleanBlockFmts, labelFmt, fieldFmt, colFmtOf, cellFmtOf, cleanDoc, renderDoc, proseHtml, nl, compileFlowchart, stripMermaidLinks, mermaidPre, diagramLink, linkLine, readLinkLine, cleanDocStyle, mergeDocStyle, docStyleCss, docBgImage, DOC_FONTS };

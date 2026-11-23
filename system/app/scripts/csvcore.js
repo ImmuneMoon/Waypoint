@@ -138,9 +138,15 @@ export function guessMap(heads, targets, keep) {
 // A column set to a target takes it from the column that held it, so one target is read from one column
 export function setTarget(mapped, i, id) { return mapped.map(function(x, k) { return k === i ? (id || '') : id && x === id ? '' : x; }); }
 // The item list a file is most like: the one the most headings name a stat of, else the only one, else none
-export function bestList(sys, heads) {
-    var lists = (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return isObj(f) && f.kind === 'item-list' && isObj(f.list); }), best = '', top = 0;
-    lists.forEach(function(f) { var ts = csvTargets(csvStats(sys, f.id)), n = guessMap(heads, ts).filter(function(x) { return x.slice(0, 3) === 'st:'; }).length; if (n > top) { top = n; best = f.id; } });
+// 1.6.3 (the release click test): cats, optional, are the categories the file's rows name. Where two lists name as many headings, the one that takes
+// more of those categories wins (a list that names no categories takes every one), and only then the first in the system's order. Two lists may
+// share a name (two lists called Weapons), and the gear the file held went to the one that takes none of its categories. With no categories
+// handed in, the answer is the one it always was
+export function bestList(sys, heads, cats) {
+    var lists = (isObj(sys) && Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return isObj(f) && f.kind === 'item-list' && isObj(f.list); }), best = '', top = 0, topC = -1;
+    var want = (Array.isArray(cats) ? cats : []).filter(function(c) { return typeof c === 'string' && c.trim(); }).map(function(c) { return c.trim().toLowerCase(); });
+    var takes = function(f) { var lc = Array.isArray(f.list.cats) ? f.list.cats.map(function(c) { return String(c).trim().toLowerCase(); }) : []; return lc.length ? want.filter(function(c) { return lc.indexOf(c) >= 0; }).length : want.length; };
+    lists.forEach(function(f) { var ts = csvTargets(csvStats(sys, f.id)), n = guessMap(heads, ts).filter(function(x) { return x.slice(0, 3) === 'st:'; }).length; if (!n) return; var nc = want.length ? takes(f) : 0; if (n > top || (n === top && nc > topC)) { top = n; topC = nc; best = f.id; } });
     return best || (lists.length === 1 ? lists[0].id : '');
 }
 // A figure as a spreadsheet writes it: a sign, a currency mark, and thousands or a decimal comma where the file's divider leaves room for one

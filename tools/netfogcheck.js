@@ -1260,4 +1260,21 @@ pendingChecks.push((async () => {
         J(pgW.map(w => w.id)) === J(['me', 'orc']) && !has(pgW[1], 'senses') && !has(pgW[1], 'blind') && J(pg.rec.asked.map(m => m.type)) === J(['needItem']), J([pgW, pg.rec.asked]));
 })());
 
+// 1.6.3 (the release click test): a player who crosses a portal onto a map where their character's token already stands away from the landing
+// opened on the landing, with their token off the screen and nothing pointing at it. applyStage (with landOwnTok, read from netfog.js by its
+// own name and run for real) opens the view on the player's own token nearest the landing, and on the landing only where they have none there
+{
+    const nfS = kit.part('netfog.js').replace(/\r\n/g, '\n'), ltS = between('// [netcheck:landowntok-start]', '// [netcheck:landowntok-end]', 'landowntok', 'netfog.js');
+    const asA = nfS.indexOf('function applyStage(stage) {'), asZ = nfS.indexOf('\n}\n', asA), asS = asA < 0 || asZ < 0 ? 'throw new Error("applyStage");' : nfS.slice(asA, asZ + 3);
+    const land = (wb, role) => {
+        const map = { type: 'map', meta: {}, rooms: [{ id: 'rL' }], whiteboard: wb }, camp = { items: { mD: map } }, st = { appState: { activeCampaignId: 'c0', campaigns: { c1: camp } } }, netS = { role: role || 'client', myId: 'u_me' };
+        new Function('campOf', 'validKey', 'state', 'net', 'landingPoint', 'camLand', 'updateCampaignSelect', 'updateSidebarNav', 'render', 'window', ltS + '\n' + asS + '\napplyStage({ campId: "c1", itemId: "mD", landRoomId: "rL" });')(
+            id => (id === 'c1' ? camp : null), () => true, st, netS, () => ({ wbX: 1030, wbY: 1026 }), null, () => {}, () => {}, () => {}, {});
+        return [map.meta.lastWbX, map.meta.lastWbY]; };
+    const tok = (id, x, more) => Object.assign({ id, type: 'image', isChar: true, ownerId: 'u_me', x, y: 1000, w: 60, h: 52 }, more || {});
+    const far = land([tok('t1', 2080)]), two = land([tok('t1', 2080), tok('t2', 1000)]), none = land([tok('o1', 1000, { ownerId: 'u_x' })]), hid = land([tok('t1', 2080, { hidden: true })]), gmS = land([tok('t1', 2080)], 'host');
+    check('1.6.3 (the release click test): a player arriving through a portal opens on their own character token on that map, the one nearest the landing, wherever the host left it; on the landing where they have none (another player\'s token, a hidden one); the GM\'s app as before',
+        j(far) === j([2110, 1026]) && j(two) === j([1030, 1026]) && j(none) === j([1030, 1026]) && j(hid) === j([1030, 1026]) && j(gmS) === j([1030, 1026]), j([far, two, none, hid, gmS]));
+}
+
 T.finish();

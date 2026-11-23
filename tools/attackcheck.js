@@ -69,7 +69,7 @@ pendingChecks.push((async () => {
     const dueR = { type: 'due', id: 'r_abcdefgh', from: { id: 'u_gm', name: 'GM', gm: true }, charId: 'c_b', act: 'r_rs', label: 'Resist', why: 'resist', round: 1, roll: 1, att: 'a_abcd1234', by: 'Kael', m: 4, ts: 1 };
     const cdR = Dx.cleanDue(dueR);
     check('1.6.0 (B2) the wire: a resist card keeps its attempt\'s id, who made it and the margin, and says so in words; one without its roll mark or a usable id is no card, and no other card carries them; a roll request names an attempt only beside its entry, by the host\'s own pattern',
-        cdR && cdR.att === 'a_abcd1234' && cdR.by === 'Kael' && cdR.m === 4 && /resisting Kael\u2019s attempt, made by 4/.test(Dx.dueText(cdR)) && Dx.cleanDue(Object.assign({}, dueR, { roll: undefined })) === null && Dx.cleanDue(Object.assign({}, dueR, { att: 'x' })) === null
+        cdR && cdR.att === 'a_abcd1234' && cdR.by === 'Kael' && cdR.m === 4 && /resisting Kael\u2019s attempt, which succeeded by 4/.test(Dx.dueText(cdR)) /* 1.6.3 (the release click test): moved on purpose */ && Dx.cleanDue(Object.assign({}, dueR, { roll: undefined })) === null && Dx.cleanDue(Object.assign({}, dueR, { att: 'x' })) === null
         && Dx.cleanDue(Object.assign({}, dueR, { why: 'turn' })) === null && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', act: 'r_rs', att: 'a_abcd1234' }).att === 'a_abcd1234'
         && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', att: 'a_abcd1234' }) === null && Dx.cleanRollReq({ type: 'roll-req', rid: 'q1', expr: '3d6', charId: 'c_b', act: 'r_rs', att: 'a_ABCD1234' }) === null, j([cdR, Dx.dueText(cdR)]));
 })());
@@ -345,9 +345,16 @@ pendingChecks.push((async () => {
     new Function('net', 'getProfile', 'diceFrom', 'postDue', pd)(nP, () => ({}), () => ({ id: 'u_gm', name: 'GM', gm: true }), r => posted.push(r));
     nP.postDue({ id: 'c_b', name: 'Sela' }, { id: 'r_pa', label: 'Parry', formula: 'x' }, 'resist', 1, true, { att: 'a_abcd1234', m: 2, kn: 'a slug', nm: true, rows: [{ f: 'f_wp', r: 'w_bl', i: 0, label: 'Ward with Blade' }] });
     nP.postDue({ id: 'c_b', name: 'Sela' }, { id: 'r_pa', label: 'Parry', formula: 'x' }, 'resist', 1, true, { att: 'a_abcd1234', m: 2 });
+    {   // 1.6.3 (the release click test): a turn's reminder names the very token whose turn it is (net.postDue run for real, handing net.tokNameOf the token)
+        const postedT = [], nT = { tokNameOf: (ch, mapId, tokId) => (tokId === 't_tube' && mapId === 'm_sub' ? 'Tube worker' : 'Ahto citizen (generic)') };
+        new Function('net', 'getProfile', 'diceFrom', 'postDue', pd)(nT, () => ({}), () => ({ id: 'u_gm', name: 'GM', gm: true }), r => postedT.push(r));
+        nT.postDue({ id: 'c_cit', name: 'Ahto citizen (generic)' }, { id: 'r_dn', label: 'Down' }, 'turn', 3, false, { tokId: 't_tube', mapId: 'm_sub' }); nT.postDue({ id: 'c_cit', name: 'Ahto citizen (generic)' }, { id: 'r_dn', label: 'Down' }, 'turn', 3, false);
+        check('1.6.3 (the release click test): a turn\'s reminder names the token whose turn it is, where several tokens share one sheet; with no token named, as before',
+            postedT.length === 2 && postedT[0].as === 'Tube worker' && postedT[0].why === 'turn' && !('tokId' in postedT[0]) && postedT[1].as === 'Ahto citizen (generic)', JSON.stringify(postedT.map(r => r.as)));
+    }
     const cd = Dx.cleanDue(posted[0]), cd2 = Dx.cleanDue(posted[1]), badK = Dx.cleanDue(Object.assign({}, posted[0], { kn: { x: 1 } })), badN = Dx.cleanDue(Object.assign({}, posted[1], { nm: 1 }));
     check('1.6.0 an attempt\'s kind, the card: its word and a card of rows alone are carried and cleaned as text, a card with neither keeps the keys it had, and a word that is no text or a mark with no rows is no card',
-        cd && cd.kn === 'a slug' && cd.nm === 1 && cd.label === 'Ward with Blade' && Dx.resistWhy(cd) === 'resisting an attempt, made by 2, a slug' && cd2 && !('kn' in cd2) && !('nm' in cd2) && Dx.resistWhy(cd2) === 'resisting an attempt, made by 2' && badK === null && badN === null, j([cd, cd2, badK, badN]));
+        cd && cd.kn === 'a slug' && cd.nm === 1 && cd.label === 'Ward with Blade' && Dx.resistWhy(cd) === 'resisting an attempt (a slug), which succeeded by 2' /* 1.6.3 (the release click test): its margin said as what it is (moved on purpose) */ && cd2 && !('kn' in cd2) && !('nm' in cd2) && Dx.resistWhy(cd2) === 'resisting an attempt, which succeeded by 2' && badK === null && badN === null, j([cd, cd2, badK, badN]));
 })());
 // 1.6.0 (asked by a system build): Or resisted by naming a list's roll — the card offers that roll once for each row of that list the target
 // holds, a player's card never a row kept from them (a curse the GM keeps on or out of sight, a GM-only entry), and the host takes the attempt

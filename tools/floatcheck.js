@@ -924,6 +924,14 @@ const dice = read('scripts/dice.js');
                 [true, false, ['none', 'flex', false, ['voice']], true, ['none', 'none', ['voice']]]])
             && count(escSrc2, "doc.getElementById('voicePop')") === 1 && count(escSrc2, 'win.wpVoice.escape()') === 1, J(vv));
     }
+    // 4d. 1.6.3 (the release click test): the Sound popover of the top row (sound.js), put away by Escape as the voice popover is, before any window, the
+    //     focus left on the speaker that opened it
+    {
+        const S = page(), I = S.ids; S.mk('soundInd', { tag: 'button' }); S.mk('soundPop', { display: 'none' }); show(S, 'soundPop', 'block'); show(S, 'helpModal');
+        const r1 = S.press(I.soundInd), s1 = [I.soundPop.style.display, I.helpModal.style.display], r2 = S.press(), s2 = [I.soundPop.style.display, I.helpModal.style.display];
+        check('1.6.3 (the release click test; esckey.js run for real): Escape puts the Sound popover away, before the window under it, from the speaker that opened it, and goes no further; the next Escape closes the window',
+            r1.stopped === true && r1.free === false && J(s1) === J(['none', 'flex']) && r2.stopped === true && J(s2) === J(['none', 'none']), J([r1, s1, r2, s2]));
+    }
     // 5. a text box on the map, the floating boxes, a field outside them, the left panel opened from its rail
     {
         const T = page(); const t1 = T.press(T.ids.wbText), tS = [T.ids.wbText.blurs];

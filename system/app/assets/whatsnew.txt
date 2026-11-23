@@ -1,3 +1,30 @@
+WAYPOINT 1.6.4 — What's New
+============================
+
+Updates from Waypoint's website
+- Waypoint now gets its updates from waypointvtt.com. Check for updates
+  in Settings reads the list there, and the files come from the
+  website's own download host. Each update is still signed, and
+  Waypoint checks the signature before it reads a word of the list or
+  installs a file.
+- When an update needs the installer, the steps open a page of the
+  website, not GitHub.
+
+Your plan's relay
+- If you host on a Waypoint GM plan, the website's relay carries your
+  table for players who cannot connect directly, such as players on a
+  phone network. On the desktop app, link this computer to your account
+  under Profile first. Waypoint asks for the relay each time you host,
+  and you set nothing up.
+- A relay server of your own in Settings comes first and is used in its
+  place.
+- While you host, Settings shows how much of this month's relay you have
+  used, warns you when most of it is gone, and says when it starts
+  again. Once it is used up, players who need the relay cannot join
+  until it starts again. Everyone else still joins.
+- Hosting never waits more than a few seconds for the relay. If the
+  website is busy, your table starts as before.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 
@@ -833,6 +860,36 @@ Smaller things
   is worn, such as Row.Weight > 1. Two rows on the same layer still
   push each other off, and Row.covered tells a row which of its places
   something heavier covers, so its bonuses can stop counting there.
+- The fight's menu in the trackers bar works again after you open the
+  combat roster from it. Before, Hold and End combat did nothing until
+  the strip was drawn again.
+- An NPC's damage card opens Take damage on the NPC it was aimed at,
+  even with another token selected.
+- Next turn stays in one place in the trackers bar, so you can press it
+  turn after turn without chasing it.
+- A new round and End combat draw the screen once, so a new round on a
+  big campaign takes under a second.
+- A blast waiting for Defense rolls keeps its circle on the map after
+  you reload.
+- Keys pressed with the System editor or the Library window open stay in
+  that window. An arrow key no longer moves a token behind it.
+- A spreadsheet of gear picks the list it fits, even where two lists
+  share a name.
+- The first time Waypoint opens, the left panel shows every section,
+  not the Handbook alone.
+- Starting a campaign from the welcome screen no longer leaves an empty
+  Default Campaign behind.
+- Ctrl+Z and Ctrl+Y undo and redo the map even while a box in Properties,
+  a tool's options or a sheet still has the focus. A box you just typed in
+  takes back its own typing first, and with nothing left to undo Waypoint
+  says so.
+- A part fitted to a row can be taken out and kept. Press Take out on its
+  pill and it stays on its list as a row of its own, with its count, level
+  and stats, and any parts fitted to it stay in it.
+- Room and portal names on your map sit on a solid dark plate above the
+  tokens, and stay the same size however far you zoom out, so a door's
+  name no longer disappears under the characters standing on it. A place
+  pin's name gets the same plate.
 
 WAYPOINT 1.6.2 — What's New
 ============================

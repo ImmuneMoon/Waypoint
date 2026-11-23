@@ -272,12 +272,25 @@ function csvPics() {
 }
 function csvOpen(fileName, bytes, pics) {
     var t = readCsv(bytes); if (t.error) { catLog('csv-refused', { why: 'file' }); toast(t.error); return; }
-    var c = camp(), sys = c && c.system, hasHead = headLooks(t), heads = headsOf(t, hasHead), list = bestList(sys, heads), stats = csvStats(sys, list), mapped = guessMap(heads, csvTargets(stats));
+    var c = camp(), sys = c && c.system, hasHead = headLooks(t), heads = headsOf(t, hasHead), list = bestList(sys, heads, csvFileCats(t, heads, hasHead)), stats = csvStats(sys, list), mapped = guessMap(heads, csvTargets(stats));   // 1.6.3: a tie between lists broken by the categories the file's rows name
     var name = fileName.replace(/\.[^.]*$/, '').replace(/[_]+/g, ' ').trim().slice(0, LIB.packName), low = name.toLowerCase(), hit = packs().filter(function(p) { return String(p.name || '').trim().toLowerCase() === low; })[0];
     var cv = { file: fileName.slice(0, 80), table: t, hasHead: hasHead, heads: heads, list: list, stats: stats, map: mapped, cat: csvCatFor(list, mapped), pack: name, pics: Array.isArray(pics) ? pics : null };
     var im = { file: cv.file, csv: cv, data: null, mode: hit ? (mapped.indexOf('key') >= 0 ? 'key' : 'id') : 'new', target: hit ? hit.id : st.packId };   // a file named as a pack updates that pack, by default
     if (typeof leave === 'function') leave(); csvApply(im); st.imp = im; st.sel = map(); st.entryId = null; st.draftNew = null; drawRows(); renderForm();
     catLog('csv-read', { rows: t.rows.length, cols: heads.length, sep: t.sep === ',' ? 'comma' : t.sep === ';' ? 'semicolon' : t.sep === '\t' ? 'tab' : 'other', enc: t.enc, guessed: mapped.filter(Boolean).length, cutRows: t.cut.rows, cutCols: t.cut.cols, cutCells: t.cut.cells, open: t.open });
+}
+// 1.6.3 (the release click test): the categories the file's rows name, each once, from the column the headings say holds them (none where none
+// does), for csvcore bestList to break a tie between lists with
+function csvFileCats(t, heads, hasHead) {
+    var ci = guessMap(heads, csvTargets([])).indexOf('category'), out = [], seen = map(); if (ci < 0 || !t || !Array.isArray(t.rows)) return out;
+    t.rows.slice(hasHead ? 1 : 0).forEach(function(r) { var v = Array.isArray(r) && typeof r[ci] === 'string' ? r[ci].trim() : ''; if (v && !seen[v.toLowerCase()]) { seen[v.toLowerCase()] = 1; out.push(v); } });
+    return out.slice(0, 200);
+}
+// 1.6.3 (the release click test): a list's name in For the list, its own name with its short name after it where another item list has the same
+// name, as the System editor tells two such lists apart
+function csvListName(f) {
+    var nm = f.label || f.key || 'A list', twin = itemLists().some(function(o) { return o !== f && (o.label || o.key || 'A list') === nm; });
+    return twin && f.key && f.key !== nm ? nm + ' (' + f.key + ')' : nm;
 }
 function csvCatFor(list, mapped) { if (mapped.indexOf('category') >= 0) return ''; var f = itemLists().filter(function(x) { return x.id === list; })[0]; return f && Array.isArray(f.list.cats) && typeof f.list.cats[0] === 'string' ? f.list.cats[0] : ''; }
 function csvApply(im) { var cv = im.csv; im.data = csvEntries(cv.table, cv.map, cv.stats, gmCtx(), { hasHead: cv.hasHead, cat: cv.cat, name: cv.pack, pics: cv.pics }); }
@@ -296,7 +309,7 @@ function csvBox(form, im) {
     if (t.open) form.appendChild(el('div', 'lib-warn', 'A quote in the file never closes, so its last cell runs to the end. Check that row.'));
     var hd = field(form, 'csvHead', 'First row', cv.hasHead ? 'yes' : 'no', { pairs: [['yes', 'Names the columns'], ['no', 'Is a row like the others']], title: 'Whether the first row of the file holds the headings' });
     hd.addEventListener('change', function() { cv.hasHead = hd.value === 'yes'; cv.heads = headsOf(t, cv.hasHead); cv.map = guessMap(cv.heads, csvTargets(cv.stats), cv.map); csvRedraw(im); });
-    var ls = field(form, 'csvList', 'For the list', cv.list, { pairs: [['', 'Any list']].concat(itemLists().map(function(f) { return [f.id, f.label || f.key || 'A list']; })), title: 'The list these entries are for. Its stats are the ones a column can go to' });
+    var ls = field(form, 'csvList', 'For the list', cv.list, { pairs: [['', 'Any list']].concat(itemLists().map(function(f) { return [f.id, csvListName(f)]; })), title: 'The list these entries are for. Its stats are the ones a column can go to' });
     ls.addEventListener('change', function() { cv.list = ls.value; cv.stats = csvStats(sys, cv.list); cv.map = guessMap(cv.heads, csvTargets(cv.stats), cv.map); if (!cv.cat) cv.cat = csvCatFor(cv.list, cv.map); csvRedraw(im); });
     catList(form);
     var ct = field(form, 'csvCat', 'Category for rows with none', cv.cat, { max: 40, list: 'libCats', title: 'A list offers the entries of the categories it names. Rows with no category of their own take this one' });
@@ -340,6 +353,15 @@ function renderList() {
     var old = lb.box.querySelector('.lib-empty'); if (old) old.parentNode.removeChild(old);
     var cnt = ui('libCount'); if (cnt) cnt.textContent = st.packId ? (st.q ? list.length + ' found' : plural(list.length)) : '';
     if (st.packId && !list.length && ready(st.packId)) lb.box.appendChild(el('div', 'lib-empty', st.q ? 'Nothing matches.' : 'This pack is empty: + Entry adds one.'));
+    // [sysedcheck:libreveal-start]
+    // 1.6.3 (the release click test): an entry Used by opened (openAt) is brought to the middle of the list, which draws only the rows near its
+    // scroll. Where its pack is still being read the entry is not in the list yet, so it waits for the draw that comes once the pack is read
+    if (st.revealId) {
+        var rvAt = -1; for (var rv = 0; rv < list.length && rvAt < 0; rv++) if (list[rv].id === st.revealId) rvAt = rv;
+        if (rvAt >= 0) { lb.box.scrollTop = Math.max(0, rvAt * ROW_H - Math.max(0, ((lb.box.clientHeight || 400) - ROW_H) / 2)); st.revealId = null; }
+        else if (!st.packId || ready(st.packId)) st.revealId = null;
+    }
+    // [sysedcheck:libreveal-end]
     drawRows();
 }
 // only the rows that show (and ten either side): the spacer keeps the scroll height, so scrolling never rebuilds more than about forty rows
@@ -1258,6 +1280,7 @@ window.wpLibraryWin.openAt = function(packId, entryId) {
     if (!st.open) open(); if (!st.open || !packById(packId)) return;
     if (formUnsaved() && saveEntry() !== true) { toast('The entry open in the Library has changes that could not be saved, so the Library stays on it.'); return; }
     st.packId = packId; st.entryId = entryId; st.draftNew = null; st.sel = map(); st.anchor = null; st.q = ''; var s = ui('libSearch'); if (s) s.value = '';
+    if (entryId) { st.sel[entryId] = 1; st.anchor = entryId; st.revealId = entryId; }   // 1.6.3 (the release click test): its row marked and brought into view (renderList)
     renderAll();
 };
 // [sysedcheck:libleave-end]

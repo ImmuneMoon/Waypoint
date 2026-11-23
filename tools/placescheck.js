@@ -280,6 +280,19 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
             && ix.indexOf('<li><b>Places:</b>') > ix.indexOf('<li><b>Containers:</b>') && ix.indexOf('<li><b>Places:</b>') > ix.indexOf('data-pane="whiteboard"'));
         const notes = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].map(t => t.replace(/\r\n/g, '\n'));
         check('both release notes say it under 1.6.3, alike', notes.every(t => t.indexOf('Places on the map\n- A map can list its places now') > t.indexOf('WAYPOINT 1.6.3') && t.indexOf('Places on the map') < t.indexOf('WAYPOINT 1.6.2')) && notes[0] === notes[0] && notes[0].slice(0, notes[0].indexOf('WAYPOINT 1.6.2')) === notes[1].slice(0, notes[1].indexOf('WAYPOINT 1.6.2')));
+        {   // 1.6.3 (the release click test): a legend laid by a click is tall enough for the map's places, and a longer list scrolls inside it
+            // (places.js legendTall and addLegend, sliced and run for real; the wheel and the scroll bar kept from the board; the style sheet)
+            const plT = read('scripts/places.js'), ltA = plT.indexOf('// [placescheck:legendtall-start]'), alZ = plT.indexOf('// Called by the board once a placed piece has landed');
+            const armed = []; let ltErr = '';
+            const addFor = n => { armed.length = 0; const win = { wpArmPlacement: (t, o) => armed.push([t, o.w, o.h]), wpPlace: {} };
+                try { new Function('gmMay', 'window', 'getActiveMap', 'linesNow', 'step', plT.slice(ltA, alZ) + '\naddLegend();')(() => true, win, () => ({ id: 'm' }), () => new Array(n).fill({ id: 'x' }), () => {}); } catch (e) { ltErr = String(e && e.message); }
+                return armed[0]; };
+            const got = [addFor(0), addFor(8), addFor(40)], css = read('style.css');
+            check('1.6.3 (the release click test): a legend laid by a click is as tall as the map\'s places need, 200 to 600 px, and its list scrolls inside it where it holds more, the wheel and the scroll bar moving the list and not the board',
+                !ltErr && J(got) === J([['maplegend', 240, 200], ['maplegend', 240, 304], ['maplegend', 240, 600]])
+                && /\.wb-item\.maplegend > \.lg-box \{ position: absolute; inset: 0; padding: \.6em \.75em; overflow: hidden auto;/.test(css)
+                && plT.includes("box.addEventListener('wheel', function(e) { if (!e.ctrlKey && box.scrollHeight > box.clientHeight + 1) e.stopPropagation(); }, { passive: true });"), J([ltErr, got]));
+        }
         const ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');
         check('CI runs this suite under a plain name', /- name: placescheck, a map's places[^\n:]*\n\s+if: \$\{\{ !cancelled\(\) \}\}\n\s+run: node tools\/placescheck\.js/.test(ci.replace(/\r\n/g, '\n')));
     }

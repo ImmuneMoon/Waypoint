@@ -222,6 +222,10 @@ function legendDraw(pe, item, map) {
         box.addEventListener('mousedown', function(e) { if (e.target.closest && e.target.closest('.lg-line')) e.stopPropagation(); });
         box.addEventListener('click', function(e) { var b = e.target.closest && e.target.closest('.lg-line'); if (!b) return; e.stopPropagation(); press(String(b.dataset.id || ''), true); });
         box.addEventListener('dblclick', function(e) { if (e.target.closest && e.target.closest('.lg-line')) e.stopPropagation(); });
+        // 1.6.3 (the release click test): a list longer than the box scrolls. The wheel over a legend that can scroll scrolls it, never zooms
+        // the board, and a press on its scroll bar moves the list, never the piece
+        box.addEventListener('wheel', function(e) { if (!e.ctrlKey && box.scrollHeight > box.clientHeight + 1) e.stopPropagation(); }, { passive: true });
+        box.addEventListener('pointerdown', function(e) { if (e.target === box && box.scrollHeight > box.clientHeight + 1 && typeof e.offsetX === 'number' && e.offsetX >= box.clientWidth) e.stopPropagation(); });
     }
     var lines = map ? linesNow(map) : [], title = PC.cleanPlaceName(item.name) || PC.cleanPlaceName(map && map.meta ? map.meta.title : '') || 'Places';
     var ink = inkFor(item.color), w = Number(item.w), fs = Math.max(10, Math.min(28, Math.round((isFinite(w) && w > 0 ? w : 220) / 16)));
@@ -280,10 +284,18 @@ function addPin() {
     if (!gmMay() || typeof window.wpArmPlacement !== 'function') return;
     window.wpArmPlacement('mappin', { w: 40, h: 40, color: '#e0a54f', name: 'Place pin', place: true }, 'place pin'); step('add', { kind: 'pin' });
 }
+// [placescheck:legendtall-start]
+// 1.6.3 (the release click test): a legend's height at a click for n places: its title and padding, then 30 px a place (a line is about
+// 23 px at the default width, and a long name wraps), held to 200 at least (as before) and 600 at most
+function legendTall(n) { n = Math.max(0, Math.floor(Number(n) || 0)); return Math.max(200, Math.min(600, 64 + 30 * n)); }
+// [placescheck:legendtall-end]
 // Add's Legend (#addLegendBtn): arms a placement of a 240 by 200 maplegend that may be dragged to its size (wpPlace.sized), drawn by legendDraw
 function addLegend() {
     if (!gmMay() || typeof window.wpArmPlacement !== 'function') return;
-    window.wpArmPlacement('maplegend', { w: 240, h: 200, color: '#efe4c8', name: '' }, 'legend'); if (window.wpPlace) window.wpPlace.sized = true; step('add', { kind: 'legend' });
+    // 1.6.3 (the release click test): a click lays a legend tall enough for the places this map holds now (240 px wide, 30 px a
+    // place, 200 to 600 high); a drag still sets the size by hand, and a list longer than the box scrolls inside it
+    var mapL = getActiveMap(), nL = mapL ? linesNow(mapL).length : 0;
+    window.wpArmPlacement('maplegend', { w: 240, h: legendTall(nL), color: '#efe4c8', name: '' }, 'legend'); if (window.wpPlace) window.wpPlace.sized = true; step('add', { kind: 'legend' });
 }
 // Called by the board once a placed piece has landed: a pin opens Properties with its Place name ready to type
 function placed(type, id) {

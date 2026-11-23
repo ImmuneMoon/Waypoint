@@ -401,6 +401,9 @@ if(_el_newCampBtn) _el_newCampBtn.addEventListener('click', function() {
       if ((window.wpNet && window.wpNet.foreign) || (state.appState && state.appState._foreign)) { toast('Not while you\'re at someone else\'s table.'); return; }   // the campaigns on screen are someone else's (the owed review, 2026-10-09: the tour's owed prompt reached this from a player's app)
 
       var initial = getUniqueCampaignTitle("My New Campaign", null);
+      // 1.6.3 (the release click test): a press that the welcome's Start a campaign made (main.js sets wpSeedDrop) lets the seeded, untouched
+      // Default Campaign go once the new campaign is made; read once here, so a later New campaign never removes anything
+      var dropSeed = window.wpSeedDrop === true; window.wpSeedDrop = false;
 
       promptForCampaignName(initial, "Enter new campaign name:", null, function(title) {
 
@@ -411,6 +414,7 @@ if(_el_newCampBtn) _el_newCampBtn.addEventListener('click', function() {
               var open = function() {
 
                   state.appState.campaigns[newCamp.id] = newCamp;
+                  if (dropSeed && typeof window.wpSeedDrops === 'function' && !(window.wpNet && window.wpNet.active)) window.wpSeedDrops(state.appState.campaigns, newCamp.id).forEach(function(id) { delete state.appState.campaigns[id]; resetHistory(id); });   // never while a table is hosted
 
                   state.appState.activeCampaignId = newCamp.id;
 

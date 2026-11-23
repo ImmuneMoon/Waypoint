@@ -750,7 +750,11 @@ function renderRoster() {
     if (el) {
         var players = Object.values(net.roster);
         if (!players.length) {
-            el.textContent = 'No players connected yet.';
+            // 1.6.3 (the release click test): the host's words only while this app hosts; a player who is no longer at a table (removed, or
+            // the table gone) is told nothing of connected players, and the empty line takes no room
+            var hostingR = !!(net.active && net.role === 'host');
+            el.textContent = hostingR ? 'No players connected yet.' : '';
+            if (el.style) el.style.display = hostingR || net.active ? '' : 'none';
         } else {
             var camp = getActiveCampaign();
             el.innerHTML = players.map(function(p) {
@@ -1436,7 +1440,7 @@ function scheduleStageFollow() {
         broadcastRoster();
         if (!moved && net.stageMode === 'last' && !_stayHintShown && net.conns.some(function(c) { var pS = own(net.roster, c.peer) ? net.roster[c.peer] : null; return !!pS && pS.location !== s2.itemId; })) {
             _stayHintShown = true;   // said once a session: the GM opened another map and the players did not come
-            toast('Your players stay where they are. Summon All brings them to this map; Players arrive at \u25B8 Follow me makes the table move with you.');
+            toast('Your players stay where they are. Summon All brings them to this map. To have the table move with you, set Players arrive at to Follow me.');   // 1.6.3 (the release click test): the setting said as a step, as the notice after it says one
         }
         if (moved && !net.stageOverride && !_stageHintShown) {
             _stageHintShown = true;
@@ -2516,6 +2520,11 @@ net.syncChar = function(id) { if (typeof fxPassForget === 'function') fxPassForg
 // netfight.js's fight step and fight set, combatOver, calendar.js ownTime and the timed effects' clock tick (nettime.js)
 var _batch = null;
 net.charBatch = function(fn) {
+    // 1.6.3 (the release click test: a new round and End combat each still held the GM's screen about 2 s, the app drawn whole four times): the outermost
+    // batch runs inside main.js's wpRenderBatch, so every whole draw asked for while it runs, the fight's own and the flush's, is made once at its end
+    if (!_batch && typeof window !== 'undefined' && window && typeof window.wpRenderBatch === 'function' && !net._inRenderBatch) {
+        net._inRenderBatch = true; try { return window.wpRenderBatch(function() { return net.charBatch(fn); }); } finally { net._inRenderBatch = false; }
+    }
     if (_batch) _batch.n++; else _batch = { n: 1, ids: [], d: Object.create(null), c: [] };
     try { return fn(); } finally { if (--_batch.n === 0) { var bF = _batch; _batch = null; batchFlush(bF); } }
 };
@@ -2788,9 +2797,11 @@ net.charDamage = function(charId, q) {
     return { ok: true, pending: true };
 };
 // 1.5.6, the damage step: what a blow did — a private line for the GM, and one for the character's player at the table (an NPC's the GM's alone)
-net.damageCard = function(ch, lines) {
+// name (1.6.3, the release click test): the name the line begins with, where the caller knows the token it is about (a fight's row names its token, which
+// may read differently from the sheet); with none, the sheet's own name as before
+net.damageCard = function(ch, lines, name) {
     if (net.role === 'client' || net.stream || !ch || typeof ch !== 'object') return;
-    var t = (String(ch.name || 'A character').slice(0, 60) + ': ' + (Array.isArray(lines) ? lines : []).map(function(l) { return String(l); }).join(' ')).slice(0, 1500);
+    var t = (String((typeof name === 'string' && name.trim() ? name.trim() : '') || ch.name || 'A character').slice(0, 60) + ': ' + (Array.isArray(lines) ? lines : []).map(function(l) { return String(l); }).join(' ')).slice(0, 1500);
     var m = { type: 'chat', scope: 'whisper', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: t, ts: Date.now() };
     if (net.active && net.role === 'host' && ch.ownerId && !ch.npc) net.conns.forEach(function(c) { if (c.open && net.roster[c.peer] && peerProfileId(c) === ch.ownerId) { try { c.send(m); } catch (e) { sendFailed(e); } } });
     pushChat(m);
@@ -2859,6 +2870,7 @@ net.charItem = function(charId, fieldId, q) {
     if (!ptW && q.op === 'ov' && typeof S.ownStatsOnly === 'function' && S.fieldById) { var fO = S.fieldById(camp.system, fieldId); if (fO && S.ownStatsOnly(fO.list, q)) ptW = true; }   // 1.6.2: a stat a player sets is the host's to store, on a copy of any kind
     if (!ptW && typeof S.grantWaits === 'function' && S.grantWaits(camp.system, c, q, net.libEntry)) ptW = true;   // 1.6.0 (v2, B4): an add of an entry that grants rows, and a removal of a row that granted some, wait for the host, which grants
     if (q.op === 'place') ptW = true;   // 1.6.2 (body fold 2): only the host holds every row a place may read
+    if (q.op === 'unfit') ptW = true;   // 1.6.3: a part taken out of its host is the host's to judge (a host kept on, a lock, a laid row), so it is sent and waited for
     if (ptW || q.op === 'load' || q.op === 'chamber' || q.op === 'unchamber' || q.op === 'split' || (q.op === 'add' && typeof q.pay === 'number') || ((q.op === 'remove' || q.op === 'setQty') && typeof q.get === 'number') || q.op === 'restore' || q.op === 'look' || q.op === 'work') {   // 1.6.0, backlog 206: a look and a work line (its fee moves money) wait for the host too   // 1.5.6 a purchase or a sale: the host moves the money with the row, and this copy follows its word; 1.5.8 a load (Loads from) moves two lists, and waits alike
         var ridM = 'e' + Math.random().toString(36).slice(2, 10);
         _charPending[ridM] = { charId: charId, fieldId: fieldId, batch: [], kind: 'item', timer: setTimeout(function() { charPendingDone(ridM, false, 'timeout'); }, S.LIMITS.editTimeoutMs) };
@@ -3971,7 +3983,7 @@ function rosterPayload() {
     });
     return out;
 }
-function broadcastRoster() { if (typeof landRosterMoved === 'function') landRosterMoved(); broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); if (typeof refreshChatRecipients === 'function') refreshChatRecipients(); }   // 1.6.3 (finding 4): Table Chat's To list follows the roster. backlog 29: a player on another map is sent that map's trackers
+function broadcastRoster() { if (typeof landRosterMoved === 'function') landRosterMoved(); try { if (typeof window !== 'undefined' && typeof window.wpPlannerPlayers === 'function') window.wpPlannerPlayers(); } catch (e) { console.error(e); } broadcast({ type: 'roster', roster: rosterPayload(), away: awayMap() }, null); if (typeof net.syncTrackers === 'function') net.syncTrackers(); if (typeof refreshChatRecipients === 'function') refreshChatRecipients(); }   // 1.6.3 (finding 4): Table Chat's To list follows the roster. The release click test's finding 25: a page's Seen by ticks follow the players too. backlog 29: a player on another map is sent that map's trackers
 // [netcheck:roster-end]
 
 // Is this player currently on the given map? (self is always present to itself)
@@ -3979,6 +3991,7 @@ net.refreshUi = function() {               // own campaign is back: spectator cl
     renderRoster();
     if (!net.active) refreshStageSelect();
     syncSessionButtons();
+    if (typeof window !== 'undefined' && window.wpSettingsSync) window.wpSettingsSync();   // 1.6.3 (the release click test): the Multiplayer window's VTT line follows too, so a removed player no longer reads the old table's switches
 };
 net.sanitizeAppState = sanitizeAppState;   // the stream window shows the party view: what the players' tokens see together, never the GM's whole map (R2 #14)
 net.applyStage = applyStage;
@@ -5048,14 +5061,15 @@ net.revealHandout = function(hid, pids, o) {
     var camp = getActiveCampaign(); var h = camp && camp.handouts && camp.handouts[hid];
     if (!h || !window.wpHandoutPayload) return;
     var sk = sceneKeys(o, h.kind);
+    var jk = o && typeof o === 'object' && o.join === true && !sk ? { join: true } : {};   // 1.6.3 (the release click test): a handout sent as a player joins says so, and their app keeps it for one notice in place of popping each up
     var targets = net.conns.filter(function(c) { var p = net.roster[c.peer]; return c.open && p && (!pids || pids.indexOf(p.id) >= 0); });
     if (!targets.length) { toast('Nobody to show it to right now.'); return; }
     window.wpHandoutPayload(h).then(function(pl) {
         targets.forEach(function(c) {
             var p = net.roster[c.peer];
             try { c.send(pl.kind === 'text'
-                ? { type: 'handout', kind: 'text', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }
-                : Object.assign({ type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }, sk || {})); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
+                ? Object.assign({ type: 'handout', kind: 'text', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', text: pl.text, tags: (h.tags || []).slice(0, 8) }, jk)
+                : Object.assign({ type: 'handout', campId: camp.id, gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), campaign: camp.name || '', gm: getProfile().name || 'GM', id: h.id, title: h.title || '', caption: h.caption || '', mime: pl.mime, data: pl.data, tags: (h.tags || []).slice(0, 8) }, sk || jk)); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown
             if (sk && sk.nokeep) return;   // a scene kept out of the Journals is no reveal: nothing comes back to them on a reconnect
             camp.handoutReveals = camp.handoutReveals || {};
             camp.handoutReveals[p.id] = camp.handoutReveals[p.id] || {};
@@ -5097,7 +5111,7 @@ function sendMissedHandouts(conn, prof) {
     Object.values(camp.handouts || {}).forEach(function(h, i) {
         if (!h.autoOnJoin && !(h.giveTo && h.giveTo[prof.id])) return;
         if (camp.handoutReveals && camp.handoutReveals[prof.id] && camp.handoutReveals[prof.id][h.id]) return;
-        setTimeout(function() { if (conn.open) net.revealHandout(h.id, [prof.id]); }, 3000 + i * 600);
+        setTimeout(function() { if (conn.open) net.revealHandout(h.id, [prof.id], { join: true }); }, 3000 + i * 600);   // 1.6.3 (the release click test): marked as sent at the join, so their app says them in one notice
     });
     if (!camp.handoutReveals || !camp.handoutReveals[prof.id]) return;
     // 1.6.3 (the multiplayer review, finding 9): a rejoin sent every picture this player was ever shown again, re-encoded for each, while the
@@ -7229,7 +7243,7 @@ function handleMessage(msg, conn) {
         if (!resI.ok) {
             if (resI.reason === 'stays') { itemNotice(chI, resI.name, resI.by ? 'eq-held-try' : resI.moved ? 'eq-move-try' : resI.eq && qi.op === 'set' ? 'eq-bound-try' : 'bound-try', resI.by); try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'stays', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // a bound item: it stays, with the GM's message
             if (resI.reason === 'needs') { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: 'needs', msg: resI.msg || '' }); } catch (e) { sendFailed(e); } return; }   // 126b: what the entry needs, in the GM's own words or by the names a player may know
-            if ((qi.op === 'place' || qi.op === 'chamber' || qi.op === 'unchamber' || qi.op === 'load' || qi.op === 'setQty' || qi.op === 'look' || qi.op === 'work' || resI.cap === true || ((qi.op === 'add' || qi.op === 'custom') && qi.in !== undefined)) && resI.msg) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(resI.reason), msg: String(resI.msg).slice(0, 200) }); } catch (e) { sendFailed(e); } return; }   // 1.5.9: what does not fit, a chamber that is full, in words; 205 (5): a host with no room for a part, by Holds or a cap per kind
+            if ((qi.op === 'place' || qi.op === 'unfit' || qi.op === 'chamber' || qi.op === 'unchamber' || qi.op === 'load' || qi.op === 'setQty' || qi.op === 'look' || qi.op === 'work' || resI.cap === true || ((qi.op === 'add' || qi.op === 'custom') && qi.in !== undefined)) && resI.msg) { try { conn.send({ type: 'char-deny', rid: qi.rid, reason: Si.cleanDenyReason(resI.reason), msg: String(resI.msg).slice(0, 200) }); } catch (e) { sendFailed(e); } return; }   // 1.5.9: what does not fit, a chamber that is full, in words; 205 (5): a host with no room for a part, by Holds or a cap per kind
             denyI(resI.reason); return;
         }
         if (qi.op === 'load' && qi.feed !== undefined && window.wpStepLog) window.wpStepLog('feed v1', 'changed', { how: qi.from === null ? 'unload' : qi.more ? 'stack' : 'swap', by: 'player' });   // 1.6.0 Feeds
@@ -8132,7 +8146,8 @@ function handleMessage(msg, conn) {
         if (typeof swQ !== 'undefined' && swQ && swQ.ok && swQ.names.length) recQ.sw = swQ.names.map(function(x) { return { n: x.n, v: x.v }; });   // 1.6.0: the roll switches it was rolled with, by name (their view holds no GM-only one)   // 1.5.8 (handoff 90 Part B): what changed the values it reads
         if (q.mod || q.adv) { var hmQ = Dq.cleanHmod ? Dq.cleanHmod({ v: q.mod, adv: q.adv }) : null; if (hmQ) recQ.hmod = hmQ; } else if (q.hm) recQ.hmod = q.hm;   /* the review of words: a roll that is not named carries what was added by hand as words alone (cleanRollReq cleaned it), so it is judged as the plain press it is */   // 1.6.3 (finding 13): what the player added by hand in the ± window, which cleanRollReq takes only on a named roll and the host checked against its button above; the card says it to the table
         if (q.label) recQ.label = q.label;
-        if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + ((typeof net.tokNameOf === 'function' ? net.tokNameOf(chQ, tcQ && tcQ.selfMap, tcQ && tcQ.self) : '') || chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label);   // 1.6.3 (the review of combat batch "strip"): a crew press names the vehicle by its token, as net.diceRoll names a character if (chQ && typeof plOn === 'function' && !(typeof pressQ !== 'undefined' && pressQ)) plOn(recQ, chQ);   // 1.6.2, backlog 35: a player's roll, in its character's look (a crew press names two, so none)
+        if (chQ) recQ.as = String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + ((typeof net.tokNameOf === 'function' ? net.tokNameOf(chQ, tcQ && tcQ.selfMap, tcQ && tcQ.self) : '') || chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label);   // 1.6.3 (the review of combat batch "strip"): a crew press names the vehicle by its token, as net.diceRoll names a character
+        if (chQ && typeof plOn === 'function' && !(typeof pressQ !== 'undefined' && pressQ)) plOn(recQ, chQ);   // 1.6.2, backlog 35: a player's roll, in its character's look (a crew press names two, so none)
         if (recQ.dmg !== 1 && chQ && typeof bodySwitch === 'function' && bodySwitch(campQ, chQ.id, recQ, resQ, Dq, mfQ, tcQ && tcQ.range, function() { return rangeReadBy(SQ, viewQ, chvQ, Fq, tcQ, q.expr, q.row && q.row.k ? q.row : null, 'bodyRead'); })) tcQ = bodyAim(tcQ, recQ);   // 1.6.2: a miss within a body's cover hits the body, a full hit aimed at it
         var hsQ = typeof holdsSqueeze === 'function' && chQ && typeof SQ.holdRefOf === 'function' ? holdsSqueeze(campQ, chQ, holdRefQ(campQ, q, actQ), recQ, Dq) : null;   // 1.6.0 Who holds whom: a squeeze lands on each held character, with no attack and no resist
         var hdQ = !!(blowRecQ && typeof figAnswers === 'function' && figAnswers(blowRecQ, q.expr, Fq)); if (hdQ) figMark(recQ, resQ, Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, Dq, Fq);   // 1.6.2: a roll answering an attempt whose figure is hidden: what leaves here is its copy
@@ -8179,6 +8194,10 @@ function handleMessage(msg, conn) {
         if (chQ && (actQ || blowRecQ) && typeof callsAfter === 'function') { var vcQ = Dq.verdictOf(resQ, ruleQ), pcQ = mfQ !== null && Dq.naturalOf(resQ) >= mfQ ? false : recQ.body === 1 ? true : vcQ && vcQ.kind === 'check' ? vcQ.pass === true : null; if (actQ) callsAfter(campQ, callEntry(campQ.system, q, actQ), pcQ, varsQ, typeof onQ !== 'undefined' && onQ ? onQ.ch : chQ, !!recQ.priv, q.row || (q.with ? { f: q.with.f, r: q.with.r } : q.row), recQ.big === true, tcQ, chQ); attemptCalled(campQ, blowRecQ, q.act, rowGQ || (q.with ? { f: q.with.f, r: q.with.r } : rowGQ), pcQ, chQ, !!recQ.priv, tcQ, ansQ);   /* 1.6.3 (defense fold 2): a roll answered with a row hands its row on, with no place among a list's rolls, so a call reads it and a call to a roll of that list lands there */ if (typeof holdsRolled === 'function' && typeof SQ.holdRefOf === 'function') holdsRolled(campQ, chQ, actQ, holdRefQ(campQ, q, actQ), pcQ, tcQ, blowRecQ, atQ); if (typeof stealRolled === 'function') stealRolled(campQ, pcQ, blowRecQ); }   // 1.6.0: Calls for, with its Then landed; Who holds whom
         if (actQ && actQ.burst && q.row && typeof burstAfter === 'function') burstAfter(campQ, chQ, actQ, q.row, resQ, ruleQ, mfQ !== null && Dq.naturalOf(resQ) >= mfQ, typeof taQ !== 'undefined' ? taQ : null, tcQ, saveRemoteSoon);   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
         if (actQ && chQ && !actQ.area && !lndQ && typeof landAfter === 'function') { var lvQ = Dq.verdictOf(resQ, ruleQ); landAfter(campQ, cardEnt(campQ, q.act, rowGQ, null), !(mfQ !== null && Dq.naturalOf(resQ) >= mfQ) && (recQ.body === 1 || (!!lvQ && lvQ.kind === 'check' && lvQ.pass === true)), tcQ, chQ, hidQ && !tgQ ? 'hid' : !!recQ.priv, q.row || q.with, atQ, recQ.from, q.hit, recQ.big === true, lrwQ, function(w) { if (typeof turnNote === 'function') turnNote(conn, w, chQ.id); }); }   /* 1.6.3 (the review of defense fold 2, finding 10): a defense answered with a row that is itself an attack, or carries its damage, names that row (Attempter.Row.*, its kind, the landing's row) */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, so the row it keeps (and a damage rolled at once) reads the round this very shot fired and the burst's marks
+        // 1.6.3 (the release click test): the card this roll answered is over, said as made, last of all, so a word a landing or a blast already gave stands
+        // (net.dueOver passes over a card already over). Before, the GM's copy of a Defend card a player pressed still said that its player presses it, and the
+        // GM's reload then called it cut short
+        if (q.att && typeof net.dueOver === 'function') net.dueOver(q.att, 'answered');
         };
         var figCQ = typeof abQ !== 'undefined' && abQ && typeof figAnswers === 'function' && figAnswers(abQ, q.expr, Fq) ? function(rc, rs) { figMark(rc, rs, Dq.ruleOf({}, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), false, Dq, Fq); var mk = figOf(rc); ['pend', 'offers', 'asked', 'dl'].forEach(function(k) { if (rc[k] !== undefined) mk[k] = rc[k]; }); return mk; } : null;   // 1.6.3 (the review of Hide my rolls): a roll answering an attempt whose figure is hidden (figAnswers) and held for its card actions: its pending card leaves here masked as its final card does (restQ's hdQ), its buttons kept; the GM's own copy stays whole. Its points to spend are left off the masked copy, since they are worked out from its margin
         var heldCQ = chQ && actQ && !tgQ && !mkQ && typeof cardHold === 'function' ? cardHold({ dl: q.dl || null, asked: typeof askedQ !== 'undefined' ? askedQ : null, S: SQ, D: Dq, F: Fq, camp: campQ, ent: cardEnt(campQ, q.act, rowGQ, actQ), res: resQ, expr: q.expr, vars: varsQ, tc: tcQ, ch: chQ, pid: pidQ, conn: conn, priv: q.priv === 'gm', from: diceFrom(net.roster[conn.peer], false), rid: q.rid, label: q.label, as: String(typeof pressQ !== 'undefined' && pressQ ? (pressQ.char.name || 'Crew') + ' on ' + (chQ.name || '') : chQ.name || '').slice(0, Dq.LIMITS.label), cid: q.charId, go: function(r, e, id, st) { q.expr = e; if (st) varsQ.bandStep = st; restQ(r, id); }, fig: figCQ }) : false;
@@ -8312,7 +8331,7 @@ function handleMessage(msg, conn) {
         // 1.6.0: the host's word that a card's blast went off: only a card of this very attempt, from the synced host
         if (!net.foreign || conn.peer !== net.syncedPeer || net.stream) return;
         var Dv = DC(); if (!Dv || !Dv.cleanAtt || !Dv.cleanAtt(msg.att)) return;
-        var overV = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === msg.att && !m.over) { m.over = 1; overV = true; if (msg.say === 'land' || msg.say === 'rolled' || msg.say === 'gone' || msg.say === 'sent' || msg.say === 'aside' || msg.say === 'missed' || msg.say === 'reload') m.overSay = msg.say; } }); if (overV) renderChatSoon();   // 1.6.3: and why, a fixed word (finding 1 of the combat review: reload, a card the GM's reload ended)
+        var overV = false; chatLog.forEach(function(m) { if (m && m.due && m.due.att === msg.att && !m.over) { m.over = 1; overV = true; if (msg.say === 'land' || msg.say === 'rolled' || msg.say === 'gone' || msg.say === 'sent' || msg.say === 'aside' || msg.say === 'missed' || msg.say === 'reload' || msg.say === 'answered') m.overSay = msg.say; } }); if (overV) renderChatSoon();   // 1.6.3: and why, a fixed word (finding 1 of the combat review: reload, a card the GM's reload ended)
         // [netcheck:dueover-end]
     } else if ((msg.type === 'roll' || msg.type === 'roll-deny') && net.role === 'client') {
         // a record or a refusal from the synced host only, after the snapshot; a host never takes a 'roll' from a client (no host branch)
@@ -9165,6 +9184,19 @@ function rememberHostCode(code) {
     try { localStorage.setItem('wp_lastHost', JSON.stringify(recH)); } catch (e) {}
 }
 function forgetHostCode() { try { localStorage.removeItem('wp_lastHost'); } catch (e) {} }
+// [netcheck:codescroll-start]
+// 1.6.3 (the release click test): the room code, which the GM reads and sends, comes into full view as hosting starts. The window's header
+// (Multiplayer and its close) stays on top as the window scrolls, and scrollIntoView does not allow for it: the code stood under it. So the
+// window is scrolled by hand until the top of the host's part stands 6 px under the header's foot. el: #netHostInfo. Asked by startHosting
+// after the Start button is put away and the roster is moved in, so what is above the code has its final height
+function hostCodeScroll(el) {
+    if (!el || typeof el.getBoundingClientRect !== 'function' || typeof el.closest !== 'function') return false;
+    var box = el.closest('#netModal > div'); if (!box || typeof box.getBoundingClientRect !== 'function') return false;
+    var h = typeof box.querySelector === 'function' ? box.querySelector('h3') : null, top = h && typeof h.getBoundingClientRect === 'function' ? h.getBoundingClientRect().bottom : box.getBoundingClientRect().top;
+    var by = el.getBoundingClientRect().top - top - 6; if (!isFinite(by)) return false;
+    box.scrollTop = Math.max(0, (Number(box.scrollTop) || 0) + by); return true;
+}
+// [netcheck:codescroll-end]
 function recentHostCode() {
     try {
         var j = JSON.parse(localStorage.getItem('wp_lastHost') || 'null');
@@ -9410,9 +9442,9 @@ function startHosting(forceFresh) {
         if (codeEl) codeEl.textContent = showCode(code);
         var whereEl = ui('netCodeWhere'); if (whereEl && typeof codeWhereWords === 'function') whereEl.textContent = codeWhereWords(code);   // 1.6.3 (finding 14): which server the code is on
         ui('netHostInfo').style.display = 'block';
-        var hiEl = ui('netHostInfo'); if (hiEl && typeof hiEl.scrollIntoView === 'function') hiEl.scrollIntoView({ block: 'start' });   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off
         syncSessionButtons();
         renderRoster();
+        if (typeof hostCodeScroll === 'function') hostCodeScroll(ui('netHostInfo'));   // the live test, 2026-10-30: the code came up at the foot of a long window with the words under it cut off; 1.6.3 (the release click test): scrolled once the window has its final shape, and clear of its header
         toast((resumed ? 'Hosting resumed with the same room code. Players can rejoin as before.' : 'Hosting started. Share the room code.') + (sbW ? ' ' + sbW : ''));
         if (sbW) logEvent('table', sbW);
         if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.start(getActiveCampaign(), showCode(code), !!resumed);   // 1.6.0: the game record opens with the table
@@ -10060,7 +10092,7 @@ function revealForget() { if (_reveal) _reveal.clear(); }
 // What the GM's own record holds and the table's copy never does: the marks of its privacy, and what the host stamps on its own card once the table's copy
 // has gone (a defense's share, the row a parry took the blow on, the location for Apply, a held roll's offers, the roller's request id, Applied, whom it
 // landed on, which sendTableAs names again for each player who can see them)
-var REVEAL_DROP = ['priv', 'to', 'rid', 'ans', 'landed', 'thru', 'hit', 'dmgUsed', 'dmgWait', 'pend', 'offers', 'pts', 'onName', 'rev'];
+var REVEAL_DROP = ['priv', 'to', 'rid', 'ans', 'landed', 'thru', 'hit', 'dmgTo', 'dmgUsed', 'dmgWait', 'pend', 'offers', 'pts', 'onName', 'rev'];
 // Whether the GM's card of this roll offers Show to the table: only on the machine that hosts the table, for a roll noted above and not shown yet.
 // dice.js renderCard asks it; a player's app has no notes, so it never offers one
 net.revealOk = function(id) { return !!(_reveal && net.active && net.role === 'host' && typeof id === 'string' && _reveal.has(id)); };
@@ -10206,7 +10238,8 @@ net.asNamesOf = function(ch, cap) {
 net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m } (1.6.0, the core's gap 5: and or, the other rolls it may be resisted by)
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
     var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'end' ? 'end' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
-    var asD = typeof net.tokNameOf === 'function' ? net.tokNameOf(ch) : ch.name; if (asD) rec.as = String(asD).slice(0, 60); if (typeof plOn === 'function') plOn(rec, ch);   // 1.6.3 (finding 16): by its token's name
+    var asD = typeof net.tokNameOf === 'function' ? net.tokNameOf(ch, more && typeof more.mapId === 'string' ? more.mapId : undefined, more && typeof more.tokId === 'string' ? more.tokId : undefined) : ch.name; if (asD) rec.as = String(asD).slice(0, 60);   // 1.6.3 (the release click test): by the very token it is due for, where the caller names it (a fight's turn), since a sheet several tokens share is named by none of them alone
+    if (typeof plOn === 'function') plOn(rec, ch);   // 1.6.2, backlog 35: the card wears the look of the character it names (on a line of its own, so no comment can swallow it)
     if (rec.why === 'major' && more && typeof more.mw === 'string' && more.mw) rec.mw = more.mw.slice(0, 60);   // 1.6.0: the system's own word for a Major Wound
     if (rec.why === 'cross' && more) { if (typeof more.xf === 'string' && more.xf) rec.xf = more.xf.slice(0, 60); if (typeof more.xs === 'number' && isFinite(more.xs)) rec.xs = Math.max(-1e9, Math.min(1e9, more.xs)); if (more.xd === 'up') rec.xd = 'up'; }   // 1.6.3 (finding 36): which value crossed which step, as sheets.js crossFollow worked them out (words for its card alone)
     if (rec.why === 'called' && more) { if (typeof more.att === 'string' && more.att) rec.att = more.att; if (more.by) rec.by = String(more.by).slice(0, 60); }   // 1.6.0: a roll another called for
@@ -10255,7 +10288,7 @@ function postDue(rec, ch, toOwner, gmX) {   // gmX (1.6.3, the review of defense
 net.dueOver = function(att, say) {   // say (1.6.3, defense fold 1): why the card is over, a fixed word ('land', 'rolled', 'gone'; none for a blast that went off)
     if (typeof att !== 'string' || !att) return false; var camp = getActiveCampaign(), any = false;
     chatLog.forEach(function(m) {
-        if (!m || !m.due || m.due.att !== att || m.over) return; m.over = 1; any = true; if (say === 'land' || say === 'rolled' || say === 'gone' || say === 'sent' || say === 'aside' || say === 'missed') m.overSay = say;
+        if (!m || !m.due || m.due.att !== att || m.over) return; m.over = 1; any = true; if (say === 'land' || say === 'rolled' || say === 'gone' || say === 'sent' || say === 'aside' || say === 'missed' || say === 'answered') m.overSay = say;
         var ch = m.due.theirs === 1 && camp && camp.chars && own(camp.chars, m.due.charId) ? camp.chars[m.due.charId] : null; if (!ch || !net.active || net.role !== 'host') return;
         net.conns.forEach(function(c) { if (!c.open || !net.roster[c.peer] || peerProfileId(c) !== ch.ownerId) return; try { c.send(m.overSay ? { type: 'due-over', att: att, say: m.overSay } : { type: 'due-over', att: att }); } catch (e) { sendFailed(e); } });
     });
@@ -10347,7 +10380,7 @@ net.rollsFor = function(charId, name, sinceSeq, max) {   // newest first: tagged
         if (e.cid ? e.cid === charId : !!(name && typeof e.m.roll.as === 'string' && e.m.roll.as && namesR().indexOf(e.m.roll.as) >= 0 && e.m.from && (e.m.from.gm === true || e.m.from.id === net.myId))) out.push({ from: e.m.from, scope: e.m.scope, ts: e.m.ts, seq: e.seq, fresh: !e.replay, roll: e.m.roll, res: e.m.res, rollBad: e.m.rollBad, toName: e.m.toName }); }
     return out;
 };
-function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper' || !!m.shown; }).filter(function(m) { return !m.help; }).filter(function(m) { return !m.kept; }).slice(-60).map(function(m) { var wr = m.shown || m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.shown ? 'global' : m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m.men && typeof unkeepLinks === 'function' ? Object.assign({}, m, { men: unkeepLinks(m.men) }) : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
+function chatHistoryOf(log) { return log.filter(function(m) { return m.scope !== 'whisper' || !!m.shown; }).filter(function(m) { return !m.help; }).filter(function(m) { return !m.kept; }).slice(-60).map(function(m) { var wr = m.shown || m.roll || m.apply; if (typeof figOf === 'function') wr = figOf(wr); if (m.roll && wr && (wr.ans !== undefined || wr.landed !== undefined || wr.thru !== undefined || wr.hit !== undefined || wr.dmgTo !== undefined)) { var wk = typeof _npcCards !== 'undefined' && _npcCards ? _npcCards.get(wr) : null; wr = Object.assign({}, wr); delete wr.ans; delete wr.landed; delete wr.thru; delete wr.hit; delete wr.dmgTo; if (wk) _npcCards.set(wr, wk); }   /* 1.6.3 (the review of defense fold 3, finding 4): ans, landed, thru and hit are the GM's own, set past the table's copy, so a copy without them, still judged by historySeen as the record was */ return m.roll ? { from: m.from, text: '', scope: m.shown ? 'global' : m.scope, ts: m.ts, roll: wr } : m.apply ? { from: m.from, text: '', scope: m.scope, ts: m.ts, apply: wr } : m.men && typeof unkeepLinks === 'function' ? Object.assign({}, m, { men: unkeepLinks(m.men) }) : m; }); }   // the join's recent chat (a roll rebuilt: nothing local rides along)
 // [netcheck:rolltag-end]
 function pushRoll(rec, res, scope, opts) {
     if (rec && typeof rec.id === 'string') for (var iR = chatLog.length - 1; iR >= 0; iR--) if (chatLog[iR] && chatLog[iR].roll && chatLog[iR].roll.id === rec.id) { chatLog[iR].roll = rec; chatLog[iR].res = res; chatLog[iR].scope = scope; if (!rec.pend) ringPush(chatLog[iR], opts && opts.cid); renderChat(); return; }   // 1.6.2 (G5): a held roll's card, changed or landed, takes the place of the one before it
@@ -10673,6 +10706,10 @@ net.diceRoll = function(expr, o) {
     if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rec, chR, landR ? { ch: landR, name: o.onName } : null); else sendTable(hdR ? figOf(rec) : rec, null); }
     if (landR && o.onName) rec.onName = o.onName;   // the GM's own copy, past the table's
     if (cvR) rec.hit = cvR.row; if (lndR && lndR.thru) rec.thru = lndR.thru;   // 1.6.3 (the review of defense fold 1): and the row a parry took the blow on
+    // 1.6.3 (the release click test): the target this damage roll read its range to, on the GM's own copy past the table's. An NPC's pointer stands under its
+    // own token ('tk:' and its id) and a player's character's under its player, never under the GM, so Apply to target looked the GM's pointer up, found
+    // none and took the selected token. The card's Apply hands this on to the Take damage window, which opens on that very target
+    if (rec.dmg === 1 && typeof rec.dmgOn !== 'string' && rec.dmgAim !== 1 && !lndR && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof tcR.range.mapId === 'string') rec.dmgTo = { id: tcR.range.tid, mapId: tcR.range.mapId };
     if (lndR && typeof ansStampLand === 'function') ansStampLand(campR, rec, res, lndR); else if ((o.ansLine || typeof o.thruRow === 'string') && rec.dmg === 1 && typeof ansStamp === 'function') { if (typeof o.thruRow === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(o.thruRow)) rec.thru = o.thruRow; if (o.ansLine) ansStamp(campR, rec, res, o.ansLine); rec.landed = 1; }   // 1.6.3 (defense fold 3): what a landing's defense let through, and a line's hit that a defense let partly through, on the GM's own copy past the table's   // the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
     if (hsR) hsR.forEach(function(rxR) { if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rxR, chR); else sendTable(rxR, null); } pushRoll(rxR, res, scope, { toName: toName, cid: chR ? chR.id : '' }); });
@@ -10725,6 +10762,7 @@ net.diceRoll = function(expr, o) {
     if (chR && typeof holdsRolled === 'function' && SR && typeof SR.holdRefOf === 'function') { var vhR = D.verdictOf(res, ruleR); holdsRolled(campR, chR, entR, SR.holdRefOf(o.act, o.row), mfR !== null && D.naturalOf(res) >= mfR ? false : vhR && vhR.kind === 'check' ? vhR.pass === true : null, tcR, typeof blowRecR !== 'undefined' ? blowRecR : null, atR); } if (typeof stealRolled === 'function' && typeof blowRecR !== 'undefined' && blowRecR && blowRecR.st) { var vsR = D.verdictOf(res, ruleR); stealRolled(campR, mfR !== null && D.naturalOf(res) >= mfR ? false : vsR && vsR.kind === 'check' ? vsR.pass === true : null, blowRecR); }   // 1.6.0 Who holds whom
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
     if (entR && chR && !entR.area && !lndR && typeof landAfter === 'function') { var lvR = D.verdictOf(res, ruleR); landAfter(campR, entR, !(mfR !== null && D.naturalOf(res) >= mfR) && (rec.body === 1 || (!!lvR && lvR.kind === 'check' && lvR.pass === true)), tcR, chR, typeof privAtR === 'function' ? privAtR(rec, choseOnlyR) : (!!rec.priv || !!rec.to), o.row || o.with, atR, rec.from, typeof o.hit === 'string' ? o.hit : '', rec.big === true, lrwR, function(w) { if (typeof toast === 'function') toast(w); }); }   /* 1.6.3 (the review of defense fold 2, finding 10): and the row a defense answered with */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, as in roll-req
+    if (typeof o.att === 'string' && typeof net.dueOver === 'function') net.dueOver(o.att, 'answered');   // 1.6.3 (the release click test): the card this roll answered is over, as in roll-req
     net.rollMade = typeof atR === 'string' ? atR : '';   // 1.6.2 (the core's gap 214): the attempt this roll made, which a thing in flight waits on
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;
     net.rollChose = typeof choseOnlyR !== 'undefined' && choseOnlyR === true;   // the review of rolls: this roll was private by the GM's choice alone (privAtR's 'hid'), read right after it by a roll that sends an attack on (sendOnPress)
@@ -11341,6 +11379,9 @@ function banAsk(camp, pid) {
             dropWaitingFor(pid);   // Onboarding F1a: their waiting token goes at once, even inside the grace after they left
         }
         save();
+        // the release click test, finding 25: a banned player leaves a page's Seen by ticks. The review of that fix: a page editor that fails to
+        // draw never stops the notice and the History panel below
+        try { if (typeof window !== 'undefined' && typeof window.wpPlannerPlayers === 'function') window.wpPlannerPlayers(); } catch (e) { console.error(e); }
         toast((camp.bannedPlayers[pid].name || 'Player') + ' banned from this campaign.');
         renderPlayersPanel();
     }, { noEnter: true });

@@ -205,7 +205,7 @@ if (spec) {
         var keep = body.scrollTop;
         var ph = it.type === 'planner' && typeof window.wpPlannerRead === 'function' ? window.wpPlannerRead(it, camp, '<div class="popout-msg">This planner has no content yet.</div>') : null;   // 1.5.4: a planner by its own renderer (a node table and a Raw HTML block are a planner's alone)
         if (typeof ph === 'string') body.innerHTML = ph;
-        else body.innerHTML = DR.renderDoc(it, { mermaid: !!window.mermaid, docStyle: camp.docStyle, empty: '<div class="popout-msg">This page has no content yet.</div>' });
+        else body.innerHTML = DR.renderDoc(it, { who: typeof DR.seeWho === 'function' ? DR.seeWho(camp) : null, mermaid: !!window.mermaid, docStyle: camp.docStyle, empty: '<div class="popout-msg">This page has no content yet.</div>' });
         body.scrollTop = keep;
         var gen = ++drawGen; landPend = null;
         if (finder && findBox.value.trim()) finder.find(findBox.value);   // the window's own Find kept through a redraw, with the page where it was

@@ -136,13 +136,16 @@ export function wbBlast() {   // [split:glue]
       var nB = window.wpNet; return !(nB && (nB.foreign || (nB.active && nB.role === 'client'))) && !window.wpStream;
   }
   function blastsMapSwitch(fromId, toId) {
+      // 1.6.3 (the release click test): the board's first draw (no map before it) keeps a blast that came back for this very map (wpBlastBack, backOn), and puts
+      // one that came back for another map aside for it, where before that first draw emptied the board
+      var backHere = !fromId && blastsKeepHere() ? blasts.filter(function(b) { if (!b || typeof b.backOn !== 'string') return false; if (b.backOn === toId) return true; blastsAwayPush(b.backOn, b); return false; }) : [];
       var keep = blastsKeepHere(), cmpS = typeof state !== 'undefined' && state && state.appState && state.appState.campaigns ? state.appState.campaigns : null;
       var fromGone = !!cmpS && typeof fromId === 'string' && !Object.keys(cmpS).some(function(k) { var c = cmpS[k]; return !!(c && c.items && Object.prototype.hasOwnProperty.call(c.items, fromId)); });   // the map left was deleted (in no campaign of this save): nothing is kept for it, as wpBlastsForget let it go; a map of another campaign keeps its own
       if (keep && typeof fromId === 'string' && fromId && !fromGone) {
           var left = blasts.filter(function(b) { return !ownCircle(b); });
           if (left.length) _blastsAway[fromId] = left.slice(-BLAST_CAP); else delete _blastsAway[fromId];
       }
-      blastsSet(keep && typeof toId === 'string' && Object.prototype.hasOwnProperty.call(_blastsAway, toId) ? _blastsAway[toId] : []);
+      blastsSet((keep && typeof toId === 'string' && Object.prototype.hasOwnProperty.call(_blastsAway, toId) ? _blastsAway[toId] : []).concat(backHere));
       if (typeof toId === 'string') delete _blastsAway[toId];
       renderMeasures(); syncBlastMenu();
   }
@@ -909,7 +912,7 @@ export function wbBlast() {   // [split:glue]
   // map by id; the Undo entries a pass holds keep each field as it was, one that was not there among them. Read back as data: a blast where its numbers are
   // numbers, a character and a map the campaign still holds, the Defense rule the system still has. Nothing is ever sent
   function blastKeepSoon() { var n = window.wpNet; if (n && typeof n.fightsKeepSoon === 'function') n.fightsKeepSoon(); }
-  function blastData(b) { var o = {}; Object.keys(b || {}).forEach(function(k) { if (k !== 'defTx' && k !== 'wire' && k !== 'wireMap' && k !== 'wireChar' && k !== 'lost') o[k] = b[k]; }); var s = ''; try { s = JSON.stringify(o); } catch (e) { s = ''; } return s && s.length <= 100000 ? JSON.parse(s) : null; }
+  function blastData(b) { var o = {}; Object.keys(b || {}).forEach(function(k) { if (k !== 'defTx' && k !== 'wire' && k !== 'wireMap' && k !== 'wireChar' && k !== 'lost' && k !== 'backOn') o[k] = b[k]; }); var s = ''; try { s = JSON.stringify(o); } catch (e) { s = ''; } return s && s.length <= 100000 ? JSON.parse(s) : null; }
   function blastDataRead(b) { if (!b || typeof b !== 'object' || Array.isArray(b) || !['x', 'y', 'ft'].every(function(k) { return typeof b[k] === 'number' && isFinite(b[k]); })) return null; var s = ''; try { s = JSON.stringify(b); } catch (e) { s = ''; } if (!s || s.length > 100000) return null; var o = JSON.parse(s); o.ft = Math.max(1, Math.min(3000, o.ft)); return o; }
   function hitsOut(hits) { return (hits || []).map(function(h) { var v = {}, u = []; Object.keys(h.prevs || {}).forEach(function(f) { if (h.prevs[f] === undefined) u.push(f); else v[f] = h.prevs[f]; }); return { charId: h.charId, v: v, u: u }; }); }
   function hitsIn(list, camp) {   // the Undo entries, each a character the campaign holds with what each field held before the pass first wrote it
@@ -922,6 +925,23 @@ export function wbBlast() {   // [split:glue]
       return { by: by, hits: hits };
   }
   function resIn(v) { var o = Object.create(null); if (v && typeof v === 'object') Object.keys(v).slice(0, 600).forEach(function(t) { var r = v[t]; if (t.length <= 80 && r && typeof r === 'object') o[t] = typeof r.d === 'number' && isFinite(r.d) ? { d: Math.max(0, Math.min(1e6, r.d)), nf: r.nf === true } : {}; }); return o; }
+  // 1.6.3 (the release click test): a blast that waits for its Defense rolls came back after the GM's reload with its cards but with no circle on the map,
+  // so nobody could see where it would go off. Each wait's blast is put back where it is shown: on the map on screen at once, else kept aside for its map
+  // as any blast of a map not on screen is. The very object the wait holds is shown, so Apply now and the fight's end act on the circle the GM sees. What
+  // the table is told of it is written again as a thrown blast's (its place, size, height, name unless the GM keeps it, and its shape), so a player who
+  // comes back is sent it. backOn names its map until the board first draws one, so that draw keeps it. One already shown by its id is left alone
+  function defShowBack(waits) {
+      var am = typeof getActiveMap === 'function' ? getActiveMap() : null, shown = false;
+      (waits || []).forEach(function(e) {
+          var b = e && e.b, mapId = e && e.map && typeof e.map.id === 'string' ? e.map.id : ''; if (!b || !mapId) return;
+          if (typeof b.bid === 'string' && typeof blastsOn === 'function' && blastsOn(mapId).some(function(x) { return !!x && x.bid === b.bid; })) return;
+          var sent = { x: b.x, y: b.y, ft: b.ft, name: b.gm === true ? '' : String(b.name || ''), elev: typeof b.elev === 'number' && isFinite(b.elev) ? b.elev : 0, by: typeof b.by === 'string' ? b.by : '' };
+          if (b.shape === 'ring' && typeof b.inFt === 'number') { sent.shape = 'ring'; sent.inFt = b.inFt; } else if (b.shape === 'cone') { sent.shape = 'cone'; sent.deg = b.deg; sent.dir = b.dir; }
+          b.wire = sent; b.wireMap = mapId; if (typeof b.rollBy === 'string' && b.rollBy) b.wireChar = b.rollBy; b.backOn = mapId;
+          if (am && am.id === mapId && typeof pushBlast === 'function') { pushBlast(b); shown = true; } else if (typeof blastsAwayPush === 'function') blastsAwayPush(mapId, b);
+      });
+      if (shown) { if (typeof renderMeasures === 'function') renderMeasures(); if (typeof syncBlastMenu === 'function') syncBlastMenu(); }
+  }
   window.wpBlastKeep = function() {   // what the save holds of the blasts that still owe something, or null where none does
       var owed = [], def = [], kept = {};
       _owedIds.forEach(function(id) {
@@ -941,6 +961,7 @@ export function wbBlast() {   // [split:glue]
           var waits = (Array.isArray(w.waits) ? w.waits : []).slice(0, 32).map(function(e) { var b = e && blastDataRead(e.b), map = e && typeof e.map === 'string' && Object.prototype.hasOwnProperty.call(camp.items, e.map) ? camp.items[e.map] : null; return b && map && Array.isArray(map.whiteboard) ? { b: b, total: typeof e.total === 'number' && isFinite(e.total) ? e.total : 0, hpId: typeof e.hpId === 'string' ? e.hpId.slice(0, 80) : '', map: map } : null; }).filter(Boolean);
           if (!waits.length) return;
           var hh = hitsIn(w.hits, camp); _defWait[w.key] = { key: w.key, d: d, want: want, res: resIn(w.res), by: hh.by, hits: hh.hits, waits: waits, go: typeof w.go === 'string' && cid.test(w.go) ? w.go : '' }; n++;
+          defShowBack(waits);   // 1.6.3 (the release click test): and its circle, on its map, where the GM and the table see it
       });
       if (raw.kept && typeof raw.kept === 'object') Object.keys(raw.kept).slice(0, DEF_MAX).forEach(function(k) { if (key(k) && !Object.prototype.hasOwnProperty.call(_defKept, k)) _defKept[k] = resIn(raw.kept[k]); });
       (Array.isArray(raw.owed) ? raw.owed : []).slice(-OWED_MAX).forEach(function(o) {

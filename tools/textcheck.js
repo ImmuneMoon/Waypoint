@@ -1148,7 +1148,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         u1.E.type(u1.box(), 'a'); u1.tick(80); u1.E.type(u1.box(), 'b'); u1.tick(80); u1.E.type(u1.box(), 'c'); u1.tick(600);
         const d1 = J(u1.H.depth()), z1 = u1.undo(), a1 = [u1.text(), J(u1.at()), !u1.B.root.hidden, J(u1.H.depth())], y1 = u1.redo(), r1 = [u1.text(), J(u1.at()), J(u1.H.depth())], noMore = (u1.redo(), u1.text());
         check('undo (typing): a run of typing in a box is ONE step of the planner\'s history; Ctrl+Z takes it back — the text as it was, the caret where the typing began, in the box (drawn anew, the bar on it again) — and Ctrl+Y brings it back with the caret where the typing ended; the key is taken, never left to the engine',
-            d1 === '[1,0]' && z1.defaultPrevented && z1.stopped && J(a1) === J(['The Hill Road', J([0, '[13,13]']), true, '[0,1]']) && y1.defaultPrevented && J(r1) === J(['The Hill Roadabc', J([0, '[16,16]']), '[1,0]']) && noMore === 'The Hill Roadabc' && J(u1.H.toasts) === J(['Undo', 'Redo']), [d1, a1, r1, u1.H.toasts]);
+            d1 === '[1,0]' && z1.defaultPrevented && z1.stopped && J(a1) === J(['The Hill Road', J([0, '[13,13]']), true, '[0,1]']) && y1.defaultPrevented && J(r1) === J(['The Hill Roadabc', J([0, '[16,16]']), '[1,0]']) && noMore === 'The Hill Roadabc' && J(u1.H.toasts) === J(['Undo', 'Redo', 'Nothing to redo.']), [d1, a1, r1, u1.H.toasts]);   // 1.6.3: a redo with nothing left says so
         // Ctrl+Shift+Z is redo too
         u1.undo(); const sz = u1.chord('z', { shiftKey: true });
         check('undo: Ctrl+Shift+Z is redo, as Ctrl+Y is', sz.defaultPrevented && u1.text() === 'The Hill Roadabc' && J(u1.at()) === J([0, '[16,16]']));
@@ -1205,7 +1205,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const u9 = twoSteps(mkU('abc')); u9.pg.doc.addEventListener('keydown', e => { const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) u9.H.fieldUndoChord(e); });
         const d9 = J(u9.H.depth()), z9 = u9.undo(), once9 = [u9.text(), J(u9.H.depth()), z9.stopped, z9.defaultPrevented]; u9.undo(); const y9 = u9.redo(), once9b = [u9.text(), J(u9.H.depth()), y9.stopped];
         check('undo (the chord is taken once): with the page\'s own key handler behind the editor\'s — the one that hands a field\'s Ctrl+Z to fieldUndoChord — a Ctrl+Z in a box takes exactly ONE step and a Ctrl+Y brings exactly one back: the chord the box took goes no further',
-            d9 === '[2,0]' && J(once9) === J(['abcd', '[1,1]', true, true]) && J(once9b) === J(['abcd', '[1,1]', true]) && /if \(typing\) \{ fieldUndoChord\(e\); return; \}/.test(ioSrc), [d9, once9, once9b]);
+            d9 === '[2,0]' && J(once9) === J(['abcd', '[1,1]', true, true]) && J(once9b) === J(['abcd', '[1,1]', true]) && /if \(typing && \(fieldUndoChord\(e\) \|\| !chordToMap\(e, t\)\)\) return;/.test(ioSrc), [d9, once9, once9b]);
         // a text block lets the browser try its own undo first (a probe is armed); the browser's ONE undo stack has a box's typing on top, so its undo is
         // sent to the box, which hands it to the planner's history — and the probe's timer must not take a second step
         const u10 = twoSteps(mkU('abc')), rte10 = u10.pg.plain('div', 'field rte-body', { idx: 9 }); rte10.setAttribute('contenteditable', 'true');

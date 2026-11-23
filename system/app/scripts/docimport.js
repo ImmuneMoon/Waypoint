@@ -228,7 +228,8 @@ async function exportMarkdown(item) {
     if (!item || (item.type !== 'planner' && item.type !== 'doc')) { toast('Open a planner or a handbook page to save it as Markdown.'); return; }
     var camp = getActiveCampaign();
     var cues = window.wpCues;   // 1.6.3 (finding 30): a card's Plays by its name (planner.js publishes the campaign's sounds, songs and saved effects)
-    var out = docToMarkdown(item, { items: camp ? camp.items : {}, chars: camp ? camp.chars : {}, cueName: cues && typeof cues.name === 'function' ? function(cu) { return cues.name(cu, camp); } : null });
+    var DRw = window.wpDocRender;   // 1.6.3 (the release click test, finding 31): a kept block's players by name beside their ids
+    var out = docToMarkdown(item, { who: DRw && typeof DRw.seeWho === 'function' && camp ? DRw.seeWho(camp) : null, items: camp ? camp.items : {}, chars: camp ? camp.chars : {}, cueName: cues && typeof cues.name === 'function' ? function(cu) { return cues.name(cu, camp); } : null });
     var name = slug(item.meta && item.meta.title);
     var leftW = out.left && out.left.length ? ' Not kept in Markdown: ' + out.left.join(', ') + '.' : '';   // what the file cannot hold is said, never lost in silence
     if (!out.images.length) { downloadBlob(name + '.md', new Blob([out.text], { type: 'text/markdown' })); toast('Markdown saved.' + leftW); return; }

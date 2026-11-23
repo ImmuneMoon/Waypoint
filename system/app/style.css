@@ -189,6 +189,7 @@
   #moreMenu #saveAsMenu { top: -6px; left: auto; right: 100%; margin: 0 7px 0 0; min-width: 210px; max-height: calc(100vh - 90px); overflow-y: auto; padding: 5px; background: var(--panel); border-color: var(--edge); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
   #moreMenu #saveAsMenu .menu-item { display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 5px; font-size: 12.5px; }
   #moreMenu #saveAsMenu .menu-item > .ico { flex: none; color: var(--dim); }
+  #moreMenu #saveAsMenu .menu-item > small { margin-left: auto; padding-left: 12px; color: var(--faint); font-size: 11px; }   /* 1.6.3 (the release click test): Export this campaign and Full export say what each makes */
   #moreMenu #saveAsMenu .menu-divider { height: 1px; margin: 4px 2px; background: var(--edge); }
   #moreMenu #saveAsMenu button.menu-item { width: 100%; box-sizing: border-box; border: 0; background: none; color: var(--ink); font: inherit; font-size: 12.5px; text-align: left; white-space: nowrap; cursor: pointer; }   /* a kind is a button, so the keyboard reaches it as it reaches every row of More */
   #moreMenu #saveAsMenu button.menu-item:hover, #moreMenu #saveAsMenu button.menu-item:focus-visible { background: var(--edge); color: var(--ink); outline: none; }
@@ -694,7 +695,7 @@
     #wbViewAllPart { border-top: 1px solid var(--edge); margin-top: 4px; padding-top: 2px; }
     body.view-turned #rulerTop, body.view-turned #rulerLeft, body.view-turned #rulerCursorX, body.view-turned #rulerCursorY { visibility: hidden; }   /* 1.6.2 (backlog 82b): a turned map has no straight edge to number */
     #whiteboard .wb-item > .token-initials, #whiteboard .token-fx .tfx { rotate: calc(var(--lvl-own, 0deg) - var(--view-turn, 0deg)); }   /* the words on the board read level however the map is turned: a token's by its own turn too (view.js --lvl-own) */
-    #whiteboard .wb-item > .wb-room-name { rotate: calc(var(--view-turn, 0deg) * -1); }   /* 1.6.2 (backlog 45, fold 3): a room's name reads level too */
+    #roomNameLayer > .wb-room-name { rotate: calc(var(--view-turn, 0deg) * -1); }   /* 1.6.2 (backlog 45, fold 3): a room's name reads level too */
     #streamNames .stream-name { rotate: calc(var(--view-turn, 0deg) * -1); transform-origin: 0 50%; }
     #measureLayer text, #tagLayer text { transform-box: fill-box; transform-origin: center; rotate: calc(var(--view-turn, 0deg) * -1); }
     /* The bar never runs off the map (whiteboard.js fitBar): it tightens, then wraps. Only the bar's own buttons shrink, never a menu's */
@@ -1385,9 +1386,20 @@
      It is centered on the piece's corner (half its size out each way, scaled about its own middle), so it takes a corner of a small token and no more */
   .wb-item.wb-room-area { opacity: 1; outline: none; box-sizing: border-box; border: 2px dashed var(--gold); }
   .wb-item.wb-room-area:not(.sel) { pointer-events: none; }
-  .wb-item:is(.hexagon, .diamond) > .wb-room-name { left: 50%; top: 50%; translate: -50% -50%; transform-origin: 50% 50%; }   /* a cut corner would clip it: in the middle there */   /* the review: an area takes no press meant for the floor or picture under it; Show on the play map selects it */   /* 1.6.2 (backlog 45, fold 3): a room's area, hidden from players */
+  /* the review: an area takes no press meant for the floor or picture under it; Show on the play map selects it */   /* 1.6.2 (backlog 45, fold 3): a room's area, hidden from players */
   body.hid-none .wb-item.wb-hidden-gm.wb-room-area { visibility: visible; }
-  .wb-item > .wb-room-name { position: absolute; left: 4px; top: 4px; z-index: 5; max-width: 220px; padding: 1px 7px; border-radius: 4px; background: rgba(20, 16, 10, 0.82); color: var(--gold); font: 600 12px/1.45 var(--font, Inter, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }   /* 1.6.2 (backlog 45, fold 3; the owner: "A. A View tick, on"): its room's name, the GM's alone */
+  /* 1.6.2 (backlog 45, fold 3; the owner: "A. A View tick, on"): its room's name, the GM's alone. 1.6.3 (the owner: a portal's name was "not legible
+     enough to be useful", small, low in contrast and under the tokens on the door): the plates stand in a layer of their own (wbbuild.js rnLayer), a child of
+     the board above every piece and token (a token is lifted to 15020 and up, a piece above the grid to 15100 and up) and under the board's own layers
+     (#streamNames 15985, #tagLayer 15990, #measureLayer 16000). A solid dark plate, a light gold edge and light words read on any art in either theme;
+     counter-scaled, so 13 px on screen at every zoom. The layer and every plate take no pointer. A plate stands at its piece's top left, or in the
+     middle of a cut or round piece (rn-mid); rn-off is a piece out of sight, rn-hid a piece hidden from players while Hidden pieces says Invisible */
+  #roomNameLayer { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 15900; }
+  #roomNameLayer > .wb-room-name { position: absolute; max-width: 240px; padding: 2px 8px; border-radius: 5px; background: #17120b; border: 1px solid rgba(240, 196, 110, 0.95); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75), 0 2px 6px rgba(0, 0, 0, 0.6); color: #fff4dc; font: 600 13px/1.4 var(--font, Inter, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; transform: scale(var(--wbz, 1)); transform-origin: 0 0; }
+  #roomNameLayer > .wb-room-name.rn-mid { transform: scale(var(--wbz, 1)) translate(-50%, calc(-100% - 2px)); }
+  #roomNameLayer > .wb-room-name.rn-off { display: none; }
+  body.hid-none #roomNameLayer > .wb-room-name.rn-hid { visibility: hidden; }
+  body.stream-mode #roomNameLayer { display: none; }
   .wb-item > .wb-pin { position: absolute; right: -11px; top: -11px; z-index: 6; width: 22px; height: 22px; padding: 0; border: 1px solid var(--gold); border-radius: 50%; background: var(--deep); font-size: 11px; line-height: 20px; text-align: center; cursor: pointer; transform: scale(var(--wbz, 1)); transform-origin: 50% 50%; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
   .wb-item > .wb-pin::before { content: ''; display: inline-block; width: 14px; height: 14px; vertical-align: -3px; background: var(--ink); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
   .wb-item > .wb-pin:hover::before, .wb-item > .wb-pin:focus-visible::before { background: var(--deep); }
@@ -2653,6 +2665,7 @@
   .char-menu button.danger { color: var(--red); }
   .char-menu .char-menu-head { padding: 4px 12px 2px; font-size: 11px; color: var(--muted); }
   .char-menu button .char-menu-sub { display: block; font-size: 11px; color: var(--muted); pointer-events: none; }   /* 1.6.3 (finding 43): the gray line under a player in Give to */
+  .char-menu button:not(:disabled):hover .char-menu-sub { color: inherit; opacity: 0.85; }   /* 1.6.3 (the release click test): on the hovered row's blue the gray line takes the row's white, so it stays readable (a held-back row keeps its gray) */
   .section-title:hover { color: var(--ink); }
   /* the section's action buttons live in a right-click popup, so the header title has full room */
   .section-actions { display: none; }
@@ -2836,6 +2849,7 @@
     justify-content: flex-start; text-align: left; white-space: normal; color: var(--ink); background: transparent;
   }
   #partyMenu .party-menu-item:hover { background: rgba(212,175,55,0.14); color: var(--gold); }
+  .wb-tool-btn.party-menu-item { gap: .35em; }   /* 1.6.3 (the release click test): a row is a flex box, where the space after its drawing collapses; the gap keeps the drawing off its words (the party menu, Show as a scene) */
   #partyMenu .party-menu-item.dim { opacity: 0.45; cursor: default; }
   #partyMenu .party-menu-item.dim:hover { background: transparent; color: var(--ink); }
   /* Handouts panel */
@@ -3099,6 +3113,11 @@
      tabs' far wider row took nearly all the room and left the page's tab its icon alone. With the title held to 220 px above, the list's own
      rule (it gives way first) leaves the page's name readable and the map tabs the rest of the row */
   #mapTabList { display: flex; align-items: center; gap: 2px; flex: 0 1000000 auto; min-width: 0; overflow: hidden; }   /* the list gives way before the tab in front does, all of it: at 1000 the tab in front still gave a fraction of a pixel, and its name read "The I…" with room to spare */
+  /* 1.6.3 (the release click test, finding 32): with a page in front at 1366 px the list still gave way to nothing and no map tab showed, so
+     there was no one-click way back to a map. While a page is in front the list keeps room for a tab or so, and the page's own tab gives
+     way first (its name cut with an ellipsis). Held to 40% of the tabs' box, so a row squeezed to its plus alone is never overrun. Only a list
+     that holds a tab keeps that room: maptabs.js tabsDraw writes elements alone, so a list with no map tab is :empty and takes none */
+  #mapTabFront.mt-onpage ~ #mapTabList:not(:empty) { min-width: min(96px, 40%); }
   #mapTabList.clip { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent); }
   .map-tab { flex: none; border: 0; background: none; color: var(--dim); cursor: pointer; font-family: inherit; }
   .map-tab:hover, .map-tab:focus-visible { background: var(--panel2); color: var(--ink); }
@@ -3128,7 +3147,9 @@
   #tableWhere, #tableWhereMap { display: none; align-items: center; gap: 6px; min-width: 0; max-width: min(520px, 42vw); overflow: hidden; white-space: nowrap; font-size: 13px; padding: 2px 4px; cursor: default; }
   body.net-client #tableWhere.on, body.net-client #tableWhereMap.on { display: inline-flex; }
   #tableWhereMap { max-width: min(320px, 30vw); }
-  body.net-client #tableWhereMap.on { flex: 1 1 0; justify-content: center; max-width: none; }   /* the map's name centered in its section (owner, 2026-09-26): the box takes the gap up to the right-hand groups */
+  body.net-client #tableWhereMap.on { flex: 1 1 0; justify-content: center; max-width: none; min-width: 108px; }   /* the map's name centered in its section (owner, 2026-09-26): the box takes the gap up to the right-hand groups */
+  /* 1.6.3 (the release click test): the map's name keeps 100 px and its 8 px of padding, as the GM's map tabs keep 180, so a row with no room
+     wraps and toprow.js foldFit folds icons into the tray (then goes tight) before the one place a player learns which map they are on goes to nothing */
   body.net-client #tableWhereMap.on + .spacer { display: none; }
   #tableWhere .tw-camp { color: var(--gold); font-weight: bold; max-width: 240px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
   #tableWhereMap .tw-map { color: var(--ink); font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
@@ -3960,7 +3981,11 @@
   #trkStrip #combatStrip { position: static; top: auto; left: auto; transform: none; width: auto; max-width: none; flex-wrap: nowrap; gap: 8px; padding: 0 10px; font-size: 12.5px; }
   #trkStrip #combatStrip > .combat-strip-btn { padding: 1px 6px; }
   #trkStrip.trk-bar.trk-tight > .trk-lab { display: none; }   /* trackers.js fitBar: no room for the whole row */
-  #trkStrip.trk-tight #combatStrip .combat-strip-cur { min-width: 0; }
+  /* 1.6.3 (the release click test): in a tight bar whose turn it is takes one fixed width, from the longest name of the fight (at most 16 letters) and its face,
+     never the width of the name on turn, so Next turn stays under the pointer from turn to turn and the bar keeps its row; a longer name is cut with an
+     ellipsis, and its button still says the whole name in its tooltip */
+  #trkStrip.trk-tight #combatStrip .combat-strip-cur { flex: none; min-width: 0; width: calc(min(var(--strip-name, 0ch), 16ch) + 28px); overflow: hidden; white-space: nowrap; }
+  #trkStrip.trk-tight #combatStrip .combat-strip-cur > :not(img) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #combatStrip > :not(.combat-strip-round, .combat-strip-switch, .combat-strip-cur, .combat-strip-endturn, .combat-strip-morebtn, [data-act="prev"], [data-act="next"]) { display: none; }
   #combatStrip.is-mine > :is(.combat-strip-move, .combat-strip-acts) { display: inline; }
   body.stream-mode #combatStrip > .combat-strip-next { display: inline; }
@@ -4003,6 +4028,10 @@
   .combat-face { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1px solid var(--edge); flex: 0 0 26px; }
   .combat-face-empty { display: inline-flex; align-items: center; justify-content: center; color: var(--gold); background: var(--panel); }
   .combat-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 1.6.3 (the release click test): in the combat roster a long name and its tags wrap inside the row, each tag whole, so holding, acting now or acted never
+     runs off the row's edge; the other lists that use these names keep their one line */
+  #combatRows .combat-name { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+  #combatRows .combat-tag { display: inline-block; white-space: nowrap; }
   .combat-tag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--edge); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
   .combat-row .combat-on { flex: none; width: 18px; height: 18px; margin: 0 3px; cursor: pointer; }   /* the live test, 2026-10-30: a press meant for the tick landed on the name, which finds the token */
   .combat-row .combat-init { width: 58px; flex: none; text-align: center; }   /* beats the base input.field { width: 100% }, or the box took the row and squeezed the name to nothing */
@@ -4090,8 +4119,9 @@
   #placesBody .places-card-closed { color: var(--red); } #placesBody .places-card-pic img { display: block; max-width: 100%; max-height: 140px; border-radius: 4px; }
   .wb-item.mappin { overflow: visible; } .wb-item.mappin > .mp-glyph { position: absolute; inset: 0; border-radius: 50%; background: rgba(16,16,24,0.88); border: 1px solid rgba(255,255,255,0.35); box-sizing: border-box; pointer-events: none; }
   .wb-item.mappin > .mp-glyph::before { content: ''; position: absolute; inset: 14%; background: var(--pin, var(--gold)); -webkit-mask: var(--wi) center / contain no-repeat; mask: var(--wi) center / contain no-repeat; }
-  .wb-item.mappin > .mp-name { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 3px; padding: 1px 6px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(16,16,24,0.82); color: #f1ead8; border-radius: 4px; font-size: 11px; line-height: 1.4; pointer-events: none; }
-  .wb-item.maplegend { border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.45); overflow: hidden; } .wb-item.maplegend > .lg-box { position: absolute; inset: 0; padding: .6em .75em; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; line-height: 1.35; }
+  .wb-item.mappin > .mp-name { position: absolute; left: 50%; top: 100%; transform: scale(var(--wbz, 1)) translateX(-50%); transform-origin: 0 0; margin-top: 3px; padding: 2px 7px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #14141c; border: 1px solid rgba(255, 255, 255, 0.45); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.7), 0 2px 5px rgba(0, 0, 0, 0.55); color: #f6efdd; border-radius: 4px; font-size: 12px; font-weight: 600; line-height: 1.4; pointer-events: none; }   /* 1.6.3: a place pin's name on a solid plate with a light edge, counter-scaled so it reads 12 px on screen at any zoom (the owner: names "not legible enough") */
+  body.stream-mode .wb-item.mappin > .mp-name { transform: translateX(-50%); transform-origin: 50% 50%; padding: 1px 6px; background: rgba(16,16,24,0.82); border: 0; box-shadow: none; color: #f1ead8; font-size: 11px; font-weight: inherit; }   /* 1.6.3: the stream window keeps a place pin's name exactly as it was drawn before the plate above */
+  .wb-item.maplegend { border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.45); overflow: hidden; } .wb-item.maplegend > .lg-box { position: absolute; inset: 0; padding: .6em .75em; overflow: hidden auto; overscroll-behavior: contain; font-family: Georgia, 'Times New Roman', serif; line-height: 1.35; }
   .wb-item.maplegend .lg-title { font-weight: 700; font-size: 1.1em; padding-bottom: .3em; margin-bottom: .35em; border-bottom: 1px solid currentColor; } .wb-item.maplegend .lg-empty { opacity: .7; font-style: italic; }
   .wb-item.maplegend .lg-list { list-style: none; margin: 0; padding: 0; } .wb-item.maplegend .lg-line { display: flex; align-items: baseline; gap: .5em; width: 100%; padding: .1em .2em; background: none; border: 0; border-radius: 3px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
   .wb-item.maplegend .lg-line:hover, .wb-item.maplegend .lg-line:focus-visible { background: rgba(127,127,127,0.18); outline: none; } .wb-item.maplegend .lg-n { flex: none; min-width: 1.3em; font-weight: 700; } .wb-item.maplegend .lg-name { flex: 1; min-width: 0; overflow-wrap: anywhere; } .wb-item.maplegend .lg-line.unseen { opacity: .6; }
@@ -5193,12 +5223,22 @@
   #sysArrList .arr-new { cursor: grab; touch-action: none; color: var(--dim); }
   .sys-layout-preview * { pointer-events: none; }   /* the preview is read-only, but the box itself must still scroll (pointer-events:none on the container ate the wheel) */
   .sys-sec-title { width: 200px; }
+  /* 1.6.3 (the release click test): the System editor and the Library window take the focus on a click on a blank part of them (tabindex -1), so
+     their own keys (Escape, Ctrl+Z and Ctrl+Y) hear it and the map behind hears nothing. The window itself shows no ring for that */
+  #systemModal:focus, #libraryModal:focus { outline: none; }
   .sys-pl-list { display: flex; flex-direction: column; gap: 3px; min-height: 18px; padding: 2px; border-radius: 4px; }
   .sys-pl-list.drop-end { outline: 1px dashed var(--gold); }
-  .sys-pl { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; background: rgba(0,0,0,0.12); cursor: grab; }
+  /* 1.6.3 (the release click test, slow steps on a large system): the browser lays out and paints only the sections in view or near it. A system of
+     seventy sections built some twenty thousand elements here, and the Layout tab, + Section and every redraw of the tab waited for all of them to
+     be laid out. Nothing changes in how a section looks; one out of view is counted as 400px tall until it has been drawn once */
+  #sysLayoutSecs > .sys-sec { content-visibility: auto; contain-intrinsic-size: auto 400px; }
+  /* 1.6.3 (the release click test): a section's places keep their height in its card. With its min-height of 18px the list was the one part the card shrank, and its places stood over the rows under it */
+  .sys-sec > .sys-pl-list { flex-shrink: 0; }
+  .sys-pl.sys-reached, .sys-sec.sys-reached { outline: 2px solid rgba(224,165,79,0.6); outline-offset: 1px; }   /* 1.6.3: the place Used by opened, for two seconds (sysui.js placeReach) */
+  .sys-pl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 4px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; background: rgba(0,0,0,0.12); cursor: grab; }
   .sys-pl.drop-before { border-top-color: var(--gold); }
   .sys-pl-grip { color: var(--dim); }
-  .sys-pl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sys-pl-name { flex: 1 1 120px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sys-pl-text { width: 160px; }
   .sys-pl-w { min-width: 74px; }
   .sys-pl-addrow select { max-width: 320px; }
@@ -5294,6 +5334,7 @@
   .sheet-parts.sheet-parts-sub { flex-basis: 100%; padding: 0 0 2px 18px; }   /* 205 (4): a part's own parts, a level in */
   .sheet-part-pm, .sheet-part-rm { min-width: 0; width: 20px; height: 20px; padding: 0; border-radius: 50%; line-height: 1; }
   .sheet-part-n { min-width: 1ch; text-align: center; }
+  .sheet-part-out { min-width: 0; height: 20px; padding: 0 7px; border-radius: 10px; font-size: 11px; line-height: 1; white-space: nowrap; }   /* 1.6.3: Take out, a part leaving its host and kept on its list */
   .sheet-part-add { width: auto; max-width: 14em; height: 24px; padding: 0 6px; border-style: dashed; color: var(--sheet-accent, var(--gold)); }
   .sheet-sets { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }   /* 1.6.0 R15: a list's sets, a line a set above its rows */
   .sheet-set { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--edge); border-radius: 7px; background: var(--panel2); }
@@ -6063,6 +6104,7 @@
   .sys-slider-row .sys-slider-low, .sys-slider-row .sys-slider-high { width: 120px; }
   /* Stage 3: per-section color controls in the Layout builder */
   .sys-sec-style { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 4px; }
+  .sys-sec-style select { max-width: 100%; }   /* 1.6.3 (the release click test): a long page title in the Handbook list no longer widens the section past its column */
   .sys-sec-style-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
   /* the Layout tab's Sheet look box (doc theming): the whole sheet's font / colors / picture over the campaign default */
   .sys-lookbox select { background: var(--panel2); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font-size: 12px; color-scheme: dark; cursor: pointer; }   /* every list of the Sheet look box: seven of them had no rule of their own and showed as plain white boxes */

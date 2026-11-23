@@ -635,6 +635,15 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       target.library = plan.manifest; if (plan.uploads.length) importLibJobs.push({ camp: target, uploads: plan.uploads });
   }
 
+  // 1.6.3 (the release click test): the import's words. A count in real words ("1 campaign", "3 campaigns"), and the summary of a campaign
+  // file before Merge or Replace is pressed, saying what each does in plain words, never by an id or with a plural in brackets
+  // [zipcheck:importsays-start]
+  function importCount(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function importSays(nCamps, nItems) {
+      return 'This file holds ' + importCount(nCamps, 'campaign', 'campaigns') + ' with ' + importCount(nItems, 'map, planner or page', 'maps, planners and pages') + '. '
+          + 'Merge adds what is new and updates what you already have from this file, and leaves everything else as it is. Replace throws away everything you have now.';
+  }
+  // [zipcheck:importsays-end]
   function finishImport(msg) {
 
       resetHistory();   // items were replaced under their own ids, in any campaign: no stack may outlive that
@@ -674,13 +683,20 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
       // imported again — the same files under the same names — still reads as done
       // [zipcheck:importcopy-start]
       var nVidI = imgs.filter(function(en) { return /^images\/video\//.test(en.name); }).length;
-      toast(msg + ' Copying ' + (imgs.length - nVidI) + ' image(s)' + (nVidI ? ' and ' + nVidI + ' video(s)' : '') + '…');
+      var nPicI = imgs.length - nVidI;
+      toast(msg + ' Copying ' + nPicI + (nPicI === 1 ? ' picture' : ' pictures') + (nVidI ? ' and ' + nVidI + (nVidI === 1 ? ' video' : ' videos') : '') + '…');   // 1.6.3 (the release click test): real plurals
 
       (async function() {
           var ok = 0, kept = 0, fail = 0, vidAt = 0, wrote = 0, budget = pendingImportBytes * 20 + 1048576;   // an archive never unpacks to more than twenty times itself: entries that share bytes, or inflate out of proportion, stop there
+          // 1.6.3 (the release click test): each picture already in the saves folder was posted and answered 409, which the browser logs as a red
+          // error, one for each. The pictures there now are listed once first, and one of them is counted as already here with nothing sent. The
+          // list holds pictures alone, so a sound or a video is still posted, and keep=1 still guards the rest; a list that cannot be had changes nothing
+          var have = {};
+          try { var lr = await fetch('/api/list-images'); var ll = lr && lr.ok ? await lr.json() : null; (Array.isArray(ll) ? ll : []).forEach(function(x) { if (x && typeof x.path === 'string') have[x.path] = true; }); } catch (e) {}
           for (var i = 0; i < imgs.length; i++) {
               var relPath = imgs[i].name;
               try { relPath = decodeURIComponent(relPath); } catch(e) {}
+              if (have['/saves/' + relPath] === true) { kept++; continue; }
               try {
                   if (/^images\/video\//.test(imgs[i].name)) { vidAt++; toast('Copying video ' + vidAt + ' of ' + nVidI + '…'); }
                   if (imgs[i].method !== 0 && imgs[i].size > imgs[i].csize * 20 + 1048576) throw new Error('an entry that inflates out of proportion');   // pictures, sounds and videos barely compress: one said to grow twentyfold is no export's (and would fill the disk)
@@ -961,7 +977,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
 
       var r = mergeAppState(pendingImport);
 
-      finishImport('Merged: ' + r.added + ' new, ' + r.updated + ' updated' + (r.newCamps ? ', ' + r.newCamps + ' new campaign(s)' : '') + '.');
+      finishImport('Merged: ' + r.added + ' new, ' + r.updated + ' updated' + (r.newCamps ? ', ' + importCount(r.newCamps, 'new campaign', 'new campaigns') : '') + '.');
 
       var nM = window.wpNet; if (nM && nM.active && nM.role === 'host') { if (nM.syncChars) nM.syncChars(); if (nM.resendFogged) nM.resendFogged(); }   // Senses S0: a merge while hosting changes characters, the system and maps the save does not send: the table gets the characters and every fogged map again
 
@@ -1119,7 +1135,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
       if (skipped === total) { toast('That file is a view of someone else\'s table, not a campaign. Nothing was brought in from it.'); return false; }
 
-      if (skipped) toast(skipped + ' campaign(s) in that file were a view of someone else\'s table and were left out.');
+      if (skipped) toast(importCount(skipped, 'campaign', 'campaigns') + ' in that file ' + (skipped === 1 ? 'was' : 'were') + ' a view of someone else\'s table and ' + (skipped === 1 ? 'was' : 'were') + ' left out.');
 
       var askIds = Object.keys(cls.tiers).filter(function(id) { return cls.tiers[id] === 'ASK' && camps[id]; });
 
@@ -1193,7 +1209,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
 
                       document.getElementById('importChoiceSummary').textContent =
 
-                          'The file contains ' + nCamps + ' campaign(s) with ' + nItems + ' maps/planners. Merge adds and updates by id, keeping everything else you have. Replace discards ALL current data.';
+                          importSays(nCamps, nItems);   // 1.6.3 (the release click test): plain counts, and what Merge and Replace do in words
 
                       if (window.wpShare && typeof window.wpShare.showCard === 'function') window.wpShare.showCard(pendingImportCard); if (window.wpShare && typeof window.wpShare.showLook === 'function') window.wpShare.showLook(data, pendingImportNames);   // 1.6.0 backlog 34: the card at the top, or the box as it always was; 1.6.2 backlog 227: then what it holds, counted before anything is written
 
@@ -1304,7 +1320,30 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       if (!c || c.name !== 'Default Campaign') return false;
       return Object.values(c.items || {}).every(function(it) { return !!it && it.type === 'map' && !(it.rooms || []).length && !(it.whiteboard || []).length; });
   }
+  // 1.6.3 (the review of the click test settings): whether a campaign is still wholly as the empty save's seed made it. wcSeedOnly reads its
+  // maps alone, which is enough to keep it off the welcome's list but not to delete it: a GM may have built a system, characters or a library
+  // in it and drawn nothing yet. So this also asks that nothing else of a campaign holds anything: no field, roll, item or effect of a
+  // system, no character, no library pack, no handout, no player and no sound or music
+  function wcSeedUntouched(c) {
+      if (!wcSeedOnly(c)) return false;
+      function holds(v) { return Array.isArray(v) ? v.length > 0 : (!!v && typeof v === 'object' && Object.keys(v).length > 0); }
+      var sys = c.system || {};
+      if (holds(sys.fields) || holds(sys.rolls) || holds(sys.items) || holds(sys.effects)) return false;
+      if (holds(c.chars) || holds(c.handouts) || holds(c.players) || holds(c.sounds) || holds(c.music)) return false;
+      if (c.library && holds(c.library.packs)) return false;
+      return true;
+  }
+  // 1.6.3 (the release click test): the welcome's Start a campaign on an empty save left that seed beside the campaign the newcomer named, in the
+  // campaign menu, an export and a later import. Once Start a campaign has made the new campaign, the seed goes. Only the campaign this very
+  // launch seeded may go (seededId, which io.js load notes when it seeds an empty save), never the new one, never one from someone else's table,
+  // and only while wcSeedUntouched says nothing has been put in it (the review of the click test settings: a test by name and maps alone
+  // deleted a Default Campaign holding a GM's system and characters). dialogs.js asks this through window.wpSeedDrops and deletes what it names
+  function wcSeedDrops(camps, keepId, seededId) {
+      var c = seededId && camps ? camps[seededId] : null;
+      return (c && seededId !== keepId && !c._foreign && wcSeedUntouched(c)) ? [seededId] : [];
+  }
   // [tutorialcheck:wcseed-end]
+  window.wpSeedDrops = function(camps, keepId) { return wcSeedDrops(camps, keepId, window.wpSeededId); };
   // [tutorialcheck:wchost-start]
   // Host a game (the owner, 2026-10-31: "instead of the host a game going straight into waypoint, it should let you select which campaign you want to host,
   // then open that one and start the multiplayer game"). The list is this computer's own campaigns, the one last open first; a name reaches it as a text
@@ -1357,7 +1396,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
   function wcResumeDraw(doc, rec) {
       var box = doc.getElementById('wcResume'), t = doc.getElementById('wcResumeText'); if (!box) return;
       box.style.display = rec ? 'flex' : 'none';
-      if (t) t.textContent = rec ? 'Your table with the room code ' + rec.code + ' was running a few minutes ago. Players still trying reattach when you resume it.' : '';
+      if (t) t.textContent = rec ? 'Your table with the room code ' + rec.code + ' stopped a little while ago. Players who are still trying to rejoin come back when you resume it.' : '';   // 1.6.3 (the release click test): plain words, and no guess at how long ago
   }
   // [tutorialcheck:wchost-end]
   function renderWcContinue() {
@@ -1443,8 +1482,9 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       var setPrefEl = document.getElementById('setWelcomePref'); if (setPrefEl) { setPrefEl.value = welcomePref(); setPrefEl.addEventListener('change', function() { setPref(this.value); }); }
       // Start a campaign on a save the tour is still owed to (nothing in it yet, the tour not seen): just enter — the tour starts in Waypoint proper, its
       // Tutorial campaign is the first one, and the naming prompt for their own campaign comes when the tour ends or is skipped (the owner's word,
-      // 2026-10-01: wpCampaignAfterTour, read by tutorial.js endTour). Otherwise the naming prompt at once, as ever
-      var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); if (window.wpTutorial && window.wpTutorial.pending && window.wpTutorial.pending()) { window.wpCampaignAfterTour = true; return; } var b = document.getElementById('newCampBtn'); if (b) b.click(); });
+      // 2026-10-01: wpCampaignAfterTour, read by tutorial.js endTour). Otherwise the naming prompt at once, as ever. The press marks that the
+      // seed may go (wpSeedDrop) only where this launch seeded an empty save (wpSeededId), never on a save that already had campaigns
+      var startBtn = document.getElementById('wcStartBtn'); if (startBtn) startBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); window.wpSeedDrop = !!window.wpSeededId; if (window.wpTutorial && window.wpTutorial.pending && window.wpTutorial.pending()) { window.wpCampaignAfterTour = true; return; } var b = document.getElementById('newCampBtn'); if (b) b.click(); });
       // Import from the welcome: the tour (if still owed) holds until the file is chosen and the import's choice made or dropped
       var loadBtn = document.getElementById('wcLoadBtn'); if (loadBtn) loadBtn.addEventListener('click', function() { saveWcProfile(); hideWelcome(); window.wpWelcomeImporting = true; var fi = document.getElementById('fileIn'); var done = function() { window.wpWelcomeImporting = false; }; if (fi) { fi.addEventListener('change', done, { once: true }); fi.addEventListener('cancel', done, { once: true }); } setTimeout(done, 60000); var b = document.getElementById('importBtn'); if (b) b.click(); });
       // Join a game → its OWN screen (profile + room code + live status); it stays up until the GM's snapshot lands (or an error).
@@ -1813,7 +1853,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             if (!ql && en.kind === 'char' && !(typeof cmdkSolo === 'function' && cmdkSolo())) s = -1;   // 1.6.3 (finding 30): a sheet waits for a word too, but on a player's app, where their sheets are all the list holds
             if (s >= 0) scored.push([s, en]);
         });
-        scored.sort(function(a, b) { return a[0] - b[0]; });
+        // 1.6.3 (the release click test): within one score a row whose name is exactly what was typed comes first, then a room after a map,
+        // a planner or a page, so typing a map's own name lands on the map, never on a room another map holds under the same name
+        var cmdkExact = function(p) { return ql && p[1].label.toLowerCase() === ql ? 0 : 1; }, cmdkRoom = function(p) { return p[1].kind === 'room' ? 1 : 0; };
+        scored.sort(function(a, b) { return a[0] - b[0] || cmdkExact(a) - cmdkExact(b) || cmdkRoom(a) - cmdkRoom(b); });
         var shown = scored.map(function(p) { return p[1]; });
         // Also surface pages matched by their CONTENT (not just the title) — ranked below the name matches, with a snippet.
         // The review of the sheet picks: never on a player's app at someone else's table, where quick jump holds their own sheets alone

@@ -627,18 +627,26 @@ function mkDoc() {
             && Q.api.row([{ id: 'c', nodeId: 'gone' }], Q.am) === null && mkRP({ may: false }).api.row([linked], Q.am) === null && mkRP({ stream: true }).api.row([linked], Q.am) === null && Q.api.row([linked], null) === null);
         const R = mkRP(), el = R.doc.createElement('div'); el.querySelector = s => { const k = el.children.find(c => c.classList.contains(s.replace(':scope > .', ''))) || null; if (k) k.remove = () => el.removeChild(k); return k; };
         R.am.whiteboard = [{ id: 'floor', type: 'rect', x: 0, y: 0, w: 300, h: 200, nodeId: 'r1' }, { id: 'mark', type: 'rect', x: 10, y: 10, w: 30, h: 30, nodeId: 'r1' }, { id: 'tok', isChar: true, x: 0, y: 0, w: 999, h: 999, nodeId: 'r1' }, { id: 'tx', type: 'text', x: 0, y: 0, w: 999, h: 999, nodeId: 'r1' }, { id: 'lost', type: 'rect', x: 0, y: 0, w: 5, h: 5, nodeId: 'gone' }];
-        const pl = R.api.places(R.am);
-        R.api.sync(el, { id: 'floor' }, pl); const tag = el.children[0];
+        const board = R.doc.createElement('div'); R.doc.byId.whiteboard = board;   // 1.6.3: the plates stand in a layer of their own on the board
+        const pl = R.api.places(R.am), floorIt = R.am.whiteboard[0];
+        R.api.sync(el, floorIt, pl); const layer = board.children[0], tag = layer && layer.children[0];
         const t1 = tag && tag.className, w1 = tag && tag.textContent, h1 = tag && tag.attrs['aria-hidden'];
-        R.am.rooms[0].name = '<b>x</b>'; R.api.sync(el, { id: 'floor' }, R.api.places(R.am)); const w2 = el.children[0].textContent;
-        R.api.sync(el, { id: 'floor' }, null); const gone1 = el.children.length;
+        R.am.rooms[0].name = '<b>x</b>'; R.api.places(R.am); R.api.sync(el, floorIt, R.api.places(R.am)); const w2 = layer.children[0].textContent, same = layer.children[0] === tag && layer.children.length === 1;
+        R.win.wpRoomNamesEnd(); const at1 = [tag.style.left, tag.style.top, tag.classList.contains('rn-mid'), tag.classList.contains('rn-off')];
+        el.classList.add('hexagon'); el.classList.add('wb-hidden-gm'); floorIt.x = 100; R.win.wpRoomNamesPlace(); const at2 = [tag.style.left, tag.style.top, tag.classList.contains('rn-mid'), tag.classList.contains('rn-hid')];
+        el.classList.add('il-off'); R.win.wpRoomNamesPlace(); const off2 = tag.classList.contains('rn-off'); el.classList.remove('il-off'); el.classList.remove('hexagon'); el.classList.remove('wb-hidden-gm');
+        const inPiece = el.children.length, lyr = [layer.attrs.id === undefined ? layer.id : layer.attrs.id, layer.attrs['aria-hidden']];
+        R.win.wpRoomNamesEnd(); const kept1 = layer.children.length; R.api.places({ rooms: [], whiteboard: [] }); R.api.sync(el, floorIt, null); R.win.wpRoomNamesEnd(); const gone1 = layer.children.length;
         const bare = R.doc.createElement('div'); let asked = 0; bare.querySelector = () => { asked++; return null; }; R.api.sync(bare, { id: 'none' }, pl);
         const off = mkRP({ store: { wp_roomNames: 'off' } }), gm = mkRP({ may: false }), st = mkRP({ stream: true });
         R.nb.listeners.click[0].f({}); const offNow = [R.store.wp_roomNames, R.nb.classList.contains('on'), R.nb.attrs['aria-checked'], R.api.places(R.am)]; R.nb.listeners.click[0].f({});
         check('fold 3, room names (run for real): a room\'s name stands once, on its place, the largest piece that names it, never on a small mark of the same room, a token, a text box or a piece whose room is gone; set as text in a plate hidden from a screen reader; a piece that wears none and never did passes by without a lookup; none with Room names unticked, on a player\'s app or in the stream window; the View tick is this computer\'s, starts ticked and is read once',
-            J(Object.keys(pl)) === J(['floor']) && pl.floor === R.am.rooms[0] && t1 === 'wb-room-name' && w1 === 'Old Mill' && h1 === 'true' && w2 === '<b>x</b>' && gone1 === 0 && asked === 0
+            J(Object.keys(pl)) === J(['floor']) && pl.floor === R.am.rooms[0] && t1 === 'wb-room-name' && w1 === 'Old Mill' && h1 === 'true' && w2 === '<b>x</b>' && asked === 0
             && off.api.places(off.am) === null && gm.api.places(gm.am) === null && st.api.places(st.am) === null && R.api.places({ rooms: [], whiteboard: [] }) === null
-            && R.api.on() === true && J(offNow) === J(['off', false, 'false', null]) && R.store.wp_roomNames === 'on' && R.nb.classList.contains('on'), J([pl && Object.keys(pl), t1, w1, w2, gone1, asked, offNow]));
+            && R.api.on() === true && J(offNow) === J(['off', false, 'false', null]) && R.store.wp_roomNames === 'on' && R.nb.classList.contains('on'), J([pl && Object.keys(pl), t1, w1, w2, asked, offNow]));
+        check('1.6.3, room names above the tokens (the owner: a portal\'s name "not legible enough to be useful", drawn under the tokens on the door; run for real): the plate stands in a layer of its own on the board (#roomNameLayer, hidden from a screen reader), never inside its piece, one plate a piece however often it is drawn; at the draw\'s end it is placed 4 px in from its piece\'s top left, in the middle of a hexagon, and follows its piece as the handles are placed; it mirrors its piece out of sight (interaction layers) and hidden from players; a draw that no longer asks for it takes it away',
+            same && inPiece === 0 && J(lyr) === J(['roomNameLayer', 'true']) && J(at1) === J(['4.0px', '4.0px', false, false]) && J(at2) === J(['250.0px', '0.0px', true, true])   /* moved on purpose: a cut piece's plate stands at its top edge, above the token on it */ && off2 === true && kept1 === 1 && gone1 === 0,
+            J([same, inPiece, lyr, at1, at2, off2, kept1, gone1]));
         const L = mkRP({ am: { id: 'm1', type: 'map', rooms: [{ id: 'r1', name: 'Door', targetMapId: 'm2' }], whiteboard: [] } }), lp = L.win.wpRoomPlace('r1');
         const L2 = mkRP(); L2.win.wpRoomPlace('r1'); const rec = L2.win.wpPlace.roomplace; L2.am.rooms[0].targetMapId = 'm9'; L2.api.step(rec, 0, 0, 100, 100);
         const L3 = mkRP(); L3.win.wpRoomPlace('r1'); L3.api.step(L3.win.wpPlace.roomplace, 0, 0, 100, 100); L3.am.rooms[0].targetMapId = 'm9'; L3.asks[0].cb('alt');

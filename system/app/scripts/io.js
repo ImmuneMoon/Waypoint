@@ -360,6 +360,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
            state.appState.activeCampaignId = seedCamp.id;
 
+           // 1.6.3 (the review of the click test settings): the welcome's Start a campaign may take away the campaign seeded here, and only
+           // this one. It is noted in this window's memory alone, so a campaign seeded by an earlier launch, or a save that already had
+           // campaigns, is never named (main.js wcSeedDrops reads it)
+           window.wpSeededId = seedCamp.id;
+
         }
 
         
@@ -517,6 +522,17 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
   function menuHeld(el) { var m = el && el.nodeType === 1 && typeof el.closest === 'function' ? el.closest('[role="menu"], [role="listbox"], [role="tree"]') : null; return !!(m && (typeof m.getClientRects !== 'function' || [].some.call(m.getClientRects(), function(r) { return !!r && r.width > 0; }))); }   // shown: some box of it has a width (the review of pages finding, 4: the tree in a panel folded to its rail has a box of no width, and it held the map's keys)
   // [shelfcheck:menuheld-end]
   function askHeld() { var up = function(id) { var e = document.getElementById(id); return !!(e && e.style && e.style.display === 'flex'); }; return up('customConfirm') || up('customPrompt'); }   // the app's own question or prompt is up, as commands.js hotkeyHeld reads it ('asking')
+  // [sysedcheck:winheld-start]
+  // 1.6.3 (the release click test): a window of the app's is up over the map, so no key reaches the map behind it. A click on a blank part of the
+  // System editor left the focus on the page's body, and the arrows moved the token selected behind it, Ctrl+Z undid the map and Delete would have
+  // deleted it. A window is an element whose id ends in Modal and that shows, as commands.js hotkeyHeld reads one ('window'). A player's page
+  // reader (docReaderModal) is no window: it stands beside the map as a floating box, and the arrows still move their token while it is open
+  function winHeld(doc) {
+      var wins = doc && typeof doc.querySelectorAll === 'function' ? doc.querySelectorAll('[id$="Modal"]') : [];
+      for (var i = 0; i < wins.length; i++) { var w = wins[i]; if (w.id !== 'docReaderModal' && typeof w.getClientRects === 'function' && w.getClientRects().length > 0) return true; }
+      return false;
+  }
+  // [sysedcheck:winheld-end]
   function canPersistLocal() {
       var n = window.wpNet, W = window.wpWebMode;
       if (W && typeof W.joinOnly === 'function' && W.joinOnly() === true) return false;   // 1.5.5: a website's plan that joins tables alone keeps nothing of the player's (webmode.js): the site answers a save with 403
@@ -1129,7 +1145,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       var from = h && h[dir];
 
-      if (!from || !from.length) { if (flushed) save(true); return; }   // the flushed edit still has to reach disk (Ctrl+Y right after typing)
+      // the flushed edit still has to reach disk (Ctrl+Y right after typing). 1.6.3: with nothing flushed and nothing to step, a notice says
+      // so, since a history emptied by a traveller crossing a portal (historyBarrier) looked like a key that never arrived
+      if (!from || !from.length) { if (flushed) save(true); else toast(dir === 'undo' ? 'Nothing to undo.' : 'Nothing to redo.'); return; }
 
       var snap = from.pop();
 
@@ -1791,6 +1809,100 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       return false;
   }
   window.wpNudge = function(dir, shift) { return Array.isArray(dir) && dir.length === 2 && canPersistLocal() ? nudgeSel(dir, shift === true) : false; };
+  // [cleanupcheck:mapchord-start]
+  // 1.6.3 (Fulllion: "ctrl z should undo, ctrl y should redo"): Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z undo and redo the map wherever the user is,
+  // unless the focus is in a field the user is typing in, which keeps its own undo while it has typing to take back. Three things kept the
+  // chord from the map before. The board keeps a click from moving the focus (datamap.js stops a press's default), so the focus stayed on the
+  // last control used in Properties, a tool's options or a sheet. The key handler below then took ANY input, select or checkbox for typing and
+  // handed the chord to that field, which had nothing of its own to undo. And the floating boxes (the sheet, a HUD, Effects, Table Chat) stop
+  // every key at themselves, so the handler never heard it while the focus was in one of them.
+  // Now a field holds the chord only while it has typing of its own: text typed into it since it got the focus and since the last press on
+  // the map (_wpTypedHere, kept by the three listeners below). A select, a checkbox, a range, a color, a button and a box nobody typed in hand
+  // the chord to the map's history, as a planner field with nothing of its own to undo hands it to the planner's (fieldUndoChord).
+
+  // 'undo' for Ctrl+Z, 'redo' for Ctrl+Y and Ctrl+Shift+Z (the command key for Ctrl on a Mac), else null
+  function chordDirOf(e) {
+      if (!e || !(e.ctrlKey || e.metaKey) || e.altKey) return null;
+      var k = String(e.key || '').toLowerCase();
+      return (k === 'z' && !e.shiftKey) ? 'undo' : (k === 'y' || (k === 'z' && e.shiftKey)) ? 'redo' : null;
+  }
+
+  // Whether a field has typing of its own to take back: a text box or a text area the user typed in since it got the focus. A box of any
+  // other kind (a checkbox, a range, a color, a button) has no text undo, whatever was done to it
+  function fieldHolds(t) {
+      if (!t || t._wpTypedHere !== true) return false;
+      if (t.tagName === 'TEXTAREA') return true;
+      return t.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|color|range|file|image|hidden)$/i.test(t.type || 'text');
+  }
+
+  // Whether the chord on the focused element t goes to the map's history (true) or stays where it is (false). It stays in a planner's field,
+  // which fieldUndoChord judges, and in a box of styled text (contentEditable), whose host or editor keeps steps of its own. A field with
+  // typing of its own lets the browser try first; where the browser's undo has nothing left there (no 'input' follows: the chunks listener
+  // above clears nativeProbe when one does) the map's history takes the press a moment later, and the field is spent, as in fieldUndoChord
+  function chordToMap(e, t) {
+      var dir = chordDirOf(e);
+      if (!dir || !t || t.nodeType !== 1) return false;
+      if (typeof t.closest === 'function' && t.closest('#plannerBlocks')) return false;
+      // a field of a window that covers the map (Settings, the Library, the Calendar, a generator's dialog: every such window's id ends in
+      // Modal) keeps the chord as before, so a Ctrl+Z there never takes back a step of the map out of sight behind it (the review of 2026-11-22)
+      if (typeof t.closest === 'function' && t.closest('[id$="Modal"]')) return false;
+      if (t.isContentEditable) return false;
+      if (fieldHolds(t)) {
+          nativeProbe = t;
+          setTimeout(function() { if (nativeProbe !== t) return; nativeProbe = null; if (dir === 'undo') t._wpTypedHere = false; if (!askHeld()) stepHistory(dir); }, 0);
+          return false;
+      }
+      return true;
+  }
+
+  // The floating box (floats.js) that holds t, if any
+  function chordBoxOf(t) {
+      var F = typeof window !== 'undefined' && window.wpFloats && typeof window.wpFloats.boxes === 'function' ? window.wpFloats.boxes() : [];
+      for (var i = 0; i < F.length; i++) if (F[i] && typeof F[i].contains === 'function' && F[i].contains(t)) return F[i];
+      return null;
+  }
+
+  // Typing marks a text field, by an input that puts text in or takes it out (never a change a script makes, which names no inputType)
+  document.addEventListener('input', function(e) { var t = e.target; if (t && t.nodeType === 1 && /^(insert|delete)/.test(String(e.inputType || ''))) t._wpTypedHere = true; }, true);
+  // a field that gets the focus has typed nothing yet, but for the very field that had it last: the focus coming back to it as the window
+  // comes back from another program (the review of 2026-11-22) keeps its typing, which the browser can still take back
+  var chordLastFocus = null;
+  document.addEventListener('focusin', function(e) { var t = e.target; if (t && t.nodeType === 1) { if (t !== chordLastFocus) t._wpTypedHere = false; chordLastFocus = t; } }, true);
+  // a press on the play map or the Data Map means the user is back on the map, so the field that still holds the focus is no longer typed in
+  // Whether the user's last press was on the map, rather than in a floating box (the review of 2026-11-22: with the focus left in a sheet, a
+  // Ctrl+Z meant for the sheet's own last change moved a token back instead). A press on the map sets it; a press, or any key but the chord
+  // itself, inside a floating box clears it. The floating boxes' capture listener below acts only while it is true
+  var chordOnMap = false;
+  document.addEventListener('pointerdown', function(e) {
+      var t = e.target;
+      if (t && typeof t.closest === 'function' && t.closest('#whiteboardWrap, #canvasWrap')) chordOnMap = true;
+      else if (t && t.nodeType === 1 && chordBoxOf(t)) chordOnMap = false;
+  }, true);
+  document.addEventListener('keydown', function(e) { if (!chordDirOf(e) && e.target && e.target.nodeType === 1 && chordBoxOf(e.target)) chordOnMap = false; }, true);
+  document.addEventListener('pointerdown', function(e) {
+      var t = e.target, ae = document.activeElement;
+      if (!ae || ae._wpTypedHere !== true || !t || typeof t.closest !== 'function' || !t.closest('#whiteboardWrap, #canvasWrap')) return;
+      if (typeof ae.contains === 'function' && ae.contains(t)) return;   // a press inside the very box being typed in (a text box on the map)
+      ae._wpTypedHere = false;
+  }, true);
+
+  // The floating boxes stop every key at themselves, so the chord is taken here, in the capture phase, before their listeners hear it. Only
+  // for a target inside one of them: everywhere else the key handler below judges it as it always did, and the windows with an undo of their
+  // own (the System editor, the paint window) keep it. The same guards as the handler's: never while the layout is edited or a question or a
+  // prompt is up, never on a window that may not write. And only after a press on the map since the user last pressed or typed in a box
+  // (chordOnMap): a Ctrl+Z pressed while working in the sheet stays the sheet's, which keeps its own Revert, and does nothing to the map
+  document.addEventListener('keydown', function(e) {
+      var t = e.target, dir = chordDirOf(e);
+      if (!dir || !chordBoxOf(t) || !chordOnMap) return;
+      if (typeof winHeld === 'function' && winHeld(document)) return;   // a window of the app's up over the map holds the chord too (the click test's rule)
+      if (document.body && document.body.classList.contains('lay-edit')) return;
+      if (askHeld()) return;
+      if (!chordToMap(e, t) || !canPersistLocal()) return;
+      e.preventDefault(); e.stopPropagation();
+      stepHistory(dir);
+  }, true);
+  // [cleanupcheck:mapchord-end]
+  // [cleanupcheck:mapkeys-start]
   document.addEventListener('keydown', function(e) {
 
       var t = e.target;
@@ -1800,7 +1912,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       var typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 
-      if (typing) { fieldUndoChord(e); return; }   // a planner field with nothing of its own to undo hands the chord to the planner's history
+      // a planner field with nothing of its own to undo hands the chord to the planner's history (fieldUndoChord); any other field with nothing
+      // of its own to undo hands it to the map's (chordToMap, 1.6.3), and the chord goes on to the undo and redo below
+      if (typing && (fieldUndoChord(e) || !chordToMap(e, t))) return;
+
+      if (winHeld(document)) return;   // 1.6.3 (the release click test): a window of the app's is up, so no key moves, deletes, copies or undoes the map behind it
 
       // Shift+1 frames the content — the selection if there is one, else the whole map. This is
       // navigation, not an edit, so it sits ABOVE the spectator guard (players can frame too). With
@@ -1889,6 +2005,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       }
 
   });
+  // [cleanupcheck:mapkeys-end]
 
 
 
@@ -1907,6 +2024,11 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var t = e.target;
 
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+      // 1.6.3 (the review of the release click test): a window of the app's up over the map holds a paste too, as it holds every key. A click on a
+      // blank part of the System editor or the Library gives the window the focus, so Ctrl+V's paste reached here with the window as its target,
+      // and the pieces copied earlier, or a picture on the clipboard, were laid on the map behind the window and saved
+      if (winHeld(document)) return;
 
       if (!canPersistLocal()) return;
 
@@ -2067,7 +2189,9 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
       var v = skipped.filter(function(n) { return /^images\/video\//.test(n); }).length;
       return { images: nImg - (skipped.length - v), videos: nVid - v, missing: skipped.length };
   }
-  function exportDoneWords(r) { return 'Exported ' + r.name + ' (' + r.images + ' image(s)' + (r.videos ? ', ' + r.videos + ' video(s)' : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').' + exportLeftWords(r); }
+  // 1.6.3 (the release click test): a count said in real words, "1 picture" and "3 pictures", never "image(s)"
+  function exportCount(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function exportDoneWords(r) { return 'Exported ' + r.name + ' (' + exportCount(r.images, 'picture', 'pictures') + (r.videos ? ', ' + exportCount(r.videos, 'video', 'videos') : '') + (r.missing ? ', ' + r.missing + ' missing' : '') + ').' + exportLeftWords(r); }
   // ... and what could not be read at all: a library pack the campaign pins, or the list of the campaign's pictures that no map uses yet
   function exportLeftWords(r) {
       var n = r && r.libMissing > 0 ? Math.floor(r.libMissing) : 0;
@@ -2223,7 +2347,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
 
       var isVideo = function(p) { return p.indexOf('/saves/images/video/') === 0; };
       var nVid = paths.filter(isVideo).length, nImg = paths.length - nVid;
-      toast('Bundling ' + nImg + ' image(s)' + (nVid ? ', ' + nVid + ' video(s)' : '') + (libFiles.length ? ' and ' + libFiles.length + ' library pack(s)' : '') + '\u2026');
+      toast('Bundling ' + exportCount(nImg, 'picture', 'pictures') + (nVid ? ', ' + exportCount(nVid, 'video', 'videos') : '') + (libFiles.length ? ' and ' + exportCount(libFiles.length, 'library pack', 'library packs') : '') + '\u2026');
       var zip = await import('./zip.js');
       var enc = new TextEncoder();
       var entries = [{ name: 'data.json', data: enc.encode(json) }].concat(libFiles);

@@ -1551,6 +1551,15 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const sD = stage(null), oldOne = older(); oldOne.tutorialLight = 2; const sE = stage(oldOne, true);
             const later = older(); later.tutorialLight = 3; later.tutorialSenses = 1; const laterPre = both(later), sF = stage(later);
             const noCellar = older(); delete noCellar.items.map_tut_fog; noCellar.tutorialLight = 1; const sG = stage(noCellar);
+            // 1.6.3 (the release click test): the Tutorial's start draws nothing while its pictures are not yet copied into the saves folder (a draw then
+            // asked for each picture before it was there, a red 404 each); the draw comes in the copy's own answer. One whose art is in draws at once
+            const artIn = older(); artIn.tutorialArt = 'installed'; const sArt = stage(artIn);
+            check('1.6.3 (the release click test): a new Tutorial, or one whose pictures are not copied yet, is not drawn before its pictures are copied (no render before the copy is asked for, the save still made), and the copy\'s answer draws it; one whose pictures are in is drawn at once, as before (ensureTutorialCampaign run for real)',
+                !/render/.test(sD.log) && /save/.test(sD.log) && /,art$/.test(sD.log) && /render,save/.test(sArt.log)
+                && tuF.includes('var artWait = camp.tutorialArt !== \'installed\';') && tuF.includes('updateCampaignSelect(); updateSidebarNav(); if (!artWait) render(); save(true);')
+                && tuF.includes('installTutorialArt(function(copied) { camp.tutorialArt = \'installed\'; save(true); if (copied || artWait) render(); if (thenOnce) thenOnce(); });')
+                && tuF.includes('if (thenOnce) { if (!artWait) thenOnce(); else setTimeout(thenOnce, 4000); }')
+                && /function startTour\(at\) \{[\s\S]*?ensureTutorialCampaign\(false, function\(\) \{[\s\S]*?show\(start, 1\);\n\s*\}\);\n\s*\}\);\n\}/.test(tuF), lj([sD.log, sArt.log]));
             check('Lighting L6: the Tutorial\'s start, run for real — an older Tutorial gains the lights once and is marked done (2), one from before lighting is first made dark and then lit (a GM\'s own map light kept), and a later start brings back neither a brazier nor a torch, a rule or a text the GM took away; a mark past 2 is left as it is',
                 sA.camp === l5 && l5pre !== l5post && l5post === newBoth && l5flag === 2 && /save/.test(sA.log) && !/build/.test(sA.log) && sA.st.appState.activeCampaignId === 'camp_tutorial' && sA.st.selWbId === null
                 && cutPost === cutPre && l5.tutorialLight === 2 && !item(l5.items.map_tut_fog, 'tut_wb_brazier') && item(l5.items.map_tut_fog, 'tut_wb_bren7').light === undefined && l5.system.combat.light === undefined && !/build/.test(sB.log)
@@ -6889,6 +6898,19 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && logO.includes('save translate(50,32) rotate(1.57) beginPath moveTo(-30,-52) lineTo(30,-52) lineTo(60,0) lineTo(30,52) lineTo(-30,52) lineTo(-60,0) closePath fill restore')
             && logO.includes('save translate(490,30) drawImage(img,-100,-25,200,50) restore') && logO.includes('save translate(650,32) beginPath moveTo(-30,-52)')
             && logUp === 'save translate(250,25) beginPath rect(-50,-25,100,50) fill restore' && drawCall, j([oErr, listO, nO, shapes, logO, logUp, drawCall]));
+        // 1.6.3 (the release click test): a picture still on its way from the host, or one the host says is missing, is the app's 1x1 clear
+        // stand-in, complete and one pixel: cut by it nothing showed and the player's own token stood under solid fog. Such a picture, and a
+        // token marked pic-missing, is cut by the token's box (the ownclear slice, run for real)
+        let logPh = null, logGone = null, logReal = null;
+        if (OC) {
+            const cls = on => ({ contains: c => on && c === 'pic-missing' }), elOf = (img, gone) => () => ({ style: {}, classList: cls(gone), querySelector: () => img });
+            const ph = { id: 'ph', complete: true, naturalWidth: 1, naturalHeight: 1 }, big = { id: 'big', complete: true, naturalWidth: 200, naturalHeight: 50 };
+            const c1 = rec(); OC.ownClear(c1, [mapO.whiteboard[2]], 1, 0, 0, elOf(ph, false)); logPh = c1.log.join(' ');
+            const c2 = rec(); OC.ownClear(c2, [mapO.whiteboard[2]], 1, 0, 0, elOf(big, true)); logGone = c2.log.join(' ');
+            const c3 = rec(); OC.ownClear(c3, [mapO.whiteboard[2]], 1, 0, 0, elOf(big, false)); logReal = c3.log.join(' ');
+        }
+        check('1.6.3 (the release click test): a player\'s own picture token whose picture is the 1x1 stand-in, or is marked missing, is cut out of the fog by its box, never by a clear picture that cuts nothing; a real picture is still cut by its own pixels',
+            logPh === 'save translate(250,25) beginPath rect(-50,-25,100,50) fill restore' && logGone === logPh && /drawImage\(big,/.test(logReal || ''), j([logPh, logGone, logReal]));
     }
     // 1.6.3 (found timing a join on a map of 52 character tokens): a token's sense line in words is worked out once for a whole draw of the board.
     // whiteboard.js tokMarksSync asks fog.js senseWordsOf for every token it draws, and each ask worked every token's senses out again, 2.8 s for one

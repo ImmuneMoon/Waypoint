@@ -1356,6 +1356,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
 
       var rotHandle = document.getElementById('globalRotateHandle');
 
+      if (window.wpRoomNamesEnd) window.wpRoomNamesEnd();   // 1.6.3: the room names this draw asked for, placed above the pieces (wbbuild.js), the rest taken away
       positionHandles(activeMap);
       if (window.wpRefreshBlasts) window.wpRefreshBlasts();   // tokens moved: re-check who is in a blast
       if (typeof tagsDraw === 'function') tagsDraw(activeMap);   // 1.6.2 (vehicles, fold (c)): the marks one token holds on another
@@ -1459,6 +1460,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
   function positionHandles(am) {
       var rHandle = document.getElementById('globalResizeHandle');
       var rotHandle = document.getElementById('globalRotateHandle');
+      if (window.wpRoomNamesPlace) window.wpRoomNamesPlace();   // 1.6.3: a room's name follows its piece through a drag (wbbuild.js)
       try { lockRingSync(am); } catch (e) {}   // 1.6.2: a locked piece selected, its outline above the board
       if (!rHandle || !rotHandle) return;
       var z = state.zoomLevel || 1;
@@ -7315,7 +7317,14 @@ function stripMenu(strip, open) {
     // anew each time, so a row the pointer went down on could be gone by the time it came up, and the press (Hold, the roster, End combat) did nothing. The rows are made
     // again only when what they say, or the strip they press, has changed
     var rowsM = stripMenuRows(strip), sigM = String(strip.wpDrawn || '') + '\n' + JSON.stringify(rowsM.map(function(r) { return [r.text, !!r.b, !!r.red]; }));
-    if (m.wpSig === sigM && m.firstChild) rowsM = []; else { m.wpSig = sigM; m.textContent = ''; }
+    if (m.wpSig === sigM && m.firstChild) {
+        // 1.6.3 (the release click test): the strip is often drawn anew with the very same words (its last button says whether the menu is open, so
+        // every opening and closing writes the strip again), and its buttons are then new elements. A kept row still pointed at the button it was made
+        // for, which was no longer in the strip, so End combat, Hold and the roster did nothing. The rows stay, so a press under way is not lost, and
+        // each is pointed again at the strip's live button, in the same order
+        var liveM = rowsM.filter(function(r) { return !!r.b; }), keptM = Array.prototype.filter.call(m.children || [], function(c) { return /(^| )fight-menu-row( |$)/.test(String(c.className || '')); });
+        if (keptM.length === liveM.length) { keptM.forEach(function(c, i) { c.wpPress = liveM[i].b; }); rowsM = []; } else { m.wpSig = sigM; m.textContent = ''; }
+    } else { m.wpSig = sigM; m.textContent = ''; }
     var heads = true;
     rowsM.forEach(function(r) {
         if (!r.b) { var h = document.createElement('div'); h.className = 'fight-menu-word'; h.textContent = r.text; m.appendChild(h); return; }

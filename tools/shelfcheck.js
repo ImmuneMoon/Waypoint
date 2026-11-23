@@ -2019,6 +2019,19 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         JSON.stringify({ plWords, gmWords }));
 }
 
+{   // 1.6.3 (the release click test): typing a map's own name in quick jump lands on the map, never on a room another map holds under the same
+    // name; a row whose name is exactly what was typed comes first within its score (main.js's cmdkrows slice, run for real)
+    const mjR = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'main.js'), 'utf8').replace(/\r\n/g, '\n');
+    const NM = 'East Central (Central Plaza \u00b7 Commerce Ring)';
+    const ents = [{ kind: 'room', label: NM, sub: 'Ahto City', campId: 'k1', itemId: 'm3', roomId: 'r1' }, { kind: 'room', label: 'Armory', sub: 'Keep', campId: 'k1', itemId: 'm4', roomId: 'r2' },
+        { kind: 'map', label: 'Armory Annex', sub: 'Camp', campId: 'k1', itemId: 'm5' }, { kind: 'map', label: NM, sub: 'Camp', campId: 'k1', itemId: 'm6' }];
+    const rankR = q => { const list = { innerHTML: '' }, st = { appState: { campaigns: {} } };
+        return new Function('state', 'window', 'document', 'esc', 'cmdkHintSync', 'cmdkSolo', 'var _cmdkEntries = ' + JSON.stringify(ents) + ', _cmdkShown = [], _cmdkIdx = 0;\n' + sliceOf(mjR, 'cmdkrows') + '\nreturn function(q) { cmdkRender(q); return _cmdkShown.map(function(e) { return e.kind + ":" + e.label; }); };')(st, {}, { getElementById: () => list }, s => String(s), () => {}, () => false)(q); };
+    const cp = rankR('central plaza'), ec = rankR('east central'), full = rankR(NM.toLowerCase()), arm = rankR('armory');
+    check('1.6.3 (the release click test): in quick jump a map comes before a room of the same score, so typing a map\'s own name, whole or in part, lands on the map; a row named exactly what was typed comes first',
+        cp[0] === 'map:' + NM && cp[1] === 'room:' + NM && ec[0] === 'map:' + NM && full[0] === 'map:' + NM && full[1] === 'room:' + NM && arm[0] === 'room:Armory' && arm[1] === 'map:Armory Annex', JSON.stringify([cp, ec, full, arm]));
+}
+
 /* ---------- 1.6.3, the review of pages and planners: getting around and finding (lane B, batch 1) ---------- */
 {
     // finding 7: quick jump's box takes the focus in the same turn as Ctrl+K (main.js cmdkOpen, run for real on plain objects)
@@ -2250,6 +2263,21 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
     const fit = flexFit(343 - 26 - 4, [{ basis: Math.min(800, cap) + 34, shrink: frontShrink }, { basis: 1600, shrink: listShrink }]);   // the plus and the two gaps take their room first
     check('the review of pages finding (13) a page in front of the top row keeps its name readable: worked out as the browser lays the row out, its tab keeps at least 120 px and its name at least 100 px of the room the map tabs measured live, the map tabs take the rest, and no rule makes the map tabs shrink at the page tab\'s own rate',
         fit[0] >= 120 && fit[0] - 34 >= 100 && fit[1] > 0 && listShrink >= 1000 && frontShrink <= 1 && !/#mapTabFront\.mt-onpage \+ #mapTabList \{/.test(css), J([fit, frontShrink, listShrink, cap]));
+    // 1.6.3 (the release click test, finding 32): at 1366 px the map tabs' box measured 269 px with a page of a long title in front, and the list
+    // was worked out to 0, so no map tab showed. The list keeps a floor while a page is in front, and the page's tab gives way first. Worked out
+    // with each one's min-width, as the browser does: a box that would shrink past its floor stays at it and the rest is taken from the other
+    const floorM = /min-width:\s*min\((\d+)px, (\d+)%\)/.exec(ruleOf('#mapTabFront.mt-onpage ~ #mapTabList:not(:empty)')), floor = floorM ? Math.min(+floorM[1], 269 * floorM[2] / 100) : 0, floorSq = floorM ? Math.min(+floorM[1], 30 * floorM[2] / 100) : 99;
+    const flexFitMin = (box, items) => { const w = flexFit(box, items); items.forEach((it, i) => { if (w[i] < (it.min || 0)) { const need = it.min - w[i]; w[i] = it.min; items.forEach((o, j) => { if (j !== i) w[j] = Math.max(o.min || 0, w[j] - need); }); } }); return w; };
+    const at1366 = flexFitMin(269 - 26 - 4, [{ basis: Math.min(800, cap) + 34, shrink: frontShrink }, { basis: 1600, shrink: listShrink, min: floor }]), wide = flexFitMin(343 - 26 - 4, [{ basis: Math.min(800, cap) + 34, shrink: frontShrink }, { basis: 1600, shrink: listShrink, min: floor }]);
+    check('1.6.3 (the release click test, finding 32) with a page in front of the top row a map tab stays in sight at 1366 px: the map tabs keep room for a tab while a page is in front, and only then, held to a share of the tabs\' box so a row squeezed to its plus alone is never overrun; worked out as the browser lays the row out, the page\'s tab still keeps at least 100 px of its name at 1366 px and the measured width before',
+        floor >= 90 && floorSq <= 12 && at1366[1] >= floor && at1366[0] - 34 >= 100 && wide[1] >= floor && wide[0] - 34 >= 100 && /\n  #mapTabList \{[^}]*min-width: 0;/.test(css), J([floor, at1366, wide]));
+    // the review of the click test pages: that floor stands only on a list that holds a map tab. A campaign with no map has an empty list, and
+    // the floor there took up to 96 px of blank room from the page's name. :empty holds because the list starts empty in the page and maptabs.js
+    // tabsDraw writes element children alone (no text node, no comment)
+    const mtSrc = read('scripts/maptabs.js'), ixMt = read('index.html');
+    check('the review of the click test pages: with a page in front, the map tabs keep room only where the list holds a tab, so an empty list takes no room from the page\'s name; the list starts empty and tabsDraw writes only element children',
+        !/min-width/.test(ruleOf('#mapTabFront.mt-onpage ~ #mapTabList')) && !!floorM && ixMt.includes('<div id="mapTabList"></div>')
+        && /model\.tabs\.forEach\(function\(t\) \{ list\.appendChild\(tabBtn\(doc, t\)\); \}\);/.test(mtSrc) && !/list\.(appendChild\(doc\.createTextNode|textContent\s*=|innerHTML)/.test(mtSrc), ruleOf('#mapTabFront.mt-onpage ~ #mapTabList'));
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');

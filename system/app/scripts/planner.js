@@ -32,7 +32,7 @@ import { state, dom } from './state.js';
 
 import { uid, clone, createNewCampaign, createNewMap, createNewPlanner, getActiveCampaign, getActiveMap, isDocLike } from './models.js';
 
-import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin, headJoin, cleanHeadJoin, headHtml, plainLines, diagramBad } from './docrender.js';
+import { renderDoc, compileFlowchart, DOC_BLOCKS, mergeDocStyle, docStyleCss, cleanDocStyle, sanitizeHtml, proseHtml, stripMermaidLinks, mermaidPre, fmtHtml, fmtRich, fieldFmt, colFmtOf, cellFmtOf, diagramLink, cellHtml, rowJoin, rowHtml, cleanRowJoin, headJoin, cleanHeadJoin, headHtml, plainLines, diagramBad, seeLabels } from './docrender.js';
 
 import * as TF from './textfmt.js';
 
@@ -409,7 +409,21 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // The open form belongs to the page it was opened on (1.6.2, found by hand): with another page on screen no form is open, where before the form of the
   // block at the same place in the list came up on the page gone to
   function pgItemNow() { var am = getActiveMap(); return am && typeof am.id === 'string' ? am.id : ''; }
-  function pgOwn() { if (_pg.open >= 0 && _pg.item !== undefined && _pg.item !== pgItemNow()) { _pg.open = -1; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } } }
+  function pgOwn() {
+      if (_pg.open >= 0 && _pg.item !== undefined && _pg.item !== pgItemNow()) { _pg.open = -1; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } return; }
+      // 1.6.3 (the release click test, finding 29): the form stays on the block it was opened on (_pg.blk, noted by pgOpen), not on its place. An
+      // undo or a redo (io.js applyContent) puts back new block objects and may take blocks away before it, so the block is found again as the
+      // same object, else by its own id and type; where it is gone (the copy Duplicate made, undone) the form is closed, never laid over the
+      // block that now stands at its old place. The editor's own buttons keep _pg.open in step themselves (pgMoved, pgDropped, blockBack)
+      if (_pg.open < 0 || !_pg.blk) return;
+      var am = getActiveMap(), bl = am && Array.isArray(am.blocks) ? am.blocks : null; if (!bl || bl[_pg.open] === _pg.blk) return;
+      var at = bl.indexOf(_pg.blk);
+      if (at < 0 && typeof _pg.bid === 'string' && _pg.bid) for (var k = 0; k < bl.length && at < 0; k++) { var x = bl[k]; if (x && x.id === _pg.bid && x.type === _pg.btype) at = k; }
+      if (at < 0) { _pg.open = -1; _pg.blk = null; if (_pg.ro) { _pg.ro.disconnect(); _pg.ro = null; } return; }
+      _pg.open = at; _pg.blk = bl[at];
+  }
+  // what pgOwn finds the open block again by (finding 29): the block itself, its id and its type
+  function pgNote() { var am = getActiveMap(), b = am && Array.isArray(am.blocks) ? am.blocks[_pg.open] : null; _pg.blk = b && typeof b === 'object' ? b : null; _pg.bid = b && typeof b.id === 'string' ? b.id : ''; _pg.btype = b ? b.type : ''; }
   // [pagecheck:pgitem-end]
   function pgPlace() {   // the open form over (or under) its drawn block, the page making room for it
       pgOwn();
@@ -452,7 +466,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       try { form.scrollIntoView({ block: 'nearest' }); } catch (e) {}
   }
   function pgOpen(i) {
-      _pg.open = Math.round(Number(i)); _pg.item = pgItemNow(); pgPlace();
+      _pg.open = Math.round(Number(i)); _pg.item = pgItemNow(); pgNote(); pgPlace();
       var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + _pg.open + '"]') : null;
       if (form && typeof ResizeObserver === 'function') { if (_pg.ro) _pg.ro.disconnect(); _pg.ro = new ResizeObserver(pgPlaceSoon); _pg.ro.observe(form); }
       pgFocus(_pg.open);
@@ -2330,9 +2344,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // apart). Beside it the GM ticks which players still see it: their profile ids in the block's see, none meaning nobody but the GM. The
   // players offered are those the campaign knows (camp.players, the banned left out) and any id the block already names, so a name can be
   // taken off again. seeRowHtml writes the row (names and ids through esc), seeSet and seePick are the two changes, one save each.
+  // 1.6.3 (the release click test, finding 26): each player is named by docrender.js seeLabels, so two players of one name read apart (by the
+  // character they play, else the day they last joined), in the very words the mark on a kept block uses in every window
   function seePlayers(camp, b) {
       var out = [], seen = Object.create(null), pl = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}, ban = camp && camp.bannedPlayers && typeof camp.bannedPlayers === 'object' ? camp.bannedPlayers : {};
-      Object.keys(pl).forEach(function(pid) { var p = pl[pid]; if (!p || typeof p !== 'object' || Object.prototype.hasOwnProperty.call(ban, pid) || !/^[A-Za-z0-9_.:-]{1,80}$/.test(pid)) return; seen[pid] = 1; out.push({ id: pid, name: String(p.name || 'A player').slice(0, 60) }); });
+      var lab = seeLabels(camp);
+      Object.keys(pl).forEach(function(pid) { var p = pl[pid]; if (!p || typeof p !== 'object' || Object.prototype.hasOwnProperty.call(ban, pid) || !/^[A-Za-z0-9_.:-]{1,80}$/.test(pid)) return; seen[pid] = 1; out.push({ id: pid, name: lab[pid] || String(p.name || 'A player').slice(0, 60) }); });
       out.sort(function(a, c) { return a.name.localeCompare(c.name); });
       (Array.isArray(b && b.see) ? b.see : []).forEach(function(pid) { if (typeof pid === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(pid) && !seen[pid]) { seen[pid] = 1; out.push({ id: pid, name: 'A player no longer listed' }); } });
       return out;
@@ -2345,17 +2362,22 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           html += '<span class="b-see-who" title="The players you tick still get this block. With none ticked, only you see it.">';
           html += ps.length ? '<span class="b-see-cap">Seen by</span>' + ps.map(function(p) { return '<label class="b-see-p"><input type="checkbox" class="b-seep" data-idx="' + idx + '" data-pid="' + esc(p.id) + '"' + (see.indexOf(p.id) >= 0 ? ' checked' : '') + '> ' + esc(p.name) + '</label>'; }).join('') : '<span class="b-see-none">Only you see it. Players who join your table can be picked here.</span>';
           html += '</span>';
+          // 1.6.3 (the release click test, finding 28): a heading kept back is the heading alone. The blocks under it still go to players, judged
+          // one by one (docrender.js blockSeen), so the row says so and says how to keep the whole section back
+          if (b && (b.type === 'h1' || b.type === 'h2' || b.type === 'h3')) html += '<span class="b-see-none b-see-head">' + SEE_HEAD_WORDS + '</span>';
       }
       return html + '</div>';
   }
+  var SEE_HEAD_WORDS = 'Only this heading is kept back. The text under it still goes to players. To keep the whole section, untick Players see this on each block under it.';
   function seeSet(b, on) { if (!b || typeof b !== 'object') return; if (on) { delete b.hide; delete b.see; } else b.hide = true; }
   function seePick(b, pid, on) {
       if (!b || typeof b !== 'object' || typeof pid !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(pid)) return;
       var s = (Array.isArray(b.see) ? b.see : []).filter(function(x) { return x !== pid; }); if (on) s.push(pid);
       if (s.length) b.see = s; else delete b.see;
   }
-  // the names renderDoc writes on a kept block of the GM's own page (docrender.js keptWords), from the campaign's own record of its players
-  function seeNames(ids) { var camp = getActiveCampaign(), pl = camp && camp.players && typeof camp.players === 'object' ? camp.players : {}; return ids.map(function(pid) { var p = Object.prototype.hasOwnProperty.call(pl, pid) ? pl[pid] : null; return p && p.name ? String(p.name).slice(0, 60) : 'a player no longer listed'; }); }
+  // the names renderDoc writes on a kept block of the GM's own page (docrender.js keptWords), from the campaign's own record of its players,
+  // labelled as the Seen by ticks are (finding 26)
+  function seeNames(ids) { var lab = seeLabels(getActiveCampaign()); return ids.map(function(pid) { return typeof pid === 'string' && lab[pid] ? lab[pid] : 'a player no longer listed'; }); }
   // [pagecheck:seerow-end]
 
   function renderPlanner() {
@@ -3852,7 +3874,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           var c = camp && typeof camp === 'object' ? camp : {}, items = c.items && typeof c.items === 'object' ? c.items : {}, chars = c.chars && typeof c.chars === 'object' ? c.chars : {};
           var names = Object.keys(items).map(function(id) { var x = items[id] || {}, xm = x.meta || {}; return [id, x.type, xm.title || x.name || '', x.type === 'map' && Array.isArray(x.rooms) ? x.rooms.map(function(r) { return r ? [r.id, r.name] : 0; }) : 0]; });
           var who = Object.keys(chars).map(function(id) { return [id, chars[id] && chars[id].name]; });
-          return JSON.stringify([am.id, am.type, am.name || '', meta, am.blocks || [], am.content || '', c.id, c.docStyle || null, names, who, typeof cueLists === 'function' ? cueLists(c) : 0, plannerFullscreen, !!c._foreign, !!(window.wpNet && window.wpNet.foreign)]);
+          // 1.6.3 (the release click test, finding 25): a page's Seen by ticks list the players the campaign knows, so a player who joins, is
+          // renamed or banned draws the editor again. Only their labels and the banned ids count: a join rewrites lastSeen, joinCount and key on
+          // every player, which would draw the editor under the GM for nothing
+          var seeWho = am.type === 'doc' && typeof seeLabels === 'function' ? [seeLabels(c), Object.keys(c.bannedPlayers && typeof c.bannedPlayers === 'object' ? c.bannedPlayers : {})] : 0;
+          return JSON.stringify([am.id, am.type, am.name || '', meta, am.blocks || [], am.content || '', c.id, c.docStyle || null, names, who, typeof cueLists === 'function' ? cueLists(c) : 0, plannerFullscreen, !!c._foreign, !!(window.wpNet && window.wpNet.foreign), seeWho]);
       } catch (e) { return null; }
   }
   function pePrint(am) { _pe.id = am && am.id ? am.id : ''; _pe.sig = am ? peSigOf(am, getActiveCampaign()) : null; }
@@ -3874,6 +3900,16 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       return 'drawn';
   }
   function plannerRedrawNext() { _pe.force = true; }
+  // 1.6.3 (the release click test, finding 25, found live): a player who joins, or is banned, changes camp.players with no redraw of the app
+  // at all, so the host's broadcastRoster and Ban (net.js) ask this. Where the page on screen is the one the editor last drew and what it
+  // shows has changed (its Seen by ticks), it is drawn now, or once the GM leaves the editor (peLeft) where they are in it. A planner has no
+  // Seen by, and anything else waits for the app's next redraw. Answers what it did, as plannerApp does
+  function plannerPlayersMoved() {
+      var am = getActiveMap(); if (!am || am.type !== 'doc' || am.id !== _pe.id || _pe.sig === null) return 'none';
+      if (peSigOf(am, getActiveCampaign()) === _pe.sig) return 'same';
+      if (peBusy()) { _pe.later = true; return 'held'; }
+      renderPlanner(); return 'drawn';
+  }
   // The focus has left something: a draw held for the GM is made once the focus is out of the editor and the press, if any, has landed,
   // and only where what the editor shows has changed
   function peLeft() {
@@ -3887,6 +3923,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   }
   if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('focusout', peLeft, true);
   window.wpPlannerRedrawNext = plannerRedrawNext;
+  window.wpPlannerPlayers = plannerPlayersMoved;   // 1.6.3 (the release click test, finding 25): net.js asks it when the campaign's players change
   // [pagecheck:pedrawn-end]
   // [pagecheck:docwatch-start]
   // 1.6.3 (the improvement week's review of pages and planners, finding 3: a page, a part or a big table in a window of its own read the

@@ -103,7 +103,8 @@ const SPOT = 'M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.
         !err && r === j([{ scene: true }, { scene: true, hold: true, nokeep: true }, { scene: true }, null, null, null, null]), err || r);
     check('the host sends them on the picture handout, records no reveal for a scene kept out of the Journals (so nothing comes back on a reconnect), says it was shown as a scene, and logs the step (pinned)',
         netJs.includes("net.revealHandout = function(hid, pids, o) {") && netJs.includes("var sk = sceneKeys(o, h.kind);")
-        && netJs.includes("tags: (h.tags || []).slice(0, 8) }, sk || {})); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown\n            if (sk && sk.nokeep) return;")
+        && netJs.includes("tags: (h.tags || []).slice(0, 8) }, sk || jk)); } catch (e) { sendFailed(e, 'handout'); return; }   // refused: not recorded as shown\n            if (sk && sk.nokeep) return;") /* moved on purpose (1.6.3, the release click test): with no scene keys a handout sent at a join carries join, else nothing more */
+        && netJs.includes("var jk = o && typeof o === 'object' && o.join === true && !sk ? { join: true } : {};")
         && netJs.includes("shown' + (sk ? ' as a scene' : '') + ' to '") && netJs.includes("window.wpStepLog('scene v1', 'shown',"));
     // the client's branch for the GM's close, run with stubs
     let br = '';

@@ -350,6 +350,20 @@ pendingChecks.push((async () => {
     check('1.6.3 (finding 31): Ban from Player History asks first, by name, answered by its buttons alone (noEnter), as removing a player and Forget do: a no writes no ban, removes nobody and saves nothing; a yes bans, removes and saves as before',
         js(askedNo) === js([['Ban Pat from this campaign? They are removed now and refused in later sessions until you unban them.', true]]) && js(banNo.calls) === js([]) && banNo.kicked.length === 0 && js(banNo.banned) === js([]) && banNo.saves === 0
         && askedYes.length === 1 && js(banYes.calls) === js(['pA1']) && js(banYes.banned) === js(['u_a']) && banYes.saves === 1, js([askedNo, banNo, askedYes, banYes]));
+    // 1.6.3 (the review of the click test pages): the page editor's hook (planner.js plannerPlayersMoved, asked through window.wpPlannerPlayers)
+    // draws inside the network path, so one that throws must not stop the roster going out (broadcastRoster, run for real through the real
+    // broadcast()) nor Ban's save, notice and panel (banAsk, run for real). A hook that throws stands in for a page that fails to draw
+    {
+        const hadW = Object.prototype.hasOwnProperty.call(globalThis, 'window'), oldW = globalThis.window, ce = console.error, errs = [];
+        globalThis.window = { wpPlannerPlayers() { throw new Error('page draw failed'); } }; console.error = e => errs.push(String(e && e.message));
+        let rThrew = '', bOut = null; const K = mkK(); K.env.broadcast = (m, ex) => runBroadcast(K.env, m, ex);
+        try { try { runRoster(K.env).broadcastRoster(); } catch (e) { rThrew = e.message; } bOut = banRun('u_a'); }
+        finally { console.error = ce; if (hadW) globalThis.window = oldW; else delete globalThis.window; }
+        const ros = K.sent.filter(s => s.m.type === 'roster').map(s => s.peer);
+        check('1.6.3 (the review of the click test pages) a page editor that fails to draw when the players change never stops the roster reaching every player, nor a Ban\'s save, removal and notice: the failure is logged and the rest goes on',
+            rThrew === '' && js(ros) === js(['pA1', 'pA2', 'pB', 'pX', 'pY']) && !!bOut && bOut.threw === '' && js(bOut.banned) === js(['u_a']) && bOut.saves === 1 && js(bOut.calls) === js(['pA1'])
+            && errs.filter(e => e === 'page draw failed').length === 3 /* the roster, the roster the Ban's removal sends, and the Ban's own ask */, js([rThrew, ros, bOut, errs]));
+    }
 
     /* round 2: the review's three older gaps — a removed player's pointer and roster row, a second connection under one key, a queued request */
     const tg = { u_a: { mapId: 'm1', id: 'orc' }, u_b: { mapId: 'm1', id: 'gob' } }, withT = t => h => { h.env.net.targets = JSON.parse(js(t)); };

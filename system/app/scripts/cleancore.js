@@ -443,6 +443,25 @@ function cleanBudgets(v, F) {
     });
     return out.length ? out : null;
 }
+// 1.6.4 Buy off (Fulllion, 2026-11-23, by prompt: a general option of an item list, never one system's word). A list whose rows can be bought
+// off names: cost, a formula of the row's own names with no dice, worked out as the sheet stood just before and then kept as that figure;
+// f, the NUMBER field the cost is charged to (any number field: points, gold, experience); add, true where the cost is added to that field
+// (a field that counts what was spent) instead of taken from it; over, 'warn' where a player who cannot pay is let through and the GM told
+// (absent: refuse, a player who cannot pay is stopped and told why; the GM may always, and is told); and ledger, optionally, where a named
+// line is recorded: to, an item list whose rows are the lines; by, a number stat of that list that holds the figure; says, a short note on
+// the line (absent: "Bought off"). The same in both views: a player's sheet works the figure out for its question. cleanSystem drops what
+// names a field or a stat that is not in the view, and the whole option from the players' view where its cost reads a GM-only value
+var BUYOFF_SAYS = 60;
+function cleanBuyOff(v, F) {
+    if (!isObj(v)) return undefined;
+    var c = budgetFormula(v.cost, F), fid = typeof v.f === 'string' && FIELD_ID.test(v.f) ? v.f : ''; if (!c || !fid) return undefined;
+    var o = { cost: c, f: fid }; if (v.add === true) o.add = true; if (v.over === 'warn') o.over = 'warn';
+    if (isObj(v.ledger) && typeof v.ledger.to === 'string' && FIELD_ID.test(v.ledger.to)) {
+        var lg = { to: v.ledger.to }, by = typeof v.ledger.by === 'string' ? statKey(v.ledger.by.trim(), F) : '', sy = typeof v.ledger.says === 'string' ? cutText(v.ledger.says.replace(/[\r\n]+/g, ' ').trim(), BUYOFF_SAYS) : '';
+        if (by) lg.by = by; if (sy) lg.says = sy; o.ledger = lg;
+    }
+    return o;
+}
 // What a budget is worked out from (the owed review, 2026-10-09). NO EFFECT counts in it. Not one made on the spot, in which a player may
 // name any field in their view and any amount, the points a character has among them. And not one of the system either: an effect is
 // switched with no budget asked, a GM-only one reaches its player as a row of its own that their app could not tell from one made on the
@@ -1002,6 +1021,7 @@ function cleanListSpec(v, gmView, F) {   // F (F4c1): the engine, for a stat key
         if (oby && ork) { var oo = { by: oby, rank: ork }, oc = onum(v.once.cost) || ocol(v.once.cost), ofr = onum(v.once.free) || ocol(v.once.free); if (oc) oo.cost = oc; if (ofr) oo.free = ofr; if (v.once.across === true && out.specs) oo.across = true; out.once = oo; }   // 1.6.0 Across specialties, true only and only on a list with Specialties: the group leaves the specialty out
     }
     if (gmView) { var ormK = cleanOnRemove(v.onRemove, F); if (ormK) out.onRemove = ormK; }   // 1.6.0: When a row is taken off, the host's alone
+    var boK = cleanBuyOff(v.buyOff, F); if (boK) out.buyOff = boK;   // 1.6.4 Buy off, in both views (cleanSystem checks what it names against the view)
     if (gmView && isObj(out.on)) { var swOn = cleanOnRemove(v.switchOn, F), swOff = cleanOnRemove(v.switchOff, F); if (swOn) out.switchOn = swOn; if (swOff) out.switchOff = swOff; }   // 1.6.2 (167 B; the owner, by prompt: "On and off, and from a file too"): When switched on and When switched off, a list with a switch alone, the host's alone
     if (gmView && out.on && isObj(v.upkeep)) { var upk = cleanUpkeep(v.upkeep, F); if (upk && typeof v.upkeep.ct === 'string') { var upC = (out.counters || []).filter(function(t) { return lower(t.key) === lower(v.upkeep.ct.trim()); })[0]; if (upC) upk.ct = upC.key; } if (upk && typeof v.upkeep.eachBy === 'string') { var upE = (out.stats || []).filter(function(s) { return lower(s.key) === lower(v.upkeep.eachBy.trim()) && s.set !== true && (s.kind === 'pick' ? Array.isArray(s.opts) && s.opts.length > 0 : Array.isArray(s.labels) && s.labels.length > 0); })[0]; if (upE) upk.eachBy = upE.key; else if (upk.each !== 'clock') delete upk.per; } if (upk) out.upkeep = upk; }   // the core handbook session's ask 5: and the choice stat whose value says when a row pays (its spelling; none: as before)   // 1.6.0 (CORE gap 13): ... and the counter of the list each payment adds 1 to (its spelling; none of the list: none)   // 1.6.0 (CORE gap 13): what a row switched on keeps paying, the GM's view alone
     if (Array.isArray(v.rolls)) {   // F5b: its rolls — a button on each row, the formula worked out with the row's names (Row.*; dice allowed), LIMITS.rowRolls at most
@@ -1626,6 +1646,16 @@ function cleanSystemNow(sys, opts) {
     var ormF = map(); out.fields.forEach(function(f) { if (APPLY_KINDS[f.kind] === 1) ormF[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list) || !Array.isArray(f.list.onRemove)) return; var ormL = f.list.onRemove.filter(function(c) { return ormF[c.f] === 1; }); if (ormL.length) f.list.onRemove = ormL; else delete f.list.onRemove; });
     out.fields.forEach(function(f) { if (f.kind !== 'item-list' || !isObj(f.list)) return; ['switchOn', 'switchOff'].forEach(function(k) { if (!Array.isArray(f.list[k])) return; var swL = f.list[k].filter(function(c) { return ormF[c.f] === 1; }); if (swL.length) f.list[k] = swL; else delete f.list[k]; }); });   // 1.6.2 (167 B): the same for a switch's changes   // 1.6.0: a change moves a pool, a number or a toggle of this view
     var upRs = map(); out.fields.forEach(function(f) { if (f.kind === 'resource') upRs[f.id] = 1; }); out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.upkeep) && upRs[f.list.upkeep.pool] !== 1) delete f.list.upkeep; });   // 1.6.0 (CORE gap 13): an upkeep comes off a pool of this view   // 1.6.0 R14: parts from an item list of this view, this very list too
+    // 1.6.4 Buy off: the cost is charged to a number field of this view, or the list cannot be bought off here. A ledger list that is not an item
+    // list of this view, or is this very list, is dropped and the charge still stands; so is a figure's stat the ledger list does not hold as a
+    // number (a GM-only stat is not in the players' view), spelled as that list spells it
+    var boN = map(), boL = map(); out.fields.forEach(function(f) { if (f.kind === 'number') boN[f.id] = 1; else if (f.kind === 'item-list') boL[f.id] = f; });
+    out.fields.forEach(function(f) {
+        var bo = f.kind === 'item-list' && isObj(f.list) && isObj(f.list.buyOff) ? f.list.buyOff : null; if (!bo) return;
+        if (boN[bo.f] !== 1) { delete f.list.buyOff; return; }
+        if (!isObj(bo.ledger)) return; var lf = boL[bo.ledger.to]; if (!lf || lf.id === f.id) { delete bo.ledger; return; }
+        if (typeof bo.ledger.by === 'string') { var bs = (isObj(lf.list) && Array.isArray(lf.list.stats) ? lf.list.stats : []).filter(function(s) { return isObj(s) && s.kind !== 'pick' && s.set !== true && typeof s.key === 'string' && lower(s.key) === lower(bo.ledger.by); })[0]; if (bs) bo.ledger.by = bs.key; else delete bo.ledger.by; }
+    });
     if (gmView) oneSpelling(out.fields);   // Stage 6 F4c1 (critic 2): one spelling per stat key, the first list's in field order
     if (gmStK) out.fields.forEach(function(f) { if (!isObj(f.list)) return; [f.list.load, f.list.chamber].concat(Array.isArray(f.list.feeds) ? f.list.feeds : []).forEach(function(x) { if (isObj(x) && typeof x.to === 'string' && gmStK[lower(x.to)] === 1) { delete x.by; delete x.to; } }); });   // 1.6.0: a match to a GM-only stat of the list it loads from
     var seenR = map();
@@ -1654,6 +1684,7 @@ function cleanSystemNow(sys, opts) {
         var showMention = mentions;   // Stage 6 HUD C8: the sheet's show-ifs are checked once the sheet is cleaned (below)
         var capMentions = function(t) { return String(t).split('{').slice(1).some(function(p) { return mentions(capExpr(p.split('}')[0]).expr); }); };   // Stage 6: after every "{" (closed or not, drawn or not), the ± stripped   // Fold B: a caption's {formula} is formula text too
         out.fields.forEach(function(f) { if (typeof f.auto === 'string' && mentions(f.auto)) f.auto = null; if (Array.isArray(f.fills)) { var kfP = f.fills.filter(function(x) { return !mentions(x.formula); }); if (kfP.length) f.fills = kfP; else delete f.fills; } });   // 1.6.2 (auto apply): a worked-out figure read from a GM-only value reads GM only, and such a fill goes
+        out.fields.forEach(function(f) { if (f.kind === 'item-list' && isObj(f.list) && isObj(f.list.buyOff) && mentions(f.list.buyOff.cost)) delete f.list.buyOff; });   // 1.6.4 Buy off: a cost that reads a GM-only value goes from the players' view whole (the figure they are asked would tell it); the GM still buys rows off
         out.fields.forEach(function(f) { if (isObj(f.lock) && mentions(f.lock['if'])) delete f.lock; });   // 1.6.3 (backlog 170): a lock whose test reads a GM-only value goes from the players' view, so players are not held by it
         out.fields.forEach(function(f) { if (f.kind === 'number' && isObj(f.override) && (mentions(f.override.when) || mentions(f.override.value))) f.override = null; if (isObj(f.track) && f.track.of && mentions(f.track.of)) delete f.track.of; });   // 1.6.2: a track's Out of that reads a GM-only value goes from the players' view (it would count it out)   // 205 (6): a number taken from a GM-only value reads "GM only"
         out.fields.forEach(function(f) { var p = DEF_PROP[f.kind]; if (p && f[p] && mentions(f[p])) f[p] = null; if (f.roll && mentions(f.roll)) delete f.roll; if (f.caption && capMentions(f.caption)) { delete f.caption; delete f.capAt; } if (f.list && Array.isArray(f.list.cols)) f.list.cols.forEach(function(c) { if (c.formula && mentions(c.formula)) c.formula = null; }); if (f.list && Array.isArray(f.list.stats)) f.list.stats.forEach(function(x) { if (x.kind !== 'pick') return; x.opts = x.opts.filter(function(o) { return !mentions(o.name); }); if (x.def && !x.opts.some(function(o) { return lower(o.label) === lower(x.def); })) delete x.def; }); if (f.list && Array.isArray(f.list.counters)) f.list.counters.forEach(function(t) { if (t.max && mentions(t.max)) t.max = null; }); if (f.list && Array.isArray(f.list.rolls)) { f.list.rolls = f.list.rolls.filter(function(r) { return r.apply ? !r.apply.some(function(c) { return mentions(c.formula); }) : !mentions(r.formula); }); if (!f.list.rolls.length) delete f.list.rolls; } });   // F5b: a list roll naming a GM-only value is dropped   // F5a2: a choice's option naming a GM-only value is dropped (critic 3: never a blanked one)   // F5a1: a list column too (it reads "GM only")
@@ -1858,6 +1889,15 @@ function cleanSystemNow(sys, opts) {
         bud = bud.filter(function(b) { return [b.has, b.spent].every(function(t) { var pb = F.parse(t); return !!(pb && pb.ok && Array.isArray(pb.names)) && !gmDerivedNames(sysBu, F, pb.names).length; }); });
         if (bud.length) out.budgets = bud;
     }
+    // 1.6.4 Buy off: a line recorded on a list players see, where the charged field is GM-only or the cost reads a GM-only value, is bare (the row's
+    // name and its note, no figure and no field's name), so the GM's own buy off tells players nothing hidden. Worked out here, never taken from a file
+    out.fields.forEach(function(f) {
+        var bo = f.kind === 'item-list' && isObj(f.list) && isObj(f.list.buyOff) && isObj(f.list.buyOff.ledger) ? f.list.buyOff : null; if (!bo) return; delete bo.ledger.bare; if (!gmView) return;
+        var cfB = out.fields.filter(function(x) { return x.id === bo.f; })[0], lfB = out.fields.filter(function(x) { return x.id === bo.ledger.to; })[0]; if (!lfB || lfB.vis === 'gm') return;
+        var sysBo = { fields: gmViewFields(sys, F), items: sys.items, core: sys.core, tables: sys.tables, values: sys.values, decks: sys.decks, effects: sys.effects }, pbo = F.parse(bo.cost);
+        var gmRd = !(pbo && pbo.ok && Array.isArray(pbo.names)) || gmDerivedNames(sysBo, F, pbo.names).length > 0 || pbo.names.some(function(n) { var sg = lower(n).split('.'); return sg[0] === 'row' && sg.length > 1 && (Array.isArray(f.list.stats) ? f.list.stats : []).some(function(s) { return isObj(s) && s.vis === 'gm' && lower(s.key) === sg[1]; }); });
+        if ((cfB && cfB.vis === 'gm') || gmRd) bo.ledger.bare = true;
+    });
     var envR = cleanEnv(sys.env, fieldIds, F);   // 1.6.0: the environment readings, against this view's fields (a reading whose field players do not hold is not theirs)
     if (envR && !gmView && typeof showMention === 'function') envR.forEach(function(e) { ENV_BANDS.forEach(function(k) { if (e[k] && showMention(e[k])) delete e[k]; }); });   // a band that reads a GM-only value goes from the players' view: where it showed would tell the value
     if (envR) out.env = envR;

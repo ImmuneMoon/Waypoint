@@ -11,7 +11,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { APPLY_KINDS, CHAMBER_CAP, COVER_HIT_ROWS, F, FEEDS_MAX, LIMITS, ROW_LOOK, altBox, answersBox, badgeBox, bandWhens, callsBox, capInline, catChoices, charsOf, cleanCover, cleanListSpec, clockBox, costHow, dbxBtn, dbxCap, dieSel, draft, el, errorCell, explainBox, fxHolds, getActiveCampaign, helpBox, input, kindSel, kindsNamed, labeledNum, labeledSelect, landDmgSel, lazySelect, lineUnder, listCrossRow, lossOpts, markDirty, markOpts, markVal, metricSel, numField, numInput, onRemoveBox, opVal, open, ownSwBox, partCapsBox, partFitsBox, patchErrors, pickOne, placeSel, pressHold, refreshErrors, renderAll, renderCombat, resistBySel, resistOrBox, rollExtras, rolled, segPut, select, standThenBox, startsBox, statKey, state, swWordsBox, switchChangesBox, tab, tileBoxesBox, tileStatesBox, toast, toneRow, tradeRulesBox, twinNamer, ui, unitWordsOn, upkeepBox, whyBox } from './sheets.js';   // [split:glue]
+import { APPLY_KINDS, CHAMBER_CAP, COVER_HIT_ROWS, F, FEEDS_MAX, LIMITS, ROW_LOOK, altBox, answersBox, badgeBox, bandWhens, buyOffBox, callsBox, capInline, catChoices, charsOf, cleanCover, cleanListSpec, clockBox, costHow, dbxBtn, dbxCap, dieSel, draft, el, errorCell, explainBox, fxHolds, getActiveCampaign, helpBox, input, kindSel, kindsNamed, labeledNum, labeledSelect, landDmgSel, lazySelect, lineUnder, listCrossRow, lossOpts, markDirty, markOpts, markVal, metricSel, numField, numInput, onRemoveBox, opVal, open, ownSwBox, partCapsBox, partFitsBox, patchErrors, pickOne, placeSel, pressHold, refreshErrors, renderAll, renderCombat, resistBySel, resistOrBox, rollExtras, rolled, segPut, select, standThenBox, startsBox, statKey, state, swWordsBox, switchChangesBox, tab, tileBoxesBox, tileStatesBox, toast, toneRow, tradeRulesBox, twinNamer, ui, unitWordsOn, upkeepBox, whyBox } from './sheets.js';   // [split:glue]
 export function sysedList() {   // [split:glue]
 // [split:body-start]
 // Stage 6 F4b: the Lists tab — one card per item-list field: the categories its picker offers, the same item more than once, no quantity, a
@@ -323,6 +323,7 @@ function listCard(f, allCats, targets, acts) {   // acts (turn-based combat T1):
     card.appendChild(orow);
     if (sw && typeof upkeepBox === 'function') upkeepBox(card, sp);   // 1.6.0 (CORE gap 13) (a suite's slice of the card holds no box)
     if (typeof onRemoveBox === 'function') onRemoveBox(card, sp);   // 1.6.0: When a row is taken off
+    if (typeof buyOffBox === 'function') buyOffBox(card, sp);   // 1.6.4: Can be bought off
     if (sw && typeof switchChangesBox === 'function') { switchChangesBox(card, sp, 'switchOn'); switchChangesBox(card, sp, 'switchOff'); }   // 1.6.2 (167 B): When switched on, When switched off
     // Stage 6 F4c1: the list's stats — a number every item of it carries (Acc, Wt, Cost), ten at most — and the one that is its price
     var sts = Array.isArray(sp.stats) ? sp.stats : [], sb = el('div', 'sys-list-stats');

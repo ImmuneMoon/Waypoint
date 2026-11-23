@@ -1410,7 +1410,8 @@ function starterPacksGet(st) {   // the starter's packs as text, all or none
     return Promise.all(st.packs.map(function(p) { return fetch('assets/systems/' + p, { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.text(); }); }));
 }
 function starterSaved() {   // after Save: the waiting packs written, and said
-    var sp = _starterPacks; starterPacksSet(null); if (!sp || !window.wpLibrary || !window.wpLibrary.starterPacks) return;
+    var sp = _starterPacks; starterPacksSet(null); if (sp && sp.bundle === true && typeof bundleSaved === 'function') { bundleSaved(sp); return; }   // 1.6.4: a system's .zip read back waits the same way, with its pictures (bundleSaved, below)
+    if (!sp || !window.wpLibrary || !window.wpLibrary.starterPacks) return;
     window.wpLibrary.starterPacks(sp.texts).then(function(r) {
         if (!r || r.error) { toast((r && r.error) || 'The starter\u2019s packs could not be added.'); return; }
         toast(sp.name + '\u2019s library: ' + r.packs + ' pack' + (r.packs === 1 ? '' : 's') + ', ' + r.add + ' entr' + (r.add === 1 ? 'y' : 'ies') + ' added' + (r.update ? ', ' + r.update + ' updated' : '') + (r.skip ? ', ' + r.skip + ' passed over, their ids already in another pack' : '') + (r.bad ? '. ' + r.bad + ' could not be added' : '') + '.');
@@ -1495,6 +1496,42 @@ function exportSystem() {
     if (!draft) return;
     var clean = cleanSystem(draft, { F: F(), gmView: true }); if (!clean) return;
     clean.name = (ui('sysName').value || '').trim().slice(0, LIMITS.name) || clean.name;
+    // [syszipcheck:export-start]
+    // 1.6.4 (Export a system whole; held over from the System editor review of 2026-11-21, Fulllion's pick of 2026-11-23): where the
+    // campaign's library holds a pack, or the system names a picture, Export asks once: Whole system makes one .zip of the system, every
+    // library pack and every picture they name (syszip.js buildWhole), and System alone the .wpsystem.json, exactly as before. With
+    // nothing more to carry it asks nothing and writes the .wpsystem.json at once, as it always did. No ticks: the plainest way to hand a
+    // whole system to another GM (syszip.js says what stays home and why)
+    var cpX = getActiveCampaign(), libX = cpX && cpX.library && Array.isArray(cpX.library.packs) ? cpX.library.packs : [];
+    if (!libX.length && JSON.stringify(clean).indexOf('/saves/images/') < 0) { exportAlone(clean); return; }
+    sysZip().then(function(Z) {
+        var D = sysZipDeps(cpX), plan = Z.campPlan(clean, D);
+        if (!plan.packs.length && !plan.pics.length) { exportAlone(clean); return; }
+        showConfirm(Z.askWords(plan.packs.length, plan.pics.length), function(ans) {
+            if (ans === 'alt') { exportAlone(clean); return; }
+            if (ans !== true) return;
+            toast('Making the export…');
+            Z.buildWhole(clean, D).then(function(r) { sysDownload(Z.zipName(clean.name), r.blob); toast(Z.exportWords(r)); })
+                .catch(function(e) { toast('The export could not be made: ' + ((e && e.message) || 'the archive could not be written') + '. Nothing was saved.'); });
+        }, { noEnter: true, yes: 'Whole system', alt: 'System alone' });
+    }).catch(function() { exportAlone(clean); });   // the module cannot be had: the system alone, as before
+}
+// The module that makes and reads a whole system's .zip, loaded the first time it is needed (as main.js loads zip.js)
+function sysZip() { return import('./syszip.js'); }
+// What syszip.js is handed: the campaign on screen, the library, the formula module, the Image Library's tag stores (a picture under a
+// private tag stays home), fetch, and the step log
+function sysZipDeps(cp) {
+    cp = cp || getActiveCampaign();
+    return { camp: cp, lib: window.wpLibrary || null, F: F(), stores: [state.appState && state.appState.imageCats, cp && cp.imageCats], fetch: function(u, o) { return fetch(u, o); }, log: function(a, s, o) { if (typeof window.wpStepLog === 'function') window.wpStepLog(a, s, o); } };
+}
+// A file handed to the browser as a download; a large one is kept a minute, while it is still being written
+function sysDownload(name, blob) {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, blob.size > 50 * 1024 * 1024 ? 60000 : 500);
+}
+// [syszipcheck:export-end]
+// The system alone, as a .wpsystem.json: what Export always wrote, unchanged
+function exportAlone(clean) {
     var blob = new Blob([JSON.stringify(clean, null, 1)], { type: 'application/json' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (clean.name || 'system').replace(/[^A-Za-z0-9_ -]+/g, '').trim().replace(/ +/g, '_').slice(0, 40) + '.wpsystem.json';
     document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -1502,9 +1539,16 @@ function exportSystem() {
 }
 function importFile(file) {
     if (!file || !draft) return;
+    if (/\.zip$/i.test(String(file.name || ''))) { importWhole(file); return; }   // 1.6.4: a whole system's .zip (importWhole, below); a .wpsystem.json goes on as it always did
     file.text().then(function(text) {
         var j = JSON.parse(text);
         var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('not a system');
+        importAsk(j, c, null);
+    }).catch(function() { toast('That file is not a Waypoint system.'); });
+}
+// The system read from a file put in the draft: j as the file held it, c cleaned. whole: what a system's .zip brings beside it (its packs and
+// pictures, waiting for Save), or null for a .wpsystem.json, which goes exactly as it always went
+function importAsk(j, c, whole) {
         // 1.6.3 (the review of the System editor, finding 5): asked first where the draft holds anything, as Start from asks, and said after how many
         // characters hold values for fields the file does not have, which go out of sight once it is saved
         var put = function() {
@@ -1517,10 +1561,37 @@ function importFile(file) {
         var nN = function(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
         toast('Imported ' + (c.name || 'a system') + ': ' + nN(c.fields.length, 'field') + ', ' + nN(c.rolls.length, 'roll') + (c.items && c.items.length ? ', ' + nN(c.items.length, 'item') : '') + (v.ok ? '.' : ', ' + v.errors.length + ' error' + (v.errors.length === 1 ? '' : 's') + ' to fix.') + (drT ? ' Left out (over the limits, or not valid): ' + drT + '.' : ''));
         if (nHid) toast(nHid + (nHid === 1 ? ' character holds values' : ' characters hold values') + ' for fields this file does not have. After Save those stay stored but hidden, until such a field exists again.');
+        if (whole) { if (whole.waiting) starterPacksSet(whole.waiting); if (whole.says) toast(whole.says); }   // 1.6.4: its packs and pictures wait for Save, and what it brings is said
         };
         if (draftHolds(draft)) showConfirm(REPLACE_WORDS('the system in this file'), function(yes) { if (yes) put(); }, { noEnter: true, yes: 'Replace' }); else put();
-    }).catch(function() { toast('That file is not a Waypoint system.'); });
 }
+// [syszipcheck:import-start]
+// 1.6.4 (Export a system whole): a system's .zip read back. syszip.js readWhole opens it without unpacking it and judges each entry first
+// (check() and the import's budget, a pack through the Library window's own reader, a picture only at a plain picture path); nothing is
+// written. The system then goes the way a .wpsystem.json goes (importAsk: the same question, the same words), and its packs and pictures
+// wait with the draft, as a starter's packs wait, until Save writes them (bundleSaved). A file that is no system's .zip is said in plain words
+function importWhole(file) {
+    sysZip().then(function(Z) {
+        return Z.readWhole(file, function(j) { return cleanSystem(j, { F: F(), gmView: true }); }, sysZipDeps()).then(function(b) {
+            if (!draft) return;
+            if (b.error) { toast(b.error); return; }
+            var waiting = b.texts.length || b.pics.length ? { bundle: true, name: b.system.name || '', texts: b.texts, pics: b.pics, budget: b.budget } : null;
+            importAsk(b.json, b.system, { waiting: waiting, says: Z.importWords(b) });
+        });
+    }).catch(function() { toast('That file could not be read as a Waypoint system.'); });
+}
+// After Save, a system's .zip read back: its pictures written into the saves folder, each asked to keep a file already there, so never over one (syszip.js
+// savePictures), then its packs merged into the library by its own import plan, into the pack of the same id, else of the same name, else
+// a new one, nothing removed (library.js starterPacks with byId). What came in is said once, in plain words
+function bundleSaved(sp) {
+    sysZip().then(function(Z) {
+        return Z.savePictures(sp.pics, sp.budget, sysZipDeps()).then(function(pr) {
+            var L = window.wpLibrary, lp = !sp.texts.length ? Promise.resolve(null) : L && typeof L.starterPacks === 'function' ? L.starterPacks(sp.texts, { byId: true }) : Promise.resolve({ error: 'The library could not be reached, so the packs were not added.' });
+            return lp.then(function(lr) { var w = Z.savedWords(sp.pics.length ? pr : null, lr); if (w) toast(w); if (typeof renderAll === 'function' && draft) renderAll(); });
+        });
+    }).catch(function() { toast('The packs and pictures of the imported system could not be added.'); });
+}
+// [syszipcheck:import-end]
 // [split:body-end]
 return { autoBox: autoBox, clockBox: clockBox, costHow: costHow, costOptions: costOptions, drawHow: drawHow, entryNames: entryNames, entryPick: entryPick, errGo: errGo, errSay: errSay, errWhere: errWhere, exportSystem: exportSystem, fieldWord: fieldWord, grantBox: grantBox, grantEntries: grantEntries, grantListFor: grantListFor, grantName: grantName, grantSays: grantSays, importFile: importFile, itemOfRow: itemOfRow, keyWord: keyWord, lvlBoxSays: lvlBoxSays, onChange: onChange, onClick: onClick, onInput: onInput, pickModel: pickModel, pickMove: pickMove, pickOne: pickOne, pickOpen: pickOpen, renderAll: renderAll, rowFocusBack: rowFocusBack, rowFocusOf: rowFocusOf, runTest: runTest, standSays: standSays, startFrom: startFrom, starterSaved: starterSaved, startersFill: startersFill, startersLoad: startersLoad, turnActs: turnActs, turnBox: turnBox, turnHoldSays: turnHoldSays, turnRunSays: turnRunSays };   // [split:glue]
 }   // [split:glue]

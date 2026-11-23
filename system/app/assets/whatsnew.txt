@@ -117,6 +117,12 @@ Names changed at the table [DRAFT]
 - GM and Game Master are kept for you. Names that only look alike, such
   as one spelled with a Cyrillic letter, count as the same name.
 
+Inviting players [DRAFT]
+- Copy invite in the Multiplayer window now copies a join link too, like
+  waypointvtt.com/join/AB2CD-EF3GH, with the room code after it for a
+  player who opens Waypoint VTT on their computer and types it. The
+  password is still never in it.
+
 Buying a row off [DRAFT]
 - Building a system? A list can let its rows be bought off now, for a
   cost worked out from the row, such as its tier. Pick the number field

@@ -2112,7 +2112,8 @@ pendingChecks.push((async () => { try {
     const inv = new Function(between('// [netcheck:invite-start]', '// [netcheck:invite-end]', 'invite') + '\nreturn inviteLine;')();
     const ixh = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
     check('1.6.3 (the multiplayer review, finding 13) Copy invite copies one short plain line that names the room code, never the password, and says one is sent apart where it is set; the button stands beside Copy code in one frame of the app\'s own parts',
-        inv('AB2CD-EF3GH', false) === 'Join my Waypoint VTT table. Press Join a game and type the room code AB2CD-EF3GH.' && inv('WP-AB2CD-EF3GH', true) === 'Join my Waypoint VTT table. Press Join a game and type the room code WP-AB2CD-EF3GH. I will send you the password.'
+        inv('AB2CD-EF3GH', false) === 'Join my Waypoint VTT table at https://waypointvtt.com/join/AB2CD-EF3GH or press Join a game in Waypoint VTT and type the room code AB2CD-EF3GH.' && inv('WP-AB2CD-EF3GH', true) === 'Join my Waypoint VTT table at https://waypointvtt.com/join/WP-AB2CD-EF3GH or press Join a game in Waypoint VTT and type the room code WP-AB2CD-EF3GH. I will send you the password.'
+        && /^[^.]*https:\/\/waypointvtt\.com\/join\/AB2CD-EF3GH /.test(inv('AB2CD-EF3GH', false)) && inv('A B/C?', false).includes('/join/A%20B%2FC%3F ')
         && /<span class="ui-seg"><button class="tool ghost" id="netCopyBtn"[^>]*>[^\n]*<\/button><button class="tool ghost" id="netInviteBtn"[^>]*>Copy invite<\/button><\/span>/.test(ixh) && src.includes("var _inviteBtn = ui('netInviteBtn');"), J([inv('X', false), inv('X', true)]));
 }
 T.finish();

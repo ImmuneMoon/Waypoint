@@ -54,7 +54,8 @@ function saveDraft(force) {
     if (!clean) { toast('The system could not be saved.'); return; }
     var dropped = draft.fields.length - clean.fields.length;
     clean.updated = Date.now();
-    var prevSys = camp.system, orphaned = orphanRows(prevSys, clean, camp.chars || {});   // Stage 6 F4a: a copy of a deleted entry keeps it (before the re-check drops unknown rows)
+    var bxH = typeof window !== 'undefined' && window.wpBoxCore && typeof window.wpBoxCore.rowHolders === 'function' ? window.wpBoxCore.rowHolders(camp.chars, camp.boxes) : (camp.chars || {});   // 1.6.4: a container's rows keep their item too
+    var prevSys = camp.system, orphaned = orphanRows(prevSys, clean, bxH);   // Stage 6 F4a: a copy of a deleted entry keeps it (before the re-check drops unknown rows)
     var terrMaps = typeof terrainSettleAll === 'function' ? terrainSettleAll(camp, prevSys, clean) : [];   // 1.6.2 (backlog 57): pieces of a kind that was re-costed or removed, before the save
     if (terrMaps.length && window.wpHistBarrier) window.wpHistBarrier(terrMaps);   // an undo on one of those maps never brings a cost or a kind from before this Save back
     if (rnS) renamesOnChars(camp.chars || {}, rnS);   // 1.6.2: before the re-check, which would drop a list field's old option and a station's old name

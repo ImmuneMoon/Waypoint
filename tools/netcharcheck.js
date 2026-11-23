@@ -962,7 +962,7 @@ pendingChecks.push((async () => {
     delete c3_camp.library.packs[0].vis; const c3_e5 = c3_L.entryFor('i_sec'); c3_camp.library.packs[0].vis = 'gm'; const c3_e6 = c3_L.entryFor('i_sec');
     check('owed review F4c3#2 entryFor (library.js, sliced and run): an entry of a GM-only pack reads as a copy marked GM-only (its key and blast as stored; the same copy each call) while the pack\'s own copy keeps its vis; a visible pack\'s entry is the stored one; an entry marked GM-only itself as stored; an unknown id nothing; the pack\'s mark is read at each call (made visible: the stored entry); it is the lookup systemcore reads and the one the rows\' copies are kept current from and taken from when the items move in',
         c3_e1.vis === 'gm' && c3_e1.key === 'AssassinBlade' && c3_e1.area.ft === 10 && c3_e1 !== c3_byId.i_sec && c3_byId.i_sec.vis === 'all' && c3_e1b === c3_e1 && c3_e2 === c3_byId.i_pub && c3_e3 === c3_byId.i_own && c3_e4 === null
-        && c3_e5 === c3_byId.i_sec && c3_e6.vis === 'gm' && /\nsetLibraryFind\(entryFor\);\n/.test(c3_lb) && /var r = libSnaps\(camp\.system, camp\.chars, entryFor\);/.test(c3_lb) && /\n\s*libSnaps\(sysAfter, camp\.chars \|\| \{\}, entryFor\);/.test(c3_lb),
+        && c3_e5 === c3_byId.i_sec && c3_e6.vis === 'gm' && /\nsetLibraryFind\(entryFor\);\n/.test(c3_lb) && /var r = libSnaps\(camp\.system, holdersOf\(camp\), entryFor\);/.test(c3_lb) && /\n\s*libSnaps\(sysAfter, holdersOf\(camp\), entryFor\);/.test(c3_lb),
         J([c3_e1, c3_e2 === c3_byId.i_pub, c3_e3 === c3_byId.i_own, c3_e4, c3_e5 && c3_e5.vis, c3_e6 && c3_e6.vis]));
 
     // the host: the GM gives both entries (the rows keep their copies), then the player's custom op goes through the real char-item handler

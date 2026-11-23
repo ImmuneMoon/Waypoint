@@ -227,6 +227,9 @@ Drop it, pick it up [DRAFT]
 - Building a system? Taking, dropping or putting things in during a
   fight can cost an action, one setting in Turns beside what a trade
   costs.
+- Fixed: when an item left your system, or moved into a library pack,
+  a chest that held it lost it the next time Waypoint opened. A chest
+  keeps its own copy now, as a character's sheet always has.
 
 WAYPOINT 1.6.3 — What's New
 ============================

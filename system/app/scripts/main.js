@@ -903,7 +903,7 @@ if(_el_importBtn) _el_importBtn.addEventListener('click', function() {
           if (ic.system && typeof ic.system === 'object' && window.wpSystemCore && window.wpFormula) {
               var isys = window.wpSystemCore.cleanSystem(ic.system, { F: window.wpFormula, gmView: true });
               if (isys && (!existing.system || (Number(isys.updated) || 0) >= (Number(existing.system.updated) || 0))) {
-                  if (existing.system && existing.chars && window.wpSystemCore.orphanRows) window.wpSystemCore.orphanRows(existing.system, isys, existing.chars);   // Stage 6 F4a: a character keeps a copy of an item the new system no longer has
+                  if (existing.system && existing.chars && window.wpSystemCore.orphanRows) window.wpSystemCore.orphanRows(existing.system, isys, window.wpBoxCore && typeof window.wpBoxCore.rowHolders === 'function' ? window.wpBoxCore.rowHolders(existing.chars, existing.boxes) : existing.chars);   // 1.6.4: a container's rows keep their item too   // Stage 6 F4a: a character keeps a copy of an item the new system no longer has
                   existing.system = isys;
               }
           }

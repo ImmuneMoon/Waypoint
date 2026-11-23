@@ -658,7 +658,7 @@ const j = v => JSON.stringify(v);
         const lbC = fs.readFileSync(path.join(app, 'scripts', 'library.js'), 'utf8').replace(/\r\n/g, '\n');
         check('L2c the GM machine keeps the copies current after every library change (never mid-load or at another\'s table; saved only when one changed)',
             /function after\(\) \{   \/\/ [^\n]*\n\s*try \{ refreshCore\(\); \} catch \(e\) \{ console\.error\(e\); \}\n\s*try \{ syncSnaps\(\); \}/.test(lbC)
-            && /if \(!camp \|\| !camp\.system \|\| !camp\.chars \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return 0;\n\s*var r = libSnaps\(camp\.system, camp\.chars, entryFor\); if \(r\.rows\) save\(true\);/.test(lbC));
+            && /if \(!camp \|\| !camp\.system \|\| !camp\.chars \|\| !gmHere\(\) \|\| cur\.campId !== camp\.id \|\| cur\.state === 'loading'\) return 0;\n\s*var r = libSnaps\(camp\.system, holdersOf\(camp\), entryFor\); if \(r\.rows\) save\(true\);/.test(lbC));
     }
     /* ---- Stage 6 F6: item mods — cleaned, applied from rows, per level, while switched on, a kept curse's changes nameless ---- */
     {

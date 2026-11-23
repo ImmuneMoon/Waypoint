@@ -114,6 +114,17 @@ function cleanBoxes(raw, sys) {
     Object.keys(raw).forEach(function(id) { if (n >= BOX_MAX) return; var b = cleanBox(raw[id], sys, id); if (b) { out[id] = b; n++; } });
     return out;
 }
+// 1.6.4 (found by the drop-items session, a bug from 1.6.2; Fulllion, 2026-11-23: "Yes, fix it"): every holder of item rows, the campaign's
+// sheets and its containers together, keyed by id, each the very object of the campaign so a change made through it lands there. systemcore
+// orphanRows and libSnaps give a row whose item leaves the system (or moves into the library) its own copy (snap); handed the sheets alone, a
+// container's rows kept no copy and the next load (cleanBoxes) dropped them. Asked by the System editor's Save (sysederr.js), a campaign
+// file's system taking the place of this one (main.js) and the library (library.js syncSnaps and the move of items into a pack). A box id
+// (c_bx and letters) can never be a sheet's, and a sheet of the same id is kept before a container
+function rowHolders(chars, boxes) {
+    var out = map(); if (isObj(chars)) Object.keys(chars).forEach(function(id) { out[id] = chars[id]; });
+    if (isObj(boxes)) Object.keys(boxes).forEach(function(id) { if (boxIdOk(id) && isObj(boxes[id]) && !out[id]) out[id] = boxes[id]; });
+    return out;
+}
 // A stand-in sheet for applyRowOp and tradeApply: an NPC with no player, holding a copy of the container's items
 function boxChar(box) { return { id: box.id, name: 'Container', npc: true, ownerId: '', values: JSON.parse(JSON.stringify(isObj(box.values) ? box.values : {})) }; }
 // The tiles a container shows: each row of each list it may hold, in list order, its name, count, icon and notes as the system or the row
@@ -229,5 +240,5 @@ function cleanPileFace(v) {
 }
 // [boxcheck:core-end]
 
-if (typeof window !== 'undefined') window.wpBoxCore = { cleanPileAt: cleanPileAt, boxIsPile: boxIsPile, boxLockSet: boxLockSet, boxPutDefault: boxPutDefault, boxPutTick: boxPutTick, boxPutOk: boxPutOk, boxSeeThru: boxSeeThru, moveJudge: moveJudge, moveIn: moveIn, pileFace: pileFace, cleanPileFace: cleanPileFace, bodyNpc: bodyNpc, bodyLootable: bodyLootable, bodyOfferOk: bodyOfferOk, noLootOf: noLootOf, TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
-export { cleanPileAt, boxIsPile, boxLockSet, boxPutDefault, boxPutTick, boxPutOk, boxSeeThru, moveJudge, moveIn, pileFace, cleanPileFace, bodyNpc, bodyLootable, bodyOfferOk, noLootOf, TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };
+if (typeof window !== 'undefined') window.wpBoxCore = { cleanPileAt: cleanPileAt, boxIsPile: boxIsPile, boxLockSet: boxLockSet, boxPutDefault: boxPutDefault, boxPutTick: boxPutTick, boxPutOk: boxPutOk, boxSeeThru: boxSeeThru, moveJudge: moveJudge, moveIn: moveIn, pileFace: pileFace, cleanPileFace: cleanPileFace, bodyNpc: bodyNpc, bodyLootable: bodyLootable, bodyOfferOk: bodyOfferOk, noLootOf: noLootOf, TAKEN_MAX: TAKEN_MAX, cleanTaken: cleanTaken, takenLines: takenLines, putBackPlan: putBackPlan, LOCK_ROLLS: LOCK_ROLLS, lockRollOk: lockRollOk, cleanLock: cleanLock, boxLocked: boxLocked, keyRowOf: keyRowOf, keyName: keyName, BOX_MAX: BOX_MAX, boxPic: boxPic, boxPieceOk: boxPieceOk, boxesNamed: boxesNamed, boxesTidy: boxesTidy, boxesOf: boxesOf, boxLists: boxLists, boxIdOk: boxIdOk, rowHolders: rowHolders, newBoxId: newBoxId, cleanBox: cleanBox, cleanBoxes: cleanBoxes, boxChar: boxChar, boxTiles: boxTiles, boxCount: boxCount, boxOp: boxOp };
+export { cleanPileAt, boxIsPile, boxLockSet, boxPutDefault, boxPutTick, boxPutOk, boxSeeThru, moveJudge, moveIn, pileFace, cleanPileFace, bodyNpc, bodyLootable, bodyOfferOk, noLootOf, TAKEN_MAX, cleanTaken, takenLines, putBackPlan, LOCK_ROLLS, lockRollOk, cleanLock, boxLocked, keyRowOf, keyName, BOX_MAX, boxPic, boxPieceOk, boxesNamed, boxesTidy, boxesOf, boxLists, boxIdOk, rowHolders, newBoxId, cleanBox, cleanBoxes, boxChar, boxTiles, boxCount, boxOp };

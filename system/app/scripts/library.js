@@ -50,9 +50,12 @@ function refreshCore(camp, atSave) {
 // [systemcheck:libcore-end]
 // L2c: the copies library rows carry kept current (systemcore libSnaps) on the GM's machine, never mid-load or at another's table; saved
 // only when one changed (a row whose entry is gone, or whose pack could not be read, keeps its copy)
+// 1.6.4: the campaign's sheets and its containers, whose rows keep a copy of their entry alike (boxcore.js rowHolders); the sheets alone
+// where the container module is not loaded
+function holdersOf(camp) { var BX = typeof window !== 'undefined' ? window.wpBoxCore : null; return BX && typeof BX.rowHolders === 'function' ? BX.rowHolders(camp.chars, camp.boxes) : (camp.chars || {}); }
 function syncSnaps(camp) {
     camp = camp || getActiveCampaign(); if (!camp || !camp.system || !camp.chars || !gmHere() || cur.campId !== camp.id || cur.state === 'loading') return 0;
-    var r = libSnaps(camp.system, camp.chars, entryFor); if (r.rows) save(true);
+    var r = libSnaps(camp.system, holdersOf(camp), entryFor); if (r.rows) save(true);
     return r.rows;
 }
 function after() {   // the sheets redraw; a host's players get their rows' copies from the library now in memory, and the lists' categories it holds
@@ -153,7 +156,7 @@ async function migrateItems(camp) {
         }
         var gone = map(); plan.drop.forEach(function(id) { gone[id] = 1; });
         var sysAfter = Object.assign({}, camp.system, { items: (camp.system.items || []).filter(function(it) { return !(it && gone[it.id]); }) });
-        libSnaps(sysAfter, camp.chars || {}, entryFor);   // every row that carried one keeps a copy of it, before the item leaves
+        libSnaps(sysAfter, holdersOf(camp), entryFor);   // every row that carried one keeps a copy of it, before the item leaves
         camp.system = (F() ? cleanSystem(sysAfter, { F: F(), gmView: true }) : null) || sysAfter;
         refreshCore(camp); save(true); after();
         if (plan.move.length) toast('The campaign\u2019s ' + plan.move.length + (plan.move.length === 1 ? ' item' : ' items') + ' moved into the library\u2019s \u201cItems\u201d pack (a safety copy was taken first).' + (plan.left.length ? ' ' + plan.left.length + ' stayed: an entry of the library already has the same id.' : ''));

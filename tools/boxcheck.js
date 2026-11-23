@@ -662,5 +662,22 @@ const J = JSON.stringify;
         check('1.6.4 (Fulllion: keep piles under tokens, the count peeking out beside the token): a pile always wears its count, set out past the edge of its cell, a button that opens the pile as its mark does',
             bx.includes("var nw = String(pf.n > 999 ? '999+' : pf.n);") && bx.includes("if (gmMay()) open(id); else ask(id);") && css.includes('.wb-item.wb-pile > .wb-pile-n { position: absolute; left: 136%; top: 50%; transform: translateY(-50%);'));
     }
+    {   // 1.6.4 (a bug from 1.6.2, found by the drop-items session; Fulllion: "Yes, fix it"): a container's row of an item that leaves the system keeps it
+        const sys0 = S.cleanSystem({ v: 1, name: 'K', fields: [{ id: 'f_inv', key: 'Gear', label: 'Gear', kind: 'item-list', list: { trade: true } }], items: [{ id: 'i_rope', key: 'Rope', name: 'Rope' }, { id: 'i_lamp', key: 'Lamp', name: 'Lamp' }] }, { F, gmView: true });
+        const sys1 = S.cleanSystem(Object.assign({}, sys0, { items: sys0.items.filter(it => it.id !== 'i_rope') }), { F, gmView: true });
+        const mk = () => ({ chars: { c_a: { id: 'c_a', name: 'A', values: { f_inv: [{ id: 'w_a', defId: 'i_rope', qty: 1 }] } } }, boxes: { c_bxcrate0001: { id: 'c_bxcrate0001', values: { f_inv: [{ id: 'w_b', defId: 'i_rope', qty: 2 }, { id: 'w_c', defId: 'i_lamp', qty: 1 }] } } } });
+        const fixed = mk(), H = BC.rowHolders(fixed.chars, fixed.boxes), nFix = S.orphanRows(sys0, sys1, H);
+        const after = BC.cleanBoxes(JSON.parse(J(fixed.boxes)), sys1).c_bxcrate0001;
+        const old = mk(); S.orphanRows(sys0, sys1, old.chars); const lost = BC.cleanBoxes(JSON.parse(J(old.boxes)), sys1).c_bxcrate0001;   // the way it was: the sheets alone handed in
+        const odd = BC.rowHolders({ c_bxcrate0001: { id: 'c_bxcrate0001', values: {} } }, { c_bxcrate0001: { values: {} }, c_nope: { values: {} }, c_bxzz: 'x' });
+        check('1.6.4: a container\u2019s rows keep their item when it leaves the system, as a sheet\u2019s do (boxcore rowHolders handed to the real orphanRows): the row gets its copy in the campaign\u2019s own container, the next load (cleanBoxes) keeps it with its count, a row of an item still there is untouched; the sheets alone, as before, lose it; rowHolders keeps a sheet before a container of one id and takes no id that is no box id',
+            nFix === 2 && H.c_bxcrate0001 === fixed.boxes.c_bxcrate0001 && !!fixed.boxes.c_bxcrate0001.values.f_inv[0].snap && !fixed.boxes.c_bxcrate0001.values.f_inv[1].snap
+            && !!after && J(after.values.f_inv.map(r => [r.id, r.qty])) === J([['w_b', 2], ['w_c', 1]]) && J(lost.values.f_inv.map(r => r.id)) === J(['w_c'])
+            && Object.getPrototypeOf(H) === null && J(Object.keys(odd)) === J(['c_bxcrate0001']) && J(odd.c_bxcrate0001) === J({ id: 'c_bxcrate0001', values: {} }), J([nFix, after, lost, Object.keys(odd)]));
+        const sv = require('./checkkit').part('sysederr.js').replace(/\r\n/g, '\n'), mn = read('scripts/main.js'), lb = read('scripts/library.js');
+        check('1.6.4: every place that gives rows their copy hands it the containers too: the System editor\u2019s Save, a campaign file\u2019s system and the library\u2019s two (rowHolders through the window)',
+            sv.includes('window.wpBoxCore.rowHolders(camp.chars, camp.boxes)') && sv.includes('orphanRows(prevSys, clean, bxH)') && mn.includes('window.wpBoxCore.rowHolders(existing.chars, existing.boxes)')
+            && lb.includes('libSnaps(camp.system, holdersOf(camp), entryFor)') && lb.includes('libSnaps(sysAfter, holdersOf(camp), entryFor)') && !/libSnaps\([^)]*camp\.chars/.test(lb) && !/orphanRows\([^)]*camp\.chars/.test(sv));
+    }
     summed = true; console.log('\n' + pass + ' passed, ' + fail + ' failed.'); if (fail) process.exitCode = 1;
 })().catch(e => { console.log('FAIL      boxcheck threw: ' + (e && e.stack || e)); summed = true; process.exitCode = 1; });

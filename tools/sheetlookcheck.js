@@ -799,5 +799,112 @@ const j = v => JSON.stringify(v);
             J([bE.className, bNone.className, labBase, wrapAt, inMedia]));
     }
 
+    {   // 1.6.4 (Fulllion, 2026-11-22, from the sheet website's developer: "if the user tries to click on it in edit mode, they should be told why they
+        // cant"): a closed field says why where it is pressed. The cleaner keeps an override's own words (override.says) only beside the override, cut as a
+        // lock's words are, the same in both views. The sheet's real fieldNodeBody and its closedwhy slice run on a page of plain objects that refuses
+        // markup (tools/boxdom.js), the slice's listeners on that page's document: a closed field's box takes the focus and holds its words; a press, a
+        // tap or the focus shows them in a line under it; a right press, a press on the line and a working control inside the field are not a press on
+        // it; Escape puts the line away and goes no further, a press elsewhere or the focus leaving does too; one line at a time. The words: a lock's,
+        // the override's own or what it is taken from and while what, a field the GM alone changes on a player's sheet, the sheet's own lock (a HUD's
+        // pointing to the sheet). The Fields tab's real line draws the words box beside the override's two, and its real input line writes it
+        const J = JSON.stringify;
+        const raw = { v: 1, name: 'W', rolls: [], fields: [
+            { id: 'f_rg', key: 'Rage', label: 'Raging', kind: 'toggle', vis: 'all', edit: 'owner' },
+            { id: 'f_sc', key: 'Sec', label: 'Sec', kind: 'number', vis: 'gm', def: 1 },
+            { id: 'f_fy', key: 'Fy', label: 'Fury', kind: 'number', def: 1, vis: 'all', edit: 'owner', override: { when: 'Rage', value: 'Rage + 5', says: '  Rage sets it.\nFor now. ' } },
+            { id: 'f_fz', key: 'Fz', label: 'Fuzz', kind: 'number', def: 1, vis: 'all', edit: 'owner', override: { when: 'Rage', value: 'Rage + 2' } },
+            { id: 'f_lg', key: 'Lg', label: 'Long', kind: 'number', vis: 'all', override: { when: 'Rage', value: '1', says: 'x'.repeat(300) } },
+            { id: 'f_hf', key: 'Hf', label: 'Half', kind: 'number', vis: 'all', override: { value: '1', says: 'Lonely words' } },
+            { id: 'f_ns', key: 'Ns', label: 'Ns', kind: 'number', vis: 'all', override: { when: 'Rage', value: '1', says: 7 } },
+            { id: 'f_bl', key: 'Bl', label: 'Bl', kind: 'number', vis: 'all', override: { when: 'Rage', value: '1', says: ' \n ' } },
+            { id: 'f_gs', key: 'Gs', label: 'Gs', kind: 'number', vis: 'all', override: { when: 'Sec > 0', value: '2', says: 'GM words' } },
+            { id: 'f_lk', key: 'Lk', label: 'Locked', kind: 'number', vis: 'all', edit: 'owner', lock: { 'if': 'Rage', says: 'Calm down first.' } },
+            { id: 'f_gm', key: 'Gm', label: 'GM set', kind: 'number', vis: 'all', edit: 'gm' },
+            { id: 'f_op', key: 'Op', label: 'Open', kind: 'number', vis: 'all', edit: 'owner' },
+            { id: 'f_fm', key: 'Fm', label: 'Fm', kind: 'formula', formula: 'Op * 2', vis: 'all' }] };
+        const G = cleanSystem(raw, { F, gmView: true }), P = cleanSystem(raw, { F, gmView: false }), fd = (s, id) => s.fields.filter(f => f.id === id)[0];
+        const noSays = cleanSystem({ v: 1, name: 'W', rolls: [], fields: [raw.fields[0], raw.fields[3]] }, { F, gmView: true });
+        const cleanOk = J(fd(G, 'f_fy').override) === J({ when: 'Rage', value: 'Rage + 5', says: 'Rage sets it. For now.' }) && J(fd(P, 'f_fy').override) === J(fd(G, 'f_fy').override)
+            && J(fd(G, 'f_fz').override) === J({ when: 'Rage', value: 'Rage + 2' }) && fd(G, 'f_lg').override.says === 'x'.repeat(200) && !('override' in fd(G, 'f_hf'))
+            && !('says' in fd(G, 'f_ns').override) && !('says' in fd(G, 'f_bl').override) && fd(G, 'f_gs').override.says === 'GM words' && fd(P, 'f_gs').override === null
+            && J(cleanSystem(G, { F, gmView: true })) === J(G) && J(cleanSystem(P, { F, gmView: false })) === J(P) && J(noSays).indexOf('"says"') < 0;
+        // the real fieldNodeBody with the closedwhy slice in reach, on the test page
+        const shW = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, NL), cutW = (a, b) => { const i = shW.indexOf(a), k = shW.indexOf(b, i + 1); if (i < 0 || k < 0) throw new Error('closedwhy slice: ' + a); return shW.slice(i, k); };
+        const cwS = cutW('function lockMark(', '// [sheetlookcheck:closedwhy-end]'), fbS = cutW('function fieldNodeBody(', '// A roll from a sheet button: shift/alt-click');
+        const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, mk = (t, c, x) => { const e = doc.createElement(t); if (c) e.className = c; if (x !== undefined && x !== null) e.appendChild(doc.createTextNode(String(x))); return e; };
+        const LK = { on: false }, WIN = {};
+        const X = new Function('el', 'document', 'canRoll', 'sheetRoll', 'signTone', 'valueTone', 'TONE_CLASS', 'fxMark', 'commit', 'formulaSays', 'whileSays', 'LK', 'window',
+            'var _fxView = "sheet"; function lockedNow() { return LK.on; } function fieldOpen(f) { return !LK.on || f.kind === "toggle" || f.kind === "resource" || f.live === true; }' + NL + cwS + NL + fbS + NL
+            + 'return { node: fieldNodeBody, why: closedWhy, view: function(v) { _fxView = v; }, at: function() { return _closedAt; } };')(
+            mk, doc, () => true, () => {}, () => '', () => '', {}, () => null, () => {}, () => 'Worked out from its rage', () => 'while raging', LK, WIN);
+        const chR = { id: 'c_1', name: 'Kael', ownerId: 'u_a', values: { f_rg: true } }, chC = { id: 'c_1', name: 'Kael', ownerId: 'u_a', values: { f_rg: false } };
+        const draw = (id, ch, gm, own) => { const all = S.resolveAll(G, ch, F, null); return X.node(fd(G, id), ch, all[id], gm, own, G); };
+        const mark = b => [b.classList.contains('sheet-why-at'), b.tabIndex === undefined ? null : b.tabIndex, b.dataset.why || null];
+        const OVER = 'Worked out from its rage while raging. It cannot be changed until then.', EDIT = 'Press Edit sheet to change this.', HUD = 'Change this on the sheet, after you press Edit sheet.', ONLY = 'Only the GM changes this.';
+        const bFy = draw('f_fy', chR, true, false), ovV = bFy.childNodes.filter(k => k.nodeType === 1 && k.classList.contains('sheet-over'))[0];
+        const words = [mark(bFy), ovV && ovV.title, bFy.title, mark(draw('f_fz', chR, true, false)), mark(draw('f_lk', chR, true, false)), draw('f_lk', chR, true, false).title, mark(draw('f_op', chR, true, false)), mark(draw('f_fm', chR, true, false)),
+            mark(draw('f_gm', chR, true, false)), mark(draw('f_gm', chR, false, true)), mark(draw('f_gm', Object.assign({}, chR, { making: 1 }), false, true)), mark(draw('f_fy', chC, true, false)), mark(draw('f_gm', chR, false, false))];
+        const wordsWant = [[true, 0, 'Rage sets it. For now.'], 'Rage sets it. For now.', 'Rage sets it. For now.', [true, 0, OVER], [true, 0, 'Calm down first.'], 'Calm down first.', [false, null, null], [false, null, null],
+            [false, null, null], [true, 0, ONLY], [false, null, null], [false, null, null], [false, null, null]];
+        LK.on = true;
+        const bOpL = draw('f_op', chR, true, false), locked = [mark(bOpL), mark(draw('f_rg', chR, true, false)), mark(draw('f_op', chR, false, false)), mark(draw('f_op', Object.assign({}, chR, { partial: 1 }), false, true)), mark(draw('f_gm', chR, false, true)), mark(draw('f_lk', chR, false, true)), mark(draw('f_fm', chR, true, false))];
+        X.view('hud'); const hudW = mark(draw('f_op', chR, false, true)), hudMk = mark(draw('f_op', Object.assign({}, chR, { making: 1 }), false, true)); X.view('sheet'); WIN.wpPopout = true; const popW = mark(draw('f_op', chR, true, false)); delete WIN.wpPopout; LK.on = false;
+        const lockedWant = [[true, 0, EDIT], [false, null, null], [false, null, null], [false, null, null], [true, 0, ONLY], [true, 0, 'Calm down first.'], [false, null, null]];
+        // the press, the focus and Escape, on the page: a panel holding three fields, its own Escape listener a recorder (as a HUD's closes it)
+        const panel = mk('div', 'hud-panel'), heard = []; panel.addEventListener('keydown', e => heard.push(e.key)); doc.body.appendChild(panel);
+        const bLk = draw('f_lk', chR, true, false), bOp = draw('f_op', chR, true, false), live = mk('button', 'sheet-explain'); live.tabIndex = 0; bFy.childNodes[0].appendChild(live);
+        [bFy, bLk, bOp, bOpL].forEach(b => panel.appendChild(b));
+        const inOf = b => b.all().filter(n => n.tagName === 'INPUT')[0], lineOf = b => { const l = b.childNodes.filter(k => k.nodeType === 1 && k.classList.contains('sheet-why-line')); return l.length ? [l[0].textContent, l[0].getAttribute('role'), b.classList.contains('sheet-why-on')] : null; };
+        const lines = () => doc.body.all().filter(n => n.classList.contains('sheet-why-line')).length;
+        const press = (t, b) => Dm.fire(t, 'pointerdown', { button: b === undefined ? 0 : b });
+        const run = [];
+        press(ovV); run.push([lineOf(bFy), doc.activeElement === bFy, lines()]);   // a press on the closed value (the box is focused by the browser's own press, which this page does not do, so not forced here)
+        press(inOf(bOp), 2); run.push([lineOf(bFy), lines()]);   // a right press elsewhere: the menu's, nothing changes
+        press(inOf(bOp)); run.push([lineOf(bFy), lines()]);   // a press on an open field puts it away
+        press(ovV); press(live); run.push([lineOf(bFy), lines()]);   // a working control inside the closed field is its own
+        bLk.focus(); run.push([lineOf(bLk), lines()]);   // Tab to it (the focus)
+        press(bLk.childNodes.filter(k => k.nodeType === 1 && k.classList.contains('sheet-why-line'))[0]); run.push([!!lineOf(bLk), lines()]);   // a press on the line keeps it
+        press(ovV); bFy.focus(); run.push([!!lineOf(bLk), lineOf(bFy) && lineOf(bFy)[0], lines()]);   // one line at a time (the focus the browser gives a box on a press, then)
+        const esc1 = Dm.fire(doc.activeElement, 'keydown', { key: 'Escape' }); run.push([lineOf(bFy), esc1.defaultPrevented, esc1.stopped, heard.slice()]);   // Escape puts it away and goes no further
+        const esc2 = Dm.fire(doc.activeElement, 'keydown', { key: 'Escape' }); run.push([esc2.defaultPrevented, heard.slice()]);   // with no line, Escape is the panel's
+        bLk.focus(); inOf(bOp).focus(); run.push([lineOf(bLk), lines()]);   // the focus leaving puts it away
+        press(inOf(bOpL)); run.push([lineOf(bOpL), inOf(bOpL).disabled, doc.activeElement === bOpL]);   // a closed box's own disabled control: a press on the field, and the box is given the focus a browser gives none there
+        press(panel); run.push([lines(), X.at()]);
+        bFy.focus(); live.focus(); const keepIn = !!lineOf(bFy); inOf(bOp).focus(); run.push([keepIn, lineOf(bFy), lines()]);   // Tab on to its own control keeps it, and Tab out from there puts it away
+        press(ovV, 2); bFy.focus(); run.push([lineOf(bFy), lines()]);   // a right press, and the focus it gives the box: no line
+        inOf(bOp).focus(); press(ovV); const shownC = lines(); Dm.fire(ovV, 'pointercancel', {}); run.push([shownC, lines()]);   // a touch that turns into a scroll: the line goes
+        const runWant = [[['Rage sets it. For now.', 'status', true], false, 1], [['Rage sets it. For now.', 'status', true], 1], [null, 0], [null, 0], [['Calm down first.', 'status', true], 1], [true, 1], [false, 'Rage sets it. For now.', 1],
+            [null, true, true, []], [false, ['Escape']], [null, 0], [[EDIT, 'status', true], true, true], [0, null], [true, null, 0], [null, 0], [1, 0]];
+        // the System editor: the Fields tab's real line draws the words box beside the override's two, and its real input line writes it into the draft
+        const ovLine = (() => { const a = shW.indexOf("    if (f.kind === 'number') { var ovF = f.override"); if (a < 0) throw new Error('override row line'); return shW.slice(a, shW.indexOf(NL, a)); })();
+        const capS = cutW('function capInline(', NL), inS = cutW('function input(', NL);
+        const ROW = new Function('el', 'document', inS + NL + capS + NL + 'return function(flags, f) {' + NL + ovLine + NL + '};')(mk, doc);
+        const rowOf = f => { const fl = mk('div', 'sys-flags'); ROW(fl, f); return fl.all().filter(n => n.tagName === 'INPUT').map(n => [n.className, n.value, n.maxLength === undefined ? null : n.maxLength, n.parentNode.textContent]); };
+        const rows = [rowOf({ kind: 'number' }), rowOf({ kind: 'number', override: { when: 'Rage', value: 'Rage + 5', says: 'Rage sets it.' } }), rowOf({ kind: 'number', override: { value: 'Rage + 5' } })];
+        const rowsWant = [[['sys-ovr-value field', '', null, 'Taken from: ']], [['sys-ovr-value field', 'Rage + 5', null, 'Taken from: '], ['sys-ovr-when field', 'Rage', null, 'only while: '], ['sys-ovr-says field', 'Rage sets it.', 200, 'Says: ']],
+            [['sys-ovr-value field', 'Rage + 5', null, 'Taken from: '], ['sys-ovr-when field', '', null, 'only while: '], ['sys-ovr-says field', '', 200, 'Says: ']]];
+        const tabs = kit.part('sysedtabs.js').replace(/\r\n/g, NL), lineAt = s => { const a = tabs.indexOf(s); if (a < 0) throw new Error('sysedtabs line: ' + s); return tabs.slice(a, tabs.indexOf(NL, a)); };
+        const ON = new Function('LIMITS', 'markDirty', 'allOrWait', 'return function(c, t, f) { if (false) {}' + NL + lineAt("        else if (c.indexOf('sys-ovr-value') >= 0") + NL + lineAt("        else if (c.indexOf('sys-ovr-says') >= 0)") + NL + 'return f; };')(S.LIMITS, () => {}, () => {});
+        const fE = { override: { when: 'Rage', value: 'Rage + 5' } }, typed = [];
+        ON('sys-ovr-says field', { value: 'Rage sets it.' }, fE); typed.push(J(fE.override));
+        ON('sys-ovr-value field', { value: 'Rage + 6' }, fE); typed.push(J(fE.override));
+        ON('sys-ovr-says field', { value: '   ' }, fE); typed.push(J(fE.override));
+        ON('sys-ovr-says field', { value: 'y'.repeat(250) }, fE); typed.push(fE.override.says.length);
+        ON('sys-ovr-value field', { value: '' }, fE); ON('sys-ovr-when field', { value: '' }, fE); typed.push('override' in fE);
+        const fN = {}; ON('sys-ovr-says field', { value: 'Lonely' }, fN); typed.push(J(fN));
+        const typedWant = [J({ when: 'Rage', value: 'Rage + 5', says: 'Rage sets it.' }), J({ when: 'Rage', value: 'Rage + 6', says: 'Rage sets it.' }), J({ when: 'Rage', value: 'Rage + 6' }), 200, false, '{}'];
+        // the line floats (the row stays level), Escape's router lets a box whose line shows keep the key, the groups place the box, Help says it
+        const cssW = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, NL), ixW = fs.readFileSync(path.join(app, 'index.html'), 'utf8');
+        const lineCss = (cssW.match(/\n  \.sheet-why-line \{([^}]*)\}/) || [])[1] || '';
+        const restOk = /position: absolute;/.test(lineCss) && /top: calc\(100% \+ 2px\);/.test(lineCss) && cssW.includes('\n  .sheet-field.sheet-why-on { position: relative; }') && !/\.sheet-why-line[^{]*\{[^}]*position: (static|relative)/.test(cssW)
+            && fs.readFileSync(path.join(app, 'scripts', 'esckey.js'), 'utf8').includes("if (escAt(t, '.sheet-why-on')) return true;")
+            && fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8').includes("'sys-ovr-value', 'sys-ovr-when', 'sys-ovr-says', 'sys-spill-*'")
+            && shW.includes("    if (typeof closedMark === 'function') closedMark(box, f, c, e, gm, own, editable, sysArg);") && shW.split('closedMark(').length === 3
+            && ixW.includes('<li>Press, tap or Tab to a field you cannot change, and a short line under it says why, in its <b>Says</b> words where the system gives some.</li>');
+        check('1.6.4 a closed field says why where it is pressed (cleanSystem, then the real fieldNodeBody and its closedwhy slice on a page that refuses markup, with its listeners on that page; the Fields tab\'s real override line and input line): the cleaner keeps override.says only beside a whole override, one line of 200 at most, the same in both views, gone with an override the players\' view blanks, a fixed point, and a system with none keeps no key; a closed field\'s box takes the focus and holds its words, its tooltip too where it had none: a lock\'s, the override\'s own or what it is taken from and while what, Only the GM changes this on a player\'s own field the GM edits (not while making), Press Edit sheet on a locked sheet and the sheet\'s words on a HUD and in a sheet\'s window of its own, nothing for an open field, a worked-out figure, a field that stays live, a teammate\'s or a partial copy; a press, a tap or the focus shows a line with role status under it and gives it the focus; a right press, a working control inside it and a press on the line do not; a press elsewhere, Escape (which goes no further) and the focus leaving put it away; one line at a time; the line floats so the row stays level, Escape\'s router lets it keep the key; the Fields tab draws a words box of 200 beside the two once there is an override, writes it and takes it off, and it goes with the override',
+            cleanOk && J(words) === J(wordsWant) && J(locked) === J(lockedWant) && J(hudW) === J([true, 0, HUD]) && J(hudMk) === J([true, 0, 'Change this on the sheet.']) && J(popW) === J([true, 0, HUD]) && J(run) === J(runWant) && J(rows) === J(rowsWant) && J(typed) === J(typedWant) && restOk,
+            J([cleanOk, words, locked, hudW, hudMk, popW, run, rows, typed, restOk]));
+    }
+
     await T.finish();
 })();

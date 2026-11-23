@@ -149,7 +149,7 @@ var GROUPS = {
         ['who', 'Who sees and changes it', 1, ['sys-edit', 'sys-vis', 'sys-live-sel', 'sys-fldlock-*']],
         ['sheet', 'How it shows', 1, ['sys-hover-chk', 'sys-tile-chk', 'sys-slider-chk', 'sys-counter-chk', 'sys-res-icon', 'sys-glyph-btn', 'sys-reset-chk', 'sys-res-color', 'act:rescolorclr', 'sys-colorband-chk', 'sys-bar-chk', 'sys-badge-chk', 'sys-tones-row', 'sys-slider-row', 'sys-trackshape', 'sys-trackof']],
         ['figs', 'Units and figures', 0, ['sys-unit', 'sys-unit-text', 'sys-metricshow', 'sys-dec', 'sys-group-chk', 'sys-sign-chk', 'sys-caption', 'sys-capat'], null, 'say'],   // 1.6.2 (the owner, by prompt: "Split in two"): folded, its heading saying what is set
-        ['rules', 'Rolls and rules', 0, ['sys-fieldtest', 'sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-spill-*', 'sys-surch-*']],
+        ['rules', 'Rolls and rules', 0, ['sys-fieldtest', 'sys-roll', 'sys-fielddie', 'sys-vnames', 'sys-ovr-value', 'sys-ovr-when', 'sys-ovr-says', 'sys-spill-*', 'sys-surch-*']],
         ['auto', 'Worked out and filled', 0, ['sys-wout-box']],   // 1.6.2 (auto apply)
         ['round', 'Rounding', 0, ['sys-round', 'sys-roundto', 'sys-roundat']],
         ['explain', 'What it means', 0, ['sys-explain']]] },   // 1.6.2 (backlog 218 fold 3)

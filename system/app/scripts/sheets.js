@@ -5627,6 +5627,103 @@ function lockMark(box, lab, words) {
     box.classList.add('sheet-locked'); box.title = words;
     var m = el('i', 'wib wi-lock sheet-lockmark'); m.title = words; lab.appendChild(m);
 }
+// [sheetlookcheck:closedwhy-start]
+// 1.6.4 (Fulllion, 2026-11-22, from the sheet website's developer: "if the user tries to click on it in edit mode, they should be told why they
+// cant"): a field drawn closed said why only in a hover tooltip, so a click, a tap or Tab showed nothing. Now the closed field's box takes the
+// focus, and a press, a tap or the focus shows the reason in a short line under the field. Escape, a press elsewhere or the focus leaving puts
+// the line away. The line floats over what is under it, so nothing on the sheet moves when it shows. One helper for the sheet, a HUD and a
+// sheet in a window of its own: all three draw their fields through fieldNodeBody, and the listeners below sit on each window's own document.
+// The line only reads, so a sheet's window of its own forwards nothing (popFwd is for changes)
+var CLOSED_KINDS = { number: 1, skill: 1, resource: 1, toggle: 1, text: 1, notes: 1, select: 1 };   // a field whose one control is closed whole (a list or effects close part by part)
+// An overridden number's words: the system's own (override.says) where it gave some, else what it is taken from and while what, said in the
+// sheet's words through formulaSays and whileSays, never as a formula
+function overWords(f, sysA) {
+    var o = f && f.override && typeof f.override === 'object' ? f.override : null;
+    if (o && typeof o.says === 'string' && o.says.trim()) return o.says.trim();
+    return ((o && o.value && typeof formulaSays === 'function' ? formulaSays(sysA, o.value) : '') || 'Worked out by a rule') + ' ' + ((o && o.when && typeof whileSays === 'function' ? whileSays(sysA, o.when) : '') || 'while its rule holds') + '. It cannot be changed until then.';
+}
+// Why this field is closed to this reader now, in words, or '' when it is open (or only read, as a worked-out figure always is). In order: its
+// Locked while (e.locked, the lock's words), a number Taken from ... only while (e.over), a field the GM alone changes on a player's own sheet,
+// and the sheet's own lock (Edit sheet; a HUD and a sheet's window of its own are always locked, so they point to the sheet). editable is
+// fieldNodeBody's: may this reader
+// change the field at all
+function closedWhy(f, c, e, gm, own, editable, sysA) {
+    if (!f || !c) return '';
+    if (e && typeof e.locked === 'string') return e.locked;
+    if (f.kind === 'number' && e && e.over === true) return overWords(f, sysA);
+    if (!CLOSED_KINDS[f.kind] || c.partial) return '';
+    if (!gm && own && f.vis === 'all' && f.edit === 'gm' && !editable) return 'Only the GM changes this.';
+    var away = (typeof _fxView !== 'undefined' && _fxView === 'hud') || (typeof window !== 'undefined' && !!window && window.wpPopout === true);   // a HUD and a sheet's window of its own have no Edit sheet: they stay locked
+    if (editable && typeof fieldOpen === 'function' && !fieldOpen(f)) return away ? (c.making === 1 ? 'Change this on the sheet.' : 'Change this on the sheet, after you press Edit sheet.') : 'Press Edit sheet to change this.';   // a character being made is in editing on the sheet already
+    return '';
+}
+// Marks a closed field's box: it takes the focus (tabindex 0) and holds its words for the line (data-why), and as its tooltip where it has none
+function closedMark(box, f, c, e, gm, own, editable, sysA) {
+    var w = closedWhy(f, c, e, gm, own, editable, sysA); if (!w || !box) return '';
+    box.classList.add('sheet-why-at'); box.tabIndex = 0; box.dataset.why = w;
+    if (!box.title) box.title = w;
+    return w;
+}
+var _closedAt = null;   // the one line showing in this window: { box, line }
+// Shows a box's line under it (made here, as text only) and puts away any other
+function closedShow(box) {
+    if (!box || !box.dataset || !box.dataset.why) return;
+    if (_closedAt && _closedAt.box === box && _closedAt.line.parentNode === box) return;
+    closedHide();
+    var line = (box.ownerDocument || document).createElement('div'); line.className = 'sheet-why-line'; line.textContent = box.dataset.why; line.setAttribute('role', 'status');
+    box.appendChild(line); box.classList.add('sheet-why-on'); _closedAt = { box: box, line: line };
+    closedFit(box, line);
+}
+// The line stays whole inside the box that scrolls or clips it (the sheet's body, a HUD's): laid from the field's left edge, a field at the right
+// would run it past that box's edge, so it is moved left, and narrowed if it must; under the last row it would be cut off at the bottom, so it
+// stands above the field where there is room, and is scrolled into sight where there is none
+function closedFit(box, line) {
+    var win = box.ownerDocument && box.ownerDocument.defaultView; if (!win || typeof win.getComputedStyle !== 'function') return;
+    var clip = box.parentNode; while (clip && clip.nodeType === 1) { var cs = win.getComputedStyle(clip); if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') break; clip = clip.parentNode; }
+    var cr = clip && clip.nodeType === 1 ? clip.getBoundingClientRect() : { left: 0, right: win.innerWidth, top: 0, bottom: win.innerHeight }, lr = line.getBoundingClientRect(), br = box.getBoundingClientRect();
+    if (lr.right > cr.right - 4) {
+        var room = Math.floor(cr.right - cr.left - 8); if (lr.width > room) { line.style.maxWidth = Math.max(120, room) + 'px'; lr = line.getBoundingClientRect(); }   // narrowed only, never widened past its own cap
+        line.style.left = Math.round(Math.max(cr.left + 4, cr.right - 4 - lr.width) - br.left) + 'px';
+        lr = line.getBoundingClientRect();
+    }
+    if (lr.bottom <= cr.bottom - 2) return;
+    if (br.top - cr.top - 4 >= lr.height) line.classList.add('sheet-why-up');
+    else if (typeof line.scrollIntoView === 'function') line.scrollIntoView({ block: 'nearest' });
+}
+function closedHide() {
+    var w = _closedAt; _closedAt = null; if (!w) return;
+    if (w.line.parentNode) w.line.parentNode.removeChild(w.line);
+    w.box.classList.remove('sheet-why-on');
+}
+// A press (mouse, pen or touch), heard first as greyPress hears a grayed roll: on a closed field it shows the line, and the box holds the focus
+// (so Escape and Tab find it); a press on a control of the field that still works (its (i), its die) is that control's; any press elsewhere
+// puts the line away
+var _closedSkip = null;   // a closed box just pressed with another button: the focus that press gives it shows no line
+function closedPress(e) {
+    var t = e && e.target, box = t && typeof t.closest === 'function' ? t.closest('.sheet-why-at') : null;
+    if (e && e.button !== undefined && e.button !== 0) { _closedSkip = box; return; }   // a right press is the menu's
+    _closedSkip = null;
+    if (!box) { closedHide(); return; }
+    if (_closedAt && _closedAt.line.contains(t)) return;   // a press on the line itself keeps it
+    if (typeof GREY_BTN === 'string' && t.closest(GREY_BTN)) { closedHide(); return; }   // a grayed roll in the field says its own why (greyPress)
+    var dis = false; for (var n = t; n && n !== box; n = n.parentNode) { if (closedLive(n)) { closedHide(); return; } if (n.disabled) dis = true; }   // a working control inside the field is its own
+    closedShow(box);
+    if (dis) try { box.focus({ preventScroll: true }); } catch (err) {}   // a press elsewhere on the box focuses it as a browser does; one on a closed control does not, so it is given here
+}
+// A control that still works: a button, a box or a list that is not disabled, or anything else that takes the focus (a link, a pressable mark)
+function closedLive(n) { return !!n && n.nodeType === 1 && !n.disabled && (/^(BUTTON|INPUT|SELECT|TEXTAREA)$/.test(String(n.tagName)) || n.tabIndex >= 0); }
+function closedFocus(e) { var t = e && e.target; if (t && t === _closedSkip) { _closedSkip = null; return; } if (t && t.classList && t.classList.contains('sheet-why-at')) closedShow(t); }
+// The focus leaving the box, from the box itself or from a control inside it (its die, its (i)), puts the line away
+function closedBlur(e) { var w = _closedAt; if (w && e && e.target && w.box.contains(e.target) && !(e.relatedTarget && w.box.contains(e.relatedTarget))) closedHide(); }
+// A touch that turns into a scroll of the sheet is no press: its line goes again
+function closedCancel() { closedHide(); }
+// Escape puts the line away and goes no further (esckey.js escKeep lets a box whose line shows keep it), so the sheet or HUD stays open
+function closedKey(e) {
+    var w = _closedAt; if (!w || !e || e.key !== 'Escape' || !e.target || !w.box.contains(e.target)) return;
+    e.preventDefault(); e.stopPropagation(); closedHide();
+}
+if (typeof document !== 'undefined' && document && typeof document.addEventListener === 'function') { document.addEventListener('pointerdown', closedPress, true); document.addEventListener('focusin', closedFocus); document.addEventListener('focusout', closedBlur); document.addEventListener('keydown', closedKey, true); document.addEventListener('pointercancel', closedCancel, true); }
+// [sheetlookcheck:closedwhy-end]
 function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the section placement drawn (an item list may show only its rows switched on); sysArg: the system being drawn (the pop-out's cleaned copy, the Layout preview's draft); the item list resolves its defs from it
     var box = el('div', 'sheet-field sheet-kind-' + f.kind);
     if (f.tile) box.classList.add('sheet-tile');   // Stage 3: compact stat tile (value big, label small)
@@ -5640,12 +5737,13 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     var ownOk = !gm && !!own && f.vis === 'all' && !lk && !c.partial && (typeof _fxLive === 'undefined' || _fxLive);   // 1.6.2: a stat its list ticks Player sets this, on their own open sheet, whoever edits the list
     var raw = c.values ? c.values[f.id] : undefined;
     if (e && typeof e.locked === 'string') lockMark(box, lab, e.locked);   // 1.6.3 (backlog 170): Locked while: its control is closed above (use), and the lock says why
+    if (typeof closedMark === 'function') closedMark(box, f, c, e, gm, own, editable, sysArg);   // 1.6.4: a closed field takes the focus and says why under it when pressed (closedWhy)
     var k = f.kind;
     if (f.track && typeof trackNode === 'function' && !(e && e.error) && !(k === 'number' && e && e.over === true)) { var trN = trackNode(f, c, e, k === 'formula' ? false : use, raw); if (trN) { box.classList.add('sheet-has-track'); box.appendChild(trN); return box; } }   // 1.6.2: a track in place of its box
     if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : ''; if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\n' + roundSays(f, e.unrounded); if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' && e && e.over === true) {   // 205 (6): taken from a formula while its when holds: its figure, closed to editing
         var ovV = el('div', 'sheet-value sheet-over' + signTone(f, e), f.unit && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text);
-        ovV.title = ((f.override && f.override.value && typeof formulaSays === 'function' ? formulaSays(sysArg, f.override.value) : '') || 'Worked out by a rule') + ' ' + ((f.override && f.override.when && typeof whileSays === 'function' ? whileSays(sysArg, f.override.when) : '') || 'while its rule holds') + '. It cannot be changed until then.';   // 1.6.3 (finding 10): in words, never the formula
+        ovV.title = typeof overWords === 'function' ? overWords(f, sysArg) : 'It cannot be changed for now.';   // 1.6.3 (finding 10): in words, never the formula; 1.6.4: the system's own words first (override.says)
         box.appendChild(ovV); return box;
     }
     if (k === 'number' && Array.isArray(f.labels) && f.labels.length) {   // Stage 6: a number with value names — a dropdown that stores the position (formulas read the number)
@@ -8468,7 +8566,7 @@ function fieldRow(f) {
     if (f.kind !== 'notes' && f.kind !== 'text' && f.kind !== 'select' && f.kind !== 'item-list' && f.kind !== 'effects' && !f.test) { flags.appendChild(capInline(input('sys-roll field', f.roll, 'A roll button for this field (dice allowed): d20 + ' + (f.key || 'Key'), 'optional'), 'Roll: ')); if (typeof dieSel === 'function') flags.appendChild(dieSel('sys-fielddie', f.rollDie, 'The die its roll button wears. From its formula: the die it rolls, so 3d6 shows three dice and d20 a d20. Kept only beside a roll')); }
     if (f.kind === 'number' || f.kind === 'formula') flags.appendChild(capInline(input('sys-vnames field', (f.labels || []).join(', '),'Names for the values 0, 1, 2\u2026 separated by commas (Not stunned, Physical, Mental): a number becomes a dropdown, a formula shows the name for its value; formulas still read the number. A named value is a word: \u00b1 color, unit and slider do not apply to it', 'optional'), 'Value names: '));   // Stage 6
     if (f.kind !== 'formula' && f.kind !== 'item-list' && f.kind !== 'effects') fieldLockCtl(flags, f);   // 1.6.3 (backlog 170): Locked while
-    if (f.kind === 'number') { var ovF = f.override && typeof f.override === 'object' ? f.override : {}; flags.appendChild(capInline(input('sys-ovr-value field', ovF.value, 'What the number reads in place of what is typed, closed to editing, while the box beside it holds', 'none'), 'Taken from: ')); if (ovF.value || ovF.when) flags.appendChild(capInline(input('sys-ovr-when field', ovF.when, 'When the number reads that. Otherwise it is what is typed, as before', 'Not set yet'), 'only while: ')); }   // 205 (6)
+    if (f.kind === 'number') { var ovF = f.override && typeof f.override === 'object' ? f.override : {}; flags.appendChild(capInline(input('sys-ovr-value field', ovF.value, 'What the number reads in place of what is typed, closed to editing, while the box beside it holds', 'none'), 'Taken from: ')); if (ovF.value || ovF.when) { flags.appendChild(capInline(input('sys-ovr-when field', ovF.when, 'When the number reads that. Otherwise it is what is typed, as before', 'Not set yet'), 'only while: ')); var ovS = input('sys-ovr-says field', typeof ovF.says === 'string' ? ovF.says : '', 'What the sheet says under the number when someone presses it while it is closed. Blank: what it is taken from and while what, in the sheet’s words', 'Why it is closed'); ovS.maxLength = 200; flags.appendChild(capInline(ovS, 'Says: ')); } }   // 205 (6); 1.6.4: its own words, a plain words box beside the two (written into the draft by sysedtabs.js onInput, cleaned by systemcore cleanField)
     if ((f.kind === 'number' || f.kind === 'toggle' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills (a toggle too, since the session that builds a game system asked)
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own color'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
     flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}

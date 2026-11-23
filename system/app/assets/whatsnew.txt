@@ -53,6 +53,14 @@ Your plan's relay
 - Hosting never waits more than a few seconds for the relay. If the
   website is busy, your table starts as before.
 
+Closed fields say why [DRAFT]
+- Press, tap or Tab to a field you can't change, and a short line under
+  it says why, such as "Only the GM changes this." Press Escape or move
+  on and it goes away. This works on the sheet, on a HUD and on a sheet
+  in its own window.
+- Building a system? A number that is Taken from another figure has a
+  Says box now, for the words that line shows.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

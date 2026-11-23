@@ -71,6 +71,7 @@ function escKeep(doc, t) {
     if (escAt(t, '#tsBar')) return true;
     if (doc.body && doc.body.classList && doc.body.classList.contains('arr-drag')) return true;   // 1.6.2: Escape lets a drag on the Layout tab go
     if (escAt(t, '.body-tiles.has-open')) return true;   // 1.6.2: a tile's drawer shuts before the sheet does
+    if (escAt(t, '.sheet-why-on')) return true;   // 1.6.4: a closed field's line of why (sheets.js closedKey) goes before the sheet or HUD does
     if (escAt(t, '.fb-open')) return true;   // 1.6.2: a formula's form: Escape shuts the form and leaves the System editor up. 1.6.3: as Cancel does, putting the box back as it was
     if (escAt(t, '.pw-hold')) return true;   // 1.6.2 (backlog 232): a selection floating or words typed in the paint window: Escape puts it back, the window stays
     if (escAt(t, '.hk-picking')) return true;   // 1.6.0: a key being picked in Settings, Keys (commands.js): its Escape lets the wait go

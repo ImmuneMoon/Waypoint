@@ -1049,7 +1049,7 @@ function appVersionPromise() {   // the newer of the shell's version and the app
         try { localStorage.setItem('wp_version', cur); } catch (e) {}
         // The notes are never pushed at you: the version number in Settings (and in About) opens them on click.
         var vb = ui('setVersionBtn');
-        if (vb) { vb.textContent = 'Waypoint Alpha ' + cur; vb.title = "What's new in Waypoint Alpha " + cur + ' — click to read'; vb.dataset.version = cur; }
+        if (vb) { vb.textContent = 'Waypoint VTT Alpha ' + cur; vb.title = "What's new in Waypoint VTT Alpha " + cur + ' — click to read'; vb.dataset.version = cur; }
         void last;
     }).catch(function() {});
 })();
@@ -1427,7 +1427,7 @@ if (_updNotes) _updNotes.addEventListener('click', function() {
     var i = _upd.info; if (!i) return;
     var body = document.getElementById('legalBody'), title = document.getElementById('legalTitle');
     if (!body || !title) return;
-    title.textContent = "What's New — Waypoint " + i.latest;
+    title.textContent = "What's New — Waypoint VTT " + i.latest;
     body.style.textAlign = 'center';
     body.textContent = i.notes || 'No notes for this release.';
     document.getElementById('legalModal').style.display = 'flex';

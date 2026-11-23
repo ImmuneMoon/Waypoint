@@ -794,7 +794,7 @@ function frameFogStep() {
 function openLeft() { var sb = document.getElementById('campaignSidebar'); if (sb && sb.classList.contains('collapsed')) { var t = document.getElementById('toggleLeftBtn'); if (t) t.click(); } }
 
 var STEPS = [
-    { section: 'Getting started', target: null, title: 'Welcome to Waypoint',
+    { section: 'Getting started', target: null, title: 'Welcome to Waypoint VTT',
       html: 'This tour uses a small campaign called <b>Tutorial</b> that was just added to your save. It is a real campaign: keep it and build on it, or discard it at the end. Use <b>Next</b> and <b>Back</b>. <b>Try it yourself</b> puts the card away so you can use what it describes, and <b>Resume tour</b> brings the step back. <b>Esc</b> asks before it ends the tour, and your place is kept. <b>More in Help</b> under a card opens the part of Help that says the rest.',
       help: ['tutorial', 'Interactive tutorial'],
       before: function() { ensureTutorialCampaign(false); openLeft(); openItem('map_tut_realm'); goView('data'); } },
@@ -806,7 +806,7 @@ var STEPS = [
       help: ['start', 'Your first map'] },
     { target: '#viewModeSelect', title: 'Two faces of every map',
       html: 'Every map has two faces. The <b>Data Map</b> is the node view for your notes and connections. The <b>Play Map</b> is the battle map with tokens. This switch flips between them, and each map remembers which face you left it on.',
-      help: ['start', 'What Waypoint is'],
+      help: ['start', 'What Waypoint VTT is'],
       before: function() { openItem('map_tut_city'); goView('data'); } },
     { section: 'The data map', target: '#dataFloatingToolbar', title: 'Data map tools',
       html: '<b>Add Room</b> drops a node. <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6v6H3zM15 14h6v6h-6zM9 10l6 4"/></svg> <b>Link Mode</b> connects two rooms: pick a line type, then click one room and the other. Click a line to open it in <b>Properties</b>. Its label is drawn on the line for players too, and its notes stay with you. Eldara&rsquo;s lines are already labeled, one of each type.',

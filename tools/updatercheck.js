@@ -539,8 +539,12 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         {   // the installer leaves the folder alone when it updates in place: it removes nothing under system\app, and only a clean install wipes the program files
             const iss = read('installer.iss');
             check('1.6.0 a clean install keeps a reader in system\\app\\private unless the data goes too', /CompareText\(FindRec\.Name, 'private'\) = 0/.test(iss));
-            check('the installer\'s update in place deletes nothing under system\\app (no InstallDelete section, no Excludes naming private), so an installer run keeps the reader too; only a clean install wipes the program files',
-                !/^\[InstallDelete\]/m.test(iss) && !/private/i.test((/Excludes: "([^"]*)"/.exec(iss) || [])[1] || 'private') && /InstallMode\(\) = 1\) then\s*\n\s*WipeProgramFiles/.test(iss));
+            // 1.6.4 (the name Waypoint VTT): an [InstallDelete] section may stand, holding exactly the two old shortcuts named "Waypoint" (each
+            // removed only where its task makes the new "Waypoint VTT" one) and nothing else, so nothing under the install folder is ever named in it.
+            const idSec = (/^\[InstallDelete\]\r?\n([\s\S]*?)(?=^\[)/m.exec(iss) || [null, null])[1], idLines = idSec === null ? [] : idSec.split(/\r?\n/).filter(l => l.trim() && !/^\s*;/.test(l));
+            const idOk = idSec === null || JSON.stringify(idLines) === JSON.stringify(['Type: files; Name: "{autoprograms}\\Waypoint.lnk"; Tasks: startmenuicon', 'Type: files; Name: "{autodesktop}\\Waypoint.lnk"; Tasks: desktopicon']);
+            check('the installer\'s update in place deletes nothing under system\\app (an InstallDelete section holds only the two old "Waypoint" shortcuts, no Excludes naming private), so an installer run keeps the reader too; only a clean install wipes the program files',
+                idOk &&!/private/i.test((/Excludes: "([^"]*)"/.exec(iss) || [])[1] || 'private') && /InstallMode\(\) = 1\) then\s*\n\s*WipeProgramFiles/.test(iss));
             const help = read('system/app/index.html'), notesA = read('WHATSNEW.txt'), notesB = read('system/app/assets/whatsnew.txt');
             const top = t => t.slice(t.indexOf('WAYPOINT 1.5.9'), t.indexOf('WAYPOINT 1.5.8'));   // 1.5.9's own part, wherever a later release put its notes above it
             check('Help\'s Updates part and both release notes of 1.5.9 say that an update keeps an outside sheet reader, that a restore keeps it too, and the notes that this release changes the core and so installs through the installer once',
@@ -843,13 +847,15 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         {   /* ---- the installer's own script: its two additions for an app-driven silent update, pinned (it is never compiled or run here) ---- */
             const iss = read('installer.iss');
             const fnA = iss.indexOf('function AppDrivenUpdate(): Boolean;'), prep = iss.indexOf('function PrepareToInstall(var NeedsRestart: Boolean): String;'), prepEnd = iss.indexOf('end;' + NL + NL + 'var', prep), body = prep > 0 ? iss.slice(prep, prepEnd) : '';
-            const waitAt = body.indexOf('if AppDrivenUpdate() then'), findAt = body.indexOf("if FindWindowByWindowName('Waypoint') <> 0 then"), killAt = body.indexOf("TaskKill('Waypoint.exe');");
+            // 1.6.4: Waypoint's window is found through AppWindowOpen, which looks for both titles: "Waypoint VTT" from 1.6.4 and "Waypoint" before it.
+            const waitAt = body.indexOf('if AppDrivenUpdate() then'), findAt = body.indexOf('if AppWindowOpen() then'), killAt = body.indexOf("TaskKill('Waypoint.exe');"), fnW = iss.indexOf('function AppWindowOpen(): Boolean;');
             const runSec = iss.slice(iss.indexOf(NL + '[Run]' + NL), iss.indexOf(NL + '[Code]' + NL));
-            check('installer.iss, pinned: a silent run with /UPDATE=1 (the app started it and is closing) waits for Waypoint\'s window to go — a look every 250 ms for up to 30 s — before the check that aborts a silent update while Waypoint runs, and any other run is as before; a second [Run] entry opens Waypoint again after such an update only (the first is skipped when silent)',
+            check('installer.iss, pinned: a silent run with /UPDATE=1 (the app started it and is closing) waits for Waypoint\'s window to go — a look every 250 ms for up to 30 s, by either title, Waypoint VTT or the older Waypoint — before the check that aborts a silent update while Waypoint runs, and any other run is as before; a second [Run] entry opens Waypoint again after such an update only (the first is skipped when silent)',
                 fnA > 0 && fnA < prep && /Result := WizardSilent\(\) and \(ExpandConstant\('\{param:UPDATE\|0\}'\) = '1'\);/.test(iss.slice(fnA, prep))
-                && waitAt > 0 && findAt > waitAt && killAt > findAt && /while \(FindWindowByWindowName\('Waypoint'\) <> 0\) and \(Waited < 30000\) do\s+begin\s+Sleep\(250\);\s+Waited := Waited \+ 250;\s+end;/.test(body.slice(waitAt, findAt))
-                && /if WizardSilent\(\) then\s+begin\s+Result := 'Waypoint is running\. Close it \(end any multiplayer session first\) and run the update again\.';\s+exit;/.test(body.slice(findAt))
-                && /Filename: "\{app\}\\Waypoint\.exe"; Description: "Launch Waypoint"; Flags: nowait postinstall skipifsilent\n/.test(runSec) && /Filename: "\{app\}\\Waypoint\.exe"; Flags: nowait; Check: AppDrivenUpdate\n/.test(runSec) && (runSec.match(/^Filename:/gm) || []).length === 2
+                && fnW > fnA && fnW < prep && /^begin\s+Result := \(FindWindowByWindowName\('Waypoint VTT'\) <> 0\) or \(FindWindowByWindowName\('Waypoint'\) <> 0\);\s+end;/m.test(iss.slice(fnW, prep)) && (iss.match(/FindWindowByWindowName/g) || []).length === 2
+                && waitAt > 0 && findAt > waitAt && killAt > findAt && /while AppWindowOpen\(\) and \(Waited < 30000\) do\s+begin\s+Sleep\(250\);\s+Waited := Waited \+ 250;\s+end;/.test(body.slice(waitAt, findAt))
+                && /if WizardSilent\(\) then\s+begin\s+Result := 'Waypoint VTT is running\. Close it \(end any multiplayer session first\) and run the update again\.';\s+exit;/.test(body.slice(findAt))
+                && /Filename: "\{app\}\\Waypoint\.exe"; Description: "Launch Waypoint VTT"; Flags: nowait postinstall skipifsilent\n/.test(runSec) && /Filename: "\{app\}\\Waypoint\.exe"; Flags: nowait; Check: AppDrivenUpdate\n/.test(runSec) && (runSec.match(/^Filename:/gm) || []).length === 2
                 && /\{param:UPDATE\|0\}'\) <> '1'\) then/.test(iss), j([fnA, prep, waitAt, findAt, killAt, runSec]));
         }
 
@@ -933,7 +939,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 const bare = s => s.replace(/\\./g, '');   // what is left once every escaped character is taken out
                 check('release.js writes the release notes as text: every character Markdown or its HTML would read as markup (* _ ~ ` [ ] < > # | & ! and the backslash) is escaped in a heading and a bullet, wrapped lines joined first, so the page shows **, ~~, <u>, a [link](…) exactly as the notes write them; --notes-only builds them without the key and writes nothing else',
                     nr.status === 0 && un(bul.slice(2)) === weird + ' and a wrapped ~~line~~' && un(head.slice(4)) === 'Text **style**' && !/[\\`*_~\[\]<>#|&!]/.test(bare(bul.slice(2))) && !/[\\`*_~\[\]<>#|&!]/.test(bare(head.slice(4)))
-                    && md.startsWith('# Waypoint Alpha ' + vOf) && !/^- olds*$/m.test(md) && !fs.existsSync(path.join(nRepo, 'Waypoint_Setup.exe')) && fs.readdirSync(path.join(nRepo, 'dist', vOf)).join() === 'RELEASE_NOTES.md', j([nr.status, String(nr.stderr).slice(0, 200), bul.slice(0, 200), head]));
+                    && md.startsWith('# Waypoint VTT Alpha ' + vOf) && !/^- olds*$/m.test(md) && !fs.existsSync(path.join(nRepo, 'Waypoint_Setup.exe')) && fs.readdirSync(path.join(nRepo, 'dist', vOf)).join() === 'RELEASE_NOTES.md', j([nr.status, String(nr.stderr).slice(0, 200), bul.slice(0, 200), head]));
             }
 
             /* ---- the release build refuses to build without the key ---- */
@@ -1036,7 +1042,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                 const distList = fs.existsSync(dist) ? fs.readdirSync(dist).sort() : [], zipN = 'waypoint-app-' + vNow + '.zip';
                 check('release.js run to its end (a scratch copy, the right key, stand-ins for Inno Setup and the archiver): Inno Setup is handed the staged installer.iss in dist/<version>/stage and nothing else, and beside it lie exactly the five files of the top and system/ but for its five folders, each byte for byte as the build left it (the README naming the release and the app\'s version.json written before the copy), while a notes file, a folder of working copies, IMPROVEMENTS.md, private/, saves/, docs/, .github/, .gitattributes, an old installer, a file nobody knows and the five folders lie beside the real script and are not copied; a private folder beside the build no longer stops it',
                     ran.status === 0 && !!got && Array.isArray(got.args) && got.args.length === 1 && same(got.args[0], path.join(fs.realpathSync(sr), 'dist', vNow, 'stage', 'installer.iss'))
-                    && j(sortKeys(got.files)) === j(sortKeys(want)) && /Current release: \*\*Waypoint Alpha \d+\.\d+\.\d+\*\*/.test(fs.readFileSync(path.join(sr, 'README.md'), 'utf8')) && JSON.parse(fs.readFileSync(path.join(sr, 'system', 'app', 'version.json'), 'utf8')).version === vNow,
+                    && j(sortKeys(got.files)) === j(sortKeys(want)) && /Current release: \*\*Waypoint VTT Alpha \d+\.\d+\.\d+\*\*/.test(fs.readFileSync(path.join(sr, 'README.md'), 'utf8')) && JSON.parse(fs.readFileSync(path.join(sr, 'system', 'app', 'version.json'), 'utf8')).version === vNow,
                     j([ran.status, said.slice(-400), got && got.args, got && Object.keys(got.files).filter(k => !(k in want)), Object.keys(want).filter(k => !got || !(k in got.files))]));
                 {   // 1.6.4: the stage's app folder is stripped of comments (tools/stripcore.js stripTree) before the zip and the installer are made
                     const zb = (() => { try { return fs.readFileSync(path.join(sr, 'dist', vNow, 'waypoint-app-' + vNow + '.zip')); } catch (e) { return Buffer.alloc(0); } })();

@@ -342,7 +342,7 @@ if (!NOTES_ONLY && !RESUME) {
 {
     const readmePath = path.join(ROOT, 'README.md');
     const readme = fs.readFileSync(readmePath, 'utf8');
-    const updated = readme.replace(/Current release: \*\*[^*]+\*\*/, 'Current release: **Waypoint Alpha ' + VERSION + '**');   // 1.5.6: the release's name (backlog 177); the tag stays the plain number
+    const updated = readme.replace(/Current release: \*\*[^*]+\*\*/, 'Current release: **Waypoint VTT Alpha ' + VERSION + '**');   // 1.5.6: the release's name (backlog 177); the tag stays the plain number
     if (updated !== readme) fs.writeFileSync(readmePath, updated);
 }
 
@@ -452,7 +452,7 @@ function mdText(s) { return String(s).replace(/[\\`*_~\[\]<>#|&!]/g, '\\$&'); }
 function buildNotes() {
     const all = fs.readFileSync(path.join(ROOT, 'WHATSNEW.txt'), 'utf8').replace(/\r\n/g, '\n');
     const top = (all.split(/\n(?=WAYPOINT \d)/)[0] || '').trim().split('\n');
-    const out = ['# Waypoint Alpha ' + VERSION];
+    const out = ['# Waypoint VTT Alpha ' + VERSION];
     let bullet = null;
     const flush = () => { if (bullet) { out.push('- ' + mdText(bullet)); bullet = null; } };
     for (const raw of top.slice(2)) {                       // skip the title and its ==== underline
@@ -541,7 +541,7 @@ function api(method, url, body, contentType) {
     // Made as a draft, which no install sees, its six assets uploaded, and only then published (the review of 2026-11-17): an upload that
     // fails leaves a draft alone, which the next run takes away.
     console.log('\nCreating release', VERSION, 'on', REPO, '(a draft until its assets are up)');
-    const rel = await api('POST', GH_API + '/repos/' + REPO + '/releases', { tag_name: VERSION, name: 'Waypoint Alpha ' + VERSION, body, draft: true, prerelease: false });
+    const rel = await api('POST', GH_API + '/repos/' + REPO + '/releases', { tag_name: VERSION, name: 'Waypoint VTT Alpha ' + VERSION, body, draft: true, prerelease: false });
     if (!Number.isInteger(rel.id)) throw new Error('Not published to GitHub: GitHub named no id for the draft it made.');
     const uploadBase = String(rel.upload_url).replace(/\{.*$/, '');
     if (uploadBase.indexOf(GH_UPLOADS + '/') !== 0) throw new Error('Not published to GitHub: the release names its uploads at ' + uploadBase.slice(0, 120) + ', which is not ' + GH_UPLOADS + '.');

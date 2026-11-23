@@ -509,6 +509,30 @@ const kids = n => n.childNodes.slice();
         && boxIn(card, 'list.rollof.2') === ro2 && boxIn(card, 'list.rolltest.2') === rt2 && boxIn(card, 'list.dkind.7') === null && boxIn(card, 'list.standoff') === off && boxIn(card, 'list.chambermatch') === chb);
 }
 
+/* ---------- 1.6.4 (the beta's last look): a point budget's fault lands on its own budget's box, and a test's on its own test's ---------- */
+{
+    // the whole module on a page of plain objects (page()), with the error list in the foot and two budgets drawn as renderBudgets draws them: each row,
+    // then its own error cell. A press on Budget 2's Has fault puts the focus on Budget 2's Has box, never Budget 1's
+    const Q = page(), d = Q.d, m = d.mk, bw = m('div', 'sys-budgets'), boxes = [];
+    ['b_1', 'b_2'].forEach(id => { const rw = m('div', 'sys-flags sys-bud-row'), has = m('input', 'sys-bud-has field'), sp = m('input', 'sys-bud-spent field'); rw.appendChild(has); rw.appendChild(sp); bw.appendChild(rw); boxes.push([has, sp]); bw.appendChild(m('div', 'sys-err', { errFor: id })); });
+    Q.document.getElementById('sysBudgets').appendChild(bw);
+    const foot = m('div', 'sys-foot'), eb = m('button', 'tool ghost', null, 'sysErrBtn'), el = m('div', 'sys-errlist', null, 'sysErrList'); eb.hidden = true; el.hidden = true; foot.appendChild(eb); foot.appendChild(el); Q.modal.appendChild(foot);
+    const went = []; Q.ui.errHost({ where: id => (/^b_/.test(id) ? { name: 'Budget ' + id.slice(2) } : null), say: e => e.message, go: (id, p) => went.push([id, p]) });
+    Q.ui.marks({ b_2: [{ prop: 'has', message: 'Has cannot be read' }, { prop: 'spent', message: 'Spent cannot be read' }] }, {});
+    d.fire(eb, 'click', {}); d.fire(el.childNodes[0], 'click', {}); const at1 = Q.document.activeElement;
+    d.fire(eb, 'click', {}); d.fire(el.childNodes[1], 'click', {}); const at2 = Q.document.activeElement;
+    check('1.6.4 (the beta\u2019s last look) a fault of Budget 2\u2019s Has or Spent lands on Budget 2\u2019s own box, since its error cell stands right after its own row (sysui.js reach, run for real)',
+        at1 === boxes[1][0] && at2 === boxes[1][1] && J(went) === J([['b_2', 'has'], ['b_2', 'spent']]), J([boxes.findIndex(b => b.includes(at1)), boxes.findIndex(b => b.includes(at2))]));
+    // the errors slice (boxIn): a test's fault by its place, on its own row, though only a pool test has a hit box
+    const boxIn = new Function(src.slice(src.indexOf('// [sysuicheck:errors-start]'), src.indexOf('// [sysuicheck:errors-end]')) + '\nreturn boxIn;')();
+    const tw = m('div', 'sys-tests'), tr = [0, 1, 2].map(i => m('div', 'sys-flags sys-test-row', { ti: String(i) }));
+    const lb = tr.map(r => { const x = m('input', 'sys-test-label field'); r.appendChild(x); return x; }), dc = tr.map(r => { const x = m('input', 'sys-test-dice field'); r.appendChild(x); return x; }), hit2 = m('input', 'sys-test-hit');
+    tr[2].appendChild(hit2); tr.forEach(r => tw.appendChild(r));
+    check('1.6.4 (the beta\u2019s last look) a test\u2019s fault lands on its own test\u2019s box by its place (sysui.js boxIn, run for real): its name, its dice, a pool\u2019s hit; a hit asked of a test with none lands on its row; and the Tests topic has its word',
+        boxIn(tw, 'tests.1.label') === lb[1] && boxIn(tw, 'tests.2.dice') === dc[2] && boxIn(tw, 'tests.2.hit') === hit2 && boxIn(tw, 'tests.0.hit') === tr[0] && boxIn(tw, 'tests.7.dice') === null
+        && J(Q.ui.topicOf('tests')) === J(['rules', 'tests']) && J(Q.ui.topicOf('decks')) === J(['rules', 'decks']) && J(Q.ui.topicOf('terrain')) === J(['combat', 'terrain']));
+}
+
 /* ---------- nothing removed, in the page ---------- */
 {
     // every id the editor's page held before this work, and every tooltip it held (the owner: "lets not remove functionality with these updates, thats critical")

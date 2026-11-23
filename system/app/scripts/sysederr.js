@@ -11,7 +11,7 @@
    the rest) stands in sheets.js and a part sets it through the setters beside `var draft`. Change the code here as if it still stood
    in sheets.js. */
 // [split:of sheets.js]
-import { APPLY_KINDS, CAL_LIMITS, F, FEEDS_MAX, KINDS, KIND_LABEL, LIMITS, STORED, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTier, cleanTurn, cleanValue, clone, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, histSaved, itemReach, keyFromLabel, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, showConfirm, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, valueOpts, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
+import { APPLY_KINDS, CAL_LIMITS, F, FEEDS_MAX, KINDS, KIND_LABEL, LIMITS, STORED, TIME_WORDS, callDrops, canWrite, capFOk, catChoices, catNear, catsGone, cleanCalendar, cleanCover, cleanEvery, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanInFight, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanSystem, cleanTests, cleanTier, cleanTurn, cleanValue, clone, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, dirtySet, draft, draftSet, envSays, errorsById, fitIfOk, getActiveCampaign, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, hasDice, histSaved, itemReach, keyFromLabel, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, markDirty, modsIfOk, net, onRemoveSays, opt, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, renderAll, renderViews, save, secretFieldIds, select, showConfirm, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, systemOf, tab, tableSays, terrainSettleAll, toast, turnHoldSays, turnRunSays, ui, unheldRolls, unitOf, validKey, validateSystem, valueOpts, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll } from './sheets.js';   // [split:glue]
 export function sysedErr() {   // [split:glue]
 // [split:body-start]
 // [sysedcheck:kindloss-start]
@@ -829,11 +829,13 @@ function refreshErrorsNow() {
         [['acts', 'Action'], ['units', 'Time unit']].forEach(function(g) {
             var seen = Object.create(null), cap = g[0] === 'acts' ? LIMITS.turnActs : LIMITS.turnUnits;
             (Array.isArray(tnE[g[0]]) ? tnE[g[0]] : []).forEach(function(x, i) {
-                var k = x && typeof x.key === 'string' ? x.key : '', nm = g[1] + ' ' + (i + 1);
+                // 1.6.4 (the beta's last look): a row is said by its name where it has one, and a fault of its short name is said by what it does, never
+                // by the short name's syntax: the short name follows the name and stands out of sight unless Short names is ticked at the foot
+                var k = x && typeof x.key === 'string' ? x.key : '', nm = (x && typeof x.label === 'string' && x.label.trim()) || g[1] + ' ' + (i + 1), kind = g[0] === 'acts' ? 'action' : 'time unit';
                 if (i >= cap) tErr.push({ message: nm + ': at most ' + cap + ', so Save drops it.' });
-                else if (!KEY.test(k)) tErr.push({ message: nm + ' needs a key (a letter, then letters, digits and _): Save drops it.' });
-                else if (seen[k.toLowerCase()]) tErr.push({ message: nm + ': another has the key \u201c' + k + '\u201d, so Save drops it.' });
-                else if (g[0] === 'units' && TIME_WORDS[k.toLowerCase()] === 1) tErr.push({ message: nm + ': \u201c' + k + '\u201d is already a time word, so Save drops it.' });
+                else if (!KEY.test(k)) tErr.push({ message: nm + ' needs a name that makes a short name. Type a name with a letter in it, or tick \u201cShort names\u201d at the foot and give it one. Until then Save drops it.' });
+                else if (seen[k.toLowerCase()]) tErr.push({ message: nm + ': another ' + kind + ' already goes by this name, so Save drops it. Give it another name.' });
+                else if (g[0] === 'units' && TIME_WORDS[k.toLowerCase()] === 1) tErr.push({ message: nm + ': Waypoint already knows ' + k.toLowerCase() + ' as a length of time, so Save drops this unit. Give it another name, such as Watch.' });
                 else if (g[0] === 'units' && !(typeof x.secs === 'number' && x.secs > 0 && x.secs <= 1e9)) tErr.push({ message: nm + ' needs its length in seconds: Save drops it.' });
                 else if (g[0] === 'acts' && !(typeof x.n === 'number' && Math.floor(x.n) === x.n && x.n >= 1 && x.n <= 9)) tErr.push({ message: nm + ': a turn allows 1 to 9, so Save keeps 1.' });
                 if (KEY.test(k)) seen[k.toLowerCase()] = 1;
@@ -1264,7 +1266,9 @@ function refreshErrorsNow() {
             if (rfDice(pa.ast && pa.ast.body)) { bErr.push({ message: at + 'a budget rolls no dice. Save drops the budget.' }); return true; }
             bSys = bSys || { fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables };
             var gmB = gmDerivedNames(bSys, F(), Array.isArray(pa.names) ? pa.names : []);
-            if (gmB.length) { bErr.push({ message: at + 'it reads ' + gmB[0] + ', which players cannot read, and a player sees their own budget. Save drops the budget.' }); return true; }
+            // 1.6.4 (the beta's last look): the name in straight quotes, which the editor's reading of a fault turns into the field's own name in curly
+            // quotes, never its short name
+            if (gmB.length) { bErr.push({ message: at + 'it reads "' + gmB[0] + '", which players cannot read, and a player sees their own budget. Save drops the budget.' }); return true; }
             return false;
         });
     });
@@ -1420,7 +1424,7 @@ function listCleanSays(f, cf) {
 // narrowed by a stat needs a bound. Answers { id: [{ message, prop }] } for errorsById, each prop landing on its box (sysui PROP_BOX, boxIn). Nothing here
 // holds Save, and the cleaners are as they were. Called from refreshErrors
 function rulesSays(dr) {
-    var out = { values: [], tags: [], money: [], results: [], charcats: [] }, d = dr && typeof dr === 'object' ? dr : {}, nm0 = function(x) { return !!x && typeof x === 'object' && typeof x.label === 'string' && x.label.trim() ? x.label.trim() : ''; };
+    var out = { values: [], tags: [], money: [], results: [], charcats: [], tests: [] }, d = dr && typeof dr === 'object' ? dr : {}, nm0 = function(x) { return !!x && typeof x === 'object' && typeof x.label === 'string' && x.label.trim() ? x.label.trim() : ''; };
     var cft = typeof cleanFormulaText === 'function' ? cleanFormulaText : function(v) { return typeof v === 'string' ? v.trim() : ''; }, isNum = function(v) { return typeof v === 'number' && isFinite(v); };
     // 1.6.3 (the review of rules): a name Save gave for want of one. Before this batch the cleaners fell back to the short name the box made (V2, M1, C3,
     // R1), and since 1.6.3 they fall back to a generic word (A shared value). A system saved with an emptied name holds that as its name, which no
@@ -1433,6 +1437,19 @@ function rulesSays(dr) {
             if (!nm0(x)) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': it needs a name, which ' + g[3] + '. Until it has one, they show ' + g[4] + '.', prop: g[0] + '.label.' + i });
             else if (mdN) out[g[0]].push({ message: g[2] + ' ' + (i + 1) + ': Save named it ' + mdN + ' for want of a name. Give it a name of your own, which ' + g[3] + '.', prop: g[0] + '.label.' + i });
         });
+    });
+    // 1.6.4 (the beta's last look): the Rules tab's Tests. A test with no name is called Test by Save, and two such tests read alike in a figure's Rolls by
+    // list; a test whose dice the cleaner cannot read (3d6+2, or a pool's 2d6), or a pool test with no hit, is dropped at Save, and every figure that rolls
+    // by it loses that pick. Each is said under the box, by the cleaner's own reading (cleanTests), on the test's own box (tests.<place>.label, .dice or .hit)
+    (Array.isArray(d.tests) ? d.tests : []).forEach(function(t, i) {
+        if (!t || typeof t !== 'object') return; var mdT = nm0(t) && nm0(t).toLowerCase() === 'test' ? nm0(t) : '', nmT = (!mdT && nm0(t)) || 'Test ' + (i + 1), lose = ' Until then Save drops this test, and a figure that rolls by it loses that pick.';
+        if (!nm0(t)) out.tests.push({ message: nmT + ': it needs a name, which a figure\u2019s Rolls by list shows. Until it has one, Save calls it Test.', prop: 'tests.' + i + '.label' });
+        else if (mdT) out.tests.push({ message: nmT + ': Save named it ' + mdT + ' for want of a name. Give it a name of your own, which a figure\u2019s Rolls by list shows.', prop: 'tests.' + i + '.label' });
+        if (typeof cleanTests !== 'function' || cleanTests([t])) return;
+        var tk = Object.assign({}, t, { key: 'T1' }), pool = t.shape === 'pool';
+        if (cleanTests([tk])) out.tests.push({ message: nmT + ': Save cannot keep this test, so it drops it, and a figure that rolls by it loses that pick.', prop: 'tests.' + i + '.label' });
+        else if (pool && cleanTests([Object.assign({}, tk, { hit: 5 })])) out.tests.push({ message: nmT + ': \u201cA hit at\u201d needs a figure of 1 or more.' + lose, prop: 'tests.' + i + '.hit' });
+        else out.tests.push({ message: nmT + ': Save cannot read its dice. ' + (pool ? 'Give it one kind of die, such as d6.' : 'Give it a count and a die with nothing added, such as 3d6 or 1d20.') + lose, prop: 'tests.' + i + '.dice' });
     });
     (Array.isArray(d.charCats) ? d.charCats : []).forEach(function(x, i) { if (x && typeof x === 'object' && !nm0(x)) out.charcats.push({ message: 'Category ' + (i + 1) + ': it needs a name. Until it has one, Save drops it and its rule, and sheets filed under it by hand go back to no category.', prop: 'charcats.label.' + i }); });
     (Array.isArray(d.results) ? d.results : []).forEach(function(t, i) {

@@ -419,8 +419,10 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
                 && gdW.includes('"face" (1.6.2; a formula, no dice: how many facing changes one turn allows a player\'s token') && gdW.includes('"face" (1.6.2) \u2014 whether it changes facing no more often than its system\'s facing changes per turn;') && !gdW.includes("A system's `combat.turn` may carry `face`"), j([wF, epF('turn.face')]));
         }
         check('T1 the Combat tab\'s Turns box (sheets.js, run for real): the move, its unit, the diagonals, a round\'s seconds, actions and time units (add, type, move, remove; sixty at most, then a word) land in the draft; emptied boxes leave nothing; the Costs menu offers nothing, each action and a cost naming none',
-            j(midT) === j({ move: ' Speed ', unit: 'ft', diag: 'alt', secs: 6, acts: [{ key: 'Bonus', n: 2, label: 'Bonus action' }, { key: 'Action', n: 1 }], units: [{ key: 'watch', secs: 14400 }] })
-            && j(dT.combat.turn) === j({ unit: 'ft', acts: [{ key: 'Action', n: 1 }], units: [{ key: 'watch', secs: 14400 }].concat(Array.from({ length: 59 }, () => ({ key: '', secs: 60 }))) }) && j(eT.toasts) === j(['At most 60.'])
+            /* 1.6.4 (the beta's last look, a deliberate change of this pin): a new action or time unit starts named, Action 1 or Time unit 1, its short name
+               made from that name and marked _new (which the cleaner never keeps) so it follows the name, each the first number no row's name or short name holds */
+            j(midT) === j({ move: ' Speed ', unit: 'ft', diag: 'alt', secs: 6, acts: [{ label: 'Bonus action', key: 'Bonus', n: 2, _new: true }, { label: 'Action 1', key: 'Action', n: 1, _new: true }], units: [{ label: 'Time unit 1', key: 'watch', secs: 14400, _new: true }] })
+            && j(dT.combat.turn) === j({ unit: 'ft', acts: [{ key: 'Action', n: 1, _new: true }], units: [{ label: 'Time unit 1', key: 'watch', secs: 14400, _new: true }].concat(Array.from({ length: 59 }, (_, k) => ({ label: 'Time unit ' + (k + 2), key: 'TimeUnit' + (k + 2), secs: 60, _new: true }))) }) && j(eT.toasts) === j(['At most 60.'])
             && j(costO) === j([['', 'Costs nothing'], ['Action', 'Costs: Action'], ['Gone', 'Costs: Gone (no such action)']]) && A.onTurnInput(tgt('sys-other field', 'x')) === false && A.turnClick(btn('del')) === false, j([midT, dT.combat.turn, eT.toasts, costO]));
         const epT = new Function(shT.slice(shT.indexOf('function errPrefix('), shT.indexOf('\n', shT.indexOf('function errPrefix('))) + NL + 'return errPrefix;')();
         // 1.6.2 (found building a system by hand): a fault under its box names the part in words, and never its short name in the file
@@ -439,7 +441,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('T1 the editor\'s words: the move\'s and a cost\'s prefixes ("Move per turn: ", "Costs: "), a list\'s message with none (its own text leads, as a warning\'s); a roll row and a list roll show a Costs menu once there is an action; Save\'s drops are named under the Combat tab; Help says so',
             epT('turn.move') === 'Move per turn: ' && epT('cost') === 'Costs: ' && epT('list') === '' && epT('key') === 'Short name: '
             && /var actsR = turnActs\(\); if \(actsR\.length \|\| r\.cost\) top\.appendChild\(select\('sys-roll-cost'/.test(require('./checkkit').part('sysedroll.js')) && /if \(actsL\.length \|\| rr\.cost\) \{ var rco = el\('select', 'sys-list-rollcost'\)/.test(require('./checkkit').part('sysedlist.js'))
-            && /is already a time word, so Save drops it\./.test(require('./checkkit').part('sysederr.js')) && /needs a key \(a letter, then letters, digits and _\): Save drops it\./.test(require('./checkkit').part('sysederr.js')) && /box\.appendChild\(listCard\(f, cats, tgL, draft\.combat && draft\.combat\.turn/.test(require('./checkkit').part('sysedlist.js'))
+            /* 1.6.4 (the beta's last look, a deliberate change of this pin): a short name's faults are said by what they do, never by its syntax */
+            && /as a length of time, so Save drops this unit\. Give it another name, such as Watch\./.test(require('./checkkit').part('sysederr.js')) && /needs a name that makes a short name\. Type a name with a letter in it, or tick \\u201cShort names\\u201d at the foot and give it one\. Until then Save drops it\./.test(require('./checkkit').part('sysederr.js')) && /box\.appendChild\(listCard\(f, cats, tgL, draft\.combat && draft\.combat\.turn/.test(require('./checkkit').part('sysedlist.js'))
             && /<li><b>Turns<\/b>, on the Combat tab, describe your game&rsquo;s turn for turn-based combat\./.test(hmT));
         // the ruler (whiteboard.js): the square grid counts a diagonal as the system says
         const wbT = fs.readFileSync(path.join(app, 'scripts', 'whiteboard.js'), 'utf8').replace(/\r\n/g, NL).replace(/\r/g, '');
@@ -631,7 +634,8 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
         check('126 what Save drops of a budget, said under the box (refreshErrors, run for real), with the cleaner agreeing on each: a budget with no name; a formula that is missing, longer than 10,000 characters, unreadable, with the parser\'s own word, or that rolls dice; a formula that reads what players cannot read, itself or through a visible value worked out from it, named, since a player sees their own budget; and every budget past the eighth, said once; a sound budget has no message there, and the validator\'s own word on a name nothing has, or on a text read as a number, stands under that budget\'s own id',
             msgs.length === 8 && msgs[0] === 'Budget 1: it needs a name. Save drops it.' && msgs[1] === 'Budget 2, Has: a formula is needed for the points a character has. Save drops the budget.' && msgs[2] === 'Budget 3, Spent: a formula is needed for the points it has spent. Save drops the budget.'
             && msgs[3] === 'Budget 4, Has: a formula is at most 10,000 characters, on one line. Save drops the budget.' && /^Budget 5, Has: .{8,} Save drops the budget\.$/.test(msgs[4]) && msgs[5] === 'Budget 6, Spent: a budget rolls no dice. Save drops the budget.'
-            && msgs[6] === 'Budget 7, Has: it reads Sec, which players cannot read, and a player sees their own budget. Save drops the budget.' && msgs[7] === 'Budget 8, Spent: it reads Der, which players cannot read, and a player sees their own budget. Save drops the budget.'
+            /* 1.6.4 (the beta's last look, a deliberate change of this pin): the name in straight quotes, which plainMessage says as its label */
+            && msgs[6] === 'Budget 7, Has: it reads "Sec", which players cannot read, and a player sees their own budget. Save drops the budget.' && msgs[7] === 'Budget 8, Spent: it reads "Der", which players cannot read, and a player sees their own budget. Save drops the budget.'
             && bad.every(b => kept(b) === false) && kept(BB(1)) === true && j(over8) === j(['At most 80 budgets: Save drops the rest.'])
             && !okE.budgets && !okE.b_1 && j((okE.b_2 || []).map(e => [e.prop, e.message])) === j([['spent', 'Unknown name "STR" — did you mean "ST"?']]) && j((okE.b_3 || []).map(e => [e.prop, e.message])) === j([['has', '"Nm" is text, not a number.']]),
             j([msgs, over8, Object.keys(okE)]));
@@ -2875,15 +2879,131 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             // as they stood before Merge came (their text pinned by its hash, so a change to either is made on purpose)
             const ixM = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), erM = kit.part('sysederr.js'), tbM = kit.part('sysedtabs.js');
             const wireOk = ixM.includes('>Import</button><button class="tool ghost" id="sysMergeBtn" title="Bring just some fields, lists, rolls, items, effects or point budgets from another system file into this one, ticked one by one (Save keeps them)">Merge from a file&hellip;</button>')
-                && ixM.includes('<input type="file" id="sysMergeFile" accept=".json,application/json" style="display:none;">') && /<script type="module" src="scripts\/librarywin\.js"><\/script>\r?\n<script type="module" src="scripts\/sysmerge\.js"><\/script>/.test(ixM)
+                && ixM.includes('<input type="file" id="sysMergeFile" accept=".json,application/json,.zip,application/zip" style="display:none;">') /* 1.6.4 (the beta's last look, moved on purpose): a whole system's .zip too */ && /<script type="module" src="scripts\/librarywin\.js"><\/script>\r?\n<script type="module" src="scripts\/sysmerge\.js"><\/script>/.test(ixM)
                 && shM.includes("var mg = ui('sysMergeBtn'), mf = ui('sysMergeFile'); if (mg && mf) { mg.addEventListener('click', function() { mf.value = ''; mf.click(); }); mf.addEventListener('change', function() { mergeFile(mf.files && mf.files[0]); }); }")
                 && erM.includes("window.wpSysMerge.says(draft, clean).forEach(function(m) { (errorsById[m.id] = errorsById[m.id] || []).push({ message: m.message }); });")
-                && ixM.includes('<li><b data-ctl="#sysMergeBtn">Merge from a file&hellip;</b> brings just some fields, lists, rolls, items, effects or point budgets from another <b>.wpsystem.json</b> into this system.');
+                && ixM.includes('<li><b data-ctl="#sysMergeBtn">Merge from a file&hellip;</b> brings just some fields, lists, rolls, items, effects or point budgets from another <b>.wpsystem.json</b> into this system. A whole system&rsquo;s .zip works too.');
             const sF = tbM.indexOf('function startFrom(id) {'), sE = tbM.indexOf('// [sysedcheck:draftholds-end]'), iF = tbM.indexOf('function importFile(file) {'), iE = tbM.indexOf('\n}\n', iF) + 3;
             const pinHash = require('crypto').createHash('sha256').update(tbM.slice(sF, sE) + tbM.slice(iF, iE)).digest('hex');
             check('1.6.4 Merge from a file, the editor\'s side (sysedtabs.js mergeFile run for real with its host): a file read and cleaned in the GM\'s view as Import cleans it opens the window with the file\'s name, the field kinds\' words and the editor\'s own rules for a short name; the change puts the pick in the draft under fresh ids, makes a pool among it the damage pool where none is named, marks the draft once (one step of Undo) and draws the editor; a file that is no system says so; the button beside Import, its file box, the module, the wiring, refreshErrors\' line and Help stand where they belong; and Start from and Import are exactly as they were before Merge (their text pinned)',
                 mfOk && wireOk && pinHash === 'd5d43013e7b25d0b1fa043ac2702e256170d7a6e1be566dd9d5c443fe93f764e' /* 1.6.4 (Export a system whole, a deliberate change of this pin): Import also takes a whole system's .zip */, J({ opened, after, got, bad, bad2, wireOk, pinHash }));
         }
+    }
+
+    /* ---- 1.6.4 (the beta's last look at the System editor's newer tabs): each finding fixed, run for real where it can be ---- */
+    {
+        const { makeDom } = require('./boxdom.js'), D = makeDom(), doc = D.document;
+        const mkEl = (tag, cls, text) => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.textContent = String(text); return e; };
+        const mkIn = (cls, v, title, ph) => { const e = mkEl('input', cls); e.value = v === undefined || v === null ? '' : String(v); e.title = title || ''; e.placeholder = ph || ''; return e; };
+        const mkSel = (cls, opts, v) => { const e = mkEl('select', cls); e.value = v; return e; };
+        const cellOf = id => { const e = mkEl('div', 'sys-err'); e.dataset.errFor = id; return e; };
+        const all = (root, cls) => { const out = []; (function w(n) { if (n.nodeType === 1) { if (n.classList.contains(cls)) out.push(n); n.childNodes.forEach(w); } })(root); return out; };
+
+        // (2) and (3) the Rules tab's Tests (sysedcombat.js renderTests, run for real): + Test starts named Test 1, Test 2; the line under a test follows its
+        // dice as they are typed; the box ends in its error cell; each row carries its place for a fault to land on
+        const tsSrc = kit.cut('sysedcombat.js', 'var TEST_SHAPES', 'function renderValues() {');
+        const ruleNameSrc = kit.cut('sysedcombat.js', 'function ruleName(list, word) {', '\n');
+        const testsBox = mkEl('div'); doc.body.appendChild(testsBox);
+        const drTs = { tests: [{ key: 'T1', label: 'Skill test', shape: 'under', dice: '3d6' }] };
+        const RT = new Function('ui', 'draft', 'markDirty', 'patchErrors', 'el', 'input', 'select', 'numInput', 'LIMITS', 'document', 'cleanTests', 'testFormula', 'formulaSays', 'toast', 'errorCell',
+            ruleNameSrc + NL + tsSrc + NL + 'return renderTests;')(id => (id === 'sysTests' ? testsBox : null), drTs, () => {}, () => {}, mkEl, mkIn, mkSel, (c, v) => mkIn(c, v), LIMITS, doc, S.cleanTests, S.testFormula, (d, f) => 'says ' + f, () => {}, cellOf);
+        RT();
+        const noteBefore = all(testsBox, 'sys-note')[1].textContent, dc0 = all(testsBox, 'sys-test-dice')[0];
+        dc0.value = '3d6+2'; D.fire(dc0, 'input'); const noteBad = all(testsBox, 'sys-note')[1].textContent;
+        dc0.value = '1d100'; D.fire(dc0, 'input'); const noteGood = all(testsBox, 'sys-note')[1].textContent;
+        const addT = all(testsBox, 'sys-bud-add')[0]; D.fire(addT, 'click'); D.fire(all(testsBox, 'sys-bud-add')[0], 'click');
+        const rowsT = all(testsBox, 'sys-test-row'), errT = testsBox.querySelector('[data-err-for]');
+        check('1.6.4 (the beta’s last look) the Rules tab’s Tests (renderTests, run for real): the line under a test follows its dice as they are typed, to the words Save drops it by and back; + Test starts named, Test 2 then Test 3, the first number no test’s name holds; each row carries its place, and the box ends in its error cell for what Save drops',
+            noteBefore === 'For a figure called Skill: says 3d6 <= Skill.' && noteBad === 'Give it its dice, such as 3d6. Until then, Save drops it.' && noteGood === 'For a figure called Skill: says 1d100 <= Skill.'
+            && j(drTs.tests.map(t => t.label)) === j(['Skill test', 'Test 2', 'Test 3']) && j(rowsT.map(r => r.dataset.ti)) === j(['0', '1', '2']) && !!errT && errT.dataset.errFor === 'tests',
+            j([noteBefore, noteBad, noteGood, drTs.tests.map(t => t.label)]));
+        // what Save drops of a test, said under the box (sysederr.js rulesSays, run for real with the cleaner's own reading)
+        const rsSrc = kit.cut('sysederr.js', 'function rulesSays(dr) {', '// [split:body-end]');
+        const RS = new Function('cleanFormulaText', 'cleanTests', rsSrc + NL + 'return rulesSays;')(S.cleanFormulaText, S.cleanTests);
+        const tsOut = RS({ tests: [{ key: 'T1', label: '', shape: 'under', dice: '3d6' }, { key: 'T2', label: 'Test', shape: 'plus', dice: '3d6+2' }, { key: 'T3', label: 'Pool', shape: 'pool', dice: 'd6' }, { key: 'T4', label: 'Fine', shape: 'plus', dice: '1d20' }, { key: 'T5', label: 'Big pool', shape: 'pool', dice: '2d6', hit: 5 }] }).tests;
+        check('1.6.4 (the beta’s last look) what Save does with a test is said under the Tests box (rulesSays, run for real): a test with no name, and one Save named Test for want of one; dice the cleaner cannot read, and a pool test with no hit, each dropped with the pick of every figure that rolls by it; a sound test says nothing; each line names the test’s own box',
+            j(tsOut.map(x => x.prop)) === j(['tests.0.label', 'tests.1.label', 'tests.1.dice', 'tests.2.hit', 'tests.4.dice'])
+            && tsOut[0].message === 'Test 1: it needs a name, which a figure’s Rolls by list shows. Until it has one, Save calls it Test.'
+            && tsOut[1].message === 'Test 2: Save named it Test for want of a name. Give it a name of your own, which a figure’s Rolls by list shows.'
+            && tsOut[2].message === 'Test 2: Save cannot read its dice. Give it a count and a die with nothing added, such as 3d6 or 1d20. Until then Save drops this test, and a figure that rolls by it loses that pick.'
+            && tsOut[3].message === 'Pool: “A hit at” needs a figure of 1 or more. Until then Save drops this test, and a figure that rolls by it loses that pick.'
+            && /^Big pool: Save cannot read its dice\. Give it one kind of die, such as d6\./.test(tsOut[4].message), j(tsOut));
+
+        // (4) Name lists (sysedcombat.js renderNames, run for real): a change of the names box, which comes as the focus leaves it on the next press, sets the
+        // count in place and draws nothing again, so that press's button is still there for its click; the count follows as names are typed too
+        const nlSrc = kit.cut('sysedcombat.js', '// [systemcheck:namelists-start]', '// [systemcheck:namelists-end]');
+        const nlBox = mkEl('div'); doc.body.appendChild(nlBox); const drNl = { names: [{ label: 'Towns', names: ['Ash'] }] }; let nlDirty = 0;
+        const lsel = (cls, cap, opts, v) => { const l = mkEl('label'); l.appendChild(mkSel(cls, opts, v)); return l; }, tbtn = (t, act) => { const b = mkEl('button', 'tool', t); b.dataset.act = act; return b; };
+        const RN = new Function('ui', 'draft', 'el', 'input', 'labeledSelect', 'TABLE_VIS_OPTS', 'tableBtn', 'markDirty', 'LIMITS', nlSrc + NL + 'return renderNames;')(id => (id === 'sysNames' ? nlBox : null), drNl, mkEl, mkIn, lsel, [], tbtn, () => nlDirty++, LIMITS);
+        RN();
+        const blk0 = all(nlBox, 'sys-nl')[0], ta0 = all(nlBox, 'sys-nl-names')[0], addN = all(nlBox, 'tool').filter(b => b.dataset.act === 'nladd')[0];
+        ta0.value = 'Ash\nBirch'; D.fire(ta0, 'input'); const cntTyped = all(nlBox, 'sys-nl-count')[0].textContent;
+        ta0.value = 'Ash\nBirch\nCedar'; D.fire(ta0, 'change');
+        const sameBlk = all(nlBox, 'sys-nl')[0] === blk0, sameAdd = all(nlBox, 'tool').filter(b => b.dataset.act === 'nladd')[0] === addN, cntLeft = all(nlBox, 'sys-nl-count')[0].textContent;
+        check('1.6.4 (the beta’s last look) Name lists (renderNames, run for real): leaving the names box sets its count in place and draws nothing again, so + Name list, a list’s x and its two lists are the same elements when the click lands; the count follows as names are typed; the names land in the draft and mark it',
+            sameBlk && sameAdd && cntTyped === '2 names' && cntLeft === '3 names' && j(drNl.names[0].names) === j(['Ash', 'Birch', 'Cedar']) && nlDirty >= 2, j([sameBlk, sameAdd, cntTyped, cntLeft]));
+
+        // (5) Turns: an action's and a time unit's short name follows its name (sysedtabs.js keyBoxFollow, run for real on rows as renderTurns draws them),
+        // stands out of sight unless Short names is ticked, and the name comes first in the row
+        const kfSrc = kit.cut('sysedtabs.js', 'var KEY_FOLLOW = {', 'function entryNames(');
+        const KF = new Function('statKey', 'F', 'Event', kfSrc + NL + 'return keyBoxFollow;')(() => true, () => null, function Ev(t) { this.type = t; });
+        const wrapK = mkEl('div'), rA = mkEl('div', 'sys-flags sys-turn-act'), rB = mkEl('div', 'sys-flags sys-turn-act'), rU = mkEl('div', 'sys-flags sys-turn-tu');
+        const lA = mkIn('sys-turn-actlabel field', 'Action 1'), kA = mkIn('sys-turn-actkey field', 'Action1'), lB = mkIn('sys-turn-actlabel field', 'Bonus'), kB = mkIn('sys-turn-actkey field', 'Bonus'), lU = mkIn('sys-turn-tulabel field', 'Time unit 1'), kU = mkIn('sys-turn-tukey field', 'TimeUnit1');
+        kA.dataset.follow = '1'; kU.dataset.follow = '1'; [[rA, lA, kA], [rB, lB, kB], [rU, lU, kU]].forEach(x => { x[0].appendChild(x[1]); x[0].appendChild(x[2]); wrapK.appendChild(x[0]); });
+        lA.value = 'Bonus action'; KF(lA); lU.value = 'Watch'; KF(lU); lB.value = 'Reaction'; KF(lB);
+        const cssK = fs.readFileSync(path.join(app, 'style.css'), 'utf8'), tabsK = kit.part('sysedtabs.js');
+        check('1.6.4 (the beta’s last look) Turns: an action’s and a time unit’s short name follows its name while it is new (keyBoxFollow, run for real), never another’s and never one saved; the short name stands out of sight unless Short names is ticked; the name box comes first in the row',
+            kA.value === 'BonusAction' && kU.value === 'Watch' && kB.value === 'Bonus'
+            && cssK.includes('#systemModal:not(.sys-show-keys) .sys-turn-actkey, #systemModal:not(.sys-show-keys) .sys-turn-tukey { display: none; }')
+            && tabsK.indexOf("var l = input('sys-turn-' + g[0] + 'label field'") > 0 && tabsK.indexOf("var l = input('sys-turn-' + g[0] + 'label field'") < tabsK.indexOf("var k = input('sys-turn-' + g[0] + 'key field'"), j([kA.value, kU.value, kB.value]));
+
+        // (7) a point budget that reads a GM-only value names it as the field's own name, never its short name (plainMessage turns the quoted name)
+        const drB = { fields: [{ id: 'f_s', key: 'Sec', label: 'Secret points', kind: 'number', vis: 'gm' }] };
+        const saidB = S.plainMessage(drB, 'Budget 1, Has: it reads "Sec", which players cannot read, and a player sees their own budget. Save drops the budget.');
+        check('1.6.4 (the beta’s last look) a budget that reads a GM-only value is said by the value’s own name: refreshErrors puts the name in straight quotes, which plainMessage says as its label',
+            saidB.includes('“Secret points”') && !/\bSec\b/.test(saidB) && kit.part('sysederr.js').includes("'it reads \"' + gmB[0] + '\", which players cannot read"), saidB);
+
+        // (8) and (9) Used by (sysedbox.js usedByBox and usedPlace, run for real): the open list says so to a screen reader, Escape and a press outside it
+        // shut it, and a place in a Combat or Rules topic is named by its topic
+        const ubSrc2 = kit.cut('sysedbox.js', '// [sysedcheck:usedby-start]', '// [sysedcheck:usedby-end]');
+        const fd = { list: [], addEventListener(t, f, c) { this.list.push([t, f, c]); }, removeEventListener(t, f, c) { this.list = this.list.filter(x => !(x[0] === t && x[1] === f && x[2] === c)); } };
+        const ERRT = (() => { const s = fs.readFileSync(path.join(app, 'scripts', 'sysui.js'), 'utf8'), m = /var ERR_TOPIC = (\{[^\n]*?\});/.exec(s); return m ? (new Function('return ' + m[1]))() : {}; })();
+        const wpU = { topicOf: id => (Object.prototype.hasOwnProperty.call(ERRT, id) ? ERRT[id] : null) };
+        const drUb = { fields: [{ id: 'f_x', key: 'X', label: 'X', kind: 'number' }] };
+        const UB = new Function('draft', 'window', 'el', 'document', 'F', 'getActiveCampaign', 'console', ubSrc2 + NL + 'return { usedByBox: usedByBox, usedPlace: usedPlace };')(drUb, { wpSysUi: wpU }, mkEl, fd, () => null, () => null, console);
+        const ub = UB.usedByBox('field', drUb.fields[0]); doc.body.appendChild(ub); const ubBtn = ub.childNodes[0], ubList = ub.childNodes[1];
+        D.fire(ubBtn, 'click'); const openA = [ubBtn.getAttribute('aria-expanded'), ubList.hidden, fd.list.length, ub.classList.contains('used-open')];
+        fd.list[0][1]({ target: ubList }); const insideKeeps = ubList.hidden === false;
+        fd.list[0][1]({ target: doc.body }); const awayA = [ubBtn.getAttribute('aria-expanded'), ubList.hidden, fd.list.length, ub.classList.contains('used-open')];
+        D.fire(ubBtn, 'click'); const escE = D.fire(ubBtn, 'keydown', { key: 'Escape' }); const escA = [ubBtn.getAttribute('aria-expanded'), ubList.hidden, fd.list.length, escE.stopped, doc.activeElement === ubBtn];
+        const escK = fs.readFileSync(path.join(app, 'scripts', 'esckey.js'), 'utf8');
+        check('1.6.4 (the beta’s last look) Used by (usedByBox, run for real): the open list says so to a screen reader; a press inside it keeps it, a press anywhere else shuts it and lets go of its listener; Escape shuts it, goes no further and gives the focus back to its button; the Escape router leaves that press to it',
+            j(openA) === j(['true', false, 1, true]) && insideKeeps && j(awayA) === j(['false', true, 0, false]) && j(escA) === j(['false', true, 0, true, true]) && escK.includes("if (escAt(t, '.sys-usedby.used-open')) return true;"), j([openA, awayA, escA]));
+        const UPt = p => (UB.usedPlace(p) || {}).id;
+        check('1.6.4 (the beta’s last look) Used by names a place in a Combat or Rules topic by that topic (usedPlace, run for real with the editor’s own words for its topics): blasts, turns, cover, range, arcs, map kinds, token bars, terrain, sheet categories, money, decks and their spreads, tests and name lists',
+            UPt(['combat', 'blast', 'scale']) === 'blastdefend' && UPt(['combat', 'turn', 'move']) === 'combat' && UPt(['combat', 'cover', 'hit']) === 'coverhit' && UPt(['combat', 'targetReads', 0]) === 'range' && UPt(['combat', 'arcs', 0]) === 'arcs'
+            && UPt(['mapKinds', 0, 'factors']) === 'mapkinds' && UPt(['combat', 'bars', 0]) === 'bars' && UPt(['combat', 'terrain', 0]) === 'terrain' && UPt(['charCats', 0, 'if']) === 'charcats' && UPt(['currencies', 0]) === 'money'
+            && UPt(['decks', 0]) === 'decks' && UPt(['spreads', 0]) === 'decks' && UPt(['tests', 0, 'dice']) === 'tests' && UPt(['names', 0]) === 'names' && UPt(['combat', 'damage', 'pool']) === 'damage' && UPt(['links', 0]) === 'links',
+            j(['blast', 'cover', 'charCats', 'decks', 'tests'].map(k => UPt(k === 'blast' || k === 'cover' ? ['combat', k] : [k, 0]))));
+
+        // (10) the Linked sheets and Money tooltips say what a box does in words, never a formula's names
+        const lnkS = kit.part('sheetlinkbox.js'), monS = kit.part('sysedcombat.js');
+        check('1.6.4 (the beta’s last look) the Linked sheets and Money tooltips name no formula: a mount’s rider word, a figure each sheet works out, a link’s short name and a currency’s weight are said in words',
+            !/reads Riders\.count|Riders\.max\.Riding|reads Mount\.Move|reads the highest any sheet works out/.test(lnkS) && !/Money\.weight/.test(monS) && lnkS.includes("The word the mount\\u2019s rules use for its rider") && monS.includes("A rule can read how much all of a character\\u2019s money weighs"));
+
+        // (11) Merge from a file takes a whole system's .zip (sysedtabs.js mergeFile, run for real with syszip.js stood in for): its system is merged as a
+        // .wpsystem.json is, its packs and pictures are said to stay in the file, and a zip that is no system's is said in syszip's own words
+        const mfSrc2 = kit.cut('sysedtabs.js', 'function mergeFile(file) {', '// [split:body-end]'), logZ = [];
+        const poolZ = { name: 'Pools', fields: [{ id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource', max: 10 }] };
+        let zipAns = null;
+        const MFZ = new Function('window', 'cleanSystem', 'F', 'LIMITS', 'uid', 'validKey', 'cleanItemKey', 'KIND_LABEL', 'showConfirm', 'toast', 'hpPoolFill', 'markDirty', 'renderAll', 'draft', 'droppedCounts', 'droppedWords', 'validateSystem', 'plainMessage', 'sysZip', 'sysZipDeps', mfSrc2 + NL + 'return mergeFile;')
+            ({ wpSysMerge: { open: c => logZ.push('open ' + c.name), apply: () => ({}), logStep: s => logZ.push('step ' + s) } }, cleanSystem, () => F, LIMITS, S.uid, validKey, S.cleanItemKey, {}, () => {}, t => logZ.push('toast ' + t), () => {}, () => {}, () => {}, S.emptySystem(), S.droppedCounts, S.droppedWords, validateSystem, S.plainMessage,
+             () => Promise.resolve({ readWhole: (file, clean) => Promise.resolve(zipAns ? zipAns : { json: poolZ, system: clean(poolZ), texts: ['pack'], pics: [] }) }), () => ({}));
+        const tickZ = () => new Promise(r => setTimeout(r, 0)), zipFile = { name: 'Pools.zip', text: () => Promise.reject(new Error('binary')) };
+        MFZ(zipFile); for (let q = 0; q < 6; q++) await tickZ(); const zOk = logZ.slice();
+        logZ.length = 0; zipAns = { error: 'That is a campaign export. Bring it in with Import on the top bar.' }; MFZ(zipFile); for (let q = 0; q < 6; q++) await tickZ(); const zBad = logZ.slice();
+        check('1.6.4 (the beta’s last look) Merge from a file reads a whole system’s .zip for its system alone (mergeFile, run for real): the window opens on the system it holds, its packs and pictures are said to stay in the file, and a zip that is no system’s is said in plain words, never called not a Waypoint system',
+            j(zOk) === j(['toast Its library packs and pictures stay in the file: Merge brings only the system’s own parts. Import brings them all.', 'open Pools']) && j(zBad) === j(['step read-failed', 'toast That is a campaign export. Bring it in with Import on the top bar.']), j([zOk, zBad]));
     }
 
     await T.finish();

@@ -402,20 +402,28 @@ function renderTests() {
     var box = ui('sysTests'); if (!box) return; box.textContent = ''; var list = Array.isArray(draft.tests) ? draft.tests : null, ch = function(re) { markDirty(); if (re) renderTests(); if (typeof patchErrors === 'function') patchErrors(); }, wrap = el('div', 'sys-budgets sys-tests');
     wrap.appendChild(el('div', 'sys-light-head', 'Tests')); wrap.appendChild(el('div', 'sys-note', 'The kinds of roll a figure is tested with: under a skill on 3d6 or a percentile, a d20 and a modifier against a target number, or a pool of dice counting hits. A number field picks one under Rolls by, and its card says pass or fail and by how much.'));
     (list || []).forEach(function(tt, i) {
-        var rw = el('div', 'sys-flags sys-tbl-head'), nm = input('sys-test-label field', tt.label || '', 'Its name, as a field\u2019s Rolls by shows it', 'Skill test'), shp = select('sys-test-shape', TEST_SHAPES, tt.shape === 'plus' || tt.shape === 'pool' ? tt.shape : 'under', 'How the figure is tested');
+        var rw = el('div', 'sys-flags sys-tbl-head sys-test-row'), nm = input('sys-test-label field', tt.label || '', 'Its name, as a field\u2019s Rolls by shows it', 'Skill test'), shp = select('sys-test-shape', TEST_SHAPES, tt.shape === 'plus' || tt.shape === 'pool' ? tt.shape : 'under', 'How the figure is tested');
         var dc = input('sys-test-dice field', tt.dice || '', tt.shape === 'pool' ? 'The kind of die in the pool, such as d6 or d10' : 'The dice rolled, such as 3d6, 1d20 or 1d100', tt.shape === 'pool' ? 'd6' : '3d6'), rm = el('button', 'tool ghost sys-btn', '\u00d7'); rm.type = 'button'; rm.title = 'Remove this test';
         var capped = function(txt, x) { var l = el('label', 'sys-check'); l.appendChild(document.createTextNode(txt + ' ')); l.appendChild(x); return l; };
-        nm.addEventListener('input', function() { tt.label = nm.value.slice(0, LIMITS.label); ch(); }); shp.addEventListener('change', function() { tt.shape = shp.value; var dz = String(tt.dice || '').trim().toLowerCase(); if (shp.value === 'pool' && !/^1?d[0-9]+$/.test(dz)) tt.dice = 'd6'; else if (shp.value !== 'pool' && /^1?d[0-9]+$/.test(dz)) tt.dice = '1' + dz.replace(/^1/, '');   /* the dice follow the shape */ if (shp.value !== 'plus') delete tt.target; if (shp.value !== 'pool') { delete tt.hit; delete tt.need; } else if (!tt.hit) tt.hit = 5; ch(true); }); dc.addEventListener('input', function() { tt.dice = dc.value.slice(0, 12); ch(); });
+        rw.dataset.ti = String(i);
+        // 1.6.4 (the beta's last look): the line under the row says what the test makes, worked out again as its dice, its target or its hit change, so
+        // it never keeps the words of dice that were changed since (ch() draws nothing again while a box is typed in)
+        var note = el('div', 'sys-note'), noteSay = function() {
+            var cl = typeof cleanTests === 'function' ? cleanTests([tt]) : null, say = cl && typeof testFormula === 'function' && typeof formulaSays === 'function' ? formulaSays(draft, testFormula(cl[0], 'Skill')) : '';
+            note.textContent = cl ? 'For a figure called Skill: ' + (say || testFormula(cl[0], 'Skill')) + '.' : 'Give it its dice, such as ' + (tt.shape === 'pool' ? 'd6' : '3d6') + '. Until then, Save drops it.';
+        };
+        nm.addEventListener('input', function() { tt.label = nm.value.slice(0, LIMITS.label); ch(); }); shp.addEventListener('change', function() { tt.shape = shp.value; var dz = String(tt.dice || '').trim().toLowerCase(); if (shp.value === 'pool' && !/^1?d[0-9]+$/.test(dz)) tt.dice = 'd6'; else if (shp.value !== 'pool' && /^1?d[0-9]+$/.test(dz)) tt.dice = '1' + dz.replace(/^1/, '');   /* the dice follow the shape */ if (shp.value !== 'plus') delete tt.target; if (shp.value !== 'pool') { delete tt.hit; delete tt.need; } else if (!tt.hit) tt.hit = 5; ch(true); }); dc.addEventListener('input', function() { tt.dice = dc.value.slice(0, 12); ch(); noteSay(); });
         rm.addEventListener('click', function() { list.splice(i, 1); if (!list.length) delete draft.tests; ch(true); });
         [nm, shp, capped('Dice', dc)].forEach(function(x) { rw.appendChild(x); });
-        if (tt.shape === 'plus') { var tg = input('sys-test-target field', tt.target || '', 'The number to reach, or a figure. Empty: the total alone, with no pass or fail', '15'); tg.addEventListener('input', function() { if (tg.value.trim()) tt.target = tg.value.slice(0, LIMITS.formula); else delete tt.target; ch(); }); rw.appendChild(capped('Against', tg)); }
-        if (tt.shape === 'pool') { var hb = numInput('sys-test-hit', typeof tt.hit === 'number' ? tt.hit : 5, 'A die at or past this is a hit', ''), nb = numInput('sys-test-need', typeof tt.need === 'number' ? tt.need : '', 'How many hits it needs. Empty: count them', ''); hb.addEventListener('input', function() { var n = Math.floor(Number(hb.value)); if (n >= 1) tt.hit = n; ch(); }); nb.addEventListener('input', function() { var n = Math.floor(Number(nb.value)); if (nb.value !== '' && n >= 1) tt.need = n; else delete tt.need; ch(); }); rw.appendChild(capped('A hit at', hb)); rw.appendChild(capped('Hits needed', nb)); }
+        if (tt.shape === 'plus') { var tg = input('sys-test-target field', tt.target || '', 'The number to reach, or a figure. Empty: the total alone, with no pass or fail', '15'); tg.addEventListener('input', function() { if (tg.value.trim()) tt.target = tg.value.slice(0, LIMITS.formula); else delete tt.target; ch(); noteSay(); }); rw.appendChild(capped('Against', tg)); }
+        if (tt.shape === 'pool') { var hb = numInput('sys-test-hit', typeof tt.hit === 'number' ? tt.hit : 5, 'A die at or past this is a hit', ''), nb = numInput('sys-test-need', typeof tt.need === 'number' ? tt.need : '', 'How many hits it needs. Empty: count them', ''); hb.addEventListener('input', function() { var n = Math.floor(Number(hb.value)); if (n >= 1) tt.hit = n; ch(); noteSay(); }); nb.addEventListener('input', function() { var n = Math.floor(Number(nb.value)); if (nb.value !== '' && n >= 1) tt.need = n; else delete tt.need; ch(); noteSay(); }); rw.appendChild(capped('A hit at', hb)); rw.appendChild(capped('Hits needed', nb)); }
         rw.appendChild(rm); wrap.appendChild(rw);
-        var cl = typeof cleanTests === 'function' ? cleanTests([tt]) : null, say = cl && typeof testFormula === 'function' && typeof formulaSays === 'function' ? formulaSays(draft, testFormula(cl[0], 'Skill')) : '';
-        wrap.appendChild(el('div', 'sys-note', cl ? 'For a figure called Skill: ' + (say || testFormula(cl[0], 'Skill')) + '.' : 'Give it its dice, such as ' + (tt.shape === 'pool' ? 'd6' : '3d6') + '. Until then, Save drops it.'));
+        noteSay(); wrap.appendChild(note);
     });
-    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Test'); add.type = 'button'; add.title = 'A kind of roll a figure is tested with'; add.addEventListener('click', function() { draft.tests = Array.isArray(draft.tests) ? draft.tests : []; if (draft.tests.length >= 12) { toast('At most 12 tests.'); return; } var n = 1; while (draft.tests.some(function(x) { return x && x.key === 'T' + n; })) n++; draft.tests.push({ key: 'T' + n, label: '', shape: 'under', dice: '3d6' }); ch(true); var lb = box.querySelectorAll('input.sys-test-label'); if (lb.length) lb[lb.length - 1].focus(); });
-    wrap.appendChild(add); box.appendChild(wrap);
+    // 1.6.4 (the beta’s last look): a new test starts named (Test 1, Test 2), as every other adder of the Rules tab does, so two tests left as they
+    // came never both show as Test in a field’s Rolls by list
+    var add = el('button', 'tool ghost sys-btn sys-bud-add', '+ Test'); add.type = 'button'; add.title = 'A kind of roll a figure is tested with'; add.addEventListener('click', function() { draft.tests = Array.isArray(draft.tests) ? draft.tests : []; if (draft.tests.length >= 12) { toast('At most 12 tests.'); return; } var n = 1; while (draft.tests.some(function(x) { return x && x.key === 'T' + n; })) n++; draft.tests.push({ key: 'T' + n, label: ruleName(draft.tests, 'Test'), shape: 'under', dice: '3d6' }); ch(true); var lb = box.querySelectorAll('input.sys-test-label'); if (lb.length) lb[lb.length - 1].focus(); });
+    wrap.appendChild(add); var errT = errorCell('tests'); errT.dataset.errFor = 'tests'; wrap.appendChild(errT); box.appendChild(wrap);   // 1.6.4 (the beta's last look): a test with no name, or one Save drops, said under the box
 }
 function renderValues() {
     var box = ui('sysValues'); if (!box) return; box.textContent = ''; var list = Array.isArray(draft.values) ? draft.values : null, ch = function(re) { markDirty(); if (re) renderValues(); if (typeof patchErrors === 'function') patchErrors(); }, wrap = el('div', 'sys-budgets sys-results'), camp = getActiveCampaign();
@@ -441,7 +449,7 @@ function renderCurrencies() {
         var kd = el('select', 'field sys-cur-kind'); [['', 'Not said'], ['physical', 'Physical'], ['digital', 'Digital']].forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if ((t.kind || '') === o[0]) op.selected = true; kd.appendChild(op); }); kd.title = 'Physical money has a weight. Digital money weighs nothing, and may need a device to pay or be paid in it';   // 157 M1k
         kd.addEventListener('change', function() { if (kd.value) t.kind = kd.value; else delete t.kind; if (t.kind !== 'physical') delete t.weight; if (t.kind !== 'digital') delete t.device; ch(true); }); if (window.wpTexList && typeof window.wpTexList.keys === 'function') window.wpTexList.keys(kd);   // a key step opens the list, since a pick draws the row again
         var kdExtra = null;
-        if (t.kind === 'physical') { var wg = numInput('sys-cur-weight', typeof t.weight === 'number' ? t.weight : '', 'What one of it weighs, in your game\u2019s own unit. Formulas read the whole as Money.weight', 'any'); wg.addEventListener('input', function() { var n = Number(wg.value); if (String(wg.value).trim() !== '' && isFinite(n) && n > 0) t.weight = n; else delete t.weight; ch(); }); kdExtra = capped('Weight of one', wg); }
+        if (t.kind === 'physical') { var wg = numInput('sys-cur-weight', typeof t.weight === 'number' ? t.weight : '', 'What one of it weighs, in your game\u2019s own unit. A rule can read how much all of a character\u2019s money weighs', 'any');   /* 1.6.4 (the beta's last look): a tooltip names no formula */ wg.addEventListener('input', function() { var n = Number(wg.value); if (String(wg.value).trim() !== '' && isFinite(n) && n > 0) t.weight = n; else delete t.weight; ch(); }); kdExtra = capped('Weight of one', wg); }
         else if (t.kind === 'digital') {   // picked by its name, from the system's items and the library's entries, never typed
             var dvO = typeof grantEntries === 'function' ? grantEntries() : [], dvS = el('select', 'field sys-cur-device'), dvHas = !t.device;
             [['', 'Needs nothing']].concat(dvO).forEach(function(o) { var op = el('option', null, o[1]); op.value = o[0]; if ((t.device || '') === o[0]) { op.selected = true; dvHas = true; } dvS.appendChild(op); });
@@ -567,7 +575,7 @@ function renderCharCats() {
     arr.forEach(function(x0, i) {
         var x = x0 && typeof x0 === 'object' ? x0 : {}, row = el('div', 'sys-flags sys-cc'); row.dataset.ci = String(i);
         var nl = el('label', 'sys-combat-item'); nl.appendChild(el('span', 'sys-num-cap', 'Name')); var nm = input('sys-cc-label field', typeof x.label === 'string' ? x.label : '', 'The folder\u2019s name in the Characters list, such as Beasts', 'Name'); nm.maxLength = 60; nl.appendChild(nm); row.appendChild(nl);
-        var fl = el('label', 'sys-combat-item'); fl.appendChild(el('span', 'sys-num-cap', 'Files a sheet by itself where')); var fi = input('sys-cc-if field', typeof x['if'] === 'string' ? x['if'] : '', 'A sheet that meets this goes in this folder by itself, unless it was filed elsewhere by hand. Empty: only by hand', 'Only by hand'); fi.maxLength = LIMITS.formula; fl.appendChild(fi); row.appendChild(fl);
+        var fl = el('label', 'sys-combat-item'); fl.appendChild(el('span', 'sys-num-cap', 'Files a sheet by itself where')); var fi = input('sys-cc-if field', typeof x['if'] === 'string' ? x['if'] : '', 'Which sheets go in this folder by themselves. One filed elsewhere by hand stays there', 'Only by hand'); fi.maxLength = LIMITS.formula; fl.appendChild(fi); row.appendChild(fl);
         row.appendChild(tableBtn('\u00d7', 'ccdel', 'Remove this category')); wrap.appendChild(row);
     });
     var ad = tableBtn('+ Category', 'ccadd', arr.length >= CHAR_CATS ? 'At most ' + CHAR_CATS : 'A folder in the Characters list'); ad.disabled = arr.length >= CHAR_CATS; wrap.appendChild(ad);
@@ -588,6 +596,10 @@ function renderCharCats() {
 // one a line, with Who reads it; the box has listeners of its own, so the editor's dispatchers never read it
 var NAME_KIND_OPTS = [['', 'Characters and places'], ['person', 'Characters'], ['place', 'Places']];
 function namesDraft() { if (!Array.isArray(draft.names)) draft.names = []; return draft.names; }
+// 1.6.4 (the beta's last look): a list's count of names set in place, as names are typed and as the box is left. The box is never drawn again for it: a
+// redraw on the names box's change, which comes as the focus leaves it on the next press, took that press's button or list away before its click landed
+// (+ Name list, a list's x, Serves, Who reads it) and dropped a Tab's focus
+function nlCount(blk, x) { var cn = blk && blk.querySelector ? blk.querySelector('.sys-nl-count') : null; if (cn) cn.textContent = (Array.isArray(x.names) ? x.names.length : 0) + ' names'; }
 function renderNames() {
     var box = ui('sysNames'); if (!box || !draft) return; box.textContent = '';
     var arr = Array.isArray(draft.names) ? draft.names : [], wrap = el('div', 'sys-budgets sys-names');
@@ -601,16 +613,16 @@ function renderNames() {
         head.appendChild(labeledSelect('sys-nl-vis field', 'Who reads it', TABLE_VIS_OPTS, l.vis === 'gm' ? 'gm' : '', 'A list for the GM alone never reaches players'));
         var del = tableBtn('\u00d7', 'nldel', 'Remove this list'); head.appendChild(del); blk.appendChild(head);
         var ta = el('textarea', 'sys-nl-names field'); ta.rows = 5; ta.value = Array.isArray(l.names) ? l.names.join('\n') : ''; ta.placeholder = 'One name a line'; ta.title = 'One name a line, 500 at most'; blk.appendChild(ta);
-        blk.appendChild(el('div', 'sys-note', (Array.isArray(l.names) ? l.names.length : 0) + ' names'));
+        blk.appendChild(el('div', 'sys-note sys-nl-count', (Array.isArray(l.names) ? l.names.length : 0) + ' names'));
         wrap.appendChild(blk);
     });
     var ad = tableBtn('+ Name list', 'nladd', arr.length >= 24 ? 'At most 24' : 'A list of names the name button picks from'); ad.disabled = arr.length >= 24; wrap.appendChild(ad);
     box.appendChild(wrap);
     if (!box._nlWired) { box._nlWired = true;
         box.addEventListener('input', function(e) { var tg = e.target, blk = tg.closest ? tg.closest('.sys-nl') : null, x = blk ? namesDraft()[+blk.dataset.ni] : null; if (!x) return; e.stopPropagation();
-            if (tg.classList.contains('sys-nl-label')) x.label = tg.value.slice(0, 60); else if (tg.classList.contains('sys-nl-names')) x.names = tg.value.split('\n').slice(0, 520); else return; markDirty(); });
+            if (tg.classList.contains('sys-nl-label')) x.label = tg.value.slice(0, 60); else if (tg.classList.contains('sys-nl-names')) { x.names = tg.value.split('\n').slice(0, 520); nlCount(blk, x); } else return; markDirty(); });
         box.addEventListener('change', function(e) { var tg = e.target, blk = tg.closest ? tg.closest('.sys-nl') : null, x = blk ? namesDraft()[+blk.dataset.ni] : null; if (!x) return; e.stopPropagation();
-            if (tg.classList.contains('sys-nl-kind')) { if (tg.value) x.kind = tg.value; else delete x.kind; } else if (tg.classList.contains('sys-nl-vis')) { if (tg.value === 'gm') x.vis = 'gm'; else delete x.vis; } else if (tg.classList.contains('sys-nl-names')) { x.names = tg.value.split('\n').slice(0, 520); renderNames(); return; } else return; markDirty(); });
+            if (tg.classList.contains('sys-nl-kind')) { if (tg.value) x.kind = tg.value; else delete x.kind; } else if (tg.classList.contains('sys-nl-vis')) { if (tg.value === 'gm') x.vis = 'gm'; else delete x.vis; } else if (tg.classList.contains('sys-nl-names')) { x.names = tg.value.split('\n').slice(0, 520); nlCount(blk, x); } else return; markDirty(); });
         box.addEventListener('click', function(e) { var b = e.target && e.target.closest ? e.target.closest('button') : null; if (!b || (b.dataset.act !== 'nladd' && b.dataset.act !== 'nldel')) return; e.stopPropagation(); var arr2 = namesDraft();
             if (b.dataset.act === 'nladd') { if (arr2.length < 24) arr2.push({ label: '', names: [] }); } else { var blk2 = b.closest('.sys-nl'), i2 = blk2 ? +blk2.dataset.ni : -1; if (i2 >= 0) arr2.splice(i2, 1); }
             if (!arr2.length) delete draft.names; markDirty(); renderNames(); });

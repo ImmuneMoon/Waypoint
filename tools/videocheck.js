@@ -263,7 +263,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             /live = \{ id: v\.id, cap: cap, pids: pids \};\n\s*renderTable\(true\);\n\s*streamPost\(\); streamTicking\(true\);/.test(vjs) && /stopTracks\(l\.cap\);\n\s*renderTable\(true\);\n\s*streamTicking\(false\); streamPost\(\);/.test(vjs)
             && /\['play', 'pause', 'seeked'\]\.forEach\(function\(k\) \{ el\.addEventListener\(k, function\(\) \{ if \(live\) streamPost\(\); \}\); \}\);/.test(vjs) && /if \(e\.data && e\.data\.type === 'video-stage-query'\) streamPost\(\);/.test(vjs) && /_streamTick = setInterval\(streamPost, 1000\);/.test(vjs)
             && /if \(d && d\.type === 'video-stage' && !\(window\.wpStreamHeld && window\.wpStreamHeld\(\)\)\) streamVideoApply\(d, svEl, svBox, svCap, window\.wpVideoCore, svSoundOn\(\)\);/.test(sj) && /svChan\.postMessage\(\{ type: 'video-stage-query' \}\);/.test(sj) && /if \(e\.key === 'wp_streamSound'\) svEl\.muted = !svSoundOn\(\);/.test(sj)
-            && /<div id="streamVideo" style="display:none;"><video id="streamVideoEl" playsinline muted><\/video><div id="streamVideoCap"><\/div><\/div>/.test(ix) && /The <b>stream window<\/b> shows a video you are showing to players too, over its map, keeping to your position/.test(ix)
+            && /<div id="streamVideo" style="display:none;"><video id="streamVideoEl" playsinline muted><\/video><div id="streamVideoCap"><\/div><\/div>/.test(ix) && /The <b>stream window<\/b> shows a video you show to everyone, over its map, keeping to your position\. A video shown only to players you ticked stays out of it\./.test(ix)
             && /Stream window plays the table's sound \(the ambient loop, a video shown to players\)/.test(ix) && /#streamVideo \{ position: fixed; inset: 0; z-index: 99990;/.test(read('system/app/style.css'))
             && /\(function maybeShowWelcome\(\) \{\n\s*if \(\/\[\?&\]stream=1\/\.test\(location\.search\) && !wcJoinOnly\(\)\) return;/.test(read('system/app/scripts/main.js')) && /body\.stream-mode \[id\$="Modal"\], body\.stream-mode #welcomeScreen \{ display: none !important; \}/.test(read('system/app/style.css')));   // and the welcome screen never over the stream window's map
     }
@@ -433,8 +433,11 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         check('1.6.4 Open stream window (run for real): on a website plan that does not host it opens nothing and says why, so no second copy of the app comes up; anywhere else it opens the stream window as before',
             o1.opened.length === 0 && j(o1.said) === j(['Your plan does not include hosting, so there is no stream window.']) && j(o2.opened) === j(['http://localhost:3999/?stream=1']) && j(o3.opened) === j(['http://localhost:3999/?stream=1']), j([o1, o2, o3]));
         const zOf = sel2 => { const m = new RegExp('\\n  ' + sel2.replace(/[#]/g, '\\#') + ' \\{[^}]*z-index: (\\d+);').exec(cssM); return m ? Number(m[1]) : NaN; };
-        check('1.6.4 the stream window: the Cover card stands above the bar, so its round, its turn and whom it follows are covered too; Settings\' Stream window block is put away on a website plan that does not host; stream.js publishes its one judge for the button',
-            zOf('#streamCover') > zOf('#streamBar') && zOf('#streamBar') === 100000
+        // 1.6.4 (the review of the beta's last look): the card stays UNDER the bar, so Showing, Focus on and the fold arrow stay in reach while
+        // covered, and the bar's own words about the table (its round, its turn, whom it follows) are put away by the class holdApply sets
+        check('1.6.4 the stream window: the Cover card stays under the bar, which keeps Showing and Focus on but puts away its round, its turn and whom it follows while covered; Settings\' Stream window block is put away on a website plan that does not host; stream.js publishes its one judge for the button',
+            zOf('#streamCover') < zOf('#streamBar') && zOf('#streamBar') === 100000
+            && /\n  #streamBar\.covered \.stream-fight \{ display: none; \}/.test(cssM) && !/#streamBar\.covered [^{\n]*(select|stream-grp|streamHideBtn)/.test(cssM)
             && /body\.web-no-host #netEndBtn, body\.web-no-host #settingsModal \.set-stream,/.test(cssM)
             && /<div class="gm-only set-stream"><!--[^\n]*-->\n\s*<div class="set-field-label" style="margin-top:14px;">Stream window<\/div>\n\s*<button class="tool ghost" id="setStreamBtn"/.test(ixM)
             && sjM.includes('\nwindow.wpStreamRefused = streamWebJoin;\n'), j([zOf('#streamCover'), zOf('#streamBar')]));
@@ -444,14 +447,19 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     {
         const sj = read('system/app/scripts/stream.js'), st = read('system/app/scripts/settings.js'), ixh = read('system/app/index.html'), fxs = read('system/app/scripts/fx.js');
         const els = {}; const el = id => els[id] || (els[id] = { id: id, style: { display: 'none' }, textContent: '' });
-        const doc = { getElementById: id => (id === 'streamCover' || id === 'streamCoverName') ? el(id) : null };
+        const barCls = new Set(); els.streamBar = { id: 'streamBar', classList: { toggle: (c, on) => { if (on) barCls.add(c); else barCls.delete(c); return !!on; } } };
+        const doc = { getElementById: id => (id === 'streamCover' || id === 'streamCoverName' || id === 'streamBar') ? el(id) : null };
+        const docNoBar = { getElementById: id => (id === 'streamCover' || id === 'streamCoverName') ? el(id) : null };
         const W = {}; let agains = 0;
         const run = new Function('window', sliceOf(sj, 'streamhold') + '\nreturn { holdApply: holdApply, setName: function(n) { campName = n; }, held: function() { return held; } };')(W);
-        const r1 = run.holdApply('cover', doc), cov1 = els.streamCover.style.display, nm0 = els.streamCoverName.textContent;
+        const r1 = run.holdApply('cover', doc), cov1 = els.streamCover.style.display, nm0 = els.streamCoverName.textContent, barCov1 = barCls.has('covered');
         run.setName('<b>Duskhold</b>'); run.holdApply('cover', doc); const nm1 = els.streamCoverName.textContent;
-        const r2 = run.holdApply('freeze', doc, () => agains++), cov2 = els.streamCover.style.display, frozen = W.wpStreamHeld();
+        const r2 = run.holdApply('freeze', doc, () => agains++), cov2 = els.streamCover.style.display, frozen = W.wpStreamHeld(), barCov2 = barCls.has('covered');
         const r3 = run.holdApply('melt', doc, () => agains++), back = W.wpStreamHeld(), a1 = agains;
-        run.holdApply('cover', doc, () => agains++); const a2 = agains;
+        run.holdApply('cover', doc, () => agains++); const a2 = agains, barCov3 = barCls.has('covered');
+        let noBarOk = true; try { run.holdApply('', docNoBar); } catch (e) { noBarOk = false; }
+        check('1.6.4 (the review of the beta\'s last look): Cover marks the stream bar covered, so its round, its turn and whom it follows are put away while Showing and Focus on stay; Freeze and Live take the mark off; a page with no bar is no failure',
+            barCov1 === true && barCov2 === false && barCov3 === true && noBarOk, j([barCov1, barCov2, barCov3, noBarOk]));
         check('backlog 34: the stream window\'s Hold: Cover lays the card with the campaign\'s name as text (Waypoint VTT before a name is known) and Back soon; Freeze holds the picture with the card off; a word that is neither is Live, and letting a freeze go asks for the table again once (a cover never does)',
             r1 === 'cover' && cov1 === 'flex' && nm0 === 'Waypoint VTT' && nm1 === '<b>Duskhold</b>' && r2 === 'freeze' && cov2 === 'none' && frozen === true && r3 === '' && back === false && a1 === 1 && a2 === 1,
             j([r1, cov1, nm0, nm1, r2, cov2, frozen, r3, back, a1, a2]));

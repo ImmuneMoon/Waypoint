@@ -149,6 +149,10 @@ if (on) {
         var cov = doc.getElementById('streamCover'), nm = doc.getElementById('streamCoverName');
         if (nm) nm.textContent = campName || 'Waypoint VTT';
         if (cov) cov.style.display = held === 'cover' ? 'flex' : 'none';
+        // 1.6.4 (the review of the beta's last look): the card stands under the bar, so Showing, Focus on and the fold arrow stay in reach to
+        // set up the next view while covered. The class puts away only what the bar says about the table (its round, its turn, whom it follows)
+        var bar = doc.getElementById('streamBar');
+        if (bar && bar.classList) bar.classList.toggle('covered', held === 'cover');
         if (was === 'freeze' && held !== 'freeze' && typeof again === 'function') again();
         return held;
     }

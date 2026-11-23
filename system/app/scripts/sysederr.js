@@ -66,12 +66,17 @@ function saveDraft(force) {
     draftSet(clone(clean)); dirtySet(false); var s = ui('sysSaveBtn'); if (s) s.classList.remove('on'); if (typeof histSaved === 'function') histSaved();   // 1.6.3: no Undo step
     if (pendS.length) { var dc = draft.combat || (draft.combat = {}), dsn = dc.senses && typeof dc.senses === 'object' ? dc.senses : (dc.senses = {}); dsn.list = (Array.isArray(dsn.list) ? dsn.list : []).concat(clone(pendS)); markDirty(); }
     save(true);
-    starterSaved();   // 1.6.2: a starter's own packs, now that its system is the campaign's
+    // 1.6.2: a starter's own packs, now that its system is the campaign's. 1.6.4 (Fulllion, 2026-11-23, "Save waits"): a whole system's .zip
+    // read back answers a promise, kept until its packs are in the library, and what Save says (its count of errors among it) waits for it,
+    // so an entry the system names from those packs is never counted as missing. Anything else answers nothing and Save says it at once
+    var packsIn = starterSaved();
     var n = net(); if (n && n.syncSystem) n.syncSystem();
     if (n && n.active && n.role === 'host' && n.sensesMoved) n.sensesMoved(null);   // Senses S0: a formula or a default only the GM sees may feed Sight, and moves neither view of the system
     if (n && n.active && n.role === 'host' && n.sendItem) terrMaps.forEach(function(id) { n.sendItem(camp.id, id); });   // 1.6.2 (backlog 57): the maps whose pieces were settled, after the system that names the kinds
     if (n && n.active && n.role === 'host' && typeof n.lootMoved === 'function' && JSON.stringify((prevSys && prevSys.combat && prevSys.combat.loot) || null) !== JSON.stringify((clean.combat && clean.combat.loot) || null)) n.lootMoved(null);   /* the review of fold 3a: Bodies is the GM's alone, so syncSystem sees no change; every map's chests follow it */
     if (n && n.active && n.role === 'host' && n.syncChars && gmFacing(prevSys) !== gmFacing(clean)) n.syncChars();   // Stage 6 F4a: an edit to a GM-only item or effect changes what its owner holds inline (the players' view alone would not resend it)
+    var saveSays = function() {   // what Save says, once the packs a .zip brought are in (packsIn above); at once for any other Save
+    if (packsIn && !draft) return;   // the editor was closed while the packs went in: nothing to draw, and the packs' own line still says what came in
     var rnW = rnS ? renamesSay(rnS) : []; if (nR && nR.logEvent) rnW.forEach(function(l) { nR.logEvent('items', l); });
     var v = validateSystem(clean, F()), goneS = typeof goneRefs === 'function' ? goneRefs(clean, typeof refKeys === 'function' ? refKeys(clean) : null) : [];   // 1.6.2 (backlog 208): what still names something that is gone is said at Save too
     // 1.6.3 (the review of the System editor, finding 25): the editor is drawn again first, so its count of errors is the very one the foot shows,
@@ -83,6 +88,8 @@ function saveDraft(force) {
     keysGone(prevSys, clean, typeof refKeys === 'function' ? refKeys(clean) : null).forEach(function(g) { var t = keyUseSays(g.key, keyUses(clean, g.key)); if (t) rnW.push(t); });   // an item's key changed or the item went
     rnW.concat(goneS.slice(0, 3).map(function(g) { return g.message; }), goneS.length > 3 ? [(goneS.length - 3) + ' more name something that is gone, each said under its own box.'] : []).forEach(function(l) { toast(l); });   // each a line in the bell, so none is cut, the last on screen
     if (window.appRender) window.appRender();   // the board and the Properties panel read the system too (a light's presets, the light names): drawn afresh from what was saved
+    };
+    if (packsIn && typeof packsIn.then === 'function') packsIn.then(saveSays, saveSays); else saveSays();
 }
 // [systemcheck:refwarn-start]
 // 1.6.2 (backlog 208, the tracing audit): what the draft leaves that nothing else would say, under the box it belongs to. A rename follows at Save;

@@ -293,6 +293,110 @@ const byClass = (n, cls) => all(n).filter(e => (' ' + e.className + ' ').include
                 && /\.wb-item\.maplegend > \.lg-box \{ position: absolute; inset: 0; padding: \.6em \.75em; overflow: hidden auto;/.test(css)
                 && plT.includes("box.addEventListener('wheel', function(e) { if (!e.ctrlKey && box.scrollHeight > box.clientHeight + 1) e.stopPropagation(); }, { passive: true });"), J([ltErr, got]));
         }
+        {   // 1.6.4 (Fulllion, 2026-11-22, by prompt): a picture on a trigger zone or a place. placecore's half run for real (what is kept, where a
+            // token stands on it, who sees it how), places.js's lines and Properties sliced and run on a page of plain objects, handouts.js's
+            // small kept copy run with a stand-in storage, and the wiring: the wire, a player's app, the import, the asset gate, Help, the notes
+            const zone = (k) => Object.assign({ id: 'z1', type: 'trigger', x: 0, y: 0, w: 100, h: 100, standPic: '/saves/images/Altar.png' }, k);
+            const cs = (w, r) => PC.cleanStand(JSON.parse(J(w)), r);
+            const kept = cs(zone({ standHid: 'h1', standScene: false, standJournal: true, standWho: 'all', standSeen: { u_a: 2, u_b: 1, 'bad id': 2, u_c: 3, u_d: '2' }, standDone: true }), true);
+            const noRec = cs(zone({ standSeen: { u_a: 2 }, standDone: true, standScene: 0, standWho: 'every' }), false);
+            const badPic = ['https://evil.example/a.png', '/saves/images/../x.png', '/saves/images/audio/a.png', 'javascript:alert(1)', '/saves/images/a%2e.png', 5, { toString: () => '/saves/images/a.png' }].map(p => cs(zone({ standPic: p })));
+            const hidOnly = cs(zone({ standPic: undefined, standHid: 'h_9-x' })), hidBad = cs(zone({ standPic: undefined, standHid: '../h' }));
+            const notOk = [{ id: 'm', type: 'trigger', mine: { dmg: '1d6' } }, { id: 't', type: 'image', isChar: true }, { id: 'w', type: 'rect', waiting: true }, { id: 'g', type: 'rect', gmNoteFor: 't' }, { id: 'l', type: 'maplegend' }, { id: 'wl', type: 'rect', blocksSight: true, sightType: 'wall' }].map(w => cs(Object.assign({ standPic: '/saves/images/a.png', standSeen: { u_a: 2 } }, w), true));
+            check('1.6.4 a picture on a zone or a place (cleanStand): a picture only as a board fill keeps one (never a web address, a step up, the sounds folder or a % code), else a handout id; the picture wins over a handout; the two ticks only as false and Who only as once or all; records only where asked, standSeen only ids to 1 or 2, standDone only as true; a mine, a token, a waiting token, a GM note card, a legend or a plain wall keeps none of it',
+                kept.standPic === '/saves/images/Altar.png' && kept.standHid === undefined && kept.standScene === false && kept.standJournal === undefined && kept.standWho === 'all' && J(kept.standSeen) === J({ u_a: 2, u_b: 1 }) && kept.standDone === true
+                && noRec.standSeen === undefined && noRec.standDone === undefined && noRec.standScene === undefined && noRec.standWho === undefined
+                && badPic.every(w => PC.STAND_KEYS.every(k => w[k] === undefined)) && hidOnly.standHid === 'h_9-x' && hidOnly.standPic === undefined && PC.STAND_KEYS.every(k => hidBad[k] === undefined)
+                && notOk.every(w => PC.STAND_KEYS.every(k => w[k] === undefined)) && PC.standOk({ id: 'p', type: 'mappin' }) && PC.standOk({ id: 'h', type: 'rect', hidden: true }) && !PC.standOk(null),
+                J([kept, noRec, badPic, notOk]));
+            const pin = { id: 'p1', type: 'mappin', x: 200, y: 200, w: 40, h: 40 }, hexZ = zone({ shape: 'hexagon', x: 0, y: 0 }), box = { id: 'b', type: 'rect', x: 500, y: 500, w: 100, h: 100 }, line = { id: 'ln', type: 'path', x: 0, y: 0, w: 100, h: 100, pts: [[0, 0], [100, 100]] };
+            check('1.6.4 where a token stands on it (standHolds): a zone by its own shape (a hexagon not in its corner), a place pin within 30 px of its middle each way, any other place by its outline; a pen line and a point that is no number never',
+                PC.standHolds(zone(), 50, 50) && PC.standHolds(zone(), 100, 100) && !PC.standHolds(zone(), 101, 50) && PC.standHolds(hexZ, 50, 50) && !PC.standHolds(hexZ, 2, 2)
+                && PC.standHolds(pin, 250, 250) && PC.standHolds(pin, 190, 220) && !PC.standHolds(pin, 251, 220) && PC.standHolds(box, 550, 599) && !PC.standHolds(box, 499, 550)
+                && !PC.standHolds(line, 50, 50) && !PC.standHolds(zone(), NaN, 5) && !PC.standHolds(zone(), '50', 50));
+            const plan = (w, pid, pr) => PC.standPlan(PC.cleanStand(JSON.parse(J(w)), true), pid, pr);
+            const d1 = plan(zone(), 'u_a', ['u_a', 'u_b']), d2 = plan(zone({ standSeen: { u_a: 2 } }), 'u_a', []), dB = plan(zone({ standSeen: { u_a: 2 } }), 'u_b', []);
+            const dNoJ = plan(zone({ standJournal: false }), 'u_a', []), dNoS2 = plan(zone({ standScene: false, standSeen: { u_a: 2 } }), 'u_a', []), dNone = plan(zone({ standScene: false, standJournal: false }), 'u_a', []);
+            const o1 = plan(zone({ standWho: 'once' }), 'u_a', []), o2 = plan(zone({ standWho: 'once', standSeen: { u_a: 2 } }), 'u_a', []), oShown = plan(zone({ standWho: 'once', standSeen: { u_a: 1 } }), 'u_a', []);
+            const a1 = plan(zone({ standWho: 'all', standSeen: { u_c: 1 } }), 'u_a', ['u_b', 'u_a', 'bad id', 'u_b']), a2 = plan(zone({ standWho: 'all', standDone: true }), 'u_b', ['u_a']);
+            check('1.6.4 who sees it how (standPlan): by default the stander alone, big each time, with a Journal copy the first time only (another player\'s first time is theirs); a tick off takes that part away, and with nothing left to show nothing goes out; once: each player\'s first time alone (shown with everyone counts); everyone once: the stander and every player on the map, kept, and never again; the records say 2 for the stander and 1 for those only shown',
+                J(d1) === J({ to: ['u_a'], scene: true, keep: true, seen: { u_a: 2 } }) && J(d2) === J({ to: ['u_a'], scene: true, keep: false, seen: { u_a: 2 } }) && J(dB) === J({ to: ['u_b'], scene: true, keep: true, seen: { u_a: 2, u_b: 2 } })
+                && J(dNoJ) === J({ to: ['u_a'], scene: true, keep: false, seen: { u_a: 2 } }) && dNoS2 === null && dNone === null
+                && J(o1) === J({ to: ['u_a'], scene: true, keep: true, seen: { u_a: 2 } }) && o2 === null && oShown === null
+                && J(a1) === J({ to: ['u_a', 'u_b'], scene: true, keep: true, seen: { u_c: 1, u_a: 2, u_b: 1 }, done: true }) && a2 === null
+                && PC.standPlan(zone(), 'bad id', []) === null && PC.standPlan({ id: 'z', type: 'trigger' }, 'u_a', []) === null,
+                J([d1, d2, dB, dNoJ, dNoS2, o1, o2, a1, a2]));
+            const sigA = PC.placesSig([{ id: 'a', name: 'A', to: '' }]), sigP = PC.placesSig([{ id: 'a', name: 'A', to: '', pic: 'data:image/jpeg;base64,AAAA' }]), sigQ = PC.placesSig([{ id: 'a', name: 'A', to: '', pic: 'data:image/jpeg;base64,BBBB' }]), sigG = PC.placesSig([{ id: 'a', name: 'A', to: '', pic: true }]);
+            check('1.6.4 a list draws again when a line\'s picture comes or changes (placesSig)', sigA !== sigP && sigP !== sigQ && sigG !== sigA && sigG !== sigP);
+
+            // places.js: each line's picture as the screen may show it, drawn with elements alone
+            const plS = read('scripts/places.js'), picS = slice(plS, 'placescheck:piclines'), drawS = slice(plS, 'placescheck:draw');
+            const JPG = 'data:image/jpeg;base64,/9j/AAAA', mapP = { id: 'm1', whiteboard: [{ id: 'a', standPic: '/saves/images/x.png' }, { id: 'b' }, { id: 'c', standHid: 'h1' }] };
+            const runPic = (viewer, kept) => { const win = { wpPlacePic: (m, id) => (kept || {})[m + '|' + id] || '' }; const L = [{ id: 'a', n: 1, name: 'A' }, { id: 'b', n: 2, name: 'B' }, { id: 'c', n: 3, name: 'C' }];
+                new Function('window', 'pieceOf', 'el', picS + '\nreturn picLines;')(win, (m, id) => m.whiteboard.filter(w => w.id === id)[0] || null, null)(L, mapP, viewer); return L.map(l => l.pic === undefined ? null : l.pic); };
+            check('1.6.4 a line\'s picture (picLines): a player\'s only from the small copy their app kept for that very place (a JPEG data address and nothing else: a web address, a script address, another picture type or a copy of another map is none); the GM\'s a mark where the piece carries a picture or a handout; the stream window none',
+                J(runPic('player', { 'm1|a': JPG, 'm1|b': 'https://evil.example/x.jpg', 'm1|c': 'data:image/png;base64,AAAA', 'm2|a': JPG })) === J([JPG, null, null]) && J(runPic('player', { 'm1|b': 'javascript:alert(1)' })) === J([null, null, null])
+                && J(runPic('gm', { 'm1|a': JPG })) === J([true, null, true]) && J(runPic('stream', { 'm1|a': JPG })) === J([null, null, null]));
+            const docP = mkDoc(), elP = (doc, tag, cls, text) => { const e = doc.createElement(tag); if (cls) e.className = cls; if (text !== undefined && text !== null) e.appendChild(doc.createTextNode(String(text))); return e; };
+            const bodyP = docP.createElement('div'), boxP = docP.createElement('div');
+            const fns = new Function('el', 'window', 'cardInto', picS + drawS + '\nreturn { listInto: listInto, legendInto: legendInto };')(elP, {}, () => docP.createElement('div'));
+            fns.listInto(bodyP, [{ n: 1, id: 'a', name: 'Well', pic: JPG }, { n: 2, id: 'b', name: 'Gate', pic: true }, { n: 3, id: 'c', name: '<img src=x>', pic: 'javascript:1' }], '', null, 'player', docP);
+            fns.legendInto(boxP, 'Places', [{ n: 1, id: 'a', name: 'Well', pic: JPG }], '#000', docP);
+            const imgs = all(bodyP).filter(e => e.tagName === 'IMG'), marks = byClass(bodyP, 'places-pic').filter(e => e.tagName === 'SPAN'), limg = all(boxP).filter(e => e.tagName === 'IMG');
+            check('1.6.4 the box\'s list and a legend draw a player\'s picture at the line\'s end as an image of that JPEG alone, with words of its own, and the GM\'s mark as a glyph; a picture that is no JPEG data address draws nothing, and a hostile name stays text',
+                imgs.length === 1 && imgs[0].src === JPG && imgs[0].className === 'places-pic' && imgs[0].alt === 'What you saw here' && marks.length === 1 && / wi-pic/.test(marks[0].className) && /stands here/.test(marks[0].title)
+                && limg.length === 1 && limg[0].className === 'lg-pic' && byClass(bodyP, 'places-name').some(e => e.textContent === '<img src=x>'));
+
+            // Properties: offered on a zone or a place alone, every word escaped, and its wiring
+            const uiS = slice(plS, 'placescheck:standui'), escP = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            const campU = { handouts: { h1: { id: 'h1', title: '<b>Map</b>"', src: '/saves/images/m.png' }, h2: { id: 'h2', kind: 'text', title: 'Letter', text: 'x' }, h3: { id: 'h3', title: 'Gone', src: '' } } };
+            const htmlOf = (w, on, gm) => new Function('gmMay', 'PC', 'getActiveCampaign', 'cleanTexSrc', 'picRef', 'esc', 'window', uiS + '\nreturn standHtml;')(() => gm !== false, PC, () => campU, FC.cleanTexSrc, s => s, escP, { wpHandoutName: () => 'Altar' })(w, { id: 'm1' }, on);
+            const hZ = htmlOf({ id: 'z', type: 'trigger' }, false), hZp = htmlOf({ id: 'z', type: 'trigger', standHid: 'h1', standWho: 'once' }, false), hP = htmlOf({ id: 'p', type: 'mappin', standPic: '/saves/images/a"b.png', standScene: false, standJournal: false }, true);
+            check('1.6.4 Properties offer Picture here on a trigger zone and on a place alone (never a piece that is no place, a mine or on a screen that is not the GM\'s), with the picture handouts by title (no text handout, none without a picture), every word and address escaped, the ticks and Who as kept, and what Who means in plain words',
+                hZ.includes('id="wbStandPick"') && !hZ.includes('wbStandScene') && hZ.includes('&lt;b&gt;Map&lt;/b&gt;&quot;') && !hZ.includes('<b>Map') && !hZ.includes('Letter') && !hZ.includes('>Gone<')
+                && hZp.includes('<option value="h1" selected>') && hZp.includes('<option value="once" selected>') && hZp.includes('id="wbStandScene" checked') && hZp.includes('the first time their token stands here') && !hZp.includes('place’s line')
+                && !hP.includes('a"b') && !hP.includes('id="wbStandScene" checked') && !hP.includes('id="wbStandJournal" checked') && hP.includes('place’s line') && hP.includes('With both ticks off it shows nothing.')
+                && htmlOf({ id: 'r', type: 'rect' }, false) === '' && htmlOf({ id: 'm', type: 'trigger', mine: {} }, false) === '' && htmlOf({ id: 'z', type: 'trigger' }, false, false) === '');
+            check('1.6.4 Properties\' picking: the Image Library\'s pick kept only as a board fill keeps it, a handout from the list, Remove takes every key off, the ticks kept only as false, a new picture or a new Who starts over; each change found again by its id on the map on screen and cleaned as the host keeps it',
+                uiS.includes('var s = cleanTexSrc(src);') && uiS.includes("standSet(id, mapId, function(cur) { if (cur.standPic !== s) standNew(cur); cur.standPic = s; delete cur.standHid; });") && uiS.includes('PC.STAND_KEYS.forEach(function(k) { delete cur[k]; })')
+                && uiS.includes('f(cur); PC.cleanStand(cur, true);') && uiS.includes("var m = getActiveMap(), cur = m && m.id === mapId") && plS.includes('    standWire(w);   // 1.6.4: the picture here') && plS.includes('        + standHtml(w, map, on);'));
+
+            // handouts.js: the small copy a player keeps of a place's picture, with a stand-in storage and canvas
+            const hoS = read('scripts/handouts.js'), ppS = slice(hoS, 'placescheck:placepic');
+            const store = {}, ls = { getItem: k => Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null, setItem: (k, v) => { store[k] = String(v); } };
+            let synced = 0, drawn = '';
+            const winH = { wpPlaces: { sync: () => { synced++; } } }, docH = { createElement: () => ({ width: 0, height: 0, getContext: () => ({ drawImage() {} }), toDataURL: () => drawn }) };
+            const mkH = () => new Function('localStorage', 'window', 'document', 'createImageBitmap', 'Blob', 'journalKey', 'state', 'net', ppS + '\nreturn { placeAt: placeAt, placePicKeep: placePicKeep, read: window.wpPlacePic };')(ls, winH, docH, async () => ({ width: 400, height: 200, close() {} }), function() {}, m => m.campId + '__' + m.gmId, { appState: { activeCampaignId: 'c1' } }, { gmId: 'u_gm' });
+            const H1 = mkH(), base = { campId: 'c1', gmId: 'u_gm' };
+            drawn = 'data:image/jpeg;base64,/9j/KEEP'; await H1.placePicKeep(Object.assign({ at: { map: 'm1', wb: 'p1' } }, base), new Uint8Array(4), 'image/png');
+            drawn = 'data:image/png;base64,AAAA'; await H1.placePicKeep(Object.assign({ at: { map: 'm1', wb: 'p2' } }, base), new Uint8Array(4), 'image/png');
+            drawn = 'data:image/jpeg;base64,/9j/NOPE'; await H1.placePicKeep(Object.assign({ at: { map: 'm1', wb: 'p3' }, sharedBy: 'Bo' }, base), new Uint8Array(4), 'image/png'); await H1.placePicKeep(Object.assign({ at: { map: 'm1', wb: 'p4' }, replay: true }, base), new Uint8Array(4), 'image/png');
+            await H1.placePicKeep(Object.assign({ at: { map: '../m', wb: 'p5' } }, base), new Uint8Array(4), 'image/png'); await H1.placePicKeep(Object.assign({ at: ['m1', 'p6'] }, base), new Uint8Array(4), 'image/png');
+            const H2 = mkH();   // a new run reads it back from storage
+            check('1.6.4 a player\'s app keeps a small JPEG of a place\'s picture under the table, the map and the piece (placePicKeep), only for a handout from the GM that names a place by two plain ids, never a share or a replay; a drawing that is no JPEG is not kept; a list a new run reads back finds it for the table on screen alone, and the list draws again',
+                H2.read('m1', 'p1') === 'data:image/jpeg;base64,/9j/KEEP' && H2.read('m1', 'p2') === '' && ['p3', 'p4', 'p5', 'p6'].every(p => H2.read('m1', p) === '') && H1.read('m1', 'p1') === 'data:image/jpeg;base64,/9j/KEEP' && synced === 1
+                && J(H1.placeAt({ at: { map: 'm', wb: 'w' } })) === J({ map: 'm', wb: 'w' }) && H1.placeAt({ at: { map: 'm', wb: 'w' }, sharedBy: 'x' }) === null && H1.placeAt({ at: { map: 'm', wb: 'w'.repeat(81) } }) === null
+                && JSON.parse(store.placePics).list.length === 1 && JSON.parse(store.placePics).list[0].k === 'c1__u_gm|m1|p1', J(store));
+            store.placePics = J({ list: [{ k: 'c1__u_gm|m1|p9', u: 'javascript:alert(1)' }, { k: 'c1__u_gm|m1|p8', u: 'data:image/jpeg;base64,/9j/OK' }] });
+            check('1.6.4 what storage holds is read through the same rule: an entry that is no JPEG data address is no picture', mkH().read('m1', 'p9') === '' && mkH().read('m1', 'p8') === 'data:image/jpeg;base64,/9j/OK');
+            const hofS = hoS.slice(hoS.indexOf('window.wpHandoutOf = function'), hoS.indexOf('// [placescheck:placepic-start]')), campH = { handouts: { h1: { id: 'h1', title: 'Their own title', caption: 'kept', src: '/saves/images/Altar.png' }, h2: { id: 'h2', kind: 'text', title: 'Letter', src: '/saves/images/Gate.png' } } };
+            let savedH = 0; const hOf = new Function('getActiveCampaign', 'picRef', 'handoutsOf', 'save', 'ui', 'renderHandouts', 'niceName', 'window', hofS + '\nreturn window.wpHandoutOf;')(() => campH, v => typeof v === 'string' && !/^https?:/.test(v) ? v : '', c => c.handouts, () => { savedH++; }, () => null, () => {}, f => 'Nice ' + f.split('/').pop(), {});
+            const hA = hOf('/saves/images/Altar.png', 'The Well'), hG = hOf('/saves/images/Gate.png', ''), hN = hOf('/saves/images/Well.png', 'The Well'), hW = hOf('https://evil.example/a.png', 'x'), hD = hOf('data:image/png;base64,AAAA', 'x');
+            check('1.6.4 a picture of the campaign\'s own is shown as its picture handout (wpHandoutOf, run for real): one already there keeps the GM\'s title and caption, a text handout is never it, a new one takes the place\'s name or else the picture\'s own, and a web or inline address makes none',
+                hA === 'h1' && campH.handouts.h1.title === 'Their own title' && campH.handouts.h1.caption === 'kept' && hG !== 'h2' && campH.handouts[hG].title === 'Nice Gate.png' && campH.handouts[hN].title === 'The Well' && campH.handouts[hN].src === '/saves/images/Well.png' && hW === '' && hD === '' && savedH === 2,
+                J(campH));
+            check('1.6.4 a received picture handout keeps the small copy as it comes in, before it is shown or saved, not waited for', hoS.includes("    var mime = kind.mime, ext = kind.ext;\n    if (msg.at !== undefined) placePicKeep(msg, bytes, mime);"));
+            // the wire, a player's app, the import, the asset gate
+            const netS = fs.readFileSync(app('scripts/net.js'), 'latin1'), cuS = read('scripts/cleanup.js'), D7 = 'delete w.standPic; delete w.standHid; delete w.standScene; delete w.standJournal; delete w.standWho; delete w.standSeen; delete w.standDone;';
+            check('1.6.4 the picture, its options and who was shown it never leave the host (wireWbItem), a player\'s app drops them whatever a host sends (cleanHostWbItem), a file keeps the picture and the options as cleanStand keeps them and never the records (none without the cleaner), and the asset gate counts the picture as the GM\'s',
+                netS.includes("w.standDone !== undefined) { " + D7 + " }   // 1.6.4") && netS.includes("if (w.mine !== undefined) delete w.mine; " + D7 + " if (w.zoneHidden !== undefined) delete w.zoneHidden;")
+                && cuS.includes("deps.PLACE.cleanStand(w, false); else { " + D7 + " }") && netS.includes("'cloud', 'nullFx', 'standPic'];") && PC.STAND_KEYS.every(k => D7.includes('delete w.' + k + ';')));
+            const helpP = (() => { const a = ix.indexOf('<li><b>Places:</b>'), z = ix.indexOf('</ul>', a); return a > 0 ? ix.slice(a, z) : ''; })();
+            check('1.6.4 Help says it in one short entry under Places, in plain words', helpP.includes('<li><b>Picture here</b>, in the Properties of a place or a trigger zone, shows a picture to a player whose token stands there.') && helpP.includes('A hidden zone or place shows nothing.'));
+            const notes4 = [fs.readFileSync(path.join(root, 'WHATSNEW.txt'), 'utf8'), read('assets/whatsnew.txt')].map(t => t.replace(/\r\n/g, '\n'));
+            check('1.6.4 both release notes say it under 1.6.4 as a draft for Fulllion, alike', notes4.every(t => t.indexOf('Pictures where a token stands (draft for Fulllion)\n') > t.indexOf('WAYPOINT 1.6.4') && t.indexOf('Pictures where a token stands') < t.indexOf('WAYPOINT 1.6.3'))
+                && notes4[0].slice(0, notes4[0].indexOf('WAYPOINT 1.6.3')) === notes4[1].slice(0, notes4[1].indexOf('WAYPOINT 1.6.3')));
+        }
         const ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'checks.yml'), 'utf8');
         check('CI runs this suite under a plain name', /- name: placescheck, a map's places[^\n:]*\n\s+if: \$\{\{ !cancelled\(\) \}\}\n\s+run: node tools\/placescheck\.js/.test(ci.replace(/\r\n/g, '\n')));
     }

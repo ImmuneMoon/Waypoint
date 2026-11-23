@@ -12,6 +12,20 @@ Names on the map
   every name on a map with Show names on this map in Map properties.
   Your players' pins follow, and Places here still lists every place.
 
+Pictures where a token stands (draft for Fulllion)
+- A place or a trigger zone can carry a picture now, from your Image
+  Library or one of your picture handouts. Pick it under Picture here in
+  the piece's Properties.
+- When a player's token stands there, that player sees the picture big,
+  and a copy goes in their Journal. You can untick either one.
+- You choose who sees it: the player who stands there each time (the
+  Journal copy comes the first time only), each player once, or everyone
+  on the map once.
+- On a place, a player who stood there also sees the picture on that
+  place's line in Places here and on a legend.
+- No other player learns of it, and a hidden zone or place shows
+  nothing.
+
 Updates from Waypoint's website
 - Waypoint now gets its updates from waypointvtt.com. Check for updates
   in Settings reads the list there, and the files come from the

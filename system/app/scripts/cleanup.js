@@ -729,6 +729,9 @@ function cleanImportItems(ic, deps) {
                 if (!PLd || !PLok || (w.place !== true && w.place !== false)) delete w.place;
                 var PLn = PLd && PLok ? PLd.cleanPlaceName(w.placeName) : ''; if (PLn) w.placeName = PLn; else delete w.placeName;
             }
+            if (w.standPic !== undefined || w.standHid !== undefined || w.standScene !== undefined || w.standJournal !== undefined || w.standWho !== undefined || w.standSeen !== undefined || w.standDone !== undefined) {   // 1.6.4: a picture on a zone or a place (deps.PLACE = placecore.js cleanStand): the picture and the GM's options as it keeps them; who was shown it is a table's own record and never comes in with a file; none without the cleaner
+                if (deps && deps.PLACE && typeof deps.PLACE.cleanStand === 'function') deps.PLACE.cleanStand(w, false); else { delete w.standPic; delete w.standHid; delete w.standScene; delete w.standJournal; delete w.standWho; delete w.standSeen; delete w.standDone; }
+            }
             if (w.box !== undefined && (typeof w.box !== 'string' || !/^c_bx[A-Za-z0-9]{4,20}$/.test(w.box) || w.isChar || w.waiting)) delete w.box;   // 1.6.2 (backlog 42): a container's box id, as the load's tidy then judges it against the store
             delete w.fxb;   // conditions C1: a token's effects as the table sees them are worked out by a host, never a file's
             delete w.tbr;   // backlog 28: a token's bars as the table sees them likewise

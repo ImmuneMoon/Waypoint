@@ -20,6 +20,8 @@ import { getActiveCampaign, getActiveMap } from './models.js';
 import { state } from './state.js';
 import { save, toast } from './io.js';
 import * as PC from './placecore.js';
+import { picRef } from './safecore.js';   // 1.6.4: the GM's own picture of a place or a zone, drawn in its Properties (never a web address)
+import { cleanTexSrc } from './fogcore.js';   // 1.6.4: a picture picked for a place or a zone, kept only as the board keeps a picture fill
 
 var FIND_MS = 1600;   // how long a found pin stays lit (as the turn strip's own find)
 var _pl = { card: '', sig: '', seen: Object.create(null), lit: null, litT: null, tick: null, memo: null, memoDrop: false };
@@ -67,12 +69,35 @@ function linesNow(map) {
     var w = who(), wb = map && Array.isArray(map.whiteboard) ? map.whiteboard : null, m = _pl.memo;
     if (m && m.map === map && m.wb === wb && m.n === (wb ? wb.length : 0) && m.who === w) return m.lines;
     var F = window.wpFog, seenOf = F && typeof F.placeSeen === 'function' ? function(mp, l) { return F.placeSeen(mp, l); } : null;
-    var lines = linesFor(PC, map, w, seenOf, _pl.seen, ctx());
+    var lines = picLines(linesFor(PC, map, w, seenOf, _pl.seen, ctx()), map, w);
     _pl.memo = { map: map, wb: wb, n: wb ? wb.length : 0, who: w, lines: lines };
     if (!_pl.memoDrop) { _pl.memoDrop = true; Promise.resolve().then(function() { _pl.memo = null; _pl.memoDrop = false; }); }
     return lines;
 }
 
+// [placescheck:piclines-start]
+// 1.6.4 (a picture on a place; Fulllion, 2026-11-22: "the picture shows on that place's line in Places here and on the legend once that player
+// has stood there, never before"). Each line gains pic where this screen may show one: on a player's app the small copy their app kept when
+// the host showed them that place's picture because their token stood there (handouts.js wpPlacePic, a JPEG data address and nothing else:
+// picOk), so a place they never stood on has none, whatever the GM put there; on the GM's screen true for a place whose piece carries a
+// picture (its keys never leave the host), drawn as a small picture mark; in the stream window nothing. The lines handed in are changed in place
+function picOk(u) { return typeof u === 'string' && u.length <= 60000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+={0,2}$/.test(u); }
+function picLines(lines, map, viewer) {
+    if (!Array.isArray(lines) || !map) return lines;
+    lines.forEach(function(l) {
+        if (viewer === 'player') { var u = typeof window.wpPlacePic === 'function' ? window.wpPlacePic(String(map.id || ''), l.id) : ''; if (picOk(u)) l.pic = u; }
+        else if (viewer === 'gm') { var w = pieceOf(map, l.id); if (w && (w.standPic || w.standHid)) l.pic = true; }
+    });
+    return lines;
+}
+// The picture on a line, built with elements alone: a player's small copy as an image (only a JPEG data address), the GM's mark as a glyph
+// with words of its own. cls: the class for the box's list or a legend's line
+function picInto(doc, b, l, cls) {
+    if (l.pic === true) { var g = el(doc, 'span', cls + ' gm wib wi-pic'); g.title = 'Shows a picture to a player whose token stands here'; g.setAttribute('aria-label', 'shows a picture'); b.appendChild(g); return; }
+    if (!picOk(l.pic)) return;
+    var im = el(doc, 'img', cls); im.alt = 'What you saw here'; im.title = 'What you saw here'; im.src = l.pic; b.appendChild(im);
+}
+// [placescheck:piclines-end]
 // [placescheck:draw-start]
 var LEGEND_INK = '#2b2418', LEGEND_INK_LIGHT = '#f1ead8';   // a legend's words on a light plate, and on a dark one
 // The box's list, built into body with elements and text nodes alone. lines: placeLines' lines; card: the place whose card is open (a
@@ -89,6 +114,7 @@ function listInto(body, lines, card, cardOf, viewer, doc) {
         b.type = 'button'; b.dataset.id = l.id; b.title = l.to ? 'Find it on the map and see where it leads' : 'Find it on the map';
         b.appendChild(el(doc, 'span', 'places-n', l.n + '.')); b.appendChild(el(doc, 'span', 'places-name', l.name));
         if (l.to) { var t = el(doc, 'span', 'places-to', '\u2192'); t.setAttribute('aria-label', 'leads to another map'); b.appendChild(t); }
+        if (l.pic) picInto(doc, b, l, 'places-pic');   // 1.6.4: the picture a player saw here, or the GM's mark that one is here
         if (l.mark) { var u = el(doc, 'span', 'places-unseen wib wi-unseen'); u.title = 'No player\u2019s token has seen it while your list or a legend was up. This starts over when you reload.'; u.setAttribute('aria-label', 'not seen by a player yet'); b.appendChild(u); }
         li.appendChild(b);
         if (card === l.id && l.to && typeof cardOf === 'function') li.appendChild(cardInto(doc, cardOf(l)));
@@ -118,6 +144,7 @@ function legendInto(box, title, lines, ink, doc) {
         b.type = 'button'; b.dataset.id = l.id; b.title = l.to ? 'Find it on the map and see where it leads' : 'Find it on the map';
         b.appendChild(el(doc, 'span', 'lg-n', String(l.n))); b.appendChild(el(doc, 'span', 'lg-name', l.name));
         if (l.to) b.appendChild(el(doc, 'span', 'lg-to', '\u2192'));
+        if (l.pic) picInto(doc, b, l, 'lg-pic');   // 1.6.4: as on the box's line
         li.appendChild(b); ol.appendChild(li);
     });
     box.appendChild(ol);
@@ -274,12 +301,14 @@ function fieldHtml(w) {
     var says = auto ? (PC.destOf(w, map) ? 'It leads to another map, so it is a place unless you untick it.' : 'It names a room, so it is a place unless you untick it.') : 'The map\u2019s list of places names it.';
     return '<div class="field check-row"><input type="checkbox" id="wbPlace" ' + (on ? 'checked' : '') + '> <label for="wbPlace" title="List it in Places here and on a legend. A player sees it once their token has seen it."><i class="wib wi-marker"></i> Place</label></div>'
         + (on ? '<div class="field"><label for="wbPlaceName">Place name</label><input type="text" id="wbPlaceName" maxlength="' + PC.NAME_MAX + '" value="' + esc(nm) + '" placeholder="' + esc(def) + '"></div>' : '')
-        + '<div class="muted places-field-line">' + esc(w.hidden && on ? 'It is hidden, so no list names it until you show it.' : says) + '</div>';
+        + '<div class="muted places-field-line">' + esc(w.hidden && on ? 'It is hidden, so no list names it until you show it.' : says) + '</div>'
+        + standHtml(w, map, on);
 }
 // The tick: a piece that is a place with no tick (a room's pin, a teleporter) keeps place: false when unticked and loses the key when ticked
 // again; any other piece the other way round. The name: kept as placecore cleans it, none where the box is left empty. One save each
 function fieldWire(w) {
     var t = document.getElementById('wbPlace'), n = document.getElementById('wbPlaceName');
+    standWire(w);   // 1.6.4: the picture here
     if (t) t.addEventListener('change', function() {   // sync(true) after each: every legend says the change at once
         var map = getActiveMap(); if (!gmMay() || !map) return; var auto = PC.placeAuto(w, map);
         if (t.checked) { if (auto) delete w.place; else w.place = true; } else { if (auto) w.place = false; else delete w.place; }
@@ -291,6 +320,75 @@ function fieldWire(w) {
         save(); step('name', { set: !!v }); if (typeof window.appRender === 'function') window.appRender(); sync(true);
     });
 }
+
+// [placescheck:standui-start]
+// 1.6.4 (Fulllion, 2026-11-22, by prompt): a picture on a trigger zone or a place, set in the piece's Properties under the Place tick (the
+// GM's alone: fieldHtml asks gmMay first). Offered on a trigger zone that is no mine, and on a piece that is a place now (placecore standOk
+// and the tick). The picture is picked from the Image Library (wbimglib.js wpPickImage, kept only as fogcore cleanTexSrc keeps a picture
+// fill, never a typed address) or is one of the campaign's picture handouts. Under it, its options: Show it big (a scene), Put a copy in
+// their Journal, and Who sees it. placecore.js says what each key means; net.js standFire shows it. Built as markup with every word and
+// address escaped, as the rest of Properties is
+var STAND_WHO = [
+    { v: '', label: 'The player who stands here, every time', says: 'Their Journal gets a copy the first time only.' },
+    { v: 'once', label: 'Each player once', says: 'Each player sees it the first time their token stands here, never again.' },
+    { v: 'all', label: 'Everyone on this map, once', says: 'The first token to stand here shows it to every player on this map, once.' }
+];
+// The campaign's picture handouts, by title, for the list ([{ id, title, src }])
+function standHandouts() {
+    var c = getActiveCampaign(), hs = c && c.handouts && typeof c.handouts === 'object' ? c.handouts : {};
+    return Object.keys(hs).map(function(k) { return hs[k]; }).filter(function(h) { return !!h && typeof h.id === 'string' && h.kind !== 'text' && typeof h.src === 'string' && h.src; })
+        .map(function(h) { return { id: h.id, title: String(h.title || '').trim() || 'A picture handout', src: h.src }; })
+        .sort(function(a, b) { return a.title.localeCompare(b.title); });
+}
+// The section's markup for piece w on map (placeOn: whether the Place tick stands ticked), or '' where it may carry no picture
+function standHtml(w, map, placeOn) {
+    if (!gmMay() || !PC.standOk(w) || (w.type !== 'trigger' && !placeOn)) return '';
+    var hs = standHandouts(), h = w.standHid ? hs.filter(function(x) { return x.id === w.standHid; })[0] : null;
+    var src = w.standPic ? cleanTexSrc(w.standPic) : h ? picRef(h.src) : '', has = !!(w.standPic || w.standHid);
+    var name = w.standPic ? (typeof window.wpHandoutName === 'function' ? window.wpHandoutName(w.standPic) : 'A picture') : h ? h.title : w.standHid ? 'A handout that is gone' : '';
+    var who = STAND_WHO.filter(function(o) { return o.v === (w.standWho || ''); })[0] || STAND_WHO[0];
+    var html = '<div class="field stand-pic"><label>Picture here</label>'
+        + (has ? '<div class="stand-pic-now">' + (src ? '<img alt="" src="' + esc(src) + '">' : '') + '<span>' + esc(name) + '</span></div>' : '<div class="muted">A player whose token stands here sees a picture you pick.</div>')
+        + '<div class="stand-pic-row"><button type="button" class="tool ghost" id="wbStandPick" title="Pick a picture from the Image Library">' + (has ? 'Another picture' : 'Pick a picture') + '</button>'
+        + (hs.length ? '<select id="wbStandHand" title="Or show one of your picture handouts"><option value="">Or a handout</option>' + hs.map(function(x) { return '<option value="' + esc(x.id) + '"' + (x.id === w.standHid ? ' selected' : '') + '>' + esc(x.title) + '</option>'; }).join('') + '</select>' : '')
+        + (has ? '<button type="button" class="tool ghost" id="wbStandOff" title="Take the picture off">Remove</button>' : '') + '</div></div>';
+    if (has) html += '<div class="field check-row"><input type="checkbox" id="wbStandScene"' + (w.standScene === false ? '' : ' checked') + '> <label for="wbStandScene">Show it big, as a scene</label></div>'
+        + '<div class="field check-row"><input type="checkbox" id="wbStandJournal"' + (w.standJournal === false ? '' : ' checked') + '> <label for="wbStandJournal">Put a copy in their Journal</label></div>'
+        + '<div class="field"><label for="wbStandWho">Who sees it</label><select id="wbStandWho">' + STAND_WHO.map(function(o) { return '<option value="' + o.v + '"' + (o === who ? ' selected' : '') + '>' + esc(o.label) + '</option>'; }).join('') + '</select>'
+        + '<div class="muted places-field-line">' + esc(who.says + (w.type === 'trigger' && !placeOn ? '' : ' It also shows on this place’s line in their Places here once they stood here.') + (w.standScene === false && w.standJournal === false ? ' With both ticks off it shows nothing.' : '')) + '</div></div>';
+    return html;
+}
+// One change to the piece's picture: found again by its id on the map on screen (an Image Library pick may come long after the press, and an
+// Undo behind it may have replaced the piece), changed by f, cleaned as the host keeps it (with its records), saved, and Properties and
+// every list drawn again. A piece that is gone is left alone and said
+function standSet(id, mapId, f) {
+    var m = getActiveMap(), cur = m && m.id === mapId && Array.isArray(m.whiteboard) ? m.whiteboard.filter(function(x) { return !!x && x.id === id; })[0] : null;
+    if (!gmMay()) return;
+    if (!cur || !PC.standOk(cur)) { toast('That piece is no longer on this map. Nothing was changed.'); return; }
+    f(cur); PC.cleanStand(cur, true);
+    save(); if (typeof window.appRender === 'function') window.appRender(); sync(true);
+}
+// A new picture starts its records over: who was shown the old one has not seen this one
+function standNew(cur) { delete cur.standSeen; delete cur.standDone; }
+function standWire(w) {
+    var map = getActiveMap(), mapId = map ? map.id : null, id = w.id, g = function(k) { return document.getElementById(k); };
+    var pick = g('wbStandPick'), hand = g('wbStandHand'), off = g('wbStandOff'), sc = g('wbStandScene'), jn = g('wbStandJournal'), wh = g('wbStandWho');
+    if (pick) pick.addEventListener('click', function() {
+        if (typeof window.wpPickImage !== 'function') { toast('The image library is not available here.'); return; }
+        window.wpPickImage(function(src) {
+            var s = cleanTexSrc(src);
+            if (!s) { toast('That picture cannot be shown here. Its name holds two dots together, a # or a % code, or it lies in the sounds or video folder. Rename or move the file and pick it again.'); return; }
+            standSet(id, mapId, function(cur) { if (cur.standPic !== s) standNew(cur); cur.standPic = s; delete cur.standHid; });
+            step('pic', { kind: 'library' });
+        });
+    });
+    if (hand) hand.addEventListener('change', function() { var v = hand.value; if (!v) return; standSet(id, mapId, function(cur) { if (cur.standHid !== v) standNew(cur); cur.standHid = v; delete cur.standPic; }); step('pic', { kind: 'handout' }); });
+    if (off) off.addEventListener('click', function() { standSet(id, mapId, function(cur) { PC.STAND_KEYS.forEach(function(k) { delete cur[k]; }); }); step('pic', { kind: 'none' }); });
+    if (sc) sc.addEventListener('change', function() { var on = sc.checked; standSet(id, mapId, function(cur) { if (on) delete cur.standScene; else cur.standScene = false; }); });
+    if (jn) jn.addEventListener('change', function() { var on = jn.checked; standSet(id, mapId, function(cur) { if (on) delete cur.standJournal; else cur.standJournal = false; }); });
+    if (wh) wh.addEventListener('change', function() { var v = wh.value; standSet(id, mapId, function(cur) { if (v === 'once' || v === 'all') cur.standWho = v; else delete cur.standWho; delete cur.standDone; }); });   // a new choice of who arms an Everyone once picture again
+}
+// [placescheck:standui-end]
 
 // ---- Add: a place pin and a legend, the GM's ----
 // Add's Place pin (#addPlacePinBtn): arms the board's placement (whiteboard.js wpArmPlacement) for a 40 px mappin already ticked Place;

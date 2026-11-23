@@ -2718,5 +2718,150 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             cleanOk && exportOk && boxOk && winOk && wireOk, J([cleanOk, exportOk, boxOk, drawn, steps, ED.dirty, winOk, wGm, wPl, wireOk]));
     }
 
+    /* ---- 1.6.4 Merge from a file (held over from the System editor review of 2026-11-21; Fulllion's pick of 2026-11-23): sysmerge.js's pure
+       half run for real on the bundled Basic d20 and on systems made here, its window run for real on a page of plain objects that refuses
+       markup (tools/boxdom.js), sysedtabs.js mergeFile run for real with its host, the line refreshErrors asks, and Import and Start from
+       pinned byte for byte as they stood before ---- */
+    {
+        const J = JSON.stringify, G = { F, gmView: true };
+        const M = await import(url('sysmerge.js') + '?merge164').catch(e => ({ err: e }));
+        check('1.6.4 Merge from a file: sysmerge.js loads in Node with no window', !M.err && typeof M.mergePlan === 'function', M.err && M.err.message);
+        if (!M.err) {
+            const d20 = cleanSystem(core.d20, G), O = { F, limits: LIMITS, keyCap: LIMITS.key, keyOk: k => validKey(k, F), itemKeyOk: k => !!S.cleanItemKey(k, F), uid: S.uid };
+            const offer = M.mergeOffer(d20, f => f.kind);
+            const offerOk = J(offer.map(g => [g.k, g.title, g.rows.length])) === J([['field', 'Fields', 47], ['list', 'Lists', 2], ['roll', 'Rolls', 8], ['item', 'Items', 9], ['effect', 'Effects', 2]])
+                && offer[0].rows[0].name === 'Strength' && offer[0].rows[0].sub === 'number' && offer[1].rows.every(r => /^f_/.test(r.id)) && J(M.mergeOffer({ fields: [{ id: 'bad id' }, 5, null] })) === '[]';
+            // into Basic d20 itself: STR and STRmod are taken, so they come in as STR2 and STRmod2, and the formula of the one reads the other's new name;
+            // Blinded's change aims at the draft's own Blinded field (the same id); fresh ids of each kind's form, none the draft's; nothing given changed
+            const drA = JSON.parse(J(d20)), srcA = J(d20), drA0 = J(drA);
+            const pA = M.mergePlan(d20, drA, { f_str: true, f_strmod: true, e_blinded: true }, O), [nStr, nMod, nBl] = pA.things.map(t => t.obj);
+            const draftIds = new Set([].concat(drA.fields, drA.rolls, drA.items, drA.effects).map(x => x.id));
+            const planA = pA.n === 3 && nStr.key === 'STR2' && nMod.key === 'STRmod2' && nMod.formula === 'floor((STR2 - 10) / 2)' && nStr.label === 'Strength' && J(nBl.mods) === J([{ f: 'f_blinded', op: 'on' }])
+                && /^f_[a-z0-9]{8}$/.test(nStr.id) && /^f_[a-z0-9]{8}$/.test(nMod.id) && /^e_[a-z0-9]{8}$/.test(nBl.id) && [nStr, nMod, nBl].every(x => !draftIds.has(x.id)) && new Set([nStr.id, nMod.id, nBl.id]).size === 3
+                && pA.gaps.length === 0 && J(pA.over) === '[]' && J(d20) === srcA && J(drA) === drA0;
+            // into a blank system: STRmod alone reads Strength, which the blank lacks; Blinded uses the field Blinded; both said, and both are what Tick what they use too ticks
+            const pB = M.mergePlan(d20, S.emptySystem(), { f_strmod: true, e_blinded: true }, O);
+            const planB = J(pB.gaps.map(g => [g.how, g.from.name, g.to.k, g.to.name])) === J([['reads', 'STR modifier', 'field', 'Strength'], ['id', 'Blinded', 'field', 'Blinded']]) && J(pB.lacks.slice().sort()) === J(['f_blinded', 'f_str'])
+                && pB.things[0].obj.key === 'STRmod' && pB.things[0].obj.formula === 'floor((STR - 10) / 2)';
+            // applied: what refreshErrors says under Blinded, with what Save does (the cleaner drops the change); where the cleaner keeps the reference, that it
+            // does nothing; merging the missing field after points the effect at its new id and the line goes; a draft without the effect (Undo's) says nothing
+            const blank = S.emptySystem(), rec = [], gotB = M.mergeApply(blank, M.mergePlan(d20, blank, { e_blinded: true }, O), rec), bl = blank.effects[0];
+            const sayB = M.mergeSays(blank, cleanSystem(blank, G), rec);
+            const sayOk = J(gotB) === J({ effect: 1 }) && J(sayB) === J([{ id: bl.id, message: '“Blinded”, a field of the file this was merged from, is not in this system, so Save drops what names it. Pick one this system has, or merge it too.' }]);
+            const sayKept = M.mergeSays({ fields: [], rolls: [], effects: [JSON.parse(J(bl))] }, { effects: [JSON.parse(J(bl))] }, rec);
+            // (the review of the live check: the record keeps the gap, so an Undo of the second merge, which brings back the effect that names the file's id,
+            // says it again; merging the same pick again adds no second line)
+            const beforeF = J(blank), gotF = M.mergeApply(blank, M.mergePlan(d20, blank, { f_blinded: true }, O), rec);
+            M.mergeApply(JSON.parse(beforeF), M.mergePlan(d20, JSON.parse(beforeF), { e_blinded: true }, O), rec);
+            const undoneF = JSON.parse(beforeF), sayUndo = M.mergeSays(undoneF, cleanSystem(undoneF, G), rec);
+            const relinkOk = J(gotF) === J({ field: 1 }) && bl.mods[0].f === blank.fields[0].id && J(M.mergeSays(blank, cleanSystem(blank, G), rec)) === '[]' && J(sayUndo) === J(sayB);
+            const undone = J(M.mergeSays(S.emptySystem(), null, [{ from: { k: 'effect', id: bl.id, name: 'Blinded' }, to: { k: 'field', id: 'f_x', name: 'X' }, how: 'id' }])) === '[]';
+            // the file's order: fields and lists keep their order among each other; a lone lower-case word and a box of plain words are never read as a formula,
+            // so a list's stat "hp" stays though a field HP had to become HP2; an item's short name made unique, and a name that reads it as a list's entry follows
+            const mix = cleanSystem({ fields: [{ id: 'f_hp', key: 'HP', label: 'HP', kind: 'number' }, { id: 'f_gear', key: 'Gear', label: 'Gear', kind: 'item-list', list: { stats: [{ key: 'hp', label: 'hp' }] } }, { id: 'f_tot', key: 'Tot', label: 'Tot', kind: 'formula', formula: 'HP + Gear.sword.count' }], items: [{ id: 'i_sw', key: 'sword', name: 'Sword', category: 'Gear', stats: { hp: 2 } }] }, G);
+            const into = cleanSystem({ fields: [{ id: 'f_a', key: 'HP', label: 'HP', kind: 'number' }, { id: 'f_b', key: 'Gear', label: 'Gear', kind: 'item-list' }], items: [{ id: 'i_a', key: 'sword', name: 'Sword', category: 'Gear' }] }, G);
+            const pM = M.mergePlan(mix, into, { f_hp: true, f_gear: true, f_tot: true, i_sw: true }, O), oM = pM.things.map(t => t.obj);
+            const mixOk = J(pM.things.map(t => t.k)) === J(['field', 'list', 'field', 'item']) && J(oM.map(o => o.key)) === J(['HP2', 'Gear2', 'Tot', 'sword2']) && oM[2].formula === 'HP2 + Gear2.sword2.count'
+                && oM[1].list.stats[0].key === 'hp' && J(oM[3].stats) === J({ hp: 2 }) && pM.gaps.length === 0;
+            // the review of the merge (each found by a reader and reproduced): a short name with a dot (Basic d20's Skill.Acrobatics) made unique and its
+            // own roll following; an id inside a longer text (a formula's Fx.<id>.on, a reference such as f_g#3) rewritten, and said where it is left
+            // unticked; a box of words (needsText) never read as a formula, while a name in braces in a label follows; a list's column keeps its key
+            // though an item of the same short name is renamed; a formula that is a lone lower-case short name follows; a field left unticked is
+            // joined to the draft's own of that short name only where its kind is the same
+            const pD = M.mergePlan(d20, d20, { f_sk_acro: true }, O), acro = pD.things[0].obj;
+            const dotOk = acro.key === 'Skill.Acrobatics2' && acro.roll === 'd20 + Skill.Acrobatics2' && acro.base === 'DEXmod';
+            const rv = { fields: [{ id: 'f_st', key: 'Stunned', label: 'Stunned', kind: 'toggle' }, { id: 'f_g', key: 'Gear', label: 'Gear', kind: 'item-list', list: { cols: [{ key: 'load', label: 'Load', formula: 'Row.qty' }] } }, { id: 'f_lo', key: 'hp', label: 'hp', kind: 'number' }, { id: 'f_on', key: 'On', label: 'On', kind: 'formula', formula: 'if(Fx.e_a.on, hp, 0)' }],
+                rolls: [{ id: 'r_a', label: 'Hit {Stunned}', formula: 'd20 + hp', needs: 'not Stunned', needsText: 'Not stunned', resistOr: ['r_b', 'f_g#3'] }, { id: 'r_b', label: 'Block', formula: 'd20' }],
+                items: [{ id: 'i_l', key: 'load', name: 'Load', category: 'Gear' }], effects: [{ id: 'e_a', name: 'A', mods: [{ f: 'f_st', op: 'on' }] }] };   // as a file holds it: the plan reads it as it stands
+            const rvInto = cleanSystem({ fields: [{ id: 'f_x', key: 'Stunned', label: 'Stunned', kind: 'number' }, { id: 'f_y', key: 'hp', label: 'hp', kind: 'number' }], items: [{ id: 'i_x', key: 'load', name: 'Weight', category: 'Gear' }] }, G);
+            const pR = M.mergePlan(rv, rvInto, { f_st: true, f_g: true, f_lo: true, f_on: true, r_a: true, r_b: true, i_l: true, e_a: true }, O), oR = {}; pR.things.forEach(t => { oR[t.from] = t.obj; });
+            const rawR = J(rv), srcRoll = rv.rolls.find(r => r.id === 'r_a');
+            const textOk = oR.f_on.formula === 'if(Fx.' + pR.idMap.e_a + '.on, hp2, 0)' && oR.r_a.needsText === 'Not stunned' && oR.r_a.label === 'Hit {Stunned2}' && oR.r_a.formula === 'd20 + hp2'
+                && J(oR.r_a.resistOr) === J([pR.idMap.r_b, pR.idMap.f_g + '#3']) && oR.f_g.list.cols[0].key === 'load' && oR.i_l.key === 'load2' && J(rv) === rawR && !!srcRoll;
+            const pU = M.mergePlan(rv, rvInto, { f_on: true, r_a: true }, O), uR = {}; pU.things.forEach(t => { uR[t.from] = t.obj; });
+            const unOk = J(pU.gaps.map(g => [g.from.name, g.to.name]).sort()) === J([['Hit {Stunned}', 'Block'], ['Hit {Stunned}', 'Gear'], ['On', 'A']]) && uR.r_a.resistOr[1] === 'f_g#3';
+            const pK = M.mergePlan(rv, rvInto, { e_a: true }, O);   // the effect's switch aims at Stunned, a toggle; the draft's Stunned is a number, so it is not joined
+            const kindOk = J(pK.gaps.map(g => [g.how, g.to.name])) === J([['id', 'Stunned']]) && pK.things[0].obj.mods[0].f === 'f_st';
+            const reviewOk = dotOk && textOk && unOk && kindOk;
+            // the limits: a pick past what a system holds is said, and holds Merge
+            const pO = M.mergePlan(d20, d20, { e_blinded: true, e_deafened: true }, Object.assign({}, O, { limits: Object.assign({}, LIMITS, { effects: 3 }) }));
+            const overOk = J(pO.over) === J([{ title: 'effects', n: 4, max: 3 }]);
+            // the whole of Basic d20 into its own skeleton, and its ids put back: the very system, cleaned
+            const sk = JSON.parse(J(d20)); sk.fields = []; sk.rolls = []; sk.items = []; sk.effects = []; const allT = {}; offer.forEach(g => g.rows.forEach(r => { allT[r.id] = true; }));
+            const pW = M.mergePlan(d20, sk, allT, O); M.mergeApply(sk, pW, []); const back = {}; Object.keys(pW.idMap).forEach(k => { back[pW.idMap[k]] = k; });
+            const unmap = v => typeof v === 'string' ? v.replace(/[a-z]_[A-Za-z0-9_]{1,24}/g, w => back[w] || w) : Array.isArray(v) ? v.map(unmap) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(e => [e[0], unmap(e[1])])) : v;
+            const wholeOk = J(cleanSystem(unmap(sk), G)) === J(cleanSystem(d20, G)) && pW.gaps.length === 0;
+            check('1.6.4 Merge from a file, its pure half (mergeOffer, mergePlan, mergeApply and mergeSays run for real on Basic d20): what the file holds by kind, with its kind and GM only in gray; fresh ids of each kind\'s own form that are none of the draft\'s; a short name the draft holds made unique (STR2), with a formula of the pick that read it following (floor((STR2 - 10) / 2)) and a list\'s stat of the same word left alone; an item\'s short name likewise, followed where a name reads it as a list\'s entry; a reference to something left unticked joined to the draft\'s own (the same id, else the same short name or name), else said by name before Merge, and after it under the row with what Save does with it, until it is merged too (the reference then points at its new id); the file\'s order kept; the limits said; and the whole of Basic d20 merged into its own skeleton is the very system once its ids are put back; nothing handed in is changed',
+                offerOk && planA && planB && sayOk && J(sayKept.map(s => /so what names it does nothing\./.test(s.message))) === J([true]) && relinkOk && undone && mixOk && reviewOk && overOk && wholeOk,
+                J({ fon: oR.f_on && oR.f_on.formula, ra: oR.r_a, ugaps: pU.gaps.map(g => [g.from.name, g.to.name]), gk: oR.f_g && oR.f_g.list, ik: oR.i_l && oR.i_l.key, offerOk, planA, planB, sayOk, kept: sayKept.length, relinkOk, undone, mixOk, dotOk, textOk, unOk, kindOk, acro, overOk, wholeOk, keys: oM.map(o => o.key), f: oM[2] && oM[2].formula, over: pO.over, sayB, sayKept }));
+
+            // the window, run for real: what the file holds by kind, each with its own tick and a tick for a whole kind; Find by name hides the rest;
+            // what the pick lacks said, Tick what they use too; Merge ready only with something ticked and inside the limits; Merge hands the editor the plan
+            const Dm = require('./boxdom.js').makeDom(), doc = Dm.document, root = doc.createElement('div'); doc.body.appendChild(root);
+            const keepDoc = globalThis.document, keepEv = globalThis.Event; globalThis.document = doc; delete globalThis.Event;
+            let asked = null, applied = null; const toasts = [], liveDraft = S.emptySystem();
+            try {
+                M.open(d20, Object.assign({}, O, { name: 'Basic d20', kindWord: f => f.kind, draft: () => liveDraft, toast: t => toasts.push(t), confirm: (title, cb, opts) => { asked = { title, cb, opts }; root.appendChild(opts.body); }, apply: p => { applied = p; return M.mergeApply(liveDraft, p, []); } }));
+                const all = t => { const out = []; (function w(n) { if (n.nodeType === 1) { if (t(n)) out.push(n); n.childNodes.forEach(w); } })(root); return out; };
+                const rows = all(n => n.className === 'sys-check sm-row'), heads = all(n => n.className === 'sys-check sm-head'), boxOf = lb => lb.childNodes[0];
+                const say = () => all(n => n.className === 'sm-count')[0].textContent, gapsNow = () => all(n => n.className === 'sm-gap').map(n => n.textContent);
+                const w0 = [asked.title, asked.opts.yes, asked.opts.noEnter, rows.length, heads.map(h => h.textContent), say(), asked.opts.ready()];
+                const blindRow = rows.filter(r => boxOf(r).dataset.id === 'e_blinded')[0];
+                boxOf(blindRow).checked = true; Dm.fire(boxOf(blindRow), 'change');
+                const w1 = [say(), gapsNow(), asked.opts.ready(), heads[4].childNodes[0].indeterminate];
+                const tickToo = all(n => n.className === 'tool ghost sm-tick-too')[0]; Dm.fire(tickToo, 'click');
+                const w2 = [say(), gapsNow(), rows.filter(r => boxOf(r).checked).map(r => boxOf(r).dataset.id).sort()];
+                const find = all(n => n.className === 'field sm-find')[0]; find.value = 'strength'; Dm.fire(find, 'input');
+                const w3 = rows.filter(r => !r.hidden).map(r => r.textContent.trim());
+                asked.cb(true);
+                const w4 = [applied && applied.n, liveDraft.fields.length, liveDraft.effects.length, toasts[toasts.length - 1]];
+                const winOk = J(w0) === J(['Merge from “Basic d20”', 'Merge', true, 68, [' Fields (47)', ' Lists (2)', ' Rolls (8)', ' Items (9)', ' Effects (2)'], 'Nothing is ticked yet.', false])
+                    && J(w1) === J(['Merge brings 1 effect.', ['“Blinded” (effect) uses the field “Blinded”, which this system lacks and you have not ticked.'], true, true])
+                    && J(w2) === J(['Merge brings 1 field and 1 effect.', [], ['e_blinded', 'f_blinded']]) && J(w3) === J(['Strengthnumber'])
+                    && J(w4) === J([2, 1, 1, 'Merged 1 field and 1 effect. Save keeps the merge, and Undo takes it back.']);
+                // a file with nothing to merge is said, and no window comes up
+                asked = null; M.open({ name: 'Empty', fields: [] }, Object.assign({}, O, { toast: t => toasts.push(t), confirm: () => { asked = 1; } }));
+                const emptyOk = asked === null && toasts[toasts.length - 1] === 'That file holds no fields, lists, rolls, items, effects or point budgets to merge.';
+                // (the review of the merge) what the editor's whole check would newly say after Merge, asked a moment after the ticks settle and drawn
+                // in the editor's words; and what the cleaner left out of the file, said as Import says it
+                const seen = []; asked = null; M.open(d20, Object.assign({}, O, { name: 'Basic d20', left: '1 roll', kindWord: f => f.kind, draft: () => S.emptySystem(), toast: () => {}, faults: c => { seen.push(c.fields.length); return ['One', 'Two', 'Three', 'Four']; }, confirm: (title, cb, opts) => { asked = { title, cb, opts }; root.appendChild(opts.body); }, apply: () => ({}) }));
+                const all2 = t => { const out = []; (function w(n) { if (n.nodeType === 1) { if (t(n)) out.push(n); n.childNodes.forEach(w); } })(asked.opts.body); return out; };
+                const cbS = all2(n => n.dataset && n.dataset.id === 'f_strmod')[0]; cbS.checked = true; Dm.fire(cbS, 'change'); await new Promise(r => setTimeout(r, 420));
+                const fl = all2(n => n.className === 'sm-says-faults')[0], flT = fl ? fl.childNodes.map(n => n.textContent) : null, leftT = all2(n => n.className === 'sm-lead').map(n => n.textContent)[1];
+                const faultsOk = J(seen) === J([1]) && J(flT) === J(['After Merge the editor will also say 4 things to fix, such as:', 'One', 'Two', 'Three']) && leftT === 'Left out of the file as it was read (over the limits, or not valid): 1 roll.';
+                check('1.6.4 Merge from a file, the window (sysmerge.js open run for real on a page of plain objects that refuses markup): a question of the app\'s own with Merge on its button and Enter left to its buttons; a tick for each thing, by kind with its count; nothing ticked holds Merge; a tick said in a count, and what it uses that this system lacks said by name; Tick what they use too ticks it; Find by name hides what does not match; Merge hands the plan to the editor and says what came in; a file with nothing to merge says so', winOk && emptyOk && faultsOk, J({ faultsOk, seen, flT, leftT, w0, w1, w2, w3, w4, emptyOk }));
+            } finally { globalThis.document = keepDoc; if (keepEv) globalThis.Event = keepEv; }
+
+            // sysedtabs.js mergeFile, run for real: the file cleaned in the GM's view as Import cleans it, the window opened with the editor's host, and the
+            // change it makes: the draft's lists, a pool made the damage pool where none is named, markDirty once (one step of Undo), the editor drawn again
+            const mfSrc = kit.cut('sysedtabs.js', 'function mergeFile(file) {', '// [split:body-end]');
+            const log = [], ED = { draft: S.emptySystem() }; let host = null;
+            const MF = new Function('window', 'cleanSystem', 'F', 'LIMITS', 'uid', 'validKey', 'cleanItemKey', 'KIND_LABEL', 'showConfirm', 'toast', 'hpPoolFill', 'markDirty', 'renderAll', 'draft', 'droppedCounts', 'droppedWords', 'validateSystem', 'plainMessage', mfSrc + NL + 'return mergeFile;')
+                ({ wpSysMerge: { open: (c, h) => { host = h; log.push('open ' + c.name); }, apply: (d, p) => M.mergeApply(d, p, []) } }, cleanSystem, () => F, LIMITS, S.uid, validKey, S.cleanItemKey, { number: 'Number', resource: 'Pool' }, () => {}, t => log.push('toast ' + t), id => log.push('pool ' + (id === (ED.draft.fields[0] || {}).id)), () => log.push('dirty'), () => log.push('draw'), ED.draft, S.droppedCounts, S.droppedWords, validateSystem, S.plainMessage);
+            const fileOf = t => ({ text: () => Promise.resolve(t) }), tick = () => new Promise(r => setTimeout(r, 0));
+            const poolSys = { name: 'Pools', fields: [{ id: 'f_hp', key: 'HP', label: 'Hit points', kind: 'resource', max: 10 }] };
+            MF(fileOf(J(poolSys))); await tick(); await tick();
+            const h1 = host, opened = log.slice(), got = host ? host.apply(M.mergePlan(cleanSystem(poolSys, G), host.draft(), { f_hp: true }, host)) : null, after = log.slice(opened.length);
+            log.length = 0; MF(fileOf('not json')); await tick(); await tick(); const bad = log.slice();
+            log.length = 0; MF(fileOf('{"x": 1}')); await tick(); await tick(); const bad2 = log.slice();
+            const mfOk = J(opened) === J(['open Pools']) && !!h1 && h1.name === 'Pools' && h1.kindWord({ kind: 'resource' }) === 'Pool' && h1.keyOk('HP') && h1.itemKeyOk('sword') && typeof h1.confirm === 'function' && J(got) === J({ field: 1 })
+                && ED.draft.fields.length === 1 && ED.draft.fields[0].key === 'HP' && ED.draft.fields[0].id !== 'f_hp' && J(after) === J(['pool true', 'dirty', 'draw'])
+                && J(bad) === J(['toast That file is not a Waypoint system.']) && J(bad2) === J(['open '])
+                && h1.left === '' && J(h1.faults(Object.assign(S.emptySystem(), { fields: [{ id: 'f_q', key: 'Q', label: 'Q', kind: 'formula', formula: 'Nope + 1' }] }))) === J(['“Nope” is nothing on this sheet.']) && J(h1.faults(JSON.parse(J(ED.draft)))) === '[]';
+            // where it stands: the button beside Import and its file box, the module loaded, the wiring, refreshErrors' line, Help; and Import and Start from
+            // as they stood before Merge came (their text pinned by its hash, so a change to either is made on purpose)
+            const ixM = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), shM = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8'), erM = kit.part('sysederr.js'), tbM = kit.part('sysedtabs.js');
+            const wireOk = ixM.includes('>Import</button><button class="tool ghost" id="sysMergeBtn" title="Bring just some fields, lists, rolls, items, effects or point budgets from another system file into this one, ticked one by one (Save keeps them)">Merge from a file&hellip;</button>')
+                && ixM.includes('<input type="file" id="sysMergeFile" accept=".json,application/json" style="display:none;">') && /<script type="module" src="scripts\/librarywin\.js"><\/script>\r?\n<script type="module" src="scripts\/sysmerge\.js"><\/script>/.test(ixM)
+                && shM.includes("var mg = ui('sysMergeBtn'), mf = ui('sysMergeFile'); if (mg && mf) { mg.addEventListener('click', function() { mf.value = ''; mf.click(); }); mf.addEventListener('change', function() { mergeFile(mf.files && mf.files[0]); }); }")
+                && erM.includes("window.wpSysMerge.says(draft, clean).forEach(function(m) { (errorsById[m.id] = errorsById[m.id] || []).push({ message: m.message }); });")
+                && ixM.includes('<li><b data-ctl="#sysMergeBtn">Merge from a file&hellip;</b> brings just some fields, lists, rolls, items, effects or point budgets from another <b>.wpsystem.json</b> into this system.');
+            const sF = tbM.indexOf('function startFrom(id) {'), sE = tbM.indexOf('// [sysedcheck:draftholds-end]'), iF = tbM.indexOf('function importFile(file) {'), iE = tbM.indexOf('\n}\n', iF) + 3;
+            const pinHash = require('crypto').createHash('sha256').update(tbM.slice(sF, sE) + tbM.slice(iF, iE)).digest('hex');
+            check('1.6.4 Merge from a file, the editor\'s side (sysedtabs.js mergeFile run for real with its host): a file read and cleaned in the GM\'s view as Import cleans it opens the window with the file\'s name, the field kinds\' words and the editor\'s own rules for a short name; the change puts the pick in the draft under fresh ids, makes a pool among it the damage pool where none is named, marks the draft once (one step of Undo) and draws the editor; a file that is no system says so; the button beside Import, its file box, the module, the wiring, refreshErrors\' line and Help stand where they belong; and Start from and Import are exactly as they were before Merge (their text pinned)',
+                mfOk && wireOk && pinHash === '58737d25fda07cf06d871684b9b5d1e08bd641c9ba66e4c8b762d07882346b9d', J({ opened, after, got, bad, bad2, wireOk, pinHash }));
+        }
+    }
+
     await T.finish();
 })();

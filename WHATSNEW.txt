@@ -135,6 +135,17 @@ Mentions as you type [DRAFT]
 - Short names and names made of everyday words, such as The Tavern,
   are never underlined, and neither is a name two things share.
 
+Merging from another system file [DRAFT]
+- Building a system? Merge from a file, beside Import in the System
+  editor, brings in just the fields, lists, rolls, items, effects or
+  point budgets you tick from another system file. Import still
+  replaces the whole system.
+- What you bring comes in new, beside what you have. A short name you
+  already use gets a number after it, and the formulas you bring that
+  read it follow. Anything you ticked that still needs something your
+  system lacks is named before you merge, with a button to tick that
+  too. Undo takes the whole merge back.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

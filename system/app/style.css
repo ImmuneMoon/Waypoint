@@ -6123,6 +6123,27 @@
   .sheet-read, .sheet-box.ts-box { width: 100%; padding: 3px 6px; font: inherit; font-size: 12.5px; line-height: 1.5; box-sizing: border-box; min-height: calc(1.5em + 8px); }   /* the plain input's own sizes in a sheet: a field keeps its shape when it gains a look and when Edit sheet is pressed */
   .sheet-read { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; cursor: default; }
   .sheet-read.sheet-text { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+  /* 1.6.4: a Notes page on every character sheet (sheets.js, the [notescheck:page] slice): a bar with + Note, then the notes, newest first,
+     each a card: its title and time, its text in the sheet's own notes box, and what may be done with it. The Share picker opens under a note */
+  .sheet-qn { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 16px; }
+  .sheet-qn-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .sheet-qn-head { font-weight: 600; font-size: 14px; color: var(--sheet-accent, var(--gold)); }
+  .sheet-qn-who { flex: 1 1 160px; font-size: 12px; color: var(--sheet-dim, var(--dim)); }
+  .sheet-qn-hint, .sheet-qn-empty { font-size: 12px; color: var(--sheet-dim, var(--dim)); }
+  .sheet-qn-empty { padding: 14px 0; text-align: center; }
+  .sheet-qn-entry { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 8px; background: rgba(0,0,0,0.08); }
+  .sheet-qn-top { display: flex; align-items: center; gap: 8px; }
+  .sheet-qn-title { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+  .sheet-qn-title-read { overflow-wrap: anywhere; }
+  .sheet-qn-when { flex: 0 0 auto; font-size: 11px; color: var(--sheet-dim, var(--dim)); white-space: nowrap; }
+  .sheet-qn-text { width: 100%; box-sizing: border-box; }
+  .sheet-qn-acts, .sheet-qn-sharerow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sheet-qn-acts .sheet-qn-del { margin-left: auto; }
+  .sheet-qn-share { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 6px 8px; border-top: 1px dashed var(--edge); }
+  .sheet-qn-pick { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+  .sheet-qn-all { flex: 0 0 100%; font-weight: 600; }
+  .sheet-qn-sharerow { flex: 0 0 100%; }
+  .sheet-qn-popbar { display: flex; justify-content: flex-end; padding: 4px 8px 0; }
   .sheet-read.sheet-notes, .sheet-box.sheet-notes { height: calc(6em + 8px); min-height: 60px; overflow-y: auto; resize: vertical; }   /* the plain notes box: four lines, a scroll of its own, its grip */
   .sheet-locked .sheet-read { color: inherit; background: transparent; border-color: transparent; }
   .sheet-lockmark { margin-left: 4px; font-size: .9em; color: var(--muted, currentColor); opacity: .8; }   /* 1.6.3 (backlog 170): a field held by its Locked while, beside its label; the field's box carries the words as its tooltip */

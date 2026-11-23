@@ -105,6 +105,19 @@ Names changed at the table [DRAFT]
   name another player or you already go by is asked to pick another,
   and you get a short note saying who tried which name.
 
+A Notes page on every sheet [DRAFT]
+- Notes in a character sheet's head switches the sheet to a page of
+  quick notes, and back. Press + Note to write one, with a title if you
+  like. Each note shows when it was written.
+- The character's player, the GM and anyone the sheet is shared with
+  read and write its notes. A teammate does not see them.
+- Add to my Journal copies a note into your Journal, then asks whether
+  to delete it from the sheet. The Journal keeps its copy either way.
+- Share sends a note to one person at the table, several, or everyone.
+  It lands in their Journal.
+- The page is on for every system. A GM can turn it off in the System
+  editor, under Layout, Sheet look, and the notes are kept.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

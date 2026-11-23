@@ -1607,8 +1607,8 @@ function mergeFile(file) {
                 var got = M.apply(draft, plan), pool = plan.things.filter(function(t) { return t.k === 'field' && t.obj.kind === 'resource'; })[0];
                 if (pool) hpPoolFill(pool.obj.id);
                 markDirty(); renderAll(); return got;
-            } }); } catch (e) { console.error(e); toast('The merge window could not open.'); }
-    }, function() { toast('That file is not a Waypoint system.'); });
+            } }); } catch (e) { console.error(e); M.logStep('open-failed', {}); toast('The merge window could not open.'); }
+    }, function() { M.logStep('read-failed', {}); toast('That file is not a Waypoint system.'); });
 }
 // [syszipcheck:import-start]
 // 1.6.4 (Export a system whole): a system's .zip read back. syszip.js readWhole opens it without unpacking it and judges each entry first

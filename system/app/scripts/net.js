@@ -5646,7 +5646,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (!conn.open) return;
     if (typeof net.syncMapStubs === 'function') net.syncMapStubs();   // possession: tell before reading — a map renamed, re-nested or made whose save has not run yet (this admission's own save, a remote one, takes its place) reaches the players already at the table now, before the newcomer is on the roster; below, what the stubs say is read for the snapshot
     var clashA = typeof clashJudge === 'function' ? clashJudge(prof, conn.peer, true, provenKey ? 'proven' : '') : '';
-    if (clashA) { denyJoin(conn, clashA === 'reserved' ? CLASH_GM_WORDS : CLASH_WORDS); return; }   // 1.6.4: judged again as they are let in: another may have taken the name while they waited (the GM told even inside the quiet time, as their yes is undone)
+    if (clashA) { denyJoin(conn, clashWords(clashA)); return; }   // 1.6.4: judged again as they are let in: another may have taken the name while they waited (the GM told even inside the quiet time, as their yes is undone)
     if (_waitGrace[prof.id]) { clearTimeout(_waitGrace[prof.id]); delete _waitGrace[prof.id]; }   // Onboarding F1a: back inside the grace, their waiting token is where they left it
     var issuedKey = null;
     var land = landingFor(prof);   // their own last map or the fallback under "Player's last location", else the GM's stage
@@ -5915,6 +5915,7 @@ function takeOver(camp, oldId, newId, sel) {
     mv.kept = mv.leftChars + mv.leftToks > 0; mv.bound = !mv.kept || !bindStays(camp, o, oldId);
     if (mv.kept) {   // 1.6.0: something stays, so the old record stays with it, its key and its was its own
         delete nr.was;
+        delete o.tableName;   // 1.6.4: a table name is one person's: it goes with them to the new id, never on both records
         if (mv.bound) { delete o.charId; delete o.charName; } else { delete nr.charId; delete nr.charName; }
     } else {
         var w = wasList(o.was, [oldId]); if (w.length) nr.was = w; else delete nr.was;
@@ -5989,7 +5990,7 @@ function processNextApproval() {
             if (!net.active || net.role !== 'host') return;
             if (!next.conn.open) { pickLog('same-failed', { at: 'dropped' }); toast(who + ' had already dropped. You will be asked again when they come back.'); processNextApproval(); return; }
             var clashS = typeof clashJudge === 'function' ? clashJudge(next.prof, next.conn.peer, true, '') : '';
-            if (clashS) { denyJoin(next.conn, clashS === 'reserved' ? CLASH_GM_WORDS : CLASH_WORDS); pickLog('same-failed', { at: 'name' }); processNextApproval(); return; }   // 1.6.4: a name now in use: turned away before anything moves
+            if (clashS) { denyJoin(next.conn, clashWords(clashS)); pickLog('same-failed', { at: 'name' }); processNextApproval(); return; }   // 1.6.4: a name now in use: turned away before anything moves
             var campT = getActiveCampaign(), mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves()) : false;
             if (mv) { toast(who + ' takes over from ' + nmS + (plays && mv.bound ? ', playing ' + plays : '') + '. ' + movedSay(mv, nmS)); if (typeof logEvent === 'function') logEvent('player', who + ' took over from ' + nmS + ': ' + movedLog(mv, nmS)); pickLog('same-done', movedFacts(mv)); }
             else pickLog('same-failed', { at: 'record' });
@@ -6385,7 +6386,7 @@ function handleMessage(msg, conn) {
         // key did before. A key sent in clear (a client from before the proof) is ignored. No valid proof — a wrong one, the key
         // itself, no answer — or a stranger, and the GM decides (Allow/Deny, flagged as a known name without its key).
         var clashH = typeof clashJudge === 'function' ? clashJudge(prof, conn.peer, false, 'gate') : '';   // 1.6.4: a name someone at the table already goes by, or one kept for the GM, is turned away, to pick another (a player seated here this session comes back under their record's name; one who may be the name's holder goes on to prove their key)
-        if (clashH) { denyJoin(conn, clashH === 'reserved' ? CLASH_GM_WORDS : CLASH_WORDS); return; }
+        if (clashH) { denyJoin(conn, clashWords(clashH)); return; }
         var camp0 = getActiveCampaign();
         var rec0 = (camp0 && camp0.players && own(camp0.players, prof.id)) ? camp0.players[prof.id] : null;
         var keyed0 = !!(rec0 && typeof rec0.key === 'string' && rec0.key);
@@ -6401,7 +6402,7 @@ function handleMessage(msg, conn) {
                 var dupV = liveDupOf(conn, prof.id);   // 1.6.3 (finding 17): judged with the proof below
                 var campV = getActiveCampaign(), recV = (campV && campV.players && own(campV.players, prof.id)) ? campV.players[prof.id] : null;
                 var keyOk0 = !!(want && recV && recV.key === key0 && sameStr(want, msg.proof)), bound0 = !!(ch0 && fp0 && fp0[0] === ch0.theirs && fp0[1] === ch0.mine);   // the key still the one proven (the GM may have re-issued it meanwhile) — and proven over THIS connection: the pair the proof covers is the pair this side reads
-                var inP = function() { var clashI = typeof clashJudge === 'function' ? clashJudge(prof, conn.peer, false, 'proven') : ''; if (clashI) { denyJoin(conn, clashI === 'reserved' ? CLASH_GM_WORDS : CLASH_WORDS); return; }   /* 1.6.4: judged before an old connection is closed for this one */ if (liveDupOf(conn, prof.id) && dupDrop(conn, prof.id)) logEvent('table', (prof.name || 'A player') + ' came back on a new connection. The old one was closed.'); admitPlayer(conn, prof, key0); };
+                var inP = function() { var clashI = typeof clashJudge === 'function' ? clashJudge(prof, conn.peer, false, 'proven') : ''; if (clashI) { denyJoin(conn, clashWords(clashI)); return; }   /* 1.6.4: judged before an old connection is closed for this one */ if (liveDupOf(conn, prof.id) && dupDrop(conn, prof.id)) logEvent('table', (prof.name || 'A player') + ' came back on a new connection. The old one was closed.'); admitPlayer(conn, prof, key0); };
                 if (keyOk0 && bound0 && pwSat && validCn(msg.cn) && !cm.signed) {   // 1.6.3: a seated player proven with no password: the host's early proof and the snapshot's signature are begun now, once the key has passed
                     if (!cm.hailed) { cm.hailed = true; cm.hail = gmHail(cm, msg.cn, conn); }
                     cm.signed = gmPresign(cm, msg.cn, key0, conn);
@@ -8528,14 +8529,20 @@ function handleMessage(msg, conn) {
         if (inP.id !== undefined && inP.id !== pcP.id) return;   // its own profile only
         if (!allow('profile-set', { perMs: 250, burst: 10, windowMs: 60000, table: 300 }, pcP.id)) return;   // by the player, so a new connection starts no new count; spaced a quarter second, so two sends a stalled link delivers together both land (a player's app sends at most 8 a minute, 2 s apart)
         var nmP = cleanRosterName(inP.name), colP = typeof inP.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(inP.color) ? inP.color : '', avP = safeAvatar(inP.avatar) ? inP.avatar : '';
+        var campT0 = getActiveCampaign(), recT0 = campT0 && campT0.players && typeof campT0.players === 'object' && own(campT0.players, pcP.id) && typeof campT0.players[pcP.id] === 'object' ? campT0.players[pcP.id] : null;
+        if (recT0 && typeof recT0.tableName === 'string' && (typeof nameKey !== 'function' || (nameKey(recT0.tableName) && !nameReserved(recT0.tableName))) && cleanRosterName(pcP.name) !== nmP) {   // 1.6.4 (Fulllion: a table name "should only count for that campaign"): the GM set what they go by here; their own new name is theirs everywhere else and changes nothing at this table, and they are told so; a color or a picture still goes through below
+            var heardT = typeof _tableHeard === 'object' && _tableHeard ? _tableHeard : null;
+            if (!heardT || heardT[pcP.id] !== nmP) { try { conn.send({ type: 'turn-note', text: 'Your new name is yours everywhere else. At this table you still go by ' + cleanRosterName(pcP.name) + ', the name the GM set for you here.' }); } catch (e) { sendFailed(e); } if (heardT) heardT[pcP.id] = nmP; }   // once a name: a color or a picture sent later with the same name says nothing again
+            nmP = cleanRosterName(pcP.name);
+        }
         var newP = cleanRosterName(pcP.name) !== nmP, resvP = newP && typeof nameReserved === 'function' && nameReserved(nmP);
-        var clashP = newP && !resvP && typeof nameClash === 'function' ? nameClash(pcP.id, nmP) : null;
-        if (clashP && !clashP.gm && typeof nameOwner === 'function' && nameOwner(nameKey(nmP)) === pcP.id) { nameDisplace(clashP.id, nmP, false); clashP = null; }   // their own name, the one the table knows them by: theirs again
+        var clashP = newP && !resvP && typeof nameTaken === 'function' ? nameTaken(pcP.id, nmP) : null;   // (a table name of another player, away or here, too)
+        if (clashP && !clashP.gm && !clashP.table && typeof nameOwner === 'function' && nameOwner(nameKey(nmP), nmP) === pcP.id && nameDisplace(clashP.id, nmP, false)) clashP = null;   // their own name, the one the table knows them by: theirs again
         if (clashP || resvP) {   // 1.6.4: a name someone at the table goes by, or one kept for the GM: refused, the old name kept on the roster and the record, the player told why and the GM told; a color or a picture with it still goes through below
-            try { conn.send({ type: 'turn-note', text: (resvP ? 'GM and Game Master are kept for the GM' : 'Someone at this table already goes by ' + nmP) + ', so you are still ' + cleanRosterName(pcP.name) + ' here. Pick another name in Your profile.' }); } catch (e) { sendFailed(e); }
+            try { conn.send({ type: 'turn-note', text: (resvP ? 'GM and Game Master are kept for the GM' : clashP && clashP.table ? 'That name is kept for another player at this table' : 'Someone at this table already goes by ' + nmP) + ', so you are still ' + cleanRosterName(pcP.name) + ' here. Pick another name in Your profile.' }); } catch (e) { sendFailed(e); }
             var recW = getActiveCampaign(), recWP = !resvP && recW && recW.players && own(recW.players, pcP.id) && typeof recW.players[pcP.id] === 'object' ? recW.players[pcP.id] : null;
             if (recWP) recWP.wanted = nmP;   // the wish kept, so Player History offers to give them the name
-            clashTell(pcP.id, pcP.name, nmP, false, resvP);
+            clashTell(pcP.id, pcP.name, nmP, false, resvP || (clashP && clashP.table ? 'table' : false));
             nmP = cleanRosterName(pcP.name);
         }
         var wasP = cleanRosterName(pcP.name), movN = wasP !== nmP || pcP.name !== nmP, movC = (typeof pcP.color === 'string' ? pcP.color : '') !== colP, movA = (typeof pcP.avatar === 'string' ? pcP.avatar : '') !== avP;
@@ -11419,6 +11426,12 @@ function profileTell(id, from, to) {
 //   wish kept as wanted). The GM can give a name to another player in Player History (nameGive), for every record that wants it.
 // - "Yes, reserve GM words": GM, Game Master and Gamemaster (nameReserved) are no player's name, in any case or spacing.
 // - "Yes, catch look-alikes": names are compared after the letters of other alphabets that look like Latin ones are read as those (NAME_LOOKS).
+// And of the next day's answers ("it should only count for that campaign not their actual profile name associated in the app or site"; "any
+// name to anyone the gm desires, if they match 100%, one needs to change if theyre to have matching player names"): the GM sets a player's
+// TABLE NAME in Player History (nameSetTable, Rename…), and a name the GM gives is one too. It is kept on their record for this campaign alone
+// (tableName), sent in the roster, and holds over every other claim: it is what they go by here whatever their own app says, across their own
+// renames and rejoins, until the GM changes it, and no one else may take it, at the table or not (nameTaken). Their own profile name, in the
+// app and on the website, is never touched.
 // It is asked at the hello gate (a joiner is turned away in words of its own, CLASH_WORDS or CLASH_GM_WORDS, to pick another name; one who
 // may be the holder goes on to prove their key), once a key is proven, before Same person as moves anything, again as a player is let in, and by
 // profile-set (the new name is refused, the old one kept, the player told why). A player seated at this table this session who comes back is
@@ -11427,6 +11440,9 @@ function profileTell(id, from, to) {
 // CLASH_TELL_MS in all, with how many more came meanwhile; always where their own yes is undone or a holder takes a name back
 var CLASH_WORDS = 'Someone at this table already goes by that name. Pick another name, then join again.';
 var CLASH_GM_WORDS = 'GM and Game Master are kept for the GM. Pick another name, then join again.';
+var CLASH_TABLE_WORDS = 'That name is kept for another player at this table. Pick another name, then join again.';
+function clashWords(res) { return res === 'reserved' ? CLASH_GM_WORDS : res === 'table' ? CLASH_TABLE_WORDS : CLASH_WORDS; }   // the words a joiner is turned away in, by clashJudge's answer
+var _tableHeard = Object.create(null);   // (the host) per player id: the name their app last sent while a table name holds, so they are told of it once a name, not at each color
 var CLASH_TELL_MS = 30000, _clashTold = Object.create(null), _clashAny = 0, _clashJoinAt = 0, _clashJoinMore = 0, _clashKept = Object.create(null);
 var NAME_GM_WORDS = { gm: 1, gamemaster: 1 };
 // Letters that look like Latin ones, each read as the Latin letter it looks like: Cyrillic and Greek, both cases as written (a Greek capital
@@ -11466,12 +11482,23 @@ function nameClash(id, name) {   // (the host) who at the table other than id go
     return hit;
 }
 function namePlayers() { var camp = getActiveCampaign(); return camp && camp.players && typeof camp.players === 'object' ? camp.players : null; }
+// A name taken for anyone but id: one someone at the table goes by (nameClash), or another record's table name, at the table or not (the GM's
+// word for that player here: { id, name, table: true })
+function nameTaken(id, name) {
+    var hit = nameClash(id, name); if (hit) return hit;
+    var x = nameKeys(name), P = namePlayers(); if (!x.k || !P) return null;
+    var tid = Object.keys(P).filter(function(k) { var r = P[k]; return k !== id && r && typeof r === 'object' && typeof r.tableName === 'string' && nameSame(x, r.tableName); })[0];
+    return tid ? { id: tid, name: cleanRosterName(P[tid].tableName), table: true } : null;
+}
+function nameExact(v) { return nameBase(v).toLowerCase().replace(/\s+/g, ' ').trim(); }   // a name as typed, case and runs of spaces as one: the GM's own picks are told apart by this alone
 // The holder the table knows of a name (by its key): of the records with a table key that hold it, the one that has held it the longest
 // (nameAt). A record from before 1.6.4 has no nameAt and held its name before any that has one; where two or more such records hold one name
 // (no name was refused then), the table knows no holder and the GM's Give decides. Two that took it at the same moment (a hand-over leaves
 // both the old record and the new with it) go to the one seen last
-function nameOwner(k) {
+function nameOwner(k, nm) {   // k: a name's key; nm: the name itself, where at hand, so a table name that looks like it is found too
     var P = namePlayers(), best = '', at = Infinity, seen = -1, old = []; if (!k || !P) return '';
+    var tid = Object.keys(P).filter(function(id) { var r = P[id]; return r && typeof r === 'object' && typeof r.tableName === 'string' && nameKey(r.tableName) && (nameKey(r.tableName) === k || (typeof nm === 'string' && nameSame(nm, r.tableName))); })[0];
+    if (tid) return tid;   // the GM's word: a table name is held by its record, before any other
     Object.keys(P).forEach(function(id) {
         var r = P[id]; if (!r || typeof r !== 'object' || typeof r.key !== 'string' || !r.key || !validProfileId(id) || nameKey(r.name) !== k) return;
         if (!(typeof r.nameAt === 'number' && isFinite(r.nameAt) && r.nameAt > 0)) { old.push(id); return; }
@@ -11484,22 +11511,24 @@ function nameFree(skipId, avoid) {   // a name for the moment: "Player 2", "Play
     var P = namePlayers();
     for (var n = 2; n < 1000; n++) {
         var nm = 'Player ' + n, k = nameKey(nm);
-        if (nameClash(skipId, nm) || (avoid && nameSame(avoid, nm))) continue;
+        if (nameTaken(skipId, nm) || (avoid && nameSame(avoid, nm))) continue;
         if (P && Object.keys(P).some(function(id) { return id !== skipId && P[id] && typeof P[id] === 'object' && nameKey(P[id].name) === k; })) continue;
         return nm;
     }
     return 'Player';
 }
 function nameNote(id, text) { (net.conns || []).forEach(function(c) { var p = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (p && p.id === id) { try { c.send({ type: 'turn-note', text: text }); } catch (e) { sendFailed(e); } } }); }
-function nameSetOn(id, nm) {   // a name put on a player: every connection of theirs on the roster, and their record (with when it took it)
+function nameSetOn(id, nm, table) {   // a name put on a player: every connection of theirs on the roster, and their record (with when it took it). table: true sets it as their table name, false takes one off
     Object.keys(net.roster).forEach(function(k) { var r = net.roster[k]; if (r && r.id === id) r.name = nm; });
     var P = namePlayers(), r = P && own(P, id) && typeof P[id] === 'object' ? P[id] : null;
-    if (r) { r.name = nm; r.nameAt = Date.now(); if (typeof r.wanted === 'string' && nameSame(r.wanted, nm)) delete r.wanted; }
+    if (r) { r.name = nm; r.nameAt = Date.now(); if (typeof r.wanted === 'string' && nameSame(r.wanted, nm)) delete r.wanted; if (table === true) r.tableName = nm; else if (table === false) delete r.tableName; }
 }
 // The holder takes their name back: whoever at the table goes by it is given a name for the moment, told why, and keeps the wish for it
 // (wanted), so Player History offers to give it to them
-function nameDisplace(id, byName, back) {   // back: the holder came back to the table (else they took it back by a rename)
-    var P = namePlayers(), r = P && own(P, id) && typeof P[id] === 'object' ? P[id] : null, key = Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === id; })[0];
+function nameDisplace(id, byName, back) {   // back: the holder came back to the table (else they took it back by a rename). '' where id goes by a table name, which is never pushed aside
+    var P = namePlayers(), r = P && own(P, id) && typeof P[id] === 'object' ? P[id] : null;
+    if (r && typeof r.tableName === 'string' && nameKey(r.tableName)) return '';
+    var key = Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === id; })[0];
     var was = key ? cleanRosterName(net.roster[key].name) : (r ? cleanRosterName(r.name) : ''), nm = nameFree(id), by = cleanRosterName(byName);
     nameSetOn(id, nm); if (r && nameKey(was)) r.wanted = was;
     nameNote(id, (back ? by + ' is back, and this table knows them by that name' : 'The player this table knows as ' + by + ' took their name back') + ', so you are ' + nm + ' here for now. Pick another name in Your profile.');
@@ -11508,7 +11537,7 @@ function nameDisplace(id, byName, back) {   // back: the holder came back to the
     return nm;
 }
 function clashSay(line, w, x) { toast(line); logEvent('player', line, { w: w, x: x, d: '' }); }
-function clashTell(id, was, tried, always, reserved) {   // (the host) the GM told, quietly: a toast and a line of the Game Record. always: the GM's own yes was just turned into a no, so it is said
+function clashTell(id, was, tried, always, reserved) {   // reserved: true for a word kept for the GM, 'table' for a name kept for another player who is away   // (the host) the GM told, quietly: a toast and a line of the Game Record. always: the GM's own yes was just turned into a no, so it is said
     var now = Date.now(), key = typeof id === 'string' ? id : '', more = '';
     if (!always) {
         if (own(_clashTold, key) && now >= _clashTold[key] && now - _clashTold[key] < CLASH_TELL_MS) return;
@@ -11518,7 +11547,7 @@ function clashTell(id, was, tried, always, reserved) {   // (the host) the GM to
     if (!was && _clashJoinMore) { more = ' ' + _clashJoinMore + ' more tr' + (_clashJoinMore === 1 ? 'y' : 'ies') + ' like it came before this one.'; _clashJoinMore = 0; }
     if (Object.keys(_clashTold).length >= 200) _clashTold = Object.create(null);
     _clashTold[key] = now; _clashAny = now;
-    var t = cleanRosterName(tried), why = reserved ? 'which is kept for the GM' : 'which someone at the table already goes by';
+    var t = cleanRosterName(tried), why = reserved === 'table' ? 'which is kept for another player at this table' : reserved ? 'which is kept for the GM' : 'which someone at the table already goes by';
     var line = was ? cleanRosterName(was) + ' tried to take the name ' + t + ', ' + why + '. They keep the name ' + cleanRosterName(was) + '.'
         : 'Someone tried to join as ' + t + ', ' + why + '. They were asked to pick another name.' + more;
     toast(line);
@@ -11531,11 +11560,25 @@ function clashTell(id, was, tried, always, reserved) {   // (the host) the GM to
 // connection's peer (_clashKept) for after their snapshot (clashKeptSay). always: as clashTell's
 function clashJudge(prof, peer, always, how) {
     if (!prof) return '';
-    var reserved = nameReserved(prof.name), hit = reserved ? null : nameClash(prof.id, prof.name);
+    var P0 = namePlayers(), rec0 = P0 && own(P0, prof.id) && typeof P0[prof.id] === 'object' ? P0[prof.id] : null;
+    if (rec0 && typeof rec0.tableName === 'string' && nameKey(rec0.tableName) && !nameReserved(rec0.tableName)) {   // the GM's word for them at this table: what they go by here, whatever their app says
+        if (how === 'gate') return '';   // judged once the key is proven or the GM lets them in: the GM's question shows the name they typed, never the table name an id claim would borrow
+        var tn = cleanRosterName(rec0.tableName), hitT = nameClash(prof.id, tn);
+        if (hitT && !hitT.gm) {   // someone else at the table goes by it: the holder proven takes it back (a table name of theirs is never pushed aside: two the GM picked may stand); else turned away
+            var hitR = P0 && own(P0, hitT.id) && typeof P0[hitT.id] === 'object' ? P0[hitT.id] : null;
+            if (!(hitR && typeof hitR.tableName === 'string' && nameKey(hitR.tableName))) {
+                if (how !== 'proven') { clashTell(prof.id, '', tn, always, false); return 'clash'; }
+                nameDisplace(hitT.id, tn, true);
+            }
+        }
+        if (cleanRosterName(prof.name) !== tn && typeof peer === 'string' && peer) _clashKept[peer] = { table: tn };
+        prof.name = tn; return '';
+    }
+    var reserved = nameReserved(prof.name), hit = reserved ? null : nameTaken(prof.id, prof.name), kept0 = !reserved && hit && hit.table ? 'table' : '';
     if (!reserved && !hit) return '';
-    if (hit && !hit.gm && nameOwner(nameKey(prof.name)) === prof.id) {
+    if (hit && !hit.gm && nameOwner(nameKey(prof.name), prof.name) === prof.id) {
         if (how === 'gate') return '';   // may be its holder: judged again once the key is proven
-        if (how === 'proven') { nameDisplace(hit.id, prof.name, true); return ''; }
+        if (how === 'proven' && nameDisplace(hit.id, prof.name, true)) return '';
     }
     var P = namePlayers(), rec = P && own(P, prof.id) && typeof P[prof.id] === 'object' ? P[prof.id] : null;
     if (typeof _satIds !== 'undefined' && own(_satIds, prof.id) && rec && nameKey(rec.name) && !nameReserved(rec.name)) {
@@ -11545,8 +11588,8 @@ function clashJudge(prof, peer, always, how) {
             if (!reserved && how === 'proven') rec.wanted = cleanRosterName(prof.name);
             clashTell(prof.id, kept, prof.name, always, reserved); prof.name = kept;
         }
-        var hit2 = nameClash(prof.id, kept);   // their own record's name, taken while they were away: theirs again where they hold it, once proven; else a name for now
-        if (hit2 && !hit2.gm && how === 'proven' && nameOwner(nameKey(kept)) === prof.id) nameDisplace(hit2.id, kept, true);
+        var hit2 = nameTaken(prof.id, kept);   // their own record's name, taken while they were away: theirs again where they hold it, once proven; else a name for now
+        if (hit2 && !hit2.gm && how === 'proven' && nameOwner(nameKey(kept), kept) === prof.id) nameDisplace(hit2.id, kept, true);
         else if (hit2) {
             var freeS = nameFree(prof.id);
             if (typeof peer === 'string' && peer && !_clashKept[peer]) _clashKept[peer] = { tried: kept, gm: !!hit2.gm };
@@ -11556,13 +11599,14 @@ function clashJudge(prof, peer, always, how) {
         return '';
     }
     if (rec && !reserved && how === 'proven') rec.wanted = cleanRosterName(prof.name);   // (only from a join that proved its table key: anyone may claim an id)
-    clashTell(prof.id, '', prof.name, always, reserved);
-    return reserved ? 'reserved' : 'clash';
+    clashTell(prof.id, '', prof.name, always, reserved || kept0);
+    return reserved ? 'reserved' : kept0 || 'clash';
 }
 function clashKeptSay(conn) {   // (the host) after a seated player's snapshot: why they are under their old name
     if (!conn || !own(_clashKept, conn.peer)) return;
     var k = _clashKept[conn.peer]; delete _clashKept[conn.peer];
     var p = own(net.roster, conn.peer) ? net.roster[conn.peer] : null; if (!p) return;
+    if (k.table) { try { conn.send({ type: 'turn-note', text: 'At this table you go by ' + cleanRosterName(p.name) + ', the name the GM set for you here. Your own name stays yours everywhere else.' }); } catch (e) { sendFailed(e); } return; }
     try { conn.send({ type: 'turn-note', text: (k.gm ? 'GM and Game Master are kept for the GM' : 'Someone at this table already goes by ' + k.tried) + ', so you are ' + cleanRosterName(p.name) + ' here. Pick another name in Your profile.' }); } catch (e) { sendFailed(e); }
 }
 // Player History: the records that want this record's name (a name refused them or taken back from them), at most three
@@ -11578,13 +11622,40 @@ function nameGive(camp, fromId, toId) {
     if (!P || fromId === toId || !own(P, fromId) || !own(P, toId) || typeof P[fromId] !== 'object' || typeof P[toId] !== 'object') return '';
     var F = P[fromId], T = P[toId], N = cleanRosterName(F.name);
     if (!nameKey(N) || !nameSame(N, T.wanted)) return '';
-    var hitG = nameClash(toId, N); if (hitG && (hitG.gm || hitG.id !== fromId)) return 'busy';   // someone else at the table goes by it now: never two on one name
+    var hitG = nameTaken(toId, N); if (hitG && (hitG.gm || hitG.id !== fromId)) return 'busy';   // someone else goes by it now, or holds it as their table name: never two on one name
     var free = nameFree(fromId, N);
-    nameSetOn(fromId, free); F.wanted = N; nameSetOn(toId, N);
-    nameNote(toId, 'The GM gave you the name ' + N + '.');
+    nameSetOn(fromId, free, false); F.wanted = N; nameSetOn(toId, N, true);   // the name given is their table name here (it holds across their own renames and rejoins)
+    nameNote(toId, 'The GM gave you the name ' + N + ' at this table. Your own name stays yours everywhere else.');
     nameNote(fromId, 'The GM gave the name ' + N + ' to another player, so you are ' + free + ' here. Pick another name in Your profile.');
     if (net.active && net.role === 'host') broadcastRoster();
     return free;
+}
+// The GM sets a player's table name (Player History's Rename…): any name the GM wants, for this campaign alone. Refused only where it is a word
+// kept for the GM, or EXACTLY the name another player at this table goes by or another record's table name, read without case and with runs of
+// spaces as one (nameExact; a look-alike is the GM's own pick to make): one of the two must be renamed first. A name of no letters takes the
+// table name off: their own name comes back as they next join or change it. Whoever is at the table is told, and the roster goes again.
+// Answers { ok, name } or { ok, off }, or { why: 'none' | 'same' | 'reserved' | 'taken', who }
+function nameSetTable(camp, pid, raw) {
+    var P = camp && camp.players && typeof camp.players === 'object' ? camp.players : null;
+    if (!P || typeof pid !== 'string' || !own(P, pid) || typeof P[pid] !== 'object') return { why: 'none' };
+    var r = P[pid], nm = cleanRosterName(typeof raw === 'string' ? raw : ''), blank = !nameKey(nm);   // empty, or "Player" (no name at all): the table name taken off
+    if (blank) {
+        if (typeof r.tableName !== 'string') return { why: 'same' };
+        delete r.tableName;
+        nameNote(pid, 'The GM took off the name you went by at this table. Your own name comes back the next time you join or change it.');
+        return { ok: true, off: true };
+    }
+    if (nameReserved(nm)) return { why: 'reserved' };
+    if (typeof r.tableName === 'string' && r.tableName === nm) return { why: 'same' };
+    var ex = nameExact(nm), me = typeof getProfile === 'function' ? getProfile() : null, who = '';
+    if (me && nameExact(me.name) === ex) who = 'you';
+    if (!who) (net.conns || []).forEach(function(c) { var p = c && c.open && own(net.roster, c.peer) ? net.roster[c.peer] : null; if (!who && p && p.id !== pid && nameExact(p.name) === ex) who = typeof recName === 'function' && own(P, p.id) ? recName(P[p.id], cleanRosterName(p.name)) : cleanRosterName(p.name); });
+    if (!who) Object.keys(P).forEach(function(id) { var o = P[id]; if (!who && id !== pid && o && typeof o === 'object' && typeof o.tableName === 'string' && nameExact(o.tableName) === ex) who = typeof recName === 'function' ? recName(o, cleanRosterName(o.tableName)) : cleanRosterName(o.tableName); });
+    if (who) return { why: 'taken', who: who };
+    nameSetOn(pid, nm, true);
+    nameNote(pid, 'At this table you go by ' + nm + ' now, the name the GM set for you here. Your own name stays yours everywhere else.');
+    if (net.active && net.role === 'host') broadcastRoster();
+    return { ok: true, name: nm };
 }
 // [netcheck:nameclash-end]
 function whispersKnow(v) { _whispersOk = v === true; }
@@ -11766,6 +11837,7 @@ function renderPlayersPanel() {
                 ? '<button class="tool ghost player-act" data-unban="' + escTextRoster(pid) + '">Unban</button>'
                 : '<button class="tool ghost player-act" data-ban="' + escTextRoster(pid) + '">Ban</button>') +
             (typeof nameWanters === 'function' ? nameWanters(camp, pid).map(function(wid) { return '<button class="tool ghost player-act" data-namegive="' + escTextRoster(wid) + '" data-namefrom="' + escTextRoster(pid) + '" title="Give this name to the player who wants it. This one is given a name for now and picks another.">Give ' + escTextRoster(cleanRosterName(p.name)) + ' to ' + escTextRoster(recName(players[wid], 'them')) + '</button>'; }).join('') : '') +   // 1.6.4: the name a player wants (refused them, or taken back from them), given in one press
+            '<button class="tool ghost player-act" data-rename="' + escTextRoster(pid) + '" title="Set the name everyone at this table sees for this player. Their own name in the app and on the website stays theirs.">Rename&hellip;</button>' +   // 1.6.4: the table name, the GM's alone
             '<button class="tool ghost player-act" data-forget="' + escTextRoster(pid) + '" title="Remove from history — they\'ll need approval to join again">Forget</button>' +
             (!online[pid] && ids.some(function(o) { return o !== pid && !online[o]; }) ? '<button class="tool ghost player-act" data-merge="' + escTextRoster(pid) + '" title="Fold this record into another of the same person, such as their website account: the other keeps its name and takes this one\'s character, tokens and history">Merge into&hellip;</button>' : '') +   // 1.5.6
             '</div>';
@@ -11908,6 +11980,9 @@ if (_playersList) _playersList.addEventListener('click', function(e) {
     } else if (btn.dataset.forget) {
         forgetPlayer(camp, btn.dataset.forget);
         return;   // the panel redraws once the GM answers
+    } else if (btn.dataset.rename) {
+        nameRenameAsk(camp, btn.dataset.rename);
+        return;   // 1.6.4: the panel redraws once the GM answers
     } else if (btn.dataset.namegive) {
         nameGiveAsk(camp, btn.dataset.namefrom, btn.dataset.namegive);
         return;   // 1.6.4: the panel redraws once the GM answers
@@ -11943,6 +12018,27 @@ function gmNamesMoved() {
     try { renderPlayersPanel(); } catch (e) { console.error(e); }
 }
 net.gmNameSet = gmNameSet;
+// 1.6.4 (Fulllion: "any name to anyone the gm desires, if they match 100%, one needs to change"): Player History's Rename…, the table name the
+// GM sets for a player (nameSetTable), asked in a box of its own with its buttons alone. A name already another player's here, exactly, or a
+// word kept for the GM, is refused in words that say which; an empty box takes the table name off
+function nameRenameAsk(camp, pid) {
+    if (!camp || !camp.players || !own(camp.players, pid) || typeof document === 'undefined') { renderPlayersPanel(); return; }
+    var r = camp.players[pid], who = recName(r, 'this player'), d = document, box = d.createElement('div'), inp = d.createElement('input');
+    inp.type = 'text'; inp.className = 'player-rename'; inp.maxLength = 40; inp.spellcheck = false; inp.autocomplete = 'off';
+    inp.value = typeof r.tableName === 'string' && r.tableName ? r.tableName : (typeof r.name === 'string' ? r.name.slice(0, 40) : '');
+    box.appendChild(inp);
+    showConfirm('Rename ' + who + ' at this table? Everyone here sees the new name, across their rejoins, until you change it. Their own name in the app and on the website stays theirs. Leave it empty to take the table name off.', function(yes) {
+        if (!yes || getActiveCampaign() !== camp) { renderPlayersPanel(); return; }
+        var res = typeof nameSetTable === 'function' ? nameSetTable(camp, pid, inp.value) : { why: 'none' };
+        if (res.why === 'reserved') { toast('GM and Game Master are kept for you. Pick another name.'); renderPlayersPanel(); return; }
+        if (res.why === 'taken') { toast(cleanRosterName(inp.value) + ' is ' + (res.who === 'you' ? 'your own name' : res.who + '’s name') + ' at this table already. Rename one of them first.'); renderPlayersPanel(); return; }
+        if (!res.ok) { renderPlayersPanel(); return; }
+        save(); gmNamesMoved();
+        var line = res.off ? who + ' goes by their own name again from their next join.' : who + ' goes by ' + res.name + ' at this table now.';
+        toast(line); logEvent('player', line, { w: res.off ? who : res.name, x: 'Table name', d: '' });
+    }, { noEnter: true, yes: 'Rename', body: box, shown: function() { try { inp.focus(); inp.select(); } catch (e) {} } });
+}
+net.nameSetTable = function(camp, pid, raw) { return typeof nameSetTable === 'function' ? nameSetTable(camp, pid, raw) : { why: 'none' }; };   // the GM's own (Player History); for the suites
 // 1.6.4 (Fulllion: a name's holder keeps it, "but able to be swapped if needed easily"): Player History's Give <name> to <player>, asked first
 // by name with its buttons alone; a yes gives the name (nameGive), saves, draws everything that names them again and tells the GM
 function nameGiveAsk(camp, fromId, toId) {

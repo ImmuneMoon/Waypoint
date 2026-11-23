@@ -12131,7 +12131,7 @@ if (_copyBtn) _copyBtn.addEventListener('click', function() {
 // 1.6.3 (the multiplayer review, finding 13; the owner, 2026-11-21: a fresh code each session stays, "I had assumed that a new one each time was
 // best for security and safety", with a Copy invite button): one short plain line to paste to players, naming the room code. The password is
 // never in it: where one is set the line says it comes apart
-function inviteLine(code, pw) { return 'Join my Waypoint table. Press Join a game and type the room code ' + code + '.' + (pw ? ' I will send you the password.' : ''); }
+function inviteLine(code, pw) { return 'Join my Waypoint VTT table. Press Join a game and type the room code ' + code + '.' + (pw ? ' I will send you the password.' : ''); }
 // [netcheck:invite-end]
 var _inviteBtn = ui('netInviteBtn');
 if (_inviteBtn) _inviteBtn.addEventListener('click', function() {

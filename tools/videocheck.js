@@ -421,8 +421,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const r2 = run.holdApply('freeze', doc, () => agains++), cov2 = els.streamCover.style.display, frozen = W.wpStreamHeld();
         const r3 = run.holdApply('melt', doc, () => agains++), back = W.wpStreamHeld(), a1 = agains;
         run.holdApply('cover', doc, () => agains++); const a2 = agains;
-        check('backlog 34: the stream window\'s Hold: Cover lays the card with the campaign\'s name as text (Waypoint before a name is known) and Back soon; Freeze holds the picture with the card off; a word that is neither is Live, and letting a freeze go asks for the table again once (a cover never does)',
-            r1 === 'cover' && cov1 === 'flex' && nm0 === 'Waypoint' && nm1 === '<b>Duskhold</b>' && r2 === 'freeze' && cov2 === 'none' && frozen === true && r3 === '' && back === false && a1 === 1 && a2 === 1,
+        check('backlog 34: the stream window\'s Hold: Cover lays the card with the campaign\'s name as text (Waypoint VTT before a name is known) and Back soon; Freeze holds the picture with the card off; a word that is neither is Live, and letting a freeze go asks for the table again once (a cover never does)',
+            r1 === 'cover' && cov1 === 'flex' && nm0 === 'Waypoint VTT' && nm1 === '<b>Duskhold</b>' && r2 === 'freeze' && cov2 === 'none' && frozen === true && r3 === '' && back === false && a1 === 1 && a2 === 1,
             j([r1, cov1, nm0, nm1, r2, cov2, frozen, r3, back, a1, a2]));
         const ss = sliceOf(st, 'streamholdset');
         check('backlog 34: the main window says it (Settings\' Stream window shows: Live, Frozen picture, Cover card), answers a stream window that asks, is Live again at every start, and no stream window or window of its own says it; a frozen stream reads nothing and takes no effect, video or scene',

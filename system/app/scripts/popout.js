@@ -176,7 +176,7 @@ if (spec) {
         var itemId = itemNow = popResolve(pp, camp.items); window.wpPopoutKey = pp.head + itemId;   // 1.6.3: an id with a slash read from the address becomes the window's item, so its part, its table and its landing are its own (popResolve)
         var it = camp.items && camp.items[itemId];
         if (!it || (it.type !== 'doc' && it.type !== 'planner')) { window.wpPopoutPart = ''; window.wpPopoutFoldKey = ''; }   // a page that is gone shows no part
-        if (!it || (it.type !== 'doc' && it.type !== 'planner')) { if (lastSig !== ' GONE') { lastSig = ' GONE'; msg('This page is no longer in the campaign.'); document.title = 'Waypoint — (removed)'; } return; }
+        if (!it || (it.type !== 'doc' && it.type !== 'planner')) { if (lastSig !== ' GONE') { lastSig = ' GONE'; msg('This page is no longer in the campaign.'); document.title = 'Waypoint VTT — (removed)'; } return; }
         var title = (it.meta && it.meta.title) || it.name || 'Page';
         // 1.6.2 (the owner: "Edit a big table in its own window"): a table's window draws that table as a grid to edit (tablewin.js twTick),
         // never the page. Its own sig and its own drawing; Back to a page (popGo) makes it a page's window, as a part's does
@@ -186,7 +186,7 @@ if (spec) {
             // the campaign the address names is the only one a table's window edits: camp above falls back to the main window's own where the
             // window's campaign is gone, and a test copy keeps the very ids of its pages, so twTick refuses (and says so) where the two differ
             var twr = twTick(body, camp, it, tableId, title, typeof pp.camp === 'string' ? pp.camp : ''), twT = twr && twr.title ? twr.title : title;
-            if (lastSig !== '\x00TABLE' + twT) { lastSig = '\x00TABLE' + twT; document.title = 'Waypoint \u2014 ' + twT; if (titleEl) titleEl.textContent = twT; }
+            if (lastSig !== '\x00TABLE' + twT) { lastSig = '\x00TABLE' + twT; document.title = 'Waypoint VTT \u2014 ' + twT; if (titleEl) titleEl.textContent = twT; }
             return;
         }
         // 1.6.2: a part alone is the page with that part's blocks and nothing else, drawn by the page's own renderers, so it follows its edits
@@ -195,11 +195,11 @@ if (spec) {
         if (wholeBtn) wholeBtn.style.display = partId ? '' : 'none';
         window.wpPopoutPart = part ? partId : '';   // what pagenav.js reads: the part a place's history names, and the key the part's own folds are kept under
         window.wpPopoutFoldKey = part ? pp.head + itemId + '/part:' + partId : '';
-        if (partId && !part) { if (lastSig !== '\x00NOPART') { lastSig = '\x00NOPART'; msg('This part is no longer on the page. Whole page shows what is there now.'); document.title = 'Waypoint \u2014 ' + title; if (titleEl) titleEl.textContent = title; } return; }
+        if (partId && !part) { if (lastSig !== '\x00NOPART') { lastSig = '\x00NOPART'; msg('This part is no longer on the page. Whole page shows what is there now.'); document.title = 'Waypoint VTT \u2014 ' + title; if (titleEl) titleEl.textContent = title; } return; }
         if (part) it = Object.assign({}, it, { blocks: part.blocks });
         var sig = (part ? 'part' : '') + title + ' ' + JSON.stringify(it.blocks || []) + ' ' + JSON.stringify((it.meta && it.meta.style) || null) + ' ' + JSON.stringify(camp.docStyle || null);
         if (sig === lastSig) return; lastSig = sig;
-        document.title = 'Waypoint — ' + shown; if (titleEl) titleEl.textContent = shown;
+        document.title = 'Waypoint VTT — ' + shown; if (titleEl) titleEl.textContent = shown;
         var DR = window.wpDocRender; if (!DR || !DR.renderDoc) return;
         setMermaidStrict();
         var keep = body.scrollTop;
@@ -238,7 +238,7 @@ if (spec) {
         try { state.appState = data; } catch (e) {}   // the full app is loaded here; wpSheets reads state.appState (raw save — GM content, not sanitized)
         var WS = window.wpSheets; if (!WS || !WS.renderSheetInto) return;
         var c = WS.charById ? WS.charById(charId, camp) : null;
-        if (!c) { if (lastSig !== ' NOSHEET') { lastSig = ' NOSHEET'; body.className = ''; msg('That character is no longer here.'); document.title = 'Waypoint — (removed)'; } return; }
+        if (!c) { if (lastSig !== ' NOSHEET') { lastSig = ' NOSHEET'; body.className = ''; msg('That character is no longer here.'); document.title = 'Waypoint VTT — (removed)'; } return; }
         var sig = JSON.stringify(c) + ' ' + JSON.stringify(camp.system || null) + '\n' + (WS.dialSig ? WS.dialSig(charId, camp) : '');   // 1.5.4: and what the sheet reads of its token (its facing, posture and elevation), so a turn, a posture or a height redraws it
         if (sig === lastSig) return; lastSig = sig;
         body.className = 'sheet-view';
@@ -246,7 +246,7 @@ if (spec) {
         var sr = WS.renderSheetInto(body, charId, camp);
         body.scrollTop = keep;
         var title = (sr && sr.title) || (c.name || 'Character');
-        document.title = 'Waypoint — ' + title; if (titleEl) titleEl.textContent = title;
+        document.title = 'Waypoint VTT — ' + title; if (titleEl) titleEl.textContent = title;
     }
     // [systemcheck:popsheet-end]
     // [hudcheck:popsheetwin-start]
@@ -344,7 +344,7 @@ if (spec) {
         // Chat has no save to poll — it is relayed live from the main window over BroadcastChannel. Reuse #chatPanel.
         document.body.classList.add('popout-chat');
         var cp = document.getElementById('chatPanel'); if (cp) cp.style.display = 'flex';
-        document.title = 'Waypoint — Table Chat'; if (titleEl) titleEl.textContent = 'Table Chat';
+        document.title = 'Waypoint VTT — Table Chat'; if (titleEl) titleEl.textContent = 'Table Chat';
         var reqBC = null; try { reqBC = new BroadcastChannel('waypoint'); } catch (e) {}
         var reqChat = function() { if (reqBC) try { reqBC.postMessage({ type: 'chatReq' }); } catch (e) {} };
         reqChat(); setTimeout(reqChat, 500); setTimeout(reqChat, 1600);   // ask the main window for the current log (retries if it opened after)

@@ -433,7 +433,7 @@ waitForInstanceLock(8000, function() {
             const win = new BrowserWindow({
                 width: 1200,
                 height: 800,
-                title: "Waypoint",
+                title: "Waypoint VTT",
                 autoHideMenuBar: true,
                 icon: path.join(__dirname, 'icon.ico'),
                 // The renderer is a web page and nothing more: no Node, isolated context, OS sandbox. These are

@@ -1170,7 +1170,7 @@ function jdlParts(doc) {
         + '.words { white-space: pre-wrap; overflow-wrap: anywhere; } .who { font-weight: bold; margin: 10px 0 2px; font-size: .9em; }\n'
         + '.notes, .shared { border-left: 3px solid #e3ddcf; padding-left: 10px; } .missing, .empty { color: #8a5a00; font-style: italic; }\n'
         + '@media print { body { background: #fff; } article { border-color: #ccc; } }\n</style></head><body>\n'
-        + '<h1>' + w(d.heading || d.name || 'Journal') + '</h1><p class="meta">' + (d.gm ? 'Run by ' + w(d.gm) + '. ' : '') + 'Saved from Waypoint' + (jdlWhen(d.at) ? ' ' + w(jdlWhen(d.at)) : '') + '.</p>\n');
+        + '<h1>' + w(d.heading || d.name || 'Journal') + '</h1><p class="meta">' + (d.gm ? 'Run by ' + w(d.gm) + '. ' : '') + 'Saved from Waypoint VTT' + (jdlWhen(d.at) ? ' ' + w(jdlWhen(d.at)) : '') + '.</p>\n');
     (Array.isArray(d.sections) ? d.sections : []).forEach(function(s) {
         var rows = s && Array.isArray(s.rows) ? s.rows : [];
         out.push('<section><h2>' + w(s && s.head) + '</h2>');

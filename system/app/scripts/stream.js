@@ -77,7 +77,7 @@ if (!on && !new URLSearchParams(location.search).get('popout') && typeof Broadca
 if (on) {
     window.wpStream = true;
     document.body.classList.add('stream-mode', 'net-client');
-    document.title = 'Waypoint \u2014 Stream';
+    document.title = 'Waypoint VTT \u2014 Stream';
     // Borrow the player-side rules: nothing editable, nothing saved, hidden things hidden.
     net.active = true; net.role = 'client'; net.foreign = true; net.stream = true; net.myId = 'stream';
     window.isPanMode = true;   // left-drag pans the view
@@ -144,7 +144,7 @@ if (on) {
     function holdApply(m, doc, again) {
         var was = held; held = holdOf(m);
         var cov = doc.getElementById('streamCover'), nm = doc.getElementById('streamCoverName');
-        if (nm) nm.textContent = campName || 'Waypoint';
+        if (nm) nm.textContent = campName || 'Waypoint VTT';
         if (cov) cov.style.display = held === 'cover' ? 'flex' : 'none';
         if (was === 'freeze' && held !== 'freeze' && typeof again === 'function') again();
         return held;

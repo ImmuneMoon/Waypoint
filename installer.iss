@@ -7,13 +7,15 @@
 
 [Setup]
 AppId={{5E99FC64-B981-4209-A480-DB2444535359}
-AppName=Waypoint
+AppName=Waypoint VTT™
+; the installed-apps list reads the plain name: the mark shows on the installer's title screen alone
+UninstallDisplayName=Waypoint VTT
 AppVersion={#AppVer}
-AppPublisher=Nucleus Games
+AppPublisher=Fulllion Creative Works, LLC
 AppContact=fulllioncreativeworks@gmail.com
 AppSupportURL=https://fulllioncreativeworks.com/
 VersionInfoVersion={#AppVer}
-VersionInfoDescription=Waypoint — campaign mapping and whiteboard planning
+VersionInfoDescription=Waypoint VTT — campaign mapping and whiteboard planning
 DefaultDirName={localappdata}\Programs\Waypoint
 UninstallDisplayIcon={app}\Waypoint.exe
 ; tells the shell to drop its cached icons after an in-place update, so the new Waypoint.exe icon shows without a sign-out
@@ -41,15 +43,21 @@ CloseApplications=no
 Source: "*"; DestDir: "{app}"; Excludes: "installer.iss,Not used,Not used\*,system\Dark Logo.ico,system\Globe Logo.ico,system\Temp-icon.ico,system\fcw_icon.ico,system\nucleus_icon.ico,Waypoint_Setup.exe,Waypoint.lnk,CAMPAIGN_INTEGRATION.md,log.txt,*.zip,*.sha256,*.sig,*.pem,manifest.json,RELEASE_NOTES.md,READ ME FIRST*,saves,saves\*,system\userdata,system\userdata\*,system\app.prev,system\app.prev\*,system\app.new,system\app.new\*,system\app.bad,system\app.bad\*,scratch,scratch\*,dist,dist\*,tools,tools\*,dev-saves,dev-saves\*,docs,docs\*,.git,.git\*,.gitignore"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Waypoint"; Filename: "{app}\Waypoint.exe"; Tasks: startmenuicon
-Name: "{autodesktop}\Waypoint"; Filename: "{app}\Waypoint.exe"; Tasks: desktopicon
+Name: "{autoprograms}\Waypoint VTT"; Filename: "{app}\Waypoint.exe"; Tasks: startmenuicon
+Name: "{autodesktop}\Waypoint VTT"; Filename: "{app}\Waypoint.exe"; Tasks: desktopicon
+
+[InstallDelete]
+; 1.6.4: the shortcuts were named "Waypoint" before the name Waypoint VTT. An update takes the old one away
+; where it makes the new one, so the Start menu and the desktop do not show the app twice.
+Type: files; Name: "{autoprograms}\Waypoint.lnk"; Tasks: startmenuicon
+Type: files; Name: "{autodesktop}\Waypoint.lnk"; Tasks: desktopicon
 
 [Tasks]
 Name: "startmenuicon"; Description: "Create a &Start Menu shortcut"; GroupDescription: "Additional icons:"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Run]
-Filename: "{app}\Waypoint.exe"; Description: "Launch Waypoint"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Waypoint.exe"; Description: "Launch Waypoint VTT"; Flags: nowait postinstall skipifsilent
 ; an update the app started itself (silent, /UPDATE=1) closed Waypoint to make room: open it again
 Filename: "{app}\Waypoint.exe"; Flags: nowait; Check: AppDrivenUpdate
 
@@ -68,6 +76,14 @@ begin
   Result := WizardSilent() and (ExpandConstant('{param:UPDATE|0}') = '1');
 end;
 
+{ Is a Waypoint window open? The window is found by its exact title. From 1.6.4 it is
+  "Waypoint VTT", and a copy older than that is still titled "Waypoint", so both are looked for:
+  the copy this installer replaces is usually the older one. PrepareToInstall asks it twice. }
+function AppWindowOpen(): Boolean;
+begin
+  Result := (FindWindowByWindowName('Waypoint VTT') <> 0) or (FindWindowByWindowName('Waypoint') <> 0);
+end;
+
 { A running Waypoint may be hosting a live table. Never kill it silently:
   a silent update aborts, an interactive one asks first. An update the app started
   itself waits for the app to close first: Waypoint starts Setup and then closes. }
@@ -79,20 +95,20 @@ begin
   if AppDrivenUpdate() then
   begin
     Waited := 0;
-    while (FindWindowByWindowName('Waypoint') <> 0) and (Waited < 30000) do
+    while AppWindowOpen() and (Waited < 30000) do
     begin
       Sleep(250);
       Waited := Waited + 250;
     end;
   end;
-  if FindWindowByWindowName('Waypoint') <> 0 then
+  if AppWindowOpen() then
   begin
     if WizardSilent() then
     begin
-      Result := 'Waypoint is running. Close it (end any multiplayer session first) and run the update again.';
+      Result := 'Waypoint VTT is running. Close it (end any multiplayer session first) and run the update again.';
       exit;
     end;
-    if MsgBox('Waypoint is currently running.' + #13#10#13#10 +
+    if MsgBox('Waypoint VTT is currently running.' + #13#10#13#10 +
               'If you are hosting a multiplayer session, closing it will disconnect your players. ' +
               'Close Waypoint and continue with the update?', mbConfirmation, MB_YESNO) = IDNO then
     begin
@@ -135,7 +151,7 @@ begin
   { /UPDATE=1 (a scripted or app-driven update) skips the choice page: plain update in place }
   if IsUpdate() and (ExpandConstant('{param:UPDATE|0}') <> '1') then
   begin
-    WizardForm.WelcomeLabel1.Caption := 'Welcome to the Waypoint Update Wizard';
+    WizardForm.WelcomeLabel1.Caption := 'Welcome to the Waypoint VTT™ Update Wizard';
     WizardForm.WelcomeLabel2.Caption := 'Setup found an existing copy of Waypoint in:' + #13#10 + PrevInstallPath
       + #13#10#13#10 + 'On the next page you choose what to do with it: update it in place (the usual choice), '
       + 'do a clean install, or put a separate copy somewhere else.'
@@ -143,7 +159,7 @@ begin
       + 'If your save comes from an older version, the app converts it on first launch after keeping '
       + 'an untouched copy in the saves\backups folder.';
 
-    ModePage := CreateInputOptionPage(wpWelcome, 'A copy of Waypoint is already installed',
+    ModePage := CreateInputOptionPage(wpWelcome, 'A copy of Waypoint VTT is already installed',
       'What would you like Setup to do?',
       'Pick one. The first option is the normal update and keeps everything you have.',
       True, False);

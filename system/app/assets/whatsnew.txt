@@ -1,6 +1,11 @@
 WAYPOINT 1.6.4 — What's New
 ============================
 
+A new name
+- Waypoint is called Waypoint VTT™ now. After this update the window
+  and your Start menu shortcut wear the new name. Your saves stay
+  where they were, and so does the install folder.
+
 Names on the map
 - Room, portal and place pin names no longer cover the ground you play
   on when you zoom out. Below 100% they get smaller, and below 40% they

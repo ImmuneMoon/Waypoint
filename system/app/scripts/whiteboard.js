@@ -5755,7 +5755,7 @@ if(_el_aboutBtn) _el_aboutBtn.addEventListener('click', function() {
       if (vEl && !vEl.dataset.loaded) {
           // The app folder's version wins over the shell's: a one-click update replaces only the app folder
           (window.wpVersionReady || fetch('/api/version').then(function(r) { return r.json(); }).then(function(v) { return v.version; })).then(function(ver) {
-              vEl.textContent = 'Waypoint Alpha ' + ver; vEl.dataset.version = String(ver || '');   // 1.5.6: the release's name (backlog 177)
+              vEl.textContent = 'Waypoint VTT Alpha ' + ver; vEl.dataset.version = String(ver || '');   // 1.5.6: the release's name (backlog 177)
               vEl.dataset.loaded = '1';
           }).catch(function() { vEl.textContent = ''; });
       }
@@ -5806,7 +5806,7 @@ if(_el_aboutCloseBtn) _el_aboutCloseBtn.addEventListener('click', function() {
       var body = document.getElementById('legalBody');
       var title = document.getElementById('legalTitle');
       if (!body || !title) return;
-      title.textContent = "What's New" + (versionLabel ? ' — Waypoint Alpha ' + versionLabel : '');
+      title.textContent = "What's New" + (versionLabel ? ' — Waypoint VTT Alpha ' + versionLabel : '');
       body.style.textAlign = 'center';   // release notes read centered; Terms/Privacy switch back to left in openLegal
       body.textContent = 'Loading…';
       document.getElementById('legalModal').style.display = 'flex';

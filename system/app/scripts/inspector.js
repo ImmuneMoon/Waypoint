@@ -288,7 +288,7 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
              '<div class="field"><label for="fCat">Category</label><select id="fCat" style="border-left: 4px solid '+selColor+'; color: '+selColor+'; font-weight: bold;">'+opts+'</select>'+catEditorHtml+'</div>'+
 
              '<div class="field"><label for="fTargetMap">Linked Map</label><select id="fTargetMap">'+mapOpts+'</select></div>'+
-             landingRoomFieldHtml(r, 'fLandRoom') +
+             landingRoomFieldHtml(Object.assign({}, r, { markers: true }), 'fLandRoom') +   // 1.6.4: a room's link offers the Arrive here markers of its map too
 
              '<div class="field"><label for="fIcon">Node Icon</label><select id="fIcon">'+iconOpts+'</select></div>'+
 
@@ -478,8 +478,14 @@ if(_el_fNotes) _el_fNotes.addEventListener('input',function(){r.notes=this.value
 
       }
 
+      if (fTargetMap) fTargetMap.addEventListener('change', function() { if (r.targetArriveId !== undefined) { delete r.targetArriveId; save(); } });   // 1.6.4: an Arrive here marker is a piece of the map it was picked for: another map, and it goes
+
       var fLandRoom = document.getElementById('fLandRoom');
-      if (fLandRoom) fLandRoom.addEventListener('change', function() { if (this.value) r.targetRoomId = this.value; else delete r.targetRoomId; save(); });
+      if (fLandRoom) fLandRoom.addEventListener('change', function() {   // 1.6.4: a marker (m: and its id) or a room, each letting go of the other
+          var v = String(this.value || ''); delete r.targetArriveId;
+          if (v.indexOf('m:') === 0) { delete r.targetRoomId; r.targetArriveId = v.slice(2); } else if (v) r.targetRoomId = v; else delete r.targetRoomId;
+          save();
+      });
 
       var fIcon = document.getElementById('fIcon');
 
@@ -2024,8 +2030,12 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       if (!dest || dest.type !== 'map') return '';
       var rooms = (dest.rooms || []).slice().sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
       var auto = findLandingRoom({ id: src.id, name: src.name, targetRoomId: null }, dest);
+      // 1.6.4 (Fulllion, 2026-11-23: "Offer the Arrive here markers on a room's link on the Data Map too"): the markers of that map stand first,
+      // each as m: and its id, picked where src names it (targetArriveId); the rooms after them as before (markersOf, the doorleads slice's)
+      var marksL = typeof markersOf === 'function' && src.markers === true ? markersOf(dest) : [], markL = typeof src.targetArriveId === 'string' && marksL.some(function(d) { return d.id === src.targetArriveId; }) ? src.targetArriveId : '';
       var opts = '<option value="">Automatic' + (auto ? ' — ' + esc(auto.name || auto.id) : ' — map home') + '</option>' +
-          rooms.map(function(rm) { return '<option value="' + esc(rm.id) + '"' + (src.targetRoomId === rm.id ? ' selected' : '') + '>' + esc(rm.name || rm.id) + '</option>'; }).join('');
+          (marksL.length ? '<optgroup label="Arrive here markers on that map">' + marksL.map(function(d) { return '<option value="m:' + esc(d.id) + '"' + (markL === d.id ? ' selected' : '') + '>' + esc(d.name) + '</option>'; }).join('') + '</optgroup>' : '') +
+          rooms.map(function(rm) { return '<option value="' + esc(rm.id) + '"' + (!markL && src.targetRoomId === rm.id ? ' selected' : '') + '>' + esc(rm.name || rm.id) + '</option>'; }).join('');
       return '<div class="field"><label for="' + selectId + '" title="Which room on the far map you arrive at. Automatic = a room with the same id or name as this one, else the map\'s home point.">Landing Room</label><select id="' + selectId + '">' + opts + '</select></div>';
   }
   // [sinkcheck:landing-end]

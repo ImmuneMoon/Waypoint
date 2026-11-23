@@ -1201,7 +1201,8 @@ function doorWays(f) {
 // Where a move from a to b (the token's middle where the move began and where it ended) goes through a door, or null where it does not. The
 // answer: t, how far along the move the door is met (0 to 1, so a caller picks the first door a move meets); (x, y), the point where the move
 // meets it; (nx, ny), the unit vector across the door the way the move goes through it; half, half the line's drawn width for a door drawn as a
-// line (lineHalf), 0 for a shape.
+// line (lineHalf), 0 for a shape; past, how far beyond the door the move's end lies (beyond the line's stroke, or the shape's far face; -1 for a
+// move that ended on a shaped door), which net.js doorCrossFor holds to one cell (Fulllion, 2026-11-23).
 // A door drawn as a line: the move's straight path crosses one of its strokes (crossAt). A move that begins or ends exactly on the line does
 // not cross it. A door drawn as a shape: the move begins outside the door on one side (beyond its thickness), comes at it from that side, and
 // meets its near face within the door's length. It then counts where the move ends past the far face (anywhere on the far side), or ends on
@@ -1218,7 +1219,7 @@ function doorThrough(d, a, b) {
             var s = segs[i], t = crossAt(a.x, a.y, b.x, b.y, s); if (t < 0 || (best && best.t <= t)) continue;
             var sx = s[2] - s[0], sy = s[3] - s[1], sl = Math.sqrt(sx * sx + sy * sy); if (!(sl > 0)) continue;
             var nx = -sy / sl, ny = sx / sl; if (nx * mx + ny * my < 0) { nx = -nx; ny = -ny; }   // across the stroke, the way the move goes
-            best = { t: t, x: a.x + mx * t, y: a.y + my * t, nx: nx, ny: ny, half: lineHalf(d) };
+            var hl = lineHalf(d); best = { t: t, x: a.x + mx * t, y: a.y + my * t, nx: nx, ny: ny, half: hl, past: (b.x - s[0]) * nx + (b.y - s[1]) * ny - hl };   // past: how far beyond the stroke the move's end lies
         }
         return best;
     }
@@ -1234,7 +1235,7 @@ function doorThrough(d, a, b) {
         var past = pb * sd <= -W.T, on = !past && Math.abs(qb) <= W.L && Math.abs(pb - pa) >= DOOR_HEAD * len;
         if (!past && !on) return;
         if (best && best.t <= te) return;
-        best = { t: te, x: a.x + mx * te, y: a.y + my * te, nx: -sd * W.nx, ny: -sd * W.ny, half: 0 };
+        best = { t: te, x: a.x + mx * te, y: a.y + my * te, nx: -sd * W.nx, ny: -sd * W.ny, half: 0, past: past ? -pb * sd - W.T : -1 };   // past: how far beyond the far face the move's end lies (-1: it ended on the door)
     });
     return best;
 }

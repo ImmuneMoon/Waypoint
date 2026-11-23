@@ -913,6 +913,9 @@ pendingChecks.push((async () => {
         const Wd = S7({}), mD = Wd.camp.items.mA;
         mD.whiteboard.push({ id: 'dPair', type: 'rect', x: 600, y: 600, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mB', targetDoorId: 'dFar', doorStop: true, landSide: -1, targetArriveId: 'mkFar' },
             { id: 'mkHere', type: 'arrive', name: 'Hall arrival', x: 640, y: 700, w: 40, h: 40 },   // the ruling: an Arrive here marker, the GM's alone
+            { id: 'pRoomTile', type: 'rect', x: 700, y: 600, w: 50, h: 50, nodeId: 'rmGate' });   // Fulllion's answer: a tile through a room whose link names a marker
+        mD.rooms = (mD.rooms || []).concat([{ id: 'rmGate', name: 'Gate', x: 0, y: 0, targetMapId: 'mB', targetArriveId: 'mkRoom' }]);
+        mD.whiteboard.push(
             { id: 'pDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 700, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [10, 10]], color: '#e9e9f0', strokeWidth: 3 });
         mD.meta = Object.assign({}, mD.meta, { updated: (mD.meta && mD.meta.updated || 0) + 1 }); Wd.clearSent(); Wd.net.sendItem('k', 'mA');
         const sentD = [keysOf(Wd.last(Wd.a1), 'dPair'), keysOf(Wd.last(Wd.b1), 'dPair'), keysOf(Wd.api.clean(mD), 'dPair')], allD = J(Wd.a1.sent.concat(Wd.a2.sent, Wd.b1.sent)) + J(Wd.api.clean(mD));
@@ -924,7 +927,7 @@ pendingChecks.push((async () => {
         const hostD = Wd.tok('dPair'), afterD = [hostD.targetDoorId, hostD.doorStop, hasK(Wd.tok('tA'), 'targetDoorId'), hasK(Wd.tok('tA'), 'doorStop'), hasK(Wd.tok('pDraw'), 'targetDoorId'), hasK(Wd.tok('pDraw'), 'doorStop'), !!Wd.tok('wbnewD') && (hasK(Wd.tok('wbnewD'), 'targetDoorId') || hasK(Wd.tok('wbnewD'), 'doorStop'))];
         const chS = lineOf('function cleanHostWbItem(w) {'), wireS = fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem');
         check('1.6.4 doors that lead somewhere (the wire, the real sends and patch path): a shown door that leads somewhere reaches each player and the shared clone as a door and a portal without the door it is paired with or its When shut option; neither name is in anything sent; a player\'s map copy that leaves both off the GM\'s door, or sets them on her own token and drawings, changes neither on the host; the wire drops both from every piece and a player\'s app takes neither from a host',
-            J(sentD) === J(['|door|mB', '|door|mB', '|door|mB']) && !/targetDoorId|doorStop|dFar|landSide|targetArriveId|mkFar|mkHere|Hall arrival|"arrive"/.test(allD) && J(afterD) === J(['dFar', true, false, false, false, false, false])
+            J(sentD) === J(['|door|mB', '|door|mB', '|door|mB']) && !/targetDoorId|doorStop|dFar|landSide|targetArriveId|mkFar|mkHere|mkRoom|Hall arrival|"arrive"/.test(allD) && /rmGate/.test(allD)   /* the room itself is sent (a tile names it), its marker never */ && J(afterD) === J(['dFar', true, false, false, false, false, false])
             && wireS.includes('    delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide;') && chS.includes('delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide;') && wireS.includes("    if (w.type === 'arrive') return null;") && chS.includes("if (w.type === 'arrive') return null;"), J([sentD, afterD]));   /* the ruling: the side a door lands on, the marker a portal names and the marker itself never leave the host either */
     }
     // a piece's fog mark (1.5.4: Under fog, Always revealed) on the wire, in the same one-module world: host to player with a shown piece and only

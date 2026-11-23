@@ -651,6 +651,9 @@ function cleanImportItems(ic, deps) {
             }
         });
         if (it.type === 'map' && Array.isArray(it.whiteboard)) it.whiteboard.forEach(function(w) { if (isObj(w) && w.type === 'text') w.text = san ? san(String(w.text || '')) : ''; });
+        // 1.6.4 (Fulllion, 2026-11-23): the Arrive here marker a room's link names, only as an id a piece may have (fogcore cleanDoorTo) on a room that
+        // leads to a map; with no cleaner on hand it does not come in
+        if (it.type === 'map' && Array.isArray(it.rooms)) it.rooms.forEach(function(r) { if (!isObj(r) || r.targetArriveId === undefined) return; var FCa = deps && deps.FC, ta = FCa && typeof FCa.cleanDoorTo === 'function' && typeof r.targetMapId === 'string' && r.targetMapId ? FCa.cleanDoorTo(r.targetArriveId) : null; if (ta) r.targetArriveId = ta; else delete r.targetArriveId; });
         // 1.5.4 (gencore.js): the seed and settings a map's dungeon was generated from, as the generator cleans them (deps.GEN = gencore.js
         // cleanGen: a short plain seed, a size within bounds, one word of each list); anything that is no bag of settings, and all of it with
         // no cleaner on hand, does not come in

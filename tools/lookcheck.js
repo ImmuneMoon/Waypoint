@@ -5101,8 +5101,46 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && wbS.includes("      if (window.wpRoomNamesEnd) window.wpRoomNamesEnd();   // 1.6.3: the room names this draw asked for, placed above the pieces (wbbuild.js), the rest taken away\n      positionHandles(activeMap);")
         && wbS.includes("      if (window.wpRoomNamesPlace) window.wpRoomNamesPlace();   // 1.6.3: a room's name follows its piece through a drag (wbbuild.js)")
         && Q.includes('transform: scale(var(--wbz, 1)) translateX(-50%); transform-origin: 0 0;') && Q.includes('background: #14141c;') && Q.includes('pointer-events: none;') && Q.includes('font-size: 12px;')
-        && css.includes('\n  body.stream-mode .wb-item.mappin > .mp-name { transform: translateX(-50%); transform-origin: 50% 50%; padding: 1px 6px; background: rgba(16,16,24,0.82); border: 0; box-shadow: none; color: #f1ead8; font-size: 11px; font-weight: inherit; }'),
+        && css.includes('\n  body.stream-mode .wb-item.mappin > .mp-name { left: 50%; right: auto; top: 100%; margin: 3px 0 0 0; transform: translateX(-50%); transform-origin: 50% 50%; padding: 1px 6px; background: rgba(16,16,24,0.82); border: 0; box-shadow: none; color: #f1ead8; font-size: 11px; font-weight: inherit; }'),
         J([rnZ, !!plate, !!pin]));
+}
+{   // 1.6.4 (Fulllion, mid-game 2026-11-22: "why are the labels over map areas the players play on?", then by prompt: "smaller from a far, on
+    // hover. and shown larger without hover when zoomed", hiding one label "Both", and a pin's name beside the pin). settings.js namesScale and
+    // namesZoom run for real from the tokmarks slice (the one zoom hook); the style sheet's rules, the plate's near state, the Properties rows,
+    // the pin's name and the wire's four cleaners read as text; Help says it
+    const rd = (...f) => fs.readFileSync(path.join(__dirname, '..', 'system', 'app', ...f), 'utf8').replace(/\r\n/g, '\n');
+    const css = rd('style.css'), setS = rd('scripts', 'settings.js'), wbB = require('./checkkit').part('wbbuild.js').replace(/\r\n/g, '\n'), wbS = rd('scripts', 'whiteboard.js'), insS = rd('scripts', 'inspector.js');
+    const plS = rd('scripts', 'places.js'), netS = rd('scripts', 'net.js'), clS = rd('scripts', 'cleanup.js'), ixS = rd('index.html');
+    const sl = sliceOf(setS, 'tokmarks'), mk = () => { const cls = new Set(), props = {}; return { cls, props, doc: { body: { classList: { toggle: (c, on) => { if (on) cls.add(c); else cls.delete(c); } } }, getElementById: () => ({ style: { setProperty: (k, v) => { props[k] = v; } } }) } }; };
+    const N = new Function(sl + '\nreturn { scale: namesScale, zoom: namesZoom, tz: tokMarksZoom, F: NAMES_FAR, L: NAMES_LEAST };')();
+    const sc = [1.5, 1, 0.9, 0.75, 0.5, 0.3].map(z => Math.round(N.scale(z) * z * 1000) / 1000);   // the size on screen, as a share of full size
+    const a = mk(), farA = N.zoom(a.doc, 0.39), b = mk(), farB = N.zoom(b.doc, 0.4), c = mk(); N.tz(c.doc, 0.7);
+    check('1.6.4, names on the map shrink and go away when zoomed out (run for real): full size at 100% or closer, with the map below it, never under 75% of full size on screen, put away below 40% (nm-far, a hair under counts as at it); --nmz on the board; Token marks\' zoom hook sets them too, so no second listener',
+        J(sc) === J([1, 1, 0.9, 0.75, 0.75, 0.75]) && N.F === 0.4 && N.L === 0.75 && farA === true && a.cls.has('nm-far') && farB === false && !b.cls.has('nm-far') && a.props['--nmz'] === String(Math.round(0.75 / 0.39 * 10000) / 10000)
+        && c.props['--nmz'] === '1.0714' && c.cls.has('tokmk-far') && !c.cls.has('nm-far'),
+        J([sc, farA, farB, a.props, c.props]));
+    check('1.6.4, the style sheet: a room\'s plate and a pin\'s name are drawn at --nmz, at full size (--wbz) and on top under the pointer, selected or on a lit door, put away under nm-far except then, never in the stream window, whose pin name keeps its old place under the pin; a pin\'s name stands to its right, or its left (mp-left)',
+        css.includes('\n  #whiteboard #roomNameLayer > .wb-room-name { transform: scale(var(--nmz, var(--wbz, 1))); }') && css.includes('\n  #whiteboard #roomNameLayer > .wb-room-name.rn-near { transform: scale(var(--wbz, 1)); z-index: 1; }')
+        && css.includes('\n  #whiteboard #roomNameLayer > .wb-room-name.rn-near.rn-mid { transform: scale(var(--wbz, 1)) translate(-50%, calc(-100% - 2px)); }')
+        && css.includes('\n  body.nm-far:not(.stream-mode) #roomNameLayer > .wb-room-name:not(.rn-near) { display: none; }')
+        && css.includes('\n  .wb-item.mappin > .mp-name { left: 100%; top: 50%; margin: 0 0 0 4px; transform: scale(var(--nmz, var(--wbz, 1))) translateY(-50%); }')
+        && css.includes('\n  .wb-item.mappin > .mp-name.mp-left { left: auto; right: 100%; margin: 0 4px 0 0; transform-origin: 100% 0; }')
+        && css.includes('\n  .wb-item.mappin:is(:hover, .sel, .wb-msel) > .mp-name { transform: scale(var(--wbz, 1)) translateY(-50%); }')
+        && css.includes('\n  body.nm-far:not(.stream-mode) .wb-item.mappin:not(:hover):not(.sel):not(.wb-msel) > .mp-name { display: none; }'),
+        '');
+    check('1.6.4, the plate\'s near state and the two ticks: rnNear copies the pointer, a selection and a lit door onto the plate, asked again once the doors are lit; a piece or a map unticked wears no plate and no pin name; Properties has Show its name on the map on a pin or a room\'s piece and Show names on this map in Map properties, each kept only as false; the wire keeps each only as false both ways and on import; Help says it',
+        wbB.includes("cl.contains('sel') || cl.contains('wb-msel') || cl.contains('wb-door-near')") && wbB.includes('    rnNear(tag);\n    if (off) return;')
+        && wbS.includes("      try { doorNearSync(am); } catch (e) {}   // 1.5.6: the doors beside a token of yours, again as the selection or a token moves\n      if (window.wpRoomNamesNear) window.wpRoomNamesNear();")
+        && wbB.includes("if (am.meta && am.meta.nameShow === false) return null;") && wbB.includes("if (w && w.nodeId && w.nameShow === false) off[w.nodeId] = 1;") && wbB.includes("if (!off[rid]) out[best[rid].id] = byRoom[rid];")
+        && wbB.includes("on = (bx >= x && bx <= x + ww && by >= y && by <= y + hh) || (!!_rnHovRoom && w.nodeId === _rnHovRoom);") && wbB.includes("document.addEventListener('pointermove'")
+        && plS.includes("function pinNameShown(item, map) { return !(item && item.nameShow === false) && !(map && map.meta && map.meta.nameShow === false); }") && plS.includes("if (!pinNameShown(item, map)) nm = '';") && plS.includes("lab.classList.toggle('mp-left', pinNameLeft(item, lab));")
+        && insS.includes('<i class="wib wi-marker"></i> Show its name on the map</label>') && insS.includes('<i class="wib wi-marker"></i> Show names on this map</label>') && insS.includes('return map.whiteboard.filter(function(x) { return x && x.nodeId === w.nodeId; });')
+        && insS.includes('nameShowFieldHtml(w, activeMap)+') && insS.includes("inspector.insertAdjacentHTML('beforeend', mapNameShowFieldHtml(activeMap));") && insS.includes('if (on) (ofMap ? [rec] : nameShowSame(rec, map)).forEach(function(x) { delete x.nameShow; }); else rec.nameShow = false;')
+        && netS.includes("    if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow;   // 1.6.4") && netS.includes("delete w.showFor; } } if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow; if (w.trim")
+        && (netS.match(/m\.meta\.nameShow !== undefined && m\.meta\.nameShow !== false\) delete m\.meta\.nameShow;/g) || []).length === 2
+        && clS.includes("if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow;") && clS.includes("it.meta.nameShow !== undefined && it.meta.nameShow !== false) delete it.meta.nameShow;")
+        && ixS.includes('Zoomed out, the names get smaller, and below 40% they go away.') && ixS.includes('untick <b>Show its name on the map</b> in its Properties') && ixS.includes('untick <b>Show names on this map</b> in Map properties'),
+        '');
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

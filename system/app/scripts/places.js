@@ -246,8 +246,23 @@ function pinDraw(pe, item, map) {
     if (g.style.getPropertyValue('--pin') !== col) g.style.setProperty('--pin', col);
     var p = map ? PC.placeOf(item, map, ctx()) : null, nm = p ? p.name : '', lab = pe.querySelector(':scope > .mp-name');
     if (nm && who() !== 'gm' && !linesNow(map).some(function(l) { return l.id === item.id; })) nm = '';
-    if (nm) { if (!lab) { lab = document.createElement('span'); lab.className = 'mp-name'; pe.appendChild(lab); } if (lab.textContent !== nm) lab.textContent = nm; }
+    if (!pinNameShown(item, map)) nm = '';   // 1.6.4: the GM unticked the pin's own Show its name on the map, or the map's Show names on this map
+    if (nm) { if (!lab) { lab = document.createElement('span'); lab.className = 'mp-name'; pe.appendChild(lab); } if (lab.textContent !== nm) lab.textContent = nm; lab.classList.toggle('mp-left', pinNameLeft(item, lab)); }
     else if (lab) lab.remove();
+}
+// 1.6.4 (Fulllion, mid-game 2026-11-22: "why are the labels over map areas the players play on?", and by prompt: hiding one label "Both").
+// A pin's name is drawn unless the GM unticked the pin's own tick (nameShow: false) or the map's switch (meta.nameShow: false). Both are the
+// GM's choice about the map, so a player's app follows them too; the place stays in Places here and on every legend either way
+function pinNameShown(item, map) { return !(item && item.nameShow === false) && !(map && map.meta && map.meta.nameShow === false); }
+// 1.6.4 (Fulllion's pick: "beside the pin, to its right", flipping to its left where it would pass the board's right edge): whether the name
+// stands to the left. Its width on the board is read from the label as drawn, at full size (the most it ever takes up on the board)
+function pinNameLeft(item, lab) {
+    var x = Number(item.x), w = Number(item.w), right = (isFinite(x) ? x : 0) + (isFinite(w) && w > 0 ? w : 40) + 4;
+    var wb = typeof document !== 'undefined' && document.getElementById ? document.getElementById('whiteboard') : null;
+    var zi = wb && wb.style ? parseFloat(wb.style.getPropertyValue('--wbz')) : NaN, k = zi > 0 ? zi : 1;   // 1 / zoom: a label at full size, on the board
+    if (!isFinite(x) || right + 236 * k <= 30000) return false;   // the review: the widest a name gets (220 px and its plate's edges) still fits, so nothing is measured
+    var W = wb && wb.offsetWidth > 0 ? wb.offsetWidth : 30000, lw = (lab && lab.offsetWidth > 0 ? lab.offsetWidth : 236) * k;   // near the edge alone: the board and the label as drawn
+    return right + lw > W;
 }
 
 // ---- Properties, the GM's ----

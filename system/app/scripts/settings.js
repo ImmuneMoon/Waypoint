@@ -297,6 +297,25 @@ function tokMarksZoom(doc, z) {   // the board's zoom: tokmk-far below the thres
     var b = doc && doc.body; if (b && b.classList) b.classList.toggle('tokmk-far', far);
     var wb = doc && doc.getElementById ? doc.getElementById('whiteboard') : null;
     if (wb && wb.style && wb.style.setProperty) wb.style.setProperty('--mkz', String(Math.round(tokMarksScale(ok ? z : 1) * 10000) / 10000));
+    namesZoom(doc, ok ? z : 1);   // 1.6.4: the name labels on the map read the same zoom, so no second listener is needed
+    return far;
+}
+// 1.6.4 (Fulllion, mid-game 2026-11-22: "why are the labels over map areas the players play on?", then by prompt: "smaller from a far, on
+// hover. and shown larger without hover when zoomed"). The name labels on the play map (a room's or a portal's name plate, wbbuild.js, and a
+// place pin's name, places.js) follow the zoom here. At 100% or closer each shows at its full size, 12 px on screen. Below 100% they shrink with
+// the map, but never under NAMES_LEAST of their size on screen (about 9 px). Below NAMES_FAR (40%) they are put away (the body's nm-far). The
+// label of the piece under the pointer, a selected piece and a door lit by a token beside it always shows at full size (style.css).
+// --nmz on #whiteboard is the scale a label is drawn at (the same rule as tokMarksScale, with its own least size).
+var NAMES_FAR = 0.4, NAMES_LEAST = 0.75;
+function namesScale(z) {   // a label's scale on the board: 1/z at 100% or closer (12 px on screen), with the map below it, never under NAMES_LEAST on screen
+    z = typeof z === 'number' && isFinite(z) && z > 0 ? z : 1;
+    return Math.min(1 / z, Math.max(1, NAMES_LEAST / z));
+}
+function namesZoom(doc, z) {   // the body's nm-far below NAMES_FAR (a hair under counts as at it), and --nmz on the board
+    var ok = typeof z === 'number' && isFinite(z) && z > 0, far = ok && z < NAMES_FAR - 0.001;
+    var b = doc && doc.body; if (b && b.classList) b.classList.toggle('nm-far', far);
+    var wb = doc && doc.getElementById ? doc.getElementById('whiteboard') : null;
+    if (wb && wb.style && wb.style.setProperty) wb.style.setProperty('--nmz', String(Math.round(namesScale(ok ? z : 1) * 10000) / 10000));
     return far;
 }
 // [lookcheck:tokmarks-end]

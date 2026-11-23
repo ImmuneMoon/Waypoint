@@ -89,6 +89,11 @@ Names changed at the table [DRAFT]
   took it while they were away, they get it back when they return, and
   the other player goes by "Player 2" for now. To give a name to another
   player instead, press Give in Player History.
+- Rename... in Player History sets the name a player goes by at your
+  table, for this campaign only. Everyone at the table sees it, and it
+  holds when they rejoin or change their own name. Their own name in
+  the app and on the website stays theirs. Pick any name you like, as
+  long as no other player here has exactly that name.
 - GM and Game Master are kept for you. Names that only look alike, such
   as one spelled with a Cyrillic letter, count as the same name.
 

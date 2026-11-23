@@ -2137,7 +2137,7 @@ pendingChecks.push((async () => {
             W.camp = { players: { u_a: { name: 'Ayla', key: 'k1' }, u_d: { name: 'Dana', key: 'k2' }, u_e: { name: 'Bram Stone', key: 'k3' },
                 u_bo: { name: 'Bo', key: 'k4', firstSeen: 100 }, u_ay: { name: 'BO', key: 'k5', firstSeen: 50, nameAt: 5000 }, u_nk: { name: 'bo' } } };
             W.C = new Function('net', 'own', 'validProfileId', 'cleanRosterName', 'getProfile', 'toast', 'logEvent', 'Date', 'getActiveCampaign', '_satIds', 'sendFailed', 'save', 'broadcastRoster',
-                cS + '\nreturn { nameKey, nameSame, nameReserved, nameClash, nameOwner, nameFree, clashTell, clashJudge, clashKeptSay, nameWanters, nameGive, CLASH_WORDS, CLASH_GM_WORDS };')(
+                cS + '\nreturn { nameKey, nameSame, nameReserved, nameClash, nameTaken, nameOwner, nameFree, clashTell, clashJudge, clashKeptSay, nameWanters, nameGive, nameSetTable, CLASH_WORDS, CLASH_GM_WORDS };')(
                 W.net, H.own, H.validProfileId, H.cleanRosterName, () => W.me, t => W.said.push(t), (k, t, o) => W.logs.push([t, o.x]), { now: () => W.now }, () => W.camp, { u_d: 1, u_e: 1, u_a: 1 }, () => {}, () => { W.saves++; }, () => { W.rosters++; });
             return W;
         };
@@ -2179,8 +2179,47 @@ pendingChecks.push((async () => {
         const swapped = [B.camp.players.u_ay.name, B.camp.players.u_ay.wanted, B.camp.players.u_bo.name, B.camp.players.u_bo.wanted, B.net.roster.pY.name, B.net.roster.pBo.name, B.rosters, CB.nameWanters(B.camp, 'u_ay')];
         check('1.6.4 the GM can swap a name (Fulllion: "able to be swapped if needed easily"): Player History offers to give a record\'s name to each record that wants it; given, that player goes by it on the roster and the record, the one who had it is given a name for now and wants it back, both are told and the roster goes again; a record that does not want the name is given nothing',
             j(wants) === j(['u_ay']) && refuse === '' && gave === 'Player 3' && j(swapped) === j(['Bo', undefined, 'Player 3', 'Bo', 'Bo', 'Player 3', 1, ['u_bo']])
-            && j(B.notes) === j(['pY:The GM gave you the name Bo.', 'pBo:The GM gave the name Bo to another player, so you are Player 3 here. Pick another name in Your profile.']),
+            && B.camp.players.u_ay.tableName === 'Bo' && !('tableName' in B.camp.players.u_bo)
+            && j(B.notes) === j(['pY:The GM gave you the name Bo at this table. Your own name stays yours everywhere else.', 'pBo:The GM gave the name Bo to another player, so you are Player 3 here. Pick another name in Your profile.']),
             j({ wants, refuse, gave, swapped, notes: B.notes }));
+        // Fulllion, 2026-11-24 ("it should only count for that campaign not their actual profile name"; "any name to anyone the gm desires, if they
+        // match 100%, one needs to change"): the GM's Rename\u2026 sets a TABLE NAME, which holds here over every other claim (nameSetTable run for real)
+        const T = mkN(), CT = T.C;
+        const set1 = CT.nameSetTable(T.camp, 'u_ay', '  Ranger '), at1 = [T.net.roster.pY.name, T.camp.players.u_ay.tableName, T.camp.players.u_ay.name, T.rosters, T.notes.slice()];
+        const refusals = [CT.nameSetTable(T.camp, 'u_d', 'AYLA  '), CT.nameSetTable(T.camp, 'u_e', 'ranger'), CT.nameSetTable(T.camp, 'u_d', 'gale'), CT.nameSetTable(T.camp, 'u_d', 'Game  Master'), CT.nameSetTable(T.camp, 'u_zz', 'X'), CT.nameSetTable(T.camp, 'u_ay', 'Ranger')];
+        const lookAlike = CT.nameSetTable(T.camp, 'u_d', 'Ayl\u0430');   // a look-alike is the GM's own pick to make
+        const owner = CT.nameOwner(CT.nameKey('ranger'));
+        // what they go by here, whatever their app says, and they are told so after their snapshot; nobody else may take it, at the table or away
+        T.notes.length = 0; const pGate = { id: 'u_ay', name: 'Ayla Q' }, jg = CT.clashJudge(pGate, 'pGate', false, 'gate');   // at the gate the name they typed stands (the GM's question shows it); the table name comes as they are let in
+        const pQ = { id: 'u_ay', name: 'Ayla Q' }, jq = CT.clashJudge(pQ, 'pQ', false, 'proven');
+        T.net.roster.pQ = { id: 'u_ay', name: 'Ranger' }; const said = []; CT.clashKeptSay({ peer: 'pQ', send: m => said.push(m.text) });
+        T.net.conns = T.net.conns.filter(c => c.peer !== 'pY'); delete T.net.roster.pY; delete T.net.roster.pQ;
+        const away = [CT.clashJudge({ id: 'u_s', name: 'RANGER' }, 'pS'), (CT.nameTaken('u_s', 'R\u0430nger') || {}).table === true, CT.nameFree('u_x')];
+        const off = CT.nameSetTable(T.camp, 'u_ay', '   '), offAt = [T.camp.players.u_ay.tableName, T.camp.players.u_ay.name], offAgain = CT.nameSetTable(T.camp, 'u_ay', '');
+        check('1.6.4 a table name (Fulllion: for that campaign alone): the GM sets any name, kept on the record as tableName and on the roster, the player told; refused only where it is exactly another player\'s name here (case and spacing aside) or another record\'s table name, or the GM\'s own, or a word kept for the GM (a look-alike is the GM\'s own pick); it holds the name before any other record; a player with one goes by it here whatever their app says and is told after their snapshot; nobody else may take it, at the table or away, nor by a look-alike; an empty name takes it off',
+            j(set1) === j({ ok: true, name: 'Ranger' }) && j(at1) === j(['Ranger', 'Ranger', 'Ranger', 1, ['pY:At this table you go by Ranger now, the name the GM set for you here. Your own name stays yours everywhere else.']])
+            && j(refusals) === j([{ why: 'taken', who: 'Ayla' }, { why: 'taken', who: 'Ranger' }, { why: 'taken', who: 'you' }, { why: 'reserved' }, { why: 'none' }, { why: 'same' }])
+            && lookAlike.ok === true && owner === 'u_ay' && jg === '' && pGate.name === 'Ayla Q' && jq === '' && pQ.name === 'Ranger'
+            && j(said) === j(['At this table you go by Ranger, the name the GM set for you here. Your own name stays yours everywhere else.'])
+            && j(away) === j(['table', true, 'Player 2']) && j(off) === j({ ok: true, off: true }) && j(offAt) === j([undefined, 'Ranger']) && j(offAgain) === j({ why: 'same' }),
+            j({ set1, at1, refusals, lookAlike, owner, jq, said, away, off, offAt, offAgain }));
+        // the review of table names: someone else at the table who goes by a table name is pushed aside only by its holder proven (unproven, the
+        // holder is turned away); a table name is never pushed aside, and two the GM picked that look alike both stand; the holder of a table name
+        // is found by a name that looks like it; a word kept for the GM, as a table name from a file, is never enforced; a name of no letters is none
+        const V = mkN(), CV = V.C;
+        V.camp.players.u_a.tableName = 'Ayla';   // u_a (connected as pA) holds Ayla as a table name
+        V.camp.players.u_t = { name: 'Tess', key: 'k9', tableName: 'Bram  Stone' };   // u_t holds the name u_b (connected) goes by
+        const unprovenT = CV.clashJudge({ id: 'u_t', name: 'Tess' }, 'pT', true, ''), provenT = CV.clashJudge({ id: 'u_t', name: 'Tess' }, 'pT', false, 'proven');
+        const pushed = [V.net.roster.pB.name, V.camp.players.u_t.tableName];
+        V.camp.players.u_l = { name: 'Lia', key: 'k10', tableName: 'AI' };
+        const lookOwner = [CV.nameOwner(CV.nameKey('Al'), 'Al'), CV.nameOwner(CV.nameKey('Al'))];
+        V.net.roster.pL = { id: 'u_l', name: 'AI' }; V.net.conns.push({ peer: 'pL', open: true, send() {} });
+        const keepTable = [CV.clashJudge({ id: 'u_x2', name: 'Al' }, 'pX', false, 'proven'), V.net.roster.pL.name];
+        V.camp.players.u_g = { name: 'Gus', key: 'k11', tableName: 'GM' }; const gProf = { id: 'u_g', name: 'Gus' }, gRes = CV.clashJudge(gProf, 'pG2', false, 'proven');
+        const noKey = CV.nameSetTable(V.camp, 'u_d', 'Player');
+        check('1.6.4 table names hold (the review): someone at the table who goes by another\'s table name is pushed aside by that holder once proven, and the holder unproven is turned away; a table name is never pushed aside; a table name is found by a name that looks like it; a word kept for the GM as a table name from a file is never enforced; "Player" as a table name is none',
+            unprovenT === 'clash' && provenT === '' && j(pushed) === j(['Player 2', 'Bram  Stone']) && j(lookOwner) === j(['u_l', '']) && j(keepTable) === j(['clash', 'AI'])
+            && gRes === '' && gProf.name === 'Gus' && j(noKey) === j({ why: 'same' }), j({ unprovenT, provenT, pushed, lookOwner, keepTable, gRes, gProf, noKey }));
         // older records (no nameAt, from before names were judged): one alone is the holder, two leave it to the GM's Give; two that took a name at
         // the same moment go to the one seen last; a name is never given while someone else at the table goes by it; a name for now avoids the one given
         const E = mkN(), CE = E.C;
@@ -2209,7 +2248,10 @@ pendingChecks.push((async () => {
             nn3.indexOf("clashJudge(next.prof, next.conn.peer, true, '')") > 0 && nn3.indexOf("clashJudge(next.prof, next.conn.peer, true, '')") < nn3.indexOf("mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves())"),
             nn3.includes("    if (snapOk && typeof clashKeptSay === 'function') clashKeptSay(conn);") && nn3.indexOf('clashKeptSay(conn);') > nn3.indexOf('conn.send(snap); snapOk = true;'),
             nn3.includes("if (nameMovedA) { rec.nameAt = Date.now();") && nn3.includes("recP.nameAt = Date.now(); delete recP.wanted;"),
-            nn3.includes("    } else if (btn.dataset.namegive) {\n        nameGiveAsk(camp, btn.dataset.namefrom, btn.dataset.namegive);") && nn3.includes("'<button class=\"tool ghost player-act\" data-namegive=\"' + escTextRoster(wid) + '\" data-namefrom=\"' + escTextRoster(pid) + '\"")];
+            nn3.includes("    } else if (btn.dataset.rename) {\n        nameRenameAsk(camp, btn.dataset.rename);") && nn3.includes("'<button class=\"tool ghost player-act\" data-rename=\"' + escTextRoster(pid) + '\"")
+            && nn3.indexOf("if (recT0 && typeof recT0.tableName === 'string' && (typeof nameKey !== 'function' || (nameKey(recT0.tableName) && !nameReserved(recT0.tableName))) && cleanRosterName(pcP.name) !== nmP) {") > nn3.indexOf("if (!allow('profile-set',") && nn3.indexOf('if (recT0 && typeof recT0.tableName') < nn3.indexOf('var clashP = ')
+            && nn3.includes("    } else if (btn.dataset.namegive) {\n        nameGiveAsk(camp, btn.dataset.namefrom, btn.dataset.namegive);")
+            && /if \(mv\.kept\) \{[^\n]*\n\s*delete nr\.was;\n\s*delete o\.tableName;/.test(nn3) && nn3.includes("'<button class=\"tool ghost player-act\" data-namegive=\"' + escTextRoster(wid) + '\" data-namefrom=\"' + escTextRoster(pid) + '\"")];
         check('1.6.4 the name is judged where a name comes to the table: at the hello gate after the bans, the version and the password and before the key or the GM is asked; once a key is proven, before an old connection is closed for the new one; before Same person as moves anything; again as a player is let in (proven or not), before the roster takes them; by profile-set after its limit; a seated player back under their old name is told after their snapshot; a record keeps when it took its name; Player History gives a name in one press',
             wired3.every(Boolean), j(wired3));
     }

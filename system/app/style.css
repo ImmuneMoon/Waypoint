@@ -2332,15 +2332,17 @@
   .players-section { color: var(--gold); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 6px; border-bottom: 1px solid var(--edge); padding-bottom: 4px; }
   .players-section:first-child { margin-top: 0; }
   .players-empty { color: var(--dim); font-size: 12px; font-style: italic; padding: 6px 0; }
-  .player-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .player-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); }   /* 1.6.4: its buttons go to a line of their own where the window is narrow, so the name boxes keep their room */
   .player-row.banned { opacity: 0.75; }
-  .player-info { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink); }
+  .player-info { flex: 1; min-width: 200px; font-size: 12.5px; color: var(--ink); }
   .player-meta { color: var(--dim); font-size: 10.5px; margin-top: 1px; }
   /* 1.6.4: Player History's "Your name for them" box, and the player's own name beside the GM's */
   .player-gmname-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--dim); font-size: 10.5px; }
   .player-gmname { flex: 1; min-width: 0; max-width: 220px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 8px; font-size: 11.5px; font-family: inherit; outline: none; transition: border-color 0.15s; }
   .player-gmname:hover, .player-gmname:focus { border-color: var(--gold); }
   .player-own-name { color: var(--dim); font-weight: normal; font-size: 11px; }
+  .player-rename { width: 100%; box-sizing: border-box; margin-top: 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 9px; font-size: 12.5px; font-family: inherit; outline: none; }
+  .player-rename:focus { border-color: var(--gold); }
   .player-online { color: var(--green); font-size: 10px; }
   .player-char { color: var(--dim); font-size: 11px; }
   .player-bantag { background: var(--red); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; vertical-align: 1px; }

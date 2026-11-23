@@ -597,6 +597,8 @@ function cleanGmNameIn(p) {
     // a name the player wants (Player History offers to give it to them), cleaned as a name is; when the record took its name, a time
     if (p.wanted !== undefined) { var w = typeof p.wanted === 'string' ? p.wanted.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; if (w) p.wanted = w; else delete p.wanted; }
     if (p.nameAt !== undefined && !(typeof p.nameAt === 'number' && isFinite(p.nameAt) && p.nameAt > 0)) delete p.nameAt;
+    // the name the GM set for them at this table (Player History's Rename…), cleaned as a name is
+    if (p.tableName !== undefined) { var tn = typeof p.tableName === 'string' ? p.tableName.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 40) : ''; if (tn) p.tableName = tn; else delete p.tableName; }
 }
 function cleanWas(p) {
     var out = [];

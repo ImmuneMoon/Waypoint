@@ -423,6 +423,7 @@ if(_el_newCampBtn) _el_newCampBtn.addEventListener('click', function() {
                   updateCampaignSelect(); updateSidebarNav(); render(); save(true);
 
                   if (newCamp.library && window.wpLibrary && window.wpLibrary.load) window.wpLibrary.load(newCamp);
+                  if (pick && window.wpCampSafe && typeof window.wpCampSafe.afterOpen === 'function') window.wpCampSafe.afterOpen(pick);   // 1.6.4: a starter's own packs, once the campaign is open
                   if (window.wpCampQuest && typeof window.wpCampQuest.offer === 'function') window.wpCampQuest.offer(newCamp.id);   // 1.6.2 (backlog 166 e): a few short questions, with Skip
 
               };

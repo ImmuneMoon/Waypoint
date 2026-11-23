@@ -1563,8 +1563,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const wired = typeof r.els.setUpdateRestoreBtn.handlers.click === 'function'; if (wired) r.els.setUpdateRestoreBtn.handlers.click(); await flush();
                     const asked = r.log.confirms.slice(), before = r.log.fetches.length; r.st.cb(false); await flush(); const afterNo = r.log.fetches.length, noReload = r.log.reloads;
                     r.els.setUpdateRestoreBtn.handlers.click(); await flush(); r.st.cb(true); await flush();
-                    ok2 = wired && asked.length === 1 && asked[0] === 'Go back from Waypoint Alpha 1.5.1 to Waypoint Alpha 1.5.0? Your campaigns are not touched. You can update again afterwards.' && before === 0 && afterNo === 0 && noReload === 0
-                        && j(r.log.fetches) === j([['/api/update-rollback', 'POST']]) && r.log.reloads === 1 && r.log.toasts.some(t => /Restored Waypoint Alpha 1\.5\.0/.test(t)) && j(r.log.posted) === j([{ type: 'reload' }]);
+                    ok2 = wired && asked.length === 1 && asked[0] === 'Go back from Waypoint VTT 1.5.1 to Waypoint VTT 1.5.0? Your campaigns are not touched. You can update again afterwards.' && before === 0 && afterNo === 0 && noReload === 0
+                        && j(r.log.fetches) === j([['/api/update-rollback', 'POST']]) && r.log.reloads === 1 && r.log.toasts.some(t => /Restored Waypoint VTT 1\.5\.0/.test(t)) && j(r.log.posted) === j([{ type: 'reload' }]);
                     d.push([wired, asked, before, afterNo, r.log.fetches, r.log.reloads, r.log.toasts]);
                     // refused by the shell: said, the button back, no reload; at a table: not even asked; nothing to restore: nothing
                     const f = rig({ appVersion: '1.5.1', answer: { ok: false, error: 'no previous version to restore' } }); f.ui('setUpdateRestoreBtn'); f.upd.info = { current: '1.5.1', hasPrev: true, prevVersion: '1.5.0' }; f.api.runRestore(); await flush(); f.st.cb(true); await flush();
@@ -1573,7 +1573,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const h = rig({ appVersion: '1.5.1-dev', answer: { ok: true, version: '<b>x</b>' } }); h.ui('setUpdateRestoreBtn'); h.upd.info = { current: '1.5.1', hasPrev: true, prevVersion: '<b>1.5.0</b>' }; h.api.runRestore(); await flush(); const hAsked = h.log.confirms[0]; h.st.cb(true); await flush();
                     ok3 = f.log.reloads === 0 && f.els.setUpdateRestoreBtn.disabled === false && f.log.toasts.some(t => /Could not restore/.test(t) && /no previous version to restore/.test(t))
                         && n.log.confirms.length === 0 && n.log.fetches.length === 0 && n.log.toasts.length === 1 && z.log.confirms.length === 0 && z.log.fetches.length === 0
-                        && hAsked === 'Go back from Waypoint Alpha 1.5.1 to the previous version of Waypoint? Your campaigns are not touched. You can update again afterwards.' && h.log.toasts.every(t => !/[<>]/.test(t)) && h.log.reloads === 1
+                        && hAsked === 'Go back from Waypoint VTT 1.5.1 to the previous version of Waypoint VTT? Your campaigns are not touched. You can update again afterwards.' && h.log.toasts.every(t => !/[<>]/.test(t)) && h.log.reloads === 1
                         && j(['1.5.0', '1.5.1-dev', '', null, 7, '<b>', '1.5.0\n', 'x'.repeat(41)].map(v => f.api.cleanVer(v))) === j(['1.5.0', '1.5.1-dev', '', '', '', '', '', '']);
                     d.push([f.log, n.log, z.log.confirms, hAsked, h.log.toasts]);
                     // Update now: No means no
@@ -1620,9 +1620,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     // the three controls, in each state
                     const draw = info => { const r = pageOf(info); r.api.updateUI(); r.api.showUpdateButton(info); r.api.showUpdateBanner(info); const x = r.els; return [x.setUpdateInstallerBtn.textContent, x.setUpdateInstallerBtn.style.display, x.setUpdateNowBtn.style.display, x.updateBannerGo.textContent, x.updateBannerText.textContent, x.updateBtn.textContent, x.updateBtn.title, x.setUpdateInstallerBtn.title]; };
                     const a = draw(SELF), b = draw(Object.assign({}, SELF, { canSelfInstall: false })), c = draw(Object.assign({}, SELF, { canSelfInstall: 'true' })), h = draw(HOT), u = draw(Object.assign({}, SELF, { canSelfInstall: undefined }));
-                    okA = j(a.slice(0, 6)) === j(['Update', 'block', 'none', 'Update', 'Waypoint Alpha 1.5.1 is available — one click to update.', 'Update to 1.5.1']) && /updates Waypoint's core too/.test(a[6]) && !/installer/i.test(a[6]) && /one click/.test(a[7])
-                        && j(b.slice(0, 6)) === j(['Get installer', 'block', 'none', 'Get installer', 'Waypoint Alpha 1.5.1 is available — this one comes as an installer; Update shows the steps first.', 'Update to 1.5.1']) && /comes as an installer/.test(b[6]) && /download the installer/.test(b[7])
-                        && j(c) === j(b) && j(u) === j(b) && j(h.slice(0, 5)) === j(['Get installer', 'none', 'block', 'Update', 'Waypoint Alpha 1.5.1 is available — one click to update.']) && /update in place/.test(h[6]);
+                    okA = j(a.slice(0, 6)) === j(['Update', 'block', 'none', 'Update', 'Waypoint VTT 1.5.1 is available — one click to update.', 'Update to 1.5.1']) && /updates Waypoint's core too/.test(a[6]) && !/installer/i.test(a[6]) && /one click/.test(a[7])
+                        && j(b.slice(0, 6)) === j(['Get installer', 'block', 'none', 'Get installer', 'Waypoint VTT 1.5.1 is available — this one comes as an installer; Update shows the steps first.', 'Update to 1.5.1']) && /comes as an installer/.test(b[6]) && /download the installer/.test(b[7])
+                        && j(c) === j(b) && j(u) === j(b) && j(h.slice(0, 5)) === j(['Get installer', 'none', 'block', 'Update', 'Waypoint VTT 1.5.1 is available — one click to update.']) && /update in place/.test(h[6]);
                     e.push([a, b, h]);
                     // the question: in the app's own words, from cleaned values only; No means no; at a table not even asked
                     const q = pageOf(SELF, { routes: {} }); q.els.setUpdateInstallerBtn.click(); await flush();
@@ -1645,7 +1645,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     f.els.setUpdateInstallerBtn.click(); await flush(); f.st.cb(true); const off = [f.els.setUpdateInstallerBtn.disabled, f.els.updateBtn.disabled, f.els.updateBannerGo.disabled, f.els.setUpdateRestoreBtn.disabled], came = await settle(f);
                     const polls = f.log.said.filter(x => x[0] === '/api/update-installer-status').map(x => x[1]), atRun = f.log.said.filter(x => x[0] === '/api/update-installer-run').map(x => [x[1], x[2]]);
                     okC = came && j(f.log.order) === j(['POST /api/update-installer', 'GET /api/update-installer-status', 'GET /api/update-installer-status', 'GET /api/update-installer-status', 'GET /api/update-installer-status', 'GET /api/update-installer-status', 'save', 'POST /api/update-installer-run'])
-                        && j(polls) === j(['Downloading Waypoint Alpha 1.5.1…', 'Downloading Waypoint Alpha 1.5.1… 0%', 'Downloading Waypoint Alpha 1.5.1… 50%', 'Downloading Waypoint Alpha 1.5.1… 5 MB', 'Checking the download…']) && j(atRun) === j([['Waypoint is closing to update…', 'Waypoint is closing to update…']])
+                        && j(polls) === j(['Downloading Waypoint VTT 1.5.1…', 'Downloading Waypoint VTT 1.5.1… 0%', 'Downloading Waypoint VTT 1.5.1… 50%', 'Downloading Waypoint VTT 1.5.1… 5 MB', 'Checking the download…']) && j(atRun) === j([['Waypoint is closing to update…', 'Waypoint is closing to update…']])
                         && j(f.log.saves) === j([true]) && f.log.timers.filter(t => t === 1000).length === 5 && f.log.timers.every(t => t === 1000 || t === 150 || t === 60000) && j(off) === j([true, true, true, true]) && f.log.toasts.some(t => t === 'Waypoint is closing to update…') && f.log.reloads === 0
                         && f.els.updateBanner.style.display === 'none' && f.els.installerModal.style.display !== 'flex' && f.upd.selfFailed === false;
                     e.push([came, f.log.order, polls, atRun, f.log.timers, f.log.toasts]);
@@ -1664,9 +1664,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const n5 = note(); await n5.api.checkUpdates(false, true); n5.els.updateBannerLater.click(); await flush(); await n5.api.checkUpdates(true, true); await flush();
                     const n6 = note({ installFailed: null }); await n6.api.checkUpdates(false, true);
                     okD = okD && j(n1bar) === j(['flex', 'The update to 1.5.1 did not finish. Try Update again, or use Get installer.']) && n1.log.confirms[0] === ASK && n1.log.order.indexOf('POST /api/update-installer-dismiss') > 0 && n1.els.updateBanner.style.display === 'none'
-                        && n2.els.installerModal.style.display === 'flex' && n2.els.installerModal.dataset.url === SELF.installer && n2.els.installerVersion.textContent === 'Waypoint Alpha 1.5.1' && n2.log.confirms.length === 0 && n2.log.order.indexOf('POST /api/update-installer-dismiss') > 0
+                        && n2.els.installerModal.style.display === 'flex' && n2.els.installerModal.dataset.url === SELF.installer && n2.els.installerVersion.textContent === 'Waypoint VTT 1.5.1' && n2.log.confirms.length === 0 && n2.log.order.indexOf('POST /api/update-installer-dismiss') > 0
                         && n3.els.installerModal.style.display === 'flex' && n3.log.confirms.length === 0
-                        && n4.els.updateBannerText.textContent === 'Waypoint Alpha 1.5.1 is available — one click to update.' && n4.els.updateBannerLater.textContent !== 'Dismiss' && n4.log.order.indexOf('POST /api/update-installer-dismiss') < 0
+                        && n4.els.updateBannerText.textContent === 'Waypoint VTT 1.5.1 is available — one click to update.' && n4.els.updateBannerLater.textContent !== 'Dismiss' && n4.log.order.indexOf('POST /api/update-installer-dismiss') < 0
                         && n5.log.order.filter(x => x === 'POST /api/update-installer-dismiss').length === 1 && n5.els.updateBanner.style.display === 'none' && n5.upd.failNote === '' && n5.log.toasts.length === 0
                         && n6.els.updateBannerLater.textContent !== 'Dismiss' && n6.upd.failNote === '';
                     e.push([bar, f.log.order.slice(-2), n1bar, n1.log.confirms, n2.els.installerModal, n4.els.updateBannerText.textContent, n5.log.order]);
@@ -1740,7 +1740,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const barOf = r => [r.els.updateBanner.style.display, r.els.updateBannerText.textContent, r.els.updateBannerGo.textContent, r.els.updateBannerNotes.textContent, r.els.updateBannerLater.textContent];
             const routesOf = (info, more) => Object.assign({ '/api/update-check': info, '/api/update-installer-dismiss': { ok: true }, '/api/update-apply': { ok: true, version: '1.5.1' } }, more || {});
             const UPTO = { current: '1.5.0', latest: '1.5.0', newer: false }, INST = Object.assign({}, SELF, { canSelfInstall: false }), FAIL = Object.assign({}, SELF, { installFailed: '1.5.1' });
-            const ONE = 'Waypoint Alpha 1.5.1 is available — one click to update.', STEPS = 'Waypoint Alpha 1.5.1 is available — this one comes as an installer; Update shows the steps first.', NOTE = 'The update to 1.5.1 did not finish. Try Update again, or use Get installer.';
+            const ONE = 'Waypoint VTT 1.5.1 is available — one click to update.', STEPS = 'Waypoint VTT 1.5.1 is available — this one comes as an installer; Update shows the steps first.', NOTE = 'The update to 1.5.1 did not finish. Try Update again, or use Get installer.';
             const LATER = 'The Update button stays in the top bar until you update.';
             let okS1 = false, okS2 = false, okS3 = false, okS4 = false, okS5 = false, okS6 = false, okS7 = false, okSD = false, sx = [];
             if (src) {
@@ -1789,7 +1789,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     okS6 = j(fUp) === j(['flex', NOTE, 'Update', 'Get installer', 'Dismiss']) && j(fBar) === j(fUp)
                         && j(stripOf(f1)) === j(['none', NOTE, 'Update', 'Notes', 'Later']) && j(barOf(f1)) === j(['none', NOTE, 'Update', 'Notes', 'Later']) && at(f1, 'POST /api/update-installer-dismiss') > 0 && f1.log.toasts.length === 0 && !f1.els.toast.cls.has('wc-over')
                         && f1.els.welcomeScreen.style.display === 'flex' && f1.log.order.every(x => !/^enter@/.test(x)) && f1.upd.failNote === '' && j(f1.focus) === j(['wcMain:-1']) && f2.focus.length === 0 && f3.focus.length === 0
-                        && at(f2, 'enter@0') > 0 && at(f2, 'enter@0') < at(f2, 'POST /api/update-installer-dismiss') && f2.els.installerModal.style.display === 'flex' && f2.els.installerVersion.textContent === 'Waypoint Alpha 1.5.1' && stripOf(f2)[0] === 'none' && f2.log.confirms.length === 0
+                        && at(f2, 'enter@0') > 0 && at(f2, 'enter@0') < at(f2, 'POST /api/update-installer-dismiss') && f2.els.installerModal.style.display === 'flex' && f2.els.installerVersion.textContent === 'Waypoint VTT 1.5.1' && stripOf(f2)[0] === 'none' && f2.log.confirms.length === 0
                         && at(f3, 'enter@0') > 0 && at(f3, 'enter@0') < at(f3, 'POST /api/update-installer-dismiss') && j(f3.log.confirms) === j([ASK]) && stripOf(f3)[0] === 'none';
                     sx.push([fUp, fBar, stripOf(f1), f1.log.order, f2.log.order, f3.log.order, f3.log.confirms]);
                     // hidden again whenever the bar is: here the core update said Yes to, which puts the bar away, and then fails to the installer's steps

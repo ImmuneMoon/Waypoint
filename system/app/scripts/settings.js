@@ -1160,7 +1160,7 @@ function checkUpdates(force, quiet) {
         showUpdateButton(i);
         if (!_upd.failNote) { if (i && i.newer) showUpdateBanner(i); else if (_upd.shellOld) coreNudge(false); else hideUpdateBanner(); }
         showFailNote(i);   // a core update that was started and did not finish takes the notice bar
-        if (i && i.newer && !quiet) toast('Waypoint Alpha ' + i.latest + ' is available.');
+        if (i && i.newer && !quiet) toast('Waypoint VTT ' + i.latest + ' is available.');
         return i;
     }).catch(function(e) { _upd.info = { error: String(e) }; updateUI(); });
 }
@@ -1172,7 +1172,7 @@ function runHotUpdate() {
     import('./dialogs.js').then(function(d) {
         d.showConfirm('Update Waypoint from Alpha ' + i.current + ' to Alpha ' + i.latest + '? The new version downloads, replaces the app files, and Waypoint reloads. Your campaigns and settings are untouched.', function(yes) {
             if (!yes) return;   // No means no: nothing downloads
-            toast('Downloading Waypoint Alpha ' + i.latest + '…');
+            toast('Downloading Waypoint VTT ' + i.latest + '…');
             var btns = [ui('setUpdateNowBtn'), ui('updateBannerGo'), ui('updateBtn')];
             btns.forEach(function(b) { if (b) b.disabled = true; }); wcStrip();
             fetch('/api/update-apply', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
@@ -1193,13 +1193,13 @@ function runRestore() {
     if (window.wpNet && window.wpNet.active) { toast('Leave or end the multiplayer session first.'); return; }
     var cur = cleanVer(i.current) || cleanVer(String(window.wpAppVersion || '').split('-')[0]), prev = cleanVer(i.prevVersion);
     import('./dialogs.js').then(function(d) {
-        d.showConfirm('Go back ' + (cur ? 'from Waypoint Alpha ' + cur + ' ' : '') + 'to ' + (prev ? 'Waypoint Alpha ' + prev : 'the previous version of Waypoint') + '? Your campaigns are not touched. You can update again afterwards.', function(yes) {
+        d.showConfirm('Go back ' + (cur ? 'from Waypoint VTT ' + cur + ' ' : '') + 'to ' + (prev ? 'Waypoint VTT ' + prev : 'the previous version of Waypoint VTT') + '? Your campaigns are not touched. You can update again afterwards.', function(yes) {
             if (!yes) return;
             var b = ui('setUpdateRestoreBtn'); if (b) b.disabled = true;
             fetch('/api/update-rollback', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
                 if (!r || r.ok !== true) throw new Error((r && typeof r.error === 'string' && r.error) || 'nothing was restored');
                 var v = cleanVer(r.version);
-                toast('Restored ' + (v ? 'Waypoint Alpha ' + v : 'the previous version') + '. Reloading… If you had a Stream window open, close and reopen it.' + (typeof r.privateNote === 'string' ? ' ' + r.privateNote.slice(0, 200) : ''));
+                toast('Restored ' + (v ? 'Waypoint VTT ' + v : 'the previous version') + '. Reloading… If you had a Stream window open, close and reopen it.' + (typeof r.privateNote === 'string' ? ' ' + r.privateNote.slice(0, 200) : ''));
                 try { new BroadcastChannel('waypoint').postMessage({ type: 'reload' }); } catch (e) {}   // a stream window reloads itself onto the restored code
                 setTimeout(function() { location.reload(); }, 900);
             }).catch(function(e) { if (b) b.disabled = false; toast('Could not restore the previous version: ' + String(e && e.message || e).slice(0, 200)); });
@@ -1256,7 +1256,7 @@ function selfPoll(i, to, misses) {
     setTimeout(function() {
         fetch('/api/update-installer-status', { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(s) {
             var state = s && s.state, got = (s && typeof s.got === 'number' && s.got > 0) ? s.got : 0, total = (s && typeof s.total === 'number' && s.total > 0) ? s.total : 0;
-            if (state === 'downloading') { selfSay('Downloading Waypoint Alpha ' + to + '… ' + (total ? Math.min(100, Math.floor(got * 100 / total)) + '%' : mbOf(got) + ' MB')); selfPoll(i, to, 0); }
+            if (state === 'downloading') { selfSay('Downloading Waypoint VTT ' + to + '… ' + (total ? Math.min(100, Math.floor(got * 100 / total)) + '%' : mbOf(got) + ' MB')); selfPoll(i, to, 0); }
             else if (state === 'verifying') { selfSay('Checking the download…'); selfPoll(i, to, 0); }
             else if (state === 'ready') selfInstall(i, to);
             else selfFail(state === 'failed' ? ((s && typeof s.error === 'string' && s.error) || 'the download failed') : 'the download stopped', i);
@@ -1273,7 +1273,7 @@ function runSelfUpdate() {
         d.showConfirm('Update Waypoint' + (from ? ' from Alpha ' + from : '') + ' to Alpha ' + to + "? This one updates Waypoint's core too: the new version downloads" + (mb ? ' (about ' + mb + ' MB)' : '') + ', Waypoint closes, updates itself and opens again. Your campaigns and settings are untouched.', function(yes) {
             if (!yes || _upd.selfBusy) return;   // No means no: nothing downloads
             _upd.selfBusy = true; selfButtons(true); hideUpdateBanner();
-            selfSay('Downloading Waypoint Alpha ' + to + '…'); toast('Downloading Waypoint Alpha ' + to + '…');
+            selfSay('Downloading Waypoint VTT ' + to + '…'); toast('Downloading Waypoint VTT ' + to + '…');
             fetch('/api/update-installer', { method: 'POST' }).then(function(r) { return r.json(); }).then(function(r) {
                 if (!r || r.ok !== true) throw new Error((r && typeof r.error === 'string' && r.error) || 'the download did not start');
                 selfPoll(i, to, 0);
@@ -1293,7 +1293,7 @@ function showUpdateButton(i) {
     var b = ui('updateBtn'); if (!b) return;
     if (!i || !i.newer) { b.style.display = 'none'; return; }
     b.textContent = 'Update to ' + i.latest;
-    b.title = 'Waypoint Alpha ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : selfCan(i) ? " — click to update: this one updates Waypoint's core too (it downloads, Waypoint closes, updates itself and opens again; saves and settings kept)" : ' — this one comes as an installer; click to see the steps (nothing downloads until you say so)');
+    b.title = 'Waypoint VTT ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : selfCan(i) ? " — click to update: this one updates Waypoint's core too (it downloads, Waypoint closes, updates itself and opens again; saves and settings kept)" : ' — this one comes as an installer; click to see the steps (nothing downloads until you say so)');
     b.style.display = 'inline-block';
 }
 function showUpdateBanner(i) {
@@ -1302,7 +1302,7 @@ function showUpdateBanner(i) {
     _bannerSeen = i.latest;
     var one = !!(i.canHotUpdate || selfCan(i));
     var txt = ui('updateBannerText');
-    if (txt) txt.textContent = 'Waypoint Alpha ' + i.latest + ' is available' + (one ? ' — one click to update.' : ' — this one comes as an installer; Update shows the steps first.');
+    if (txt) txt.textContent = 'Waypoint VTT ' + i.latest + ' is available' + (one ? ' — one click to update.' : ' — this one comes as an installer; Update shows the steps first.');
     var go = ui('updateBannerGo'); if (go) go.textContent = one ? 'Update' : 'Get installer';
     var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
     bar.style.display = 'flex';
@@ -1396,7 +1396,7 @@ var _wcLater = ui('wcUpdateLater'); if (_wcLater) _wcLater.addEventListener('cli
 function showInstallerSteps(i) {
     var m = ui('installerModal'), v = ui('installerVersion'); if (!m) return;
     i = i || {};
-    if (v) v.textContent = i.latest ? 'Waypoint Alpha ' + i.latest : 'This update';
+    if (v) v.textContent = i.latest ? 'Waypoint VTT ' + i.latest : 'This update';
     var n = ui('installerIntroNormal'), c = ui('installerIntroCore'), t = ui('installerTitle');
     if (n) n.style.display = i.core ? 'none' : '';
     if (c) c.style.display = i.core ? '' : 'none';

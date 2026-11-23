@@ -1547,6 +1547,18 @@ const j = v => JSON.stringify(v);
             flat.indexOf('Row.onPlace') >= 0 && !!grp && J(grp.items.map(x => x.s)) === J(['Row.onBefore.Hands', 'Row.onBefore.Sec', 'Row.onBefore.Place', 'Row.onBefore.Before', 'Row.onBefore.Got', 'Row.onBefore.Hid'])
             && grp.items[0].label === 'The total Hands of the rows switched on before this one' && S.nameWord(gO, 'Row.onPlace', spO) === 'this row’s place among the rows switched on'
             && !offNo.some(n => /onplace|onbefore/i.test(n)) && !flat.some(n => /onbefore\.grip/i.test(n)), J([flat, offNo]));
+        // the review of Row.onPlace (points (b) and (c)): an addressed read, Arms.<Key>.onPlace, reads that row's place as Row.onPlace does (the validator
+        // offered it and the resolver read it as unknown), Arms.<Key>.made and .granted alike; Arms.<Key>.parts is refused, being no row word read there;
+        // and a list with a stat keyed onPlace is said as that stat in a form, never as the row word, as the resolver reads it
+        const keysA = { i_knife: 'knife', i_pike: 'pike', i_hatch: 'hatchet', i_net: 'net' }, sysA = sysO(); sysA.items = itemsO.map(i => Object.assign({ key: keysA[i.id] }, i));
+        sysA.fields.push({ id: 'f_hp2', key: 'HatchPlace', label: 'Hatchet place', kind: 'formula', formula: 'Arms.hatchet.onPlace' }, { id: 'f_pp2', key: 'PikePlace', label: 'Pike place', kind: 'formula', formula: 'Arms.pike.onPlace' },
+            { id: 'f_mk2', key: 'HatchMade', label: 'Hatchet made', kind: 'formula', formula: 'Arms.hatchet.made + Arms.hatchet.granted' });
+        const gA = cleanSystem(sysA, { F, gmView: true }), vA = validateSystem(gA, F), rvA = S.makeResolver(gA, chO(three), F), addr = ['HatchPlace', 'PikePlace', 'HatchMade'].map(n => rvA(n));
+        const sysP = sysO(); sysP.items = sysA.items; sysP.fields.push({ id: 'f_pt2', key: 'HatchParts', label: 'Hatchet parts', kind: 'formula', formula: 'Arms.hatchet.parts' }); const vP = validateSystem(sysP, F);
+        check('1.6.4 an addressed read of a soft row word (Arms.hatchet.onPlace, .made, .granted) passes the validator and reads that row as its own Row.<word> does: the hatchet is 2nd, the pike, off, 0, neither made nor granted; Arms.hatchet.parts is refused on a list with no parts',
+            !(vA.errors || []).length && J(addr) === J([2, 0, 0]) && (vP.errors || []).some(e => e.message.indexOf('Arms.hatchet.parts') >= 0), J([vA.errors, addr, vP.errors]));
+        check('1.6.4 a form says a lists own stat keyed onPlace by its label, as the resolver reads it, never as the row word; a list with none says the row word',
+            S.nameWord(keyed, 'Row.onPlace', keyed.fields[1].list) !== S.nameWord(gO, 'Row.onPlace', spO) && /own place/i.test(S.nameWord(keyed, 'Row.onPlace', keyed.fields[1].list)), J([S.nameWord(keyed, 'Row.onPlace', keyed.fields[1].list)]));
         // the GM-only judge goes by the stat or the column it adds up: a GM-only stat, or a column that reads one, keeps the roll the GM's; Hands does not
         const rr = n => S.rowRollNames(gO, chO(three), 'f_arms', 'w_h', [{ name: n }], F);
         check('1.6.4 the GM-only judge (rowRollNames, gmReadsIn) reads Row.onBefore.<w> as <w>: Hands leaves the roll a player’s, the GM-only Secret keeps it the GM’s, and so does a column that reads it',

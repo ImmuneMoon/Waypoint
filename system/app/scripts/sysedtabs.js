@@ -1385,6 +1385,23 @@ function starterSaved() {   // after Save: the waiting packs written, and said
         if (typeof renderAll === 'function' && draft) renderAll();
     }).catch(function() { toast('The starter\u2019s packs could not be added.'); });
 }
+// 1.6.4 (backlog: the starters in New campaign's list; Fulllion's pick of 2026-11-23): New campaign's system question (campsafe.js pickSystem)
+// offers the bundled starters beside the GM's own campaigns. starterFetch reads one starter as Start from reads it (the listed id alone, its file
+// cleaned in the GM's view, its packs as text, all or none) and answers { system, name, texts }, texts null where it has no packs; it rejects
+// where any of it cannot be read. A starter that holds a pool and names none for damage starts on its first pool, as hpPoolFill('') does for
+// Start from. Published as window.wpStarters so that campsafe.js, which may not import this part, asks it through its own stand-ins
+function starterFetch(id) {
+    return startersLoad().then(function() {
+        var st = starterOf(id); if (!st) throw new Error('none');
+        return fetch('assets/systems/' + st.id + '.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) {
+            var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('bad');
+            var cm = c.combat && typeof c.combat === 'object' && !Array.isArray(c.combat) ? c.combat : null;
+            if (!(cm && cm.hpResource)) { var pl = (c.fields || []).filter(function(f) { return !!f && f.kind === 'resource' && typeof f.id === 'string' && !!f.id; })[0]; if (pl) { if (!cm) cm = c.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; cm.hpResource = pl.id; } }
+            return (st.packs ? starterPacksGet(st) : Promise.resolve(null)).then(function(texts) { return { system: c, name: st.name, texts: texts }; });
+        });
+    });
+}
+if (typeof window !== 'undefined') window.wpStarters = { load: startersLoad, fetch: starterFetch };
 // [systemcheck:starters-end]
 // 1.6.3 (Fulllion's rulings of 2026-11-20, lane B batch "damage"): Damage subtracts from (the Combat tab's hpResource) is required, since Full auto
 // blasts and the Take damage window take damage off it. So it starts filled: the first pool the draft gets fills it while it is empty (id, the field

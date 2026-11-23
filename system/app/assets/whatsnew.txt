@@ -71,6 +71,12 @@ Handed out in list order [DRAFT]
   stands among the rows switched on, and how much of a figure the rows
   before it have taken. Two hands go to the first weapons readied, and a
   later weapon can tell it has none left, with no figure to set by hand.
+- A formula can read the same of one row it names by its entry, and a
+  list that has a stat of its own by that name keeps reading its stat.
+
+A starter for a new campaign [DRAFT]
+- New campaign now offers Waypoint VTT’s own starters beside your
+  campaigns when it asks which system to start with.
 
 WAYPOINT 1.6.3 — What's New
 ============================

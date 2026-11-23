@@ -96,7 +96,7 @@ function nameWord(sys, name, rowSpec) {
         if (fam === 'at' || fam === 'tile') { var stS = isObj(rowSpec) && isObj(rowSpec.stand) ? fieldById(sys, rowSpec.stand.from) : null; return (fam === 'at' ? 'the place it stands: ' : 'the place it might reach: ') + ((stS && statWord(stS.list, one)) || humanName(one)); }   // 1.6.2 (body fold 2)
         if (fam === 'here') { var hf0 = ix[lower(rest[0])], hw0 = hf0 ? fieldWord(hf0) : humanName(rest[0]), hn0 = lower(rest[1] || ''); return hn0 === 'count' ? 'how many of ' + hw0 + ' stand here' : (hn0 === 'sum' ? 'the total of ' : hn0 === 'max' ? 'the highest ' : 'the lowest ') + ((hf0 && statWord(hf0.list, rest[2] || '')) || humanName(rest[2] || '')) + ' of ' + hw0 + ' standing here'; }
         if (fam === 'hit' || fam === 'host' || fam === 'row') {
-            var wl = lower(rest[0]); if (fam === 'row' && ROW_SAYS[wl] && rest.length === 1) return ROW_SAYS[wl];
+            var wl = lower(rest[0]); if (fam === 'row' && ROW_SAYS[wl] && rest.length === 1 && !(isObj(rowSpec) && listKeyed(rowSpec, wl))) return ROW_SAYS[wl];   // 1.6.4 (the review of Row.onPlace, point (c)): a list's own stat or column of that name is said as itself, as the resolver reads it
             if (fam === 'row' && wl === 'up' && rest.length === 2) return 'the row it hangs from: ' + (statWord(rowSpec, rest[1]) || humanName(rest[1]));   // 1.6.2 (body fold 1)
             if (fam === 'row' && wl === 'onbefore' && rest.length === 2) return 'the total ' + (statWord(rowSpec, rest[1]) || humanName(rest[1])) + ' of the rows switched on before this one';   // 1.6.4
             if (fam === 'row' && wl === 'sheet' && rest.length >= 2 && sheetsOn(rowSpec)) return lower(rest[1]) === 'has' && rest.length === 2 ? 'whether it is joined to a sheet' : 'its sheet\u2019s ' + nameWord(sys, rest.slice(1).join('.'));   // 1.6.2 (vehicles, fold (a))
@@ -333,6 +333,7 @@ function validateSystem(sys, F) {
         if (ex === 'max' || ex === 'min') { if (sg.length !== (on4 ? 4 : 3)) return null; var te = extTarget(lf, sg[sg.length - 1]); if (te && on4) te.onTotal = true; return te; }
         if (sg.length === 4) { if (on4) return null; if (!(isObj(lf.list) && isObj(lf.list.specs))) return null; var spW = listWords(lf)[sg[3]], tsp = spW === 'stat' || spW === 'col' || spW === 'ctr' || sg[3] === 'has' || sg[3] === 'lvl' || sg[3] === 'qty' || sg[3] === 'paid' ? wordTarget(lf, sg[3], false) : null; if (!tsp) return null; tsp.addr = sg[1]; tsp.spec = sg[2]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) tsp.gmKey = true; return tsp; }   // 1.6.0 Specialties: <List>.<Parent>.<Spec>.<w>, read as an addressed row of the parent
         if (sg[1] === 'on') { var to = wordTarget(lf, sg[2], true); if (to) to.onTotal = true; return to; }
+        if ((sg[2] === 'parts' || sg[2] === 'needsmet') && !listWords(lf)[sg[2]]) return null;   // 1.6.4: no row word the resolver reads on an addressed row (the list of soft row words in systemcore.js)
         var ta = wordTarget(lf, sg[2], false); if (!ta) return null;
         ta.addr = sg[1]; if (gmKsV[lower(lf.key)] && gmKsV[lower(lf.key)][sg[1]] === 1) ta.gmKey = true;
         return ta;

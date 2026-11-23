@@ -131,21 +131,41 @@ function csFlows(D) {
         log('copy-done', { packs: plan.uploads.length });
         D.switchTo(id, function() { D.toast('Made ' + nm + ' and opened it. ' + name(c) + ' is untouched.'); }, function() { D.toast('Made ' + nm + '. It is in your campaign list.'); });
     }
-    // New campaign's second question: nothing, or a copy of the system of one of your campaigns. done(null), or done({ from, pages }). Cancel makes no campaign
+    // New campaign's second question: nothing, a copy of the system of one of your campaigns, or (1.6.4) one of Waypoint VTT's bundled starters.
+    // done(null), done({ from, pages }) or done({ starter }). Cancel makes no campaign. The starters come from D.starters, which may answer a
+    // promise (the bundled list read once); with no starters and no campaign of yours holding a system, nothing is asked, as before. A stand-in
+    // with no D.starters, as a suite's, asks at once
     function pickSystem(done) {
-        var rows = C.systemRows(app().campaigns, app().activeCampaignId); if (!rows.length) { done(null); return; }
-        var box = ui.createElement('div'), lead = ui.createElement('div'), sel = ui.createElement('select'), tick = ui.createElement('label'), cb = ui.createElement('input'), words = ui.createElement('span');
-        box.className = 'cs-list cs-sys-box'; lead.className = 'cs-lead'; lead.textContent = 'Pick a campaign whose system this one starts with: its fields, rolls, rules and library. Or start with none. The new campaign gets a copy of its own, so a change in one never changes the other. Its maps, planners and characters are not copied. Its character templates are.'; box.appendChild(lead);
-        sel.className = 'tool cs-sys'; sel.title = 'The campaign whose system this one starts with';
-        var add = function(v, t) { var o = ui.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
-        add('', 'No system yet'); rows.forEach(function(r) { add(r.id, r.name); }); box.appendChild(sel);
-        tick.className = 'cs-tick'; cb.type = 'checkbox'; cb.checked = true; tick.appendChild(cb); tick.appendChild(words); box.appendChild(tick);
-        var sync = function() { var r = rows.filter(function(x) { return x.id === sel.value; })[0]; tick.hidden = !r || !r.pages; words.textContent = r ? ' Bring its handbook pages (' + r.pages + ')' : ''; };
-        sel.addEventListener('change', sync); sync();
-        D.confirm('Start this campaign with a system?', function(ans) { if (ans !== true) return; done(sel.value ? { from: sel.value, pages: cb.checked === true } : null); }, { yes: 'Create', body: box });
+        var rows = C.systemRows(app().campaigns, app().activeCampaignId);
+        var go = function(sts) {
+            sts = (Array.isArray(sts) ? sts : []).filter(function(s) { return s && typeof s.id === 'string' && typeof s.name === 'string'; });
+            if (!rows.length && !sts.length) { done(null); return; }
+            var box = ui.createElement('div'), lead = ui.createElement('div'), sel = ui.createElement('select'), tick = ui.createElement('label'), cb = ui.createElement('input'), words = ui.createElement('span');
+            box.className = 'cs-list cs-sys-box'; lead.className = 'cs-lead'; lead.textContent = sts.length ? 'Pick the system this campaign starts with: a copy of one of your campaigns\u2019, with its fields, rolls, rules and library, or one of Waypoint VTT\u2019s starters. Or start with none. A copy is the new campaign\u2019s own, so a change in one never changes the other. Maps, planners and characters are not copied. Character templates are.' : 'Pick a campaign whose system this one starts with: its fields, rolls, rules and library. Or start with none. The new campaign gets a copy of its own, so a change in one never changes the other. Its maps, planners and characters are not copied. Its character templates are.'; box.appendChild(lead);
+            sel.className = 'tool cs-sys'; sel.title = 'The system this campaign starts with';
+            var add = function(into, v, tx) { var o = ui.createElement('option'); o.value = v; o.textContent = tx; into.appendChild(o); };
+            add(sel, '', 'No system yet');
+            var group = function(label, list, val) { if (!list.length) return; var g = ui.createElement('optgroup'); g.label = label; list.forEach(function(x) { add(g, val(x), x.name); }); sel.appendChild(g); };
+            if (sts.length) { group('Your campaigns', rows, function(r) { return r.id; }); group('Waypoint VTT\u2019s starters', sts, function(s) { return 'st:' + s.id; }); }
+            else rows.forEach(function(r) { add(sel, r.id, r.name); });
+            box.appendChild(sel);
+            tick.className = 'cs-tick'; cb.type = 'checkbox'; cb.checked = true; tick.appendChild(cb); tick.appendChild(words); box.appendChild(tick);
+            var sync = function() { var r = rows.filter(function(x) { return x.id === sel.value; })[0]; tick.hidden = !r || !r.pages; words.textContent = r ? ' Bring its handbook pages (' + r.pages + ')' : ''; };
+            sel.addEventListener('change', sync); sync();
+            D.confirm('Start this campaign with a system?', function(ans) { if (ans !== true) return; var v = sel.value; done(!v ? null : v.indexOf('st:') === 0 ? { starter: v.slice(3) } : { from: v, pages: cb.checked === true }); }, { yes: 'Create', body: box });
+        };
+        var sp = typeof D.starters === 'function' ? D.starters() : null;
+        if (sp && typeof sp.then === 'function') sp.then(go, function() { go(null); }); else go(sp);
     }
     // Fills a new campaign from the pick, before it is listed. A pack that cannot be copied leaves it with no system, and says so
     async function fillFrom(into, pick) {
+        if (pick && typeof pick.starter === 'string') {   // 1.6.4: a bundled starter, read as Start from reads it; its packs are written once the campaign is open (afterOpen)
+            var got = null; try { got = typeof D.starter === 'function' ? await D.starter(pick.starter) : null; } catch (e) { got = null; }
+            if (!got || !got.system) { log('system-fail', { at: 'starter' }); D.toast('That starter could not be loaded. The campaign has no system yet.'); return false; }
+            into.system = got.system; if (Array.isArray(got.texts) && got.texts.length) pick.packs = { name: got.name, texts: got.texts };
+            log('system-done', { starter: 1, packs: pick.packs ? pick.packs.texts.length : 0 });
+            return true;
+        }
         var src = pick && app().campaigns[pick.from] || null, plan = src ? C.systemCopy(src, src.library ? D.newDir() : '', pick.pages === true) : null;
         if (!plan) { log('system-fail', { at: 'plan' }); D.toast('That system could not be copied. The campaign has no system yet.'); return false; }
         log('system-start', { packs: plan.uploads.length, pages: Object.keys(plan.items).length });
@@ -156,6 +176,17 @@ function csFlows(D) {
         into.items = into.items || {}; Object.keys(plan.items).forEach(function(id) { into.items[id] = plan.items[id]; });
         log('system-done', { packs: plan.uploads.length, pages: Object.keys(plan.items).length });
         return true;
+    }
+    // 1.6.4: after a new campaign that starts from a starter is open (dialogs.js asks it), the starter's own packs are written into its library,
+    // as Start from's Save writes them (library.js starterPacks, which cleans each entry against the campaign's saved system), and said
+    function afterOpen(pick) {
+        if (!pick || !pick.packs || typeof D.starterPacks !== 'function') return;
+        var sp = pick.packs; pick.packs = null;
+        Promise.resolve(D.starterPacks(sp.texts)).then(function(r) {
+            if (!r || r.error) { log('system-fail', { at: 'starter-packs' }); D.toast((r && r.error) || 'The starter\u2019s packs could not be added.'); return; }
+            log('system-done', { starter: 1, packs: r.packs, add: r.add });
+            D.toast(sp.name + '\u2019s library: ' + r.packs + ' pack' + (r.packs === 1 ? '' : 's') + ', ' + r.add + ' entr' + (r.add === 1 ? 'y' : 'ies') + ' added.');
+        }, function() { log('system-fail', { at: 'starter-packs' }); D.toast('The starter\u2019s packs could not be added.'); });
     }
     // The Restore points window: Make a restore point, and every snapshot with its Roll back, newest first, all as text
     async function openPoints() {
@@ -187,7 +218,7 @@ function csFlows(D) {
             var f = await makePoint(c.id, 'point'); D.toast(f ? 'Restore point made. It stays until you delete it in Settings.' : 'The restore point could not be made.');
         }, { yes: 'Make a restore point', body: box });
     }
-    return { makePoint: makePoint, rollBack: rollBack, trialOn: trialOn, startTrial: startTrial, endTrial: endTrial, makeTestCopy: makeTestCopy, openPoints: openPoints, pickSystem: pickSystem, fillFrom: fillFrom, log: log };
+    return { makePoint: makePoint, rollBack: rollBack, trialOn: trialOn, startTrial: startTrial, endTrial: endTrial, makeTestCopy: makeTestCopy, openPoints: openPoints, pickSystem: pickSystem, fillFrom: fillFrom, afterOpen: afterOpen, log: log };
 }
 // [campsafecheck:flows-end]
 
@@ -198,6 +229,9 @@ var CS = csFlows({
     dismiss: function() { var b = document.getElementById('customConfirmCancel'); if (b) b.click(); },
     migrate: function(d) { return migrateAppState(d).data; }, newDir: function() { return newDir(); },
     redraw: function() { if (window.wpPills) window.wpPills.sync(); },
+    starters: function() { return window.wpStarters ? window.wpStarters.load() : null; },   // 1.6.4: the bundled starters (sysedtabs.js starterFetch)
+    starter: function(id) { return window.wpStarters ? window.wpStarters.fetch(id) : Promise.reject(new Error('none')); },
+    starterPacks: function(texts) { return window.wpLibrary && window.wpLibrary.starterPacks ? window.wpLibrary.starterPacks(texts) : { error: 'No library here.' }; },
     list: function() { updateCampaignSelect(); updateSidebarNav(); },
     refresh: function(campId) {
         if (state.appState.activeCampaignId === campId) { state.selId = null; state.selWbId = null; state.selWbIds = []; state.linkStart = null; }

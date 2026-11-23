@@ -165,6 +165,12 @@ var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count
 // added after systems were built takes no key away from them. A list that keys a stat or a column so keeps it, and its formulas read that stat or
 // column under the name (the validator finds the stat first); the row word answers only in a list with none of that key
 var ROW_SOFT = Object.freeze({ made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, athit: 1, pastslot: 1, covered: 1, onplace: 1 });   // 1.6.4: onplace, a row's place among the rows switched on   // 1.6.3: covered, a row worn under a higher layer   // 1.6.2: pastslot, a part past what its host holds   // 1.6.0: startlvl, the level a row started at (Keeps the starting level)
+// 1.6.4 (the review of Row.onPlace, its point (b)): the row words an addressed read may name, <List>.<Key>.<word>, beside lvl, qty, on, has,
+// paid, a stat, a column and a counter. The validator's wordTarget offers each of them on such a read, and the resolver's listName read only the
+// first five, so List.Key.onPlace passed the check and then read as an unknown name. listName now hands these to rowVal for the row it found,
+// as a row's own Row.<word> reads them; a list's own stat, column or counter of that name is still read as itself. Row.parts and Row.needsMet
+// are no row word rowVal answers, so the validator refuses them on an addressed read. A new soft row word rowVal answers joins this list
+var ROW_ADDR = Object.freeze({ opened: 1, loaded: 1, loadmax: 1, bursthits: 1, chambered: 1, once: 1, oncecost: 1, oncefree: 1, made: 1, side: 1, fitted: 1, pastslot: 1, covered: 1, onplace: 1, athit: 1, startlvl: 1, subject: 1, again: 1, setall: 1, granted: 1, paysback: 1 });
 function listKeyed(spec, l) { var has = function(a) { return Array.isArray(a) && a.some(function(s) { return isObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === l; }); }; return isObj(spec) && (has(spec.stats) || has(spec.cols)); }   // 1.6.0 R14 Parts from: parts, how many parts a row holds   // 1.6.0 R15 Sets by: setall, 1 while the row's whole set is on   // 1.5.9 Chambers from: chambered, how many rounds a row holds   // 1.5.8 Loads from: loaded, a row that holds a loaded copy; loadmax, that copy's full level   // 1.5.8: opened, a row another row opens (openSync)   // 1.5.8 Counted once: once, oncecost, oncefree
 // 1.5.4: the words a list's names put between the list and what they read — List.on.Wt (the rows switched on), List.max.Parry and List.min.Wt
 // (the highest and the lowest one row gives), List.on.max.Parry — so never an item's key or a stat's: List.<word>.<name> never reads a row by its key.
@@ -7656,8 +7662,8 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if ((ext === 'max' || ext === 'min') && segs.length === (on4 ? 4 : 3)) return extremeOf(L, l, segs[segs.length - 1], on4, ext === 'max');
         if (segs.length === 4) return undefined;
         if (segs[1] === 'on') return totalOf(L, l, segs[2], true);
-        var w = segs[2]; if (w !== 'lvl' && w !== 'qty' && w !== 'on' && w !== 'has' && w !== 'paid' && !L.st[w] && !L.cl[w] && !(L.ct && L.ct[w])) return undefined;   // R2: or a counter
-        if (isObj(L.spec) && isObj(L.spec.specs)) return specVal(L, l, segs[1], null, w, typeof nt === 'string' && nt ? nt : name);   // 1.6.0 Specialties: on such a list a key also finds a row by its name
+        var w = segs[2], soft = ROW_ADDR[w] === 1 && !L.st[w] && !L.cl[w] && !(L.ct && L.ct[w]); if (!soft && w !== 'lvl' && w !== 'qty' && w !== 'on' && w !== 'has' && w !== 'paid' && !L.st[w] && !L.cl[w] && !(L.ct && L.ct[w])) return undefined;   // R2: or a counter (1.6.4: or a soft row word, ROW_ADDR, read by rowVal below)
+        if (!soft && isObj(L.spec) && isObj(L.spec.specs)) return specVal(L, l, segs[1], null, w, typeof nt === 'string' && nt ? nt : name);   // 1.6.0 Specialties: on such a list a key also finds a row by its name
         if (l in cache) return cache[l];
         var xr = findRow(L, segs[1]), v = rowVal(L, xr, w);
         if (v && typeof v === 'object' && v.error) return v;

@@ -1268,6 +1268,9 @@ function refreshErrorsNow() {
     {   var cmP = clean && clean.combat && typeof clean.combat === 'object' ? clean.combat : null, dmP = cmP && cmP.damage && typeof cmP.damage === 'object' ? cmP.damage : null, resP = (draft.fields || []).some(function(f) { return !!f && f.kind === 'resource'; });
         if (cmP && !((dmP && dmP.pool) || cmP.hpResource) && (dmP || (cmP.blastAuto === 'full' && resP))) (errorsById.damage = errorsById.damage || []).push({ message: resP ? 'Damage has no pool to come off. Pick one in Damage subtracts from, or in Wounds come off under Taking damage.' : 'Damage has no pool to come off. Add a pool field, then pick it in Damage subtracts from.', prop: 'damage.pool' });
     }
+    // 1.6.4 (Merge from a file): a merged thing that still names something of its file this system lacks (sysmerge.js mergeSays) says so under its
+    // row, with what Save does with it, until that is picked or merged too. Read through the window, since sysmerge.js is no part of sheets.js
+    if (typeof window !== 'undefined' && window.wpSysMerge && typeof window.wpSysMerge.says === 'function') window.wpSysMerge.says(draft, clean).forEach(function(m) { (errorsById[m.id] = errorsById[m.id] || []).push({ message: m.message }); });
     if (typeof refWarns === 'function') refWarns(saved, clean, camp0);   // 1.6.2 (backlog 208)
 }
 // 1.6.3 (Fulllion's rulings of 2026-11-20: "if there's other gaps where a ruling or field is dependent on another, and the system doesn't require that

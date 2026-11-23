@@ -6409,6 +6409,24 @@
   #customConfirm > .confirm-wide { width: min(88vw, 560px) !important; max-height: 88vh; overflow-y: auto; box-sizing: border-box; }
   #customConfirm > div:has(#customConfirmAlt) { width: min(88vw, 560px) !important; box-sizing: border-box; }
   #customConfirm div:has(> #customConfirmAlt) { flex-wrap: wrap; }
+  /* 1.6.4 Merge from a file (sysmerge.js): the window's ticks by kind, its search, and what a pick still lacks */
+  .sm-box { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+  .sm-lead, .sm-gaps-tail { font-size: 11.5px; color: var(--dim); line-height: 1.5; }
+  .sm-find { width: 100%; box-sizing: border-box; font-size: 12px; padding: 4px 8px; margin: 0; }
+  .sm-list { height: 40vh; box-sizing: border-box; overflow-y: auto; border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; }
+  .sm-group + .sm-group { margin-top: 8px; }
+  .sm-list .sm-group[hidden] { display: none; }
+  .sm-head { font-weight: 600; color: var(--ink); }
+  .sm-list .sm-row { display: flex; padding: 1px 0 1px 18px; }
+  .sm-list .sm-row[hidden] { display: none; }
+  .sm-sub { color: var(--dim); font-size: 11px; margin-left: 6px; }
+  .sm-count { font-size: 12px; color: var(--ink); }
+  /* a fixed height that scrolls, so the question never grows or shrinks as ticks change: it is centered, and a change of height moved every box under the pointer (found in the live check) */
+  .sm-says { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.45; height: 9.5em; overflow-y: auto; }
+  .sm-over { color: var(--red); }
+  .sm-gaps-lead { color: var(--gold); }
+  .sm-gap { color: var(--ink); padding-left: 10px; }
+  .sm-tick-too { align-self: flex-start; }
   /* A link's address before a press (linkgate.js): a strip at the window's bottom left, where a browser shows one. It WRAPS and is never cut:
      the end of a site names whose it is, and must be in sight at any width. At most half the window wide, so that it can always stand clear of
      the link it names: it goes to the right while the pointer is low on the left. It takes no press, stands over the handout viewer and under

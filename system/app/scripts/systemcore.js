@@ -160,11 +160,11 @@ var ROW_ID = /^w_[A-Za-z0-9_]{1,24}$/, ROW_OPS = Object.freeze({ add: 1, remove:
 var CHAMBER_CAP = 320;   // 1.5.9 Chambers from: the most rounds a chamber holds (8 before 1.6.0, 32 before 1.6.2)
 var FEEDS_MAX = 20, FEED_STACK = 80;   // 1.6.0 Feeds: a list's feeds, and the kinds one feed holds stacked at once
 // Stage 6 F4b: an item's key in formulas (F5a: Skills.<Key>.lvl) — never a row word, which a row's own names use
-var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, pastslot: 1, covered: 1 });   // 1.6.3: covered, the places a higher layer covers   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
+var ITEM_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/, ROW_WORDS = Object.freeze({ count: 1, qty: 1, on: 1, has: 1, lvl: 1, paid: 1, row: 1, opened: 1, loaded: 1, loadmax: 1, once: 1, oncecost: 1, oncefree: 1, chambered: 1, setall: 1, parts: 1, again: 1, needsmet: 1, made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, pastslot: 1, covered: 1, onplace: 1 });   // 1.6.4: onplace, a row's place among its list's rows switched on   // 1.6.3: covered, the places a higher layer covers   // 1.6.0 (v2, B5): made, 1 for a row added while its character was in the making
 // 1.6.0 (the owner, 2026-10-29: "this is additive functionality, we arent removing usable features that other campaign systems can utilize"): a row word
 // added after systems were built takes no key away from them. A list that keys a stat or a column so keeps it, and its formulas read that stat or
 // column under the name (the validator finds the stat first); the row word answers only in a list with none of that key
-var ROW_SOFT = Object.freeze({ made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, athit: 1, pastslot: 1, covered: 1 });   // 1.6.3: covered, a row worn under a higher layer   // 1.6.2: pastslot, a part past what its host holds   // 1.6.0: startlvl, the level a row started at (Keeps the starting level)
+var ROW_SOFT = Object.freeze({ made: 1, startlvl: 1, bursthits: 1, side: 1, subject: 1, fitted: 1, athit: 1, pastslot: 1, covered: 1, onplace: 1 });   // 1.6.4: onplace, a row's place among the rows switched on   // 1.6.3: covered, a row worn under a higher layer   // 1.6.2: pastslot, a part past what its host holds   // 1.6.0: startlvl, the level a row started at (Keeps the starting level)
 function listKeyed(spec, l) { var has = function(a) { return Array.isArray(a) && a.some(function(s) { return isObj(s) && typeof s.key === 'string' && s.key.toLowerCase() === l; }); }; return isObj(spec) && (has(spec.stats) || has(spec.cols)); }   // 1.6.0 R14 Parts from: parts, how many parts a row holds   // 1.6.0 R15 Sets by: setall, 1 while the row's whole set is on   // 1.5.9 Chambers from: chambered, how many rounds a row holds   // 1.5.8 Loads from: loaded, a row that holds a loaded copy; loadmax, that copy's full level   // 1.5.8: opened, a row another row opens (openSync)   // 1.5.8 Counted once: once, oncecost, oncefree
 // 1.5.4: the words a list's names put between the list and what they read — List.on.Wt (the rows switched on), List.max.Parry and List.min.Wt
 // (the highest and the lowest one row gives), List.on.max.Parry — so never an item's key or a stat's: List.<word>.<name> never reads a row by its key.
@@ -7267,6 +7267,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
         if (w === 'fitted' && !listKeyed(L.spec, 'fitted')) return fittedOf(L, x);   // 1.6.2 Fitted slots
         if (w === 'pastslot' && !listKeyed(L.spec, 'pastslot')) return pastSlotOf(L, x);   // 1.6.2: past what its host holds
         if (w === 'covered' && !listKeyed(L.spec, 'covered')) return coveredOf(L, x);   // 1.6.3 Layers: the places a higher layer covers
+        if (w === 'onplace' && L.spec && isObj(L.spec.on) && !listKeyed(L.spec, 'onplace')) return onPlaceOf(L, x);   // 1.6.4: its place among the rows switched on
         if (w === 'athit' && L.spec && isObj(L.spec.stand) && !listKeyed(L.spec, 'athit')) { var bhA = ropts && isObj(ropts.blow) && isObj(ropts.blow.hit) ? ropts.blow.hit : null; return !x.virt && bhA && (standAll().on[bhA.r] || []).some(function(e) { return e.f === L.f.id && e.r === x.id; }) ? 1 : 0; }   // 1.6.2 (body fold 2): this row stands at or reaches the location struck
         if (w === 'startlvl' && !listKeyed(L.spec, 'startlvl')) return !x.virt && isObj(x.r) && typeof x.r.sl === 'number' && isObj(L.spec) && isObj(L.spec.lvl) && L.spec.lvl.start === true ? x.r.sl : rowLvl(L.spec, x.r, x.d);   // 1.6.0: the level it started at where its list keeps it, else its level now
         if (w === 'subject' && isObj(L.spec) && Array.isArray(L.spec.subject) && !listKeyed(L.spec, 'subject')) return x.virt ? 0 : sjHeld(L, x.r);   // 1.6.0 Subjects: its word's place, 1 for the first, 0 for none or where Subject only where does not hold
@@ -7454,10 +7455,52 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
             } finally { L.layBusy = false; }
             L.lay = all;
         }
-        var me = null; L.lay.forEach(function(o) { if (!me && (o.r === x.r || (o.id && o.id === x.id))) me = o; });
+        var meId = typeof x.pid === 'string' ? x.pid : x.id, me = null; L.lay.forEach(function(o) { if (!me && (o.r === x.r || (o.id && o.id === meId))) me = o; });   // 1.6.4 (found in review): a copy at another level (pid) is the row it came from
         if (!me || me.lay === null || !me.set) return 0;
         var cov = 0; L.lay.forEach(function(o) { if (o !== me && o.on && o.lay !== null && o.lay > me.lay) cov |= o.set & me.set; });
         return cov;
+    }
+    // 1.6.4 (asked for by a campaign's system build, for anything handed out in list order: hands, slots, feeds): where a row stands among its
+    // list's rows that are switched on. A row counts only while it is on as its owner sees it: never a row the GM keeps on (keptOn, which its
+    // owner sees off), never one kept from its player (hid, which listCtx leaves out of L.rows already), never a row that is not carried. So the
+    // host and the owner's own copy count the very same rows and work out the same figure. L.onRows: the places in L.rows of the rows that count,
+    // in order, worked out once a resolver, since nothing a formula reads can switch a row on or off while the resolver stands
+    function onRowsOf(L) {
+        if (!L.onRows) { L.onRows = []; L.rows.forEach(function(y, i) { if (!y.virt && isObj(y.r) && y.r.hid !== 1 && y.r.keptOn !== 1 && rowOn(L.spec, y.r)) L.onRows.push(i); }); }
+        return L.onRows;
+    }
+    // Where a row stands in L.rows (its list's order), -1 for a row the list does not carry. A copy the resolver makes of a row (a roll at another
+    // level, a burst's shot) names the row it came from as pid, so it stands where that row stands
+    function rowAt(L, x) { var id = typeof x.pid === 'string' ? x.pid : x.id; for (var i = 0; i < L.rows.length; i++) if (L.rows[i] === x || L.rows[i].r === x.r || (id && L.rows[i].id === id)) return i; return -1; }
+    // Row.onPlace: 1 for the first row switched on, 2 for the next, and so on in list order; 0 while this row is off (or kept on by the GM, or not
+    // carried). Only on a list with a switch (rowVal asks), and a list that keys a stat or a column onplace reads its own (ROW_SOFT)
+    function onPlaceOf(L, x) {
+        if (x.virt || !isObj(x.r)) return 0;
+        var me = rowAt(L, x); return me < 0 ? 0 : onRowsOf(L).indexOf(me) + 1;   // -1 + 1: not among them, 0
+    }
+    // Row.onBefore.<w>: the total of a number stat or a column <w> over the rows switched on before this one, in list order, so a row can tell
+    // that the rows before it took all of something (two hands, three slots). It reads the same whether this row is on or not, so a row that is
+    // off shows what it would get. Only on a list with a switch; undefined where the list has no such stat or column, so the name is unknown.
+    // A column that reads onBefore of itself, or of a column that comes back to it, would need its own figure on every row before it to work
+    // out its own: the resolver refuses it as a loop (L.obBusy, as coveredOf's layBusy guards a layer), and the validator says so on the column
+    function onBeforeVal(L, x, w) {
+        var sg = w.split('.'); if (sg.length !== 2 || sg[0] !== 'onbefore' || !L.spec || !isObj(L.spec.on)) return undefined;
+        var k = sg[1], st = L.st[k]; if (!(st && st.kind !== 'pick') && !L.cl[k]) return undefined;   // a number stat or a column; a choice has no total
+        if (x.virt || !isObj(x.r)) return 0;
+        var me = rowAt(L, x); if (me < 0) return 0;
+        if (!L.obBusy) L.obBusy = map();
+        var obN = L.kl + '#onbefore.' + k; if (L.obBusy[k]) { pretty[obN] = pretty[obN] || 'Row.onBefore.' + (st || L.cl[k]).key; return loopError(obN); }   // said in words as the name itself (plainMessage)
+        L.obBusy[k] = 1;
+        try {
+            var on = onRowsOf(L), sum = 0;
+            for (var i = 0; i < on.length; i++) {
+                if (on[i] >= me) break;   // the rows switched on keep the list's order, so the first at or past this row ends the count
+                var v = rowVal(L, L.rows[on[i]], k); if (isObj(v) && v.error) return v;
+                if (typeof v === 'boolean') v = v ? 1 : 0;
+                if (fin(v)) sum += v;
+            }
+            return sum;
+        } finally { L.obBusy[k] = 0; }
     }
     // 1.6.2 (build 14: an arm or a leg past the chassis's slots gives nothing): Row.pastSlot, 1 for a part that stands past what its host holds, counted in
     // the list's order: Holds, or a line of Holds by kind the part takes, its figure read as the sheet says it (capFig). Its rows before it of the same
@@ -7497,7 +7540,7 @@ function makeResolver(sys, char, F, ropts) {   // ropts.noFx: the values with no
     }
     function rowVars(L, x) {   // a column's names: Row.* reads this row, every other name the resolver (one cache)
         if (x.rv) return x.rv;
-        var v = function(name, nt) { var l = lower(name); if (l.length > 2 && l.slice(-2) === '#w') { var rw = tableWord(l.slice(0, -2), L, x); return isObj(rw) || (typeof rw === 'string' && rw) ? rw : fn(l, nt); }   /* 1.6.2 (167 D): a row's choice as words */ if (l === 'target.inarc' && L.spec && isObj(L.spec.arc) && !ix.target && !lkx.target) { rangeRead = true; var rgA = ropts && isObj(ropts.range) ? ropts.range : null; return rgA && fin(rgA.rb) ? arcIn(L.spec, x.d, rgA.rb, isObj(sys) && isObj(sys.combat) ? sys.combat.arcs : null) : 0; } if (l.slice(0, 3) === 'at.' && !ix.at && !lkx.at && L.spec && isObj(L.spec.stand) && !x.virt) { var plA = standAll().at[x.id], TA = tileListOf(L.spec), tA = plA && plA.r && TA ? tileRow(TA, plA.r) : null; return tA ? rowVal(TA, tA, l.slice(3)) : 0; } if (l.slice(0, 5) === 'here.' && !ix.here && !lkx.here && !x.virt && isTileList(L)) { var hA = hereVal(x, l.slice(5)); if (hA !== undefined) return hA; } if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = upVal(L, x, w); if (av === undefined) av = sheetVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
+        var v = function(name, nt) { var l = lower(name); if (l.length > 2 && l.slice(-2) === '#w') { var rw = tableWord(l.slice(0, -2), L, x); return isObj(rw) || (typeof rw === 'string' && rw) ? rw : fn(l, nt); }   /* 1.6.2 (167 D): a row's choice as words */ if (l === 'target.inarc' && L.spec && isObj(L.spec.arc) && !ix.target && !lkx.target) { rangeRead = true; var rgA = ropts && isObj(ropts.range) ? ropts.range : null; return rgA && fin(rgA.rb) ? arcIn(L.spec, x.d, rgA.rb, isObj(sys) && isObj(sys.combat) ? sys.combat.arcs : null) : 0; } if (l.slice(0, 3) === 'at.' && !ix.at && !lkx.at && L.spec && isObj(L.spec.stand) && !x.virt) { var plA = standAll().at[x.id], TA = tileListOf(L.spec), tA = plA && plA.r && TA ? tileRow(TA, plA.r) : null; return tA ? rowVal(TA, tA, l.slice(3)) : 0; } if (l.slice(0, 5) === 'here.' && !ix.here && !lkx.here && !x.virt && isTileList(L)) { var hA = hereVal(x, l.slice(5)); if (hA !== undefined) return hA; } if (tbOn && l.slice(0, 6) === 'table.' && !ix[l]) { var tb0 = tableVal(l, L, x); if (tb0 !== undefined) return tb0; } if (l.slice(0, 5) === 'host.' && !ix.host && !lkx.host) { var hv = hostVal(L, x, l.slice(5)); if (hv !== undefined) return hv; } if (l.slice(0, 4) === 'row.') { var w = l.slice(4); if (w === 'parts' || w.slice(0, 6) === 'parts.') return partsVal(L, x, w === 'parts' ? '' : w.slice(6)); if (w.indexOf('.') < 0) return rowVal(L, x, w); var av = atVal(L, x, w); if (av === undefined) av = onBeforeVal(L, x, w); if (av === undefined) av = upVal(L, x, w); if (av === undefined) av = sheetVal(L, x, w); if (av === undefined) av = roundVal(L, x, w); return av !== undefined ? av : feedVal(L, x, w); } return fn(name, nt); };
         v.refs = function(names) { return refsOut(refUp(names, L, x)); };   // 1.6.0 Specialties: the cases a roll's names used, for its card
         v.detail = function(name) { var l = lower(name); if (l.slice(0, 4) === 'row.' && l.indexOf('.', 4) < 0) return detail[lower(L.f.key) + '#' + x.id + '.' + l.slice(4)] || null; return detail[l] || null; };   // 1.5.8: a row's own column under its own key
         v.burst = function() { return !x.virt && isObj(x.r) && isObj(x.r.bu) ? x.r.bu : null; };   // 1.6.0: its last burst (hitVars)
@@ -9235,6 +9278,7 @@ function rowRollNames(sys, char, fieldId, rowId, names, F, uDef) {   // uDef (1.
                 (w.indexOf('fired.') === 0 && row && isObj(row.bu) && Array.isArray(row.bu.s) ? row.bu.s : []).forEach(function(s) { var sdN = isObj(s) ? rowDef(sys, s) : null; if (sdN && sdN.def && sdN.def.vis === 'gm') gm = true; });   // 1.6.0 A burst: each hit reads its own round
                 return;
             }
+            if (/^onbefore\.[^.]+$/.test(w) && isObj(spec.on)) w = w.slice(9);   // 1.6.4: Row.onBefore.<w> is judged by the stat or the column it adds up, the rows it reads being of this same list (a GM-only stat is caught above, by any part of the name)
             (Array.isArray(spec.cols) ? spec.cols : []).forEach(function(x) { if (!c && isObj(x) && lower(x.key) === w) c = x; });
             (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(x) { if (!st && isObj(x) && lower(x.key) === w) st = x; });
             if (c) { push(f.key + '.' + c.key); if (!done[lower(c.key)] && typeof c.formula === 'string' && c.formula && F && F.names) { done[lower(c.key)] = 1; expand(F.names(c.formula)); } }   // each column once, however deep (owed review F5b#1: a list has up to LIMITS.listCols)
@@ -9314,7 +9358,7 @@ function gmReadsIn(sys, texts, F, row) {
     var ix = keyIndex(sys), lf = isObj(row) && typeof row.f === 'string' ? fieldById(sys, row.f) : null, cols = lf && isObj(lf.list) && Array.isArray(lf.list.cols) ? lf.list.cols : [], seen = map();
     var reads = function(t, d) {
         if (typeof t !== 'string' || !t || d > 8) return false; var ns = []; try { ns = F.names(t) || []; } catch (e) { return true; }
-        return ns.some(function(n) { var l = lower(n); if (gmStatRead(ks, ix, l)) return true; if (l.indexOf('row.') !== 0 || seen[l]) return false; seen[l] = 1; var k = l.slice(4); return cols.some(function(c) { return isObj(c) && lower(c.key) === k && reads(c.formula, d + 1); }); });
+        return ns.some(function(n) { var l = lower(n); if (gmStatRead(ks, ix, l)) return true; if (l.indexOf('row.') !== 0 || seen[l]) return false; seen[l] = 1; var k = l.slice(4); if (/^onbefore\.[^.]+$/.test(k)) k = k.slice(9); return cols.some(function(c) { return isObj(c) && lower(c.key) === k && reads(c.formula, d + 1); }); });
     };
     return texts.some(function(t) { return reads(t, 0); });
 }

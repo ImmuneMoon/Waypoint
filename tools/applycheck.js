@@ -1531,8 +1531,55 @@ const j = v => JSON.stringify(v);
         const take = rvS.row('f_arms', 'w_h')('Row.Take'), takeFirst = rvS.row('f_arms', 'w_k')('Row.Take'), left = ['w_k', 'w_p', 'w_h'].map(id => rvS.row('f_arms', id)('Row.Left'));
         const vS = validateSystem(gS, F), vO = validateSystem(gO, F);
         const isErr = v => v === undefined || (v !== null && typeof v === 'object');
-        check('1.6.4 a column that adds up itself over the rows before is refused as a loop (L.obBusy, as coveredOf’s layBusy): the hatchet’s Take cannot be worked out, and the validator says the loop on that column; a column that adds up another column (Left, 4 less the Need before) works out: 4, 2, 2',
+        check('1.6.4 a column that adds up itself over the rows before is refused as a loop (decided from the definitions by onBeforeLoop, so on every row): the hatchet’s Take cannot be worked out, and the validator says the loop on that column; a column that adds up another column (Left, 4 less the Need before) works out: 4, 2, 2',
             isErr(take) && J(left) === J([4, 2, 2]) && (vS.errors || []).some(e => /loop/i.test(e.message)) && !(vO.errors || []).length, J([take, takeFirst, left, vS.errors, vO.errors]));
+        // the review of Row.onBefore, point (a) (Fulllion chose on 2026-11-23 to fix it in 1.6.4): a loop through a read of another row. On a list
+        // that hangs rows, K = Row.Hands + Row.up.M with M = Row.onBefore.K adds K up through the row each one hangs from. The resolver caught that
+        // only as it went and kept every column it worked out, so asked from the top row down it gave figures and asked from a later row first it
+        // gave a loop: the host and the owner's copy could disagree. Now timecore's onBeforeLoop decides it from the definitions, so every order
+        // reads the same: M is refused on every row, K reads 1 on the longknife (it hangs from nothing) and the loop on the pike and the hatchet,
+        // and the validator says that loop under the column M. Read in every order of rows and of the two names, on a fresh resolver each time,
+        // on the host and on the owner's own copy; and a list that adds up a column with no way back (K2 = Row.Hands + Row.up.Hands) works out
+        // the same figures in every order, refused nowhere
+        const hangCols = [{ key: 'K', label: 'K', formula: 'Row.Hands + Row.up.M' }, { key: 'M', label: 'M', formula: 'Row.onBefore.K' }, { key: 'K2', label: 'K2', formula: 'Row.Hands + Row.up.Hands' }, { key: 'M2', label: 'M2', formula: 'Row.onBefore.K2' }];
+        const hung = [{ id: 'w_k', defId: 'i_knife', qty: 1, on: true }, { id: 'w_p', defId: 'i_pike', qty: 1, on: true, up: 'w_k' }, { id: 'w_h', defId: 'i_hatch', qty: 1, on: true, up: 'w_p' }];
+        const gH = cleanSystem(sysO({ hang: true }, hangCols), { F, gmView: true }), pH = cleanSystem(sysO({ hang: true }, hangCols), { F, gmView: false });
+        const itemsH = {}; gH.items.forEach(i => { itemsH[i.id] = i; });
+        const ownH = S.cleanChar(S.charFor(chO(hung), pH, 'u_p', { items: itemsH, full: gH }), pH);
+        const perms = a => a.length <= 1 ? [a] : a.reduce((o, x, i) => o.concat(perms(a.slice(0, i).concat(a.slice(i + 1))).map(p => [x].concat(p))), []);
+        const asks = names => { const out = []; perms(['w_k', 'w_p', 'w_h']).forEach(rows => { [names, names.slice().reverse()].forEach(ns => { out.push(rows.map(r => ns.map(n => [r, n])).reduce((a, b) => a.concat(b), [])); out.push(ns.map(n => rows.map(r => [r, n])).reduce((a, b) => a.concat(b), [])); }); }); return out; };
+        const readIn = (sys, ch, order) => { const rv = makeResolver(sys, ch, F), got = {}; order.forEach(([r, n]) => { got[r + ' ' + n] = rv.row('f_arms', r)(n); }); return J(Object.keys(got).sort().map(k => [k, got[k]])); };
+        const allSame = (sys, ch, names) => { const seen = asks(names).map(o => readIn(sys, ch, o)); return seen.every(s => s === seen[0]) ? seen[0] : null; };
+        const loopH = allSame(gH, chO(hung), ['Row.K', 'Row.M']), loopOwn = allSame(pH, ownH, ['Row.K', 'Row.M']), freeH = allSame(gH, chO(hung), ['Row.K2', 'Row.M2']), freeOwn = allSame(pH, ownH, ['Row.K2', 'Row.M2']);
+        const loopV = loopH ? JSON.parse(loopH) : [], cell = k => (loopV.filter(x => x[0] === k)[0] || [])[1], loopSays = 'Formulas refer to each other in a loop: Arms.K (column) → Arms.M (column) → Arms.K (column)';
+        const vH = validateSystem(gH, F), vHm = (vH.errors || []).filter(e => e.id === 'f_arms' && e.prop === 'list' && e.message.indexOf('Column “M”: ') === 0);   // a column's fault is said on its list card, led by the column's name
+        check('1.6.4 the review of Row.onBefore, point (a): a column added up through the row each hangs from (K = Row.Hands + Row.up.M, M = Row.onBefore.K) reads the same in every order of rows and names, on the host and the owner’s own copy alike: M refused on every row, K 1 on the longknife that hangs from nothing and refused on the pike and the hatchet, each refusal in the same words',
+            !!loopH && loopH === loopOwn && ['w_k', 'w_p', 'w_h'].every(r => isErr(cell(r + ' Row.M')) && cell(r + ' Row.M').error.message === loopSays) && cell('w_k Row.K') === 1 && isErr(cell('w_p Row.K')) && isErr(cell('w_h Row.K')) && cell('w_h Row.K').error.message === loopSays,
+            J([loopH, loopOwn]));
+        check('1.6.4 the validator says that loop under the column M, at the name Row.onBefore.K, in the loop graph’s words, which the System editor says plainly; once, and nothing of K2 and M2, whose way back is none',
+            vHm.length === 1 && vHm[0].message === 'Column “M”: ' + loopSays && vHm[0].pos === 0 && vHm[0].len === 'Row.onBefore.K'.length && (vH.errors || []).length === 1
+            && S.plainMessage(gH, vHm[0].message).indexOf('Column “M”: These each need the other, so none of them can be worked out: ') === 0,J([vH.errors, vHm[0] && S.plainMessage(gH, vHm[0].message)]));
+        check('1.6.4 a column added up with no way back to itself (K2 = Row.Hands + Row.up.Hands, M2 = Row.onBefore.K2) works out in every order, on the host and the owner’s copy alike: K2 1, 3, 3 and M2 0, 1, 4',
+            !!freeH && freeH === freeOwn && freeH === J([['w_h Row.K2', 3], ['w_h Row.M2', 4], ['w_k Row.K2', 1], ['w_k Row.M2', 0], ['w_p Row.K2', 3], ['w_p Row.M2', 1]]), J([freeH, freeOwn]));
+        // found in the review of this fix: Row.oncecost reads the Counted once cost column on every row of the row's group, a read of other rows
+        // too. With K = Row.Hands + Row.up.X, X = Row.oncecost and the cost column M = Row.onBefore.K, the knife and the hatchet one group (both
+        // 1 hand), the walk follows oncecost to M, so every order again reads the same and the validator names the loop through X
+        const onceCols = [{ key: 'K', label: 'K', formula: 'Row.Hands + Row.up.X' }, { key: 'X', label: 'X', formula: 'Row.oncecost' }, { key: 'M', label: 'M', formula: 'Row.onBefore.K' }];
+        const gOc = cleanSystem(sysO({ hang: true, once: { by: 'Hands', rank: 'Hands', cost: 'M' } }, onceCols), { F, gmView: true }), onceSays = 'Formulas refer to each other in a loop: Arms.K (column) → Arms.X (column) → Arms.M (column) → Arms.K (column)';
+        const onceH = allSame(gOc, chO(hung), ['Row.K', 'Row.X', 'Row.M']), onceV = onceH ? JSON.parse(onceH) : [], vOc = validateSystem(gOc, F);
+        check('1.6.4 a loop through Counted once (X = Row.oncecost, the group’s highest cost, its cost column M = Row.onBefore.K) reads the same in every order too: M refused on every row in the same words, and the validator says it once under the column M',
+            !!gOc.fields[1].list.once && !!onceH && ['w_k', 'w_p', 'w_h'].every(r => { const c = (onceV.filter(x => x[0] === r + ' Row.M')[0] || [])[1]; return isErr(c) && c.error.message === onceSays; })
+            && (vOc.errors || []).length === 1 && vOc.errors[0].message === 'Column “M”: ' + onceSays, J([onceH, vOc.errors]));
+        // ... and the validator says each loop once: one the loop graph already found through fields (C = B, B = A, A = Arms.M, K = Row.Hands + C,
+        // M = Row.onBefore.K), said under the field that closed it, is not said again under M; a loop elsewhere on the same list (A2 = Row.B2,
+        // B2 = Row.A2) hides nothing, so the loop through Row.up is still said under M beside it
+        const sysF = sysO(null, [{ key: 'K', label: 'K', formula: 'Row.Hands + C' }, { key: 'M', label: 'M', formula: 'Row.onBefore.K' }]);
+        sysF.fields.push({ id: 'f_b', key: 'B', label: 'B', kind: 'formula', formula: 'A' }, { id: 'f_a', key: 'A', label: 'A', kind: 'formula', formula: 'Arms.M' }, { id: 'f_c', key: 'C', label: 'C', kind: 'formula', formula: 'B' });
+        const vF = validateSystem(cleanSystem(sysF, { F, gmView: true }), F), loopsF = (vF.errors || []).filter(e => /loop/.test(e.message));
+        const vTwo = validateSystem(cleanSystem(sysO({ hang: true }, hangCols.slice(0, 2).concat([{ key: 'A2', label: 'A2', formula: 'Row.B2' }, { key: 'B2', label: 'B2', formula: 'Row.A2' }])), { F, gmView: true }), F), loopsTwo = (vTwo.errors || []).filter(e => /loop/.test(e.message));
+        check('1.6.4 the validator says each loop once: a loop through fields is said under the field that closed it and not again under M; an unrelated loop on the same list leaves the loop through Row.up said under M as well',
+            loopsF.length === 1 && loopsF[0].message.indexOf('Column “M”') < 0 && /Arms\.M \(column\)/.test(loopsF[0].message)
+            && loopsTwo.length === 2 && loopsTwo.some(e => e.message === 'Column “M”: ' + loopSays) && loopsTwo.some(e => /Arms\.A2 \(column\)/.test(e.message)), J([loopsF, loopsTwo]));
         // the validator: known only on a list with a switch, onBefore only of a number stat or a column; a list that keys onPlace reads its own stat
         const noSw = { v: 1, name: 'N', rolls: [], fields: [{ id: 'f_bag', key: 'Bag', label: 'Bag', kind: 'item-list', vis: 'all', list: { stats: [{ key: 'Hands' }], cols: [{ key: 'P', formula: 'Row.onPlace' }, { key: 'B', formula: 'Row.onBefore.Hands' }] } }], items: [], sheet: { sections: [] } };
         const vN = validateSystem(noSw, F), vPick = validateSystem(sysO(null, [{ key: 'G', formula: 'Row.onBefore.Grip' }]), F);

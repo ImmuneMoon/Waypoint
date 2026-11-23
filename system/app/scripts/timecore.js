@@ -187,8 +187,18 @@ function chainsShallow(sys, F) {
     if (sys.fields.some(function(f) { return isObj(f) && f.kind === 'item-list' && isObj(f.list) && isObj(f.list.stand); })) return false;   // 1.6.2 (body fold 2): what stands where is worked out by a resolver of its own, which no walk of names can read
     try { return chainsWalk(sys, F); } catch (e) { return false; }
 }
-function chainsWalk(sys, F) {
-    var lim = isObj(F.LIMITS) && typeof F.LIMITS.maxDepth === 'number' ? F.LIMITS.maxDepth : 64, ix = keyIndex(sys), lists = map(), info = map(), memo = map(), on = map(), lkC = linkByKey(sys), tbW = tableFam(sys, ix);
+// 1.6.4 (the review of Row.onBefore, point (a)): the graph of names chainsWalk walks, made by a function of its own so that onBeforeLoop below
+// walks the very same graph. Nothing is worked out here: chainsGraph(sys, F) hands back the lookups, and each node is made the first time a
+// walk asks for it. nodeOf(name, L): the node a name is worked out under, read as the resolver reads it (L: the list whose column the name is
+// written in, or null outside a list); info[id]: what that node reads (texts read with its list, names read outside a list, more: nodes it
+// reads by themselves); listOf, defNode, rowNode and totNode: the makers chainsWalk starts from. A node's id says what it is: f| a field's
+// definition, c| a list's column, p| a choice, t| a list's total, and h|, pp| and s| a node that only gathers others. wide (onBeforeLoop's
+// alone): also follow the reads chainsWalk has never followed, so that what chainsShallow says stays exactly what it said: At.<w> and
+// Here.<list>.<sum|max|min>.<w> (a list that stands, which chainsShallow answers false before any walk anyway) and Row.oncecost and
+// Row.oncefree, which read the Counted once cost or free column on every row of the row's group (makeResolver's onceWord; found in the
+// review of this fix)
+function chainsGraph(sys, F, wide) {
+    var ix = keyIndex(sys), lists = map(), info = map(), lkC = linkByKey(sys), tbW = tableFam(sys, ix);
     var node = function(id, texts, L, names, more) { if (!info[id]) info[id] = { texts: texts, L: L, names: names, more: more }; return id; };
     var listOf = function(f) {   // listCtx's own reading of a list's stats, columns and counters
         var lk = lower(f.key); if (lists[lk]) return lists[lk];
@@ -200,7 +210,7 @@ function chainsWalk(sys, F) {
         var pts = spec && isObj(spec.parts) ? partsSrcs(sys, spec) : null; if (pts && !pts.length) pts = null;   // 1.6.0 R14: the lists its parts come from (Row.parts.*; 1.6.2: more than one)
         var ats = spec && isObj(spec.at) ? atSrc(sys, spec) : null;   // 1.6.0 Stands at: the list the row its stat names is in (Row.<by>.*)
         var fds = map(); (spec && Array.isArray(spec.feeds) ? spec.feeds : []).forEach(function(fd) { var s = isObj(fd) ? loadSrc(sys, feedSpec(spec, fd)) : null; if (s) fds[lower(fd.key)] = s; });   // 1.6.0 Feeds: the list each feed loads from (Row.Feed.<key>.*)
-        return (lists[lk] = { sp: spec && isObj(spec.specs) ? spec.specs : null, k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, fds: fds, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '', hg: !!(spec && spec.hang === true), sw: !!(spec && isObj(spec.on)) });   // sw (1.6.4): the list has a switch, so Row.onBefore.<w> reads it
+        return (lists[lk] = { sp: spec && isObj(spec.specs) ? spec.specs : null, k: lk, fid: f.id, st: st, cl: cl, ct: ct, chs: chs, fds: fds, pts: pts, ats: ats && ats.id !== f.id ? ats : null, atb: ats ? lower(spec.at.by) : '', hg: !!(spec && spec.hang === true), sw: !!(spec && isObj(spec.on)), sf: spec && isObj(spec.stand) && typeof spec.stand.from === 'string' ? spec.stand.from : '', oc: spec && isObj(spec.once) ? spec.once : null });   // sw (1.6.4): the list has a switch, so Row.onBefore.<w> reads it; sf (1.6.4): the list of places its rows stand on (At.<w>), '' for none; oc (1.6.4): its Counted once, whose cost and free name a column or a stat
     };
     var defNode = function(f, sfx) {   // a field's name: its definition worked out (a formula, a skill's base, a pool's most), '' for one read as stored
         if (autoKindOf(f) && typeof f.auto === 'string' && f.auto) { var aTn = [f.auto].concat(f.kind === 'number' && isObj(f.override) ? [f.override.when, f.override.value] : []).filter(function(x) { return typeof x === 'string' && x; }); return sfx && sfx !== 'base' && sfx !== 'figure' ? '' : node('f|' + lower(f.key), aTn, null, [], []); }   // 1.6.2 (auto apply): worked out until typed
@@ -236,6 +246,12 @@ function chainsWalk(sys, F) {
     };
     var nodeOf = function(name, L) {   // the resolver's own lookup (fn, and a column's rowVars): the node a name is worked out under, or ''
         var l = lower(name);
+        // 1.6.4 (wide, for onBeforeLoop): what a row reads of the place it stands on (At.<w>) and what a place reads of the rows that stand on
+        // it (Here.<list>.sum, .max or .min of <w>), each the column of the other list; and Row.oncecost and Row.oncefree, the cost or free
+        // column of its own list read on the rows of its group (rowVal answers these two words before any column of the name, as here)
+        if (wide && L && (l === 'row.oncecost' || l === 'row.oncefree')) { var ocK = L.oc ? L.oc[l === 'row.oncecost' ? 'cost' : 'free'] : ''; return typeof ocK === 'string' && ocK ? rowNode(L, lower(ocK)) : ''; }
+        if (wide && L && L.sf && l.slice(0, 3) === 'at.' && !ix.at && !lkC.at) { var atF = fieldById(sys, L.sf); return atF && atF.kind === 'item-list' ? rowNode(listOf(atF), l.slice(3)) : ''; }
+        if (wide && L && l.slice(0, 5) === 'here.' && !ix.here && !lkC.here) { var hrS = l.slice(5).split('.'), hrF = hrS.length === 3 && (hrS[1] === 'sum' || hrS[1] === 'max' || hrS[1] === 'min') ? ix[hrS[0]] : null; if (isObj(hrF) && hrF.kind === 'item-list' && isObj(hrF.list) && isObj(hrF.list.stand)) return rowNode(listOf(hrF), hrS[2]); }
         if (L && l.slice(0, 5) === 'host.' && !ix.host && !lkC.host) { var hw = l.slice(5), hn = []; if (hw.indexOf('.') < 0) sys.fields.forEach(function(hf) { if (isObj(hf) && hf.kind === 'item-list' && isObj(hf.list) && isObj(hf.list.parts) && partsFromHas(hf.list.parts, L.fid)) { var hd = rowNode(listOf(hf), hw); if (hd) hn.push(hd); } }); if (hn.length) return hn.length === 1 ? hn[0] : node('h|' + L.k + '|' + hw, [], null, [], hn); }   // 205 (3): a part's Host.<w>, on each list its host may be in
         if (L && l.slice(0, 4) === 'row.') { var w = l.slice(4), cw = w.split('.'); return w.indexOf('.') < 0 ? rowNode(L, w) : cw[0] === 'feed' && cw.length >= 3 && cw.length <= 4 && (cw.length === 3 || cw[2] === 'fired') && L.fds[cw[1]] ? rowNode(listOf(L.fds[cw[1]]), cw[cw.length - 1]) : cw.length === 2 && (cw[0] === 'round' || cw[0] === 'fired') && L.chs ? rowNode(listOf(L.chs), cw[1]) : cw.length === 2 && L.ats && cw[0] === L.atb ? rowNode(listOf(L.ats), cw[1]) : cw.length === 2 && L.sw && cw[0] === 'onbefore' ? rowNode(L, cw[1]) /* 1.6.4: Row.onBefore.<w>, the same column worked out on the rows before */ : cw.length === 2 && L.hg && cw[0] === 'up' ? rowNode(L, cw[1]) : cw[0] === 'parts' && L.pts && (cw.length === 2 || (cw.length === 3 && (cw[1] === 'max' || cw[1] === 'min' || cw[1] === 'all'))) ? (function(pw) { var pns = []; L.pts.forEach(function(sf) { var pn = rowNode(listOf(sf), pw); if (pn) pns.push(pn); }); return !pns.length ? '' : pns.length === 1 ? pns[0] : node('pp|' + L.k + '|' + pw, [], null, [], pns); })(cw[cw.length - 1]) : ''; }   // 1.5.9: a round's stat or column, on its own list; 1.6.0 R14: a part's (205 (1): its highest or lowest too)
         if (ix[l]) return defNode(ix[l], '');
@@ -246,6 +262,12 @@ function chainsWalk(sys, F) {
         return '';
     };
     var namesOf = function(t) { var ns = F.names(t); return (Array.isArray(ns) ? ns : []).map(function(x) { return typeof x === 'string' ? x : isObj(x) && typeof x.name === 'string' ? x.name : ''; }); };   // a throw goes to chainsShallow's own catch
+    return { ix: ix, info: info, listOf: listOf, defNode: defNode, rowNode: rowNode, totNode: totNode, nodeOf: nodeOf, namesOf: namesOf };
+}
+// 1.5.5: chainsShallow's walk over chainsGraph's graph, from every field's definition, every column's total and every choice
+function chainsWalk(sys, F) {
+    var lim = isObj(F.LIMITS) && typeof F.LIMITS.maxDepth === 'number' ? F.LIMITS.maxDepth : 64, memo = map(), on = map();
+    var g = chainsGraph(sys, F), ix = g.ix, info = g.info, listOf = g.listOf, defNode = g.defNode, rowNode = g.rowNode, totNode = g.totNode, nodeOf = g.nodeOf, namesOf = g.namesOf;
     var over = false;   // a loop met, or a path walked past the depth: the answer is false, and nothing is walked further
     var depth = function(id, p) {   // the longest chain from id, in nodes (a loop: Infinity); p: the nodes on the path walked to it, id among them
         if (memo[id] !== undefined) return memo[id];
@@ -267,6 +289,44 @@ function chainsWalk(sys, F) {
     for (var i = 0; i < tops.length; i++) if (depth(tops[i], 1) > lim || over) return false;
     return true;
 }
+// 1.6.4 (the review of Row.onBefore, point (a); Fulllion chose on 2026-11-23 to fix it in 1.6.4): whether a column that rows add up comes back to
+// itself. Row.onBefore.<k> adds up the column k over the rows switched on before a row, and a column that reads that total, directly or
+// through anything else, is a loop the resolver refuses. The resolver first caught it as it went (makeResolver's onBeforeVal, L.obBusy), but it
+// keeps every column it has worked out, and a read of another row (Row.up.* on a list that hangs rows, Host.*, Row.parts.*, Here.*, At.*)
+// draws no edge the validator sees. So a column like K = Row.Hands + Row.up.M with M = Row.onBefore.K worked out from the top row down and
+// read as a loop when a later row was asked first, and the host and the owner's copy, which ask in their own orders, could show different
+// figures. This decides it from the definitions alone, so it can never depend on the order rows and names are asked in: it walks chainsGraph's
+// graph (wide: every read of another row) from the column k of the list f, through every name each formula reads (each read of another row followed to the column it reads,
+// as the resolver would), and looks for a formula written in one of f's own columns that reads Row.onBefore.<k>. Both the resolver
+// (onBeforeVal refuses the total) and the validator (validcore.js says so under the column) ask it, so the editor and every screen agree.
+// A loop is refused even where no row of a character takes that path today (a row that hangs from nothing), as any loop of formulas is.
+// Returns null for none, or the loop as names (the column k first and last), as the validator's loop message names them: a list's column as
+// List.Key (column), a choice as List.Key (choice), a field by its key; a total or a node that only gathers others is passed over in words
+function onBeforeLoop(sys, F, f, k) {
+    if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(f) || f.kind !== 'item-list' || typeof f.key !== 'string' || typeof k !== 'string' || !F || typeof F.names !== 'function') return null;
+    var g = chainsGraph(sys, F, true), L0 = g.listOf(f), kl = lower(k), want = 'row.onbefore.' + kl;
+    if (!L0.sw || (L0.ats && L0.atb === 'onbefore')) return null;   // no switch, so no Row.onBefore; or the list's own Stands at word is onBefore, which the resolver reads first
+    var start = g.rowNode(L0, kl); if (!start || start.slice(0, 2) !== 'c|') return null;   // a number stat is stored, so adding it up never loops; a choice has no total
+    var names = function(t) { try { return g.namesOf(t); } catch (e) { return []; } };   // a formula the engine cannot read reads nothing here (the validator says what is wrong with it)
+    var seen = map(), path = [], found = null;
+    var walk = function(id) {   // depth first; path: the nodes from the column k to id. Each node once: what it reaches does not change with the way in
+        if (found || seen[id]) return; seen[id] = 1; path.push(id); var it = g.info[id];
+        it.texts.forEach(function(t) { names(t).forEach(function(nm) { if (found || !nm) return; if (it.L === L0 && lower(nm) === want) { found = path.concat([start]); return; } var d = g.nodeOf(nm, it.L); if (d) walk(d); }); });
+        it.names.forEach(function(nm) { if (!found && nm) { var d = g.nodeOf(nm, null); if (d) walk(d); } });
+        it.more.forEach(function(d) { if (!found && d) walk(d); });
+        path.pop();
+    };
+    walk(start);
+    if (!found) return null;
+    var word = function(id) {   // a node's id said as the validator's nodeName says its node, '' for one passed over
+        var p = id.split('|'), lf = p.length === 3 ? g.ix[p[1]] : null, sp = lf && isObj(lf.list) ? lf.list : null, of = function(a) { var o = null; (sp && Array.isArray(sp[a]) ? sp[a] : []).forEach(function(x) { if (!o && isObj(x) && typeof x.key === 'string' && lower(x.key) === p[2]) o = x; }); return o; };
+        if (p[0] === 'f') return isObj(g.ix[p[1]]) ? g.ix[p[1]].key : p[1];
+        if (p[0] === 'c' && lf) { var c = of('cols'); return lf.key + '.' + (c ? c.key : p[2]) + ' (column)'; }
+        if (p[0] === 'p' && lf) { var s = of('stats'); return lf.key + '.' + (s ? s.key : p[2]) + ' (choice)'; }
+        return '';
+    };
+    return found.map(word).filter(Boolean);
+}
 // [split:body-end]
-return { applyRound: applyRound, chainsShallow: chainsShallow, needsHeld: needsHeld, ruleRunCtx: ruleRunCtx, timeRuleRun: timeRuleRun, turnCounters: turnCounters };   // [split:glue]
+return { applyRound: applyRound, chainsShallow: chainsShallow, needsHeld: needsHeld, onBeforeLoop: onBeforeLoop, ruleRunCtx: ruleRunCtx, timeRuleRun: timeRuleRun, turnCounters: turnCounters };   // [split:glue]
 }   // [split:glue]

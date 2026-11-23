@@ -536,7 +536,7 @@ pendingChecks.push((async () => {
             const DateS = class extends Date {}; DateS.now = () => w.clock;   // the page's clock is the suite's, a date still a date
             const net = { peer: null };
             w.api = new Function('window', 'fetch', 'localStorage', 'location', 'setTimeout', 'clearTimeout', 'Date', 'net', 'toast', 'RTCPeerConnection', srSrc + rlSrc
-                + '\nreturn { ask: siteRelayAsk, servers: siteRelayServers, hosting: siteRelayHosting, words: siteRelayWords, peerOpts: peerOpts, relayActive: relayActive, relayServers: relayServers, apply: siteRelayApply, arm: siteRelayArm, refresh: siteRelayRefresh, clean: cleanSiteRelay, urlOk: siteRelayUrlOk, usage: cleanSiteRelayUsage, then: siteRelayThen, forget: siteRelayForget, linked: siteRelayLinked, held: function() { return _siteRelay; }, why: function() { return _siteRelayWhy; }, waiting: function() { return _siteRelayWait; }, setWait: function(v) { _siteRelayWait = v; }, WAIT: SITE_RELAY_WAIT, RETRY: SITE_RELAY_RETRY };')
+                + '\nreturn { ask: siteRelayAsk, servers: siteRelayServers, hosting: siteRelayHosting, words: siteRelayWords, peerOpts: peerOpts, relayActive: relayActive, relayServers: relayServers, turnConfig: turnConfig, apply: siteRelayApply, arm: siteRelayArm, refresh: siteRelayRefresh, clean: cleanSiteRelay, urlOk: siteRelayUrlOk, usage: cleanSiteRelayUsage, then: siteRelayThen, forget: siteRelayForget, linked: siteRelayLinked, held: function() { return _siteRelay; }, why: function() { return _siteRelayWhy; }, waiting: function() { return _siteRelayWait; }, setWait: function(v) { _siteRelayWait = v; }, WAIT: SITE_RELAY_WAIT, RETRY: SITE_RELAY_RETRY };')
                 (win, fetchF, ls, { hostname: o.host || 'localhost' }, st, ct, DateS, net, t => w.toasts.push(t), o.rtc);
             Object.assign(w, w.api); w.net = net; w.fire = () => { const t = w.timers.splice(0); t.forEach(x => x.fn()); return t.map(x => x.ms); };
             return w;
@@ -697,6 +697,25 @@ pendingChecks.push((async () => {
             && ri.i1 && ri.i1.why === 'busy' && ri.held1 === null && J(ri.i2) === J({ ok: true }) && J(ri.ice2) === J(STUN2.concat(['turn:turn.cloudflare.com:3478?transport=udp'])), J([err, r.bad, r.good, r.lower, ri]));
         check('1.6.4 the review of 2026-11-17: the set handed out is a copy no caller can change; a fetch that throws as it is called, or a reading that throws, is a busy site and the ask after it goes through',
             err === '' && r.copy && r.copy.urls === 2 && r.copy.cred === CRED && r.thr && J(r.thr.b1) === J({ why: 'busy' }) && J(r.thr.b2) === J({ ok: true }) && J(r.thr.b3) === J({ why: 'busy' }), J([err, r.copy, r.thr]));
+        // 1.6.4 (Fulllion, 2026-11-22: "Count the plan's relay"): the word beside "Relay server" in Settings (settings.js turnStateWord, sliced and
+        // run on the page's net made of the real siterelay and relay slices) says the plan's relay while it carries the table this computer hosts,
+        // the GM's own relay first whatever is held, and direct connections only before hosting and after it ends
+        const twSrc = (settingsSrc.split('// [nettransportcheck:turnword-start]')[1] || '').split('// [nettransportcheck:turnword-end]')[0];
+        const tw = await (async () => { try {
+            if (!twSrc || !srSrc || !rlSrc) return { err: 'no slice' };
+            const word = new Function(twSrc + '\nreturn turnStateWord;')(), netOf = Q => ({ turnConfig: Q.turnConfig, relayServers: Q.relayServers });
+            const P2 = mkP(); P2.answer = set(); const before = word(netOf(P2)); await P2.ask(); const asked = word(netOf(P2));
+            P2.hosting(true); const hosting = word(netOf(P2)); P2.hosting(false); const after = word(netOf(P2));
+            const O2 = mkP(); O2.answer = set(); await O2.ask(); O2.hosting(true); O2.store.turn_urls = 'turn:own.example.net:3478'; O2.store.turn_user = 'me'; O2.store.turn_pass = 'pw'; const own = word(netOf(O2));
+            const N2 = mkP(); N2.answer = { status: 403, json: { error: 'plan' } }; await N2.ask(); N2.hosting(true); const noPlan = word(netOf(N2));
+            return { err: '', before, asked, hosting, after, own, noPlan, none: word(null) };
+        } catch (e) { return { err: String(e && e.stack) }; } })();
+        const DIRECT = 'none \u2014 direct connections only';
+        check('1.6.4 the word beside Relay server in Settings counts the plan\'s relay (Fulllion, 2026-11-22): "your plan\u2019s relay" while the plan\'s set carries the table this computer hosts, "configured" for the GM\'s own relay whatever is held, and direct connections only before hosting, with a set held but not hosting, after hosting ends, with no plan relay and with no net at all',
+            tw.err === '' && tw.before === DIRECT && tw.asked === DIRECT && tw.hosting === 'your plan\u2019s relay' && tw.after === DIRECT && tw.own === 'configured' && tw.noPlan === DIRECT && tw.none === DIRECT, j(tw));
+        check('1.6.4 (wired): Settings writes that word from turnStateWord alone, as the relay box loads and each time the plan\'s relay changes (siteRelaySync, which net.js calls as hosting starts and ends and after each ask), never over a Test still running',
+            /if \(st\) st\.textContent = turnStateWord\(window\.wpNet\);/.test(settingsSrc) && /function siteRelaySync\(\) \{[^]*?var st = ui\('setTurnState'\); if \(st && !\(_turnTest && _turnTest\.disabled\)\) st\.textContent = turnStateWord\(window\.wpNet\);[^]*?\n\}/.test(settingsSrc)
+            && !/turnConfig\(\)\) \? 'configured'/.test(settingsSrc) && (settingsSrc.match(/'none \\u2014 direct connections only'/g) || []).length === 1);
         const outsideSR = srSrc ? noCm(src.replace(srSrc, '')) : 'siteRelayAsk(';
         const shSR = fnSrc('function startHosting(forceFresh) {', '\n    peer.on(\'open\'', 'startHosting'), lvSR = fnSrc('function leaveSession(silent) {', '\n}\n', 'leaveSession'), jsSR = fnSrc('function joinSession(code, name, isRetry, probe) {', '\n}\n', 'joinSession');
         check('1.6.4 (wired): only the host asks, in startHosting before any Peer is made and after a browser\'s host token, and as its peer takes a new connection; a player never asks (joinSession names nothing of it); hosting is marked before the Peer is made and let go in leaveSession; the refresh is armed after the gate goes on; no credential is kept in storage (the slice names neither localStorage nor sessionStorage); the Test button tests whichever relay is in use; Settings shows the line',

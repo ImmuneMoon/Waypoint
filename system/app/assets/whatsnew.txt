@@ -22,6 +22,9 @@ Your plan's relay
   used, warns you when most of it is gone, and says when it starts
   again. Once it is used up, players who need the relay cannot join
   until it starts again. Everyone else still joins.
+- The word beside Relay server in Settings says "your plan's relay"
+  while it carries your table, so it no longer says direct connections
+  only right above the line about your plan's relay.
 - Hosting never waits more than a few seconds for the relay. If the
   website is busy, your table starts as before.
 

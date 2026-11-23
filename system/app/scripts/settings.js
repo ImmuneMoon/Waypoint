@@ -400,12 +400,24 @@ function loadTurnFields() {
         if (p) p.value = localStorage.getItem('turn_pass') || '';
     } catch (e) {}
     var st = ui('setTurnState');
-    if (st) st.textContent = (window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()) ? 'configured' : 'none \u2014 direct connections only';
+    if (st) st.textContent = turnStateWord(window.wpNet);
     var rb = ui('setRelayBlock'), hasRelay = !!(window.wpNet && window.wpNet.turnConfig && window.wpNet.turnConfig()), relayFlag = false;
     try { relayFlag = localStorage.getItem('wp_relayOnly') === '1'; } catch (e) {}
     if (rb) rb.style.display = (hasRelay || relayFlag) ? 'block' : 'none';   // shown with a relay — and whenever the switch is on without one (it follows the saves folder; the relay does not), so it can be seen and switched off
     siteRelaySync();
 }
+// [nettransportcheck:turnword-start]
+/* The word beside "Relay server": which relay carries this computer's connections now. The GM's own relay, typed in below, comes first.
+   1.6.4 (Fulllion, 2026-11-22: "Count the plan's relay"): with none of their own, the plan's relay from the website counts too, while it
+   carries the table this computer hosts (net.js relayServers answers it only then), so the word never says "direct connections only" right
+   above the line that says the plan's relay is in use. Handed the page's net object, so a suite runs it alone. */
+function turnStateWord(N) {
+    if (N && typeof N.turnConfig === 'function' && N.turnConfig()) return 'configured';
+    var r = N && typeof N.relayServers === 'function' ? N.relayServers() : null;
+    if (r && r.length) return 'your plan\u2019s relay';
+    return 'none \u2014 direct connections only';
+}
+// [nettransportcheck:turnword-end]
 /* 1.6.4: the plan's relay, in one plain line under the relay box (#setSiteRelay). net.js siteRelayWords says it, from this session's last
    ask: the month's use against the allowance, the warning near it and when it starts again, or why there is no plan relay (not linked,
    the plan, the allowance used up, the website busy). Nothing before the first Host, and nothing while the website's relay is switched off.
@@ -415,6 +427,7 @@ function siteRelaySync() {
     var el = ui('setSiteRelay'); if (!el) return;
     var w = window.wpNet && typeof window.wpNet.siteRelayWords === 'function' ? window.wpNet.siteRelayWords() : '';
     el.textContent = w; el.hidden = !w;
+    var st = ui('setTurnState'); if (st && !(_turnTest && _turnTest.disabled)) st.textContent = turnStateWord(window.wpNet);   // the word follows the plan's relay as hosting starts and ends and after each ask, but never over a Test still running
     var rb = ui('setRelayBlock'); if (rb && window.wpNet && typeof window.wpNet.relayServers === 'function' && window.wpNet.relayServers()) rb.style.display = 'block';
 }
 window.wpSiteRelaySync = siteRelaySync;

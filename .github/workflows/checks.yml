@@ -144,6 +144,9 @@ jobs:
       - name: startercheck — a starter system with its packs
         if: ${{ !cancelled() }}
         run: node tools/startercheck.js
+      - name: syszipcheck — a system exported whole as one .zip with its packs and pictures, and read back
+        if: ${{ !cancelled() }}
+        run: node tools/syszipcheck.js
       - name: viewcheck — the view that turns with your token
         if: ${{ !cancelled() }}
         run: node tools/viewcheck.js

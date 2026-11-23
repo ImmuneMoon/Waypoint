@@ -224,8 +224,10 @@ function entryFor(id) {
 // 1.6.2 (the owner, 2026-11-07, by prompt: "Replace with CORE", "System and all ten packs"): a starter system's own packs, written once its system
 // is saved, since each entry is cleaned against the campaign's system. texts: the pack files as text, in order. A pack of the same name (case
 // aside) is merged into by id, so an entry the GM changed keeps its own changes only where the starter has no entry of that id; else a pack is made.
-// Answers { packs, add, update, skip (an entry whose id another pack holds), bad }; nothing is removed. Its steps go to the app's log as `starter v1`, counts alone
-async function starterPacks(texts) {
+// Answers { packs, add, update, skip (an entry whose id another pack holds), bad }; nothing is removed. Its steps go to the app's log as `starter v1`, counts alone.
+// 1.6.4 (a system exported whole, syszip.js): opts.byId, for a system's .zip read back, merges into the pack of the file's own id first, then
+// as before by name, so the same campaign's own export brought back fills the very pack it came from. A starter passes no opts and is unchanged
+async function starterPacks(texts, opts) {
     var camp = getActiveCampaign(), log = function(step, o) { try { if (typeof window.wpStepLog === 'function') window.wpStepLog('starter v1', step, o); } catch (e) {} };
     if (!camp || !gmHere()) return { error: 'No campaign here.' };
     if (cur.campId !== camp.id || cur.state === 'loading') await load(camp);
@@ -233,7 +235,7 @@ async function starterPacks(texts) {
     log('start', { files: list.length });
     for (var i = 0; i < list.length; i++) {
         var d = readPackImport(list[i], libCtx(camp.system, F(), true)); if (d.error) { out.bad++; log('refused', { at: i, why: 'file' }); continue; }
-        var low = d.name.trim().toLowerCase(), hit = (camp.library ? camp.library.packs : []).filter(function(p) { return String(p.name || '').trim().toLowerCase() === low; })[0], pid = hit ? hit.id : null;
+        var low = d.name.trim().toLowerCase(), held = camp.library ? camp.library.packs : [], hit = (opts && opts.byId === true && typeof d.id === 'string' ? held.filter(function(p) { return p.id === d.id; })[0] : null) || held.filter(function(p) { return String(p.name || '').trim().toLowerCase() === low; })[0], pid = hit ? hit.id : null;
         if (!pid) { var r = await createPack(d.name); if (!r || r.error) { out.bad++; log('refused', { at: i, why: 'create' }); continue; } pid = r.id; setMeta(pid, { icon: d.icon || '', vis: d.vis }); }
         if (!ready(pid)) { out.bad++; log('refused', { at: i, why: 'unread' }); continue; }
         var lib = camp.library.packs.map(function(p) { return { id: p.id, name: p.name, entries: entriesOf(p.id) }; }), plan = packImportPlan(lib, pid, d, 'id');

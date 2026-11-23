@@ -146,6 +146,17 @@ Merging from another system file [DRAFT]
   system lacks is named before you merge, with a button to tick that
   too. Undo takes the whole merge back.
 
+A whole system in one file [DRAFT]
+- Building a system? Export can now save it whole: one .zip with the
+  system, every library pack your campaign holds and every picture they
+  show. Hand it to another GM, who presses Import in the System editor,
+  and Save brings it all into their campaign.
+- Nothing of theirs is replaced. Each pack goes into the pack it came
+  from, or one of the same name, and a picture already there stays as it
+  is. Pictures under a private tag stay on your computer.
+- Export still saves the .wpsystem.json alone when you ask it to, and
+  Import still reads one.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

@@ -1064,6 +1064,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
                   var dj = entries.find(function(en) { return en.name === 'data.json'; });
                   if (!dj) {
                       if (window.wpDocImport && window.wpDocImport.detectBundle(entries)) { window.wpDocImport.importFile(file); return; }   // a .md with its pictures
+                      if (entries.some(function(en) { return en.name === 'system.wpsystem.json'; })) { toast('This zip is a whole system. Bring it in with Import in the System editor.'); return; }   // 1.6.4: a system exported whole (syszip.js) goes in through the System editor
                       toast('This zip has no data.json. Not a Waypoint export.'); return;
                   }
                   if (dj.size > 512 * 1024 * 1024) { toast('This zip\'s data.json is too large to read.'); return; }

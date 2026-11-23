@@ -115,6 +115,8 @@ A Notes page on every sheet [DRAFT]
   to delete it from the sheet. The Journal keeps its copy either way.
 - Share sends a note to one person at the table, several, or everyone.
   It lands in their Journal.
+- A character file and a sheet's readable page carry the notes, and
+  uploading the file brings back the notes the character does not have.
 - The page is on for every system. A GM can turn it off in the System
   editor, under Layout, Sheet look, and the notes are kept.
 

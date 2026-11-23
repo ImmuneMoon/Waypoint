@@ -53,6 +53,9 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
         && Q.qnoteOp(full, { op: 'add', id: 'q_new1' }, 1).reason === 'full' && Q.qnoteOp([], { op: 'zap', id: 'q_abcd' }, 1).reason === 'value' && Q.qnoteOp([], null, 1).reason === 'value');
     check('a new note’s id is q_ and ten letters and digits; the switch is on unless a system says sheet.notes false', /^q_[a-z0-9]{10}$/.test(Q.qnoteId()) && Q.QN_ID.test(Q.qnoteId(() => 0.999999))
         && Q.notesOn(null) === true && Q.notesOn({}) === true && Q.notesOn({ sheet: {} }) === true && Q.notesOn({ sheet: { notes: true } }) === true && Q.notesOn({ sheet: { notes: false } }) === false);
+    const mg1 = Q.qnoteMerge([{ id: 'q_abcd', x: 'mine, changed', at: 5 }], [{ id: 'q_abcd', x: 'from the file', at: 5 }, { id: 'q_efgh', t: 'New', x: 'only in the file', at: 6 }]), mg2 = Q.qnoteMerge(mg1.list, [{ id: 'q_efgh', x: 'again' }]), mg3 = Q.qnoteMerge(many.slice(0, 50), [{ id: 'q_zzzz', x: 'no room' }]);
+    check('a file’s notes join a character’s: a note it has stays as it is, a new one is added after them, a file read twice adds nothing, and never past 50',
+        mg1.added === 1 && J(mg1.list.map(n => [n.id, n.x])) === J([['q_abcd', 'mine, changed'], ['q_efgh', 'only in the file']]) && mg2.added === 0 && mg2.list.length === 2 && mg3.added === 0 && mg3.list.length === 50 && Q.qnoteMerge(undefined, undefined).list === undefined);
     // ---- what each copy keeps (the real systemcore)
     const sys = S.emptySystem(); sys.fields = [{ id: 'f_t', key: 'Nick', label: 'Nick', kind: 'text', vis: 'all', hover: true }];
     const notes = [{ id: 'q_abcd', t: 'Clue', x: 'the key is under the mat', at: 5 }];
@@ -67,6 +70,16 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     const cOff = S.cleanSystem(sysOff, { F: window.wpFormula || F, gmView: true }), cOffP = S.cleanSystem(sysOff, { F: window.wpFormula || F, gmView: false }), cOn = S.cleanSystem(sysOn, { F: window.wpFormula || F, gmView: true });
     check('the System editor’s key is kept by the cleaner only as false, in the GM’s view and the players’, so a system that never set it, or set it true, has the page',
         !!cOff && cOff.sheet.notes === false && !!cOffP && cOffP.sheet.notes === false && !!cOn && !('notes' in cOn.sheet) && Q.notesOn(cOff) === false && Q.notesOn(cOn) === true, J([cOff && cOff.sheet, cOn && cOn.sheet]));
+    {   // the character file and the readable page (Fulllion, 2026-11-23: both include the notes, and the file brings them back on import)
+        const X = await imp('scripts/sheetexport.js'), sysF = S.emptySystem(); sysF.name = 'T'; sysF.fields = [{ id: 'f_t', key: 'Nick', label: 'Nick', kind: 'text', vis: 'all' }];
+        const own = S.charFor(host, sysF, 'u_a'), lkN = { fmt: { spans: [{ s: 0, e: 3, b: true }] }, sig: L.textSig('the key is under the mat') };
+        const withLk = Object.assign({}, own, { qnotes: [Object.assign({}, notes[0], { lk: lkN })] }), file = X.charToJson(sysF, withLk, null, { exported: 'x' }), plainF = X.charToJson(sysF, Object.assign({}, own, { qnotes: undefined }), null, { exported: 'x' });
+        const back = X.charFromJson(sysF, JSON.parse(J(file)), null), bad = X.charFromJson(sysF, Object.assign(JSON.parse(J(file)), { qnotes: [{ id: 'nope' }, 'x', { id: 'q_good', x: 'kept', lk: { fmt: { b: true }, sig: 'wrong' } }] }), null);
+        const md = X.sheetToMarkdown(sysF, withLk, {}, {}), mdNone = X.sheetToMarkdown(sysF, Object.assign({}, own, { qnotes: undefined }), {}, {});
+        check('a character file carries the notes as its copy holds them (no key with none, so such a file is as it was) and reads them back cleaned; the readable page writes them under a heading of their own, with their look, and none means no heading',
+            J(file.qnotes) === J([{ id: 'q_abcd', t: 'Clue', x: 'the key is under the mat', at: 5, lk: lkN }]) && !('qnotes' in plainF) && J(back.qnotes) === J(file.qnotes) && J(bad.qnotes) === J([{ id: 'q_good', x: 'kept', at: 0 }])
+            && /## Quick notes/.test(md) && md.includes('**Clue**') && md.includes('**the** key is under the mat') && !/## Quick notes/.test(mdNone), J([file.qnotes, back.qnotes, bad.qnotes, md.slice(-300)]));
+    }
     // ---- the host's branch, run for real
     const net = read('scripts/net.js'), br = between(net, '// [netcheck:charqnote-start]', '// [netcheck:charqnote-end]');
     const runB = (o, msg) => {
@@ -107,15 +120,17 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
     // ---- the page's own code run for real on stand-ins: a player's change and its refusal, and a player's shares spaced to the host's limit
     {
         const cut = name => { const t = require('./checkkit').defOf('sheets.js', name), i = t.indexOf('function ' + name + '('); let d = 0, j = t.indexOf('{', i); for (; j < t.length; j++) { const ch = t[j]; if (ch === '{') d++; else if (ch === '}' && --d === 0) break; } return t.slice(i, j + 1); };   // each read from the file that holds it (checkkit.defOf)
-        const src = ['qnList', 'qnFind', 'qnDo', 'qnSend', 'qnStore'].map(cut).join('\n');
+        const src = ['qnList', 'qnFind', 'qnDo', 'qnSend', 'qnStore', 'qnJournal', 'qnPeople'].map(cut).join('\n');
         const mk = o => {
             const out = { toasts: [], sent: [], shares: [], timers: [], draws: 0, fails: 0 }, c = { id: 'c_k', name: 'Kessa', ownerId: 'u_a', qnotes: [{ id: 'q_abcd', x: 'old', at: 5 }] };
             const netS = { charQnote: (id, q, done) => { out.sent.push(q); out.done = done; return o.local ? { error: 'Not at the table yet.' } : { ok: true, pending: true }; }, shareEntry: m => { out.shares.push([m.to, Date.now() - out.t0]); return true; } };
             const env = { _qnLocal: Object.create(null), _qnDraft: Object.create(null), _qnTimer: Object.create(null), _qnShare: 'x', _qnSendNext: 0, QN_SHARE_GAP: 1100, QN_SHARE_MOST: 6, QN_WHY: { value: 'v' } };
-            const fn = new Function('E', 'popFwd', 'qnWrites', 'qnoteOp', 'isClient', 'net', 'toast', 'renderViews', 'qnSaved', 'charById', 'sbxFlush', 'setTimeout', 'clearTimeout',
-                'var _qnLocal = E._qnLocal, _qnDraft = E._qnDraft, _qnTimer = E._qnTimer, _qnShare = E._qnShare, _qnSendNext = E._qnSendNext, QN_SHARE_GAP = E.QN_SHARE_GAP, QN_SHARE_MOST = E.QN_SHARE_MOST, QN_WHY = E.QN_WHY;\n' + src + '\nreturn { qnDo: qnDo, qnSend: qnSend, qnStore: qnStore, qnList: qnList, local: _qnLocal, draft: _qnDraft };');
+            const fn = new Function('E', 'popFwd', 'qnWrites', 'qnoteOp', 'isClient', 'net', 'toast', 'renderViews', 'qnSaved', 'charById', 'sbxFlush', 'setTimeout', 'clearTimeout', 'qnDraw', 'popAs', 'showConfirm', 'qnJournalAdd', 'myId',
+                'var _qnLocal = E._qnLocal, _qnDraft = E._qnDraft, _qnTimer = E._qnTimer, _qnShare = E._qnShare, _qnSendNext = E._qnSendNext, QN_SHARE_GAP = E.QN_SHARE_GAP, QN_SHARE_MOST = E.QN_SHARE_MOST, QN_WHY = E.QN_WHY;\n' + src + '\nreturn { qnDo: qnDo, qnSend: qnSend, qnStore: qnStore, qnList: qnList, qnJournal: qnJournal, qnPeople: qnPeople, local: _qnLocal, draft: _qnDraft };');
             out.t0 = Date.now();
-            const api = fn(env, () => false, () => true, Q.qnoteOp, () => o.gm !== true, () => netS, t => out.toasts.push(t), () => { out.draws++; }, () => {}, () => c, () => {}, (f, ms) => { out.timers.push(ms); f(); }, () => {});
+            out.fwd = []; out.asks = []; out.adds = [];
+            const api = fn(env, (op, a) => { if (!o.pop) return false; out.fwd.push([op, a]); return true; }, () => true, Q.qnoteOp, () => o.gm !== true, () => netS, t => out.toasts.push(t), () => { out.draws++; }, () => {}, () => c, () => {}, (f, ms) => { out.timers.push(ms); f(); }, () => {},
+                () => { out.draws++; }, () => (o.pop ? { gm: false, me: 'u_a', people: o.people || [] } : null), (q, cb, opts) => out.asks.push([q, opts]), (cid, id) => { out.adds.push([cid, id]); return Promise.resolve(true); }, () => 'u_a');
             return { api, out, c };
         };
         const t1 = mk({}), ok1 = t1.api.qnDo(t1.c, { op: 'set', id: 'q_abcd', x: 'new' }, () => { t1.out.fails++; }), shown1 = t1.api.qnList(t1.c)[0].x, host1 = t1.c.qnotes[0].x;
@@ -128,6 +143,10 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
             && Object.keys(t2.api.local).length === 0 && t2.out.fails === 1 && t2.out.toasts[0] === 'That character is not yours.' && t2.api.qnList(t2.c)[0].x === 'old'
             && ok3 === false && t3.out.fails === 1 && Object.keys(t3.api.local).length === 0 && t4.api.draft['c_k:q_abcd:x'] === 'plain words', J([shown1, host1, after1, t2.out, t3.out.fails, t4.api.draft]));
         const s1 = mk({}); s1.api.qnSend('c_k', 'q_abcd', ['*']); const s2 = mk({}); s2.api.qnSend('c_k', 'q_abcd', ['u_b', 'u_c', 'gm']); const s3 = mk({}); s3.api.qnSend('c_k', 'q_abcd', ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8']); const s4 = mk({ gm: true }); s4.api.qnSend('c_k', 'q_abcd', ['u_b', 'u_c']);
+        const w1 = mk({ pop: true, people: [{ to: 'gm', name: 'The GM' }, { to: 'u_b', name: 'Bram' }] }); w1.api.qnSend('c_k', 'q_abcd', ['gm', 'u_b']); w1.api.qnJournal('c_k', 'q_abcd');
+        check('a sheet in a window of its own (Fulllion, 2026-11-23: Journal and Share there too): Share and Add to my Journal go to the main window as its presses do, the question Delete or Keep is asked in the window itself, and the people it may share with are the list its main window sent',
+            J(w1.out.fwd.map(x => x[0])) === J(['qnSend', 'qnJournal']) && J(w1.out.fwd[0][1]) === J(['c_k', 'q_abcd', ['gm', 'u_b']]) && w1.out.shares.length === 0 && w1.out.adds.length === 0 && w1.out.asks.length === 1 && w1.out.asks[0][1].noEnter === true
+            && J(w1.api.qnPeople()) === J([{ to: 'gm', name: 'The GM' }, { to: 'u_b', name: 'Bram' }]), J(w1.out));
         check('a player’s shares go one a person, 1.1 s apart (the host takes a player’s share once a second): Everyone is every other player and the GM; at most six at once, the rest named as not sent; the GM’s go at once, with no word of the page’s own',
             J(s1.out.shares.map(x => x[0])) === J(['*', 'gm']) && J(s1.out.timers) === J([1100]) && J(s2.out.shares.map(x => x[0])) === J(['u_b', 'u_c', 'gm']) && J(s2.out.timers) === J([1100, 2200])
             && s3.out.shares.length === 6 && /2 more were not sent/.test(s3.out.toasts[0]) && J(s4.out.shares.map(x => x[0])) === J(['u_b', 'u_c']) && s4.out.timers.length === 0 && s4.out.toasts.length === 0, J([s1.out, s2.out.timers, s3.out.toasts, s4.out]));
@@ -145,6 +164,12 @@ function between(src, a, b) { const i = src.indexOf(a), j = src.indexOf(b, i); r
         ix.includes('<button class="tool ghost notepad-btn sheet-notes-btn" id="sheetNotes" type="button" title="Quick notes on this character" aria-pressed="false" style="display:none;">Notes</button><button class="tool ghost notepad-btn sheet-edit" id="sheetEdit"')
         && sh.includes("if (typeof qnShown === 'function' && qnShown(c, sysD)) {") && sh.includes('qnPage(body, cD, camp, sysD, { seeP: !!seeP });') && sh.includes("if (typeof qnFlush === 'function') qnFlush();")
         && sh.includes("var qnBt = ui('sheetNotes'); if (qnBt) qnBt.addEventListener('click',") && sh.includes("v.qn = qnH;") && sh.includes("qnPage(container, c, camp, sys, { pop: true, live: !!PA })") && sh.includes("else if (m.op === 'qnDo')"));
+    const pop = fs.readFileSync(path.join(root, 'system', 'app', 'scripts', 'popout.js'), 'utf8');
+    check('a player’s file brings its notes back on the host, for one in the making and one in play (at once: they are the player’s to write), the GM’s own upload with Apply or at once where nothing else differs, a window of its own gets the table’s people cleaned with its sheet, and a note’s style bar stands under its card',
+        net.includes("var qmF = fillF && typeof Su.qnoteMerge === 'function' ? Su.qnoteMerge(chU.qnotes, fillF.qnotes) : null; if (qmF && qmF.added) chU.qnotes = qmF.list;") && net.includes("if (isFileU && fillR && typeof Su.qnoteMerge === 'function') { var qmR = Su.qnoteMerge(chU.qnotes, fillR.qnotes); if (qmR.added) { chU.qnotes = qmR.list;")
+        && sh.includes("if (up.own === true && up.qnotes && window.wpSystemCore && typeof window.wpSystemCore.qnoteMerge === 'function')") && sh.includes("if (r.said) { toast(r.said); return; }") && sh.includes("if (typeof qnPeople === 'function') msg.people = qnPeople();")
+        && pop.includes("as.people = (Array.isArray(m.people) ? m.people : []).filter(") && sh.includes("barBy: function(box) { return typeof sbxQnBar === 'function' ? sbxQnBar(box) : null; }, barUnder: function(box) { return typeof sbxQnBar === 'function' && !!sbxQnBar(box); }")
+        && sh.includes("else if (m.op === 'qnJournal')") && sh.includes("else if (m.op === 'qnSend')"));
     const NL = String.fromCharCode(10), CRLF = new RegExp(String.fromCharCode(13) + NL, 'g'), kit = require('./checkkit'), lay = kit.part('sysedlayout.js').replace(CRLF, NL), cc = kit.part('cleancore.js').replace(CRLF, NL);   // parts of sheets.js and systemcore.js, each read by its own name
     check('the System editor’s Layout tab, Sheet look, holds Notes page on character sheets, ticked unless the system says off, kept across the automatic layout and Remove layout; the cleaner keeps the key only as false',
         lay.includes("notesChk.checked = !(draft.sheet && draft.sheet.notes === false);") && lay.includes("document.createTextNode(' Notes page on character sheets')") && lay.includes('if (notesChk.checked) delete draft.sheet.notes; else draft.sheet.notes = false;')

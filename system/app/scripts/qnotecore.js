@@ -96,6 +96,17 @@ function qnoteOp(list, q, now) {
     if (JSON.stringify(nn) === JSON.stringify(was)) return { ok: true, list: cur, note: was, same: true };
     cur[at] = nn; return { ok: true, list: cur, note: nn };
 }
+// A file's notes brought into a character's (1.6.4, Fulllion, 2026-11-23: the character file carries the notes and "brings them back on
+// import"): every note the character has stays as it is, and each of the file's whose id the character does not hold already is added after
+// them, cleaned, while there is room (QN.max). A note is never replaced, so a file read twice adds nothing the second time, and a note the
+// player changed since keeps their words. { list, added }: the whole list (undefined when empty) and how many were added. Asked by net.js's
+// char-upload branch (a player's file) and sheets.js's Review (the GM's own)
+function qnoteMerge(cur, add) {
+    var list = cleanQnotes(cur) || [], have = Object.create(null), added = 0;
+    list.forEach(function(n) { have[n.id] = 1; });
+    (cleanQnotes(add) || []).forEach(function(n) { if (list.length < QN.max && !have[n.id]) { have[n.id] = 1; list.push(n); added++; } });
+    return { list: list.length ? list : undefined, added: added };
+}
 // A new note's id: 'q_' and ten letters and digits from the random source handed in (Math.random by default), so the sheet's text box
 // can name the note at once
 function qnoteId(rnd) { var r = typeof rnd === 'function' ? rnd : Math.random, s = ''; for (var i = 0; i < 10; i++) s += 'abcdefghijklmnopqrstuvwxyz0123456789'.charAt(Math.floor(r() * 36) % 36); return 'q_' + s; }
@@ -105,5 +116,5 @@ function qnoteId(rnd) { var r = typeof rnd === 'function' ? rnd : Math.random, s
 function notesOn(sys) { return !(isObj(sys) && isObj(sys.sheet) && sys.sheet.notes === false); }
 // [notescheck:core-end]
 
-var API = { QN: QN, QN_ID: QN_ID, cleanQnote: cleanQnote, cleanQnotes: cleanQnotes, cleanQnoteMsg: cleanQnoteMsg, qnoteOp: qnoteOp, qnoteId: qnoteId, notesOn: notesOn, qnText: qnText, qnTitle: qnTitle };
-export { QN, QN_ID, cleanQnote, cleanQnotes, cleanQnoteMsg, qnoteOp, qnoteId, notesOn, qnText, qnTitle, API as qnoteApi };
+var API = { QN: QN, QN_ID: QN_ID, cleanQnote: cleanQnote, cleanQnotes: cleanQnotes, cleanQnoteMsg: cleanQnoteMsg, qnoteOp: qnoteOp, qnoteMerge: qnoteMerge, qnoteId: qnoteId, notesOn: notesOn, qnText: qnText, qnTitle: qnTitle };
+export { QN, QN_ID, cleanQnote, cleanQnotes, cleanQnoteMsg, qnoteOp, qnoteMerge, qnoteId, notesOn, qnText, qnTitle, API as qnoteApi };

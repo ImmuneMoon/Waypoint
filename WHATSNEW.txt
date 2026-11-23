@@ -123,6 +123,36 @@ Inviting players [DRAFT]
   player who opens Waypoint VTT on their computer and types it. The
   password is still never in it.
 
+The stream window [DRAFT]
+- A video you show to only some players no longer plays in the stream
+  window. That window is what everyone watching your screen-share sees.
+- Cover leaves the stream bar's Showing and Focus on lists where you can
+  reach them, so you can set up the next view before you go live. It
+  still hides the round and whom the window follows.
+- The stream window's map and character lists keep an & in a name, so
+  Rats & Ruins reads Rats & Ruins.
+- On a website plan with no hosting, Open stream window says why it is
+  not there, rather than opening a second copy of Waypoint VTT.
+
+The System editor, a last look [DRAFT]
+- Pressing a point budget's fault takes you to that budget's own box,
+  not the first one's.
+- New tests on the Rules tab start as Test 1, Test 2 and so on. The line
+  under each one keeps up as you change its dice, and it says when Save
+  would drop a test.
+- Type names into a name list and click + Name list straight away, and
+  the click lands. It used to vanish.
+- A new action or time unit under Turns starts named. Its short name
+  follows the name and stays out of sight unless you tick Short names.
+  Rename an action and the rolls that cost it follow.
+- An action's count and a sheet category's rule ask their question in
+  plain words, so you never type a formula there.
+- Used by's list closes with Escape or a click outside it, and its lines
+  open the topic they name, such as Blasts and throws or Decks.
+- Merge from a file takes a whole system's .zip and brings in its
+  system. Its packs and pictures stay in the file, and the notice says
+  Import would bring them but replace your whole system.
+
 Buying a row off [DRAFT]
 - Building a system? A list can let its rows be bought off now, for a
   cost worked out from the row, such as its tier. Pick the number field

@@ -342,7 +342,7 @@ pendingChecks.push((async () => {
     check('M1: a Ban from the Players panel (its branch run for real) calls net.kickPlayer exactly once, with the first roster key of the profile, and that one call takes both of Pat\'s connections (told, closed, forgotten once); a profile not at the table and a player\'s machine call it not at all; in the source the Ban branch calls it once and never in a loop, net.js calls it twice (the roster\'s kick button, the Ban branch) and no other script does, and kickPlayer is the only place that sends \'kicked\'; the host has 31 message branches (video-up of item 21 among them, and voice-up of voice chat, 1.5.9, the newest) (1.6.0, a deliberate change of this pin: blast-roll, the core\'s gap 8, a player\'s press of a blast card, makes the host\'s branches 34; 1.6.0 B5, a deliberate change of this pin: hit-ask, a player asking which locations their target has, makes them 35; 1.6.0, a deliberate change of this pin: sheet-out, a player asking the host\'s reader for a file of their own character, makes them 36; 1.6.2, a deliberate change of this pin: show-ask, a player asking to put drawings on the map, makes them 37)',
         js(ban1) === js({ threw: '', calls: ['pA1'], roster: ['pB', 'pX', 'pY'], kicked: ['pA1', 'pA2'], timers: 2, forgot: ['forget:u_a'], banned: ['u_a'], session: ['u_a'], saves: 1 }) && js(banAway.calls) === js([]) && banAway.kicked.length === 0 && banAway.threw === '' && js(banClient.calls) === js([]) && banClient.kicked.length === 0 && banClient.threw === ''
         && (noCom(banBody).match(/net\.kickPlayer\(/g) || []).length === 1 && !/forEach|\bfor \(|\bwhile \(/.test(noCom(banBody)) && js(kickCalls) === js([['net.js', 2]]) && (noCom(src).match(/net\.kickPlayer\(/g) || []).length === 2
-        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 46 /* 1.6.3 (the multiplayer review, finding 9): handout-want, the 46th; (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */, js([ban1, banAway, banClient, kickCalls, kickedSends]));
+        && js(kickedSends) === js([['net.js', 1]]) && kickSrc.indexOf("conn.send({ type: 'kicked' });") >= 0 && (src.match(/msg\.type === '[a-z-]+' && net\.role === 'host'/g) || []).length === 47 /* 1.6.4 (a player's name changed at the table, a deliberate change of this pin): profile-set, the 47th; 1.6.3 (the multiplayer review, finding 9): handout-want, the 46th; (defense fold 4): send-on, the 45th; (defense fold 1): land-take, the 44th; 1.6.2 (backlog 42): box, the 43rd; 1.6.2 Assist: help-act, the 42nd (moved on purpose) */, js([ban1, banAway, banClient, kickCalls, kickedSends]));
 
     // 1.6.3 (the improvement week's review of multiplayer, finding 31): Ban asks first, by name and with its buttons alone; a no bans, kicks
     // and saves nothing (banAsk run for real with a question answered no), and the yes the checks above ran asked one question each
@@ -596,7 +596,7 @@ pendingChecks.push((async () => {
     Q.api.knows(true); Q.api.refresh(); const knownQ = Q.sel.style.display;
     check('the review of multiplayer chat (the whisper slice, run for real): until the host\'s snapshot says whispers: true a player\'s app shows no To list, for a key that is missing, a word, a number or an object alike, and a line it sends goes to everyone with no whom in it, whatever the hidden list held; once the host says true the list shows. The host says it in its snapshot, and the snapshot branch reads it, as a fresh join forgets it',
         j(knowQ) === j(['none', 'none', 'none', 'none']) && j(oldHost) === j([1, 'global', false, 'global', null]) && knownQ === 'block'
-        && /pausedSelf: !!\(net\.pausedPlayers && net\.pausedPlayers\[prof\.id\]\), whispers: true, travelLocked:/.test(src) && src.includes("if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }")
+        && /pausedSelf: !!\(net\.pausedPlayers && net\.pausedPlayers\[prof\.id\]\), whispers: true, (?:profileSet: true, )?travelLocked:/.test(src) && src.includes("if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }")
         && src.includes("if (!isRetry && !probe) { _joinSlow = false; if (typeof whispersKnow === 'function') whispersKnow(false); }"), j({ knowQ, oldHost, knownQ }));
     // The review of multiplayer chat (1.6.3): a player's roll made while a whisper is picked goes to the GM only and says so. A typed /r through
     // sendChat, run for real with a stand-in roller, and any roll a player's app sends through net.diceRoll (whisperRollPriv)
@@ -2055,5 +2055,77 @@ pendingChecks.push((async () => {
     ];
     check('1.6.4 the GM\'s own name is read where a player is named on the GM\'s screen (the roster chip with their own name under the pointer, Player History\'s name and box, a chat line, a whisper\'s tag, the pop-out\'s names, a kept card drawn again when it moves, the roll and apply cards, the owner names of the sheets, Characters and the timers, the party strip) and never on the wire (camp.players goes from every snapshot whole)',
         wired.every(Boolean), j(wired));
+}
+
+/* ================= 1.6.4: a player's name changed at the table reaches it at once (the player's half) ================= */
+// The profileup slice run for real on a player's app of plain objects: what is sent, when, to whom, and never to a host that did not say it takes it
+{
+    const pS = between('// [netcheck:profileup-start]', '// [netcheck:profileup-end]', 'profileup');
+    const mkP = () => {
+        const out = { sent: [], timers: [], now: 1e6 }, c = { peer: 'host1', open: true, send: m => out.sent.push(JSON.parse(j(m))) };
+        const net = { active: true, role: 'client', syncedPeer: 'host1', conns: [c] };
+        let prof = { id: 'u_me', name: 'Ayla', color: '#112233', face: 'default' };
+        const tm = { set: (f, ms) => { const t = { f, at: out.now + ms, on: true }; out.timers.push(t); return t; }, clear: t => { if (t) t.on = false; } };
+        const run = ms => { out.now += ms; out.timers.filter(t => t.on && t.at <= out.now).forEach(t => { t.on = false; t.f(); }); };
+        const api = new Function('net', 'getProfile', 'cleanRosterName', 'safeAvatar', 'sendFailed', 'setTimeout', 'clearTimeout', 'Date',
+            pS + '\nreturn { know: profileSetKnow, out: profileOut, note: profileSentNote, soon: profileSoon, send: profileSend, link: profileLink };')(
+            net, () => prof, H.cleanRosterName, H.safeAvatar, () => out.sent.push('failed'), tm.set, tm.clear, { now: () => out.now });
+        return { api, out, net, c, run, set: p => { prof = Object.assign({}, prof, p); }, prof: () => prof };
+    };
+    // an older host: its snapshot said nothing, so nothing is ever sent
+    const O = mkP(); O.api.note(O.prof()); O.api.know(undefined); O.set({ name: 'Ayla Vale' }); O.api.soon(); O.run(5000); const oldHost = [O.api.send(), O.out.sent.length, O.out.timers.length];
+    O.api.know('yes'); const oldTruthy = [O.api.send(), O.out.sent.length];
+    // a host that takes it: a change a moment after it is written, once; the same again nothing; the face never; cleaned as the host cleans a hello
+    const P = mkP(); P.api.note(P.prof()); P.api.know(true);
+    P.api.soon(); P.run(5000); const unchanged = P.out.sent.length;
+    P.set({ name: '  Ayla\u202e Vale ', face: 'emoji:x' }); P.api.soon(); P.run(500); const early = P.out.sent.length; P.run(1000); const first = P.out.sent.slice();
+    P.api.soon(); P.run(5000); const again = P.out.sent.length;
+    P.set({ face: 'pic:wolf' }); P.api.soon(); P.run(5000); const faceOnly = P.out.sent.length;
+    // the next change 0.5 s later waits for the gap, then goes; a hostile color and picture never go
+    P.set({ color: 'red;x', avatar: 'data:image/png;base64,AA"x' }); const hostile = P.api.send();
+    P.run(500); P.set({ name: 'Ayla V.' }); const tooSoon = P.api.send(); const heldN = P.out.sent.length; P.run(2500); const spaced = P.out.sent.slice(1);
+    // at most eight a minute: the ninth waits for the minute
+    const M = mkP(); M.api.note(M.prof()); M.api.know(true); let nSent = 0;
+    for (let i = 0; i < 9; i++) { M.set({ name: 'N' + i }); M.run(2100); M.api.send(); nSent = M.out.sent.length; }
+    const ninthHeld = nSent === 8; M.run(60000); const ninthLater = M.out.sent.length === 9 && M.out.sent[8].profile.name === 'N8';
+    // not at the table, the GM's own app, a closed link or another host's connection: nothing
+    const L = mkP(); L.api.note(L.prof()); L.api.know(true); L.set({ name: 'Zed' });
+    L.net.role = 'host'; const asHost = L.api.send(); L.net.role = 'client'; L.c.open = false; const closed = L.api.send(); L.c.open = true; L.net.syncedPeer = 'other'; const other = L.api.send(); L.net.syncedPeer = 'host1'; L.net.active = false; const off = L.api.send();
+    L.net.active = true; L.api.know(false); const forgot = L.api.send(); L.api.know(true); const back = L.api.send();
+    check('1.6.4 a seated player\'s profile goes to the GM a moment after it changes (the profileup slice run for real): never to a host whose join snapshot did not say profileSet: true (an older host; a word other than true); a change goes once, as what a roster carries of it (its name, color and picture cleaned as the host cleans a hello\'s, with the profile\'s id) and never the token face; nothing goes when nothing moved since the hello or the last send; a second change inside the gap waits for it, then goes; eight a minute at most, the ninth a minute later; off the table, on the GM\'s own app, over a closed link, to another host\'s connection or once the join begins again nothing goes',
+        j(oldHost) === j([false, 0, 0]) && j(oldTruthy) === j([false, 0]) && unchanged === 0 && early === 0
+        && j(first) === j([{ type: 'profile-set', profile: { name: 'Ayla Vale', color: '#112233', id: 'u_me' } }]) && again === 1 && faceOnly === 1
+        && hostile === true && tooSoon === false && heldN === 2 && j(spaced) === j([{ type: 'profile-set', profile: { name: 'Ayla Vale', id: 'u_me' } }, { type: 'profile-set', profile: { name: 'Ayla V.', id: 'u_me' } }])
+        && ninthHeld && ninthLater && [asHost, closed, other, off, forgot].every(x => x === false) && back === true && L.out.sent.length === 1,
+        j({ oldHost, oldTruthy, unchanged, early, first, again, faceOnly, tooSoon, heldN, spaced, nSent, ninthLater, L: [asHost, closed, other, off, forgot, back] }));
+    // where it is wired: the host's snapshot says it, a player's app reads it as true only and forgets it as each join begins, each hello notes what
+    // it told, and a write of the profile asks for a send
+    const nn = src.replace(/\r\n/g, '\n'), stg = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'settings.js'), 'utf8').replace(/\r\n/g, '\n');
+    const wired2 = [nn.includes('whispers: true, profileSet: true, travelLocked'), nn.includes("if (typeof profileSetKnow === 'function') { profileSetKnow(msg.profileSet); profileSoon(); }"),
+        /if \(!isRetry && !probe\) \{ _joinSlow = false;[^\n]*\n    if \(typeof profileSetKnow === 'function'\) profileSetKnow\(false\);/.test(nn),
+        nn.includes("try { conn.send(helloA); } catch (e) { sendFailed(e); }\n            if (typeof profileSentNote === 'function') profileSentNote(helloA.profile);"),
+        nn.includes("if (typeof profileSentNote === 'function') profileSentNote(profile);   // 1.6.4: what the host was last told of this profile\n            conn.send({ type: 'hello', profile: profile,"),
+        stg.includes("function meSoon(k) {\n    if (k === 'wp_profile' && typeof window !== 'undefined' && window.wpNet && typeof window.wpNet.profileSoon === 'function') { try { window.wpNet.profileSoon(); } catch (e) {} }")];
+    // the GM is told of a new name at most once in 30 s a player; names changed inside that time are told as one when it ends, from the name
+    // told last to the name the roster holds then, and not at all where it went back (the proftell slice run for real)
+    {
+        const tS = between('// [netcheck:proftell-start]', '// [netcheck:proftell-end]', 'proftell');
+        const said = [], logs = [], timers = []; let now = 5e6;
+        const netT = { active: true, role: 'host', roster: { pA: { id: 'u_a', name: 'Ayla' } } };
+        const TT = new Function('net', 'own', 'cleanRosterName', 'gmNameOf', 'toast', 'logEvent', 'setTimeout', 'Date', tS + '\nreturn profileTell;')(
+            netT, H.own, H.cleanRosterName, id => id === 'u_a' ? 'The ranger' : '', t => said.push(t), (k, t) => logs.push(t), (f, ms) => { timers.push({ f, ms }); return timers.length; }, { now: () => now });
+        TT('u_a', 'Ayla', 'Ayla Vale'); const s1 = said.slice();
+        now += 5000; netT.roster.pA.name = 'Ayla V.'; TT('u_a', 'Ayla Vale', 'Ayla V.'); now += 3000; netT.roster.pA.name = 'Ayla Starling'; TT('u_a', 'Ayla V.', 'Ayla Starling');
+        const held = [said.length, timers.length, timers[0] && timers[0].ms];
+        now += 22000; timers[0].f(); const s2 = said.slice(1);
+        now += 1000; netT.roster.pA.name = 'Ayla Q'; TT('u_a', 'Ayla Starling', 'Ayla Q'); now += 1000; netT.roster.pA.name = 'Ayla Starling'; TT('u_a', 'Ayla Q', 'Ayla Starling'); now += 30000; timers[1].f(); const back = said.length;
+        now += 31000; netT.roster.pA.name = 'Bo'; TT('u_a', 'Ayla Starling', 'Bo'); const later = said.slice(2);
+        check('1.6.4 a new name is told to the GM at most once in 30 s a player (the proftell slice run for real): the first at once with the GM\'s own name for them; two more inside the time are held as one telling, said when it ends from the name told last to the one the roster holds then; a name that went back is not told; after the time a new name is told at once; each telling is a line of the Game Record too',
+            j(s1) === j(['Ayla is now called Ayla Vale. You still call them The ranger.']) && j(held) === j([1, 1, 25000]) && j(s2) === j(['Ayla Vale is now called Ayla Starling. You still call them The ranger.'])
+            && back === 2 && j(later) === j(['Ayla Starling is now called Bo. You still call them The ranger.']) && logs.length === 3,
+            j({ s1, held, s2, back, later, logs }));
+    }
+    check('1.6.4 profile-set is wired: the host\'s join snapshot says profileSet: true; a player\'s app reads it as true only and sends a change made while it waited; every join forgets it, a retry\'s too; each hello notes what it told the host; each write of the profile asks for a send',
+        wired2.every(Boolean), j(wired2));
 }
 T.finish();

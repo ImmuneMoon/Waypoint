@@ -5687,7 +5687,7 @@ function admitPlayer(conn, prof, provenKey) {
     if (window.wpFog) window.wpFog.invalidateVision();   // fog: this admit may follow token moves; compute a fresh per-recipient view
     var snapOk = false;
     try {
-        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), whispers: true, travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
+        var snap, mkSnap = function() { snap = { type: 'snapshot', gmId: (typeof hostId === 'function' ? hostId() : getProfile().id), key: issuedKey, appState: sanitizeAppState(state.appState, prof.id, typeof mapHeldOf === 'function' ? mapHeldOf(conn) : null), stage: land.stage, hits: true, paused: net.paused, drawShow: true, pausedSelf: !!(net.pausedPlayers && net.pausedPlayers[prof.id]), whispers: true, profileSet: true, travelLocked: net.travelLocked, snap: typeof window.wpSnapOn === 'function' && window.wpSnapOn() === true, stance: net.stanceFlags(), lands: true, stanceCamps: window.wpVtt ? window.wpVtt.hostCamps() : null, targets: targetsFor(prof.id), combats: combatsFor(prof.id, prof.location), fights: true, looks: true, rowText: true, notepad: notepadMsg() }; if (sheetFilesHere()) snap.sheetFiles = true; var soSnap = typeof sheetOutsHere === 'function' ? sheetOutsHere() : []; if (soSnap.length) snap.sheetOut = soSnap; gmSignSnap(snap, conn); };   // sheetFiles (2026-10-18): this host reads a sheet file made elsewhere (an outside reader of the GM's own), true only   // (signed with the GM's key when this player's app sent its nonce: gmSignSnap)
         if (typeof fogLanded === 'function') fogLanded(null, mkSnap); else mkSnap();   // fold M4: judged with every open drag at its start
         conn.send(snap); snapOk = true;
     } catch (e) { sendFailed(e, 'snapshot'); toast('Could not send the campaign to ' + (prof.name || 'the player') + '. Something in it cannot be sent (the console has the details).'); if (typeof mapForgetConn === 'function') mapForgetConn(conn.peer); }
@@ -6427,6 +6427,7 @@ function handleMessage(msg, conn) {
             if (typeof proof === 'string' && proof) helloA.proof = proof;
             if (validCn(conn.wpCn)) helloA.cn = conn.wpCn;   // the nonce this connection's snapshot is to be signed over (the same as in the first hello)
             try { conn.send(helloA); } catch (e) { sendFailed(e); }
+            if (typeof profileSentNote === 'function') profileSentNote(helloA.profile);   // 1.6.4: what the host was last told of this profile
         };
         if (keyA && nonceA && chA) hmacHex(keyA, authData(nonceA, conn.peer, chA.mine, chA.theirs)).then(sayA); else sayA(null);
     // [netcheck:gate-end]
@@ -6460,6 +6461,7 @@ function handleMessage(msg, conn) {
         // [netcheck:snapkey-end]
         if (!conn.wpSeenTaken && typeof msg.gmId === 'string') { conn.wpSeenTaken = true; rememberTableSeen(net.gmId, msg.notepad); }   // 1.6.0: for the Profile window's list (the GM's name, their campaign's, the time), never sent; once per connection and only from an id sent as text, as the key is taken, so a host cannot fill the list with names of its own
         if (typeof whispersKnow === 'function') { whispersKnow(msg.whispers); refreshChatRecipients(); }   // the review of multiplayer chat: a host that judges whispers says so (whispers: true), read as true only
+        if (typeof profileSetKnow === 'function') { profileSetKnow(msg.profileSet); profileSoon(); }   // 1.6.4: a host that takes a seated player's new name says so (profileSet: true, read as true only); a change made while this app waited goes now
         applySnapshot(msg);   // after gmId: the settings refresh inside it keys this table's off-list by campaign + GM
         if (typeof reconnHold === 'function' && net.reconnecting) reconnHold(false);   // 1.6.3 (finding 15): back at the table, the board is let go
         syncSessionButtons();
@@ -8497,6 +8499,35 @@ function handleMessage(msg, conn) {
             if (msg.kind === 'time' && lineH.scope === 'whisper' && fromH.gm && typeof timeNote === 'function') timeNote(lineH); else pushChat(lineH);   // 1.5.6: a time rule's note, as this player chose
         }
         // [netcheck:chat-end]
+    } else if (msg.type === 'profile-set' && net.role === 'host') {
+        // [netcheck:profileset-start]
+        // 1.6.4: a seated player's own profile changed (the profileup slice sends it). Judged as a hello's identity is: from an admitted connection
+        // alone (the gate above), for the player that connection is and never another (a profile id that is not theirs is dropped), cleaned by the
+        // hello's own rules (cleanRosterName, a hex color, safeAvatar; nothing else of it is read), and limited on its own. What moved is put on every
+        // connection of that player on the roster and, for the name, on their record (camp.players[id].name, saved, as admitPlayer writes it; the
+        // GM's own name for them, gmName, stays). The roster goes to everyone again, and a new name is told to the GM quietly: a toast and a line
+        // of the Game Record. Nothing that did not move is saved, sent or said
+        var pcP = net.roster[conn.peer], inP = msg.profile;
+        if (!pcP || !validProfileId(pcP.id) || !inP || typeof inP !== 'object' || Array.isArray(inP)) return;
+        if (inP.id !== undefined && inP.id !== pcP.id) return;   // its own profile only
+        if (!allow('profile-set', { perMs: 250, burst: 10, windowMs: 60000, table: 300 }, pcP.id)) return;   // by the player, so a new connection starts no new count; spaced a quarter second, so two sends a stalled link delivers together both land (a player's app sends at most 8 a minute, 2 s apart)
+        var nmP = cleanRosterName(inP.name), colP = typeof inP.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(inP.color) ? inP.color : '', avP = safeAvatar(inP.avatar) ? inP.avatar : '';
+        var wasP = cleanRosterName(pcP.name), movN = wasP !== nmP || pcP.name !== nmP, movC = (typeof pcP.color === 'string' ? pcP.color : '') !== colP, movA = (typeof pcP.avatar === 'string' ? pcP.avatar : '') !== avP;
+        if (!movN && !movC && !movA) return;
+        Object.keys(net.roster).forEach(function(kP) {
+            var rP = net.roster[kP]; if (!rP || rP.id !== pcP.id) return;
+            rP.name = nmP;
+            if (colP) rP.color = colP; else delete rP.color;
+            if (avP) rP.avatar = avP; else delete rP.avatar;
+        });
+        var campP = getActiveCampaign(), recP = campP && campP.players && typeof campP.players === 'object' && own(campP.players, pcP.id) && typeof campP.players[pcP.id] === 'object' ? campP.players[pcP.id] : null;
+        if (recP && recP.name !== nmP) { recP.name = nmP; net.applyingRemote = true; save(true); net.applyingRemote = false; }
+        renderRoster();
+        broadcastRoster();
+        if (wasP !== nmP && typeof profileTell === 'function') profileTell(pcP.id, wasP, nmP);   // the proftell slice: at most once in 30 s a player, the rest told as one
+        try { var pmP = ui('playersModal'); if (pmP && pmP.style && pmP.style.display === 'flex' && typeof renderPlayersPanel === 'function') renderPlayersPanel(); } catch (e) { console.error(e); }
+        if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') { try { window.wpStepLog('players v1', 'profile-set', { name: wasP !== nmP, color: movC, avatar: movA }); } catch (e) {} }
+        // [netcheck:profileset-end]
     } else if (msg.type === 'chat-history' && net.role === 'client') {
         if (!fromHost(conn)) return;
         var histD = window.wpDiceCore, histF = window.wpFormula;
@@ -9654,6 +9685,7 @@ function joinSession(code, name, isRetry, probe) {
     if (!isRetry && !probe) ringReset();   // HF3: a new table's HUD history starts empty (a retry or a probe keeps it)
     leaveSession(true);
     if (!isRetry && !probe) { _joinSlow = false; if (typeof whispersKnow === 'function') whispersKnow(false); }   // the review of multiplayer chat: a new walk through the generations, and no whisper until this table's snapshot says it knows them
+    if (typeof profileSetKnow === 'function') profileSetKnow(false);   // 1.6.4: nothing of the profile goes to a host until its snapshot says it takes it (a retry's host too)
     if (!isRetry && !probe) joinTrustReset();   // security (2026-10-01): a join the player began — what the last one refused is forgotten (a yes the player just gave holds for this one)
     var nextGen = null;   // (set once this attempt's connection exists) on to the next generation of the code, or the end of the join
     var profile = setProfileName(name || getProfile().name || 'Player');
@@ -9721,6 +9753,7 @@ function joinSession(code, name, isRetry, probe) {
             reconn.gen = gen;
             net.active = true;
             var pwIn = ui('netJoinPassInput');
+            if (typeof profileSentNote === 'function') profileSentNote(profile);   // 1.6.4: what the host was last told of this profile
             conn.send({ type: 'hello', profile: profile, password: pwIn ? pwIn.value.trim() : '', version: APP_VERSION, cn: conn.wpCn });   // before the first heartbeat: the host admits nothing that speaks first; no key rides here — a known id is challenged and answers with a proof (the auth branch), so nothing of a previous table reaches a host unasked
             hostWait(conn);   // security (2026-10-01): a host this app knows the GM of has HOST_PROOF_MS to prove itself (its 'gmhello'); one that does not is not waited on
             startHeartbeat();
@@ -11278,6 +11311,75 @@ var _whisperNames = Object.create(null);   // profile id -> the name last listed
 // join snapshot (whispers: true), read as true only here, and until it does a player's app shows no To list and never sends a whisper. Set
 // by the snapshot branch, and forgotten as a player begins a join (joinSession). The GM's own app always knows them
 var _whispersOk = false;
+// [netcheck:profileup-start]
+// 1.6.4 (Fulllion, 2026-11-22, "Both, after release"): a player's name changed at the table reaches it at once. Before, a name, color or picture
+// changed in Your profile while seated reached the GM only at the next join (admitPlayer takes the hello's profile). Now a player's app sends
+// 'profile-set' with what a roster carries of the profile (its name, its color and its picture, cleaned by the rules the host cleans a hello
+// by, with the profile's id so the host can refuse one that is not this connection's) a moment after the profile is written (settings.js's
+// wrap of wp_profile writes asks profileSoon), only where it moved since the hello or the last send, and only to a host whose join snapshot
+// said it takes the message (profileSet: true, read as true only here, forgotten as each join begins), so an older host is sent nothing. The
+// token face is not sent: it shapes the player's token, which the host makes as they arrive, so it waits for the next join. Sends are spaced
+// (PROF_GAP_MS) and at most PROF_MAX in a minute, inside the host's own limit, so the last change is never the one a limit drops
+var PROF_SOON_MS = 1200, PROF_GAP_MS = 2000, PROF_MAX = 8;
+var _profSetOk = false, _profSentSig = '', _profSoon = null, _profTimes = [];
+function profileSetKnow(v) { _profSetOk = v === true; if (!_profSetOk && _profSoon) { clearTimeout(_profSoon); _profSoon = null; } }   // forgotten: a send still waiting goes with it
+function profileOut(p) {   // what a roster carries of a profile, cleaned as the host cleans a hello's
+    var o = { name: cleanRosterName(p && p.name) };
+    if (p && typeof p.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.color)) o.color = p.color;
+    if (p && safeAvatar(p.avatar)) o.avatar = p.avatar;
+    return o;
+}
+function profileSentNote(p) { try { _profSentSig = JSON.stringify(profileOut(p)); } catch (e) { _profSentSig = ''; } }   // what the host was last told: a hello's profile, a send's
+function profileLink() {   // the connection to the table this app is seated at, where its host takes the message; else null
+    var c = net.conns && net.conns[0];
+    return net.active && net.role === 'client' && _profSetOk && net.syncedPeer && c && c.open && c.peer === net.syncedPeer ? c : null;
+}
+function profileSoon(ms) {
+    if (!profileLink()) return;
+    if (_profSoon) clearTimeout(_profSoon);
+    _profSoon = setTimeout(function() { _profSoon = null; profileSend(); }, typeof ms === 'number' && ms > 0 ? ms : PROF_SOON_MS);
+}
+function profileSend() {   // true where it sent; a send too soon after the last waits its turn
+    var c = profileLink(); if (!c) return false;
+    var p = getProfile(), o = profileOut(p), sig = JSON.stringify(o);
+    if (sig === _profSentSig) return false;
+    var now = Date.now(); _profTimes = _profTimes.filter(function(t) { return now - t < 60000 && now >= t; });
+    var wait = _profTimes.length ? Math.max(PROF_GAP_MS - (now - _profTimes[_profTimes.length - 1]), _profTimes.length >= PROF_MAX ? 60000 - (now - _profTimes[0]) + 50 : 0) : 0;
+    if (wait > 0) { profileSoon(wait); profileStep('profile-wait', { ms: Math.round(wait) }); return false; }
+    o.id = p.id;
+    try { c.send({ type: 'profile-set', profile: o }); } catch (e) { sendFailed(e); profileStep('profile-failed', { at: 'send' }); return false; }
+    _profSentSig = sig; _profTimes.push(now);
+    profileStep('profile-sent', { color: !!o.color, picture: !!o.avatar });
+    return true;
+}
+function profileStep(step, facts) { try { if (typeof window !== 'undefined' && window && typeof window.wpStepLog === 'function') window.wpStepLog('players v1', step, facts || {}); } catch (e) {} }   // each step to the app's log, as counts and flags alone
+net.profileSoon = profileSoon;
+// [netcheck:profileup-end]
+// [netcheck:proftell-start]
+// 1.6.4 (the review of profile-set): (the host) how a seated player's new name is told to the GM, quietly: a toast and a line of the Game
+// Record, at most once in PROF_TELL_MS for each player. A name changed again inside that time is told once when it ends, from the name told
+// last to the name the roster holds then (and not at all where it went back), so one player renaming without end cannot fill the GM's
+// screen or push the session's record out
+var PROF_TELL_MS = 30000, _profTold = Object.create(null);
+function profileSay(id, from, to) {
+    var gmN = typeof gmNameOf === 'function' ? gmNameOf(id) : '';
+    toast(from + ' is now called ' + to + (gmN ? '. You still call them ' + gmN : '') + '.');
+    logEvent('player', from + ' changed their name to ' + to, { w: to, x: 'Changed their name', d: 'Was ' + from });
+}
+function profileTell(id, from, to) {
+    var now = Date.now(), r = own(_profTold, id) ? _profTold[id] : (_profTold[id] = { at: 0, last: '', t: null });
+    if (r.t) return;   // one telling is held already: it says the name the roster holds when it comes
+    if (now - r.at >= PROF_TELL_MS || now < r.at) { profileSay(id, from, to); r.at = now; r.last = to; return; }
+    if (!r.last) r.last = from;
+    r.t = setTimeout(function() {
+        r.t = null;
+        if (!net.active || net.role !== 'host') return;
+        var key = Object.keys(net.roster).filter(function(k) { return net.roster[k] && net.roster[k].id === id; })[0], nowN = key ? cleanRosterName(net.roster[key].name) : '';
+        if (!nowN || nowN === r.last) return;
+        profileSay(id, r.last, nowN); r.at = Date.now(); r.last = nowN;
+    }, Math.max(0, PROF_TELL_MS - (now - r.at)));
+}
+// [netcheck:proftell-end]
 function whispersKnow(v) { _whispersOk = v === true; }
 function whisperKnows() { return net.role !== 'client' || _whispersOk; }
 // A player's roll made while a whisper is picked in the To list goes to the GM only, said in these words. Without it a player who picked

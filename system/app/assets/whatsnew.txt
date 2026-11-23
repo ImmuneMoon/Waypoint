@@ -77,6 +77,12 @@ Your own name for a player [DRAFT]
   roster, party strip, chat and Player History use it. Only you see it,
   and your players keep seeing the name each gave themselves.
 
+Names changed at the table [DRAFT]
+- A player who changes their name, color or picture in Your profile
+  while at your table shows the change at once, on your roster and on
+  everyone's, with no need to rejoin. You get a short note when a name
+  changes, and your own name for them stays.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

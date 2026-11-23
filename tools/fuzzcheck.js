@@ -1014,7 +1014,8 @@ function mutations(tpl) {
             'box': { type: 'box', op: 'open', mapId: 'm_open', itemId: 'door1', tok: 'tok_p1' },   // 1.6.2 (backlog 42): a container asked to open; the world holds none, so it answers nothing and changes nothing
             'send-on': { type: 'send-on', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 4): Send it on, on a card a defense left its own player; no attack waits here, so it is refused in words and sends nothing on
             'land-take': { type: 'land-take', att: 'a_nosuchhe' },   // 1.6.3 (defense fold 1): Take it on a defense card, its own player's alone; no attack waits here, so it is refused in words and lands nothing
-            'handout-want': { type: 'handout-want', campId: 'c1', ids: ['h_none', 'h_p2only', '__proto__'] },   // 1.6.3 (the multiplayer review, finding 9): a player's app asks again for handouts it was shown; this world showed this player none, so nothing is sent to anyone
+            'handout-want': { type: 'handout-want', campId: 'c1', ids: ['h_none', 'h_p2only', '__proto__'] },
+            'profile-set': { type: 'profile-set', profile: { id: 'u_p1', name: 'Ayla Vale', color: '#33aa66' } },   // 1.6.4 (the 47th host branch): a seated player's own profile changed, its name and color new   // 1.6.3 (the multiplayer review, finding 9): a player's app asks again for handouts it was shown; this world showed this player none, so nothing is sent to anyone
             'card-act': { type: 'card-act', id: 'r_nosuchhe', key: 'accept' },   // 1.6.2 (G5): a press on a held roll's card, its roller's alone; none is held here
             'show-ask': { type: 'show-ask', campId: 'c1', itemId: 'm_open', ids: ['stroke_show', 'draw_show', 'stroke_onmap'] },   // 1.6.2: an ask to put a drawing on the map changes nothing by itself
             'door-req-secret': { type: 'door-req', mapId: 'm_open', itemId: 'door_secret' },   // fold B5: a secret door: a door request naming it is answered as a wall's is — with nothing — and changes nothing
@@ -1080,6 +1081,8 @@ function mutations(tpl) {
             if (!r.ok) readmitFailed.push(k + ': ' + r.why + ' ' + JSON.stringify(r.sent));
         }
         if (!conns.w.open) { conns.w = connect('peer_w'); hello(conns.w, { id: 'u_w', name: 'Waiting' }); }
+        // 1.6.4: a player's profile-set renames them on the roster and on their record; each player's name, color and picture come back as the world began
+        [['p1', 'Ayla'], ['p2', 'Bram']].forEach(([k, nm]) => { const r = net.roster['peer_' + k]; if (r) { r.name = nm; delete r.color; delete r.avatar; } if (camp.players['u_' + k]) camp.players['u_' + k].name = nm; });
         resetRec(); flushed.threw.length = 0; warned.length = 0;
     }
 
@@ -1239,6 +1242,7 @@ function mutations(tpl) {
         'asset-req-audio': o => o.p1.some(m => m.type === 'asset-part'),
         'chat': o => o.p2.some(m => m.type === 'chat' && m.text === 'hello table' && m.from.id === 'u_p1' && !m.from.gm) && !o.p1.some(m => m.type === 'chat'),
         'voice-up': () => rec.voice.length === 1 && rec.voice[0] === 'player:join:peer_p1',
+        'profile-set': o => [o.p1, o.p2].every(s => s.some(m => m.type === 'roster' && Array.isArray(m.roster) && m.roster.some(r => r.id === 'u_p1' && r.name === 'Ayla Vale' && r.color === '#33aa66'))) && rec.toasts.some(t => /^Ayla is now called Ayla Vale\./.test(t)),   // 1.6.4: everyone's roster follows, the GM told
         'handout-want': o => !o.p1.some(m => m.type === 'handout') && !o.p2.some(m => m.type === 'handout')   // 1.6.3 (finding 9): no handout reaches anyone for an ask naming none this player was shown
     };
     /* ---------- generic fuzz over every host type from each sender ---------- */
@@ -1281,6 +1285,39 @@ function mutations(tpl) {
         await fireHost('s', 'voice-up', 'from a stranger', cloneMsg(host.tpl['voice-up'])); const v3 = rec.voice.slice();
         await fireHost('p1', 'voice@host', 'the GM\'s own word sent at the GM', cloneMsg(host.tpl['voice@host'])); const v4 = rec.voice.slice();
         check('host: voice chat\'s voice-up reaches voice.js from an admitted player alone, with the connection it came on; the waiting peer\'s and a stranger\'s reach nothing, and a voice word sent at the host has no branch', JSON.stringify([v1, v2, v3, v4]) === JSON.stringify([['player:join:peer_p1'], [], [], []]), [v1, v2, v3, v4]);
+    }
+    {   // 1.6.4 (the 47th host branch, profile-set): a seated player's own profile changed. From p1, a new name, color and picture reach the roster
+        // everyone holds and the name their record, the GM's own name for them kept and the GM told once; the same again sends, saves and says nothing;
+        // a hostile picture and color are dropped; a profile naming another player's id, the waiting peer's and a stranger's change nothing; on a clock
+        // that moves 1.5 s a message, ten a minute are taken and the rest held back
+        await resetWorld();
+        const campP = campH(); campP.players.u_p1.gmName = 'The ranger';
+        const u1 = list => (list.find(r => r.id === 'u_p1') || {}), rosterOf = b => sentLog.slice(b).filter(s => s.m.type === 'roster').map(s => s.to + ':' + u1(s.m.roster).name + ':' + (u1(s.m.roster).color || '') + ':' + (u1(s.m.roster).avatar ? 'pic' : ''));
+        const PIC = 'data:image/png;base64,iVBORw0KGgo=';
+        let b = sentLog.length;
+        await fireHost('p1', 'profile-set', 'a new name, color and picture', { type: 'profile-set', profile: { id: 'u_p1', name: ' Ayla\u202e Vale ', color: '#33aa66', avatar: PIC } });
+        const r1 = rosterOf(b), t1 = rec.toasts.slice(), s1 = rec.saves.filter(s => s.persist).length, n1 = [campP.players.u_p1.name, campP.players.u_p1.gmName, net.roster.peer_p1.name, net.roster.peer_p1.avatar === PIC];
+        b = sentLog.length; await fireHost('p1', 'profile-set', 'the same again', { type: 'profile-set', profile: { id: 'u_p1', name: 'Ayla Vale', color: '#33aa66', avatar: PIC } });
+        const r2 = rosterOf(b), t2 = rec.toasts.length, s2 = rec.saves.length;
+        b = sentLog.length; await fireHost('p1', 'profile-set', 'a hostile picture and color', { type: 'profile-set', profile: { name: 'Ayla Vale', color: 'red;x', avatar: 'data:image/png;base64,AA"onerror=x' } });
+        const r3 = rosterOf(b), t3 = rec.toasts.length, n3 = [net.roster.peer_p1.color === undefined, net.roster.peer_p1.avatar === undefined];
+        b = sentLog.length; await fireHost('p1', 'profile-set', 'another player id', { type: 'profile-set', profile: { id: 'u_p2', name: 'Not Bram' } });
+        const r4 = sentLog.slice(b).filter(s => s.m.type === 'roster').length, n4 = [net.roster.peer_p2.name, campP.players.u_p2.name, net.roster.peer_p1.name];
+        if (!conns.w.open) { conns.w = connect('peer_w'); hello(conns.w, { id: 'u_w', name: 'Waiting' }); }
+        b = sentLog.length; await fireHost('w', 'profile-set', 'from the waiting peer', { type: 'profile-set', profile: { id: 'u_w', name: 'Sneaky' } });
+        const r5 = sentLog.slice(b).filter(s => s.m.type === 'roster').length;
+        b = sentLog.length; await fireHost('s', 'profile-set', 'from a stranger', { type: 'profile-set', profile: { name: 'Sneaky' } });
+        const r6 = sentLog.slice(b).filter(s => s.m.type === 'roster').length;
+        await resetWorld(); let took = 0;
+        for (let i = 0; i < 14; i++) { b = sentLog.length; await fireHost('p1', 'profile-set', 'one of many names', { type: 'profile-set', profile: { name: 'Name ' + i } }); if (sentLog.slice(b).some(s => s.m.type === 'roster')) took++; }
+        const last = net.roster.peer_p1.name;
+        delete campP.players.u_p1.gmName; await resetWorld();
+        check('host: a seated player\'s profile-set (1.6.4, the 47th host branch) puts their new name, color and picture on the roster everyone holds and the name on their record, cleaned as a hello\'s is, the GM\'s own name for them kept and the GM told once; the same again sends, saves and says nothing; a hostile color and picture are dropped; another player\'s id, the waiting peer and a stranger change nothing; ten a minute are taken from one player',
+            JSON.stringify(r1) === JSON.stringify(['peer_p1:Ayla Vale:#33aa66:pic', 'peer_p2:Ayla Vale:#33aa66:pic']) && t1.length === 1 && t1[0] === 'Ayla is now called Ayla Vale. You still call them The ranger.' && s1 === 1
+            && JSON.stringify(n1) === JSON.stringify(['Ayla Vale', 'The ranger', 'Ayla Vale', true]) && r2.length === 0 && t2 === 0 && s2 === 0
+            && JSON.stringify(r3) === JSON.stringify(['peer_p1:Ayla Vale::', 'peer_p2:Ayla Vale::']) && t3 === 0 && n3.every(Boolean)
+            && r4 === 0 && JSON.stringify(n4) === JSON.stringify(['Bram', 'Bram', 'Ayla Vale']) && r5 === 0 && r6 === 0 && took === 10 && last === 'Name 9',
+            { r1, t1, s1, n1, r2, t2, s2, r3, t3, n3, r4, n4, r5, r6, took, last });
     }
     {   // the review of multiplayer speed (finding 9's two words, the 46th host branch): a player's handout-want sends again only the handouts the host's
         // own record says it showed that very player, each once and to that player alone. Another player's handout, an id the world does not hold, a key a

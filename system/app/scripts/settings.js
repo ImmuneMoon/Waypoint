@@ -1791,6 +1791,7 @@ function wcFields() {
     if (c && document.activeElement !== c) { c.value = p.color || '#7aa7ff'; c.wpFilled = c.value; }   // 1.6.3 (finding 20): the welcome saves a color only where it was changed by hand
 }
 function meSoon(k) {
+    if (k === 'wp_profile' && typeof window !== 'undefined' && window.wpNet && typeof window.wpNet.profileSoon === 'function') { try { window.wpNet.profileSoon(); } catch (e) {} }   // 1.6.4: seated at a table, the GM's roster follows a new name, color or picture (net.js profileup)
     if (_meSoon) return;
     _meSoon = setTimeout(function() { _meSoon = null; renderAvatarPreview(); if (k === 'wp_profile') wcFields(); if (profWinShown()) { profFields(); if (k !== 'wp_profile') profTablesDraw('change'); } }, 0);
 }

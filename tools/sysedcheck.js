@@ -2859,7 +2859,7 @@ const flatKids = kit.flatKids;   // every box under a node of a page of plain ob
             const sF = tbM.indexOf('function startFrom(id) {'), sE = tbM.indexOf('// [sysedcheck:draftholds-end]'), iF = tbM.indexOf('function importFile(file) {'), iE = tbM.indexOf('\n}\n', iF) + 3;
             const pinHash = require('crypto').createHash('sha256').update(tbM.slice(sF, sE) + tbM.slice(iF, iE)).digest('hex');
             check('1.6.4 Merge from a file, the editor\'s side (sysedtabs.js mergeFile run for real with its host): a file read and cleaned in the GM\'s view as Import cleans it opens the window with the file\'s name, the field kinds\' words and the editor\'s own rules for a short name; the change puts the pick in the draft under fresh ids, makes a pool among it the damage pool where none is named, marks the draft once (one step of Undo) and draws the editor; a file that is no system says so; the button beside Import, its file box, the module, the wiring, refreshErrors\' line and Help stand where they belong; and Start from and Import are exactly as they were before Merge (their text pinned)',
-                mfOk && wireOk && pinHash === '58737d25fda07cf06d871684b9b5d1e08bd641c9ba66e4c8b762d07882346b9d', J({ opened, after, got, bad, bad2, wireOk, pinHash }));
+                mfOk && wireOk && pinHash === 'd5d43013e7b25d0b1fa043ac2702e256170d7a6e1be566dd9d5c443fe93f764e' /* 1.6.4 (Export a system whole, a deliberate change of this pin): Import also takes a whole system's .zip */, J({ opened, after, got, bad, bad2, wireOk, pinHash }));
         }
     }
 

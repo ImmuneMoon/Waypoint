@@ -2125,6 +2125,45 @@ pendingChecks.push((async () => {
             && back === 2 && j(later) === j(['Ayla Starling is now called Bo. You still call them The ranger.']) && logs.length === 3,
             j({ s1, held, s2, back, later, logs }));
     }
+    // Fulllion, 2026-11-23 ("Refuse it, tell the GM"): no one at the table goes by a name someone else there goes by (the nameclash slice run for real)
+    {
+        const cS = between('// [netcheck:nameclash-start]', '// [netcheck:nameclash-end]', 'nameclash');
+        const said = [], logs = [], sent = []; let now = 7e6, me = { name: 'Gale' };
+        const netC = { conns: [{ peer: 'pA', open: true }, { peer: 'pB', open: true }, { peer: 'pC', open: false }, { peer: 'pW', open: true }],
+            roster: { pA: { id: 'u_a', name: 'Ayla' }, pB: { id: 'u_b', name: 'Bram  Stone' }, pC: { id: 'u_c', name: 'Cato' } } };
+        const campC = { players: { u_a: { name: 'Ayla' }, u_d: { name: 'Dana' }, u_e: { name: 'Bram Stone' } } };
+        const C = new Function('net', 'own', 'cleanRosterName', 'getProfile', 'toast', 'logEvent', 'Date', 'getActiveCampaign', '_satIds', 'sendFailed', cS + '\nreturn { nameKey, nameClash, clashTell, clashJudge, clashKeptSay, CLASH_WORDS };')(
+            netC, H.own, H.cleanRosterName, () => me, t => said.push(t), (k, t, o) => logs.push([t, o.x]), { now: () => now }, () => campC, { u_d: 1, u_e: 1 }, () => {});
+        const hits = [C.nameClash('u_x', '  bram stone '), C.nameClash('u_b', 'BRAM STONE'), C.nameClash('u_x', 'cato'), C.nameClash('u_x', 'GALE'), C.nameClash('u_x', 'Player'), C.nameClash('u_x', 'player'), C.nameClash('u_x', ''),
+            C.nameClash('u_x', 'Ay\u200bla'), C.nameClash('u_x', 'Ａyla'), C.nameClash('u_x', 'Ay­la'), C.nameClash('u_x', 'Waiting'), C.nameClash('u_x', 'Aylа')].map(h => h ? (h.gm ? 'gm' : h.id) : null);
+        me = { name: '' }; const noGm = C.nameClash('u_x', 'Player'); me = { name: 'Gale' };
+        // the GM's notices: a rename once in 30 s a player and once in 2 s in all; tries to join once in 30 s in all, the rest counted into the next
+        C.clashTell('u_a', 'Ayla', 'Bram Stone'); C.clashTell('u_a', 'Ayla', 'Bram Stone'); const t1 = said.length;
+        now += 3000; C.clashTell('u_x', '', 'ayla'); now += 3000; C.clashTell('u_y', '', 'ayla'); now += 3000; C.clashTell('u_z', '', 'ayla'); const t2 = said.length;
+        now += 31000; C.clashTell('u_w', '', 'cato'); const t3 = said.slice(2);
+        now += 1000; C.clashTell('u_v', '', 'ayla', true); const t4 = said.length;
+        // a joiner: a stranger under a name in use is turned away; a player seated this session comes back under their record's name and is told why
+        // after their snapshot; one whose record's name is in use too comes back under it all the same; a name of their own is never judged
+        now += 31000; const pS = { id: 'u_s', name: 'ayla' }, pD = { id: 'u_d', name: 'AYLA' }, pE = { id: 'u_e', name: 'Ayla' }, pF = { id: 'u_d', name: 'Dana' };
+        const jd = [C.clashJudge(pS, 'pS'), C.clashJudge(pD, 'pD'), pD.name, C.clashJudge(pE, 'pE'), pE.name, C.clashJudge(pF, 'pF')];
+        netC.roster.pD = { id: 'u_d', name: 'Dana' }; const cD = { peer: 'pD', send: m => sent.push(m) }; C.clashKeptSay(cD); C.clashKeptSay(cD);
+        check('1.6.4 a name already at the table (the nameclash slice run for real): another player\'s admitted and connected now, or the GM\'s own profile name, read without case and with runs of spaces as one after the roster\'s cleaning and with the forms of one letter made one (a full-width A, a soft hyphen or a zero-width space no way round it); not the player\'s own, not one whose connection closed, not "Player" in any case (no name chosen), and a letter of another script is another name; the GM is told of a rename at most once in 30 s a player and once in 2 s in all, of tries to join at most once in 30 s in all with how many more came, and always where their own yes is undone; a joiner under a name in use is turned away in words of its own, while a player seated here this session comes back under their record\'s name, told why once after their snapshot',
+            j(hits) === j(['u_b', null, null, 'gm', null, null, null, 'u_a', 'u_a', 'u_a', null, null]) && noGm === null && t1 === 1 && t2 === 2
+            && j(t3) === j(['Someone tried to join as cato, which someone at the table already goes by. They were asked to pick another name. 2 more tries like it came before this one.']) && t4 === 4
+            && said[0] === 'Ayla tried to take the name Bram Stone, which someone at the table already goes by. They keep the name Ayla.'
+            && j(jd) === j([true, false, 'Dana', false, 'Bram Stone', false]) && j(sent) === j([{ type: 'turn-note', text: 'Someone at this table already goes by AYLA, so you are still Dana here. Pick another name in Your profile.' }])
+            && logs.every(l => l[1] === 'Name already in use') && C.CLASH_WORDS === 'Someone at this table already goes by that name. Pick another name, then join again.',
+            j({ hits, noGm, said, jd, sent }));
+        const nn3 = src.replace(/\r\n/g, '\n');
+        const wired3 = [nn3.includes("var clashH = typeof nameClash === 'function' ? nameClash(prof.id, prof.name) : null;") && nn3.indexOf('var clashH = ') > nn3.indexOf("if (!pwRight) { pwMiss(); return; }") && nn3.indexOf('var clashH = ') < nn3.indexOf('var keyed0 = '),
+            nn3.includes("    if (typeof clashJudge === 'function' && clashJudge(prof, conn.peer, true)) { denyJoin(conn, CLASH_WORDS); return; }") && nn3.indexOf('clashJudge(prof, conn.peer, true)') < nn3.indexOf('net.roster[conn.peer] = prof;'),
+            nn3.indexOf('var clashP = ') > nn3.indexOf("if (!allow('profile-set',") && nn3.indexOf('var clashP = ') < nn3.indexOf('var wasP = cleanRosterName(pcP.name), movN ='),
+            nn3.includes("var inP = function() { if (typeof clashJudge === 'function' && clashJudge(prof, conn.peer)) { denyJoin(conn, CLASH_WORDS); return; }"),
+            nn3.indexOf("clashJudge(next.prof, next.conn.peer, true)") > 0 && nn3.indexOf("clashJudge(next.prof, next.conn.peer, true)") < nn3.indexOf("mv = campT ? takeOver(campT, pid, next.prof.id, pk.moves())"),
+            nn3.includes("    if (snapOk && typeof clashKeptSay === 'function') clashKeptSay(conn);") && nn3.indexOf('clashKeptSay(conn);') > nn3.indexOf('conn.send(snap); snapOk = true;')];
+        check('1.6.4 the name is judged where a name comes to the table: at the hello gate after the bans, the version and the password and before the key or the GM is asked; once a key is proven, before an old connection is closed for the new one; before Same person as moves anything; again as a player is let in, before the roster takes them; by profile-set after its limit, before what moved is worked out; and a seated player back under their old name is told after their snapshot',
+            wired3.every(Boolean), j(wired3));
+    }
     check('1.6.4 profile-set is wired: the host\'s join snapshot says profileSet: true; a player\'s app reads it as true only and sends a change made while it waited; every join forgets it, a retry\'s too; each hello notes what it told the host; each write of the profile asks for a send',
         wired2.every(Boolean), j(wired2));
 }

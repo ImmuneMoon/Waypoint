@@ -105,6 +105,24 @@ Names changed at the table [DRAFT]
   name another player or you already go by is asked to pick another,
   and you get a short note saying who tried which name.
 
+Doors that lead somewhere [DRAFT]
+- A door can lead to another map now. Give it a Portal to Map in its
+  Properties, then walk a token through it, and the token comes out on
+  that map. Standing in the doorway or turning beside it does nothing.
+- Pick a door of that map under Leads to and the two doors lead to each
+  other. A token comes out just outside the other door, facing the way
+  it was walking, and walking back through puts it right where it came
+  in.
+- A shut door opens as a token walks into it. To keep it shut until
+  someone opens it, pick It stops tokens until opened under When shut.
+  A locked door always stays shut.
+
+Landing inside the walls [DRAFT]
+- A player who travels no longer comes out past a room's walls on a map
+  with no grid. When the spot they arrive at sits right in a wall, such
+  as a door, every traveler now comes out on the same side of it, never
+  in the wall.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

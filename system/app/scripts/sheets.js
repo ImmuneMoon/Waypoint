@@ -2665,7 +2665,8 @@ function frameFlowTop(body) {
 // over a bold value), read from sys.sheet like the band and formatted by systemcore.headerEntry so a value reads exactly as the
 // sheet prints it below. On a partial character (another player's copy) only hover fields show, since every other value would be
 // a default. Stage 5g: with look.portrait the portrait and the name lead the block (the rows sit beside the picture); a ledger
-// NUMBER is a live box for whoever may edit it (the section's own rule and commit), everything else stays read-only.
+// NUMBER is a live box for whoever may edit it (the section's own rule and commit). Since 1.6.4 a ledger CHOICE (a select, or a number
+// with value names: ledgerList) is a list in place, idnControl's own, under the same rule; everything else stays read-only.
 function headerBlocks(head, sys, c, all, gm, own) {
     var sh = sys.sheet; if (!sh) return;
     var byId = {}; sys.fields.forEach(function(f) { byId[f.id] = f; });
@@ -2702,6 +2703,15 @@ function headerBlocks(head, sys, c, all, gm, own) {
                 it.appendChild(ed); box.appendChild(it); return;
             }
             if (!ledger && IDN_EDIT[f.kind] === 1 && !en.error && !(all[f.id] && all[f.id].over) && idnOk(f)) { it.appendChild(idnControl(f, c, all[f.id], tone)); box.appendChild(it); return; }   // Stage 6: changed right here, so the field needs no second copy
+            // 1.6.4 (backlog: a ledger figure that is a choice is edited as one; asked 2026-11-22 by the system build for a budget that starts
+            // from a chosen tier, a Starting tier choice beside an Earned number and a worked-out Total). A ledger figure that is a choice,
+            // a select field or a number with value names, is edited in place as a list, through the very control identity rows use
+            // (idnControl below), under the very same rights (idnOk: not another player's copy, the sheet's lock and a Locked while, a
+            // player's own field that is theirs to change or a character still being made, or the GM). A named number counts as live on
+            // a locked sheet (liveField), so it stays a list there, as it does in identity rows; a select waits for Edit sheet. Where
+            // the viewer may not change it, or on paper (ledgerList asks), it falls through to the read-only value below, which reads
+            // the chosen name as headerEntry words it. A plain number keeps the ledger's own box above.
+            if (ledger && ledgerList(f) && !en.error && !(all[f.id] && all[f.id].over) && idnOk(f)) { it.appendChild(idnControl(f, c, all[f.id], tone)); box.appendChild(it); return; }
             var v = el('span', 'sheet-hdr-val' + (en.chip ? ' sheet-hdr-chip' : '') + (en.error ? ' sheet-err' : '') + tone + (en.empty ? ' sheet-hdr-empty' : ''), en.chip ? 'on' : en.text);
             v.title = en.error ? (typeof sheetFault === 'function' ? sheetFault(sys, en.error) : en.error) : en.empty ? f.label + ': not set' : en.why ? en.text + '\n' + en.why : en.text;   // a long value is ellipsised in its box: the tooltip carries the whole of it (the error's reason when there is one, in the sheet's own words: sheetFault, the review of words)
             if (all[f.id] && typeof all[f.id].locked === 'string') v.title += '\n' + all[f.id].locked;   // 1.6.3 (backlog 170): a locked figure in the header says why it cannot be changed here
@@ -2712,6 +2722,13 @@ function headerBlocks(head, sys, c, all, gm, own) {
     }
     block(sh.identity, 'sheet-identity', 'sheet-identity-item', false);
     block(sh.ledger, 'sheet-ledger', 'sheet-ledger-fig', true);
+}
+// 1.6.4: which ledger figures are edited as a list in place, through idnControl as identity rows are: a select field, or a number with
+// value names. Never on paper (a printed sheet, lookPaper, which sbxView sets before the head is drawn): a list cannot be used there,
+// so the figure prints as its chosen name. headerBlocks asks it; its rights are headerBlocks' own (idnOk).
+function ledgerList(f) {
+    if (!f || (typeof lookPaper === 'function' && lookPaper())) return false;
+    return f.kind === 'select' || (f.kind === 'number' && Array.isArray(f.labels) && f.labels.length > 0);
 }
 // Stage 6 look fold (L3): an identity row edited in place — text, a select, a number (or its value names) and a toggle — for whoever may
 // edit the field. data-part 'idn' keeps it apart from a section's copy for focus; the host judges every change (char-edit), as everywhere.

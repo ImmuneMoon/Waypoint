@@ -126,7 +126,7 @@ var DEF_PROP = Object.freeze({ formula: 'formula', resource: 'maxFormula', skill
 var LAYOUT = Object.freeze({ heading: 1, divider: 1, portrait: 1, link: 1, facing: 1, stance: 1, pin: 1, hud: 1, search: 1, text: 1, roller: 1 });   // text (H11): a block of rules text; roller (H9): a custom roll box   // search (Stage 6 HUD H12): a handbook search over the viewer's own pages   // hud (HUD frame HF2b): a button that opens the character's HUD   // pin (Stage 6): the Pin button of a band group   // link (Stage 5f): a button that opens a handbook page; facing (5h): the token's facing dial; stance (Stage 6): the token's posture and elevation
 var BAND_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1 });   // Stage 5c: what the pinned band can hold — kinds that read in one row (text, notes, selects and item lists stay in sections)
 var IDENTITY_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, toggle: 1, text: 1, select: 1 });   // Stage 5d: what an identity row can show, read-only (notes and item lists stay in sections)
-var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1 });   // Stage 5d: what a ledger figure can show — a number over its label
+var LEDGER_KINDS = Object.freeze({ number: 1, formula: 1, resource: 1, skill: 1, select: 1 });   // Stage 5d: what a ledger figure can show — a number over its label; 1.6.4: or a choice (select), shown as its chosen word and edited as a list in place (sheets.js ledgerList)
 var RESERVED_SUFFIX = Object.freeze({ max: 1, ranks: 1, cur: 1, base: 1 });
 // 1.6.0: the endings a formula reads as a part of a field: the reserved four and full (a pool's Pool.full). full is not reserved, so a key may end in it
 var NAME_SUFFIX = Object.freeze({ max: 1, ranks: 1, cur: 1, base: 1, full: 1 });
@@ -8814,13 +8814,15 @@ function itemDef(sys, defId) {
 /* ---------- the auto layout (SB2): one section per kind group, then the rolls ---------- */
 // Stage 6 look fold (L3): the fields the header block edits in place — identity rows that are text, a select, a number or a toggle, and
 // ledger numbers without value names (editable there since Stage 5d). Such a field needs no second copy in a section. A prototype-free set.
+// 1.6.4: a ledger figure that is a choice, a number with value names or a select, is edited in place as a list too (sheets.js ledgerList,
+// through idnControl), so every ledger number and every ledger select counts here.
 var IDN_EDIT_KINDS = Object.freeze({ text: 1, select: 1, number: 1, toggle: 1 });
 function headerEdits(sys, lay) {   // lay: a layout (the HUD passes sys.sheet.hud); absent → the sheet's
     var out = map(); if (!sys || !Array.isArray(sys.fields)) return out;
     var Ly = lay === undefined ? sys.sheet : lay; if (!isObj(Ly)) return out;
     var byId = map(); sys.fields.forEach(function(f) { if (isObj(f) && typeof f.id === 'string') byId[f.id] = f; });
     (Array.isArray(Ly.identity) ? Ly.identity : []).forEach(function(q) { var f = isObj(q) && typeof q.id === 'string' ? byId[q.id] : null; if (f && IDN_EDIT_KINDS[f.kind] === 1) out[f.id] = 1; });
-    (Array.isArray(Ly.ledger) ? Ly.ledger : []).forEach(function(q) { var f = isObj(q) && typeof q.id === 'string' ? byId[q.id] : null; if (f && f.kind === 'number' && !(Array.isArray(f.labels) && f.labels.length)) out[f.id] = 1; });
+    (Array.isArray(Ly.ledger) ? Ly.ledger : []).forEach(function(q) { var f = isObj(q) && typeof q.id === 'string' ? byId[q.id] : null; if (f && (f.kind === 'number' || f.kind === 'select')) out[f.id] = 1; });
     return out;
 }
 function autoLayout(sys) {

@@ -72,6 +72,12 @@ Handed out in list order [DRAFT]
   before it have taken. Two hands go to the first weapons readied, and a
   later weapon can tell it has none left, with no figure to set by hand.
 
+Choices in the ledger [DRAFT]
+- Building a system? A ledger figure in the sheet's header can be a
+  choice now, a select or a number with value names. The sheet shows it
+  as a list you pick from right there, so a budget can start from a
+  chosen tier beside the points earned and their total.
+
 WAYPOINT 1.6.3 — What's New
 ============================
 

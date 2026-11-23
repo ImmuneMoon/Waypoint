@@ -713,6 +713,14 @@ function cleanImportItems(ic, deps) {
             }
             if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow;   // 1.6.4: Show its name on the map, kept only when unticked (false)
             if (w.portalLock !== undefined) { if (FC && typeof FC.cleanPortalLock === 'function' && FC.cleanPortalLock(w.portalLock)) w.portalLock = true; else delete w.portalLock; }   // a portal's own lock (the owner, 2026-10-03): Locked for players, only as true; with no cleaner on hand it does not come in
+            // 1.6.4 (doors that lead somewhere): a door's When shut option (doorStop) only as true, and the door it is paired with (targetDoorId)
+            // only as an id a piece may have, each only on a door (fogcore isDoor); with no cleaner on hand neither comes in
+            if (w.doorStop !== undefined) { if (FC && typeof FC.cleanDoorStop === 'function' && typeof FC.isDoor === 'function' && FC.cleanDoorStop(w.doorStop) && FC.isDoor(w)) w.doorStop = true; else delete w.doorStop; }
+            if (w.targetDoorId !== undefined) { var DTo = FC && typeof FC.cleanDoorTo === 'function' && typeof FC.isDoor === 'function' && FC.isDoor(w) ? FC.cleanDoorTo(w.targetDoorId) : null; if (DTo) w.targetDoorId = DTo; else delete w.targetDoorId; }
+            // and Fulllion's ruling of the same day ("Side pick + arrival marker"): the side a door lands its travelers on (landSide) only as 1 or -1
+            // on a door, and the Arrive here marker a portal names (targetArriveId) only as an id a piece may have, on a piece with a map of its own
+            if (w.landSide !== undefined) { var LSo = FC && typeof FC.cleanLandSide === 'function' && typeof FC.isDoor === 'function' && FC.isDoor(w) ? FC.cleanLandSide(w.landSide) : null; if (LSo === 1 || LSo === -1) w.landSide = LSo; else delete w.landSide; }
+            if (w.targetArriveId !== undefined) { var TAo = FC && typeof FC.cleanDoorTo === 'function' && typeof w.targetMapId === 'string' && w.targetMapId ? FC.cleanDoorTo(w.targetArriveId) : null; if (TAo) w.targetArriveId = TAo; else delete w.targetArriveId; }
             if (w.fogHand !== undefined) { var FH = FC && typeof FC.cleanFogHand === 'function' ? FC.cleanFogHand(w.fogHand) : undefined; if (FH) w.fogHand = FH; else delete w.fogHand; }   // 1.5.4: a piece's fog mark (Under fog, Always revealed): one of its two words, or it does not come in
             if (w.toShow !== undefined || w.showFor !== undefined) { if (FC && typeof FC.keepShow === 'function') FC.keepShow(w); else { delete w.toShow; delete w.showFor; } }   // 1.6.2: a drawing to show, its tick only as true on a pen drawing and how long it stays as one of its words; none without the cleaner
             if (w.terrain !== undefined) { var TR = FC && typeof FC.cleanTerrain === 'function' ? FC.cleanTerrain(w.terrain) : null; if (TR) w.terrain = TR; else delete w.terrain; }   // difficult terrain T1: its cost, 2-10

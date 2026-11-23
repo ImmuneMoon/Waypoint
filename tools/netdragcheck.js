@@ -73,7 +73,7 @@ pendingChecks.push((async () => {
         const setT = (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearT = id => { const t = timers[id - 1]; if (t) t.fn = null; };
         const bc = (m, ex) => { packCheck(m); W.net.conns.forEach(c => { if (c !== ex && c.open && Object.prototype.hasOwnProperty.call(W.net.roster, c.peer)) c.send(m); }); };
         const lastSent = {};
-        W.api = build4(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, o.failed ? (e => { o.failed.push(e.message); }) : (e => { throw e; }), c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, o.realDelta ? realDelta(lastSent) : () => null, bc, lastSent, setT, clearT,
+        W.api = (o.build || build4)(W.net, () => Sx, win, peer => !!(o.paused && o.paused(peer)), () => camp, o.failed ? (e => { o.failed.push(e.message); }) : (e => { throw e; }), c => (W.net.roster[c.peer] ? W.net.roster[c.peer].id : null), { allow: () => true }, () => {}, state, o.realDelta ? realDelta(lastSent) : () => null, bc, lastSent, setT, clearT,
             () => { W.saves++; }, t => W.toasts.push(t), () => {}, () => {}, () => {}, o.realAllow ? realAllow(() => W.now) : () => true, () => {}, () => {}, () => {}, m => ev.push('dom:' + m.wbId), () => null, () => {}, () => {}, () => W.now);
         W.move = (conn, wbId, x, y, fin, itemId, more) => W.api.pos(Object.assign({ type: 'pos', campId: 'k', itemId: itemId || 'mA', wbId, x, y, rot: 0, front: 0, final: fin }, more || {}), conn);
         W.tok = (id, mapId) => camp.items[mapId || 'mA'].whiteboard.find(w => w.id === id);
@@ -88,6 +88,31 @@ pendingChecks.push((async () => {
         return W;
     };
 
+    // 1.6.4: doors that lead somewhere (Fulllion, 2026-11-23, by prompt: "moving across the door"). The real pos gate with the doorway slice in
+    // the same module: a player's final move that crosses a door leading somewhere ends at that door on the side it came from, the walls judge
+    // the walk to the door, the mover is told where the host has the token, and net.tokenDropped is handed the crossing; a shut door that stays
+    // shut (locked, or set to stop tokens) is judged as the move was sent, so the wall rule stops it there; a hidden door, a door that leads
+    // nowhere and a move still under way cut nothing
+    {
+        const build4D = new Function(...NAMES4, modSrc.replace(bw('pos'), bw('doorway') + '\n' + bw('pos')));
+        const runD = (door, o) => {
+            o = o || {};
+            const W = mk4(Object.assign({ build: build4D }, o.wall ? { wall: o.wall } : {}));
+            if (door) W.camp.items.mA.whiteboard.push(Object.assign({ id: 'dr', type: 'rect', x: 100, y: 50, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mB' }, door));
+            const drops = []; W.net.tokenDropped = (w, map, gm, from, cross) => { drops.push([w.id, gm === undefined ? 'none' : gm, from ? [from.x, from.y] : null, cross && cross.door ? cross.door.id : null]); };
+            W.clearSent(); W.move(W.a1, 'tA', 100, 0, o.fin !== false);
+            return { at: W.place('tA').slice(0, 2), drops, told: W.poses(W.a1).map(p => [p.x, p.y]), notes: W.a1.sent.filter(m => m.type === 'turn-note').map(m => m.text) };
+        };
+        const upWall = (fx, fy, tx, ty) => fy >= 100 && ty < 100;   // the door's row stops a move as a wall would, where the door is shut
+        const cut = runD({}), cutWalled = runD({}, { wall: upWall }), locked = runD({ doorLock: true }, { wall: upWall }), stopper = runD({ doorStop: true }, { wall: upWall }), openStop = runD({ doorStop: true, doorOpen: true });
+        const hid = runD({ hidden: true }), nowhere = runD({ targetMapId: undefined }), secret = runD({ secret: true }, { wall: upWall }), mid = runD({}, { fin: false });
+        const thru = r => J(r.at) === J([100, 101]) && J(r.drops) === J([['tA', 'none', [100, 100], 'dr']]) && J(r.told) === J([[100, 101]]) && r.notes.length === 0;   // its middle a pixel short of the door's face (this world seats nothing; the app's wpSeatDrop then seats it in its cell)
+        const asSent = r => J(r.at) === J([100, 0]) && r.drops.length === 1 && r.drops[0][3] === null;
+        const walled = r => J(r.at) === J([100, 100]) && r.drops.length === 0 && J(r.notes) === J(['A wall is in the way: your token goes back.']);
+        check('1.6.4 doors that lead somewhere (the pos gate, run for real): a player\'s drop past a shut door that leads somewhere ends at the door on the side it came from, judged by the walls only to there (a wall across the door\'s row stops nothing), the mover told where the host has it and net.tokenDropped handed that door; an open door set to stop tokens still lets them through; a locked door, a shut one set to stop tokens and a secret one are judged as the move was sent, the wall rule putting the token back with its words; a hidden door, a door that leads nowhere and a move still under way cut nothing',
+            thru(cut) && thru(cutWalled) && thru(openStop) && walled(locked) && walled(stopper) && walled(secret) && asSent(hid) && asSent(nowhere) && J(mid.at) === J([100, 0]) && mid.drops.length === 0,
+            J({ cut, cutWalled, openStop, locked, stopper, secret, hid, nowhere, mid }));
+    }
     // (1) judged at the start: a whole copy asked for, a GM save, a copy sent to the table, the turn order and the pointers; Ana's own token alone
     // at the drag's live place, on her own copies; the host's map exactly as the drag left it; the drop, and the next copy holds the orc
     const W1 = mk4(), seen0 = !(W1.fog.fogDropIds('u_a', W1.camp, W1.camp.items.mA) || {}).orc;
@@ -691,7 +716,7 @@ pendingChecks.push((async () => {
         (fm7.match(/setTimeout\(/g) || []).length === 1 && !/_fogPend|_fogCost|_fogHeld/.test(rest7)
         && /if \(msg\.final && window\.wpSeatDrop && window\.wpSeatDrop\(w, map, w\.gridFit === true\)\) \{[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*var skN = skW === null \? null : window\.wpFog\.seenKeyOf\(map, w\), mvW = skW === null \|\| skN !== skW;/.test(pos7)
         && /broadcastPos\(msg, conn, camp, map, w\);\n[^\n]*frW\.lx = w\.x;[^\n]*\n\s*if \(frW\.sk === undefined\) frW\.sk = skW;/.test(pos7)
-        && /saveRemoteSoon\(\);\n\s*if \(typeof marksOwnMoved === 'function'\) marksOwnMoved\(msg\.itemId, \[w\], pr\.id\);[^\n]*\n\s*if \(typeof fogArm === 'function' && skN !== null && frW\.sk !== skN\) fogArm\(msg\.itemId\);[^\n]*\n\s*net\.tokenDropped\(w, map, undefined, frW\);/.test(pos7)
+        && /saveRemoteSoon\(\);\n\s*if \(typeof marksOwnMoved === 'function'\) marksOwnMoved\(msg\.itemId, \[w\], pr\.id\);[^\n]*\n\s*if \(typeof fogArm === 'function' && skN !== null && frW\.sk !== skN\) fogArm\(msg\.itemId\);[^\n]*\n\s*net\.tokenDropped\(w, map, undefined, frW, doorW\);/.test(pos7)
         && /var fkP = \[\];[^\n]*\n\s*msg\.item\.whiteboard\.forEach\(function\(w\) \{/.test(pat7) && /fkP\.push\(\[lw, fogKey\(liveItem, lw, typeof openDrag === 'function' \? openDrag\(msg\.itemId, lw\) : null\)\]\);\n\s*if \(\(lw\.isChar \|\| lw\.waiting\) && typeof moveRefused === 'function'\) \{/.test(pat7)
         && /if \(liveItem\.whiteboard\.length !== before\) \{ changed = true; if \(out\) out\.strokes = true; \}\n\s*var mvP = fkP\.filter\(function\(p\) \{ return fogKey\(liveItem, p\[0\]\) !== p\[1\]; \}\);[^\n]*\n\s*if \(mvP\.length && typeof marksOwnMoved === 'function'\) marksOwnMoved\(msg\.itemId, mvP\.map\(function\(p\) \{ return p\[0\]; \}\), profile\.id\);[^\n]*\n\s*if \(typeof fogArm === 'function' && mvP\.length\) fogArm\(msg\.itemId\);/.test(pat7)
         && (src.match(/fogArm\(/g) || []).length === 7 && /if \(window\.wpHostGesture === mapId\) \{ if \(typeof fogArm === 'function'\) fogArm\(mapId\); return; \}/.test(bw('sensesmoved')) && /net\.sendItem\(campT\.id, msg\.itemId, null, conn\);[^\n]*\n\s*if \(typeof fogArm === 'function'\) fogArm\(msg\.itemId\);/.test(bw('threats')) && /try \{ c\.send\(msg\); \} catch \(e\) \{ sendFailed\(e\); net\.sendItem\(camp\.id, m\.id, c\);/.test(fm7));
@@ -878,6 +903,29 @@ pendingChecks.push((async () => {
         check('portal lock (host, a player\'s map copy — the real patch path): nothing a copy says sets a portal\'s lock or clears it — the GM\'s locked portal sent back without its flag, or left out of the copy altogether, is locked still; the GM\'s open portal sent back locked stays open; her own token sent as a locked portal takes no lock and no destination; a new drawing of hers sent as a locked portal is taken as the drawing alone, and so is a plain drawing of hers she redraws as one (the redraw lands, the lock and the destination do not); and a drawing of hers the GM made a portal and locked stays one when she redraws it with the lock sent as false; the patch path and the drawing\'s whitelist never name the flag',
             J(afterFull) === J([true, false, false, false]) && !!drewP && !hasK(drewP, 'portalLock') && !hasK(drewP, 'targetMapId') && !hasK(drewP, 'nodeId') && !!redrewP && redrewP.portalLock === true && redrewP.targetMapId === 'mB' && J(redrewP.pts) === J([[0, 0], [5, 9]])
             && !!plainP && J(plainP.pts) === J([[0, 0], [7, 7]]) && !hasK(plainP, 'portalLock') && !hasK(plainP, 'targetMapId') && J(afterLean) === J([true, false, true]) && !/portalLock/.test(bw('patch', 'netfog.js')) && !/portalLock/.test(fnSrc('function playerStroke(', '\n}\n', 'playerStroke', 'netfog.js')), J([afterFull, drewP, redrewP, plainP, afterLean]));
+    }
+    // 1.6.4 doors that lead somewhere, on the wire, in the same one-module world (the real sanitizeItem / wireWbItem, sends and patch path): the
+    // door a door is paired with (targetDoorId) and its When shut option (doorStop) are the host's alone. A shown door that leads somewhere
+    // reaches each player as a door and a portal with neither key, on their own copy and on the shared clone; a player's app takes neither from
+    // a host (cleanHostWbItem); and a player's map copy neither sets nor clears either on the GM's door, their own token or their own drawing
+    {
+        const hasK = (w, k) => !!w && Object.prototype.hasOwnProperty.call(w, k), keysOf = (m, id) => { const w = m && m.whiteboard.find(x => x.id === id); return w ? ['targetDoorId', 'doorStop'].filter(k => hasK(w, k)).join(' ') + '|' + (w.sightType || '') + '|' + (w.targetMapId || '') : null; };
+        const Wd = S7({}), mD = Wd.camp.items.mA;
+        mD.whiteboard.push({ id: 'dPair', type: 'rect', x: 600, y: 600, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mB', targetDoorId: 'dFar', doorStop: true, landSide: -1, targetArriveId: 'mkFar' },
+            { id: 'mkHere', type: 'arrive', name: 'Hall arrival', x: 640, y: 700, w: 40, h: 40 },   // the ruling: an Arrive here marker, the GM's alone
+            { id: 'pDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 700, w: 10, h: 10, baseW: 10, baseH: 10, z: 35, pts: [[0, 0], [10, 10]], color: '#e9e9f0', strokeWidth: 3 });
+        mD.meta = Object.assign({}, mD.meta, { updated: (mD.meta && mD.meta.updated || 0) + 1 }); Wd.clearSent(); Wd.net.sendItem('k', 'mA');
+        const sentD = [keysOf(Wd.last(Wd.a1), 'dPair'), keysOf(Wd.last(Wd.b1), 'dPair'), keysOf(Wd.api.clean(mD), 'dPair')], allD = J(Wd.a1.sent.concat(Wd.a2.sent, Wd.b1.sent)) + J(Wd.api.clean(mD));
+        Wd.api.item({ type: 'item', campId: 'k', itemId: 'mA', item: { id: 'mA', type: 'map', whiteboard: [
+            { id: 'dPair', type: 'rect', x: 600, y: 600, w: 50, h: 50, blocksSight: true, sightType: 'door', targetMapId: 'mB' },   // the GM's door sent back with neither key
+            Object.assign({}, Wd.tok('tA'), { targetDoorId: 'dPair', doorStop: true }),   // her own token sent with both
+            { id: 'pDraw', type: 'path', byPlayer: true, ownerId: 'u_a', x: 600, y: 700, w: 10, h: 10, baseW: 10, baseH: 10, pts: [[0, 0], [5, 9]], targetDoorId: 'dPair', doorStop: true },   // her own drawing redrawn with both
+            { id: 'wbnewD', type: 'path', ownerId: 'u_a', x: 0, y: 0, w: 10, h: 10, pts: [[0, 0], [5, 5]], targetDoorId: 'dPair', doorStop: true }] } }, Wd.a1);   // a new drawing of hers with both
+        const hostD = Wd.tok('dPair'), afterD = [hostD.targetDoorId, hostD.doorStop, hasK(Wd.tok('tA'), 'targetDoorId'), hasK(Wd.tok('tA'), 'doorStop'), hasK(Wd.tok('pDraw'), 'targetDoorId'), hasK(Wd.tok('pDraw'), 'doorStop'), !!Wd.tok('wbnewD') && (hasK(Wd.tok('wbnewD'), 'targetDoorId') || hasK(Wd.tok('wbnewD'), 'doorStop'))];
+        const chS = lineOf('function cleanHostWbItem(w) {'), wireS = fnSrc('function wireWbItem(', '\n}\n', 'wireWbItem');
+        check('1.6.4 doors that lead somewhere (the wire, the real sends and patch path): a shown door that leads somewhere reaches each player and the shared clone as a door and a portal without the door it is paired with or its When shut option; neither name is in anything sent; a player\'s map copy that leaves both off the GM\'s door, or sets them on her own token and drawings, changes neither on the host; the wire drops both from every piece and a player\'s app takes neither from a host',
+            J(sentD) === J(['|door|mB', '|door|mB', '|door|mB']) && !/targetDoorId|doorStop|dFar|landSide|targetArriveId|mkFar|mkHere|Hall arrival|"arrive"/.test(allD) && J(afterD) === J(['dFar', true, false, false, false, false, false])
+            && wireS.includes('    delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide;') && chS.includes('delete w.targetDoorId; delete w.doorStop; delete w.targetArriveId; delete w.landSide;') && wireS.includes("    if (w.type === 'arrive') return null;") && chS.includes("if (w.type === 'arrive') return null;"), J([sentD, afterD]));   /* the ruling: the side a door lands on, the marker a portal names and the marker itself never leave the host either */
     }
     // a piece's fog mark (1.5.4: Under fog, Always revealed) on the wire, in the same one-module world: host to player with a shown piece and only
     // as its two words; player to host nothing sets it and nothing clears it

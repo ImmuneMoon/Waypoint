@@ -28,7 +28,7 @@ if (inspector) inspector.addEventListener('toggle', function(e) { var d = e.targ
 
 // 1.6.2, backlog 217 (the owner, by prompt, of Properties: "Yes, as drawn"): the piece's kind beside the title, each fold saying what it holds
 // while shut, and a search where a piece has many folds. All of it read from the panel as drawn, never stored
-var INSP_KIND = { rect: 'Rectangle', circle: 'Circle', diamond: 'Diamond', hexagon: 'Hexagon', image: 'Picture', path: 'Drawing', text: 'Text box', trigger: 'Trigger zone', mappin: 'Place pin', maplegend: 'Legend' };   // 1.6.3: a map's places (places.js)
+var INSP_KIND = { rect: 'Rectangle', circle: 'Circle', diamond: 'Diamond', hexagon: 'Hexagon', image: 'Picture', path: 'Drawing', text: 'Text box', trigger: 'Trigger zone', mappin: 'Place pin', maplegend: 'Legend', arrive: 'Arrive here marker' };   // 1.6.3: a map's places (places.js)
 function inspKindOf(w) { if (!w || typeof w !== 'object') return ''; if (w.isChar) return 'Token'; if (w.flatPic === true) return 'Flattened picture'; return Object.prototype.hasOwnProperty.call(INSP_KIND, w.type) ? INSP_KIND[w.type] : ''; }
 function inspWord(t) { t = String(t || '').replace(/\s+/g, ' ').trim(); var i = t.search(/ \(| \u2014 | - /); return (i > 0 ? t.slice(0, i) : t).slice(0, 28); }
 function inspSays(d) {   // a fold's words while shut: its ticks that are on, and its lists set to something other than their first choice
@@ -1197,11 +1197,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
                 html += '<div class="field"><label for="wbPortalMap">Portal to Map</label><select id="wbPortalMap">' + portalOpts + '</select>' +
                         (w.targetMapId ? '<div style="display:flex; gap:6px; align-items:center; margin-top:5px;"><span class="muted" style="white-space:nowrap;">Marker</span><select id="wbPortalIcon" style="flex:1;">' + portalIconOpts + '</select></div>' : '') +
                         '</div>' +
-                        (w.targetMapId ? landingRoomFieldHtml({ targetMapId: w.targetMapId, targetRoomId: w.targetRoomId, id: null, name: w.name }, 'wbPortalRoom') : '');
+                        (w.targetMapId ? (doorLeadsOk(w) ? doorLeadsHtml(w) : landingRoomFieldHtml({ targetMapId: w.targetMapId, targetRoomId: w.targetRoomId, id: null, name: w.name }, 'wbPortalRoom')) : '');   // 1.6.4: a door's Leads to (a door of that map, or a room) in place of Landing Room
             }
             html += (w.targetMapId && w.hidden ? '<div class="field check-row"><input type="checkbox" id="wbTrapPortal" ' + (w.trap ? 'checked' : '') + '> <label for="wbTrapPortal"><i class="wib wi-warn"></i> Trap — fires while hidden</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">Players never see it, but a token that lands on this tile is still teleported. A locked destination map, locked travel or the tile&rsquo;s own lock (Locked for players) still blocks it.</div>' : '');
             html += '<div class="field"><label for="wbNodeLink">Link Node</label><select id="wbNodeLink">'+nodeOpts+'</select></div>'+
               portalLockFieldHtml(w, activeMap)+   // a portal's own lock: Locked for players, on a piece that is a portal (its own Portal to Map, or its linked node's)
+              doorStopFieldHtml(w, activeMap)+   // 1.6.4: a door that leads somewhere, When shut
+              doorSideFieldHtml(w, activeMap)+   // 1.6.4: and Lands on, the side its travelers come out
               pagePinFieldHtml(w)+   // 1.5.4: a pin, the page this piece opens (the GM's alone)
               (linkFold ? '</details>' : '') +   // 1.5.6: the end of a character token's Map links
               (typeof boxFieldHtml === 'function' ? boxFieldHtml(w) : '')+   // 1.6.2 (backlog 42): Holds items
@@ -1354,6 +1356,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbFitGrid) { _el_wbFitGrid.addEventListener('click', function() { if (window.wpFitToGrid) window.wpFitToGrid([w]); }); if (window.wpFitWouldChange && !window.wpFitWouldChange([w])) { _el_wbFitGrid.disabled = true; _el_wbFitGrid.title = w.locked ? 'Locked — unlock it to fit to the grid' : 'Already aligned to the grid'; } }
             var _el_wbPortalMap = document.getElementById('wbPortalMap');
             if (_el_wbPortalMap) _el_wbPortalMap.addEventListener('change', function() {
+                if (this.value !== w.targetMapId) { var farU = doorUnpair(w); if (farU && window.wpHistBarrier && activeMap) window.wpHistBarrier([activeMap.id, farU.id]); }   // 1.6.4: a paired door is a door of the map it was picked for: another map, and the pair goes (the far door's pairing back too)
                 if (this.value !== w.targetMapId) delete w.targetRoomId;   // a landing room is a room of the map it was picked for
                 if (this.value) w.targetMapId = this.value; else { delete w.targetMapId; delete w.portalIcon; }
                 portalLockTidy(w, activeMap);   // no longer a portal: its lock goes with it
@@ -1376,6 +1379,13 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             if (_el_wbNameShow) _el_wbNameShow.addEventListener('change', function() { setNameShow(w, this.checked, false, activeMap); });
             var _el_wbPortalLock = document.getElementById('wbPortalLock');   // a portal's own lock: true or no key
             if (_el_wbPortalLock) _el_wbPortalLock.addEventListener('change', function() { setItemPortalLock(w, this.checked, activeMap); });
+            var _el_wbDoorLeads = document.getElementById('wbDoorLeads');   // 1.6.4: a door's Leads to
+            if (_el_wbDoorLeads) _el_wbDoorLeads.addEventListener('change', function() { setDoorLeads(w, this.value, activeMap); });
+            var _el_wbDoorStop = document.getElementById('wbDoorStop');   // 1.6.4: a door's When shut
+            if (_el_wbDoorStop) _el_wbDoorStop.addEventListener('change', function() { setDoorStop(w, this.value === 'stop', activeMap); });
+            var _el_wbDoorSide = document.getElementById('wbDoorSide'), _el_wbDoorSideFlip = document.getElementById('wbDoorSideFlip');   // 1.6.4: Lands on, and its Flip
+            if (_el_wbDoorSide) _el_wbDoorSide.addEventListener('change', function() { setDoorSide(w, Number(this.value), activeMap); });
+            if (_el_wbDoorSideFlip) _el_wbDoorSideFlip.addEventListener('click', function() { setDoorSide(w, null, activeMap, true); });
             var _el_wbPortalRoom = document.getElementById('wbPortalRoom');
             if (_el_wbPortalRoom) _el_wbPortalRoom.addEventListener('change', function() { if (this.value) w.targetRoomId = this.value; else delete w.targetRoomId; save(); });
             var _el_wbTrigShape = document.getElementById('wbTrigShape');
@@ -2555,6 +2565,119 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       if (o) o.addEventListener('click', function() { B.open(w.id); });
   }
   // [boxcheck:field-end]
+  // [sinkcheck:doorleads-start]
+  // 1.6.4: doors that lead somewhere (Fulllion, 2026-11-23, by prompt; docs/TODO_BACKLOG.md "Doors that lead somewhere": "Pairing is the GM's,
+  // in Properties (a 'Leads to' row: a map, then a door of that map by name, or a room)"), and his ruling of the same day, "Side pick + arrival
+  // marker": the row also offers the Arrive here markers of that map by name, on ANY piece with a Portal to Map (a teleport hex, a plain
+  // portal piece, a door). So on every such piece the Landing Room row becomes Leads to: Automatic lands as any portal does (a room of the same
+  // id or name, else the map's home); a door of that map (offered on a door alone) pairs the two doors, each leading to the other
+  // (setDoorLeads); a room lands in that room, as a portal's Landing Room does; a marker lands beside it. The names come from the campaign, so
+  // every one goes through esc. A door or a marker with no name is listed as Door or Arrive here and its place among its kind on that map. The
+  // GM's alone (portalLockGm: never a player's app, its link or the stream window). net.js doorWayOf reads the door and the marker at travel
+  function doorLeadsOk(w) { return !!(w && typeof w === 'object' && w.targetMapId && portalLockGm()); }
+  function doorsOf(map, skipId) {   // the doors of a map a door may be paired with, each with the name the list shows
+      var FC = window.wpFogCore, n = 0;
+      return (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(d) { return !!d && d.id !== skipId && !d.isChar && !d.waiting && !!FC && FC.isDoor(d); })
+          .map(function(d) { n++; return { id: d.id, name: String(typeof d.name === 'string' ? d.name : '').trim().slice(0, 80) || ('Door ' + n), door: d }; });
+  }
+  function markersOf(map) {   // the Arrive here markers of a map (pieces of type 'arrive'), each with the name the list shows
+      var n = 0;
+      return (map && Array.isArray(map.whiteboard) ? map.whiteboard : []).filter(function(d) { return !!d && d.type === 'arrive'; })
+          .map(function(d) { n++; return { id: d.id, name: String(typeof d.name === 'string' ? d.name : '').trim().slice(0, 80) || ('Arrive here ' + n) }; });
+  }
+  function doorLeadsHtml(w) {
+      if (!doorLeadsOk(w)) return '';
+      var campL = getActiveCampaign(), dest = campL && campL.items[w.targetMapId];
+      if (!dest || dest.type !== 'map') return '';
+      var FC = window.wpFogCore, isDoorW = !!(FC && typeof FC.isDoor === 'function' && FC.isDoor(w));
+      var doors = isDoorW ? doorsOf(dest, w.id) : [], marks = markersOf(dest), rooms = (dest.rooms || []).slice().sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
+      var auto = findLandingRoom({ id: null, name: w.name, targetRoomId: null }, dest);
+      var mark = typeof w.targetArriveId === 'string' && marks.some(function(d) { return d.id === w.targetArriveId; }) ? w.targetArriveId : '';
+      var pair = !mark && typeof w.targetDoorId === 'string' && doors.some(function(d) { return d.id === w.targetDoorId; }) ? w.targetDoorId : '';
+      var opts = '<option value="">Automatic — ' + (auto ? esc(auto.name || auto.id) : 'map home') + '</option>' +
+          (marks.length ? '<optgroup label="Arrive here markers on that map">' + marks.map(function(d) { return '<option value="m:' + esc(d.id) + '"' + (mark === d.id ? ' selected' : '') + '>' + esc(d.name) + '</option>'; }).join('') + '</optgroup>' : '') +
+          (doors.length ? '<optgroup label="Doors on that map">' + doors.map(function(d) { return '<option value="d:' + esc(d.id) + '"' + (pair === d.id ? ' selected' : '') + '>' + esc(d.name) + '</option>'; }).join('') + '</optgroup>' : '') +
+          (rooms.length ? '<optgroup label="Rooms on that map">' + rooms.map(function(rm) { return '<option value="r:' + esc(rm.id) + '"' + (!pair && !mark && w.targetRoomId === rm.id ? ' selected' : '') + '>' + esc(rm.name || rm.id) + '</option>'; }).join('') + '</optgroup>' : '');
+      return '<div class="field"><label for="wbDoorLeads" title="Where a traveler comes out on that map. An Arrive here marker: beside it. A door there: the two doors lead to each other, and a traveler lands just outside the other door. A room: in that room.">Leads to</label><select id="wbDoorLeads">' + opts + '</select></div>';
+  }
+  // The door w leaves its pair: the far door's pairing back to w goes too (that door still leads to w's map, and lands as any portal does).
+  // Answers the far map where it changed a door there, else null
+  function doorUnpair(w) {
+      if (!w || typeof w !== 'object') return null;
+      if (typeof w.targetDoorId !== 'string') { delete w.targetDoorId; return null; }
+      var campU = getActiveCampaign(), far = campU && w.targetMapId && campU.items[w.targetMapId], fd = far && Array.isArray(far.whiteboard) ? far.whiteboard.find(function(d) { return !!d && d.id === w.targetDoorId; }) : null;
+      delete w.targetDoorId;
+      if (fd && fd.targetDoorId === w.id) { delete fd.targetDoorId; return far; }
+      return null;
+  }
+  // Leads to, picked. v: '' (Automatic), 'r:' and a room's id, 'm:' and an Arrive here marker's id, or 'd:' and a door's id on the map w leads
+  // to (w a door). Each lets go of the others. A door picked is paired both ways in one step (Fulllion's pick 3, "they lead to each other"):
+  // w leads to it, and it leads back to w on this map, each losing a pair it had before (and that pair's door its pairing back). Both maps
+  // change, so neither map's Undo can step back past this (wpHistBarrier, as a travel between two maps does), and the far map goes to the
+  // table's players who hold it
+  function setDoorLeads(w, v, map) {
+      if (!doorLeadsOk(w) || !map || typeof v !== 'string') return;
+      var campS = getActiveCampaign(), dest = campS && campS.items[w.targetMapId]; if (!dest || dest.type !== 'map') return;
+      var FC = window.wpFogCore, isDoorW = !!(FC && typeof FC.isDoor === 'function' && FC.isDoor(w));
+      var touched = [], t = doorUnpair(w); if (t) touched.push(t);
+      delete w.targetRoomId; delete w.targetArriveId;
+      var said = 'This portal now lands as any portal does.', title = String((dest.meta && dest.meta.title) || 'that map').slice(0, 120);
+      if (v.indexOf('r:') === 0) { var rm = (dest.rooms || []).find(function(r) { return r && r.id === v.slice(2); }); if (rm) { w.targetRoomId = rm.id; said = 'This portal now leads to ' + String(rm.name || 'a room').slice(0, 80) + ' on ' + title + '.'; } }
+      else if (v.indexOf('m:') === 0) { var mk = markersOf(dest).filter(function(d) { return d.id === v.slice(2); })[0]; if (mk) { w.targetArriveId = mk.id; said = 'Travelers now arrive beside ' + mk.name + ' on ' + title + '.'; } }
+      else if (v.indexOf('d:') === 0 && isDoorW) {
+          var fd = doorsOf(dest, w.id).filter(function(d) { return d.id === v.slice(2); })[0];
+          if (fd) {
+              var D = fd.door, t2 = doorUnpair(D); if (t2 && touched.indexOf(t2) < 0) touched.push(t2);
+              w.targetDoorId = D.id;
+              D.targetMapId = map.id; D.targetDoorId = w.id; delete D.targetRoomId; delete D.targetArriveId;
+              if (touched.indexOf(dest) < 0) touched.push(dest);
+              said = 'Paired with ' + fd.name + ' on ' + title + '. Each door leads to the other.';
+          }
+      }
+      var ids = [map.id].concat(touched.filter(function(m) { return m !== map; }).map(function(m) { return m.id; }));
+      if (ids.length > 1 && window.wpHistBarrier) window.wpHistBarrier(ids);
+      save(); render(); renderInspector();
+      var n = window.wpNet; if (n && n.active && n.role === 'host' && typeof n.sendItem === 'function') touched.forEach(function(m) { if (m !== map && m.id) n.sendItem(campS.id, m.id); });
+      toast(said);
+  }
+  // A door that leads somewhere, shut (Fulllion's pick 2: both, as options, opening it the default): When shut, A token walking into it opens
+  // it (no key), or It stops tokens until opened (doorStop: true, the door's own). A locked door stays shut either way. The GM's alone
+  function doorStopFieldHtml(w, map) {
+      var FC = window.wpFogCore; if (!portalLockGm() || !FC || typeof FC.isDoor !== 'function' || !FC.isDoor(w) || !FC.isPortal(w, map)) return '';
+      return '<div class="field"><label for="wbDoorStop" title="What a shut door does when a token walks into it. A locked door stays shut either way.">When shut</label><select id="wbDoorStop"><option value="">A token walking into it opens it</option><option value="stop"' + (w.doorStop === true ? ' selected' : '') + '>It stops tokens until opened</option></select></div>';
+  }
+  function setDoorStop(w, on, map) {
+      if (!w || typeof w !== 'object' || !portalLockGm()) return;
+      var FC = window.wpFogCore;
+      if (on === true && FC && FC.isDoor(w) && FC.isPortal(w, map)) w.doorStop = true; else delete w.doorStop;
+      save(); render();
+  }
+  // Lands on (Fulllion's ruling of 2026-11-23, "Side pick + arrival marker": "Each door gets 'Lands on: this side / that side' in Properties,
+  // shown as an arrow the GM can flip, so nobody comes out backwards"): on a door that leads somewhere, which side a traveler who comes in by
+  // THIS door is set down on (its landSide, 1 along the door's own axis, fogcore doorAxis, -1 the other way), or no key: the side they walk
+  // toward. Each choice wears an arrow that points the way it lands on the board as drawn (arrowFor), the board draws the same arrow on the door
+  // on the GM's screen (whiteboard.js landArrow), and Flip turns a picked side round. The GM's alone
+  var LAND_ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+  function arrowFor(nx, ny) { var FC = window.wpFogCore, d = FC && typeof FC.doorFace === 'function' ? FC.doorFace(nx, ny) : 0; return LAND_ARROWS[Math.round(d / 45) % 8]; }
+  function doorSideFieldHtml(w, map) {
+      var FC = window.wpFogCore; if (!portalLockGm() || !FC || typeof FC.doorAxis !== 'function' || !FC.isDoor(w) || !FC.isPortal(w, map)) return '';
+      var ax = FC.doorAxis(w); if (!ax) return '';
+      var s = typeof FC.cleanLandSide === 'function' ? FC.cleanLandSide(w.landSide) : null;
+      return '<div class="field"><label for="wbDoorSide" title="Which side of this door a traveler who comes in by it is set down on.">Lands on</label><div style="display:flex; gap:6px; align-items:center;"><select id="wbDoorSide" style="flex:1;">' +
+          '<option value="">The side they walk toward</option>' +
+          '<option value="1"' + (s === 1 ? ' selected' : '') + '>' + arrowFor(ax.nx, ax.ny) + ' This side</option>' +
+          '<option value="-1"' + (s === -1 ? ' selected' : '') + '>' + arrowFor(-ax.nx, -ax.ny) + ' That side</option>' +
+          '</select><button type="button" class="btn" id="wbDoorSideFlip" title="Turn the side travelers land on round">Flip</button></div></div>';
+  }
+  // v: 1, -1, or anything else for no key; flip: turn a picked side round (no side picked: This side)
+  function setDoorSide(w, v, map, flip) {
+      if (!w || typeof w !== 'object' || !portalLockGm()) return;
+      var FC = window.wpFogCore, cur = FC && typeof FC.cleanLandSide === 'function' ? FC.cleanLandSide(w.landSide) : null;
+      var nv = flip === true ? (cur === 1 ? -1 : 1) : (v === 1 || v === -1 ? v : null);
+      if (nv !== null && FC && FC.isDoor(w) && FC.isPortal(w, map)) w.landSide = nv; else delete w.landSide;
+      save(); render(); renderInspector();
+  }
+  // [sinkcheck:doorleads-end]
   // [sinkcheck:portallockbox-start]
   // A portal's own lock (the owner, 2026-10-03: "maybe add the ability to lock a portal from the play map"): a portal piece's Locked for
   // players tick — no player travels through it until the GM unlocks it (item.portalLock, true or no key; the host is the judge: net.js

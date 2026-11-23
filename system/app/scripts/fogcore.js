@@ -1168,6 +1168,140 @@ function portalBeside(tok, portal, grid, pCells) {
     if (!isObj(tok) || !isObj(portal)) return false;
     return doorBeside(tok, portal, grid, pCells);
 }
+
+// 1.6.4: doors that lead somewhere (Fulllion, 2026-11-23, by prompt; docs/TODO_BACKLOG.md "Doors that lead somewhere"). The idea comes from his
+// own game, where a door warps the player to a fixed spot in another room and the way out brings them back to where they came in. A door that
+// is also a portal (isDoor and isPortal) takes a token through when a MOVE CROSSES it from one side to the other ("Trigger: moving across the
+// door"). Stopping on it, turning beside it, or a drop that lands on it without crossing it does nothing. The functions below are the pure
+// geometry of that rule. net.js alone asks them (doorCrossFor, doorStopSpot and doorLandFor there): the host judges a player's move in its pos
+// gate from where the drag began to where it was dropped, and the GM's own drag through net.tokenDropped's from. The rules about WHO may go
+// through (locks, a shut door, a hidden or secret door) live in net.js; these only say where a move meets a door and where a token stands.
+
+// A door drawn as a shape (anything but a pen line) is a box turned about its middle, as the board draws it (pathSegs and outlineSegs turn the
+// same way): its middle (cx, cy), the unit vector along its width (ux, uy) and along its height (vx, vy), and half its width and height. A
+// hexagon, a diamond and a circle are read by that box too, which is the room a token passes through them by. null for a piece with no finite
+// place or no size
+function doorFrame(d) {
+    if (!isObj(d) || !fin(d.x) || !fin(d.y)) return null;
+    var w = fin(d.w) && d.w > 0 ? d.w : 0, h = fin(d.h) && d.h > 0 ? d.h : 0; if (!w || !h) return null;
+    var rad = (fin(d.rot) ? d.rot % 360 : 0) * Math.PI / 180, co = Math.cos(rad), si = Math.sin(rad);
+    return { cx: d.x + w / 2, cy: d.y + h / 2, ux: co, uy: si, vx: -si, vy: co, hw: w / 2, hh: h / 2 };
+}
+// Which way a shaped door is gone through. A long door is gone through across its short side: a door wider than it is tall is crossed up or
+// down, as a doorway in a wall that runs across the map is. A door near square (its longer side less than DOOR_SQUARE times its shorter, a
+// door of one grid cell) is crossed either way: the walls it stands between decide which way a token can come at it. Each way is the unit
+// vector across the door (nx, ny), half its thickness that way (T), the unit vector along it (tx, ty) and half its length (L)
+var DOOR_SQUARE = 1.25;
+function doorWays(f) {
+    var out = [], sq = Math.max(f.hw, f.hh) < DOOR_SQUARE * Math.min(f.hw, f.hh);
+    if (sq || f.hw >= f.hh) out.push({ nx: f.vx, ny: f.vy, T: f.hh, tx: f.ux, ty: f.uy, L: f.hw });   // across its height: in through one long face, out through the other
+    if (sq || f.hh > f.hw) out.push({ nx: f.ux, ny: f.uy, T: f.hw, tx: f.vx, ty: f.vy, L: f.hh });
+    return out;
+}
+// Where a move from a to b (the token's middle where the move began and where it ended) goes through a door, or null where it does not. The
+// answer: t, how far along the move the door is met (0 to 1, so a caller picks the first door a move meets); (x, y), the point where the move
+// meets it; (nx, ny), the unit vector across the door the way the move goes through it; half, half the line's drawn width for a door drawn as a
+// line (lineHalf), 0 for a shape.
+// A door drawn as a line: the move's straight path crosses one of its strokes (crossAt). A move that begins or ends exactly on the line does
+// not cross it. A door drawn as a shape: the move begins outside the door on one side (beyond its thickness), comes at it from that side, and
+// meets its near face within the door's length. It then counts where the move ends past the far face (anywhere on the far side), or ends on
+// the door itself while heading through: the part of the move across the door is at least DOOR_HEAD of the whole move (within 60 degrees of
+// straight across). So a token that walks along a door, stands on it, turns on it or steps beside its end crosses nothing
+var DOOR_HEAD = 0.5;
+function doorThrough(d, a, b) {
+    if (!isObj(d) || !isObj(a) || !isObj(b) || !fin(a.x) || !fin(a.y) || !fin(b.x) || !fin(b.y)) return null;
+    var mx = b.x - a.x, my = b.y - a.y, len = Math.sqrt(mx * mx + my * my); if (!(len > 1e-6)) return null;
+    var best = null;
+    if (d.type === 'path' && d.tip !== 'fill') {
+        var segs = pathSegs(d);
+        for (var i = 0; i < segs.length; i++) {
+            var s = segs[i], t = crossAt(a.x, a.y, b.x, b.y, s); if (t < 0 || (best && best.t <= t)) continue;
+            var sx = s[2] - s[0], sy = s[3] - s[1], sl = Math.sqrt(sx * sx + sy * sy); if (!(sl > 0)) continue;
+            var nx = -sy / sl, ny = sx / sl; if (nx * mx + ny * my < 0) { nx = -nx; ny = -ny; }   // across the stroke, the way the move goes
+            best = { t: t, x: a.x + mx * t, y: a.y + my * t, nx: nx, ny: ny, half: lineHalf(d) };
+        }
+        return best;
+    }
+    var f = doorFrame(d); if (!f) return null;
+    doorWays(f).forEach(function(W) {
+        var pa = (a.x - f.cx) * W.nx + (a.y - f.cy) * W.ny, pb = (b.x - f.cx) * W.nx + (b.y - f.cy) * W.ny;   // across the door, from its middle
+        var qa = (a.x - f.cx) * W.tx + (a.y - f.cy) * W.ty, qb = (b.x - f.cx) * W.tx + (b.y - f.cy) * W.ty;   // along it
+        if (Math.abs(pa) < W.T) return;   // the move began inside the door's own thickness: it did not come from one side
+        var sd = pa > 0 ? 1 : -1;
+        if ((pb - pa) * sd >= 0 || pb * sd > W.T) return;   // moving away from it or along it, or stopping short of its near face
+        var te = (sd * W.T - pa) / (pb - pa), qe = qa + (qb - qa) * te;
+        if (Math.abs(qe) > W.L) return;   // it reaches the near face's line beyond the door's end: past the door, not through it
+        var past = pb * sd <= -W.T, on = !past && Math.abs(qb) <= W.L && Math.abs(pb - pa) >= DOOR_HEAD * len;
+        if (!past && !on) return;
+        if (best && best.t <= te) return;
+        best = { t: te, x: a.x + mx * te, y: a.y + my * te, nx: -sd * W.nx, ny: -sd * W.ny, half: 0 };
+    });
+    return best;
+}
+// How far a token of tw by th reaches from its middle the way (nx, ny) goes: half its box measured that way (60 by 52 where it has no size)
+function doorReach(nx, ny, tw, th) { var w = fin(tw) && tw > 0 ? tw : 60, h = fin(th) && th > 0 ? th : 52; return (Math.abs(nx) * w + Math.abs(ny) * h) / 2; }
+// Where a token that went through a door stops on the side it came from: its middle just short of the point where its move met the door,
+// with its box touching the door's near face (or the line's stroke), a pixel to spare. cross: what doorThrough answered. null for no answer
+function doorStopAt(cross, tw, th) {
+    if (!isObj(cross) || !fin(cross.x) || !fin(cross.y) || !fin(cross.nx) || !fin(cross.ny)) return null;
+    var back = (fin(cross.half) ? cross.half : 0) + doorReach(cross.nx, cross.ny, tw, th) + 1;
+    return { x: cross.x - cross.nx * back, y: cross.y - cross.ny * back };
+}
+// The facing of a token that looks the way (nx, ny) goes, in degrees clockwise from straight up, as a token's facing is drawn (rot + front;
+// whiteboard.js turns its arrow by that from the top): a whole degree, 0 to 359
+function doorFace(nx, ny) { var d = Math.round(Math.atan2(nx, -ny) * 180 / Math.PI); return ((d % 360) + 360) % 360; }
+// Where a token of tw by th lands that comes in by a door: just outside it on the far side, the side the way it was going (dir) points to,
+// facing that way (Fulllion's pick 3: "going back out lands the token just outside the door it came in by, on the far side, facing the way it
+// was going"). A shaped door is landed beside across whichever of its ways (doorWays) is most in line with dir; a door drawn as a line, across
+// the stretch of its stroke that holds the middle of its length. With no way given, or one square along the door, the side its own axis points
+// to. The answer: the middle (x, y) and the facing (face) on that side, and the same on the other side (alt), which net.js takes where a wall
+// stands on the first; and the door's own middle (cx, cy) and, for a line, half its drawn width (half; 0 for a shape), which net.js judges a
+// landing from. null for a door with no place (a line with no stroke, a shape with no size).
+// side (1.6.4, Fulllion's ruling of 2026-11-23, "Side pick + arrival marker": "Lands on: this side / that side ... so nobody comes out
+// backwards"): the side the GM picked for the door (its landSide, cleanLandSide), 1 for the side its own axis points to (doorAxis) and -1 for
+// the other. A picked side wins over the way the token was going, and the token faces out from the door toward it
+function doorLanding(d, dir, tw, th, side) {
+    if (!isObj(d)) return null;
+    var dx = isObj(dir) && fin(dir.x) ? dir.x : 0, dy = isObj(dir) && fin(dir.y) ? dir.y : 0, cx, cy, nx, ny, off, half = 0;
+    if (d.type === 'path' && d.tip !== 'fill') {
+        var segs = pathSegs(d), total = 0, i; for (i = 0; i < segs.length; i++) total += segLen(segs[i]);
+        if (!(total > 0)) return null;
+        var run = 0, s = segs[segs.length - 1], at = 1;
+        for (i = 0; i < segs.length; i++) { var l = segLen(segs[i]); if (l > 0 && run + l >= total / 2) { s = segs[i]; at = (total / 2 - run) / l; break; } run += l; }   // the stretch that holds the middle of the line's length
+        var sl = segLen(s); if (!(sl > 0)) return null;
+        cx = s[0] + (s[2] - s[0]) * at; cy = s[1] + (s[3] - s[1]) * at; nx = -(s[3] - s[1]) / sl; ny = (s[2] - s[0]) / sl;
+        off = half = lineHalf(d);
+    } else {
+        var f = doorFrame(d); if (!f) return null;
+        var ways = doorWays(f), W = ways[0];
+        ways.forEach(function(o) { if (Math.abs(o.nx * dx + o.ny * dy) > Math.abs(W.nx * dx + W.ny * dy) + 1e-9) W = o; });
+        cx = f.cx; cy = f.cy; nx = W.nx; ny = W.ny; off = W.T;
+    }
+    if (side === 1 || side === -1) { var ax = doorAxis(d); if (ax) { nx = ax.nx * side; ny = ax.ny * side; off = ax.T; } }   // the side the GM picked
+    else if (nx * dx + ny * dy < -1e-9) { nx = -nx; ny = -ny; }   // the far side: the side the way it was going points to
+    var r = off + doorReach(nx, ny, tw, th) + 1;
+    return { x: cx + nx * r, y: cy + ny * r, face: doorFace(nx, ny), alt: { x: cx - nx * r, y: cy - ny * r, face: doorFace(-nx, -ny) }, cx: cx, cy: cy, half: half, off: off };
+}
+// A door's own axis, the one its picked landing side is counted along: across a shaped door's first way (doorWays: across its height for a door
+// at least as wide as tall), across the stretch of a line door that holds the middle of its length, its normal turned clockwise from the way
+// the line was drawn. (nx, ny) the unit vector, T half the door's thickness that way (half the line's drawn width). null for a door with no
+// place. Properties' Lands on arrow (inspector.js) and the board's (whiteboard.js) point the way this axis times the side does
+function doorAxis(d) {
+    if (!isObj(d)) return null;
+    if (d.type === 'path' && d.tip !== 'fill') { var L = doorLanding(d, null, 1, 1); if (!L) return null; var dx = L.x - L.cx, dy = L.y - L.cy, l = Math.sqrt(dx * dx + dy * dy); return l > 0 ? { nx: dx / l, ny: dy / l, T: L.half } : null; }
+    var f = doorFrame(d); if (!f) return null;
+    var W = doorWays(f)[0]; return { nx: W.nx, ny: W.ny, T: W.T };
+}
+// A door's picked landing side as a file, a save or Properties may give it: 1 or -1, else null (no key: the side the token walks toward)
+function cleanLandSide(v) { return v === 1 || v === -1 ? v : null; }
+// The two keys of a door that leads somewhere, as a file or a host may give them (the import's cleaner, cleanup.js cleanImportItems):
+// doorStop, the door's own option "a shut door stops the move as a wall does until someone opens it" (Fulllion's pick 2, the other option; the
+// default, no key, is that a move into a shut, unlocked door opens it and goes through), only as true; and targetDoorId, the door on the map it
+// leads to that it is paired with (pick 3, the default way; no key: it lands as any portal does, in a room or at the map's home), only as an
+// id a piece may have
+function cleanDoorStop(v) { return v === true; }
+var DOOR_TO_RE = /^[A-Za-z0-9_.:-]{1,160}$/;
+function cleanDoorTo(v) { return typeof v === 'string' && DOOR_TO_RE.test(v) && !(v in Object.prototype) ? v : null; }
 // 1.6.3 (the owner's ruling of 2026-11-17, finding 8 of the review: whether players see a trigger zone "should be optional"): a trigger zone the
 // GM unticked Players see this zone carries zoneHidden: true. The host never sends it to a player or the stream window (net.js wireWbItem gives
 // nothing for it, and broadcastPos never relays its place), and its message still comes up for a player's token that goes into it (net.js
@@ -1895,6 +2029,6 @@ function trimRebase(t, x, y, w, h, g, cell) {
     });
     return base;
 }
-var API = { cleanTerrainKind: cleanTerrainKind, terrainOf: terrainOf, terrainSettle: terrainSettle, cleanHazard: cleanHazard, cleanFollow: cleanFollow, spreadCells: spreadCells, CELL_SIZE: CELL_SIZE, cleanMapCell: cleanMapCell, TRIM_MAX: TRIM_MAX, cleanTrim: cleanTrim, trimPolys: trimPolys, trimPath: trimPath, trimRebase: trimRebase, showOk: showOk, showOn: showOn, cleanShowFor: cleanShowFor, keepShow: keepShow, showToMap: showToMap, cleanNullFx: cleanNullFx, cleanCoverAs: cleanCoverAs, cleanCoverPro: cleanCoverPro, proOnLine: proOnLine, coverAsOf: coverAsOf, gradeOnLine: gradeOnLine, coverOfGrade: coverOfGrade, objectOn: objectOn, coverMost: coverMost, VERSION: VERSION, cleanEnvVals: cleanEnvVals, cleanEnvCells: cleanEnvCells, envAt: envAt, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, nearTokens: nearTokens, DOOR_NEAR: DOOR_NEAR, doorGap: doorGap, doorBeside: doorBeside, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, outlineSegs: outlineSegs, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, lineFirst: lineFirst, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, zoneHolds: zoneHolds, zoneHid: zoneHid, cleanZoneHidden: cleanZoneHidden, portalBeside: portalBeside, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, FOG_DARK_MIN: FOG_DARK_MIN, cleanFogDark: cleanFogDark, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal, lineOf: lineOf, lineWidth: lineWidth, lineOpacity: lineOpacity, lineTip: lineTip, lineScale: lineScale, lineFactor: lineFactor, cleanSeenWidth: cleanSeenWidth, cleanSeenOpacity: cleanSeenOpacity, cleanSeenTip: cleanSeenTip, MATCH: MATCH, secretMatch: secretMatch, seenDrawn: seenDrawn };
+var API = { cleanTerrainKind: cleanTerrainKind, terrainOf: terrainOf, terrainSettle: terrainSettle, cleanHazard: cleanHazard, cleanFollow: cleanFollow, spreadCells: spreadCells, CELL_SIZE: CELL_SIZE, cleanMapCell: cleanMapCell, TRIM_MAX: TRIM_MAX, cleanTrim: cleanTrim, trimPolys: trimPolys, trimPath: trimPath, trimRebase: trimRebase, showOk: showOk, showOn: showOn, cleanShowFor: cleanShowFor, keepShow: keepShow, showToMap: showToMap, cleanNullFx: cleanNullFx, cleanCoverAs: cleanCoverAs, cleanCoverPro: cleanCoverPro, proOnLine: proOnLine, coverAsOf: coverAsOf, gradeOnLine: gradeOnLine, coverOfGrade: coverOfGrade, objectOn: objectOn, coverMost: coverMost, VERSION: VERSION, cleanEnvVals: cleanEnvVals, cleanEnvCells: cleanEnvCells, envAt: envAt, LIMITS: LIMITS, RULESETS: RULESETS, MODES: MODES, squareGrid: squareGrid, hexGrid: hexGrid, gridFor: gridFor, cellOf: cellOf, cellCenter: cellCenter, cellKey: cellKey, hexDist: hexDist, nearTokens: nearTokens, DOOR_NEAR: DOOR_NEAR, doorGap: doorGap, doorBeside: doorBeside, rangeToCells: rangeToCells, cellsUnderRect: cellsUnderRect, cellsUnderHex: cellsUnderHex, cellsUnderCircle: cellsUnderCircle, cellsUnderDiamond: cellsUnderDiamond, itemCells: itemCells, itemOver: itemOver, outlineSegs: outlineSegs, pathSegs: pathSegs, pathCells: pathCells, withWalls: withWalls, wallsOf: wallsOf, copyWalls: copyWalls, wallEdgeCells: wallEdgeCells, lineClear: lineClear, moveClear: moveClear, cellCorners: cellCorners, coverBetween: coverBetween, coverFromPoint: coverFromPoint, openSeat: openSeat, lineFirst: lineFirst, coverRole: coverRole, barrierOn: barrierOn, isDoor: isDoor, strokeHeld: strokeHeld, cleanBarrier: cleanBarrier, blastStopOn: blastStopOn, cleanBlastStop: cleanBlastStop, fogHandOf: fogHandOf, cleanFogHand: cleanFogHand, cellsNear: cellsNear, isPortal: isPortal, cleanPortalLock: cleanPortalLock, zoneHolds: zoneHolds, zoneHid: zoneHid, cleanZoneHidden: cleanZoneHidden, portalBeside: portalBeside, doorThrough: doorThrough, doorStopAt: doorStopAt, doorLanding: doorLanding, doorFace: doorFace, doorAxis: doorAxis, cleanLandSide: cleanLandSide, cleanDoorStop: cleanDoorStop, cleanDoorTo: cleanDoorTo, DOOR_SQUARE: DOOR_SQUARE, DOOR_HEAD: DOOR_HEAD, visibleCells: visibleCells, seenCells: seenCells, cellDist: cellDist, cleanLight: cleanLight, cleanTokSenses: cleanTokSenses, cleanUnsensed: cleanUnsensed, cleanNulls: cleanNulls, cleanTerrain: cleanTerrain, TEXTURES: TEXTURES, cleanTexture: cleanTexture, TEX_TILES: TEX_TILES, cleanTexSrc: cleanTexSrc, cleanTexTile: cleanTexTile, cleanHeight: cleanHeight, cleanGround: cleanGround, itemCovers: itemCovers, groundAt: groundAt, cleanTokFx: cleanTokFx, terrainFactor: terrainFactor, cleanFogOff: cleanFogOff, markCells: markCells, lineOverHeight: lineOverHeight, lineOverWall: lineOverWall, heightStops: heightStops, cleanFogMarks: cleanFogMarks, lightUnit: lightUnit, unitCells: unitCells, cellInArc: cellInArc, litLevels: litLevels, neighbourCells: neighbourCells, cleanFogLit: cleanFogLit, revealedKeys: revealedKeys, pointRevealed: pointRevealed, cleanVision: cleanVision, cleanFog: cleanFog, cleanCampFog: cleanCampFog, FOG_DARK_MIN: FOG_DARK_MIN, cleanFogDark: cleanFogDark, secretOk: secretOk, secretOn: secretOn, cleanSecret: cleanSecret, SECRET_WALL: SECRET_WALL, cleanSeenColor: cleanSeenColor, cleanSeenTexture: cleanSeenTexture, secretLook: secretLook, secretSeen: secretSeen, secretReveal: secretReveal, lineOf: lineOf, lineWidth: lineWidth, lineOpacity: lineOpacity, lineTip: lineTip, lineScale: lineScale, lineFactor: lineFactor, cleanSeenWidth: cleanSeenWidth, cleanSeenOpacity: cleanSeenOpacity, cleanSeenTip: cleanSeenTip, MATCH: MATCH, secretMatch: secretMatch, seenDrawn: seenDrawn };
 if (typeof window !== 'undefined') window.wpFogCore = API;
-export { cleanTerrainKind, terrainOf, terrainSettle, cleanHazard, cleanFollow, spreadCells, CELL_SIZE, cleanMapCell, TRIM_MAX, cleanTrim, trimPolys, trimPath, trimRebase, showOk, showOn, cleanShowFor, keepShow, showToMap, cleanNullFx, cleanCoverAs, cleanCoverPro, proOnLine, coverAsOf, gradeOnLine, coverOfGrade, objectOn, coverMost, cleanEnvVals, cleanEnvCells, envAt, VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, nearTokens, DOOR_NEAR, doorGap, doorBeside, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, outlineSegs, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, lineFirst, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, zoneHolds, zoneHid, cleanZoneHidden, portalBeside, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, FOG_DARK_MIN, cleanFogDark, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal, lineOf, lineWidth, lineOpacity, lineTip, lineScale, lineFactor, cleanSeenWidth, cleanSeenOpacity, cleanSeenTip, MATCH, secretMatch, seenDrawn };
+export { cleanTerrainKind, terrainOf, terrainSettle, cleanHazard, cleanFollow, spreadCells, CELL_SIZE, cleanMapCell, TRIM_MAX, cleanTrim, trimPolys, trimPath, trimRebase, showOk, showOn, cleanShowFor, keepShow, showToMap, cleanNullFx, cleanCoverAs, cleanCoverPro, proOnLine, coverAsOf, gradeOnLine, coverOfGrade, objectOn, coverMost, cleanEnvVals, cleanEnvCells, envAt, VERSION, LIMITS, RULESETS, MODES, squareGrid, hexGrid, gridFor, cellOf, cellCenter, cellKey, hexDist, nearTokens, DOOR_NEAR, doorGap, doorBeside, rangeToCells, cellsUnderRect, cellsUnderHex, cellsUnderCircle, cellsUnderDiamond, itemCells, itemOver, outlineSegs, pathSegs, pathCells, withWalls, wallsOf, copyWalls, wallEdgeCells, lineClear, moveClear, cellCorners, coverBetween, coverFromPoint, openSeat, lineFirst, coverRole, barrierOn, isDoor, strokeHeld, cleanBarrier, blastStopOn, cleanBlastStop, fogHandOf, cleanFogHand, cellsNear, isPortal, cleanPortalLock, zoneHolds, zoneHid, cleanZoneHidden, portalBeside, doorThrough, doorStopAt, doorLanding, doorFace, doorAxis, cleanLandSide, cleanDoorStop, cleanDoorTo, DOOR_SQUARE, DOOR_HEAD, visibleCells, seenCells, cellDist, cleanLight, cleanTokSenses, cleanUnsensed, cleanNulls, cleanTerrain, TEXTURES, cleanTexture, TEX_TILES, cleanTexSrc, cleanTexTile, cleanHeight, cleanGround, itemCovers, groundAt, cleanTokFx, terrainFactor, cleanFogOff, markCells, lineOverHeight, lineOverWall, heightStops, cleanFogMarks, lightUnit, unitCells, cellInArc, litLevels, neighbourCells, cleanFogLit, revealedKeys, pointRevealed, cleanVision, cleanFog, cleanCampFog, FOG_DARK_MIN, cleanFogDark, secretOk, secretOn, cleanSecret, SECRET_WALL, cleanSeenColor, cleanSeenTexture, secretLook, secretSeen, secretReveal, lineOf, lineWidth, lineOpacity, lineTip, lineScale, lineFactor, cleanSeenWidth, cleanSeenOpacity, cleanSeenTip, MATCH, secretMatch, seenDrawn };

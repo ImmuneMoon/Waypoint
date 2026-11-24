@@ -240,6 +240,61 @@ for (const t of targets) {
         if (fillOk) console.log('ok        1.6.3 finding 20 (main.js wcfill slice and showWelcome, run for real): the welcome filled before the profile existed never writes its stand-in color over the profile on Join, the Join and Host views fill the boxes from the profile as they open, and a color picked by hand is saved once');
         else { console.log('FAIL      1.6.3 finding 20: the welcome never writes a color it was not given  -> ' + JSON.stringify({ untouched, refilled, byHand, slice: !!fillSrc })); bad++; }
     }
+    // 1.6.4 (Fulllion, 2026-11-23: "Yes, add it"): a join link's room code fills Join a game on a website's page. main.js's wclink slice, run for
+    // real with net.js's own room code rules (its roomcode block, run as it is) on pages of plain objects: the code from ?join= read once a page
+    // load, cleaned as a typed code is and shown as the app shows codes; only on a website's page; nothing that does not read as a room code;
+    // a box already holding a code left alone; Join a game opened by its own button where the welcome is not already on it; nothing joins
+    {
+        const linkSrc = cut('  // [tutorialcheck:wclink-start]', '  // [tutorialcheck:wclink-end]');
+        const netLf = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'utf8').replace(/\r\n/g, nl);
+        const ri = netLf.indexOf('// [netcheck:roomcode-start]'), rk = netLf.indexOf('// [netcheck:roomcode-end]');
+        const roomSrc = ri >= 0 && rk > ri ? netLf.slice(ri, rk) : '';
+        let netApi = null; try { netApi = new Function('crypto', 'var net = {};' + nl + roomSrc + nl + 'return net;')(require('crypto').webcrypto); } catch (e) { netApi = null; }
+        const runL = (search, web, opts) => {
+            opts = opts || {};
+            const presses = [], els = { wcJoinCode: el({ value: opts.had || '' }), wcJoinStatus: el(), wcJoinBtn: el({ click() { presses.push('join'); } }) };
+            const win = { wpWebMode: { web: () => web }, wpNet: opts.noNet ? undefined : Object.assign({ joinSession() { presses.push('dialed'); } }, netApi || {}) };
+            const store = { getItem: k => (opts.store || {})[k] || null };
+            let api; try { api = new Function('window', 'location', 'sessionStorage', '"use strict";' + nl + linkSrc + nl + 'return { open: wcLinkOpen, code: wcLinkCode, untouched: wcLinkUntouched };')(win, { search }, store); } catch (e) { return 'threw: ' + e.message; }
+            const got = [];
+            try {
+                got.push(api.open(docOf(els), !!opts.onJoin)); if (opts.twice) got.push(api.open(docOf(els), !!opts.onJoin));
+                if (opts.untouched) { got.push(api.untouched(els.wcJoinCode)); els.wcJoinCode.value += 'X'; got.push(api.untouched(els.wcJoinCode)); els.wcJoinCode.value = els.wcJoinCode.value.slice(0, -1); }
+                if (opts.again) { els.wcJoinCode.value = ''; els.wcJoinStatus.textContent = ''; got.push(api.open(docOf(els), false, true)); }
+            } catch (e) { return 'threw: ' + e.message; }
+            return [got.join(','), els.wcJoinCode.value, presses.join('+'), els.wcJoinStatus.textContent ? 'said' : 'quiet'].join('|');
+        };
+        const L = {
+            wp: runL('?join=WP-AB2CD-EF3GH', true, { onJoin: true }),
+            usual: runL('?join=ab2cd-ef3gh', true, { onJoin: true }),
+            encoded: runL('?x=1&join=WP%2DAB2CD%2DEF3GH#top', true, { onJoin: true }),
+            gm: runL('?join=AB2CDEF3GH', true, { onJoin: false }),
+            desk: runL('?join=AB2CD-EF3GH', false, { onJoin: false }),
+            hostile: runL('?join=%3Cscript%3E', true, { onJoin: true }),
+            broken: runL('?join=%E0%A4%A', true, { onJoin: true }),
+            none: runL('?stream=1', true, { onJoin: true }),
+            had: runL('?join=AB2CD-EF3GH', true, { onJoin: true, had: 'XYZ' }),
+            twice: runL('?join=AB2CD-EF3GH', true, { onJoin: true, twice: true }),
+            earlyWp: runL('?join=wp-ab2cd-ef3gh', true, { onJoin: true, noNet: true }),
+            earlyUsual: runL('?join=AB2CDEF3GH', true, { onJoin: true, noNet: true }),
+            earlyTypo: runL('?join=WP-AB2CD-EF3G1', true, { onJoin: true, noNet: true }),
+            rejoin: runL('?join=AB2CD-EF3GH', true, { onJoin: true, twice: true, store: { wp_rejoin: '{}' } }),
+            rehost: runL('?join=AB2CD-EF3GH', true, { onJoin: true, store: { wp_rehost: '{}' } }),
+            again: runL('?join=AB2CD-EF3GH', true, { onJoin: true, again: true }),
+            againNone: runL('?stream=1', true, { onJoin: true, again: true }),
+            untouched: runL('?join=AB2CD-EF3GH', true, { onJoin: true, untouched: true })
+        };
+        const want = { wp: 'true|WP-AB2CD-EF3GH||said', usual: 'true|AB2CD-EF3GH||said', encoded: 'true|WP-AB2CD-EF3GH||said', gm: 'true|AB2CD-EF3GH|join|said',
+            desk: 'false|||quiet', hostile: 'false|||quiet', broken: 'false|||quiet', none: 'false|||quiet', had: 'false|XYZ||quiet', twice: 'true,false|AB2CD-EF3GH||said',
+            earlyWp: 'true|WP-AB2CD-EF3GH||said', earlyUsual: 'true|AB2CD-EF3GH||said', earlyTypo: 'true|WPAB2CDEF3G1||said', rejoin: 'false,false|||quiet', rehost: 'false|||quiet',
+            again: 'true,true|AB2CD-EF3GH|join|said', againNone: 'false,false|||quiet', untouched: 'true,true,false|AB2CD-EF3GH||said' };
+        const wired = /if \(wcJoinFirst\(document\)\) \{ if \(typeof wcLinkOpen === 'function'\) wcLinkOpen\(document, true\); return; \}/.test(showSrc)
+            && /if \(typeof wcLinkOpen === 'function' && wcLinkOpen\(document, false\)\) return;/.test(showSrc)
+            && /var linked = typeof wcLinkUntouched === 'function' && wcLinkUntouched\(code\);/.test(maySrc) && /if \(linked\) code\.value = '';\n\s*showWelcome\(\); if \(linked\) wcLinkOpen\(document, false, true\); return true;/.test(maySrc);
+        const linkOk = !!linkSrc && !!roomSrc && !!netApi && JSON.stringify(L) === JSON.stringify(want) && wired;
+        if (linkOk) console.log('ok        1.6.4 a join link fills Join a game (main.js wclink slice with net.js roomcode, run for real): the code from ?join= shown as the app shows codes, a WP code and a usual one, encoded or not, only on a website\'s page, never a code that does not read, a box already holding a code left alone, read once, Join a game opened by its own button on a GM\'s page, and nothing joins; the review of 2026-11-23: grouped as the app groups codes before net.js has loaded, nothing filled while a reload goes back to its table, the code filled again over a GM\'s start screen, and a box still holding the link\'s code told from one the player typed');
+        else { console.log('FAIL      1.6.4 a join link fills Join a game  -> ' + JSON.stringify({ L, slice: !!linkSrc, room: !!roomSrc, net: !!netApi, wired })); bad++; }
+    }
     const showOk = shows.desk === 'flex|flex|none|launchRow+continue|Could not reconnect.|-|false' && shows.deskTable === 'flex|flex|none|launchRow+continue|Could not reconnect.|false|false' && shows.web === 'flex|none|flex|launchRow|Could not reconnect.|false|true'
         && shows.webTable === '||||Could not reconnect.|false|false' && shows.webLost === 'flex|none|flex|launchRow|Could not reconnect.|false|true';
     // maybeShowWelcome, run for real: it shows at once as it always did, a desktop by the stored choice and a website's page always (its mode is known

@@ -121,7 +121,8 @@ Inviting players [DRAFT]
 - Copy invite in the Multiplayer window now copies a join link too, like
   waypointvtt.com/join/AB2CD-EF3GH, with the room code after it for a
   player who opens Waypoint VTT on their computer and types it. The
-  password is still never in it.
+  password is still never in it. A player who follows the link to play
+  in a browser finds the room code already filled in on Join a game.
 
 The stream window [DRAFT]
 - A video you show to only some players no longer plays in the stream

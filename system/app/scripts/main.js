@@ -1313,6 +1313,63 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       return true;
   }
   // [tutorialcheck:wcweb-end]
+  // [tutorialcheck:wclink-start]
+  // 1.6.4 (Fulllion, 2026-11-23: "Yes, add it", asked by the website coordinator): the join link a GM copies (net.js inviteLine) leads to the
+  // website's /join page, and from there a player who plays in the browser comes to the play page with ?join=<code> in its address. On a
+  // website's page (webmode.js web: either mode, so a GM's page too) the welcome then opens on Join a game with that code already in the box,
+  // shown as the app shows codes, and a line says so. Nothing joins by itself: the player still adds a name and presses Join. The address is
+  // read once a page load (a later welcome, after a table is left, starts empty as ever), never on a desktop's page, where the app is served
+  // from this computer and no link can reach it, and never while a reload at a table is going back to it by itself (net.js refreshMark's
+  // wp_rejoin and wp_rehost), so that no second join is invited beside the automatic one.
+  var _wcLinkUsed = false, _wcLinkFilled = '';
+  // wcLinkCode: the room code an address's query names under join, cleaned as a typed code is (typed: net.js typedCode, else the same rule
+  // written here, since the welcome first comes up before net.js has loaded), or '' where there is none or it does not read as a room code:
+  // 4 to 16 letters and digits, the rule a room id is made by
+  function wcLinkCode(search, typed) {
+      var m = /[?&]join=([^&#]*)/.exec(String(search === null || search === undefined ? '' : search)); if (!m) return '';
+      var raw; try { raw = decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { return ''; }
+      var c = typeof typed === 'function' ? typed(raw) : String(raw).replace(/[\s\u00ad\u2010-\u2015\u2212-]+/g, '').toLowerCase().slice(0, 64);
+      return /^[a-z0-9]{4,16}$/.test(c) ? c : '';
+  }
+  // wcLinkShown: a cleaned code as the app shows it, net.js showCode where it has loaded, else the same grouping written here: a code that
+  // carries the WP mark (the two letters and ten of the code's alphabet) as WP-XXXXX-XXXXX, a ten-character code as XXXXX-XXXXX, any other as
+  // it is, in capitals. The review of the join link (2026-11-23): at a website's launch the welcome fills the box before net.js has loaded
+  function wcLinkShown(c, show) {
+      if (typeof show === 'function') return show(c);
+      var s = String(c || '').toUpperCase();
+      if (/^WP[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{10}$/.test(s)) return s.slice(0, 2) + '-' + s.slice(2, 7) + '-' + s.slice(7);
+      return s.length === 10 ? s.slice(0, 5) + '-' + s.slice(5) : s;
+  }
+  function wcLinkWeb() { var W = typeof window !== 'undefined' ? window.wpWebMode : null; return !!(W && typeof W.web === 'function' && W.web() === true); }
+  function wcLinkBack() { try { return !!(sessionStorage.getItem('wp_rejoin') || sessionStorage.getItem('wp_rehost')); } catch (e) { return false; } }
+  // wcLinkOpen: asked by showWelcome once the welcome is drawn. onJoin true means the welcome is already on Join a game (a website that joins
+  // tables alone); otherwise Join a game is opened by its own button, so its view is drawn as a press draws it. Answers whether it filled a code.
+  // A box that already holds a code is left as it is, and the line said is plain words, never an error. again true fills the code this page
+  // load already filled once more: wcGuessUndone asks it when a GM's page drew its start screen afresh over the join page the link opened
+  function wcLinkOpen(doc, onJoin, again) {
+      if (!wcLinkWeb()) return false;
+      var c;
+      if (again === true) { if (!_wcLinkFilled) return false; c = _wcLinkFilled; }
+      else {
+          if (_wcLinkUsed) return false;
+          _wcLinkUsed = true;
+          if (wcLinkBack()) return false;
+          var n0 = typeof window !== 'undefined' ? window.wpNet : null;
+          c = wcLinkCode(typeof location !== 'undefined' ? location.search : '', n0 && n0.typedCode);
+      }
+      var box = doc.getElementById('wcJoinCode');
+      if (!c || !box || (box.value || '').trim()) return false;
+      if (!onJoin) { var jb = doc.getElementById('wcJoinBtn'); if (jb && typeof jb.click === 'function') jb.click(); }
+      var n = typeof window !== 'undefined' ? window.wpNet : null;
+      box.value = wcLinkShown(c, n && n.showCode);
+      _wcLinkFilled = c; box.wpLinkFilled = box.value;
+      var st = doc.getElementById('wcJoinStatus'); if (st) { st.textContent = 'The room code from your invite is filled in. Add your name if it is empty, then press Join.'; st.className = 'wc-join-status'; }
+      return true;
+  }
+  // wcLinkUntouched: whether the code box still holds exactly what a join link filled in (asked by wcGuessUndone, which otherwise reads any
+  // code in the box as typed by the player and leaves the join page as it stands)
+  function wcLinkUntouched(box) { return !!(box && box.wpLinkFilled && box.value === box.wpLinkFilled); }
+  // [tutorialcheck:wclink-end]
   // [tutorialcheck:wcseed-start]
   // The campaign the app seeds into an empty save ("Default Campaign" with one empty map) is not one to continue (the owner's word, 2026-10-01: a
   // fresh Waypoint lists none): it stays off the welcome's list until something is put in it — a room, a drawing, a planner or a page — or it is
@@ -1463,7 +1520,8 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
       if (window.wpFaces) window.wpFaces.paintRows();   // Onboarding F1b: the token face row
       w.style.display = 'flex';
       if (typeof wcResumeDraw === 'function') wcResumeDraw(document, wcJoinOnly() ? null : wcResumeRec(window.wpNet, (state.appState && state.appState.campaigns) || {}));   // 1.6.3 (finding 6): a table that was running a few minutes ago
-      if (wcJoinFirst(document)) return;   // 1.5.5: such a website's welcome is Join a game, and lists no campaign
+      if (wcJoinFirst(document)) { if (typeof wcLinkOpen === 'function') wcLinkOpen(document, true); return; }   // 1.5.5: such a website's welcome is Join a game, and lists no campaign. 1.6.4: with the code a join link named
+      if (typeof wcLinkOpen === 'function' && wcLinkOpen(document, false)) return;   // 1.6.4: a GM's website page opened from a join link goes to Join a game with its code
       (function ensureContinue(tries) {   // load() is async; retry the campaign list until it arrives (no-op once loaded, e.g. on reopen)
           renderWcContinue();
           if (typeof wcResumeDraw === 'function') wcResumeDraw(document, wcJoinOnly() ? null : wcResumeRec(window.wpNet, (state.appState && state.appState.campaigns) || {}));   // 1.6.3 (finding 6): asked again as the save and the multiplayer module come in (net.js may load after the welcome first comes up)
@@ -1583,8 +1641,10 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           wcGate(document, false);
           var w = document.getElementById('welcomeScreen'), jv = document.getElementById('wcJoinView'), code = document.getElementById('wcJoinCode');
           if (!w || w.style.display === 'none' || !jv || jv.style.display === 'none') return false;
-          if ((window.wpNet && (window.wpNet.active || window.wpNet.fromWelcome)) || (code && (code.value || '').trim())) return false;
-          showWelcome(); return true;
+          var linked = typeof wcLinkUntouched === 'function' && wcLinkUntouched(code);   // the join link's own code is no code the player typed (the review of the join link, 2026-11-23)
+          if ((window.wpNet && (window.wpNet.active || window.wpNet.fromWelcome)) || (code && (code.value || '').trim() && !linked)) return false;
+          if (linked) code.value = '';
+          showWelcome(); if (linked) wcLinkOpen(document, false, true); return true;
       }
   })();
 

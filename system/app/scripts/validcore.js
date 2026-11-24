@@ -879,6 +879,8 @@ function validateSystem(sys, F) {
             if (!isObj(a)) return;
             if (typeof a.vs === 'string') checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.vs', a.vs, false, 'gm');
             if (typeof a.needs === 'string' && a.needs) checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.needs', a.needs, false, 'gm');
+            if (a.who === 'spread' && typeof a.pool === 'string' && a.pool) checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.pool', a.pool, true, 'gm');   // 1.6.4 (gap 24): its pool, rolled once as it goes off
+            if (a.who === 'spread') { var spF = typeof a.by === 'string' ? fieldById(sys, a.by) : null; if (!spF || ['number', 'formula', 'resource'].indexOf(spF.kind) < 0) warnings.push({ id: it.id, prop: 'aff.' + ai + '.by', message: 'Its spread reads each one\u2019s figure from a field that is gone or holds no number, so no one is covered.' }); }
             if (isObj(a.lasts) && typeof a.lasts.n === 'string' && a.lasts.n) { checkFormula({ id: it.id, key: it.id }, 'aff.' + ai + '.lasts', a.lasts.n, true, 'gm'); if (!affLastsSecs(sys, 1, a.lasts.u)) warnings.push({ id: it.id, prop: 'aff.' + ai + '.lasts', message: 'Lasts names a time unit the Combat tab does not have, so the effect lasts its own time.' }); }
         });
         if (it.cost) checkFormula({ id: it.id, key: it.id }, 'cost', it.cost, false, it.vis);

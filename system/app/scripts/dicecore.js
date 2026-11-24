@@ -436,6 +436,7 @@ function cleanHits(v) {
         for (var k = 2; k <= 5; k++) { var pv = v[i]['dmg' + k]; if (pv === undefined) continue; var pc = cleanDmg2(pv); if (!pc) return null; o['dmg' + k] = pc; }
         if (Array.isArray(v[i].f) && v[i].f.length <= LIMITS.hitFaces && v[i].f.every(function(x) { return isInt(x) && Math.abs(x) <= 1000000; })) o.f = v[i].f.slice();
         roundInto(o, v[i]);
+        if (v[i].cvh !== undefined) { var hcv = cleanCovHit(v[i].cvh); if (hcv) o.cvh = hcv; }   // 1.6.4 (gap 8): where this hit landed, said on its card (one that does not clean is left off, the hit kept)
         out.push(o);
     }
     return out;
@@ -448,16 +449,16 @@ function cleanAim(v) {
     return { n: v.n.trim(), f: f };
 }
 // 1.6.0 Where a hit behind cover lands, { n, d?, of?, e?, ea?, st? }: the location's name (60 at most), the die d of of sides, the second die e of ea among
-// several rows, st a pick that stood; null when malformed. coverHitWords is its line on the card
+// several rows, st a pick that stood, op (1.6.4, gap 8) a target in the open; null when malformed. coverHitWords is its line on the card
 function cleanCovHit(v) {
     if (!v || typeof v !== 'object' || Array.isArray(v) || typeof v.n !== 'string' || !v.n.trim() || v.n.length > 60 || CTRL_RE.test(v.n)) return null;
     var out = { n: v.n.trim() }, two = function(a, b) { return isInt(v[a]) && isInt(v[b]) && v[b] >= 1 && v[b] <= 1000 && v[a] >= 1 && v[a] <= v[b]; };
-    if (two('d', 'of')) { out.d = v.d; out.of = v.of; } if (two('e', 'ea')) { out.e = v.e; out.ea = v.ea; } if (v.st === 1) out.st = 1;
+    if (two('d', 'of')) { out.d = v.d; out.of = v.of; } if (two('e', 'ea')) { out.e = v.e; out.ea = v.ea; } if (v.st === 1) out.st = 1; if (v.op === 1) out.op = 1;
     return out;
 }
 function coverHitWords(c) {
     if (c.st === 1) return 'A called shot at ' + c.n + ' stands';
-    return 'Behind cover, it lands on ' + c.n + (c.d ? ': 1d' + c.of + ' shows ' + c.d : '') + (c.e ? (c.d ? ', then ' : ': ') + c.e + ' of ' + c.ea : '');
+    return (c.op === 1 ? 'It lands on ' : 'Behind cover, it lands on ') + c.n + (c.d ? ': 1d' + c.of + ' shows ' + c.d : '') + (c.e ? (c.d ? ', then ' : ': ') + c.e + ' of ' + c.ea : '');
 }
 // The host's record: { type: 'roll', id, from, expr, draws, v, ts, priv?, to?, rid? }
 // 1.6.0: a target's posture on an attack, as the host says it (systemcore posRec): { n: its name, by: what counted, c?: the cover's word, a?: 1 where hits land as aimed }

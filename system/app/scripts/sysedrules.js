@@ -725,6 +725,9 @@ function dbxKeys(listId, numOnly) {   // [key, words]: a list's stats, and its c
 function dbxOpts(first, opts, val) {   // a select's choices, a value that is no choice now kept and said so
     var o = [first].concat(opts); if (typeof val === 'string' && val && !opts.some(function(x) { return x[0] === val; })) o.push([val, 'One that is gone']); return o;
 }
+// 1.6.4 (gap 5): what the Taking damage box calls DR everywhere, and the fields it may be: each Number and Derived field, as [id, name]
+var DMG_WHOLE_DR = 'DR everywhere', DMG_WHOLE_DR_AT = [['', 'Only where there are no hit locations'], ['fallback', 'Also where a blow lands on no location']], DMG_WHOLE_DR_AT_LINE = 'When DR everywhere is read: only in a system with no hit locations, or also for a blow that lands on no location, such as one nothing aimed in a system without Unaimed blows land at';
+function dbxDrFields() { return (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; }); }
 function dbxPools() { return (draft.fields || []).filter(function(f) { return f && f.kind === 'resource'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; }); }
 function dbxLists() { return (draft.fields || []).filter(function(f) { return f && f.kind === 'item-list'; }).map(function(f) { return [f.id, f.label || f.key || f.id]; }); }
 function dbxStr(v) { return typeof v === 'string' ? v : ''; }
@@ -797,6 +800,9 @@ function damageBox(box, cm) {
     }
     var lc = dbxObj(d.locs) ? d.locs : {}, r2 = el('div', 'sys-flags sys-dmgr-locs'), lkeys = dbxKeys(lc.list, false);
     dbxCap(r2, 'Hit locations'); r2.appendChild(select('sys-dmgr-loclist', dbxOpts(['', 'None'], lists, lc.list), dbxStr(lc.list), 'The item list whose rows are the places a hit can land'));
+    dbxCap(r2, DMG_WHOLE_DR); r2.appendChild(select('sys-dmgr-wholedr', dbxOpts(['', 'No DR'], dbxDrFields(), d.wholeDr), dbxStr(d.wholeDr), 'A Number or Derived field that is the DR a blow meets where it strikes no location, for a game with one DR for the whole body. A damage type ticked No DR ignores it, and the armor divisor divides it'));   // 1.6.4 (gap 5): cleaned by damagecore cleanDamageRules as wholeDr
+    if (d.wholeDr && lc.list) r2.appendChild(select('sys-dmgr-wholedrat', DMG_WHOLE_DR_AT, d.wholeDrAt === 'fallback' ? 'fallback' : '', DMG_WHOLE_DR_AT_LINE));   // 1.6.4 (Fulllion: "a builder option"): when it is read, which matters only beside hit locations
+    if (d.wholeDr) r2.appendChild(el('div', 'sys-note', !lc.list ? 'Every blow meets it, since no hit locations are named.' : d.wholeDrAt === 'fallback' ? 'A blow that lands on no location meets it. One that lands on a location meets that location\u2019s DR.' : 'It counts only in a system with no hit locations, so with these locations it does nothing.'));   // 1.6.4: the gray line saying what the choice does
     if (lc.list) {
         dbxCap(r2, 'DR'); r2.appendChild(select('sys-dmgr-locdr', dbxOpts(['', 'No DR'], lkeys, lc.dr), dbxStr(lc.dr), 'The stat or column of that list that is the DR at a location. A column may read the kind and the type of the part of the blow it is judged for'));
         dbxCap(r2, 'Side'); r2.appendChild(select('sys-dmgr-locside', dbxOpts(['', 'No sides'], dbxKeys(lc.list, true), lc.side), dbxStr(lc.side), 'A number stat of that list naming each row’s side: 0 none, 1 left, 2 right. Rules can then read the side struck, and each side’s rows added up. The window names the side beside the location'));   // 1.6.0
@@ -1016,7 +1022,9 @@ function onDamageChange(t) {
         var d = dbxDraft(), was = dbxObj(d.locs) ? d.locs : {};
         if (!v) delete d.locs; else if (was.list !== v) { d.locs = { list: v }; if (was.vital) d.locs.vital = was.vital; (Array.isArray(d.types) ? d.types : []).forEach(function(y) { if (dbxObj(y)) delete y.plus; }); }
         dbxTidy(); redraw = true;
-    } else if (dbxHas(c, 'sys-dmgr-locdr') || dbxHas(c, 'sys-dmgr-loccrip') || dbxHas(c, 'sys-dmgr-locside')) { var dl = dbxDraft(); if (!dbxObj(dl.locs)) return true; dbxSet(dl.locs, dbxHas(c, 'sys-dmgr-locdr') ? 'dr' : dbxHas(c, 'sys-dmgr-locside') ? 'side' : 'crip', v); }
+    } else if (dbxHas(c, 'sys-dmgr-wholedr')) { var dW = dbxDraft(); dbxSet(dW, 'wholeDr', v); if (!v) delete dW.wholeDrAt; dbxTidy(); redraw = true; }   // 1.6.4 (gap 5)
+    else if (dbxHas(c, 'sys-dmgr-wholedrat')) { dbxSet(dbxDraft(), 'wholeDrAt', v); redraw = true; }   // 1.6.4: when it is read
+    else if (dbxHas(c, 'sys-dmgr-locdr') || dbxHas(c, 'sys-dmgr-loccrip') || dbxHas(c, 'sys-dmgr-locside')) { var dl = dbxDraft(); if (!dbxObj(dl.locs)) return true; dbxSet(dl.locs, dbxHas(c, 'sys-dmgr-locdr') ? 'dr' : dbxHas(c, 'sys-dmgr-locside') ? 'side' : 'crip', v); }
     else if (dbxHas(c, 'sys-dmgr-ypool') || dbxHas(c, 'sys-dmgr-ynodr') || dbxHas(c, 'sys-dmgr-ynowear') || dbxHas(c, 'sys-dmgr-ycuts') || dbxHas(c, 'sys-dmgr-yplus') || dbxHas(c, 'sys-dmgr-apool') || dbxHas(c, 'sys-dmgr-anowear')) {
         var y = dbxRow(t, 'sys-dmgr-type', 'yi', 'types'); if (!y) return true;
         if (dbxHas(c, 'sys-dmgr-ypool')) dbxSet(y, 'pool', v);
@@ -1099,8 +1107,10 @@ function damageSays(d, sys, Fx) {
     var low = function(a) { return (Array.isArray(a) ? a : []).map(function(x) { return String(x).toLowerCase(); }); };
     var isList = function(id) { return typeof id === 'string' && kinds[id] === 'item-list'; };
     var numStat = function(listId, k) { var f = fl(listId), sp = f && dbxObj(f.list) ? f.list : null; return !!sp && typeof k === 'string' && (Array.isArray(sp.stats) ? sp.stats : []).some(function(s) { return dbxObj(s) && String(s.key).toLowerCase() === k.toLowerCase() && s.kind !== 'pick'; }); };
-    var any = (typeof d.pool === 'string' && d.pool) || (typeof d.major === 'string' && d.major.trim()) || (dbxObj(d.locs) && d.locs.list) || ['types', 'kinds', 'layers', 'weapons', 'onWound'].some(function(k) { return Array.isArray(d[k]) && d[k].length; });
+    var any = (typeof d.pool === 'string' && d.pool) || (typeof d.major === 'string' && d.major.trim()) || (dbxObj(d.locs) && d.locs.list) || (typeof d.wholeDr === 'string' && d.wholeDr) || ['types', 'kinds', 'layers', 'weapons', 'onWound'].some(function(k) { return Array.isArray(d[k]) && d[k].length; });
     if (any && !cleanDamageRules(d, kinds, res, fl, false)) say('Taking damage: Save keeps these rules only with a pool, a damage type, hit locations or Any wound, so it drops them.');
+    if (typeof d.wholeDr === 'string' && d.wholeDr && !piece({ wholeDr: d.wholeDr }).wholeDr) say(DMG_WHOLE_DR + ': that field is gone, or is no Number or Derived field, so Save drops it.');   // 1.6.4 (gap 5)
+    else if (typeof d.wholeDr === 'string' && d.wholeDr && dbxObj(d.locs) && d.locs.list && d.wholeDrAt !== 'fallback') warn(DMG_WHOLE_DR + ' counts only in a system with no hit locations, so with these it does nothing. Set it to Also where a blow lands on no location to use it.', 'dmgr.wholedr');   // Save keeps it, and it does nothing
     if (typeof d.pool === 'string' && d.pool && !piece({ pool: d.pool }).pool) say('Wounds come off: that pool is gone, so Save drops it.');
     if (typeof d.major === 'string' && d.major.trim()) { if (!piece({ major: d.major }).major) say('Major Wound: the formula is too long or not on one line, so Save drops it.'); else reads(d.major, 'Major Wound'); }
     if (typeof d.woundF === 'string' && d.woundF.trim()) { if (!piece({ woundF: d.woundF }).woundF) say('Wound by: the formula is too long or not on one line, so Save drops it.'); else reads(d.woundF, 'Wound by'); }   // 1.6.2

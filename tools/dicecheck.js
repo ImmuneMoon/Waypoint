@@ -480,6 +480,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 !!rC && JSON.stringify(rC.cvh) === JSON.stringify({ n: 'Left arm', d: 2, of: 6, e: 1, ea: 2 }) && JSON.stringify(rS.cvh) === JSON.stringify({ n: 'Head', st: 1 }) && JSON.stringify(rP.cvh) === JSON.stringify({ n: 'Head' }) && badC.every(r => r && !('cvh' in r))
                 && D.coverHitWords(rC.cvh) === 'Behind cover, it lands on Left arm: 1d6 shows 2, then 1 of 2' && D.coverHitWords(rS.cvh) === 'A called shot at Head stands' && D.coverHitWords(rP.cvh) === 'Behind cover, it lands on Head', JSON.stringify([rC, rS, rP]));
         }
+        {   // 1.6.4 (the full test's gap 8): a location rolled for a target in the open rides its card as op 1, which its words read; any other op is left off
+            const rO = cleanRoll(rec({ cvh: { n: 'Head', d: 1, of: 10, op: 1 } })), rX = cleanRoll(rec({ cvh: { n: 'Head', op: 2 } })), rT = cleanRoll(rec({ cvh: { n: 'Head', op: true } }));
+            check('1.6.4 (gap 8) cleanRoll keeps a location rolled in the open (op 1) and its words say no cover; an op of any other value is left off, and the words stay those of cover',
+                JSON.stringify(rO.cvh) === JSON.stringify({ n: 'Head', d: 1, of: 10, op: 1 }) && D.coverHitWords(rO.cvh) === 'It lands on Head: 1d10 shows 1' && JSON.stringify(rX.cvh) === JSON.stringify({ n: 'Head' }) && JSON.stringify(rT.cvh) === JSON.stringify({ n: 'Head' }) && D.coverHitWords(rX.cvh) === 'Behind cover, it lands on Head', JSON.stringify([rO, rX, rT]));
+        }
+        {   // 1.6.4 (gap 8): each further hit of a burst says where it landed (cleanHits keeps cvh as cleanCovHit cleans it; one that does not clean is left off, the hit kept)
+            const hR = cleanRoll(rec({ dmg: 1, more: [{ t: 3, cvh: { n: 'Arm', d: 4, of: 10, op: 1 } }, { t: 2, cvh: { n: '' } }, { t: 5, hit: 'w_x' }] }));
+            check('1.6.4 (gap 8) a burst\'s further hits keep their own location words on the card, a malformed one left off and the hit kept, and never a row',
+                !!hR && Array.isArray(hR.more) && hR.more.length === 3 && JSON.stringify(hR.more[0].cvh) === JSON.stringify({ n: 'Arm', d: 4, of: 10, op: 1 }) && !('cvh' in hR.more[1]) && !('hit' in hR.more[2]) && D.coverHitWords(hR.more[0].cvh) === 'It lands on Arm: 1d10 shows 4', JSON.stringify(hR));
+        }
         {   // 1.6.0 (B3): a damage roll's second part on the host's record (cleanDmg2, cleanRoll): kept only beside dmg 1, text and numbers in their bounds; one that does not clean is left off and the roll kept
             const r2 = cleanRoll(rec({ dmg: 1, dmg2: { t: 4, n: 1, dtype: 'burn', ad: 2 } })), r0 = cleanRoll(rec({ dmg2: { t: 4 } })), rT = cleanRoll(rec({ dmg: 1, dmg2: { t: 0 } }));
             const badD2 = [{ t: -1 }, { t: 1.5 }, { t: 1000001 }, { t: 4, n: 0 }, { t: 4, n: 101 }, { t: 4, dtype: '9x' }, { t: 4, dtype: '<b>' }, { t: 4, ad: 1 }, { t: 4, ad: 0.05 }, { t: 4, ad: 'x' }, [4], 'x', null].map(b => cleanRoll(rec({ dmg: 1, dmg2: b })));

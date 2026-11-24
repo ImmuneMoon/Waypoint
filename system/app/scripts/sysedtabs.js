@@ -584,9 +584,10 @@ function onInput(e) {
         else if (/(^| )sys-fly-(speed|rounds|hp|pro|size)( |$)/.test(ic)) { if (!it.flies || typeof it.flies !== 'object') return; var flK = /sys-fly-(speed|rounds|hp|pro|size)/.exec(ic)[1]; if (flK === 'speed') it.flies.speed = String(t.value).slice(0, LIMITS.formula); else { var flN = Number(t.value); if (t.value !== '' && isFinite(flN)) it.flies[flK] = flN; else delete it.flies[flK]; } }   // 1.6.2 (vehicles, fold (d)): Save cleans them
         else if (ic.indexOf('sys-item-damage') >= 0) { it.damage = t.value; affSaysAt(t, it, null); }   // 1.6.3: an affliction that reaches those it hurts needs the item's Damage, so each says again what it does
         else if (/(^| )sys-item-afrag( |$)/.test(ic)) { if (!it.area) return; if (t.value.trim()) it.area.frag = t.value.slice(0, LIMITS.formula); else { delete it.area.frag; delete it.area.fragType; } }   // 1.5.9 (es): its fragmentation (Save cleans it, the validator reads it)
-        else if (/(^| )sys-item-aff(vs|needs|lasts)( |$)/.test(ic)) {   // 1.5.9 (es): an affliction's three formulas (Save cleans them, the validator reads them), and what Save does with it said at once
-            var afI = affOfRow(t, it); if (!afI) return; var kI = /sys-item-aff(vs|needs|lasts)/.exec(ic)[1], vI = String(t.value).slice(0, LIMITS.formula);
-            if (kI === 'vs') afI.a.vs = vI; else if (kI === 'needs') { if (vI.trim()) afI.a.needs = vI; else delete afI.a.needs; }
+        else if (/(^| )sys-item-aff(vs|needs|lasts|pool)( |$)/.test(ic)) {   // 1.5.9 (es): an affliction's three formulas (Save cleans them, the validator reads them), and what Save does with it said at once; 1.6.4 (gap 24): and a spread's pool
+            var afI = affOfRow(t, it); if (!afI) return; var kI = /sys-item-aff(vs|needs|lasts|pool)/.exec(ic)[1], vI = String(t.value).slice(0, LIMITS.formula);
+            if (kI === 'pool') { if (vI.trim()) afI.a.pool = vI; else delete afI.a.pool; }
+            else if (kI === 'vs') afI.a.vs = vI; else if (kI === 'needs') { if (vI.trim()) afI.a.needs = vI; else delete afI.a.needs; }
             else if (vI.trim()) { var luI = afI.ln.querySelector('.sys-item-affunit'); afI.a.lasts = { n: vI, u: afI.a.lasts && afI.a.lasts.u ? afI.a.lasts.u : (luI && luI.value) || 'minutes' }; } else delete afI.a.lasts;
             affSaysAt(t, it, afI.a);
         }
@@ -921,9 +922,12 @@ function onChange(e) {
         if (c.indexOf('sys-item-ause') >= 0) { if (iit.area) { if (t.checked) iit.area.use = true; else delete iit.area.use; } markDirty(); patchErrors(); return; }
         if (c.indexOf('sys-item-aplace') >= 0) { if (iit.area) { if (t.checked) { iit.area.place = true; delete iit.area.flight; if (!(typeof iit.area.trig === 'number' && iit.area.trig > 0)) iit.area.trig = 2; } else { delete iit.area.place; delete iit.area.trig; } } markDirty(); renderAll(); return; }   // 1.5.9: a placed mine is never launched
         if (c.indexOf('sys-item-afragtype') >= 0) { if (iit.area) { if (t.value) iit.area.fragType = t.value; else delete iit.area.fragType; } markDirty(); patchErrors(); return; }   // 1.5.9 (es)
-        if (/(^| )sys-item-aff(fx|who|unit)( |$)/.test(c)) {   // 1.5.9 (es): an affliction's effect, whom it reaches and the unit of its Lasts
-            var afC = affOfRow(t, iit); if (!afC) return; var kC = /sys-item-aff(fx|who|unit)/.exec(c)[1], vC = String(t.value || '');
-            if (kC === 'fx') { if (vC) afC.a.fx = vC.slice(0, 32); else delete afC.a.fx; } else if (kC === 'who') { if (vC === 'all') afC.a.who = 'all'; else delete afC.a.who; }
+        if (/(^| )sys-item-aff(fx|who|unit|by|res)( |$)/.test(c)) {   // 1.5.9 (es): an affliction's effect, whom it reaches and the unit of its Lasts; 1.6.4 (gap 24): a spread's field and its resist choice
+            var afC = affOfRow(t, iit); if (!afC) return; var kC = /sys-item-aff(fx|who|unit|by|res)/.exec(c)[1], vC = String(t.value || '');
+            if (kC === 'by') { if (vC) afC.a.by = vC.slice(0, 32); else delete afC.a.by; affSaysAt(t, iit, afC.a); markDirty(); patchErrors(); return; }
+            if (kC === 'res') { if (vC === 'roll') afC.a.resist = 'roll'; else delete afC.a.resist; markDirty(); renderAll(); return; }   // the effect's words change with it
+            if (kC === 'who') { var wasSp = afC.a.who === 'spread'; if (vC === 'all' || vC === 'spread') afC.a.who = vC; else delete afC.a.who; if (vC !== 'spread') { delete afC.a.by; delete afC.a.pool; delete afC.a.resist; } if (wasSp || vC === 'spread') { markDirty(); renderAll(); return; } }   // a spread draws its own controls
+            if (kC === 'fx') { if (vC) afC.a.fx = vC.slice(0, 32); else delete afC.a.fx; } else if (kC === 'who') {}
             else if (afC.a.lasts && typeof afC.a.lasts === 'object') afC.a.lasts.u = vC.slice(0, 24);
             affSaysAt(t, iit, afC.a); markDirty(); patchErrors(); return;
         }

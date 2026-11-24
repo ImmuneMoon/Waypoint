@@ -668,36 +668,64 @@ export function wbBlast() {   // [split:glue]
           blastDistances(b, map).forEach(function(r) {
               if (!r || !r.tok || typeof r.tok.charId !== 'string' || !shapeHolds(b, r)) return;
               var tier = window.wpFog && window.wpFog.coverAt ? window.wpFog.coverAt(b.x, b.y, r.tok, map, elevOn ? (b.elev || 0) : 0, elevOn ? tokenElevation(r.tok, map, b.thrown === true) : 0) : null;
-              inB.push({ id: r.tok.charId, shielded: !!(S.coverOutcome && S.coverOutcome(sys, tier) === 'none') });
+              inB.push({ id: r.tok.charId, shielded: !!(S.coverOutcome && S.coverOutcome(sys, tier) === 'none'), d: r.d });   // d (1.6.4): yards from its center, which a spread's ties read
           });
           return inB;
       };
-      A.forEach(function(a) {
-          if (!a || typeof a.vs !== 'string' || typeof a.fx !== 'string') return;
-          var def = Object.prototype.hasOwnProperty.call(defs, a.fx) ? defs[a.fx] : null; if (!def) { gone++; return; }   // an effect the system no longer has
-          BC.affTargets(a.who === 'all' ? inBlast() : null, byShare ? hu.s : hu.w, a.who === 'all').forEach(function(cid) {
+      // one character an affliction reaches: its Only where, the resist roll, and the effect put on at a failure. cov (1.6.4, gap 24): one a spread
+      // covered, whose Only where was read as the pool was spread; with cov.roll false it takes the effect with no roll, being covered is the test
+      var reach = function(a, def, cid, cov) {
               var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, cid) ? camp.chars[cid] : null; if (!ch) return;   // own ids only
-              var vars = S.makeResolver(sys, ch, F);
-              if (typeof a.needs === 'string' && a.needs && !S.rollNeedsOk({ needs: a.needs }, vars, F)) { out.held++; return; }
+              var vars = S.makeResolver(sys, ch, F), head = (nm || 'Affliction') + ':', said = '';
+              if (!cov && typeof a.needs === 'string' && a.needs && !S.rollNeedsOk({ needs: a.needs }, vars, F)) { out.held++; return; }
+              if (cov && cov.roll !== true) said = 'Covered by the spread.';
+              else {
               if (!rs) { owed.push(String(ch.name || 'A character').slice(0, 60)); return; }
               var rr = window.wpDice.rollFor(cid, rs.replace(/\bResist\b/gi, function() { return '(' + a.vs + ')'; }), nm ? nm + ' resist' : 'Resist', { gmOnly: b.gm === true, priv: ch.npc === true || !ch.ownerId });
               var ck = rr && rr.ok && window.wpNet ? window.wpNet.rollCheck : null; if (!ck || typeof ck.pass !== 'boolean') { odd++; return; }   // a resist roll that is no check puts nothing on
               var bare = (rr.priv === true || b.gm === true) && ch.npc !== true && !!ch.ownerId;   // the review of fold 4: a resist roll kept the GM's (a GM-only item, a GM-only value it read) keeps its figures off its player's card
-              var vsW = !bare && typeof ck.total === 'number' && isFinite(ck.total) && typeof ck.target === 'number' && isFinite(ck.target) ? ', ' + ck.total + ' against ' + ck.target : '', head = (nm || 'Affliction') + ':';
-              if (ck.pass) { out.resisted++; if (window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, [head, 'Resisted' + vsW + '.']); return; }
+              var vsW = !bare && typeof ck.total === 'number' && isFinite(ck.total) && typeof ck.target === 'number' && isFinite(ck.target) ? ', ' + ck.total + ' against ' + ck.target : '';
+              if (ck.pass) { out.resisted++; if (window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, [head, (cov ? 'Covered by the spread, and resisted' : 'Resisted') + vsW + '.']); return; }
+              said = (cov ? 'Covered by the spread, and failed to resist' : 'Failed to resist') + vsW + '.';
+              }
               var secs = 0, lw = '';
               if (a.lasts && typeof a.lasts.n === 'string' && typeof S.affLastsSecs === 'function') { var lr = F.evaluate(a.lasts.n, { vars: vars }), ln = lr && lr.ok && typeof lr.value === 'number' && isFinite(lr.value) ? lr.value : 0; if (ln > 0) { secs = S.affLastsSecs(sys, ln, a.lasts.u); if (secs > 0) lw = lastsWords(sys, ln, a.lasts.u); } }   // rolled as the victim
               var fl = fxLists.filter(function(f) { var l = ch.values ? ch.values[f.id] : null; return Array.isArray(l) && l.some(function(x) { return x && x.ref === a.fx; }); })[0] || fxLists[0]; if (!fl) { odd++; return; }
               var onB = !!ch.values && Array.isArray(ch.values[fl.id]) && ch.values[fl.id].some(function(x) { return !!x && x.ref === a.fx && x.on !== false; }), res = S.applyEffectOp(sys, ch, fl.id, { op: 'add', rowId: 'x_' + Math.random().toString(36).slice(2, 14), ref: a.fx }, F, { now: Date.now(), inCombat: !!(window.wpNet && typeof window.wpNet.charInCombat === 'function' && window.wpNet.charInCombat(cid)), secs: secs > 0 ? secs : undefined });
               if (!res || !res.ok) { odd++; return; }
               var vals = {}; vals[fl.id] = res.value; if (res.clamp) Object.keys(res.clamp).forEach(function(k) { vals[k] = res.clamp[k]; });
-              write(ch, cid, vals); out.on++;
-              if (window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, [head, 'Failed to resist' + vsW + '.', (def.vis === 'gm' ? 'An effect' : String(def.name || 'An effect').slice(0, 60)) + ' is on' + (lw ? ' for ' + lw : onB && !res.again ? ' already' : '') + '.']);   // to the GM and the character's player
+              write(ch, cid, vals); out.on++; if (cov && cov.roll !== true) out.sp = (out.sp || 0) + 1;   // 1.6.4: covered by a spread with no roll, never a failed resist
+              if (window.wpNet && typeof window.wpNet.damageCard === 'function') window.wpNet.damageCard(ch, [head, said, (def.vis === 'gm' ? 'An effect' : String(def.name || 'An effect').slice(0, 60)) + ' is on' + (lw ? ' for ' + lw : onB && !res.again ? ' already' : '') + '.']);   // to the GM and the character's player
+      };
+      // 1.6.4 (the full test's gap 24; Fulllion, 2026-11-24): a pool spread over the blast. Each character in it its cover does not shield, and its Only
+      // where lets in (one ruled out uses up nothing), is read for its figure (the field by, as itself); the pool is rolled once as the thrower; blastcore
+      // spreadCover covers the lowest first, the nearer first on a tie, and each covered one is reached. A figure it cannot read is passed over, the GM told
+      var spreadOut = { rolled: 0, covered: 0, passed: 0, bad: 0 };
+      var spread = function(a, def) {
+          var fld = (Array.isArray(sys.fields) ? sys.fields : []).filter(function(f) { return f && f.id === a.by && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'resource'); })[0] || null, rows = [];
+          inBlast().forEach(function(r) {
+              if (r.shielded) return; var ch = camp.chars && Object.prototype.hasOwnProperty.call(camp.chars, r.id) ? camp.chars[r.id] : null; if (!ch) return;
+              var vars = S.makeResolver(sys, ch, F); if (typeof a.needs === 'string' && a.needs && !S.rollNeedsOk({ needs: a.needs }, vars, F)) { out.held++; return; }
+              var v = fld ? vars(fld.key) : null; rows.push({ id: r.id, fig: typeof v === 'number' && isFinite(v) ? v : null, d: r.d });
           });
+          if (!rows.length) return;
+          var pr = window.wpDice.rollFor(b.rollBy || '', a.pool, (nm || 'Blast') + ' spread', { gmOnly: b.gm === true, used: true }), pv = pr && pr.ok && typeof pr.value === 'number' && isFinite(pr.value) ? pr.value : null;
+          if (pv === null) { spreadOut.bad++; return; }
+          var sc = BC.spreadCover(rows, pv); spreadOut.rolled++; spreadOut.covered += sc.covered.length; spreadOut.passed += sc.passed;
+          if (window.wpStepLog) window.wpStepLog('spread v1', 'covered', { in: rows.length, covered: sc.covered.length, passed: sc.passed, roll: a.resist === 'roll' });
+          sc.covered.forEach(function(c) { reach(a, def, c.id, { roll: a.resist === 'roll' }); });
+      };
+      A.forEach(function(a) {
+          if (!a || typeof a.fx !== 'string' || (typeof a.vs !== 'string' && !(a.who === 'spread' && a.resist !== 'roll'))) return;
+          var def = Object.prototype.hasOwnProperty.call(defs, a.fx) ? defs[a.fx] : null; if (!def) { gone++; return; }   // an effect the system no longer has
+          if (a.who === 'spread') { if (typeof BC.spreadCover === 'function') spread(a, def); return; }   // 1.6.4 (gap 24)
+          BC.affTargets(a.who === 'all' ? inBlast() : null, byShare ? hu.s : hu.w, a.who === 'all').forEach(function(cid) { reach(a, def, cid, null); });
       });
       var who = nm || 'The blast';
       if (owed.length) toast(who + ': ' + owed.slice(0, 6).join(', ') + (owed.length > 6 ? ' and ' + (owed.length - 6) + ' more' : '') + ' must resist. The Combat tab has no resist roll, so nothing was rolled.');
       if (gone) toast(who + ': the effect an affliction puts on is gone from the system, so it was not rolled.');
+      if (spreadOut.passed) toast(who + ': ' + spreadOut.passed + ' in the blast had no figure the spread could read, so it passed them over.');   // 1.6.4 (gap 24): the GM is told, counts only; those it covered are in the blast's own notice
+      if (spreadOut.bad) toast(who + ': the spread\u2019s pool could not be rolled, so it covered no one. Check its pool, such as 5d8.');
       if (odd) toast(who + ': ' + odd + ' resist roll' + (odd === 1 ? '' : 's') + ' could not be judged, so nothing was put on. The resist roll must be a check, such as 3d6 <= Resist.');
       return out;
   }
@@ -707,7 +735,7 @@ export function wbBlast() {   // [split:glue]
       var t = sys && sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : [], hit = t.filter(function(x) { return x && typeof x.key === 'string' && x.key.toLowerCase() === String(u).toLowerCase(); })[0];
       return num + ' ' + String(hit && hit.label ? hit.label : u).slice(0, 60);
   }
-  function affNote(ap) { return ap ? (ap.on ? ' · ' + ap.on + ' failed to resist' : '') + (ap.resisted ? ' · ' + ap.resisted + ' resisted' : '') : ''; }   // counts only, as the rest of the notice
+  function affNote(ap) { var fl = ap ? ap.on - (ap.sp || 0) : 0; return ap ? (fl ? ' · ' + fl + ' failed to resist' : '') + (ap.sp ? ' · ' + ap.sp + ' covered by the spread' : '') + (ap.resisted ? ' · ' + ap.resisted + ' resisted' : '') : ''; }   // counts only, as the rest of the notice
   // An item with no damage roll: its afflictions alone, rolled as it goes off (one that reaches everyone in the blast; one that reaches those it
   // hurt reaches no one). Measure only and dice off roll nothing and say so
   function applyBlastAffs(b, mapIn, nm) {
@@ -716,7 +744,7 @@ export function wbBlast() {   // [split:glue]
       if (auto === 'measure') { toast('Blast automation is Measure only, so the afflictions of ' + nm + ' were not rolled.'); return null; }
       if (window.wpVtt && !window.wpVtt.on('dice')) { toast('Dice are off, so the afflictions of ' + nm + ' were not rolled.'); return null; }
       var byChar = Object.create(null), hits = [], ap = affPass(b, map, camp, sys, blastWriter(byChar, hits), { w: [], s: [] });
-      if (ap && ap.on) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); toast(nm + ': ' + ap.on + ' failed to resist' + (ap.resisted ? ', ' + ap.resisted + ' resisted' : '') + '. Undo last throw is in the Radius options.'); }
+      if (ap && ap.on) { _lastThrowTx = { hits: hits }; save(); syncBlastMenu(); toast(nm + ': ' + [ap.on - (ap.sp || 0) ? (ap.on - (ap.sp || 0)) + ' failed to resist' : '', ap.sp ? ap.sp + ' covered by the spread' : '', ap.resisted ? ap.resisted + ' resisted' : ''].filter(Boolean).join(', ') + '. Undo last throw is in the Radius options.'); }   // 1.6.4: a spread's put-ons said as such
       else if (ap && ap.resisted) toast(nm + ': ' + ap.resisted + ' resisted.');
       return ap;
   }

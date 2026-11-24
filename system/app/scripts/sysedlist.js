@@ -1109,12 +1109,14 @@ function onBlastInput(t) {
 // [systemcheck:blastbox-end]
 // 1.6.0 Where a hit behind cover lands: combat.cover.hit, per grade, each row a run of a die and a formula true on the locations it means. Save cleans it
 // (systemcore cleanCover); coverHitSays says what it drops, under errorCell('coverhit')
-var COVER_HIT_LINE = 'After a hit on a target behind this much cover, a die picks where it lands. It has as many sides as the highest To. Location where is true on the rows it means, read as Row. A row with nothing on the target falls to the next. Several rows under one take a second die. A called shot at a location these name stands.';
+var COVER_HIT_LINE = 'After a hit with no aim, a die picks where it lands: on a target in the open, or behind that much cover while cover is on. It has as many sides as the highest To. Location where is true on the rows it means, read as Row. A row with nothing on the target falls to the next. Several rows under one take a second die. A called shot at a location these name stands.';
 var COVER_HIT_MAX = typeof COVER_HIT_ROWS === 'number' ? COVER_HIT_ROWS : 60;
-function coverHitGrades(cm) { return cm.cover.style === 'binary' ? [['cover', 'Behind cover'], ['total', 'Behind total cover']] : [['half', 'Behind half cover'], ['threeq', 'Behind three-quarters cover'], ['total', 'Behind total cover']]; }
+// 1.6.4 (the full test's gap 8): the open, a target behind no cover, first (COVER_HIT_OPEN, its words), so an unaimed hit there rolls its location too
+var COVER_HIT_OPEN = 'In the open';
+function coverHitGrades(cm) { var cv = cm && cm.cover && typeof cm.cover === 'object' ? cm.cover : {}; return [['open', COVER_HIT_OPEN]].concat(!cv.on ? [] : cv.style === 'binary' ? [['cover', 'Behind cover'], ['total', 'Behind total cover']] : [['half', 'Behind half cover'], ['threeq', 'Behind three-quarters cover'], ['total', 'Behind total cover']]); }
 function coverHitBox(box, cm) {
-    var ht = cm.cover.hit && typeof cm.cover.hit === 'object' && !Array.isArray(cm.cover.hit) ? cm.cover.hit : {};
-    box.appendChild(el('div', 'sys-combat-head', 'Where a hit behind cover lands'));
+    var cvB = cm.cover && typeof cm.cover === 'object' ? cm.cover : {}, ht = cvB.hit && typeof cvB.hit === 'object' && !Array.isArray(cvB.hit) ? cvB.hit : {};
+    box.appendChild(el('div', 'sys-combat-head', 'Where a hit lands'));   // 1.6.4 (gap 8): in the open too
     box.appendChild(el('div', 'sys-note', COVER_HIT_LINE));
     coverHitGrades(cm).forEach(function(g) {
         var rows = Array.isArray(ht[g[0]]) ? ht[g[0]] : [], wrap = el('div', 'sys-cvh-grade'); wrap.dataset.grade = g[0]; wrap.appendChild(el('span', 'sys-num-cap', g[1]));
@@ -1130,8 +1132,8 @@ function coverHitBox(box, cm) {
     });
     var err = errorCell('coverhit'); err.dataset.errFor = 'coverhit'; box.appendChild(err);
 }
-function coverHitDraft() { var cv = draft.combat.cover; if (!cv.hit || typeof cv.hit !== 'object' || Array.isArray(cv.hit)) cv.hit = {}; return cv.hit; }
-function coverHitTidy() { var cv = draft.combat.cover, h = cv.hit; Object.keys(h).forEach(function(k) { if (!Array.isArray(h[k]) || !h[k].length) delete h[k]; }); if (!Object.keys(h).length) delete cv.hit; }
+function coverHitDraft() { if (!draft.combat.cover || typeof draft.combat.cover !== 'object') draft.combat.cover = { on: false, style: 'graded' }; var cv = draft.combat.cover; if (!cv.hit || typeof cv.hit !== 'object' || Array.isArray(cv.hit)) cv.hit = {}; return cv.hit; }
+function coverHitTidy() { var cv = draft.combat.cover, h = cv && cv.hit; if (!h) return; Object.keys(h).forEach(function(k) { if (!Array.isArray(h[k]) || !h[k].length) delete h[k]; }); if (!Object.keys(h).length) delete cv.hit; }
 function coverHitInput(t) {
     var c = t.className || ''; if (typeof c !== 'string' || c.indexOf('sys-cvh-') < 0) return false;
     var rw = t.closest ? t.closest('.sys-cvh-row') : null, gw = t.closest ? t.closest('.sys-cvh-grade') : null, h = coverHitDraft(), a = gw && Array.isArray(h[gw.dataset.grade]) ? h[gw.dataset.grade] : null, r = a && rw ? a[Number(rw.dataset.ci)] : null; if (!r) return true;
@@ -1141,7 +1143,7 @@ function coverHitInput(t) {
 }
 function coverHitClick(b) {
     var act = b.dataset && b.dataset.act || ''; if (act !== 'cvhadd' && act !== 'cvhdel') return false;
-    var gw = b.closest ? b.closest('.sys-cvh-grade') : null, g = gw ? gw.dataset.grade : ''; if (['half', 'threeq', 'cover', 'total'].indexOf(g) < 0) return true;
+    var gw = b.closest ? b.closest('.sys-cvh-grade') : null, g = gw ? gw.dataset.grade : ''; if (['open', 'half', 'threeq', 'cover', 'total'].indexOf(g) < 0) return true;
     var h = coverHitDraft(), a = Array.isArray(h[g]) ? h[g] : (h[g] = []);
     if (act === 'cvhadd') { if (a.length >= COVER_HIT_MAX) { toast('At most ' + COVER_HIT_MAX + ' rows.'); coverHitTidy(); return true; } a.push({}); }
     else { var rw = b.closest('.sys-cvh-row'), i = rw ? Number(rw.dataset.ci) : -1; if (i >= 0 && i < a.length) a.splice(i, 1); }
@@ -1150,7 +1152,7 @@ function coverHitClick(b) {
 function coverHitSays(cv, cm, Fx) {
     var errs = [], warns = [], SCh = window.wpSystemCore, ht = cv && typeof cv === 'object' && cv.hit && typeof cv.hit === 'object' && !Array.isArray(cv.hit) ? cv.hit : null;
     if (!ht || !SCh || typeof SCh.cleanCoverHit !== 'function') return { errs: errs, warns: warns };
-    var words = { half: 'Behind half cover', threeq: 'Behind three-quarters cover', cover: 'Behind cover', total: 'Behind total cover' };
+    var words = { open: COVER_HIT_OPEN, half: 'Behind half cover', threeq: 'Behind three-quarters cover', cover: 'Behind cover', total: 'Behind total cover' };
     Object.keys(words).forEach(function(g) {
         var a = Array.isArray(ht[g]) ? ht[g] : []; if (a.length > COVER_HIT_MAX) errs.push({ message: words[g] + ': Save keeps the first ' + COVER_HIT_MAX + ' rows.' });
         a.slice(0, COVER_HIT_MAX).forEach(function(r, i) {
@@ -1158,8 +1160,8 @@ function coverHitSays(cv, cm, Fx) {
             var p = Fx && typeof Fx.parse === 'function' ? Fx.parse(String(r.row).trim()) : null; if (p && !p.ok) warns.push({ message: words[g] + ', row ' + (i + 1) + ': Save keeps the formula, but it cannot be read, so it never holds.' });
         });
     });
-    if (!(cm && cm.damage && cm.damage.locs && cm.damage.locs.list) && !(cm && cm.targetHit)) warns.push({ message: 'Where a hit behind cover lands: name a list of hit locations, or it does nothing.' });
-    if (!cv.on) warns.push({ message: 'Where a hit behind cover lands: with cover off it does nothing.' });
+    if (!(cm && cm.damage && cm.damage.locs && cm.damage.locs.list) && !(cm && cm.targetHit)) warns.push({ message: 'Where a hit lands: name a list of hit locations, or it does nothing.' });
+    if (!cv.on && Object.keys(words).some(function(g) { return g !== 'open' && Array.isArray(ht[g]) && ht[g].length; })) warns.push({ message: 'Where a hit lands: with cover off only In the open counts, so the rows behind cover do nothing.' });   // 1.6.4: In the open works with cover off
     return { errs: errs, warns: warns };
 }
 // [split:body-end]

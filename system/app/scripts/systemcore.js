@@ -1362,9 +1362,12 @@ var COVER_GRADES = ['half', 'threeq', 'cover', 'total'];
 // grade's rows mean stands with no die, a target with one row of the grade to land on takes it with no die, a row with nothing on the target falls to
 // the next, and several locations under one row (two arms) take a second die, which the GM may overrule in the Take damage window
 var COVER_HIT_ROWS = 60, COVER_HIT_DIE = 100;
+// 1.6.4 (the full test's gap 8): the table may also be set for a target in the open (open), so an unaimed damage roll at a target behind no cover
+// rolls its location too. Absent, nothing is rolled there, as before. The grades the table keeps, in the order the editor shows them
+var COVER_HIT_GRADES = ['open'].concat(COVER_GRADES);
 function cleanCoverHit(h) {
     if (!isObj(h)) return null; var out = {};
-    COVER_GRADES.forEach(function(g) {
+    COVER_HIT_GRADES.forEach(function(g) {
         var a = Object.prototype.hasOwnProperty.call(h, g) && Array.isArray(h[g]) ? h[g] : [], rows = [];
         a.slice(0, COVER_HIT_ROWS).forEach(function(r) {
             if (!isObj(r) || typeof r.from !== 'number' || typeof r.to !== 'number' || Math.floor(r.from) !== r.from || Math.floor(r.to) !== r.to || r.from < 1 || r.to < r.from || r.to > COVER_HIT_DIE) return;
@@ -1374,8 +1377,10 @@ function cleanCoverHit(h) {
     });
     return Object.keys(out).length ? out : null;
 }
-function coverHitOn(sys) { var cv = sys && isObj(sys.combat) && isObj(sys.combat.cover) ? sys.combat.cover : null; return !!cv && cv.on === true && isObj(cv.hit); }
-function coverHitKey(sys, g) { var cv = sys && sys.combat && sys.combat.cover; return !cv || cv.on !== true ? '' : g === 3 ? 'total' : cv.style === 'binary' ? (g > 0 ? 'cover' : '') : g === 2 ? 'threeq' : g === 1 ? 'half' : ''; }   // a grade of TargetCoverGrade by its key, as coverWord words it
+// 1.6.4 (Fulllion, 2026-11-24: the table works with cover off too): with cover on, as before, and In the open for a target behind none; with cover
+// off every target is in the open, so only that grade's rows are read, and a table with none says nothing, as before
+function coverHitOn(sys) { var cv = sys && isObj(sys.combat) && isObj(sys.combat.cover) ? sys.combat.cover : null; return !!cv && isObj(cv.hit) && (cv.on === true || Array.isArray(cv.hit.open)); }
+function coverHitKey(sys, g) { var cv = sys && sys.combat && sys.combat.cover; return !cv ? '' : cv.on !== true || !g ? 'open' : g === 3 ? 'total' : cv.style === 'binary' ? (g > 0 ? 'cover' : '') : g === 2 ? 'threeq' : g === 1 ? 'half' : ''; }   // a grade of TargetCoverGrade by its key, as coverWord words it
 function coverHitList(sys) {   // the list a blow lands on: the Taking damage box's, else a called shot's
     var d = sys && isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null, id = d && isObj(d.locs) && typeof d.locs.list === 'string' ? d.locs.list : '', f = id ? fieldById(sys, id) : null;
     return f && f.kind === 'item-list' ? f : targetHitList(sys);
@@ -1402,10 +1407,11 @@ function coverHitFor(sys, tc, g, F, o) {
         for (var k = 0; k < tb.length; k++) { var j = (from + k) % tb.length; if (byRow[j].length) { i = j; break; } }
     }
     var more = byRow[i], e = more.length > 1 && die ? die(more.length) : 1, x = d ? { d: d, of: of } : {}; if (more.length > 1) { x.e = e; x.ea = more.length; }
+    if (key === 'open') x.open = true;   // 1.6.4 (gap 8): rolled for a target in the open, so its card says no cover
     return at(more[Math.max(0, Math.min(more.length - 1, e - 1))], x);
 }
 function coverHitCard(cv) {   // what its card says, nothing that names a row kept from players
-    var c = { n: cv.shown ? cv.name : 'a location' }; ['d', 'of', 'e', 'ea'].forEach(function(k) { if (typeof cv[k] === 'number') c[k] = cv[k]; }); if (cv.stood === true) c.st = 1; return c;
+    var c = { n: cv.shown ? cv.name : 'a location' }; ['d', 'of', 'e', 'ea'].forEach(function(k) { if (typeof cv[k] === 'number') c[k] = cv[k]; }); if (cv.stood === true) c.st = 1; if (cv.open === true) c.op = 1; return c;   // op (1.6.4, gap 8): in the open
 }
 // Cover follow-ups: what a system does to a blast's damage behind a token's cover (tier: coverTier's) — 'full', 'half' or 'none', its outcome
 // for that grade; with cover off, no tier or no outcome set, 'full'

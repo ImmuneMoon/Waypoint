@@ -61,6 +61,10 @@ export function damageCore() {   // [split:glue]
 //           locs.at (1.6.3): where a blow lands when nothing aimed it, a location's name or entry key (absent: a row named Torso, else one
 //           that holds the word, else the first row), read by the Take damage window and a blast's shares alike
 //           locs.die (1.6.0): a formula of the location's names and the character's, added to a wound that gets through for each die the blow rolled
+//   wholeDr (1.6.4, the full test's gap 5): a Number or Derived field of the character that is the DR every blow meets, for a system that names no
+//           hit locations, in the GM's view alone. A type ticked No DR ignores it, its DR a die adds to it, and the armor divisor divides it, as at a
+//           location. wholeDrAt (Fulllion, 2026-11-24, "a builder option"): absent, it is read only while no hit locations are named; 'fallback', also
+//           for a blow that lands on no location in a system that names them. wholeDrRead is the one judge. Absent, a blow at no location meets no DR
 //   weapons [{ list, dur, wear, cond }]: a weapon tested by a blow: its listed Dur (a formula of Row.), its stat of wear and its stat of condition
 //           word (1.6.3, Fulllion's ruling of 2026-11-20): what the damage line calls its durability, the box Called (Dur, say). Kept in both
 //           views, since a player's own Take damage window says it too; absent where empty, so a system with none cleans as before
@@ -183,6 +187,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
         var lat = typeof d.locs.at === 'string' ? cutText(d.locs.at, 60) : ''; if (lat) lc.at = lat;   // 1.6.3 (finding 27; Fulllion: "A system setting"): Unaimed blows land at, a location by its name or entry key, cleaned as a blast area's loc is, the same in both views (a player's own Take damage window opens on it too). Read by sheets.js dmgLocAt and wbblast.js torsoOf; absent, the usual rule
         out.locs = lc;
     }
+    if (!pl && typeof d.wholeDr === 'string' && FIELD_ID.test(d.wholeDr) && !!kinds && (kinds[d.wholeDr] === 'number' || kinds[d.wholeDr] === 'formula')) { out.wholeDr = d.wholeDr; if (d.wholeDrAt === 'fallback') out.wholeDrAt = 'fallback'; }   // 1.6.4 (gap 5): DR everywhere, a field, and when it is read
     if (mj && !pl && Array.isArray(d.onMajor)) {   // 1.6.0: a list of rows, the first that holds is what a Major Wound does
         var oms = []; d.onMajor.forEach(function(w) {
             if (oms.length >= DMG_LIM.onMajor || !isObj(w)) return;
@@ -258,7 +263,7 @@ function cleanDamageRules(d, kinds, resIds, fl, pl) {
         var wpl = []; (Array.isArray(d.weapons) ? d.weapons : []).forEach(function(l) { if (wpl.length < DMG_LIM.weapons && isObj(l) && isList(l.list)) { var wpo = { list: l.list }, wpw = cutText(l.word, LIMITS.label); if (wpw) wpo.word = wpw; wpl.push(wpo); } }); if (wpl.length) out.weapons = wpl;   // 1.6.3: its Called word too, which a player's own Take damage window says
         if (dmgDiceRead(d)) out.dice = true;   // 1.6.0: the window asks a player for the dice the blow rolled, and the host works out what they do
     }
-    return out.pool || out.types || out.locs || out.onWound ? out : null;
+    return out.pool || out.types || out.locs || out.onWound || out.wholeDr ? out : null;
 }
 // What a blow does: the pure step, the same on the host and on the GM's own screen. inp = { amt, type, loc, ad, weapon, only }: the damage rolled,
 // the type's key, the hit location's row id, the armor divisor (1: none), a weapon row tested by the blow and whether only that weapon was hit.
@@ -419,6 +424,8 @@ function poolSpill(sys, w, pf, cur, loss, F, tctx) {
     }
     return { steps: steps };
 }
+// 1.6.4 (gap 5): whether a blow that strikes no location meets DR everywhere: set, and either no hit locations named or wholeDrAt 'fallback'
+function wholeDrRead(rules) { return isObj(rules) && typeof rules.wholeDr === 'string' && !!rules.wholeDr && (!rules.locs || rules.wholeDrAt === 'fallback'); }
 function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, the clock an effect a Major Wound switches on starts its timer by ({ now, inCombat }, as applyAct's); wl (1.6.0, a burst): a list told each wear this blow writes (damageBurst)
     var rules = sys && isObj(sys.combat) && isObj(sys.combat.damage) ? sys.combat.damage : null; if (!rules || !F || !isObj(char)) return { ok: false, reason: 'field' };
     if (!isObj(inp) || typeof inp.amt !== 'number' || !fin(inp.amt) || inp.amt < 0 || inp.amt > DMG_LIM.amt) return { ok: false, reason: 'value' };
@@ -521,9 +528,16 @@ function damageStep(sys, char, inp, F, ropts, fxo, wl) {   // 1.6.0 (B3): fxo, t
     }
     if (!inp.only) {
         var mainP = rules.pool || sys.combat.hpResource;
+        // 1.6.4 (gap 5): DR everywhere, read for one part (Rp, its own resolver, so a Derived field may read Blow.type): { dr } or { error }
+        var wholeDrOf = function(Rp) {
+            var wf = fieldById(sys, rules.wholeDr); if (!wf) return { dr: 0 };
+            var wv = Rp(wf.key); if (isObj(wv) && wv.error) return { error: String(wv.error.message || 'an error') };
+            return { dr: num(wv) };
+        };
         var partStep = function(P) {   // 1.6.0 (B3): one part of the blow, through its own type's DR and figures, taken off separately: { eff, through, wound, dieAdd, line } or { fail }
             var ty = P.ty, dice = P.dice, amt = P.amt, pf = P.pf, mult = P.mult, dr = 0;
             var Rp = lrow ? partR(P, blow0) : null, pv = Rp ? Rp.row(lf.id, inp.loc) : null, gp = Rp ? getBy(Rp) : get;   // 1.6.0: this part's own reading of the location
+            if (!lrow && wholeDrRead(rules) && !(ty && ty.noDr)) { var wdv = wholeDrOf(partR(P, blow0)); if (wdv && wdv.error) return { fail: { ok: false, reason: 'error', message: 'The DR could not be worked out: ' + wdv.error } }; dr = wdv.dr; if (dice && ty && ty.dieDr) dr += dice * ty.dieDr; }   // 1.6.4 (gap 5): no location, so the field that is DR everywhere
             if (lrow && !(ty && ty.noDr)) { if (rules.locs.dr) dr = gp(lf, lrow, rules.locs.dr); (ty && ty.plus ? ty.plus : []).forEach(function(k) { dr += gp(lf, lrow, k); }); if (dice && ty && ty.dieDr) dr += dice * ty.dieDr; dr += typedAdd(P, Rp, pv); }   // 1.6.0: and its DR a die, for this blow   // 1.6.0: and what the layers add against its type
             if (err) return { fail: { ok: false, reason: 'error', message: 'The DR there could not be worked out: ' + err } };
             dr = Math.max(0, dr); var eff = adSplit(P, Rp, pv, dr), through = Math.max(0, amt - eff);   // 1.6.2 (9): a layer with its own divisor divides its own share
@@ -777,7 +791,7 @@ function hitsSecret(sys, ent, F, o) {
     return gmOnlyNames(sys, l).concat(gmDerivedNames(sys, F, l));
 }
 // A burst's hits on one character, the one judge beside the step: inp is the first hit's blow, inp.hits the rest (each { amt, type, ad, dice, kind,
-// major, part2 ... part5 }), every hit at inp's location. Each hit is its own blow, through damageStep: its DR, its Major Wound, its Any wound, its
+// major, part2 ... part5, loc }), every hit at inp's location, or at its own loc where it names one (1.6.4, gap 8: each hit rolls its own). Each hit is its own blow, through damageStep: its DR, its Major Wound, its Any wound, its
 // follows. Each meets the armor as it was before the burst, and pools move on from hit to hit. The wear of the hits that got through adds up and
 // comes off once, at the end, down to each layer's cap. One answer, so one Undo: { ok, values, lines, info } with info.hits (how many) and info.each,
 // each hit's { info, vals } that has a roll to post (the character's values as that hit left them, the wear to come not in them). A hit that
@@ -785,7 +799,7 @@ function hitsSecret(sys, ent, F, o) {
 function damageBurst(sys, char, inp, F, ropts, fxo) {
     var more = isObj(inp) && Array.isArray(inp.hits) ? inp.hits.filter(isObj).slice(0, HITS_MAX - 1) : [], first = isObj(inp) ? Object.assign({}, inp) : inp; if (isObj(first)) delete first.hits;
     if (!more.length) return damageStep(sys, char, first, F, ropts, fxo);
-    var blows = [first].concat(more.map(function(h) { var b = Object.assign({}, h); delete b.hits; delete b.loc; delete b.weapon; delete b.only; if (first.loc !== undefined) b.loc = first.loc; if (first.tb !== undefined) b.tb = first.tb; if (first.weapon !== undefined) { b.weapon = first.weapon; if (first.only === true) b.only = true; } return b; }));
+    var blows = [first].concat(more.map(function(h) { var b = Object.assign({}, h), own = typeof h.loc === 'string' && h.loc ? h.loc : ''; delete b.hits; delete b.loc; delete b.weapon; delete b.only; if (own) b.loc = own; else if (first.loc !== undefined) b.loc = first.loc; /* 1.6.4 (gap 8): a hit at its own location where it names one, else the first's */ if (first.tb !== undefined) b.tb = first.tb; if (first.weapon !== undefined) { b.weapon = first.weapon; if (first.only === true) b.only = true; } return b; }));
     var cur = Object.assign({}, isObj(char) && isObj(char.values) ? char.values : {}), seen = map(), worn = map(), wearO = [], lines = [], each = [];
     var info = { amt: 0, ad: 1, dr: 0, through: 0, wound: 0, pool: '', major: false, crip: false, wear: [], weapon: null, hits: blows.length };
     var atHits = asAtCross(sys) ? [] : null;   // 1.6.2 (backlog 242): each hit's blow, the sheet as it left it before its own effects (vals) and as it left it (post), for a crossing's roll
@@ -830,9 +844,10 @@ function cleanCharPart(p) {
     return o;
 }
 // 1.6.0 A burst: a further hit of a player's blow on their own character: a part, with its own parts; null when anything is malformed. It names no
-// Major Wound and no location, as the message itself names none but its loc
+// Major Wound. 1.6.4 (gap 8): it may name its own location (loc), as the message names the first hit's
 function cleanCharHit(h) {
     var o = cleanCharPart(h); if (!o) return null;
+    if (h.loc !== undefined) { if (typeof h.loc !== 'string' || !ROW_ID.test(h.loc)) return null; o.loc = h.loc; }   // 1.6.4 (gap 8): a hit at its own location, a row the host finds on the character or refuses
     var bad = false; [2].concat(DMG_MORE).forEach(function(k) { var pk = 'part' + k; if (h[pk] === undefined) return; var pc = cleanCharPart(h[pk]); if (!pc) bad = true; else o[pk] = pc; });
     return bad ? null : o;
 }

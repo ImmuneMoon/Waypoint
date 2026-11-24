@@ -6054,7 +6054,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // 1.5.9 (es): an entry's afflictions from a hostile file, and the system's effects by a hostile name, reach the form only as a box's value and an option's value and text
         const sysA = { system: { effects: [{ id: 'e_ok', name: BAD }], combat: { turn: { units: [{ key: 'watch', label: BAD }] } } } }, BADA = { vs: BAD, fx: BAD, who: BAD, needs: BAD, lasts: { n: BAD, u: BAD } };
         const BA = new Function('document', 'camp', 'ui', '"use strict";\n' + src + '\nreturn { blastBox };')(doc, () => sysA, id => ids[id] || null);
-        const formA = mk('div'); BA.blastBox(formA, { aff: [BADA] }); const affK = formA.kids.slice(8, 14).map(r => r.kids[1]), affK2 = formA.kids.slice(14, 20).map(r => r.kids[1]);
+        const formA = mk('div'); BA.blastBox(formA, { aff: [BADA] }); const affAt = k => [0, 1, 2, 6, 7, 8].map(x => formA.kids[k + x]), affK = affAt(8).map(r => r && r.kids[1]), affK2 = affAt(17).map(r => r && r.kids[1]);   // 1.6.4 (gap 24), changed on purpose: each affliction's three spread rows stand after its reach (rows 3 to 5)
         const optsOf = s => s && s.kids ? s.kids.map(o => [o.value, o.textContent]) : null;
         const hostA = LCB.cleanLibEntry(LCB.entryFromForm({ id: 'i_h', name: 'Spark Grenade', vis: 'all', areaFt: '6', areaAffs: [{ vs: BAD, fx: BAD, who: BAD, needs: BAD, n: BAD, u: BAD }, { vs: 'HT-2', fx: 'e_ok', who: 'all', needs: '', n: '1d6', u: 'watch' }] }), ctx);
         const plA = LCB.cleanLibEntry(LCB.entryFromForm({ id: 'i_h', name: 'Spark Grenade', vis: 'all', areaFt: '6', areaAffs: [{ vs: 'HT-2', fx: 'e_ok' }] }), LCB.libCtx(sysC, FB, false));

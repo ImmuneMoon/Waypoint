@@ -575,7 +575,10 @@ function itemRow(it) {
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2, its affliction half): an explosive's afflictions (systemcore cleanAffs), two at most,
 // each a line of its own: what it is resisted against, the effect a failure puts on, whom it reaches, Only where, and how long it lasts; what Save
 // does with each said under it, the cleaner's own reading. Values and text nodes only
-var AFF_WHO = [['', 'Reaches those it hurts'], ['all', 'Reaches everyone in the blast']], AFF_UNITS_ED = [['turns', 'turns'], ['seconds', 'seconds'], ['minutes', 'minutes'], ['hours', 'hours'], ['days', 'days']];
+// 1.6.4 (the full test's gap 24; Fulllion, 2026-11-24): Spread over the blast, lowest first, its field (affSpreadFields: each Number, Derived and
+// Resource field, as [id, name]), its own pool of dice, and whether those it covers still resist (AFF_SPREAD_RES, the first the default)
+var AFF_WHO = [['', 'Reaches those it hurts'], ['all', 'Reaches everyone in the blast'], ['spread', 'Spread over the blast, lowest first']], AFF_SPREAD_RES = [['', 'No roll: being covered is the test'], ['roll', 'The usual resist roll: only a failure puts it on']], AFF_UNITS_ED = [['turns', 'turns'], ['seconds', 'seconds'], ['minutes', 'minutes'], ['hours', 'hours'], ['days', 'days']];
+function affSpreadFields() { return (draft.fields || []).filter(function(f) { return f && typeof f.id === 'string' && (f.kind === 'number' || f.kind === 'formula' || f.kind === 'resource'); }).map(function(f) { return [f.id, f.label || f.key || f.id]; }); }
 function affBox(it) {
     var box = el('div', 'sys-fx-mods sys-item-affs'), affs = it.area && Array.isArray(it.area.aff) ? it.area.aff : [], effs = (draft.effects || []).filter(function(d) { return d && typeof d.id === 'string'; });
     var tu = draft.combat && draft.combat.turn && Array.isArray(draft.combat.turn.units) ? draft.combat.turn.units.filter(function(u) { return u && typeof u.key === 'string'; }) : [];
@@ -584,10 +587,17 @@ function affBox(it) {
         if (!a || typeof a !== 'object') return;
         var ln = el('div', 'sys-fx-mod sys-item-aff'); ln.dataset.ai = String(ai);
         ln.appendChild(input('sys-item-affvs field', typeof a.vs === 'string' ? a.vs : '', 'What it is resisted against, read with the character it reaches, such as HT-2. The Combat tab’s resist roll reads it as Resist', 'Resist against, e.g. HT-2'));
-        var fxO = [['', 'On a failure: pick an effect']].concat(effs.map(function(d) { return [d.id, 'On a failure: ' + (d.name || 'An effect with no name')]; }));
-        if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxO.push([a.fx, 'On a failure: an effect that is gone']);
-        ln.appendChild(select('sys-item-afffx', fxO, typeof a.fx === 'string' ? a.fx : '', 'The effect put on a character that fails to resist'));
-        ln.appendChild(select('sys-item-affwho', AFF_WHO, a.who === 'all' ? 'all' : '', 'Whom it reaches: those the blast or its fragmentation hurt, or everyone in the blast’s radius'));
+        var spr = a.who === 'spread', noRoll = spr && a.resist !== 'roll', fxW = noRoll ? 'Puts on: ' : 'On a failure: ';   // 1.6.4: a spread with no roll puts its effect on whoever it covers
+        var fxO = [['', fxW + 'pick an effect']].concat(effs.map(function(d) { return [d.id, fxW + (d.name || 'An effect with no name')]; }));
+        if (typeof a.fx === 'string' && a.fx && !effs.some(function(d) { return d.id === a.fx; })) fxO.push([a.fx, fxW + 'an effect that is gone']);
+        ln.appendChild(select('sys-item-afffx', fxO, typeof a.fx === 'string' ? a.fx : '', noRoll ? 'The effect put on each character the pool covers' : 'The effect put on a character that fails to resist'));
+        ln.appendChild(select('sys-item-affwho', AFF_WHO, a.who === 'all' || spr ? a.who : '', 'Whom it reaches: those the blast or its fragmentation hurt, everyone in the blast’s radius, or a pool of points spread over those in the blast, lowest figure first, each needing its whole figure covered'));
+        if (spr) {   // 1.6.4 (gap 24): the field that is each one's figure, the pool, and whether those it covers still resist
+            var spO = [['', 'Lowest first by: pick a field']].concat(affSpreadFields().map(function(f) { return [f[0], 'Lowest first by: ' + f[1]]; })); if (typeof a.by === 'string' && a.by && !spO.some(function(o) { return o[0] === a.by; })) spO.push([a.by, 'Lowest first by: a field that is gone']);
+            ln.appendChild(select('sys-item-affby', spO, typeof a.by === 'string' ? a.by : '', 'The figure each character in the blast is ordered by, lowest first, and the points it takes to cover them, such as current hit points'));
+            var spP = input('sys-item-affpool field', typeof a.pool === 'string' ? a.pool : '', 'The points it spreads, rolled once as it goes off, such as 5d8', 'Pool, e.g. 5d8'); spP.maxLength = LIMITS.formula; ln.appendChild(spP);
+            ln.appendChild(select('sys-item-affres', AFF_SPREAD_RES, a.resist === 'roll' ? 'roll' : '', 'Whether a character the pool covers still makes the Combat tab’s resist roll. With no roll, being covered puts the effect on'));
+        }
         ln.appendChild(input('sys-item-affneeds field', typeof a.needs === 'string' ? a.needs : '', 'A formula of the character it reaches that must hold for it to touch them at all, such as not Robot. Blank: everyone it reaches', 'Only where (optional)'));
         var ls = a.lasts && typeof a.lasts === 'object' ? a.lasts : {};
         ln.appendChild(input('sys-item-afflasts field', typeof ls.n === 'string' ? ls.n : '', 'How long the effect lasts, a formula that may roll dice, such as 1d6. Blank: the effect’s own duration', 'Lasts (optional)'));
@@ -625,12 +635,14 @@ function cloudBox(it) {
 // its blast's shares and fragmentation wounded, and with no Damage nothing is rolled (fragmentation rides on the damage), so it never lands
 function affSays(a, it) {
     var SCa = window.wpSystemCore; if (!a || typeof a !== 'object' || !SCa || typeof SCa.cleanAffs !== 'function') return '';
-    if (!(typeof a.vs === 'string' && a.vs.trim())) return 'Save drops it: it needs what it is resisted against.';
+    if (a.who === 'spread' && !(typeof a.by === 'string' && a.by)) return 'Save drops it: a spread needs the field each one is ordered by.';   // 1.6.4 (gap 24)
+    if (a.who === 'spread' && !(typeof a.pool === 'string' && a.pool.trim())) return 'Save drops it: a spread needs its pool, such as 5d8.';
+    if (!(typeof a.vs === 'string' && a.vs.trim()) && !(a.who === 'spread' && a.resist !== 'roll')) return 'Save drops it: it needs what it is resisted against.';
     if (!(draft.effects || []).some(function(d) { return d && d.id === a.fx; })) return 'Save drops it: it needs an effect it puts on.';
     var c = SCa.cleanAffs([a]); if (!c) return 'Save drops it: what it is resisted against cannot be worked out.';
     if (typeof a.needs === 'string' && a.needs.trim() && !c[0].needs) return 'Save drops when it applies: that cannot be worked out.';
     if (a.lasts && typeof a.lasts.n === 'string' && a.lasts.n.trim() && !c[0].lasts) return 'Save drops how long it lasts: it needs a figure that can be worked out and a unit.';
-    if (it && typeof it === 'object' && a.who !== 'all' && !(typeof it.damage === 'string' && it.damage.trim())) return 'This item has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands. Give it Damage, or set it to reach everyone in the blast.';
+    if (it && typeof it === 'object' && a.who !== 'all' && a.who !== 'spread' && !(typeof it.damage === 'string' && it.damage.trim())) return 'This item has no Damage, so it hurts no one, and an affliction that reaches those it hurts never lands. Give it Damage, or set it to reach everyone in the blast.';
     return '';
 }
 function affOfRow(t, it) {   // the affliction a control of the Items tab stands in, or null

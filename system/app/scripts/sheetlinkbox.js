@@ -121,28 +121,33 @@ function linkSays(links, fields, F0, rolls) {
     var fk2 = function(l) { return Object.prototype.hasOwnProperty.call(fk, l) ? fk[l] : ''; };
     (Array.isArray(links) ? links : []).forEach(function(k, i) {
         var nm = 'Link ' + (i + 1);
+        // 1.6.4 (the beta's last look; Fulllion: "Yes, fix them"): every fault below says what is wrong in words. A link's short name stands under
+        // Short names at the foot, so its faults name it so and say where to change it; the group's name and a figure are boxes the GM sees
+        var shortTo = ' To change it, tick \u201cShort names\u201d at the foot.', grpOf = k && k.kind === 'mount' ? 'the mount' : 'the vehicle';
         if (i >= LIMITS.links) { if (i === LIMITS.links) errs.push({ message: 'At most ' + LIMITS.links + ' links: Save drops the rest.' }); return; }
         if (!k || typeof k !== 'object') return;
         var key = typeof k.key === 'string' ? k.key : '', lk = key.toLowerCase();
-        if (!key.trim()) { errs.push({ message: nm + ': it needs a key, such as Mount. Save drops it.' }); return; }
-        if (/[.\s]/.test(key)) { errs.push({ message: nm + ': a key has no dot and no space. Save drops it.' }); return; }
-        if (LINK_NOT[lk]) { errs.push({ message: nm + ': formulas read ' + key + ' already. Pick another key. Save drops it.' }); return; }
-        if (seen[lk]) { errs.push({ message: nm + ': another link has the key ' + key + '. Save drops it.' }); return; }
-        if (!cleanLinks([{ id: 'lk_check', key: key, kind: 'mount' }], F0)) { errs.push({ message: nm + ': a key is letters, digits and underscores, starting with a letter. Save drops it.' }); return; }
+        if (!key.trim()) { errs.push({ message: nm + ': it needs a short name, such as Mount. Save drops it.' + shortTo }); return; }
+        if (/[.\s]/.test(key)) { errs.push({ message: nm + ': its short name has a dot or a space. Save drops it.' + shortTo }); return; }
+        if (LINK_NOT[lk]) { errs.push({ message: nm + ': its short name ' + key + ' already means something to the rules. Save drops it.' + shortTo }); return; }
+        if (seen[lk]) { errs.push({ message: nm + ': another link has the short name ' + key + '. Save drops it.' + shortTo }); return; }
+        if (!cleanLinks([{ id: 'lk_check', key: key, kind: 'mount' }], F0)) { errs.push({ message: nm + ': its short name must start with a letter and hold only letters and digits. Save drops it.' + shortTo }); return; }
         seen[lk] = 1;
-        if (fk[lk]) warns.push({ message: nm + ': the field ' + fk[lk] + ' has the key ' + key + ', so formulas read that field, not the linked sheet.' });
+        if (fk[lk]) warns.push({ message: nm + ': the field ' + fk[lk] + ' has the short name ' + key + ' too, so the rules read that field, not the linked sheet.' + shortTo });
         if ((k.kind === 'crew' || k.kind === 'mount') && typeof k.group === 'string' && k.group.trim()) {   // 1.6.0 (CORE gap 16): the crew's key on the vehicle (a mount's riders' too), read as cleanLinks reads it
             var gk = k.group.trim(), lg = gk.toLowerCase();
-            if (/[.\s]/.test(gk) || LINK_NOT[lg] || seen[lg] || !cleanLinks([{ id: 'lk_check', key: gk, kind: 'mount' }], F0)) errs.push({ message: nm + ': the ' + (k.kind === 'mount' ? 'mount reads its riders' : 'vehicle reads its crew') + ' by a key of letters, digits and underscores, starting with a letter, that no other link has. Save drops ' + gk + '.' });
-            else { seen[lg] = 1; if (fk[lg]) warns.push({ message: nm + ': the field ' + fk[lg] + ' has the key ' + gk + ', so formulas read that field, not the ' + (k.kind === 'mount' ? 'riders' : 'crew') + '.' }); }
+            if (/[.\s]/.test(gk) || LINK_NOT[lg] || seen[lg] || !cleanLinks([{ id: 'lk_check', key: gk, kind: 'mount' }], F0)) errs.push({ message: nm + ': the name ' + grpOf + ' reads its ' + (k.kind === 'mount' ? 'riders' : 'crew') + ' by must start with a letter, hold only letters and digits, and be no other link\u2019s. Save drops ' + gk + '.' });
+            else { seen[lg] = 1; if (fk[lg]) warns.push({ message: nm + ': the field ' + fk[lg] + ' is named ' + gk + ' too, so the rules read that field, not the ' + (k.kind === 'mount' ? 'riders' : 'crew') + '.' }); }
         }
         if ((k.kind === 'crew' || k.kind === 'mount') && Array.isArray(k.figs) && k.figs.length) {   // the core handbook session's ask 6: a group's figures, read as cleanLinks reads them
             var hasG = typeof k.group === 'string' && k.group.trim();
-            if (!hasG) warns.push({ message: nm + ': its figures need the key the ' + (k.kind === 'mount' ? 'mount reads its riders' : 'vehicle reads its crew') + ' by. Save drops them.' });
+            if (!hasG) warns.push({ message: nm + ': its figures need the name ' + grpOf + ' reads its ' + (k.kind === 'mount' ? 'riders' : 'crew') + ' by. Save drops them.' });
             else { var fSeen = {}; k.figs.forEach(function(x, fi) {
                 var fk = x && typeof x.key === 'string' ? x.key.trim() : '', fl = fk.toLowerCase(), cl = cleanLinks([{ id: 'lk_check', key: 'LinkCheck', kind: 'crew', group: 'GroupCheck', figs: [{ key: fk, formula: x && typeof x.formula === 'string' ? x.formula : '' }] }], F0);
-                if (fi >= 4 || fSeen[fl] || !(cl && cl[0].figs)) warns.push({ message: nm + ': a figure is a key of letters, digits and underscores, never count, max, min, sum or has, once each, and a formula with no dice, 4 at most. Save drops ' + (fk || 'one with no key') + '.' });
-                else if (fk2(fl)) warns.push({ message: nm + ': the field ' + fk2(fl) + ' has the key ' + fk + ', so ' + k.group.trim() + '.max.' + fk + ' reads the figure, not that field.' });
+                if (fi >= 4) warns.push({ message: nm + ': a link works out 4 figures at most. Save drops ' + (fk || 'one with no name') + '.' });
+                else if (fSeen[fl]) warns.push({ message: nm + ': another figure of this link is named ' + fk + '. Save drops it.' });
+                else if (!(cl && cl[0].figs)) warns.push({ message: nm + ': ' + (fk ? 'the figure ' + fk : 'a figure with no name') + ' needs a name that starts with a letter and holds only letters and digits, not count, max, min, sum or has, and a sum each sheet works out with no dice. Save drops it.' });
+                else if (fk2(fl)) warns.push({ message: nm + ': the field ' + fk2(fl) + ' is named ' + fk + ' too. Where ' + grpOf + '\u2019s rules read the best, the least or the total of ' + fk + ', they read this figure, not that field.' });
                 fSeen[fl] = 1;
             }); }
         }

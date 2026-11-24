@@ -76,7 +76,7 @@ function siteOf(root) {
    own version is not this one, so the notes the site shows (notesText, which reads that top section) are always this release's. */
 function topVersion(whatsnew) {
     const first = String(whatsnew || '').replace(/^﻿/, '').split(/\r?\n/)[0] || '';
-    const m = /^WAYPOINT (?:VTT )?(\S+)/.exec(first);   // 1.6.4: the heading names the product Waypoint VTT ("WAYPOINT VTT 1.6.4"); an older section reads "WAYPOINT 1.6.3"
+    const m = /^WAYPOINT (?:VTT )?(\d+(?:\.\d+)*)/.exec(first);   // 1.6.4: the version alone, digits and dots, since the heading may go on with a colon ("WAYPOINT 1.6.4: What's New", once the em dash was taken out) or a space   // 1.6.4: the heading names the product Waypoint VTT ("WAYPOINT VTT 1.6.4"); an older section reads "WAYPOINT 1.6.3"
     return m ? m[1] : null;
 }
 

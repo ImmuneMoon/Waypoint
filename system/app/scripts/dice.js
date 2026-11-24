@@ -3,7 +3,7 @@
    feature switch. The wire and the rolling itself live in net.js (net.diceRoll, the roll-req / roll / roll-deny
    handlers); the validators, replay and text in dicecore.js. Design of record: docs/DICE_PLAN.md. */
 import { toast } from './io.js';
-import { crossWhy, cleanDiceBonus, malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, landWhy, sendWhy, dueMajor, hitFaces, cleanPos, posWords } from './dicecore.js';
+import { crossWhy, cleanDiceBonus, malfWords, coverHitWords, LIMITS, cleanExpr, composeModifier, withAdvantage, verdictOf, critOf, cardText, fmtNum, malfOf, ruleOf, resistWhy, landWhy, sendWhy, dueMajor, hitFaces, cleanPos, posWords, oneDieSpots, redoWords } from './dicecore.js';
 import { getActiveCampaign } from './models.js';   // 1.6.2: the campaign a player's roller reads its character from
 import { dieNode } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
 
@@ -196,6 +196,17 @@ function asTag(word, rec, card) {
     var P = typeof window !== 'undefined' ? window.wpPlook : null; if (P && rec.pl && P.on()) { P.dress(n, rec.pl); if (card && card.style && /^#[0-9a-f]{6}$/.test(rec.pl.color || '')) card.style.boxShadow = 'inset 0 0 0 1px ' + rec.pl.color; }   // and the card edged in its color
     return t;
 }
+// 1.6.4 (gap #2 of the full test): Roll one die again, pressed on a held card, opens a short list under the card's buttons, a row for each die it may roll
+// again (dicecore oneDieSpots, the host's own judge, read on this machine's copy of the roll); a press on a row sends the action with that die. A second
+// press on the action closes the list. Words only: the die's sides and what it shows
+function dieListToggle(bar, btn, res, go) {
+    var was = bar.parentNode ? bar.parentNode.querySelector('.roll-die-pick') : null; if (was) { was.parentNode.removeChild(was); return; }
+    var spots = typeof oneDieSpots === 'function' ? oneDieSpots(res) : [], list = el('div', 'roll-die-pick');
+    spots.forEach(function(sp) { var r = el('button', 'tool ghost', 'd' + sp.faces + ' showing ' + sp.v); r.type = 'button'; r.addEventListener('click', function() { list.parentNode && list.parentNode.removeChild(list); go(sp.at); }); list.appendChild(r); });
+    if (!spots.length) list.appendChild(el('div', 'roll-pend', 'No die here can be rolled again.'));
+    if (bar.parentNode) bar.parentNode.insertBefore(list, bar.nextSibling);
+    if (btn && btn.blur) btn.blur();
+}
 function renderCard(m) {
     var rec = m.roll, res = m.res, n = net(), Fm = F();
     var priv = !!(rec.priv || rec.to);
@@ -264,11 +275,12 @@ function renderCard(m) {
     else if (typeof rec.cov === 'string' && rec.cov) wrap.appendChild(el('div', 'roll-aim', 'Target in ' + rec.cov.toLowerCase()));   // 1.6.0: the number alone did not say why
     var amR = rec.aim && typeof rec.aim === 'object' && typeof rec.aim.n === 'string' && rec.aim.n ? rec.aim : null;   // 1.6.0 (B5): where a called shot was aimed, and what its location gave
     (Array.isArray(rec.asked) ? rec.asked : []).forEach(function(a) { if (a && typeof a.l === 'string' && typeof a.w === 'string') wrap.appendChild(el('div', 'roll-aim', a.l + ' ' + a.w)); });   // 1.6.2: what its roller answered
+    if (rec.redo && typeof redoWords === 'function') wrap.appendChild(el('div', 'roll-aim roll-redo', redoWords(rec.redo)));   // 1.6.4 (gap #2): a try kept, or a die rolled again, as the host stamped it
     if (typeof rec.pend === 'number' && rec.pend > 0) {   // 1.6.2 (G5): held until it is accepted, and it says so, so that nobody takes it for landed
         wrap.appendChild(el('div', 'roll-pend', 'Pending. Nothing has landed yet.'));
         if (rec.pts && typeof rec.pts === 'object' && typeof rec.pts.n === 'number') wrap.appendChild(el('div', 'roll-pend', rec.pts.n + ' ' + String(rec.pts.w || (rec.pts.n === 1 ? 'point' : 'points')) + ' to spend'));   // 1.6.2 (G5)
         var nP = net(), meP = !!(nP && nP.myId && rec.from && rec.from.id === nP.myId), gmP = !!(nP && (!nP.active || nP.role === 'host')), barP = el('div', 'roll-pend-bar');
-        if (meP || (gmP && rec.from && rec.from.gm)) (Array.isArray(rec.offers) ? rec.offers : []).forEach(function(a) { var b = el('button', 'tool ghost', a.l); b.type = 'button'; b.addEventListener('click', function() { if (nP.cardAct) nP.cardAct(rec.id, a.k); }); barP.appendChild(b); });
+        if (meP || (gmP && rec.from && rec.from.gm)) (Array.isArray(rec.offers) ? rec.offers : []).forEach(function(a) { var b = el('button', 'tool ghost', a.l); b.type = 'button'; b.addEventListener('click', function() { if (a.d === 1) { dieListToggle(barP, b, res, function(at) { if (nP.cardAct) nP.cardAct(rec.id, a.k + ':' + at); }); return; } if (nP.cardAct) nP.cardAct(rec.id, a.k); }); barP.appendChild(b); });   // 1.6.4 (gap #2): one die again asks which die first
         if (meP || gmP) { var ac = el('button', 'tool', 'Accept'); ac.type = 'button'; ac.title = 'Let it land as it stands. It lands by itself after ' + rec.pend + ' seconds'; ac.addEventListener('click', function() { if (nP.cardAct) nP.cardAct(rec.id, 'accept'); }); barP.appendChild(ac); }
         if (barP.childNodes.length) wrap.appendChild(barP);
     }

@@ -31,7 +31,7 @@ function cardPoints(h) { var o = h.o, p = typeof o.S.cardPtsOf === 'function' ? 
 function cardRunAct(o, id) { var hit = null; (Array.isArray(o.camp.system.rolls) ? o.camp.system.rolls : []).forEach(function(r) { if (r && r.id === id && Array.isArray(r.apply)) hit = r; }); return hit; }
 function cardOffers(h) {
     var o = h.o, v = cardVars(h), out = [], pts = cardPoints(h);
-    h.acts.forEach(function(a, i) { if ((h.used[i] || 0) >= (a.times || 1)) return; if (a.pay && !cardPayAct(o, a)) return; if (a.spend && (!pts || pts.n < a.spend)) return; if (a.does === 'run' && (!o.ch || !cardRunAct(o, a.act))) return; if (a.does === 'bandUp' && !(o.S.bandsFor(o.camp.system, o.ent).length > h.step + 1)) return; if (o.S.cardActOk(a, v, o.F)) out.push({ k: String(i), l: a.spend ? a.label + ' (' + a.spend + ')' : a.label }); });
+    h.acts.forEach(function(a, i) { if ((h.used[i] || 0) >= (a.times || 1)) return; if (a.pay && !cardPayAct(o, a)) return; if (a.spend && (!pts || pts.n < a.spend)) return; if (a.does === 'run' && (!o.ch || !cardRunAct(o, a.act))) return; if (a.does === 'bandUp' && !(o.S.bandsFor(o.camp.system, o.ent).length > h.step + 1)) return; if (a.does === 'oneDie' && !o.D.oneDieSpots(h.res).length) return; if (!o.S.cardActOk(a, v, o.F)) return; var off = { k: String(i), l: a.spend ? a.label + ' (' + a.spend + ')' : a.label }; if (a.does === 'oneDie') off.d = 1; out.push(off); });   // 1.6.4 (gap #2): one die again asks its roller for the die (d), and only where a die can be
     return out;
 }
 // [netcheck:swpay-start]
@@ -56,14 +56,14 @@ function cardPayAct(o, a) { var hit = null; (Array.isArray(o.camp.system.rolls) 
 // card into the copy that leaves the host (the hidefig slice's mask, its buttons kept). The table and its roller get that copy; the GM's own card (pushRoll) stays whole
 function cardSend(h, offers) {
     var o = h.o, rec = { type: 'roll', id: h.id, from: o.from, expr: h.expr, draws: h.res.draws, v: o.F.VERSION, ts: Date.now(), pend: h.wait, offers: offers }, ptsS = cardPoints(h); if (ptsS) rec.pts = ptsS;
-    if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
+    if (h.redo) rec.redo = h.redo; if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid; if (o.label) rec.label = o.label; if (o.as) rec.as = o.as; if (o.priv) rec.priv = 'gm'; if (o.asked && o.asked.length) rec.asked = o.asked;
     if (h.res.breakdown && h.res.breakdown.names && h.res.breakdown.names.length) { var nmH = o.D.cleanNames(h.res.breakdown.names); if (nmH && nmH.length) rec.names = nmH; }   // what its formula read, without which no other machine can draw the card
     var out = typeof o.fig === 'function' ? o.fig(rec, h.res) : rec;
     if (o.conn) { if (o.priv) { try { o.conn.send(out); } catch (e) { sendFailed(e); } } else sendTable(out, null); } else if (!o.priv) sendTable(out, null);
     pushRoll(rec, h.res, o.priv ? 'whisper' : 'global', { cid: o.cid });
 }
 function cardClock(h) { if (h.timer) clearTimeout(h.timer); h.timer = null; if (h.away) return; h.timer = setTimeout(function() { cardSettle(h); }, h.wait * 1000); }
-function cardSettle(h) { if (!_cardHeld[h.id]) return; delete _cardHeld[h.id]; if (h.timer) clearTimeout(h.timer); h.timer = null; h.o.go(h.res, h.expr, h.id, h.step); cardRuns(h); }
+function cardSettle(h) { if (!_cardHeld[h.id]) return; delete _cardHeld[h.id]; if (h.timer) clearTimeout(h.timer); h.timer = null; h.o.go(h.res, h.expr, h.id, h.step, h.redo || null); cardRuns(h); }
 function cardRuns(h) {   // 1.6.2 (G5): what was picked runs once the roll has landed, in the order picked, each read on the sheet as the one before left it
     var o = h.o, vd = o.D.verdictOf(h.res, o.D.ruleOf({}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : ''));
     (h.queue || []).forEach(function(id) {
@@ -79,13 +79,28 @@ function cardHold(o) {
     _cardHeld[h.id] = h; cardSend(h, off); cardClock(h); return true;
 }
 function cardSay(h, words) { var o = h.o; if (o.conn && typeof turnNote === 'function') turnNote(o.conn, words, o.cid); else if (typeof toast === 'function') toast(words); }
+// 1.6.4 (gap #2): what a press that rolls again keeps, and what its card says of it (h.redo). Keep the better or the worse: the try the judge keeps (null where
+// the old one stays), counting every try; a plain Roll again starts the count afresh. One die: the new roll, the card saying what it showed
+function cardRedo(h, a, pick, again) {
+    var o = h.o;
+    if (a.does === 'best' || a.does === 'worst') {
+        var cr = typeof o.S.critRange === 'function' ? o.S.critRange(o.camp.system, o.ent, o.vars, o.F) : null;   // criticals at fixed rolls: the roll's own range, as its card reads it
+        var rule = o.D.ruleOf(cr ? { crit: cr } : {}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : ''), n =(h.redo && h.redo.k && h.redo.k === (a.does === 'best' ? 'better' : 'worse') ? h.redo.n : 1) + 1;
+        h.redo = { k: a.does === 'best' ? 'better' : 'worse', n: Math.min(99, n) };
+        return o.D.tryKeepsNew(a.does, h.res, again, rule) ? again : null;
+    }
+    if (a.does === 'oneDie') { var now = o.D.oneDieSpots(again).filter(function(sp) { return sp.at === pick.at; })[0]; h.redo = now ? { f: pick.faces, a: pick.v, b: now.v } : null; return again; }
+    if (a.does === 'again' || a.does === 'againIf') h.redo = null;   // a new roll, so no try is kept any more; a number added keeps what the card said
+    return again;
+}
 // who: the profile that pressed, '' for the GM's own hand. A press is its roller's or the GM's, and an action is the roller's alone
 function cardPress(id, key, who) {
     var h = typeof id === 'string' && Object.prototype.hasOwnProperty.call(_cardHeld, id) ? _cardHeld[id] : null; if (!h) return false;
     var o = h.o, mine = who === '' || who === o.pid; if (!mine) return false;
     if (key === 'accept') { cardSettle(h); return true; }
     if (who === '' && o.pid) return false;
-    var i = Number(key), a = h.acts[i]; if (!a || !cardOffers(h).some(function(x) { return x.k === String(i); })) return false;
+    var kp = String(key).split(':'), i = Number(kp[0]), a = h.acts[i]; if (!a || !cardOffers(h).some(function(x) { return x.k === String(i); })) return false;
+    var pick = null; if (a.does === 'oneDie') { var dieAt = kp.length === 2 ? Number(kp[1]) : -1; pick = o.D.oneDieSpots(h.res).filter(function(sp) { return sp.at === dieAt; })[0] || null; if (!pick) return false; } else if (kp.length !== 1) return false;   // 1.6.4 (gap #2): the die named must be one the card offers, and only that action names one
     if (a.pay) {
         var pa = cardPayAct(o, a), pr = pa ? o.S.applyAct(o.camp.system, o.ch, pa, o.vars, o.F, o.tc, null, undefined, o.D) : null;
         if (!pr || !pr.ok) { cardSay(h, (pr && pr.message) || 'That cannot be paid now.'); return false; }
@@ -93,14 +108,15 @@ function cardPress(id, key, who) {
     }
     h.used[i] = (h.used[i] || 0) + 1; if (a.spend) h.spent += a.spend; if (a.does === 'run') h.queue.push(a.act);
     var again = null, keep = h.res.draws.slice(), at = 0;
-    if (a.does === 'again') again = o.F.evaluate(h.expr, { vars: o.vars });
+    if (a.does === 'again' || a.does === 'best' || a.does === 'worst') again = o.F.evaluate(h.expr, { vars: o.vars });
+    else if (a.does === 'oneDie') again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var j = at++, raw = keep[j]; if (j !== pick.at && typeof raw === 'number' && raw >= 1 && raw <= fc) return raw; return 1 + Math.floor(Math.random() * fc); } });   // every draw as it was but the one picked, so all that reads it is worked out again
     else if (a.does === 'againIf') again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var raw = keep[at++]; if (typeof raw === 'number' && raw >= 1 && raw <= fc && !o.S.cardDieHolds(raw, a.test)) return raw; return 1 + Math.floor(Math.random() * fc); } });
     else if (a.does === 'add' || a.does === 'sub') {
         var nv = o.F.evaluate(a.n, { vars: cardVars(h) }), md = nv.ok && typeof nv.value === 'number' && isFinite(nv.value) ? Math.round(nv.value) : null; if (md === null) { cardSay(h, 'That amount could not be worked out.'); return false; }
         var cm = o.D.composeModifier(h.expr, a.does === 'add' ? md : -md, o.F.parse); if (!cm.ok) { cardSay(h, 'That roll cannot take that change.'); return false; }
         h.expr = cm.expr; again = o.F.evaluate(h.expr, { vars: o.vars, random: function(fc) { var raw = keep[at++]; return typeof raw === 'number' && raw >= 1 && raw <= fc ? raw : 1 + Math.floor(Math.random() * fc); } });
     } else if (a.does === 'bandUp') h.step += 1;
-    if (again) { if (!again.ok) { cardSay(h, 'That roll cannot take that change.'); return false; } h.res = again; }
+    if (again) { if (!again.ok) { cardSay(h, 'That roll cannot take that change.'); return false; } again = cardRedo(h, a, pick, again); if (again) h.res = again; }
     var off = cardOffers(h); if (!off.length) { cardSettle(h); return true; }
     cardSend(h, off); cardClock(h); return true;
 }

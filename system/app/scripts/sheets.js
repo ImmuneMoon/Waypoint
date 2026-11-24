@@ -6280,7 +6280,7 @@ function cardBox(get, put, hold, whose) {
         list.forEach(function(a, j) {
             var q = el('div', 'sys-ask'), top = el('div', 'sys-ask-top'), lab = input('sys-ask-label field', a.label || '', 'The words on the button', 'Push your luck'); lab.maxLength = LIMITS.label;
             lab.addEventListener('input', function() { a.label = lab.value.slice(0, LIMITS.label); ch(); note(); });
-            var does = select('sys-card-does', [['again', 'Roll again'], ['againIf', 'Roll some of the dice again'], ['add', 'Add a number'], ['sub', 'Take off a number'], ['bandUp', 'Take the result up a band'], ['run', 'Run an action once it lands']], a.does || 'again', 'What it does to the roll');
+            var does = select('sys-card-does', [['again', 'Roll again'], ['best', 'Roll again, keep the better'], ['worst', 'Roll again, keep the worse'], ['againIf', 'Roll some of the dice again'], ['oneDie', 'Roll one die again'], ['add', 'Add a number'], ['sub', 'Take off a number'], ['bandUp', 'Take the result up a band'], ['run', 'Run an action once it lands']], a.does || 'again', 'What it does to the roll');
             does.addEventListener('change', function() { a.does = does.value; if (a.does === 'run' && !a.act && pays()[0]) a.act = pays()[0].id; ch(true); });
             var x = el('button', 'tool ghost sys-btn', '\u00d7'); x.type = 'button'; x.title = 'Take this off'; x.addEventListener('click', function(e) { e.stopPropagation(); list.splice(j, 1); put(list.length ? list : null); ch(true); });
             top.appendChild(lab); top.appendChild(does); top.appendChild(x); q.appendChild(top);

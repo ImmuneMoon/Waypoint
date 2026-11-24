@@ -183,7 +183,9 @@ function helpFig(help, vars, F) {
 }
 // all help together, held to the roll's cap where it has one
 function helpTotal(help, list) { var n = 0; (Array.isArray(list) ? list : []).forEach(function(x) { if (isObj(x) && typeof x.v === 'number' && fin(x.v)) n += x.v; }); if (isObj(help) && typeof help.cap === 'number' && n > help.cap) n = help.cap; return Math.max(-99, Math.min(99, n)); }
-var CARD_DOES = Object.freeze({ again: 1, againIf: 1, add: 1, sub: 1, bandUp: 1, run: 1 }), CARD_MAX = 6;
+// 1.6.4 (gap #2 of the full test): best and worst, Roll again and keep the better or the worse try of all so far; oneDie, Roll one die again, the die its
+// roller picks on the card. Each is a word alone, with the times, cost and needs every action has, so a system that sets none is as it was
+var CARD_DOES = Object.freeze({ again: 1, againIf: 1, add: 1, sub: 1, bandUp: 1, run: 1, best: 1, worst: 1, oneDie: 1 }), CARD_MAX = 6;
 function cleanCardActs(v) {
     if (!Array.isArray(v)) return undefined;
     var out = [];

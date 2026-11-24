@@ -253,15 +253,70 @@ function cleanHelpAct(msg) {
     if (msg.ix !== undefined) { if (!isInt(msg.ix) || msg.ix < 0 || msg.ix > 7) return null; out.ix = msg.ix; }
     return out;
 }
+// A press on a held roll's card: accept, an action's place, or (1.6.4, gap #2) an action's place and the die it rolls again, "2:5" (the fifth draw, from 0)
+var CARD_KEY = /^(accept|\d{1,2}(:\d{1,3})?)$/;
 function cleanCardAct(msg) {
-    if (!msg || typeof msg !== 'object' || typeof msg.id !== 'string' || !ID_RE.test(msg.id) || typeof msg.key !== 'string' || !/^(accept|\d{1,2})$/.test(msg.key)) return null;
+    if (!msg || typeof msg !== 'object' || typeof msg.id !== 'string' || !ID_RE.test(msg.id) || typeof msg.key !== 'string' || !CARD_KEY.test(msg.key)) return null;
     return { id: msg.id, key: msg.key };
 }
+// What a held card offers: { k, l }, and d: 1 on an action that rolls one die again, which asks its roller for the die first (1.6.4, gap #2)
 function cleanOffers(v) {
     if (!Array.isArray(v)) return null;
-    var out = []; v.slice(0, 12).forEach(function(a) { if (a && typeof a === 'object' && typeof a.k === 'string' && /^\d{1,2}$/.test(a.k) && typeof a.l === 'string' && a.l) out.push({ k: a.k, l: a.l.slice(0, 120) }); });
+    var out = []; v.slice(0, 12).forEach(function(a) { if (a && typeof a === 'object' && typeof a.k === 'string' && /^\d{1,2}$/.test(a.k) && typeof a.l === 'string' && a.l) { var o = { k: a.k, l: a.l.slice(0, 120) }; if (a.d === 1) o.d = 1; out.push(o); } });
     return out;
 }
+// [dicecheck:redo-start]
+// 1.6.4 (gap #2 of the full test, docs/proof/GAPS.md): two judges for the card actions that roll again, kept here so the host and every card read them alike.
+// tryKeepsNew: whether a new try takes the old one's place, for Roll again, keep the better (does 'best') or keep the worse ('worst'). A check is ranked by
+// its outcome first (a critical success, a success, a failure, a critical failure) and then by its margin, which is bigger the better on both sides of the
+// target; a roll that is no check by its total, the higher the better. A tie keeps the old try. Keeping the better each time keeps the best of all tries.
+function tryRank(res, rule) {
+    var v = verdictOf(res, rule); if (!v) return null;
+    if (v.kind !== 'check') return [0, typeof v.value === 'number' && isFinite(v.value) ? v.value : 0];
+    var c = critOf(res, rule), tier = c === 'crit' ? 3 : c === 'fumble' ? 0 : v.pass ? 2 : 1;
+    return [tier, typeof v.margin === 'number' && isFinite(v.margin) ? v.margin : 0];
+}
+function tryKeepsNew(does, oldRes, newRes, rule) {
+    var a = tryRank(oldRes, rule), b = tryRank(newRes, rule); if (!b) return false; if (!a) return true;
+    var cmp = (b[0] - a[0]) || (b[1] - a[1]);
+    return does === 'worst' ? cmp < 0 : cmp > 0;
+}
+// oneDieSpots: the dice a roll's card may roll again one at a time, as { at, faces, v }: at, the die's place among the roll's draws (res.draws, in the
+// order the formula drew them, a die in a count before the dice it counts: the engine lets no modifier roll dice); faces, its sides ('F' for a fudge die); v, what it shows. Only a plain die is offered, one drawn once: never one of a group
+// that rerolls or explodes by its own formula, since such a die's later draws cannot be redone die by die. Where the dice do not add up to the draws (a
+// die inside another die's count or modifier, a card drawn as the die) none is offered, so a pick never lands on the wrong draw
+var ONE_DIE_MAX = 60;
+function oneDieSpots(res) {
+    var groups = res && res.ok && res.breakdown && Array.isArray(res.breakdown.dice) ? res.breakdown.dice : null, draws = res && Array.isArray(res.draws) ? res.draws : null;
+    if (!groups || !draws) return [];
+    var out = [], at = 0, whole = true;
+    groups.forEach(function(g) {
+        var dice = g && Array.isArray(g.dice) ? g.dice : [], m = g && typeof g.text === 'string' ? /d(\d+|F)([\s\S]*)$/i.exec(g.text) : null, plain = !!m && !/[!r]/i.test(m[2]);
+        dice.forEach(function(d) {
+            var n = d && Array.isArray(d.hist) && Array.isArray(d.chain) ? d.hist.length + d.chain.length - 1 : -1; if (n < 1) { whole = false; return; }
+            var raw = draws[at], shows = g.faces === 'F' ? raw - 2 : raw;
+            if (n === 1 && shows !== d.value) whole = false;   // a die drawn once shows its own draw, or the places are not the formula's
+            if (plain && n === 1 && out.length < ONE_DIE_MAX) out.push({ at: at, faces: g.faces, v: d.value });
+            at += n;
+        });
+    });
+    return whole && at === draws.length ? out : [];
+}
+// What a card says of a try kept or a die rolled again, as the host stamps it on the card (redo): { k: 'better' | 'worse', n: the tries } or
+// { f: the die's sides, a: what it showed, b: what it shows now }. Anything else is left off, the roll kept
+function cleanRedo(v) {
+    if (!v || typeof v !== 'object') return null;
+    if ((v.k === 'better' || v.k === 'worse') && isInt(v.n) && v.n >= 2 && v.n <= 99) return { k: v.k, n: v.n };
+    var sideOk = function(x) { return x === 'F' || (isInt(x) && x >= 2 && x <= 1000); }, faceOk = function(x) { return isInt(x) && x >= -1 && x <= 1000; };
+    if (sideOk(v.f) && faceOk(v.a) && faceOk(v.b)) return { f: v.f, a: v.a, b: v.b };
+    return null;
+}
+function redoWords(r) {
+    if (!r) return '';
+    if (r.k) return 'Kept the ' + r.k + ' of ' + r.n + ' tries';
+    return 'Rolled a d' + r.f + ' again: ' + r.a + ' became ' + r.b;
+}
+// [dicecheck:redo-end]
 function cleanRollReq(msg) {
     if (!msg || typeof msg !== 'object') return null;
     var expr = cleanExpr(msg.expr); if (!expr) return null;
@@ -460,6 +515,7 @@ function cleanRoll(rec) {
     if (rec.dmgAim === 1 && out.dmg === 1 && !out.dmgOn) out.dmgAim = 1;   // 1.6.3 (the review of defense fold 0): a called damage roll stamped as landing on nobody yet, so Apply asks for a selected token, never the roller's pointer   // ... and the damage that lands on that body
     if (rec.bodyName !== undefined && (out.body === 1 || out.bodyOn === 1)) { var bdN = cleanLabel(rec.bodyName); if (bdN) out.bodyName = bdN; }   // ... named where its viewer can see the target (the host's word), as text   // 1.6.0: where a hit behind cover landed (one that does not clean is left off, the roll kept)
     if (rec.asked !== undefined) { var akc = cleanAsked(rec.asked); if (akc) out.asked = akc; }   // 1.6.2: what its roller answered
+    if (rec.redo !== undefined) { var rdc = cleanRedo(rec.redo); if (rdc) out.redo = rdc; }   // 1.6.4 (gap #2): a try kept, or a die rolled again, on its card
     if (typeof rec.pend === 'number' && isFinite(rec.pend) && rec.pend > 0) { out.pend = Math.min(600, Math.floor(rec.pend)); var ofc = cleanOffers(rec.offers); if (ofc) out.offers = ofc; var pts = rec.pts; if (pts && typeof pts === 'object' && typeof pts.n === 'number' && isFinite(pts.n) && pts.n >= 0 && pts.n <= 999 && typeof pts.w === 'string' && pts.w) out.pts = { n: Math.floor(pts.n), w: pts.w.slice(0, 60) }; }   // 1.6.2 (G5): held, nothing of it landed yet
     if (rec.aim !== undefined) { var amc = cleanAim(rec.aim); if (amc) out.aim = amc; }   // 1.6.0 (B5): where a called shot was aimed (one that does not clean is left off, the roll kept)
     if (rec.pos !== undefined) { var psc = cleanPos(rec.pos); if (psc) out.pos = psc; }   // 1.6.0: a target's posture on the attack, against its cover (one that does not clean is left off, the roll kept)
@@ -855,6 +911,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { crossWhy: crossWhy, cleanHmod: cleanHmod, sendWhy: sendWhy, cleanSendOn: cleanSendOn, landWhy: landWhy, cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook, cleanDiceLook: cleanDiceLook, DICE_PATS: DICE_PATS, cleanDiceDesign: cleanDiceDesign, DICE_DESIGN_MAX: DICE_DESIGN_MAX };
+var API = { tryKeepsNew: tryKeepsNew, oneDieSpots: oneDieSpots, cleanRedo: cleanRedo, redoWords: redoWords, crossWhy: crossWhy, cleanHmod: cleanHmod, sendWhy: sendWhy, cleanSendOn: cleanSendOn, landWhy: landWhy, cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook, cleanDiceLook: cleanDiceLook, DICE_PATS: DICE_PATS, cleanDiceDesign: cleanDiceDesign, DICE_DESIGN_MAX: DICE_DESIGN_MAX };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { crossWhy, cleanHmod, sendWhy, cleanSendOn, landWhy, cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook, cleanDiceLook, DICE_PATS, cleanDiceDesign, DICE_DESIGN_MAX };
+export { tryKeepsNew, oneDieSpots, cleanRedo, redoWords, crossWhy, cleanHmod, sendWhy, cleanSendOn, landWhy, cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook, cleanDiceLook, DICE_PATS, cleanDiceDesign, DICE_DESIGN_MAX };

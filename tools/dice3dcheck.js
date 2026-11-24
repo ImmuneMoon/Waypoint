@@ -134,7 +134,7 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
     const nj = fs.readFileSync(app('scripts/net.js'), 'latin1').replace(/\r\n/g, '\n');
     check('a roll carries this computer’s look: a player’s request, the host’s record of it, the GM’s own roll and a card that waits, never a roll made for another player’s press',
         nj.includes("function rollLookOwn() { var D = DC(); return D && typeof D.cleanDiceLook === 'function' && window.wpDice3d && typeof window.wpDice3d.look === 'function' ? D.cleanDiceLook(window.wpDice3d.look()) : null; }")
-        && nj.includes('var dlS = rollLookOwn(); if (dlS) req.dl = dlS;') && nj.includes('if (heldQ) recQ.id = heldQ; if (q.dl) recQ.dl = q.dl;') && nj.includes('if (heldR) rec.id = heldR; if (!o.from) { var dlR = rollLookOwn(); if (dlR) rec.dl = dlR; }')
+        && nj.includes('var dlS = rollLookOwn(); if (dlS) req.dl = dlS;') && nj.includes('if (heldQ) recQ.id = heldQ; if (redoQ) recQ.redo = redoQ; if (q.dl) recQ.dl = q.dl;') && nj.includes('if (heldR) rec.id = heldR; if (redoR) rec.redo = redoR; if (!o.from) { var dlR = rollLookOwn(); if (dlR) rec.dl = dlR; }')
         && nj.includes('cardHold({ dl: q.dl || null,') && nj.includes('cardHold({ dl: o.from ? null : rollLookOwn(),') && require('./srcjoin').raw('nethold.js', 'utf8').includes('if (o.dl) rec.dl = o.dl; if (o.rid) rec.rid = o.rid;'));   // the held roll's look stands in nethold.js, read by its own name
     const esk = read('scripts/esckey.js');
     check('the painter is a window of the page, opened from Settings and from the roller, its sets and patterns made as buttons with text, its colors four color boxes, closed by Escape through its own button',

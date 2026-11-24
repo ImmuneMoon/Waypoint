@@ -33,7 +33,8 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
         W.camp = { id: 'k', activeItemId: 'm1', system: JSON.parse(J(SYS)), chars: { c_a: { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: Object.assign({ f_luck: 2 }, o.vals) } }, items: { m1: { type: 'map', whiteboard: [] } } };
         W.net = { role: 'host', paused: false, roster: { pA: { id: 'u_a', name: 'Pat', location: 'm1' }, pB: { id: 'u_b', name: 'Bo', location: 'm1' } }, combats: {}, combatRoundOf: () => null, syncCharDelta: (id, d) => W.deltas.push(d) };
         W.conn = { peer: 'pA', send(m) { W.sent.push(JSON.parse(J(m))); } };
-        const win = { wpFormula: F, wpSheets: { playerSystem: c => S.cleanSystem(c.system, { F, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
+        const Fw = o.draws ? Object.assign({}, F, { evaluate: (e, op) => F.evaluate(e, Object.assign({ random: () => o.draws.shift() || 1 }, op)) }) : F;   // gap #2: dice of the suite's own where a check needs them
+        const win = { wpFormula: Fw, wpSheets: { playerSystem: c => S.cleanSystem(c.system, { F, gmView: false }), charChanged() {} }, wpVtt: { on: () => true, rulesOn: () => true } };
         W.setT = (fn, ms) => { const t = { fn, ms, off: false }; W.timers.push(t); return t; }; W.clearT = t => { if (t) t.off = true; };
         W.api = new Function('net', 'DC', 'SC', 'window', 'getActiveCampaign', 'peerPaused', 'sendFailed', 'sendTable', 'pushRoll', 'logEvent', 'saveRemoteSoon', 'setTimeout', 'clearTimeout', 'turnNote', 'toast',
             'var diceLimit = null, _diceSlowSaid = {};\n' + (o.pre || '') + helpers + hold + '\nreturn { handle: function(msg, conn) {\n' + rq + '\n}, press: cardPress, away: cardAway, held: function() { return Object.keys(_cardHeld); } };')(
@@ -120,6 +121,63 @@ const app = p => path.join(root, 'system', 'app', p), read = p => fs.readFileSyn
             fH.api.held().length === 1 && ['pass', 'fail', 'rolled'].indexOf(tH.hid) >= 0 && !/AttemptMargin/.test(tH.expr) && tH.pend === 60 && Array.isArray(tH.offers) && tH.offers.length === 1 && !('pts' in tH)
             && /AttemptMargin/.test(gH.expr || '') && !gH.hid && gH.pend === 60
             && !tO.hid && /AttemptMargin/.test(tO.expr || '') && tO.pend === 60 && (() => { const r = D.cleanRoll(Object.assign({}, tH, { type: 'roll' })); return !!r && r.pend === 60 && !!r.hid; })(), J([tH, gH, tO]));
+    }
+    // 1.6.4 (gap #2 of the full test): Roll again and keep the better or the worse try, and Roll one die again, the die its roller picks on the card
+    {
+        const fixed = (expr, ds) => { let i = 0; return F.evaluate(expr, { random: () => ds[i++] }); }, rule = D.ruleOf({}, 'plain');
+        check('gap #2: the three new actions are kept as words alone, with the times every action has', J(S.cleanCardActs([{ label: 'Luck', does: 'best', times: 2 }, { label: 'Jinx', does: 'worst' }, { label: 'Nudge', does: 'oneDie', test: { op: '<=', v: 1 }, n: '3' }])) === J([{ label: 'Luck', does: 'best', times: 2 }, { label: 'Jinx', does: 'worst' }, { label: 'Nudge', does: 'oneDie' }]));
+        check('gap #2: a check keeps the better outcome first, then the bigger margin; a tie keeps the old try',
+            D.tryKeepsNew('best', fixed('1d20 >= 15', [9]), fixed('1d20 >= 15', [16]), rule) && !D.tryKeepsNew('best', fixed('1d20 >= 15', [16]), fixed('1d20 >= 15', [15]), rule) && D.tryKeepsNew('best', fixed('1d20 >= 15', [16]), fixed('1d20 >= 15', [19]), rule)
+            && D.tryKeepsNew('best', fixed('1d20 >= 15', [3]), fixed('1d20 >= 15', [12]), rule) && !D.tryKeepsNew('best', fixed('1d20 >= 15', [12]), fixed('1d20 >= 15', [12]), rule));
+        check('gap #2: a roll under its target ranks the lower total better, by its margin', D.tryKeepsNew('best', fixed('3d6 <= 12', [5, 5, 5]), fixed('3d6 <= 12', [2, 2, 2]), rule) && D.tryKeepsNew('worst', fixed('3d6 <= 12', [2, 2, 2]), fixed('3d6 <= 12', [5, 5, 5]), rule));
+        check('gap #2: a roll that is no check keeps the higher total, or the lower for keep the worse', D.tryKeepsNew('best', fixed('2d6', [1, 2]), fixed('2d6', [3, 3]), rule) && !D.tryKeepsNew('best', fixed('2d6', [3, 3]), fixed('2d6', [1, 2]), rule) && D.tryKeepsNew('worst', fixed('2d6', [3, 3]), fixed('2d6', [1, 2]), rule));
+        const u3 = D.ruleOf({}, 'under3d6');
+        check('gap #2: under criticals at fixed rolls a critical outranks a success by a bigger margin, and a critical failure a failure by a bigger one', D.tryKeepsNew('best', fixed('3d6 + 10 >= 5', [6, 6, 5]), fixed('3d6 + 10 >= 5', [1, 1, 1]), D.ruleOf({ crit: [3, 18] }, 'fixed')) && D.tryKeepsNew('worst', fixed('3d6 >= 30', [1, 1, 1]), fixed('3d6 >= 30', [6, 6, 6]), D.ruleOf({ crit: [3, 18] }, 'fixed')));
+        check('gap #2: a critical success beats any plain success and a critical failure loses to any failure', D.tryKeepsNew('best', fixed('3d6 <= 14', [3, 3, 3]), fixed('3d6 <= 14', [1, 1, 2]), u3) && D.tryKeepsNew('worst', fixed('3d6 <= 8', [5, 5, 5]), fixed('3d6 <= 8', [6, 6, 6]), u3));
+        const sp = D.oneDieSpots(fixed('3d6 + 1d4 >= 1', [2, 5, 6, 3]));
+        check('gap #2: a die in a count is offered in its own place, before the dice it counts', J(D.oneDieSpots(fixed('(1d4)d6 + 1d8', [2, 5, 3, 7]))) === J([{ at: 0, faces: 4, v: 2 }, { at: 1, faces: 6, v: 5 }, { at: 2, faces: 6, v: 3 }, { at: 3, faces: 8, v: 7 }]) && D.oneDieSpots(Object.assign({}, fixed('2d6', [1, 2]), { draws: [1, 2, 3] })).length === 0 && D.oneDieSpots(Object.assign({}, fixed('2d6', [1, 2]), { draws: [2, 2] })).length === 0);
+        check('gap #2: every plain die is offered by its place among the draws, its sides and what it shows', J(sp) === J([{ at: 0, faces: 6, v: 2 }, { at: 1, faces: 6, v: 5 }, { at: 2, faces: 6, v: 6 }, { at: 3, faces: 4, v: 3 }]), J(sp));
+        const spX = D.oneDieSpots(fixed('2d6! + 1d8', [6, 2, 3, 7])), spR = D.oneDieSpots(fixed('2d6r1 + 1d8', [1, 4, 3, 7])), spK = D.oneDieSpots(fixed('4d6kh3', [1, 4, 3, 6]));
+        check('gap #2: a die of a group that explodes or rolls again by its own formula is never offered, and the dice after it keep their true places; a kept or dropped die alike', J(spX) === J([{ at: 3, faces: 8, v: 7 }]) && J(spR) === J([{ at: 3, faces: 8, v: 7 }]) && spK.length === 4, J([spX, spR, spK]));
+        check('gap #2: the wire takes an action and a die, and nothing looser', !!D.cleanCardAct({ id: 'r_abc12345', key: '2:5' }) && !D.cleanCardAct({ id: 'r_abc12345', key: '2:' }) && !D.cleanCardAct({ id: 'r_abc12345', key: '2:5:1' }) && !D.cleanCardAct({ id: 'r_abc12345', key: 'accept:1' }) && !D.cleanCardAct({ id: 'r_abc12345', key: '2:1234' }));
+        check('gap #2: what the card says is cleaned to the two shapes alone', J(D.cleanRedo({ k: 'better', n: 3 })) === J({ k: 'better', n: 3 }) && J(D.cleanRedo({ f: 6, a: 2, b: 5, x: 1 })) === J({ f: 6, a: 2, b: 5 }) && D.cleanRedo({ k: 'best', n: 3 }) === null && D.cleanRedo({ k: 'better', n: 1 }) === null && D.cleanRedo({ f: '<b>', a: 1, b: 2 }) === null
+            && D.redoWords({ k: 'better', n: 3 }) === 'Kept the better of 3 tries' && D.redoWords({ f: 6, a: 2, b: 5 }) === 'Rolled a d6 again: 2 became 5');
+        const NM = S.cleanSystem({ v: 1, name: 'N', fields: SYS.fields, rolls: [{ id: 'r_m', label: 'Swing', formula: '2d6 + 1', cardActs: [{ label: 'Nudge', does: 'oneDie' }] }, { id: 'r_q', label: 'Plain', formula: '2d6 + 1' }] }, { F, gmView: true }), NMV = S.cleanSystem(NM, { F, gmView: false });
+        check('gap #2 (found by its live check): a roll whose only consequence is its card names itself as it is pressed in both views, so the host holds it for its card; a roll with no card stays plain', NM.rolls[0].named === true && NMV.rolls[0].named === true && !('cardActs' in NMV.rolls[0]) && !('named' in NM.rolls[1]) && !('named' in NMV.rolls[1]), J([NM.rolls, NMV.rolls]));
+        const RR = S.cleanSystem({ v: 1, name: 'R', combat: { checks: 'plain' }, fields: SYS.fields, rolls: [
+            { id: 'r_k', label: 'Lucky', formula: '1d20 >= 11', then: [{ f: 'f_hp', formula: '1', add: true }], cardActs: [{ label: 'Luck', does: 'best', times: 2 }, { label: 'Jinx', does: 'worst' }] },
+            { id: 'r_o', label: 'Pool', formula: '3d6 >= 1', then: [{ f: 'f_hp', formula: '1', add: true }], cardActs: [{ label: 'Nudge', does: 'oneDie' }] },
+            { id: 'r_x', label: 'Wild', formula: '1d6! >= 1', then: [{ f: 'f_hp', formula: '1', add: true }], cardActs: [{ label: 'Nudge', does: 'oneDie' }] }] }, { F, gmView: true });
+        const rw = (id) => { const w = world(); w.camp.system = JSON.parse(J(RR)); w.roll(id, RR.rolls.filter(r => r.id === id)[0].formula); return w; }, last = w => w.table[w.table.length - 1], rank = c => { const r = fixed(c.expr, c.draws), v = D.verdictOf(r, rule); return [v.pass ? 1 : 0, v.margin]; };
+        let betterOk = true, worseOk = true, sayOk = true;
+        for (let t = 0; t < 40; t++) {
+            const w = rw('r_k'), c0 = w.table[0], r0 = rank(c0); w.api.press(c0.id, '0', 'u_a'); const c1 = last(w), r1 = rank(c1);
+            if (r1[0] < r0[0] || (r1[0] === r0[0] && r1[1] < r0[1])) betterOk = false;
+            if (!c1.redo || c1.redo.k !== 'better' || c1.redo.n !== 2 || c1.id !== c0.id || !c1.pend) sayOk = false;
+            w.api.press(c0.id, '0', 'u_a'); const c2 = last(w); if (!c2.redo || c2.redo.n !== 3) sayOk = false;
+            const v = rw('r_k'), d0 = v.table[0], s0 = rank(d0); v.api.press(d0.id, '1', 'u_a'); const d1 = last(v), s1 = rank(d1);
+            if (s1[0] > s0[0] || (s1[0] === s0[0] && s1[1] > s0[1])) worseOk = false;
+        }
+        check('gap #2: keep the better never leaves a worse try than it had, keep the worse never a better (40 rolls each)', betterOk && worseOk);
+        check('gap #2: the pending card counts the tries under the roll’s one id', sayOk);
+        const wl = rw('r_k'), l0 = wl.table[0]; wl.api.press(l0.id, '0', 'u_a'); wl.api.press(l0.id, 'accept', 'u_a'); const lf = last(wl);
+        check('gap #2: the final card keeps the line, and the cleaner keeps it for a player’s app', !lf.pend && lf.id === l0.id && J(lf.redo) === J({ k: 'better', n: 2 }) && wl.camp.chars.c_a.values.f_hp === 1 && J(D.cleanRoll(Object.assign({}, lf, { type: 'roll' })).redo) === J({ k: 'better', n: 2 }), J(lf));
+        const wo = rw('r_o'), o0 = wo.table[0];
+        check('gap #2: one die again is offered as a pick of a die', J(o0.offers) === J([{ k: '0', l: 'Nudge', d: 1 }]) && J(D.cleanRoll(Object.assign({}, o0, { type: 'roll' })).offers) === J([{ k: '0', l: 'Nudge', d: 1 }]), J(o0));
+        wo.api.press(o0.id, '0', 'u_a'); wo.api.press(o0.id, '0:7', 'u_a');
+        check('gap #2: a press that names no die, or a die the card does not offer, does nothing', wo.table.length === 1 && wo.api.held().length === 1);
+        const mr = Math.random; Math.random = () => 0.5; const wq = world({ draws: [2, 5, 6] }); wq.camp.system = JSON.parse(J(RR)); wq.roll('r_o', '3d6 >= 1'); wq.api.press(wq.table[0].id, '0:1', 'u_a'); Math.random = mr;
+        check('gap #2: the die picked is truly rolled again (a fresh 4 where it showed 5)', J(last(wq).draws) === J([2, 4, 6]) && J(last(wq).redo) === J({ f: 6, a: 5, b: 4 }), J(last(wq)));
+        let oneOk = true;
+        for (let t = 0; t < 30; t++) {
+            const w = rw('r_o'), a0 = w.table[0]; w.api.press(a0.id, '0:1', 'u_a'); const a1 = last(w);
+            if (a1.id !== a0.id || a1.pend || a1.draws[0] !== a0.draws[0] || a1.draws[2] !== a0.draws[2] || a1.draws.length !== 3 || !a1.redo || a1.redo.f !== 6 || a1.redo.a !== a0.draws[1] || a1.redo.b !== a1.draws[1] || w.camp.chars.c_a.values.f_hp !== 1) { oneOk = false; console.log(J([a0, a1])); break; }
+        }
+        check('gap #2: only the die picked is rolled again, the others stand, the card says what it showed and shows now, and with no uses left it lands', oneOk);
+        const FX = S.cleanSystem({ v: 1, name: 'X', combat: { checks: 'fixed' }, fields: SYS.fields, rolls: [{ id: 'r_f', label: 'Fixed', formula: '3d6 + 10 >= 5', cardActs: [{ label: 'Luck', does: 'best' }] }] }, { F, gmView: true }), wf = world({ draws: [6, 6, 5, 1, 1, 1] }); wf.camp.system = JSON.parse(J(FX)); wf.roll('r_f', '3d6 + 10 >= 5'); wf.api.press(wf.table[0].id, '0', 'u_a');
+        check('gap #2: on the host, keep the better reads the roll’s own critical range, so a critical success is kept over a plain one', J(last(wf).draws) === J([1, 1, 1]) && !last(wf).pend, J(last(wf)));
+        const wx = rw('r_x');
+        check('gap #2: a roll with no die that can be rolled again offers nothing, so it never waits', wx.api.held().length === 0 && !wx.table[0].pend && wx.camp.chars.c_a.values.f_hp === 1, J(wx.table[0]));
     }
     // the words and the wiring
     const ix = read('index.html'), dc = read('scripts/dice.js'), ci = readRoot('.github/workflows/checks.yml');

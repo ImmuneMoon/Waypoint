@@ -302,18 +302,21 @@ function oneDieSpots(res) {
     });
     return whole && at === draws.length ? out : [];
 }
-// What a card says of a try kept or a die rolled again, as the host stamps it on the card (redo): { k: 'better' | 'worse', n: the tries } or
+// tryTotal: what a try came to, as its card shows it: a check's own total (the left side of its comparison), else the roll's value; null where neither is a number
+function tryTotal(res, rule) { var c = checkOf(res, rule); if (c) return typeof c.total === 'number' && isFinite(c.total) ? c.total : null; return res && res.ok && typeof res.value === 'number' && isFinite(res.value) ? res.value : null; }
+// What a card says of a try kept or a die rolled again, as the host stamps it on the card (redo): { k: 'better' | 'worse', n: the tries, o?: the other tries'
+// totals, up to 8 } or
 // { f: the die's sides, a: what it showed, b: what it shows now }. Anything else is left off, the roll kept
 function cleanRedo(v) {
     if (!v || typeof v !== 'object') return null;
-    if ((v.k === 'better' || v.k === 'worse') && isInt(v.n) && v.n >= 2 && v.n <= 99) return { k: v.k, n: v.n };
+    if ((v.k === 'better' || v.k === 'worse') && isInt(v.n) && v.n >= 2 && v.n <= 99) { var kr = { k: v.k, n: v.n }; if (Array.isArray(v.o) && v.o.length && v.o.length <= Math.min(8, v.n - 1) && v.o.every(function(x) { return typeof x === 'number' && isFinite(x) && Math.abs(x) <= 1e6; })) kr.o = v.o.slice(); return kr; }
     var sideOk = function(x) { return x === 'F' || (isInt(x) && x >= 2 && x <= 1000); }, faceOk = function(x) { return isInt(x) && x >= -1 && x <= 1000; };
     if (sideOk(v.f) && faceOk(v.a) && faceOk(v.b)) return { f: v.f, a: v.a, b: v.b };
     return null;
 }
 function redoWords(r) {
     if (!r) return '';
-    if (r.k) return 'Kept the ' + r.k + ' of ' + r.n + ' tries';
+    if (r.k) return 'Kept the ' + r.k + ' of ' + r.n + ' tries' + (Array.isArray(r.o) && r.o.length ? ' (the ' + (r.o.length === 1 ? 'other' : 'others') + ': ' + r.o.map(fmtNum).join(', ') + ')' : '');
     return 'Rolled a d' + r.f + ' again: ' + r.a + ' became ' + r.b;
 }
 // [dicecheck:redo-end]
@@ -829,6 +832,7 @@ function hidRoll(rec, res, F, o) {
     if (!rp || !rp.ok) { expr = '0'; draws = []; rp = null; }
     var v = verdictOf(res, o.rule), chk = !!(v && v.kind === 'check'), jam = o.malf === true, out = { type: rec.type, id: rec.id, from: rec.from, expr: expr, draws: draws, v: rec.v, ts: rec.ts, hid: jam ? 'fail' : chk ? (v.pass ? 'pass' : 'fail') : 'rolled' };
     ['priv', 'to', 'rid', 'sw', 'as'].forEach(function(k) { if (rec[k] !== undefined) out[k] = rec[k]; });
+    var rdH = cleanRedo(rec.redo); if (rdH) { if (rdH.k) delete rdH.o; out.redo = rdH; }   // 1.6.4 (gap #2; Fulllion, 2026-11-24): a hidden figure's card says how many tries, never the others' totals
     var lb = typeof o.label === 'string' ? o.label : rec.label; if (lb) out.label = lb;
     var hc = jam || !chk ? '' : hidCrit(res, o.rule); if (hc) out.hidc = hc;
     if (jam && rp) { out.malf = Math.max(1, naturalOf(res)); out.malfHid = 1; }
@@ -911,6 +915,6 @@ function RateLimit(cfg) {
 }
 function uid() { return 'r_' + Math.random().toString(36).slice(2, 10); }
 
-var API = { tryKeepsNew: tryKeepsNew, oneDieSpots: oneDieSpots, cleanRedo: cleanRedo, redoWords: redoWords, crossWhy: crossWhy, cleanHmod: cleanHmod, sendWhy: sendWhy, cleanSendOn: cleanSendOn, landWhy: landWhy, cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook, cleanDiceLook: cleanDiceLook, DICE_PATS: DICE_PATS, cleanDiceDesign: cleanDiceDesign, DICE_DESIGN_MAX: DICE_DESIGN_MAX };
+var API = { tryTotal: tryTotal, tryKeepsNew: tryKeepsNew, oneDieSpots: oneDieSpots, cleanRedo: cleanRedo, redoWords: redoWords, crossWhy: crossWhy, cleanHmod: cleanHmod, sendWhy: sendWhy, cleanSendOn: cleanSendOn, landWhy: landWhy, cleanHelpCard: cleanHelpCard, cleanHelpAct: cleanHelpAct, cleanDiceBonus: cleanDiceBonus, hidExpr: hidExpr, hidCrit: hidCrit, hidRoll: hidRoll, cleanAtt: cleanAtt, malfWords: malfWords, cleanCovHit: cleanCovHit, coverHitWords: coverHitWords, cleanPos: cleanPos, posWords: posWords, dueMajor: dueMajor, hitFaces: hitFaces, cleanHits: cleanHits, cleanAim: cleanAim, cleanDmg2: cleanDmg2, cleanRefs: cleanRefs, cleanBlastRoll: cleanBlastRoll, resistWhy: resistWhy, cleanCrit: cleanCrit, fixedCrit: fixedCrit, ruleOf: ruleOf, cleanSwNames: cleanSwNames, checkOf: checkOf, VERSION: VERSION, LIMITS: LIMITS, cleanExpr: cleanExpr, composeModifier: composeModifier, withAdvantage: withAdvantage, cleanFrom: cleanFrom, cleanCardAct: cleanCardAct, cleanRollReq: cleanRollReq, cleanRoll: cleanRoll, cleanApply: cleanApply, applyText: applyText, applyChanges: applyChanges, cleanDue: cleanDue, dueText: dueText, cleanDeny: cleanDeny, cleanRid: cleanRid, cleanLabel: cleanLabel, cleanNames: cleanNames, cleanMods: cleanMods, foldNames: foldNames, replay: replay, checkTableRoll: checkTableRoll, denyText: denyText, parseCommand: parseCommand, verdictOf: verdictOf, critOf: critOf, under3d6: under3d6, cardText: cardText, tagOf: tagOf, naturalOf: naturalOf, malfOf: malfOf, RateLimit: RateLimit, uid: uid, fmtNum: fmtNum, cardLook: cardLook, cleanCardLook: cleanCardLook, cleanDiceLook: cleanDiceLook, DICE_PATS: DICE_PATS, cleanDiceDesign: cleanDiceDesign, DICE_DESIGN_MAX: DICE_DESIGN_MAX };
 if (typeof window !== 'undefined') window.wpDiceCore = API;
-export { tryKeepsNew, oneDieSpots, cleanRedo, redoWords, crossWhy, cleanHmod, sendWhy, cleanSendOn, landWhy, cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook, cleanDiceLook, DICE_PATS, cleanDiceDesign, DICE_DESIGN_MAX };
+export { tryTotal, tryKeepsNew, oneDieSpots, cleanRedo, redoWords, crossWhy, cleanHmod, sendWhy, cleanSendOn, landWhy, cleanHelpCard, cleanHelpAct, cleanDiceBonus, hidExpr, hidCrit, hidRoll, cleanAtt, malfWords, cleanCovHit, coverHitWords, cleanPos, posWords, dueMajor, hitFaces, cleanHits, cleanAim, cleanDmg2, cleanRefs, cleanBlastRoll, resistWhy, cleanCrit, fixedCrit, ruleOf, cleanSwNames, checkOf, VERSION, LIMITS, cleanExpr, composeModifier, withAdvantage, cleanFrom, cleanCardAct, cleanRollReq, cleanRoll, cleanApply, applyText, applyChanges, cleanDue, dueText, cleanDeny, cleanRid, cleanLabel, cleanNames, cleanMods, foldNames, replay, checkTableRoll, denyText, parseCommand, verdictOf, critOf, under3d6, cardText, tagOf, RateLimit, uid, fmtNum, naturalOf, malfOf, cardLook, cleanCardLook, cleanDiceLook, DICE_PATS, cleanDiceDesign, DICE_DESIGN_MAX };

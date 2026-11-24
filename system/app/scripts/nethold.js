@@ -85,9 +85,11 @@ function cardRedo(h, a, pick, again) {
     var o = h.o;
     if (a.does === 'best' || a.does === 'worst') {
         var cr = typeof o.S.critRange === 'function' ? o.S.critRange(o.camp.system, o.ent, o.vars, o.F) : null;   // criticals at fixed rolls: the roll's own range, as its card reads it
-        var rule = o.D.ruleOf(cr ? { crit: cr } : {}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : ''), n =(h.redo && h.redo.k && h.redo.k === (a.does === 'best' ? 'better' : 'worse') ? h.redo.n : 1) + 1;
-        h.redo = { k: a.does === 'best' ? 'better' : 'worse', n: Math.min(99, n) };
-        return o.D.tryKeepsNew(a.does, h.res, again, rule) ? again : null;
+        var rule = o.D.ruleOf(cr ? { crit: cr } : {}, o.camp.system && o.camp.system.combat ? o.camp.system.combat.checks : ''), word = a.does === 'best' ? 'better' : 'worse', same = !!(h.redo && h.redo.k === word);
+        var keeps = o.D.tryKeepsNew(a.does, h.res, again, rule), others = same && Array.isArray(h.redo.o) ? h.redo.o.slice() : [];   // the totals of the tries not kept, in the order they fell (Fulllion, 2026-11-24)
+        var gone = o.D.tryTotal(keeps ? h.res : again, rule); if (gone !== null && others.length < 8) others.push(gone);
+        h.redo = { k: word, n: Math.min(99, (same ? h.redo.n : 1) + 1) }; if (others.length) h.redo.o = others;
+        return keeps ? again : null;
     }
     if (a.does === 'oneDie') { var now = o.D.oneDieSpots(again).filter(function(sp) { return sp.at === pick.at; })[0]; h.redo = now ? { f: pick.faces, a: pick.v, b: now.v } : null; return again; }
     if (a.does === 'again' || a.does === 'againIf') h.redo = null;   // a new roll, so no try is kept any more; a number added keeps what the card said

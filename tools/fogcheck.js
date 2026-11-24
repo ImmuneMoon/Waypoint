@@ -672,6 +672,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             const atkO = CV.coverSetsFor(mapT, grid), blastO = CV.coverSetsFor(mapT, grid, true); mapT.whiteboard = [Object.assign(objP('half'), { y: 400 })]; mapT.meta.updated++; CV.invalidateVision(); const gOff = read(); mapT.whiteboard = [objP('half'), wallO]; mapT.meta.updated++; CV.invalidateVision(); const gWall = read();
             check('map objects: a placed object gives the grade it says whatever share it hides, the highest of it and what else stands on the line, none off the line; a word that is no grade reads as plain cover; an attack reads it apart from the see-over cells and a blast reads what it covers',
                 gHalf === 1 && gQ === 2 && gT === 3 && gBad === gPlain && gOff === 0 && gWall === 3 && !!atkO.gr && !!atkO.gr.half && !atkO.soft && !!blastO.soft && !blastO.gr, js([gPlain, gHalf, gQ, gT, gBad, gOff, gWall]));
+            {   // gap 33: smoke that gives a grade of cover (fog.js coverSetsFor and coverGrade, fogcore smokeCoverOf, run for real)
+                const smP = (g, more) => Object.assign({ id: 'sm', type: 'circle', x: 150, y: 100, w: 50, h: 50, smoke: true }, g ? { smokeCover: g } : {}, more || {});
+                const smOf = pcs => { mapT.whiteboard = pcs; mapT.meta.updated++; CV.invalidateVision(); return read(); };
+                const sPlain = smOf([smP('')]), sHalf = smOf([smP('half')]), sQ = smOf([smP('threeq')]), sT = smOf([smP('total')]), sBad = smOf([smP('thick')]), sOff = smOf([smP('half', { y: 400 })]), sHid = smOf([smP('total', { hidden: true })]), sNot = smOf([smP('total', { smoke: false, cover: 'no' })]), sLine = smOf([smP('half', { type: 'path' })]), sWall = smOf([smP('half'), wallO]);
+                mapT.whiteboard = [smP('total')]; mapT.meta.updated++; CV.invalidateVision(); const bS = CV.coverSetsFor(mapT, grid, true), aS = CV.coverSetsFor(mapT, grid);
+                const keys = ['half', 'threeq', 'total', 'thick', '', 5, null].map(g => FC.smokeCoverOf(smP(g)));
+                check('gap 33 smoke as cover: a smoke piece with a grade gives that grade to an attack whose line passes through it, none off the line, the higher of it and a wall on the line; plain smoke, a word that is no grade, a hidden piece, a piece that is no smoke and a line give none; a blast passes through it (smokeCoverOf: a grade only on shown smoke)',
+                    sPlain === 0 && sHalf === 1 && sQ === 2 && sT === 3 && sBad === 0 && sOff === 0 && sHid === 0 && sNot === 0 && sLine === 0 && sWall === 3 && !!aS && !!aS.gr && !!aS.gr.total && bS === null
+                    && js(keys) === js(['half', 'threeq', 'total', '', '', '', '']), js([sPlain, sHalf, sQ, sT, sBad, sOff, sHid, sNot, sLine, sWall, bS, keys]));
+            }
             {   // 1.6.2: a body in the way, the character tokens on the line, nearest the target first, never hidden, waiting, an end or one skipped
                 const bA = { id: 'ba', isChar: true, x: 150, y: 100, w: 50, h: 50 }, bB = { id: 'bb', isChar: true, x: 250, y: 100, w: 50, h: 50 }, bOff = { id: 'bo', isChar: true, x: 150, y: 400, w: 50, h: 50 };
                 const mapBd = pcs => ({ id: 'mb', meta: { updated: 1 }, whiteboard: pcs }), Aa = Object.assign({ id: 'aa', isChar: true }, A), Bb = Object.assign({ id: 'bt', isChar: true }, B);

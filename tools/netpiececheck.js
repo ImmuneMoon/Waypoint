@@ -1287,6 +1287,10 @@ pendingChecks.push((async () => {
         const wiredP = [ruin, net, Object.assign({}, ruin, { sightType: 'door' })].map(w => wireP(JSON.parse(JSON.stringify(w)), false)), hostP = cleanP({ id: 'r', type: 'rect', blocksSight: true, passIf: 'f_inf' });
         check('gap 31 the key on the wire: never sent to a player, on a wall, a barrier or a door (wireWbItem, run for real; the host judges every move), and never kept from a host on a player\'s app (cleanHostWbItem)',
             wiredP.every(w => !!w && !('passIf' in w)) && !!hostP && !('passIf' in hostP) && 'passIf' in ruin, JSON.stringify([wiredP, hostP]));
+        const smk = more => Object.assign({ id: 's', type: 'circle', x: 0, y: 0, w: 50, h: 50, smoke: true, smokeCover: 'threeq' }, more || {});
+        const smW = [smk(), smk({ smokeCover: 'thick' }), smk({ smoke: false })].map(w => wireP(JSON.parse(JSON.stringify(w)), false)), smH = [smk(), smk({ smokeCover: 'thick' }), smk({ smoke: undefined })].map(w => cleanP(w));
+        check('gap 33 a smoke piece\'s grade on the wire: it goes to players with a shown smoke piece, so their ruler reads what the host does, and only as a grade on smoke (wireWbItem); a player\'s app keeps it only so (cleanHostWbItem)',
+            smW[0].smokeCover === 'threeq' && !('smokeCover' in smW[1]) && !('smokeCover' in smW[2]) && smH[0].smokeCover === 'threeq' && !('smokeCover' in smH[1]) && !('smokeCover' in smH[2]), JSON.stringify([smW, smH]));
         check('gap 31 the key (fogcore cleanPassIf and passIfOf): a field id of the system\'s own form, else nothing; read only on a wall or a barrier', keys.every(Boolean) && Cx.passIfOf(ruin) === 'f_inf' && Cx.passIfOf(net) === 'f_fly' && Cx.passIfOf(odd) === '' && Cx.passIfOf(null) === '', JSON.stringify(keys));
     } catch (e) { check(TP, false, 'threw: ' + (e && e.stack || e)); }
 })());

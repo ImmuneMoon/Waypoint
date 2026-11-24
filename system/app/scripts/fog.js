@@ -662,7 +662,8 @@ var _coverCache = Object.create(null), _coverStamp = Object.create(null);
 function coverSetsFor(map, grid, blast) {
     if (!map || !grid) return null;
     var C = core(), wb = map.whiteboard || [];
-    if (blast === true) { var anyB = false; for (var bi = 0; bi < wb.length && !anyB; bi++) anyB = !!(C && C.blastStopOn && C.blastStopOn(wb[bi])) || !!(C && C.cleanCoverAs && C.cleanCoverAs(wb[bi] && wb[bi].coverAs)); if (!anyB) return coverSetsFor(map, grid); }   // a blast reads a placed object by what it covers, so its sets are the attack's only where neither is on the map
+    // gap 33: a blast passes through smoke, so where smoke gives a grade a blast's sets are its own (a smoke piece is none of them)
+    if (blast === true) { var anyB = false; for (var bi = 0; bi < wb.length && !anyB; bi++) anyB = !!(C && C.blastStopOn && C.blastStopOn(wb[bi])) || !!(C && C.cleanCoverAs && C.cleanCoverAs(wb[bi] && wb[bi].coverAs)) || !!(C && C.smokeCoverOf && C.smokeCoverOf(wb[bi])); if (!anyB) return coverSetsFor(map, grid); }   // a blast reads a placed object by what it covers, so its sets are the attack's only where neither is on the map
     var cCamp = typeof activeCamp === 'function' ? activeCamp() : null, most = C && C.coverMost ? C.coverMost(cCamp && cCamp.system, grid) : 0;   // 1.6.0: the largest placed object that gives cover by itself, 0 with none set
     var stamp = (map.meta && map.meta.updated) || 0, ck = (blast === true ? map.id + '\u0000blast' : map.id) + (most ? '\u0000' + most : '');
     if (_coverCache[ck] !== undefined && _coverStamp[ck] === stamp) return _coverCache[ck];
@@ -702,6 +703,8 @@ function coverSetsFor(map, grid, blast) {
     };
     for (var i = 0; i < wb.length && !over; i++) {
         if (blast === true && C.blastStopOn(wb[i])) { later.push(wb[i]); continue; }   // a barrier ticked Stops blasts: a wall to a blast, taken last
+        var smG = blast !== true && C.smokeCoverOf ? C.smokeCoverOf(wb[i]) : '';   // gap 33: smoke that gives a grade, read as a placed object's grade (a blast passes through smoke)
+        if (smG) { var smC = footprintCells(wb[i], grid, C); if (smC.over) continue; if (!smC.length) smC = [C.cellOf(wb[i].x + (wb[i].w || 0) / 2, wb[i].y + (wb[i].h || 0) / 2, grid)]; gr = gr || Object.create(null); var smS = gr[smG] || (gr[smG] = Object.create(null)); for (var smI = 0; smI < smC.length; smI++) smS[C.cellKey(smC[smI], grid)] = 1; continue; }
         var role = C.coverRole(wb[i], most), asG = blast !== true && role === 'soft' && C.coverAsOf ? C.coverAsOf(wb[i], most) : '';
         if (blast !== true && role && C.cleanCoverPro) { var pv = C.cleanCoverPro(wb[i].coverPro); if (pv) proPut(wb[i], pv); }   // 1.6.2: a piece that gives cover may carry Protection, read apart (coverPro)
         if (asG) {   // 1.6.0: a placed object that says its grade stands apart from the see-over cells, in the cell of its own middle where it covers no cell's center

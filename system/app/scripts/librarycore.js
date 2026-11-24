@@ -177,6 +177,8 @@ export function entryFromForm(f) {
     var ft = s(f.areaFt).trim(); if (/^\d+$/.test(ft) && Number(ft) > 0) out.area = { ft: Number(ft), shape: s(f.areaShape) || 'circle', name: s(f.areaName) };   // the shape as it was (the cleaner keeps a known one)
     if (out.area) {   // 1.5.8: the blast's extras, each only where set (the cleaner, areaExtra, judges them); a number box that is no number is handed on as text, which the cleaner drops
         var ar = out.area, nb = function(v) { v = s(v).trim(); return /^\d+(\.\d+)?$/.test(v) ? Number(v) : v; };
+        [['areaInFt', 'inFt'], ['areaDeg', 'deg'], ['areaHFt', 'hFt']].forEach(function(p) { var v = nb(f[p[0]]); if (v !== '') ar[p[1]] = v; });
+        if (f.areaCube === 'cube') ar.cube = true; if (f.areaConeFrom === 'edge') ar.coneFrom = 'edge'; if (f.areaConeRoll === 'roll') ar.coneRoll = true;   // gap 19: the item's own options (the cleaner keeps each beside its own shape)   // gap 19: the number its shape needs (the cleaner keeps each only beside its own shape)
         var ty = s(f.areaType).trim(); if (ty) ar.type = ty;
         if (f.areaUse === 'yes') ar.use = true;
         if (f.areaPlace === 'yes') ar.place = true;

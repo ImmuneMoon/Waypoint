@@ -45,8 +45,10 @@ function applyEditor(r, key) {   // key (R1): 'apply' — an apply action's chan
         var opts = [['', 'Pick a pool, number or effect\u2026']].concat(targets, fxT, key === 'end' ? [] : allT);   // 1.6.2: an effect's end moves a pool or a number, or switches an effect if (allV && !allT.some(function(o) { return o[0] === allV; })) opts.push([allV, 'A list or stat that is gone']); if (typeof ch.fx === 'string' && !fxT.some(function(o) { return o[0].slice(4) === ch.fx; })) opts.push([(ch.on === false ? 'fx-:' : 'fx+:') + ch.fx, 'An effect that is gone']); if (ch.f && !targets.some(function(o) { return o[0] === ch.f; })) opts.push([ch.f, 'A field that is gone']);
         if (key !== 'end') opts.push(['setoff', 'Set off the placed blast nearest it']);   // 1.6.2 (the CORE session's batch 6, 10)
         if (key !== 'end' && typeof giveTargets === 'function') giveTargets(ch).forEach(function(o) { opts.push(o); });   // 1.6.4 (gap #20)
+        if (key !== 'end') { opts.push(['mv:away', 'Push the target away'], ['mv:toward', 'Pull the target in']); if (key === 'then' || ch.move === 'spot') opts.push(['mv:spot', 'Move the user to a spot']); }   // gap 21: a token moved by the host; a spot needs a roll's aim
         if (key !== 'end' && typeof resultTargets === 'function') resultTargets(ch).forEach(function(o) { opts.push(o); });   // 1.6.2 (G7)
-        rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, typeof ch.give === 'string' ? giveValue(ch) : ch.setOff === true ? 'setoff' : allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.tag === 'string' ? (ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows', 'Find what it changes'));
+        rw.appendChild((typeof lazySelect === 'function' ? lazySelect : select)('sys-apply-target', opts, typeof ch.give === 'string' ? giveValue(ch) : typeof ch.move === 'string' ? 'mv:' + ch.move : ch.setOff === true ? 'setoff' : allV ? allV : typeof ch.deck === 'string' ? (ch.shuffle === true ? 'ds:' : 'dk:') + ch.deck : typeof ch.shared === 'string' ? 'val:' + ch.shared : typeof ch.table === 'string' ? 'tbl:' + ch.table : typeof ch.tag === 'string' ? (ch.shake === true ? 'tg~:' : ch.on === false ? 'tg-:' : 'tg+:') + ch.tag : typeof ch.fx === 'string' ? (ch.on === false ? 'fx-:' : 'fx+:') + ch.fx : (ch.f || ''), 'What this change moves: a pool\u2019s current value, a number, or an effect it switches on or off (on the character it is used on). Every row of a list sets one of its number stats on each of the list\u2019s rows', 'Find what it changes'));
+        if (typeof ch.move === 'string') rw.appendChild(moveCellsBox(ch, 'sys-apply-moven')); else   // gap 21: How many cells
         if (ch.setOff === true) { /* 1.6.2 (10): no amount */ } else
         if (typeof ch.rand === 'string') rw.appendChild(randBox(ch)); else
         if (typeof ch.deck === 'string') rw.appendChild(deckBox(ch)); else
@@ -169,12 +171,26 @@ function fightCloseBox(r) {
     return optionBox('sys-roll-atclose', 'sys-roll-atclosebox', [['', 'Only when the GM presses End combat'], ['also', 'Also when the session closes mid-fight']], r.atClose === true ? 'also' : '', 'When a fight-end rule runs', says, function(x) { if (x === 'also') r.atClose = true; else delete r.atClose; });
 }
 function giveValue(ch) { if (ch.give === 'turn') return 'gvturn'; var hit = (typeof turnActs === 'function' ? turnActs() : []).filter(function(a) { return a && typeof a.key === 'string' && a.key.toLowerCase() === String(ch.act || '').toLowerCase(); })[0]; return 'gv:' + (hit ? hit.key : ch.act); }
+// Gap 21 (forced movement): How many cells a change that moves a token moves it, a box the form wears (formbox.js), required by the validator.
+// cls: the tab's own class, which its input handler writes into the change's n
+function moveCellsBox(ch, cls) {
+    var w = el('div', 'sys-move-opts'), i = input(cls + ' field', typeof ch.n === 'string' ? ch.n : '', 'How many cells it moves, worked out with the user\u2019s names when it lands, no dice', 'How many cells'); i.maxLength = LIMITS.formula; w.appendChild(i);
+    // Fulllion's builder options on the change, the recommended one first: what stops a push or a pull, and whether it spends the moved token's move
+    var two = cls.replace('moven', 'move'), line = '';
+    if (ch.move !== 'spot') { w.appendChild(select(two + 'stop', [['', 'Stopped by walls, barriers and tokens'], ['walls', 'Stopped by walls and barriers alone']], ch.stop === 'walls' ? 'walls' : '', 'What stops it: it ends in the last free cell before one, and the card says so')); line = 'It stops in the last free cell before what stops it. '; }
+    w.appendChild(select(two + 'spend', [['', 'Spends none of its move'], ['yes', 'Spends its move']], ch.spend === true ? 'yes' : '', 'Whether the cells it is moved count against the moved token\u2019s move on its own turn in a fight'));
+    var ln = el('small', 'sys-line', line + 'Spends its move: on that token\u2019s own turn in a fight the cells count against its move.'); ln.style.flexBasis = '100%'; w.appendChild(ln);
+    w.style.display = 'flex'; w.style.flexWrap = 'wrap'; w.style.gap = '6px'; w.style.alignItems = 'center'; w.style.width = '100%';   // the picks in a row, their gray line under them
+    return w;
+}
 function setChangeTarget(ch, v) {
     v = String(v || ''); ['f', 'c', 'fire', 'feed', 'launch', 'setOff', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'sw', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next', 'give', 'act'].forEach(function(k) { delete ch[k]; });
     if (v === 'gvturn' || v.indexOf('gv:') === 0) { ch.give = v === 'gvturn' ? 'turn' : 'act'; if (ch.give === 'act') ch.act = v.slice(3); delete ch.add; delete ch.set; delete ch.loss; delete ch.link; if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; }   // 1.6.4 (gap #20)
+    delete ch.move; delete ch.stop; delete ch.spend;   // gap 21: a token moved is a target of its own too, with its options
     if (v.indexOf('rnd:') === 0) { ch.rand = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (fold (f)): a row picked at random, no amount
     delete ch.discard; delete ch.to; delete ch.deck; delete ch.shuffle; delete ch.show; delete ch.shared; delete ch.table; delete ch.by; if (v.indexOf('dk:') === 0 || v.indexOf('ds:') === 0) { ch.deck = v.slice(3); delete ch.add; delete ch.set; delete ch.roll; if (v.charAt(1) === 's') { ch.shuffle = true; delete ch.formula; } else if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; } if (v.indexOf('val:') === 0) { ch.shared = v.slice(4); if (typeof ch.formula !== 'string') ch.formula = ''; return; } if (v.indexOf('tbl:') === 0) { ch.table = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (G7): a roll on a result table, no amount
     if (v === 'money') { ch.money = ''; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0: the sheet's money, a figure of its own
+    else if (v.indexOf('mv:') === 0) { ch.move = v.slice(3); ch.n = '1'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // gap 21: a token moved, one cell to start
     else if (v === 'discard') { ch.discard = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (G9)
     else if (v === 'off') { ch.off = true; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.0 (CORE gap 13): this row switched off, no amount
     else if (v === 'fire') ch.fire = true;
@@ -547,14 +563,32 @@ function itemCatList() {
     var cc = typeof catChoices === 'function' ? catChoices(draft) : []; (Array.isArray(cc) ? cc : []).forEach(function(c0) { var c = String(c0 || '').trim(); if (!c || seen[c.toLowerCase()]) return; seen[c.toLowerCase()] = 1; var o = el('option'); o.value = c; dl.appendChild(o); });
     return dl;
 }
+// [gapsmap:itemshape-start]
+// Gap 19 (area shapes): on the Items tab, the number an item's blast shape needs (a ring's inner radius, a cone's width, a cylinder's height) and
+// Fulllion's builder options beside the shape they change, each with its gray line: a square or a cube, where a cone starts, a cone thrown with
+// a skill. Written by sysedtabs.js (sys-item-ainft, -adeg, -ahft as typed; sys-item-acube, -aconefrom, -aconeroll as picked)
+function itemShapeBox(area, ar) {
+    var sh = ar.shape, num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; }, gray = function(t) { var s = el('small', 'sys-line', t); s.style.flexBasis = '100%'; area.appendChild(s); };
+    if (sh === 'ring') area.appendChild(numField('sys-item-ainft', num(ar.inFt), 'The radius of its hole in feet, under its size. Empty: no hole', 'inner ft'));
+    if (sh === 'cylinder') area.appendChild(numField('sys-item-ahft', num(ar.hFt), 'How high it reaches above the ground it stands on, in feet. Empty: every height', 'high ft'));
+    if (sh === 'square') { area.appendChild(select('sys-item-acube', [['', 'Square'], ['cube', 'Cube']], ar.cube === true ? 'cube' : '', 'Square or cube')); gray('A square holds what stands inside it at every height. A cube is as high as it is wide.'); }
+    if (sh === 'cone') {
+        area.appendChild(numField('sys-item-adeg', num(ar.deg), 'How wide it opens, in whole degrees from 1 to 360. Empty: 60', 'degrees'));
+        area.appendChild(select('sys-item-aconefrom', [['', 'Starts at its user\u2019s middle'], ['edge', 'Starts at its user\u2019s edge']], ar.coneFrom === 'edge' ? 'edge' : '', 'Cone starts at'));
+        area.appendChild(select('sys-item-aconeroll', [['', 'Never thrown'], ['roll', 'Its throw roll decides']], ar.coneRoll === true ? 'roll' : '', 'Cone thrown with a skill'));
+        gray('A cone begins at its user and opens toward where they click. Never thrown: no throw roll. With the roll it happens only on a success. Nothing scatters a cone.');
+    }
+}
+// [gapsmap:itemshape-end]
 function itemRow(it) {
     var row = el('div', 'sys-row sys-item-row'); row.dataset.iid = it.id;
     var top = el('div', 'sys-row-main');
     top.appendChild(input('sys-item-name field', it.name, 'The item name shown on the sheet', 'Name'));
     var catIn = input('sys-item-cat field', it.category, 'A group, e.g. Explosives, Sidearms', 'Category'), sDefs = itemStatDefs(it); catIn.dataset.scope = sDefs.map(function(s) { return s.key.toLowerCase(); }).join(','); top.appendChild(catIn); if (catIn.setAttribute) catIn.setAttribute('list', 'sysItemCats'); if (typeof itemCatList === 'function') top.appendChild(itemCatList());   // 1.6.3 (the review of the System editor and the Library window, finding 35): the categories the system, its core and the library already use, offered as it is typed, as the Library window's Category is. F4c1: the lists it can be on decide its stat boxes (a category that changes them redraws the row)
     var area = el('div', 'sys-item-area');
-    area.appendChild(select('sys-item-shape', [['', 'No blast'], ['circle', 'Blast (circle)']], it.area ? (it.area.shape || 'circle') : '', 'A thrown blast: a circular area, thrown from the sheet'));
-    var ftw = numField('sys-item-ft', it.area ? it.area.ft : '', 'Blast radius in feet', 'ft'); if (!it.area) ftw.style.opacity = '0.5'; area.appendChild(ftw);
+    area.appendChild(select('sys-item-shape', [['', 'No blast'], ['circle', 'Blast (circle)'], ['ring', 'Blast (ring)'], ['cone', 'Blast (cone)'], ['square', 'Blast (square)'], ['cylinder', 'Blast (cylinder)']], it.area ? (it.area.shape || 'circle') : '', 'A thrown blast and its shape, thrown from the sheet'));   // gap 19: the shapes
+    var ftw = numField('sys-item-ft', it.area ? it.area.ft : '', 'Its size in feet: a circle\u2019s, a ring\u2019s or a cylinder\u2019s radius, a cone\u2019s length, a square\u2019s side', 'ft'); if (!it.area) ftw.style.opacity = '0.5'; area.appendChild(ftw);
+    if (it.area && typeof itemShapeBox === 'function') itemShapeBox(area, it.area);   // gap 19: the number its shape needs and its options
     if (it.area) {   // 1.5.8 explosives: its blast's damage type, whether going off uses one up, and whether it is placed, not thrown, with its trigger radius
         var dtys = draft.combat && draft.combat.damage && Array.isArray(draft.combat.damage.types) ? draft.combat.damage.types : [];
         if (dtys.length) area.appendChild(select('sys-item-atype', [['', 'Damage type: none']].concat(dtys.filter(function(y) { return y && typeof y.key === 'string'; }).map(function(y) { return [y.key, 'Damage type: ' + (y.label || y.key)]; })), it.area.type || '', 'The damage type of its blast, as the damage step reads it'));
@@ -750,5 +784,5 @@ function itemStatsBox(it, defs) {
     return box.childNodes.length ? box : null;
 }
 // [split:body-end]
-return { GIVE_TIP: GIVE_TIP, giveTargets: giveTargets, giveValue: giveValue, giveWhenBox: giveWhenBox, affOfRow: affOfRow, affSaysAt: affSaysAt, applyChangeOf: applyChangeOf, charRow: charRow, crewPick: crewPick, effectRow: effectRow, fxOfRow: fxOfRow, handFan: handFan, handShut: handShut, itemRow: itemRow, itemStatDefs: itemStatDefs, onSwChange: onSwChange, onSwClick: onSwClick, onSwInput: onSwInput, rollRow: rollRow, roundCells: roundCells, setChangeTarget: setChangeTarget, whyBox: whyBox, whyDraftAt: whyDraftAt, whyDropsAt: whyDropsAt };   // [split:glue]
+return { GIVE_TIP: GIVE_TIP, giveTargets: giveTargets, giveValue: giveValue, giveWhenBox: giveWhenBox, affOfRow: affOfRow, affSaysAt: affSaysAt, applyChangeOf: applyChangeOf, moveCellsBox: moveCellsBox, charRow: charRow, crewPick: crewPick, effectRow: effectRow, fxOfRow: fxOfRow, handFan: handFan, handShut: handShut, itemRow: itemRow, itemStatDefs: itemStatDefs, onSwChange: onSwChange, onSwClick: onSwClick, onSwInput: onSwInput, rollRow: rollRow, roundCells: roundCells, setChangeTarget: setChangeTarget, whyBox: whyBox, whyDraftAt: whyDraftAt, whyDropsAt: whyDropsAt };   // [split:glue]
 }   // [split:glue]

@@ -662,7 +662,8 @@ var _coverCache = Object.create(null), _coverStamp = Object.create(null);
 function coverSetsFor(map, grid, blast) {
     if (!map || !grid) return null;
     var C = core(), wb = map.whiteboard || [];
-    if (blast === true) { var anyB = false; for (var bi = 0; bi < wb.length && !anyB; bi++) anyB = !!(C && C.blastStopOn && C.blastStopOn(wb[bi])) || !!(C && C.cleanCoverAs && C.cleanCoverAs(wb[bi] && wb[bi].coverAs)); if (!anyB) return coverSetsFor(map, grid); }   // a blast reads a placed object by what it covers, so its sets are the attack's only where neither is on the map
+    // gap 33: a blast passes through smoke, so where smoke gives a grade a blast's sets are its own (a smoke piece is none of them)
+    if (blast === true) { var anyB = false; for (var bi = 0; bi < wb.length && !anyB; bi++) anyB = !!(C && C.blastStopOn && C.blastStopOn(wb[bi])) || !!(C && C.cleanCoverAs && C.cleanCoverAs(wb[bi] && wb[bi].coverAs)) || !!(C && C.smokeCoverOf && C.smokeCoverOf(wb[bi])); if (!anyB) return coverSetsFor(map, grid); }   // a blast reads a placed object by what it covers, so its sets are the attack's only where neither is on the map
     var cCamp = typeof activeCamp === 'function' ? activeCamp() : null, most = C && C.coverMost ? C.coverMost(cCamp && cCamp.system, grid) : 0;   // 1.6.0: the largest placed object that gives cover by itself, 0 with none set
     var stamp = (map.meta && map.meta.updated) || 0, ck = (blast === true ? map.id + '\u0000blast' : map.id) + (most ? '\u0000' + most : '');
     if (_coverCache[ck] !== undefined && _coverStamp[ck] === stamp) return _coverCache[ck];
@@ -702,6 +703,8 @@ function coverSetsFor(map, grid, blast) {
     };
     for (var i = 0; i < wb.length && !over; i++) {
         if (blast === true && C.blastStopOn(wb[i])) { later.push(wb[i]); continue; }   // a barrier ticked Stops blasts: a wall to a blast, taken last
+        var smG = blast !== true && C.smokeCoverOf ? C.smokeCoverOf(wb[i]) : '';   // gap 33: smoke that gives a grade, read as a placed object's grade (a blast passes through smoke)
+        if (smG) { var smC = footprintCells(wb[i], grid, C); if (smC.over) continue; if (!smC.length) smC = [C.cellOf(wb[i].x + (wb[i].w || 0) / 2, wb[i].y + (wb[i].h || 0) / 2, grid)]; gr = gr || Object.create(null); var smS = gr[smG] || (gr[smG] = Object.create(null)); for (var smI = 0; smI < smC.length; smI++) smS[C.cellKey(smC[smI], grid)] = 1; continue; }
         var role = C.coverRole(wb[i], most), asG = blast !== true && role === 'soft' && C.coverAsOf ? C.coverAsOf(wb[i], most) : '';
         if (blast !== true && role && C.cleanCoverPro) { var pv = C.cleanCoverPro(wb[i].coverPro); if (pv) proPut(wb[i], pv); }   // 1.6.2: a piece that gives cover may carry Protection, read apart (coverPro)
         if (asG) {   // 1.6.0: a placed object that says its grade stands apart from the see-over cells, in the cell of its own middle where it covers no cell's center
@@ -813,6 +816,7 @@ function coverOn(sys) { return !!(sys && sys.combat && sys.combat.cover && sys.c
 // see-through barrier does (moveSetFor, below). The host's pos gate asks it for a player's move; no grid (and no fog cell): never
 function moveBlocked(map, w, fx, fy, tx, ty) {
     var C = core(); if (!C || !C.moveClear || !map || map.type !== 'map') return false;
+    map = mapForMover(map, w);   // gap 31: without the walls and barriers this token walks through
     var grid = gridForMap(map); if (!grid) return false;
     var bl = moveSetFor(map, grid, blockersFor(map, grid)); if (!bl) return false;   // what stops a token: the walls, and the barriers with them
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
@@ -843,12 +847,35 @@ function arrivalOk(map, w, fx, fy, tx, ty) {
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
     return inMask(mask, C.cellKey(C.cellOf(tx + hw, ty + hh, grid), grid));
 }
+// [gapsmap:mover-start]
+// Gap 31 (who a barrier stops): the walls and barriers on map that the token w walks through, each one that stops only tokens whose field is off
+// (fogcore passIfOf) where w's character has it on (systemcore passesBarrier, the one judge). None for a token with no character, or with no
+// such piece on the map
+function passedBy(map, w) {
+    var out = [], Wn = typeof window === 'object' && window ? window : null; if (!Wn || !w || typeof w.charId !== 'string') return out;   // a token with no character passes nothing
+    var C = core(), S = Wn.wpSystemCore, F = Wn.wpFormula, camp = activeCamp();
+    if (!C || typeof C.passIfOf !== 'function' || !S || typeof S.passesBarrier !== 'function' || !F || !w || typeof w.charId !== 'string' || !camp || !camp.system || !camp.chars || !Object.prototype.hasOwnProperty.call(camp.chars, w.charId)) return out;
+    var ch = camp.chars[w.charId], said = Object.create(null);   // each field judged once for this mover
+    (map.whiteboard || []).forEach(function(p) { var fid = C.passIfOf(p); if (!fid) return; if (said[fid] === undefined) said[fid] = S.passesBarrier(camp.system, ch, fid, F); if (said[fid]) out.push(p); });
+    return out;
+}
+// ... and the map as that token meets it when it moves: the very map where it passes nothing (so every map without such a piece is judged
+// exactly as before), else the same map without the pieces it passes, under an id of its own so the sets kept for it are its own
+function mapForMover(map, w) {
+    if (!map || !Array.isArray(map.whiteboard)) return map;
+    var gone = passedBy(map, w); if (!gone.length) return map;
+    var ids = gone.map(function(p) { return String(p.id); }).sort().join(',');
+    if (typeof window === 'object' && window && window.wpStepLog) window.wpStepLog('pass v1', 'through', { pieces: gone.length });
+    return Object.assign({}, map, { id: map.id + '\u0000pass:' + ids, whiteboard: map.whiteboard.filter(function(p) { return gone.indexOf(p) < 0; }) });
+}
+// [gapsmap:mover-end]
 // Whether a token of w's size set down at (x, y), its stored top-left, would stand IN a wall or a see-through barrier: on a map with a lattice,
 // where its middle cell is one the walls and barriers hold (moveSetFor over blockersFor, the set a move is judged by: a closed door is one, an
 // open door is not, a secret door is); with no lattice, where its middle lies inside a wall's outline (arrivalWalled's pieces). freeSpotNear
 // (net.js) asks it of the point a token arrives at, and arrivalOk of every spot
 function arrivalIn(map, w, x, y) {
     var C = core(); if (!C || !map || map.type !== 'map') return false;
+    map = mapForMover(map, w);   // gap 31: without the walls and barriers this token walks through
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, grid = gridForMap(map);
     if (!grid) return landInside(landWalls(map, C), x + hw, y + hh);
     var bl = moveSetFor(map, grid, blockersFor(map, grid)); if (!bl) return false;
@@ -903,6 +930,7 @@ function landCuts(s, x1, y1, x2, y2) {
 // the token's own box there (two pixels in from its edge, so a token set down against a wall still passes): with no cells to seat it in, a
 // token whose middle is inside a room could still lie across the room's wall
 function arrivalWalled(map, w, fx, fy, tx, ty) {
+    map = mapForMover(map, w);   // gap 31: without the walls and barriers this token walks through
     var C = core(); if (!C || typeof C.pathSegs !== 'function') return false;
     var L = landWalls(map, C); if (!L.segs.length) return false;
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, ax = fx + hw, ay = fy + hh, bx = tx + hw, by = ty + hh;
@@ -1347,6 +1375,17 @@ function sideJudge(map, camp, ownerId, C) {
 // 1.6.0: whether a piece gives cover here only as a placed object (Properties says so)
 function coverObject(w) { var C = core(), map = activeMap(), camp = activeCamp(), grid = map ? gridForMap(map) : null; return !!(C && grid && w && C.objectOn && w.cover !== 'no' && !w.hidden && !w.isChar && !w.blocksSight && w.cover !== 'yes' && C.objectOn(w, C.coverMost(camp && camp.system, grid))); }
 // 1.6.0: what TargetCoverGrade reads from one token to another on a map, by the system's own grades and the ruler's own reading, heights and all: 0 none, 1 half (or a system's one grade of cover), 2 three-quarters, 3 total. TargetCover is the same reading in three steps (fogcore coverOfGrade). shown: a judgment for a player, which reads no ground piece the GM hid. 0 with cover off or no grid
+// Gap 33 (smoke as cover; Fulllion: both a grade and a reading): TargetSmoke, 1 where the target stands in smoke or the line to it passes through
+// smoke, else 0, read whether or not the system has cover on. from, to: the two tokens. Judged by the cells smoke fills (smokeFor, so a hidden
+// piece is none) and the ruler's own lines (fogcore coverBetween). The host's rangeTo and a sheet's rangeFor ask it alike
+function smokeOnLine(map, from, to) {
+    var C = core(); if (!C || !map || !from || !to) return 0;
+    var grid = gridForMap(map); if (!grid) return 0;
+    var sm = smokeFor(map, grid); if (!sm) return 0;
+    var at = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); }, a = at(from), b = at(to);
+    if (sm[C.cellKey(b, grid)] === 1) return 1;
+    return C.coverBetween(a, b, grid, null, sm, sm).coverage > 0 ? 1 : 0;
+}
 function coverGrade(map, camp, from, to, shown) {
     if (!map || !from || !to || !coverOn(camp && camp.system)) return 0;
     var at = function(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }, a = at(from), b = at(to);
@@ -3406,7 +3445,7 @@ function pieceSeen(map, w) { var j = seenJudge(map); return j ? j(w) : true; }  
 // [placescheck:pieceseen-end]
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, smokeOnLine: smokeOnLine, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

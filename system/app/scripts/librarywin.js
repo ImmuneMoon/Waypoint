@@ -490,7 +490,8 @@ function renderForm() {
     form.appendChild(el('div', 'lib-fsub', 'At the table'));
     field(form, 'damage', 'Damage', e.damage, { max: 10000, ph: 'e.g. 2d6 + 1' });
     field(form, 'cost', 'Cost', e.cost, { max: 10000 });
-    field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'A blast radius in feet: the character can throw it from the sheet' });
+    field(form, 'areaFt', 'Blast (ft)', e.area && e.area.ft ? e.area.ft : '', { max: 5, title: 'Its size in feet: the character can throw it from the sheet. A circle\u2019s, a ring\u2019s or a cylinder\u2019s radius, a cone\u2019s length, a square\u2019s side' });
+    blastShapeBox(form, e.area);   // gap 19: its shape, and the number that shape needs
     blastBox(form, e.area);   // 1.5.8: the blast's extras, as systemcore areaExtra keeps them
     fliesLibBox(form, e.flies);   // 1.6.2 (vehicles, fold (d)): what it is once launched
     field(form, 'throwSkill', 'Thrown with', e.throwSkill, { max: 40, ph: 'Such as a skill’s target', title: 'What the Combat tab’s throw roll is made against when it is thrown or placed, such as a skill’s target. With none, no throw roll is made: it lands where it is aimed' });   // 1.6.3: what it is for, in words
@@ -888,7 +889,7 @@ function leave() {
 function readForm() {
     var g = function(id) { var n = ui('libF_' + id); return n ? n.value : ''; }, e = current(), stats = {};
     Array.prototype.forEach.call(document.querySelectorAll('#libForm [data-stat]'), function(n) { stats[n.dataset.stat] = n.value; });
-    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), pic: g('pic'), vis: g('vis'), lvl: g('lvl'), lvlOnly: g('lvlOnly'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: e.area && e.area.shape, areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaLoc: g('areaLoc'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaCloud: g('areaCloud'), areaCloudN: g('areaCloudN'), areaCloudU: g('areaCloudU'), areaCloudR: g('areaCloudR'), areaCloudSmoke: g('areaCloudSmoke'), areaCloudFx: g('areaCloudFx'), areaCloudRoll: g('areaCloudRoll'), flySpeed: g('flySpeed'), flyRounds: g('flyRounds'), flyHp: g('flyHp'), flyPro: g('flyPro'), flySize: g('flySize'), flyPath: g('flyPath'), flyRoll: g('flyRoll'), flyEnd: g('flyEnd'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), by: g('areaAff' + i + 'By'), pool: g('areaAff' + i + 'Pool'), res: g('areaAff' + i + 'Res'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, grants: st.fgFor === e.id && st.fg ? st.fg : e.grants, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsWarn: g('needsWarn'), needsMsg: g('needsMsg') });
+    var typed = entryFromForm({ id: e.id, name: g('name'), key: g('key'), category: g('category'), icon: g('icon'), pic: g('pic'), vis: g('vis'), lvl: g('lvl'), lvlOnly: g('lvlOnly'), stats: stats, notes: g('notes'), desc: g('desc'), lvls: g('lvls'), lvlsWas: e.lvls, tags: g('tags'), ref: g('ref'), damage: g('damage'), cost: g('cost'), throwSkill: g('throwSkill'), areaFt: g('areaFt'), areaShape: g('areaShape'), areaInFt: g('areaInFt'), areaDeg: g('areaDeg'), areaHFt: g('areaHFt'), areaCube: g('areaCube'), areaConeFrom: g('areaConeFrom'), areaConeRoll: g('areaConeRoll'), areaName: e.area && e.area.name, areaType: g('areaType'), areaUse: g('areaUse'), areaPlace: g('areaPlace'), areaTrig: g('areaTrig'), areaAd: g('areaAd'), areaLoc: g('areaLoc'), areaFlight: g('areaFlight'), areaFrag: g('areaFrag'), areaFragType: g('areaFragType'), areaCloud: g('areaCloud'), areaCloudN: g('areaCloudN'), areaCloudU: g('areaCloudU'), areaCloudR: g('areaCloudR'), areaCloudSmoke: g('areaCloudSmoke'), areaCloudFx: g('areaCloudFx'), areaCloudRoll: g('areaCloudRoll'), flySpeed: g('flySpeed'), flyRounds: g('flyRounds'), flyHp: g('flyHp'), flyPro: g('flyPro'), flySize: g('flySize'), flyPath: g('flyPath'), flyRoll: g('flyRoll'), flyEnd: g('flyEnd'), areaAffs: [0, 1].map(function(i) { return { vs: g('areaAff' + i + 'Vs'), fx: g('areaAff' + i + 'Fx'), who: g('areaAff' + i + 'Who'), by: g('areaAff' + i + 'By'), pool: g('areaAff' + i + 'Pool'), res: g('areaAff' + i + 'Res'), needs: g('areaAff' + i + 'Needs'), n: g('areaAff' + i + 'Lasts'), u: g('areaAff' + i + 'Unit') }; }), gmNotes: g('gmNotes'), again: g('again'), rm: g('rm'), rmMsg: g('rmMsg'), eq: g('eq'), eqMsg: g('eqMsg'), rollSw: st.fsFor === e.id && st.fs ? st.fs : e.rollSw, mods: st.fmFor === e.id && st.fm ? st.fm : e.mods, modsOn: ui('libF_modsOn') ? ui('libF_modsOn').checked : e.modsOn === true, opens: st.foFor === e.id && st.fo ? st.fo : e.opens, grants: st.fgFor === e.id && st.fg ? st.fg : e.grants, needs: st.fnFor === e.id && st.fn ? st.fn : e.needs, needsIf: g('needsIf'), needsFrom: g('needsFrom'), needsWarn: g('needsWarn'), needsMsg: g('needsMsg') });
     if (typed.lvls && st.lt) typed.lvls.forEach(function(r) { if (r.tag && st.lt[r.lvl]) r.tone = st.lt[r.lvl]; else delete r.tone; });   // 1.6.2 (180): each level's tag color as picked
     var out = clone(e), eqShown = !!ui('libF_eq'); FORM_KEYS.forEach(function(k) { if (eqShown || (k !== 'eq' && k !== 'eqMsg')) delete out[k]; }); return Object.assign(out, typed);   // a switch lock the form does not show (no list has a switch) is kept
 }
@@ -924,6 +925,35 @@ function flySays() {
     if (CF && !CF({ speed: sp, rounds: 1 })) return 'How far it flies each round cannot be worked out, so Save drops its flight.';
     return Number(libVal('flyRounds')) >= 1 ? '' : 'How many rounds it flies is empty or under 1, so it flies for 1 round. Fill in \u201cFlies for (rounds)\u201d.';
 }
+// [gapsmap:shapebox-start]
+// Gap 19 (area shapes): a blast's shape, picked from the shapes the cleaner keeps (systemcore SHAPES), and the one number beside its size that
+// the shape needs: a ring's inner radius, a cone's width, a cylinder's height. Each box counts only for its own shape, so the others are drawn
+// faint, and a number Save would drop is said under them as it is typed
+var BLAST_SHAPES = [['', 'Circle'], ['ring', 'Ring'], ['cone', 'Cone'], ['square', 'Square'], ['cylinder', 'Cylinder']];
+function blastShapeBox(form, a) {
+    a = a && typeof a === 'object' ? a : {}; var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; }, sh = a.shape === 'ring' || a.shape === 'cone' || a.shape === 'square' || a.shape === 'cylinder' ? a.shape : '';
+    field(form, 'areaShape', 'Blast shape', sh, { pairs: BLAST_SHAPES, title: 'The shape of its blast. A cone starts at its user, aimed where they click, and is never thrown off course. A square holds what stands inside it at every height. A cylinder holds what stands inside its circle up to its height' });
+    var boxes = { ring: field(form, 'areaInFt', 'Ring inner radius (ft)', num(a.inFt), { max: 5, title: 'For a ring: the radius of its hole in feet, under Blast (ft). Empty: no hole, the whole circle' }),
+        cone: field(form, 'areaDeg', 'Cone width (degrees)', num(a.deg), { max: 3, title: 'For a cone: how wide it opens, in whole degrees from 1 to 360. Empty: 60' }),
+        cylinder: field(form, 'areaHFt', 'Cylinder height (ft)', num(a.hFt), { max: 5, title: 'For a cylinder: how high it reaches above the ground it stands on, in feet. Empty: every height' }) };
+    // Fulllion's builder options, beside the shape they change, the recommended one first: a square or a cube, where a cone starts, a thrown cone
+    var notes = {}, opt = function(k, id, label, pairs, cur, line) { var s = field(form, id, label, cur, { pairs: pairs, title: line }); notes[k] = el('div', 'lib-note', line); form.appendChild(notes[k]); boxes[k] = s; return s; };
+    opt('square', 'areaCube', 'Square or cube', [['', 'Square'], ['cube', 'Cube']], a.cube === true ? 'cube' : '', 'A square holds what stands inside it at every height. A cube is as high as it is wide.');
+    opt('cone', 'areaConeFrom', 'Cone starts at', [['', 'The middle of its user\u2019s token'], ['edge', 'The edge of its user\u2019s token']], a.coneFrom === 'edge' ? 'edge' : '', 'Where the cone begins, on the way to where its user clicks.');
+    opt('coneRoll', 'areaConeRoll', 'Cone thrown with a skill', [['', 'Never thrown'], ['roll', 'Its throw roll decides']], a.coneRoll === true ? 'roll' : '', 'Never thrown: it starts at its user with no throw roll. With the roll it happens only on a success. Nothing scatters a cone.');
+    if (typeof warnLine === 'function') warnLine(form, function() {
+        var s = libVal('areaShape'), ft = Number(libVal('areaFt')), whole = function(id) { var v = libVal(id); return v === '' ? null : /^\d+$/.test(v) ? Number(v) : NaN; };
+        Object.keys(boxes).forEach(function(k) { var r = boxes[k] && boxes[k].parentNode, on = s === (k === 'coneRoll' ? 'cone' : k); if (r && r !== form && r.style) r.style.opacity = on ? '' : '0.5'; if (notes[k] && notes[k].style) notes[k].style.opacity = on ? '' : '0.5'; });
+        if (!libVal('areaFt')) return '';
+        var inF = whole('areaInFt'), dg = whole('areaDeg'), hF = whole('areaHFt');
+        if (s === 'ring' && inF !== null && !(inF >= 1 && inF < ft)) return 'The ring\u2019s inner radius must be a whole number of feet under Blast (ft), or Save drops it and the ring is a whole circle.';
+        if (s === 'cone' && dg !== null && !(dg >= 1 && dg <= 360)) return 'The cone\u2019s width must be a whole number of degrees from 1 to 360, or Save drops it and the cone is 60 degrees wide.';
+        if (s === 'cylinder' && hF !== null && !(hF >= 1)) return 'The cylinder\u2019s height must be a whole number of feet above 0, or Save drops it and the cylinder holds every height.';
+        var other = s !== 'ring' && inF !== null ? 'inner radius' : s !== 'cone' && dg !== null ? 'width' : s !== 'cylinder' && hF !== null ? 'height' : '';
+        return other ? 'The ' + other + ' counts only for its own shape, so Save drops it.' : '';
+    });
+}
+// [gapsmap:shapebox-end]
 function blastBox(form, a) {
     a = a && typeof a === 'object' ? a : {}; var num = function(v) { return typeof v === 'number' && isFinite(v) ? v : ''; };
     var tyS = field(form, 'areaType', 'Blast damage type', typeof a.type === 'string' ? a.type : '', { pairs: dmgTypePairs(a.type), title: 'The type of the damage it does, one of the Combat tab\u2019s damage types. A blast with none deals damage of no type' });
@@ -1064,6 +1094,9 @@ function blastDrops(raw, c) {
     if (!f) { if (g('areaType') || g('areaUse') || g('areaPlace') || g('areaTrig') || g('areaAd') || g('areaLoc') || g('areaFlight') || g('areaFrag') || g('areaFragType') || g('areaAff0Vs') || g('areaAff1Vs') || g('areaCloud') === 'yes' || clAny) out.push('the blast\u2019s other settings, which need a blast radius'); }
     else {
         if (f.type && !(k && k.type)) out.push('the damage type');
+        if (g('areaInFt') && !(k && k.inFt)) out.push('the ring\u2019s inner radius, which must be a whole number of feet under its size, on a ring');   // gap 19
+        if (g('areaDeg') && !(k && k.deg)) out.push('the cone\u2019s width, which must be a whole number of degrees from 1 to 360, on a cone');
+        if (g('areaHFt') && !(k && k.hFt)) out.push('the cylinder\u2019s height, which must be a whole number of feet above 0, on a cylinder');
         if (g('areaTrig') && !(k && k.trig)) out.push(f.place === true ? 'the trigger radius, which must be a number above 0' : 'the trigger radius, which needs Placed, not thrown');
         if (g('areaAd') && !(k && k.ad) && Number(g('areaAd')) !== 1) out.push('the armor divisor, which must be a number above 0');
         if (g('areaFlight') && !(k && k.flight)) out.push('how it lands on a miss, which a placed blast never does');   // 1.5.9 (es)

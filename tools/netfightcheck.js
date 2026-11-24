@@ -1019,6 +1019,52 @@ pendingChecks.push((async () => {
             check('1.6.2 Who holds whom, where it lands: past a wall on the side it came from it takes the next way round, walked from the holder\'s own place; a token there on a map with no grid is judged by its box; on a grid by the cell, so that a hex map\'s neighbor, whose box overlaps, is no bar and a token in that very cell is',
                 Math.round(walled.tok('t_far').x) === 55 && Math.round(walled.tok('t_far').y) === 32 && froms[0] === '0,0' && Math.round(box.tok('t_far').x) === 32 && Math.round(box.tok('t_far').y) === 55 && hex.tok('t_far').x === 48 && hex.tok('t_far').y === 0 && Math.round(cell.tok('t_far').x) !== 48, J([walled.tok('t_far'), froms[0], box.tok('t_far'), hex.tok('t_far'), cell.tok('t_far')]));
         }
+        {   // gap 21, forced movement: the host's mover (net.forcedMoves, run for real in the holds slice) and the change that asks for it (systemcore applyAct, run for real)
+            const go = async (mods, moves) => { const W = await mk(); W.toks.forEach(t => Object.assign(t, { w: 60, h: 52 })); if (mods) mods(W); return { W, r: W.net.forcedMoves(moves) }; };
+            const away = await go(null, [{ way: 'away', cells: 2, by: 't_k', on: 't_a', map: 'm1' }]);
+            const wall = await go(W => { W.log.walk = (fx, fy, x) => x <= 150; }, [{ way: 'away', cells: 3, by: 't_k', on: 't_a', map: 'm1' }]);
+            const pull = await go(null, [{ way: 'toward', cells: 20, by: 't_k', on: 't_far', map: 'm1' }]);
+            const spotOk = await go(null, [{ way: 'spot', cells: 3, by: 't_k', on: 't_k', map: 'm1', aim: { x: 30, y: 326 } }]);
+            const spotFar = await go(null, [{ way: 'spot', cells: 2, by: 't_k', on: 't_k', map: 'm1', aim: { x: 30, y: 526 } }]);
+            const spotOn = await go(null, [{ way: 'spot', cells: 3, by: 't_k', on: 't_k', map: 'm1', aim: { x: 130, y: 26 } }]);
+            const held = await go(W => { W.c.hl = [{ by: 't_a', on: 't_far', bc: 'c_a', oc: 'c_far', k: 1 }]; }, [{ way: 'away', cells: 2, by: 't_k', on: 't_a', map: 'm1' }]);
+            const client = await go(W => { W.net.role = 'client'; W.net.active = true; }, [{ way: 'away', cells: 2, by: 't_k', on: 't_a', map: 'm1' }]);
+            const junk = await go(null, [{ way: 'away', cells: 2, by: 't_k', on: 't_none', map: 'm1' }, { way: 'away', cells: 0, by: 't_k', on: 't_a', map: 'm1' }, { way: 'away', cells: 2, by: 't_k', on: 't_k', map: 'm1' }, { way: 'away', cells: 2, by: 't_k', on: 't_a', map: 'm_gone' }, null]);
+            check('gap 21 forced movement, the host moves the token (net.forcedMoves, run for real): pushed 2 cells straight away from the user; stopped in the last cell before a wall, and says so; pulled in, it stops before the first token on its line; a forced move is no move of its own (no move counted, no note to it)',
+                J(away.r) === J([{ moved: 2, stop: '' }]) && away.W.tok('t_a').x === 200 && away.W.tok('t_a').y === 0 && J(away.W.log.pos) === J([['t_a', 200, 0]])
+                && J(wall.r) === J([{ moved: 1, stop: 'wall' }]) && wall.W.tok('t_a').x === 150
+                && J(pull.r) === J([{ moved: 14, stop: 'token' }]) && pull.W.tok('t_far').x === 200 && !away.W.log.notes.length, J([away.r, away.W.log.pos, wall.r, wall.W.tok('t_a'), pull.r, pull.W.tok('t_far')]));
+            check('gap 21 forced movement, to a spot (net.forcedMoves, run for real): the user goes to the point aimed at, centered on it, when it lies within that many cells; farther, or onto another token, nothing moves and it says why',
+                J(spotOk.r) === J([{ moved: 3, stop: '' }]) && spotOk.W.tok('t_k').x === 0 && spotOk.W.tok('t_k').y === 300 && J(spotFar.r) === J([{ moved: 0, stop: 'far' }]) && spotFar.W.tok('t_k').y === 0 && J(spotOn.r) === J([{ moved: 0, stop: 'token' }]) && spotOn.W.tok('t_k').x === 0,
+                J([spotOk.r, spotOk.W.tok('t_k'), spotFar.r, spotOn.r]));
+            check('gap 21 forced movement, what moves nothing: a player\'s app (null, nothing moved), a token not on that map, under a cell, the user pushed from itself, a map that is gone and a move that is no record; one who holds another takes the hold along as when they walk (holdsMoved)',
+                client.r === null && client.W.tok('t_a').x === 100 && J(junk.r) === J([{ moved: 0, stop: 'none' }, { moved: 0, stop: 'none' }, { moved: 0, stop: 'none' }, { moved: 0, stop: 'none' }, { moved: 0, stop: 'none' }]) && junk.W.tok('t_a').x === 100
+                && held.W.tok('t_a').x === 200 && held.W.log.rec.includes('moved'), J([client.r, junk.r, held.W.log.rec]));
+            const walls = await go(null, [{ way: 'toward', cells: 20, by: 't_k', on: 't_far', map: 'm1', stop: 'walls' }]);
+            const spend = await go(W => { W.net.turnMove = { f1: { tokId: 't_a', rowId: 'rt_a', moved: 1, allow: 6 } }; W.c.turn = 1; }, [{ way: 'away', cells: 2, by: 't_k', on: 't_a', map: 'm1', spend: true }]);
+            const keep = await go(W => { W.net.turnMove = { f1: { tokId: 't_a', rowId: 'rt_a', moved: 1, allow: 6 } }; W.c.turn = 1; }, [{ way: 'away', cells: 2, by: 't_k', on: 't_a', map: 'm1' }]);
+            const Sf = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).href), Ff = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formula.js')).href);
+            const thOf = th => Sf.cleanSystem({ v: 1, name: 'F', fields: [], rolls: [{ id: 'r_a', label: 'A', formula: '3d6 <= 10', then: th }] }, { F: Ff, gmView: true }).rolls[0].then;
+            const thO = thOf([{ move: 'away', n: '2', stop: 'walls', spend: true }, { move: 'spot', n: '2', stop: 'walls', spend: 'yes' }, { move: 'toward', n: '1', stop: 'tokens' }]);
+            check('gap 21 a move\'s own options (Fulllion: builder options on the change; the cleaner and net.forcedMoves, run for real): Stopped by walls and barriers alone passes over tokens to the full count; Spends its move counts the cells against the moved token\'s move on its turn, and a move that does not spend leaves it; each kept only as its own value, and a spot is stopped by nothing it could pass',
+                J(walls.r) === J([{ moved: 20, stop: '' }]) && spend.W.net.turnMove.f1.moved === 3 && keep.W.net.turnMove.f1.moved === 1
+                && J(thO) === J([{ move: 'away', n: '2', stop: 'walls', spend: true }, { move: 'spot', n: '2' }, { move: 'toward', n: '1' }]), J([walls.r, spend.W.net.turnMove, keep.W.net.turnMove, thO]));
+            // the change itself, in applyAct: its cleaner, what it says on the card, and the sink it hands the move to
+            const Sx = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'systemcore.js')).href), Fx = await import(pathToFileURL(path.join(__dirname, '..', 'system', 'app', 'scripts', 'formula.js')).href);
+            const sysX = Sx.cleanSystem({ fields: [{ id: 'f_str', key: 'Str', kind: 'number', vis: 'all', edit: 'owner' }], rolls: [{ id: 'r_shove', label: 'Shove', formula: '3d6 <= 10', then: [{ move: 'away', n: 'Str / 2', when: 'hit' }, { move: 'away', n: '9', when: 'hit' }, { move: 'sideways', n: '1' }, { move: 'spot', n: '' }, { move: 'toward', n: '1', when: 'miss' }] }] }, { F: Fx, gmView: true });
+            const chX = Sx.cleanChar({ id: 'c_x', name: 'Ada', values: { f_str: 4 } }, sysX), sent = [];
+            Sx.setMoveSink(list => { sent.push(list); return list.map(m => ({ moved: m.cells - 1, stop: 'wall' })); });
+            const runX = (apply, tctx) => Sx.applyAct(sysX, chX, { apply }, Sx.makeResolver(sysX, chX, Fx, tctx || null), Fx, tctx || null);
+            const tcX = { self: 't_x', selfMap: 'm1', range: { tid: 't_y', mapId: 'm1' } };
+            const r1 = runX([{ move: 'away', n: 'Str / 2' }], tcX), r2 = runX([{ move: 'spot', n: '3' }], Object.assign({ aim: { x: 5, y: 6 } }, tcX)), r3 = runX([{ move: 'toward', n: '2' }], { self: 't_x', selfMap: 'm1' }), r4 = runX([{ move: 'away', n: '1d6' }], tcX), r5 = runX([{ move: 'spot', n: '3' }], tcX);
+            Sx.setMoveSink(null); const r6 = runX([{ move: 'away', n: '2' }], tcX);
+            check('gap 21 forced movement, the change (systemcore, run for real): cleaned as one of three ways with How many cells as a formula, once per way and when, any other way dropped and an empty How many kept for the editor to name; worked out with the user\'s names in whole cells and handed to the sink with the user\'s token, the target\'s and the map; the card says how far it went and why it stopped; a spot takes the aim; no target, no spot or dice moves nothing and says why; with no sink, it says the host moves tokens',
+                J(sysX.rolls[0].then) === J([{ move: 'away', n: 'Str / 2', when: 'hit' }, { move: 'spot', n: '' }, { move: 'toward', n: '1', when: 'miss' }])
+                && r1.ok && J(sent[0]) === J([{ way: 'away', cells: 2, by: 't_x', on: 't_y', map: 'm1' }]) && J(r1.lines) === J([{ n: 'Pushed away', say: '1 cell of 2: a wall is in the way.' }]) && r1.moved === 1
+                && r2.ok && J(sent[1]) === J([{ way: 'spot', cells: 3, by: 't_x', on: 't_x', map: 'm1', aim: { x: 5, y: 6 } }]) && J(r2.lines) === J([{ n: 'Moved to a spot', say: '2 cells.' }])
+                && r3.ok && J(r3.lines) === J([{ n: 'Pulled in', say: 'No target on this map, so nothing moves.' }]) && r4.ok === false && /dice/.test(r4.message) && J(r5.lines) === J([{ n: 'Moved to a spot', say: 'No spot was picked, so nothing moves.' }]) && sent.length === 2
+                && J(r6.lines) === J([{ n: 'Pushed away', say: 'Not moved here: the table\u2019s host moves tokens.' }]), J([sysX.rolls[0].then, sent, r1.lines, r2.lines, r3.lines, r4, r5.lines, r6.lines]));
+        }
         {   // the review of backlog 237: a token given its own copy of the sheet it shared (net.holdsRetarget, run for real with the holds slice)
             const copyOf = (W, from, to) => { W.chars[to] = JSON.parse(JSON.stringify(Object.assign({}, W.chars[from], { id: to }))); return W.chars[to]; };
             const R1 = await mk(); R1.holdsRolled(R1.camp, R1.chars.c_k, null, 'r_take', true, R1.tc('t_a'), null, ''); copyOf(R1, 'c_a', 'c_a2'); R1.tok('t_a').charId = 'c_a2';

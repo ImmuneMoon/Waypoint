@@ -18,7 +18,7 @@
    the other's names (tools/splitcheck.js holds it). Change the code here as if it still stood in net.js. Like net.js, this file is
    kept byte for byte by git (.gitattributes), with its CRLF line endings. */
 // [split:of net.js]
-import { HELD_WORDS, SC, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcast, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatOver, combatRefresh, combatRefreshTurn, combatSeen, combatsFor, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsKeep, fightsKeepSoon, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, fxLib, getActiveCampaign, getProfile, hitAskSet, itemLib, logEvent, mapFogged, mapTitleOf, marksStart, moveMode, net, noteOwner, own, playerHue, postApply, recLine, render, roundChanged, save, saveRemoteSoon, sendFailed, seqIdx, seqMake, seqMoved, seqPlace, seqStep, severalRule, showConfirm, snapBack, targetTok, targetsFor, toast, turnCombatOf, turnEnded, turnNote, turnStarted } from './net.js';   // [split:glue]
+import { HELD_WORDS, SC, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcast, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatOver, combatRefresh, combatRefreshTurn, combatSeen, combatsFor, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsKeep, fightsKeepSoon, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, fxLib, getActiveCampaign, getProfile, hitAskSet, itemLib, logEvent, mapFogged, mapTitleOf, marksStart, moveMode, net, noteOwner, own, playerHue, postApply, recLine, render, roundChanged, save, saveRemoteSoon, sendFailed, seqIdx, seqMake, seqMoved, seqPlace, seqStep, severalRule, showConfirm, snapBack, targetTok, targetsFor, toast, turnCombatOf, turnEnded, turnExtraTake, turnNowTake, turnNote, turnStarted } from './net.js';   // [split:glue]
 export function netFight() {   // [split:glue]
 // [split:body-start]
 // [netcheck:holds-start]
@@ -648,8 +648,10 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     if (S5 && dir > 0 && !nx) return false;   // a pick that may not go next (one who has gone, the one on turn, one not there): nothing moves
     if (by !== 'player') net.fightOn = fid;   // fold 4: the GM's own step of a fight makes it the one played
     if (dir > 0 && c.dec && c.dec.open === 1 && typeof declareReveal === 'function') declareReveal(fid);   // 1.6.2 (G10): play moving on shows what is in
+    if (dir > 0 && fightNowStep(c) === 'took') return;   // 1.6.4 (gap #20): an extra turn given to come right after the turn being played
     var campS = campNow(), a0 = timeCore() ? fightAtOf(c, campS) : null;   // fold 4: the fight's own time before the step
     var mapId = c.mapId, t = c.turn + (dir < 0 ? -1 : 1), r0 = c.round, t0 = c.turn, endRow = dir > 0 && c.rows[t0] && (!c.rows[t0].held || holdRule('holdEnd') === 'end') ? c.rows[t0] : null;   // 1.6.0: the turn a forward step ends (a held one only where the system says a hold ends the turn; once a turn, so acting from it runs nothing again)
+    if (endRow && typeof turnExtraTake === 'function' && turnExtraTake(c, endRow)) return fightTurnAgain(c, endRow, r0, t0);   // 1.6.4 (gap #20): an extra turn waiting goes right after its own turn, before anything else moves
     var pkFrom = c.rows[t0], pkRow = nx && nx.round && typeof pick === 'string' ? c.rows[nx.at] : null;   // initiative O5: whose turn ends, and the row picked to open a new round, found again once its order is made
     var at0 = c.sq, seqR = c.seq && typeof seqStep === 'function' ? severalRule(campS) : null, ckR = typeof clockRule === 'function' ? clockRule(campS) : null; if (seqR) seqMoved(c, seqR);
     if (S5) t = chosenGo(c, dir, nx, t0);   // initiative O5: the place chosen (a new round where none is left), or back to the last turn had (a correction)
@@ -662,6 +664,7 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     if (holdRule('holdNames') === true) holdTurn(c, t, dir, t0);   // 1.6.0: a named hold lasts to its row's next turn, a row set off has had its moment, and a lost action takes a hold
     if (c.rows[t]) delete c.rows[t].held;   // ...and a row whose turn it is holds nothing
     if (endRow && typeof turnEnded === 'function') turnEnded(mapId, c, endRow, r0, t0);   // 1.6.0: its end first, before the new round and the next turn
+    delete c.xr;   // 1.6.4 (gap #20): play moved on, so the turns had again in a row are over
     if (c.round > r0 && typeof combatNewRound === 'function') { combatNewRound(mapId, c); t = c.turn; }
     if (seqR && c.round > r0) { seqMake(campS, c); c.sq = 0; if (c.seq) { t = seqIdx(c, 0); c.turn = t; } }
     if (ckR && c.round > r0) { clockCycle(campS, c); t = c.turn; }
@@ -673,6 +676,33 @@ function fightStep(fid, dir, by, pick) {   // host: that fight's next turn (dir 
     broadcastCombats(); if (c.round === r0 && typeof combatRefreshTurn === 'function') combatRefreshTurn(); else combatRefresh();   // 1.6.3 (the combat review, finding 26): a step within its round draws only what shows whose turn it is
     if (c.round !== r0 || c.turn !== t0 || (seqR && c.sq !== at0) || (ckR && dir > 0)) turnStarted(mapId, c);   // T2b: whoever's turn it now is (nothing when a step back at the first turn moves nothing), after the broadcast
     if (tg) ordersMoved('step', tg);   // fold 4: the round it closed counted, and the clock moved once the fight furthest behind moves on
+}
+// 1.6.4 (the full test's gap #20): the same row takes another whole turn. Its turn ends as any turn does, then begins again where it stands: the
+// round, the order and its place stay, the turn's serial moves on, and the turn-start hooks give back its actions and its move and run its
+// rules. c.xr counts the turns it has had again in a row (the host's own, never sent), so each of them starts and ends once
+// 1.6.4 (Fulllion's answer to gap #20): extra turns given to come right after the turn being played. The turn on hand ends, and the row of the one
+// given it takes a whole turn of its own, in the round and the order as they stand. c.xb keeps the place play goes back to (the host's own, never
+// sent, kept through a roster edit), and c.xr makes each such turn's start and end its own. Once none waits, the last one ends and play goes on
+// from c.xb as if its turn had just ended, which ran once already. 'took' where a turn was given here, 'back' where play went back, else ''
+function fightNowStep(c) {
+    var at = typeof turnNowTake === 'function' ? turnNowTake(c) : -1, row = c.rows[c.turn], back = typeof c.xb === 'number';
+    if (at < 0 && !back) return '';
+    if (row && !row.held && typeof turnEnded === 'function') turnEnded(c.mapId, c, row, c.round, c.turn);
+    if (at < 0) { c.turn = Math.max(0, Math.min(c.xb, c.rows.length - 1)); delete c.xb; delete c.xr; return 'back'; }
+    if (!back) c.xb = c.turn;
+    c.turn = at; c.tn = (typeof c.tn === 'number' ? c.tn : 0) + 1; c.xr = (typeof c.xr === 'number' ? c.xr : 0) + 1;
+    var who = c.rows[at] || {}; toast((who.name || 'Someone') + ' takes an extra turn.'); logEvent('table', (who.name || 'Someone') + ' took an extra turn on ' + mapTitleOf(c.mapId));
+    if (window.wpStepLog) window.wpStepLog('give v1', 'extra turn now', { round: c.round, inRow: c.xr });
+    broadcastCombats(); if (typeof combatRefreshTurn === 'function') combatRefreshTurn(); else combatRefresh();
+    turnStarted(c.mapId, c); return 'took';
+}
+function fightTurnAgain(c, endRow, r0, t0) {
+    if (typeof turnEnded === 'function') turnEnded(c.mapId, c, endRow, r0, t0);
+    c.turn = t0; c.tn = (typeof c.tn === 'number' ? c.tn : 0) + 1; c.xr = (typeof c.xr === 'number' ? c.xr : 0) + 1;
+    toast((endRow.name || 'Someone') + ' takes an extra turn.'); logEvent('table', (endRow.name || 'Someone') + ' took an extra turn on ' + mapTitleOf(c.mapId));
+    if (window.wpStepLog) window.wpStepLog('give v1', 'extra turn', { round: c.round, inRow: c.xr });
+    broadcastCombats(); if (typeof combatRefreshTurn === 'function') combatRefreshTurn(); else combatRefresh();
+    turnStarted(c.mapId, c);
 }
 // Initiative O3 (the owner's answer, "After the current turn"): the character whose turn it is holds it — play moves on as with Next turn and its row
 // waits, held; later in the round, when its owner or the GM presses Act, the held row goes right after whoever is acting and keeps that place (it

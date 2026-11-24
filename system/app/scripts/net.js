@@ -23,7 +23,7 @@ import { netLink } from './netlink.js';   // [split:glue]
 import { netTrade } from './nettrade.js';   // [split:glue]
 import { netFog } from './netfog.js';   // [split:glue]
 import { netFight } from './netfight.js';   // [split:glue]
-export { HELD_WORDS, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatRefresh, combatRefreshTurn, combatSeen, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, getProfile, hitAskSet, mapTitleOf, marksStart, moveMode, playerHue, postApply, roundChanged, seqIdx, seqMake, seqMoved, seqPlace, seqStep, showConfirm, targetTok, turnCombatOf, turnEnded, turnStarted };   // [split:glue]
+export { HELD_WORDS, _fightN, _hitAsk, applyLines, attemptCalled, attemptDrop, attemptRec, bellOut, broadcastCombats, broadcastTargets, callPost, cleanFightBody, clockCycle, clockRule, clockStart, clockStep, combatRefresh, combatRefreshTurn, combatSeen, declareReveal, diceFrom, figApply, fightNSet, fightNum, fightReachKept, fightsRead, fogDrop, fogLanded, fxCombatEdge, fxEnded, getProfile, hitAskSet, mapTitleOf, marksStart, moveMode, playerHue, postApply, roundChanged, seqIdx, seqMake, seqMoved, seqPlace, seqStep, showConfirm, targetTok, turnCombatOf, turnEnded, turnExtraTake, turnNowTake, turnStarted };   // [split:glue]
 export { _barSent, _dragFrom, _faceRefused, _lastSent, _refusedAt, applyNotepad, boxForgetConn, camGiven, camHold, camLand, camMine, camOf, campOf, charSessionReset, cleanCombats, cleanElevation, cleanFightsIn, cleanHostMap, cleanHostWbItem, cleanPosture, cleanStance, cleanStanceCamps, cleanTargets, clockOut, combatForget, combatsFor, combatsSentForget, combatsTo, connMap, dateFigOut, decksFor, dragEnd, escAttr, escText, faceCount, faceDeg, faceJudge, faceRefusedText, faceRelay, fightsKnow, fightsOn, heldSync, hitsKnow, hostTravel, landingPoint, landsKnow, load, mapFogged, marksOwnMoved, moveCounted, moveRefused, noteHostChar, noteHostCopy, noteOwner, openDrag, openDrags, ownCellKeysOf, ownTokIdsOf, peerPaused, recLine, render, renderRoster, restLogOut, rowTextKnows, sanitizeItem, setPausedLocal, setSelfPausedLocal, setTravelLockLocal, sheetFilesOkSet, sheetOutsKnow, snapBack, stageConn, state, styleHostKnows, targetsFor, tokBarsSoon, tradeLost, trkSendTo, ui, updateCampaignSelect, updateSidebarNav, validKey, validProfileId, webJoinOnly, wireWbItem, withHoverLines, withLinkFigs };   // [split:glue]
 export { actSpend, actsCombat, actsOf, fxNow, offTurnOf, offTurnTell, rowOnGm };   // [split:glue]
 export { charViewFor };   // [split:glue]
@@ -5068,6 +5068,7 @@ function fightReachTurn(c) {
     var th = c.th && typeof c.th === 'object' ? c.th : (c.th = Object.create(null)), k = typeof row.id === 'string' && row.id ? row.id : '#' + c.turn;   // a row with no id by its place
     if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sq) > 0) k += '#' + seqOcc(c, c.sq);   // 1.6.2 (G10): its later turns of the round are turns of their own
     if (c.ck0) k += '#' + row.init;   // ...and on a counting clock a row's turn is known by its count, so a step back runs nothing again
+    if (typeof c.xr === 'number' && c.xr > 0) k += '#x' + c.xr;   // 1.6.4 (gap #20): an extra turn is a turn of its own
     if (th[k] === 1) return false;
     th[k] = 1; return true;
 }
@@ -5083,6 +5084,7 @@ function fightReachTurnEnd(c, round, row, at) {
     var et = c.et && typeof c.et === 'object' ? c.et : (c.et = Object.create(null)), k = typeof row.id === 'string' && row.id ? row.id : '#' + at;
     if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sqWas) > 0) k += '#' + seqOcc(c, c.sqWas);
     if (c.ck0) k += '#' + row.init;
+    if (typeof c.xr === 'number' && c.xr > 0) k += '#x' + c.xr;   // 1.6.4 (gap #20): and so is its end
     if (et[k] === 1) return false;
     et[k] = 1; return true;
 }
@@ -5135,6 +5137,9 @@ function turnJobEnd(mapId, c, row, round) {
 // [netcheck:job-end]
 function fightReachKept(had, f) {   // a roster edit: how far the fight has gone, kept whole (a row taken out and put back in the same round keeps its turn had)
     if (typeof had.rh === 'number') f.rh = had.rh;
+    if (typeof had.xr === 'number') f.xr = had.xr;   // 1.6.4 (gap #20): and how many extra turns the row on turn has had in a row
+    if (typeof had.xb === 'number') f.xb = had.xb;   // ...and the turn they came after, where play goes back to
+    if (had.fr && typeof had.fr === 'object') f.fr = had.fr;   // 1.6.4 (gap #4): and each character's rolls in it (FightRolls)
     if (typeof had.tn === 'number') f.tn = had.tn;   // 1.6.3 (the combat review, finding 29): and the turn's serial, so an End turn sent before the edit still names its turn
     if (typeof had.eh === 'number') f.eh = had.eh;   // 1.6.0: and the turns it has ended
     if (had.et && typeof had.et === 'object') f.et = had.et;
@@ -5259,6 +5264,13 @@ function runLeft(camp, st) { var a = runAct(camp, st), sp = net.turnSpent[st.cha
 // 1.6.2 (the CORE session's batch 6, 5b): whether a token has moved on its turn, read by MovedThisTurn (systemcore setMovedSource)
 function movedNow(tokId) { return typeof tokId === 'string' && !!net.turnMove && Object.keys(net.turnMove).some(function(fid) { var s = net.turnMove[fid]; return !!s && s.tokId === tokId && typeof s.moved === 'number' && s.moved > 0; }); }
 (function() { var Sm = typeof window !== 'undefined' ? window.wpSystemCore : null; if (Sm && typeof Sm.setMovedSource === 'function') Sm.setMovedSource(movedNow); })();
+// 1.6.4 (Fulllion's answer to gap #4): FightRolls. The host counts each roll a character makes while a fight holds it (fightRollCounted, asked once a
+// roll where the host records a player's roll and its own), into that fight's fr (character id -> count, the host's own: never sent, kept through a
+// roster edit and a reload, gone with the fight), and answers the count to systemcore's source (fightRollsOf)
+function fightOfChar(charId) { var camp = getActiveCampaign(), fid = camp && typeof charId === 'string' && charId && typeof orderOfIn === 'function' ? orderOfIn(camp, charId) : null; return fid && own(net.combats, fid) ? net.combats[fid] : null; }
+function fightRollsOf(charId) { var c = fightOfChar(charId); return c && c.fr && typeof c.fr[charId] === 'number' ? c.fr[charId] : 0; }
+function fightRollCounted(charId) { if (net.role !== 'host') return; var c = fightOfChar(charId); if (!c) return; var fr = c.fr && typeof c.fr === 'object' ? c.fr : (c.fr = {}); fr[charId] = Math.min(9999, (typeof fr[charId] === 'number' ? fr[charId] : 0) + 1); }
+(function() { var Sf = typeof window !== 'undefined' ? window.wpSystemCore : null; if (Sf && typeof Sf.setFightRollsSource === 'function') Sf.setFightRollsSource(fightRollsOf); })();
 function runOf(charId, act) { var hit = null; Object.keys(net.turnMove || {}).forEach(function(fid) { var s = net.turnMove[fid]; if (!hit && s && s.charId === charId && typeof s.run === 'number' && (!act || s.act === act)) hit = s; }); return hit; }
 function runSyncOf(camp, charId) { var s = runOf(charId); if (!s) return; var a = s.ran === true || runLeft(camp, s) > 0 ? s.run : s.walk; if (a !== s.allow) { s.allow = a; if (typeof mvTold === 'function') mvTold(); } }
 function runStart(st, t, S, F, R, camp, ch, map, w, c) {   // at a turn's start: the words for that action where a run is on offer, else ''
@@ -5284,6 +5296,28 @@ function runGate(camp, charId, cost, conn, who, look, pr) {   // a press that co
     if (moveMode(camp, 'acts') === 'off') { if (look !== true) { sp[a.key] = used + 1; runSyncOf(camp, charId); } return ''; }   // actions not counted: this turn's move still reads what it spent
     return null;
 }
+// 1.6.4 (the full test's gap #22): what a roll or an apply action costs of its character's move this turn (ent.mv, systemcore moveCostInto), judged
+// as a drag past the move is, by the fight's Move limit: Refuse says why and spends nothing, Warn lets it through and says so, Off spends it.
+// Only a player's character on its own turn has a move to spend (net.turnMove), so off its turn, and with no move limit, it costs nothing. Half is
+// half of the turn's whole move (its walk where a run is in play); a set distance is the system's move unit turned into the map's cells; Leaves at
+// most takes what is left down to that distance and never refuses. look, only as true: says what would be refused and spends nothing
+function moveCostSpend(camp, charId, pr, ent, conn, who, look) {
+    if (!ent || (ent.mv !== 'half' && ent.mv !== 'set' && ent.mv !== 'most')) return '';
+    var c = actsCombat(camp, charId, pr), st = c && typeof c.id === 'string' && own(net.turnMove, c.id) ? net.turnMove[c.id] : null, cur = c && Array.isArray(c.rows) ? c.rows[c.turn] : null;
+    if (!st || !cur || st.rowId !== cur.id || typeof st.allow !== 'number') return '';
+    var map = camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === st.tokId; }) : null; if (!w || w.charId !== charId) return '';
+    var S = SC(), t = camp.system && camp.system.combat && camp.system.combat.turn ? camp.system.combat.turn : {}, full = typeof st.walk === 'number' ? st.walk : st.allow, left = Math.max(0, st.allow - st.moved);
+    var dist = ent.mv === 'half' ? 0 : S && typeof S.moveAllowCells === 'function' ? S.moveAllowCells(ent.mvN, t.unit, S.mapCellScale(map)) : ent.mvN;
+    var cells = ent.mv === 'half' ? full / 2 : ent.mv === 'set' ? dist : Math.max(0, left - dist), short = ent.mv !== 'most' && cells > left + 0.05, md = moveMode(camp, 'move'), lbl = String(ent.label || 'That').split('{')[0].trim() || 'That';
+    if (short && md === 'refuse') return 'Not enough move left: ' + lbl + ' takes ' + cellsText(cells, map) + ', and ' + cellsText(left, map) + ' is left.';
+    if (look === true) return '';
+    if (short && md === 'warn') { toast((who || 'A character') + ' used ' + lbl + ' past the move left this turn.'); if (typeof bellOut === 'function') bellOut(charId, { title: 'Turn', text: lbl + ': used past the move left this turn.' }); }
+    if (cells > 0) st.moved = Math.round((st.moved + cells) * 1000) / 1000;
+    var ranW = typeof runMark === 'function' ? runMark(camp, st) : '';   // past the move, while a run's action is free, it is spent as a drag spends it
+    turnNote(conn, lbl + ': ' + cellsText(cells, map) + ' of your move. ' + cellsText(Math.max(0, st.allow - st.moved), map) + ' left this turn' + (ranW ? ', and your ' + ranW + ' went to it.' : '.'), charId);
+    if (window.wpStepLog) window.wpStepLog('move cost v1', 'spent', { kind: ent.mv, cells: cells, short: short });
+    mvTold(); return '';
+}
 function actSpend(camp, charId, pr, cost, conn, who, look, k) {   // look, only as true: says what would be refused and spends nothing. k (1.6.2, G10): how many of it, 2 or more, else one
     var rg = cost ? runGate(camp, charId, cost, conn, who, look, pr) : null; if (rg !== null) return rg;   // 1.6.0 A move by giving up an action
     if (!cost || moveMode(camp, 'acts') === 'off') return '';
@@ -5303,14 +5337,70 @@ function turnActsStart(mapId, c) {   // the character whose turn begins has its 
     var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null, w = map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null;
     if (!w || typeof w.charId !== 'string') return;
     if (c.seq && typeof seqOcc === 'function' && seqOcc(c, c.sq) > 0) { var svA = severalRule(camp); if (svA && svA.acts === 'round') return; }   // 1.6.2 (G10): Actions, Once a round
-    delete net.turnSpent[w.charId]; net.turnMax[w.charId] = actsMaxOf(camp, camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null, map, w, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);   // 192: its counts for this turn
+    delete net.turnSpent[w.charId]; net.turnMax[w.charId] = actsMaxOf(camp, camp.chars && own(camp.chars, w.charId) ? camp.chars[w.charId] : null, map, w, c); if (typeof turnKeptInto === 'function') turnKeptInto(w.charId, net.turnMax[w.charId]); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, w.charId);   // 192: its counts for this turn
     if (typeof crewOfVeh === 'function') crewOfVeh(camp, w.charId).forEach(function(cid) { delete net.turnSpent[cid]; net.turnMax[cid] = actsMaxOf(camp, camp.chars[cid], map, null, c); if (window.wpVtt && window.wpVtt.on('turns')) actsTell(camp, cid); });   // 1.6.2: its crew's come back with it
 }
 function turnActsEnd(mapId, had) {   // a combat ended: its characters' counts go (their sheets stop graying)
     var camp = getActiveCampaign(); if (!had || !camp || !actsOf(camp).length) return;
     var map = camp.items && own(camp.items, mapId) ? camp.items[mapId] : null; if (!map || !Array.isArray(had.rows) || !Array.isArray(map.whiteboard)) return;
-    had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; delete net.turnMax[w.charId]; actsTell(camp, w.charId, true); if (camp.chars) Object.keys(camp.chars).forEach(function(cid) { var cx = camp.chars[cid]; if (cid !== w.charId && cx && cx.links && typeof cx.links === 'object' && Object.keys(cx.links).some(function(lk) { return cx.links[lk] === w.charId; }) && net.turnSpent[cid]) { delete net.turnSpent[cid]; delete net.turnMax[cid]; actsTell(camp, cid, true); } }); } });   // 1.6.2: and its crew's
+    had.rows.forEach(function(r) { var w = r && r.tokId ? map.whiteboard.find(function(x) { return x && x.id === r.tokId; }) : null; if (w && typeof w.charId === 'string') { delete net.turnSpent[w.charId]; delete net.turnMax[w.charId]; if (net.turnKeep) delete net.turnKeep[w.charId]; actsTell(camp, w.charId, true); if (camp.chars) Object.keys(camp.chars).forEach(function(cid) { var cx = camp.chars[cid]; if (cid !== w.charId && cx && cx.links && typeof cx.links === 'object' && Object.keys(cx.links).some(function(lk) { return cx.links[lk] === w.charId; }) && net.turnSpent[cid]) { delete net.turnSpent[cid]; delete net.turnMax[cid]; actsTell(camp, cid, true); } }); } });   // 1.6.2: and its crew's
 }
+// 1.6.4 (the full test's gap #20): a change that gives a character more of a turn's action, or extra whole turns, judged on the host as spending
+// is. An action given adds to what its turn allows (net.turnMax), worked out first where its turn has not begun, so it lasts until its next turn
+// starts and its counts come back; its player hears what is left. Given off its own turn and ticked to keep (Fulllion's answer), it waits on
+// net.turnKeep (character id -> action -> how many) and is added to that next turn instead, at turnActsStart. Extra turns wait on net.turnExtra
+// (fight id -> character id -> how many) and are taken right after that character's own turn ends (fightStep, turnExtraTake); ticked now, on
+// net.turnNow (fight id -> character ids in the order given), taken right after the turn being played (fightStep, turnNowTake). All of it
+// is the host's own, never sent, and goes with the fight. Each gift answers its words for the card's line, which follow the line's name
+// ("Action +1 this turn."); a character in no fight is given nothing
+net.turnExtra = Object.create(null);
+net.turnNow = Object.create(null);
+net.turnKeep = Object.create(null);
+function turnGive(list) {
+    var camp = getActiveCampaign(); if (net.role !== 'host' || !camp || !Array.isArray(list)) return [];
+    return list.map(function(g) { try { return turnGiveOne(camp, g); } catch (e) { console.error(e); return ''; } });
+}
+function charOfRow(camp, c, row) {   // the character whose token a fight's row holds, '' where none
+    var map = camp && camp.items && own(camp.items, c.mapId) ? camp.items[c.mapId] : null, w = row && typeof row.tokId === 'string' && map && Array.isArray(map.whiteboard) ? map.whiteboard.find(function(x) { return x && x.id === row.tokId; }) : null;
+    return w && typeof w.charId === 'string' ? w.charId : '';
+}
+function turnGiveOne(camp, g) {
+    var hit = g && typeof g.to === 'string' ? charCombat(camp, g.to) : null, n = g && typeof g.n === 'number' ? Math.max(0, Math.min(9, Math.floor(g.n))) : 0;
+    if (!hit || !hit.combat || n < 1) return 'none given outside a fight.';
+    var c = hit.combat, fid = typeof c.id === 'string' ? c.id : '', ch = camp.chars && own(camp.chars, g.to) ? camp.chars[g.to] : null;
+    if (g.give === 'turn') {
+        if (!fid) return 'none given outside a fight.';
+        if (g.now === true) { var nw = net.turnNow[fid] || (net.turnNow[fid] = []); for (var i = 0; i < n && nw.length < 99; i++) nw.push(g.to); if (window.wpStepLog) window.wpStepLog('give v1', 'turns now', { n: n, waiting: nw.length }); return '+' + n + ', right after the turn being played.'; }
+        var xt = net.turnExtra[fid] || (net.turnExtra[fid] = Object.create(null)); xt[g.to] = Math.min(9, (xt[g.to] || 0) + n);
+        if (window.wpStepLog) window.wpStepLog('give v1', 'turns', { n: n, waiting: xt[g.to] });
+        return '+' + n + ', right after its own turn.';
+    }
+    var a = null; actsOf(camp).forEach(function(x) { if (!a && x && x.key === g.act) a = x; }); if (!a) return 'none given: not an action a turn allows.';
+    if (g.keep === true && charOfRow(camp, c, c.rows[c.turn]) !== g.to) {   // off its own turn, kept for the next
+        var kp = net.turnKeep[g.to] || (net.turnKeep[g.to] = Object.create(null)); kp[a.key] = Math.min(99, (kp[a.key] || 0) + n);
+        if (window.wpStepLog) window.wpStepLog('give v1', 'action kept', { n: n, kept: kp[a.key] });
+        return '+' + n + ' on its next turn.';
+    }
+    if (!net.turnMax[g.to]) { var mp = camp.items && own(camp.items, hit.mapId) ? camp.items[hit.mapId] : null, S = SC(), tw = S && mp && ch ? S.charTokenOn(mp, g.to, ch.ownerId, { strict: true }) : null; net.turnMax[g.to] = actsMaxOf(camp, ch, mp, tw, c); }   // its turn not begun: its counts worked out now, as actSpend does
+    var m = net.turnMax[g.to], had = typeof m[a.key] === 'number' ? m[a.key] : (a.n || 1); m[a.key] = Math.min(99, had + n);
+    actsTell(camp, g.to); if (typeof runSyncOf === 'function') runSyncOf(camp, g.to);   // its player hears it, and a turn with a run follows
+    if (window.wpStepLog) window.wpStepLog('give v1', 'action', { n: n, now: m[a.key] });
+    return '+' + n + ' this turn.';
+}
+function turnKeptInto(charId, max) {   // its turn begins: what was kept for it is added, once
+    var kp = net.turnKeep[charId]; if (!kp || !max) return; Object.keys(kp).forEach(function(k) { if (typeof max[k] === 'number') max[k] = Math.min(99, max[k] + kp[k]); }); delete net.turnKeep[charId];
+}
+function turnExtraTake(c, row) {   // a forward step ends row's turn: true where that character has an extra turn waiting, which this takes
+    var fid = c && typeof c.id === 'string' ? c.id : '', xt = fid ? net.turnExtra[fid] : null; if (!xt || !row) return false;
+    var cid = charOfRow(getActiveCampaign(), c, row); if (!cid || !(xt[cid] > 0)) return false;
+    xt[cid] -= 1; if (!xt[cid]) delete xt[cid]; return true;
+}
+function turnNowTake(c) {   // the turn being played ends: the place of the next row given an extra turn right after it, -1 where none waits (one with no row left is passed over)
+    var fid = c && typeof c.id === 'string' ? c.id : '', q = fid ? net.turnNow[fid] : null, camp = getActiveCampaign();
+    while (q && q.length) { var cid = q.shift(), at = c.rows.findIndex(function(r) { return charOfRow(camp, c, r) === cid; }); if (at >= 0) return at; }
+    return -1;
+}
+(function() { var Sg = typeof window !== 'undefined' ? window.wpSystemCore : null; if (Sg && typeof Sg.setGiveSink === 'function') Sg.setGiveSink(turnGive); })();
 // [netcheck:turnacts-end]
 // [split:nettime.js]
 var _netTime = netTime(), charCombat = _netTime.charCombat, fxClockStart = _netTime.fxClockStart, fxClockTick = _netTime.fxClockTick, fxCombatChars = _netTime.fxCombatChars, fxCombatEdge = _netTime.fxCombatEdge, fxEnded = _netTime.fxEnded, timeNote = _netTime.timeNote, turnFxEnd = _netTime.turnFxEnd, turnFxStart = _netTime.turnFxStart;   // [split:glue]
@@ -5328,10 +5418,11 @@ function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id
     var mapId = had && typeof had.mapId === 'string' ? had.mapId : '';
     var campO = had ? getActiveCampaign() : null, gone = !!had && !(campO && campO.items && Object.prototype.hasOwnProperty.call(campO.items, mapId)), nmO = had ? (gone ? (typeof title === 'string' && title ? title : 'the deleted map') : mapTitleOf(mapId)) : '';
     var endO = had && typeof fightEndTime === 'function' ? fightEndTime(campO, had, nmO) : null;   // 152 fold 4: the round it ends in, lived up to its time and one round's length
+    if (had && !gone) fightEndRules(mapId, had, quiet === true);   // 1.6.4 (gap #4): its rules that run as a fight ends, while the fight still stands as it ended; quiet, the session's end, runs those ticked to run then too
     if (had) { try { turnActsEnd(mapId, had); } catch (e) { console.error(e); } }   // T4
     if (had && typeof holdsGone === 'function') { try { holdsGone(campO, had); } catch (e) { console.error(e); } }   // 1.6.0 Who holds whom: every hold in it ends with the fight, its effects with them
     if (had) { logEvent('table', 'Combat ended on ' + nmO + ' after ' + had.round + ' round' + (had.round === 1 ? '' : 's')); if (!quiet) toast('Combat ended on ' + nmO + '.'); }
-    if (typeof fid === 'string') { delete net.combats[fid]; if (net.turnMove) delete net.turnMove[fid]; if (net.turnFace) delete net.turnFace[fid]; }   // fold 2: by its id, and its turn's move with it (backlog 70: and its facing changes)
+    if (typeof fid === 'string') { delete net.combats[fid]; if (net.turnMove) delete net.turnMove[fid]; if (net.turnFace) delete net.turnFace[fid]; if (net.turnExtra) delete net.turnExtra[fid]; if (net.turnNow) delete net.turnNow[fid]; }   // 1.6.4 (gap #20): and its extra turns waiting   // fold 2: by its id, and its turn's move with it (backlog 70: and its facing changes)
     if (had && net.fightOn === fid) net.fightOn = typeof fightBehind === 'function' ? fightBehind() : (fightIds()[0] || null);   // fold 4: the Active fight ended: the one furthest behind is played
     if (had && typeof marksEnd === 'function' && !fightsOn(mapId).length) { try { marksEnd(mapId); } catch (e) { console.error(e); } }   // senses S4b: the marks follow every move again, once the map's last fight is over (fold 2)
     if (typeof fid === 'string' && typeof combatForget === 'function') combatForget(fid);   // the fight over: nothing of it seen
@@ -5345,6 +5436,16 @@ function combatOver(fid, had, quiet, title) {   // fold 2: by the fight's own id
     if (endO && typeof ordersMoved === 'function') ordersMoved('end', endO);   // fold 4: the coordinator counts its closing round and moves the clock
     if (had && !leftO) { try { fxClockTick(); } catch (e) { console.error(e); } }   // fold 4: the last fight over, everyone's effects follow the clock again at once (after the second's last move, which counted them)
     return !!had;
+}
+// 1.6.4 (the full test's gap #4): a system's rolls and apply actions set to Also as its fight ends, once on every character the fight held, as the GM
+// ends it with End combat. closing, the session's end (Fulllion's answer): only those ticked Also when the session closes mid-fight run, their reminders
+// the GM's. A deleted map (nothing left to find its characters by) runs none. The sheets' hook judges each character as the round and turn hooks do; a
+// fault in it never stops the fight from ending
+function fightEndRules(mapId, had, closing) {
+    var hook = typeof window !== 'undefined' && window.wpSheets ? window.wpSheets.fightEndHook : null; if (typeof hook !== 'function') return 0;
+    var ran = 0; try { ran = hook(mapId, had, closing === true) || 0; } catch (e) { console.error(e); }
+    if (window.wpStepLog) window.wpStepLog('fight end v1', 'rules', { round: had.round, ran: ran, closing: closing === true });
+    return ran;
 }
 // Every character no fight holds is taken as one the deleted fight held. That is so while net.turnSpent holds fighters alone, as it does today: actSpend
 // counts only in a fight, and a turn's start and a fight's end take a character's count away. A count kept for a character outside every fight
@@ -7381,12 +7482,15 @@ function handleMessage(msg, conn) {
         if (jobA) {
             var jrA = typeof jobRound === 'function' ? jobRound(campA, chA.id) : null, jbA = Sa.jobBar(chA, qa.row, actA, varsA, Fa, jrA); if (jbA) { denyA('error', jbA); return; }
             if ((actA.needs || actA.needsWhy) && !Sa.rollNeedsOk(actA, varsA, Fa)) { denyA('error', Sa.rollNeedsSays(actA, varsA, Fa)); return; }
+            var mjA = typeof moveCostSpend === 'function' ? moveCostSpend(campA, qa.charId, profA, actA, conn, chA.name, true) : ''; if (mjA) { denyA('error', mjA); return; }   // 1.6.4 (gap #22): the move it costs, judged first
             var cjA = typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (cjA) { denyA('error', cjA); return; } if (typeof clockPress === 'function') clockPress(campA, qa.charId, actA); costDoneA = true;
+            if (typeof moveCostSpend === 'function') moveCostSpend(campA, qa.charId, profA, actA, conn, chA.name);
             var jsA = jobPress(Sa, campA, chA, qa.row, actA, varsA, Fa, jrA, qa.label, saveRemoteSoon); if (jsA) { denyA('error', jsA); return; }
         }
+        var mvA = costDoneA || typeof moveCostSpend !== 'function' ? '' : moveCostSpend(campA, qa.charId, profA, actA, conn, chA.name, true); if (mvA) { denyA('error', mvA); return; }   // 1.6.4 (gap #22): the move it costs, judged before anything moves
         var resA = Sa.applyAct(campA.system, chA, actA, varsA, Fa, tcA, qa.row ? { f: qa.row.f, r: qa.row.r } : null, undefined, window.wpDiceCore || null, onA ? { char: onA.ch, tctx: typeof allyCtx === 'function' ? allyCtx(mapA, onA.tok) : null } : null, typeof fxNow === 'function' ? fxNow(qa.charId, onA) : null);   // R2b: a list's action may move its row's counters; 1.5.9: the host's dice roll a Rolled amount (never the player's word); and its changes land on the one it is used on
         if (!resA.ok) { denyA(resA.reason, resA.message); return; }
-        var costA = costDoneA ? '' : typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (costA) { denyA('error', costA); return; } if (!costDoneA && typeof clockPress === 'function') clockPress(campA, qa.charId, actA);   // 1.6.2 (G10)   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
+        var costA = costDoneA ? '' : typeof actSpend === 'function' ? actSpend(campA, qa.charId, profA, actA.cost, conn, chA.name, false, actA.costN) : ''; if (costA) { denyA('error', costA); return; } if (!costDoneA && typeof clockPress === 'function') clockPress(campA, qa.charId, actA); if (!costDoneA && typeof moveCostSpend === 'function') moveCostSpend(campA, qa.charId, profA, actA, conn, chA.name);   // 1.6.2 (G10)   // turn-based combat T4: what it costs (worked out first: a press that cannot land spends nothing)
         if (typeof offTurnWarn === 'function') offTurnWarn(campA, chA, qa.act, rowGA, actA.label, conn);   // 1.6.0: nothing refused it, so a warning is said
         if (resA && Array.isArray(resA.fitSays) && resA.fitSays.length && typeof toast === 'function') toast('A part no longer fits. ' + resA.fitSays[0]);   // 1.6.0 Fits where, judged again: the GM is told
         var ownA = !onA || Object.keys(resA.values).length > 0;   // 1.5.9: a press that moved only the one it was used on writes nothing of the user's
@@ -8602,7 +8706,9 @@ function handleMessage(msg, conn) {
         if (jobQ) { var jbQ = SQ.jobBar(chQ, q.row, actQ, varsQ, Fq, jobQ.round); if (jbQ) { denyQ('error', { error: { message: jbQ, pos: 0, len: 0 } }); return; } }
         var swpQ = swQ && swQ.pays && chQ && typeof swPayPlan === 'function' ? swPayPlan(SQ, campQ, chQ, swQ.pays, Fq, Dq, tcQ) : null; if (swpQ && swpQ.error) { denyQ('error', { error: { message: swpQ.error, pos: 0, len: 0 } }); return; }   // 1.6.2 (G6): a bonus's cost, judged before anything is spent
         var whyQ = Dq.checkTableRoll(resQ); if (whyQ) { denyQ(whyQ); return; }
+        if (actQ && actQ.mv && chQ && typeof moveCostSpend === 'function') { var mvQ = moveCostSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ, conn, turnChQ.name, true); if (mvQ) { denyQ('error', { error: { message: mvQ, pos: 0, len: 0 } }); return; } }   // 1.6.4 (gap #22): the move it costs, judged before its action is spent
         if (actQ && actQ.cost && chQ && typeof actSpend === 'function') { var costQ = actSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ.cost, conn, turnChQ.name, false, actQ.costN); if (costQ) { denyQ('error', { error: { message: costQ, pos: 0, len: 0 } }); return; } }
+        if (actQ && actQ.mv && chQ && typeof moveCostSpend === 'function') moveCostSpend(campQ, turnChQ.id, net.roster[conn.peer], actQ, conn, turnChQ.name);   // 1.6.4 (gap #22): and the move, once its action is spent
         if (actQ && chQ && !lndQ && typeof clockPress === 'function') clockPress(campQ, turnChQ.id, actQ);   // 1.6.2 (G10)   // turn-based combat T4: what it costs
         if (jobQ) { var jsQ = jobPress(SQ, campQ, chQ, q.row, actQ, varsQ, Fq, jobQ.round, q.label, saveRemoteSoon); if (jsQ) { denyQ('error', { error: { message: jsQ, pos: 0, len: 0 } }); return; } }   // a press short of its turns moves the count and rolls nothing; the last goes on and rolls
         if (swpQ) swPayDo(chQ, swpQ);
@@ -8669,6 +8775,7 @@ function handleMessage(msg, conn) {
          else if (q.priv) { recQ.priv = 'gm'; try { conn.send(onLQ && typeof landCopy === 'function' ? landCopy(hdQ ? figOf(recQ) : recQ, onLQ, net.roster[conn.peer], campQ) : hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } if (cvQ) recQ.hit = cvQ.row; if (bhQ) burstRowsPut(recQ.more, bhQ); if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ); if (onLQ) recQ.onName = onLQ.name; if (hidQ && typeof revealKeep === 'function') revealKeep(recQ, chQ, onLQ); pushRoll(recQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); }   // 1.6.3: a roll hidden by an NPC's tick alone may be shown to the table later   // cvQ: the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
         else { if (onLQ && typeof sendTableAs === 'function') { try { conn.send(typeof landCopy === 'function' ? landCopy(hdQ ? figOf(recQ) : recQ, onLQ, net.roster[conn.peer], campQ) : hdQ ? figOf(recQ) : recQ); } catch (e) { sendFailed(e); } sendTableAs(recQ, chQ, onLQ, conn); } else sendTable(hdQ ? figOf(recQ) : recQ, null); if (cvQ) recQ.hit = cvQ.row; if (bhQ) burstRowsPut(recQ.more, bhQ); if (lndQ && lndQ.thru) recQ.thru = lndQ.thru; if (lndQ && typeof ansStampLand === 'function') ansStampLand(campQ, recQ, resQ, lndQ); if (onLQ) recQ.onName = onLQ.name; pushRoll(recQ, resQ, 'global', { cid: chQ ? q.charId : '' }); }
         if (hsQ) hsQ.forEach(function(rxQ) { if (q.priv) { rxQ.priv = 'gm'; try { conn.send(rxQ); } catch (e) { sendFailed(e); } pushRoll(rxQ, resQ, 'whisper', { cid: chQ ? q.charId : '' }); } else { sendTable(rxQ, null); pushRoll(rxQ, resQ, 'global', { cid: chQ ? q.charId : '' }); } });
+        if (chQ && typeof fightRollCounted === 'function') fightRollCounted(q.charId);   // 1.6.4 (gap #4): FightRolls, once for the roll however many copies it has
         var ruleQ = Dq.ruleOf(recQ, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : '');   // Stage 6 F8: the system's roll outcomes (1.6.0: or the record's own critical range)
         if (mkQ !== 'self' || tgQ) logEvent('dice', Dq.cardText(recQ, resQ, Fq, { maxChars: Dq.LIMITS.logChars, rule: ruleQ }), { w: recQ.as || (recQ.from && recQ.from.name) || '', h: !!recQ.priv });   // 1.6.3: a roll the player alone sees is in no log of the GM's
         if (chQ && !(mkQ === 'self' && !tgQ) && typeof net.soundAfter === 'function') net.soundAfter(campQ, { src: q.src, act: q.act, row: q.row, view: viewQ }, chQ, locQ, !!recQ.priv);   // 1.6.2: a sound on this roll, those on their map, the GM's alone where the roll is private
@@ -10799,7 +10906,7 @@ net.asNamesOf = function(ch, cap) {
 };
 net.postDue = function(ch, act, kind, round, toOwner, more) {   // more (1.6.0, B2): an attempt to resist, { att, by, m } (1.6.0, the core's gap 5: and or, the other rolls it may be resisted by)
     if (!ch || typeof ch.id !== 'string' || !act || typeof act.id !== 'string') return;
-    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'cross' ? 'cross' : kind === 'end' ? 'end' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
+    var rec = { type: 'due', id: 'r_' + Math.random().toString(36).slice(2, 10), from: diceFrom(getProfile(), true), charId: ch.id, act: act.id, label: String(act.label || 'Apply').split('{')[0].trim().slice(0, 60) || 'Apply', why: kind === 'turn' ? 'turn' : kind === 'turnEnd' ? 'turnEnd' : kind === 'fightOver' || kind === 'fightClose' ? 'fightOver' : kind === 'cross' ? 'cross' : kind === 'end' ? 'end' : kind === 'major' ? 'major' : kind === 'wound' ? 'wound' : kind === 'resist' && more && typeof more.att === 'string' ? 'resist' : kind === 'called' ? 'called' : 'round', round: Math.max(1, Math.min(9999, Math.floor(Number(round) || 1))), ts: Date.now() };
     var asD = typeof net.tokNameOf === 'function' ? net.tokNameOf(ch, more && typeof more.mapId === 'string' ? more.mapId : undefined, more && typeof more.tokId === 'string' ? more.tokId : undefined) : ch.name; if (asD) rec.as = String(asD).slice(0, 60);   // 1.6.3 (the release click test): by the very token it is due for, where the caller names it (a fight's turn), since a sheet several tokens share is named by none of them alone
     if (typeof plOn === 'function') plOn(rec, ch);   // 1.6.2, backlog 35: the card wears the look of the character it names (on a line of its own, so no comment can swallow it)
     if (rec.why === 'major' && more && typeof more.mw === 'string' && more.mw) rec.mw = more.mw.slice(0, 60);   // 1.6.0: the system's own word for a Major Wound
@@ -11277,6 +11384,7 @@ net.diceRoll = function(expr, o) {
     if (rec.dmg === 1 && typeof rec.dmgOn !== 'string' && rec.dmgAim !== 1 && !lndR && tcR && tcR.range && typeof tcR.range.tid === 'string' && typeof tcR.range.mapId === 'string') rec.dmgTo = { id: tcR.range.tid, mapId: tcR.range.mapId };
     if (lndR && typeof ansStampLand === 'function') ansStampLand(campR, rec, res, lndR); else if ((o.ansLine || typeof o.thruRow === 'string') && rec.dmg === 1 && typeof ansStamp === 'function') { if (typeof o.thruRow === 'string' && /^w_[A-Za-z0-9_]{1,24}$/.test(o.thruRow)) rec.thru = o.thruRow; if (o.ansLine) ansStamp(campR, rec, res, o.ansLine); rec.landed = 1; }   // 1.6.3 (defense fold 3): what a landing's defense let through, and a line's hit that a defense let partly through, on the GM's own copy past the table's   // the card's Apply to target, the GM's own: past the table's copy, as the row may be one players do not see
     pushRoll(rec, res, scope, { toName: toName, cid: chR ? chR.id : '' });
+    if (chR && typeof fightRollCounted === 'function') fightRollCounted(chR.id);   // 1.6.4 (gap #4): FightRolls
     if (hsR) hsR.forEach(function(rxR) { if (hosting && scope === 'global') { if (chR && typeof sendTableAs === 'function') sendTableAs(rxR, chR); else sendTable(rxR, null); } pushRoll(rxR, res, scope, { toName: toName, cid: chR ? chR.id : '' }); });
     var ruleR = D.ruleOf(rec, campR && campR.system && campR.system.combat ? campR.system.combat.checks : '');   // Stage 6 F8 (1.6.0: or the record's own critical range)
     logEvent('dice', D.cardText(rec, res, F, { maxChars: D.LIMITS.logChars, toName: toName, rule: ruleR }), { w: rec.as || (rec.from && rec.from.name) || 'You', h: !!rec.priv });
@@ -12647,6 +12755,7 @@ function fightsRead(raw, camp) {   // what the save holds, as data: { list, on }
         // large fight with several turns a round came back with no order of turns, and every later turn of each row was lost until a roster edit
         if (Array.isArray(k.seq) && k.seq.length && k.seq.length <= 7200) { var sqK = k.seq.filter(function(x) { return typeof x === 'string'; }); if (sqK.length === k.seq.length) f.seq = sqK; }
         ['et', 'th', 'turned', 'fxEnded'].forEach(function(key) { if (k[key] && typeof k[key] === 'object') f[key] = fightMarks(k[key]); });
+        if (k.fr && typeof k.fr === 'object') { var frK = fightFigs(k.fr); if (Object.keys(frK).length) f.fr = frK; }   // 1.6.4 (gap #4): each character's rolls in the fight (FightRolls), by its id
         // 1.6.3 (the review of the combat roster; Fulllion's ruling of 2026-11-20 that the GM may always reverse anyone's turn, and his pick that a reload keeps a fight
         // live): a counting clock comes back whole, where each row began (ck0, a fraction kept), what the turn on hand has spent (ckUsed), the steps a correction takes
         // back (ckBack), the cycles before (ckPrevs) and where each cycle began under Rolled again every round (ckStarts). Without them the clock's Previous turn found

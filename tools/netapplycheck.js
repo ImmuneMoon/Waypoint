@@ -69,7 +69,7 @@ pendingChecks.push((async () => {
         hostDue.length === 1 && hostDue[0][0] === 'c_p' && hostDue[0][1].due.label === 'Regenerate' && cliDue.length === 1 && cliDue[0][0] === 'c_p' && cliDue[0][1].due.why === 'turn', j([hostDue, cliDue]));
     check('The bell (source): bellOut hands sheets.js the note (a failure never breaks the message path); the feeds are guarded so a harness without it runs as before',
         /function bellOut\(cid, note, as\) \{ try \{ if \(window\.wpSheets && window\.wpSheets\.bellNote\) window\.wpSheets\.bellNote\(cid, note, as\); \} catch \(e\) \{ console\.error\(e\); \} \}/.test(src)
-        && (src.match(/typeof bellOut === 'function'/g) || []).length === 12);   // 1.6.2 (backlog 70): a turn past the facing limit under Warn (moved on purpose)
+        && (src.match(/typeof bellOut === 'function'/g) || []).length === 13);   // 1.6.2 (backlog 70): a turn past the facing limit under Warn (moved on purpose); 1.6.4 (gap #22): a move cost past the move under Warn
 })());
 
 // [m410 review] SITE_EQUIVALENT_PLAN fold 2 on the wire, what its review found, each run for real: (4) the host's two readings of a roll's needs roll

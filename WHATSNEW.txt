@@ -314,6 +314,20 @@ More ways to roll again, and group rolls by a share (draft for Fulllion)
   you alone. Set it for the whole system on the Combat tab, or for one
   roll on the Rolls tab.
 
+Fights in the System editor (draft for Fulllion)
+- A rule can run as a fight ends now. Set an action or a due roll to
+  Also as its fight ends, and when you press End combat it runs once on
+  everyone who fought. It reads how many rounds the fight lasted and
+  how many rolls each character made, so tiredness after a long battle
+  takes care of itself. A rule can also run when the session closes
+  with a fight still on.
+- A change can give an action in the middle of a turn, such as one
+  more Action this turn, or whole extra turns. You pick whether an
+  action given off the character's turn waits for its next turn, and
+  whether an extra turn comes after its own turn or right away.
+- A roll or an action can cost some of the turn's move: half of it to
+  stand up, a set distance to climb into the saddle, or all but a step.
+
 WAYPOINT 1.6.3: What's New
 ============================
 

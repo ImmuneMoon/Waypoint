@@ -1161,6 +1161,7 @@ function mutations(tpl) {
         if ((m = p.match(/^\.app\.campaigns\.c1\.players(?:\.([^.]+))?/))) return !m[1] || m[1] === pid;
         if ((m = p.match(/^\.roster\.([^.]+)/))) { const r = after.roster[m[1]] || before.roster[m[1]]; return !!r && r.id === pid; }
         if ((m = p.match(/^\.targets\.([^.]+)/))) return m[1] === pid;
+        if (/^\.combats\.[^.]+\.fr(\.|$)/.test(p)) { if (msg.type !== 'roll-req') return false; const frK = p.split('.')[4]; return frK ? frK === msg.charId : !!ch.b && typeof ch.b === 'object' && Object.keys(ch.b).every(x => x === msg.charId); }   // 1.6.4 (gap #4): FightRolls, the roller's own count in its fight, and nobody else's
         if (/^\.combats/.test(p)) return /^turn-/.test(msg.type);
         if (/^\.app\.campaigns\.c1\.items\.[^.]+\.meta\.(lastWbX|lastWbY)$/.test(p)) return msg.type === 'travel';
         return false;

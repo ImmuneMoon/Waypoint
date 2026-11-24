@@ -268,6 +268,22 @@ Drop it, pick it up [DRAFT]
   a chest that held it lost it the next time Waypoint opened. A chest
   keeps its own copy now, as a character's sheet always has.
 
+Hits, armor and spreads (draft for Fulllion)
+- A game with one DR for the whole body no longer needs a list of hit
+  locations. Pick a field in DR everywhere on the Combat tab, such as
+  one that adds up the armor worn, and every blow meets it. A system
+  with locations can have it count for a blow that lands on none.
+- Where a hit lands has In the open now, so damage with no aim rolls a
+  location on a target behind no cover. It has a box of its own under
+  Taking damage and works with cover off too.
+- Each hit of a burst rolls its own location, and the card says each
+  one. The Take damage window shows them all, and you can change any
+  before you apply.
+- An affliction can spread a pool over a blast, lowest first. Roll 5d8
+  and the characters with the fewest hit points take the effect until
+  the points run out. Your system picks whether they still get a
+  resist roll.
+
 Plainer words (draft for Fulllion)
 - Waypoint VTT's own words no longer use long dashes. Tooltips and
   notices say the same things in plain sentences now.

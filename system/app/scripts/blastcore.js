@@ -178,14 +178,17 @@ function cleanMine(m) {   // 1.5.9 (es): and its fragmentation (frag, a formula'
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2, its affliction half): a blast's afflictions as a mine and a blast carry them, the
 // shape systemcore cleanAffs keeps: at most 2, each { vs, fx, who, needs, lasts } (vs and needs a formula's text, fx an effect's id, who 'all'
 // only, lasts { n, u } with its unit a word or a key); anything else is no key, and null where none is left
-var AFF_FX = /^e_[A-Za-z0-9_]{1,24}$/, AFF_UNIT = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
+// 1.6.4 (gap 24): and a spread, { who 'spread', by, pool, resist? }, as systemcore cleanAffs keeps it (vs then optional where no roll is made)
+var AFF_FX = /^e_[A-Za-z0-9_]{1,24}$/, AFF_UNIT = /^[A-Za-z][A-Za-z0-9_]{0,23}$/, AFF_FIELD = /^f_[A-Za-z0-9_]{1,24}$/;
 function cleanAffs(v) {
     if (!Array.isArray(v)) return null;
     var out = [];
     for (var i = 0; i < v.length && i < 40 && out.length < 2; i++) {
         var a = v[i]; if (!isObj(a)) continue;
-        var vs = text(a.vs, 300), fx = typeof a.fx === 'string' && AFF_FX.test(a.fx) ? a.fx : ''; if (!vs || !fx) continue;
-        var o = { vs: vs, fx: fx }; if (a.who === 'all') o.who = 'all';
+        var vs = text(a.vs, 300), fx = typeof a.fx === 'string' && AFF_FX.test(a.fx) ? a.fx : '', pl = text(a.pool, 300), sp = a.who === 'spread' && typeof a.by === 'string' && AFF_FIELD.test(a.by) && !!pl;
+        if (a.who === 'spread' && !sp) continue;
+        if (!fx || (!vs && !(sp && a.resist !== 'roll'))) continue;
+        var o = vs ? { vs: vs, fx: fx } : { fx: fx }; if (a.who === 'all') o.who = 'all'; else if (sp) { o.who = 'spread'; o.by = a.by; o.pool = pl; if (a.resist === 'roll') o.resist = 'roll'; }
         var nd = text(a.needs, 300); if (nd) o.needs = nd;
         if (isObj(a.lasts)) { var ln = text(a.lasts.n, 300), lu = typeof a.lasts.u === 'string' && AFF_UNIT.test(a.lasts.u) ? a.lasts.u : ''; if (ln && lu) o.lasts = { n: ln, u: lu }; }
         out.push(o);
@@ -199,6 +202,23 @@ function affTargets(inBlast, hurt, all) {
     if (all === true) (Array.isArray(inBlast) ? inBlast : []).slice(0, 4000).forEach(function(r) { if (isObj(r) && r.shielded !== true) add(r.id); });
     else (Array.isArray(hurt) ? hurt : []).slice(0, 4000).forEach(add);
     return out;
+}
+// 1.6.4 (the full test's gap 24): a pool spread over who stands in an area, the one judge. rows: [{ id, fig, d }], each character in it, its figure
+// (fig, the field the affliction names, read as that character; a row with none it can read is passed over and counted in passed) and its yards
+// from the center (d). Lowest figure first, the nearer first where two are equal, each covered while the points left are at least its figure, its
+// figure then taken off. The first one the points cannot cover ends it, since every one after it needs as much or more. A figure below 0 counts as 0.
+// { covered: [{ id, fig }], left, passed }, each character once and at most 4000 read
+function spreadCover(rows, pool) {
+    var left = fin(pool) ? Math.max(0, Math.floor(pool)) : 0, seen = Object.create(null), live = [], passed = 0;
+    (Array.isArray(rows) ? rows : []).slice(0, 4000).forEach(function(r, i) {
+        if (!isObj(r) || typeof r.id !== 'string' || !r.id || seen[r.id] === 1) return; seen[r.id] = 1;
+        if (!fin(r.fig)) { passed++; return; }
+        live.push({ id: r.id, fig: Math.max(0, r.fig), d: fin(r.d) ? r.d : Infinity, i: i });
+    });
+    live.sort(function(a, b) { return a.fig - b.fig || a.d - b.d || a.i - b.i; });
+    var covered = [];
+    for (var k = 0; k < live.length && live[k].fig <= left; k++) { left -= live[k].fig; covered.push({ id: live[k].id, fig: live[k].fig }); }
+    return { covered: covered, left: left, passed: passed };
 }
 // 1.5.9 (the book's (es), docs/BOOK_ES_ET_PLAN.md section 2): who takes a blast's fragmentation, and by which roll. rows: [{ id, d }], each
 // character token's id and its yards from the blast's center, height counted; reach: how far the fragmentation reaches, in yards; o: direct
@@ -290,6 +310,6 @@ function flyStep(o) {
 }
 // the line a thing in flight is launched on: from where it is launched toward its target, a unit step a pixel; null where the two are one place
 function flyLine(from, to) { if (!isObj(from) || !isObj(to) || !fin(from.x) || !fin(from.y) || !fin(to.x) || !fin(to.y)) return null; var dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy); return len > 1e-6 ? { ox: from.x, oy: from.y, dx: dx / len, dy: dy / len, k: 0 } : null; }
-var API = { flyStep: flyStep, flyLine: flyLine, FLY_MAX: FLY_MAX, envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanCloud: cleanCloud, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
+var API = { spreadCover: spreadCover, flyStep: flyStep, flyLine: flyLine, FLY_MAX: FLY_MAX, envRead: envRead, lineTargets: lineTargets, towardPoint: towardPoint, diceAt: diceAt, VERSION: VERSION, SCATTER_WAYS: SCATTER_WAYS, SCATTER_TURN: SCATTER_TURN, SCATTER_WAYS6: SCATTER_WAYS6, SCATTER_TURN6: SCATTER_TURN6, diceCount: diceCount, fallShare: fallShare, throwOutcome: throwOutcome, scatterPoint: scatterPoint, bookScatterYd: bookScatterYd, missOf: missOf, flightEnd: flightEnd, firstBox: firstBox, fragTargets: fragTargets, cleanAffs: cleanAffs, affTargets: affTargets, cleanCloud: cleanCloud, cleanMine: cleanMine, inTrigger: inTrigger, STAND_INS: STAND_INS };
 if (typeof window !== 'undefined') window.wpBlastCore = API;
-export { FORMULA_MAX, flyStep, flyLine, FLY_MAX, envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanCloud, cleanMine, inTrigger, STAND_INS };
+export { spreadCover, FORMULA_MAX, flyStep, flyLine, FLY_MAX, envRead, lineTargets, towardPoint, diceAt, VERSION, SCATTER_WAYS, SCATTER_TURN, SCATTER_WAYS6, SCATTER_TURN6, diceCount, fallShare, throwOutcome, scatterPoint, bookScatterYd, missOf, flightEnd, firstBox, fragTargets, cleanAffs, affTargets, cleanCloud, cleanMine, inTrigger, STAND_INS };

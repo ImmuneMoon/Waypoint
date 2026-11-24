@@ -186,8 +186,9 @@ export function entryFromForm(f) {
         var fl = s(f.areaFlight).trim(); if (fl) ar.flight = fl;   // 1.5.9 (es): how a launched round lands on a miss (the cleaner keeps scatter or line, never beside Placed)
         var fg = s(f.areaFrag).trim(); if (fg) { ar.frag = fg; var fgt = s(f.areaFragType).trim(); if (fgt) ar.fragType = fgt; }   // 1.5.9 (es): its fragmentation and that fragmentation's type (the cleaner keeps them in the GM's copy alone)
         var afs = (Array.isArray(f.areaAffs) ? f.areaAffs : []).slice(0, 2).map(function(a) {   // 1.5.9 (es): its afflictions, each where it says what it is resisted against (the cleaner keeps them in the GM's copy alone)
-            if (!a || typeof a !== 'object' || !s(a.vs).trim()) return null;
-            var o = { vs: s(a.vs).trim(), fx: s(a.fx).trim() }; if (a.who === 'all') o.who = 'all';
+            var spr = !!a && typeof a === 'object' && a.who === 'spread';   // 1.6.4 (the full test's gap 24): a spread, its field, its pool and its resist choice; with no roll it needs no resisted against
+            if (!a || typeof a !== 'object' || (!s(a.vs).trim() && !(spr && s(a.res).trim() !== 'roll'))) return null;
+            var o = s(a.vs).trim() ? { vs: s(a.vs).trim(), fx: s(a.fx).trim() } : { fx: s(a.fx).trim() }; if (a.who === 'all') o.who = 'all'; else if (spr) { o.who = 'spread'; o.by = s(a.by).trim(); o.pool = s(a.pool).trim(); if (s(a.res).trim() === 'roll') o.resist = 'roll'; }
             var nd = s(a.needs).trim(); if (nd) o.needs = nd; var ln = s(a.n).trim(); if (ln) o.lasts = { n: ln, u: s(a.u).trim() || 'minutes' };
             return o;
         }).filter(Boolean);

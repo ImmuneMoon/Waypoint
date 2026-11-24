@@ -45,7 +45,6 @@ function combatBody() {
         var cgs = cm.cover.style === 'binary' ? [['cover', 'Blast behind cover'], ['total', 'Blast behind total cover']] : [['half', 'Blast behind half cover'], ['threeq', 'Blast behind three-quarters cover'], ['total', 'Blast behind total cover']];
         cgs.forEach(function(g) { var cur = cm.cover.area && typeof cm.cover.area === 'object' && Object.prototype.hasOwnProperty.call(cm.cover.area, g[0]) ? cm.cover.area[g[0]] : 'full'; var ls = labeledSelect('sys-combat-cover-area', g[1], [['full', 'Full damage'], ['half', 'Half damage'], ['none', 'No damage']], cur === 'half' || cur === 'none' ? cur : 'full', 'With Full auto blasts, what the rolled damage does to a token behind this much cover (measured from the blast\u2019s center).'); ls.lastChild.dataset.grade = g[0]; box.appendChild(ls); });
     }
-    if (cm.cover.on && typeof coverHitBox === 'function') coverHitBox(box, cm);   // 1.6.0: where a hit behind cover lands
     if (typeof tp === 'function') tp('outcomes');
     box.appendChild(labeledSelect('sys-combat-checks', 'Roll outcomes', [['', 'Success or failure by the margin'], ['under3d6', '3d6 roll-under criticals'], ['fixed', 'Criticals at fixed rolls']], cm.checks === 'under3d6' || cm.checks === 'fixed' ? cm.checks : '', 'How a check reads. 3d6 roll-under (a roll of exactly 3d6 against a target): 3\u20134 are a critical success, 5 at a target of 15+, 6 at 16+; 17 fails (critically at 15 or less), 18 or failing by 10+ is a critical failure. Criticals at fixed rolls: the dice alone at or under one number are a critical success, at or over another a critical failure, and nothing else is.'));   // Stage 6 F8
     lineUnder(box, 'How a check against a target reads its dice.');
@@ -62,7 +61,7 @@ function combatBody() {
     heightBox(box, cm); tp('light');   // item 19 H2: the system's height modifier
     lightBox(box, cm); if (typeof darkBox === 'function') darkBox(box); tp('senses');   // lighting L4: the system's light rules; 1.6.2: and darkness steps
     sensesBox(box, cm); tp('damage');   // senses S2a: the system's senses
-    damageBox(box, cm); tp('turns');   // 1.5.6: the damage step's rules, before the turns
+    damageBox(box, cm); if (typeof coverHitBox === 'function') coverHitBox(box, cm); tp('turns');   // 1.5.6: the damage step's rules, before the turns; 1.6.4 (Fulllion, 2026-11-24): and where a hit lands, a box of its own under them, cover on or off
     turnBox(box, cm); tp('initiative');   // turn-based combat T1: the system's turn rules
     initBox(box, cm); tp('postures');   // initiative O2: how ties of initiative break
     postureBox(box, cm);   // conditions C3: the system's own postures

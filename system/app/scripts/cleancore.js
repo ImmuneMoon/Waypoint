@@ -253,16 +253,28 @@ function cleanCloud(v) {
 // no dice); fx, the id of an effect of the system's library put on at a failed resist (cleanSystem drops one its view does not hold); who, 'all'
 // (every character in the blast) or absent (those it hurt); needs, a formula of the victim's names that must hold for it to touch them at all
 // (not Robot, no dice); lasts, { n, u }: how long the effect lasts, a formula that may roll dice and a unit (turns, seconds, minutes, hours, days
-// or the key of one of the system's own time units), absent for the effect's own duration. Anything else is no key; null where none is left
+// or the key of one of the system's own time units), absent for the effect's own duration. Anything else is no key; null where none is left.
+// 1.6.4 (the full test's gap 24; Fulllion, 2026-11-24): who 'spread', a pool spread over the characters in the blast, lowest figure first, each needing
+// its figure covered (blastcore spreadCover judges it): by, the id of the field that is each one's figure (read as that character), and pool, its own
+// dice, rolled once as it goes off; both required, or the affliction is dropped. resist 'roll' (beside spread alone): each covered one makes the usual
+// resist roll and only a failure puts the effect on; absent, being covered puts it on with no roll, and then vs may be empty
 var AFF_UNITS = Object.freeze({ turns: 1, seconds: 1, minutes: 1, hours: 1, days: 1 });
 function affUnit(u) { return typeof u === 'string' && (Object.prototype.hasOwnProperty.call(AFF_UNITS, u) || (STAT_KEY.test(u) && TIME_WORDS[lower(u)] !== 1)) ? u : ''; }
+// 1.6.4 (gap 24): the spread keys of an affliction, { who, by, pool, resist? }, or null where it is no spread or lacks its field or its pool (poolText,
+// the pool as the caller cleaned it). blastcore cleanAffs keeps the same keys by its own reading
+function affSpreadOf(a, poolText) {
+    if (!isObj(a) || a.who !== 'spread' || typeof a.by !== 'string' || !FIELD_ID.test(a.by) || !poolText) return null;
+    var o = { who: 'spread', by: a.by, pool: poolText }; if (a.resist === 'roll') o.resist = 'roll'; return o;
+}
 function cleanAffs(v) {
     if (!Array.isArray(v)) return null;
     var out = [];
     for (var i = 0; i < v.length && i < LIMITS.areaAffs * 20 && out.length < LIMITS.areaAffs; i++) {
         var a = v[i]; if (!isObj(a)) continue;
-        var vs = cleanFormulaText(a.vs), fx = typeof a.fx === 'string' && EFFECT_ID.test(a.fx) ? a.fx : ''; if (!vs || !fx) continue;
-        var o = { vs: vs, fx: fx }; if (a.who === 'all') o.who = 'all';
+        var vs = cleanFormulaText(a.vs), fx = typeof a.fx === 'string' && EFFECT_ID.test(a.fx) ? a.fx : '', sp = affSpreadOf(a, cleanFormulaText(a.pool));
+        if (a.who === 'spread' && !sp) continue;   // 1.6.4: a spread with no field or no pool is dropped, never read as another reach
+        if (!fx || (!vs && !(sp && !sp.resist))) continue;
+        var o = vs ? { vs: vs, fx: fx } : { fx: fx }; if (a.who === 'all') o.who = 'all'; else if (sp) Object.assign(o, sp);
         var nd = cleanFormulaText(a.needs); if (nd) o.needs = nd;
         if (isObj(a.lasts)) { var ln = cleanFormulaText(a.lasts.n), lu = affUnit(a.lasts.u); if (ln && lu) o.lasts = { n: ln, u: lu }; }
         out.push(o);

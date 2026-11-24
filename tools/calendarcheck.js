@@ -1536,6 +1536,31 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && rv2 === true && J(afterR2.c1) === J({ f_ep: { b: 5, a: 8 }, f_n: { b: 'a' } })
             && cj.includes('window.wpCalendar = { restReverted: function(charId, fields) { return restReverted(getActiveCampaign(), charId, fields); },'), J([rv1, afterR, savedR, rvNo, rv2, afterR2]));
     }
+    {   // 1.6.4 (the full test's gap 7; Fulllion, 2026-11-24: a time rule by real minutes of play that refills a sheet's pool, each kind of real time a builder option): realRules and gameSide, run for real
+        const J = JSON.stringify, cj = read('system/app/scripts/calendar.js'), cutC = (k) => { const a = cj.indexOf('// [calendarcheck:' + k + '-start]'), b = cj.indexOf('// [calendarcheck:' + k + '-end]'); if (a < 0 || b < 0) throw new Error('calendar slice ' + k); return cj.slice(a, b); };
+        const GS = new Function(cutC('gameside') + '\nreturn gameSide;')();
+        const sys = { rolls: [{ id: 'r_mp', label: 'Refill', apply: [], every: { n: 1, u: 'hour', real: 'open' } }, { id: 'r_ask', label: 'Brace', apply: [], every: { n: 1, u: 'min', real: 'play' }, ask: true },
+            { id: 'r_both', label: 'Both', apply: [], every: { n: 1, u: 'min', real: 'open' }, inFight: { n: 1, u: 'round' } }, { id: 'r_gm', label: 'Game', apply: [], every: { n: 1, u: 'day' } }] };
+        const mkR = (mode, off) => {
+            const out = { runs: [], bells: [], commits: [], steps: [] }, camp = { id: 'k', chars: { c_a: { id: 'c_a', ownerId: 'u_a' }, c_n: { id: 'c_n', npc: true } }, clock: { t: 5, acc: { c_a: { r_gm: 7 } } }, turnRules: { time: mode } };
+            const win = { wpSystemCore: S, wpSheets: { runTimeRules: (f, w) => out.runs.push([f, w]) }, wpStepLog: (a, b, c) => out.steps.push([a, b, c]) };
+            const api = new Function('getActiveCampaign', 'sysNow', 'window', 'isPlayer', 'timeMode', 'clockRules', 'clockOf', 'hasOwn', 'HELD_ID', 'commitAcc', 'offOf', 'bellUp',
+                cutC('realrules') + '\nreturn { realRules: realRules };')(() => camp, () => sys, win, () => false, c => c.turnRules.time, s => s.rolls.filter(r => r.every || r.inFight), c => c.clock,
+                (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k), /^[a-z]_[A-Za-z0-9_]{1,24}$/, (a) => { out.commits.push(J(a)); camp.clock.acc = a; }, () => (id => !!off && id === 'c_n'), (c, s, f, w) => { out.bells.push([f, w]); return true; });
+            return { api, out, camp };
+        };
+        const A = mkR('auto', true); A.api.realRules({ c_a: 1800, c_n: 3600 }, 'open'); const accHalf = J(A.camp.clock.acc), runs0 = A.out.runs.length; A.api.realRules({ c_a: 1800 }, 'open');
+        check('gap 7 realRules (run for real): real seconds of a kind count each of its rules for each character, kept with the game clock’s counts by the rule’s id; a full step runs once through runTimeRules, headed by its real time; an NPC whose rules are off is counted and never run; a game clock rule’s count stands',
+            accHalf === J({ c_a: { r_gm: 7, r_mp: 1800 } }) && runs0 === 1 && J(A.out.runs) === J([[[{ c: 'c_a', r: 'r_both', n: 30 }], '60 minutes of real time'], [[{ c: 'c_a', r: 'r_mp', n: 1 }, { c: 'c_a', r: 'r_both', n: 30 }], '30 minutes of real time']])
+            && J(A.camp.clock.acc) === J({ c_a: { r_gm: 7 } }) && A.out.commits.length === 2, J([accHalf, A.out]));
+        const P = mkR('auto'); P.api.realRules({ c_a: 60, c_n: 60 }, 'play'); const Q = mkR('confirm'); Q.api.realRules({ c_a: 3600 }, 'open'); const O = mkR('off'); const okO = O.api.realRules({ c_a: 7200 }, 'open');
+        check('gap 7 realRules: a rule ticked Ask me first, or every rule under Ask me, waits in the bell with its real time; Time rules Off counts and runs nothing; each kind counts only its own rules',
+            P.out.runs.length === 0 && J(P.out.bells) === J([[[{ c: 'c_a', r: 'r_ask', n: 1 }, { c: 'c_n', r: 'r_ask', n: 1 }], '1 minute of play']]) && J(Q.out.bells[0][0].map(f => f.r)) === J(['r_mp', 'r_both']) && Q.out.runs.length === 0
+            && okO === false && O.out.commits.length === 0 && O.out.runs.length === 0, J([P.out, Q.out, O.out]));
+        check('gap 7 gameSide: the game clock never counts a rule’s By the clock that counts real time; one that also runs In a fight keeps that alone, as a copy; a game clock rule is itself',
+            GS(sys.rolls[0]) === null && J(GS(sys.rolls[2])) === J({ id: 'r_both', label: 'Both', apply: [], inFight: { n: 1, u: 'round' } }) && 'every' in sys.rolls[2] && GS(sys.rolls[3]) === sys.rolls[3] && cj.includes('var rules = clockRules(sys).map(gameSide).filter(Boolean);')
+            && cj.includes('rulesRun: rulesRun, setRulesRun: setRulesRun, realRules: realRules };'));
+    }
     summed = true;
     console.log(NL + pass + ' passed, ' + fail + ' failed.');
     if (fail) process.exit(1);

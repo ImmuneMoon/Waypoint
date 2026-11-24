@@ -1034,6 +1034,7 @@ function refreshErrorsNow() {
         var ev = r && typeof r === 'object' && r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : null, msg = ''; if (!ev) return;
         if (!(typeof ev.n === 'number' && isFinite(ev.n) && Math.floor(ev.n) === ev.n && ev.n >= 1 && ev.n <= 1000)) msg = 'By the clock: every 1 to 1000 (a whole number), or Save drops it.';
         else if (typeof ev.u !== 'string' || !ev.u) msg = 'By the clock: pick what it counts in, or Save drops it.';
+        else if (ev.real !== undefined && typeof cleanEvery === 'function' && !cleanEvery(ev)) msg = ev.u !== 'min' && ev.u !== 'hour' ? 'By the clock: real time counts in minutes or hours, so Save drops it.' : 'By the clock: that is no kind of real time Save knows, so Save drops it.';   // 1.6.4 (gap 7)
         else if (typeof cleanEvery === 'function' && !cleanEvery(ev)) msg = 'By the clock: ' + ev.u + (ev.u.toLowerCase() === 'round' ? ' is In a fight\u2019s unit, so Save drops it.' : ' is no unit it can count in, so Save drops it.');   // backlog 152: as the cleaner reads it since fold 1, a round being In a fight's alone
         else if (['min', 'hour', 'day', 'week'].indexOf(ev.u) < 0 && evUnits[ev.u.toLowerCase()] !== 1) msg = 'By the clock: ' + ev.u + ' is no time unit of yours (the Combat tab\u2019s Turns box), so it runs by nothing and players never see it.';
         if (msg) (errorsById[r.id] = Array.isArray(errorsById[r.id]) ? errorsById[r.id] : []).push({ message: msg });
@@ -1477,8 +1478,9 @@ function rulesSays(dr) {
         else out.tests.push({ message: nmT + ': Save cannot read its dice. ' + (pool ? 'Give it one kind of die, such as d6.' : 'Give it a count and a die with nothing added, such as 3d6 or 1d20.') + lose, prop: 'tests.' + i + '.dice' });
     });
     (Array.isArray(d.charCats) ? d.charCats : []).forEach(function(x, i) { if (x && typeof x === 'object' && !nm0(x)) out.charcats.push({ message: 'Category ' + (i + 1) + ': it needs a name. Until it has one, Save drops it and its rule, and sheets filed under it by hand go back to no category.', prop: 'charcats.label.' + i }); });
+    var resLim = typeof LIMITS === 'object' && LIMITS ? LIMITS : {}, resN = 0, resRowsN = 0, resCapT = resLim.results || 1000, resCapR = resLim.resultRowsAll || 10000;   // guard: a slice run on its own may hold no LIMITS   // 1.6.4 (gap 9): the tables and rows counted as the cleaner counts them, so a table past a ceiling is said
     (Array.isArray(d.results) ? d.results : []).forEach(function(t, i) {
-        if (!t || typeof t !== 'object') return; var mdR = nm0(t) ? madeName(t, /^R\d+$/i, 'A result table') : '', nm = (!mdR && nm0(t)) || 'Result table ' + (i + 1), rows = Array.isArray(t.rows) ? t.rows.slice(0, 200) : [], kept = 0, rowSaid = false;   // 200: the rows the cleaner reads (systemcore RES_ROWS). A name Save gave is no name, so the lines below say Result table and its place
+        if (!t || typeof t !== 'object') return; var mdR = nm0(t) ? madeName(t, /^R\d+$/i, 'A result table') : '', nm = (!mdR && nm0(t)) || 'Result table ' + (i + 1), rows = Array.isArray(t.rows) ? t.rows.slice(0, resLim.resultRows || 200) : [], kept = 0, rowSaid = false;   // the rows the cleaner reads (systemcore LIMITS.resultRows). A name Save gave is no name, so the lines below say Result table and its place
         if (!nm0(t)) out.results.push({ message: nm + ': it needs a name, which cards show. Until it has one, they show A result table.', prop: 'results.label.' + i });
         else if (mdR) out.results.push({ message: nm + ': Save named it ' + mdR + ' for want of a name. Give it a name of your own, which cards show.', prop: 'results.label.' + i });   // 1.6.3 (the review of rules)
         if (!cft(t.dice)) out.results.push({ message: nm + ': What rolls on it is empty. Give it dice, such as 1d20. Until it has them, Save drops the table and every row.', prop: 'results.dice.' + i });   // 1.6.3 (the review of rules): said in the box's own words, What rolls on it
@@ -1494,6 +1496,11 @@ function rulesSays(dr) {
             }
         });
         if (!kept && !rowSaid) out.results.push({ message: nm + ': it needs a row. Until it has one, Save drops the table.', prop: 'results.rows.' + i });
+        else if (kept && cft(t.dice)) {   // 1.6.4 (gap 9): a whole table past a ceiling is dropped whole, and said
+            if (resN >= resCapT) out.results.push({ message: nm + ': a system keeps ' + resCapT.toLocaleString('en-US') + ' result tables at most, so Save drops this one.', prop: 'results.label.' + i });
+            else if (resRowsN + kept > resCapR) out.results.push({ message: nm + ': all result tables together keep ' + resCapR.toLocaleString('en-US') + ' rows at most, so Save drops this table. Move rows to a smaller table, or remove some.', prop: 'results.label.' + i });
+            else { resN++; resRowsN += kept; }
+        }
     });
     return out;
 }

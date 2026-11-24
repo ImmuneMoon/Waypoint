@@ -184,7 +184,7 @@ function moveCellsBox(ch, cls) {
     return w;
 }
 function setChangeTarget(ch, v) {
-    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'launch', 'setOff', 'n', 'off', 'fx', 'on', 'q', 's', 'list', 'sw', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next', 'give', 'act'].forEach(function(k) { delete ch[k]; });
+    v = String(v || ''); ['f', 'c', 'fire', 'feed', 'launch', 'setOff', 'n', 'off', 'fx', 'on', 'q', 'lv', 's', 'list', 'sw', 'money', 'mark', 'tag', 'shake', 'rand', 'test', 'offToo', 'next', 'give', 'act'].forEach(function(k) { delete ch[k]; });
     if (v === 'gvturn' || v.indexOf('gv:') === 0) { ch.give = v === 'gvturn' ? 'turn' : 'act'; if (ch.give === 'act') ch.act = v.slice(3); delete ch.add; delete ch.set; delete ch.loss; delete ch.link; if (typeof ch.formula !== 'string' || !ch.formula) ch.formula = '1'; return; }   // 1.6.4 (gap #20)
     delete ch.move; delete ch.stop; delete ch.spend;   // gap 21: a token moved is a target of its own too, with its options
     if (v.indexOf('rnd:') === 0) { ch.rand = v.slice(4); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; return; }   // 1.6.2 (fold (f)): a row picked at random, no amount
@@ -201,6 +201,7 @@ function setChangeTarget(ch, v) {
     else if (v.indexOf('tg+:') === 0 || v.indexOf('tg-:') === 0) { ch.tag = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (vehicles, fold (c)): a mark on the target, or taken off it; no amount
     else if (v.indexOf('fx+:') === 0 || v.indexOf('fx-:') === 0) { ch.fx = v.slice(4); ch.on = v.charAt(2) === '+'; delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }
     else if (v === 'q') ch.q = true;
+    else if (v === 'lv') ch.lv = true;   // 1.6.4 (the full test's gap 10): this row's own level, judged as a level set by hand
     else if (v.indexOf('swoff:') === 0 || v.indexOf('swon:') === 0) { ch.sw = v.indexOf('swon:') === 0; ch.list = v.slice(ch.sw ? 5 : 6); delete ch.formula; delete ch.add; delete ch.set; delete ch.roll; }   // 1.6.2 (167 A): every row's switch, no amount
     else if (v.indexOf('all:') === 0) { var aP = v.slice(4), aC = aP.indexOf(':'); ch.list = aC > 0 ? aP.slice(0, aC) : aP; ch.s = aC > 0 ? aP.slice(aC + 1) : ''; }   // 1.6.0: every row of a list
     else if (v.indexOf('s:') === 0) ch.s = v.slice(2);

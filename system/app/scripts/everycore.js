@@ -22,16 +22,29 @@ export function everyCore() {   // [split:glue]
 // (calendarcore ruleFires' need). Kept only where needs, the rule's own needs text as rollNeedsInto reads it, cleans to a formula: a rule with
 // no needs has nothing to count by. The same in both views, but the players' view drops it with the needs where it drops them (cleanSystem)
 var EVERY_UNITS = Object.freeze({ min: 1, hour: 1, day: 1, week: 1 });
+// 1.6.4 (the full test's gap 7; Fulllion, 2026-11-24, by prompt: each way of counting real time a builder option, minutes of play the default):
+// the kinds of real time a list's counter or a time rule may count by, in the order the builder offers them. name: the builder's word; says: the
+// gray line under it, what it counts; per: the words after a step on a sheet ("one every hour of play"). The host judges when each counts
+// (nettime realCounts), the one place that rule stands
+var REAL_TIME = Object.freeze({
+    play: Object.freeze({ name: 'Minutes of play', says: 'Counts while you host the table and have not paused it. A character whose player alone is paused waits.', per: 'of play' }),
+    table: Object.freeze({ name: 'Real time at the table', says: 'Counts as minutes of play do, and only while the character\u2019s player is connected. A character with no player counts as in minutes of play.', per: 'of real time at the table' }),
+    open: Object.freeze({ name: 'Real minutes', says: 'Counts while this campaign is open in your app, hosted or played alone, and not paused.', per: 'of real time' })
+});
+function realKind(k) { return typeof k === 'string' && Object.prototype.hasOwnProperty.call(REAL_TIME, k) ? k : ''; }   // a kind's key, or '' for none
 // 1.6.0 Counts by the game clock (the handoff's per-row timer, and the campaign build's count while a switch holds): a counter of an item list
 // that moves with its character's own game time (calendar.js ownTime: every stretch lived once, a fight's rounds too; rowTimers). { dir: 'down'
 // (the default) or 'up'; per: one step every n minutes, hours, days, weeks or n of the system's own time unit by key (cleanEvery's units, never a
 // round); on: true, it counts only while its row is switched on; reset: true (with on), a row switched off goes back to its start; end: the word
-// a row shows once a count down reaches 0 (Spoiled) }. Down stops at 0 and the row stays; up stops at 1e6. The same in both views: no secret
+// a row shows once a count down reaches 0 (Spoiled) }. Down stops at 0 and the row stays; up stops at 1e6. The same in both views: no secret.
+// 1.6.4 (the full test's gap 7, a power used once an hour of play): real, one of REAL_TIME's kinds, it counts by real time instead of the game
+// clock (the host's own clock, nettime realPlayTick), so its per is minutes or hours alone; one with another unit is no timer. Absent: the game clock
 function cleanRowTimer(v) {
     if (!isObj(v)) return null;
     var p = isObj(v.per) ? v.per : null, n = p && typeof p.n === 'number' && fin(p.n) && Math.floor(p.n) === p.n && p.n >= 1 && p.n <= 1000 ? p.n : 0, u = p && typeof p.u === 'string' && (EVERY_UNITS[p.u] === 1 || STAT_KEY.test(p.u)) && lower(p.u) !== 'round' ? p.u : '';
     if (!n || !u) return null;
     var o = { dir: v.dir === 'up' ? 'up' : 'down', per: { n: n, u: u } };
+    if (v.real !== undefined) { if (!realKind(v.real) || (u !== 'min' && u !== 'hour')) return null; o.real = v.real; }   // 1.6.4 (gap 7): by real time, of one kind
     if (v.on === true) { o.on = true; if (v.reset === true) o.reset = true; }
     var w = o.dir === 'down' ? cutText(v.end, LIMITS.label) : ''; if (w) o.end = w;
     return o;
@@ -149,6 +162,7 @@ function cleanEvery(v, needs) {
     if (!isObj(v)) return null;
     var n = typeof v.n === 'number' && fin(v.n) && Math.floor(v.n) === v.n && v.n >= 1 && v.n <= 1000 ? v.n : 0, u = typeof v.u === 'string' && (EVERY_UNITS[v.u] === 1 || STAT_KEY.test(v.u)) && lower(v.u) !== 'round' ? v.u : '';
     if (!n || !u) return null;
+    if (v.real !== undefined) { if (!realKind(v.real) || (u !== 'min' && u !== 'hour')) return null; return { n: n, u: u, real: v.real }; }   // 1.6.4 (gap 7): by real time, in minutes or hours, which knows no rest, no fight and no needs held (calendar.js realRules runs it)
     var o = { n: n, u: u }; if (v.rest === true) o.rest = true; if (v.wait === true) o.wait = true; if (v.whileNeeds === true && !!cleanFormulaText(needs)) o.whileNeeds = true; return o;
 }
 // Backlog 152 (the fight clock, docs/FIGHT_CLOCK_DESIGN.md 2 and 13): a roll or an apply action that also runs in a fight, In a fight — every n
@@ -174,5 +188,5 @@ function everyTargets(out, gmView) {
     });
 }
 // [split:body-end]
-return { EVERY_UNITS: EVERY_UNITS, FIGHT_UNITS: FIGHT_UNITS, cleanEvery: cleanEvery, cleanInFight: cleanInFight, cleanRowTimer: cleanRowTimer, cleanUpkeep: cleanUpkeep, everyTargets: everyTargets, rowUpkeep: rowUpkeep, upkeepEach: upkeepEach, upkeepLines: upkeepLines, upkeepWords: upkeepWords };   // [split:glue]
+return { REAL_TIME: REAL_TIME, realKind: realKind, EVERY_UNITS: EVERY_UNITS, FIGHT_UNITS: FIGHT_UNITS, cleanEvery: cleanEvery, cleanInFight: cleanInFight, cleanRowTimer: cleanRowTimer, cleanUpkeep: cleanUpkeep, everyTargets: everyTargets, rowUpkeep: rowUpkeep, upkeepEach: upkeepEach, upkeepLines: upkeepLines, upkeepWords: upkeepWords };   // [split:glue]
 }   // [split:glue]

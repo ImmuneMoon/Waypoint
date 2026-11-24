@@ -173,12 +173,12 @@ net.fxSpans = function(spans, walk) {
 // (systemcore rowTimers); perOf, a step's length in seconds on the campaign's calendar. Stored on the GM's machine; sent and drawn only where a
 // count moved (the part of a step lived is the GM's alone). A count down that reached 0 is told to the GM, and to its player unless it is a row
 // they may not see
-net.rowSpans = function(spans, perOf, fight) {   // fight (1.6.2): the stretch is a fight's, so an upkeep's rate out of a fight pays nothing
+net.rowSpans = function(spans, perOf, fight, real) {   // fight (1.6.2): the stretch is a fight's, so an upkeep's rate out of a fight pays nothing; real (1.6.4, gap 7): a kind of real time, whose seconds move only the counters that count by it (realPlayTick)
     if (net.role === 'client' || net.stream || !spans || typeof spans !== 'object' || typeof perOf !== 'function' || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
     var camp = getActiveCampaign(), S = SC(), now = Date.now(); if (!camp || !camp.system || !camp.chars || !S || !S.rowTimers) return;
     Object.keys(spans).forEach(function(id) {
         var s = spans[id], ch = own(camp.chars, id) ? camp.chars[id] : null; if (!ch || typeof s !== 'number' || !isFinite(s) || !(s > 0)) return;
-        var r; try { r = S.rowTimers(camp.system, ch, s, perOf, window.wpFormula, fight === true); } catch (e) { if (window.wpStepLog) window.wpStepLog('rowtimer v1', 'failed', { at: 'tick', secs: Math.round(s) }); throw e; }
+        var r; try { r = S.rowTimers(camp.system, ch, s, perOf, window.wpFormula, fight === true, typeof real === 'string' ? real : ''); } catch (e) { if (window.wpStepLog) window.wpStepLog('rowtimer v1', 'failed', { at: 'tick', secs: Math.round(s) }); throw e; }
         var ids = Object.keys(r.values); if (!ids.length) return;
         ch.values = ch.values || {}; ids.forEach(function(fid) { ch.values[fid] = r.values[fid]; });
         saveRemoteSoon();
@@ -199,8 +199,45 @@ net.fxGameTime = function(secs) {   // K4: the game clock moved on secs seconds:
     var camp = getActiveCampaign(); if (!camp || !camp.system || !camp.chars) return;
     var sp = {}; Object.keys(camp.chars).forEach(function(id) { sp[id] = secs; }); net.fxSpans(sp);
 };
+// 1.6.4 (the full test's gap 7, a power used once an hour of play; Fulllion, 2026-11-24, by prompt: each way of counting real time a builder
+// option): counters and time rules that count by real time, of one of systemcore REAL_TIME's kinds. The clock below adds the real time between
+// its ticks to each character, for each kind the system uses, while that kind counts for that character (realCounts), and hands it on a minute
+// at a time: to net.rowSpans, which moves the counters of that kind alone, and to the Calendar's realRules, which runs the time rules of that kind.
+// A gap longer than a few ticks (the machine asleep, the app busy) counts as one tick, and the part of a minute not yet handed on is forgotten
+// when the app closes
+var _realAt = 0, _realMs = {}, REAL_TICK_MAX = 15000, REAL_STEP = 60000;   // _realMs: { kind: { charId: milliseconds not yet handed on } }
+function realOwnerHere(pid) { return net.conns.some(function(c) { return !!(c && c.open && net.roster[c.peer] && peerProfileId(c) === pid); }); }   // a player connected to this table now
+// The one place that says when real time of a kind counts for a character, on the GM's own machine: never while the table is paused or the
+// character's player alone is paused; minutes of play (play) while the GM hosts the table; real time at the table (table) as that, and only
+// while the character's player is connected (a character with no player, or an NPC, as in minutes of play); real minutes (open) while the
+// campaign is open here, hosted or alone
+function realCounts(kind, ch) {
+    if (!ch || net.role === 'client' || net.stream || (net.active && net.paused)) return false;
+    var pc = !!(ch.ownerId && !ch.npc); if (pc && net.pausedPlayers && net.pausedPlayers[ch.ownerId]) return false;
+    var hosted = !!(net.active && net.role === 'host');
+    if (kind === 'open') return true;
+    if (kind === 'table') return hosted && (!pc || realOwnerHere(ch.ownerId));
+    return kind === 'play' && hosted;
+}
+function realPlayTick(now) {
+    var camp = getActiveCampaign(), S = SC(), kinds = camp && camp.system && S && S.realKindsIn ? S.realKindsIn(camp.system) : [];
+    if (!kinds.length || !camp.chars || net.role === 'client' || net.stream || (window.wpVtt && !window.wpVtt.on('sheets'))) { _realAt = 0; _realMs = {}; return; }   // guard: nothing counts here, and a later start counts from then
+    var dt = _realAt ? Math.min(REAL_TICK_MAX, Math.max(0, now - _realAt)) : 0; _realAt = now; if (!dt) return;
+    kinds.forEach(function(k) {
+        var held = _realMs[k] || (_realMs[k] = {}), spans = {};
+        Object.keys(camp.chars).forEach(function(id) {
+            if (!realCounts(k, camp.chars[id])) return;
+            held[id] = (held[id] || 0) + dt; if (held[id] < REAL_STEP) return;
+            var secs = Math.floor(held[id] / 1000); held[id] -= secs * 1000; spans[id] = secs;
+        });
+        var ids = Object.keys(spans); if (!ids.length) return;
+        if (window.wpStepLog) window.wpStepLog('realplay v1', 'tick', { kind: k, chars: ids.length });
+        net.rowSpans(spans, S.realEverySecs, false, k);
+        if (window.wpCalendar && typeof window.wpCalendar.realRules === 'function') window.wpCalendar.realRules(spans, k);
+    });
+}
 var _fxClock = null;
-function fxClockStart() { if (!_fxClock && typeof setInterval === 'function') _fxClock = setInterval(function() { try { fxClockTick(); } catch (e) {} }, 5000); }
+function fxClockStart() { if (!_fxClock && typeof setInterval === 'function') _fxClock = setInterval(function() { try { fxClockTick(); } catch (e) {} try { realPlayTick(Date.now()); } catch (e) { if (window.wpStepLog) window.wpStepLog('realplay v1', 'failed', { msg: String(e && e.message || e).slice(0, 120) }); } }, 5000); }
 // [netcheck:fxtime-end]
 // [split:body-end]
 return { charCombat: charCombat, fxClockStart: fxClockStart, fxClockTick: fxClockTick, fxCombatChars: fxCombatChars, fxCombatEdge: fxCombatEdge, fxEnded: fxEnded, timeNote: timeNote, turnFxEnd: turnFxEnd, turnFxStart: turnFxStart };   // [split:glue]

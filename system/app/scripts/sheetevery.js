@@ -9,7 +9,7 @@
    sheets.js (live, so a value sheets.js changes later is read as it is then); the last line hands back the names sheets.js uses of it.
    Neither side may assign the other's names (tools/splitcheck.js holds it). Change the code here as if it still stood in sheets.js. */
 // [split:of sheets.js]
-import { LIMITS, cleanEvery, cleanInFight, draft, el, input, lineUnder, select, tab } from './sheets.js';   // [split:glue]
+import { LIMITS, REAL_TIME, cleanEvery, cleanInFight, draft, el, input, lineUnder, select, tab } from './sheets.js';   // [split:glue]
 export function sheetEvery() {   // [split:glue]
 // [split:body-start]
 // [sinkcheck:everyrow-start]
@@ -23,11 +23,14 @@ export function sheetEvery() {   // [split:glue]
 function everyRow(r) {
     var ev = r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : null, row = el('div', 'sys-flags sys-roll-everyrow');
     row.appendChild(el('span', 'sys-num-cap', 'By the clock'));
+    var RT = typeof REAL_TIME === 'object' && REAL_TIME ? REAL_TIME : {}, rk = ev && typeof ev.real === 'string' && RT[ev.real] ? ev.real : '';   // guard: a slice run on its own may hold no kinds   // 1.6.4 (the full test's gap 7; Fulllion: each way of counting real time an option, minutes of play first): what it counts, the game clock or a kind of real time
+    row.appendChild(select('sys-roll-evby', [['', 'Game time']].concat(Object.keys(RT).map(function(k) { return [k, RT[k].name]; })), rk, 'What it counts: the campaign\u2019s game time, or real time, such as for a power used once an hour of play.'));
     var n = el('input', 'field sys-roll-evn'); n.type = 'number'; n.min = '1'; n.max = '1000'; n.step = '1'; n.placeholder = 'Every'; n.value = ev && typeof ev.n === 'number' && isFinite(ev.n) ? String(ev.n) : ''; n.title = 'With the Calendar on, it also runs every so many of the unit beside as the clock moves on (empty: never by the clock)'; row.appendChild(n);
     var tn = draft && draft.combat && draft.combat.turn, tus = tn && typeof tn === 'object' && Array.isArray(tn.units) ? tn.units.filter(function(u) { return u && typeof u.key === 'string' && u.key; }) : [];
-    var opts = [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(tus.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; }));
-    var cur = ev && typeof ev.u === 'string' && ev.u ? ev.u : 'day'; if (!opts.some(function(o) { return o[0] === cur; })) opts.push([cur, cur + ' (no such unit)']);
+    var opts = rk ? [['min', 'minutes'], ['hour', 'hours']] : [['min', 'minutes'], ['hour', 'hours'], ['day', 'days'], ['week', 'weeks']].concat(tus.map(function(u) { return [u.key, typeof u.label === 'string' && u.label ? u.label : u.key]; }));   // real time counts in minutes or hours alone
+    var cur = ev && typeof ev.u === 'string' && ev.u ? ev.u : rk ? 'hour' : 'day'; if (!opts.some(function(o) { return o[0] === cur; })) opts.push([cur, cur + ' (no such unit)']);
     row.appendChild(select('sys-roll-evu', opts, cur, 'What it counts in: the calendar\u2019s minutes, hours, days and weeks, or one of your time units (the Combat tab\u2019s Turns box)'));
+    if (rk) { row.appendChild(el('div', 'sys-note sys-roll-evsays', RT[rk].says)); return row; }   // its gray line; real time knows no rest, no fight and no needs held, so those ticks are not offered
     var rl = el('label', 'sys-hover'), rc = el('input', 'sys-roll-evrest'); rc.type = 'checkbox'; rc.checked = !!(ev && ev.rest === true); rc.title = 'It counts rest only: time the GM moves on as Rest; activity starts its count again'; rl.appendChild(rc); rl.appendChild(document.createTextNode(' During rest only')); row.appendChild(rl);
     var wl = el('label', 'sys-hover'), wc = el('input', 'sys-roll-evwait'); wc.type = 'checkbox'; wc.checked = !!(ev && ev.wait === true); wc.title = 'Its count waits while its character is in a fight, and goes on after it. A fight still breaks a rest.'; wl.appendChild(wc); wl.appendChild(document.createTextNode(' Waits in a fight')); row.appendChild(wl);
     var hl = el('label', 'sys-hover'), hc = el('input', 'sys-roll-evhold'); hc.type = 'checkbox'; hc.checked = !!(ev && ev.whileNeeds === true); hc.title = 'Its count grows only while this rule\u2019s Needs hold for its character, and stands still the rest of the time. Save keeps the tick only beside Needs or a reason.'; hl.appendChild(hc); hl.appendChild(document.createTextNode(' Only while its needs hold')); row.appendChild(hl);   // 1.5.5
@@ -114,6 +117,7 @@ function noteRow(r) {   // 1.6.0, backlog 173: where its runs are said
 function everyBare(r, k, u) { var o = r[k]; if (o && typeof o === 'object' && !Array.isArray(o) && o.u === u && Object.keys(o).length === 1) delete r[k]; }   // a tick taken off a rule that holds nothing but the shown unit takes the rule away, so no line stays under it
 function everyEdit(r, c, t) {   // the By the clock, In a fight and Ask me first boxes' edits; a unit or a tick before any number keeps the shown unit
     if (c.indexOf('sys-roll-evn') >= 0) { var v = Number(t.value); r.every = Object.assign({ u: 'day' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (String(t.value).trim() && isFinite(v)) r.every.n = v; else delete r.every; return true; }
+    if (c.indexOf('sys-roll-evby') >= 0) { r.every = Object.assign({ u: 'hour' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (typeof REAL_TIME === 'object' && REAL_TIME && Object.prototype.hasOwnProperty.call(REAL_TIME, t.value)) { r.every.real = t.value; if (r.every.u !== 'min' && r.every.u !== 'hour') r.every.u = 'hour'; delete r.every.rest; delete r.every.wait; delete r.every.whileNeeds; } else { delete r.every.real; everyBare(r, 'every', 'hour'); } return true; }   // 1.6.4 (gap 7): game time, or a kind of real time
     if (c.indexOf('sys-roll-evu') >= 0) { r.every = Object.assign({}, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); r.every.u = String(t.value).slice(0, 24); return true; }
     if (c.indexOf('sys-roll-evrest') >= 0) { r.every = Object.assign({ u: 'day' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (t.checked === true) r.every.rest = true; else { delete r.every.rest; everyBare(r, 'every', 'day'); } return true; }
     if (c.indexOf('sys-roll-evwait') >= 0) { r.every = Object.assign({ u: 'day' }, r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : {}); if (t.checked === true) r.every.wait = true; else { delete r.every.wait; everyBare(r, 'every', 'day'); } return true; }   // backlog 152, fold 5

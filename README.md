@@ -2,51 +2,62 @@
 
 [![Checks](https://github.com/ImmuneMoon/Waypoint/actions/workflows/checks.yml/badge.svg)](https://github.com/ImmuneMoon/Waypoint/actions/workflows/checks.yml)
 [![Release](https://img.shields.io/github/v/release/ImmuneMoon/Waypoint?include_prereleases&color=blue&logo=github)](https://github.com/ImmuneMoon/Waypoint/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/ImmuneMoon/Waypoint/total?logo=github)](https://github.com/ImmuneMoon/Waypoint/releases)
 ![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![Built with Electron](https://img.shields.io/badge/Built%20with-Electron-47848F?logo=electron&logoColor=white)
 ![Multiplayer: peer-to-peer WebRTC](https://img.shields.io/badge/Multiplayer-peer--to--peer%20%28WebRTC%29-333333?logo=webrtc&logoColor=white)
 [![License: Terms of Use](https://img.shields.io/badge/License-Terms%20of%20Use-lightgrey)](license.txt)
 
-Current release: **Waypoint VTT Alpha 1.6.3** — see [Releases](https://github.com/ImmuneMoon/Waypoint/releases) for downloads and notes.
+Current release: **Waypoint VTT Alpha 1.6.4**. Downloads and release notes are on [waypointvtt.com](https://waypointvtt.com).
 
-A portable desktop companion for tabletop RPG campaigns: linked data maps for the GM, hex-grid play maps with tokens and scene art for the table, planners for notes, and peer-to-peer multiplayer so a GM can host a session and players can join with a room code. Built on Electron. Every campaign lives in a plain `saves` folder beside the app, so backups and hand-offs are file copies.
+Drag a map in, drop your tokens, and your players only see what you reveal. Waypoint VTT is a desktop app for running tabletop RPG campaigns, and you prep in it as well as play in it. Every campaign lives in a plain `saves` folder beside the app, so a backup is a folder copy.
+
+Waypoint VTT™ is made by Nucleus Studio™ and published by Fulllion Creative Works, LLC.
 
 ## What it does
 
-**Data map.** Each map is a set of rooms (nodes) linked by routes, grouped by color-coded categories, with GM notes, a roster of characters per room, and scene art. Rooms can warp to other maps, so a whole campaign is a tree: a world map, its cities, their buildings, their rooms.
+A world map holds its cities, and somewhere down that chain a tavern holds its cellar. Each of those is a set of rooms linked by routes, with color-coded categories, GM notes, scene art and the people you expect to find there. That's the **Data Map**. A room can lead to another map, so a campaign grows into a tree, and a room also lists who is standing in it right now, read from the tokens on the map.
 
-**Play map.** A whiteboard for the same map: a flat-top hex grid (or square, or none) with tokens that seat into cells, drawings, shapes, text, measurement rulers, portals and triggers, and images of any size. Tokens dropped on a room's floor move that character's roster entry with them. Hidden items exist for the GM and are invisible to players until revealed.
+Tokens move, fog lifts and dice roll on the **Play Map**. It has a flat-top hex grid (or square, or none), tokens that seat into cells, drawings, shapes, text, rulers, portals, trigger zones and pictures of any size. Fog of war follows each player's own tokens, so a player whose token stands in the cellar doesn't see the inn upstairs. Anything you hide stays on your screen until you show it.
 
-**Planners.** Document pages with headed blocks and tables for session notes, run scripts, and reference material, kept in the same campaign tree.
+Session notes live in **planners** in the same campaign tree. A planner holds cards for scenes, people, places and clues, and the **Prep column** beside the map lists tonight's scenes and clues and the cards that belong to the map you're on. Handbook pages sit there too, and players can read the ones you share with them, part by part if you like.
 
-**Multiplayer.** The GM hosts a campaign over the internet with a ten-character room code. Players join from their own copy of Waypoint or a browser, land on the map the GM chooses, see only what the GM shares (GM notes and hidden items never leave the host), move the tokens they own, draw on the map, chat, and receive images on demand. The GM can pause the table, summon everyone or a single player, approve or ban players, and end the session for all. A dropped connection reconnects on its own; a crashed host can resume with the same code. Connections are direct where the networks allow it; for players behind carrier-grade NAT the GM configures a TURN relay of their own under **Settings ▸ Relay server** (the app ships with none). Step-by-step instructions are in the app under Help ▸ Multiplayer: Hosting ▸ *Setting up a relay server*, and the Relay server box links straight to them. A **Stream window** (Settings) shows only the play map from the party's standpoint — what the players' tokens see together, never the GM's whole map — for screen-sharing to a spectator without the app.
+Every character has a **sheet** built from the campaign's own game system, which you lay out in the **System editor** out of fields, formulas, rolls and lists. Players fill theirs in at the table. A sheet downloads as a character file or a readable page, and prints or saves as a PDF.
 
-**Character sheets.** Every PC and NPC has a sheet built from the campaign's own system: fields, formulas, rolls and lists, laid out by the GM in the System editor. Players fill theirs in at the table, and a sheet can be downloaded as a character file, a readable page or a PDF.
+**Pictures and sound.** Pictures dropped on a map are stored under `saves/images/<map>/`, and the Image Library lists everything the campaign holds, with tags you set. Sounds, music playlists and videos are kept with the campaign too.
 
-**Assets.** Images dropped on a map are stored under `saves/images/<map>/`. An in-app library lists everything the campaign holds. Portraits and tokens are shared between maps.
+**Settings that stay put.** Units, snap, the pen and eraser, opacities, rulers and the panel layout are remembered and mirrored into `saves/preferences.json`, so they follow the saves folder to any computer. Table features such as fog of war or turn-based combat are set per campaign and live in the save itself.
 
-**Settings that stay put.** Units, snap, pen, eraser, opacities, rulers, and panel layout are remembered, and mirrored into `saves/preferences.json` so they follow the campaign folder rather than one machine. The VTT features (token elevation, token posture, the minimap) are set per campaign and live in the save itself; only your default for new campaigns is a preference.
+## Playing together
+
+You host from your own computer and your players join with a room code. A code looks like `AB2CD-EF3GH`. A table on Waypoint's own signaling server has a WP mark in front, like `WP-AB2CD-EF3GH`. **Copy invite** in the Multiplayer window copies a line with the code and a waypointvtt.com/join link, ready to paste into your group chat.
+
+Players join from their own copy of Waypoint VTT. They can also play in a browser at waypointvtt.com with a player account there, but only when your code is a WP code, since the website finds tables on Waypoint's own server alone. Tick **Own signaling server** under Settings ▸ Multiplayer if anyone at your table plays in a browser.
+
+A player at their first table lands on the map you're on. After that they come back where they last were, and you move them by summoning them, or by setting the stage, which brings everyone to one map. They see only what you share, move their own tokens, draw, chat, roll and talk in voice chat. You can pause the table, summon everyone or one player, approve or ban people, and end the session for all. A player whose connection drops reconnects by themselves for five minutes. If your own Waypoint crashes, open it again within 15 minutes and press **Resume your table** to get the same code back.
+
+Connections go straight between computers where the networks allow it. Mobile data, many providers outside the US and EU, and campus and hotel networks often don't, and a player on one of those needs a relay. A host on a Waypoint GM plan gets the website's relay once this computer is linked to the account under Profile. A relay server of your own, under **Settings ▸ Multiplayer ▸ Relay server**, comes first if you set one. In Help, the Multiplayer: Hosting pane has the steps under "Setting up a relay server".
+
+**Open stream window**, under Settings ▸ Multiplayer or in the Multiplayer window's Host a table part, opens a second window with only the play map, as the players' tokens see it together. Screen-share it to someone watching who doesn't have the app.
 
 ## Installing (players and GMs)
 
-Download `Waypoint_Setup.exe` from Waypoint's website, waypointvtt.com, and run it. The installer puts Waypoint in your user folder, needs no admin rights, and offers a Start Menu and desktop shortcut.
+Download `Waypoint_Setup.exe` from Waypoint's website, waypointvtt.com, and run it. The installer puts Waypoint VTT in your user folder, needs no admin rights, and offers a Start menu and desktop shortcut.
 
 ### The Windows warning
 
-Waypoint's installer is code-signed by Fulllion Creative Works, LLC, the name Windows shows as its publisher. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own website, or through the app's own update button; if it came from anywhere else, do not run it.
+Waypoint's installer is code-signed by Fulllion Creative Works, LLC, the name Windows shows as its publisher. Only run a `Waypoint_Setup.exe` you downloaded from Waypoint's own website, or through the app's own update button. If it came from anywhere else, do not run it. Windows may still show a SmartScreen notice for a while, until enough people have run the signed installer. Installers from before 1.6.4 were unsigned.
 
-One-click updates inside the app are signed: your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates & about ▸ Restore the previous version** puts the app back as it was before the last update. From 1.5.0 on an update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
+One-click updates inside the app are signed with Waypoint's own update key, which is separate from the code-signing certificate. Your copy takes an update only when its signature checks against the key the installer put there, and **Settings ▸ Updates and about ▸ Restore the previous version** puts the app back as it was before the last update. An update that changes Waypoint's core installs itself the same way: the app downloads the installer, checks its signature, closes, updates and opens again.
 
-New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken. When Setup finds a copy already installed it asks what to do: update it in place (the usual choice), do a clean install that rebuilds the program files but keeps your saves and settings unless you tick the box to delete them, or put a separate copy in a new folder and leave the existing one alone.
+New versions install over old ones. Saves and settings are kept, and older saves are upgraded automatically after a backup is taken. When Setup finds a copy already installed it asks what to do. Updating in place is the usual choice. A clean install rebuilds the program files and keeps your saves and settings unless you tick the box to delete them. You can also put a separate copy in a new folder and leave the existing one alone.
 
 Requirements: Windows 10 or 11. You'll want an internet connection to play together, and Waypoint uses it to look for updates.
 
-**What the app does not do.** No account is needed and there are no ads. The app collects nothing about how you use it. Your campaigns are files on your own computer, in the saves folder. Linking a Waypoint website account is your choice, in Settings. No AI runs inside the app either, so your notes and maps never go to one.
+**What the app does not do.** No account is needed and there are no ads. The app collects nothing about how you use it. Your campaigns are files on your own computer, in the saves folder. No AI service runs inside the app, and your notes and maps are never sent to one. That's the desktop app. A website account comes in only for playing in a browser, your plan's relay and cloud saves. Linking a website account to the desktop app is your choice, in the Profile window, which opens from your picture in the top row.
 
-**Joining a table.** Get the room code from your GM, open Waypoint, click the globe button, type your name and the code, and press Join. No account is needed. The in-app Help (the question-mark button) has a full tutorial for playing at a hosted table.
+**Joining a table.** Get the room code from your GM, and the session password if they set one. Open Waypoint VTT and press **Join a game** on the welcome screen, or at any other time press the globe button in the top row and then **Join a table**. Type your name and the code, and the password if there is one, and press Join. The Multiplayer: Joining pane of the in-app Help (the question-mark button) walks through the rest.
 
-**Portable use.** The installed folder is self-contained. Copy it anywhere, including a USB stick, and it runs from there.
+**Portable use.** The installed folder is self-contained. Copy it anywhere, a USB stick included, and it runs from there.
 
 ## Data and backups
 
@@ -54,76 +65,111 @@ Everything about a campaign is in the `saves` folder next to the app:
 
 | Path | Contents |
 |---|---|
-| `saves/data.json` | every campaign, map, planner, room, and play-map item |
-| `saves/images/` | scene art, tokens, and dropped images, one folder per map |
-| `saves/preferences.json` | your settings, app-managed |
-| `saves/backups/` | a dated snapshot taken at each launch (newest ten kept) |
+| `saves/data.json` | every campaign, map, planner, room, character and play-map piece |
+| `saves/images/` | scene art, tokens and dropped pictures, one folder per map; sounds under `images/audio/<campaign>/`, videos under `images/video/<campaign>/`, the tutorial's art under `images/tutorial/` and received handouts under `images/journal/` |
+| `saves/library/` | each campaign's item library packs |
+| `saves/record/` | the Game Record, a log of each session's rolls, moves and chat, one file per session |
+| `saves/preferences.json` | your settings and multiplayer profile, app-managed |
+| `saves/backups/` | a snapshot taken at each launch (newest ten kept) and any you take by hand |
+| `saves/error.log` | what went wrong, for a bug report; it stays on your computer |
+| `saves/account.json`, `saves/cloud.json` | only if you link a website account or turn on cloud saves |
 
-To back up, copy `saves`. To restore or move to another computer, paste it back beside the app. Waypoint goes online when you play together, and each time it starts it asks Waypoint's website, waypointvtt.com, whether there's a new release. If you link a waypointvtt.com account, your profile and cloud saves go there too. Nothing about how you use the app is ever sent.
+To back up, copy `saves`. To restore or move to another computer, paste it back beside the app. Your own relay server's address and password stay behind. They're kept in `system/userdata/` on that computer only, so you enter them again on the new one. `preferences.json` holds the keys that let tables recognize you, and if you host it holds your table's signing key too. Anyone with a copy of it can join other GMs' tables as you, and if you host, pass as your table to your players.
+
+## What leaves your computer
+
+Each time Waypoint starts, it asks waypointvtt.com whether there's a new release.
+
+Playing together goes through servers outside your computer. Tables are found through the public PeerJS signaling server, or Waypoint's own for a WP code or with Own signaling server ticked, and Google's STUN servers help two computers find a route to each other. Those servers see your network address. On a direct connection, anyone who dials your room code can see it too, even if you never let them in, which is why the code is best shared privately. A relay, yours or your plan's, carries the table for players who can't connect directly.
+
+Linking a waypointvtt.com account sends the website this computer's system name and the app's version, and keeps your multiplayer profile in step there so you're the same player on every computer you link. While linked it also keeps your table keys, the GMs' public signing keys and the room codes you've joined in step.
+
+Cloud saves, on plans that include them, upload your campaigns, pictures, library and Game Record once you switch them on. The Game Record logs rolls, moves and chat, whispers included, and a campaign holds Player History, the names and table keys of the people who joined your table.
+
+**Report a problem** in the app's About panel opens a new issue on GitHub in your browser, with Waypoint's version and the kind of computer filled in. Nothing is sent until you press that page's own button.
 
 ## Running from source
 
-The front end is plain HTML and JavaScript modules in `system/app/`. The Electron shell in `system/resources/app/main.js` is a small local HTTP server that serves the front end and a handful of JSON endpoints for the saves folder. Nothing is bundled or transpiled.
+The front end is plain HTML and JavaScript modules in `system/app/`. The Electron shell in `system/resources/app/main.js` is a small local HTTP server that serves the front end and a handful of JSON endpoints for the saves folder, on the loopback address only. Nothing is bundled or transpiled.
 
 To work on the app without the Electron runtime:
 
 ```bash
-node tools/dev-server.js
+node tools/dev-server.js [savesDir] [port]
 ```
 
-This serves `system/app` at `http://localhost:3999` with the same API as the shell, against a scratch `dev-saves` folder so your real campaign is never touched. Pass another saves folder and port as arguments if you want them. Multiplayer works from the dev server too, since it runs peer to peer.
+This serves `system/app` at `http://localhost:3999` with the same API as the shell, against a scratch `dev-saves` folder, so your real campaign is never touched. Point it only at scratch folders. Multiplayer works from the dev server too, since it runs peer to peer: start two copies on different ports with different saves folders, host in one and join from the other.
 
-To run the real thing from source, unpack the latest release and replace its `system/app` and `system/resources/app` folders with the ones from this repository.
+To run the real thing from source, take an installed copy and replace its `system/app` and `system/resources/app` folders with the ones from this repository. A release ships its app folder with the comments stripped out, so a swapped-in folder from here is easier to read.
+
+## Tests
+
+Every suite in `tools/*check.js` is plain Node with no dependencies, and exits 1 on any failure. Run them all before a commit:
+
+```bash
+for f in tools/*check.js; do node "$f" | tail -1; done
+```
+
+`tools/parsecheck.js` checks that every module loads and is worth running after every script edit. `tools/fuzzcheck.js` fires hostile messages at the multiplayer code and is diagnostic. It has no CI step of its own, and `tools/splitcheck.js` runs it as part of its checks. CI (`.github/workflows/checks.yml`) runs every suite on Node 22 and 24 on each push and pull request.
 
 ## Releases and updates
 
-Players update from inside the app: **Settings ▸ Check for Updates** asks Waypoint's website for the newest release. The site answers a list signed with Waypoint's update key, and the app reads it only once the signature checks; the files come from Waypoint's own download host and from nowhere else. If only the front end changed, **Update Now** downloads the app zip, verifies its checksum, swaps `system/app` in place and reloads. If the release changed the Electron shell, the same panel offers the installer instead. A quiet check runs shortly after launch; when it finds a newer version a gold **Update** button appears in the top bar and stays until the update is applied, and a dismissable notice appears once per launch. Nothing installs without the user pressing the button.
+Players update from inside the app. **Settings ▸ Updates and about ▸ Check for updates** asks waypointvtt.com for the newest release. The site answers with a list signed with Waypoint's update key, and the app reads it only once the signature checks. The files come from Waypoint's own download host and nowhere else. If only the front end changed, **Update now** downloads the app zip, checks it, swaps `system/app` in place and reloads. If the release changed the core, the same panel installs the new installer instead. A quiet check runs shortly after launch, and when it finds a newer version a gold **Update** button stays in the top row until the update is applied. Nothing installs until you press the button. Copies of 1.6.3 and older still read their updates from GitHub, which is why releases go there too for now.
 
 To cut a release:
 
-1. Bump the version in `system/resources/app/package.json` and `installer.iss`, and add a section at the top of `WHATSNEW.txt` and `system/app/assets/whatsnew.txt`. The release script writes `system/app/version.json` from `package.json` and the "Current release" line at the top of this README; that file ships inside the app zip and is what an updated copy reports as its version. If `main.js` or `updater.js` changed, set `MIN_SHELL` in `tools/release.js` to the new version so older shells are steered to the installer. If any control moved or a feature changed, update the interactive tutorial and the Help → Coming up tab (`data-pane="roadmap"` in `system/app/index.html`) too: `STEPS` and the demo campaign in `system/app/scripts/tutorial.js`, and bump `TUTORIAL_VERSION` — `node tools/tutorialcheck.js` verifies every tour target still exists, and the release script runs it and refuses to build with a stale tour.
+1. Raise the version in `system/resources/app/package.json`, before the first change to the core if the release has one. Add this version's section at the top of `WHATSNEW.txt`, and the same section at the top of `system/app/assets/whatsnew.txt`, or nothing builds. If anything under `system/resources/app/` or `installer.iss` changed, run `node tools/shellrev.js` and commit `tools/shellrev.json`, and set `SHELL_WANTED` in `system/app/scripts/settings.js` to the same version. Installs whose core is older are then sent to the installer. If the tour's steps or its demo campaign changed, raise `TUTORIAL_VERSION` in `system/app/scripts/tutorial.js` to the release's version. `node tools/tutorialcheck.js` checks every tour target still exists, and the build runs it.
 2. Build:
 
    ```bash
    node tools/release.js
    ```
 
-   This zips `system/app` as `waypoint-app-<version>.zip` with a `.sha256`, writes `manifest.json`, copies what an install needs and nothing else into `dist/<version>/stage`, compiles the installer there with [Inno Setup 6](https://jrsoftware.org/isinfo.php), and collects everything under `dist/<version>/` with the release notes. The notes are the top section of `WHATSNEW.txt` rendered as markdown; `--notes-only` regenerates just that file.
-3. Publish: create a GitHub Release tagged with the version and attach the four files, or run `node tools/release.js --publish` with a `GITHUB_TOKEN` that can write releases. From 1.6.4 installs read their updates from Waypoint's website instead, so the release also goes up there, with the signed list beside it; the GitHub release is kept while installs move.
+   The build needs `WAYPOINT_SIGNING_KEY`, naming the update signing key's private half, which is kept outside this repository (`node tools/signkey.js --check <path>` says whether a file is the right one). `WAYPOINT_SIGNTOOL` is the command that code-signs the installer, with `{file}` where the installer's path goes. Without it a build that is not published leaves the installer unsigned and says so, and `--publish` refuses to start. `ISCC` names [Inno Setup 6](https://jrsoftware.org/isinfo.php) if it isn't at the path release.js names.
+
+   The build writes `system/app/version.json` and the "Current release" line at the top of this README, copies what an install needs and nothing else into `dist/<version>/stage`, strips comments from that copy, and zips it as `waypoint-app-<version>.zip` with its `.sha256` and `.sig`. It compiles the installer from the stage, signs it, and writes `manifest.json`, `envelope.json` (the signed list the website serves) and the release notes, all under `dist/<version>/`. `--notes-only` makes just the notes.
+3. Publish:
+
+   ```bash
+   node tools/release.js --publish --github
+   node tools/sitepub.js --check
+   ```
+
+   `--publish` puts the files and the signed list on Waypoint's download host and tells the website a release is there. It needs the download host's `WAYPOINT_R2_*` settings, `WAYPOINT_DISPATCH_TOKEN` and `WAYPOINT_SIGNTOOL`. `--github` also makes the GitHub Release, with a `GITHUB_TOKEN` that can write releases, for the installs that still read GitHub. If a run stops partway, run the same command again and it finishes what's missing without rebuilding. `tools/sitepub.js --check` then confirms the live site names the new version, before the release is announced.
 
 The website the app checks is the `UPDATE_SITE` constant at the top of `system/resources/app/main.js`.
 
 ## Repository layout
 
 ```
-system/app/               the application (index.html, scripts/, assets/, style.css)
-system/resources/app/     the Electron shell: main.js, updater.js, package.json, icons
+system/app/               the application: index.html, style.css, scripts/, assets/
+system/resources/app/     the Electron shell: main.js, updater.js, account.js, cloudsync.js and the rest of the local server
 tools/dev-server.js       run the app from source in a browser
-tools/release.js          build (and optionally publish) a release
+tools/release.js          build and publish a release (with sitepub.js, signkey.js, shellrev.js, stripcore.js)
+tools/*check.js           the test suites
 installer.iss             Inno Setup script
 CAMPAIGN_INTEGRATION.md   the save-file schema and authoring rules for generated content
 WHATSNEW.txt              release notes
 ```
 
-The rest of `system/` (the Electron binary, DLLs, locales) and the `saves` folder are intentionally not in the repository.
+The rest of `system/` (the Electron binary, DLLs, locales) and the `saves` folder are left out of the repository on purpose.
 
 ## For campaign authors and tooling
 
-`CAMPAIGN_INTEGRATION.md` documents the save schema, the coordinate system, the hex lattice, what multiplayer hides from players, and the conventions the app expects. It is written for anyone generating maps, rosters, and tokens outside the app and merging them in.
+`CAMPAIGN_INTEGRATION.md` documents the save schema, the coordinate system, the hex lattice, what multiplayer hides from players, and the conventions the app expects. It's written for anyone generating maps, rosters and tokens outside the app and merging them in.
 
 ## License and contact
 
-See `license.txt` for the terms of use and privacy policy. Questions and problems: fulllioncreativeworks@gmail.com.
+`license.txt` holds the terms of use and privacy policy. Questions and problems go to fulllioncreativeworks@gmail.com, or use **Report a problem** in the app's About panel.
 
-Waypoint includes the Inter typeface (SIL Open Font License 1.1, `system/app/assets/fonts/inter/LICENSE`) and Font Awesome Free icons by Fonticons, Inc. (CC BY 4.0, `system/app/assets/icons/fa/LICENSE.txt`). It includes 23 more typefaces for text on maps: Lora, Crimson Text, Comic Neue, Atkinson Hyperlegible, Cinzel, IM Fell English, Almendra, MedievalSharp, Uncial Antiqua, UnifrakturCook, Pirata One, Caveat, Great Vibes, Orbitron, Audiowide, Black Ops One, Share Tech Mono, Cutive Mono, JetBrains Mono, Rye, Bangers, Nosifer and Noto Sans Runic. Each is under the SIL Open Font License 1.1, is carried as its makers published it, and has its license text with its copyright notice beside it; `system/app/assets/fonts/FONTS.txt` lists them all. It also includes PeerJS, Mermaid and html2canvas (MIT License; each file's license text is beside it in `system/app/assets/vendor/`).
+Waypoint VTT includes the Inter typeface (SIL Open Font License 1.1, `system/app/assets/fonts/inter/LICENSE`) and Font Awesome Free icons by Fonticons, Inc. (CC BY 4.0, `system/app/assets/icons/fa/LICENSE.txt`). It includes 23 more typefaces for text on maps: Lora, Crimson Text, Comic Neue, Atkinson Hyperlegible, Cinzel, IM Fell English, Almendra, MedievalSharp, Uncial Antiqua, UnifrakturCook, Pirata One, Caveat, Great Vibes, Orbitron, Audiowide, Black Ops One, Share Tech Mono, Cutive Mono, JetBrains Mono, Rye, Bangers, Nosifer and Noto Sans Runic. Each is under the SIL Open Font License 1.1, is carried as its makers published it, and has its license text with its copyright notice beside it; `system/app/assets/fonts/FONTS.txt` lists them all. The same typefaces are offered in pages, notes and the table notepad, and as the app font in Settings. Waypoint VTT also includes PeerJS, Mermaid and html2canvas (MIT License; each file's license text is beside it in `system/app/assets/vendor/`).
 
-## ☕ Support the Project
+## Support the project
 
-If you find this project helpful and want to support further development by Fulllion Creative Works, consider leaving a tip!
+If Waypoint VTT helps your table and you'd like to chip in toward its development, tips go to Fulllion Creative Works:
 
 * [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=LCDZX75HR4CLC)
 * [Support on Ko-fi](https://ko-fi.com/fulllion)
 
 ---
-© 2026 Fulllion Creative Works. All rights reserved.
-
+© 2026 Fulllion Creative Works, LLC. All rights reserved.

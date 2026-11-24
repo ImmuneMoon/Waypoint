@@ -30,6 +30,18 @@ function fileBase(name, fallback) {
     return s || fallback || 'character';
 }
 function isCharFile(j) { return isObj(j) && j.format === FORMAT; }
+// 1.6.4 (a system build's by-hand test of 2026-11-24: an upload of a character file with no values said only that it "could not be read here"):
+// why a file that says it is a Waypoint character file cannot fill a character, in plain words, or '' where it can be read. Asked by sheets.js
+// before a file is read or sent (the GM's Upload, a player's Import and Start from a file), so the person is told what is wrong with the file
+// itself. It reads the file alone: what a campaign's system then matches or leaves out is still said by the fill.
+function charFileWhy(j) {
+    if (!isCharFile(j)) return '';
+    var noVals = !isObj(j.values) || !Object.keys(j.values).length, noNotes = !Array.isArray(j.qnotes) || !j.qnotes.length;
+    if (noVals && noNotes) return 'That character file holds no character\u2019s values, so there is nothing in it to fill a sheet with.';
+    if (typeof j.v === 'number' && j.v > VERSION) return 'That character file was saved by a newer Waypoint VTT. Update Waypoint VTT to read it.';
+    if (j.v !== VERSION) return 'That character file has no version mark Waypoint VTT reads, so it was not saved by Waypoint VTT\u2019s own Download.';
+    return '';
+}
 // A value the players' view cannot work out: its formula names a GM-only value ('GM only'), or reads one that does ('B: GM only')
 function gmOnlyError(err) { return typeof err === 'string' && /(^|: )GM only$/.test(err); }
 // The system a file was made against: the stored fields as the exporter's view holds them (id, key, kind) — a reader matches by id when it agrees
@@ -419,6 +431,6 @@ function sheetToMarkdown(sys, view, all, opts) {
     return docToMarkdown({ type: 'doc', meta: meta, blocks: B }).text;
 }
 
-var API = { FORMAT: FORMAT, VERSION: VERSION, fileBase: fileBase, isCharFile: isCharFile, gmOnlyError: gmOnlyError, systemSig: systemSig, charToJson: charToJson, charFromJson: charFromJson, sheetToMarkdown: sheetToMarkdown, statFmt: statFmt, statText: statText, fxChangeText: fxChangeText, itemCellText: itemCellText, valueText: valueText };
+var API = { FORMAT: FORMAT, VERSION: VERSION, fileBase: fileBase, isCharFile: isCharFile, charFileWhy: charFileWhy, gmOnlyError: gmOnlyError, systemSig: systemSig, charToJson: charToJson, charFromJson: charFromJson, sheetToMarkdown: sheetToMarkdown, statFmt: statFmt, statText: statText, fxChangeText: fxChangeText, itemCellText: itemCellText, valueText: valueText };
 if (typeof window !== 'undefined') window.wpSheetExport = API;
-export { FORMAT, VERSION, fileBase, isCharFile, gmOnlyError, systemSig, charToJson, charFromJson, sheetToMarkdown, statFmt, statText, fxChangeText, itemCellText, valueText };
+export { FORMAT, VERSION, fileBase, isCharFile, charFileWhy, gmOnlyError, systemSig, charToJson, charFromJson, sheetToMarkdown, statFmt, statText, fxChangeText, itemCellText, valueText };

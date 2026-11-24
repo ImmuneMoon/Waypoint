@@ -1,12 +1,12 @@
 Terms of Use & Privacy Policy
-Last Updated: September 4, 2026
+Last Updated: November 24, 2026
 
 ==================================================
 TERMS OF USE
 ==================================================
 
 1. Introduction
-Welcome to Waypoint VTT ("Service", "App"), owned and created by Fulllion Creative Works, LLC ("us", "we", or "our"). These Terms of Use ("Terms") govern your use of the Waypoint desktop application. Please read these Terms of Use carefully before using the App.
+Welcome to Waypoint VTT ("Service", "App"). Waypoint VTT is owned and published by Fulllion Creative Works, LLC ("we", "us", or "our"), under its Nucleus Studio™ brand. These Terms of Use ("Terms") govern your use of the Waypoint desktop application. Please read these Terms of Use carefully before using the App.
 
 2. Acceptance of Terms
 By downloading, installing, or using the App, you agree to be bound by these Terms. If you disagree with any part of the Terms, then you may not install or use the App.

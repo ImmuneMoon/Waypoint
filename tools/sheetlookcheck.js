@@ -368,9 +368,22 @@ const j = v => JSON.stringify(v);
             FACES.length === 23 && j(dirs) === j(FACES.map(f => f[1]).concat('inter').sort()) && j(loose) === j(['FONTS.txt']) && badFile.length === 0 && badDir.length === 0 && badLic.length === 0 && new Set(FACES.map(f => f[5])).size === 23, j([dirs.length, loose, badFile, badDir, badLic]));
         const cssF = norm(fs.readFileSync(path.join(app, 'style.css'), 'utf8')), rules = cssF.match(/@font-face \{[^}]*\}/g) || [];
         const want = FACES.map(f => '@font-face { font-family: "' + f[0] + '"; font-style: normal; font-weight: ' + f[3] + '; font-display: swap; src: url("assets/fonts/' + f[1] + '/' + f[2] + '") format("truetype"); }');
-        const ours = rules.filter(r => !/font-family: "Inter"/.test(r)), urls = (cssF.match(/url\("assets\/fonts\/[^"]+"\)/g) || []).map(u => u.slice(5, -2));
+        // 1.6.4: the seven "WP UI" faces (Segoe UI with its capitals centered) are the one rule that names a font of the computer, judged on their own below
+        const wpUi = rules.filter(r => /font-family: "WP UI"/.test(r)), cssNoUi = wpUi.reduce((t, r) => t.split(r).join(''), cssF);
+        const ours = rules.filter(r => !/font-family: "(Inter|WP UI)"/.test(r)), urls = (cssF.match(/url\("assets\/fonts\/[^"]+"\)/g) || []).map(u => u.slice(5, -2));
         check('fonts: the style sheet names each bundled file in exactly one @font-face rule, under the family the Font list offers, with the weights the file holds; no rule names a file that is not there, a web address or a font of the computer (local())',
-            rules.length === 25 && ours.length === 23 && want.every(w => ours.filter(r => r === w).length === 1) && urls.length === 25 && urls.every(u => fs.existsSync(path.join(app, u))) && !/@font-face[^}]*(https?:|\/\/|local\()/.test(cssF) && !/@import/.test(cssF), j([rules.length, ours.filter(r => want.indexOf(r) < 0)]));
+            rules.length === 32 && wpUi.length === 7 && ours.length === 23 && want.every(w => ours.filter(r => r === w).length === 1) && urls.length === 25 && urls.every(u => fs.existsSync(path.join(app, u))) && !/@font-face[^}]*(https?:|\/\/|local\()/.test(cssNoUi) && !/@import/.test(cssF), j([rules.length, ours.filter(r => want.indexOf(r) < 0)]));
+        {   // 1.6.4 (Fulllion: "we have to get better at centering things in buttons, things sitting in the lower half constantly is sloppy"): the WP UI faces
+            // are Segoe UI's own seven faces read from the computer, each its weight and style, with no file or address; their ascent and descent add to Segoe
+            // UI's own 1.330em (so no line changes height) and put the middle of a capital (0.703em tall) at the middle of the line; the body's stack and
+            // Easy-read's fallback begin with it
+            const uiN = [['Segoe UI', 400, 'normal'], ['Segoe UI Light', 300, 'normal'], ['Segoe UI Semibold', 600, 'normal'], ['Segoe UI Bold', 700, 'normal'], ['Segoe UI Italic', 400, 'italic'], ['Segoe UI Semibold Italic', 600, 'italic'], ['Segoe UI Bold Italic', 700, 'italic']];
+            const pct = (r, k) => { const m = new RegExp(k + ': ([0-9.]+)%').exec(r); return m ? Number(m[1]) / 100 : NaN; };
+            const facesOk = wpUi.length === 7 && uiN.every(([n, w, st]) => wpUi.filter(r => r.indexOf('src: local("' + n + '");') > 0 && r.indexOf('font-weight: ' + w + ';') > 0 && r.indexOf('font-style: ' + st + ';') > 0).length === 1) && wpUi.every(r => !/url\(/.test(r));
+            const centered = wpUi.every(r => { const a = pct(r, 'ascent-override'), d = pct(r, 'descent-override'); return Math.abs(a + d - 1.330) < 0.002 && Math.abs((a - 0.703 / 2) - (a + d) / 2) < 0.002 && pct(r, 'line-gap-override') === 0; });
+            check('1.6.4 capitals centered in their box on Windows: the seven WP UI faces are Segoe UI read from the computer, each once, with the same height as Segoe UI and the middle of a capital at the middle of the line; the body and Easy-read put it first',
+                facesOk && centered && /font:14px\/1\.5 "WP UI",-apple-system,/.test(cssF) && /body\.easy-font \{ font-family: "Atkinson Hyperlegible", "WP UI", /.test(cssF), j([wpUi.length, facesOk, centered]));
+        }
         const listed = TFF.FONTS.map(f => f[0]), GEN = ['serif', 'sans-serif', 'monospace', 'cursive'];
         check('fonts: the list the app offers (textfmt.js FONTS) is Inter and the 22, each once, each with a generic family to fall back on and a group; every name is one the cleaner keeps as it is and the style sheet has a rule for',
             listed.length === 24 && new Set(listed).size === 24 && listed[0] === 'Inter' && j(listed.slice(1).sort()) === j(FACES.map(f => f[0]).sort()) && TFF.FONTS.every(f => f.length === 3 && GEN.indexOf(f[1]) >= 0 && typeof f[2] === 'string' && f[2].length > 0 && TFF.cleanFont(f[0]) === f[0] && TFF.fontCss(f[0]) === '"' + f[0] + '", ' + f[1] && cssF.indexOf('font-family: "' + f[0] + '";') > 0), j(listed));

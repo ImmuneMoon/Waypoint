@@ -2,6 +2,20 @@
   /* Stage 6 look fold (L2): the bundled Inter typeface (SIL OFL 1.1; assets/fonts/inter/LICENSE), used only where a look picks it */
   @font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter/inter-latin-wght-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
   @font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap; src: url("assets/fonts/inter/inter-latin-wght-italic.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  /* 1.6.4 (Fulllion, 2026-11-24: "we have to get better at centering things in buttons, things sitting in the lower half constantly is sloppy"):
+     Waypoint's words on Windows are Segoe UI, whose own metrics keep about four times the room above its capitals as below its baseline
+     (ascent 1.079em, descent 0.251em, capitals 0.703em), so every capital and every word sat about 6% of the letter size low in its box. "WP UI"
+     is Segoe UI itself, read from the computer, with the same total height (1.330em, so no line and no button changes size) split so the
+     capitals sit in its middle: ascent 1.0166em and descent 0.3134em. It is the one font rule that names a font of the computer, on purpose:
+     it changes where Windows' own font sits in its line and nothing of which font anyone sees. Where Segoe UI is not installed (a Mac, Linux)
+     the faces load nothing and the stack goes on to the system's font as before. sheetlookcheck holds the faces and their numbers */
+  @font-face { font-family: "WP UI"; font-style: normal; font-weight: 400; src: local("Segoe UI"); ascent-override: 101.66%; descent-override: 31.34%; line-gap-override: 0%; }
+  @font-face { font-family: "WP UI"; font-style: normal; font-weight: 300; src: local("Segoe UI Light"); ascent-override: 101.66%; descent-override: 31.34%; line-gap-override: 0%; }
+  @font-face { font-family: "WP UI"; font-style: normal; font-weight: 600; src: local("Segoe UI Semibold"); ascent-override: 101.66%; descent-override: 31.34%; line-gap-override: 0%; }
+  @font-face { font-family: "WP UI"; font-style: normal; font-weight: 700; src: local("Segoe UI Bold"); ascent-override: 101.66%; descent-override: 31.34%; line-gap-override: 0%; }
+  @font-face { font-family: "WP UI"; font-style: italic; font-weight: 400; src: local("Segoe UI Italic"); ascent-override: 101.66%; descent-override: 31.34%; line-gap-override: 0%; }
+  @font-face { font-family: "WP UI"; font-style: italic; font-weight: 600; src: local("Segoe UI Semibold Italic"); ascent-override: 101.66%; descent-override: 31.34%; line-gap-override: 0%; }
+  @font-face { font-family: "WP UI"; font-style: italic; font-weight: 700; src: local("Segoe UI Bold Italic"); ascent-override: 101.66%; descent-override: 31.34%; line-gap-override: 0%; }
   /* Text style in more places (1.5.4): Waypoint's own typefaces, so that a text set in one looks the same on every computer. Each file is as its makers published it, with its license text beside it (SIL Open Font License 1.1; assets/fonts/FONTS.txt lists them); textfmt.js FONTS names the families. A file is fetched only when a text on screen uses its family. Each family has ONE face, declared as its plain weight (UnifrakturCook's is its makers' bold cut, the only one there is): Bold and italic are drawn from it, so they always show */
   @font-face { font-family: "Lora"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("assets/fonts/lora/Lora-wght.ttf") format("truetype"); }
   @font-face { font-family: "Crimson Text"; font-style: normal; font-weight: 400; font-display: swap; src: url("assets/fonts/crimsontext/CrimsonText-Regular.ttf") format("truetype"); }
@@ -68,7 +82,7 @@
   ::-webkit-scrollbar-thumb:hover { background: var(--scroll-hover); background-clip: padding-box; border: 2px solid transparent; }
   body{
     margin:0; background:var(--bg); color:var(--ink);
-    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font:14px/1.5 "WP UI",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     overflow:hidden;
   }
   .app{display:flex;flex-direction:column;height:100vh}
@@ -86,7 +100,7 @@
   .mention-name .mention-sub { color: var(--dim); font-size: 11px; }   /* 1.6.3 (finding 38): where a page of a shared title stands, on a line of its own under the name (the review of pages cards: a long title cut it off) */
   .mention-kind { flex: 0 0 auto; color: var(--dim); font-size: 11px; }
   .mention-none { padding: 6px 9px; color: var(--dim); font-size: 12px; }
-  body.easy-font { font-family: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }   /* 1.6.2 (backlog 166 c): Settings' Easy-read font, this computer's own; a text with a font of its own keeps it */
+  body.easy-font { font-family: "Atkinson Hyperlegible", "WP UI", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }   /* 1.6.2 (backlog 166 c): Settings' Easy-read font, this computer's own; a text with a font of its own keeps it */
 
   /* ---- header / toolbar ---- */
   header{
@@ -1464,7 +1478,8 @@
      take the pointer, so their tooltip names every mark. The token's picture, name, turn ring, bars and facing arrow are not marks */
   .wb-item > .tok-more { display: none; position: absolute; right: -5px; bottom: -5px; z-index: 6; pointer-events: auto; cursor: default; transform: scale(var(--wbz, 1)); transform-origin: 100% 100%; }
   body.tokmk-far:not(.tokmk-always):not(.stream-mode) #whiteboard .wb-item:not(:hover):not(.sel):not(.wb-msel) > :is(.target-marks, .token-status, .token-fx, .token-env, .token-stance) { display: none; }
-  body.tokmk-far:not(.tokmk-always):not(.stream-mode) #whiteboard .wb-item > .tok-more { display: block; width: 11px; height: 11px; box-sizing: border-box; border-radius: 50%; background: var(--gold); border: 2px solid #111; box-shadow: 0 0 0 1px rgba(255,255,255,0.35); font-size: 0; }
+  /* The gold dot of a token's marks put away at a distance stands in the middle of the token, on the character: at its box's corner it floated beside a round or hexagon token (Fulllion, 2026-11-24). Its own middle is moved onto the token's and it is still drawn at one size on screen. */
+  body.tokmk-far:not(.tokmk-always):not(.stream-mode) #whiteboard .wb-item > .tok-more { display: block; left: 50%; top: 50%; right: auto; bottom: auto; transform: translate(-50%, -50%) scale(var(--wbz, 1)); transform-origin: 50% 50%; width: 11px; height: 11px; box-sizing: border-box; border-radius: 50%; background: var(--gold); border: 2px solid #111; box-shadow: 0 0 0 1px rgba(255,255,255,0.35); font-size: 0; }
   :is(body.tokmk-always, body.stream-mode) #whiteboard .wb-item:not(:hover):not(.sel):not(.wb-msel) .mk-x { display: none; }
   :is(body.tokmk-always, body.stream-mode) #whiteboard .wb-item > .tok-more:not(:empty) { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 3px; box-sizing: border-box; border-radius: 8px; background: rgba(0,0,0,0.85); color: #e9e9f0; box-shadow: 0 0 0 1.5px var(--gold); font: 700 9px/1 Inter, sans-serif; }
   :is(body.tokmk-always, body.stream-mode) #whiteboard .wb-item > :is(.token-fx, .token-env, .token-stance, .tok-more) { transform: scale(var(--mkz, 1)); }

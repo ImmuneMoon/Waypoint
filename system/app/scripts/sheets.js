@@ -55,7 +55,7 @@ import { standFitSays } from './systemcore.js';   // 1.6.2 (body fold 5)   // 1.
 import { targetHitList, targetHitRows, readsTargetHit } from './systemcore.js';   // 1.6.0 (B5): a called shot by the target's own location
 import { tableKeyOk, TABLE_KEY, TABLE_ROW_KEY, nameFold, tableRangeSays } from './systemcore.js';   // 1.6.0: a system's tables, as Save reads them (tableSays)
 import { CSV, readCsv, csvTable } from './csvcore.js';   // 1.6.3: a table filled from a spreadsheet (the tablecsv slice)
-import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile } from './sheetexport.js';
+import { fileBase, charToJson, charFromJson, sheetToMarkdown, isCharFile, charFileWhy } from './sheetexport.js';
 import { FEEDS_MAX, feedOf, feedSpec, feedCt, feedCount, feedStack, feedLive } from './systemcore.js';   // 1.6.0 Feeds
 import { lvlsFromBox, lvlsToText, rowLibJudge, entryFromRow, packsForRow } from './librarycore.js';
 import { dieNode, DIE_LABELS } from './dieicons.js';   // 1.5.8, backlog 149: the dice drawings (pure)
@@ -8557,6 +8557,7 @@ function startFromFile() {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
             var isFile = isCharFile(j), isOut = !isFile && sheetFilesOk() && !!j && typeof j === 'object' && !Array.isArray(j);
             if (!isFile && !isOut) { toast('That is not a character file this table reads.'); return; }
+            var whyS = isFile && typeof charFileWhy === 'function' ? charFileWhy(j) : ''; if (whyS) { toast(whyS); return; }   // 1.6.4: what is wrong with the file itself, before a character is made for it
             var prof = n.getProfile ? n.getProfile() : {}, nm0 = typeof j.name === 'string' && j.name.trim() ? j.name.trim().slice(0, 60) : ((prof && typeof prof.name === 'string' && prof.name) || '');
             showPrompt('A name for your character', nm0, function(nm) {
                 if (nm === null || nm === undefined || !String(nm).trim()) return;
@@ -8581,7 +8582,7 @@ function startFromFile() {
 function ownFileUp(c, j) {
     var camp = getActiveCampaign(), sys = systemOf(camp), S = window.wpSystemCore, view = playerSystem(camp), pf = view ? playerFinder(camp, view) : null;
     var fill = pf ? charFromJson(view, j, pf.find, pf.findKey) : null, now = Date.now(), pr = fill && S && S.revProposal ? S.revProposal(sys, c, fill, F(), { view: view, lib: pf.lib, now: now }) : null;
-    if (!pr || !Array.isArray(pr.changes)) return { error: 'That character file could not be read here.' };
+    if (!pr || !Array.isArray(pr.changes)) return { error: (typeof charFileWhy === 'function' && charFileWhy(j)) || 'That character file could not be read here.' };   // 1.6.4: says why where the file itself is the reason
     var stale = typeof S.charStale === 'function' && S.charStale(sys, c);
     var qnF = fill.qnotes && typeof S.qnoteMerge === 'function' && S.qnoteMerge(c.qnotes, fill.qnotes).added ? fill.qnotes : null;   // 1.6.4: the file's quick notes this character does not have yet
     if (!pr.changes.length && !stale && qnF) { var qmN = S.qnoteMerge(c.qnotes, qnF); c.qnotes = qmN.list; qnSaved(c); return { said: qmN.added + (qmN.added === 1 ? ' note' : ' notes') + ' from the file added to ' + c.name + '\u2019s Notes page. Nothing else differs.' }; }   // nothing else to review: the notes alone are added
@@ -8624,6 +8625,7 @@ function importJson() {   // the owner sends their sheet file to the GM (the GM 
         file.text().then(function(txt) {
             var j = null; try { j = JSON.parse(txt); } catch (e) { toast('That file is not valid JSON.'); return; }
             var isFile = isCharFile(j);
+            var whyI = isFile && typeof charFileWhy === 'function' ? charFileWhy(j) : ''; if (whyI) { toast(whyI); return; }   // 1.6.4: what is wrong with the file itself, before it is sent
             if (!isFile && (!sheetFilesOk() || !j || typeof j !== 'object' || Array.isArray(j))) { toast(making ? 'That is not a character file this table reads.' : 'That is not a sheet file your GM\u2019s Waypoint reads.'); return; }
             var n = net(); if (!n || !n.charUpload) return;
             if (!isFile && typeof keepFile === 'function') { var campI = getActiveCampaign(); if (campI) keepFile(campI.id, id, j, txt, file.name); }   // a reader may remember the file read here

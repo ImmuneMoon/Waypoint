@@ -294,6 +294,11 @@ Shapes, pushes, ruins and smoke (draft for Fulllion)
   flyer goes over a wall. Sight is still blocked for everyone.
 - Smoke can give cover. Pick its Cover through it, and an attack whose
   line passes through the smoke has that cover.
+- A roll can read whether smoke is in the way of its target, with cover
+  on or off.
+- An item's square can be a cube, its cone can start at the edge of the
+  thrower's token, and a thrown cone can take its throw roll. A push
+  can pass over tokens, and a move can spend the token's move.
 
 WAYPOINT 1.6.3: What's New
 ============================

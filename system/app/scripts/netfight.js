@@ -112,14 +112,14 @@ function forcedStepPx(map) {   // one cell of the map's lattice in board pixels:
 function forcedWalks(map, tok, from, to) { var F = window.wpFog; if (!F || typeof F.arrivalOk !== 'function') return true; try { return F.arrivalOk(map, tok, from.x, from.y, to.x, to.y) !== false; } catch (e) { return true; } }
 function forcedSeat(map, tok, x, y) { var t = Object.assign({}, tok, { x: x, y: y }); if (window.wpSeatCell) window.wpSeatCell(t, map); return { x: t.x, y: t.y }; }
 // The cells along the line from the user's token: the spot each step lands on, and why the next could not be taken
-function forcedPath(map, by, tok, way, cells) {
+function forcedPath(map, by, tok, way, cells, rules) {   // rules: the change's own options (stop 'walls': tokens do not stop it)
     var w = tok.w || 60, h = tok.h || 52, bc = { x: by.x + (by.w || 60) / 2, y: by.y + (by.h || 52) / 2 }, tc = { x: tok.x + w / 2, y: tok.y + h / 2 };
     var dx = tc.x - bc.x, dy = tc.y - bc.y, d = Math.sqrt(dx * dx + dy * dy); if (!(d > 0)) return { at: null, moved: 0, stop: 'none' };
     var ux = (way === 'toward' ? -dx : dx) / d, uy = (way === 'toward' ? -dy : dy) / d, step = forcedStepPx(map), at = { x: tok.x, y: tok.y }, moved = 0, stop = '';
     for (var k = 1; k <= cells; k++) {
         var nx = forcedSeat(map, tok, tok.x + ux * step * k, tok.y + uy * step * k);
         if (Math.abs(nx.x - at.x) < 0.5 && Math.abs(nx.y - at.y) < 0.5) continue;   // seated back in the same cell: the line has not left it yet
-        if (spotTaken(map, tok, nx)) { stop = 'token'; break; }
+        if (!(rules && rules.stop === 'walls') && spotTaken(map, tok, nx)) { stop = 'token'; break; }
         if (!forcedWalks(map, tok, at, nx)) { stop = 'wall'; break; }
         at = nx; moved = k;
     }
@@ -135,16 +135,23 @@ function forcedSpot(camp, map, tok, aim, cells) {   // where the user lands, or 
     if (!forcedWalks(map, tok, { x: tok.x, y: tok.y }, to)) return { at: null, stop: 'wall' };
     return { at: to, moved: Math.round(len), stop: '' };
 }
+// ... a forced move counted against the moved token's move, where it is that token's turn in a fight (net.turnMove, as the pos gate counts a walk)
+function forcedSpend(camp, map, tok, cells) {
+    var cb = typeof turnCombatOf === 'function' ? turnCombatOf(camp, map.id, tok) : null, st = cb && net.turnMove && own(net.turnMove, cb.id) ? net.turnMove[cb.id] : null;
+    if (!st || st.tokId !== tok.id || !(cells > 0)) return false;
+    st.moved = (typeof st.moved === 'number' ? st.moved : 0) + cells; return true;
+}
 function forcedRun(camp, m) {
     var map = camp && camp.items && own(camp.items, m.map) ? camp.items[m.map] : null; if (!map || map.type !== 'map') return { moved: 0, stop: 'none' };
     var find = function(id) { return (map.whiteboard || []).filter(function(x) { return !!x && x.id === id && x.isChar; })[0] || null; };
     var by = find(m.by), tok = find(m.on), cells = Math.max(0, Math.min(FORCED_MAX, Math.floor(m.cells || 0)));
     if (!by || !tok || !(cells >= 1) || (m.way !== 'spot' && by === tok)) return { moved: 0, stop: 'none' };
-    var r = m.way === 'spot' ? forcedSpot(camp, map, tok, m.aim, cells) : forcedPath(map, by, tok, m.way, cells);
+    var r = m.way === 'spot' ? forcedSpot(camp, map, tok, m.aim, cells) : forcedPath(map, by, tok, m.way, cells, m);
     if (!r.at || (Math.abs(r.at.x - tok.x) < 0.5 && Math.abs(r.at.y - tok.y) < 0.5)) return { moved: 0, stop: r.stop || 'none' };
     var was = { x: tok.x, y: tok.y };
     snapBack(camp, map, tok, { campId: camp.id, itemId: map.id, wbId: tok.id }, r.at, null);   // moved for everyone, as a hold draws its target in
     holdsMoved(camp, map, map.id, tok, was);
+    if (m.spend === true) forcedSpend(camp, map, tok, r.moved);   // the change says it spends the token's own move
     return { moved: r.moved, stop: r.stop };
 }
 net.forcedMoves = function(list) {   // the move sink: on the host, or at a table of one; a player's app moves nothing (null)
@@ -1028,6 +1035,7 @@ function rangeTo(camp, map, mapId, tok, pid, tid) {   // tid (fold 3b): a token 
         var rc = S.rangeCtx(camp.system, map, tok, w, { F: window.wpFormula, elev: !!el, posture: !vt || !!(vt.rulesOn ? vt.rulesOn('posture') : vt.on('posture')), groundOf: gOf, charOf: cOf, bodies: bdN }); if (rc) { rc.tid = w.id; rc.mapId = mapId; }   // R3: which target
         var Fgc = window.wpFog; if (rc && Fgc && typeof Fgc.targetLight === 'function') rc.light = Fgc.targetLight(map, w);
         if (rc && Fgc && typeof Fgc.darkAt === 'function') { var dkN = Fgc.darkAt(map, camp, w); if (dkN) { rc.dk = dkN.i; rc.dkp = dkN.pen; } var adN = Fgc.darkAt(map, camp, tok); if (adN) { rc.adk = adN.i; rc.adkp = adN.pen; } }   // 1.6.2: the darkness step at the target   // 1.6.2 (the CORE session, 5a): TargetLight in any roll
+        if (rc && Fgc && typeof Fgc.smokeOnLine === 'function' && Fgc.smokeOnLine(map, tok, w)) rc.smk = 1;   // gap 33: TargetSmoke
         if (rc && Fgc && typeof Fgc.coverGrade === 'function') { var cvN = Fgc.coverGrade(map, camp, tok, w, true); if (cvN) { rc.cgrade = cvN; rc.cover = cvN === 3 ? 2 : 1; var cpN = typeof Fgc.coverPro === 'function' ? Fgc.coverPro(map, camp, tok, w) : 0; if (cpN) rc.cpro = cpN; } }   // 1.6.0: TargetCover and TargetCoverGrade, as the ruler reads it
         return rc;
     };

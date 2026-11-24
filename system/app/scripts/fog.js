@@ -1375,6 +1375,17 @@ function sideJudge(map, camp, ownerId, C) {
 // 1.6.0: whether a piece gives cover here only as a placed object (Properties says so)
 function coverObject(w) { var C = core(), map = activeMap(), camp = activeCamp(), grid = map ? gridForMap(map) : null; return !!(C && grid && w && C.objectOn && w.cover !== 'no' && !w.hidden && !w.isChar && !w.blocksSight && w.cover !== 'yes' && C.objectOn(w, C.coverMost(camp && camp.system, grid))); }
 // 1.6.0: what TargetCoverGrade reads from one token to another on a map, by the system's own grades and the ruler's own reading, heights and all: 0 none, 1 half (or a system's one grade of cover), 2 three-quarters, 3 total. TargetCover is the same reading in three steps (fogcore coverOfGrade). shown: a judgment for a player, which reads no ground piece the GM hid. 0 with cover off or no grid
+// Gap 33 (smoke as cover; Fulllion: both a grade and a reading): TargetSmoke, 1 where the target stands in smoke or the line to it passes through
+// smoke, else 0, read whether or not the system has cover on. from, to: the two tokens. Judged by the cells smoke fills (smokeFor, so a hidden
+// piece is none) and the ruler's own lines (fogcore coverBetween). The host's rangeTo and a sheet's rangeFor ask it alike
+function smokeOnLine(map, from, to) {
+    var C = core(); if (!C || !map || !from || !to) return 0;
+    var grid = gridForMap(map); if (!grid) return 0;
+    var sm = smokeFor(map, grid); if (!sm) return 0;
+    var at = function(t) { return C.cellOf(t.x + (t.w || 60) / 2, t.y + (t.h || 52) / 2, grid); }, a = at(from), b = at(to);
+    if (sm[C.cellKey(b, grid)] === 1) return 1;
+    return C.coverBetween(a, b, grid, null, sm, sm).coverage > 0 ? 1 : 0;
+}
 function coverGrade(map, camp, from, to, shown) {
     if (!map || !from || !to || !coverOn(camp && camp.system)) return 0;
     var at = function(t) { return { x: t.x + (t.w || 60) / 2, y: t.y + (t.h || 52) / 2 }; }, a = at(from), b = at(to);
@@ -3434,7 +3445,7 @@ function pieceSeen(map, w) { var j = seenJudge(map); return j ? j(w) : true; }  
 // [placescheck:pieceseen-end]
 window.wpFog = {
     // host enforcement (net.js)
-    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
+    fogDropIds: fogDropIds, fogLitFor: fogLitFor, canSeePoint: canSeePoint, noticeFacts: noticeFacts, targetLight: targetLight, coverGrade: coverGrade, smokeOnLine: smokeOnLine, coverPro: coverPro, bodiesOnLine: bodiesOnLine, coverObject: coverObject, coverAt: coverAt, blastSeat: blastSeat, flightWall: flightWall, moveBlocked: moveBlocked, arrivalOk: arrivalOk, arrivalIn: arrivalIn, moveCells: moveCells, moveCost: moveCost, invalidateVision: invalidateVision, invalidateSeen: invalidateSeen, seenKeyOf: seenKeyOf, lightMoves: lightMoves, sightSigFor: sightSigFor, tokenSightCells: tokenSightCells, coverBetween: coverBetween,
     PARTY: PARTY, fogPartyCells: fogPartyCells,   // R2 #14: the stream window's standpoint (the players' tokens together) and the cells it draws by, for its copy (net.js fogPartyCopy)
     // GM tools
     handNote: handNote,   // 1.5.4: what to say when a piece's fog mark cannot show yet (inspector.js, whiteboard.js)

@@ -88,7 +88,7 @@ export function wbBlast() {   // [split:glue]
   function blastSize(b, unit, iu) {
       if (ownCircle(b)) return circleWords(b.yd, b.as, unit, b.inn, b.deg);
       var k = kindOf(b), r = blastRadiusYd(b), say = function(v) { return blastNum(v, unit, iu); };
-      if (k === 'square') return 'Square ' + say(b.ft / 3) + ' ' + unitKnown(unit);   // gap 19: its side
+      if (k === 'square') return (typeof b.hFt === 'number' && b.hFt > 0 ? 'Cube ' : 'Square ') + say(b.ft / 3) + ' ' + unitKnown(unit);   // gap 19: its side; a cube where the system says squares are cubes
       if (k === 'cylinder') return 'Cylinder, radius ' + say(r) + ' ' + unitKnown(unit) + (typeof b.hFt === 'number' && b.hFt > 0 ? ', ' + say(b.hFt / 3) + ' ' + unitKnown(unit) + ' high' : '');   // gap 19
       return k === 'ring' && innerYd(b) > 0 ? circleWords(r, 'ring', unit, innerYd(b), 0, say) : k === 'cone' ? circleWords(r, 'cone', unit, 0, b.deg, say) : circleWords(r, 'r', unit, 0, 0, say);
   }
@@ -226,15 +226,16 @@ export function wbBlast() {   // [split:glue]
   // r is a row of blastDistances: r.h the yards across the ground, r.v the yards above the blast
   function squareHolds(b, r) {
       var c = tokenCentre(r.tok), dx = c.x - b.x, dy = c.y - b.y, px = Math.sqrt(dx * dx + dy * dy), half = (Number(b.ft) || 0) / 6;
-      if (!(px > 1e-9)) return true;
-      var k = r.h / px; return Math.abs(dx) * k <= half + 1e-9 && Math.abs(dy) * k <= half + 1e-9;
+      if (!(px > 1e-9)) return cylinderHolds(b, r);
+      var k = r.h / px; if (!(Math.abs(dx) * k <= half + 1e-9 && Math.abs(dy) * k <= half + 1e-9)) return false;
+      return cylinderHolds(b, r);   // a cube (a square with a height) holds what stands from its height up to its top
   }
   function cylinderHolds(b, r) { var hY = typeof b.hFt === 'number' && isFinite(b.hFt) && b.hFt > 0 ? b.hFt / 3 : Infinity; return r.v >= -1e-9 && r.v <= hY + 1e-9; }
   // ... and what of a blast's shape the table is shown with it: the shape and its numbers, each only as its shape has it
   function blastShapeWire(b, sent) {
       if (b.shape === 'ring' && typeof b.inFt === 'number') { sent.shape = 'ring'; sent.inFt = b.inFt; }
       else if (b.shape === 'cone') { sent.shape = 'cone'; sent.deg = b.deg; sent.dir = b.dir; }
-      else if (b.shape === 'square') sent.shape = 'square';
+      else if (b.shape === 'square') { sent.shape = 'square'; if (typeof b.hFt === 'number') sent.hFt = b.hFt; }   // a cube's height too
       else if (b.shape === 'cylinder') { sent.shape = 'cylinder'; if (typeof b.hFt === 'number') sent.hFt = b.hFt; }
       return sent;
   }
@@ -414,8 +415,8 @@ export function wbBlast() {   // [split:glue]
           var afB = opts.goOff ? opts.aff : pre.area && pre.area.aff, BCa = window.wpBlastCore, afC = Array.isArray(afB) && BCa && typeof BCa.cleanAffs === 'function' ? BCa.cleanAffs(afB) : null; if (afC) b.aff = afC; var clB = opts.goOff ? opts.cloud : pre.area && pre.area.cloud, clC = clB && BCa && typeof BCa.cleanCloud === 'function' ? BCa.cleanCloud(clB) : null; if (clC) b.cloud = clC;   // 1.6.2: the cloud it leaves   // 1.5.9 (es): its afflictions, rolled by those it reaches as it goes off (the host's memory alone, as its fragmentation)
           var fsB = opts.goOff ? opts : pre.tr && typeof blastStats === 'function' ? blastStats(getActiveCampaign().system, pre.tr.f, pre.def) : null; if (fsB) { if (typeof fsB.fills === 'number' && fsB.fills > 0) b.fills = fsB.fills; if (fsB.noDrop === true) b.noDrop = true; if (typeof fsB.iscale === 'number' && fsB.iscale > 0) b.iscale = fsB.iscale; }   // 1.6.0: what its list says of it (the host's memory alone, as its fragmentation)
       }
-      if (pre && pre.area && /^(ring|cone|square|cylinder)$/.test(String(pre.area.shape))) { b.shape = pre.area.shape; if (typeof pre.area.inFt === 'number' && pre.area.inFt < b.ft) b.inFt = pre.area.inFt; if (typeof pre.area.hFt === 'number') b.hFt = pre.area.hFt; }   // gap 19: the item's shape
-      if (pre && pre.cone) { b.shape = 'cone'; b.deg = typeof coneDeg === 'function' ? coneDeg(pre.area && pre.area.deg, 60) : 60; b.dir = Math.atan2(pre.cone.aim.y - pre.cone.from.y, pre.cone.aim.x - pre.cone.from.x); b.elev = pre.cone.elev; b.autoElev = false; }   // ... a cone from its user's token, turned to the aim
+      if (pre && pre.area && /^(ring|cone|square|cylinder)$/.test(String(pre.area.shape))) { b.shape = pre.area.shape; if (typeof pre.area.inFt === 'number' && pre.area.inFt < b.ft) b.inFt = pre.area.inFt; if (typeof pre.area.hFt === 'number') b.hFt = pre.area.hFt; if (pre.cube === true && b.shape === 'square') b.hFt = b.ft; }   // gap 19: the item's shape; a cube as high as it is wide
+      if (pre && pre.cone) { b.shape = 'cone'; b.deg = typeof coneDeg === 'function' ? coneDeg(pre.area && pre.area.deg, typeof pre.cone.deg === 'number' ? pre.cone.deg : 60) : 60; b.dir = Math.atan2(pre.cone.aim.y - pre.cone.from.y, pre.cone.aim.x - pre.cone.from.x); b.elev = pre.cone.elev; b.autoElev = false; }   // ... a cone from its user's token, turned to the aim
       if (onScreen && !(pre && pre.cone)) seatBlast(b);
       var thrB = opts.charId ? (map.whiteboard || []).filter(function(w) { return w.charId === opts.charId; }).sort(function(p, q) { return (q.isChar ? 1 : 0) - (p.isChar ? 1 : 0); })[0] : null;   // cover follow-ups (owner, answer 5): the thrower's token on this map
       var seatB = !(pre && pre.cone) && window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
@@ -561,6 +562,13 @@ export function wbBlast() {   // [split:glue]
   }
   // The throw's own half, before it lands: its row, its aim, how far it may go, its roll and where a miss scatters to. { stop } where it is not
   // thrown at all (said in words); { mine } for a placed one; else { land, direct, said, tr, area, def }. The host's alone
+  // Gap 19: where a cone starts, its user's middle, or where its item (ar) says so the edge of their token's box on the way to the aim
+  function coneStart(tok, mid, aim, ar) {
+      if (!(ar && ar.coneFrom === 'edge') || !tok) return mid;
+      var dx = aim.x - mid.x, dy = aim.y - mid.y, d = Math.sqrt(dx * dx + dy * dy); if (!(d > 0)) return mid;
+      var ux = dx / d, uy = dy / d, hw = (tok.w || 60) / 2, hh = (tok.h || 52) / 2, k = Math.min(Math.abs(ux) > 1e-9 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-9 ? hh / Math.abs(uy) : Infinity);
+      return { x: mid.x + ux * k, y: mid.y + uy * k };
+  }
   function throwPrep(opts, map) {
       var camp = getActiveCampaign(), sys = camp && camp.system, S = window.wpSystemCore, F = window.wpFormula, BC = window.wpBlastCore, rules = blastRules(sys), amP = getActiveMap(), onScreen = !!(amP && amP.id === map.id);
       var tr = opts.goOff ? null : throwRowOf(camp, opts), def = tr ? tr.def : null, area = def && def.area && typeof def.area === 'object' ? def.area : null;
@@ -570,7 +578,12 @@ export function wbBlast() {   // [split:glue]
       var thrB = throwerOf(map, opts.charId), thrC = thrB ? tokenCentre(thrB) : null;
       var aimT = opts.goOff ? null : tokenAtPoint(map, opts.x, opts.y, true), aim = aimT ? tokenCentre(aimT) : { x: opts.x, y: opts.y };   // the aim: the character token clicked, else the point
       var out = { land: { x: aim.x, y: aim.y }, direct: opts.goOff ? (opts.direct || null) : aimT ? aimT.id : null, said: opts.goOff && typeof opts.said === 'string' ? opts.said.slice(0, 400) : '', tr: tr, area: area, def: def };   // 1.5.9 (es): a launched round's miss says where it went
-      if (!opts.goOff && area && area.shape === 'cone') { if (!thrC) return { stop: (opts.name || 'It') + ' starts at its user, and their token is not on this map.' }; out.cone = { from: thrC, aim: aim, elev: tokenElevation(thrB, map, true) }; out.land = { x: thrC.x, y: thrC.y }; out.direct = null; return out; }   // gap 19: a cone is never thrown: it starts at its user, aimed where they clicked, with no throw roll
+      if (!opts.goOff && area && area.shape === 'cone') {   // gap 19: a cone starts at its user, turned to where they clicked; with no throw roll, unless its item says its throw roll decides whether it happens (never a scatter)
+          if (!thrC) return { stop: (opts.name || 'It') + ' starts at its user, and their token is not on this map.' };
+          var cnF = coneStart(thrB, thrC, aim, area); out.cone = { from: cnF, aim: aim, elev: tokenElevation(thrB, map, true), deg: 60 }; out.land = { x: cnF.x, y: cnF.y }; out.direct = null;
+          if (area.coneRoll !== true) return out;
+      }
+      if (!opts.goOff && area && area.shape === 'square' && area.cube === true) out.cube = true;   // gap 19: its item's square is a cube, as high as it is wide
       var fz = (!opts.goOff || opts.fuseOk === true) && rules && rules.fuse === 'turn' && window.wpNet && typeof window.wpNet.combatFor === 'function' ? window.wpNet.combatFor(map.id) : null; if (fz) out.fuse = true;   // a fuse: a fight on its map
       if (opts.goOff || !rules || !thrC || !tr || !S || !F) return out;
       var R = S.makeResolver(sys, tr.ch, F), rowR = R && typeof R.row === 'function' ? R.row(tr.f.id, opts.rowId) : null, dYd = yardsOn(map, thrC, aim);
@@ -584,6 +597,7 @@ export function wbBlast() {   // [split:glue]
       var tdr = window.wpDice.rollFor(opts.charId, expr, (opts.name || 'Blast') + ' throw', { gmOnly: !!opts.gmOnly, range: rc ? { mod: rc.mod, dist: rc.dist } : undefined });
       if (!tdr || !tdr.ok) return { stop: 'The throw could not be rolled' + (tdr && tdr.error ? ': ' + tdr.error : '.') };
       var oc = BC.throwOutcome(window.wpNet ? window.wpNet.rollCheck : null);   // the throw's pass, critical and margin, as net.diceRoll read them
+      if (out.cone) return oc.kind === 'miss' || oc.kind === 'fumble' ? { stop: (opts.name || 'It') + ' missed, so it does not happen.' } : out;   // gap 19: a thrown cone's roll decides whether it happens, and nothing scatters it
       if (oc.kind === 'fumble') {   // it drops at the thrower's feet; where the card's hand rule holds of its dice, it goes off in the hand, a direct hit on the thrower
           var inHand = rules.hand && oc.natural !== null ? blastFig(rules.hand, function(n) { return String(n).toLowerCase() === 'natural' ? oc.natural : undefined; }, false) : null;
           out.land = { x: thrC.x, y: thrC.y }; out.direct = inHand ? thrB.id : null; out.said = inHand ? ' A critical failure: it goes off in the thrower\u2019s hand.' : ' A critical failure: it drops at the thrower\u2019s feet.';
@@ -1595,8 +1609,8 @@ export function wbBlast() {   // [split:glue]
       // its radius, a cone's angle a whole number of degrees from 1 to 360 and its aim a finite number. Anything else is a plain circle
       if (bl.shape === 'ring' && typeof bl.inFt === 'number' && isFinite(bl.inFt) && bl.inFt > 0 && bl.inFt < ft) { nb.shape = 'ring'; nb.inFt = bl.inFt; }
       else if (bl.shape === 'cone' && typeof bl.deg === 'number' && typeof bl.dir === 'number' && isFinite(bl.dir) && Math.round(bl.deg) >= 1 && Math.round(bl.deg) <= 360) { nb.shape = 'cone'; nb.deg = Math.round(bl.deg); nb.dir = Math.atan2(Math.sin(bl.dir), Math.cos(bl.dir)); }
-      else if (bl.shape === 'square') nb.shape = 'square';   // gap 19: an item's square or cylinder, the cylinder's height a whole number of feet within a blast's bounds
-      else if (bl.shape === 'cylinder') { nb.shape = 'cylinder'; if (typeof bl.hFt === 'number' && isFinite(bl.hFt) && Math.round(bl.hFt) >= 1) nb.hFt = Math.min(3000, Math.round(bl.hFt)); }
+      else if (bl.shape === 'square' || bl.shape === 'cylinder') nb.shape = bl.shape;
+      if (nb.shape === 'square' || nb.shape === 'cylinder') { if (typeof bl.hFt === 'number' && isFinite(bl.hFt) && Math.round(bl.hFt) >= 1) nb.hFt = Math.min(3000, Math.round(bl.hFt)); }   // gap 19: an item's square or cylinder, the cylinder's height a whole number of feet within a blast's bounds
       pushBlast(nb);
       renderMeasures();
   };

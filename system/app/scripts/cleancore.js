@@ -225,13 +225,16 @@ function cleanFlies(v) {
 // [gapsmap:shape-start]
 // Gap 19 (area shapes): the numbers a shape of an item's blast needs beside its size in feet (out.ft: a circle's, a ring's and a cylinder's
 // radius, a cone's length, a square's side). A ring's inner radius in feet (inFt, a whole number under ft: without one a ring is the whole
-// disc), a cone's width in whole degrees (deg, 1 to 360: without one the cone's default), a cylinder's height in feet (hFt, a whole number
-// from 1 to the most a blast may be: without one it holds every height). A circle and a square need none. out.shape is already one the
-// cleaner keeps; each number is kept only beside its own shape
+// disc), a cone's width in whole degrees (deg, 1 to 360: without one 60), a cylinder's height in feet (hFt, a whole number from 1 to the most
+// a blast may be: without one it holds every height). Fulllion's builder options on the item, each only as true or its one word, the
+// recommended one absent: a square that is a cube (cube), a cone that starts at the edge of its user's token (coneFrom 'edge') and a cone
+// thrown with a skill whose throw roll decides whether it happens (coneRoll). out.shape is already one the cleaner keeps; each is kept only
+// beside its own shape
 function areaShapeInto(out, src) {
     var whole = function(v) { return typeof v === 'number' && fin(v) ? Math.round(v) : 0; };
     if (out.shape === 'ring') { var inF = whole(src.inFt); if (inF >= 1 && inF < out.ft) out.inFt = inF; }
-    else if (out.shape === 'cone') { var dg = whole(src.deg); if (dg >= 1 && dg <= 360) out.deg = dg; }
+    else if (out.shape === 'cone') { var dg = whole(src.deg); if (dg >= 1 && dg <= 360) out.deg = dg; if (src.coneFrom === 'edge') out.coneFrom = 'edge'; if (src.coneRoll === true) out.coneRoll = true; }
+    else if (out.shape === 'square') { if (src.cube === true) out.cube = true; }
     else if (out.shape === 'cylinder') { var hF = whole(src.hFt); if (hF >= 1) out.hFt = Math.min(hF, LIMITS.maxBlastFt); }
     return out;
 }

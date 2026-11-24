@@ -57,7 +57,7 @@ function combatBody() {
     if (typeof defendBox === 'function') defendBox(box, cm.blast && typeof cm.blast === 'object' && !Array.isArray(cm.blast) ? cm.blast : {}, cm);   // 1.6.0: a blast's own Defense roll
     tp('bars');
     if (typeof barsBox === 'function') barsBox(box, cm);   // backlog 28: the token bars
-    tp('holds'); if (typeof holdsBox === 'function') holdsBox(box, cm); tp('range');   // 1.6.0 Who holds whom
+    tp('holds'); if (typeof holdsBox === 'function') holdsBox(box, cm); tp('range');   // gap 21: how a forced move is judged   // 1.6.0 Who holds whom
     rangeBox(box, cm); tp('height');   // range penalties R1: the system's range rule
     heightBox(box, cm); tp('light');   // item 19 H2: the system's height modifier
     lightBox(box, cm); if (typeof darkBox === 'function') darkBox(box); tp('senses');   // lighting L4: the system's light rules; 1.6.2: and darkness steps

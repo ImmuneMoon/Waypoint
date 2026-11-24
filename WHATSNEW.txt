@@ -281,6 +281,20 @@ Save says what it drops (draft for Fulllion)
   amount counts as 0 and changes nothing, so the warning names the
   fix.
 
+Shapes, pushes, ruins and smoke (draft for Fulllion)
+- An item's blast can be a ring, a cone, a square or a cylinder now,
+  beside the circle. Pick its Blast shape in the item's entry. A cone
+  starts at the thrower's token and opens toward where they click.
+- A roll or an action can push its target away or pull it in by a
+  number of cells, and a roll can move its user to a spot they click.
+  Walls, barriers and other tokens stop the move, and the card says
+  how far it went.
+- A wall or a barrier can stop only some tokens. Set its Stops to only
+  tokens whose field is off, so infantry walk through a ruin or a
+  flyer goes over a wall. Sight is still blocked for everyone.
+- Smoke can give cover. Pick its Cover through it, and an attack whose
+  line passes through the smoke has that cover.
+
 WAYPOINT 1.6.3: What's New
 ============================
 

@@ -1778,6 +1778,7 @@
      disc itself lets tokens under it be clicked and dragged as usual */
   #measureLayer g.blast { pointer-events: none; cursor: move; }
   #measureLayer g.blast circle.area { fill: rgba(217,83,79,0.14); stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }
+  #measureLayer g.blast path.area { fill: rgba(217,83,79,0.14); stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }   /* a thrown blast drawn as a path: a ring, a cone or a square (gap 19), which had no fill of its own and drew black */
   #measureLayer g.blast circle.ring { fill: none; stroke: transparent; stroke-width: 14; stroke-dasharray: none; pointer-events: stroke; }
   #measureLayer g.blast circle.dot { fill: var(--red); pointer-events: auto; }
   #measureLayer g.blast text { fill: var(--red); pointer-events: auto; }
@@ -1787,6 +1788,7 @@
   #measureLayer text.blast-ico-t { font-size: 20px; pointer-events: none; }
   #measureLayer g.blast text.hit { fill: var(--ink); font-size: 12px; pointer-events: none; }
   #measureLayer g.blast:hover circle.area { stroke: var(--gold); fill: rgba(224,165,79,0.14); }
+  #measureLayer g.blast:hover path.area { stroke: var(--gold); fill: rgba(224,165,79,0.14); }
   #measureLayer g.blast:hover circle.dot, #measureLayer g.blast:hover text { fill: var(--gold); }
   /* a circle of the Radius tool's own measures: it wears the ruler's gold, and a thrown blast keeps its red */
   #measureLayer g.blast.own .area { fill: rgba(224,165,79,0.1); stroke: var(--gold); stroke-width: 2; stroke-dasharray: 6 4; }   /* a circle, or the path of a ring or a cone */

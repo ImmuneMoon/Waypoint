@@ -1236,7 +1236,9 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
               barrierFieldHtml(w)+   // see-through barriers (1.5.1): Stops movement only, with a barrier's own door rows
               (w.barrier === true && !w.blocksSight ? secretFieldHtml(w) : '')+   // the map builder: a barrier's door may be secret
               fogHandFieldHtml(w)+   // 1.5.4: a piece's fog mark (Under fog, Always revealed)
+              passFieldHtml(w)+   // gap 31: a wall or a barrier that stops only tokens whose field is off
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? '<div class="field check-row"><input type="checkbox" id="wbSmoke" '+(w.smoke===true?'checked':'')+'> <label for="wbSmoke">Smoke (hides what is in it and past it)</label></div><div class="muted" style="margin:-2px 0 6px; font-size:10.5px;">The eyes do not see into or through it, nor a sense the walls stop unless it sees through smoke. Tokens walk through it, it gives no cover and light passes.</div>' : '')+   // senses S7b
+              smokeCoverHtml(w)+   // gap 33: the cover a smoke piece gives an attack through it
               (['rect','hexagon','circle','diamond'].indexOf(w.type) >= 0 && !w.hidden && !w.isChar && !w.waiting ? terrainFieldHtml(w) : '')+   // difficult terrain T1
               (textureFieldOk(w) ? textureFieldHtml(w) : '')+   // the map builder: a piece's texture, a name of the app's own list
               (['rect','hexagon','circle','diamond','image','path'].indexOf(w.type) >= 0 && !w.hidden && w.blocksSight ? '<div class="field"><label for="wbSightType">Type</label><select id="wbSightType"><option value="wall"'+(w.sightType!=='door'?' selected':'')+'>Wall / pillar (always blocks)</option><option value="door"'+(w.sightType==='door'?' selected':'')+'>Door (can open)</option></select></div>' : '')+
@@ -1513,7 +1515,7 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             var _el_wbTexTile = document.getElementById('wbTexTile');   // fold B3: how large one repeat of a picture is
             if (_el_wbTexTile) _el_wbTexTile.addEventListener('change', function() { setItemTexTile(w, this.value); });
             var _el_wbSmoke = document.getElementById('wbSmoke');   // senses S7b: smoke, true or no key
-            if (_el_wbSmoke) _el_wbSmoke.addEventListener('change', function() { if (this.checked === true) w.smoke = true; else delete w.smoke; save(); render(); renderInspector(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } });
+            if (_el_wbSmoke) _el_wbSmoke.addEventListener('change', function() { if (this.checked === true) w.smoke = true; else { delete w.smoke; delete w.smokeCover; } save(); render(); renderInspector(); if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); } });
             var _el_wbBlocksSight = document.getElementById('wbBlocksSight');
             if(_el_wbBlocksSight) _el_wbBlocksSight.addEventListener('change', function() {
                 if (this.checked) { w.blocksSight = true; if (!w.sightType) w.sightType = 'wall'; } else { delete w.blocksSight; delete w.sightType; delete w.doorOpen; delete w.doorLock; }
@@ -1524,6 +1526,10 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             });
             var _el_wbBarrier = document.getElementById('wbBarrier');   // see-through barriers: true or no key
             if (_el_wbBarrier) _el_wbBarrier.addEventListener('change', function() { setItemBarrier(w, this.checked); });
+            var _el_wbPassIf = document.getElementById('wbPassIf');   // gap 31: a field's id or no key
+            if (_el_wbPassIf) _el_wbPassIf.addEventListener('change', function() { setItemPassIf(w, this.value); });
+            var _el_wbSmokeCover = document.getElementById('wbSmokeCover');   // gap 33: a grade or no key
+            if (_el_wbSmokeCover) _el_wbSmokeCover.addEventListener('change', function() { setItemSmokeCover(w, this.value); });
             var _el_wbBlastStop = document.getElementById('wbBlastStop');   // a barrier's Stops blasts tick: true or no key
             if (_el_wbBlastStop) _el_wbBlastStop.addEventListener('change', function() { setItemBlastStop(w, this.checked); });
             var _el_wbFogHand = document.getElementById('wbFogHand');   // a piece's fog mark: 'hide', 'show' or no key
@@ -2370,9 +2376,47 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
       save(); render(); renderInspector();
       if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }
+  // [gapsmap:passbox-start]
+  // Gap 31 (who a barrier stops): on a wall or a barrier, Stops: every token, or only tokens whose field is off (item.passIf, a field's id or no
+  // key). The host judges every move by it (fog.js, systemcore passesBarrier); sight, light, cover and blasts never read it. The fields a token
+  // can have on or off are offered: a toggle, a number and a worked-out value. Nothing is offered where the system has none, and a field
+  // since deleted says so. Its markup holds the system's field names escaped
+  var PASS_KINDS = { toggle: 1, number: 1, formula: 1 };
+  function passFieldHtml(w) {
+      if (!barrierFieldOk(w) || !(w.blocksSight || w.barrier === true)) return '';
+      var camp = getActiveCampaign(), sys = camp && camp.system, cur = typeof w.passIf === 'string' ? w.passIf : '';
+      var fs = sys && Array.isArray(sys.fields) ? sys.fields.filter(function(f) { return !!f && typeof f.id === 'string' && PASS_KINDS[f.kind] === 1; }) : [];
+      if (!fs.length && !cur) return '';
+      var opts = '<option value="">Every token</option>' + fs.map(function(f) { return '<option value="' + esc(f.id) + '"' + (f.id === cur ? ' selected' : '') + '>Only tokens whose ' + esc(f.label || f.key || 'field') + ' is off</option>'; }).join('');
+      if (cur && !fs.some(function(f) { return f.id === cur; })) opts += '<option value="' + esc(cur) + '" selected>A field that is gone (it stops every token)</option>';
+      return '<div class="field"><label for="wbPassIf">Stops</label><select id="wbPassIf" title="Which tokens it stops when a player moves one. Only tokens whose field is off: a token whose character has it on walks through, as infantry through a ruin or a flyer over a wall. Sight is still blocked for everyone.">' + opts + '</select></div>';
+  }
+  function setItemPassIf(w, v) {
+      var FC = window.wpFogCore, f = FC && typeof FC.cleanPassIf === 'function' ? FC.cleanPassIf(v) : '';
+      if (f && (w.blocksSight || w.barrier === true)) w.passIf = f; else delete w.passIf;
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+  }
+  // [gapsmap:passbox-end]
+  // [gapsmap:smokebox-start]
+  // Gap 33 (smoke as cover): on a smoke piece, the grade of cover an attack has through it (item.smokeCover, a grade or no key), read as a placed
+  // object's grade where the system has cover on. Fixed words only
+  function smokeCoverHtml(w) {
+      if (!w || w.smoke !== true || w.hidden || w.isChar || w.waiting || ['rect', 'hexagon', 'circle', 'diamond'].indexOf(w.type) < 0) return '';
+      var FC = window.wpFogCore, g = FC && typeof FC.cleanCoverAs === 'function' ? FC.cleanCoverAs(w.smokeCover) : '';
+      return '<div class="field"><label for="wbSmokeCover">Cover through it</label><select id="wbSmokeCover" title="The cover an attack has when its line passes through this smoke, where your system has cover switched on. The better of it and anything else on the line counts. A blast passes through smoke.">'
+          + [['', 'None'], ['half', 'Half'], ['threeq', 'Three-quarters'], ['total', 'Total']].map(function(o) { return '<option value="' + o[0] + '"' + (o[0] === g ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+  }
+  function setItemSmokeCover(w, v) {
+      var FC = window.wpFogCore, g = FC && typeof FC.cleanCoverAs === 'function' ? FC.cleanCoverAs(v) : '';
+      if (g && w.smoke === true) w.smokeCover = g; else delete w.smokeCover;
+      save(); render(); renderInspector();
+      if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
+  }
+  // [gapsmap:smokebox-end]
   function setItemBarrier(w, on) {
       if (on === true && barrierFieldOk(w)) { w.barrier = true; delete w.blocksSight; if (w.sightType !== 'door') w.sightType = 'wall'; }   // exclusive with Blocks sight; a door stays a door
-      else { delete w.barrier; delete w.blastStop; if (!w.blocksSight) { delete w.sightType; delete w.doorOpen; delete w.doorLock; delete w.secret; } }   // no door any more, so no secret door
+      else { delete w.barrier; delete w.blastStop; if (!w.blocksSight) delete w.passIf; if (!w.blocksSight) { delete w.sightType; delete w.doorOpen; delete w.doorLock; delete w.secret; } }   // no door any more, so no secret door
       save(); render(); renderInspector();
       if (window.wpFog) { window.wpFog.invalidateVision(); window.wpFog.redraw(); }
   }

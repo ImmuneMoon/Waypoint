@@ -685,6 +685,7 @@ function onInput(e) {
             var mrw = t.closest('.sys-list-applyrow'), mRl = mrw && Array.isArray(lsp.rolls) ? lsp.rolls[+mrw.dataset.ri] : null, mC = mRl && Array.isArray(mRl.then) ? mRl.then[+mrw.dataset.ai] : null;
             if (!mC || typeof mC !== 'object') return; mC.money = t.value.slice(0, LIMITS.formula);
         }
+        else if (lcc.indexOf('sys-list-applymoven') >= 0) { var mvRw = t.closest('.sys-list-applyrow'), mvRl = mvRw && Array.isArray(lsp.rolls) ? lsp.rolls[+mvRw.dataset.ri] : null, mvK = mvRw && mvRw.dataset.k === 'then' ? 'then' : 'apply', mvC = mvRl && Array.isArray(mvRl[mvK]) ? mvRl[mvK][+mvRw.dataset.ai] : null; if (!mvC || typeof mvC !== 'object') return; mvC.n = t.value.slice(0, LIMITS.formula); }   // gap 21: How many cells, on a list's action or a list roll's Then
         else if (lcc.indexOf('sys-list-applyfxn') >= 0) { var fxqRw = t.closest('.sys-list-applyrow'), fxqRl = fxqRw && Array.isArray(lsp.rolls) ? lsp.rolls[+fxqRw.dataset.ri] : null, fxqK = fxqRw && fxqRw.dataset.k === 'then' ? 'then' : 'apply', fxqC = fxqRl && Array.isArray(fxqRl[fxqK]) ? fxqRl[fxqK][+fxqRw.dataset.ai] : null; if (!fxqC || typeof fxqC !== 'object') return; var fxqV = t.value.slice(0, LIMITS.formula); if (fxqV.trim()) fxqC.n = fxqV; else delete fxqC.n; }   // 1.6.3 (gap 3 of docs/EDITOR_COVERAGE.md): the number an effect switched on goes on with, on a list's action or a list roll's Then, as the Rolls tab's sys-apply-fxn writes it (Save cleans it)
         else if (lcc.indexOf('sys-list-applyfiren') >= 0) {   // 1.6.0: a fire's How many (Save cleans it)
             var frw = t.closest('.sys-list-applyrow'), fRl = frw && Array.isArray(lsp.rolls) ? lsp.rolls[+frw.dataset.ri] : null, fC = fRl && Array.isArray(fRl.then) ? fRl.then[+frw.dataset.ai] : null;
@@ -787,6 +788,7 @@ function onInput(e) {
     } else if (r) {
         if (c.indexOf('sys-apply-if') >= 0) { var chW = applyChangeOf(t, r); if (!chW) return; if (t.value.trim()) chW.if = t.value.slice(0, LIMITS.formula); else delete chW.if; }
         if (c.indexOf('sys-apply-rows') >= 0) { var chR = applyChangeOf(t, r); if (!chR) return; if (t.value.trim()) chR.rows = t.value.slice(0, LIMITS.formula); else delete chR.rows; }   // 1.6.2 (3)
+        else if (c.indexOf('sys-apply-moven') >= 0) { var chMv = applyChangeOf(t, r); if (!chMv) return; chMv.n = t.value.slice(0, LIMITS.formula); }   // gap 21: How many cells
         else if (c.indexOf('sys-apply-fxn') >= 0) { var chN = applyChangeOf(t, r); if (!chN) return; var fxnV = t.value.slice(0, LIMITS.formula); if (fxnV.trim()) chN.n = fxnV; else delete chN.n; }   // 1.6.2: With number
         else if (c.indexOf('sys-apply-formula') >= 0) { var chI = applyChangeOf(t, r); if (!chI) return; chI.formula = t.value.slice(0, LIMITS.formula); }   // Stage 6 HUD H7: a change's amount
         else if (c.indexOf('sys-label') >= 0) r.label = t.value.slice(0, LIMITS.label);

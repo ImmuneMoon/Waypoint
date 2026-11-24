@@ -578,6 +578,12 @@ function validateSystem(sys, F) {
         }
     });
     // 1.6.0: what the editor says of a change that switches an effect, and of one that sets its row's quantity or one of its stats
+    // Gap 21 (forced movement): a change that moves a token needs How many cells (a box others depend on is required), and moving the user to
+    // a spot needs the point a roll was aimed at, so it belongs on a roll's Then alone
+    var moveSays = function(id, prop, c, inThen) {
+        if (typeof c.n !== 'string' || !c.n.trim()) errors.push({ id: id, prop: prop, message: 'How many cells it moves is empty, so it moves nothing. Fill it in.' });
+        if (c.move === 'spot' && !inThen) errors.push({ id: id, prop: prop, message: 'Moving the user to a spot needs a roll, which asks where to go first. Put it in a roll\u2019s Then.' });
+    };
     var fxSays = function(id, prop, c, vis, lf, key) {   // lf and key: a list's own change, whose With number knows Row.* as its amounts do (the review of 1.6.3's editor fold)
         var d = null; (Array.isArray(sys.effects) ? sys.effects : []).forEach(function(x) { if (!d && isObj(x) && x.id === c.fx) d = x; });
         if (!d) { errors.push({ id: id, prop: prop, message: 'Pick the effect this switches: that one is gone.' }); return; }
@@ -659,6 +665,7 @@ function validateSystem(sys, F) {
                     if (typeof c.fx === 'string') { fxSays(r.id, tp, c, r.vis); return; }   // 1.6.0: an effect switched
                     if (moreSays(r.id, r.id, tp, c, r.vis)) { if (c.when && !tests && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: r.id, prop: tp, message: 'This roll tests nothing (no comparison, like 3d6 <= Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); return; }
                     if (typeof c.rand === 'string') { randSays(r.id, tp, c, r.vis, true); return; }   // 1.6.2 (fold (f))
+                    if (typeof c.move === 'string') { moveSays(r.id, tp, c, true); return; }   // gap 21: How many cells is required; a spot only on a roll
                     if (c.setOff === true) return;   // 1.6.2 (10): no pool, no amount
                     if (typeof c.list === 'string' && typeof c.sw === 'boolean') { allSays(r.id, tp, c, r.vis, true); if (typeof c.rows === 'string' && c.rows) checkFormula({ id: r.id, key: r.id }, tp + '.rows', c.rows, false, r.vis, allList(c)); return; }   // 1.6.2 (167 A): every row's switch
                     if (typeof c.list === 'string') { allSays(r.id, tp, c, r.vis, true); if (typeof c.rows === 'string' && c.rows) checkFormula({ id: r.id, key: r.id }, tp + '.rows', c.rows, false, r.vis, allList(c)); if (c.when && !tests && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: r.id, prop: tp, message: 'This roll tests nothing (no comparison, like 3d6 <= Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: r.id, key: r.id }, tp, c.formula, c.roll === true, r.vis, allList(c)); rolledWarn(r.id, tp, c); return; }   // 1.6.0: every row of a list
@@ -676,6 +683,7 @@ function validateSystem(sys, F) {
             if (typeof c.fx === 'string') { fxSays(r.id, pr, c, r.vis); return; }   // 1.6.0: an effect switched
             if (moreSays(r.id, r.id, pr, c, r.vis)) return;
             if (typeof c.rand === 'string') { randSays(r.id, pr, c, r.vis, false); return; }   // 1.6.2 (fold (f))
+            if (typeof c.move === 'string') { moveSays(r.id, pr, c, false); return; }   // gap 21: How many cells is required; a spot only on a roll
             if (c.setOff === true) return;   // 1.6.2 (10): no pool, no amount
             if (typeof c.list === 'string' && typeof c.sw === 'boolean') { allSays(r.id, pr, c, r.vis, false); if (typeof c.rows === 'string' && c.rows) checkFormula({ id: r.id, key: r.id }, pr + '.rows', c.rows, false, r.vis, allList(c)); return; }   // 1.6.2 (167 A): every row's switch
             if (typeof c.list === 'string') { allSays(r.id, pr, c, r.vis, false); if (typeof c.rows === 'string' && c.rows) checkFormula({ id: r.id, key: r.id }, pr + '.rows', c.rows, false, r.vis, allList(c)); checkFormula({ id: r.id, key: r.id }, pr, c.formula, c.roll === true, r.vis, allList(c)); rolledWarn(r.id, pr, c); return; }   // 1.6.0: every row of a list
@@ -785,6 +793,7 @@ function validateSystem(sys, F) {
                         if (typeof c.money === 'string') { if (!moneyBoxes(sys).length) errors.push({ id: f.id, prop: tp2, message: 'Money needs a list with a Money box on the Lists tab, and this system has none.' }); if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.money, false, f.vis, f); return; }   // 1.6.0: the sheet's money, by a figure with no dice, Row.* known
                         if (c.q === true || typeof c.s === 'string') { rowSays(f, tp2, c); if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); checkFormula({ id: f.id, key: 'l#' + lower(f.key) + '#then' }, tp2, c.formula, c.roll === true, f.vis, f); rolledWarn(f.id, tp2, c); return; }
                         if (c.discard === true) { if (!isObj(f.list.hand)) errors.push({ id: f.id, prop: tp2, message: 'Discard needs a hand, and this list is not marked as one.' }); return; }   // 1.6.2 (G9)
+                        if (typeof c.move === 'string') { moveSays(f.id, tp2, c, true); return; }   // gap 21: How many cells is required; a spot only on a roll
                         if (c.setOff === true) return;   // 1.6.2 (10)
                         if (c.launch === true) { if (c.when === 'malf') warnings.push({ id: f.id, prop: tp2, message: 'Launch never happens on a malfunction: a shot that jams launches nothing.' }); else if (c.when && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); return; }   // 1.6.2 (the core's gap 215): a launch has no pool and no amount
                         if (c.off === true) { if (!isObj(f.list.on)) errors.push({ id: f.id, prop: tp2, message: 'Switch this row off needs a switch, but this list has none.' }); else if (c.when && c.when !== 'malf' && !tests2 && !((c.when === 'crit' || c.when === 'fumble') && !crits)) warnings.push({ id: f.id, prop: tp2, message: 'This roll tests nothing (no comparison, like 3d6 <= Row.Skill), so ' + (THEN_WHEN[c.when] || 'On failure') + ' never happens.' }); return; }   // 1.6.0: switch its own row off, no amount (applyAct runs it)
@@ -807,6 +816,7 @@ function validateSystem(sys, F) {
                 if (typeof c.fx === 'string') { fxSays(f.id, cp, c, f.vis, f, 'l#' + lower(f.key) + '#apply'); return; }   // 1.6.0: an effect switched, the row's quantity or one of its stats
                 if (moreSays(f.id, 'l#' + lower(f.key) + '#apply', cp, c, f.vis, f)) return;
                 if (c.discard === true) { if (!isObj(f.list.hand)) errors.push({ id: f.id, prop: cp, message: 'Discard needs a hand, and this list is not marked as one.' }); return; }   // 1.6.2 (G9)
+                if (typeof c.move === 'string') { moveSays(f.id, cp, c, false); return; }   // gap 21: How many cells is required; a spot only on a roll
                 if (c.setOff === true) return;   // 1.6.2 (10): no pool, no amount
                 if (c.launch === true) return;   // 1.6.2 (the core's gap 215): a launch has no pool and no amount (applyAct runs it)
                 if (c.off === true) { if (!isObj(f.list.on)) errors.push({ id: f.id, prop: cp, message: 'Switch this row off needs a switch, but this list has none.' }); return; }   // 1.6.0: switch its own row off, no amount (applyAct runs it)

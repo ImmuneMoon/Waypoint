@@ -154,6 +154,13 @@ net.forcedMoves = function(list) {   // the move sink: on the host, or at a tabl
     if (window.wpStepLog) window.wpStepLog('forced v1', 'moved', { moves: list.length, went: out.filter(function(r) { return r.moved > 0; }).length });
     return out;
 };
+// The token context a roll's Then is applied with where that Then moves a token: the roller's own (tc), with the point the roll was aimed at
+// for a spot. A Then that moves nothing is applied with base, what it was applied with before (the GM's own roll: nothing), so it is unchanged
+net.forcedCtx = function(base, tc, th, aim) {
+    if (!tc || !Array.isArray(th) || !th.some(function(c) { return !!c && typeof c.move === 'string'; })) return base;
+    var o = Object.assign({}, tc); if (aim && typeof aim.x === 'number' && isFinite(aim.x) && typeof aim.y === 'number' && isFinite(aim.y)) o.aim = { x: aim.x, y: aim.y };
+    return o;
+};
 // [gapsmap:forced-end]
 function holdPut(camp, mapId, by, onId, pin) {   // a hold of the token by on the token onId, or pinned; words where there can be none
     var fid = by ? fightOfTok(mapId, by.id) : null, c = fid ? net.combats[fid] : null, map = holdMap(camp, c), on = holdTok(map, onId);

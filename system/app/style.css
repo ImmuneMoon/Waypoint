@@ -5371,6 +5371,8 @@
   .sys-ask-top, .sys-ask-opt { flex-wrap: nowrap; } .sys-ask-top > select { flex: 0 1 auto; min-width: 0; }   /* and a question or an answer keeps its x on its own line */
   .roll-pend { color: var(--gold); font-size: 12px; margin-top: 4px; }
   .roll-pend-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .sys-grouprule { margin-top: 10px; }   /* 1.6.4 (gap #23): How a group roll is judged, its picks a little apart */
+  .sys-grouprule .ui-pick, .sys-grouprule .ui-slide { margin-top: 8px; }
   .roll-die-pick { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }   /* 1.6.4 (gap #2): the dice Roll one die again may pick */
   .sheet-item-statsel { font-size: 11px; padding: 1px 4px; min-height: 0; height: auto; max-width: 160px; width: auto; }   /* 1.6.0, backlog 180 R10: a choice stat as a menu on its row */
   .sheet-item-sheet { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }   /* 1.6.2 (vehicles, fold (a)): the sheet a row is joined to */

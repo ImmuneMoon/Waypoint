@@ -205,6 +205,7 @@ function dieListToggle(bar, btn, res, go) {
     spots.forEach(function(sp) { var r = el('button', 'tool ghost', 'd' + sp.faces + ' showing ' + sp.v); r.type = 'button'; r.addEventListener('click', function() { list.parentNode && list.parentNode.removeChild(list); go(sp.at); }); list.appendChild(r); });
     if (!spots.length) list.appendChild(el('div', 'roll-pend', 'No die here can be rolled again.'));
     if (bar.parentNode) bar.parentNode.insertBefore(list, bar.nextSibling);
+    if (typeof list.scrollIntoView === 'function') list.scrollIntoView({ block: 'nearest' });   // the live check: at the foot of Table Chat the list opened out of sight
     if (btn && btn.blur) btn.blur();
 }
 function renderCard(m) {

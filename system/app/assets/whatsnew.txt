@@ -281,6 +281,23 @@ Save says what it drops (draft for Fulllion)
   amount counts as 0 and changes nothing, so the warning names the
   fix.
 
+More ways to roll again, and group rolls by a share (draft for Fulllion)
+- A roll's card can offer Roll again, keep the better, or keep the
+  worse. Each press rolls again, and the card keeps the better (or
+  worse) try. It says how many tries there were and what the others
+  came to.
+- A card can also offer Roll one die again. The roller picks the die
+  from a short list on the card, and only that die rolls again.
+- A roll whose only rule is what its card offers now waits on its card
+  as it should.
+- Group roll can now judge by a share. Everyone rolls, and the group
+  passes when enough of them pass: all of them, more than half, at
+  least half, at least one, or a percent.
+- You choose who rolls: you, all at once, or each player on a card of
+  their own. You also choose who sees the result line: everyone, or
+  you alone. Set it for the whole system on the Combat tab, or for one
+  roll on the Rolls tab.
+
 WAYPOINT 1.6.3: What's New
 ============================
 

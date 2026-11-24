@@ -30,7 +30,7 @@ import { cleanTier } from './systemcore.js';   // 1.6.0: a named success, as Sav
 import { callDrops, crewDrops, CREW_NONE } from './systemcore.js';   // 1.6.2 (fold (f)): a crew card with no station ticked   // 1.6.0: a call's Read on the one who resisted, as Save reads it (refreshErrors)
 import { cleanTurn } from './systemcore.js';   // 1.6.0: a move by giving up an action, as Save reads it (refreshErrors)
 import { readsAttempt } from './systemcore.js';   // 1.6.0: needs that read Attempt.kind, which only the host can judge
-import { groupRolls, groupWeakest } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
+import { groupRolls, groupWeakest, groupRuleOf } from './systemcore.js';   // 1.6.0 (v2, B7a): a group roll by its weakest member
 import { partsFromHas, partsSrcs, partsBag } from './systemcore.js';   // 1.6.2: parts from several lists
 import { partsTree } from './systemcore.js';   // 205 follow-up (2): the removal question counts a deep list's whole tree of parts
 import { upChanges, revIdle } from './systemcore.js';   // 1.6.0: what a Review entry can apply, and when it asks nothing
@@ -79,7 +79,7 @@ export { REST_MAX, applyAction, budgetNote, calPreset, commitMany, dateOf, dayLe
 export { CREW_NONE, DMG_LIM, HEIGHT_UNITS, LIGHT_UNITS, RANGE_UNITS, cleanDamageRules, cleanHeld, cleanOnRemove, saveDraft };   // [split:glue]
 export { CHAR_CATS, CSV, CUR_MAX, TABLE_KEY, TABLE_ROW_KEY, arcsBox, barsBox, blastBox, bodiesBox, bodyBox, checksBox, cleanTests, cleanValues, coverHitBox, csvTable, damageBox, darkBox, defendBox, defenseOverview, formulaSays, grantListFor, heightBox, holdsBox, keyWord, landBox, lightBox, mapKindsBox, nameFold, postureBox, rangeBox, readCsv, rowFocusBack, scenesBox, sensesBox, tableKeyOk, tableRangeSays, terrainBox, testFormula, travelBox, turnBox, valueNow };   // [split:glue]
 export { CHAMBER_CAP, COVER_HIT_ROWS, ROW_LOOK, altBox, badgeBox, buyOffBox, buyOffChange, capInline, dbxBtn, dbxCap, kindSel, labeledNum, listCrossRow, metricSel, onRemoveBox, ownSwBox, partCapsBox, partFitsBox, pickOne, placeSel, renderCombat, rollExtras, standThenBox, startsBox, swWordsBox, switchChangesBox, tileBoxesBox, tileStatesBox, toneRow, tradeRulesBox, unitWordsOn, upkeepBox, whyBox };   // [split:glue]
-export { NEEDS_WHY, STAT_KEY, _asPlayer, activeCharOf, answersBox, areaBox, lastsSays, askRow, bandBox, bandWhens, callsBox, cardBox, cleanRollSw, clockBox, costHow, costOptions, crossRow, dbxLocNames, dieSel, drawHow, entryNames, entryPick, everyRow, fieldOf, fightRow, fxHolds, fxTargets, grantBox, handKept, helpBox, hudFor, itemOfRow, keepPlace, kindsNamed, landDmgSel, lossOpts, lvlOnlyText, markOpts, markVal, modHowSel, modTiersText, modVal, noteRow, opVal, picPicker, playableChars, playerNames, postureList, resistBySel, resistOrBox, rollNeedsFails, rowAimInto, rowFocusOf, swDice, swGone, turnActs, withRowSel };   // [split:glue]
+export { NEEDS_WHY, STAT_KEY, _asPlayer, activeCharOf, answersBox, areaBox, lastsSays, askRow, bandBox, bandWhens, callsBox, cardBox, groupRuleBox, cleanRollSw, clockBox, costHow, costOptions, crossRow, dbxLocNames, dieSel, drawHow, entryNames, entryPick, everyRow, fieldOf, fightRow, fxHolds, fxTargets, grantBox, handKept, helpBox, hudFor, itemOfRow, keepPlace, kindsNamed, landDmgSel, lossOpts, lvlOnlyText, markOpts, markVal, modHowSel, modTiersText, modVal, noteRow, opVal, picPicker, playableChars, playerNames, postureList, resistBySel, resistOrBox, rollNeedsFails, rowAimInto, rowFocusOf, swDice, swGone, turnActs, withRowSel };   // [split:glue]
 export { CAL_LIMITS, FEEDS_MAX, KINDS, TIME_WORDS, callDrops, capFOk, catNear, catsGone, cleanCalendar, cleanCover, cleanFieldLock, cleanFieldUnit, cleanFormulaText, cleanItemKey, cleanListSpec, cleanNeedsWhy, cleanReach, cleanTier, cleanTurn, coverHitSays, crewDrops, crossFollow, damageSays, dbxLocFinds, defendSays, envSays, fitIfOk, gmDerivedNames, gmFacing, gmStatSays, gmViewFields, goneRefs, grantSays, itemReach, keyUseSays, keyUses, keysGone, linkSays, lvlBoxSays, modsIfOk, onRemoveSays, orphanRows, placeCatErrs, placeCatNames, rangeBy, reCleanChars, renamesCarry, renamesOf, renamesOnChars, renamesSay, secretFieldIds, senseArcOf, senseRangeFields, senseSecrets, senseSwitchFields, stampRows, standSays, starterSaved, startsSay, statKey, switchChangesSays, sync, tableSays, terrainSettleAll, turnHoldSays, turnRunSays, unheldRolls, unitOf, warningsById, whyDraftAt, whyDropsAt, withRowDrops, withRowRoll };   // [split:glue]
 export { ALT_MAX, ANS_HALF, ANS_MAX, BADGE_MAX, SEND_HOPS_MAX, START_MAX, STORED, _sidePrev, ansShareWord, asksBox, cleanBands, cleanLooks, cleanRowDef, cleanValue, crewPick, deckTrial, deckTrialRead, dirtySet, draftSet, emptySystem, errGo, fieldById, grantEntries, grantName, layKeep, laySync, nameAsks, nameWord, needsGmBox, numField, numInput, openSync, rangeUnitWord, readsOf, refreshErrors, renderAll, renderPreview, rollName, rollStationBox, sidePrevSet, starterPacksSet, startersFill, startersLoad, sysReaders, tabSet, valueOpts };   // [split:glue]
 export { BAND_KINDS, IDENTITY_KINDS, LEDGER_KINDS, LOOK_PRESETS, PALETTE_KEYS, PAL_CAPS, PIN_GID, _arrChar, applySheetLookTo, arrCharSet, autoLayout, btnRow, buildSections, capBox, catChoices, catHome, catSplits, cleanPlaceCats, cleanSystem, clone, dirty, errorsById, fieldWord, fxLiveSet, glyphButton, headerEdits, hintBox, hudView, layoutView, layoutViewSet, lazySelect, pageOptions, paletteOf, pinTargetsAll, rollPick, sheetLook, showConfirm, startRows, syncFramePad, tabStandIns, tokenCtxFor, twinNamer, validKey, validateSystem };   // [split:glue]
@@ -6022,6 +6022,8 @@ function groupRollsFor(ids) {
 }
 function groupRoll(ids, rollId) {
     var camp = getActiveCampaign(), sys = systemOf(camp), ms = groupMembers(ids, camp); if (!groupRollsFor(ids).length) return null;
+    var entG = groupRolls(sys, F()).filter(function(x) { return x.id === rollId; })[0], ruleG = entG ? groupRuleOf(sys, entG) : null;   // 1.6.4 (gap #23): the roll's own group rule, else the Combat tab's
+    if (ruleG && ruleG.by === 'share') return groupShareRoll(entG, ruleG, ms);
     var gw = groupWeakest(sys, ms, rollId, F());
     if (!gw) { toast('No one picked has a target for that roll.'); if (window.wpStepLog) window.wpStepLog('grouproll v1', 'none', { n: ms.length }); return null; }
     var r = gw.roll, who = charById(gw.pick.id, camp), oR = r.vis === 'gm' ? { gmOnly: true } : undefined;
@@ -6030,6 +6032,19 @@ function groupRoll(ids, rollId) {
     if (window.wpStepLog) window.wpStepLog('grouproll v1', rr && rr.error ? 'failed' : 'rolled', { n: ms.length, read: gw.all.filter(function(a) { return a.target !== null; }).length });
     if (!(rr && rr.error)) toast(String((who && who.name) || 'The weakest').slice(0, 60) + ' rolls for the group, against ' + fmtNum(gw.pick.target) + '.');
     return gw;
+}
+// 1.6.4 (gap #23 of the full test; Fulllion's picks of 2026-11-24): a group roll by a share. groupshare.js runs it: each member's check is rolled here at
+// once as its sheet's button would (named, so the host counts it as it lands), or, where the rule says each player rolls their own, their character gets
+// a card called for by the GM. Each card is named for the group, and the result line follows once all have rolled
+function groupShareRoll(r, rule, ms) {
+    var GS = window.wpGroupShare; if (!GS) return null;
+    var word = r.label && r.label.indexOf('{') < 0 ? r.label : 'Roll', cardLabel = word + ', for the group of ' + ms.length, oR = r.vis === 'gm' ? { gmOnly: true, act: r.id } : { act: r.id };
+    var run = GS.start({ label: 'Group roll, ' + word, roll: r, rule: rule, members: ms,
+        rollFor: function(id) { return window.wpDice.rollFor(id, r.formula, cardLabel, Object.assign({}, oR)); },
+        callFor: function(m) { var n = window.wpNet; if (n && typeof n.postDue === 'function') n.postDue(m.char, r, 'called', 1, true, { by: 'the GM' }); } });
+    if (!run) { toast('That group roll could not start.'); return null; }
+    if (run.list.some(function(e) { return e.asked; })) toast('Each player is asked to roll ' + String(word).slice(0, 60) + '. The result comes once everyone has rolled.');
+    return run;
 }
 // [systemcheck:grouproll-end]
 function sheetRoll(e, charId, expr, label, opts, swRef) {   // swRef (1.6.0): which roll this is, for the roll switches its \u00b1 window offers (handed to that window alone)
@@ -6248,6 +6263,44 @@ function helpBox(obj) {
     draw();
     return box;
 }
+// [systemcheck:grouprulebox-start]
+// 1.6.4 (gap #23 of the full test; Fulllion's picks of 2026-11-24): how a group roll is judged, as picks: the Combat tab's rule for every group roll
+// (whose 'combat'), or a roll's own in place of it (whose 'roll'). get and put read and write the rule in systemcore cleanGroupRule's shape; put(null)
+// takes it off, which is the weakest's on the Combat tab and the Combat tab's on a roll. Built of the app's own picks (wpUi.pick), each saying what the
+// picked one does, and a percent on a slider with its figure typed (wpUi.typed). Every word is set as text
+function groupRuleBox(get, put, whose) {
+    var box = el('div', 'sys-grouprule'), U = typeof window !== 'undefined' ? window.wpUi : null;
+    var ch = function() { markDirty(); if (typeof patchErrors === 'function') patchErrors(); };
+    var pickOf = function(label, cls, choices, value, set) { var p = U.pick({ label: label, choices: choices, value: value, set: set }); p.classList.add(cls); return p; };
+    var draw = function() {
+        box.textContent = ''; if (!U || typeof U.pick !== 'function') return;
+        var g = get(), cur = g && g.by === 'share' ? 'share' : g && g.by === 'weakest' ? 'weakest' : '';
+        if (whose === 'combat') box.appendChild(el('div', 'sys-note', 'Group roll, on your menu for two or more tokens, rolls one of the system’s checks for everyone picked. A roll on the Rolls tab may go by its own rule.'));
+        var byCh = (whose === 'roll' ? [{ value: '', name: 'As the Combat tab says', says: 'As a group roll, it goes by the Combat tab’s rule.' }] : []).concat([
+            { value: 'weakest', name: 'By the weakest', says: 'The one with the lowest target rolls once for everyone.' },
+            { value: 'share', name: 'By a share', says: 'Everyone rolls, and the group passes when enough of them pass.' }]);
+        box.appendChild(pickOf(whose === 'roll' ? 'How it is judged' : 'How a group roll is judged', 'sys-group-by', byCh, whose === 'roll' ? cur : (cur === 'share' ? 'share' : 'weakest'), function(v) {
+            if (v === 'share') put({ by: 'share', share: 'half', rolls: 'gm', tell: 'table' }); else if (v === 'weakest' && whose === 'roll') put({ by: 'weakest' }); else put(null);
+            ch(); draw();
+        }));
+        if (cur !== 'share') return;
+        var shares = [{ value: 'all', name: 'All of them', says: 'Everyone who rolls must pass.' }, { value: 'most', name: 'More than half', says: 'More than half of those who roll must pass.' },
+            { value: 'half', name: 'At least half', says: 'Half of those who roll, or more, must pass.' }, { value: 'one', name: 'At least one', says: 'One pass is enough.' },
+            { value: 'pct', name: 'A percent', says: 'At least this share of those who roll must pass, rounded up.' }];
+        box.appendChild(pickOf('How many must pass', 'sys-group-share', shares, g.share || 'half', function(v) { g.share = v; if (v === 'pct') { if (typeof g.pct !== 'number') g.pct = 50; } else delete g.pct; ch(); draw(); }));
+        if (g.share === 'pct') {
+            var sl = el('input', 'sys-group-pct'), wrap = el('span', 'ui-slide ui-slide-wide'); sl.type = 'range'; sl.min = '1'; sl.max = '100'; sl.step = '1'; sl.value = String(typeof g.pct === 'number' ? g.pct : 50); sl.setAttribute('aria-label', 'The percent that must pass');
+            sl.addEventListener('input', function() { var n = Math.round(Number(sl.value)); g.pct = n >= 1 && n <= 100 ? n : 50; ch(); });
+            wrap.appendChild(sl); box.appendChild(wrap); if (typeof window.wpUi.typed === 'function') window.wpUi.typed(sl, { unit: '%', label: 'The percent that must pass' });
+        }
+        box.appendChild(pickOf('Who rolls', 'sys-group-rolls', [{ value: 'gm', name: 'You, at once', says: 'Your press rolls everyone’s check at once.' },
+            { value: 'players', name: 'Each player', says: 'Each player gets a card to roll their own, and your characters roll at once. The result comes once everyone has rolled.' }], g.rolls === 'players' ? 'players' : 'gm', function(v) { g.rolls = v; ch(); }));
+        box.appendChild(pickOf('Who is told the result', 'sys-group-tell', [{ value: 'table', name: 'Everyone', says: 'A line in Table Chat says how many passed and whether the group passes.' },
+            { value: 'gm', name: 'You alone', says: 'Only you see the line. A roll kept from players always tells you alone.' }], g.tell === 'gm' ? 'gm' : 'table', function(v) { g.tell = v; ch(); }));
+    };
+    draw(); return box;
+}
+// [systemcheck:grouprulebox-end]
 // 1.6.3 (Fulllion's rulings of 2026-11-20: a box other boxes depend on is required): whose is says whose box this is, 'roll' a roll's own or 'combat'
 // the Combat tab's, handed in by its caller and never guessed from hold. Each action's note then says, beside what Save leaves out, an action the card
 // would never offer: one that spends points where no roll gives any, and Take the result up a band where there are fewer than two bands to go up through
@@ -6729,8 +6782,9 @@ function runDue(charId, actId, att, row, ask, wr) {   // wr (1.6.3, defense fold
         var nodeR = rollNode(rl, c, sys, null), btR = nodeR && nodeR.querySelector ? nodeR.querySelector('button.sheet-roll') : null;
         if (!btR || btR.disabled) { toast(btR && btR.title ? btR.title : 'That roll cannot be made now.'); return false; }
         var nD = typeof att === 'string' ? net() : null; if (nD) nD._attNext = { att: att, charId: c.id, act: rl.id };   // 1.6.0 (B2): net.diceRoll takes it for this very roll, and only while the button is pressed
+        var nA = typeof att !== 'string' && typeof net === 'function' ? net() : null; if (nA) nA._actNext = { charId: c.id, act: rl.id };   // 1.6.4 (gap #23): and a card's roll names the roll it is due for, so the host knows it answered the card (a group roll counts it), even where its button is plain
         var lrD = typeof window !== 'undefined' && window.wpDice && typeof window.wpDice.lastRoll === 'function' ? window.wpDice.lastRoll : null, n0D = lrD ? lrD().n : 0;   // 1.6.3 (finding 6): what the button's own roll answered (dice.js lastRoll)
-        if (ask && typeof _askNext !== 'undefined') _askNext = ask; try { btR.click(); } finally { if (typeof _askNext !== 'undefined') _askNext = null; if (nD) nD._attNext = null; }
+        if (ask && typeof _askNext !== 'undefined') _askNext = ask; try { btR.click(); } finally { if (typeof _askNext !== 'undefined') _askNext = null; if (nD) nD._attNext = null; if (nA) nA._actNext = null; }
         var gotD = lrD ? lrD() : null; if (gotD && gotD.n === n0D) return 'wait'; return !(gotD && gotD.r && gotD.r.error);   // refused here: the card stays live; the review of input: a button that asks first (a location, a level, an aim) rolled nothing yet: 'wait', and dice.js duePress makes the card live again if what it asked is put away with no roll
     }
     if (!c || !r) { toast('That action is not on the sheet any more.'); return false; }

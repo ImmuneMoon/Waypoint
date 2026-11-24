@@ -919,8 +919,11 @@ const j = v => JSON.stringify(v);
         const mkGR = o => {
             o = o || {}; const out = { rolls: [], toasts: [], logs: [] }, chars = { c_k: { id: 'c_k', name: 'Kael', values: { f_s: 12 } }, c_s: { id: 'c_s', name: 'Sela', values: { f_s: 9 } }, c_p: { id: 'c_p', name: 'Pebbles', values: { f_s: 14 } } }, camp = { system: sG, chars };
             const win = { wpDice: { rollFor: (...a) => { out.rolls.push(a); return o.err ? { error: 'x' } : { ok: true }; } }, wpVtt: { on: () => o.dice !== false }, wpStepLog: (...a) => out.logs.push(a), wpStream: o.stream ? {} : undefined };
-            out.api = new Function('charById', 'tokenCtxFor', 'getActiveCampaign', 'systemOf', 'isClient', 'F', 'toast', 'fmtNum', 'groupRolls', 'groupWeakest', 'window', '"use strict";\n' + cutG(shG, 'grouproll') + '\nreturn { groupRollsFor: groupRollsFor, groupRoll: groupRoll };')(
-                id => chars[id] || null, () => null, () => camp, c => c.system, () => !!o.client, () => F, m => out.toasts.push(m), n => String(n), S.groupRolls, S.groupWeakest, win);
+            if (o.share) { camp.system = JSON.parse(j(sG)); camp.system.combat = Object.assign({}, camp.system.combat, { group: o.share }); }   // 1.6.4 (gap #23): the Combat tab's rule
+            win.wpGroupShare = { start: so => { out.started = so; return o.noStart ? null : { list: so.members.map(m => ({ id: m.id, asked: so.rule.rolls === 'players' && m.char.ownerId })) }; } };
+            win.wpNet = { postDue: (...a) => { out.dues = (out.dues || []).concat([a]); } };
+            out.api = new Function('charById', 'tokenCtxFor', 'getActiveCampaign', 'systemOf', 'isClient', 'F', 'toast', 'fmtNum', 'groupRolls', 'groupWeakest', 'groupRuleOf', 'window', '"use strict";\n' + cutG(shG, 'grouproll') + '\nreturn { groupRollsFor: groupRollsFor, groupRoll: groupRoll };')(
+                id => chars[id] || null, () => null, () => camp, c => c.system, () => !!o.client, () => F, m => out.toasts.push(m), n => String(n), S.groupRolls, S.groupWeakest, S.groupRuleOf, win);
             return out;
         };
         const G1 = mkGR(), lst = G1.api.groupRollsFor(['c_k', 'c_s', 'c_p']), done = G1.api.groupRoll(['c_k', 'c_s', 'c_p', 'c_s', 'c_gone'], 'r_st'), G2 = mkGR(); G2.api.groupRoll(['c_k', 'c_s'], 'r_co');
@@ -942,6 +945,96 @@ const j = v => JSON.stringify(v);
         check('1.6.0 group roll by the weakest (whiteboard.js, run for real): the GM\'s menu offers Group roll for two or more characters selected, each character once whatever its tokens, never a token with no character or a waiting one; a flyout of the checks by name, each label escaped; pressing the row opens it, pressing a roll closes the menu and rolls for those characters; nothing for one character',
             mG && j(mG.ids) === j(['c_k', 'c_s']) && lone === null && GM.model(mapG, ['t1']) === null && /Group roll/.test(hG) && hG.indexOf('<img') < 0 && hG.indexOf('&lt;img src=x onerror=1&gt;&quot;') > 0 && (hG.match(/cm-grp-roll/g) || []).length === 1 && GM.html(null) === ''
             && toggled && shown === 'flex' && menuG.style.display === 'none' && j(called) === j([[['c_k', 'c_s'], 'r_st']]) && stop.n === 2, j([mG, hG, called]));
+
+        // 1.6.4 (gap #23 of the full test; Fulllion's picks of 2026-11-24): a group roll by a share, beside the weakest's
+        const cg = S.cleanGroupRule;
+        check('1.6.4 gap #23: a group rule is cleaned to its shape: by the weakest, or by a share with How many must pass (at least half at first; a percent held to 1 to 100, 50 at first), Who rolls (you at first) and Who is told (everyone at first); anything else is no rule',
+            j(cg({ by: 'weakest', share: 'all' })) === j({ by: 'weakest' }) && j(cg({ by: 'share' })) === j({ by: 'share', share: 'half', rolls: 'gm', tell: 'table' }) && j(cg({ by: 'share', share: 'pct', pct: 250, rolls: 'players', tell: 'gm', x: 1 })) === j({ by: 'share', share: 'pct', pct: 100, rolls: 'players', tell: 'gm' })
+            && cg({ by: 'share', share: 'pct' }).pct === 50 && cg({ by: 'share', share: 'pct', pct: 0.2 }).pct === 1 && cg({ by: 'share', share: 'most', pct: 30 }).pct === undefined && cg({ by: 'share', share: 'nope' }).share === 'half' && cg({ by: 'best' }) === undefined && cg('share') === undefined && cg(null) === undefined);
+        const sR = { v: 1, name: 'G', combat: { group: { by: 'share', share: 'most', rolls: 'players' } }, fields: [{ id: 'f_s', key: 'Stealth', label: 'Stealth', kind: 'number', vis: 'all', def: 10 }],
+            rolls: [{ id: 'r_st', label: 'Stealth', formula: '3d6 <= Stealth' }, { id: 'r_ow', label: 'Climb', formula: '3d6 <= Stealth', group: { by: 'share', share: 'one', tell: 'gm' } }, { id: 'r_wk', label: 'Hide', formula: '3d6 <= Stealth', group: { by: 'weakest' } }, { id: 'r_in', label: 'Initiative', formula: 'd20 >= 5', init: true, group: { by: 'share' } }, { id: 'r_ac', label: 'Heal', apply: [{ formula: '1' }], group: { by: 'share' } }] };
+        const sGM = S.cleanSystem(sR, { F, gmView: true }), sPV = S.cleanSystem(sGM, { F, gmView: false }), sNone = S.cleanSystem({ v: 1, name: 'G', combat: { group: { by: 'weakest' } }, rolls: [{ id: 'r_st', label: 'Stealth', formula: '3d6 <= 10' }] }, { F, gmView: true });
+        check('1.6.4 gap #23: the Combat tab\'s rule and a roll\'s own are the GM\'s view alone; a roll\'s own is kept on a check, never on the initiative roll or an action; the weakest on the Combat tab is kept as no rule, so a system that sets none is as it was',
+            j(sGM.combat.group) === j({ by: 'share', share: 'most', rolls: 'players', tell: 'table' }) && j(sGM.rolls[1].group) === j({ by: 'share', share: 'one', rolls: 'gm', tell: 'gm' }) && j(sGM.rolls[2].group) === j({ by: 'weakest' }) && !('group' in sGM.rolls[0]) && !('group' in sGM.rolls[3]) && !('group' in sGM.rolls[4])
+            && !('group' in sPV.combat) && sPV.rolls.every(r => !('group' in r)) && !('group' in sNone.combat), j([sGM.combat.group, sGM.rolls]));
+        check('1.6.4 gap #23: the rule a group roll goes by is its own, else the Combat tab\'s, else the weakest\'s',
+            S.groupRuleOf(sGM, sGM.rolls[0]).share === 'most' && S.groupRuleOf(sGM, sGM.rolls[1]).share === 'one' && S.groupRuleOf(sGM, sGM.rolls[2]).by === 'weakest' && S.groupRuleOf(sNone, sNone.rolls[0]).by === 'weakest' && S.groupRuleOf(null, null).by === 'weakest');
+        const nd = (sh, n, pct) => S.groupNeed({ by: 'share', share: sh, pct }, n);
+        check('1.6.4 gap #23: how many must pass, of those who rolled: all of them, more than half, at least half, at least one, or a percent rounded up; none rolled needs none',
+            [nd('all', 5), nd('most', 5), nd('half', 5), nd('one', 5), nd('pct', 5, 60), nd('pct', 5, 61), nd('pct', 5, 1), nd('pct', 5, 100)].join() === '5,3,3,1,3,4,1,5' && [nd('most', 4), nd('half', 4), nd('pct', 4, 50), nd('half', 1), nd('half', 0), nd('all', 0)].join() === '3,2,2,1,0,0');
+        const half = { by: 'share', share: 'half' }, jg = S.groupJudge(half, [{ name: 'Kael', pass: true }, { name: 'Sela', pass: false }, { name: 'Pebbles', pass: true }, { name: 'Bo', pass: null }, null]);
+        check('1.6.4 gap #23: the one judge counts who passed of those who rolled, leaves out and names who did not roll, and says it in plain words',
+            j(jg) === j({ rolled: 3, passed: 2, need: 2, pass: true, missing: ['Bo'] }) && S.groupLine('Group roll, Sneak', half, jg) === 'Group roll, Sneak: 2 of 3 pass, so the group passes (at least half). Bo did not roll.'
+            && S.groupLine('Group roll, Sneak', { by: 'share', share: 'pct', pct: 75 }, S.groupJudge({ by: 'share', share: 'pct', pct: 75 }, [{ pass: true }, { pass: false }])) === 'Group roll, Sneak: 1 of 2 passes, so the group fails (at least 75%).'
+            && S.groupLine('Group roll, Sneak', half, S.groupJudge(half, [{ name: 'Bo', pass: null }])) === 'Group roll, Sneak: nobody rolled, so the group does not pass.' && S.groupShareWords({ share: 'all' }) === 'all of them' && S.groupShareWords({ share: 'most' }) === 'more than half');
+        // the GM's press, run for real: a share rule starts the run with each member's check named for the group and the roll's id, and asks a player's
+        // character's player by a card called for by the GM; the weakest's way is untouched
+        const SH = mkGR({ share: { by: 'share', share: 'half' } }); SH.api.groupRoll(['c_k', 'c_s', 'c_p'], 'r_st'); const shRun = SH.started;
+        const rolledByStart = shRun ? shRun.rollFor('c_s', shRun.members[1]) : null;
+        check('1.6.4 gap #23 (sheets.js, run for real): under a share rule Group roll starts a run with everyone picked, the roll and its rule, labeled for the result line; each member\'s roll is that roll\'s formula named for the group and by the roll\'s id; nothing rolls as the weakest',
+            !!shRun && shRun.label === 'Group roll, Stealth' && shRun.roll.id === 'r_st' && j(shRun.rule) === j({ by: 'share', share: 'half', rolls: 'gm', tell: 'table' }) && j(shRun.members.map(m => m.id)) === j(['c_k', 'c_s', 'c_p'])
+            && j(SH.rolls) === j([['c_s', '3d6 <= Stealth', 'Stealth, for the group of 3', { act: 'r_st' }]]) && !!rolledByStart && rolledByStart.ok === true && SH.toasts.length === 0, j([shRun && shRun.label, SH.rolls, SH.toasts]));
+        const SP2 = mkGR({ share: { by: 'share', share: 'half', rolls: 'players' } }); SP2.api.groupRoll(['c_k', 'c_s'], 'r_st'); SP2.started.callFor({ id: 'c_k', char: { id: 'c_k', name: 'Kael', ownerId: 'u_k' } });
+        check('1.6.4 gap #23 (sheets.js): where each player rolls their own, a member\'s card is the roll called for by the GM, to its player', j(SP2.dues) === j([[{ id: 'c_k', name: 'Kael', ownerId: 'u_k' }, SP2.started.roll, 'called', 1, true, { by: 'the GM' }]]), j(SP2.dues));
+    }
+    {   // 1.6.4 (gap #23): the run itself (groupshare.js, run for real on this machine's own clock), told of rolls as both roll paths tell it
+        const j = JSON.stringify, GS = await import(url('groupshare.js')), lines = [], logs = [], clock = [];
+        const realST = globalThis.setTimeout, realCT = globalThis.clearTimeout;
+        globalThis.window = { wpSystemCore: S, wpNet: { groupLine: (t, g) => lines.push([t, g]) }, wpStepLog: (...a) => logs.push(a) };
+        globalThis.setTimeout = (fn, ms) => { const t = { fn, ms, off: false }; clock.push(t); return t; }; globalThis.clearTimeout = t => { if (t) t.off = true; };
+        const chk = p => ({ kind: 'check', pass: p }), mem = (id, name, owner) => ({ id, char: { id, name, ownerId: owner || '', npc: !owner } });
+        const half = { by: 'share', share: 'half', rolls: 'gm', tell: 'table' };
+        try {
+            // the GM rolls everyone: a roll that lands at once is counted as it lands, before the next is rolled
+            const r1 = GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st' }, rule: half, members: [mem('c_a', 'Ana', 'u_a'), mem('c_b', 'Bo'), mem('c_c', 'Cy')],
+                rollFor: id => { GS.landed(id, 'r_st', chk(id !== 'c_b'), false, false); return { ok: true }; } });
+            check('1.6.4 gap #23 (groupshare.js): the GM rolls everyone: each roll counts as it lands, and the line goes to the table once the last has landed, the wait let go',
+                !!r1 && j(lines.shift()) === j(['Group roll, Sneak: 2 of 3 pass, so the group passes (at least half).', false]) && clock.length === 1 && clock[0].off === true && GS.open().length === 0, j(lines));
+            // each player rolls their own: the card is posted, the GM's character rolls at once, the line waits for the last roll
+            const asked = [], players = Object.assign({}, half, { rolls: 'players' });
+            GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st' }, rule: players, members: [mem('c_a', 'Ana', 'u_a'), mem('c_b', 'Bo'), mem('c_d', 'Di', 'u_d')], callFor: m => asked.push(m.id),
+                rollFor: id => { GS.landed(id, 'r_st', chk(false), false, false); return { ok: true }; } });
+            const waiting1 = GS.open(); GS.landed('c_a', 'r_other', chk(true), false, false); GS.landed('c_x', 'r_st', chk(true), false, false); const waiting2 = GS.open()[0].waiting;
+            GS.landed('c_a', 'r_st', chk(true), false, false); GS.landed('c_a', 'r_st', chk(false), false, false); const linesMid = lines.length; GS.landed('c_d', 'r_st', chk(true), true, false);
+            check('1.6.4 gap #23 (groupshare.js): each player rolls their own: their characters are asked by a card and the GM\'s own rolls at once; another roll or another character is not counted, a second roll of one already counted is not counted again, a roll that jammed is a failure, and the line comes once the last has rolled',
+                j(asked) === j(['c_a', 'c_d']) && j(waiting1) === j([{ act: 'r_st', label: 'Group roll, Sneak', waiting: 2 }]) && waiting2 === 2 && linesMid === 0 && j(lines.shift()) === j(['Group roll, Sneak: 1 of 3 passes, so the group fails (at least half).', false]), j([asked, waiting1, lines]));
+            // a roll kept from players (vis gm) is rolled by the GM for everyone and tells the GM alone; so does any member's roll that went to the GM alone
+            const keptAsk = [];
+            GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st', vis: 'gm' }, rule: players, members: [mem('c_a', 'Ana', 'u_a'), mem('c_b', 'Bo')], callFor: m => keptAsk.push(m.id), rollFor: id => { GS.landed(id, 'r_st', chk(true), false, false); return { ok: true }; } });
+            const keptLine = lines.shift();
+            GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st' }, rule: half, members: [mem('c_a', 'Ana', 'u_a'), mem('c_b', 'Bo')], rollFor: id => { GS.landed(id, 'r_st', chk(true), false, id === 'c_b'); return { ok: true }; } });
+            const privLine = lines.shift();
+            GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st' }, rule: Object.assign({}, half, { tell: 'gm' }), members: [mem('c_a', 'Ana', 'u_a')], rollFor: id => { GS.landed(id, 'r_st', chk(true), false, false); return { ok: true }; } });
+            const gmLine = lines.shift();
+            check('1.6.4 gap #23 (groupshare.js): a roll kept from players is rolled by the GM for everyone and its line is the GM\'s alone; a member\'s roll that went to the GM alone keeps the line the GM\'s; Who is told: you alone keeps it the GM\'s',
+                keptAsk.length === 0 && keptLine && keptLine[1] === true && /2 of 2 pass, so the group passes/.test(keptLine[0]) && privLine && privLine[1] === true && gmLine && gmLine[1] === true, j([keptAsk, keptLine, privLine, gmLine]));
+            GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st' }, rule: half, members: [mem('c_a', 'Ana', 'u_a'), mem('c_b', 'Bo')], rollFor: id => { if (id === 'c_b') return { error: 'x' }; GS.landed(id, 'r_st', chk(true), false, false); return { ok: true }; } });
+            check('1.6.4 gap #23 (groupshare.js): a member whose roll could not be made is not waited for: the line comes at once and names them', j(lines.shift()) === j(['Group roll, Sneak: 1 of 1 passes, so the group passes (at least half). Bo did not roll.', false]) && GS.open().length === 0, j([lines, GS.open()]));
+            // the wait runs out: those who did not roll are left out and named; one whose roll could not be made is not waited for
+            clock.length = 0;
+            GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st' }, rule: players, members: [mem('c_a', 'Ana', 'u_a'), mem('c_b', 'Bo'), mem('c_d', 'Di', 'u_d')], callFor: () => {}, rollFor: () => ({ error: 'x' }) });
+            GS.landed('c_a', 'r_st', chk(true), false, false); const beforeTime = lines.length; const tm = clock[0]; tm.fn();
+            check('1.6.4 gap #23 (groupshare.js): after the wait (five minutes) the run is judged as it stands, the one who did not roll named, the GM\'s character whose roll could not be made left out',
+                tm.ms === GS.WAIT_MS && GS.WAIT_MS === 300000 && beforeTime === 0 && j(lines.shift()) === j(['Group roll, Sneak: 1 of 1 passes, so the group passes (at least half). Bo, Di did not roll.', false]) && GS.open().length === 0, j([lines, GS.open()]));
+            GS.start({ label: 'Group roll, Sneak', roll: { id: 'r_st' }, rule: players, members: [mem('c_a', 'Ana', 'u_a')], callFor: () => {} }); GS.forget();
+            check('1.6.4 gap #23 (groupshare.js): a table that goes takes its open runs with it, with no line; a run that is no share, or has nobody, never starts', GS.open().length === 0 && lines.length === 0
+                && GS.start({ label: 'x', roll: { id: 'r_st' }, rule: { by: 'weakest' }, members: [mem('c_a', 'Ana')] }) === null && GS.start({ label: 'x', roll: { id: 'r_st' }, rule: half, members: [] }) === null);
+            const tellsBy = logs.filter(l => l[0] === 'groupshare v1').every(l => Object.values(l[2]).every(v => typeof v !== 'string' || /^(all|time|crowded|error|gm|players|table|half|most|one|pct)$/.test(v)));
+            check('1.6.4 gap #23 (groupshare.js): each step is logged by its structure alone, never a name', tellsBy && logs.some(l => l[1] === 'judged'), j(logs.slice(0, 4)));
+        } finally { globalThis.setTimeout = realST; globalThis.clearTimeout = realCT; delete globalThis.window; }
+        // both roll paths tell the run of each named roll as it lands, its verdict, a jam and whether it went to the GM alone; the line goes to the table, or to the GM alone
+        const nj = fs.readFileSync(path.join(app, 'scripts', 'net.js'), 'latin1').replace(/\r\n/g, '\n');
+        const glA = nj.indexOf('net.groupLine = function'), glS = nj.slice(glA, nj.indexOf('\n};\n', glA) + 3), sent = [], pushed = [];
+        const netG = { role: 'host', active: true, myId: 'u_gm' }; new Function('net', 'broadcast', 'pushChat', 'logEvent', glS)(netG, m => sent.push(m), m => pushed.push(m), () => {});
+        netG.groupLine('Line A', false); netG.groupLine('Line B', true);
+        check('1.6.4 gap #23 (net.js, run for real): the line is the GM\'s chat line: to everyone and on the GM\'s own screen, or on the GM\'s screen alone',
+            sent.length === 1 && sent[0].text === 'Line A' && sent[0].scope === 'global' && sent[0].from.gm === true && pushed.length === 2 && pushed[1].scope === 'whisper' && pushed[1].text === 'Line B'
+            && nj.includes("if (chQ && typeof q.act === 'string' && !q.row && window.wpGroupShare) window.wpGroupShare.landed(chQ.id, q.act, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, !!recQ.priv || !!hdQ);")
+            && nj.includes("if (chR && typeof o.act === 'string' && !o.row && window.wpGroupShare) window.wpGroupShare.landed(chR.id, o.act, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, !!rec.priv || !!hdR);")
+            && nj.includes('if (window.wpGroupShare) window.wpGroupShare.forget();'), j([sent, pushed]));
+        const hx = fs.readFileSync(path.join(app, 'index.html'), 'utf8'), wn = [fs.readFileSync(path.join(app, '..', '..', 'WHATSNEW.txt'), 'utf8'), fs.readFileSync(path.join(app, 'assets', 'whatsnew.txt'), 'utf8')];
+        check('1.6.4 gap #23: Help says it, the module is loaded, and both notes carry the draft', /judge a group roll <b>by a share<\/b> instead/.test(hx) && /<b>Who is told the result<\/b> can make it yours alone/.test(hx) && hx.includes('<script type="module" src="scripts/groupshare.js"></script>')
+            && wn.every(t => /Group roll can now judge by a share/.test(t) && /\(draft for Fulllion\)/.test(t)) && nj.includes("var acN = net._actNext; if (acN && !o.act && !o.row && !o.fr && !o.att && o.charId === acN.charId)"));
     }
     {   // 1.5.7: a damage roll's type (dmgTypeOf, the cleaner), and a roll's change switching a tick (applyAct), run for real
         const j = JSON.stringify, mk = gm => S.cleanSystem({ v: 1, name: 'D', fields: [

@@ -2846,6 +2846,14 @@ net.damageCard = function(ch, lines, name) {
     pushChat(m);
     logEvent('char', t);
 };
+// 1.6.4 (gap #23): a group roll's result line (groupshare.js), the GM's own words as a chat line: to everyone at the table, or to the GM alone where gmOnly
+net.groupLine = function(text, gmOnly) {
+    if (net.role === 'client' || net.stream || typeof text !== 'string' || !text) return;
+    var m = { type: 'chat', scope: gmOnly ? 'whisper' : 'global', from: { id: net.myId || 'gm', name: 'GM', gm: true }, text: text.slice(0, 1500), ts: Date.now() };
+    if (!gmOnly && net.active && net.role === 'host') broadcast(m, null);
+    pushChat(m);
+    logEvent('dice', text.slice(0, 300));
+};
 // [split:nettrade.js]
 var _netTrade = netTrade(), cleanTradeView = _netTrade.cleanTradeView, moneyAskPut = _netTrade.moneyAskPut, thenGmRun = _netTrade.thenGmRun, toGmKeep = _netTrade.toGmKeep, tradeConnGone = _netTrade.tradeConnGone, tradeDo = _netTrade.tradeDo, tradeForget = _netTrade.tradeForget, tradeKeep = _netTrade.tradeKeep, tradeLost = _netTrade.tradeLost, tradeMoved = _netTrade.tradeMoved;   // [split:glue]
 // Turn-based combat T2 (owner, 2026-09-26): the token whose turn it is on the map in view, when it is this player's own — { mapId, rowId, tok }
@@ -8701,6 +8709,7 @@ function handleMessage(msg, conn) {
         // 1.6.3 (the release click test): the card this roll answered is over, said as made, last of all, so a word a landing or a blast already gave stands
         // (net.dueOver passes over a card already over). Before, the GM's copy of a Defend card a player pressed still said that its player presses it, and the
         // GM's reload then called it cut short
+        if (chQ && typeof q.act === 'string' && !q.row && window.wpGroupShare) window.wpGroupShare.landed(chQ.id, q.act, Dq.verdictOf(resQ, ruleQ), mfQ !== null && Dq.naturalOf(resQ) >= mfQ, !!recQ.priv || !!hdQ);   // 1.6.4 (gap #23): a member's roll of a group roll by a share
         if (q.att && typeof net.dueOver === 'function') net.dueOver(q.att, 'answered');
         };
         var figCQ = typeof abQ !== 'undefined' && abQ && typeof figAnswers === 'function' && figAnswers(abQ, q.expr, Fq) ? function(rc, rs) { figMark(rc, rs, Dq.ruleOf({}, campQ && campQ.system && campQ.system.combat ? campQ.system.combat.checks : ''), false, Dq, Fq); var mk = figOf(rc); ['pend', 'offers', 'asked', 'dl'].forEach(function(k) { if (rc[k] !== undefined) mk[k] = rc[k]; }); return mk; } : null;   // 1.6.3 (the review of Hide my rolls): a roll answering an attempt whose figure is hidden (figAnswers) and held for its card actions: its pending card leaves here masked as its final card does (restQ's hdQ), its buttons kept; the GM's own copy stays whole. Its points to spend are left off the masked copy, since they are worked out from its margin
@@ -11039,6 +11048,7 @@ function pushHelp(rec) {
 function diceSessionReset(clearChat) {
     if (typeof revealForget === 'function') revealForget();   // 1.6.3: the hidden rolls that could still be shown go with their table
     if (typeof cardForget === 'function') cardForget();   // 1.6.2: a roll still held goes with its table, nothing of it landed
+    if (window.wpGroupShare) window.wpGroupShare.forget();   // 1.6.4 (gap #23): and a group roll still waiting on its members
     if (typeof helpForget === 'function') helpForget();   // 1.6.2 Assist: and one waiting for help
     if (_dicePending) { clearTimeout(_dicePending.timer); _dicePending = null; }
     if (diceLimit) diceLimit.reset();
@@ -11072,6 +11082,7 @@ net.dueLive = function(card) { return dueLive('', card); };   // the review of i
 function privWords(S, sys, names) { return (Array.isArray(names) ? names : []).map(function(n) { try { return S && typeof S.nameWord === 'function' ? String(S.nameWord(sys, n) || n) : String(n); } catch (e) { return String(n); } }).join(', '); }
 net.diceRoll = function(expr, o) {
     o = o || {}; var D = DC(), F = window.wpFormula;
+    var acN = net._actNext; if (acN && !o.act && !o.row && !o.fr && !o.att && o.charId === acN.charId) o = Object.assign({}, o, { act: acN.act });   // 1.6.4 (gap #23): a roll pressed from its card (sheets.js runDue), named for the roll the card is due for
     var atN = net._attNext; if (atN && !o.att && o.charId === atN.charId && (((o.act === atN.act || !o.act) && !o.row && !atN.row) || (atN.row && o.row && !o.act && o.row.f === atN.row.f && o.row.r === atN.row.r && o.row.i === atN.row.i))) { o = Object.assign({}, o, atN.act ? { act: atN.act } : null, { att: atN.att }, atN.with && typeof atN.with === 'object' ? { with: { f: atN.with.f, r: atN.with.r } } : null); net._attNext = null; }   /* 1.6.3 (defense fold 2): and the row a roll answered with a row was pressed with */   // 1.6.0: a plain roll's button names nothing, so the card names it, and the first roll takes it: a blast its answer lets go rolls as itself   // 1.6.0: or a list's roll on one row   // 1.6.0 (B2): a resist card's press (sheets.js runDue) names the attempt it answers
     if (!D || !F) return { error: 'Dice are not available.' };
     if (net.stream) return { error: 'Not from the stream window.' };
@@ -11314,6 +11325,7 @@ net.diceRoll = function(expr, o) {
     if (chR && typeof holdsRolled === 'function' && SR && typeof SR.holdRefOf === 'function') { var vhR = D.verdictOf(res, ruleR); holdsRolled(campR, chR, entR, SR.holdRefOf(o.act, o.row), mfR !== null && D.naturalOf(res) >= mfR ? false : vhR && vhR.kind === 'check' ? vhR.pass === true : null, tcR, typeof blowRecR !== 'undefined' ? blowRecR : null, atR); } if (typeof stealRolled === 'function' && typeof blowRecR !== 'undefined' && blowRecR && blowRecR.st) { var vsR = D.verdictOf(res, ruleR); stealRolled(campR, mfR !== null && D.naturalOf(res) >= mfR ? false : vsR && vsR.kind === 'check' ? vsR.pass === true : null, blowRecR); }   // 1.6.0 Who holds whom
     if (entR && entR.burst && o.row && typeof burstAfter === 'function') burstAfter(campR, chR, entR, o.row, res, ruleR, mfR !== null && D.naturalOf(res) >= mfR, typeof taR !== 'undefined' ? taR : null, tcR, function() { save(true); });   // 1.6.0 A burst: the host's record of it, on the row, and a launched round's blast
     if (entR && chR && !entR.area && !lndR && typeof landAfter === 'function') { var lvR = D.verdictOf(res, ruleR); landAfter(campR, entR, !(mfR !== null && D.naturalOf(res) >= mfR) && (rec.body === 1 || (!!lvR && lvR.kind === 'check' && lvR.pass === true)), tcR, chR, typeof privAtR === 'function' ? privAtR(rec, choseOnlyR) : (!!rec.priv || !!rec.to), o.row || o.with, atR, rec.from, typeof o.hit === 'string' ? o.hit : '', rec.big === true, lrwR, function(w) { if (typeof toast === 'function') toast(w); }); }   /* 1.6.3 (the review of defense fold 2, finding 10): and the row a defense answered with */   // 1.6.3 (defense fold 1): an attack that names Its damage lands, or waits for its defense. The review of that fold: made last, after its Then and its burst, as in roll-req
+    if (chR && typeof o.act === 'string' && !o.row && window.wpGroupShare) window.wpGroupShare.landed(chR.id, o.act, D.verdictOf(res, ruleR), mfR !== null && D.naturalOf(res) >= mfR, !!rec.priv || !!hdR);   // 1.6.4 (gap #23): a member's roll of a group roll by a share, the GM's own
     if (typeof o.att === 'string' && typeof net.dueOver === 'function') net.dueOver(o.att, 'answered');   // 1.6.3 (the release click test): the card this roll answered is over, as in roll-req
     net.rollMade = typeof atR === 'string' ? atR : '';   // 1.6.2 (the core's gap 214): the attempt this roll made, which a thing in flight waits on
     net.rollCheck = D.checkOf ? D.checkOf(res, ruleR) : null;

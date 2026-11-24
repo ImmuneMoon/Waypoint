@@ -168,6 +168,7 @@ var GROUPS = {
         ['asks', 'What it asks when pressed', 0, ['sys-asks']],
         ['card', 'On the card', 0, ['sys-cardacts']],
         ['help', 'Help from others', 0, ['sys-help']],
+        ['group', 'As a group roll', 0, ['sys-grouprule']],   // 1.6.4 (gap #23)
         ['calls', 'Calls for', 0, ['sys-calls']],
         ['bands', 'Result bands', 0, ['sys-bands']],
         ['then', 'What it changes', 1, ['sys-apply']],

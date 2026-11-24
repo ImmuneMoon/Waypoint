@@ -7699,7 +7699,8 @@ function tableMenuParts(e, role) {
 }
 // [systemcheck:grouproll-menu-start]
 // 1.6.0 (v2, B7a): Group roll on the GM's menu for two or more character tokens: a flyout of the system's checks by name, and the one with the
-// lowest target rolls once for everyone picked (wpSheets.groupRoll). A roll's label is the one word of the system it writes, escaped
+// lowest target rolls once for everyone picked (wpSheets.groupRoll); 1.6.4 (gap #23): or, by the system's group rule, everyone rolls and enough must
+// pass. A roll's label is the one word of the system it writes, escaped
 function groupRollModel(map, ids) {
     var S = window.wpSheets; if (!map || !Array.isArray(map.whiteboard) || !Array.isArray(ids) || ids.length < 2 || !S || typeof S.groupRollsFor !== 'function') return null;
     var cids = []; ids.forEach(function(id) { var w = map.whiteboard.find(function(x) { return x.id === id; }); if (w && typeof w.charId === 'string' && w.charId && !w.waiting && cids.indexOf(w.charId) < 0) cids.push(w.charId); });
@@ -7707,7 +7708,7 @@ function groupRollModel(map, ids) {
 }
 function groupRollHtml(m) {
     if (!m) return '';
-    var h = '<div class="menu-item cm-grp-open" title="The one with the lowest target for the roll rolls once for everyone picked"><span><i class="wib wi-die"></i> Group roll</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
+    var h = '<div class="menu-item cm-grp-open" title="A check for everyone picked, as the system judges a group roll: the lowest target rolls once, or everyone rolls and enough must pass"><span><i class="wib wi-die"></i> Group roll</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
     m.rolls.forEach(function(r, i) { h += '<div class="menu-item cm-grp-roll" data-i="' + i + '">' + gmEsc(String(r.label).slice(0, 60)) + '</div>'; });
     return h + '</div></div>';
 }

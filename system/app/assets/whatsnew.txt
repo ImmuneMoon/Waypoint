@@ -268,6 +268,22 @@ Drop it, pick it up [DRAFT]
   a chest that held it lost it the next time Waypoint opened. A chest
   keeps its own copy now, as a character's sheet always has.
 
+Building a system: tables, levels and minutes of play (draft for Fulllion)
+- A system can keep up to 1,000 result tables now, with 200 rows each
+  and 10,000 rows in all, so a book's every table can be its own. A
+  roll can go on from table to table eight deep, where it stopped at
+  three. Save tells you when a table goes past a limit.
+- A list's action or Then can raise its own row's level now: Add to,
+  Subtract from or Set This row's level, named by your list's word for
+  it, such as This row's Rank. It follows every rule a level set by
+  hand follows: the list's lowest and highest, At most at a level,
+  Levels it may be, a level's needs and what a level grants. A player's
+  press that would break one is refused in the same words. Yours goes
+  through, and you are told.
+- A row's counter can count by minutes of play: real time while you
+  host the table and it is not paused. So a power used once an hour of
+  play is a counter that counts down, and an action that needs it at 0.
+
 Plainer words (draft for Fulllion)
 - Waypoint VTT's own words no longer use long dashes. Tooltips and
   notices say the same things in plain sentences now.

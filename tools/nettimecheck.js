@@ -146,6 +146,34 @@ pendingChecks.push((async () => {
         j([gmLines, pA, pB, U.out.log, U2.out.chat, U3.out.chat]));
 })());
 
+// 1.6.4 (the full test's gap 7): real minutes of play, on the host (realPlayTick with net.rowSpans and the real systemcore, run for real): the time
+// between the clock's ticks counts while the GM hosts the table and has not paused it, a minute at a time, and a character whose player alone is
+// paused waits; a long gap counts as one tick; a player's app, a paused table and a system with no such counter count nothing
+pendingChecks.push((async () => {
+    const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+    const Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+    const ftS = between('// [netcheck:fxtime-start]', '// [netcheck:fxtime-end]', 'fxtime', 'nettime.js'), tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard', 'nettime.js'), pidU = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();
+    const sysOf = real => Sx.cleanSystem({ v: 1, name: 'P', rolls: [], items: [], sheet: { sections: [] }, fields: [{ id: 'f_g', key: 'Gifts', label: 'Gifts', kind: 'item-list', vis: 'all', list: { counters: [{ key: 'Wait', label: 'Ready in', timer: Object.assign({ dir: 'down', per: { n: 1, u: 'min' }, end: 'Ready' }, real ? { real: true } : {}) }] } }] }, { F: Fx, gmView: true });
+    const mkR = (o) => {
+        o = o || {}; const camp = { items: {}, system: sysOf(o.real !== false), chars: { c_p: { id: 'c_p', name: 'Pat', ownerId: 'u_a', values: { f_g: [{ id: 'w_l', def: { name: 'Luck' }, qty: 1, ct: { Wait: 2 } }] } }, c_q: { id: 'c_q', name: 'Quin', ownerId: 'u_b', values: { f_g: [{ id: 'w_l', def: { name: 'Luck' }, qty: 1, ct: { Wait: 2 } }] } } } };
+        const out = { chat: [], log: [], steps: [] }, mk = p => ({ peer: p, open: true, sent: [], send(m) { this.sent.push(m); } }), conns = [mk('pA'), mk('pB')];
+        const net = { active: o.active !== false, role: o.role || 'host', stream: false, paused: !!o.paused, pausedPlayers: { u_b: true }, myId: 'u_gm', conns, roster: { pA: { id: 'u_a' }, pB: { id: 'u_b' } }, combats: {}, syncCharDelta: () => {} };
+        const tick = new Function('net', 'window', 'SC', 'getActiveCampaign', 'own', 'saveRemoteSoon', 'pushChat', 'sendFailed', 'logEvent', pidU + ftS + '\n' + tcS + '\n' + ordersSrc + '\nreturn realPlayTick;')(
+            net, { wpVtt: { on: () => true }, wpSheets: { charChanged: () => {} }, wpFormula: Fx, wpStepLog: (a, b, c) => out.steps.push([a, b, c]) }, () => Sx, () => camp, (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), () => {}, m => out.chat.push(m), e => { throw e; }, () => {});
+        return { net, camp, out, tick, wait: id => camp.chars[id].values.f_g[0].ct.Wait };
+    };
+    const run = (R, from, n, step) => { for (let k = 0; k <= n; k++) R.tick(from + k * step); };
+    const A = mkR(); run(A, 1000, 11, 5000); const at55 = A.wait('c_p'); A.tick(61000); const at60 = A.wait('c_p'); run(A, 66000, 12, 5000);
+    const B = mkR(); B.tick(1000); B.tick(1000 + 3600000); for (let k = 1; k <= 8; k++) B.tick(3601000 + k * 5000);
+    const Pz = mkR({ paused: true }), Cl = mkR({ role: 'client' }), Al = mkR({ active: false }), No = mkR({ real: false }); [Pz, Cl, Al, No].forEach(R => run(R, 1000, 30, 5000));
+    check('gap 7 (realPlayTick and net.rowSpans, run for real): a minute of play hosted and not paused takes Ready in 2 to 1, and a second to 0 with Ready told; a character whose player alone is paused waits',
+        at55 === 2 && at60 === 1 && A.wait('c_p') === 0 && A.wait('c_q') === 2 && A.out.chat.map(m => m.text).join('|') === 'Luck on Pat: Ready.' && A.out.steps.filter(s => s[0] === 'realplay v1' && s[1] === 'tick').length === 2, j([at55, at60, A.wait('c_p'), A.wait('c_q'), A.out.chat]));
+    check('gap 7: an hour between two ticks (the machine asleep) counts as one tick, so a minute needs the ticks after it', B.wait('c_p') === 2 && (B.tick(3646000), B.wait('c_p') === 1), B.wait('c_p'));
+    check('gap 7: a paused table, a player\u2019s app, the GM playing alone and a system with no counter by minutes of play count nothing', [Pz, Cl, Al].every(R => R.wait('c_p') === 2) && No.wait('c_p') === 2 && No.out.steps.length === 0, j([Pz, Cl, Al, No].map(R => R.wait('c_p'))));
+    const ntS = require('./checkkit').part('nettime.js');   // the part that holds it, never net.js's joined text (splitcheck 7c)
+    check('gap 7: the clock that runs every five seconds on the GM\u2019s machine runs it too, and a fault in it is logged, never thrown', ntS.includes("try { realPlayTick(Date.now()); } catch (e) { if (window.wpStepLog) window.wpStepLog('realplay v1', 'failed',"));
+})());
+
 // Item 20 K5: a time rules summary (net.timeCard) to its player and the GM, or the GM alone; the counts never on the wire; a fight's end asks
 {
     const tcS = between('// [netcheck:timecard-start]', '// [netcheck:timecard-end]', 'timecard', 'nettime.js'), pidT = (() => { const i = src.indexOf('function peerProfileId('); return src.slice(i, src.indexOf('\n', i)) + '\n'; })();

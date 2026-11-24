@@ -1042,7 +1042,7 @@ function onChange(e) {
         else if (c.indexOf('sys-list-cttimer') >= 0 || c.indexOf('sys-list-cttu') >= 0 || c.indexOf('sys-list-ctton') >= 0 || c.indexOf('sys-list-cttreset') >= 0) {   // 1.6.0 Counts by the game clock
             var ctr3 = t.closest('.sys-list-ct'), ctD3 = ctr3 && Array.isArray(lsc.counters) ? lsc.counters[+ctr3.dataset.ti] : null; if (!ctD3 || typeof ctD3 !== 'object') return;
             var tm3 = ctD3.timer && typeof ctD3.timer === 'object' && !Array.isArray(ctD3.timer) ? ctD3.timer : null;
-            if (c.indexOf('sys-list-cttimer') >= 0) { if (!t.value) delete ctD3.timer; else { tm3 = tm3 || { per: { n: 1, u: 'day' } }; tm3.dir = t.value === 'up' ? 'up' : 'down'; if (tm3.dir === 'up') delete tm3.end; ctD3.timer = tm3; } }
+            if (c.indexOf('sys-list-cttimer') >= 0) { if (!t.value) delete ctD3.timer; else { var rl3 = t.value.charAt(0) === 'r'; tm3 = tm3 || { per: { n: 1, u: rl3 ? 'hour' : 'day' } }; tm3.dir = t.value === 'up' || t.value === 'rup' ? 'up' : 'down'; if (tm3.dir === 'up') delete tm3.end; if (rl3) { tm3.real = true; if (!tm3.per || (tm3.per.u !== 'min' && tm3.per.u !== 'hour')) tm3.per = { n: tm3.per && tm3.per.n ? tm3.per.n : 1, u: 'hour' }; } else delete tm3.real; ctD3.timer = tm3; } }   // 1.6.4 (gap 7): rdown and rup count by real minutes of play, in minutes or hours alone
             else if (!tm3) return;
             else if (c.indexOf('sys-list-cttu') >= 0) tm3.per = Object.assign({ n: 1 }, tm3.per, { u: String(t.value).slice(0, 24) });
             else if (c.indexOf('sys-list-ctton') >= 0) { if (t.checked) tm3.on = true; else { delete tm3.on; delete tm3.reset; } }

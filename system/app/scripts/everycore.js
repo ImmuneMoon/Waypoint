@@ -26,12 +26,15 @@ var EVERY_UNITS = Object.freeze({ min: 1, hour: 1, day: 1, week: 1 });
 // that moves with its character's own game time (calendar.js ownTime: every stretch lived once, a fight's rounds too; rowTimers). { dir: 'down'
 // (the default) or 'up'; per: one step every n minutes, hours, days, weeks or n of the system's own time unit by key (cleanEvery's units, never a
 // round); on: true, it counts only while its row is switched on; reset: true (with on), a row switched off goes back to its start; end: the word
-// a row shows once a count down reaches 0 (Spoiled) }. Down stops at 0 and the row stays; up stops at 1e6. The same in both views: no secret
+// a row shows once a count down reaches 0 (Spoiled) }. Down stops at 0 and the row stays; up stops at 1e6. The same in both views: no secret.
+// 1.6.4 (the full test's gap 7, a power used once an hour of play): real: true, it counts by real minutes of play instead (the host's own
+// clock while play counts, net rowSpans), so its per is minutes or hours alone; one with another unit is no timer. Absent: the game clock
 function cleanRowTimer(v) {
     if (!isObj(v)) return null;
     var p = isObj(v.per) ? v.per : null, n = p && typeof p.n === 'number' && fin(p.n) && Math.floor(p.n) === p.n && p.n >= 1 && p.n <= 1000 ? p.n : 0, u = p && typeof p.u === 'string' && (EVERY_UNITS[p.u] === 1 || STAT_KEY.test(p.u)) && lower(p.u) !== 'round' ? p.u : '';
     if (!n || !u) return null;
     var o = { dir: v.dir === 'up' ? 'up' : 'down', per: { n: n, u: u } };
+    if (v.real === true) { if (u !== 'min' && u !== 'hour') return null; o.real = true; }   // 1.6.4 (gap 7): by real minutes of play
     if (v.on === true) { o.on = true; if (v.reset === true) o.reset = true; }
     var w = o.dir === 'down' ? cutText(v.end, LIMITS.label) : ''; if (w) o.end = w;
     return o;

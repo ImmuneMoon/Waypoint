@@ -173,12 +173,12 @@ net.fxSpans = function(spans, walk) {
 // (systemcore rowTimers); perOf, a step's length in seconds on the campaign's calendar. Stored on the GM's machine; sent and drawn only where a
 // count moved (the part of a step lived is the GM's alone). A count down that reached 0 is told to the GM, and to its player unless it is a row
 // they may not see
-net.rowSpans = function(spans, perOf, fight) {   // fight (1.6.2): the stretch is a fight's, so an upkeep's rate out of a fight pays nothing
+net.rowSpans = function(spans, perOf, fight, real) {   // fight (1.6.2): the stretch is a fight's, so an upkeep's rate out of a fight pays nothing; real (1.6.4, gap 7): real seconds of play, which move only the counters that count by them (realPlayTick)
     if (net.role === 'client' || net.stream || !spans || typeof spans !== 'object' || typeof perOf !== 'function' || (window.wpVtt && !window.wpVtt.on('sheets'))) return;
     var camp = getActiveCampaign(), S = SC(), now = Date.now(); if (!camp || !camp.system || !camp.chars || !S || !S.rowTimers) return;
     Object.keys(spans).forEach(function(id) {
         var s = spans[id], ch = own(camp.chars, id) ? camp.chars[id] : null; if (!ch || typeof s !== 'number' || !isFinite(s) || !(s > 0)) return;
-        var r; try { r = S.rowTimers(camp.system, ch, s, perOf, window.wpFormula, fight === true); } catch (e) { if (window.wpStepLog) window.wpStepLog('rowtimer v1', 'failed', { at: 'tick', secs: Math.round(s) }); throw e; }
+        var r; try { r = S.rowTimers(camp.system, ch, s, perOf, window.wpFormula, fight === true, real === true); } catch (e) { if (window.wpStepLog) window.wpStepLog('rowtimer v1', 'failed', { at: 'tick', secs: Math.round(s) }); throw e; }
         var ids = Object.keys(r.values); if (!ids.length) return;
         ch.values = ch.values || {}; ids.forEach(function(fid) { ch.values[fid] = r.values[fid]; });
         saveRemoteSoon();
@@ -199,8 +199,24 @@ net.fxGameTime = function(secs) {   // K4: the game clock moved on secs seconds:
     var camp = getActiveCampaign(); if (!camp || !camp.system || !camp.chars) return;
     var sp = {}; Object.keys(camp.chars).forEach(function(id) { sp[id] = secs; }); net.fxSpans(sp);
 };
+// 1.6.4 (the full test's gap 7, a power used once an hour of play): counters that count by real minutes of play (systemcore cleanRowTimer's
+// real). The clock below adds the real time between its ticks while play counts, and hands it on a minute at a time to every character whose
+// play counts, as a span of net.rowSpans that moves those counters alone. A gap longer than a few ticks (the machine asleep, the app busy) counts
+// as one tick, and the part of a minute not yet handed on is forgotten when the app closes
+var _realAt = 0, _realMs = 0, REAL_TICK_MAX = 15000, REAL_STEP = 60000;
+function realPlayOn() { return !!(net.active && net.role === 'host' && !net.stream && !net.paused); }   // the one place that says when real minutes of play count: the GM hosts the table and has not paused it
+function realPlayWaits(ch) { return !!(ch && ch.ownerId && !ch.npc && net.pausedPlayers && net.pausedPlayers[ch.ownerId]); }   // a character whose player alone is paused waits, by the same rule the table's own pause gates use
+function realPlayTick(now) {
+    var camp = getActiveCampaign(), S = SC();
+    if (!realPlayOn() || !camp || !camp.system || !camp.chars || !S || !S.hasRealTimers || !S.hasRealTimers(camp.system) || (window.wpVtt && !window.wpVtt.on('sheets'))) { _realAt = 0; return; }   // guard: nothing counts, and a later start counts from then
+    if (_realAt) _realMs += Math.min(REAL_TICK_MAX, Math.max(0, now - _realAt)); _realAt = now;
+    if (_realMs < REAL_STEP) return; var secs = Math.floor(_realMs / 1000); _realMs -= secs * 1000;
+    var sp = {}; Object.keys(camp.chars).forEach(function(id) { if (!realPlayWaits(camp.chars[id])) sp[id] = secs; });
+    if (window.wpStepLog) window.wpStepLog('realplay v1', 'tick', { secs: secs, chars: Object.keys(sp).length });
+    net.rowSpans(sp, S.realEverySecs, false, true);
+}
 var _fxClock = null;
-function fxClockStart() { if (!_fxClock && typeof setInterval === 'function') _fxClock = setInterval(function() { try { fxClockTick(); } catch (e) {} }, 5000); }
+function fxClockStart() { if (!_fxClock && typeof setInterval === 'function') _fxClock = setInterval(function() { try { fxClockTick(); } catch (e) {} try { realPlayTick(Date.now()); } catch (e) { if (window.wpStepLog) window.wpStepLog('realplay v1', 'failed', { msg: String(e && e.message || e).slice(0, 120) }); } }, 5000); }
 // [netcheck:fxtime-end]
 // [split:body-end]
 return { charCombat: charCombat, fxClockStart: fxClockStart, fxClockTick: fxClockTick, fxCombatChars: fxCombatChars, fxCombatEdge: fxCombatEdge, fxEnded: fxEnded, timeNote: timeNote, turnFxEnd: turnFxEnd, turnFxStart: turnFxStart };   // [split:glue]

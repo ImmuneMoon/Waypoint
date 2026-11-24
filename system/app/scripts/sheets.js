@@ -4492,11 +4492,12 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (mpS) mpH.appendChild(mpS);
     });
 }
-// 1.6.0 Counts by the game clock: a timed counter's words for its chip's title, "counts down one every 2 days" (a unit of the system's by its label)
+// 1.6.0 Counts by the game clock: a timed counter's words for its chip's title, "counts down one every 2 days" (a unit of the system's by its label);
+// 1.6.4 (gap 7): "of play" where it counts by real minutes of play
 function ctClockWords(tm) {
     var p = tm && tm.per && typeof tm.per === 'object' ? tm.per : {}, n = typeof p.n === 'number' ? p.n : 1, u = typeof p.u === 'string' ? p.u : '', W = { min: ['minute', 'minutes'], hour: ['hour', 'hours'], day: ['day', 'days'], week: ['week', 'weeks'] }, w = W[u] ? W[u][n === 1 ? 0 : 1] : '';
     if (!w) { var sy = systemOf(getActiveCampaign()), us = sy && sy.combat && sy.combat.turn && Array.isArray(sy.combat.turn.units) ? sy.combat.turn.units : []; us.forEach(function(x) { if (!w && x && typeof x.key === 'string' && x.key.toLowerCase() === u.toLowerCase()) w = x.label || x.key; }); w = w || u; }
-    return 'counts ' + (tm.dir === 'up' ? 'up' : 'down') + ' one every ' + (n === 1 ? '' : n + ' ') + w + ' of game time' + (tm.on ? ' while it is on' + (tm.reset ? ', and starts again when off' : '') : '') + '. The clock sets it';
+    return 'counts ' + (tm.dir === 'up' ? 'up' : 'down') + ' one every ' + (n === 1 ? '' : n + ' ') + w + (tm.real === true ? ' of play' : ' of game time') + (tm.on ? ' while it is on' + (tm.reset ? ', and starts again when off' : '') : '') + '. The clock sets it';
 }
 // Stage 6 HUD R2: a row's counters — a chip each (Charges 12/20); −/+ for whoever may change the row's facts (one set op a click, the host judges it)
 function ctCtl(host, entry, c, f, spec, editable, cells, ups) {   // ups (1.6.0 Feeds): where each feed stands on this row; no − n/m + for one that does not (its chip says what is left in it)

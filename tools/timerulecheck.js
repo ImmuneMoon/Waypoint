@@ -1455,5 +1455,24 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             hkLz[0] === 16 && hkEg[0] === 16 && hkLz[1] === 0 && hkEg[1] >= 2, j([hkLz, hkEg]));
     }
 
+    {   // 1.6.4 (the full test's gap 7, a power used once an hour of play): a counter that counts by real minutes of play, beside one by the game clock
+        const J = JSON.stringify, rawP = { v: 1, name: 'P', rolls: [], items: [], sheet: { sections: [] }, fields: [{ id: 'f_gift', key: 'Gifts', label: 'Gifts', kind: 'item-list', vis: 'all', list: { counters: [
+            { key: 'Wait', label: 'Ready in', def: 0, timer: { dir: 'down', real: true, per: { n: 1, u: 'min' }, end: 'Ready' } }, { key: 'Glow', label: 'Glow', timer: { dir: 'up', real: true, per: { n: 2, u: 'hour' } } },
+            { key: 'Days', label: 'Days', timer: { dir: 'down', per: { n: 1, u: 'day' } } }, { key: 'Bad', label: 'Bad', timer: { dir: 'down', real: true, per: { n: 1, u: 'day' } } }] } }] };
+        const gP = cleanSystem(rawP, { F, gmView: true }), pP = cleanSystem(rawP, { F, gmView: false }), cP = gP.fields[0].list.counters;
+        check('gap 7, the cleaner (both views): a counter may count by real minutes of play (real), in minutes or hours alone, written after its step; one by real time in days is no timer; a counter by the game clock cleans as before',
+            J(cP.map(t => t.timer || null)) === J([{ dir: 'down', per: { n: 1, u: 'min' }, real: true, end: 'Ready' }, { dir: 'up', per: { n: 2, u: 'hour' }, real: true }, { dir: 'down', per: { n: 1, u: 'day' } }, null]) && J(pP.fields) === J(gP.fields)
+            && S.realEverySecs({ n: 2, u: 'hour' }) === 7200 && S.realEverySecs({ n: 5, u: 'min' }) === 300 && S.realEverySecs({ n: 1, u: 'day' }) === 0 && S.hasRealTimers(gP) === true && S.hasRealTimers(cleanSystem({ v: 1, name: 'N', fields: [] }, { F, gmView: true })) === false, J(cP));
+        const chP = { id: 'c_p', name: 'Pat', values: { f_gift: [{ id: 'w_l', def: { name: 'Luck' }, qty: 1, ct: { Wait: 3, Days: 2 } }] } }, gameOf = p => p.u === 'day' ? 86400 * p.n : p.u === 'min' ? 60 * p.n : 3600 * p.n;
+        const rR = S.rowTimers(gP, chP, 120, S.realEverySecs, F, false, true), rG = S.rowTimers(gP, chP, 86400, gameOf, F, false), rEnd = S.rowTimers(gP, chP, 180, S.realEverySecs, F, false, true);
+        check('gap 7, rowTimers: real seconds move only the counters by real minutes (two minutes: Ready in 3 to 1, Glow keeps its part of two hours), and a day of game time only the one by the game clock',
+            J(rR.values.f_gift[0].ct) === J({ Wait: 1, Days: 2 }) && rR.values.f_gift[0].tt.Glow === 120 && J(rG.values.f_gift[0].ct) === J({ Wait: 3, Days: 1 }) && !(rG.values.f_gift[0].tt && rG.values.f_gift[0].tt.Glow)
+            && rEnd.values.f_gift[0].ct.Wait === 0 && J(rEnd.ended) === J([{ name: 'Luck', word: 'Ready', label: 'Ready in', gm: false }]), J([rR, rG, rEnd]));
+        const kitP = require('./checkkit'), edL = kitP.part('sysedlist.js'), edT = kitP.part('sysedtabs.js'), shP = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'scripts', 'sheets.js'), 'utf8'), ixP = require('fs').readFileSync(require('path').join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8');
+        check('gap 7: the counter\u2019s menu offers Counts down and up by minutes of play, in minutes or hours alone, and picking one writes real; the chip says of play; Help says it',
+            edL.includes("['rdown', 'Counts down by minutes of play'], ['rup', 'Counts up by minutes of play']") && edL.includes("var tuo = tmr.real === true ? [['min', 'minutes'], ['hour', 'hours']] :") && edT.includes("if (rl3) { tm3.real = true;")
+            && shP.includes("(tm.real === true ? ' of play' : ' of game time')") && ixP.includes('A counter can also count <b>by minutes of play</b>'));
+    }
+
     await T.finish();
 })();

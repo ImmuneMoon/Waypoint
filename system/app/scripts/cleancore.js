@@ -222,8 +222,23 @@ function cleanFlies(v) {
     if (v.path === 'line') o.path = 'line'; if (typeof v.roll === 'string' && ROLL_ID.test(v.roll)) o.roll = v.roll; if (v.end === 'off') o.end = 'off';
     return o;
 }
+// [gapsmap:shape-start]
+// Gap 19 (area shapes): the numbers a shape of an item's blast needs beside its size in feet (out.ft: a circle's, a ring's and a cylinder's
+// radius, a cone's length, a square's side). A ring's inner radius in feet (inFt, a whole number under ft: without one a ring is the whole
+// disc), a cone's width in whole degrees (deg, 1 to 360: without one the cone's default), a cylinder's height in feet (hFt, a whole number
+// from 1 to the most a blast may be: without one it holds every height). A circle and a square need none. out.shape is already one the
+// cleaner keeps; each number is kept only beside its own shape
+function areaShapeInto(out, src) {
+    var whole = function(v) { return typeof v === 'number' && fin(v) ? Math.round(v) : 0; };
+    if (out.shape === 'ring') { var inF = whole(src.inFt); if (inF >= 1 && inF < out.ft) out.inFt = inF; }
+    else if (out.shape === 'cone') { var dg = whole(src.deg); if (dg >= 1 && dg <= 360) out.deg = dg; }
+    else if (out.shape === 'cylinder') { var hF = whole(src.hFt); if (hF >= 1) out.hFt = Math.min(hF, LIMITS.maxBlastFt); }
+    return out;
+}
+// [gapsmap:shape-end]
 function areaExtra(out, src, gmView) {
     if (!isObj(out) || !isObj(src)) return out;
+    areaShapeInto(out, src);   // gap 19: the numbers its shape needs
     if (typeof src.type === 'string' && STAT_KEY.test(src.type) && src.type.length <= 24) out.type = src.type;
     if (src.use === true) out.use = true;
     if (typeof src.loc === 'string') { var lcA = cutText(src.loc, 60); if (lcA) out.loc = lcA; }   // 1.6.2 (the CORE session's batch 6, 11): the location its blast strikes, by name (whiteboard.js torsoOf)

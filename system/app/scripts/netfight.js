@@ -65,18 +65,22 @@ function holdEnd(camp, c, recs, why) {   // those records gone, the effects with
     recs.forEach(function(x) { holdTell(camp, x.bc, 'You let go.'); holdTell(camp, x.oc, 'You are no longer held.'); if (typeof recLine === 'function') recLine('fight', (camp.chars && own(camp.chars, x.bc) ? camp.chars[x.bc].name : '') || 'Someone', 'Lets go', HOLD_WHY[why] || ''); });
     holdLog('ended', { n: recs.length, why: why }); if (typeof fightsKeepSoon === 'function') fightsKeepSoon();
 }
+// Whether a token tok set down at p (its top-left) would stand on another token or a waiting one: on a grid by the cell, since a hex map's boxes
+// overlap their neighbors', else by the boxes. Asked by a hold's draw (holdDraw) and a forced move (forcedRun)
+function spotTaken(map, tok, p) {
+    var w = tok.w || 60, h = tok.h || 52, gd = !!(map.meta && map.meta.gridType);
+    return (map.whiteboard || []).some(function(o) {
+        if (!o || o.id === tok.id || !(o.isChar || o.waiting)) return false;
+        var ow = o.w || 0, oh = o.h || 0;
+        return gd ? Math.hypot(p.x + w / 2 - o.x - ow / 2, p.y + h / 2 - o.y - oh / 2) < 0.7 * Math.min(w, h) : p.x < o.x + ow && p.x + w > o.x && p.y < o.y + oh && p.y + h > o.y;
+    });
+}
 function holdDraw(camp, map, mapId, by, on, c) {   // 1.6.2: a grab from a distance draws its target in (combat.holds.drawIn, off unless a system sets it): to a free cell beside the holder, as near the side they came from as there is one, that the holder could walk to. With none, or while someone else holds them, they stay and the GM moves the token
     var r = holdsRules(camp); if (!r || r.drawIn !== true || !map || allyNear(map, by, on, false)) return false;
     if (holdsOf(c).some(function(x) { return x.on === on.id && x.by !== by.id; })) return false;
     var w = on.w || 60, h = on.h || 52, bw = by.w || 60, bh = by.h || 52, cx = by.x + bw / 2, cy = by.y + bh / 2, gd = !!(map.meta && map.meta.gridType), d = (Math.max(bw, bh) + Math.max(w, h)) / 2 * (gd ? 0.8 : 1) + (gd ? 0 : 4);
     var at = Math.atan2(on.y + h / 2 - cy, on.x + w / 2 - cx), F = window.wpFog && typeof window.wpFog.arrivalOk === 'function' ? window.wpFog : null, spot = null;
-    var taken = function(p) {   // on a grid by the cell: a hex map's boxes overlap their neighbors'
-        return (map.whiteboard || []).some(function(o) {
-            if (!o || o.id === on.id || !(o.isChar || o.waiting)) return false;
-            var ow = o.w || 0, oh = o.h || 0;
-            return gd ? Math.hypot(p.x + w / 2 - o.x - ow / 2, p.y + h / 2 - o.y - oh / 2) < 0.7 * Math.min(w, h) : p.x < o.x + ow && p.x + w > o.x && p.y < o.y + oh && p.y + h > o.y;
-        });
-    };
+    var taken = function(p) { return spotTaken(map, on, p); };
     var walks = function(p) { if (!F) return true; try { return F.arrivalOk(map, on, cx - w / 2, cy - h / 2, p.x, p.y) !== false; } catch (e) { return true; } };   // the one judge of walls, barriers and the play area
     for (var k = 0; k < 12 && !spot; k++) {   // 0, then 30 degrees either way, on round to behind the holder
         var ang = at + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 6, t = Object.assign({}, on, { x: cx + Math.cos(ang) * d - w / 2, y: cy + Math.sin(ang) * d - h / 2 });
@@ -90,6 +94,67 @@ function holdDraw(camp, map, mapId, by, on, c) {   // 1.6.2: a grab from a dista
     holdLog('drawn', {}); if (typeof save === 'function') save(true);
     return true;
 }
+// [gapsmap:forced-start]
+// Gap 21 (forced movement): a change of a roll's Then or of an action that moves a token (systemcore applyAct hands each to its move sink,
+// sheetlink.js to net.forcedMoves). Made here, on the host alone; nothing a player says moves a token but the point their roll was aimed at.
+//   away, toward: the target's token goes that many cells straight away from, or toward, the user's token, one cell at a time on the map's
+//     lattice, each step seated as a token is (wpSeatCell) and judged by the one wall judge (fog.js arrivalOk: walls, barriers and the play
+//     area). It stops in the last cell it reached, before a wall or another token; pulled in, it stops beside the user.
+//   spot: the user's token goes to the point the roll was aimed at, seated there, if that is within that many cells, no token stands there
+//     and arrivalOk lets it walk there.
+// A forced move is not the token's own: no move this turn is counted for it. Those it holds come along or are let go (holdsMoved), as when
+// it walks. Each answer: { moved, stop }: the cells it went, and why it stopped short ('wall', 'token', 'far', 'none' or '')
+var FORCED_MAX = 100;
+function forcedStepPx(map) {   // one cell of the map's lattice in board pixels: a square's side, a hex's row (from a hex to its neighbor), else 50
+    var L = typeof window.wpLatticeOf === 'function' ? window.wpLatticeOf(map) : null;
+    return L && L.type === 'square' && L.size > 0 ? L.size : L && L.type === 'hex' && L.h > 0 ? L.h : 50;
+}
+function forcedWalks(map, tok, from, to) { var F = window.wpFog; if (!F || typeof F.arrivalOk !== 'function') return true; try { return F.arrivalOk(map, tok, from.x, from.y, to.x, to.y) !== false; } catch (e) { return true; } }
+function forcedSeat(map, tok, x, y) { var t = Object.assign({}, tok, { x: x, y: y }); if (window.wpSeatCell) window.wpSeatCell(t, map); return { x: t.x, y: t.y }; }
+// The cells along the line from the user's token: the spot each step lands on, and why the next could not be taken
+function forcedPath(map, by, tok, way, cells) {
+    var w = tok.w || 60, h = tok.h || 52, bc = { x: by.x + (by.w || 60) / 2, y: by.y + (by.h || 52) / 2 }, tc = { x: tok.x + w / 2, y: tok.y + h / 2 };
+    var dx = tc.x - bc.x, dy = tc.y - bc.y, d = Math.sqrt(dx * dx + dy * dy); if (!(d > 0)) return { at: null, moved: 0, stop: 'none' };
+    var ux = (way === 'toward' ? -dx : dx) / d, uy = (way === 'toward' ? -dy : dy) / d, step = forcedStepPx(map), at = { x: tok.x, y: tok.y }, moved = 0, stop = '';
+    for (var k = 1; k <= cells; k++) {
+        var nx = forcedSeat(map, tok, tok.x + ux * step * k, tok.y + uy * step * k);
+        if (Math.abs(nx.x - at.x) < 0.5 && Math.abs(nx.y - at.y) < 0.5) continue;   // seated back in the same cell: the line has not left it yet
+        if (spotTaken(map, tok, nx)) { stop = 'token'; break; }
+        if (!forcedWalks(map, tok, at, nx)) { stop = 'wall'; break; }
+        at = nx; moved = k;
+    }
+    return { at: at, moved: moved, stop: stop };
+}
+function forcedSpot(camp, map, tok, aim, cells) {   // where the user lands, or why it cannot
+    if (!aim || typeof aim.x !== 'number' || typeof aim.y !== 'number' || !isFinite(aim.x) || !isFinite(aim.y)) return { at: null, stop: 'none' };
+    var w = tok.w || 60, h = tok.h || 52, to = forcedSeat(map, tok, aim.x - w / 2, aim.y - h / 2);
+    var sys = camp && camp.system, dg = sys && sys.combat && sys.combat.turn ? sys.combat.turn.diag : '', lenO = {}, Fg = window.wpFog;
+    var d = Fg && typeof Fg.moveCells === 'function' ? Fg.moveCells(map, tok, tok.x, tok.y, to.x, to.y, dg, lenO) : Math.hypot(to.x - tok.x, to.y - tok.y) / forcedStepPx(map), len = typeof lenO.len === 'number' && isFinite(lenO.len) ? lenO.len : d;
+    if (!(len <= cells + 0.05)) return { at: null, stop: 'far' };
+    if (spotTaken(map, tok, to)) return { at: null, stop: 'token' };
+    if (!forcedWalks(map, tok, { x: tok.x, y: tok.y }, to)) return { at: null, stop: 'wall' };
+    return { at: to, moved: Math.round(len), stop: '' };
+}
+function forcedRun(camp, m) {
+    var map = camp && camp.items && own(camp.items, m.map) ? camp.items[m.map] : null; if (!map || map.type !== 'map') return { moved: 0, stop: 'none' };
+    var find = function(id) { return (map.whiteboard || []).filter(function(x) { return !!x && x.id === id && x.isChar; })[0] || null; };
+    var by = find(m.by), tok = find(m.on), cells = Math.max(0, Math.min(FORCED_MAX, Math.floor(m.cells || 0)));
+    if (!by || !tok || !(cells >= 1) || (m.way !== 'spot' && by === tok)) return { moved: 0, stop: 'none' };
+    var r = m.way === 'spot' ? forcedSpot(camp, map, tok, m.aim, cells) : forcedPath(map, by, tok, m.way, cells);
+    if (!r.at || (Math.abs(r.at.x - tok.x) < 0.5 && Math.abs(r.at.y - tok.y) < 0.5)) return { moved: 0, stop: r.stop || 'none' };
+    var was = { x: tok.x, y: tok.y };
+    snapBack(camp, map, tok, { campId: camp.id, itemId: map.id, wbId: tok.id }, r.at, null);   // moved for everyone, as a hold draws its target in
+    holdsMoved(camp, map, map.id, tok, was);
+    return { moved: r.moved, stop: r.stop };
+}
+net.forcedMoves = function(list) {   // the move sink: on the host, or at a table of one; a player's app moves nothing (null)
+    var camp = getActiveCampaign(); if (!camp || (net.active && net.role === 'client') || !Array.isArray(list)) return null;
+    var out = list.map(function(m) { return m && typeof m === 'object' ? forcedRun(camp, m) : { moved: 0, stop: 'none' }; });
+    if (out.some(function(r) { return r.moved > 0; }) && typeof save === 'function') save(true);
+    if (window.wpStepLog) window.wpStepLog('forced v1', 'moved', { moves: list.length, went: out.filter(function(r) { return r.moved > 0; }).length });
+    return out;
+};
+// [gapsmap:forced-end]
 function holdPut(camp, mapId, by, onId, pin) {   // a hold of the token by on the token onId, or pinned; words where there can be none
     var fid = by ? fightOfTok(mapId, by.id) : null, c = fid ? net.combats[fid] : null, map = holdMap(camp, c), on = holdTok(map, onId);
     if (!c || !on || fightOfTok(mapId, onId) !== fid) return 'Both must be in the same fight.';

@@ -1257,6 +1257,39 @@ pendingChecks.push((async () => {
             J2({ gl, gr, sides, bl }));
     } catch (e) { check(TL, false, 'threw: ' + (e && e.stack || e)); }
 })());
+// Gap 31, who a barrier stops: the real fog.js judge (moveBlocked, arrivalIn) over the real fogcore and systemcore, a system with a toggle Infantry
+// and a number Fly. A ruin wall that stops only tokens whose Infantry is off, a barrier that stops only those whose Fly is 0, a plain wall
+pendingChecks.push((async () => {
+    const TP = 'gap 31 who a barrier stops (fog.js moveBlocked and arrivalIn, run for real): a wall that stops only tokens whose field is off lets through a token whose character has it on (a toggle on, a number not 0) and stops one whose field is off, a token with no character, and one whose field the system lacks; a barrier likewise; a plain wall beside it still stops everyone; a piece that stops nothing gives nothing by naming a field; the map itself is never changed';
+    try {
+        const url = f => 'file:///' + path.resolve(path.join(__dirname, '..', 'system', 'app', 'scripts', f)).split(String.fromCharCode(92)).join('/');
+        const FCx = await import(url('fogcore.js')), Sx = await import(url('systemcore.js')), Fx = await import(url('formula.js'));
+        const fogT = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'fog.js'), 'utf8').replace(/\r\n/g, '\n');
+        const fogV = fogT.slice(fogT.indexOf('function core() {'), fogT.indexOf('/* ---------- the overlay'));
+        const sys = Sx.cleanSystem({ fields: [{ id: 'f_inf', key: 'Infantry', kind: 'toggle', vis: 'all', edit: 'owner' }, { id: 'f_fly', key: 'Fly', kind: 'number', vis: 'all', edit: 'owner' }] }, { F: Fx, gmView: true });
+        const ch = (id, v) => Sx.cleanChar({ id, name: id, values: v }, sys);
+        const camp = { id: 'k', system: sys, items: {}, chars: { c_foot: ch('c_foot', { f_inf: true, f_fly: 0 }), c_tank: ch('c_tank', { f_inf: false, f_fly: 0 }), c_bird: ch('c_bird', { f_inf: false, f_fly: 2 }) }, players: {} };
+        const win = { wpFogCore: FCx, wpSystemCore: Sx, wpFormula: Fx, wpVtt: { on: () => true, campaignOn: () => true, mode: () => 'host' } };
+        const fog = new Function('window', 'document', 'getActiveMap', 'getActiveCampaign', 'state', "'use strict';\n" + fogV + '\nreturn { arrivalIn: arrivalIn, moveBlocked: moveBlocked };')(win, { getElementById: () => null }, () => null, () => camp, { appState: { campaigns: { k: camp } } });
+        const cell = (id, c, r, more) => Object.assign({ id, type: 'rect', x: c * 50, y: r * 50, w: 50, h: 50 }, more);
+        const ruin = cell('ruin', 3, 0, { blocksSight: true, sightType: 'wall', passIf: 'f_inf' }), net = cell('net', 3, 2, { barrier: true, passIf: 'f_fly' }), wall = cell('wall', 3, 4, { blocksSight: true, sightType: 'wall' }), odd = cell('odd', 3, 6, { passIf: 'f_inf' }), gone = cell('gone', 3, 8, { blocksSight: true, passIf: 'f_none' });
+        const m = { id: 'm1', type: 'map', meta: { gridType: 'square', updated: 1 }, whiteboard: [ruin, net, wall, odd, gone] }; camp.items.m1 = m;
+        const before = JSON.stringify(m), tk = (charId) => ({ id: 't_' + (charId || 'x'), isChar: true, charId, w: 50, h: 50 });
+        const across = (t, row) => fog.moveBlocked(m, t, 100, row * 50, 250, row * 50);
+        const foot = tk('c_foot'), tank = tk('c_tank'), bird = tk('c_bird'), bare = tk(undefined);
+        const got = { ruin: [foot, tank, bird, bare].map(t => across(t, 0)), net: [foot, tank, bird, bare].map(t => across(t, 2)), wall: [foot, bird].map(t => across(t, 4)), odd: [foot, tank].map(t => across(t, 6)), gone: [foot].map(t => across(t, 8)),
+            inRuin: [foot, tank].map(t => fog.arrivalIn(m, t, 150, 0)) };
+        check(TP, JSON.stringify(got) === JSON.stringify({ ruin: [false, true, true, true], net: [true, true, false, true], wall: [true, true], odd: [false, false], gone: [true], inRuin: [false, true] }) && JSON.stringify(m) === before, JSON.stringify(got));
+        // the key on its ways: kept on import only as a field id on a wall or a barrier, never sent to a player, never kept from a host
+        const Cx = FCx; const keys = [['f_inf', true], ['f_x_9', true], ['x_inf', false], ['f_', false], [5, false], [{}, false], ['f_' + 'a'.repeat(25), false]].map(([v, ok]) => (Cx.cleanPassIf(v) === (ok ? v : '')));
+        const [, wireP] = new Function('window', '"use strict";\n' + siSrc() + '\nreturn [sanitizeItem, wireWbItem];')({ wpFogCore: FCx });
+        const chP = src.indexOf('function cleanHostWbItem(w) {'), cleanP = new Function('window', '"use strict";\n' + src.slice(chP, src.indexOf('\n', chP)) + '\nreturn cleanHostWbItem;')({ wpFogCore: FCx });
+        const wiredP = [ruin, net, Object.assign({}, ruin, { sightType: 'door' })].map(w => wireP(JSON.parse(JSON.stringify(w)), false)), hostP = cleanP({ id: 'r', type: 'rect', blocksSight: true, passIf: 'f_inf' });
+        check('gap 31 the key on the wire: never sent to a player, on a wall, a barrier or a door (wireWbItem, run for real; the host judges every move), and never kept from a host on a player\'s app (cleanHostWbItem)',
+            wiredP.every(w => !!w && !('passIf' in w)) && !!hostP && !('passIf' in hostP) && 'passIf' in ruin, JSON.stringify([wiredP, hostP]));
+        check('gap 31 the key (fogcore cleanPassIf and passIfOf): a field id of the system\'s own form, else nothing; read only on a wall or a barrier', keys.every(Boolean) && Cx.passIfOf(ruin) === 'f_inf' && Cx.passIfOf(net) === 'f_fly' && Cx.passIfOf(odd) === '' && Cx.passIfOf(null) === '', JSON.stringify(keys));
+    } catch (e) { check(TP, false, 'threw: ' + (e && e.stack || e)); }
+})());
 // 1.6.4: doors that lead somewhere (Fulllion, 2026-11-23, by prompt; docs/TODO_BACKLOG.md "Doors that lead somewhere"). The real
 // net.tokenDropped and the doorway slice (doorCrossFor, doorStopSpot, doorPark, doorNearTok, doorWayOf, doorSetDown, doorTravel) with the real
 // hostTravel (travelBar rides in its slice), freeSpotNear, stepOffPortal, portalUnder, ensurePlayerToken, offlinePlayerTravel and npcTravel, over

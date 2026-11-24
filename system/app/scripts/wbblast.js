@@ -88,6 +88,8 @@ export function wbBlast() {   // [split:glue]
   function blastSize(b, unit, iu) {
       if (ownCircle(b)) return circleWords(b.yd, b.as, unit, b.inn, b.deg);
       var k = kindOf(b), r = blastRadiusYd(b), say = function(v) { return blastNum(v, unit, iu); };
+      if (k === 'square') return 'Square ' + say(b.ft / 3) + ' ' + unitKnown(unit);   // gap 19: its side
+      if (k === 'cylinder') return 'Cylinder, radius ' + say(r) + ' ' + unitKnown(unit) + (typeof b.hFt === 'number' && b.hFt > 0 ? ', ' + say(b.hFt / 3) + ' ' + unitKnown(unit) + ' high' : '');   // gap 19
       return k === 'ring' && innerYd(b) > 0 ? circleWords(r, 'ring', unit, innerYd(b), 0, say) : k === 'cone' ? circleWords(r, 'cone', unit, 0, b.deg, say) : circleWords(r, 'r', unit, 0, 0, say);
   }
   function blastWords(b, unit, iu) { var n = blastName(b); return (n ? n + ' \u00b7 ' : '') + blastSize(b, unit, iu); }
@@ -189,7 +191,7 @@ export function wbBlast() {   // [split:glue]
   // What a shape is, for one of the tool's own and for a blast alike. A blast is a circle unless an explosion gave it a shape (the owner, of
   // whether a cone or a ring should explode too: "A cone and a ring, soon"): a ring keeps its inner distance in feet (shape 'ring', inFt), a
   // cone its angle and its aim (shape 'cone', deg, dir). A shape's own numbers stay in yards (as, inn)
-  function kindOf(b) { return ownCircle(b) ? circleKind(b.as) : b && (b.shape === 'ring' || b.shape === 'cone') ? b.shape : 'r'; }
+  function kindOf(b) { return ownCircle(b) ? circleKind(b.as) : b && (b.shape === 'ring' || b.shape === 'cone' || b.shape === 'square' || b.shape === 'cylinder') ? b.shape : 'r'; }   // gap 19: an item's blast may be a square or a cylinder too
   function innerYd(b) { var v = ownCircle(b) ? Number(b.inn) : Number(b && b.inFt) / 3; return isFinite(v) && v > 0 ? v : 0; }   // a ring's inner distance in yards, 0 where there is none
   function playerScreen() { var n = window.wpNet; return !!(n && (n.foreign || (n.active && n.role === 'client'))); }   // someone else's table on this screen, its link up or gone (litViewer's own test): every blast effect is the GM's
   function tokenOf(map, id) { var t = null; ((map && map.whiteboard) || []).forEach(function(w) { if (w && w.id === id && w.isChar) t = w; }); return t; }   // the character token of that id on this screen's copy of the map
@@ -210,12 +212,33 @@ export function wbBlast() {   // [split:glue]
       if (b.lost) return false;
       if (typeof b.tok === 'string' && r.tok && r.tok.id === b.tok) return false;   // the token a circle sits on is its center, not something inside it
       if (typeof b.spare === 'string' && r.tok && r.tok.id === b.spare) return false;   // an explosion set off from such a circle spares that token still
-      if (r.d > blastRadiusYd(b) + 1e-9) return false;
       var k = kindOf(b);   // a blast that an exploded ring or cone left has that shape still
+      if (k === 'square') return squareHolds(b, r);   // gap 19: a square by its side, at every height
+      if (k === 'cylinder') return r.h <= blastRadiusYd(b) + 1e-9 && cylinderHolds(b, r);   // gap 19: a circle on the ground, up to its height
+      if (r.d > blastRadiusYd(b) + 1e-9) return false;
       if (k === 'ring') return r.d >= innerYd(b) - 1e-9;
       if (k === 'cone') { var c = tokenCentre(r.tok); return coneHolds(b.dir, b.deg, c.x - b.x, c.y - b.y); }
       return true;
   }
+  // [gapsmap:shapeholds-start]
+  // Gap 19 (area shapes): a square holds a token whose center stands within half its side (ft) of the square's center along both axes of the
+  // map, at any height; a cylinder one within its radius on the ground and from the blast's own height up to hFt above it (none: every height).
+  // r is a row of blastDistances: r.h the yards across the ground, r.v the yards above the blast
+  function squareHolds(b, r) {
+      var c = tokenCentre(r.tok), dx = c.x - b.x, dy = c.y - b.y, px = Math.sqrt(dx * dx + dy * dy), half = (Number(b.ft) || 0) / 6;
+      if (!(px > 1e-9)) return true;
+      var k = r.h / px; return Math.abs(dx) * k <= half + 1e-9 && Math.abs(dy) * k <= half + 1e-9;
+  }
+  function cylinderHolds(b, r) { var hY = typeof b.hFt === 'number' && isFinite(b.hFt) && b.hFt > 0 ? b.hFt / 3 : Infinity; return r.v >= -1e-9 && r.v <= hY + 1e-9; }
+  // ... and what of a blast's shape the table is shown with it: the shape and its numbers, each only as its shape has it
+  function blastShapeWire(b, sent) {
+      if (b.shape === 'ring' && typeof b.inFt === 'number') { sent.shape = 'ring'; sent.inFt = b.inFt; }
+      else if (b.shape === 'cone') { sent.shape = 'cone'; sent.deg = b.deg; sent.dir = b.dir; }
+      else if (b.shape === 'square') sent.shape = 'square';
+      else if (b.shape === 'cylinder') { sent.shape = 'cylinder'; if (typeof b.hFt === 'number') sent.hFt = b.hFt; }
+      return sent;
+  }
+  // [gapsmap:shapeholds-end]
   // [systemcheck:radius-end]
   var _blastHitIds = [];
   var _armedThrow = null;   // { charId, fieldId, rowId, ft, name, by, damage, gmOnly } while a sheet Throw is armed (one-shot)
@@ -242,7 +265,7 @@ export function wbBlast() {   // [split:glue]
       if (state.gridType === 'hex') return hexDist(hexCellOf(ax, ay), hexCellOf(bx, by)) * cellYards();
       return Math.hypot(bx - ax, by - ay) / mapMeasureConfig().cellPx * cellYards();
   }
-  function blastRadiusYd(b) { return ownCircle(b) ? b.yd : b.ft / 3; }   // the tool's own circle keeps yards; a thrown blast its item's feet
+  function blastRadiusYd(b) { return ownCircle(b) ? b.yd : b && b.shape === 'square' ? b.ft / 6 : b.ft / 3; }   // gap 19: a square reaches half its side from its center   // the tool's own circle keeps yards; a thrown blast its item's feet
   function blastDistances(b, map) {   // every character token (hidden ones too — the GM is the only viewer)
       var elevOn = stanceOn('elevation');
       return (map.whiteboard || []).filter(function(t) { return t.isChar; }).map(function(t) {
@@ -264,6 +287,7 @@ export function wbBlast() {   // [split:glue]
           html += '<g class="blast' + (own ? ' own' : '') + (onTok ? ' on-tok' : '') + '" data-i="' + i + '"><title>' + (onTok ? 'It moves with its token \u00b7 right-click its edge to remove' : 'Drag to move \u00b7 right-click to remove') + '</title>';
           var kind = kindOf(b), DOT = '<circle class="dot" cx="' + b.x + '" cy="' + b.y + '" r="6"></circle>', GRAB = '<circle class="ring" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>';
           if (kind === 'cone') html += '<path class="area" d="' + conePath(b.x, b.y, rPx, b.dir, b.deg) + '"></path>' + DOT + (own ? '<circle class="blast-aim" data-i="' + i + '" cx="' + svgNum(b.x + rPx * Math.cos(b.dir || 0)) + '" cy="' + svgNum(b.y + rPx * Math.sin(b.dir || 0)) + '" r="7"><title>Drag to turn the cone</title></circle>' : '');   // a path is numbers only (svgNum); a blast's cone has no handle: it went off as it was aimed
+          else if (kind === 'square') html += '<path class="area" d="M' + svgNum(b.x - rPx) + ' ' + svgNum(b.y - rPx) + 'h' + svgNum(2 * rPx) + 'v' + svgNum(2 * rPx) + 'h' + svgNum(-2 * rPx) + 'z"></path>' + DOT;   // gap 19: a square, its side 2 rPx
           else if (kind === 'ring' && innerYd(b) > 0) html += '<path class="area" fill-rule="evenodd" d="' + ringPath(b.x, b.y, rPx, innerYd(b) * pxPerYd) + '"></path>' + GRAB + DOT;
           else html += '<circle class="area" cx="' + b.x + '" cy="' + b.y + '" r="' + rPx + '"></circle>' + GRAB + DOT;
           if (b.thrown) html += standInSvg('grenade', b.x, b.y, b.icon);   // 1.5.8 explosives: its icon at the center of the blast, the item's own or the stand-in
@@ -390,16 +414,18 @@ export function wbBlast() {   // [split:glue]
           var afB = opts.goOff ? opts.aff : pre.area && pre.area.aff, BCa = window.wpBlastCore, afC = Array.isArray(afB) && BCa && typeof BCa.cleanAffs === 'function' ? BCa.cleanAffs(afB) : null; if (afC) b.aff = afC; var clB = opts.goOff ? opts.cloud : pre.area && pre.area.cloud, clC = clB && BCa && typeof BCa.cleanCloud === 'function' ? BCa.cleanCloud(clB) : null; if (clC) b.cloud = clC;   // 1.6.2: the cloud it leaves   // 1.5.9 (es): its afflictions, rolled by those it reaches as it goes off (the host's memory alone, as its fragmentation)
           var fsB = opts.goOff ? opts : pre.tr && typeof blastStats === 'function' ? blastStats(getActiveCampaign().system, pre.tr.f, pre.def) : null; if (fsB) { if (typeof fsB.fills === 'number' && fsB.fills > 0) b.fills = fsB.fills; if (fsB.noDrop === true) b.noDrop = true; if (typeof fsB.iscale === 'number' && fsB.iscale > 0) b.iscale = fsB.iscale; }   // 1.6.0: what its list says of it (the host's memory alone, as its fragmentation)
       }
-      if (onScreen) seatBlast(b);
+      if (pre && pre.area && /^(ring|cone|square|cylinder)$/.test(String(pre.area.shape))) { b.shape = pre.area.shape; if (typeof pre.area.inFt === 'number' && pre.area.inFt < b.ft) b.inFt = pre.area.inFt; if (typeof pre.area.hFt === 'number') b.hFt = pre.area.hFt; }   // gap 19: the item's shape
+      if (pre && pre.cone) { b.shape = 'cone'; b.deg = typeof coneDeg === 'function' ? coneDeg(pre.area && pre.area.deg, 60) : 60; b.dir = Math.atan2(pre.cone.aim.y - pre.cone.from.y, pre.cone.aim.x - pre.cone.from.x); b.elev = pre.cone.elev; b.autoElev = false; }   // ... a cone from its user's token, turned to the aim
+      if (onScreen && !(pre && pre.cone)) seatBlast(b);
       var thrB = opts.charId ? (map.whiteboard || []).filter(function(w) { return w.charId === opts.charId; }).sort(function(p, q) { return (q.isChar ? 1 : 0) - (p.isChar ? 1 : 0); })[0] : null;   // cover follow-ups (owner, answer 5): the thrower's token on this map
-      var seatB = window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
+      var seatB = !(pre && pre.cone) && window.wpFog && window.wpFog.blastSeat ? window.wpFog.blastSeat(map, b.x, b.y, thrB ? thrB.x + (thrB.w || 60) / 2 : opts.x, thrB ? thrB.y + (thrB.h || 52) / 2 : opts.y) : null;   // a blast can't go off inside a wall or a closed door: it goes off in front, on the thrower's side
       if (pre && typeof blastEnvAt === 'function') { var enB = blastEnvAt(getActiveCampaign(), map, b); if (enB) b.env = enB; var rdF = typeof blastRules === 'function' ? blastRules(getActiveCampaign() && getActiveCampaign().system) : null; if (rdF && rdF.radius) { b.cell = blastCell(map); var rdV = blastFig(rdF.radius, function(nm) { var l = String(nm).toLowerCase(); return l === 'blastradius' ? b.ft / 3 : l === 'mapcell' ? b.cell : l === 'blastscale' ? (typeof b.iscale === 'number' && b.iscale > 0 ? b.iscale : 1) : l === 'blastdice' ? (window.wpBlastCore && window.wpBlastCore.diceCount ? window.wpBlastCore.diceCount(b.dmgExpr || '') : 0) : l.indexOf('env.') === 0 && window.wpBlastCore && window.wpBlastCore.envRead ? window.wpBlastCore.envRead(b.env, l.slice(4)) : undefined; }, false); if (typeof rdV === 'number' && rdV > 0) b.ft = Math.max(1, Math.min(3000, Math.round(rdV * 3))); } }   // 1.6.2: the readings where it lands, and its radius by them (vacuum, water)
       if (seatB) { b.x = seatB.x; b.y = seatB.y; if (b.autoElev) { var underB = tokenAtPoint(map, b.x, b.y, true); b.elev = underB ? tokenElevation(underB, map, true) : groundAt(map, b.x, b.y, true); } }
       if (onScreen) { pushBlast(b); renderMeasures(); syncBlastMenu(); }
       else if (typeof blastsAwayPush === 'function') blastsAwayPush(map.id, b);   // the review of finding 6's fix: a map not on screen keeps it aside for when the GM comes to it
-      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) { b.wire = { x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }; b.wireMap = map.id; b.wireChar = opts.charId; window.wpNet.broadcastBlast(b.wire, map.id, opts.charId); }   // a GM-only item's blast reaches players unnamed
-      var n = blastDistances(b, map).filter(function(r) { return r.d <= blastRadiusYd(b) + 1e-9; }).length;
-      var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in meters as the sheet says a measure
+      if (window.wpNet && window.wpNet.active && window.wpNet.role === 'host' && window.wpNet.broadcastBlast) { b.wire = { x: b.x, y: b.y, ft: b.ft, name: opts.gmOnly ? '' : b.name, elev: b.elev, by: b.by }; if (typeof blastShapeWire === 'function') blastShapeWire(b, b.wire); b.wireMap = map.id; b.wireChar = opts.charId; window.wpNet.broadcastBlast(b.wire, map.id, opts.charId); }   // a GM-only item's blast reaches players unnamed
+      var n = blastDistances(b, map).filter(function(r) { return typeof shapeHolds === 'function' ? shapeHolds(b, r) : r.d <= blastRadiusYd(b) + 1e-9; }).length;   // gap 19: by its shape
+      var rw = typeof blastSize === 'function' && typeof rulerUnitNow === 'function' ? blastSize({ ft: b.ft, shape: b.shape, inFt: b.inFt, deg: b.deg, hFt: b.hFt }, rulerUnitNow(), typeof rulerImpNow === 'function' ? rulerImpNow() : '') : 'Radius ' + b.ft + ' ft';   // in the ruler's unit, as its label (1.5.4): in meters as the sheet says a measure
       toast((opts.goOff ? (b.name || 'A mine') + (pre && pre.fuse ? ' lands' : ' goes off') : (b.by ? b.by + ' throws ' : 'Thrown: ') + (b.name || 'a blast')) + ', ' + rw.charAt(0).toLowerCase() + rw.slice(1) + '. ' + n + ' token' + (n === 1 ? '' : 's') + ' in range.' + (pre ? pre.said : '') + (seatB ? ' It went off in front of the wall or door it hit.' : '') + (onScreen ? '' : (pre && pre.fuse ? ' It is on ' : ' It went off on ') + ((map.meta && map.meta.title) || map.title || 'another map') + '.'));
       if (pre && pre.area && pre.area.use === true && pre.tr && typeof useOneUp === 'function') useOneUp(getActiveCampaign(), pre.tr);
       if (pre && pre.fuse && typeof fuseSet === 'function') { fuseSet(map, b, opts, n); return b; }   // 1.5.8: it goes off at the start of the next turn
@@ -544,6 +570,7 @@ export function wbBlast() {   // [split:glue]
       var thrB = throwerOf(map, opts.charId), thrC = thrB ? tokenCentre(thrB) : null;
       var aimT = opts.goOff ? null : tokenAtPoint(map, opts.x, opts.y, true), aim = aimT ? tokenCentre(aimT) : { x: opts.x, y: opts.y };   // the aim: the character token clicked, else the point
       var out = { land: { x: aim.x, y: aim.y }, direct: opts.goOff ? (opts.direct || null) : aimT ? aimT.id : null, said: opts.goOff && typeof opts.said === 'string' ? opts.said.slice(0, 400) : '', tr: tr, area: area, def: def };   // 1.5.9 (es): a launched round's miss says where it went
+      if (!opts.goOff && area && area.shape === 'cone') { if (!thrC) return { stop: (opts.name || 'It') + ' starts at its user, and their token is not on this map.' }; out.cone = { from: thrC, aim: aim, elev: tokenElevation(thrB, map, true) }; out.land = { x: thrC.x, y: thrC.y }; out.direct = null; return out; }   // gap 19: a cone is never thrown: it starts at its user, aimed where they clicked, with no throw roll
       var fz = (!opts.goOff || opts.fuseOk === true) && rules && rules.fuse === 'turn' && window.wpNet && typeof window.wpNet.combatFor === 'function' ? window.wpNet.combatFor(map.id) : null; if (fz) out.fuse = true;   // a fuse: a fight on its map
       if (opts.goOff || !rules || !thrC || !tr || !S || !F) return out;
       var R = S.makeResolver(sys, tr.ch, F), rowR = R && typeof R.row === 'function' ? R.row(tr.f.id, opts.rowId) : null, dYd = yardsOn(map, thrC, aim);
@@ -1568,6 +1595,8 @@ export function wbBlast() {   // [split:glue]
       // its radius, a cone's angle a whole number of degrees from 1 to 360 and its aim a finite number. Anything else is a plain circle
       if (bl.shape === 'ring' && typeof bl.inFt === 'number' && isFinite(bl.inFt) && bl.inFt > 0 && bl.inFt < ft) { nb.shape = 'ring'; nb.inFt = bl.inFt; }
       else if (bl.shape === 'cone' && typeof bl.deg === 'number' && typeof bl.dir === 'number' && isFinite(bl.dir) && Math.round(bl.deg) >= 1 && Math.round(bl.deg) <= 360) { nb.shape = 'cone'; nb.deg = Math.round(bl.deg); nb.dir = Math.atan2(Math.sin(bl.dir), Math.cos(bl.dir)); }
+      else if (bl.shape === 'square') nb.shape = 'square';   // gap 19: an item's square or cylinder, the cylinder's height a whole number of feet within a blast's bounds
+      else if (bl.shape === 'cylinder') { nb.shape = 'cylinder'; if (typeof bl.hFt === 'number' && isFinite(bl.hFt) && Math.round(bl.hFt) >= 1) nb.hFt = Math.min(3000, Math.round(bl.hFt)); }
       pushBlast(nb);
       renderMeasures();
   };

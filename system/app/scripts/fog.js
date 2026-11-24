@@ -813,6 +813,7 @@ function coverOn(sys) { return !!(sys && sys.combat && sys.combat.cover && sys.c
 // see-through barrier does (moveSetFor, below). The host's pos gate asks it for a player's move; no grid (and no fog cell): never
 function moveBlocked(map, w, fx, fy, tx, ty) {
     var C = core(); if (!C || !C.moveClear || !map || map.type !== 'map') return false;
+    map = mapForMover(map, w);   // gap 31: without the walls and barriers this token walks through
     var grid = gridForMap(map); if (!grid) return false;
     var bl = moveSetFor(map, grid, blockersFor(map, grid)); if (!bl) return false;   // what stops a token: the walls, and the barriers with them
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
@@ -843,12 +844,35 @@ function arrivalOk(map, w, fx, fy, tx, ty) {
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2;
     return inMask(mask, C.cellKey(C.cellOf(tx + hw, ty + hh, grid), grid));
 }
+// [gapsmap:mover-start]
+// Gap 31 (who a barrier stops): the walls and barriers on map that the token w walks through, each one that stops only tokens whose field is off
+// (fogcore passIfOf) where w's character has it on (systemcore passesBarrier, the one judge). None for a token with no character, or with no
+// such piece on the map
+function passedBy(map, w) {
+    var out = [], Wn = typeof window === 'object' && window ? window : null; if (!Wn || !w || typeof w.charId !== 'string') return out;   // a token with no character passes nothing
+    var C = core(), S = Wn.wpSystemCore, F = Wn.wpFormula, camp = activeCamp();
+    if (!C || typeof C.passIfOf !== 'function' || !S || typeof S.passesBarrier !== 'function' || !F || !w || typeof w.charId !== 'string' || !camp || !camp.system || !camp.chars || !Object.prototype.hasOwnProperty.call(camp.chars, w.charId)) return out;
+    var ch = camp.chars[w.charId], said = Object.create(null);   // each field judged once for this mover
+    (map.whiteboard || []).forEach(function(p) { var fid = C.passIfOf(p); if (!fid) return; if (said[fid] === undefined) said[fid] = S.passesBarrier(camp.system, ch, fid, F); if (said[fid]) out.push(p); });
+    return out;
+}
+// ... and the map as that token meets it when it moves: the very map where it passes nothing (so every map without such a piece is judged
+// exactly as before), else the same map without the pieces it passes, under an id of its own so the sets kept for it are its own
+function mapForMover(map, w) {
+    if (!map || !Array.isArray(map.whiteboard)) return map;
+    var gone = passedBy(map, w); if (!gone.length) return map;
+    var ids = gone.map(function(p) { return String(p.id); }).sort().join(',');
+    if (typeof window === 'object' && window && window.wpStepLog) window.wpStepLog('pass v1', 'through', { pieces: gone.length });
+    return Object.assign({}, map, { id: map.id + '\u0000pass:' + ids, whiteboard: map.whiteboard.filter(function(p) { return gone.indexOf(p) < 0; }) });
+}
+// [gapsmap:mover-end]
 // Whether a token of w's size set down at (x, y), its stored top-left, would stand IN a wall or a see-through barrier: on a map with a lattice,
 // where its middle cell is one the walls and barriers hold (moveSetFor over blockersFor, the set a move is judged by: a closed door is one, an
 // open door is not, a secret door is); with no lattice, where its middle lies inside a wall's outline (arrivalWalled's pieces). freeSpotNear
 // (net.js) asks it of the point a token arrives at, and arrivalOk of every spot
 function arrivalIn(map, w, x, y) {
     var C = core(); if (!C || !map || map.type !== 'map') return false;
+    map = mapForMover(map, w);   // gap 31: without the walls and barriers this token walks through
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, grid = gridForMap(map);
     if (!grid) return landInside(landWalls(map, C), x + hw, y + hh);
     var bl = moveSetFor(map, grid, blockersFor(map, grid)); if (!bl) return false;
@@ -903,6 +927,7 @@ function landCuts(s, x1, y1, x2, y2) {
 // the token's own box there (two pixels in from its edge, so a token set down against a wall still passes): with no cells to seat it in, a
 // token whose middle is inside a room could still lie across the room's wall
 function arrivalWalled(map, w, fx, fy, tx, ty) {
+    map = mapForMover(map, w);   // gap 31: without the walls and barriers this token walks through
     var C = core(); if (!C || typeof C.pathSegs !== 'function') return false;
     var L = landWalls(map, C); if (!L.segs.length) return false;
     var hw = ((w && w.w) || 60) / 2, hh = ((w && w.h) || 52) / 2, ax = fx + hw, ay = fy + hh, bx = tx + hw, by = ty + hh;

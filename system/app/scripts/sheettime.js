@@ -27,7 +27,7 @@ function timedHook(mapId, combat, kind) {
     combatChars(mp, who, charsOf(camp)).forEach(function(e) {
         var c = charById(e.charId, camp); if (!c) return;
         var tc = withRound(tokenCtx(mp, e.tok, Object.assign({}, tokenFlags(), { viewer: typeof e.tok.ownerId === 'string' ? e.tok.ownerId : undefined })), combat), vvD = null;   // 1.5.5 (the release trace, F2): a player's character is judged by what its player sees, as turnMoveStart judges it, so an attacker hidden from them counts for nothing
-        dues.forEach(function(a) { if ((a.needs || a.needsWhy) && typeof rollNeedsOk === 'function') { vvD = vvD || hookVars(sys, c, tc); if (!rollNeedsOk(a, (a.to === 'near' || a.to === 'target') ? withOnSelf(vvD, true) : vvD, F())) return; } if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm', e.tok && typeof e.tok.id === 'string' ? { tokId: e.tok.id, mapId: mapId } : undefined); });   /* 1.6.3 (the release click test): the card names the token whose turn it is */   // 1.5.4: no reminder while its needs are not met
+        dues.forEach(function(a) { if ((a.needs || a.needsWhy) && typeof rollNeedsOk === 'function') { vvD = vvD || hookVars(sys, c, tc); if (!rollNeedsOk(a, (a.to === 'near' || a.to === 'target') ? withOnSelf(vvD, true) : vvD, F())) return; } if (kind === 'fightClose') { closeDueNote(c, a, n, e, mapId); return; } if (n.postDue) n.postDue(c, a, kind, combat.round, a.by === 'owner' && a.vis !== 'gm', e.tok && typeof e.tok.id === 'string' ? { tokId: e.tok.id, mapId: mapId } : undefined); });   /* 1.6.3 (the release click test): the card names the token whose turn it is */   // 1.5.4: no reminder while its needs are not met
         var res = applyRound(sys, c, function(w) { return hookVars(sys, w, tc); }, F(), tc, kind, window.wpDiceCore || null, { now: Date.now(), inCombat: true }), ids = Object.keys(res.values);   // 1.5.9: the host's dice roll a Rolled amount
         if (res.upkeep && window.wpStepLog) window.wpStepLog('upkeep v1', 'paid', { when: kind, paid: res.upkeep.paid, off: res.upkeep.off.length });   // 1.6.0 (CORE gap 13)
         if (res.linkValues && typeof linkValuesWrite === 'function' && linkValuesWrite(res.linkValues) && !ids.length) { done++; return; }   // 1.6.2: what it moved on a linked sheet
@@ -40,6 +40,12 @@ function timedHook(mapId, combat, kind) {
     });
     if (done) { save(true); if (window.appRender) window.appRender(); }
     return done;
+}
+// 1.6.4 (Fulllion's answer to gap #4): a roll or an action due as its fight ends, where the fight ended as the session closed. The table's chat goes
+// with the session and its players are leaving, so the reminder is the GM's, in the Notifications, which stay
+function closeDueNote(c, a, n, e, mapId) {
+    var nm = n && typeof n.tokNameOf === 'function' ? n.tokNameOf(c, mapId, e && e.tok && typeof e.tok.id === 'string' ? e.tok.id : undefined) : '', lb = String(a.label || 'A roll').split('{')[0].trim() || 'A roll';
+    if (window.wpNotices && typeof window.wpNotices.add === 'function') window.wpNotices.add(lb + ' is due for ' + (nm || c.name || 'a character') + ': its fight ended as the session closed.');
 }
 // 1.6.3 (the improvement week's combat review, finding 5): the names a hook's needs and actions are read with. systemcore lazyVars answers
 // every name as resolveAll's .vars would and works out only the names each action reads, so a hook whose actions mostly fail on their needs no
@@ -193,8 +199,10 @@ function runTimeRules(fires, words, at, back, when) {
 function roundHook(mapId, combat) { return timedHook(mapId, combat, 'round'); }
 function turnHook(mapId, combat) { return timedHook(mapId, combat, 'turn'); }
 function turnEndHook(mapId, combat) { return timedHook(mapId, combat, 'turnEnd'); }   // 1.6.0: combat holds the row whose turn just ended as its turn, in the round it ended
-// 1.6.4 (the full test's gap #4): as the GM ends a fight, every character it held, once each, with the fight as it stood at its end (CombatRound reads its last round)
-function fightEndHook(mapId, combat) { return timedHook(mapId, combat, 'fightOver'); }
+// 1.6.4 (the full test's gap #4): as the GM ends a fight, every character it held, once each, with the fight as it stood at its end (CombatRound reads its last round).
+// closing (Fulllion's answer): the session is closing with the fight still on, so only the rules ticked to run then too run, and every reminder is the GM's,
+// since the players are leaving with the table
+function fightEndHook(mapId, combat, closing) { return timedHook(mapId, combat, closing === true ? 'fightClose' : 'fightOver'); }
 // [split:body-end]
 return { fightEndHook: fightEndHook, roundHook: roundHook, runTimeRules: runTimeRules, timedHook: timedHook, turnEndHook: turnEndHook, turnHook: turnHook };   // [split:glue]
 }   // [split:glue]

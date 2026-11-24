@@ -160,7 +160,7 @@ var GROUPS = {
     rolls: { split: ['sys-row-main'], head: ['sys-label', 'sys-roll-kind', 'sys-formula', 'sys-usedby', 'sys-btns'], list: [
         ['how', 'How it rolls', 1, ['sys-roll-drawfirst', 'sys-drawnrow', 'sys-roll-drawn', 'sys-roll-malf', 'sys-roll-critat', 'sys-roll-fumbleat', 'sys-roll-bigat', 'sys-init-chk', 'sys-roll-anytime', 'sys-roll-keepscene']],
         ['look', 'Who sees it and how it looks', 1, ['sys-vis', 'sys-roll-togm', 'sys-roll-tone', 'snd-on-btn', 'sys-roll-die', 'sys-roll-icon', 'sys-glyph-btn']],
-        ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-why', 'sys-roll-cost', 'sys-costhowrow', 'sys-costhow', 'sys-mvcost', 'sys-clockrow', 'sys-clockn', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-crewstn']],
+        ['use', 'When it can be used', 1, ['sys-roll-needsrow', 'sys-why', 'sys-roll-cost', 'sys-costhowrow', 'sys-costhow', 'sys-mvcost', 'sys-clockrow', 'sys-clockn', 'sys-roll-near', 'sys-roll-each', 'sys-roll-by', 'sys-roll-atclosebox', 'sys-crewstn']],
         ['damage', 'Damage', 0, ['sys-dmg-chk', 'sys-roll-hits', 'sys-roll-mjif', 'sys-roll-mjdmg', 'sys-roll-dtype', 'sys-roll-dkind', 'sys-roll-p2*', 'sys-roll-p3*', 'sys-roll-p4*', 'sys-roll-p5*', 'sys-area']],
         ['resist', 'Resisting it', 0, ['sys-roll-rsist', 'sys-roll-anslist', 'sys-roll-critok', 'sys-roll-rsby', 'sys-roll-lnddmg', 'sys-rsor', 'sys-roll-rsnocrit', 'sys-answers']],   // 1.6.3 (defense fold 3): and When it answers an attack
         ['clock', 'By the clock and in a fight', 0, ['sys-roll-everyrow', 'sys-roll-fightrow', 'sys-roll-askrow', 'sys-roll-noterow']],

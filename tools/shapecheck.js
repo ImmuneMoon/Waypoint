@@ -85,6 +85,43 @@ process.on('exit', () => { if (!summed) { console.log('FAIL      the suite never
             J(g1) === J(['+1 this turn.', '+1 this turn.', '+2, right after its own turn.', 'none given: not an action a turn allows.', 'none given outside a fight.']) && G1.net.turnMax.c1.Action === 3 && J(G1.told) === J(['c1', 'c1'])
             && J(takes) === J([true, true, false]) && J(G1.net.turnExtra.f1) === '{}' && J(g2) === J(['none given outside a fight.']) && !G2.net.turnMax.c1 && J(g3) === '[]', J([g1, G1.net.turnMax, takes, g2, g3]));
     }
+    {   // 1.6.4 (Fulllion's answers to gap #20): a Give kept for its next turn (keep), and extra turns right after the turn being played (now)
+        const kSys = { v: 1, name: 'K', fields: [], rolls: [{ id: 'r_k', label: 'K', apply: [{ give: 'act', act: 'Action', formula: '1', keep: true, now: true }, { give: 'turn', formula: '1', now: true, keep: true }, { give: 'act', act: 'Bonus', formula: '1', keep: 'yes' }] }], combat: { turn: { acts: [{ key: 'Action', n: 1 }, { key: 'Bonus', n: 1 }] } } };
+        const kg = S.cleanSystem(kSys, { F, gmView: true }), kp = S.cleanSystem(kSys, { F, gmView: false });
+        check('1.6.4 gap #20 the cleaner, Fulllion\'s options: an action\'s Give keeps Kept for its next turn, extra turns keep Right after the turn being played, each only as true and only on its own kind, the same in both views',
+            J(kg.rolls[0].apply) === J([{ give: 'act', formula: '1', act: 'Action', keep: true }, { give: 'turn', formula: '1', now: true }, { give: 'act', formula: '1', act: 'Bonus' }]) && J(kp.rolls[0].apply) === J(kg.rolls[0].apply), J(kg.rolls[0].apply));
+        const sentK = []; S.setGiveSink(l => { sentK.push(l); return l.map(() => '+1'); }); const chK = { id: 'c_a', values: {} }; S.applyAct(kg, chK, kg.rolls[0], S.makeResolver(kg, chK, F, null), F, null); S.setGiveSink(null);
+        const sK = nt.slice(nt.indexOf('net.turnExtra = Object.create(null);'), nt.indexOf('(function() { var Sg ='));
+        const worldK = () => { const told = [], net = { role: 'host', turnMax: {} }, toks = [{ id: 't1', charId: 'c1' }, { id: 't2', charId: 'c2' }, { id: 't3', charId: 'c3' }], combat = { id: 'f1', mapId: 'm1', turn: 0, rows: [{ id: 'r1', tokId: 't1' }, { id: 'r2', tokId: 't2' }, { id: 'r3', tokId: 't3' }] };
+            const camp = { items: { m1: { whiteboard: toks } }, chars: { c1: { id: 'c1', ownerId: 'u1' }, c2: { id: 'c2', ownerId: 'u2' }, c3: { id: 'c3', npc: true } } };
+            const api = new Function('net', 'getActiveCampaign', 'charCombat', 'own', 'actsOf', 'SC', 'actsMaxOf', 'actsTell', 'runSyncOf', 'window', 'console', sK + '\nreturn { turnGive, turnExtraTake, turnKeptInto, turnNowTake };')(net, () => camp, () => ({ mapId: 'm1', combat }), (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k),
+                () => [{ key: 'Action', label: 'Main action', n: 1 }], () => ({ charTokenOn: () => null }), () => ({ Action: 1 }), (cp, id) => told.push(id), () => {}, {}, console);
+            return { api, net, told, combat, camp }; };
+        const K1 = worldK(), k1 = K1.api.turnGive([{ to: 'c2', give: 'act', act: 'Action', n: 2, keep: true }, { to: 'c1', give: 'act', act: 'Action', n: 1, keep: true }, { to: 'c3', give: 'act', act: 'Action', n: 1 }]);
+        const maxC2 = { Action: 1 }; K1.api.turnKeptInto('c2', maxC2); const maxAgain = { Action: 1 }; K1.api.turnKeptInto('c2', maxAgain);
+        const K2 = worldK(), k2 = K2.api.turnGive([{ to: 'c3', give: 'turn', n: 2, now: true }, { to: 'c2', give: 'turn', n: 1, now: true }]); K2.combat.rows.splice(1, 1);
+        const order = [K2.api.turnNowTake(K2.combat), K2.api.turnNowTake(K2.combat), K2.api.turnNowTake(K2.combat), K2.api.turnNowTake(K2.combat)];
+        check('1.6.4 gap #20 the host, Fulllion\'s options (turnGive, turnKeptInto and turnNowTake, run on stand-ins; applyAct hands both on): an action given off its own turn and ticked to keep waits for its next turn, is added to it once and then gone, and on its own turn is for this turn as ever; one not ticked lasts until its next turn starts; extra turns ticked now wait in the order given for right after the turn being played, one whose row is gone passed over',
+            J(sentK[0].map(g => [g.give, g.keep === true, g.now === true])) === J([['act', true, false], ['turn', false, true], ['act', false, false]])
+            && J(k1) === J(['+2 on its next turn.', '+1 this turn.', '+1 this turn.']) && J(K1.net.turnKeep) === J({}) && K1.net.turnMax.c1.Action === 2 && K1.net.turnMax.c3.Action === 2 && !K1.net.turnMax.c2
+            && maxC2.Action === 3 && maxAgain.Action === 1 && J(k2) === J(['+2, right after the turn being played.', '+1, right after the turn being played.']) && J(order) === J([1, 1, -1, -1]),
+            J([sentK, k1, K1.net.turnKeep, K1.net.turnMax, maxC2, maxAgain, k2, order]));
+    }
+    {   // 1.6.4 (Fulllion's answer to gap #4): FightRolls, how many rolls a character has made in its fight, counted on the host and never sent
+        const frSys = S.cleanSystem({ v: 1, name: 'R', fields: [{ id: 'f_a', key: 'Grit', kind: 'number', def: 1 }], rolls: [] }, { F, gmView: true }), chA = { id: 'c_a', values: {} }, chB = { id: 'c_b', values: {} };
+        S.setFightRollsSource(id => (id === 'c_a' ? 4 : id === 'c_x' ? 'lots' : 0));
+        const fr = [S.makeResolver(frSys, chA, F, null)('FightRolls'), S.makeResolver(frSys, chB, F, null)('FightRolls'), S.makeResolver(frSys, { id: 'c_x', values: {} }, F, null)('FightRolls')];
+        const keyA = S.outsideKey ? S.outsideKey(frSys, chA, null) : ''; S.setFightRollsSource(null); const frNone = S.makeResolver(frSys, chA, F, null)('FightRolls');
+        const sR = nt.slice(nt.indexOf('function fightOfChar(charId) {'), nt.indexOf('(function() { var Sf ='));
+        const worldR = (role) => { const net = { role, combats: { f1: { id: 'f1', rows: [] } } }; const api = new Function('net', 'getActiveCampaign', 'orderOfIn', 'own', sR + '\nreturn { fightRollsOf, fightRollCounted };')(net, () => ({}), (camp, id) => (id === 'c_a' ? 'f1' : null), (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k)); return { api, net }; };
+        const R1 = worldR('host'); R1.api.fightRollCounted('c_a'); R1.api.fightRollCounted('c_a'); R1.api.fightRollCounted('c_out'); const R2 = worldR('client'); R2.api.fightRollCounted('c_a');
+        const vNames = require('./checkkit').part('validcore.js');   // a part, read by its own name
+        check('1.6.4 gap #4 FightRolls (the resolver and the host\'s count, run on stand-ins): a formula reads how many rolls the character has made in the fight that holds it, a whole number, 0 for one in none, with no host source or with an answer that is no number; the host counts once a roll a fight holds, nothing outside a fight or on a player\'s app; the count stays with the fight, is kept through a roster edit and a reload, is never sent, and is asked at both places the host records a roll; the builder\'s forms name it beside CombatRound',
+            J(fr) === J([4, 0, 0]) && frNone === 0 && R1.api.fightRollsOf('c_a') === 2 && R1.api.fightRollsOf('c_out') === 0 && J(R1.net.combats.f1.fr) === J({ c_a: 2 }) && !R2.net.combats.f1.fr
+            && nt.includes("if (had.fr && typeof had.fr === 'object') f.fr = had.fr;") && nt.includes("if (k.fr && typeof k.fr === 'object') { var frK = fightFigs(k.fr);") && !/\bfr\b/.test(nt.slice(nt.indexOf('function combatsFor(recipientId, mapId) {'), nt.indexOf('function combatsFor(recipientId, mapId) {') + 3000))
+            && nt.includes("if (chQ && typeof fightRollCounted === 'function') fightRollCounted(q.charId);") && nt.includes("if (chR && typeof fightRollCounted === 'function') fightRollCounted(chR.id);")
+            && vNames.includes("'CombatRound', 'MovedThisTurn', 'FightRolls', 'Making'"), J([fr, frNone, R1.net.combats, R2.net.combats]));
+    }
     const sh = read('scripts/sheets.js'), cbS = sh.slice(sh.indexOf('function costBlock(c, cost, k) {'), sh.indexOf('\n}\n', sh.indexOf('function costBlock(c, cost, k) {')) + 3);
     const cb = (left, k) => new Function('net', 'systemOf', 'getActiveCampaign', cbS + '\nreturn costBlock;')(() => ({ actsLeft: { c1: { mode: 'refuse', left: { Attack: left } } } }), () => ({ combat: { turn: { acts: [{ key: 'Attack', label: 'Attack' }] } } }), () => ({}))({ id: 'c1' }, 'Attack', k);
     check('the sheet grays a button that costs more than is left, with the host’s words', cb(1, 2) === 'This takes 2 of Attack, and 1 left this turn' && cb(2, 2) === '' && cb(0, 2) === 'No Attack left this turn' && cb(1) === '' && cb(0) === 'No Attack left this turn', J([cb(1, 2), cb(2, 2), cb(0, 2)]));

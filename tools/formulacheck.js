@@ -88,7 +88,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     E('1 + not 0', '1 + not 0', 'Something is missing after "+".', 2, 1);
     E('two values in a row', '5 STR', 'Missing an operator between "5" and "STR".', 2, 3);
     E('chained comparison', 'a < b < c', 'Only one comparison at a time: split "a < b < c" with and.', 6, 1, { vars: { a: 1, b: 2, c: 3 } });
-    E('unknown function with suggestion', 'flor(1)', 'Unknown function "flor" — did you mean "floor"?', 0, 4);
+    E('unknown function with suggestion', 'flor(1)', 'Unknown function "flor". Did you mean "floor"?', 0, 4);
     E('unknown function without suggestion', 'zzzz(1)', 'Unknown function "zzzz".', 0, 4);
     E('arity: round', 'round(1, 2, 3)', 'round takes 1 or 2 arguments, got 3.', 0, 14);
     E('arity: clamp', 'clamp(1, 2)', 'clamp takes 3 arguments, got 2.', 0, 11);
@@ -261,8 +261,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
     check('boolean values resolve', val('Rage', { vars: { Rage: true } }) === true);
     check('names with values in the breakdown', (() => { const r = ev('d20 + Skill.Stealth', { random: scripted([14]), vars: { Skill: { Stealth: 12 } } }); return r.ok && r.breakdown.text === 'd20 [14] + Skill.Stealth (12) = 26' && j(r.breakdown.names) === j([{ name: 'Skill.Stealth', value: 12 }]); })());
     check('unevaluated names carry no value in the text', txt('if(1, 5, STR)', [], { vars: { STR: 1 } }) === 'if(1, 5, STR) = 5');
-    E('unknown name with suggestion from knownNames', 'Stealt', 'Unknown name "Stealt" — did you mean "Stealth"?', 0, 6, { knownNames: ['Stealth', 'STR'] });
-    E('unknown name with suggestion from the vars object', 'Skill.Stealt', 'Unknown name "Skill.Stealt" — did you mean "Skill.Stealth"?', 0, 12, { vars: { Skill: { Stealth: 12 } } });
+    E('unknown name with suggestion from knownNames', 'Stealt', 'Unknown name "Stealt". Did you mean "Stealth"?', 0, 6, { knownNames: ['Stealth', 'STR'] });
+    E('unknown name with suggestion from the vars object', 'Skill.Stealt', 'Unknown name "Skill.Stealt". Did you mean "Skill.Stealth"?', 0, 12, { vars: { Skill: { Stealth: 12 } } });
     E('unknown name without suggestion', 'zzz', 'Unknown name "zzz".', 0, 3, { vars: { STR: 1 } });
     E('unknown name with no vars at all', 'STR', 'Unknown name "STR".', 0, 3);
     E('text value', 'x', '"x" is text, not a number.', 0, 1, { vars: { x: 'a' } });

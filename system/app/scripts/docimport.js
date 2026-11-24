@@ -105,7 +105,7 @@ async function openImport(opts) {
     var sources = parsed.images.map(function(im) {
         if (im.kind === 'data') { var bl = dataUrlToBlob(im.value); if (!bl) { parsed.notes.push('An embedded picture could not be decoded.'); return null; } return { index: im.index, blob: bl, name: 'picture.' + extOf(bl.type) }; }
         var pic = findPicture(got.pictures, im.value);
-        if (!pic) { parsed.notes.push('Picture "' + im.name + '" was not among the files picked — an empty picture block keeps its caption.'); return null; }
+        if (!pic) { parsed.notes.push('Picture "' + im.name + '" was not among the files picked, so an empty picture block keeps its caption.'); return null; }
         return { index: im.index, blob: pic.blob, name: pic.path.split('/').pop() };
     });
     parsed._text = got.text;   // kept for a planner ↔ page re-parse from the dialog's target select

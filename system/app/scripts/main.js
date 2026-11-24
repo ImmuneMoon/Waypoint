@@ -389,7 +389,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               var shown = chain, hidden = [];
               if (chain.length > 3) { hidden = chain.slice(1, chain.length - 2); shown = [chain[0]].concat(chain.slice(chain.length - 2)); }
               var parts = shown.map(crumbHtml);
-              if (hidden.length) parts.splice(1, 0, '<button class="crumb crumb-more" title="' + hidden.length + ' more level' + (hidden.length === 1 ? '' : 's') + ' — click to show">&hellip;</button>');
+              if (hidden.length) parts.splice(1, 0, '<button class="crumb crumb-more" title="' + hidden.length + ' more level' + (hidden.length === 1 ? '' : 's') + '. Click to show">&hellip;</button>');
               bc.innerHTML = parts.join(sep) + sep + '<span class="crumb-current" title="' + esc(activeMap.meta.title || 'Untitled') + '">' + esc(activeMap.meta.title || 'Untitled') + '</span>';
               bc.querySelectorAll('.crumb[data-id]').forEach(function(b) {
                   b.addEventListener('click', function() { navigateToMap(this.dataset.id); });
@@ -1589,7 +1589,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
           var rawCode = document.getElementById('wcJoinCode').value || '', code = (window.wpNet && window.wpNet.typedCode ? window.wpNet.typedCode(rawCode) : rawCode.trim()).toUpperCase();   // the code as typed or pasted: its hyphen and spaces out (XXXXX-XXXXX and XXXXXXXXXX dial the same room)
           if (code.length < 4) { say('Enter the room code the GM shared.', 'err'); return; }
           var name = (document.getElementById('wcNameInput').value || '').trim();
-          if (!name) { say('Enter your name — that’s how players know you.', 'err'); try { document.getElementById('wcNameInput').focus(); } catch (e) {} return; }
+          if (!name) { say('Enter your name. That’s how players know you.', 'err'); try { document.getElementById('wcNameInput').focus(); } catch (e) {} return; }
           // the review of multiplayer chat (1.6.3): while a join is still under way (a refresh's rejoin dialing or waiting to try again) the
           // Multiplayer window's Join button is off, and a press handed to a disabled button does nothing, so the welcome stood at Connecting
           // for good. It asks net.js first and says why here, with its own Join left on

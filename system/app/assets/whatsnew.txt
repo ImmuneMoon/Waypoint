@@ -1,4 +1,4 @@
-WAYPOINT VTT 1.6.4 — What's New
+WAYPOINT VTT 1.6.4: What's New
 ================================
 
 A new name
@@ -268,7 +268,20 @@ Drop it, pick it up [DRAFT]
   a chest that held it lost it the next time Waypoint opened. A chest
   keeps its own copy now, as a character's sheet always has.
 
-WAYPOINT 1.6.3 — What's New
+Plainer words (draft for Fulllion)
+- Waypoint VTT's own words no longer use long dashes. Tooltips and
+  notices say the same things in plain sentences now.
+- About Waypoint VTT says which free fonts, icons and helper libraries
+  it uses, in a few short sentences.
+
+Save says what it drops (draft for Fulllion)
+- The System editor now says when Save would drop one of a list's
+  columns, for example a column with the same short name as a stat.
+- It warns when an Add or a Subtract is set to a number below 0. That
+  amount counts as 0 and changes nothing, so the warning names the
+  fix.
+
+WAYPOINT 1.6.3: What's New
 ============================
 
 Places on the map
@@ -1134,7 +1147,7 @@ Smaller things
   name no longer disappears under the characters standing on it. A place
   pin's name gets the same plate.
 
-WAYPOINT 1.6.2 — What's New
+WAYPOINT 1.6.2: What's New
 ============================
 
 Lay out your table
@@ -2552,7 +2565,7 @@ Taking a campaign with you
   knocking again. Try again waits in the bell too, and in a later session
   you can import the same file again and pick Merge.
 
-WAYPOINT 1.6.1 — What's New
+WAYPOINT 1.6.1: What's New
 ============================
 
 For the website
@@ -2560,7 +2573,7 @@ For the website
   code that kept the website from serving 1.6.0, so that players who join from
   a browser can reach a table run on this version.
 
-WAYPOINT 1.6.0 — What's New
+WAYPOINT 1.6.0: What's New
 ============================
 
 Game Record
@@ -3767,7 +3780,7 @@ For system builders, more
 - Under Full auto a blast's damage card says Applied. Before, it still offered
   Apply to all in the blast, and a press hit everyone a second time.
 
-WAYPOINT 1.5.9 — What's New
+WAYPOINT 1.5.9: What's New
 ============================
 
 At the table
@@ -3902,7 +3915,7 @@ Travel
   being made or it is a second copy, the GM is told which and why. A
   player who tries to move it is told it is the GM's to move now.
 
-WAYPOINT 1.5.8 — What's New
+WAYPOINT 1.5.8: What's New
 ============================
 
 Top row
@@ -4004,7 +4017,7 @@ Chat
   source and its amount, such as Attack 14 → 17, +3 Battle Rage.
   A GM-only effect is never named there.
 
-WAYPOINT 1.5.7 — What's New
+WAYPOINT 1.5.7: What's New
 ============================
 
 Combat
@@ -4044,7 +4057,7 @@ Maps
 - The hex grid is whole. Every other column of hexes lost part of a
   corner where the grid's pattern repeats.
 
-WAYPOINT 1.5.6 — What's New
+WAYPOINT 1.5.6: What's New
 ============================
 
 Multiplayer
@@ -4184,7 +4197,7 @@ Handbook
   The tree marks such a page with a lock. Moving a page under a
   GM-only page takes it from your players at once.
 
-WAYPOINT 1.5.5 — What's New
+WAYPOINT 1.5.5: What's New
 ============================
 
 Approvals
@@ -4372,7 +4385,7 @@ Going back to 1.5.4
   until you delete it, press Snapshot the Save Now in Settings >
   Advanced before you restore.
 
-WAYPOINT 1.5.4 — What's New
+WAYPOINT 1.5.4: What's New
 ============================
 
 Multiplayer
@@ -5140,7 +5153,7 @@ Fixes
   a fight running, the tab cut every name to a letter or two, the
   map's own too.
 
-WAYPOINT 1.5.3 — What's New
+WAYPOINT 1.5.3: What's New
 ============================
 
 Fixes
@@ -5152,13 +5165,13 @@ Fixes
   What a player's tokens are sent is unchanged: a creature standing past
   the wall is still not seen.
 
-WAYPOINT 1.5.2 — What's New
+WAYPOINT 1.5.2: What's New
 ============================
 
 Fog of war
 - Sight outline: an eye on a selected token's toolbar outlines the area
-  that one token sees — its sight arc, walls, smoke and its sheet's
-  senses counted — so you can follow an NPC's line of sight. It stays on
+  that one token sees, with its sight arc, walls, smoke and its sheet's
+  senses counted, so you can follow an NPC's line of sight. It stays on
   for whichever token you select until you press it again, works on a map
   with no fog, never dims the map, and is drawn for you alone.
 - Doors say what they do: right-click a door for Open door / Close door
@@ -5260,7 +5273,7 @@ Fixes
   The file still lists it as fitted, marked Destroyed; it is now passed
   over, as a destroyed part already was in the parts list.
 
-WAYPOINT 1.5.1 — What's New
+WAYPOINT 1.5.1: What's New
 ============================
 
 Fog of war
@@ -5273,7 +5286,7 @@ Fog of war
   of 0 keeps the map's arc, and a field its player cannot read is never
   used. A token's Properties say the arc when it is the token's own.
 - See-through barriers: a piece can now stop players' tokens without
-  blocking sight — a force field, bars, a window, a railing. Tick "Stops
+  blocking sight: a force field, bars, a window, a railing. Tick "Stops
   movement only" in its Properties (under Blocks sight; ticking one unticks
   the other) and players' tokens cannot land in or cross it, under the same
   "Walls stop player tokens" setting and with the same notes as a wall,
@@ -5383,7 +5396,7 @@ Fixes
   its rows close up, and past that it scrolls inside itself (its first rows
   used to end up above the top of a small window).
 
-WAYPOINT 1.5.0 — What's New
+WAYPOINT 1.5.0: What's New
 ============================
 
 Play map & settings
@@ -5393,8 +5406,8 @@ Play map & settings
   the selection already sits on the grid, so it only lights up when it would
   move something.
 - The grid button has a ◑ shortcut straight to the grid-opacity setting.
-- Undo history size is now adjustable — Settings ▸ Advanced, 10–500 steps
-  (default 100) — with a note on its memory cost; and a few heavy features
+- Undo history size is now adjustable in Settings ▸ Advanced, 10–500 steps
+  (default 100), with a note on its memory cost; and a few heavy features
   (fog, minimap, sound) carry a short hardware-impact note in Settings.
 - Selecting on the play map: a single click selects and a double-click opens
   Properties (text boxes still edit and portals still travel on a
@@ -5433,7 +5446,7 @@ Tokens and portals
   cell's shape in one press.
 - The token creator: your profile picture, a character's portrait
   (Portrait…, a room character's, a website import) and a picture a
-  player uploads for their character or their own token open it first —
+  player uploads for their character or their own token open it first:
   drag to move, scroll, pinch or the slider to zoom, and OK keeps what is
   inside the square (untouched: the middle, as before). One square picture
   is saved; each map's grid gives it its outline, and the Hexagon, Square
@@ -5461,7 +5474,7 @@ Tokens and portals
   character…: one of the campaign's characters, or a new one named after the
   token.
 - Trap tiles: a hidden portal does nothing, as before, until you tick
-  "⚠️ Trap — fires while hidden" in its Properties. Players never see the
+  "⚠️ Trap: fires while hidden" in its Properties. Players never see the
   tile, but a token that lands on it is teleported; you see a red ⚠️ and a
   dashed outline, and a locked destination map still stops it.
 - On a player's screen, a picture token whose picture is still arriving
@@ -5629,7 +5642,7 @@ Protecting your table
 - A player's map changes land only on the hosted campaign and only on the
   map they are on; their drawings are bounded by points as well as count
   (60,000 a map), a new drawing's id is plain text, and a double-click on a
-  door no longer carries a token across the map — the token standing on the
+  door no longer carries a token across the map. The token standing on the
   door steps through, one your fight or your lock holds stays, with a word
   why.
 - A player's app is served only the pictures and sounds it was sent a
@@ -5785,8 +5798,8 @@ Character sheets: the system
   roster, a die beside a row rolls initiative from the system's Initiative
   roll.
 - Layout: the editor's Layout tab arranges the sheet in sections of 1–4
-  columns — fields, roll buttons, headings, dividers and the portrait, each
-  one column or the full row, dragged between sections — with a live preview
+  columns: fields, roll buttons, headings, dividers and the portrait, each
+  one column or the full row, dragged between sections, with a live preview
   for a chosen character. Without a layout the sheet arranges itself by
   kind; Start from the automatic layout copies that.
 - Bridges: a token with a website's sheet attached gets Character from
@@ -6174,7 +6187,7 @@ Items
   inventory with quantity, remove, and a + Add item… picker of the
   campaign's items. Players manage their own; your machine checks every
   change.
-- Throw from the sheet: an item with a blast area gets a Throw button —
+- Throw from the sheet: an item with a blast area gets a Throw button:
   press it, click the map, and the blast lands attributed to the character
   and shared with everyone on that map. Per campaign you choose the
   automation (full auto rolls and applies the damage, or roll-to-chat, or
@@ -6453,8 +6466,8 @@ Handbook
   line. Three markers (***b***) are bold and italic together.
 - A sequence diagram on a page opened in its own window is drawn (it
   showed "Syntax error in text").
-- A third kind of item beside maps and planners: Handbook pages — rules,
-  quick reference, a setting primer — written in the same block editor as a
+- A third kind of item beside maps and planners: Handbook pages for rules,
+  quick reference or a setting primer, written in the same block editor as a
   planner (plus sub-headings, plain tables and a horizontal line; no scene
   nodes, raw HTML or GM notes on a page), nested and re-ordered like
   planners, searched, exported (Export This Page / Export All Pages) and
@@ -6468,7 +6481,7 @@ Handbook
   and the HTML export reflow the same content.
 - Import and export: a Markdown file (with its pictures picked alongside, or
   zipped with them; Google Docs' Markdown export works as is) becomes a
-  planner or a handbook page — the import button in the planner toolbar
+  planner or a handbook page. The import button in the planner toolbar
   appends to the open document, New planner (or page) from a Markdown file
   on the Planners and Handbook headers' right-click menu makes a new one,
   and the header Import button takes .md files and zips too. A preview lists
@@ -6479,8 +6492,8 @@ Handbook
   template to download.
 - Players at your table receive the pages you leave on "Players can read"
   (the default; the switch is in the planner toolbar and the page's
-  right-click menu) and read them from a Handbook tree of their own — the
-  only section of the left panel they see — in a panel over the play map, so
+  right-click menu) and read them from a Handbook tree of their own, the
+  only section of the left panel they see, in a panel over the play map, so
   the session keeps running underneath. Esc or × closes it. Your edits reach
   an open page as you type; turning a page GM only removes it from every
   player at once; only the hosted campaign's pages travel.
@@ -6653,7 +6666,7 @@ Visual effects
   the Ping row's list sends pings to one player on it instead, and Alt+click
   follows the list until that player leaves the map. A player's screen draws
   at most eight at once, and Reduce motion keeps the ring still.
-- Everything is drawn on your machine — no files, nothing saved. "Sound with
+- Everything is drawn on your machine: no files, nothing saved. "Sound with
   it" fires a chosen cue alongside. Reduce motion (per machine) skips shake
   and shortens flashes, and a hard flash guard protects against strobing.
   Visual effects is a VTT feature (Settings ▸ VTT features); a player can
@@ -6664,7 +6677,7 @@ Fog of war
   play map (a fog bank, GM only) opens a panel: fog on or off for this map,
   a reveal / hide brush, and Reveal all or Cover all at once; on a gridless
   map a ruleset and cell size give the brush its measure. Fog starts off on
-  every map — turn it on where you want it. While a fog map is open you
+  every map, so turn it on where you want it. While a fog map is open you
   always see the see-through fog overlay, across every tool and while
   dragging items, not only in fog mode.
 - Sight: a default sight range, and a "sight from" picker that reads each
@@ -6679,18 +6692,18 @@ Fog of war
   (Settings ▸ VTT features, with a default for new campaigns), on by default
   and never a player's to enable.
 - Sight-blocking: flag a fill or a shape (rectangle, hexagon, circle/pillar
-  or diamond) as "Blocks sight" in its Properties and it becomes a wall — a
+  or diamond) as "Blocks sight" in its Properties and it becomes a wall: a
   token's fog vision, and each player's view, stops at it (fog must be on
   for the map).
-- Doors: set a sight-blocker's type to Door — closed it blocks, open it lets
+- Doors: set a sight-blocker's type to Door: closed it blocks, open it lets
   sight through. You toggle a door from its Properties or by clicking it in
   fog mode; a player can open or close one their token stands next to
   (unless you lock it). A height dimension comes next.
-- Vision — all around or a facing cone: a map's fog menu has a Vision
+- Vision, all around or a facing cone: a map's fog menu has a Vision
   setting, all-around (a token sees every direction) or a facing cone whose
   width you choose and which turns with the token. It's set per map and not
-  tied to the grid type — a square map can use a cone, a hex map can see all
-  around — with a "use for new maps" campaign default that never changes
+  tied to the grid type: a square map can use a cone, a hex map can see all
+  around. There is also a "use for new maps" campaign default that never changes
   maps you already made.
 - Lighting, a VTT feature on by default: a fogged map is lit until you place
   a light source, so every token sees what is in its line of sight (walls
@@ -6739,7 +6752,7 @@ Fog of war
   Properties can make it cover you can see over (a crate or a low wall:
   half or three-quarters, never total) or no cover at all. Turn on Cover
   from blockers on the Combat card (the System editor's Items tab) and drag
-  the ruler between two character tokens — it reports the cover between
+  the ruler between two character tokens and it reports the cover between
   them (half / three-quarters / total, or a simple cover/none for systems
   that grade it once), on square and hex. A thrown blast's labels show each
   token's cover from the blast, and a small tag at the corner of each target
@@ -6869,12 +6882,12 @@ Fog of war
   tool still read it.
 
 Drawing tools
-- Pen tips: the Draw menu adds a tip — Round (the default), Square (blocky
+- Pen tips: the Draw menu adds a tip: Round (the default), Square (blocky
   ends and corners), or Flat, an angled calligraphy nib whose width varies
   with stroke direction. Remembered per device.
 - Fill bucket (GM): a new tool that colors grid cells. Click or drag cells
-  to lay a cell-sized colored shape — a hexagon on hex maps, a square on
-  square maps — seated in the cell, below the tokens; right-click a cell to
+  to lay a cell-sized colored shape, a hexagon on hex maps or a square on
+  square maps, seated in the cell, below the tokens; right-click a cell to
   clear it, and painting a filled cell recolors it. Each fill is an
   ordinary board item you can move, restyle or delete, and it reaches
   players like any shape.
@@ -6956,12 +6969,12 @@ Under the hood
   so a reload no longer blanks your name, and the tables you have joined
   still know you.
 
-WAYPOINT 1.4.9 — What's New
+WAYPOINT 1.4.9: What's New
 ============================
 
 VTT settings
 - Token elevation, token posture and the minimap are now VTT features, set
-  per campaign in Settings ▸ VTT features and saved with the campaign — a
+  per campaign in Settings ▸ VTT features and saved with the campaign, so a
   restore or an import brings a campaign's settings back with it. A VTT
   integration master switch per campaign turns the whole lot off for the
   plain whiteboard and keeps the choices for when it goes back on.
@@ -6982,31 +6995,31 @@ VTT settings
   Use the table's settings or Keep mine) and what the GM has off; it shows
   again only when the GM has changed the settings since you last saw them.
 - One campaign per session: while hosting, anything that would put another
-  campaign on screen — the campaign picker, a search result, Ctrl+K, New or
-  Delete Campaign, Import Replace, the tutorial — asks first and, on yes,
+  campaign on screen (the campaign picker, a search result, Ctrl+K, New or
+  Delete Campaign, Import Replace, the tutorial) asks first and, on yes,
   ends the session for everyone before switching. Cancel changes nothing.
 - The tour has a step on the VTT features, and Help explains them under
   Grids & Measuring ▸ VTT settings.
 
 Undo
 - Each map and each planner now has its own undo and redo. Ctrl+Z takes back
-  the last edit on the item you are looking at — never a pan, a click, a map
-  switch or an edit on another map — and Ctrl+Y puts it back. The buttons in
+  the last edit on the item you are looking at, never a pan, a click, a map
+  switch or an edit on another map, and Ctrl+Y puts it back. The buttons in
   the map toolbars work the same way, for that map only.
 - Planners have Undo and Redo buttons of their own, in the planner toolbar: a
   deleted block, row or flowchart node comes back where it was, at the same
   scroll position. Inside a text field, Ctrl+Z is first the browser's own text
   undo; once that field has nothing left to take back, the same key reaches the
   planner's history.
-- Campaign-level things — the cast, handouts, players, the session log, your
-  settings — are never part of undo any more, so undoing a map edit cannot
+- Campaign-level things (the cast, handouts, players, the session log, your
+  settings) are never part of undo any more, so undoing a map edit cannot
   quietly roll one of them back.
 - Deleting a map or planner is still not undoable, but a safety copy of the
   save is taken first (Settings ▸ Advanced ▸ Snapshots), for campaigns too.
   Renaming, re-ordering, re-parenting, locking and the scene status are not
   undo steps either.
 - While hosting, an undo reaches the players at once, and a player's own token
-  and drawings stay where the player put them — a GM undo never snaps them
+  and drawings stay where the player put them. A GM undo never snaps them
   back, and a GM's drag of a player-owned token is not undoable during the
   session. Walking a character through a portal (a move between two maps) and
   bringing a token over from another map clear both maps' undo at that point.
@@ -7024,7 +7037,7 @@ Multiplayer
   by pressing T while pointing at it; Esc and the party list's Target row work
   as before. The GM's "Start combat there?" question, asked once per character
   when a player targets one of the GM's characters, is answered by its buttons
-  alone — Enter no longer says Yes to it — and a new setting under Turn-based
+  alone (Enter no longer says Yes to it), and a new setting under Turn-based
   combat, "A player targets one of my characters", can set it to do nothing.
 - A GM-only custom row no longer counts on your sheet alone. A GM-only row
   on a list players can see (one you made custom, or the copy a deleted
@@ -7068,8 +7081,8 @@ Multiplayer
   reads it, so a file with an odd shape in it (a list, a track without a
   size, a playlist naming a track that is not there) cannot upset the
   panel or reach the table.
-- "Players arrive at" now offers "Player's last location" — the default once a
-  campaign has players — so each player comes back to the map they were last
+- "Players arrive at" now offers "Player's last location", the default once a
+  campaign has players, so each player comes back to the map they were last
   on and stays put until they travel or the GM summons them. A second choice,
   "New players start at", says where someone joining for the first time lands.
 
@@ -7087,34 +7100,34 @@ Fixes
   them there), bringing your own campaigns back from a safety copy where one
   exists. If it is not sure about a campaign, it asks you by name. Your
   Journal is untouched. Files you exported yourself are outside Waypoint's
-  reach — delete those by hand if they came from someone else's game.
+  reach: delete those by hand if they came from someone else's game.
 - Cancel (or Esc) on End Session, Leave Session and Clear Game Record now
   really cancels; before, the action went ahead anyway. And a player's copy
   of the roster can no longer replace the host's.
 
-WAYPOINT 1.4.8 — What's New
+WAYPOINT 1.4.8: What's New
 ============================
 
 Sidebar
 - Right-click a map or planner and pick Move Up or Move Down to re-order
-  it one step among its siblings — the same ordering as the drag handle,
+  it one step among its siblings, the same ordering as the drag handle,
   now without the drag. Anything nested under the row comes along, and the
   arrows gray out at the top and bottom of a list.
 
 Help
 - The Help window (the ? button) now has a search box at the top: type any
   keyword to find matching topics across every section, ranked, with the words
-  highlighted — click a result to jump straight to it.
+  highlighted. Click a result to jump straight to it.
 
 Handouts
 - Give a handout to one player: the new Give-to dropdown lists everyone
   registered in the campaign, by character, so you can prepare a handout before
-  the session — a connected player gets it at once, and anyone offline receives
+  the session. A connected player gets it at once, and anyone offline receives
   it the next time they join (the row shows who it is queued for).
 
 Navigation
 - Fit to Content: the target (Center) button's menu now has a "Fit to Content"
-  entry, and Shift+1 does the same from the keyboard — it zooms and pans so the
+  entry, and Shift+1 does the same from the keyboard: it zooms and pans so the
   whole map (or just your current selection) fits the screen at once. Handy for
   large overview maps that never framed properly before.
 - Hold Space and drag to pan the map from any tool, without switching to the
@@ -7127,7 +7140,7 @@ Fixes
   scene image and long notes is capped and kept on screen instead of running
   off the edge.
 - Character tokens now commit small drags when zoomed in, and stay grabbable
-  when zoomed far out — the click-vs-drag threshold and the resize-handle
+  when zoomed far out. The click-vs-drag threshold and the resize-handle
   corner both scale with the zoom level now.
 - Editing a text handout now updates its preview thumbnail as you type, instead
   of keeping the old text until the panel was reopened.
@@ -7136,7 +7149,7 @@ Fixes
   hard to read; they now use the theme's normal text color, like the rest
   of the menu.
 
-WAYPOINT 1.4.7 — What's New
+WAYPOINT 1.4.7: What's New
 ============================
 
 Sidebar
@@ -7168,13 +7181,13 @@ Fixes
   window close within a fraction of a second of leaving the field cannot
   drop the edit.
 
-WAYPOINT 1.4.6 — What's New
+WAYPOINT 1.4.6: What's New
 ============================
 
 Tokens
 - Elevation and posture. Two new switches in Settings → Table give every
   character token a height in yards (a ledge at +3, a catwalk at +5, a pit
-  at −2) and a posture — standing, crouching, sitting, kneeling, crawling,
+  at −2) and a posture: standing, crouching, sitting, kneeling, crawling,
   lying prone or lying face up. Both show as small chips at
   the foot of the token, in its hover card and in Properties; the token's
   right-click menu edits them too. Players set their own token's by
@@ -7191,9 +7204,9 @@ Blast tool
 - A new 💥 Blast tool next to Measure drops an area effect on a cell:
   any radius in feet (÷3 = yards on the map). Every token within the
   radius lights up with its distance in yards, so the GM works out the
-  damage by hand — Waypoint never rolls.
+  damage by hand. Waypoint never rolls.
   Distance is hex distance; with Token elevation on it is straight-line,
-  height included (√(h² + v²)), from the blast's own height — the token in
+  height included (√(h² + v²)), from the blast's own height: the token in
   the landing cell, else the ground, editable in the tool's menu. Drag a
   blast to move it, right-click it to remove it. Blasts are local, like
   rulers.
@@ -7226,11 +7239,11 @@ Data maps
 
 Tutorial
 - Help now has a Tutorial tab. Start it and Waypoint adds a small campaign
-  called Tutorial to your save — an elven realm with a city (scene images,
+  called Tutorial to your save: an elven realm with a city (scene images,
   portraits), its inn on a square grid over a drawn tavern, a three-floor
   raiders' hideout on hex grids with stair portals and archers up at +4,
   an old fort, a hill road, a throne room, a temple and a forge, and
-  handouts, and a session plan — then walks you through the app in twenty-one
+  handouts, and a session plan. Then it walks you through the app in twenty-one
   steps (hex, square and gridless maps included) with a spotlight over the real controls: campaigns, the map
   tree, both faces of a map, linking, portals, the play map tools and
   tokens, planners, multiplayer, settings. Esc leaves it at any time. The
@@ -7244,8 +7257,8 @@ Tutorial
 
 Play map
 - The Campaign Cast in the play map's right-click menu is one row now
-  (★ Campaign Cast, with the count). Hover or click it for the members —
-  every one of them, scrollable, with a filter once the list is long — and
+  (★ Campaign Cast, with the count). Hover or click it for the members
+  (every one of them, scrollable, with a filter once the list is long), and
   Manage Cast at the foot, and a Copies box at the top so a member's ×
   button drops that many at once. A long cast used to stretch the menu past
   the screen and bury the session items under it.
@@ -7266,7 +7279,7 @@ Pictures
   move together, or tags the whole set with a category in one go.
 - Delete a picture from the Image Library: open its preview and press Delete
   picture. Waypoint says where it is still used before it asks. (Needs the
-  1.4.6 core — older cores are walked through the installer.)
+  1.4.6 core. Older cores are walked through the installer.)
 - A category can sit on its own shelf: its pictures then show only under that
   category, not under All. The Tutorial campaign's art arrives that way, as
   "Default", so it never crowds your own pictures; delete the pictures
@@ -7274,7 +7287,7 @@ Pictures
 
 Text boxes
 - The Properties panel of a selected text box has a Content editor with the
-  same toolbar the planner's text blocks use — bold, italic, underline,
+  same toolbar the planner's text blocks use: bold, italic, underline,
   strikethrough, bulleted and numbered lists, clear formatting, and the
   symbol tray (arrows, dashes, checks, quotes). Edits show on the canvas as
   you type. Double-clicking the box on the canvas still edits it directly.
@@ -7289,8 +7302,8 @@ Text boxes
   Opacity slider further down still fades the whole box.
 
 Multiplayer
-- Per-change sync. The GM's table now sends only what changed on a map —
-  the tokens, shapes, rooms or links that moved, appeared or went away —
+- Per-change sync. The GM's table now sends only what changed on a map,
+  the tokens, shapes, rooms or links that moved, appeared or went away,
   instead of the whole map every time anything on it changed. Busy boards
   with many tokens stay snappy over the wire; a whole-map copy is still
   sent whenever that is the smaller message.
@@ -7305,7 +7318,7 @@ Fixes
   an error trying to press a center button that no longer exists; the map
   now simply opens on its remembered camera.
 
-WAYPOINT 1.4.5 — What's New
+WAYPOINT 1.4.5: What's New
 ============================
 
 Look
@@ -7321,36 +7334,36 @@ Look
 Installer
 - Spare icon files in the system folder are no longer packaged.
 
-WAYPOINT 1.4.4 — What's New
+WAYPOINT 1.4.4: What's New
 ============================
 
 Maps
 - The lock menu reads the whole nest: "Lock this and every map under it"
   shows while any nested map is still open, "Unlock…" while any is locked,
-  both when it is mixed — so a locked parent can still close its children.
+  both when it is mixed, so a locked parent can still close its children.
 - The fold arrows in the Planners and Maps trees are gold, like the section
   titles.
 
 Installer
 - When a copy of Waypoint is already installed, Setup asks what to do:
-  update it in place (the usual choice — nothing of yours is touched), do a
+  update it in place (the usual choice: nothing of yours is touched), do a
   clean install that wipes the program files but keeps your saves and
   settings unless you tick the box to delete them, or put a separate copy
   in a new folder and leave the existing one alone.
 - Updating from inside the app is unchanged: the one-click update never runs
   the installer, and when a core update does, "Update this copy in place" is
-  already selected — press Next. (Silent or scripted runs can pass /UPDATE=1
+  already selected, so press Next. (Silent or scripted runs can pass /UPDATE=1
   to skip the question.)
 
-WAYPOINT 1.4.3 — What's New
+WAYPOINT 1.4.3: What's New
 ============================
 
 Planners
 - Right-click a planner in the sidebar to mark it Next, Played or Skipped,
-  or clear its status — the same as the toolbar picker.
+  or clear its status, the same as the toolbar picker.
 
 Image Library
-- Clicking a picture opens a large preview — name, map, category — with an
+- Clicking a picture opens a large preview (name, map, category) with an
   "Add to map" button (or "Use this picture" when a planner block is asking),
   an "Add to category" button and Back. Nothing lands on the map until you
   press Add.
@@ -7358,22 +7371,22 @@ Image Library
   another; inside a category, "Move" swaps that category for another and
   "Remove" takes it out. All, By map and No category only ever add.
 
-WAYPOINT 1.4.2 — What's New
+WAYPOINT 1.4.2: What's New
 ============================
 
 Maps
 - Lock maps for players. Right-click a map in the Maps sidebar: "Lock for
   players" closes that map, "Lock this and every map under it" closes a whole
   module at once (and the unlock twins open them again). Players cannot
-  travel to a locked map — portals, warps and room links into it are refused
-  with a plain "isn't open yet" — so a party stays inside the maps you have
+  travel to a locked map: portals, warps and room links into it are refused
+  with a plain "isn't open yet", so a party stays inside the maps you have
   opened until you are ready. Summon and Bring still work for you. A lock
   mark shows in the tree and on portal hover.
 
 Image Library
 - Categories. Make your own (+ New in the chip row), right-click a picture
   to move it into one, and switch between All, each category and No
-  category. Rename or delete a category from its chip — deleting only untags
+  category. Rename or delete a category from its chip. Deleting only untags
   the pictures. Categories are bookkeeping in the save, not file moves, so
   every map, handout and cast entry keeps its picture.
 - "By map" is a view of its own that groups every picture under the map it
@@ -7388,7 +7401,7 @@ Fixes
   text, arrow) are dark on the light ground instead of washed-out gray.
 - Light theme: the map rulers and the minimap follow the theme too.
 
-WAYPOINT 1.4.1 — What's New
+WAYPOINT 1.4.1: What's New
 ============================
 
 Planners
@@ -7397,19 +7410,19 @@ Planners
   them with Enter, Shift+Enter or the arrows, with a "3 / 12" count. The
   exact phrase wins; failing that each word is matched at word starts, case
   and accents ignored. Hits stay lit while you edit.
-- The planner's controls — Render Preview, Status and Find — sit in a bar
+- The planner's controls (Render Preview, Status and Find) sit in a bar
   over the rendered preview instead of the header. Nothing of that bar, or
   of the highlights, goes into an export.
 
-WAYPOINT 1.4.0 — What's New
+WAYPOINT 1.4.0: What's New
 ============================
 
 Planners
 - The text editor's bar has a symbol tray (Ω): arrows, em and en dashes,
-  ellipsis, bullets, maths signs, checks, stars, quotes and a few marks —
+  ellipsis, bullets, maths signs, checks, stars, quotes and a few marks:
   one click drops it in at the cursor.
 
-WAYPOINT 1.3.9 — What's New
+WAYPOINT 1.3.9: What's New
 ============================
 
 Planners
@@ -7417,9 +7430,9 @@ Planners
   bold, italic, underline, strikethrough, bulleted and numbered lists, and
   clear formatting, from a bar over the box or Ctrl+B / I / U. Formatting
   applies to what you have selected, or to what you type next. No more
-  typing <b> and <i> by hand — old blocks open exactly as they rendered.
+  typing <b> and <i> by hand. Old blocks open exactly as they rendered.
 
-WAYPOINT 1.3.8 — What's New
+WAYPOINT 1.3.8: What's New
 ============================
 
 Updates
@@ -7430,7 +7443,7 @@ Updates
   update" button in the top bar, and downloads the installer only when you
   press Continue. Waypoint keeps working meanwhile.
 
-WAYPOINT 1.3.7 — What's New
+WAYPOINT 1.3.7: What's New
 ============================
 
 Updates
@@ -7442,21 +7455,21 @@ Updates
 Look
 - Data Map has its linked-nodes icon back; Play Map carries the map.
 
-WAYPOINT 1.3.6 — What's New
+WAYPOINT 1.3.6: What's New
 ============================
 
 Combat
 - Turn order at the table. Start Combat from the play-map right-click menu
-  (Session) or the Multiplayer panel: a roster of everyone on that map — the
+  (Session) or the Multiplayer panel: a roster of everyone on that map (the
   party first, every other character below, plus custom rows for things
-  without a token — with an initiative each. Only the tokens in a live
+  without a token), with an initiative each. Only the tokens in a live
   target pair on that map come ticked (whoever is targeting and whoever
   they target); everything else waits for your tick. Higher goes first, ties keep
   their place, and you can drag rows into any order by hand.
 - Running it: Next and Previous turn, a round counter, and End Combat from
   the same menu or the turn strip at the top of the map. The active token
-  gets a gold ring for everyone. Players see the strip — whose turn it is and
-  who is next — and cannot change it.
+  gets a gold ring for everyone. Players see the strip (whose turn it is and
+  who is next) and cannot change it.
 - A player targeting an NPC asks the GM whether to start combat there (once
   per NPC per session). Nothing starts on its own.
 - One combat per map, so a split party can fight on two maps at once. Late
@@ -7467,7 +7480,7 @@ Table notepad
   right-click menu (Session) or the Multiplayer panel; everyone sees it as
   the GM types. Anyone can save it to their Journal with one press; the GM
   can clear it (it asks first). It is gone when the GM puts it away or the
-  session ends — never part of the save.
+  session ends. It is never part of the save.
 
 
 Planners
@@ -7489,11 +7502,11 @@ Session log
   session start and end, who joined and left, every handout shown, every
   crossing, table-wide chat, shares, pauses and travel locks. Open it from
   the Multiplayer panel or the play-map right-click menu, filter by kind,
-  and save it as a text file — the raw material for the next recap. GM data,
+  and save it as a text file, the raw material for the next recap. GM data,
   never sent to players.
 
 Handouts
-- Tags. Give a handout tags (faces, places, letters — anything, comma
+- Tags. Give a handout tags (faces, places, letters, anything at all, comma
   separated); a tag row at the top of the Handouts panel filters the list.
   Tags travel with the handout: players see them as chips in their Inbox,
   a click on a chip searches the journal for it, and the smart search
@@ -7503,13 +7516,13 @@ At the table
 - Players see the party strip too. The same faces the GM has: the ones on
   your map lit, players who left dimmed. Click a face to find that character
   on your map, or to hear which map they are on; right-click to target.
-  It is read-only for players — no dragging, no summoning.
+  It is read-only for players: no dragging, no summoning.
 
 Snapshots
 - Settings ▸ Advanced lists the save's snapshots: the copy Waypoint takes
   at every launch (newest ten kept) and any you take by hand with
   "Snapshot the Save Now" (kept until deleted). Restore puts the whole save
-  back to that copy and reloads — the save as it was is snapshotted first.
+  back to that copy and reloads. The save as it was is snapshotted first.
   Needs this release's installer; older shells still get the launch backups.
 
 Faster maps
@@ -7523,8 +7536,8 @@ Fixes
   the GM says yes after they gave up, they go straight in next time.
 
 Look
-- One icon set. The header rows — Campaign, Table, Journal and App pills,
-  Export and Import, Data Map and Play Map, Render Preview, Update — and the
+- One icon set. The header rows (Campaign, Table, Journal and App pills,
+  Export and Import, Data Map and Play Map, Render Preview, Update) and the
   sidebar section buttons use one set of line icons drawn in the text
   color, instead of a mix of color emoji.
 - Light theme, second pass: hover text, dropdown rows, the active sidebar
@@ -7537,8 +7550,8 @@ Export
   and planner plus its players, handouts, delivery record and cast, with
   images bundled. It imports back as that campaign, so a single campaign
   can be handed to someone without the rest of the save.
-  Every scoped export — This Map, All Maps, All Play Maps, All Planners,
-  This Campaign — reads from the loaded campaign only; Export Everything is
+  Every scoped export (This Map, All Maps, All Play Maps, All Planners,
+  This Campaign) reads from the loaded campaign only; Export Everything is
   the one that takes every campaign in the save.
 
 Header
@@ -7553,7 +7566,7 @@ Table chat
   is not lost. The chat button dims while no session is running, with a tip
   saying it needs one.
 
-WAYPOINT 1.3.5 — What's New
+WAYPOINT 1.3.5: What's New
 ============================
 
 Campaign Cast
@@ -7581,7 +7594,7 @@ Fixes
   it was; the menu acts on the token under the pointer.
 - The three searches keep to their own kind: the Maps search lists maps only
   (planners were mixed in), the Planners search lists planners, and the
-  header magnifier searches campaigns — it did nothing before.
+  header magnifier searches campaigns. It did nothing before.
 - A token arriving through a portal could snap back onto the landing tile
   when the map's hex cells are larger than the token; the free-spot search
   now judges each spot where the token will actually sit.
@@ -7593,15 +7606,15 @@ Fixes
   could park the center just outside a tile that is not hex-aligned, and the
   crossing never fired.
 
-WAYPOINT 1.3.4 — What's New
+WAYPOINT 1.3.4: What's New
 ============================
 
 Appearance
 - Settings has a sun / moon switch. Dark is the default and is exactly what
   Waypoint has always looked like; Light puts the same layout on paper tones.
   The choice is kept and applied before the window paints.
-- Settings is folded into closed groups — Profile, Appearance, Table, Journal,
-  Multiplayer, Advanced, Updates & about — each opening on a click, so the
+- Settings is folded into closed groups (Profile, Appearance, Table, Journal,
+  Multiplayer, Advanced, Updates & about), each opening on a click, so the
   panel is short again. Which groups you leave open is remembered.
 - The Planners and Maps lists draw a guide line down from every parent
   through its nested entries, one line per level, and a thin divider between
@@ -7631,8 +7644,8 @@ Tooltips
 
 Multiplayer
 - Lock Travel Between Maps, beside Pause in the Multiplayer panel. While it
-  is on, players stay on the maps they are on — portals, warps and room links
-  do nothing for them — but the table is not paused: tokens still move and
+  is on, players stay on the maps they are on (portals, warps and room links
+  do nothing for them), but the table is not paused: tokens still move and
   chat stays open. Players see a small banner and a note if they try. Late
   joiners inherit the lock; it clears when the session ends.
 - Right-click on empty space of a play map during a session for a Session
@@ -7647,7 +7660,7 @@ Multiplayer
 Campaign Cast
 - Save a character once, drop copies anywhere. Right-click a character token
   and choose Save to Campaign Cast; from then on the empty-space right-click
-  on any play map lists the cast — click a name for one copy at that spot,
+  on any play map lists the cast. Click a name for one copy at that spot,
   or ×5 for five (numbered). Manage Cast renames or removes entries; tokens
   already placed are not affected. The cast is GM data and never reaches
   players. The cast also sits at the top of the image library, so creating a
@@ -7659,7 +7672,7 @@ Portals
   free spot beside the landing point, and the token left behind on the map
   they came from steps off the portal, so the next crossing is not blocked
   and the GM no longer has to unstack anyone. A token that was already on
-  the destination stays where the GM put it — unless it is still sitting on
+  the destination stays where the GM put it, unless it is still sitting on
   the landing node, in which case it is nudged to the nearest free spot.
 - NPC tokens travel too, the same way players do: drag one onto a portal
   and the destination gets a copy of it (only if it has none already, placed
@@ -7679,14 +7692,14 @@ Fixes
 - The Select tool on the play map toolbar uses the same angled arrow as the
   data map, instead of an upright one.
 
-WAYPOINT 1.3.3 — What's New
+WAYPOINT 1.3.3: What's New
 ============================
 
 Journal
 - Notes on everything: the Sent records have a notes box too, so every line
-  in the Journal — received, sent, or your own — can carry your notes.
+  in the Journal (received, sent, or your own) can carry your notes.
 
-WAYPOINT 1.3.2 — What's New
+WAYPOINT 1.3.2: What's New
 ============================
 
 Refresh button
@@ -7694,27 +7707,27 @@ Refresh button
   app like Ctrl+R, but keeps your place: a player rejoins the table with the
   same code, a GM's table resumes with the same room code.
 
-WAYPOINT 1.3.1 — What's New
+WAYPOINT 1.3.1: What's New
 ============================
 
 Journal
-- The GM can share from their Journal too: any page — including one a
-  player sent them, with the GM's notes added — goes to one connected player
+- The GM can share from their Journal too: any page (including one a
+  player sent them, with the GM's notes added) goes to one connected player
   or to everyone, and shows on the GM's Sent page beside the handouts shown.
 - A page the GM shares arrives as "from the GM", the same as a handout, so
   the From row shows one GM.
 
-WAYPOINT 1.3.0 — What's New
+WAYPOINT 1.3.0: What's New
 ============================
 
 Journal
-- A handout that comes again — re-queued, shown again, or changed — never
+- A handout that comes again (re-queued, shown again, or changed) never
   writes over a page the player has taken notes on: it arrives as a new
   entry beside it, and the noted one stays as it was. A copy with no notes
   yet is simply replaced by the latest. The quiet re-send on reconnect only
   refreshes what is already there.
 
-WAYPOINT 1.2.9 — What's New
+WAYPOINT 1.2.9: What's New
 ============================
 
 Journal
@@ -7725,8 +7738,8 @@ Journal
   text, the moment a handout arrives and whenever one is opened from the
   Journal. It is the same note as the one in the Journal list.
 - The Journal is laid out like a mailbox. Each campaign has four pages:
-  Journal, My notes, Inbox and Sent. Journal is everything — your own pages,
-  what you received and what you sent — with a Show row to see just one of
+  Journal, My notes, Inbox and Sent. Journal is everything (your own pages,
+  what you received and what you sent), with a Show row to see just one of
   those three. My notes is your own pages on their own. Inbox is what you
   have received (handouts from the GM, pages other players shared) with a
   From row per sender: the GM or one person. Sent is a separate record, one
@@ -7742,7 +7755,7 @@ Journal
   GM's record of what they have shown stays with the campaign.
 - The GM's own Journal works the same way: Inbox is what players shared
   with them, Sent lists every handout they have shown, to whom and when.
-  The "— GM" tag on a campaign is now a quiet "run by <name>", shown only
+  The old "GM" tag on a campaign is now a quiet "run by <name>", shown only
   when the GM has set a name; it tells two campaigns of the same name from
   different GMs apart.
 - Party sharing. While in a session, every page in a player's Journal has a
@@ -7752,16 +7765,16 @@ Journal
   with the sender's notes shown and the receiver's own notes box underneath.
   The host relays it; players never connect to each other.
 
-WAYPOINT 1.2.8 — What's New
+WAYPOINT 1.2.8: What's New
 ============================
 
 Fixes
 - A picture handout's default title carried the random tag the app puts in
-  front of uploaded file names ("bmvjkw2n Bor'Thain — token"). The tag, the
-  file extension, size suffixes and a trailing "— token" are dropped, in the
+  front of uploaded file names ("bmvjkw2n Bor'Thain - token"). The tag, the
+  file extension, size suffixes and a trailing "- token" are dropped, in the
   picker and in the title.
 
-WAYPOINT 1.2.7 — What's New
+WAYPOINT 1.2.7: What's New
 ============================
 
 Journal
@@ -7787,7 +7800,7 @@ Fixes
 - While joined to another GM's session, Settings no longer shows the Stream
   window and Relay server tools; they are the host's to use.
 
-WAYPOINT 1.2.6 — What's New
+WAYPOINT 1.2.6: What's New
 ============================
 
 Handouts
@@ -7796,7 +7809,7 @@ Handouts
 - The "Show to one player" dropdown (and the stream window's pickers) match
   the rest of the app instead of showing up white.
 
-WAYPOINT 1.2.5 — What's New
+WAYPOINT 1.2.5: What's New
 ============================
 
 Journal notes
@@ -7810,7 +7823,7 @@ Fixes
   squeezed its rows to nothing inside the scrolling box). The pictures show
   at their proper size now.
 
-WAYPOINT 1.2.4 — What's New
+WAYPOINT 1.2.4: What's New
 ============================
 
 Fixes
@@ -7824,12 +7837,12 @@ Fixes
   text-only handouts included, and the reveal popup has an "Add notes" button
   that opens the Journal on the spot.
 
-WAYPOINT 1.2.3 — What's New
+WAYPOINT 1.2.3: What's New
 ============================
 
 Handouts and the Journal
-- GM: the new 📜 Handouts panel holds pictures to show your players — a place
-  they have found, a face, a letter — each with a title and a caption. Show
+- GM: the new 📜 Handouts panel holds pictures to show your players (a place
+  they have found, a face, a letter), each with a title and a caption. Show
   one to the whole table or to a single player, or attach it to a room in the
   room's Properties: a player whose token comes to rest in that room is shown
   it on their own, once. Late joiners and reconnecting players receive what
@@ -7839,7 +7852,7 @@ Handouts and the Journal
   folder, so it opens with no session and no GM online. Pictures are sent
   once, resized to a sensible size, and never leave your machine again.
 - Tick "Give to every player when they join" on a handout and each player
-  receives it the next time they connect, once, with no button press — the
+  receives it the next time they connect, once, with no button press: the
   session recap that is waiting for them.
 - A handout can be text as well as a picture: a letter, a briefing, a
   session recap. Players read it as selectable text in their Journal.
@@ -7849,7 +7862,7 @@ Handouts and the Journal
 - Removing a handout on the GM's side does not reach into players' journals:
   like a paper handout, once seen it is theirs.
 
-WAYPOINT 1.2.2 — What's New
+WAYPOINT 1.2.2: What's New
 ============================
 
 Flowcharts, bigger
@@ -7867,7 +7880,7 @@ Flowcharts, bigger
   edge. Adding or removing nodes lays the chart out afresh (tweaks are
   dropped), and "Reset tweaks" does the same on demand.
 
-WAYPOINT 1.2.1 — What's New
+WAYPOINT 1.2.1: What's New
 ============================
 
 Fixes
@@ -7887,7 +7900,7 @@ Maps
   breadcrumb, from search. Stored with the map, so it travels with the
   campaign.
 
-WAYPOINT 1.2.0 — What's New
+WAYPOINT 1.2.0: What's New
 ============================
 
 Party strip
@@ -7907,7 +7920,7 @@ Stream window: focus on a character
   at 150%, following them as they move and travel. Picking a map again clears
   it.
 
-WAYPOINT 1.1.9 — What's New
+WAYPOINT 1.1.9: What's New
 ============================
 
 Relay setup instructions
@@ -7932,7 +7945,7 @@ Targeting
   or press Esc to clear; one target per player. A target is only a marker:
   it never changes the token.
 
-WAYPOINT 1.1.8 — What's New
+WAYPOINT 1.1.8: What's New
 ============================
 
 Fixes
@@ -7942,7 +7955,7 @@ Fixes
   reconnecting), and heartbeat silence counts as "not responding" after 8
   seconds and as dropped after 20 instead of 12 and 30.
 
-WAYPOINT 1.1.7 — What's New
+WAYPOINT 1.1.7: What's New
 ============================
 
 Fixes
@@ -7959,7 +7972,7 @@ Fixes
   players reattach within a few attempts. A first join to a resumed room
   can take a few seconds longer while it finds the live generation.
 
-WAYPOINT 1.1.6 — What's New
+WAYPOINT 1.1.6: What's New
 ============================
 
 Fixes
@@ -7967,7 +7980,7 @@ Fixes
   at the old number (the update check already knew better). Both now show
   the version of the app files actually running.
 
-WAYPOINT 1.1.5 — What's New
+WAYPOINT 1.1.5: What's New
 ============================
 
 Relay server for far-away players
@@ -7986,22 +7999,22 @@ Fixes
 - The stream window opens without the File/Edit/View menu bar (this one
   needs the installer; a one-click update keeps the old shell).
 
-WAYPOINT 1.1.4 — What's New
+WAYPOINT 1.1.4: What's New
 ============================
 
 Fixes
 - Players could not stay connected to a 1.1.2 host: the new admission guard
   closed a joining player's connection the moment their first heartbeat
   arrived (a split second before their hello, and again every few seconds
-  while the GM was deciding). The player saw "Connection lost — reconnecting",
+  while the GM was deciding). The player saw "Connection lost, reconnecting",
   looped through 30 attempts, and some firewalls reported the burst of retries
   as a port scan. The host now ignores heartbeats from players it hasn't
   admitted yet, and the player says hello first. Only the GM needs this version
-  for the fix — players on 1.1.2 join a 1.1.4 host fine.
+  for the fix. Players on 1.1.2 join a 1.1.4 host fine.
 - A player's own campaign could be overwritten by the GM's: while a player
   was reconnecting, the app briefly counted them as "not in a session" and a
   routine save wrote the GM's table (the player-visible parts of it) to their
-  saves folder — and Host would then offer it. A campaign received from a
+  saves folder, and Host would then offer it. A campaign received from a
   host is now never written to a player's disk under any circumstances, Host
   and Join cancel a pending reconnect, and Host first restores the player's
   own campaign if the GM's is still on screen. A player who already got a
@@ -8043,18 +8056,18 @@ Summon one player
 
 The Update button
 - When a newer Waypoint is out, a gold Update button appears in the top bar
-  and stays there until you update — one click updates in place (or fetches
+  and stays there until you update. One click updates in place (or fetches
   the installer when a release changes the app's core). A notice with Update,
   Notes and Later also appears once per launch; Later hides just the notice.
   Nothing installs without you pressing Update.
 
-WAYPOINT 1.1.2 — What's New
+WAYPOINT 1.1.2: What's New
 ============================
 
 Updates from inside the app
 - Settings ▸ Check for Updates looks at Waypoint's releases page. When a new
   version only changes the app itself, Update Now downloads it, swaps it in
-  and reloads — a few seconds, no installer, nothing lost. When a release
+  and reloads: a few seconds, no installer, nothing lost. When a release
   changes the app's core, the same button offers the installer instead.
 - A quiet check runs shortly after launch and mentions a new version in a
   toast; nothing installs without you pressing Update Now.
@@ -8071,8 +8084,8 @@ Settings that stay put
   reset every launch before).
 - The data map's Snap button remembers its state and agrees with the play
   map's Snap.
-- Settings ▸ Reset Local Preferences now clears everything it says it does —
-  including eraser, shape sizing, pen and folded sections — here and in the
+- Settings ▸ Reset Local Preferences now clears everything it says it does,
+  including eraser, shape sizing, pen and folded sections, here and in the
   saves folder's preferences.json. Your name, picture and multiplayer
   identity are never touched.
 
@@ -8080,7 +8093,7 @@ Multiplayer
 - The GM gets a clear "End Session for Everyone" button while hosting (with
   a confirmation). Players keep "Leave Session". Ending tells every player
   the session ended, returns them to their own campaigns and retires the
-  room code — same teardown as before, now impossible to mistake for a
+  room code: the same teardown as before, now impossible to mistake for a
   personal exit.
 - Players on an older Waypoint than the GM are turned away at the door with
   an "update Waypoint, then rejoin" message instead of joining a table that
@@ -8092,21 +8105,21 @@ Multiplayer
   hello. Anything else is dropped silently and the connection closed; nothing
   is sent to or accepted from it.
 
-WAYPOINT 1.1.1 — What's New
+WAYPOINT 1.1.1: What's New
 ============================
 
 Fixes from the first round of table testing
 - Eraser now rubs out only the part of a stroke you touch; the rest of the
   drawing stays (it splits into pieces around the gap).
 - Hex grid: tokens seat exactly into cells everywhere on the map. The grid
-  tile is now a whole 52 px wide — the old 51.96 px tile drifted a hair per
+  tile is now a whole 52 px wide. The old 51.96 px tile drifted a hair per
   column, which is why tokens looked slightly off far from the origin.
 - Data map: Select/Move and Pan tools join Link Mode, the map never starts
   in Link Mode, Link Mode lights gold while active, and a Clear-the-board
   button (with confirmation) wipes every room and link.
 - The properties panel no longer goes blank on older maps missing categories.
 - Typing a node's name or a character's name no longer rebuilds the panel
-  under your cursor — it used to jump to the top and drop focus, so the next
+  under your cursor. It used to jump to the top and drop focus, so the next
   keys hit the board (Delete removed the node, arrows nudged it). The panel
   now keeps your scroll position and caret through every refresh.
 - Fixed a crash ("m.toast is not a function") when linking rooms.
@@ -8122,11 +8135,11 @@ Multiplayer crash recovery
 - Tokens never straddle hex cells any more: every token in a multi-drag,
   arrow-key nudges (which now hop cell to cell on hex maps), pasted copies,
   spawned player tokens, and player drops arriving over the network are all
-  seated into a cell — the GM's copy is the authority.
+  seated into a cell, and the GM's copy is the authority.
 - Players can grab their token even when a text box, note card, or trigger
   zone is drawn over it.
 - Portals work by dropping: a player who drops their token on a door, stairs,
-  or any portal-linked item travels through it — no double-click needed. The
+  or any portal-linked item travels through it, no double-click needed. The
   GM can push a player through by dropping that player's token on a portal.
 - Clicking away from a selection (anywhere but the board, the Properties
   panel, menus, or dialogs) clears it, so the floating toolbar never lingers.
@@ -8137,10 +8150,10 @@ Multiplayer crash recovery
   half a minute (players start reconnecting; the GM sees ⏳ on a silent player
   and drops them if the silence continues) instead of looking "connected".
 - The installer refuses to close a running Waypoint silently, and asks first
-  when run by hand — an update can no longer kill a live table.
+  when run by hand, so an update can no longer kill a live table.
 
 Play Map
-- Shapes and text are placed where you click — or drag to draw the exact box
+- Shapes and text are placed where you click, or drag to draw the exact box
   they should fill. Esc cancels.
 - Text color: the color swatch (toolbar or Properties) now colors the text,
   with a custom color picker, and text boxes get their own tooltip.
@@ -8153,31 +8166,31 @@ Play Map
   vertex to vertex along cell edges instead of cutting across cells (square
   and hex grids).
 - Fixed snapped drawings (straight lines especially) rendering ~6px below
-  their true position — the stroke's SVG sat on a text baseline.
+  their true position. The stroke's SVG sat on a text baseline.
 - Every color row in Properties (fill, pen, text, box background) ends in a
   custom color wheel; the current color is outlined.
 - Text wraps inside its box (long words too), and multi-line text stacks
   properly instead of laying paragraphs side by side.
 - Text boxes can be styled: font (the standard Windows families), text size,
   horizontal and vertical alignment, and a box background (tints, solids,
-  shade/frost, or any custom color) — all in Properties.
+  shade/frost, or any custom color), all in Properties.
 - The selection toolbar's color swatch opens a palette that matches what you
-  selected — inks for text and drawings, fills plus inks for shapes, and a
+  selected: inks for text and drawings, fills plus inks for shapes, and a
   custom picker on all of them. Click the swatch again (or anywhere else) to
   close it.
 - Every tool has its own pointer: a pen for Draw, a crosshair-ruler for
   Measure, a crosshair-plus while placing a shape, a hand for Pan, a link
-  arrow in the data map's Link Mode — and the eraser hides the pointer so
+  arrow in the data map's Link Mode, and the eraser hides the pointer so
   only its reach circle shows. Items no longer flash the grab hand under
   a tool that isn't Move.
 - Eraser: a circle around the pointer shows its reach (solid while pressed),
-  its size is adjustable (click the eraser again), and it has two modes —
+  its size is adjustable (click the eraser again), and it has two modes:
   Precise trims strokes exactly to the circle's edge (erase just what you
   pass over), Segments removes each point-to-point piece the circle touches.
 - Hover tooltips can no longer be highlighted or left behind; any click,
   Esc, or moving off the item hides them.
 - Click any placed measuring ruler to remove it.
-- Center menu gains "Center on Character" — your own token as a player.
+- Center menu gains "Center on Character": your own token as a player.
 - Tokens follow rooms: drop a character token onto a shape linked to a room
   and the character moves into that room's list on the data map.
 - The mouse wheel zooms on its own now (no Ctrl needed), 5% a tick toward
@@ -8221,18 +8234,18 @@ Play Map
   at a neighbor's width or height, that neighbor lights up gold, a bright
   bar runs along the matched edge of both items, and a badge names the axis
   and the neighbor ("↔ WIDTH 300 = Scene art"). Works with Snap off and with
-  proportions locked — the other side follows the ratio. The blue guide lines that snaps
+  proportions locked, and the other side follows the ratio. The blue guide lines that snaps
   draw were invisible because of a typo; they show again.
-- Snap has a mode now: click the Snap button again for Snap To — Grid (cells
+- Snap has a mode now: click the Snap button again for Snap To: Grid (cells
   only, the most predictable), Items (neighbors only, for tidy rows), or
   Both (the old behavior: neighbors first, grid for open-space drops).
   Default is Grid. Remembered per computer; the menu also turns snapping off.
 - Fit to Grid: the ⊞ button in the selection toolbar (and in Properties)
-  sizes the selection to whole grid cells and seats it — tokens and hex
+  sizes the selection to whole grid cells and seats it. Tokens and hex
   shapes become exactly one hex cell; other items round to whole cells.
 - The selection toolbar and the resize (gold) and rotate (blue) dots follow
   the item live while you drag, resize, rotate, or zoom, instead of catching
-  up when you let go — and the dots stay the same size on screen at any zoom.
+  up when you let go, and the dots stay the same size on screen at any zoom.
 - Groups and multi-selections resize together: a single corner handle sits on
   the selection's corner; drag it and everything scales from the top-left
   (Shift keeps proportions).
@@ -8240,14 +8253,14 @@ Play Map
   when it loads, so the selection outline and handles hug the art with no
   invisible margins, and images keep their proportions when resized unless
   you unlock them.
-- Duplicate any item — ⧉ in the selection toolbar, the right-click menu,
+- Duplicate any item: ⧉ in the selection toolbar, the right-click menu,
   a Duplicate button in Properties, or Ctrl+D. The copy carries every
   setting and everything attached (character sheet, stats, portal target,
   styling, layer, lock); groups copy as a new group; a copied player token
   is GM-controlled until you assign it. Hex tokens land one cell over.
 - Elements panel: rename any element (✎ or double-click; also a Name field in
-  Properties), rows are grouped by layer in stacking order — front at the top,
-  back at the bottom — and ▲/▼ move an element a layer at a time.
+  Properties), rows are grouped by layer in stacking order (front at the top,
+  back at the bottom), and ▲/▼ move an element a layer at a time.
 - The T (text) button lights up while you're placing text, switches the board
   out of draw/erase/measure/pan first, and a selected text box's toolbar
   swatch shows an "A" over a color bar so it reads as text color.
@@ -8256,13 +8269,13 @@ Portals & triggers
 - Warps land you on the right ROOM, not just the right map: a node that
   leads to a map arrives at the room there with the same id or name (or the
   Landing Room you pick in Properties), with the camera on it and the room
-  selected. Players sent through a portal arrive — and their token spawns —
+  selected. Players sent through a portal arrive, and their token spawns,
   on that room's play map item. (This is the "Darro's office goes to the
   prison block" fix: the office is a room inside that map.)
 - Any play map item can be a portal on its own: Properties → Portal to Map.
   On a nested map the parent is offered first ("Back to …"), so a way home
-  is one click — no helper node needed. Pick a marker (door, stairs, gate…).
-- Trigger zones come in any shape — square, circle, diamond, hexagon — via
+  is one click, with no helper node needed. Pick a marker (door, stairs, gate…).
+- Trigger zones come in any shape (square, circle, diamond, hexagon) via
   Properties → Trigger Shape, and the Trigger button picks the shape that
   fits the grid: hex zones on hex maps, square zones on square grids.
 
@@ -8274,7 +8287,7 @@ Category library
 
 Roster characters become tokens
 - Press + Add under a node's Characters and a token appears on the board at
-  once — a stand-in circle showing the character's initials, placed on the
+  once: a stand-in circle showing the character's initials, placed on the
   shape linked to that room (or at the map's home point). Rename the
   character and the token follows; set a portrait and the token wears it;
   remove the character and its stand-in goes too (player-owned tokens and
@@ -8284,17 +8297,17 @@ Roster characters become tokens
 Faster map building
 - Set a room image on a data-map node and Waypoint builds a child map from
   it: the picture becomes the scene on that map's play map (locked, at the
-  back), and the node links to it as a portal — double-click to visit.
+  back), and the node links to it as a portal. Double-click to visit.
 - Double-click a map or planner name in the sidebar to rename it.
 
 Help where you're looking
-- Hover any section heading or field label — Categories, Characters, Linked
+- Hover any section heading or field label (Categories, Characters, Linked
   Map, Layer, the Host and Join panels, Settings sections, the pen and eraser
-  menus, and more — for a one-line explanation of what it's for.
+  menus, and more) for a one-line explanation of what it's for.
 
 Settings
 - Coordinate rulers can be hidden (Settings → Table).
-- Grid opacity slider — a personal setting: in multiplayer each player fades
+- Grid opacity slider, a personal setting: in multiplayer each player fades
   the grid to taste without affecting anyone else.
 
 ============================
@@ -8302,7 +8315,7 @@ WAYPOINT 1.1.0
 ============================
 
 Multiplayer (new)
-- Host your campaign as the GM and have players join with a room code —
+- Host your campaign as the GM and have players join with a room code:
   direct peer-to-peer between your computers, no accounts, no server.
 - Players follow your map, move only the tokens you assign to them, and
   talk in table chat (with private GM whispers).
@@ -8310,17 +8323,17 @@ Multiplayer (new)
   planners, room notes, and character dossiers are never sent to players.
 - Split the party through doors and stairs; Summon All brings everyone back.
 - Pause the Table freezes players completely while chat stays open.
-- The Host panel shows exactly which campaign and map players will join —
+- The Host panel shows exactly which campaign and map players will join,
   and lets you change both.
 - Set a display name and table picture in Settings; they show in the roster.
 - If two networks can't connect directly, traffic falls back to an encrypted
-  public relay automatically — most "it won't connect" cases just work now.
+  public relay automatically, so most "it won't connect" cases just work now.
 - Table security: first-time joiners need the GM's approval, an optional
   session password can back up the room code, and the GM can kick a player
   (kicked or denied players stay out for the rest of the session).
 
 Play Map
-- Copy, cut, and paste items (Ctrl+C / X / V) — and paste images straight
+- Copy, cut, and paste items (Ctrl+C / X / V), and paste images straight
   from your clipboard onto the board.
 - A floating toolbar over your selection: color, layer, lock, hide, delete.
 - Align and distribute buttons for multi-selections; arrow-key nudging.
@@ -8331,17 +8344,17 @@ Play Map
 - Image Library: browse every image in your install and place it in a click.
 
 Getting around
-- Minimap in the top-left corner — click anywhere on it to fly there.
+- Minimap in the top-left corner: click anywhere on it to fly there.
 - Ctrl+K quick-jump to any map, planner, or room by name.
 - Resizable side panels, and a rebuilt Help full of step-by-step tutorials.
 
 Exports & data safety
-- Export This Map / All Maps / All Play Maps / All Planners / Everything —
+- Export This Map / All Maps / All Play Maps / All Planners / Everything:
   images come bundled in a .zip, and Import accepts those bundles whole.
 - Saves are written atomically, and every launch snapshots your save into
   saves\backups (newest 10 kept).
 - Saves from ANY older Waypoint version are upgraded automatically on first
-  launch — the original is backed up first and never silently overwritten.
+  launch. The original is backed up first and never silently overwritten.
 
 Character sheets from a website
 - Exports follow the site's published contract: the languages line is the
@@ -8351,14 +8364,14 @@ Character sheets from a website
 - Import Character (toolbar) turns a website character JSON into a ready
   token: the sheet's portrait becomes the token art, name and a stats line
   fill in, and the full sheet rides attached.
-- View (inspector) opens the attached sheet read-only — attributes,
+- View (inspector) opens the attached sheet read-only: attributes,
   characteristics, traits, skills, powers, and inventory at the table.
 - Export JSON writes a site-ready file back out with the sharpest available
-  portrait embedded — upload it on the site with Import Character. Tokens
+  portrait embedded. Upload it on the site with Import Character. Tokens
   without a sheet export a starter file the site fills with defaults.
 
 Also in this version
 - A Settings panel (profile, measurement units, minimap, advanced resets).
-- Updated Terms of Use & Privacy Policy covering multiplayer — readable any
+- Updated Terms of Use & Privacy Policy covering multiplayer, readable any
   time from the About panel.
 - Questions or bugs: fulllioncreativeworks@gmail.com

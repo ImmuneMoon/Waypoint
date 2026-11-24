@@ -75,7 +75,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     check('mouseBind and speaking: only the two side buttons are a bind; a level is speaking past 0.02 and only as a number', j(mb) === j([null, null, null, 'Mouse3', 'Mouse4', null, null, null]) && j(sp) === j([false, false, true, true, false, false, false]), j([mb, sp]));
     const sw = [{ error: 'Boom' }, { joining: true }, { joined: false }, { joined: true, deaf: true, muted: true }, { joined: true, muted: true }, { joined: true, mode: 'ptt', talking: true }, { joined: true, mode: 'ptt', bind: 'Mouse3' }, { joined: true, mode: 'open' }].map(V.stateWords);
     check('stateWords: what the popover says of this machine\'s voice, the error first, then connecting, out of voice, deafened before muted, push to talk with its key, and connected',
-        j(sw) === j(['Boom', 'Connecting…', 'Not in voice', 'Deafened', 'Muted', 'Talking', 'Push to talk — hold Mouse back', 'Voice connected']), j(sw));
+        j(sw) === j(['Boom', 'Connecting…', 'Not in voice', 'Deafened', 'Muted', 'Talking', 'Push to talk: hold Mouse back', 'Voice connected']), j(sw));
     const coreSrc = read('scripts/voicecore.js');
     check('voicecore is pure: no document, no storage, no network, no timer; it publishes the same calls it exports', !/document\.|localStorage|fetch\(|XMLHttpRequest|setTimeout|setInterval|RTCPeerConnection/.test(coreSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')) && /if \(typeof window !== 'undefined'\) window\.wpVoiceCore = API;/.test(coreSrc));
 
@@ -85,7 +85,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     {   // 1.6.0 (the owner, by prompt: "Show Voice when not hosting")
         const N = loadVoice(V, { role: 'host', dice: D, net: { active: false } }), b = N.els.voiceInd;
         check('with no table open the microphone stays in the row, dimmed, and says it works once you host or join; with a table it is not dimmed',
-            b.style.display === '' && b.classList.contains('no-table') && b.title === 'Voice \u2014 it works once you host a table or join one' && !H.els.voiceInd.classList.contains('no-table'), j([b.style.display, b.className, b.title]));
+            b.style.display === '' && b.classList.contains('no-table') && b.title === 'Voice: it works once you host a table or join one' && !H.els.voiceInd.classList.contains('no-table'), j([b.style.display, b.className, b.title]));
     }
     H.api.fromPlayer({ type: 'voice-up', act: 'join' }, A); await tick();
     const lnA = H.api.hub.links.peerA, pcA = H.world.pcs[0], offA = A.sent[0];
@@ -238,7 +238,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const ix = read('index.html');
     check('the page loads voicecore before voice.js, once each, after the video module; the microphone is a control of the top row\'s Table group after Music, put away until a table is on, and its popover is in the page once with its two parts',
         ix.indexOf('<script type="module" src="scripts/video.js"></script>\n<script type="module" src="scripts/voicecore.js"></script>\n<script type="module" src="scripts/voice.js"></script>\n') > 0
-        && /<button class="tool ghost icon" id="musicInd"[^\n]*\n\s*<button class="tool ghost icon" id="voiceInd" title="Voice &mdash; talk with the table" style="display:none; position:relative;">/.test(ix)
+        && /<button class="tool ghost icon" id="musicInd"[^\n]*\n\s*<button class="tool ghost icon" id="voiceInd" title="Voice: talk with the table" style="display:none; position:relative;">/.test(ix)
         && (ix.match(/ id="voicePop"/g) || []).length === 1 && /<div id="voicePop" style="display:none;" role="dialog" aria-label="Voice">\n\s*<div id="voiceNow" class="snd-now" role="status"><\/div>\n\s*<div id="voiceBody"><\/div>\n\s*<\/div>/.test(ix));
     const vs = voiceSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     check('voice.js writes no markup, sends only its two words over the table\'s connection, never offers as a player and never answers as the host, and keeps what it keeps under its own keys of this computer',

@@ -180,7 +180,7 @@ function runTimeRules(fires, words, at, back, when) {
             parts.push(head + ': ' + body); if (nt !== 'quiet') pl.push(head + ': ' + body); lines.push({ r: rule.id, head: head, body: body, notes: nt, roll: !Array.isArray(rule.apply) });   // backlog 173: a rule set Panel only, players never told, is not in its player's summary
         });
         if (Object.keys(all).length) { c.updated = Date.now(); if (n && n.active && n.role === 'host' && n.syncCharDelta) n.syncCharDelta(c.id, all); renderViews(c.id); changed++; }   // what was written is stored, sent and saved, said or not
-        var tp = typeof window !== 'undefined' && window.wpTimePanel && typeof window.wpTimePanel.add === 'function' ? window.wpTimePanel : null, lead = (words ? words + ' \u2014 ' : '') + (c.name || 'A character') + ': ';
+        var tp = typeof window !== 'undefined' && window.wpTimePanel && typeof window.wpTimePanel.add === 'function' ? window.wpTimePanel : null, lead = (words ? words + '. ' : '') + (c.name || 'A character') + ': ';
         if (parts.length && n && n.timeCard) { if (tp || pl.length !== parts.length) n.timeCard(c, lead + parts.join('; '), gm, { player: pl.length ? lead + pl.join('; ') : '', gmChat: !tp }); else n.timeCard(c, lead + parts.join('; '), gm); }   // the flood fix: no part left, no summary; backlog 173: the GM's chat gets the run's one line from the panel instead
         if (parts.length && tp) runChars.push({ c: c, gm: gm, lines: lines });
         if (Object.keys(all).length && typeof ruleFollow === 'function') ruleFollow(c, camp);   // the review of folds 4a and 6b: a bleed past minus HP owes its death check now, and an effect it brought on lays its token down

@@ -638,7 +638,7 @@ function checkTableRoll(res) {
 var DENY_TEXT = {
     off: 'Dice are off for this campaign (Settings > VTT features).',
     slow: 'Slow down: a few rolls a second is plenty.',
-    paused: 'The table is paused — no rolls until the GM resumes.',
+    paused: 'The table is paused. No rolls until the GM resumes.',
     held: 'Your character needs a new sheet first. Send one from its sheet.',
     many: 'At most ' + LIMITS.dice + ' dice in a table roll.',
     names: 'Pick a character in the roller for names like STR (its sheet gives the values).',
@@ -788,7 +788,7 @@ function cardText(rec, res, F, opts) {
     if (fxc) body = body.replace(/:\s*(success|failure)( by [^:]*)?$/, '') + ': ' + (fxc.crit ? 'critical ' : '') + (fxc.pass ? 'success' : 'failure') + (fxc.by > 0 ? ' by ' + fmtNum(fxc.by) : '');
     if (rec && rec.hid === 'gm') body = 'sent to the GM';   // HR1
     if (rec && (rec.hid === 'pass' || rec.hid === 'fail')) body += ': ' + (rec.hidc ? 'critical ' : '') + (rec.hid === 'pass' ? 'success' : 'failure');   // 1.6.2: the host's word, the copy holding no check
-    return who + tagOf(rec, opts) + as + ' rolled ' + (rec && rec.label ? rec.label + ': ' : '') + body + (malfOf(rec, res) ? ' \u2014 ' + malfWords(rec) : '');   // R3
+    return who + tagOf(rec, opts) + as + ' rolled ' + (rec && rec.label ? rec.label + ': ' : '') + body + (malfOf(rec, res) ? ', a ' + malfWords(rec) : '');   // R3
 }
 // Stage 6 HUD R3: a roll's natural total — the dice alone, every term's kept total (3d6 <= Skill: the three dice; d20 + Hit: the d20) — and
 // whether a record's malfunction threshold (rec.malf) is reached by it (his reference weapon: a natural total at or past its Malf)

@@ -382,6 +382,21 @@ function refreshErrorsNow() {
             if (!onceK) errs.push({ message: 'Counted once needs a group stat and what makes a row the higher, each a number stat of this list or its level. Save drops it.' });
             else { if (sp.once.cost && !onceK.cost) errs.push({ message: 'Counted once: its full price names no number stat or column of this list, so Save drops it.' }); if (sp.once.free && !onceK.free) errs.push({ message: 'Counted once: what was given free names no number stat or column of this list, so Save drops it.' }); if (sp.once.across === true && !onceK.across) errs.push({ message: 'Counted once: Across specialties needs a list with Specialties, so Save drops it.' }); }
         }
+        // 1.6.4 (gap #6 of the full test, "Say it at Save"; Fulllion, 2026-11-23): a column Save drops is said in words, as a stat's is. The cleaner
+        // (cleancore.js cleanListSpec) drops a column with no short name, one whose short name Save cannot use (statKey), one with the short name of a
+        // stat Save keeps (the stat wins, as a book's "cost" stat once hid its "Cost" column with no word), and one with the short name of a column
+        // before it, each compared ignoring case. keptW holds the stats Save keeps, mineW their names, from the stat loop above
+        var colSeen = Object.create(null);
+        (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc, ci) {
+            if (!cc || typeof cc !== 'object') return;
+            var ck = typeof cc.key === 'string' ? cc.key : '', cw = typeof cc.label === 'string' && cc.label.trim() ? cc.label.trim() : ck, cQ = 'Column \u201c' + cw + '\u201d';
+            if (!ck.trim()) { errs.push({ message: 'Column ' + (ci + 1) + ' needs a name: Save drops it.' }); return; }
+            if (!statKey(ck, F())) { errs.push({ message: cQ + ': its short name cannot be used. Type another name, or tick \u201cShort names\u201d at the foot and type one. Save drops it.' }); return; }
+            var cl = ck.toLowerCase();
+            if (keptW[cl]) { errs.push({ message: cQ + ' has the same short name as the stat \u201c' + mineW[cl] + '\u201d, so Save drops the column. Give one of them another name.' }); return; }
+            if (colSeen[cl]) { errs.push({ message: cQ + ' has the same short name as the column \u201c' + colSeen[cl] + '\u201d: Save keeps the first.' }); return; }
+            colSeen[cl] = cw;
+        });
         (Array.isArray(sp.cols) ? sp.cols : []).forEach(function(cc) {   // 1.5.4: a column's Metric list and its decimals, as the cleaner reads them
             if (!cc || typeof cc !== 'object') return;
             var cnU = (typeof cc.label === 'string' && cc.label) || (typeof cc.key === 'string' && cc.key) || 'A column', cmU = typeof cleanFieldUnit === 'function' && !!cleanFieldUnit(typeof unitOf === 'function' ? unitOf(cc.unit, true) : typeof cc.unit === 'string' ? cc.unit.trim() : '', 'number');
@@ -889,7 +904,13 @@ function refreshErrorsNow() {
         });
         if (!rKept) rErr.push({ message: 'Range: add a step, or Save drops the rule.' });
     }
-    (draft.combat && Array.isArray(draft.combat.targetReads) ? draft.combat.targetReads : []).forEach(function(id, i) { var f0 = (draft.fields || []).find(function(f) { return f && f.id === id; }); if (i >= 6) { if (i === 6) rErr.push({ message: 'A roll also reads of its target: six at most, so Save drops the rest.' }); } else if (!f0 || ['number', 'formula', 'skill', 'resource'].indexOf(f0.kind) < 0) rErr.push({ message: 'A roll also reads of its target: "' + String(id).slice(0, 40) + '" is no number field, so Save drops it.' }); });   // 1.6.0
+    (draft.combat && Array.isArray(draft.combat.targetReads) ? draft.combat.targetReads : []).forEach(function(id, i) { var f0 = (draft.fields || []).find(function(f) { return f && f.id === id; }); if (i >= 6) { if (i === 6) rErr.push({ message: 'A roll also reads of its target: six at most, so Save drops the rest.' }); } else if (!f0 || ['number', 'formula', 'skill', 'resource'].indexOf(f0.kind) < 0) rErr.push({ message: 'A roll also reads of its target: ' + (f0 ? '\u201c' + String(f0.label || f0.key || 'that field').slice(0, 40) + '\u201d is no number' : 'a field that is gone is no number field') + ', so Save drops it.' }); });   // 1.6.0; 1.6.4: named by its name, never its id
+    // 1.6.4 (gap #6 of the full test, "Say it at Save"): the cleaner (cleancore.js cleanCombat, through systemcore senseField) also drops a field of
+    // A roll also reads of its target that players cannot read, or that is worked out from one they cannot (secretFieldIds over the GM's view), since
+    // a player's own app works the figure out. A body in the way's field below is judged the same way
+    var trdL = draft.combat && Array.isArray(draft.combat.targetReads) ? draft.combat.targetReads.slice(0, 6) : [], trdSec = null;
+    if (trdL.length) { try { trdSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }, F()) : null; } catch (e) { trdSec = null; } }
+    if (trdSec) trdL.forEach(function(id) { var f0 = (draft.fields || []).find(function(f) { return f && f.id === id; }); if (f0 && ['number', 'formula', 'skill', 'resource'].indexOf(f0.kind) >= 0 && Object.prototype.hasOwnProperty.call(trdSec, id)) rErr.push({ message: 'A roll also reads of its target: players cannot read \u201c' + String(f0.label || f0.key || 'that field').slice(0, 40) + '\u201d, or it is worked out from one they cannot, so Save drops it.' }); });
     var bszE = draft.combat && typeof draft.combat.bodySize === 'string' ? draft.combat.bodySize : '';   // 1.6.2: A body in the way's own field, judged as Target size is
     if (bszE) { var bszF = (draft.fields || []).find(function(f) { return f && f.id === bszE; }), bszSec = null; try { bszSec = typeof secretFieldIds === 'function' ? secretFieldIds({ fields: gmViewFields(draft, F()), items: draft.items, core: draft.core, tables: draft.tables }, F()) : null; } catch (e) { bszSec = null; }
         if (!bszF || ['number', 'formula', 'skill', 'resource'].indexOf(bszF.kind) < 0) rErr.push({ message: 'A body in the way reads: that field is gone or is no number, so Save drops it.' });

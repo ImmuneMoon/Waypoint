@@ -20,7 +20,7 @@ AppPublisher=Fulllion Creative Works, LLC
 AppContact=fulllioncreativeworks@gmail.com
 AppSupportURL=https://fulllioncreativeworks.com/
 VersionInfoVersion={#AppVer}
-VersionInfoDescription=Waypoint VTT — campaign mapping and whiteboard planning
+VersionInfoDescription=Waypoint VTT: campaign mapping and whiteboard planning
 DefaultDirName={localappdata}\Programs\Waypoint
 UninstallDisplayIcon={app}\Waypoint.exe
 ; tells the shell to drop its cached icons after an in-place update, so the new Waypoint.exe icon shows without a sign-out
@@ -117,7 +117,7 @@ begin
               'If you are hosting a multiplayer session, closing it will disconnect your players. ' +
               'Close Waypoint and continue with the update?', mbConfirmation, MB_YESNO) = IDNO then
     begin
-      Result := 'Update canceled — Waypoint is still running.';
+      Result := 'Update canceled. Waypoint is still running.';
       exit;
     end;
   end;
@@ -170,16 +170,16 @@ begin
       'What would you like Setup to do?',
       'Pick one. The first option is the normal update and keeps everything you have.',
       True, False);
-    ModePage.Add('Update this copy in place (recommended) — keeps campaigns, saves, images and settings');
-    ModePage.Add('Clean install here — wipe the program files and rebuild them; saves and settings are kept unless you say otherwise on the next page');
-    ModePage.Add('Install a separate copy in a new folder — the existing copy is left exactly as it is');
+    ModePage.Add('Update this copy in place (recommended): keeps campaigns, saves, images and settings');
+    ModePage.Add('Clean install here: wipe the program files and rebuild them; saves and settings are kept unless you say otherwise on the next page');
+    ModePage.Add('Install a separate copy in a new folder: the existing copy is left exactly as it is');
     ModePage.Values[0] := True;
 
     WipePage := CreateInputOptionPage(ModePage.ID, 'Clean install',
       'What should go?',
       'The program files in ' + PrevInstallPath + ' are removed and installed fresh. Your saves folder (campaigns, maps, images, journals) and your settings are kept unless you tick the box.',
       False, False);
-    WipePage.Add('Also delete my saves, images, journals and settings — everything. This cannot be undone.');
+    WipePage.Add('Also delete my saves, images, journals and settings: everything. This cannot be undone.');
     WipePage.Values[0] := False;
   end;
 end;
@@ -197,7 +197,7 @@ begin
   Result := True;
   if (WipePage <> nil) and (CurPageID = WipePage.ID) and WipePage.Values[0] then
   begin
-    Result := MsgBox('Delete ALL of Waypoint''s data in ' + PrevInstallPath + ' — every campaign, map, image, journal and setting?'
+    Result := MsgBox('Delete ALL of Waypoint''s data in ' + PrevInstallPath + ': every campaign, map, image, journal and setting?'
       + #13#10#13#10 + 'There is no undo. Choose No to keep the saves folder.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
     if not Result then WipePage.Values[0] := False;
   end;

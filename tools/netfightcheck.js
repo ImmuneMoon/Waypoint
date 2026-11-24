@@ -1830,7 +1830,7 @@ pendingChecks.push((async () => {
             && /aria-label="Count"/.test(cOrc) && cOrc.indexOf(' never"') === 0 && cOrc.indexOf('>never acts</span>') > 0 && cAna.indexOf('>never acts</span>') < 0 && MC.els.combatHelp.textContent === 'Tick who is in the fight and give each a count. Higher acts first. A row at 0 or less never acts.'
             && Bc.toasts.indexOf('Orc has a count of 0 or less, so on the counting clock it never acts. Give it a count above 0 in the roster.') >= 0
             && MS.els.combatHelp.textContent === 'Tick who is in the fight and give each an initiative. Higher goes first. The order is then grouped by side, and each side goes together.'
-            && MN.els.combatHelp.textContent === 'Tick who is in the fight and give each an initiative. Higher goes first.' && MN.els.combatRollAllBtn.style.display === '' && !/display:none/.test(String(MN.els.combatRows.innerHTML)) && /title="Initiative \u2014 higher goes first"/.test(String(MN.els.combatRows.innerHTML))
+            && MN.els.combatHelp.textContent === 'Tick who is in the fight and give each an initiative. Higher goes first.' && MN.els.combatRollAllBtn.style.display === '' && !/display:none/.test(String(MN.els.combatRows.innerHTML)) && /title="Initiative\. Higher goes first"/.test(String(MN.els.combatRows.innerHTML))
             && MC.R.never(['A', 'B', 'C', 'D']) === 'A, B, C and 1 more have a count of 0 or less, so on the counting clock they never act. Give each a count above 0 in the roster.' && MC.R.never([]) === '',
             j([dInit, dRoll, MD.els.combatHelp.textContent, cOrc, Bc.toasts, MS.els.combatHelp.textContent]));
         // finding 35: a picture whose file is missing gives way to the plain face, by a listener on the picture, once

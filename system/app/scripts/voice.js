@@ -618,10 +618,10 @@ function renderInd() {
     b.classList.toggle('in-voice', me.on);
     b.classList.toggle('mic-off', off);
     b.classList.toggle('no-table', !table);
-    b.title = !table ? 'Voice — it works once you host a table or join one'
-        : !me.on ? 'Voice — talk with the table'
-        : me.listen && !me.deaf ? 'Voice — listening only. Nobody hears you'   // 1.6.3 (finding 21): no microphone, so nothing to mute
-        : (me.deaf ? 'Voice — deafened' : me.muted ? 'Voice — your microphone is muted' : prefs.mode === 'ptt' ? 'Voice — hold ' + bindLabel(prefs.bind) + ' to talk' : 'Voice — you are in voice')
+    b.title = !table ? 'Voice: it works once you host a table or join one'
+        : !me.on ? 'Voice: talk with the table'
+        : me.listen && !me.deaf ? 'Voice: listening only. Nobody hears you'   // 1.6.3 (finding 21): no microphone, so nothing to mute
+        : (me.deaf ? 'Voice: deafened' : me.muted ? 'Voice: your microphone is muted' : prefs.mode === 'ptt' ? 'Voice: hold ' + bindLabel(prefs.bind) + ' to talk' : 'Voice: you are in voice')
           + '. Right-click or Ctrl+Shift+M to ' + (me.muted ? 'unmute' : 'mute');
 }
 function render(force) {

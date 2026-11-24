@@ -257,7 +257,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
           var nm = function(pid) { return (Object.prototype.hasOwnProperty.call(ps, pid) && ps[pid] && ps[pid].name) || 'A player'; };
           var cn = function(id) { return (Object.prototype.hasOwnProperty.call(cs, id) && cs[id] && cs[id].name) || 'a character'; };
           c.sessionLog = Array.isArray(c.sessionLog) ? c.sessionLog : [];
-          r.several.forEach(function(s) { c.sessionLog.push({ at: Date.now(), kind: 'char', text: (nm(s.pid) + ' plays ' + cn(s.id) + (r.guesses.some(function(g) { return g.pid === s.pid; }) ? ' (a guess)' : '') + '; ' + s.kept.map(cn).join(', ') + (s.kept.length === 1 ? ' is' : ' are') + ' kept \u2014 change it in System \u25B8 Characters').slice(0, 400) }); });
+          r.several.forEach(function(s) { c.sessionLog.push({ at: Date.now(), kind: 'char', text: (nm(s.pid) + ' plays ' + cn(s.id) + (r.guesses.some(function(g) { return g.pid === s.pid; }) ? ' (a guess)' : '') + '; ' + s.kept.map(cn).join(', ') + (s.kept.length === 1 ? ' is' : ' are') + ' kept. Change it in System \u25B8 Characters').slice(0, 400) }); });
           if (c.sessionLog.length > 3000) c.sessionLog.splice(0, c.sessionLog.length - 3000);
       });
       setTimeout(function() { toast('Players now follow their characters by id: ' + bound + ' bound' + (linked ? ', ' + linked + ' token' + (linked === 1 ? '' : 's') + ' linked by name' : '') + '. The Game Record lists anyone with more than one character.'); }, 1200);
@@ -1537,7 +1537,7 @@ import './uiparts.js';   // 1.6.2: the app's own controls, window.wpUi (a counte
                 window.wpNet.onLocalSave();
                 saveNote.innerHTML = 'Synced to host <b>&#10003;</b>';
             } else {
-                saveNote.innerHTML = 'GM\'s campaign &mdash; not saved here';
+                saveNote.innerHTML = 'GM\'s campaign, not saved here';
             }
             savePending = false;
             return;

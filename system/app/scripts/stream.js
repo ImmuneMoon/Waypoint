@@ -80,7 +80,7 @@ if (!on && !new URLSearchParams(location.search).get('popout') && typeof Broadca
 if (on) {
     window.wpStream = true;
     document.body.classList.add('stream-mode', 'net-client');
-    document.title = 'Waypoint VTT \u2014 Stream';
+    document.title = 'Waypoint VTT: Stream';
     // Borrow the player-side rules: nothing editable, nothing saved, hidden things hidden.
     net.active = true; net.role = 'client'; net.foreign = true; net.stream = true; net.myId = 'stream';
     window.isPanMode = true;   // left-drag pans the view

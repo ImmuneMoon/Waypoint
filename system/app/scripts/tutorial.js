@@ -21,7 +21,7 @@ import { save, toast, canPersistLocal, resetHistory, takeSafetyCopy, withoutHist
 import { updateCampaignSelect, updateSidebarNav, navigateToMap } from './sidebar.js';
 import { showConfirm } from './dialogs.js';
 
-var TUTORIAL_VERSION = '1.6.3';          // bump when STEPS or the demo campaign change
+var TUTORIAL_VERSION = '1.6.4';          // bump when STEPS or the demo campaign change
 var TUTORIAL_CAMP_ID = 'camp_tutorial';  // one Tutorial campaign per save
 var TUTORIAL_NAME = 'Tutorial';
 var TUTORIAL_ART_CAT = 'Default';   // the category every tutorial picture sits in (its own shelf, not under All)
@@ -222,7 +222,7 @@ function buildTutorialCampaign() {
     realm.meta.gridType = 'off';
     realm.whiteboard = [
         { id: 'tut_wb_realmscene', type: 'image', src: A + 'scene_eldara.jpg', x: O + 62, y: O + 62, w: 900, h: 900, color: 'transparent', layer: 'back', locked: true, name: 'Eldara under the great tree' },
-        { id: 'tut_wb_realmlabel', type: 'text', x: O + 62, y: O, w: 640, h: 40, color: 'transparent', text: '<b>Eldara Realm</b> (no grid) \u2014 a scene to set the mood; the maps below it are where play happens', fontSize: 14, layer: 'front' }
+        { id: 'tut_wb_realmlabel', type: 'text', x: O + 62, y: O, w: 640, h: 40, color: 'transparent', text: '<b>Eldara Realm</b> (no grid). A scene to set the mood; the maps below it are where play happens', fontSize: 14, layer: 'front' }
     ];
 
     /* ---- Eldara: the city, with scene images and portraits ---- */
@@ -236,7 +236,7 @@ function buildTutorialCampaign() {
         { id: 'tut_temple', name: 'Temple', cat: 'holy', x: 15300, y: 14840, notes: 'Crystal-lit hall of the Moon. Healing for a donation; blessings for a promise.', characters: [{ id: 'tut_c_priestess', name: 'High Priestess Elandra Moonshadow', info: 'Knows the fort is older than the city and what sleeps under it.', portrait: A + 'priestess_sq.jpg' }], image: A + 'scene_temple.jpg', targetMapId: 'map_tut_temple', icon: 'Door' },
         { id: 'tut_smith', name: 'Blacksmith', cat: 'trade', x: 14800, y: 15220, notes: 'Elion will reforge anything the party brings back from the hideout.', characters: [{ id: 'tut_c_smith', name: 'Master Blacksmith Elion Flameheart', info: 'Grumbles. Sold the raiders their axes without knowing.', portrait: A + 'smith_sq.jpg' }], image: A + 'scene_forge.jpg', targetMapId: 'map_tut_forge', icon: 'Door' },
         { id: 'tut_library', name: 'Library', cat: 'civic', x: 15300, y: 15100, notes: 'Maps of the hills, if anyone asks nicely. Maelis has no portrait: her token shows her initials until you give her one.', characters: [{ id: 'tut_c_maelis', name: 'Archivist Maelis', info: 'Keeps the hill surveys. Will trade a map for the return of an overdue book.' }] },
-        { id: 'tut_emporium', name: 'Emporium', cat: 'trade', x: 15560, y: 14980, notes: 'Everything the caravans still bring in, at raid prices. Liriel buys the raiders\' loot through a third hand \u2014 the ledger in the hideout names her.', characters: [{ id: 'tut_c_liriel', name: 'Liriel Aurethiel', info: 'Charming, rich, and the Emporium buyer on Grukk\'s ledger. Never in the shop when trouble arrives.', portrait: A + 'liriel_sq.jpg' }], image: A + 'scene_emporium.jpg' },
+        { id: 'tut_emporium', name: 'Emporium', cat: 'trade', x: 15560, y: 14980, notes: 'Everything the caravans still bring in, at raid prices. Liriel buys the raiders\' loot through a third hand. The ledger in the hideout names her.', characters: [{ id: 'tut_c_liriel', name: 'Liriel Aurethiel', info: 'Charming, rich, and the Emporium buyer on Grukk\'s ledger. Never in the shop when trouble arrives.', portrait: A + 'liriel_sq.jpg' }], image: A + 'scene_emporium.jpg' },
         { id: 'tut_inn', name: 'The Inn', cat: 'trade', x: 15000, y: 15400, notes: 'Where the party meets. Double-click to open its battle map (a square grid).', characters: [{ id: 'tut_c_innkeeper', name: 'Paethorin Baethelor', info: 'Innkeeper. Owes the Emporium money and knows it is dirty.', portrait: A + 'innkeeper_sq.jpg' }, { id: 'tut_c_chef', name: 'Nessa', info: 'Wood-elf cook. Hears everything the caravan drivers say.', portrait: A + 'chef_sq.jpg' }], targetMapId: 'map_tut_inn', icon: 'Door', image: A + 'scene_inn.jpg' }
     ];
     city.links = [
@@ -257,9 +257,9 @@ function buildTutorialCampaign() {
         district('tut_wb_d_library', 'tut_library', 670, 660, 200, 110),
         district('tut_wb_d_smith', 'tut_smith', 290, 680, 240, 110),
         district('tut_wb_d_inn', 'tut_inn', 250, 900, 160, 110),
-        { id: 'tut_wb_citylabel', type: 'text', x: O, y: O - 60, w: 640, h: 40, color: 'transparent', text: '<b>Eldara</b> (no grid) \u2014 tokens go wherever you drop them; hover a district for its room', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_citylabel', type: 'text', x: O, y: O - 60, w: 640, h: 40, color: 'transparent', text: '<b>Eldara</b> (no grid). Tokens go wherever you drop them; hover a district for its room', fontSize: 14, layer: 'front' },
         // Free placement: no cell to seat in, so any size and any spot works
-        pic('bren_sq.jpg', { id: 'tut_wb_bren6', x: O + 330, y: O + 880, w: 44, h: 44, charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword. On a gridless map a token is any size you like \u2014 these are 44 px.', layer: 'middle' }),
+        pic('bren_sq.jpg', { id: 'tut_wb_bren6', x: O + 330, y: O + 880, w: 44, h: 44, charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword. On a gridless map a token is any size you like. These are 44 px.', layer: 'middle' }),
         pic('tharic_sq.jpg', { id: 'tut_wb_tharic6', x: O + 372, y: O + 896, w: 44, h: 44, charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.', layer: 'middle' }),
         pic('sage_sq.jpg', { id: 'tut_wb_sage6', x: O + 350, y: O + 936, w: 44, h: 44, charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar.', layer: 'middle' }),
         pic('liriel_sq.jpg', { id: 'tut_wb_liriel', x: O + 690, y: O + 560, w: 44, h: 44, charName: 'Liriel Aurethiel', name: 'Liriel', charStats: 'Emporium keeper. NPC, out on the market street.', layer: 'middle', charRef: 'tut_c_liriel' })
@@ -280,8 +280,8 @@ function buildTutorialCampaign() {
     inn.whiteboard = [
         { id: 'tut_wb_innmap', type: 'image', src: A + 'map_inn.jpg', x: IX, y: IY, w: 1198, h: 1089, color: 'transparent', layer: 'back', locked: true, name: 'The Inn' },
         { id: 'tut_wb_innfloor', type: 'rect', x: 15000, y: 15000, w: 800, h: 600, color: 'transparent', layer: 'back-mid', nodeId: 'tut_inn_common', name: 'Common room floor', opacity: 0.1, locked: true },   // locked: a piece no one sees, which a drag across the room would move (ensureTutorialFloors)
-        { id: 'tut_wb_innlabel', type: 'text', x: 14880, y: 14700, w: 520, h: 40, color: 'transparent', text: '<b>The Inn</b> (square grid) \u2014 square picture tokens, one 50 px cell each', fontSize: 14, layer: 'front' },
-        sqTok(15250, 15400, pic('bren_sq.jpg', { id: 'tut_wb_bren', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.' })),
+        { id: 'tut_wb_innlabel', type: 'text', x: 14880, y: 14700, w: 520, h: 40, color: 'transparent', text: '<b>The Inn</b> (square grid). Square picture tokens, one 50 px cell each', fontSize: 14, layer: 'front' },
+        sqTok(15250, 15400, pic('bren_sq.jpg', { id: 'tut_wb_bren', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword. Shield and a short temper. Your character. Drag me; Snap seats me in a cell.' })),
         sqTok(15300, 15400, pic('tharic_sq.jpg', { id: 'tut_wb_tharic', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight. Says little, hits hard.' })),
         sqTok(15250, 15450, pic('sage_sq.jpg', { id: 'tut_wb_sage', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar. Reads everything, including the raiders\' ledger.' })),
         sqTok(15350, 14950, pic('innkeeper_sq.jpg', { id: 'tut_wb_innkeeper', charName: 'Paethorin Baethelor', name: 'Paethorin', charStats: 'Innkeeper. An NPC token behind the bar.', charRef: 'tut_c_innkeeper' })),
@@ -290,7 +290,7 @@ function buildTutorialCampaign() {
     ];
 
     /* ---- Raiders' Hideout: three floors on HEX grids, stairs as portals ---- */
-    var ground = createNewMap("Hideout \u2014 Ground Floor");
+    var ground = createNewMap("Hideout: Ground Floor");
     ground.id = 'map_tut_ground';
     ground.meta.parentId = realm.id;
     ground.meta.homeX = 15000; ground.meta.homeY = 15000; ground.meta.lastView = 'visual'; ground.meta.gridType = 'hex';
@@ -305,39 +305,39 @@ function buildTutorialCampaign() {
     ground.whiteboard = [
         { id: 'tut_wb_groundmap', type: 'image', src: A + 'map_ground.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Ground floor plan' },
         { id: 'tut_wb_guardfloor', type: 'rect', x: O + 60, y: O + 190, w: 640, h: 640, color: 'transparent', layer: 'back-mid', nodeId: 'tut_g_guard', name: 'Guard room floor', opacity: 0.1, locked: true },   // locked, as the Inn's floor is
-        { id: 'tut_wb_groundlabel', type: 'text', x: O + 40, y: O - 60, w: 620, h: 40, color: 'transparent', text: '<b>Hideout \u2014 Ground Floor</b> (hex grid) \u2014 hex picture tokens; the stairs are portals: double-click them', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_groundlabel', type: 'text', x: O + 40, y: O - 60, w: 620, h: 40, color: 'transparent', text: '<b>Hideout: Ground Floor</b> (hex grid). Hex picture tokens; the stairs are portals: double-click them', fontSize: 14, layer: 'front' },
         // On a hex grid the picture tokens are clipped to a hexagon and fill one cell (60\u00d752)
-        hexTok(O + 420, O + 470, pic('orc_hex.png', { id: 'tut_wb_grukk', charName: 'Grukk', name: 'Grukk', charStats: 'Orc raider chief. NPC \u2014 right-click for conditions, posture, elevation.', charRef: 'tut_c_grukk' })),
+        hexTok(O + 420, O + 470, pic('orc_hex.png', { id: 'tut_wb_grukk', charName: 'Grukk', name: 'Grukk', charStats: 'Orc raider chief. NPC: right-click for conditions, posture, elevation.', charRef: 'tut_c_grukk' })),
         hexTok(O + 560, O + 300, pic('minotaur_soldier_hex.png', { id: 'tut_wb_horn', charName: 'Horn', name: 'Horn', charStats: 'Minotaur guard. Hidden from players until they open the door.', hidden: true })),
         hexTok(O + 300, O + 600, pic('bren_hex.png', { id: 'tut_wb_bren2', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Your character, in hex form for a hex map.' })),
         hexTok(O + 360, O + 640, pic('tharic_hex.png', { id: 'tut_wb_tharic2', charName: 'Tharic Ironfist', name: 'Tharic', charStats: 'Knight.' })),
         hexTok(O + 300, O + 690, pic('sage_hex.png', { id: 'tut_wb_sage2', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar.' })),
         stairs(O + 935, O + 760, 'map_tut_basement', false, 'Stairs down'),
         stairs(O + 700, O + 420, 'map_tut_top', true, 'Stairs up'),
-        hexTok(O + 480, O + 300, { id: 'tut_wb_officedoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The office door is locked. Grukk\'s ledger is inside \u2014 a roll of 10 to pick it, or ask Grukk nicely.', name: 'Office door' }),
+        hexTok(O + 480, O + 300, { id: 'tut_wb_officedoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The office door is locked. Grukk\'s ledger is inside. Pick it with a roll of 10, or ask Grukk nicely.', name: 'Office door' }),
         tutorialChestPiece()   // a container (1.6.2): Holds items, two Firepots and a Healing draught
     ];
     camp.boxes = { c_bxtutchest: tutorialChestBox() };
 
-    var basement = createNewMap('Hideout \u2014 Basement');
+    var basement = createNewMap('Hideout: Basement');
     basement.id = 'map_tut_basement';
     basement.meta.parentId = ground.id;
     basement.meta.homeX = 15000; basement.meta.homeY = 15000; basement.meta.lastView = 'visual'; basement.meta.gridType = 'hex';
     basement.cats = { room: { label: 'Room', color: '#e0a54f' }, danger: { label: 'Danger', color: '#d9534f' } };
     basement.rooms = [
         { id: 'tut_b_hall', name: 'Cellar', cat: 'room', x: 14900, y: 15000, notes: 'Barrels, damp, and a corridor around the vault.', characters: [] },
-        { id: 'tut_b_vault', name: 'Locked vault', cat: 'danger', x: 15200, y: 15000, notes: 'The raiders\' takings \u2014 and the thing they feed. The slime is hidden from players until the door opens.', characters: [] }
+        { id: 'tut_b_vault', name: 'Locked vault', cat: 'danger', x: 15200, y: 15000, notes: 'The raiders\' takings, and the thing they feed. The slime is hidden from players until the door opens.', characters: [] }
     ];
     basement.links = [['tut_b_hall', 'tut_b_vault', 'secret', { label: 'Vault door', notes: 'Iron, barred from outside. Grukk has the key.' }]];
     basement.whiteboard = [
         { id: 'tut_wb_basemap', type: 'image', src: A + 'map_basement.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Basement plan' },
-        { id: 'tut_wb_baselabel', type: 'text', x: O + 40, y: O - 60, w: 520, h: 40, color: 'transparent', text: '<b>Hideout \u2014 Basement</b> (hex grid) \u2014 the vault holds a hidden token and a trap', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_baselabel', type: 'text', x: O + 40, y: O - 60, w: 520, h: 40, color: 'transparent', text: '<b>Hideout: Basement</b> (hex grid). The vault holds a hidden token and a trap', fontSize: 14, layer: 'front' },
         hexTok(O + 497, O + 470, pic('slime_hex.png', { id: 'tut_wb_slime', charName: 'Vault Slime', name: 'Vault Slime', charStats: 'Fed on whatever the raiders did not want. Hidden until revealed.', hidden: true, posture: 'lying-prone' })),
         hexTok(O + 560, O + 610, { id: 'tut_wb_vaultdoor', type: 'trigger', shape: 'hexagon', color: 'transparent', eventMessage: 'The vault door swings in. Something green and heavy shifts in the dark.', name: 'Vault door' }),
         stairs(O + 300, O + 230, 'map_tut_ground', true, 'Stairs up')
     ];
 
-    var top = createNewMap('Hideout \u2014 Top Floor');
+    var top = createNewMap('Hideout: Top Floor');
     top.id = 'map_tut_top';
     top.meta.parentId = ground.id;
     top.meta.homeX = 14800; top.meta.homeY = 15000; top.meta.lastView = 'visual'; top.meta.gridType = 'hex';
@@ -349,7 +349,7 @@ function buildTutorialCampaign() {
     top.links = [['tut_t_dock', 'tut_t_gallery', '', { label: 'Ladder' }]];
     top.whiteboard = [
         { id: 'tut_wb_topmap', type: 'image', src: A + 'map_top.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Top floor plan' },
-        { id: 'tut_wb_toplabel', type: 'text', x: O + 40, y: O - 60, w: 560, h: 40, color: 'transparent', text: '<b>Hideout \u2014 Top Floor</b> (hex grid) \u2014 the archers stand 4 yards up: note the +4 chips', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_toplabel', type: 'text', x: O + 40, y: O - 60, w: 560, h: 40, color: 'transparent', text: '<b>Hideout: Top Floor</b> (hex grid). The archers stand 4 yards up: note the +4 chips', fontSize: 14, layer: 'front' },
         hexTok(O + 100, O + 385, pic('minotaur_archer_hex.png', { id: 'tut_wb_fletch1', charName: 'Fletch', name: 'Fletch', charStats: 'Minotaur archer at the north loophole. Elevation +4.', elevation: 4 })),
         hexTok(O + 100, O + 700, pic('minotaur_archer_hex.png', { id: 'tut_wb_fletch2', charName: 'Second archer', name: 'Second archer', charStats: 'Minotaur archer at the south loophole. Elevation +4, kneeling.', elevation: 4, posture: 'kneeling' })),
         stairs(O + 330, O + 340, 'map_tut_ground', false, 'Stairs down')
@@ -368,14 +368,14 @@ function buildTutorialCampaign() {
     fort.links = [['tut_f_wood', 'tut_f_yard', 'oneway', { label: 'Charge across the open' }]];
     fort.whiteboard = [
         { id: 'tut_wb_fortmap', type: 'image', src: A + 'map_fort.jpg', x: O, y: O, w: 1024, h: 1024, color: 'transparent', layer: 'back', locked: true, name: 'Old Fort' },
-        { id: 'tut_wb_fortlabel', type: 'text', x: O + 40, y: O - 60, w: 520, h: 40, color: 'transparent', text: '<b>Old Fort</b> (hex grid) \u2014 an outdoor battle map; the archer on the wall is at +3', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_fortlabel', type: 'text', x: O + 40, y: O - 60, w: 520, h: 40, color: 'transparent', text: '<b>Old Fort</b> (hex grid). An outdoor battle map; the archer on the wall is at +3', fontSize: 14, layer: 'front' },
         hexTok(O + 830, O + 220, pic('minotaur_archer_hex.png', { id: 'tut_wb_wallarcher', charName: 'Wall archer', name: 'Wall archer', charStats: 'On the battlements: Elevation +3.', elevation: 3 })),
         hexTok(O + 500, O + 560, pic('minotaur_soldier_hex.png', { id: 'tut_wb_gateguard', charName: 'Gate guard', name: 'Gate guard', charStats: 'Minotaur soldier at the gate.' })),
-        hexTok(O + 140, O + 300, pic('orc_hex.png', { id: 'tut_wb_grimtusk', charName: 'Old Grimtusk', name: 'Old Grimtusk', charStats: 'Orc — a cast-out loner, no friend of the raiders. Hidden in the trees until the party gets close.', hidden: true }))
+        hexTok(O + 140, O + 300, pic('orc_hex.png', { id: 'tut_wb_grimtusk', charName: 'Old Grimtusk', name: 'Old Grimtusk', charStats: 'Orc. A cast-out loner, no friend of the raiders. Hidden in the trees until the party gets close.', hidden: true }))
     ];
 
     /* ---- Palace throne room: an indoor hex map built from shapes (no picture needed) ---- */
-    var throne = createNewMap('Palace \u2014 Throne Room');
+    var throne = createNewMap('Palace: Throne Room');
     throne.id = 'map_tut_throne';
     throne.meta.parentId = city.id;
     throne.meta.homeX = 15000; throne.meta.homeY = 15000; throne.meta.lastView = 'visual'; throne.meta.gridType = 'hex';
@@ -389,12 +389,12 @@ function buildTutorialCampaign() {
         { id: 'tut_wb_thfloor', type: 'rect', x: 14640, y: 14740, w: 720, h: 520, color: '#232331', layer: 'back', nodeId: 'tut_th_hall', name: 'Hall floor' },
         { id: 'tut_wb_thante', type: 'rect', x: 14440, y: 14880, w: 200, h: 240, color: '#1e1e29', layer: 'back', nodeId: 'tut_th_ante', name: 'Antechamber floor' },
         { id: 'tut_wb_thdais', type: 'rect', x: 15140, y: 14880, w: 200, h: 240, color: 'rgba(224,165,79,0.22)', layer: 'back-mid', name: 'Dais (1 yd up)' },
-        { id: 'tut_wb_thlabel', type: 'text', x: 14640, y: 14680, w: 620, h: 40, color: 'transparent', text: '<b>Palace \u2014 Throne Room</b> (hex grid, built from shapes) \u2014 the dais is a yard up: the king\'s +1', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_thlabel', type: 'text', x: 14640, y: 14680, w: 620, h: 40, color: 'transparent', text: '<b>Palace: Throne Room</b> (hex grid, built from shapes). The dais is a yard up: the king\'s +1', fontSize: 14, layer: 'front' },
         { id: 'tut_wb_thp1', type: 'circle', x: 14800, y: 14800, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
         { id: 'tut_wb_thp2', type: 'circle', x: 14800, y: 15160, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
         { id: 'tut_wb_thp3', type: 'circle', x: 15000, y: 14800, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
         { id: 'tut_wb_thp4', type: 'circle', x: 15000, y: 15160, w: 40, h: 40, color: '#3a3a4a', layer: 'back-mid', name: 'Root pillar' },
-        hexTok(15240, 15000, pic('king_hex.png', { id: 'tut_wb_king', charName: 'King Thalindor Starseeker', name: 'King Thalindor', charStats: 'On the dais: Elevation +1. An NPC \u2014 the GM moves him.', charRef: 'tut_c_king', elevation: 1 })),
+        hexTok(15240, 15000, pic('king_hex.png', { id: 'tut_wb_king', charName: 'King Thalindor Starseeker', name: 'King Thalindor', charStats: 'On the dais: Elevation +1. An NPC, so the GM moves him.', charRef: 'tut_c_king', elevation: 1 })),
         hexTok(15240, 14900, pic('golems_hex.png', { id: 'tut_wb_warden1', charName: 'Warden', name: 'Warden', charStats: 'Elven golem. Does not move unless the king does.', elevation: 1 })),
         hexTok(15240, 15100, pic('golems_hex.png', { id: 'tut_wb_warden2', charName: 'Second Warden', name: 'Second Warden', charStats: 'Elven golem.', elevation: 1 })),
         hexTok(14700, 14950, pic('bren_hex.png', { id: 'tut_wb_bren3', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword.' })),
@@ -404,7 +404,7 @@ function buildTutorialCampaign() {
     ];
 
     /* ---- Temple: a square-grid hall from shapes ---- */
-    var temple = createNewMap('Temple \u2014 Crystal Hall');
+    var temple = createNewMap('Temple: Crystal Hall');
     temple.id = 'map_tut_temple';
     temple.meta.parentId = city.id;
     temple.meta.homeX = 15000; temple.meta.homeY = 15000; temple.meta.lastView = 'visual'; temple.meta.gridType = 'square';
@@ -415,13 +415,13 @@ function buildTutorialCampaign() {
     temple.links = [];
     temple.whiteboard = [
         { id: 'tut_wb_tefloor', type: 'rect', x: 14700, y: 14750, w: 600, h: 500, color: '#26233a', layer: 'back', nodeId: 'tut_te_hall', name: 'Hall floor' },
-        { id: 'tut_wb_telabel', type: 'text', x: 14700, y: 14690, w: 600, h: 40, color: 'transparent', text: '<b>Temple \u2014 Crystal Hall</b> (square grid, built from shapes) \u2014 the altar is a trigger zone', fontSize: 14, layer: 'front' },
-        { id: 'tut_wb_tealtar', type: 'trigger', x: 15200, y: 14950, w: 100, h: 100, color: 'transparent', eventMessage: 'The crystals brighten. Whoever stands here feels the Moon\'s regard \u2014 healed of one wound, or bound to one promise.', name: 'Altar' },
+        { id: 'tut_wb_telabel', type: 'text', x: 14700, y: 14690, w: 600, h: 40, color: 'transparent', text: '<b>Temple: Crystal Hall</b> (square grid, built from shapes). The altar is a trigger zone', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_tealtar', type: 'trigger', x: 15200, y: 14950, w: 100, h: 100, color: 'transparent', eventMessage: 'The crystals brighten. Whoever stands here feels the Moon\'s regard: healed of one wound, or bound to one promise.', name: 'Altar' },
         { id: 'tut_wb_tec1', type: 'circle', x: 14750, y: 14800, w: 30, h: 30, color: '#e0a54f', layer: 'back-mid', name: 'Candle stand', opacity: 0.7 },
         { id: 'tut_wb_tec2', type: 'circle', x: 14750, y: 15170, w: 30, h: 30, color: '#e0a54f', layer: 'back-mid', name: 'Candle stand', opacity: 0.7 },
         sqTok(15150, 14950, pic('priestess_sq.jpg', { id: 'tut_wb_priestess', charName: 'High Priestess Elandra Moonshadow', name: 'Elandra Moonshadow', charStats: 'High Priestess. NPC.', charRef: 'tut_c_priestess' })),
         sqTok(14800, 15000, pic('bren_sq.jpg', { id: 'tut_wb_bren4', charName: 'Bren of Hollowvale', name: 'Bren', charStats: 'Sellsword.' })),
-        sqTok(14850, 15000, pic('sage_sq.jpg', { id: 'tut_wb_sage4', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar. Two Elandras in one room \u2014 charName tells them apart.' }))
+        sqTok(14850, 15000, pic('sage_sq.jpg', { id: 'tut_wb_sage4', charName: 'Elandra the Sage', name: 'Elandra', charStats: 'Scholar. Two Elandras in one room: charName tells them apart.' }))
     ];
 
     /* ---- The forge ---- */
@@ -436,7 +436,7 @@ function buildTutorialCampaign() {
     forge.links = [];
     forge.whiteboard = [
         { id: 'tut_wb_fofloor', type: 'rect', x: 14750, y: 14800, w: 500, h: 400, color: '#2c2622', layer: 'back', nodeId: 'tut_fo_floor', name: 'Forge floor' },
-        { id: 'tut_wb_folabel', type: 'text', x: 14750, y: 14740, w: 500, h: 40, color: 'transparent', text: '<b>Blacksmith\'s Forge</b> (square grid) \u2014 the fire is a trigger zone; the anvils are plain shapes', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_folabel', type: 'text', x: 14750, y: 14740, w: 500, h: 40, color: 'transparent', text: '<b>Blacksmith\'s Forge</b> (square grid). The fire is a trigger zone; the anvils are plain shapes', fontSize: 14, layer: 'front' },
         { id: 'tut_wb_fofire', type: 'trigger', x: 15150, y: 14850, w: 100, h: 100, color: 'transparent', eventMessage: 'The forge fire roars up. Elion: \u201cMind your eyebrows.\u201d', name: 'Forge fire' },
         { id: 'tut_wb_fofireshape', type: 'rect', x: 15150, y: 14850, w: 100, h: 100, color: 'rgba(217,83,79,0.35)', layer: 'back-mid', name: 'Fire' },
         { id: 'tut_wb_foanvil1', type: 'rect', x: 14900, y: 14950, w: 50, h: 30, color: '#6a6a7d', layer: 'back-mid', name: 'Anvil' },
@@ -460,7 +460,7 @@ function buildTutorialCampaign() {
         { id: 'tut_wb_hrgrass', type: 'rect', x: 14500, y: 14700, w: 1000, h: 600, color: '#243424', layer: 'back', name: 'Hillside' },
         { id: 'tut_wb_hrroad', type: 'rect', x: 14500, y: 14960, w: 1000, h: 80, color: '#5a4a3a', layer: 'back-mid', nodeId: 'tut_hr_bend', name: 'The road', rot: -8 },
         { id: 'tut_wb_hrford', type: 'rect', x: 14560, y: 14900, w: 120, h: 200, color: 'rgba(77,179,211,0.35)', layer: 'back-mid', nodeId: 'tut_hr_ford', name: 'The ford' },
-        { id: 'tut_wb_hrlabel', type: 'text', x: 14500, y: 14640, w: 620, h: 40, color: 'transparent', text: '<b>Hill Road</b> (hex grid, outdoors, built from shapes) \u2014 the ambush waits at the bend', fontSize: 14, layer: 'front' },
+        { id: 'tut_wb_hrlabel', type: 'text', x: 14500, y: 14640, w: 620, h: 40, color: 'transparent', text: '<b>Hill Road</b> (hex grid, outdoors, built from shapes). The ambush waits at the bend', fontSize: 14, layer: 'front' },
         { id: 'tut_wb_hrrock', type: 'hexagon', x: 15150, y: 14780, w: 120, h: 104, color: '#4a4a5a', layer: 'back-mid', name: 'Rock (2 yd up)' },
         { id: 'tut_wb_hrtree1', type: 'circle', x: 15300, y: 15120, w: 90, h: 90, color: '#2f5a33', layer: 'back-mid', name: 'Trees' },
         { id: 'tut_wb_hrtree2', type: 'circle', x: 15380, y: 15180, w: 110, h: 110, color: '#2f5a33', layer: 'back-mid', name: 'Trees' },
@@ -475,21 +475,21 @@ function buildTutorialCampaign() {
 
     /* ---- Handouts: what the GM can show players (they land in each player's Journal) ---- */
     camp.handouts = {
-        tut_h_ledger: { id: 'tut_h_ledger', kind: 'text', title: "Grukk's ledger", caption: 'Found in the hideout office', text: 'Caravan of the 3rd \u2014 12 bales, 4 casks, to L.A. at the Emporium, paid in silver.\nCaravan of the 9th \u2014 the Ironfist wagon. Keep the swords.\nHorn owes me two nights.', createdAt: Date.now() },
+        tut_h_ledger: { id: 'tut_h_ledger', kind: 'text', title: "Grukk's ledger", caption: 'Found in the hideout office', text: 'Caravan of the 3rd: 12 bales, 4 casks, to L.A. at the Emporium, paid in silver.\nCaravan of the 9th: the Ironfist wagon. Keep the swords.\nHorn owes me two nights.', createdAt: Date.now() },
         tut_h_hideout: { id: 'tut_h_hideout', kind: 'image', title: 'The hideout', caption: 'What the caravan driver saw from the road', src: A + 'scene_hideout.jpg', createdAt: Date.now() }
     };
 
     /* ---- the session plan ---- */
-    var plan = createNewPlanner('Session 1 \u2014 The Hill Road');
+    var plan = createNewPlanner('Session 1: The Hill Road');
     plan.id = 'plan_tut_session1';
     plan.meta.status = 'next';
     plan.blocks = [
-        { type: 'h1', title: 'Session 1 \u2014 The Hill Road', sub: 'A one-evening tutorial adventure' },
+        { type: 'h1', title: 'Session 1: The Hill Road', sub: 'A one-evening tutorial adventure' },
         { type: 'lede', content: 'Raiders are bleeding the caravans between Eldara and the hills. King Thalindor wants it stopped before harvest; the party starts at The Inn, where a wounded driver names the hill road.' },
         { type: 'h2', title: 'Beats' },
         { type: 'node', title: 'The driver at the inn', tag: 'social', must: 'The party learns where the raiders strike.', cols: ['Check', 'Target', 'On success'], rows: [{ col1: 'Tend his wounds', col2: '8', col3: 'He lives and describes the goat path.' }, { col1: 'Read him', col2: '10', col3: 'He is hiding that he sold the route.' }] },
-        { type: 'node', title: 'The hideout', tag: 'combat', must: 'Grukk\'s ledger changes hands.', cols: ['Where', 'Who', 'Note'], rows: [{ col1: 'Ground floor', col2: 'Grukk, Horn', col3: 'Horn is hidden behind the guard-room door.' }, { col1: 'Top floor', col2: 'Two archers', col3: 'Elevation +4 \u2014 use the ruler for the 3D figure.' }, { col1: 'Basement', col2: 'Vault slime', col3: 'Only if they open the vault.' }] },
-        { type: 'callout', content: 'Planners are yours alone \u2014 players never receive them, so put the twist (the Emporium buyer) here, not in a room name.' },
+        { type: 'node', title: 'The hideout', tag: 'combat', must: 'Grukk\'s ledger changes hands.', cols: ['Where', 'Who', 'Note'], rows: [{ col1: 'Ground floor', col2: 'Grukk, Horn', col3: 'Horn is hidden behind the guard-room door.' }, { col1: 'Top floor', col2: 'Two archers', col3: 'Elevation +4. Use the ruler for the 3D figure.' }, { col1: 'Basement', col2: 'Vault slime', col3: 'Only if they open the vault.' }] },
+        { type: 'callout', content: 'Planners are yours alone. Players never receive them, so put the twist (the Emporium buyer) here, not in a room name.' },
         { type: 'h2', title: 'If they chase the raiders' },
         { type: 'text', content: 'The survivors raft downriver to the <b>Old Fort</b>. Old Grimtusk the outcast orc is nobody\'s friend.' }
     ];
@@ -520,9 +520,11 @@ function tutorialCellarTexts() {
     return {
         room: { name: 'Torchlight', notes: 'As far as Bren’s torch and his own sight reach. In a session each player sees only what their own tokens see: this disc, and whatever a light shows them further off (the brazier in the corner).',
             wasName: 'Lantern light', wasNotes: 'As far as Bren’s lantern reaches. In a session each player sees only this disc around their own tokens.' },
-        bren: { now: 'Your character. He carries a torch (Carries a light, in his Properties) and sees 6 yd in the dark (his Sight field) — drag him and both follow.',
+        bren: { now: 'Your character. He carries a torch (Carries a light, in his Properties) and sees 6 yd in the dark (his Sight field). Drag him and both follow.',
+            // dash-ok: the words an older Tutorial was seeded with, matched to upgrade it
             was: 'Your character. His Sight field (6 yd) lights the fog — drag him and the lit disc follows.' },
-        lurker: { now: 'A monster in the dark, 8 yd off — outside Bren’s sight and past his torch’s light, so players never receive it. Move a token or a light close, or use the reveal brush, to bring it into view.',
+        lurker: { now: 'A monster in the dark, 8 yd off, outside Bren’s sight and past his torch’s light, so players never receive it. Move a token or a light close, or use the reveal brush, to bring it into view.',
+            // dash-ok: the words an older Tutorial was seeded with, matched to upgrade it
             was: 'A monster in the dark, 8 yd off — outside Bren’s sight, so players never receive it. Move a token close, or use the reveal brush, to bring it into view.' }
     };
 }
@@ -531,7 +533,7 @@ function buildTutorialFogMap() {
     var A = TUTORIAL_ART_URL;
     function sqTok(x, y, props) { return Object.assign({ x: Math.round(x / 50) * 50, y: Math.round(y / 50) * 50, w: 50, h: 50, layer: 'middle' }, props); }
     function pic(file, extra) { return Object.assign({ type: 'image', src: A + file, color: 'transparent', isChar: true }, extra); }
-    var fm = createNewMap('Fog Demo — The Dark Cellar');
+    var fm = createNewMap('Fog Demo: The Dark Cellar');
     fm.id = 'map_tut_fog';
     fm.meta.parentId = 'map_tut_realm';
     fm.meta.homeX = 15000; fm.meta.homeY = 15000; fm.meta.lastView = 'visual'; fm.meta.gridType = 'square';
@@ -566,7 +568,7 @@ function tutorialHandbookPage() {
         { id: 'b_tut_lede', type: 'lede', content: 'A handbook page is for the things every player should be able to look up mid-game: rules, a quick reference, the setting primer. Players read it from their own Handbook tree while the map keeps running.' },
         { id: 'b_tut_h2', type: 'h2', title: 'At the table' },
         { id: 'b_tut_t1', type: 'text', content: '<p><b>Luck</b> is spent, never banked: use it on the roll you earned it for or lose it at the end of the scene.</p><p>A double six also shrugs off one lingering effect of your choice.</p>' },
-        { id: 'b_tut_tbl', type: 'table', title: 'Travel pace', cols: ['Pace', 'Per hour', 'Effect'], rows: [{ col1: 'Fast', col2: '4 miles', col3: '\u22122 to notice things' }, { col1: 'Normal', col2: '3 miles', col3: '\u2014' }, { col1: 'Slow', col2: '2 miles', col3: 'Able to sneak' }] },
+        { id: 'b_tut_tbl', type: 'table', title: 'Travel pace', cols: ['Pace', 'Per hour', 'Effect'], rows: [{ col1: 'Fast', col2: '4 miles', col3: '\u22122 to notice things' }, { col1: 'Normal', col2: '3 miles', col3: '–' }, { col1: 'Slow', col2: '2 miles', col3: 'Able to sneak' }] },
         { id: 'b_tut_call', type: 'callout', content: 'Only pages left on <b>Players can read</b> reach the table. Try the switch in the toolbar: this page vanishes from every player at once, and comes back when you turn it on again.' }
     ];
     return book;
@@ -628,7 +630,8 @@ function ensureTutorialFloors(camp) {
 }
 // The ids of the fields the Tutorial's own rules give (1.6.2), and the demo's words as they were seeded before it
 var TUT_OLD_FIELDS = { f_tut_str: 1, f_tut_dex: 1, f_tut_con: 1, f_tut_class: 1, f_tut_strmod: 1, f_tut_hp: 1, f_tut_ac: 1, f_tut_sword: 1 };
-var TUT_OLD_TEXTS = [['Fighter. On a gridless map a token is any size you like \u2014 these are 44 px.', 'Sellsword. On a gridless map a token is any size you like \u2014 these are 44 px.'], ['Fighter. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.', 'Sellsword. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.'], ['Fighter, wet to the knee.', 'Sellsword, wet to the knee.'], ['Wizard. Reads everything, including the raiders\' ledger.', 'Scholar. Reads everything, including the raiders\' ledger.'], ['Wizard. Two Elandras in one room \u2014 charName tells them apart.', 'Scholar. Two Elandras in one room \u2014 charName tells them apart.'], ['The ledger names the Emporium\'s buyer. Locked (DC 12).', 'The ledger names the Emporium\'s buyer. Locked: a roll of 10 to pick.'], ['The office door is locked. Grukk\'s ledger is inside \u2014 DC 12 to pick it, or ask Grukk nicely.', 'The office door is locked. Grukk\'s ledger is inside \u2014 a roll of 10 to pick it, or ask Grukk nicely.'], ['Hidden unless a captured raider talks or the party tracks a patrol (Survival 14).', 'Hidden unless a captured raider talks or the party tracks a patrol (a hard tracking roll).'], ['Fighter.', 'Sellsword.'], ['Wizard.', 'Scholar.']];
+// dash-ok: the first of each pair is an older Tutorial's seeded words, matched to upgrade it
+var TUT_OLD_TEXTS = [['Fighter. On a gridless map a token is any size you like \u2014 these are 44 px.', 'Sellsword. On a gridless map a token is any size you like. These are 44 px.'], ['Fighter. Shield and a short temper. Your character \u2014 drag me; Snap seats me in a cell.', 'Sellsword. Shield and a short temper. Your character. Drag me; Snap seats me in a cell.'], ['Fighter, wet to the knee.', 'Sellsword, wet to the knee.'], ['Wizard. Reads everything, including the raiders\' ledger.', 'Scholar. Reads everything, including the raiders\' ledger.'], ['Wizard. Two Elandras in one room \u2014 charName tells them apart.', 'Scholar. Two Elandras in one room: charName tells them apart.'], ['The ledger names the Emporium\'s buyer. Locked (DC 12).', 'The ledger names the Emporium\'s buyer. Locked: a roll of 10 to pick.'], ['The office door is locked. Grukk\'s ledger is inside \u2014 DC 12 to pick it, or ask Grukk nicely.', 'The office door is locked. Grukk\'s ledger is inside. Pick it with a roll of 10, or ask Grukk nicely.'], ['Hidden unless a captured raider talks or the party tracks a patrol (Survival 14).', 'Hidden unless a captured raider talks or the party tracks a patrol (a hard tracking roll).'], ['Fighter.', 'Sellsword.'], ['Wizard.', 'Scholar.']];
 /* The Tutorial's own rules (1.6.2), once (camp.tutorialRules 1): an older Tutorial takes the new rules and Bren his new figures, whatever it held
    (the owner, 2026-11-08: "swap regardless, this is alpha, people expect changes"). A field or roll of the GM's own is kept. The demo's words
    change only where they are as they were seeded. No step of the GM's undo */
@@ -709,7 +712,7 @@ function ensureTutorialCampaign(rebuild, then) {
 function discardTutorialCampaign(done) {
     var camp = tutorialCampaign();
     if (!camp) { toast('There is no Tutorial campaign to discard.'); if (done) done(false); return; }
-    showConfirm('Discard the Tutorial campaign? Everything in it is deleted — including anything you built on top of it. This cannot be undone (a safety copy is taken first).', function(yes) {
+    showConfirm('Discard the Tutorial campaign? Everything in it is deleted, including anything you built on top of it. This cannot be undone (a safety copy is taken first).', function(yes) {
         if (!yes) { if (done) done(false); return; }
         guardSwitch(hosting() && state.appState.activeCampaignId === TUTORIAL_CAMP_ID, function() {   // discarding the hosted campaign moves the app onto another
         takeSafetyCopy().then(function() {   // a campaign delete: the safety copy first, then the stacks go with it

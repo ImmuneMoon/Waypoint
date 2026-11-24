@@ -50,6 +50,7 @@ var PROSE = { text: 1, lede: 1, oneline: 1, callout: 1, flare: 1 };
 
 /* ---------- text escaping ---------- */
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+// dash-ok: reads the &mdash; entity a page may hold as its own character
 var ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', copy: '\u00a9', reg: '\u00ae', hellip: '\u2026', mdash: '\u2014', ndash: '\u2013', lsquo: '\u2018', rsquo: '\u2019', ldquo: '\u201c', rdquo: '\u201d', bull: '\u2022', middot: '\u00b7', deg: '\u00b0', times: '\u00d7', divide: '\u00f7', plusmn: '\u00b1', frac12: '\u00bd', frac14: '\u00bc', frac34: '\u00be', larr: '\u2190', rarr: '\u2192', uarr: '\u2191', darr: '\u2193', harr: '\u2194', laquo: '\u00ab', raquo: '\u00bb', sect: '\u00a7', para: '\u00b6', dagger: '\u2020', Dagger: '\u2021', trade: '\u2122', euro: '\u20ac', pound: '\u00a3', yen: '\u00a5', cent: '\u00a2', ensp: '\u2002', emsp: '\u2003', thinsp: '\u2009', shy: '' };
 // Entity decoding for text nodes and attribute values. Numeric forms cover every code point; the
 // named table covers what the RTE and the symbol tray can produce (an unknown name stays literal).

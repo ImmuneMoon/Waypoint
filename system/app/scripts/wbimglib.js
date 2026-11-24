@@ -535,7 +535,7 @@ export function wbImgLib() {   // [split:glue]
           if (act === 'delete') {
               var del = _imgLibCat, homeD = catHome(del); if (!homeD) return;
               var cc = catStore(homeD, true), n = Object.keys(cc.by).filter(function(p) { return tagsIn(cc, p).indexOf(del) >= 0; }).length;
-              showConfirm('Delete the tag "' + del + '"? ' + (n ? n + ' picture' + (n === 1 ? ' loses' : 's lose') + ' it — no picture is deleted.' : 'No picture has it.'), function(yes) {
+              showConfirm('Delete the tag "' + del + '"? ' + (n ? n + ' picture' + (n === 1 ? ' loses' : 's lose') + ' it. No picture is deleted.' : 'No picture has it.'), function(yes) {
                   if (!yes) return;
                   var members = Object.keys(cc.by).filter(function(p) { return tagsIn(cc, p).indexOf(del) >= 0 && catMemberFile(p); });
                   TagCore.setPrivate(cc, del, false); cc.list = cc.list.filter(function(x) { return x !== del; }); delete cc.shelf[del];
@@ -547,7 +547,7 @@ export function wbImgLib() {   // [split:glue]
                   if (members.length) {
                       var idxD = buildImgIndex(), split = catFilesToDelete(members, homeD, function(p) { return imgCampsFor(idxD, p, folderOf(p)); });
                       var files = split.go, keptN = split.kept.length;
-                      var keptNote = keptN ? keptN + ' of its pictures ' + (keptN === 1 ? 'keeps its file — it belongs to another campaign or to Shared — and only loses' : 'keep their files — they belong to another campaign or to Shared — and only lose') + ' the tag.' : '';
+                      var keptNote = keptN ? keptN + ' of its pictures ' + (keptN === 1 ? 'keeps its file, since it belongs to another campaign or to Shared, and only loses' : 'keep their files, since they belong to another campaign or to Shared, and only lose') + ' the tag.' : '';
                       if (!files.length) { toast(keptNote); return; }
                       var used = files.filter(function(p) { return imgUsage(p).count > 0; }).length;
                       showConfirm('Also delete the ' + files.length + ' picture file' + (files.length === 1 ? ' that was' : 's that were') + ' tagged "' + del + '" from your saves folder? This cannot be undone.' + (used ? '\n\n' + used + ' of them ' + (used === 1 ? 'is' : 'are') + ' still used somewhere (a map, a handout, a page, the cast, or brought into a campaign) and would show as broken there.' : '') + (keptNote ? '\n\n' + keptNote : ''), function(yesFiles) {
@@ -667,15 +667,15 @@ export function wbImgLib() {   // [split:glue]
       var empty = _imgLibPicker ? 'Nothing here to bring in.'
           : _imgLibCat === '__none' ? 'Every picture here has a tag.'
           : picked.length > 1 ? (_imgLibMatch === 'any' ? 'No picture has any of these tags.' : 'No picture has all of these tags. Match any shows the pictures with one of them.')
-          : _imgLibCat && _imgLibCat !== '__bymap' ? 'No picture has this tag yet \u2014 right-click a picture to tag it.'
-          : _imgLibScope === 'camp' ? 'Nothing in this campaign yet \u2014 other campaigns\u2019 pictures are under All campaigns, or Import from another campaign\u2026'
-          : _imgLibScope === 'shared' ? 'No shared pictures yet \u2014 the Tutorial\u2019s art lands here once it has run.'
+          : _imgLibCat && _imgLibCat !== '__bymap' ? 'No picture has this tag yet. Right-click a picture to tag it.'
+          : _imgLibScope === 'camp' ? 'Nothing in this campaign yet. Other campaigns\u2019 pictures are under All campaigns, or Import from another campaign\u2026'
+          : _imgLibScope === 'shared' ? 'No shared pictures yet. The Tutorial\u2019s art lands here once it has run.'
           : _imgLibScope === 'unfiled' ? 'Nothing unfiled: every picture belongs to a campaign.'
           : 'No images match.';
       var showGroups = !_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && (grid.dataset.cast === '1' || !soleTag());   // backlog 31: groups in this campaign's pictures, and wherever the cast shows
       grid.innerHTML = (showGroups ? groupsLibraryHtml(filter) : '') + (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + empty + '</div>';
       if (!grid.dataset.quiet) { grid.dataset.quiet = '1'; grid.addEventListener('error', function(e) { var t = e.target; if (t && t.tagName === 'IMG') { t.style.visibility = 'hidden'; if (t.parentNode && t.parentNode.classList) t.parentNode.classList.add('pic-missing'); } }, true); }   // 1.6.2 (backlog 227): a picture whose file is gone stays a quiet empty cell
-      var label = !_imgLibCat || _imgLibCat === '__bymap', hint = _imgLibPicker ? 'Ctrl-click to pick it to bring in' : 'right-click to tag it; Ctrl-click to pick several';
+      var label = !_imgLibCat || _imgLibCat === '__bymap', hint = _imgLibPicker ? 'Ctrl-click to pick it to bring in' : 'Right-click to tag it; Ctrl-click to pick several';
       Array.prototype.forEach.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(cell) { TagCore.cellTags(document, cell, imgCatsOf(cell.dataset.src), label, hint); });
       libDragCells(grid);   // 1.6.2 (backlog 41 (a)): dragged onto the map
       renderImgSelBar();
@@ -697,7 +697,7 @@ export function wbImgLib() {   // [split:glue]
       selectBtnSync();
       var allB = '<button class="tool ghost" data-act="all" title="Pick every picture shown now">Select all shown</button>', doneB = _imgLibSelMode ? '<button class="tool ghost" data-act="done" title="A plain click looks at a picture again; what is picked stays picked">Done</button>' : '';
       if (_imgLibPicker === 'shared') {   // shared pictures are already every campaign's: nothing to bring
-          bar.innerHTML = '<span style="color:var(--dim);">Shared pictures are available in every campaign already — find them under the Shared chip.</span><button class="tool ghost" data-act="back">← Back</button>';
+          bar.innerHTML = '<span style="color:var(--dim);">Shared pictures are available in every campaign already. Find them under the Shared chip.</span><button class="tool ghost" data-act="back">← Back</button>';
           bar.style.display = 'flex'; return;
       }
       if (_imgLibPicker) {   // bringing pictures in from another campaign or Unfiled
@@ -705,7 +705,7 @@ export function wbImgLib() {   // [split:glue]
           bar.innerHTML = '<span style="color:var(--gold);">' + (n ? n + ' picked' : 'Pick pictures to bring in') + '</span>'
               + (n ? '<button class="tool" data-act="bring">Bring ' + n + ' into ' + esc((meC && meC.name) || 'this campaign') + '</button>' : '') + allB + doneB + (n ? '<button class="tool ghost" data-act="clear">Clear</button>' : '')
               + '<button class="tool ghost" data-act="back">\u2190 Back</button>'
-              + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown \u2014 nothing is copied, this campaign remembers them</span>';
+              + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown. Nothing is copied: this campaign remembers them</span>';
           bar.style.display = 'flex'; return;
       }
       var nCast = Object.keys(_castSel).length;

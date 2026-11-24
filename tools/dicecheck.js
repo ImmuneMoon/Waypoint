@@ -226,10 +226,10 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const cr = cleanRoll(Object.assign({}, rec0, { malf: 17 })), resM = roll('3d6 <= 30', [6, 6, 5]), resOk = roll('d20 + 5', [3]);
         check('R3 cleanRoll keeps a whole Malf from 1 to 1e6 and refuses another; naturalOf is the dice alone (3d6: 17; d20 + 5: 3); malfOf holds at or past the Malf; the card text says "malfunction (Malf 17)"',
             cr.malf === 17 && [0, 1.5, '17', 2e6].every(m => cleanRoll(Object.assign({}, rec0, { malf: m })) === null) && D.naturalOf(resM) === 17 && D.naturalOf(resOk) === 3
-            && D.malfOf(cr, resM) === true && D.malfOf(Object.assign({}, cr, { malf: 18 }), resM) === false && D.malfOf(rec0, resM) === false && / \u2014 malfunction \(Malf 17\)$/.test(cardText(cr, resM, F)), J(cr));
+            && D.malfOf(cr, resM) === true && D.malfOf(Object.assign({}, cr, { malf: 18 }), resM) === false && D.malfOf(rec0, resM) === false && /, a malfunction \(Malf 17\)$/.test(cardText(cr, resM, F)), J(cr));
         const crH = cleanRoll(Object.assign({}, rec0, { malf: 17, malfHid: 1 }));
         check('1.6.0 ... a masked Malf (found by hand on a table): the figure is the roll\'s own, so a card says just malfunction, in the log\'s words too; a player\'s app keeps the mark only as 1 and only beside a Malf, and the record still reads as a malfunction',
-            crH.malfHid === 1 && D.malfOf(crH, resM) === true && /\u2014 malfunction$/.test(cardText(crH, resM, F)) && !/Malf 17/.test(cardText(crH, resM, F)) && !('malfHid' in cleanRoll(Object.assign({}, rec0, { malf: 17, malfHid: 2 }))) && !('malfHid' in cleanRoll(Object.assign({}, rec0, { malfHid: 1 }))), J(crH));
+            crH.malfHid === 1 && D.malfOf(crH, resM) === true && /, a malfunction$/.test(cardText(crH, resM, F)) && !/Malf 17/.test(cardText(crH, resM, F)) && !('malfHid' in cleanRoll(Object.assign({}, rec0, { malf: 17, malfHid: 2 }))) && !('malfHid' in cleanRoll(Object.assign({}, rec0, { malfHid: 1 }))), J(crH));
     }
 
     /* ---- Turn-based combat T2b: a reminder card ---- */

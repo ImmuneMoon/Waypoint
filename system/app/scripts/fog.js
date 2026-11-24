@@ -2636,7 +2636,7 @@ function drawMarks(ctx, s, marks, seenKeys, grid, now, still, held, edge) {   //
     var pill = function(t, cx, cy) { var w = Math.min(ctx.measureText(t).width + 14, 360), h = 17; ctx.fillStyle = 'rgba(18,16,34,0.9)'; ctx.strokeStyle = 'rgba(232,230,245,0.3)'; ctx.lineWidth = 1; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#e8e6f5'; ctx.fillText(t, cx, cy + 0.5, 346); return w; };
     if (hoverAt) pill(hoverAt.word, hoverAt.x, hoverAt.y - R - 12);
     var said = [1, 2, 3, 4].filter(function(k) { return count[k] > 0; }).map(function(k) { return MARK_WORD[k] + ': ' + count[k]; }).join(' · ');
-    if (said && held) said += ' — as heard on your turn';
+    if (said && held) said += ', as heard on your turn';
     if (said) { var tw = Math.min(ctx.measureText(said).width + 14, 360), rl = ui('rulerLeft'), inset = rl && rl.offsetWidth > 0 ? (rl.offsetLeft || 0) + rl.offsetWidth : 0; pill(said, inset + 12 + tw / 2, H - 22); }   // clear of the left ruler while it shows, where a bar across the left edge stood it (1.6.2)
     ctx.restore();
 }
@@ -2785,9 +2785,9 @@ function setHideMine(on) { try { if (on === true) localStorage.setItem('wp_fogHi
 // which and names the switch. The tooltip goes into data-tip (tooltips.js reads it), never back into title: one tooltip, not two. The fog
 // tool is put down on a map whose fog is off: nothing painted there would show
 function fogBtnWords(isMap, on, mine) {
-    if (!isMap) return 'Fog of war \u2014 the fog menu (open a play map to use it)';
-    return on ? 'Fog of war: ON for this map' + (mine ? ' (hidden on your screen)' : '') + ' \u2014 click for the fog menu. Its first tick, Fog on this map, is the switch.'
-        : 'Fog of war: off for this map \u2014 click for the fog menu and tick Fog on this map to switch it on.';
+    if (!isMap) return 'Fog of war: the fog menu (open a play map to use it)';
+    return on ? 'Fog of war: ON for this map' + (mine ? ' (hidden on your screen)' : '') + '. Click for the fog menu. Its first tick, Fog on this map, is the switch.'
+        : 'Fog of war: off for this map. Click for the fog menu and tick Fog on this map to switch it on.';
 }
 var _btnMapId = null;
 function btnSync() {
@@ -3029,7 +3029,7 @@ function previewPlayers(n, hosting, map, camp) {
 function fillPreviewOptions() {
     var sel = ui('fogPreview'); if (!sel) return;
     var cur = previewMode, n = net(), hosting = !!(n && n.active && n.role === 'host');
-    var opts = '<option value="off">Off &mdash; your own view</option><option value="party">Party &mdash; all tokens</option>';
+    var opts = '<option value="off">Off: your own view</option><option value="party">Party: all tokens</option>';
     previewPlayers(n, hosting, activeMap(), activeCamp()).forEach(function(p) { opts += '<option value="' + esc(p.id) + '">' + esc(p.name) + (p.off ? ' (not connected)' : '') + '</option>'; });
     sel.innerHTML = opts;
     var ok = Array.prototype.some.call(sel.options, function(o) { return o.value === cur; });

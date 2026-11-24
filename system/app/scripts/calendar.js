@@ -524,7 +524,7 @@ function spanWords(cal, secs, rest, live) { return live === true ? 'The clock ra
 function pendWords(cal) { return pend ? (pend.words ? pend.words : pend.live === true ? 'as the clock ran' : spanWords(cal, pend.secs, pend.rest)) : ''; }
 function pendPanel(body, cal) {   // 159 (the owner by prompt, 2026-10-18: "Every character, buttons on top"; "maybe a PCs and NPCs category, and sort by map location")
     var box = cel('div', 'cal-pend'), camp = getActiveCampaign(), sys = sysNow(), byC = Object.create(null), order = [];
-    var top = cel('div', 'cal-pend-bar'); top.appendChild(cel('span', 'cal-pend-head', 'Time rules due \u2014 ' + pendWords(cal)));
+    var top = cel('div', 'cal-pend-bar'); top.appendChild(cel('span', 'cal-pend-head', 'Time rules due: ' + pendWords(cal)));
     var pseg = top;   /* 1.6.2 (backlog 225, its review): Skip lets the time pass with no rule run, so it stands apart from Apply, never joined to it */
     pseg.appendChild(cbtn('cal-pend-apply', 'Apply', 'Run the ticked characters\u2019 rules now: the rolls are made for them and each player gets a summary of what moved or was rolled', 'calpendapply'));
     pseg.appendChild(cbtn('cal-pend-skip', 'Skip', 'Let this time pass with no rules run', 'calpendskip'));
@@ -734,7 +734,7 @@ function restStart() {
     var goM = rc.go && rc.map ? restMapOf(camp, rc.map) : null, hereM = restMapOf(camp, camp.activeItemId), restOn = { rid: r.id, name: r.name, from: t0, to: t0 + len, who: who };   // fold R5: the rest map, if ticked
     if (goM) { restOn.map = goM.id; if (hereM && hereM.id !== goM.id) restOn.gm = hereM.id; }
     restCall = null; restTold[camp.id] = true; var snapR = typeof restSnap === 'function' ? restSnap(camp) : null;   // the early end: everything as it stood before the start
-    if (!moveTo(t0 + len, 'Rest called \u2014 ' + r.name, false, false, { who: who, restOn: restOn, restMap: restMapOf(camp, rc.map) ? { map: rc.map, go: !!rc.go } : null })) return false;
+    if (!moveTo(t0 + len, 'Rest called: ' + r.name, false, false, { who: who, restOn: restOn, restMap: restMapOf(camp, rc.map) ? { map: rc.map, go: !!rc.go } : null })) return false;
     if (goM) { try { restGo(camp, goM, hereM ? hereM.id : '', rc.npcs); } catch (e) { console.error(e); } }
     var nn = net(); if (nn && typeof nn.restLine === 'function') nn.restLine('The party rests: ' + r.name + '.');
     var rIds = Object.keys(who).filter(function(k) { return who[k] === 'rest'; }); if (((Array.isArray(r.does) && r.does.length) || r.ends === true) && rIds.length && window.wpSheets && typeof window.wpSheets.restDoes === 'function') { try { window.wpSheets.restDoes(rIds, r.does || [], 1, r); } catch (e) { console.error(e); } }   // fold R4: what it does at once, for those who rest
@@ -744,7 +744,7 @@ function restStart() {
 function restEnd() {
     var camp = getActiveCampaign(), ck = clockOf(camp), on = restNow(camp); if (!camp || isPlayer() || !on) return false;
     var nc = Object.assign({}, ck); delete nc.rest; nc.rests = (ck.rests || []).concat([restRecFor(on, ck.t)]); camp.clock = cleanClock(nc) || { t: ck.t };   // fold R3: the calendar's record of it
-    var nn = net(); if (nn && nn.logEvent) nn.logEvent('time', 'Rest ended \u2014 ' + on.name + ' \u2014 now ' + fmtWhen(sysCal(), ck.t));
+    var nn = net(); if (nn && nn.logEvent) nn.logEvent('time', 'Rest ended: ' + on.name + ', now ' + fmtWhen(sysCal(), ck.t));
     save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over.');
     var goBack = restBackOn; restBackOn = true; if (on.map && goBack) { try { restReturn(camp, on); } catch (e) { console.error(e); } }   // fold R5: the party goes back where it was
     refresh(); return true;
@@ -954,13 +954,13 @@ function restEndEarly() {
     try {
         var ck = clockOf(camp) || { t: on.to }, nc = Object.assign({}, ck, { t: on.from }); delete nc.rest; ['acc', 'top', 'lived'].forEach(function(k) { if (undo.clock && undo.clock[k] !== undefined) nc[k] = undo.clock[k]; else delete nc[k]; });
         camp.clock = cleanClock(nc) || { t: on.from };
-        moved = !!moveTo(on.from + s, 'Rest cut short \u2014 ' + on.name, false, false, { who: on.who || {} });   // the time really rested, as rest for who rested and activity for who was awake
+        moved = !!moveTo(on.from + s, 'Rest cut short: ' + on.name, false, false, { who: on.who || {} });   // the time really rested, as rest for who rested and activity for who was awake
     } catch (e) { console.error(e); }
     var ck1 = clockOf(camp) || { t: on.from }, n1 = Object.assign({}, ck1); delete n1.rest; if (!moved) n1.t = on.from + s;   // whatever happened, the rest is over and the clock stands where the party stopped resting
     var rec = restRecFor(on, n1.t); rec.cut = true; n1.rests = (ck1.rests || []).concat([rec]);
     camp.clock = cleanClock(n1) || { t: n1.t };
     var ck2 = clockOf(camp) || { t: on.from + s };
-    if (nn && nn.logEvent) nn.logEvent('time', 'Rest cut short \u2014 ' + on.name + ' \u2014 after ' + fmtSpan(sysCal(), s) + ', now ' + fmtWhen(sysCal(), ck2.t));
+    if (nn && nn.logEvent) nn.logEvent('time', 'Rest cut short: ' + on.name + ', after ' + fmtSpan(sysCal(), s) + ', now ' + fmtWhen(sysCal(), ck2.t));
     if (typeof window !== 'undefined' && typeof window.wpStepLog === 'function') window.wpStepLog('rest v1', 'cut', { back: tb.back || 0, kept: (tb.kept || []).length, failed: tb.failed || 0, moved: moved ? 1 : 0 });
     save(); if (nn && typeof nn.restLine === 'function') nn.restLine('The rest is over, cut short after ' + fmtSpan(sysCal(), s) + '.');
     var goBack = restBackOn; restBackOn = true; restCut = { on: false, n: 1, u: 'hour' }; if (on.map && goBack) { try { restReturn(camp, on); } catch (e) { console.error(e); } }
@@ -1042,7 +1042,7 @@ function renderWin() {
     var rdS = typeof restDays === 'function' ? restDays(camp, dl) : [];   // fold R3: the days a rest spans
     g.cells.forEach(function(c) {
         if (!c) { grid.appendChild(cel('div', 'cal-blank')); return; }
-        var b = cel('button', 'cal-day' + (rdS.some(function(x) { return x[0] <= c.day && c.day <= x[1]; }) ? ' cal-has-rest' : '') + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : '') + (c.notes ? ' cal-has-note' : '') + (c.moons && c.moons.length ? ' cal-has-moon' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '') + (c.moons && c.moons.length ? '. ' + moonWords(c.moons) : '') + (c.notes ? ' \u2014 ' + c.notes + ' note' + (c.notes === 1 ? '' : 's') : '');
+        var b = cel('button', 'cal-day' + (rdS.some(function(x) { return x[0] <= c.day && c.day <= x[1]; }) ? ' cal-has-rest' : '') + (c.today ? ' cal-is-today' : '') + (c.picked ? ' cal-is-picked' : '') + (c.notes ? ' cal-has-note' : '') + (c.moons && c.moons.length ? ' cal-has-moon' : ''), String(c.n)); b.type = 'button'; b.dataset.day = String(c.day); b.title = fmtDate(cal, c.day * dl) + (c.today ? ' (today)' : '') + (c.moons && c.moons.length ? '. ' + moonWords(c.moons) : '') + (c.notes ? '. ' + c.notes + ' note' + (c.notes === 1 ? '' : 's') : '');
         dayFace(b, c);   // 1.6.2: the moon's phase drawn, and New or Full on its day
         grid.appendChild(b);
     });
@@ -1220,8 +1220,8 @@ function moveTo(t1, why, live, own, how) {   // live (1.5.4): the clock ran by i
     var skipDo = null;
     if (how && how.skip && how.skip.len && gone > 0 && !ck.rest && typeof restSkipRec === 'function') { var lenS = everySecs(cal, sysUnits(sysNow()), how.skip.len); if (lenS > 0 && gone >= lenS) { nc.rests = (ck.rests || []).concat([restSkipRec(how.skip, ck.t, t1, lenS)]); if ((Array.isArray(how.skip.does) && how.skip.does.length) || how.skip.ends === true) skipDo = { does: how.skip.does || [], n: Math.floor(gone / lenS), rest: how.skip }; } }   // fold R4: and its list, once each whole length, for the players' characters   // fold R3: a skip that held a rest by name for its length   // fold R2: the rest called, or a step that adds to it
     camp.clock = cleanClock(nc) || { t: t1 };
-    if (why && net() && net().logEvent) net().logEvent('time', why + ' \u2014 now ' + fmtWhen(cal, t1));
-    hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached \u2014 ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
+    if (why && net() && net().logEvent) net().logEvent('time', why + ', now ' + fmtWhen(cal, t1));
+    hits.forEach(function(n) { if (net() && net().logEvent) net().logEvent('time', 'Note reached on ' + fmtDate(cal, n.day * dayLength(cal)) + ': ' + n.text); });
     if (hits.length) toast(hits.length === 1 ? 'Today: ' + hits[0].text : hits.length + ' dated notes reached: ' + hits.slice(0, 3).map(function(n) { return n.text; }).join('; ') + (hits.length > 3 ? '; \u2026' : ''));
     if (gs.length) { try { ownTime(gs); } catch (e) { console.error(e); } }
     if (gone > 0 && own !== true && typeof window !== 'undefined' && typeof window.wpCloudTime === 'function') { try { window.wpCloudTime(gone); } catch (e) { console.error(e); } }   // 1.6.2: a cloud counts game time where no fight runs   // K4, K5: each character's span of it, once, to its timed effects and its time rules; a rule that fails never keeps the move from being saved and told
@@ -1376,7 +1376,7 @@ function refresh(live) {   // live (1.5.4): the clock ran by itself, or a host's
     if (window.wpPills && typeof window.wpPills.sync === 'function') { try { window.wpPills.sync(); } catch (e) {} }
     pendFor(camp);
     chip.classList.toggle('clock-due', !isPlayer() && !!pend);   // time rules wait for the GM's word
-    var tip = isPlayer() ? 'The date and time at this table \u2014 click for the calendar' : 'The campaign\u2019s date and time' + (off ? ' (players do not see it)' : '') + (why === '' ? ', running' : why === 'hold' ? ', held' : why === 'paused' || why === 'fight' ? ', waiting' : '') + (pend ? ' \u2014 time rules are due' : '') + ' \u2014 click for the calendar';
+    var tip = isPlayer() ? 'The date and time at this table. Click for the calendar' : 'The campaign\u2019s date and time' + (off ? ' (players do not see it)' : '') + (why === '' ? ', running' : why === 'hold' ? ', held' : why === 'paused' || why === 'fight' ? ', waiting' : '') + (pend ? '. Time rules are due' : '') + '. Click for the calendar';
     if (!(chip.dataset && chip.dataset.tip === tip) && chip.title !== tip) chip.title = tip;   // tooltips.js moves a title into data-tip: never written back while it says the same
     if (!winOpen()) return;
     var sig = winSigOf(camp, ck, cal); if (winSig === sig) return;

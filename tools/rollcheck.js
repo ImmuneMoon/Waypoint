@@ -343,7 +343,7 @@ const j = v => JSON.stringify(v);
         const c04 = { id: 'c_a', name: 'Ana', ownerId: 'u_a', npc: false, values: { f_g: { cur: 0 } } }, bGm4 = rn4(gm4.rolls.find(r => r.id === 'r_0'), c04, gm4, resolveAll(gm4, c04, F, null).vars).children[0];
         const own4 = S.charFor(c04, pl4, 'u_a', { full: gm4 }), bPl4 = rn4(pl4.rolls.find(r => r.id === 'r_0'), own4, pl4, resolveAll(pl4, own4, F, null).vars).children[0];
         check('m410 (A) a GM-only need holds back the GM\'s own button (GSecret at 0) and never the player\'s, whose view has no such need (rollNode, run for real on both views)',
-            bGm4.disabled === true && bGm4.title === 'W0 — it needs GSecret > 0' && bPl4.disabled === false, j([bGm4.title, bPl4.title]));
+            bGm4.disabled === true && bGm4.title === 'W0\nIt needs GSecret > 0' && bPl4.disabled === false, j([bGm4.title, bPl4.title]));
         // a fight's turn: turnHook run for real, an action at the turn's start and a reminder to press, each needing the round they are in
         const sys5 = cleanSystem({ v: 1, name: 'T', fields: [{ id: 'f_hp', key: 'HP', kind: 'number', def: 10 }, { id: 'f_st', key: 'Stunned', kind: 'toggle' }, { id: 'f_wk', key: 'Woke', kind: 'number', def: 0 }],
             rolls: [{ id: 'r_tick', label: 'Tick', apply: [{ f: 'f_hp', formula: '1' }], each: 'turn', needs: 'CombatRound >= 3' }, { id: 'r_rnd', label: 'Round', apply: [{ f: 'f_hp', formula: '5' }], each: 'round' },

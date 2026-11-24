@@ -734,13 +734,13 @@ function refreshStageSelect() {
     defaultStageMode(camp);
     // the mode in force stays listed even if the last map it relied on has since been deleted
     var lastOpt = '<option value="last">Player\'s last location</option>';   // always offered: it is the mode a table starts in
-    sel.innerHTML = lastOpt + '<option value="">Follow me — ' + escText(followTitle) + '</option>' + mapOpts;
+    sel.innerHTML = lastOpt + '<option value="">Follow me: ' + escText(followTitle) + '</option>' + mapOpts;
     sel.value = net.stageMode === 'last' ? 'last' : (net.stageOverride && camp.items[net.stageOverride]) ? net.stageOverride : '';
     // "New players start at" shows only under "Player's last location"
     var fbRow = ui('netStageFallbackRow'), fbSel = ui('netStageFallbackSelect');
     if (fbRow) fbRow.style.display = net.stageMode === 'last' ? '' : 'none';
     if (fbSel && net.stageMode === 'last') {
-        fbSel.innerHTML = '<option value="">Follow me — ' + escText(followTitle) + '</option>' + mapOpts;
+        fbSel.innerHTML = '<option value="">Follow me: ' + escText(followTitle) + '</option>' + mapOpts;
         fbSel.value = (net.stageFallback && camp.items[net.stageFallback]) ? net.stageFallback : '';
     }
 }

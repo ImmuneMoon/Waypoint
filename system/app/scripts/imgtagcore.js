@@ -252,7 +252,7 @@ function cellTags(doc, cell, tags, label, hint) {
     var old = cell.querySelector ? cell.querySelector('.img-lib-tag') : null; if (old) old.parentNode.removeChild(old);
     var txt = tags.join(', ');
     if (label && txt) cell.insertBefore(el(doc, 'span', 'img-lib-tag', txt), cell.childNodes[1] || null);
-    cell.title = (cell.dataset.name || '') + (txt ? ' \u00b7 ' + txt : '') + (hint ? ' \u2014 ' + hint : '');
+    cell.title = (cell.dataset.name || '') + (txt ? ' \u00b7 ' + txt : '') + (hint ? '. ' + hint : '');
     return cell;
 }
 // The preview's lines: the map the picture came from and its tags

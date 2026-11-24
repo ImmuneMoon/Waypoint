@@ -93,7 +93,7 @@ function syncPanel() {
     var dcState = ui('setDevConsoleState');
     if (dcState) dcState.textContent = localStorage.getItem('wp_devconsole') === 'on' ? 'on' : 'off';
     var ryState = ui('setRelayState');
-    if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') !== '1' ? 'off — direct first' : (window.wpNet && window.wpNet.relayActive && window.wpNet.relayActive()) ? 'on — relay only' : 'on, but no relay set — connecting directly';   // the truth: the switch does nothing without a relay on this computer
+    if (ryState) ryState.textContent = localStorage.getItem('wp_relayOnly') !== '1' ? 'off, direct first' : (window.wpNet && window.wpNet.relayActive && window.wpNet.relayActive()) ? 'on, relay only' : 'on, but no relay set, so connecting directly';   // the truth: the switch does nothing without a relay on this computer
     var ryBlock = ui('setRelayBlock'); if (ryBlock && localStorage.getItem('wp_relayOnly') === '1') ryBlock.style.display = 'block';   // and the switch is in view whenever it is on (it follows the saves folder; the relay does not)
     siteRelaySync();   // 1.6.4: and what the plan's relay is doing
     var go = ui('setGridOpacity');
@@ -439,7 +439,7 @@ function turnStateWord(N) {
     if (N && typeof N.turnConfig === 'function' && N.turnConfig()) return 'configured';
     var r = N && typeof N.relayServers === 'function' ? N.relayServers() : null;
     if (r && r.length) return 'your plan\u2019s relay';
-    return 'none \u2014 direct connections only';
+    return 'none, direct connections only';
 }
 // [nettransportcheck:turnword-end]
 /* 1.6.4: the plan's relay, in one plain line under the relay box (#setSiteRelay). net.js siteRelayWords says it, from this session's last
@@ -607,20 +607,20 @@ window.wpViewShown = function(which) { var sw = viewSwitchOf(which); return sw ?
 function cap(id) { return id.charAt(0).toUpperCase() + id.slice(1); }
 function shortLabel(f) { return cap(f.label.replace('Token ', '')); }
 var VTT_SAID = {   // the toast after a campaign row moves: [on, off]
-    elevation: ['Elevation on.', 'Elevation off \u2014 chips hidden, the values are kept.'],
-    posture: ['Posture on.', 'Posture off \u2014 chips hidden, the values are kept.'],
+    elevation: ['Elevation on.', 'Elevation off: chips hidden, the values are kept.'],
+    posture: ['Posture on.', 'Posture off: chips hidden, the values are kept.'],
     minimap: ['Minimap on.', 'Minimap off for this campaign.'],
-    sound: ['Sound on.', 'Sound off for this campaign \u2014 the table falls silent.'],
-    dice: ['Dice on.', 'Dice off for this campaign \u2014 nobody rolls at the table.'],
-    sheets: ['Character sheets on.', 'Character sheets off for this campaign \u2014 the system stays, nothing shows at the table.'],
-    fx: ['Visual effects on.', 'Visual effects off for this campaign \u2014 no flashes, weather or bursts at the table.'],
-    fog: ['Fog of war on \u2014 the Fog tool is on the play map.', 'Fog of war off for this campaign \u2014 the whole map shows.'],
-    lighting: ['Lighting on \u2014 a fogged map is lit until you place a light source, so every token sees what is in its line of sight.', 'Lighting off for this campaign \u2014 a token sees only as far as its sight, as before.'],
-    turning: ['Token facing on \u2014 the turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign \u2014 no turn arrow; a facing-cone map falls back to all-around.'],
-    turns: ['Turn-based combat on \u2014 during a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign \u2014 only your Next turn moves the order on.'],
-    video: ['Video on \u2014 the Scene menu has the Video panel.', 'Video off for this campaign \u2014 nothing plays; the videos and their files are kept.'],
-    trackers: ['Table trackers on.', 'Table trackers off for this campaign \u2014 the strip is gone and players get none. Your trackers are kept.'],
-    plook: ['Personal looks on \u2014 a name shows its own font and color.', 'Personal looks off for this campaign \u2014 every name is drawn plain. The looks are kept.']   // 1.6.2, backlog 35
+    sound: ['Sound on.', 'Sound off for this campaign. The table falls silent.'],
+    dice: ['Dice on.', 'Dice off for this campaign. Nobody rolls at the table.'],
+    sheets: ['Character sheets on.', 'Character sheets off for this campaign. The system stays, and nothing shows at the table.'],
+    fx: ['Visual effects on.', 'Visual effects off for this campaign. No flashes, weather or bursts at the table.'],
+    fog: ['Fog of war on. The Fog tool is on the play map.', 'Fog of war off for this campaign. The whole map shows.'],
+    lighting: ['Lighting on. A fogged map is lit until you place a light source, so every token sees what is in its line of sight.', 'Lighting off for this campaign. A token sees only as far as its sight, as before.'],
+    turning: ['Token facing on. The turn arrow is back and a facing cone aims itself.', 'Token facing off for this campaign. There is no turn arrow, and a facing-cone map falls back to all-around.'],
+    turns: ['Turn-based combat on. During a combat, the player whose token has the turn ends it.', 'Turn-based combat off for this campaign. Only your Next turn moves the order on.'],
+    video: ['Video on. The Scene menu has the Video panel.', 'Video off for this campaign. Nothing plays, and the videos and their files are kept.'],
+    trackers: ['Table trackers on.', 'Table trackers off for this campaign. The strip is gone and players get none. Your trackers are kept.'],
+    plook: ['Personal looks on. A name shows its own font and color.', 'Personal looks off for this campaign. Every name is drawn plain. The looks are kept.']   // 1.6.2, backlog 35
 };
 var VTT_ROLE = {   // what a player's "off for me" does, shown under the row at a table
     dice: 'For you it hides the roller and mutes the dice sound; rolls still show in chat.',
@@ -658,7 +658,7 @@ function syncVttPanel() {
     var lockNote = ui('setVttLocked'); if (lockNote) lockNote.style.display = awaiting ? '' : 'none';
     var word = ui('setVttCampWord'), name = ui('setVttCampName');
     if (word) word.textContent = client ? 'This table:' : 'This campaign:';
-    if (name) name.textContent = (camp ? (camp.name || 'Unnamed Campaign') : '\u2014') + (client ? ' \u2014 set by the GM' : '');
+    if (name) name.textContent = (camp ? (camp.name || 'Unnamed Campaign') : '\u2013') + (client ? ', set by the GM' : '');
     var c = client ? (v.ceiling() || {}) : null;
     var master = client ? vttFeatures().some(function(f) { return c[f.id] === true; }) : v.campaignMaster(camp);   // a client infers it: all off is "no VTT features"
     var mRow = ui('setVttMasterRow'), mState = ui('setVttMasterState'), mBtn = ui('setVttMasterBtn');
@@ -666,7 +666,7 @@ function syncVttPanel() {
     if (mState) mState.textContent = master ? 'on' : 'off';
     if (mBtn) mBtn.disabled = !editable;
     var offNote = ui('setVttMasterOffNote');
-    if (offNote) { offNote.style.display = master ? 'none' : ''; offNote.textContent = client ? 'The GM runs this table without VTT features.' : 'VTT features are off for this campaign \u2014 plain whiteboard. Your per-feature choices are kept.'; }
+    if (offNote) { offNote.style.display = master ? 'none' : ''; offNote.textContent = client ? 'The GM runs this table without VTT features.' : 'VTT features are off for this campaign: plain whiteboard. Your per-feature choices are kept.'; }
     var rows = ui('setVttRows'); if (rows) { rows.style.display = ''; rows.classList.toggle('set-master-off', !master); }   // 1.6.2, backlog 171: the rows stay, grayed, so the New column can still be set
     vttFeatures().forEach(function(f) {
         var row = document.querySelector('.set-vtt-row[data-vtt="' + f.id + '"]'), st = ui('set' + cap(f.id) + 'State'), btn = ui('set' + cap(f.id) + 'Btn');
@@ -679,19 +679,19 @@ function syncVttPanel() {
                 if (btn) btn.style.display = 'none';
                 row.style.opacity = gmOn ? '' : '.55';
                 if (help) help.style.display = 'none';
-                if (role) { role.style.display = ''; role.textContent = gmOn ? 'The GM runs ' + f.label.toLowerCase() + ' for this table \u2014 there is no per-player switch.' : 'The GM has ' + f.label.toLowerCase() + ' off for this table.'; }
+                if (role) { role.style.display = ''; role.textContent = gmOn ? 'The GM runs ' + f.label.toLowerCase() + ' for this table. There is no per-player switch.' : 'The GM has ' + f.label.toLowerCase() + ' off for this table.'; }
             } else {
             if (btn) btn.style.display = '';
-            if (st) st.textContent = gmOn ? (lo ? 'GM: on \u2014 off for you' : 'GM: on') : 'GM: off';
+            if (st) st.textContent = gmOn ? (lo ? 'GM: on, off for you' : 'GM: on') : 'GM: off';
             if (btn) { btn.textContent = lo ? 'Turn back on for me' : 'Turn off for me'; btn.disabled = !gmOn; }
             row.style.opacity = gmOn ? '' : '.55';
             if (help) help.style.display = 'none';
-            if (role) { role.style.display = ''; role.textContent = !gmOn ? 'The GM has this off for the table.' : lo ? 'Off for you at this table \u2014 your own settings are unchanged.' : 'On at this table. Switch it off for yourself here; your own settings are unchanged.'; }
+            if (role) { role.style.display = ''; role.textContent = !gmOn ? 'The GM has this off for the table.' : lo ? 'Off for you at this table. Your own settings are unchanged.' : 'On at this table. Switch it off for yourself here; your own settings are unchanged.'; }
             if (role && gmOn && VTT_ROLE[f.id]) role.textContent += ' ' + VTT_ROLE[f.id];
             }
         } else {
             var on = v.campaignOn(f.id, camp);
-            var extra = (f.id === 'minimap' && on && localStorage.getItem('wp_minimap') === 'closed') ? ' \u2014 collapsed in the corner' : '';
+            var extra = (f.id === 'minimap' && on && localStorage.getItem('wp_minimap') === 'closed') ? ', collapsed in the corner' : '';
             if (st) st.textContent = (on ? 'on' : 'off') + extra;
             if (btn) { btn.textContent = 'Toggle ' + shortLabel(f); btn.disabled = !editable; }
             row.style.opacity = '';
@@ -860,7 +860,7 @@ window.wpSettingsSync = function() { var m = ui('settingsModal'); if (m && m.sty
 // what it unlocks runs whatever is typed or pasted into it. Nothing a player or a host sends can switch it on. The local
 // server reads the same key from that file for the page's policy (shellguard.pagePolicy): only in Developer mode may a page run text as code.
 // [servercheck:devmode-start]
-var DEV_MODE_WARNING = 'Developer mode opens tools that can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly. Only type or paste something into them when you know what it does — never because someone asked you to. Turn Developer mode on?';
+var DEV_MODE_WARNING = 'Developer mode opens tools that can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly. Only type or paste something into them when you know what it does, never because someone asked you to. Turn Developer mode on?';
 var DEV_MODE_LIVE = 'Leave or end the multiplayer session first.';   // the words the update buttons use
 // What a page may run is fixed when the page loads: the local server sends the page's policy with it, in the mode the settings
 // file says at that moment (text run as code — what the console does — only in Developer mode). So a switch finishes with a
@@ -960,7 +960,7 @@ async function loadSnapshots() {
         var nb = ui('setSnapNowBtn'); if (nb) nb.disabled = true;
         return;
     }
-    if (!rows.length) { list.innerHTML = '<div style="color:var(--dim);">No snapshots yet — one is taken at every launch.</div>'; return; }
+    if (!rows.length) { list.innerHTML = '<div style="color:var(--dim);">No snapshots yet. One is taken at every launch.</div>'; return; }
     list.innerHTML = rows.map(function(b) {
         return '<div class="snap-row" data-file="' + esc(b.file) + '"><span class="snap-when">' + esc(new Date(b.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })) + '</span><span class="snap-kind">' + snapLabel(b) + '</span><span class="snap-size">' + fmtBytes(b.size) + '</span>'
             + '<button class="tool ghost snap-restore" title="Replace the save with this copy and reload (the save as it is now is snapshotted first)">Restore</button>'
@@ -1054,7 +1054,7 @@ function appVersionPromise() {   // the newer of the shell's version and the app
         try { localStorage.setItem('wp_version', cur); } catch (e) {}
         // The notes are never pushed at you: the version number in Settings (and in About) opens them on click.
         var vb = ui('setVersionBtn');
-        if (vb) { vb.textContent = 'Waypoint VTT Alpha ' + cur; vb.title = "What's new in Waypoint VTT Alpha " + cur + ' — click to read'; vb.dataset.version = cur; }
+        if (vb) { vb.textContent = 'Waypoint VTT Alpha ' + cur; vb.title = "What's new in Waypoint VTT Alpha " + cur + '. Click to read'; vb.dataset.version = cur; }
         void last;
     }).catch(function() {});
 })();
@@ -1100,10 +1100,10 @@ function coreNudge(firstTime) {
     var i = _upd.info;
     if (i && i.newer) return;   // a newer app comes first; the core nudge returns after it lands
     var b = ui('updateBtn');
-    if (b) { b.textContent = 'Core update'; b.title = "Waypoint's core is older than this app — it needs the installer once. Click to see the steps; nothing downloads until you say so."; b.style.display = 'inline-block'; }
+    if (b) { b.textContent = 'Core update'; b.title = "Waypoint's core is older than this app, so it needs the installer once. Click to see the steps; nothing downloads until you say so."; b.style.display = 'inline-block'; }
     var bar = ui('updateBanner'), txt = ui('updateBannerText'), go = ui('updateBannerGo');
     if (bar && txt) {
-        txt.textContent = "Waypoint's app files are current, but its core needs the installer once — Get installer shows the steps first.";
+        txt.textContent = "Waypoint's app files are current, but its core needs the installer once. Get installer shows the steps first.";
         if (go) go.textContent = 'Get installer';
         var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
         bar.style.display = 'flex';
@@ -1144,7 +1144,7 @@ function updateUI() {
     // Waypoint's update site) are said in full as one plain line, since a tampered list must not read as being offline; any
     // other error, a network one or an HTTP answer, is said as itself where it is short and as offline? where it is not.
     if (i.error) { var said = plainLine(i.error), own = /no update offered|refused/.test(said); st.textContent = 'could not check (' + (own || said.length <= 40 ? said : 'offline?') + ')'; row.style.display = 'none'; return; }
-    if (!i.newer && _upd.shellOld) { st.textContent = 'app ' + (window.wpAppVersion || i.current) + ' — core needs the installer'; row.style.display = 'flex'; if (now) now.style.display = 'none'; if (inst) inst.style.display = 'block'; return; }
+    if (!i.newer && _upd.shellOld) { st.textContent = 'app ' + (window.wpAppVersion || i.current) + ', but its core needs the installer'; row.style.display = 'flex'; if (now) now.style.display = 'none'; if (inst) inst.style.display = 'block'; return; }
     if (!i.newer) { st.textContent = 'up to date (' + i.current + ')'; row.style.display = 'none'; return; }
     st.textContent = _upd.selfText || (i.latest + ' available');
     row.style.display = 'flex';
@@ -1298,7 +1298,7 @@ function showUpdateButton(i) {
     var b = ui('updateBtn'); if (!b) return;
     if (!i || !i.newer) { b.style.display = 'none'; return; }
     b.textContent = 'Update to ' + i.latest;
-    b.title = 'Waypoint VTT ' + i.latest + ' is available' + (i.canHotUpdate ? ' — click to update in place (a few seconds, saves and settings kept)' : selfCan(i) ? " — click to update: this one updates Waypoint's core too (it downloads, Waypoint closes, updates itself and opens again; saves and settings kept)" : ' — this one comes as an installer; click to see the steps (nothing downloads until you say so)');
+    b.title = 'Waypoint VTT ' + i.latest + ' is available' + (i.canHotUpdate ? '. Click to update in place (a few seconds, saves and settings kept)' : selfCan(i) ? ". Click to update: this one updates Waypoint's core too (it downloads, Waypoint closes, updates itself and opens again; saves and settings kept)" : '. This one comes as an installer. Click to see the steps (nothing downloads until you say so)');
     b.style.display = 'inline-block';
 }
 function showUpdateBanner(i) {
@@ -1307,7 +1307,7 @@ function showUpdateBanner(i) {
     _bannerSeen = i.latest;
     var one = !!(i.canHotUpdate || selfCan(i));
     var txt = ui('updateBannerText');
-    if (txt) txt.textContent = 'Waypoint VTT ' + i.latest + ' is available' + (one ? ' — one click to update.' : ' — this one comes as an installer; Update shows the steps first.');
+    if (txt) txt.textContent = 'Waypoint VTT ' + i.latest + ' is available' + (one ? '. One click to update.' : '. This one comes as an installer. Update shows the steps first.');
     var go = ui('updateBannerGo'); if (go) go.textContent = one ? 'Update' : 'Get installer';
     var hdr = document.querySelector('header'); if (hdr) bar.style.top = (hdr.getBoundingClientRect().bottom + 8) + 'px';
     bar.style.display = 'flex';
@@ -1432,7 +1432,7 @@ if (_updNotes) _updNotes.addEventListener('click', function() {
     var i = _upd.info; if (!i) return;
     var body = document.getElementById('legalBody'), title = document.getElementById('legalTitle');
     if (!body || !title) return;
-    title.textContent = "What's New — Waypoint VTT " + i.latest;
+    title.textContent = "What's New in Waypoint VTT " + i.latest;
     body.style.textAlign = 'center';
     body.textContent = i.notes || 'No notes for this release.';
     document.getElementById('legalModal').style.display = 'flex';

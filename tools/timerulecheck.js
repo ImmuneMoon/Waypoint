@@ -100,8 +100,8 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
         const bNo = mkRN(undefined).rollNode(rlN(gmN, 'r_dodge'), st1, gmN, varsN(st1)).children[0], bNv = R.rollNode(rlN(gmN, 'r_dodge'), st1, gmN, null).children[0];
         const AN = mkAN(S.rollNeedsOk), aOff = AN(rlN(gmN, 'r_bleed'), bl0, gmN, vf(bl0)).children[0], aOn = AN(rlN(gmN, 'r_bleed'), bl2, gmN, vf(bl2)).children[0];
         check('fold 2 (A) the sheet (rollNode and applyNode, run for real): a roll whose needs fail is grayed with its words and the formula it needs, as a list roll\'s button; met, it rolls and names itself (act), so the host rebuilds it and judges its needs; a roll with no needs is sent as before; with no judge or no resolver at hand the button is left to the host; an apply action is grayed the same way',
-            bOff.disabled === true && bOff.title === 'Not while stunned — it needs not(Stunned)' && bOn.disabled === false && j(R.sent) === j([['3d6 <= 10', { act: 'r_dodge' }], ['d6', undefined]]) && bNo.disabled === false && bNv.disabled === false
-            && aOff.disabled === true && aOff.title === 'Not bleeding — it needs Bleeding > 0' && aOn.disabled === false, j([bOff.title, bOn.disabled, R.sent, bNo.disabled, aOff.title, aOn.disabled]));
+            bOff.disabled === true && bOff.title === 'Not while stunned\nIt needs not(Stunned)' && bOn.disabled === false && j(R.sent) === j([['3d6 <= 10', { act: 'r_dodge' }], ['d6', undefined]]) && bNo.disabled === false && bNv.disabled === false
+            && aOff.disabled === true && aOff.title === 'Not bleeding\nIt needs Bleeding > 0' && aOn.disabled === false, j([bOff.title, bOn.disabled, R.sent, bNo.disabled, aOff.title, aOn.disabled]));
         // the round hook: a reminder only while the action's needs are met; an automatic action whose needs fail is passed over
         const hkSrcN = cutN("// Stage 6 HUD G10: the host's round hook", "// The combat roster (whiteboard.js): initiative from the system's init roll");
         const runHkN = vals => { const posted = [], chars = { c_a: chN(vals) }, camp = { items: { m1: { type: 'map', whiteboard: [{ id: 't1', isChar: true, charId: 'c_a', x: 0, y: 0, width: 50, height: 50 }] } }, chars, system: gmN };
@@ -120,7 +120,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
         trTwin('fold 2 (A)', trSrcN, campTN, firesTN, '3 hours');
         const nTN = runTN(firesTN, '3 hours');
         check('fold 2 (A) runTimeRules (sheets.js, run for real): a rule whose needs fail from the start is passed over and says nothing; the same rule on a character that meets it runs until it does not, and is summed up',
-            nTN === 1 && j(cardsN) === j([['c_b', '3 hours — Bo: Mend ×3: HP +2 → 12']]) && campTN.chars.c_a.values.f_hp === 12 && campTN.chars.c_b.values.f_hp === 12, j([nTN, cardsN]));
+            nTN === 1 && j(cardsN) === j([['c_b', '3 hours. Bo: Mend ×3: HP +2 → 12']]) && campTN.chars.c_a.values.f_hp === 12 && campTN.chars.c_b.values.f_hp === 12, j([nTN, cardsN]));
         // the editor: the Rolls tab's boxes and handlers, and what refreshErrors says Save drops (run for real)
         const reSrcN = cutN('\nfunction refreshErrors() {', '\nfunction errorCell('), errsN = draft => new Function('draft', 'F', 'validKey', 'KINDS', 'cleanItemKey', 'cleanSystem', 'validateSystem', 'statKey', 'LIMITS', 'getActiveCampaign', 'systemOf', 'gmViewFields', 'gmDerivedNames', 'TIME_WORDS',
             'var errorsById = {}, warningsById = {};\n' + reSrcN + '\nrefreshErrors(); return errorsById;')(draft, () => F, S.validKey, S.KINDS, S.cleanItemKey, S.cleanSystem, S.validateSystem, S.statKey, S.LIMITS, () => ({ chars: {} }), () => null, S.gmViewFields, S.gmDerivedNames, S.TIME_WORDS);
@@ -234,7 +234,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             && /if \(ea0\) top\.appendChild\(select\('sys-roll-by', \[\['', 'automatically'\], \['gm', 'when the GM presses it'\], \['owner', 'when its player presses it'\]\]/.test(require('./checkkit').part('sysedroll.js'))
             && /else if \(c\.indexOf\('sys-roll-each'\) >= 0\) \{ delete r\.round; if \(t\.value === 'round' \|\| t\.value === 'turn' \|\| t\.value === 'turnEnd'\) \{ r\.each = t\.value; if \(!Array\.isArray\(r\.apply\) && r\.by !== 'gm' && r\.by !== 'owner'\) r\.by = 'owner'; \} else \{ delete r\.each; delete r\.by; \} markDirty\(\); renderAll\(\); return; \}/.test(require('./checkkit').part('sysedtabs.js'))
             && /else if \(c\.indexOf\('sys-roll-by'\) >= 0\) \{ if \(t\.value === 'gm' \|\| t\.value === 'owner'\) r\.by = t\.value; else delete r\.by; \}/.test(require('./checkkit').part('sysedtabs.js')) && /else \{ delete r\.apply; delete r\.round; delete r\.each; delete r\.by; \} kindBack\(r, t\.value === 'apply' \? 'apply' : 'roll', ROLL_KEEP\); markDirty\(\); renderAll\(\); return; \}/ /* 1.6.3 (the review of the System editor, finding 6, moved on purpose): what the old kind used is put aside, and comes back with it */.test(require('./checkkit').part('sysedtabs.js'))
-            && /\(r\.each \? ' \\u2014 also ' \+ \(r\.by \? 'due' : 'by itself'\)/.test(shG) && /An apply action can also run by itself during a combat\. <b>Also each round<\/b> runs it on every character with a token in the fight once for each round the fight reaches\./.test(hmG) && /<b>Also at its turn&rsquo;s start<\/b> runs it on its character only, when its turn begins\./.test(hmG) && /<b>Also at its turn&rsquo;s end<\/b> runs it on its character only, when its turn ends\./.test(hmG));
+            && /\(r\.each \? '\\nAlso ' \+ \(r\.by \? 'due' : 'by itself'\)/.test(shG) && /An apply action can also run by itself during a combat\. <b>Also each round<\/b> runs it on every character with a token in the fight once for each round the fight reaches\./.test(hmG) && /<b>Also at its turn&rsquo;s start<\/b> runs it on its character only, when its turn begins\./.test(hmG) && /<b>Also at its turn&rsquo;s end<\/b> runs it on its character only, when its turn ends\./.test(hmG));
     }
 
     {   // the names of systemcheck's lighting L4 block that the K5 scope, which stood inside it, reads: the two views, sheets.js read joined and
@@ -301,7 +301,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
         const nTR = runTR(firesTR, '8 hours of rest');
         check('item 20 K5 runTimeRules (sheets.js, run for real over the real systemcore): each ticked fire runs on its character, stored, one delta each, its views redrawn, one save; one summary per character — its rules with how many ran, how many rolls succeeded and how far each field moved — to its player and the GM, the GM alone for an NPC; a full pool moved nothing, so it says nothing and sends nothing (the flood fix of 2026-10-22 moved this pin on purpose: it said no change); a character or a rule that is not there, or a rule with no clock, runs nothing',
             nTR === 2 && j(campTR.chars.c_a.values) === j({ f_hp: { cur: 7 }, f_fp: { cur: 10 } }) && j(campTR.chars.c_n.values) === j({ f_fp: { cur: 4 } }) && j(outTR.deltas) === j([['c_a', { f_hp: { cur: 7 }, f_fp: { cur: 10 } }], ['c_n', { f_fp: { cur: 4 } }]]) && j(outTR.views) === j(['c_a', 'c_n']) && outTR.saves === 1 && outTR.renders === 1
-            && j(outTR.cards) === j([['c_a', '8 hours of rest \u2014 Pat: Heal \u00d72 (2 of 2 succeeded): HP +2 \u2192 7; Breath \u00d720: FP +8 \u2192 10', false], ['c_n', '8 hours of rest \u2014 Orc: Breath \u00d73: FP +3 \u2192 4', true]]) && !/innerHTML/.test(trSrc), j([nTR, campTR.chars, outTR]));
+            && j(outTR.cards) === j([['c_a', '8 hours of rest. Pat: Heal \u00d72 (2 of 2 succeeded): HP +2 \u2192 7; Breath \u00d720: FP +8 \u2192 10', false], ['c_n', '8 hours of rest. Orc: Breath \u00d73: FP +3 \u2192 4', true]]) && !/innerHTML/.test(trSrc), j([nTR, campTR.chars, outTR]));
         {   // The flood fix (the owner, 2026-10-22, by prompt: "Nothing at all (Recommended)"): runTimeRules (sheets.js, sliced by its timerules markers and run
             // for real with the real resolver) posts no summary and no Game Record line for a run that moved nothing and rolled nothing, names only what moved,
             // and judges what moved by what the sheet reads of each value written: never a value written in another form, always a number under an effect
@@ -341,7 +341,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             army.c_u7 = { id: 'c_u7', name: 'Unit 7', npc: true, values: { f_pc: { cur: 6 } } };
             const flA = flRun(army, Object.keys(army).map(id => ({ c: id, r: 'r_chg', n: 1 })), true);
             check('the flood fix (the owner, 2026-10-22, "Nothing at all"): an hour of a time rule that fills a pool, on 120 NPCs at their most and one below it, posts ONE summary and Game Record line, for the one below it, the GM\'s alone; a full pool with nothing stored is still written as full, sent and saved as before, with no summary; one stored as full writes nothing; runTimeRules still says how many characters changed, and saves once',
-                j(flA.cards) === j([['c_u7', '1 hour of activity \u2014 Unit 7: Recharge \u00d71: Charge +1 \u2192 7', true]]) && flA.n === 101 && flA.saves === 1 && flA.deltas.length === 101 && j(flA.deltas[0]) === j(['c_f0', { f_pc: { cur: 10 } }])
+                j(flA.cards) === j([['c_u7', '1 hour of activity. Unit 7: Recharge \u00d71: Charge +1 \u2192 7', true]]) && flA.n === 101 && flA.saves === 1 && flA.deltas.length === 101 && j(flA.deltas[0]) === j(['c_f0', { f_pc: { cur: 10 } }])
                 && j(army.c_f42.values) === j({ f_pc: { cur: 10 } }) && j(army.c_s3.values) === j({ f_pc: { cur: 10 } }) && j(army.c_u7.values) === j({ f_pc: { cur: 7 } }) && !flA.views.includes('c_s3'), j([flA.cards.length, flA.cards.slice(0, 3), flA.n, flA.saves, flA.deltas.length]));
             // players: two rules on one character, a roll that moves nothing, a number under an effect (moved and not), a GM-only rule that moved nothing, a rule held
             const fx = () => [{ id: 'x_1', ref: 'e_up', on: true }];
@@ -349,7 +349,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
                 c_h: { id: 'c_h', name: 'Hale', ownerId: 'u_d', values: { f_st: 10, f_fx: fx() } }, c_g: { id: 'c_g', name: 'Gale', ownerId: 'u_e', values: { f_pc: { cur: 4 } } }, c_m: { id: 'c_m', name: 'Mira', ownerId: 'u_f', values: { f_pc: { cur: 8 } } },
                 c_w: { id: 'c_w', name: 'Wren', ownerId: 'u_g', values: { f_st: 9 } } };
             const flP = flRun(pc, [{ c: 'c_k', r: 'r_chg', n: 1 }, { c: 'c_k', r: 'r_drn', n: 1 }, { c: 'c_r', r: 'r_chk', n: 1 }, { c: 'c_e', r: 'r_grow', n: 1 }, { c: 'c_h', r: 'r_hold', n: 1 }, { c: 'c_g', r: 'r_seep', n: 1 }, { c: 'c_g', r: 'r_drn', n: 1 }, { c: 'c_m', r: 'r_mend', n: 1 }, { c: 'c_w', r: 'r_wane', n: 1 }], true);
-            const W = '1 hour of activity \u2014 ';
+            const W = '1 hour of activity. ';
             check('the flood fix: one character with two rules, one that moved and one that did not, gets one summary naming only the one that moved; a roll of dice that moved nothing still posts its summary; a value that moves posts its summary; a rule whose needs are not met says nothing',
                 j(flP.cards.filter(cd => cd[0] === 'c_k' || cd[0] === 'c_r' || cd[0] === 'c_m')) === j([['c_k', W + 'Kael: Drain \u00d71: Charge -1 \u2192 9', false], ['c_r', W + 'Rook: Check \u00d71 (0 of 1 succeeded): no change', false]])
                 && j(pc.c_k.values) === j({ f_pc: { cur: 9 } }) && j(pc.c_r.values) === j({ f_pc: { cur: 10 } }) && j(pc.c_m.values) === j({ f_pc: { cur: 8 } }), j(flP.cards));
@@ -469,7 +469,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             // with a malfunction, a roll with no dice, In a fight with its round, several runs a fire): the path as the app runs it, the old path, and
             // the hash of what the old path gave, made by the code before the change (1.5.5, the commit "Words — the sheet website the outside
             // reader was made for is named in no tracked file") and pinned here
-            const SEED_PIN = 'ad0175ac6379c864f88bd25150d12b19e7a636025735f4e575c1c5691f134602';   // moved on purpose in 1.6.4: a number snapped to its step keeps no float noise (cleancore stepRound), and only those figures changed (38 of 21,468, each by less than 1e-9)
+            const SEED_PIN = '89905a4aa4db01629530fa90bd93aa90e45b2fc46faef15e91d6cfedc57a761f';   // moved on purpose in 1.6.4 again (no em dashes in words people read): a summary's lead is 'words. Name:' where it was 'words, an em dash, Name'; with that put back it hashes to ad0175ac... as before. Moved on purpose in 1.6.4: a number snapped to its step keeps no float noise (cleancore stepRound), and only those figures changed (38 of 21,468, each by less than 1e-9)
             const seedSys = seed => {
                 const R = lcg(seed * 7919 + 1), RI = n => Math.floor(R() * n), fields = [], nA = 4 + RI(4), nD = 5 + RI(25), deep = R() < 0.15;
                 for (let i = 0; i < nA; i++) fields.push({ id: 'f_a' + i, key: 'A' + i, kind: 'number', def: 8 + RI(6), step: R() < 0.3 ? 0.5 : 1 });
@@ -574,7 +574,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             const deepSys = cleanSystem(deepRaw, { F, gmView: true }), deepCamp = () => ({ system: deepSys, chars: { c_k: { id: 'c_k', name: 'Kael', npc: true, values: {} } } }), dN = countF(diceOf(9)), dO = countF(diceOf(9));
             const deepNew = trRun(deepCamp(), [{ c: 'c_k', r: 'r_d', n: 2 }], true, dN.F), deepOld = trRun(deepCamp(), [{ c: 'c_k', r: 'r_d', n: 2 }], false, dO.F);
             check('1.5.5 a system with a chain deeper than the engine allows still runs the old way (the sheet worked out whole each run, once a run of two), and gives what the old way gives: C69 read as 70, never as the engine\'s refusal',
-                shallowOf(deepSys, F) === false && dN.c.spare === 2 && dO.c.spare === 2 && j(deepNew) === j(deepOld) && j(deepNew.cards) === j([['c_k', '1 hour — Kael: Deep ×2: N +2 → 2', true]]), j([dN.c, deepNew.cards]));
+                shallowOf(deepSys, F) === false && dN.c.spare === 2 && dO.c.spare === 2 && j(deepNew) === j(deepOld) && j(deepNew.cards) === j([['c_k', '1 hour. Kael: Deep ×2: N +2 → 2', true]]), j([dN.c, deepNew.cards]));
             // the three handed-in resolvers: each is the one read, and only where it is handed in
             const hSys = cleanSystem({ v: 1, name: 'H', fields: [{ id: 'f_pw', key: 'PW', kind: 'resource', maxFormula: '20', def: 'max', min: 0 }, { id: 'f_n', key: 'N', kind: 'number', def: 0 }], rolls: [{ id: 'r_up', label: 'Up', apply: [{ f: 'f_pw', formula: '1' }], every: { n: 1, u: 'hour' } }] }, { F, gmView: true });
             const hCh = { id: 'c_h', values: { f_pw: { cur: 5 } } }, held7 = n => (String(n).toLowerCase() === 'pw.max' ? 7 : String(n).toLowerCase() === 'pw' ? 3 : undefined);
@@ -704,7 +704,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
             trTwin('fold 4', trSrc, campR4, firesR4b, 'An hour', { round: 9 }, DCk);
             const nR4b = runR4(firesR4b, 'An hour', { round: 9 }), vR4b = [nR4b, campR4.chars.c_k.values.f_rd];
             check('152 fold 4 runTimeRules (sheets.js, run for real): a rule set In a fight alone is found and run as one By the clock is; a fire In a fight runs in its fight\'s round (its own first, else the round handed in), so CombatRound reads 3 for Kael and 6 for Unit 7; its words head each summary, an NPC\'s the GM\'s alone; a fire By the clock reads no round, CombatRound 0 (1.5.5\'s review, a deliberate change of this pin: runTimeRules takes back as a fourth argument)',
-                j(vR4) === j([2, 3, 6, [['c_k', 'Round 3 on Docks \u2014 Kael: Set \u00d71: Rd +3 \u2192 3', false], ['c_n', 'Round 3 on Docks \u2014 Unit 7: Set \u00d71: Rd +6 \u2192 6', true]]]) && j(vR4b) === j([1, 0])
+                j(vR4) === j([2, 3, 6, [['c_k', 'Round 3 on Docks. Kael: Set \u00d71: Rd +3 \u2192 3', false], ['c_n', 'Round 3 on Docks. Unit 7: Set \u00d71: Rd +6 \u2192 6', true]]]) && j(vR4b) === j([1, 0])
                 && /function runTimeRules\(fires, words, at, back, when\) \{/.test(trSrc) && /r\.id === fi\.r && \(r\.every \|\| r\.inFight\)/.test(trSrc), j([vR4, vR4b]));
             // 1.5.5's review: the four older harnesses of runTimeRules run it as the app does, so their pins hold on the path it takes
             const trTags = ['fold 2 (A)', 'K5', 'the flood fix', 'fold 4'], trOf = t => [trSeen.filter(s => s[0] === t).map(s => s[1]), trSeen.filter(s => s[0] === t + ':twin').map(s => s[1])];
@@ -1039,7 +1039,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
         const fR = runRl([{ c: 'c_a', r: 'r_tick', n: 1 }], Object.assign({}, DCr, seedR(3))), fP = runRl([{ c: 'c_a', r: 'r_full', n: 1 }], Object.assign({}, DCr, seedR(3)));
         trTwin('rolled', trSrcR, { system: gmR, chars: { c_a: { id: 'c_a', name: 'Kael', ownerId: 'u_k', values: { f_hp: { cur: 15 } } } } }, [{ c: 'c_a', r: 'r_tick', n: 2 }], '2 hours', undefined, DCr);
         check('1.5.9 Rolled, the flood rule (sheets.js runTimeRules, run for real): an hour of a Rolled heal on a pool already full moved nothing yet drew its dice, so it posts its summary, as a roll of dice that moved nothing does; the same hour of a heal that is not Rolled says nothing; and the run is alike with ruleRunCtx and chainsShallow handed in and without',
-            fR.cards.length === 1 && /^1 hour of activity — Kael: Tick ×1: no change$/.test(fR.cards[0][1]) && jr(fR.hp) === jr({ cur: 20 }) && fP.cards.length === 0 && trSeen.filter(x => x[0] === 'rolled:twin').every(x => x[1] === true),
+            fR.cards.length === 1 && /^1 hour of activity\. Kael: Tick ×1: no change$/.test(fR.cards[0][1]) && jr(fR.hp) === jr({ cur: 20 }) && fP.cards.length === 0 && trSeen.filter(x => x[0] === 'rolled:twin').every(x => x[1] === true),
             jr([fR.cards, fP.cards, fR.hp, trSeen.filter(x => /^rolled/.test(x[0]))]));
         // the System editor's Rolled ticks (sheets.js applyEditor and listCard, sliced and run for real on a page of plain objects) and their handlers
         const feR = (tag, cls, text) => ({ tag, className: cls || '', textContent: text === undefined || text === null ? '' : String(text), children: [], title: '', type: '', value: '', checked: false, disabled: false, dataset: {}, style: {}, classList: { add() {} }, on: {}, get childNodes() { return this.children; }, get lastChild() { return this.children[this.children.length - 1] || null; }, appendChild(x) { this.children.push(x); return x; }, insertBefore(x) { this.children.unshift(x); return x; }, addEventListener(k, f) { this.on[k] = f; } });
@@ -1368,7 +1368,7 @@ const starterFile = kit.starterFile;   // the two frozen starters for the tests 
         };
         const hkF6 = [hookF6(true), hookF6(false)];
         const runDueF6 = (canR, disabled) => { const out = { clicks: 0, toasts: [], applied: 0 }, c = { id: 'c_a', name: 'Ana', values: {} }, camp = { system: gF6, chars: { c_a: c } };
-            const btn = { disabled: !!disabled, title: 'Not now — it needs Down', click() { out.clicks++; } };
+            const btn = { disabled: !!disabled, title: 'Not now\nIt needs Down', click() { out.clicks++; } };
             const rd = new Function('getActiveCampaign', 'systemOf', 'charById', 'canRoll', 'rollNode', 'toast', 'canApply', 'applyAction', hk5 + NL + 'return runDue;')(
                 () => camp, x => x.system, (id, k) => k.chars[id] || null, () => !!canR, () => ({ querySelector: s => (s === 'button.sheet-roll' ? btn : null) }), t => out.toasts.push(t), () => true, () => { out.applied++; });
             out.ret = rd('c_a', 'r_ht'); return out; };

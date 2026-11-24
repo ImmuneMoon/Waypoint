@@ -128,13 +128,13 @@ pendingChecks.push((async () => {
         && J(g5c) === J([J([{ type: 'char-deny', rid: 'i3', reason: 'stays', msg: 'Plate is bound and stays on, so Mail stays off. It is fused' }]), 'w_p:true w_m:false w_s:false'])
         && J(g5l) === J([J([{ type: 'char-deny', rid: 'i1', reason: 'stays', msg: 'Plate is bound and stays on, so Mail stays off. It is fused' }]), 'w_p:true w_m:false']) && J(g5o) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_p:false w_m:true']), J([g5, g5b, g5c, g5l, g5o]));
     check('m410 review, reviewer two (2): a bound row that keeps a switch-on off is said by both rows\' names, to the player on the refusal and to the GM in a notice of its own (never "tried to switch off" the bound row)',
-        J(G5.out.notes) === J(['Ana switched on Plate — bound: it stays on until you switch it off.', 'Ana tried to switch on Mail — Plate is bound and stays on, so it stays off.']), J(G5.out.notes));
+        J(G5.out.notes) === J(['Ana switched on Plate. It is bound, so it stays on until you switch it off.', 'Ana tried to switch on Mail. Plate is bound and stays on, so it stays off.']), J(G5.out.notes));
     // (6) the bound Plate switched on beside the cursed Helm that is on: the Helm is kept on out of the player's sight and both are said
     const G6 = mkH(sysE, [{ id: 'w_p', defId: 'i_pl', qty: 1, on: false }, { id: 'w_h', defId: 'i_he', qty: 1, on: true }]);
     const g6 = [G6.send(ON('w_p')), G6.rowsNow(), G6.told()];
     check('m410 review (6) a curse kept on beside a row switched on that has a lock of its own (the host\'s real char-item branch): the Helm stays on out of the player\'s sight, its message rides the answer, and the GM is told both, the Plate switched on and the Helm kept on',
         J(g6) === J([J([{ type: 'char-ack', rid: 'i1', msg: 'It clings' }]), 'w_p:true w_h:truek', 'w_p:true w_h:false'])
-        && J(G6.out.notes) === J(['Ana switched on Plate — bound: it stays on until you switch it off.', 'Ana switched off Helm — it stays on, out of their sight, until you switch it off.']), J([g6, G6.out.notes]));
+        && J(G6.out.notes) === J(['Ana switched on Plate. It is bound, so it stays on until you switch it off.', 'Ana switched off Helm. It stays on, out of their sight, until you switch it off.']), J([g6, G6.out.notes]));
     // (1) a row of the player's own moved by its stat into a group that has one on comes into it off; a bound copy moved by its stat (Setting A) is
     // refused in words of its own and the GM is told in words of their own
     const sysC = Sx.cleanSystem({ v: 1, name: 'C', rolls: [], fields: [{ id: 'f_ar', key: 'Gear', label: 'Gear', kind: 'item-list', edit: 'owner', vis: 'all', list: { custom: true, on: { label: 'Worn', per: 'Slot' }, stats: [{ key: 'Slot' }] } }] }, { F: Fx, gmView: true });
@@ -149,7 +149,7 @@ pendingChecks.push((async () => {
         J(g1) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_a:true w_b:false', 'w_a:true w_b:false']) && J(g1f) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_a:true w_b:true'])
         && J(gb1) === J([J([{ type: 'char-ack', rid: 'i1' }]), 'w_b:false w_m:true', 'w_b:false w_m:true'])
         && J(gm1) === J([J([{ type: 'char-deny', rid: 'i1', reason: 'stays', msg: 'Plate is bound and stays on. Another row of that group is on, so that change is not made. It is fused' }]), 'w_p:true w_m:true'])
-        && J(GM.out.notes) === J(['Ana tried to change Plate — it is bound and stays on, and another row of that group is on.']), J([g1, g1f, gb1, gm1, GM.out.notes]));
+        && J(GM.out.notes) === J(['Ana tried to change Plate. It is bound and stays on, and another row of that group is on.']), J([g1, g1f, gb1, gm1, GM.out.notes]));
     // (2) a choice whose option names a GM-only value: the player's own app (the real net.charItem) and the host (the real char-item branch, the
     // very message) put the Mail in the same group, so what the player saw at once is what the host stored and sent
     const rawQ = { v: 1, name: 'Q', rolls: [], fields: [{ id: 'f_s', key: 'TorsoDR', kind: 'number', vis: 'gm' }, { id: 'f_h', key: 'HeadDR', kind: 'number' },
@@ -353,7 +353,7 @@ pendingChecks.push((async () => {
             sysNow = Sx.cleanSystem({ v: 1, name: 'F', rolls: [], fields: [{ id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Skill', label: 'Skill' }, { key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Use', formula: '3d6 <= Row.Skill', malf: '18 - Row.Flaw' }] } }], items: [{ id: 'i_p', name: 'Pebbles', stats: { Skill: 19 } }] }, { F: Fx, gmView: true });
             const m16 = runP([6, 5, 5], 2), m15 = runP([6, 5, 4], 2), m16n = runP([6, 5, 5], 0), m18n = runP([6, 6, 6], 0), gm16 = runG([6, 5, 5], 2), gm15 = runG([6, 5, 4], 2); sysNow = sysFl;
             check('1.6.0 ... a masked Malf says just malfunction (found by hand on a table): the host marks the card on a player\'s roll and on the GM\'s own, and the player\'s app keeps the mark',
-                m16.table[0].malfHid === 1 && Dx.cleanRoll(m16.table[0]).malfHid === 1 && /\u2014 malfunction$/.test(m16.log) && gm16.recs[0].malfHid === 1 && /\u2014 malfunction$/.test(gm16.log), j([m16.table[0], m16.log, gm16.recs[0], gm16.log]));
+                m16.table[0].malfHid === 1 && Dx.cleanRoll(m16.table[0]).malfHid === 1 && /, a malfunction$/.test(m16.log) && gm16.recs[0].malfHid === 1 && /, a malfunction$/.test(gm16.log), j([m16.table[0], m16.log, gm16.recs[0], gm16.log]));
             sysNow = Sx.cleanSystem({ v: 1, name: 'F', rolls: [], fields: [{ id: 'f_gr', key: 'Gear', label: 'Gear', kind: 'item-list', vis: 'all', edit: 'owner', list: { stats: [{ key: 'Skill', label: 'Skill' }, { key: 'Flaw', label: 'Flaw', vis: 'gm' }], rolls: [{ label: 'Use', formula: '3d6 + Row.Flaw' }] } }], items: [{ id: 'i_p', name: 'Pebbles', stats: { Skill: 19 } }] }, { F: Fx, gmView: true });
             const gmSt = runG([1, 1, 1], 2, '3d6 + Row.Flaw'); sysNow = sysFl;
             check('1.6.0 ... kept private, in true words (net.diceRoll, run for real): a roll that reads a GM-only stat, on a row a player may see, says so, and is not said to be on a GM-only item',

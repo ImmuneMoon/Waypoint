@@ -216,7 +216,7 @@ const j = v => JSON.stringify(v);
         const popSteps = [() => {}, () => {}, t => { t.facing = 90; }, () => {}, t => { t.posture = 'prone'; }, t => { t.elevation = 2; }, t => { t.x = 400; }, (t, d) => { d.campaigns.k1.chars[0].name = 'Bren Hal'; }];
         const popR = runPop(true, popSteps), popOld = runPop(false, popSteps);
         check('a character sheet in a window of its own follows its token (1.5.4, backlog Stage 5h\'s known limit, the GM\'s alone; popout.js tickSheet, sliced and run for real): it draws once, not again while nothing changes, again when the token turns, takes another posture or another height, as the sheet reads them (window.wpSheets.dialSig, the sheet\'s own dialSigOf for that character), not for a move the sheet reads nothing of, and when the character changes; a sheet module with no dialSig redraws for the character alone, as before; the sheet exports it; 1.5.4 (a field\'s display unit and the reconcile of the unit switch): dialSigOf names the viewer\'s Measurement system (unitSig), so the window follows the setting too',
-            j(popR) === j([1, 1, 2, 2, 3, 4, 4, 5, 'Waypoint VTT \u2014 Bren', 'sheet-view', 'k1']) && j(popOld) === j([1, 1, 1, 1, 1, 1, 1, 2, 'Waypoint VTT \u2014 Bren', 'sheet-view', 'k1'])
+            j(popR) === j([1, 1, 2, 2, 3, 4, 4, 5, 'Waypoint VTT: Bren', 'sheet-view', 'k1']) && j(popOld) === j([1, 1, 1, 1, 1, 1, 1, 2, 'Waypoint VTT: Bren', 'sheet-view', 'k1'])
             && /\nfunction dialSigFor\(charId, camp\) \{ var c = charById\(charId, camp\); return c \? dialSigOf\(c, camp\) : ''; \}/.test(sh2) && /tokenCtxFor: tokenCtxFor, dialSig: dialSigFor, /.test(sh2) && /, typeof unitSig === 'function' \? unitSig\(\) : ''\]\.join\('#'\);   \/\/ 1\.5\.4: the viewer's Measurement system/.test(sh2)
             && /fc \? fc\.deg \+ '\|' \+ fc\.sides \+ '\|' \+ fc\.threats\.join\(','\) : '', st \? st\.posture \+ '\|' \+ st\.elevation : ''/.test(sh2),
             j({ popR, popOld, slice: tickSrc.length }));
@@ -729,7 +729,7 @@ const j = v => JSON.stringify(v);
     /* ---- Stage 6 HUD frame (HF5a): values in roll labels (H3) — the label and the button run for real, the players' scrub, the validator, the privacy names ---- */
     {
         const sh8 = fs.readFileSync(path.join(app, 'scripts', 'sheets.js'), 'utf8').replace(/\r\n/g, '\n'), DC8 = await import(url('dicecore.js'));
-        const BS8 = String.fromCharCode(92), PM8 = String.fromCharCode(0xB1), DASH8 = String.fromCharCode(0x2014), BEL8 = String.fromCharCode(7), EMO8 = String.fromCharCode(0xD83D, 0xDE00);
+        const BS8 = String.fromCharCode(92), PM8 = String.fromCharCode(0xB1), DASH8 = String.fromCharCode(0x2013), BEL8 = String.fromCharCode(7), EMO8 = String.fromCharCode(0xD83D, 0xDE00);
         const fx8 = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8')), GV8 = { F, gmView: true }, PV8 = { F, gmView: false };
         const gD8 = cleanSystem(fx8('hud-d20'), GV8), pD8 = cleanSystem(fx8('hud-d20'), PV8), g38 = cleanSystem(fx8('hud-3d6'), GV8), p38 = cleanSystem(fx8('hud-3d6'), PV8);
         const rl8 = (sys, id) => sys.rolls.find(r => r.id === id), lone8 = s => [...s].some(ch => ch.length === 1 && ch.charCodeAt(0) >= 0xD800 && ch.charCodeAt(0) <= 0xDFFF);
@@ -989,7 +989,7 @@ const j = v => JSON.stringify(v);
                 const m = strip.innerHTML.match(/data-tip="([^"]*)"/); return m ? m[1] : ''; };
             let stubT = '', heldT = '', qErr = ''; try { stubT = tipOf(true); heldT = tipOf(false); } catch (e) { qErr = String(e && e.message); }
             check('1.6.3 (finding 29): on a player\'s app a teammate on a map held only as a stub is named by the character the app knows they play, on the map the roster puts them, and never said to have no token yet; on a map the app holds whole a player with no token is still said to have none, by their own name (renderPartyStrip with stubPlays, run for real)',
-                !qErr && !!psQ && stubT === 'Sahrhie \u2014 on Main Ship Dock' && heldT === 'Trevor \u2014 on Main Ship Dock \u2014 no token yet', j([qErr, stubT, heldT]));
+                !qErr && !!psQ && stubT === 'Sahrhie, on Main Ship Dock' && heldT === 'Trevor, on Main Ship Dock. No token yet', j([qErr, stubT, heldT]));
         }
         {   // 1.6.3: a token's effects kept for one pass of the app (systemcore tokenEffectsPass and tokenEffectsForget, run for real): every token of one sheet
             // shows the same list, worked out once a pass by the character object and whether the GM reads it, and read afresh where anything it reads is another

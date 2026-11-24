@@ -69,7 +69,7 @@ function blockText(b, it) {
         default: return '';   // a diagram written as source: its mermaid text is skipped
     }
 }
-function docText(doc) { return (doc && Array.isArray(doc.blocks) ? doc.blocks : []).map(function(b) { return blockText(b, doc); }).join('  —  ').replace(/\s+/g, ' ').trim(); }
+function docText(doc) { return (doc && Array.isArray(doc.blocks) ? doc.blocks : []).map(function(b) { return blockText(b, doc); }).join(' \u00b7 ').replace(/\s+/g, ' ').trim(); }
 // Ranges [start,end] of matches in a FOLDED string: the whole phrase; if it never appears, each word at a word start.
 function matchRanges(ft, nq, words) {
     var ranges = [], i;

@@ -564,7 +564,7 @@ function markdownToBlocks(text, opts) {
     function addImage(caption, dest, ref, attrs, wasInline) {
         var target = dest != null ? dest : (ref != null ? refs[String(ref).toLowerCase()] : undefined);
         var capF = fieldOf(caption || ''); caption = capF.text;
-        if (target === undefined) { flushRun(); setFmt(push({ type: 'image', src: '', caption: caption }), 'caption', capF.fmt); notes.push('Picture "' + (caption || ref || '?') + '": no source given — an empty picture block was made.'); return; }
+        if (target === undefined) { flushRun(); setFmt(push({ type: 'image', src: '', caption: caption }), 'caption', capF.fmt); notes.push('Picture "' + (caption || ref || '?') + '": no source given, so an empty picture block was made.'); return; }
         target = String(target).trim();
         if (/^https?:\/\//i.test(target)) { run.push('<p><a href="' + esc(target) + '">' + esc(caption || target) + '</a></p>'); notes.push('Online picture kept as a link: ' + target.slice(0, 80)); return; }
         flushRun();

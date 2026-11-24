@@ -44,23 +44,23 @@
         { name: '/help', short: 'this list, or  /help <name>  for detail on one command or global',
           detail: '/help            list the headline commands.\n/help <name>     explain one command or wp* global in full, e.g.  /help wpFitView  or  /help seathex\n/?               same as /help.' },
         { name: '/roll <expr>', short: 'roll dice with the full formula syntax, e.g.  /roll 2d20kh1 + 5 >= 16   (also /r)',
-          detail: 'Roll a formula and show every die, the total and, for a check, the margin. Spreadsheet-style, case-insensitive:\n  /roll 2d6+3            /roll d20 + 5 >= 16        /roll 4d6kh3 (keep the highest 3)\n  /roll 2d20kh1 + 5      /roll 3d6 <= 12 (roll-under)   /roll 10d6cs>=5 (count the 5s and 6s)\n  /roll 2d6! + 3 (exploding)   /roll d20r1 (reroll 1s once)   /roll 4dF   /roll d%\nAlso kl / dh / dl, rr (reroll until), (Level)d6, d(Faces), floor / ceil / round / abs / min / max / clamp / mod / if, and / or / not.\nPut a space after /roll. Names like STR are not set in the console yet — they come with the character sheets.\nBare /roll rolls a d20. /roll stays private to this console; /table posts to the table.' },
+          detail: 'Roll a formula and show every die, the total and, for a check, the margin. Spreadsheet-style, case-insensitive:\n  /roll 2d6+3            /roll d20 + 5 >= 16        /roll 4d6kh3 (keep the highest 3)\n  /roll 2d20kh1 + 5      /roll 3d6 <= 12 (roll-under)   /roll 10d6cs>=5 (count the 5s and 6s)\n  /roll 2d6! + 3 (exploding)   /roll d20r1 (reroll 1s once)   /roll 4dF   /roll d%\nAlso kl / dh / dl, rr (reroll until), (Level)d6, d(Faces), floor / ceil / round / abs / min / max / clamp / mod / if, and / or / not.\nPut a space after /roll. Names like STR are not set in the console yet. They come with the character sheets.\nBare /roll rolls a d20. /roll stays private to this console; /table posts to the table.' },
         { name: '/table <expr>', short: 'roll at the table (chat card for everyone, like /roll in Table Chat)',
           detail: 'Rolls through the table dice (wpDice.roll): at a hosted table everyone gets the card and the session log a line; at a joined table the GM rolls it for you; solo it is a local card in the chat panel. Same syntax as /roll.' },
         { name: '/state', short: 'print wpDebug.getState()',
-          detail: 'Pretty-prints the app state snapshot — the same object as typing  wpDebug.getState().' },
+          detail: 'Pretty-prints the app state snapshot, the same object as typing  wpDebug.getState().' },
         { name: '/fit [sel]', short: 'frame everything, or  /fit sel  for the selection',
           detail: '/fit        frame every item on the map   (wpFitView(false)).\n/fit sel    frame the current selection          (wpFitView(true)).' },
         { name: '/reload', short: 're-read data.json from disk',
-          detail: 'Drops the pending autosave and reloads data.json (wpReloadFromDisk) — see  /help wpReloadFromDisk.' },
+          detail: 'Drops the pending autosave and reloads data.json (wpReloadFromDisk). See  /help wpReloadFromDisk.' },
         { name: '/save', short: 'force an immediate save',
           detail: 'Writes the current state to disk now (io.js save(true)), skipping the ~500ms autosave debounce.' },
         { name: '/find <name>', short: 'open the quick-jump, filtered to <name>',
-          detail: 'Closes the console and opens the Ctrl+K quick-jump prefilled with your text — pick a map, planner\nor room and press Enter to go there.' },
+          detail: 'Closes the console and opens the Ctrl+K quick-jump prefilled with your text. Pick a map, planner\nor room and press Enter to go there.' },
         { name: '/clear', short: 'clear the console log (history is kept)',
-          detail: 'Clears everything printed so far — same as wpDevConsole.clear(). Your Up/Down command history is untouched.' },
+          detail: 'Clears everything printed so far, the same as wpDevConsole.clear(). Your Up/Down command history is untouched.' },
         { name: 'wpDebug.getState()', short: 'read-only snapshot of what the app is showing now',
-          detail: 'Returns a plain object (ids and primitives only — no live refs to mutate):\n  activeCampaignId, activeItemId   the campaign, and the open map or planner\n  mapIds, plannerIds               ids in the active campaign\n  viewMode, zoomLevel              "data" | "visual", and the current zoom\n  selId / selWbId / selWbIds       the current selection (data map / play map)\n  netRole                          "host" | "client" | "offline"\n  vtt                              { mode, campaign, global, ceiling, tableKey, localOff, effective, sig, seen, pending }\n  version                          the running app version\nExample:  wpDebug.getState().mapIds.length' },
+          detail: 'Returns a plain object (ids and primitives only, no live refs to mutate):\n  activeCampaignId, activeItemId   the campaign, and the open map or planner\n  mapIds, plannerIds               ids in the active campaign\n  viewMode, zoomLevel              "data" | "visual", and the current zoom\n  selId / selWbId / selWbIds       the current selection (data map / play map)\n  netRole                          "host" | "client" | "offline"\n  vtt                              { mode, campaign, global, ceiling, tableKey, localOff, effective, sig, seen, pending }\n  version                          the running app version\nExample:  wpDebug.getState().mapIds.length' },
         { name: 'wpReloadFromDisk()', short: 're-read data.json from disk, dropping the pending autosave',
           detail: 'Clears the ~500ms autosave debounce, then reloads data.json through the app’s normal load path and\nre-renders. Use it when something outside the app rebuilt the save, so the open tab picks up the new\nfile instead of overwriting it on the next autosave. Any unsaved in-memory edit is discarded.' },
         { name: 'wpFitView(sel)', short: 'zoom + pan to frame everything, or just the selection',
@@ -99,7 +99,7 @@
         wpDocMd: 'The pure Markdown half (scripts/docmd.js): markdownToBlocks(text, {kind, items}), docToMarkdown(item, {items}), htmlToMarkdown, fmtFromInline(html), flowchartFromMermaid, parseAttrs, detectBundle, LIMITS. No DOM.',
         wpDocReaderOpenId: 'Handbook reader: the id of the page open in the reader, or null.',
         wpDocReaderRefresh: 'Handbook reader: (campId, itemId) re-renders the reader when that page changed (keeps the scroll position).',
-        wpDocRender: 'The handbook renderer and sanitizer (scripts/docrender.js): sanitizeHtml(html), cleanDoc(doc, {keepHidden}), renderDoc(doc, {src, mermaid}), proseHtml, compileFlowchart, fmtHtml(text, fmt, put), fmtRich(text, fmt), cleanBlockFmts(block), labelFmt(fmt, text), sanitizeBare(html), diagramLink(address), linkLine(id, address), readLinkLine(line), stripMermaidLinks(source), LIMITS. Pure — no state, no DOM.',
+        wpDocRender: 'The handbook renderer and sanitizer (scripts/docrender.js): sanitizeHtml(html), cleanDoc(doc, {keepHidden}), renderDoc(doc, {src, mermaid}), proseHtml, compileFlowchart, fmtHtml(text, fmt, put), fmtRich(text, fmt), cleanBlockFmts(block), labelFmt(fmt, text), sanitizeBare(html), diagramLink(address), linkLine(id, address), readLinkLine(line), stripMermaidLinks(source), LIMITS. Pure: no state, no DOM.',
         wpDuplicateWb: 'Duplicate the selected play-map items (same as Ctrl+D).',
         wpEditTextBox: 'Open the in-place editor for a text box, by id.',
         wpEraserCursorHide: "Hide the eraser's circle cursor.",
@@ -107,7 +107,7 @@
         wpFilePrefs: 'The shared table preferences backed by saves/preferences.json.',
         wpFitToGrid: 'Size the selection to whole grid cells and seat it (square or hex).',
         wpFocusCharacter: 'Jump the camera to a character token and select it (the party-strip action).',
-        wpFormula: 'The formula and dice engine (scripts/formula.js): evaluate(text, options), parse(text), describe(result, opts), names(text), fromDraws(draws), LIMITS. Pure — no state, no DOM; /roll is its first consumer.',
+        wpFormula: 'The formula and dice engine (scripts/formula.js): evaluate(text, options), parse(text), describe(result, opts), names(text), fromDraws(draws), LIMITS. Pure: no state, no DOM. /roll is its first consumer.',
         wpHandoutList: "List the current campaign's handouts.",
         wpHandoutPayload: "Build a handout's wire payload for sending to players.",
         wpHideTooltip: 'Hide the play-map hover card (#wbTooltip).',
@@ -115,7 +115,7 @@
         wpHistBarrier: 'Wipe the undo/redo of the given item ids and re-baseline them - called after a write that spans two maps (net.js, whiteboard.js).',
         wpHistFlush: 'Record a pending debounced edit as its own undo step and save it now - net.js calls it before a player\'s change lands in a map.',
         wpAdoptTags: "Picture categories: (camp, sourceCats, data) copies a safety copy's app-level tags for pictures this campaign owns or uses into camp.imageCats (cleanup recovery).",
-        wpImgCatEnsure: "Ensure an Image Library category exists and tags paths with it: (name, paths, shelf, store) — store = 'shared' or a campaign id.",
+        wpImgCatEnsure: "Ensure an Image Library category exists and tags paths with it: (name, paths, shelf, store), where store = 'shared' or a campaign id.",
         wpImgCatRename: "Rename an Image Library category in one store: (oldName, newName, store).",
         wpImgScope: "(list, campId) → the pictures of that campaign from a /api/list-images answer (folder ownership or reference; tutorial/ is Shared).",
         wpMigratePictures: 'One-time move of the app-wide picture categories into the campaigns that own or use their pictures (io.js load repair; marker _picsV).',
@@ -163,14 +163,14 @@
         wpFogSync: 'Re-check the Fog of war feature for the campaign or table on screen: shows or hides the fog tool and repaints (called by the VTT toggle fan-out). wpFogRedraw() just repaints the current fog overlay.',
         wpSpacePan: 'Flag - true while Space is held to pan the board from any tool.',
         wpSpawnTokenForCharacter: 'Drop a play-map token for a character. [sandbox hook]',
-        wpStance: 'The token-stance API (whiteboard.js): postures and postureAt (the list the system names), tokenElevation, setElevation / setPosture, fmtElev, and on(feature) — which delegates to wpVtt.on.',
+        wpStance: 'The token-stance API (whiteboard.js): postures and postureAt (the list the system names), tokenElevation, setElevation / setPosture, fmtElev, and on(feature), which delegates to wpVtt.on.',
         wpSyncRightPanel: 'Open/close the right Properties panel to match the current selection.',
         wpTurnToken: "Rotate a token's facing by N steps (+1 = clockwise).",
         wpUploadBlob: 'Upload a picture into an item\'s folder: (mapId, name, blob) → Promise of the /saves/images/… URL (whiteboard.js; the play-map drop, the planner Upload button and the Markdown importer all use it).',
         wpSystemCore: 'The rules model, pure (scripts/systemcore.js): cleanSystem / cleanChar / cleanCharEdit, validateSystem, makeResolver (a vars function for wpFormula), resolveAll, hoverLines, charFor, applyEdit, autoLayout, registerReader / readers / readerFor (an outside sheet reader), LIMITS, KINDS; the combat rules: cleanCombat, cleanCover, coverOutcome / coverDamage, and the light rules cleanLightRules, lightName(sys, level), lightPresets(sys), LIGHT_UNITS.',
-        wpLook: 'The look of a text outside a planner, pure (scripts/lookcore.js): a record { fmt, font, sig } that names the text it was made for — textSig(text), lookShapeOk(fmt), recShapeOk(rec), fieldLook(fmt, text, rule), cleanRec(rec, text, rule), makeRec(fmt, font, text, rule), lookWeight(rec), RULES (LINE, NOTES, NOTE, PAD). No DOM.',
-        wpTextRead: 'A text drawn with its look where it is read (scripts/linkgate.js): fill(el, text, rec, document, { rule, typed, ask }) — the look a record of wpLook, cleaned by the rule; elements and text nodes only; with ask, every link in it asks first.',
-        wpTextFmt: 'Text formats, pure (scripts/textfmt.js): the look of one plain field, stored beside its text — cleanFmt(fmt, text), cleanLink(address), runsOf(text, fmt), respan(old, new, fmt, caret, apart), apply(fmt, text, s, e, change), clear, stateAt, typedLink(typed), linkParts(text), SIZES, SIZE_EM, PALETTE, MAX_SPANS, MAX_LINK. No DOM.',
+        wpLook: 'The look of a text outside a planner, pure (scripts/lookcore.js): a record { fmt, font, sig } that names the text it was made for: textSig(text), lookShapeOk(fmt), recShapeOk(rec), fieldLook(fmt, text, rule), cleanRec(rec, text, rule), makeRec(fmt, font, text, rule), lookWeight(rec), RULES (LINE, NOTES, NOTE, PAD). No DOM.',
+        wpTextRead: 'A text drawn with its look where it is read (scripts/linkgate.js): fill(el, text, rec, document, { rule, typed, ask }): the look a record of wpLook, cleaned by the rule; elements and text nodes only; with ask, every link in it asks first.',
+        wpTextFmt: 'Text formats, pure (scripts/textfmt.js): the look of one plain field, stored beside its text: cleanFmt(fmt, text), cleanLink(address), runsOf(text, fmt), respan(old, new, fmt, caret, apart), apply(fmt, text, s, e, change), clear, stateAt, typedLink(typed), linkParts(text), SIZES, SIZE_EM, PALETTE, MAX_SPANS, MAX_LINK. No DOM.',
         wpTutorial: 'The interactive tutorial controller (ensure / start / rebuild / discard).',
         wpUpdateHandles: 'Reposition the resize/rotate handles on the current selection.',
         wpUpdateSelToolbar: 'Re-render and counter-scale the floating selection toolbar.',
@@ -196,7 +196,7 @@
                 if (live.length) {
                     live.forEach(function (k) {
                         var v = window[k], kind = typeof v === 'function' ? ('function, ' + v.length + ' arg(s)') : typeof v;
-                        addLine(k, 'dc-cmd'); addLine('  ' + kind + ' — internal app global (no note yet). Inspect it by typing:  ' + k, 'dc-out');
+                        addLine(k, 'dc-cmd'); addLine('  ' + kind + ': internal app global (no note yet). Inspect it by typing:  ' + k, 'dc-out');
                     });
                     return;
                 }
@@ -205,7 +205,7 @@
             out.forEach(function (c) { addLine(c.name, 'dc-cmd'); addLine('  ' + String(c.body).replace(/\n/g, '\n  '), 'dc-out'); });
             return;
         }
-        addLine('Commands (a real JS console — any window global works too).  /help <name> explains one:', 'dc-note');
+        addLine('Commands (a real JS console, so any window global works too).  /help <name> explains one:', 'dc-note');
         var w = 0; HELP.forEach(function (c) { if (c.name.length > w) w = c.name.length; });
         HELP.forEach(function (c) { addLine('  ' + c.name + new Array(w - c.name.length + 3).join(' ') + c.short, 'dc-out'); });
         try {
@@ -268,7 +268,7 @@
         if (!ready()) return;
         panel.style.display = 'flex';
         if (!seeded) {
-            addLine('Waypoint dev console — JavaScript with the page globals in scope.', 'dc-note');
+            addLine('Waypoint dev console: JavaScript with the page globals in scope.', 'dc-note');
             addLine('Commands: /help  /roll 2d6+3  /state  /fit  /reload  /save  /find  ·  /help <name> explains one  ·  Esc closes.', 'dc-note');
             seeded = true;
         }
@@ -296,7 +296,7 @@
         try { r = (0, eval)(cmd); } catch (e) {   // indirect eval → global scope, so window.* is reachable
             if (e instanceof EvalError && refusedByPolicy()) {
                 try { if (window.wpPrefsPush) window.wpPrefsPush(); } catch (e2) {}   // the settings file says "on" by the time of the reload
-                addLine('Developer mode is on, but this window was loaded before it was switched on, so it cannot run what you type yet. Reload Waypoint (Ctrl+R) and try again — the / commands work now.', 'dc-note');
+                addLine('Developer mode is on, but this window was loaded before it was switched on, so it cannot run what you type yet. Reload Waypoint (Ctrl+R) and try again. The / commands work now.', 'dc-note');
                 return;
             }
             addLine(String((e && e.stack) || e), 'dc-err'); return;

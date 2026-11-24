@@ -408,7 +408,7 @@ function showNotice(key, s) {
     var G = ceiling() || {}, ab = lists(e, G, playerDefaults());
     var camp = activeCamp();
     var intro = document.getElementById('vttNoticeIntro');
-    if (intro) intro.textContent = (camp && camp.name ? camp.name : 'This table') + ' — the GM\'s VTT features differ from your own defaults. Nothing here changes your own settings.';
+    if (intro) intro.textContent = (camp && camp.name ? camp.name : 'This table') + ': the GM\'s VTT features differ from your own defaults. Nothing here changes your own settings.';
     var fillList = function(listId, wrapId, ids) {
         var ul = document.getElementById(listId), wrap = document.getElementById(wrapId); if (!ul || !wrap) return;
         ul.textContent = '';
@@ -480,10 +480,10 @@ function ceilingChanged(prev, campId) {
     }
     var text = diff.length === 1
         ? 'The GM turned ' + labelOf(diff[0].id) + (G[diff[0].id] ? ' on' : ' off') + ' for this table'
-        : 'The GM changed this table\'s VTT features — ' + diff.map(function(f) { return labelOf(f.id) + (G[f.id] ? ' on' : ' off'); }).join(', ');
+        : 'The GM changed this table\'s VTT features: ' + diff.map(function(f) { return labelOf(f.id) + (G[f.id] ? ' on' : ' off'); }).join(', ');
     if (seeded.length) {
         var one = seeded.length === 1;
-        text += ' — ' + (one && diff.length === 1 ? '' : seeded.map(labelOf).join(', ') + ' ') + 'off for you (your default has ' + (one ? 'it' : 'them') + ' off; Settings ▸ This campaign to turn ' + (one ? 'it' : 'them') + ' on).';
+        text += (one && diff.length === 1 ? ', but it is ' : '. ' + seeded.map(labelOf).join(', ') + (one ? ' is ' : ' are ')) + 'off for you (your default has ' + (one ? 'it' : 'them') + ' off; Settings ▸ This campaign to turn ' + (one ? 'it' : 'them') + ' on).';
     } else text += '.';
     toast(text);
     if (seeded.length || anyModalUp()) e.pending = s; else { e.seen = s; e.pending = ''; }

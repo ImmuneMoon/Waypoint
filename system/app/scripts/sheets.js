@@ -220,7 +220,7 @@ function sheetRefsChanged() {
 function pageChip(id, c) {   // c (H12b): the character whose view shows it — a HUD search of theirs opens the page
     var ref = pageRef(id); if (!ref) return null;
     var ch = el('span', 'sheet-sec-chip' + (ref.gmOnly ? ' sheet-chip-gm' : '')); ch.setAttribute('role', 'button'); ch.tabIndex = 0;
-    ch.title = 'Open \u201c' + ref.title + '\u201d' + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this chip' : ''); ch.setAttribute('aria-label', ch.title);
+    ch.title = 'Open \u201c' + ref.title + '\u201d' + (ref.gmOnly ? '. GM only: players don\u2019t see this chip' : ''); ch.setAttribute('aria-label', ch.title);
     ch.appendChild(el('span', 'wib wi-book sheet-chip-ico')); ch.appendChild(el('span', 'sheet-chip-txt', ref.title));
     var go = function(e) { e.preventDefault(); e.stopPropagation(); if (ch.closest('#systemModal')) return; openPageFor(c, id); };
     ch.addEventListener('click', go); ch.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') go(e); });
@@ -282,7 +282,7 @@ function hbResults(res, key, st) {
             hit.addEventListener('click', function() { hbOpen(key, st, x.id, x.bi); }); res.appendChild(hit);
         });
     } else if (!heads.length) {
-        res.appendChild(el('div', 'sheet-hb-empty notepad-who', q.length >= 3 ? 'No heading matches \u2014 looking in the text\u2026' : 'No heading matches. Press Enter to look in the text.'));
+        res.appendChild(el('div', 'sheet-hb-empty notepad-who', q.length >= 3 ? 'No heading matches. Looking in the text\u2026' : 'No heading matches. Press Enter to look in the text.'));
         if (q.length >= 3) { clearTimeout(st.timer); st.timer = setTimeout(function() { if (st.q.trim() === q && !st.deep && !st.view) hbDeep(key, st); }, HB_DEEP_MS); }   // no dead ends: the text by itself
     }
 }
@@ -347,7 +347,7 @@ function rollerNode(pl, c, key) {
 function linkNode(pl, c) {
     var ref = pl.page ? pageRef(pl.page) : null; if (!ref) return null;
     var b = el('button', 'wib wi-book tool sheet-roll sheet-link' + (ref.gmOnly ? ' sheet-chip-gm' : ''), (pl.text || ref.title)); b.type = 'button';
-    b.title = 'Open \u201c' + ref.title + '\u201d ' + (hbHudTarget(c) ? 'in the HUD\u2019s handbook search' : 'over the map') + (ref.gmOnly ? ' \u2014 GM only: players don\u2019t see this button' : '');   // H12b: where it will open
+    b.title = 'Open \u201c' + ref.title + '\u201d ' + (hbHudTarget(c) ? 'in the HUD\u2019s handbook search' : 'over the map') + (ref.gmOnly ? '. GM only: players don\u2019t see this button' : '');   // H12b: where it will open
     b.addEventListener('click', function(e) { e.preventDefault(); if (b.closest('#systemModal')) return; openPageFor(c, pl.page); });
     var box = el('div', 'sheet-field sheet-kind-link'); box.appendChild(b); return box;
 }
@@ -480,7 +480,7 @@ function ownerName(c, camp) {
 function syncOwners(camp, keep) {
     camp = camp || getActiveCampaign(); if (!camp) return 0;
     var heal = migrateBindings(camp, { link: false }), n = net();
-    heal.guesses.forEach(function(g) { var ch = charsOf(camp)[g.id]; if (ch && n && n.logEvent) n.logEvent('char', (playerNames(camp)[g.pid] || 'A player') + ' plays ' + ch.name + ' (their other characters are kept) \u2014 change it in System \u25B8 Characters'); });
+    heal.guesses.forEach(function(g) { var ch = charsOf(camp)[g.id]; if (ch && n && n.logEvent) n.logEvent('char', (playerNames(camp)[g.pid] || 'A player') + ' plays ' + ch.name + ' (their other characters are kept). Change it in System \u25B8 Characters'); });
     var maps = applyOwnerOps(camp, ownedTokenPlan(camp, { keep: keep || '', all: !sheetsOnIn(camp) }));
     if (maps.length && n && n.active && n.role === 'host' && n.pushItems && camp === getActiveCampaign()) n.pushItems(maps);   // a host save sends only the open item
     return maps.length;
@@ -3353,7 +3353,7 @@ function cantTake(sys, c, it) {
 // ---- item-list widgets (Stage 4: the plain list and the rich table share these) ----
 var ITEM_COL_LABEL = { category: 'Category', cost: 'Cost', damage: 'Damage', area: 'Area', notes: 'Notes' };
 function itemThrowBtn(def, c, f, rid, ok) {   // ok (1.6.2): false where the list's Thrown only where does not hold for this row   // Stage 6 F4a: the throw names the carried row (the host reads its definition). A GM-only item, or one on a GM-only list: its damage and its blast's name stay the GM's
-    var plc = !!(def.area && def.area.place === true), tb = el('button', 'wib wi-' + (plc ? 'marker' : 'burst') + ' tool ghost sheet-item-throw', plc ? 'Place' : 'Throw'); tb.title = plc ? 'Place ' + def.name + ' \u2014 then click the map where it goes. It goes off when someone steps into it.' : 'Throw ' + def.name + ' — then click your target or a place on the map';   // 1.5.8 explosives: a mine is placed, never thrown
+    var plc = !!(def.area && def.area.place === true), tb = el('button', 'wib wi-' + (plc ? 'marker' : 'burst') + ' tool ghost sheet-item-throw', plc ? 'Place' : 'Throw'); tb.title = plc ? 'Place ' + def.name + '. Then click the map where it goes. It goes off when someone steps into it.' : 'Throw ' + def.name + '. Then click your target or a place on the map';   // 1.5.8 explosives: a mine is placed, never thrown
     if (ok === false) { tb.disabled = true; tb.title = (f.list && f.list.throwSays) || (plc ? 'This cannot be placed now.' : 'This cannot be thrown now.'); }   // 1.6.2: the words first, as greyPress says them
     tb.addEventListener('click', function() { if (window.wpArmBlast) { window.wpArmBlast(def.area.ft, def.area.name || def.name, { charId: c.id, fieldId: f.id, rowId: rid, by: c.name, damage: def.damage || '', gmOnly: def.vis === 'gm' || f.vis === 'gm' }); var hp = tb.closest('.hud-panel'); if (hp) closeHud(hp.dataset.cid); else closeSheet(); } });
     return tb;
@@ -4128,7 +4128,7 @@ function lostBits(host, rd, entry, c, f, gm, editable) {
 // Stage 6 F4c1: a list's stats on a row. A number as it is: whole, two decimals from 1 up, three significant digits below (fmtNum would show
 // 0.0001 lb as 0); a value name for a whole value inside a stat's names
 function statFmt(v) { if (typeof v !== 'number' || !isFinite(v)) return ''; if (Math.floor(v) === v) return String(v); return Math.abs(v) >= 1 ? String(Number(v.toFixed(2))) : String(Number(v.toPrecision(3))); }
-function statText(st, v) { if (typeof v === 'string') return v || '—'; var L = st && Array.isArray(st.labels) ? st.labels : null; if (st && st.set === true && typeof v === 'number') { var stB = [], stN = isFinite(v) ? Math.floor(Math.abs(v)) & 0xFFFF : 0; for (var stI = 0; stI < 16; stI++) if ((stN >> stI) & 1) stB.push((L && L[stI]) || 'Place ' + (stI + 1)); return stB.length ? stB.join(', ') : '\u2014'; } return L && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v < L.length && L[v] ? L[v] : statFmt(v); }
+function statText(st, v) { if (typeof v === 'string') return v || '\u2013'; var L = st && Array.isArray(st.labels) ? st.labels : null; if (st && st.set === true && typeof v === 'number') { var stB = [], stN = isFinite(v) ? Math.floor(Math.abs(v)) & 0xFFFF : 0; for (var stI = 0; stI < 16; stI++) if ((stN >> stI) & 1) stB.push((L && L[stI]) || 'Place ' + (stI + 1)); return stB.length ? stB.join(', ') : '\u2013'; } return L && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v < L.length && L[v] ? L[v] : statFmt(v); }
 // 1.5.4: a stat's figure with its unit, where it has one (a named value is a word): a measure in its own form for the viewer's setting,
 // "2.5 lbs" or "1.13 kg", and in one of the website's forms the website's own figure, "18.675 lbs" (the fieldunit slice's unitFig); with no
 // helper in reach, the unit after the figure
@@ -4156,7 +4156,7 @@ function statBoxes(entry, def, spec, ovc) {   // every stat that is not Hidden, 
 function colBoxes(host, spec, cells, cfx) {   // the columns placed in the details, as boxes
     if (!cells || !Array.isArray(spec.cols)) return;
     spec.cols.forEach(function(cc, i) { var v = cells[i]; if (!v || !(typeof partHere === 'function' ? partHere(cc, 'details', false) : cc.place === 'details')) return;
-        var tx = v.error ? '\u2014' : (typeof colShown === 'function' ? colShown(cc, v) : v.text) + (typeof plusText === 'function' ? plusText(v) : ''), tn = !v.error && typeof nameTone === 'function' ? nameTone(cc, v.value) : '';
+        var tx = v.error ? '\u2013' : (typeof colShown === 'function' ? colShown(cc, v) : v.text) + (typeof plusText === 'function' ? plusText(v) : ''), tn = !v.error && typeof nameTone === 'function' ? nameTone(cc, v.value) : '';
         var bx = figBox(cc.label, tx, tn, [cellMark(cfx, i, v)], cc.explain); if (v.error) bx.title = v.error; host.appendChild(bx); });
 }
 // [systemcheck:rowboxes-end]
@@ -4460,8 +4460,8 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
             if (applyOk === null) applyOk = canApply(c);
             if (!applyOk || !r.apply.length) return;
             var al = (res && res.rl && res.rl[rid] && res.rl[rid].r[ri]) || r.label || 'Apply', ab = el('button', 'tool ghost sheet-item-roll sheet-item-apply', al); ab.type = 'button'; ab.title = nm + ' \u00b7 ' + al + ': ' + applyTitle(r, systemOf(getActiveCampaign()), spec); ab.insertBefore(iconNode(typeof r.icon === 'string' && r.icon ? r.icon : 'icon:bolt', 'sheet-item-rollico'), ab.firstChild);   // 1.6.0: its icon, as a roll wears its die
-            var nOkA = !(r.needs || r.needsWhy) || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA && r.hideOff === true) return; if (!nOkA) { ab.disabled = true; ab.title = res.rw && res.rw[rid] && res.rw[rid][ri] ? res.rw[rid][ri] : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }   // the core handbook session's ask (b): its needs for this row, as a list roll's
-            var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + ' \u2014 ' + ab.title; }   // turn-based combat T4
+            var nOkA = !(r.needs || r.needsWhy) || !(res && res.rn && res.rn[rid]) || res.rn[rid][ri] !== false; if (!nOkA && r.hideOff === true) return; if (!nOkA) { ab.disabled = true; ab.title = res.rw && res.rw[rid] && res.rw[rid][ri] ? res.rw[rid][ri] : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : '\nIt needs ' + r.needs); }   // the core handbook session's ask (b): its needs for this row, as a list roll's
+            var cbA = typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbA) { ab.disabled = true; ab.title = cbA + '\n' + ab.title; }   // turn-based combat T4
             ab.addEventListener('click', function() { var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return; var goL = function(ans) { if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function') { allyPick(ab, cN, r.to === 'target', function(on) { applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, on || undefined, undefined, ans); }); return; } applyAction(r, cN, nm + ' \u00b7 ' + al, { f: f.id, r: rid, i: ri }, undefined, undefined, ans); }; if (Array.isArray(r.asks) && r.asks.length) askThen(r, cN, ab, { row: { f: f.id, r: rid, i: ri } }, null, goL); else goL(); });   // 1.5.9: whom it is for first, where it Applies to an adjacent character
             host.appendChild(ab); return;
         }
@@ -4476,10 +4476,10 @@ function rowRollBtns(host, spec, entry, def, c, f, res) {   // res (R2b): the fi
         if (r.area) withE = true;   // 1.6.0: a line: the host finds its whole entry
         if (r.named === true) withE = true;   // 1.6.0: one that calls for another names its index, so the host finds its calls
         if (!nOk && r.hideOff === true) return;   // 1.6.0: Hidden until it can be used
-        if (!nOk) { b.disabled = true; b.title = res && res.rw && res.rw[rid] && res.rw[rid][ri] ? res.rw[rid][ri] : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }
+        if (!nOk) { b.disabled = true; b.title = res && res.rw && res.rw[rid] && res.rw[rid][ri] ? res.rw[rid][ri] : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : '\nIt needs ' + r.needs); }
         var fsW = res && res.fs && res.fs[rid] ? res.fs[rid][ri] : ''; if (fsW) { b.disabled = true; b.title = fsW; }   // 1.6.0 Feeds: any feed at 0 stops the shot
-        var mpW = res && res.rp && res.rp[rid] ? res.rp[rid][ri] : null, mpC = typeof isClient === 'function' && isClient(); if (mpW && mpW.no && mpC && !b.disabled) { b.disabled = true; b.title = mpW.no + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // 1.6.0: a Then that cannot be paid whatever the dice say, on a player's app; the GM's own press goes through
-        var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbL) { b.disabled = true; b.title = cbL + ' \u2014 ' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
+        var mpW = res && res.rp && res.rp[rid] ? res.rp[rid][ri] : null, mpC = typeof isClient === 'function' && isClient(); if (mpW && mpW.no && mpC && !b.disabled) { b.disabled = true; b.title = mpW.no + '\n' + nm + ' \u00b7 ' + lb; }   // 1.6.0: a Then that cannot be paid whatever the dice say, on a player's app; the GM's own press goes through
+        var cbL = typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbL) { b.disabled = true; b.title = cbL + '\n' + nm + ' \u00b7 ' + lb; }   // turn-based combat T4
         var goL = function(e) {
             if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evL = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evL.currentTarget || b, c, r.to === 'target', function(on) { evL.wpAlly = on || ''; goL(evL); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first
             if (r.askLvl === true && typeof askRollLvl === 'function' && !(e && e.wpLvl !== undefined)) { var evV = typeof pressOf === 'function' ? pressOf(e, b) : e; if (askRollLvl(evV.currentTarget || b, entry, def, spec, function(n) { evV.wpLvl = n; goL(evV); })) return; }   // 1.6.0 R12: at which level first
@@ -5155,13 +5155,13 @@ function customForm(entry, rd, c, f, spec, sysI, mode) {
         Object.keys(ds).forEach(function(x) { if (mine === undefined && x.toLowerCase() === lk && (typeof ds[x] === 'number' || (s.kind === 'pick' && typeof ds[x] === 'string'))) mine = ds[x]; });
         var put = function(n) { var p = {}; p[k] = n; one('stats', p); }, shown = typeof mine === 'number' ? String(mine) : '', dv = typeof s.def === 'number' ? s.def : 0;
         if (s.kind === 'pick') {   // F5a2: a choice — its labels
-            ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '—', mine === undefined));
+            ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '\u2013', mine === undefined));
             (s.opts || []).forEach(function(o) { ctl.appendChild(opt(o.label, o.label, typeof mine === 'string' && mine.toLowerCase() === o.label.toLowerCase())); });
             ctl.addEventListener('change', function() { put(ctl.value === '' ? null : ctl.value); });
         } else if (s.set === true) {   // 1.6.0: a set of places, a button a place
             ctl = placeBtns(s, typeof mine === 'number' ? mine : dv, put, false);
         } else if (Array.isArray(s.labels) && s.labels.length) {
-            ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '—', mine === undefined));
+            ctl = el('select', 'field sheet-rf-sel'); ctl.appendChild(opt('', '\u2013', mine === undefined));
             s.labels.forEach(function(t, i) { ctl.appendChild(opt(String(i), t || String(i), mine === i)); });
             if (typeof mine === 'number' && !(mine >= 0 && mine < s.labels.length && Math.floor(mine) === mine)) { var xo = opt(shown, statFmt(mine), true); xo.disabled = true; ctl.appendChild(xo); }   // a value past the names
             ctl.addEventListener('change', function() { put(ctl.value === '' ? null : Number(ctl.value)); });
@@ -5226,7 +5226,7 @@ function fxTargets(sys, rows) {   // rows (1.5.8): an item list with columns as 
         if (x.kind === 'number' || x.kind === 'formula') out.push([x.id + '|add', nm]);
         else if (x.kind === 'skill') out.push([x.id + '|add', nm + ' (total)']);
         else if (x.kind === 'resource') out.push([x.id + '|max', nm + ' max']);
-        else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ' \u2014 switch on']);
+        else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ': switch on']);
     });
     if (rows === true) ((sys && sys.fields) || []).forEach(function(x) { if (x.kind === 'item-list' && x.list && Array.isArray(x.list.cols) && x.list.cols.length) out.push([x.id + '|row', (nmOf(x) || '(list)') + ': one entry']); });
     return out;
@@ -5363,7 +5363,7 @@ function effectsInto(wrap, f, c, rows, sys, editable, edit) {   // edit (the she
         var d = typeof r.ref === 'string' ? lib[r.ref] : r; if (!d) return;
         var line = el('div', 'sheet-fx' + (r.on === false ? ' sheet-fx-off' : '') + (d.tone === 'buff' || d.tone === 'debuff' ? ' sheet-fx-' + d.tone : ''));
         var sw = el('input'); sw.type = 'checkbox'; sw.checked = r.on !== false; sw.disabled = !editable; sw.dataset.fid = f.id; sw.dataset.part = 'fx-' + r.id;
-        sw.title = r.on === false ? 'Suspended \u2014 tick to apply it again' : 'Applied \u2014 untick to suspend it';
+        sw.title = r.on === false ? 'Suspended. Tick to apply it again' : 'Applied. Untick to suspend it';
         sw.addEventListener('change', function() { commitEffect(c, f, { op: 'on', rowId: r.id, on: sw.checked }); });
         if (cards) { wrap.appendChild(fxCard(line, sw, r, d, f, c, labels, editable, sys, mk)); return; }
         line.appendChild(sw);
@@ -5552,7 +5552,7 @@ function fieldNode(f, c, e, gm, own, sysArg, vars, plc) {   // vars: the render'
 function captionNode(text, sys, c, vars) {
     var line = el('div', 'sheet-caption');
     captionParts(sys, c, F(), text, vars, typeof unitsMetric === 'function' ? unitsMetric() : undefined).forEach(function(p) {
-        if (p.error) { var s = el('span', 'sheet-caption-val sheet-err', '\u2014'); s.title = p.error; line.appendChild(s); }
+        if (p.error) { var s = el('span', 'sheet-caption-val sheet-err', '\u2013'); s.title = p.error; line.appendChild(s); }
         else if (p.value !== undefined) line.appendChild(el('span', 'sheet-caption-val', p.text));
         else line.appendChild(document.createTextNode(p.text));
     });
@@ -5617,7 +5617,7 @@ function formulaSays(sysA, text) {
 // 1.6.2 (found building a system by hand): what a grayed button needs, said to the GM in words, never as its formula; nothing where it cannot be read
 function needsTip(text) {
     var FC = typeof window !== 'undefined' ? window.wpFormCore : null, r = FC && text ? FC.readCond(String(text)) : null; if (!r || !r.ok) return '';
-    try { var sy = systemOf(getActiveCampaign()), w = FC.saysCond(r.cond, { name: function(n) { return nameWord(sy, n); } }); return w ? ' \u2014 only while ' + w : ''; } catch (err) { return ''; }
+    try { var sy = systemOf(getActiveCampaign()), w = FC.saysCond(r.cond, { name: function(n) { return nameWord(sy, n); } }); return w ? '\nOnly while ' + w : ''; } catch (err) { return ''; }
 }
 function sheetFault(sysA, text) { try { return plainMessage(sysA || systemOf(getActiveCampaign()), text); } catch (err) { return String(text || ''); } }
 // 1.6.3 (the improvement week's review of sheets and rolls, finding 10): an amount a change moves by, in words: a plain figure or plain dice as
@@ -5812,7 +5812,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
     if (typeof closedMark === 'function') closedMark(box, f, c, e, gm, own, editable, sysArg);   // 1.6.4: a closed field takes the focus and says why under it when pressed (closedWhy)
     var k = f.kind;
     if (f.track && typeof trackNode === 'function' && !(e && e.error) && !(k === 'number' && e && e.over === true)) { var trN = trackNode(f, c, e, k === 'formula' ? false : use, raw); if (trN) { box.classList.add('sheet-has-track'); box.appendChild(trN); return box; } }   // 1.6.2: a track in place of its box
-    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : ''; if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\n' + roundSays(f, e.unrounded); if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
+    if (k === 'formula') { var v = el('div', 'sheet-value' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '\u2013' : e ? (f.unit && e.text !== '' && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text) : ''); v.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : typeof formulaSays === 'function' ? formulaSays(sysArg, f.formula) : ''; if (e && !e.error && e.unrounded !== undefined && typeof roundSays === 'function') v.title += '\n' + roundSays(f, e.unrounded); if (f.badge && e && !e.error) { var tnB = valueTone(f, e), bd = el('span', 'sheet-badge' + (Object.prototype.hasOwnProperty.call(TONE_CLASS, tnB) ? TONE_CLASS[tnB] : ''), v.textContent); v.textContent = ''; v.appendChild(bd); } var fmF = fxMark(e); if (fmF) { v.appendChild(fmF); v.title += '\n' + fmF.title; } box.appendChild(v); return box; }
     if (k === 'number' && e && e.over === true) {   // 205 (6): taken from a formula while its when holds: its figure, closed to editing
         var ovV = el('div', 'sheet-value sheet-over' + signTone(f, e), f.unit && !e.label ? (typeof figWords === 'function' ? figWords(f, e.value, e.text) : e.text + ' ' + f.unit) : e.text);
         ovV.title = typeof overWords === 'function' ? overWords(f, sysArg) : 'It cannot be changed for now.';   // 1.6.3 (finding 10): in words, never the formula; 1.6.4: the system's own words first (override.says)
@@ -5854,7 +5854,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var uAt = [Number(inp.value), inp.value];   // 1.5.4: the figure the unit follows: the box's, the effective value beside it, or a skill's total
         if (k === 'number' && e && e.mods && e.mods.length) { var fb = fxMark(e); if (fb) { fb.textContent = '\u2192 ' + fmtNum(e.value); row.appendChild(fb); uAt = [e.value, fmtNum(e.value)]; } }   // 5h: the box edits the base; the effective value beside it
         var skW = k === 'skill' && !!e && !e.error && !!f.unit && (f.unitShow === 'swap' || f.unitShow === 'bare') && typeof figWords === 'function';   // 1.5.4: a skill's total is read, so a Metric list other than beside writes it in its own form, its unit with it
-        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '—' : '= ' + (e ? (skW ? figWords(f, e.value, e.text) : e.text) : '')); tot.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : (f.base ? 'Its ranks plus ' + (typeof amountSays === 'function' ? amountSays(sysArg, f.base) : 'its base') : 'Its ranks');   /* 1.6.3 (finding 10): its base by its label, a fault in plain words */ row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } uAt = [e && !e.error ? e.value : NaN, e ? e.text : '']; }
+        if (k === 'skill') { var tot = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : '') + signTone(f, e), e && e.error ? '\u2013' : '= ' + (e ? (skW ? figWords(f, e.value, e.text) : e.text) : '')); tot.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : (f.base ? 'Its ranks plus ' + (typeof amountSays === 'function' ? amountSays(sysArg, f.base) : 'its base') : 'Its ranks');   /* 1.6.3 (finding 10): its base by its label, a fault in plain words */ row.appendChild(tot); var fmS = fxMark(e); if (fmS) { row.appendChild(fmS); tot.title += '\n' + fmS.title; } uAt = [e && !e.error ? e.value : NaN, e ? e.text : '']; }
         if (f.unit && !skW) row.appendChild(el('span', 'sheet-unit', typeof unitText === 'function' ? unitText(f, uAt[0], uAt[1]) : f.unit));   // Stage 5g; 1.5.4: a measure in metric too under Metric
         var abN = k === 'number' && typeof autoBits === 'function' ? autoBits(f, c, e, use, raw) : null; if (abN) row.appendChild(abN);   // 1.6.2 (auto apply)
         box.appendChild(row); return box;
@@ -5868,7 +5868,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         var minus = el('button', 'tool ghost sheet-pm', '−'); minus.dataset.fid = f.id; minus.dataset.part = 'minus'; minus.title = 'One less'; minus.disabled = !use;
         var ci = el('input', 'field sheet-num sheet-cur num-stepped'); ci.type = 'text'; ci.inputMode = 'text'; ci.autocomplete = 'off'; ci.spellcheck = false; ci.title = typeof POOL_TIP === 'string' ? POOL_TIP : ''; ci.ariaLabel = (f.label || 'Pool') + ': type a number, or -7 or +3 to change it'; ci.dataset.fid = f.id; ci.value = String(cur); ci.disabled = !use; if (f.minNeg === true ? max !== null : f.min !== undefined) ci.min = String(f.minNeg === true ? -max : f.min); if (max !== null) ci.max = String(max);   // 1.6.0: a pool that goes down to minus its max. 1.6.3 (finding 18): a text box, so -7 and +3 can be typed (poolTyped); its min and max are kept as words of its range, commit clamps. The review of the sheet picks: inputMode text, since a phone's or tablet's number keyboard often has no minus or plus key
         var plus = el('button', 'tool ghost sheet-pm', '+'); plus.dataset.fid = f.id; plus.dataset.part = 'plus'; plus.title = 'One more'; plus.disabled = !use;
-        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '—' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : f.maxFormula ? ((typeof formulaSays === 'function' ? formulaSays(sysArg, f.maxFormula) : '') || 'Its maximum is worked out by a rule') : 'It has no maximum';   /* 1.6.3 (finding 10): in words, never the formula */ if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
+        var mx = el('span', 'sheet-total' + (e && e.error ? ' sheet-err' : ''), '/ ' + (max === null ? '\u2013' : fmtNum(max)) + (f.unit ? ' ' + (typeof unitText === 'function' ? unitText(f, cur, String(cur), max, max === null ? '' : fmtNum(max)) : f.unit) : '')); mx.title = e && e.error ? (typeof sheetFault === 'function' ? sheetFault(sysArg, e.error) : e.error) : f.maxFormula ? ((typeof formulaSays === 'function' ? formulaSays(sysArg, f.maxFormula) : '') || 'Its maximum is worked out by a rule') : 'It has no maximum';   /* 1.6.3 (finding 10): in words, never the formula */ if (e && !e.error && e.maxUnrounded !== undefined && typeof roundSays === 'function') mx.title += '\n' + roundSays(f, e.maxUnrounded); var fmR = fxMark(e, true); if (fmR) mx.title += '\n' + fmR.title;
         minus.addEventListener('click', function() { commit(c, f, { cur: cur - 1 }); });
         plus.addEventListener('click', function() { commit(c, f, { cur: cur + 1 }); });
         ci.addEventListener('change', function() { var pt = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null; if (!pt || pt.value === cur) { ci.value = String(cur); return; } commit(c, f, { cur: pt.value }); });
@@ -5928,7 +5928,7 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
             var add = el('select', 'field sheet-item-add'), nPick = -1, vwP = _fxView; add.appendChild(opt('', '+ Add item…', true)); if (window.wpTexList) window.wpTexList.keys(add);   // a key step chooses nothing here: it opens the list, as a Texture list's does
             var cantI = !gm && typeof cantTake === 'function' ? function(it) { return cantTake(sysI, c, it); } : null;   // 126b: an item this character may not take yet is grayed out for its player and says why; the GM is never stopped
             if (specI) nPick = pickerInto(add, sysI.items || [], specI, carried, cantI);   // F4b: the list's categories, grouped
-            else sysI.items.forEach(function(it) { var oI = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' — ' + it.category : '')), whyI = cantI ? cantI(it) : ''; if (whyI) { oI.disabled = true; oI.title = whyI; } add.appendChild(oI); });
+            else sysI.items.forEach(function(it) { var oI = opt(it.id, (iconText(it.icon) ? iconText(it.icon) + ' ' : '') + it.name + (it.category ? ' (' + it.category + ')' : '')), whyI = cantI ? cantI(it) : ''; if (whyI) { oI.disabled = true; oI.title = whyI; } add.appendChild(oI); });
             if (catAt && typeof catLead === 'function') { catLead(add, catAt); add.dataset.cat = catAt; }   // 1.5.5: a placement by category opens its pickers on its first category
             if (libOK) add.appendChild(opt('__lib', 'From the library…'));   // L2c: the picker (libpicker.js)
             if (custOK) add.appendChild(opt('__custom', '+ Custom…'));   // F4c3: a blank row of the character's own, its form open on its name (in the view it was chosen in)
@@ -6056,7 +6056,7 @@ var GREY_BTN = '.sheet-roll, .sheet-roll-mod, .sheet-item-roll, .sheet-field-rol
 function greyWords(b) {
     var t = b ? String(b.title || (b.dataset && b.dataset.tip) || '').trim() : ''; if (!t) return '';
     if (/\(dice are off here, or this is not your character\)$/.test(t)) return 'Dice are off here, or this is not your character.';
-    return t.split(' \u2014 ')[0].trim();
+    return t.split('\n')[0].split(/ \u2014 /)[0].trim();   // 1.6.4 (no em dash in words people read): a grayed tooltip puts the player's words first, then a line break; the old spaced dash is still cut for a tooltip an older version wrote
 }
 function greyPress(e) {
     var t = e && e.target, b = t && typeof t.closest === 'function' ? t.closest(GREY_BTN) : null; if (!b || !b.disabled || (e.button !== undefined && e.button !== 0)) return;
@@ -6387,7 +6387,7 @@ var ROLL_TONE_CLS = { primary: ' sheet-roll-primary', danger: ' sheet-roll-dange
 var LABEL_CTRL_G = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + ']', 'g'), LONE_SURR = new RegExp('^[' + String.fromCharCode(55296) + '-' + String.fromCharCode(57343) + ']$');
 function rollLabel(r, sys, c, vars) {
     if (!r.label || r.label.indexOf('{') < 0 || !sys || typeof vars !== 'function' || !F()) return r.label;
-    var s = captionParts(sys, c, F(), r.label, vars).map(function(p) { return p.error ? '\u2014' : p.text; }).join('').replace(LABEL_CTRL_G, ' ').trim();   // the engine yields numbers and booleans only (a text value prints the dash); the dice path's no-control rule, kept cheaply
+    var s = captionParts(sys, c, F(), r.label, vars).map(function(p) { return p.error ? '\u2013' : p.text; }).join('').replace(LABEL_CTRL_G, ' ').trim();   // the engine yields numbers and booleans only (a text value prints the dash); the dice path's no-control rule, kept cheaply
     var out = ''; Array.from(s).some(function(ch) { if (LONE_SURR.test(ch)) return false; if (out.length + ch.length > 60) return true; out += ch; return false; });
     return out.trim() || 'Roll';
 }
@@ -6461,7 +6461,7 @@ function rollNode(r, c, sys, vars) {   // sys, vars: the system drawn and the re
     b.title = can ? 'Roll ' + label + ' · shift-click to add a modifier' : (typeof rollWhyNot === 'function' ? rollWhyNot(c) : 'Dice are off here, or this is not your character'); b.disabled = !can;   // 1.6.3 (finding 22): why not, in its own words
     var cbR = can && typeof costBlock === 'function' ? costBlock(c, r.cost, r.costN) : ''; if (cbR) { b.disabled = true; b.title = cbR; }
     if (typeof r.withRow === 'string' && r.withRow) { var wfR = (sys && Array.isArray(sys.fields) ? sys.fields : []).filter(function(x) { return x && x.id === r.withRow; })[0]; b.disabled = true; b.title = typeof withRowTip === 'function' ? withRowTip(wfR) : 'Rolled from a defense card'; }   // 1.6.3 (defense fold 2; the review of that fold, finding 4): a press here names no row, and the host refuses a press of it that names none, so it is always off here, said why   // turn-based combat T4
-    var ndF = can && (r.needs || r.needsWhy) && !(r.needsGm === true && !isClient()) && typeof rollNeedsOk === 'function' && typeof rollNeedsFails === 'function' && typeof vars === 'function' ? rollNeedsFails(r, (r.to === 'near' || r.to === 'target') && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F(), undefined, true) : null; if (ndF) { b.disabled = true; b.title = ndF.at >= 0 ? ndF.says : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }   // 1.6.2: the one judge, the first that fails; a reason says its own words   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
+    var ndF = can && (r.needs || r.needsWhy) && !(r.needsGm === true && !isClient()) && typeof rollNeedsOk === 'function' && typeof rollNeedsFails === 'function' && typeof vars === 'function' ? rollNeedsFails(r, (r.to === 'near' || r.to === 'target') && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F(), undefined, true) : null; if (ndF) { b.disabled = true; b.title = ndF.at >= 0 ? ndF.says : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : '\nIt needs ' + r.needs); }   // 1.6.2: the one judge, the first that fails; a reason says its own words   // 1.5.4: what it needs, as a list roll's button (the host judges a player's roll); 1.5.9: read as on its user, OnSelf 1
     var goN = function(e) {   // 1.5.9: named, so its ± runs the very same click
         if ((r.to === 'near' || r.to === 'target') && typeof allyPick === 'function' && !(e && e.wpAlly !== undefined)) { var evN = typeof pressOf === 'function' ? pressOf(e, b) : e; allyPick(evN.currentTarget || b, c, r.to === 'target', function(on) { evN.wpAlly = on || ''; goN(evN); }); return; }   // 1.5.9 (book es/et plan, section 3): whom it is for first, where someone stands next to it
         var lb = label, vv = vars;
@@ -6540,8 +6540,8 @@ function applyNode(r, c, sys, vars) {
     var label = rollLabel(r, sys, c, vars), can = (_fxLive || window.wpPrintCopy === true) && canApply(c), b = el('button', 'tool sheet-roll sheet-apply' + (Object.prototype.hasOwnProperty.call(ROLL_TONE_CLS, r.tone) ? ROLL_TONE_CLS[r.tone] : ''));
     b.appendChild(el('span', 'sheet-roll-text', label));   // 1.6.3: the name in a box of its own, as rollNode's
     b.insertBefore(iconNode(r.icon || 'icon:bolt', 'sheet-roll-icon'), b.firstChild);   // 1.6.0 (the owner: "lets add icons before other buttons too"): the bolt where it names none
-    b.title = applyTitle(r, sys) + (r.each ? ' \u2014 also ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : r.each === 'turnEnd' ? ' at the end of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
-    var ndF = can && (r.needs || r.needsWhy) && !(r.needsGm === true && !isClient()) && typeof rollNeedsOk === 'function' && typeof rollNeedsFails === 'function' && typeof vars === 'function' ? rollNeedsFails(r, (r.to === 'near' || r.to === 'target') && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F(), undefined, true) : null; if (ndF) { b.disabled = true; b.title = ndF.at >= 0 ? ndF.says : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \u2014 it needs ' + r.needs); }   // 1.6.2: the one judge, the first that fails; a reason says its own words   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
+    b.title = applyTitle(r, sys) + (r.each ? '\nAlso ' + (r.by ? 'due' : 'by itself') + (r.each === 'turn' ? ' at the start of its character\u2019s turn' : r.each === 'turnEnd' ? ' at the end of its character\u2019s turn' : ' on every new round of a combat') + (r.by ? ' (a reminder for ' + (r.by === 'gm' ? 'the GM' : 'its player') + ' to press)' : '') : '') + (can ? '' : ' (not here: this is a preview or a pop-out, or not your character)'); b.disabled = !can;
+    var ndF = can && (r.needs || r.needsWhy) && !(r.needsGm === true && !isClient()) && typeof rollNeedsOk === 'function' && typeof rollNeedsFails === 'function' && typeof vars === 'function' ? rollNeedsFails(r, (r.to === 'near' || r.to === 'target') && typeof withOnSelf === 'function' ? withOnSelf(vars, true) : vars, F(), undefined, true) : null; if (ndF) { b.disabled = true; b.title = ndF.at >= 0 ? ndF.says : (r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : '\nIt needs ' + r.needs); }   // 1.6.2: the one judge, the first that fails; a reason says its own words   // 1.5.4: what it needs (the host judges a player's press, applyAct the GM's); 1.5.9: read as on its user, OnSelf 1
     b.addEventListener('click', function() {
         var campN = getActiveCampaign(), cN = charById(c.id, campN); if (!cN) return;
         var lb = label; if (sys && r.label && r.label.indexOf('{') >= 0) { try { lb = rollLabel(r, sys, cN, resolveAll(sys, cN, F(), tokenCtxFor(cN.id, campN)).vars); } catch (err) { lb = label; } }   // the label as it reads at the press
@@ -6646,7 +6646,7 @@ function withRowSel(cls, cur, sys) {
 // The review of that fold (finding 4): the words on the sheet's own button of such a roll, which is always off, since it is made only from a defense card with
 // a row (net.js refuses a press of it that names none, WITH_ONLY). wf: the list it is answered with, or none where it is gone. Its first part is what
 // greyPress says on a press
-function withRowTip(wf) { return 'Rolled from a defense card, with a row of ' + ((wf && (wf.label || wf.key)) || 'a list') + ' \u2014 it reads that row, so it has no roll of its own here'; }
+function withRowTip(wf) { return 'Rolled from a defense card, with a row of ' + ((wf && (wf.label || wf.key)) || 'a list') + '\nIt reads that row, so it has no roll of its own here'; }
 // whether a roll of the draft is answered with a row, by its id: such a roll is made only from a defense card, so the places that would make it by itself
 // (Calls for, a blast's Defense roll, Who holds whom) offer it no more, and say so where one is picked already
 function withRowRoll(id) { var d = typeof draft !== 'undefined' && draft ? draft : null; return !!(d && Array.isArray(d.rolls) && d.rolls.some(function(x) { return x && x.id === id && typeof x.withRow === 'string' && !!x.withRow; })); }
@@ -8091,7 +8091,7 @@ function budgetBar(box, sys, c) {
     list.forEach(function(b) {
         var chip = el('span', 'sheet-budget' + (b.over ? ' over' : ''));
         chip.appendChild(el('b', '', b.name));
-        if (b.left === null) { chip.appendChild(el('span', 'sheet-budget-fig', '—')); chip.title = 'This budget could not be worked out for this character'; }
+        if (b.left === null) { chip.appendChild(el('span', 'sheet-budget-fig', '\u2013')); chip.title = 'This budget could not be worked out for this character'; }
         else { chip.appendChild(el('span', 'sheet-budget-fig', fmtNum(b.spent) + ' of ' + fmtNum(b.has))); chip.appendChild(el('span', 'sheet-budget-left', b.over ? fmtNum(b.spent - b.has) + ' over' : fmtNum(b.left) + ' left')); }
         box.appendChild(chip);
     });
@@ -8420,7 +8420,7 @@ function openDownloadMenu(anchor) {
     var gm = !isClient(), cid = c.id, pop = el('div', 'sheet-dl-pop'); pop.setAttribute('role', 'menu'); pop._anchor = anchor;
     var item = function(label, sub, kind) { var b = el('button', 'sheet-dl-item'); b.type = 'button'; b.setAttribute('role', 'menuitem'); b.appendChild(el('span', 'sheet-dl-t', label)); b.appendChild(el('span', 'sheet-dl-s', sub)); b.addEventListener('click', function(e) { e.preventDefault(); closeDownloadMenu(); if (kind === 'print') printSheet(cid, gm && _dlGm); else if (typeof kind === 'function') kind(); else downloadChar(cid, kind, gm && _dlGm); }); pop.appendChild(b); n++; }, n = 0;
     item('Character file (.wpchar.json)', 'Every value on the sheet, to keep', 'json');
-    item('Readable page (.md)', 'The sheet as text \u2014 it imports as a handbook page', 'md');
+    item('Readable page (.md)', 'The sheet as text. It imports as a handbook page', 'md');
     item('Print or save as PDF\u2026', 'Exactly as it shows, every tab in turn', 'print');
     sheetReaders().forEach(function(rd) { var rows = []; try { rows = rd.ui && typeof rd.ui.downloadRows === 'function' ? rd.ui.downloadRows(cid) : []; } catch (e) { rows = []; } (Array.isArray(rows) ? rows : []).forEach(function(rw) { if (rw && typeof rw.label === 'string' && typeof rw.run === 'function') item(rw.label, typeof rw.sub === 'string' ? rw.sub : '', rw.run); }); });   // an outside reader's own rows (its way back to where the file came from)
     if (!gm && c.ownerId === myId()) { var nO = net(); if (nO && typeof nO.sheetOuts === 'function') nO.sheetOuts().forEach(function(rw) { item(rw.label, rw.sub, function() { outFile(rw.id, cid); }); }); }   // 1.6.0: what the host's reader writes for this player, its words as text
@@ -8602,7 +8602,7 @@ function openReview(charId, mine, pick) {   // mine: the GM's own file, read on 
     var joinedU = Array.isArray(up.joined) ? up.joined : [], allC = up.changes.concat.apply(up.changes, joinedU.map(function(j) { return j.changes; }));   // 1.6.2: the sheets its rows own, under the same ticks
     var realC = allC.filter(function(ch) { return ch.kind !== 'note'; }), noteC = allC.length - realC.length;   // 1.6.0: a note is read: it has no tick and is no change in any count
     realC.forEach(function(ch) { ticks[ch.id] = ch.accept === true; });
-    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.ask === true ? up.name + ' asks to change ' : up.name + '\u2019s sheet update for ') + c.name + ' \u2014 ' + (realC.length ? realC.length + (realC.length === 1 ? ' change' : ' changes') : noteC ? '' : 'nothing to apply') + (noteC ? (realC.length ? ', ' : '') + noteC + (noteC === 1 ? ' note' : ' notes') : '');
+    var head = ui('uploadHead'), list = ui('uploadList'); head.textContent = (up.own === true ? 'Your file for ' : up.ask === true ? up.name + ' asks to change ' : up.name + '\u2019s sheet update for ') + c.name + ': ' + (realC.length ? realC.length + (realC.length === 1 ? ' change' : ' changes') : noteC ? '' : 'nothing to apply') + (noteC ? (realC.length ? ', ' : '') + noteC + (noteC === 1 ? ' note' : ' notes') : '');
     list.textContent = '';
     var hintQ = ui('uploadHint'); if (hintQ) hintQ.style.display = realC.length ? '' : 'none';   // no tick to speak of
     if (!realC.length) list.appendChild(el('div', 'upl-none', 'Nothing in it differs from the sheet as it stands.' + (up.rev === true ? ' Mark current lets its player play again.' : '')));   // here, not in the head: the head is one line and is cut
@@ -9014,12 +9014,12 @@ function fieldRow(f) {
     if (f.kind === 'number') { var ovF = f.override && typeof f.override === 'object' ? f.override : {}; flags.appendChild(capInline(input('sys-ovr-value field', ovF.value, 'What the number reads in place of what is typed, closed to editing, while the box beside it holds', 'none'), 'Taken from: ')); if (ovF.value || ovF.when) { flags.appendChild(capInline(input('sys-ovr-when field', ovF.when, 'When the number reads that. Otherwise it is what is typed, as before', 'Not set yet'), 'only while: ')); var ovS = input('sys-ovr-says field', typeof ovF.says === 'string' ? ovF.says : '', 'What the sheet says under the number when someone presses it while it is closed. Blank: what it is taken from and while what, in the sheet’s words', 'Why it is closed'); ovS.maxLength = 200; flags.appendChild(capInline(ovS, 'Says: ')); } }   // 205 (6); 1.6.4: its own words, a plain words box beside the two (written into the draft by sysedtabs.js onInput, cleaned by systemcore cleanField)
     if ((f.kind === 'number' || f.kind === 'toggle' || (f.kind === 'text' && (f.unit === 'height' || f.unit === 'weight'))) && typeof autoBox === 'function') flags.appendChild(autoBox(f));   // 1.6.2 (auto apply): Worked out until typed, Typing it fills (a toggle too, since the session that builds a game system asked)
     if (f.kind === 'formula') { var bgl = el('label', 'sys-hover'), bgc = el('input'); bgc.type = 'checkbox'; bgc.checked = !!f.badge; bgc.className = 'sys-badge-chk'; bgl.appendChild(bgc); bgl.appendChild(document.createTextNode(' Badge')); bgl.title = 'Show the value as a small pill; with value names, each name can have its own color'; flags.appendChild(bgl); }   // Stage 6 look fold (L7)
-    flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet \u2014 {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
+    flags.appendChild(capInline(input('sys-caption field', f.caption, 'A line under the field on the sheet. {formula} shows a value, {\u00b1formula} the value with its sign (+2), e.g. Base: {ST * 2}', 'optional'), 'Caption: '));   // Fold B; Stage 6: {\u00b1\u2026}
     var caW = capInline(select('sys-capat', [['', 'Under the field'], ['info', 'In its (i)'], ['making', 'Under it while making, then in its (i)']], f.capAt === 'info' || f.capAt === 'making' ? f.capAt : '', 'Where the caption shows on the sheet. Under the field, as always. In its (i): behind the small i beside the field\u2019s name, which shows the first line when you point at it and all of it when you press it. Or under the field while the character is being made, and behind its i once it is done. A printed sheet always shows it under the field.'), 'Shows: ');
     if (!f.caption) caW.style.display = 'none';   // 1.6.3: only where the field has a caption (the caption box's input shows it as one is typed)
     flags.appendChild(caW);
     if (f.kind === 'resource') {   // Fold B: the pool's icon, a fill-to-max button, the bar
-        var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value \u2014 an emoji or a bundled icon', 'none'); rIcoIn.type = 'hidden'; flags.appendChild(capInline(rIcoIn, 'Icon: ')); flags.appendChild(glyphButton(rIcoIn, 'Pick an icon from Waypoint\u2019s own icons or the emoji'));   // 1.6.3 (finding 35): the box hidden, the picker shows the pick
+        var rIcoIn = input('sys-res-icon field', f.icon, 'An icon before the value: an emoji or a bundled icon', 'none'); rIcoIn.type = 'hidden'; flags.appendChild(capInline(rIcoIn, 'Icon: ')); flags.appendChild(glyphButton(rIcoIn, 'Pick an icon from Waypoint\u2019s own icons or the emoji'));   // 1.6.3 (finding 35): the box hidden, the picker shows the pick
         var rsl = el('label', 'sys-hover'); var rsc = el('input'); rsc.type = 'checkbox'; rsc.checked = !!f.reset; rsc.className = 'sys-reset-chk'; rsl.appendChild(rsc); rsl.appendChild(document.createTextNode(' \u21bb Reset')); rsl.title = 'A button that fills the pool back to its max'; flags.appendChild(rsl);
         var rcl = el('label', 'sys-sec-color'), rci = el('input'); rci.type = 'color'; rci.className = 'sys-res-color'; rci.value = f.color || '#4db3d3'; rci.title = 'The pool\u2019s own color: its icon, its bar and its value on the band'; rcl.appendChild(el('span', 'sys-sec-style-lbl', 'Color')); rcl.appendChild(rci); flags.appendChild(rcl);   // L7
         if (f.color) { var rcc = el('button', 'tool ghost sys-btn', 'No color'); rcc.dataset.act = 'rescolorclr'; rcc.title = 'Back to the theme\u2019s colors'; flags.appendChild(rcc); }
@@ -9089,7 +9089,7 @@ function buildDefCell(def, f) {
             ['category', 'cost', 'damage', 'area', 'notes'].forEach(function(col) {
                 var l = el('label', 'sys-itbl-col'); var cb = el('input'); cb.type = 'checkbox'; cb.className = 'sys-itbl-col-' + col; cb.checked = tcols.indexOf(col) >= 0;
                 l.appendChild(cb); l.appendChild(document.createTextNode(' ' + ITEM_COL_LABEL[col]));
-                if (col === 'notes') l.title = 'An expandable notes row per item'; else if (col === 'damage' || col === 'cost') l.title = 'GM only on the wire — blank for players';
+                if (col === 'notes') l.title = 'An expandable notes row per item'; else if (col === 'damage' || col === 'cost') l.title = 'GM only on the wire, so players see it blank';
                 box.appendChild(l);
             });
             var chL = el('label', 'sys-itbl-col'); var chC = el('input'); chC.type = 'checkbox'; chC.className = 'sys-itbl-chips'; chC.checked = !!itbl.chips; chL.appendChild(chC); chL.appendChild(document.createTextNode(' Category chips')); chL.title = 'Show the category as a chip beside the name (in place of a category column)'; box.appendChild(chL);
@@ -9315,7 +9315,7 @@ function takeDamage(charId, pre) {
     var box = el('div', 'dmg-win'); box.id = 'dmgWin'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
     var card = el('div', 'dmg-card'); box.appendChild(card);
     var whoL = Array.isArray(pre.who) ? pre.who.filter(function(x) { return dmgObj(x) && typeof x.id === 'string' && x.id; }) : [], whoOpen = pre.whoOpen === true && whoL.length > 0;   // 1.6.3 (finding 29): a card's window, with who it may land on (damageFromRoll dmgWhoList); whoOpen, nobody picked yet
-    card.appendChild(el('h3', 'dmg-title', whoOpen ? 'Take damage' : 'Take damage \u2014 ' + (typeof dmgWhoName === 'function' ? dmgWhoName(camp, charId, c) : (c.name || 'Unnamed'))));   // 1.6.3 (finding 16): as the map on screen names it
+    card.appendChild(el('h3', 'dmg-title', whoOpen ? 'Take damage' : 'Take damage: ' + (typeof dmgWhoName === 'function' ? dmgWhoName(camp, charId, c) : (c.name || 'Unnamed'))));   // 1.6.3 (finding 16): as the map on screen names it
     var row = function(label, ctl, line) { var r = el('label', 'dmg-row'), nm = el('span', 'dmg-name', label); r.appendChild(nm); r.appendChild(ctl); if (line) r.appendChild(el('small', 'dmg-line', line)); card.appendChild(r); return ctl; };
     var amt = el('input', 'dmg-amt'); amt.type = 'number'; amt.min = '0'; amt.step = '1'; amt.value = typeof pre.amt === 'number' && isFinite(pre.amt) ? String(Math.max(0, Math.floor(pre.amt))) : '';
     var who = null;

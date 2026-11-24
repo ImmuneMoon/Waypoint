@@ -126,7 +126,7 @@ const ch = n => String.fromCharCode(n);
         const cell2 = d.createElement('div'); cell2.dataset.name = 'b.png'; cell2.appendChild(d.createElement('img')); T.cellTags(d, cell2, ['Ships'], false, '');
         const box = d.createElement('div'); T.previewTags(d, box, evil, [evil]); const box2 = d.createElement('div'); T.previewTags(d, box2, '', []);
         check('a cell\'s label and title, and the preview\'s lines: the tags as one text, drawn once however often, after the picture; none in a tag\'s own view; the preview says Tag or Tags, or none',
-            lab.length === 1 && lab[0].childNodes[0].nodeValue === evil + ', Ships' && cell.childNodes[1] === lab[0] && cell.title === 'a.png ' + ch(0xb7) + ' ' + evil + ', Ships ' + ch(0x2014) + ' right-click to tag it'
+            lab.length === 1 && lab[0].childNodes[0].nodeValue === evil + ', Ships' && cell.childNodes[1] === lab[0] && cell.title === 'a.png ' + ch(0xb7) + ' ' + evil + ', Ships. right-click to tag it'
             && !cell2.querySelector('.img-lib-tag') && cell2.title === 'b.png ' + ch(0xb7) + ' Ships' && textOnly(box) && box.textContent === 'Map: ' + evil + 'Tag: ' + evil && box2.textContent === 'Tags: none', j([cell.title, box.textContent]));
     }
 

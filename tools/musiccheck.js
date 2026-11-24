@@ -368,13 +368,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const I6 = mkIdle({ map: { type: 'map', music: { track: 't_a', loop: 'one' } }, tracks: libT, lists: libP }); I6.api.set({ kind: 'track', id: 't_b' }, { entry: libT[1] }, null); I6.api.toggle(); I6.api.set({ kind: 'track', id: 't_b' }, null, null); I6.api.toggle();
         const I7 = mkIdle({ map: { type: 'map', music: { track: 't_a', loop: 'one' } }, tracks: [{ id: 't_a', name: null }], lists: [] }); const i7Now = I7.api.now();
         check('the panel\'s play button with nothing loaded (the idle slice run for real): it plays this map\'s music as the map is set (its song, or its playlist with its loop and shuffle), afresh; a map whose song the library no longer holds, or a map with none, the playlist picked in the panel when it holds a song that is there; with nothing to play it says what to press (a library with no songs: add some) and starts nothing; a song that is paused is resumed and one that plays is paused, as before; the panel\'s line says what the button will play',
-            j(I1.calls) === j([['play', 'track', 't_a', 'one', false, true]]) && i1Now === 'Stopped — ▶ plays this map’s music (Song A)'
-            && j(I2.calls) === j([['play', 'playlist', 'pl_1', 'list', true, true]]) && i2Now === 'Stopped — ▶ plays this map’s music (Night)'
-            && j(I3.calls) === j([['play', 'playlist', 'pl_1', 'list', false, true]]) && i3Now === 'Stopped — ▶ plays the playlist Night'
+            j(I1.calls) === j([['play', 'track', 't_a', 'one', false, true]]) && i1Now === 'Stopped. ▶ plays this map’s music (Song A)'
+            && j(I2.calls) === j([['play', 'playlist', 'pl_1', 'list', true, true]]) && i2Now === 'Stopped. ▶ plays this map’s music (Night)'
+            && j(I3.calls) === j([['play', 'playlist', 'pl_1', 'list', false, true]]) && i3Now === 'Stopped. ▶ plays the playlist Night'
             && i4Now === 'Stopped' && I4.calls.length === 0 && I4.toasts.length === 3 && I4.toasts.every(t => t === 'Nothing is picked to play: double-click a song, or press a playlist’s ▶.')
             && I5.calls.length === 0 && j(I5.toasts) === j(['No music yet: add songs in the library below.'])
             && j(I6.calls) === j([['pause'], ['resume']]) && I6.toasts.length === 0
-            && i7Now === 'Stopped — ▶ plays this map’s music ()',
+            && i7Now === 'Stopped. ▶ plays this map’s music ()',
             j([I1.calls, i1Now, I2.calls, i2Now, I3.calls, i3Now, i4Now, I4.calls, I4.toasts, I5.toasts, I6.calls, i7Now]));
         check('the panel says it: the transport\'s line asks the idle words in both places it is written (never while a song is loaded), this map\'s part is headed by the map\'s own title as text and says when its music starts, the solo tick draws the panel again; Help and both release notes say it',
             muSrc.includes("    var now = st.entry ? st.entry.name : (m.tracks.length ? (source ? 'Stopped' : idleNow()) : 'No tracks yet');")
@@ -421,7 +421,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         const R4 = { on: run4(true, '', true, true), mine: run4(false, 'local', true, true), gm: run4(false, 'gm', false, false), own: run4(false, 'own', false, false), none: run4(false, 'local', false, false, true) };
         check('1.5.4 Music a player switched off for themselves keeps its icon (music.js sliced by its offmine markers, run for real): the icon stays and is marked off-mine, neither playing nor muted, its title says how to bring it back; its menu is fixed words and one button that switches Music back on for them and closes; with Music on the icon is as ever; off by the GM\'s word, or by the campaign\'s own setting away from a table, it is hidden as before',
             jj(R4.on.slice(0, 6)) === jj(['', false, true, true, 'Music muted for you. Right-click to unmute · now playing: Song', false])
-            && jj(R4.mine) === jj(['', true, false, false, 'Music is off for you at this table \u2014 click to turn it back on', true, ['div:Music', 'div:Off for you at this table', 'button:Turn music back on for me'], [['music', false], 'closed']])
+            && jj(R4.mine) === jj(['', true, false, false, 'Music is off for you at this table. Click to turn it back on', true, ['div:Music', 'div:Off for you at this table', 'button:Turn music back on for me'], [['music', false], 'closed']])
             && R4.gm[0] === 'none' && R4.gm[1] === false && R4.own[0] === 'none' && R4.own[1] === false && R4.none[0] === 'none' && R4.none[5] === false, jj(R4));
         check('1.5.4 the icon\'s click opens that menu while Music is off for them, Sound marks its own icon the same way and offers Turn sound back on for me, both icons are struck through by the stylesheet, the music module is told of every feature change as the sound module is (its icon was left as it was until a song started or stopped), and Help says so',
             mu4.includes("    if (offMine()) { var popO = el('div', 'music-pillpop'); pillPop = popO; offPill(popO); showPill(popO); return; }")

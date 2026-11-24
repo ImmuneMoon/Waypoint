@@ -468,6 +468,7 @@ var NAMED_RUNS = '\\p{scx=Han}\\p{scx=Hiragana}\\p{scx=Katakana}\\p{scx=Hangul}\
 var NAMED_BRK = '\u0001';
 // A tag that ends a line of words is a break; any other tag (bold, a color, a link) reads as nothing, so a word styled in part stays one word
 var NAMED_BLOCKTAG = /^(?:p|div|br|li|ul|ol|h[1-6]|tr|td|th|table|thead|tbody|blockquote|pre|hr|section|article|dd|dt|dl)$/;
+// dash-ok: reads the &mdash; entity a page may hold as its own character
 var NAMED_ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', shy: '', rsquo: "'", lsquo: "'", rdquo: '"', ldquo: '"', ndash: '\u2013', mdash: '\u2014', hellip: '\u2026', oslash: '\u00f8', aelig: '\u00e6', oelig: '\u0153', szlig: '\u00df', middot: '\u00b7' };
 function namedEnt(all, k) {
     if (k.charAt(0) === '#') { var hex = /^#x/i.test(k), c = parseInt(k.slice(hex ? 2 : 1), hex ? 16 : 10); try { return c > 0 && c <= 0x10ffff ? String.fromCodePoint(c) : ' '; } catch (e) { return ' '; } }

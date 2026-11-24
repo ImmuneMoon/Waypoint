@@ -117,7 +117,7 @@ function refresh() { if (!st.open) return; renderPacks(); renderPackBar(); rende
 /* ---- packs ---- */
 function renderPacks() {
     var box = ui('libPacks'); if (!box) return; box.textContent = '';
-    if (!packs().length) box.appendChild(el('div', 'lib-empty', 'No packs yet. A pack holds entries — weapons, gear, spells, skills — by the thousand if you like.'));
+    if (!packs().length) box.appendChild(el('div', 'lib-empty', 'No packs yet. A pack holds entries such as weapons, gear, spells and skills, by the thousand if you like.'));
     packs().forEach(function(p) {
         var b = el('button', 'lib-pack' + (p.id === st.packId ? ' on' : '')); b.type = 'button';
         b.appendChild(el('span', 'lib-pack-ico', p.icon && !/^icon:/.test(p.icon) ? p.icon : ''));
@@ -200,7 +200,7 @@ function renderImport(form) {
     if (!im.csv) form.appendChild(el('div', 'lib-note', im.file + ' · ' + plural(d.entries.length) + (d.dropped ? ' (and ' + d.dropped + ' not valid)' : '') + '. Nothing changes until you press Import.'));
     if (!im.csv && d.newIds) form.appendChild(el('div', 'lib-note', plural(d.newIds) + ' had no id Waypoint could use, so each was given one of its own.'));   // 1.6.3 (finding 39)
     if (!im.csv) { var csP = csvCats(camp() && camp().system, '', d.entries); if (csP.off.length) form.appendChild(el('div', 'lib-warn', catOffWords('', csP.off))); if (csP.none) form.appendChild(el('div', 'lib-warn', plural(csP.none) + (csP.none === 1 ? ' has' : ' have') + ' no category, so a list that names categories will not offer ' + (csP.none === 1 ? 'it.' : 'them.'))); }   // 1.6.3 (finding 39): a pack file is checked as a spreadsheet is
-    if (d.lostStats && d.lostStats.length) form.appendChild(el('div', 'lib-warn', 'Left out: stats no list of this system has \u2014 ' + d.lostStats.map(function(x) { return x.key + ' (' + x.n + ')'; }).join(', ') + '. Set up the lists first (or import the system) to keep them.'));   // Stage 6 F3
+    if (d.lostStats && d.lostStats.length) form.appendChild(el('div', 'lib-warn', 'Left out: stats no list of this system has: ' + d.lostStats.map(function(x) { return x.key + ' (' + x.n + ')'; }).join(', ') + '. Set up the lists first (or import the system) to keep them.'));   // Stage 6 F3
     var md = field(form, 'imMode', 'Import as', im.mode, { pairs: [['new', 'A new pack'], ['id', 'Merged into a pack, by id'], ['key', 'Merged into a pack, by key'], ['replace', 'Replacing a pack, by id']], title: 'By id: an entry of the same id is replaced. By key: an entry of the same key is replaced and keeps its id. Either way the rest are added. Replacing: the pack becomes the file, and the entries the file lacks are removed' });
     md.addEventListener('change', function() { im.mode = md.value; renderForm(); });
     if (im.mode !== 'new') {
@@ -426,7 +426,7 @@ function field(form, id, label, value, opts) {
     opts = opts || {}; var row = el('label', 'lib-frow' + (opts.area ? ' lib-frow-area' : '') + (opts.rowCls ? ' ' + opts.rowCls : '')); row.appendChild(el('span', 'lib-flabel', label));
     var v = value == null ? '' : String(value), inp;
     if (opts.pairs) inp = select(opts.pairs, v);
-    else if (opts.choices) { var pairs = [['', '—']].concat(opts.choices.map(function(c) { return [c, c]; })); if (v && opts.choices.indexOf(v) < 0) pairs.push([v, v]); inp = select(pairs, v); }
+    else if (opts.choices) { var pairs = [['', '–']].concat(opts.choices.map(function(c) { return [c, c]; })); if (v && opts.choices.indexOf(v) < 0) pairs.push([v, v]); inp = select(pairs, v); }
     else { inp = el(opts.area ? 'textarea' : 'input', 'field'); if (opts.area) inp.rows = opts.rows || 3; else inp.type = opts.hidden ? 'hidden' : 'text'; inp.value = v; if (opts.max) inp.maxLength = opts.max; if (opts.ph) inp.placeholder = opts.ph; if (opts.list) inp.setAttribute('list', opts.list); }
     inp.id = 'libF_' + id; if (opts.title) row.title = opts.title;
     row.appendChild(inp); form.appendChild(row); if (typeof guideTip === 'function') guideTip(form, id); return inp;
@@ -690,7 +690,7 @@ function opensBox(form, e) {
 }
 function modTargets() {
     var c = camp(), out = [];
-    ((c && c.system && c.system.fields) || []).forEach(function(x) { var nm = x.label || x.key || '(field)'; if (x.kind === 'number' || x.kind === 'formula') out.push([x.id + '|add', nm]); else if (x.kind === 'skill') out.push([x.id + '|add', nm + ' (total)']); else if (x.kind === 'resource') out.push([x.id + '|max', nm + ' max']); else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ' — switch on']); });
+    ((c && c.system && c.system.fields) || []).forEach(function(x) { var nm = x.label || x.key || '(field)'; if (x.kind === 'number' || x.kind === 'formula') out.push([x.id + '|add', nm]); else if (x.kind === 'skill') out.push([x.id + '|add', nm + ' (total)']); else if (x.kind === 'resource') out.push([x.id + '|max', nm + ' max']); else if (x.kind === 'toggle') out.push([x.id + '|on', nm + ': switch on']); });
     // 1.5.8 (the owner, by prompt: "A change on one skill"): one entry of a list that has columns, by the entry's key, as -2 to Disguise
     itemLists().forEach(function(x) { if (Array.isArray(x.list.cols) && x.list.cols.length) out.push([x.id + '|row', (x.label || x.key || '(list)') + ': one entry']); });
     return out;

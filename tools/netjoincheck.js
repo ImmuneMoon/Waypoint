@@ -397,7 +397,7 @@ pendingChecks.push((async () => {
     const buildPNA = new Function('env', pre(['processNextApproval']) + 'var approvalOpen = false;\n' + pnaSrc + '\nreturn { run: processNextApproval, isOpen: function() { return approvalOpen; } };');
     const withQ = h => { h.env.net.active = true; h.asks = []; h.env.showConfirm = (m, cb, o) => h.asks.push({ m, cb, o }); h.P = buildPNA(h.env); h.env.processNextApproval = h.P.run;
         h.answer = yes => h.asks[h.asks.length - 1].cb(yes); h.says = () => h.asks.map(a => a.m); h.types = peer => h.sent.filter(s => s.peer === peer).map(s => s.m.type + (s.m.reason ? '(' + s.m.reason + ')' : '')); return h; };
-    const RM = 'You were removed from this session.', BN = 'You are banned from this campaign.', askOf = (n, hint) => '"' + n + '" wants to join your table' + (hint ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '') + '. Let them in?';
+    const RM = 'You were removed from this session.', BN = 'You are banned from this campaign.', askOf = (n, hint) => '"' + n + '" wants to join your table' + (hint ? '. It is a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '') + '. Let them in?';
     const calBan = () => ({ u_cal: { name: 'Cal', bannedAt: 1 } });
     // Ann on screen; Sam (banned for the session), Cal (banned from the campaign) and Bo wait behind her
     const Q1 = withQ(harness({ bannedPlayers: calBan() })); Q1.env.bannedIds.u_sam = true;
@@ -1114,7 +1114,7 @@ pendingChecks.push((async () => {
         const idOfB = (code, g) => 'waypoint-' + code + (g ? '-r' + g : ''), gnr = pat.S.genNotRefused || (() => -1), badB = Object.keys(pat.S.trust().bad || {});
         const skipB = [gnr('c1c1', 0, 4, idOfB), gnr('c1c1', 1, 4, idOfB), gnr('c1c1', 2, 4, idOfB), gnr('c1c1', 3, 4, idOfB), gnr('zzzz', 1, 4, idOfB), gnr('c1c1', 1, 2, (c, g) => idOfB(c, g + 1))];   // (the last: every generation refused — the one asked for stands)
         chk('b', sqSigned && J(badB) === J(['waypoint-c1c1-r1', 'waypoint-c1c1-r2']) && J(skipB) === J([0, 3, 3, 3, 1, 1]) && J(r2) === J(['judging', 'held']) && r2b === 'held' && pat.c.log.length === n2 && pat.net.syncedPeer === null && pat.store.m.wp_tableKeys === keys0 && pat.store.m.wp_gmPins === pins0 && c2.open === false && c2.closedN === 1 && c2.wpSnapDead === true && c2b.open === false
-            && J(rc1) === J([2, 0]) && J([pat.reconn.tries, pat.reconn.gen]) === J([3, 0]) && J(pat.c.toasts) === J([pat.S.words.refused + ' Still looking for your GM\u2026']) && pat.S.words.refused === 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code.'
+            && J(rc1) === J([2, 0]) && J([pat.reconn.tries, pat.reconn.gen]) === J([3, 0]) && J(pat.c.toasts) === J([pat.S.words.refused + ' Still looking for your GM\u2026']) && pat.S.words.refused === 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled, or someone else is at that code.'
             && pat.c.confirms.length === 0 && pat.c.next === 0 && pat.c.status.length === 0 && pat.net.active === true && !/Trust me/.test(J(pat.c.toasts)),
             J([sqSigned, badB, skipB, r2, r2b, pat.c.log.length - n2, pat.net.syncedPeer, pat.store.m.wp_tableKeys === keys0, pat.store.m.wp_gmPins === pins0, c2.open, c2.closedN, c2b.open, pat.reconn, pat.c.toasts, pat.c.confirms.length, pat.c.next]));
 
@@ -1205,7 +1205,7 @@ pendingChecks.push((async () => {
         const yb = [ryb, hYes.P.c.log.indexOf('snapshot') >= 0, cyb.wpSnapDead === true, hYes.P.HC.gmPinFor('u_mallory'), hYes.P.HC.tableKeyFor('u_mallory')];
         const cy1 = hYes.P.connect({ peer: 'waypoint-c1c1-r1' }), ry1 = hYes.P.deliver(malSnap(cy1), cy1); await hYes.P.settle(cy1);
         const y1 = [ry1, hYes.P.c.log.indexOf('snapshot') >= 0, J(hYes.P.HC.gmPinFor('u_mallory')) === J(mal.pub), hYes.P.HC.gmRoomFor('c1c1'), hYes.P.HC.tableKeyFor('u_mallory'), hYes.P.S.trust().accept, hYes.P.c.confirms.length, J(hYes.P.HC.gmPinFor('u_gm')) === J(s1.gmPub)];
-        chk('h', J(noSaid) === J([false, 1, 1, true, true, true, 0, true, 'u_gm']) && hNo.P.S.words.ask === 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer \u2014 or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?'
+        chk('h', J(noSaid) === J([false, 1, 1, true, true, true, 0, true, 'u_gm']) && hNo.P.S.words.ask === 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer, or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?'
             && joined === J([['C1C1', 'Pat']]) && J(y0) === J(['judging', false, true, null]) && J(yb) === J(['judging', false, true, null, '']) && J(y1) === J(['judging', true, true, 'u_mallory', 'm'.repeat(32), null, 1, true]), J([noSaid, joined, y0, yb, y1]));
 
         /* ---- (i) ---- */
@@ -1374,7 +1374,7 @@ pendingChecks.push((async () => {
         ];
         const pSnap = await first({}, async c => { const g = await hailOf(c); return Object.assign({}, g.snap, { sig: g.hail.sig }); });   // and the other way about: a snapshot carrying the early proof's signature
         const crt = wait(rt, rt.connect({ peer: 'waypoint-rt01', retry: true, before: { tries: 1, gen: 0 } })), rtFree = [armed(rt).length, rt.S.hostHeld ? rt.S.hostHeld(crt) : 'none', rt.S.hostDoubted ? rt.S.hostDoubted(crt) : 'none', crt.open];
-        const SAID_P = 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code. Still looking for your GM\u2026';
+        const SAID_P = 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled, or someone else is at that code. Still looking for your GM\u2026';
         const LATE_P = 'A table answered at this room code but did not show in time that it is your GM\u2019s. Still looking for your GM\u2026';
         const cBack = wait(rp, rp.connect({ peer: ROOM, retry: true, before: { tries: 5, gen: 0 } })), badWas = badOf(rp).length; rp.deliver((await hailOf(cBack)).snap, cBack); await rp.settle(cBack);   // the GM is found: that reconnect is over
         const backR = [badWas, rp.c.log[rp.c.log.length - 1], badOf(rp).length, gnrOf(rp, 3)];
@@ -1402,7 +1402,7 @@ pendingChecks.push((async () => {
             J([rp.S.proofMs, paArmed, paR, pbR, pdR, pGood.v, pGoodLate, pBad.map(x => x.v), [pSnap.r, pSnap.taken, pSnap.next, pSnap.asks, pSnap.offer], rtFree, backR, slLate, slR, sent0, sent1, sent2, sent3, sent4, sentCap, sentOdd]));
 
         /* ---- (q) a join the player began ---- */
-        const LATE_Q = 'The table at this room code did not show in time that it is your GM\u2019s. It may only be slow \u2014 or someone else is at that code. Join again and wait for it as long as it takes? Your app still checks that it is your GM before you are joined.';
+        const LATE_Q = 'The table at this room code did not show in time that it is your GM\u2019s. It may only be slow, or someone else is at that code. Join again and wait for it as long as it takes? Your app still checks that it is your GM before you are joined.';
         const q1 = fresh(), cq1 = wait(q1, q1.connect({ peer: ROOM })); q1.deliver({ type: 'wait' }, cq1); q1.fire(15000);
         const q1r = [cq1.wpSnapDead === true, q1.c.next, q1.c.hb, q1.net.active, q1.c.status.slice(), q1.S.trust().refused, q1.c.confirms.length, q1.c.toasts.length, J(q1.store.m) === J(pat.store.m), badOf(q1).length];
         q1.S.snapAsk('C1C1', 'Pat'); q1.S.snapAsk('C1C1', 'Pat'); const askQ = q1.c.confirms.map(d => [d.t, !!d.opts && d.opts.noEnter === true && d.opts.noEscape === true]);
@@ -1504,7 +1504,7 @@ pendingChecks.push((async () => {
         const wiredU = [
             /\} else if \(net\.active && net\.code\) \{\n(?:\s*\/\/[^\n]*\n)*\s*if \(conn\.wpHostOk !== true && cur\) \{\n\s*if \(conn\.wpBefore\) \{ reconn\.tries = conn\.wpBefore\.tries; reconn\.gen = conn\.wpBefore\.gen; \}\n\s*else if \(hostGone\(conn\)\) return;\n\s*\}\n(?:\s*\/\/[^\n]*\n)*\s*reconn\.code = net\.code;/.test(clS) && /\/\/ \[netcheck:connclose-start\]\n\s*var cur = net\.conns\[0\] === conn;[^\n]*\n\s*net\.conns = net\.conns\.filter\(/.test(src),
             /var h = hostHeld\(conn\); if \(!h\) return;\n\s*hostSlow\(conn, h\.gmId\);/.test(stSrc) && nCalls(stSrc, /snapRefuse\(/g) === 3 && nCalls(stSrc, /hostSlow\(/g) === 3,
-            nCalls(src, /Reconnected/g) === 1 && /var backS = conn\.wpRetry === true && !conn\.wpBackSaid; conn\.wpBackSaid = true;\n\s*toast\(backS \? 'Reconnected [^']*' : webJ \? 'Campaign synced from host\.' : 'Campaign synced from host\. Your own campaigns come back when you leave\.'\);/.test(snapBr) && /setStatus\(webJ \? 'Connected\. You are at the GM[^']*s table\.' : 'Connected [^']* Your own campaigns are untouched and come back when you leave the session\.'\);/.test(snapBr) && nCalls(snapBr, /toast\(/g) === 1 && !/if \(wasRetry\) toast\(/.test(src),
+            nCalls(src, /Reconnected/g) === 1 && /var backS = conn\.wpRetry === true && !conn\.wpBackSaid; conn\.wpBackSaid = true;\n\s*toast\(backS \? 'Reconnected [^']*' : webJ \? 'Campaign synced from host\.' : 'Campaign synced from host\. Your own campaigns come back when you leave\.'\);/.test(snapBr) && /setStatus\(webJ \? 'Connected\. You are at the GM[^']*s table\.' : 'Connected\. You are at the GM[^']*s table\. Your own campaigns are untouched and come back when you leave the session\.'\);/.test(snapBr) && nCalls(snapBr, /toast\(/g) === 1 && !/if \(wasRetry\) toast\(/.test(src),
             /if \(rfJ\) setStatus\(rfJ\.late \? HOST_LATE \+ ' You have not joined\.' : SNAP_REFUSED \+ ' You have not joined\.'/.test(src),
             /if \(!conn\.open\) return;\n\s*if \(typeof net\.syncMapStubs === 'function'\) net\.syncMapStubs\(\);/.test(admU) && admU.indexOf('net.syncMapStubs()') < admU.indexOf('net.roster[conn.peer] = prof') && nCalls(admU, /syncMapStubs\(\)/g) === 1,
             /<li><b>Your GM, and no one else:<\/b>[\s\S]{0,1200}?<li>If no table there shows in time that it is your GM&rsquo;s, you are asked whether to join again and wait for it\. It may only be slow\.<\/li>\s*<li>Your app still checks that it is your GM before you are joined\.<\/li>/.test(htmlS)

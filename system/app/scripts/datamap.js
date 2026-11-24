@@ -222,7 +222,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
 
       del.style.left=((cA.x+cB.x)/2)+'px'; del.style.top=((cA.y+cB.y)/2)+'px';
 
-      del.title = LINK_TYPES[lt].label + (lmeta.notes ? ' \u2014 ' + lmeta.notes : '') + ' \u2014 click to open in Properties, right-click for the quick menu';
+      del.title = LINK_TYPES[lt].label + (lmeta.notes ? ': ' + lmeta.notes : '') + '. Click to open in Properties, right-click for the quick menu';
 
       del.addEventListener('pointerdown', function(ev){ ev.stopPropagation(); });
       del.addEventListener('click', function(ev){ ev.stopPropagation(); selectLink(i); });
@@ -329,6 +329,7 @@ import { cssColor, picRef } from './safecore.js';   // a category's color from a
      A link is [roomA, roomB] or [roomA, roomB, type]. The type picked in the Link menu applies
      to new links; the chip on each line changes or removes that one link. */
   var LINK_TYPES = {
+      // dash-ok: a picture of a solid line, beside the dashed and dotted ones
       '':     { label: 'Path',    glyph: '\u2014',  hint: 'a plain connection' },
       route:  { label: 'Route',   glyph: '- -',     hint: 'dashed: travel between places' },
       secret: { label: 'Secret',  glyph: '\u00b7\u00b7\u00b7', hint: 'dotted: a hidden way' },

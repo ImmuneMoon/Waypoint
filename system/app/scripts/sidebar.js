@@ -592,8 +592,8 @@ function treeMenu(row) {
                  ' style="position:relative; padding-left:' + (10 + depth * 14) + 'px;">' +
 
                  guides + caret + (item.type === 'planner' && /^(next|played|skipped)$/.test(item.meta.status) ? '<span class="si-status si-' + item.meta.status + '" title="' + (item.meta.status === 'next' ? 'Next scene' : item.meta.status === 'played' ? 'Played' : 'Skipped') + '">' + (item.meta.status === 'next' ? '▶' : item.meta.status === 'played' ? '<i class="wib wi-check"></i>' : '<i class="wib wi-next"></i>') + '</span>' : '') +
-                 (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players — closed both ways until you unlock it: no player travels here, and no player who is here leaves through a portal (your summon and Bring still move them). A player who is not here holds only its name, nothing of what is on it"><i class="wib wi-lock"></i></span>' : '') +
-                 (item.type === 'doc' && item.meta.players === false ? '<span class="si-status si-lock" title="GM only — players cannot read this page"><i class="wib wi-unseen"></i></span>' : (item.type === 'doc' && window.wpDocRender && window.wpDocRender.pageHid && window.wpDocRender.pageHid(camp.items, item.id)) ? '<span class="si-status si-lock si-lock-under" title="GM only, because a page it is under is GM only — players cannot read this page"><i class="wib wi-lock"></i></span>' : '') +
+                 (item.type === 'map' && item.meta.playerLock ? '<span class="si-status si-lock" title="Locked for players. It is closed both ways until you unlock it: no player travels here, and no player who is here leaves through a portal (your summon and Bring still move them). A player who is not here holds only its name, nothing of what is on it"><i class="wib wi-lock"></i></span>' : '') +
+                 (item.type === 'doc' && item.meta.players === false ? '<span class="si-status si-lock" title="GM only. Players cannot read this page"><i class="wib wi-unseen"></i></span>' : (item.type === 'doc' && window.wpDocRender && window.wpDocRender.pageHid && window.wpDocRender.pageHid(camp.items, item.id)) ? '<span class="si-status si-lock si-lock-under" title="GM only, because a page it is under is GM only. Players cannot read this page"><i class="wib wi-lock"></i></span>' : '') +
                  '<span class="si-title">' + esc(item.meta.title || 'Unnamed') + '</span>' +
                  (item.type === 'map' ? mapPresenceHtml(item.id) : '') +
 
@@ -630,17 +630,17 @@ function treeMenu(row) {
       }
 
       var treeFoc = treeFocusOf(document);   // 1.6.3 (finding 4): the row that holds the focus, found again once the lists are drawn
-      pNav.innerHTML = treeHtml('planner') || '<div class="nav-empty">No planners yet — press + above to write your first session plan.</div>';
+      pNav.innerHTML = treeHtml('planner') || '<div class="nav-empty">No planners yet. Press + above to write your first session plan.</div>';
 
       var dNav = document.getElementById('docNavList');
-      if (dNav) dNav.innerHTML = treeHtml('doc') || '<div class="nav-empty">No pages yet — press + above to write a rules or reference page your players can read.</div>';
+      if (dNav) dNav.innerHTML = treeHtml('doc') || '<div class="nav-empty">No pages yet. Press + above to write a rules or reference page your players can read.</div>';
       // The Characters section follows every redraw of the panel (charlist.js), and its sync asks panelJudge what a joined player's panel holds
       if (window.wpCharList) window.wpCharList.sync(); else panelJudge(0);
       if (window.wpPanelOrder) window.wpPanelOrder.sync();   // 1.6.2 (backlog 56): the sections in this campaign's own order (panelorder.js)
       if (window.wpDeckWin) window.wpDeckWin.sync();   // 1.6.2 (G9)
 
       if (window.wpPageShelf && window.wpPageShelf.noteActive) window.wpPageShelf.noteActive();   // 1.5.4 (pageshelf.js): a page that is the item on screen is one of the last pages opened
-      mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet — press + above to create your first location.</div>');
+      mNav.innerHTML = mapQuickHtml(camp) + (treeHtml('map') || '<div class="nav-empty">No maps yet. Press + above to create your first location.</div>');
       TREE_LISTS.forEach(function(lid) { var nv = document.getElementById(lid); treeSync(nv, treeFoc); treeKeysWire(nv, { rename: renameTreeItem, menu: treeMenu }); });   // 1.6.3 (finding 4): each list a tree for the keyboard, with one tab stop
       if (window.wpMapTabs) window.wpMapTabs.sync();   // the top row's map tabs (maptabs.js) read the pins, the last maps opened (noted just above) and who is where
       if (window.wpPills) window.wpPills.sync();   // and its state pills (pills.js): a table opened or closed, a player come or gone

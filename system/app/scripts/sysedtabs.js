@@ -463,7 +463,9 @@ function keyWord(label) { return String(label || '').replace(/[^A-Za-z0-9 ]/g, '
 function keyBoxFollow(t) {
     var cs = t && t.classList, pair = null; if (!cs || typeof t.closest !== 'function') return; Object.keys(KEY_FOLLOW).forEach(function(k) { if (cs.contains(k)) pair = KEY_FOLLOW[k]; }); if (!pair) return;
     var row = t.closest(pair[1]), kb = row && row.querySelector ? row.querySelector('.' + pair[0]) : null; if (!kb || (kb.value && kb.dataset.follow !== '1')) return;
-    var word = keyWord(t.value), scope = row.parentNode, taken = {}; if (scope && scope.querySelectorAll) Array.prototype.forEach.call(scope.querySelectorAll('.' + pair[0]), function(o) { if (o !== kb && o.value) taken[o.value.toLowerCase()] = 1; });
+    // 1.6.4 (gap #6 of the full test): a list's stats, columns and counters share one set of short names (cleancore.js keeps the first and drops the
+    // rest), so a short name made for one of them steps past all three in the same list card, never past its own kind alone
+    var word = keyWord(t.value), card = pair[2] && t.closest ? t.closest('.sys-list-card') : null, scope = card || row.parentNode, sel = card ? '.sys-list-statkey, .sys-list-colkey, .sys-list-ctkey' : '.' + pair[0], taken = {}; if (scope && scope.querySelectorAll) Array.prototype.forEach.call(scope.querySelectorAll(sel), function(o) { if (o !== kb && o.value) taken[o.value.toLowerCase()] = 1; });
     if (word && pair[2] && !statKey(word, F())) word = (word + 'Stat').slice(0, 24); var outW = word, n = 2; while (outW && taken[outW.toLowerCase()]) outW = word + (n++);
     kb.value = outW; kb.dataset.follow = '1'; kb.dispatchEvent(new Event('input', { bubbles: true }));
 }

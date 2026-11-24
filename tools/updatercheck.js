@@ -49,12 +49,12 @@ const updater = Object.assign({}, realUpdater, {
 });
 let signkey = null; try { signkey = require('./signkey.js'); } catch (e) { signkey = null; }
 let shellrev = null; try { shellrev = require('./shellrev.js'); } catch (e) { shellrev = null; }
-const REFUSED = /^unsigned update — refused$/;
-const LIST_UNSIGNED = /^the update list is not signed by Waypoint — no update offered$/;   // a list whose signature does not check
-const LIST_BAD = /^the update list could not be read — no update offered$/;               // a signed list with a field that does not clean
-const NOT_OURS = /^that address is not Waypoint's update site — refused$/;                // an address, or a redirect, off the two hosts
-const NOT_LISTED = /^the download is not the file the update list names — refused$/;   // an installer whose length or digest is not the signed list's
-const NO_UPDATE = /^(unsigned update — refused|the update list is not signed by Waypoint — no update offered|the update list could not be read — no update offered)$/;
+const REFUSED = /^unsigned update, refused$/;
+const LIST_UNSIGNED = /^the update list is not signed by Waypoint, no update offered$/;   // a list whose signature does not check
+const LIST_BAD = /^the update list could not be read, no update offered$/;               // a signed list with a field that does not clean
+const NOT_OURS = /^that address is not Waypoint's update site, refused$/;                // an address, or a redirect, off the two hosts
+const NOT_LISTED = /^the download is not the file the update list names, refused$/;   // an installer whose length or digest is not the signed list's
+const NO_UPDATE = /^(unsigned update, refused|the update list is not signed by Waypoint, no update offered|the update list could not be read, no update offered)$/;
 
 function slice(rel, name) {
     const src = read(rel), a = '// [updatercheck:' + name + '-start]', b = '// [updatercheck:' + name + '-end]';
@@ -223,7 +223,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const noSig = await attempt({ tag: '1.5.1', noSig: true });
         check('a manifest whose zip has no signature offers no update at all ("the update list could not be read"), and the install is byte for byte as it was: nothing unpacked, no app.new, no app.prev', refused(noSig, LIST_BAD), why(noSig));
         const otherKey = await attempt({ tag: '1.5.1', key: K2.privateKey });
-        check('a zip whose own signature is made with another key (the list itself signed rightly) is refused ("unsigned update — refused"), the install untouched', refused(otherKey, REFUSED), why(otherKey));
+        check('a zip whose own signature is made with another key (the list itself signed rightly) is refused ("unsigned update, refused"), the install untouched', refused(otherKey, REFUSED), why(otherKey));
         // an old signed zip offered again as something newer: under its own name with its own signature, or renamed to the new tag
         const z151 = appZip('1.5.1'), d151 = sha256(z151), s151 = sign('waypoint-app-1.5.1.zip', d151, '1.5.1') + NL;
         const relabelA = await attempt({ tag: '1.5.2', zip: z151, zipName: 'waypoint-app-1.5.1.zip' });
@@ -237,7 +237,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const swapped = await attempt({ tag: '1.5.1', zip: zA, served: changed });
         const swapped2 = await attempt({ tag: '1.5.1', zip: zA, served: changed, shaText: sha256(changed) });
         check('a zip whose bytes changed after it was signed is refused: against the signed digest ("checksum mismatch"), and with the manifest\'s digest rewritten to match the changed zip (the file\'s own signature no longer covers it)',
-            refused(swapped, /^checksum mismatch — update aborted$/) && refused(swapped2, REFUSED), why([swapped, swapped2]));
+            refused(swapped, /^checksum mismatch, update aborted$/) && refused(swapped2, REFUSED), why([swapped, swapped2]));
         const wrongInside = await attempt({ tag: '1.5.1', zip: appZip('1.5.1', null, { says: '99.0.0' }) });
         const noInside = await attempt({ tag: '1.5.1', zip: appZip('1.5.1', null, { noVersion: true }) });
         const numInside = await attempt({ tag: '1.5.1', zip: appZip('1.5.1', null, { says: 1.5 }) });
@@ -265,7 +265,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
         const noKey = await attempt({ tag: '1.5.1', pubKey: '' }), nullKey = await attempt({ tag: '1.5.1', pubKey: null }), dflt = await attempt({ tag: '1.5.1', noKeyOpt: true });
         check('with no public key configured nothing is taken: an empty key, no key, and the shell\'s own key (never this suite\'s) each refuse a release signed here', refused(noKey, REFUSED) && refused(nullKey, REFUSED) && refused(dflt, REFUSED), why([noKey, nullKey, dflt]));
         const ckNone = await lookErr({ tag: '1.5.1', checkKey: '' }), ckNull = await lookErr({ tag: '1.5.1', checkKey: null }), ckShell = await lookErr({ tag: '1.5.1', checkKey: undefined });
-        check('with no public key configured the check offers nothing either: no list can be vouched for (an empty key, no key: "unsigned update — refused"); left to the shell\'s own key a list this suite signed is not believed ("not signed by Waypoint")',
+        check('with no public key configured the check offers nothing either: no list can be vouched for (an empty key, no key: "unsigned update, refused"); left to the shell\'s own key a list this suite signed is not believed ("not signed by Waypoint")',
             REFUSED.test(String(ckNone)) && REFUSED.test(String(ckNull)) && (LIST_UNSIGNED.test(String(ckShell)) || REFUSED.test(String(ckShell))), j([ckNone, ckNull, ckShell]));
         const rsa = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey.export({ type: 'spki', format: 'pem' });
         const badKeys = []; for (const k of [rsa, 'not a key', '-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n', 42, {}, [PUB]]) badKeys.push(await attempt({ tag: '1.5.1', pubKey: k }));
@@ -288,8 +288,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const direct = async (o) => { const inst = install('1.5.0'), before = tree(inst.root); let err = null; try { await updater.applyAppUpdate(Object.assign({ systemDir: inst.sys, appZip: FILES + '/waypoint/1.5.1/r0/waypoint-app-1.5.1.zip', appZipName: 'waypoint-app-1.5.1.zip', version: '1.5.1', pubKey: PUB, sha256: sha256(zA), sig: sign('waypoint-app-1.5.1.zip', sha256(zA), '1.5.1') }, o)); } catch (e) { err = String(e.message); } return { err, same: tree(inst.root) === before }; };
             const dNoSha = await direct({ sha256: null }), dEmpty = await direct({ sha256: '' }), dBad = []; for (const s of ['zz', sha256(zA).slice(0, 40), 64, { sha256: sha256(zA) }]) dBad.push(await direct({ sha256: s }));
             const dNoSig = await direct({ sig: null }), dJunkSig = await direct({ sig: 42 });
-            check('applyAppUpdate itself, handed values by a caller: no digest ("no checksum published"), a digest that is not 64 hex digits ("unreadable checksum"), no signature or one that is not text ("unsigned update — refused") — nothing fetched, the install untouched',
-                /^no checksum published for this update — refused$/.test(String(dNoSha.err)) && dNoSha.same && /^no checksum published for this update — refused$/.test(String(dEmpty.err)) && dEmpty.same && dBad.every(r => /^unreadable checksum — update aborted$/.test(String(r.err)) && r.same) && REFUSED.test(String(dNoSig.err)) && dNoSig.same && REFUSED.test(String(dJunkSig.err)) && dJunkSig.same, j([dNoSha, dBad, dNoSig, dJunkSig]));
+            check('applyAppUpdate itself, handed values by a caller: no digest ("no checksum published"), a digest that is not 64 hex digits ("unreadable checksum"), no signature or one that is not text ("unsigned update, refused") — nothing fetched, the install untouched',
+                /^no checksum published for this update, refused$/.test(String(dNoSha.err)) && dNoSha.same && /^no checksum published for this update, refused$/.test(String(dEmpty.err)) && dEmpty.same && dBad.every(r => /^unreadable checksum, update aborted$/.test(String(r.err)) && r.same) && REFUSED.test(String(dNoSig.err)) && dNoSig.same && REFUSED.test(String(dJunkSig.err)) && dJunkSig.same, j([dNoSha, dBad, dNoSig, dJunkSig]));
         }
         const upper = await attempt({ tag: '1.5.1', zip: zA, shaText: sha256(zA).toUpperCase() });
         check('a digest given in upper case is read as the same digest (the signed words are the lower-case hex)', !upper.err && upper.res && upper.res.ok === true && upper.info.sha256 === sha256(zA), why(upper));
@@ -625,7 +625,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
 
             const noSig = await fetchSetup({ setup: { noSig: true } });
             const otherKey = await fetchSetup({ setup: { key: K2.privateKey } });
-            check('an installer with no signature in the manifest offers no update at all ("the update list could not be read"), never asked for; one signed with another key is refused ("unsigned update — refused"); each with nothing left in the folder: no file, no .part', nothing(noSig, LIST_BAD) && noSig.asked === 0 && nothing(otherKey, REFUSED), whyD([noSig, otherKey]));
+            check('an installer with no signature in the manifest offers no update at all ("the update list could not be read"), never asked for; one signed with another key is refused ("unsigned update, refused"); each with nothing left in the folder: no file, no .part', nothing(noSig, LIST_BAD) && noSig.asked === 0 && nothing(otherKey, REFUSED), whyD([noSig, otherKey]));
             // the same digest and the same version, signed under the other asset's name
             const asZip = await fetchSetup({ setup: { sigText: sign('waypoint-app-1.5.1.zip', sha256(SETUP), '1.5.1') + NL } });
             const zB = appZip('1.5.1'), asSetup = await attempt({ tag: '1.5.1', zip: zB, sigText: sign(SETUP_NAME, sha256(zB), '1.5.1') + NL });
@@ -643,13 +643,13 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             // the listed digest and length: downloadInstaller is never handed none, and the signature must vouch for the digest before anything is fetched
             const noDig = await fetchSetup({ setup: {} }, { sha256: undefined }), badDig = await fetchSetup({ setup: {} }, { sha256: sha256(Buffer.from('another')) }), noLen = await fetchSetup({ setup: {} }, { size: undefined }), zeroLen = await fetchSetup({ setup: {} }, { size: 0 }), strLen = await fetchSetup({ setup: {} }, { size: String(SETUP.length) });
             const shortLen = await fetchSetup({ setup: {} }, { size: SETUP.length - 1 }), longLen = await fetchSetup({ setup: {} }, { size: SETUP.length + 1 });
-            check('downloadInstaller takes the listed digest and length: none, a digest the signature does not vouch for, no length, a length of 0 or in words are refused ("unsigned update — refused") before anything is fetched; a length one byte short or long of the file is refused ("not the file the update list names") from the stated length, before a byte is read; nothing is left',
+            check('downloadInstaller takes the listed digest and length: none, a digest the signature does not vouch for, no length, a length of 0 or in words are refused ("unsigned update, refused") before anything is fetched; a length one byte short or long of the file is refused ("not the file the update list names") from the stated length, before a byte is read; nothing is left',
                 [noDig, badDig, noLen, zeroLen, strLen].every(r => nothing(r, REFUSED) && r.asked === 0) && [shortLen, longLen].every(r => nothing(r, NOT_LISTED) && r.asked === 1 && r.verified === 0), whyD([noDig, badDig, noLen, zeroLen, strLen, shortLen, longLen]));
             const badSig = []; for (const s of ['', 'words', Buffer.alloc(1 << 20, 65), sha256(SETUP)]) badSig.push(await fetchSetup({ setup: { sigText: s } }));
             check('an installer signature in the manifest that could not be a signature (empty, words, a megabyte of filler, a hex digest) offers no update before the installer is asked for at all: nothing downloaded, nothing left',
                 badSig.every(r => !!r.err && !r.res && r.left.length === 0 && r.asked === 0) && nothing(badSig[0], LIST_BAD) && nothing(badSig[1], LIST_BAD) && nothing(badSig[3], LIST_BAD), whyD(badSig));
             const dlJunk = []; for (const s of [null, '', 42, 'words']) { const got0 = await fetchSetup({ setup: {} }); const dir = fs.mkdtempSync(path.join(tmp, 'dl-')); let err = null; try { await dl({ url: got0.info.installer, sig: s, version: '1.5.1', dir, pubKey: PUB }); } catch (e) { err = String(e.message); } dlJunk.push([err, fs.readdirSync(dir).length]); }
-            check('downloadInstaller itself, handed no signature or one that could not be one, refuses ("unsigned update — refused") before it fetches anything', dlJunk.every(x => REFUSED.test(String(x[0])) && x[1] === 0), j(dlJunk));
+            check('downloadInstaller itself, handed no signature or one that could not be one, refuses ("unsigned update, refused") before it fetches anything', dlJunk.every(x => REFUSED.test(String(x[0])) && x[1] === 0), j(dlJunk));
             const noKey = await fetchSetup({ setup: {} }, { pubKey: '' }), nullKey = await fetchSetup({ setup: {} }, { pubKey: null }), dflt = await fetchSetup({ setup: {} }, { noKeyOpt: true });
             const shellKeyD = (() => { try { return String(require('../system/resources/app/updatekey.js').UPDATE_PUBKEY || '').trim(); } catch (e) { return ''; } })();   // the shell's own key: empty until the owner makes one
             check('with no public key configured no installer is fetched: an empty key and no key each refuse, the installer never asked for; left to the shell\'s own key the suite\'s release is refused all the same with nothing left — unasked while that key is empty, and once the owner has made one because the release is signed with the suite\'s key, never with that one', [noKey, nullKey].every(r => nothing(r) && r.asked === 0) && nothing(dflt) && (shellKeyD ? true : dflt.asked === 0), whyD([noKey, nullKey, dflt]).concat([!!shellKeyD]));
@@ -1625,9 +1625,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     // the three controls, in each state
                     const draw = info => { const r = pageOf(info); r.api.updateUI(); r.api.showUpdateButton(info); r.api.showUpdateBanner(info); const x = r.els; return [x.setUpdateInstallerBtn.textContent, x.setUpdateInstallerBtn.style.display, x.setUpdateNowBtn.style.display, x.updateBannerGo.textContent, x.updateBannerText.textContent, x.updateBtn.textContent, x.updateBtn.title, x.setUpdateInstallerBtn.title]; };
                     const a = draw(SELF), b = draw(Object.assign({}, SELF, { canSelfInstall: false })), c = draw(Object.assign({}, SELF, { canSelfInstall: 'true' })), h = draw(HOT), u = draw(Object.assign({}, SELF, { canSelfInstall: undefined }));
-                    okA = j(a.slice(0, 6)) === j(['Update', 'block', 'none', 'Update', 'Waypoint VTT 1.5.1 is available — one click to update.', 'Update to 1.5.1']) && /updates Waypoint's core too/.test(a[6]) && !/installer/i.test(a[6]) && /one click/.test(a[7])
-                        && j(b.slice(0, 6)) === j(['Get installer', 'block', 'none', 'Get installer', 'Waypoint VTT 1.5.1 is available — this one comes as an installer; Update shows the steps first.', 'Update to 1.5.1']) && /comes as an installer/.test(b[6]) && /download the installer/.test(b[7])
-                        && j(c) === j(b) && j(u) === j(b) && j(h.slice(0, 5)) === j(['Get installer', 'none', 'block', 'Update', 'Waypoint VTT 1.5.1 is available — one click to update.']) && /update in place/.test(h[6]);
+                    okA = j(a.slice(0, 6)) === j(['Update', 'block', 'none', 'Update', 'Waypoint VTT 1.5.1 is available. One click to update.', 'Update to 1.5.1']) && /updates Waypoint's core too/.test(a[6]) && !/installer/i.test(a[6]) && /one click/.test(a[7])
+                        && j(b.slice(0, 6)) === j(['Get installer', 'block', 'none', 'Get installer', 'Waypoint VTT 1.5.1 is available. This one comes as an installer. Update shows the steps first.', 'Update to 1.5.1']) && /comes as an installer/.test(b[6]) && /download the installer/.test(b[7])
+                        && j(c) === j(b) && j(u) === j(b) && j(h.slice(0, 5)) === j(['Get installer', 'none', 'block', 'Update', 'Waypoint VTT 1.5.1 is available. One click to update.']) && /update in place/.test(h[6]);
                     e.push([a, b, h]);
                     // the question: in the app's own words, from cleaned values only; No means no; at a table not even asked
                     const q = pageOf(SELF, { routes: {} }); q.els.setUpdateInstallerBtn.click(); await flush();
@@ -1671,7 +1671,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     okD = okD && j(n1bar) === j(['flex', 'The update to 1.5.1 did not finish. Try Update again, or use Get installer.']) && n1.log.confirms[0] === ASK && n1.log.order.indexOf('POST /api/update-installer-dismiss') > 0 && n1.els.updateBanner.style.display === 'none'
                         && n2.els.installerModal.style.display === 'flex' && n2.els.installerModal.dataset.url === SELF.installer && n2.els.installerVersion.textContent === 'Waypoint VTT 1.5.1' && n2.log.confirms.length === 0 && n2.log.order.indexOf('POST /api/update-installer-dismiss') > 0
                         && n3.els.installerModal.style.display === 'flex' && n3.log.confirms.length === 0
-                        && n4.els.updateBannerText.textContent === 'Waypoint VTT 1.5.1 is available — one click to update.' && n4.els.updateBannerLater.textContent !== 'Dismiss' && n4.log.order.indexOf('POST /api/update-installer-dismiss') < 0
+                        && n4.els.updateBannerText.textContent === 'Waypoint VTT 1.5.1 is available. One click to update.' && n4.els.updateBannerLater.textContent !== 'Dismiss' && n4.log.order.indexOf('POST /api/update-installer-dismiss') < 0
                         && n5.log.order.filter(x => x === 'POST /api/update-installer-dismiss').length === 1 && n5.els.updateBanner.style.display === 'none' && n5.upd.failNote === '' && n5.log.toasts.length === 0
                         && n6.els.updateBannerLater.textContent !== 'Dismiss' && n6.upd.failNote === '';
                     e.push([bar, f.log.order.slice(-2), n1bar, n1.log.confirms, n2.els.installerModal, n4.els.updateBannerText.textContent, n5.log.order]);
@@ -1695,16 +1695,16 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
                     const refusedStart = await go({ onSave: saved, routes: R({ '/api/update-installer': { ok: false, error: 'this copy cannot install an update by itself' } }) });
                     const oldShell = await go({ onSave: saved, routes: R({ '/api/update-installer': NOJSON }) }), netStart = await go({ onSave: saved, routes: R({ '/api/update-installer': new Error('Failed to fetch') }) });
                     const failedDl = await go({ onSave: saved, routes: R({ '/api/update-installer-status': n => n < 2 ? { state: 'downloading', got: 1, total: 2 } : { state: 'failed', error: '<img src=x onerror=alert(1)>\n' + 'x'.repeat(500) } }) });
-                    const unsigned = await go({ onSave: saved, routes: R({ '/api/update-installer-status': { state: 'failed', error: 'unsigned update — refused' } }) });
+                    const unsigned = await go({ onSave: saved, routes: R({ '/api/update-installer-status': { state: 'failed', error: 'unsigned update, refused' } }) });
                     const stopped = await go({ onSave: saved, routes: R({ '/api/update-installer-status': { state: 'idle' } }) }), oddState = await go({ onSave: saved, routes: R({ '/api/update-installer-status': { state: 42 } }) });
                     const silent = await go({ onSave: saved, routes: R({ '/api/update-installer-status': NOJSON }) }), blip = await go({ onSave: saved, routes: R({ '/api/update-installer-status': n => n < 3 ? new Error('Failed to fetch') : { state: 'ready' } }) });
-                    const refusedRun = await go({ onSave: saved, routes: R({ '/api/update-installer-run': { ok: false, error: 'the installer changed after it was checked — not run' } }) }), deadRun = await go({ onSave: saved, routes: R({ '/api/update-installer-run': NOJSON }) });
+                    const refusedRun = await go({ onSave: saved, routes: R({ '/api/update-installer-run': { ok: false, error: 'the installer changed after it was checked, not run' } }) }), deadRun = await go({ onSave: saved, routes: R({ '/api/update-installer-run': NOJSON }) });
                     const statusAsks = r => r.log.order.filter(x => x === 'GET /api/update-installer-status').length;
                     const again = refusedStart; again.els.installerModal.style.display = 'none'; again.els.setUpdateInstallerBtn.click(); await flush();
                     okF = [refusedStart, oldShell, netStart, failedDl, unsigned, stopped, oddState, silent, refusedRun, deadRun].every(fell)
-                        && /: this copy cannot install an update by itself\. Get/.test(refusedStart.log.toasts[1]) && statusAsks(refusedStart) === 0 && statusAsks(oldShell) === 0 && runs(failedDl) === 0 && /: unsigned update — refused\. Get/.test(unsigned.log.toasts[1]) && /: the download stopped\. Get/.test(stopped.log.toasts[1]) && /: the download stopped\. Get/.test(oddState.log.toasts[1])
+                        && /: this copy cannot install an update by itself\. Get/.test(refusedStart.log.toasts[1]) && statusAsks(refusedStart) === 0 && statusAsks(oldShell) === 0 && runs(failedDl) === 0 && /: unsigned update, refused\. Get/.test(unsigned.log.toasts[1]) && /: the download stopped\. Get/.test(stopped.log.toasts[1]) && /: the download stopped\. Get/.test(oddState.log.toasts[1])
                         && statusAsks(silent) === 3 && /: Waypoint stopped answering\. Get/.test(silent.log.toasts[1]) && runs(silent) === 0 && statusAsks(blip) === 3 && runs(blip) === 1 && blip.upd.selfFailed === false
-                        && runs(refusedRun) === 1 && /: the installer changed after it was checked — not run\. Get/.test(refusedRun.log.toasts[refusedRun.log.toasts.length - 1]) && runs(deadRun) === 1
+                        && runs(refusedRun) === 1 && /: the installer changed after it was checked, not run\. Get/.test(refusedRun.log.toasts[refusedRun.log.toasts.length - 1]) && runs(deadRun) === 1
                         && again.els.installerModal.style.display === 'flex' && again.log.confirms.length === 1
                         && j(['plain', 'a<b>c', 'two\nlines\tand\u0000more', 'x'.repeat(300), 7, null, undefined, {}].map(v => refusedStart.api.plainLine(v))) === j(['plain', 'a b c', 'two lines and more', 'x'.repeat(200), '', '', '', ''])
                         && j([115343360, 1, 1048576, 0, -1, NaN, '5', null].map(v => refusedStart.api.mbOf(v))) === j([110, 1, 1, 0, 0, 0, 0, 0]);
@@ -1745,7 +1745,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const barOf = r => [r.els.updateBanner.style.display, r.els.updateBannerText.textContent, r.els.updateBannerGo.textContent, r.els.updateBannerNotes.textContent, r.els.updateBannerLater.textContent];
             const routesOf = (info, more) => Object.assign({ '/api/update-check': info, '/api/update-installer-dismiss': { ok: true }, '/api/update-apply': { ok: true, version: '1.5.1' } }, more || {});
             const UPTO = { current: '1.5.0', latest: '1.5.0', newer: false }, INST = Object.assign({}, SELF, { canSelfInstall: false }), FAIL = Object.assign({}, SELF, { installFailed: '1.5.1' });
-            const ONE = 'Waypoint VTT 1.5.1 is available — one click to update.', STEPS = 'Waypoint VTT 1.5.1 is available — this one comes as an installer; Update shows the steps first.', NOTE = 'The update to 1.5.1 did not finish. Try Update again, or use Get installer.';
+            const ONE = 'Waypoint VTT 1.5.1 is available. One click to update.', STEPS = 'Waypoint VTT 1.5.1 is available. This one comes as an installer. Update shows the steps first.', NOTE = 'The update to 1.5.1 did not finish. Try Update again, or use Get installer.';
             const LATER = 'The Update button stays in the top bar until you update.';
             let okS1 = false, okS2 = false, okS3 = false, okS4 = false, okS5 = false, okS6 = false, okS7 = false, okSD = false, sx = [];
             if (src) {
@@ -1920,7 +1920,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const lw = [await runLaunch(jo), await runLaunch(full), await runLaunch(undefined), await runLaunch({ ready: Promise.resolve(null), joinOnly: () => false })];
             const sw = [await runSnaps(jo), await runSnaps(full), await runSnaps(undefined)];
             check('1.5.5 plan-aware mode: on a website whose plan joins tables alone the launch\'s quiet update check is never asked (the site\'s word waited for, the deploy being the update) and the snapshots list asks for nothing, the Updates part of Settings put away by the style sheet; a desktop asks both as before, the check once 5 s after launch and then the core',
-                j(lw) === j(['5000|', '5000|check:false:true,shell', '5000|check:false:true,shell', '5000|check:false:true,shell']) && sw[0] === '|Loading' && sw[1] === '/api/backups|No snapshots yet — one is taken at every launch.' && sw[2] === sw[1]
+                j(lw) === j(['5000|', '5000|check:false:true,shell', '5000|check:false:true,shell', '5000|check:false:true,shell']) && sw[0] === '|Loading' && sw[1] === '/api/backups|No snapshots yet. One is taken at every launch.' && sw[2] === sw[1]
                 && /body\.web-join #settingsModal \.set-group\[data-group="updates"\]/.test(cssW) && /body\.web-join #settingsModal \.set-snaps,/.test(cssW) && /<div class="set-snaps"[^>]*>\s*<div class="set-field-label">Snapshots of the save<\/div>\s*<div id="setSnapList"/.test(read('system/app/index.html')) && /body\.web-join #updateBtn, body\.web-join #updateBanner, body\.web-join #installerModal/.test(cssW), j([lw, sw]));
         }
         /* ---- the dev server never updates the source tree it runs from (the outside audit, 2026-10-01) ----

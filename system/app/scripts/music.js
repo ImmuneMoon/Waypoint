@@ -174,7 +174,7 @@ function idlePlan() {
     if (pl && pl.tracks.some(function(id) { return !!trackById(id); })) return { src: { kind: 'playlist', id: pl.id, loop: 'list', shuffle: false }, words: 'the playlist ' + String(pl.name == null ? '' : pl.name) };
     return null;
 }
-function idleNow() { var p = idlePlan(); return p ? 'Stopped — ▶ plays ' + p.words : 'Stopped'; }
+function idleNow() { var p = idlePlan(); return p ? 'Stopped. ▶ plays ' + p.words : 'Stopped'; }
 function startIdle() {
     var p = idlePlan();
     if (!p) { toast(musicNow().tracks.length ? 'Nothing is picked to play: double-click a song, or press a playlist’s ▶.' : 'No music yet: add songs in the library below.'); return; }
@@ -343,7 +343,7 @@ function uploadTracks(files) {
         }
         var f = list.shift();
         if (!AUDIO_EXT.test(f.name) && !/^audio\//.test(f.type)) { refused.push(f.name + ' (not an audio file)'); return next(); }
-        if (/\.(wav|flac|aiff?)$/i.test(f.name)) { refused.push(f.name + ' (WAV / FLAC are too large — convert to MP3 or OGG)'); return next(); }
+        if (/\.(wav|flac|aiff?)$/i.test(f.name)) { refused.push(f.name + ' (WAV / FLAC are too large: convert to MP3 or OGG)'); return next(); }
         if (f.size > LIMITS.file) { refused.push(f.name + ' (over ' + fmtMB(LIMITS.file) + ')'); return next(); }
         if (used + f.size > LIMITS.campaign) { refused.push(f.name + ' (the campaign’s music library is full)'); return next(); }
         probeDur(f).then(function(dur) {
@@ -379,7 +379,7 @@ function renderPill() {
     ind.classList.toggle('playing', !!cur && !mine);   // NOT 'on' — that class triggers the toolbar's gold active-background
     ind.classList.toggle('muted', mmuted && !mine);
     var e = nowPlaying();
-    ind.title = mine ? 'Music is off for you at this table \u2014 click to turn it back on' : (mmuted ? 'Music muted for you. Right-click to unmute' : 'Music — your volume and mute. Right-click to mute') + (e ? ' · now playing: ' + e.name : '');
+    ind.title = mine ? 'Music is off for you at this table. Click to turn it back on' : (mmuted ? 'Music muted for you. Right-click to unmute' : 'Music: your volume and mute. Right-click to mute') + (e ? ' · now playing: ' + e.name : '');
 }
 // The icon's menu while music is off for this player: fixed words and the way back
 function offPill(pop) {
@@ -566,7 +566,7 @@ function renderPanel() {
     spRow.appendChild(slow); spRow.appendChild(spIn); spRow.appendChild(xg); spRow.appendChild(fast); tp.appendChild(spRow);
     }
     if (isHost() && sessionLive()) {   // the GM can drive every player's music in sync
-        var ctlBtn = el('button', 'tool music-takectl' + (controlling ? ' on' : ''), controlling ? '● Controlling the table — release' : 'Take control of the table’s music');
+        var ctlBtn = el('button', 'tool music-takectl' + (controlling ? ' on' : ''), controlling ? '● Controlling the table: release' : 'Take control of the table’s music');
         ctlBtn.title = controlling ? 'Players follow your music; click to hand them back their own map music' : 'Play your music on every player’s machine in sync (they keep their own volume)';
         ctlBtn.addEventListener('click', function() { setControlling(!controlling); });
         tp.appendChild(ctlBtn);
@@ -618,7 +618,7 @@ function renderPanel() {
         var bindWrap = el('div', 'music-section');
         bindWrap.appendChild(el('div', 'music-sec-head', 'On this map (' + ((it.meta && typeof it.meta.title === 'string' && it.meta.title) || it.name || 'map') + ')'));
         var cfg = cleanMapMusic(it.music, idSets());
-        var bsel = el('select', 'music-bindpl'); bsel.appendChild(new Option('— nothing —', ''));
+        var bsel = el('select', 'music-bindpl'); bsel.appendChild(new Option('Nothing', ''));
         m.playlists.forEach(function(pl) { var o = new Option('▶ ' + pl.name, 'pl:' + pl.id); if (cfg && cfg.playlist === pl.id) o.selected = true; bsel.appendChild(o); });
         m.tracks.forEach(function(tr) { var o = new Option('♪ ' + tr.name, 'tr:' + tr.id); if (cfg && cfg.track === tr.id) o.selected = true; bsel.appendChild(o); });
         bindWrap.appendChild(bsel);
@@ -627,7 +627,7 @@ function renderPanel() {
         // 1.5.6: In a fight. Its own song or playlist, played on this map while a fight runs here, and the map's own music again when it ends
         var fcfg = it.music && it.music.fight ? cleanMapMusic(it.music.fight, idSets()) : null;
         var fHead = el('div', 'music-fighthead', 'In a fight on this map'); fHead.title = 'Plays while a fight runs on this map, for everyone on it. When the fight ends the map’s own music comes back.'; bindWrap.appendChild(fHead);
-        var fsel = el('select', 'music-fightpl'); fsel.appendChild(new Option('— the map’s own music —', ''));
+        var fsel = el('select', 'music-fightpl'); fsel.appendChild(new Option('The map’s own music', ''));
         m.playlists.forEach(function(pl) { var o = new Option('▶ ' + pl.name, 'pl:' + pl.id); if (fcfg && fcfg.playlist === pl.id) o.selected = true; fsel.appendChild(o); });
         m.tracks.forEach(function(tr) { var o = new Option('♪ ' + tr.name, 'tr:' + tr.id); if (fcfg && fcfg.track === tr.id) o.selected = true; fsel.appendChild(o); });
         bindWrap.appendChild(fsel);
@@ -649,7 +649,7 @@ function renderPanel() {
     if (canWrite()) {
         var cfw = el('div', 'music-section'), cmd = getActiveCampaign(), dcfg = cleanMapMusic(fightDefault(), idSets());
         cfw.appendChild(el('div', 'music-sec-head', 'In a fight, on any map'));
-        var csel = el('select', 'music-cfightpl'); csel.appendChild(new Option('\u2014 nothing \u2014', ''));
+        var csel = el('select', 'music-cfightpl'); csel.appendChild(new Option('Nothing', ''));
         m.playlists.forEach(function(pl) { var o = new Option('\u25b6 ' + pl.name, 'pl:' + pl.id); if (dcfg && dcfg.playlist === pl.id) o.selected = true; csel.appendChild(o); });
         m.tracks.forEach(function(tr) { var o = new Option('\u266a ' + tr.name, 'tr:' + tr.id); if (dcfg && dcfg.track === tr.id) o.selected = true; csel.appendChild(o); });
         cfw.appendChild(csel);
@@ -669,7 +669,7 @@ function renderPanel() {
     // library: upload songs + manage tracks, or (while picking) bring some in from another campaign
     var lib = el('div', 'music-section music-lib'), campL = getActiveCampaign();
     if (picking && (!campL || picking.to !== campL.id)) picking = null;   // another campaign is open now: its own library, no picker left from the last
-    var libHead = el('div', 'music-sec-head'); libHead.appendChild(el('span', null, picking ? 'From another campaign' : 'Library — ' + m.tracks.length + ' track' + (m.tracks.length === 1 ? '' : 's')));
+    var libHead = el('div', 'music-sec-head'); libHead.appendChild(el('span', null, picking ? 'From another campaign' : 'Library: ' + m.tracks.length + ' track' + (m.tracks.length === 1 ? '' : 's')));
     var headBtns = el('span', 'music-sec-btns');
     var fromB = el('button', 'tool ghost', 'From another campaign…');
     fromB.title = 'Pick playlists and songs from another of your campaigns and bring them into this one. Nothing is copied: this campaign lists the other one’s files.';

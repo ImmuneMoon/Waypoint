@@ -622,7 +622,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
         var nSent = sent.length + mySent.length, nAll = j.entries.length + nSent;
         function tab(id, label, count, title) { return '<button class="tool ghost journal-tab' + (page === id ? ' active' : '') + '" data-tab="' + id + '" title="' + title + '">' + label + ' <span class="journal-count">' + count + '</span></button>'; }
         var tabs = personal ? '' : '<span class="journal-tabs">'
-            + tab('all', 'Everything', nAll, 'Everything — your own pages, what you received and what you sent — newest first')
+            + tab('all', 'Everything', nAll, 'Everything: your own pages, what you received and what you sent, newest first')
             + tab('mine', 'My notes', nMine, 'Your own pages')
             + tab('inbox', 'Received', inbox.length, iRunIt ? 'Pages players shared with you' : 'Handouts from the GM and pages other players shared with you')
             + tab('sent', 'Sent', nSent, iRunIt ? 'Every handout you have shown, to whom and when' : 'Every page you have shared, with whom and when')
@@ -652,7 +652,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
         function clearBtn(scope, label, title) { return '<button class="tool ghost danger journal-clear" data-scope="' + scope + '" title="' + title + '">' + label + '</button>'; }
         var chipRows = personal
             ? '<div class="journal-from-row" data-for="mine">' + clearBtn('mine', 'Clear my notes', 'Delete every page of your own in this section') + '</div>'
-            : (inbox.length ? chips('inbox', 'From', senders, from, 'from', 'Anyone', inbox.length).replace(/<\/div>$/, clearBtn('inbox', 'Clear', 'Remove what is listed here — everything received, or only the chosen sender\'s') + '</div>') : '')
+            : (inbox.length ? chips('inbox', 'From', senders, from, 'from', 'Anyone', inbox.length).replace(/<\/div>$/, clearBtn('inbox', 'Clear', 'Remove what is listed here: everything received, or only the chosen sender\'s') + '</div>') : '')
               + chips('sent', 'To', recips, to, 'to', 'Anyone', nSent)
               + '<div class="journal-from-row" data-for="mine">' + clearBtn('mine', 'Clear my notes', 'Delete every page of your own in this campaign') + '</div>';
         var mySentRows = mySent.map(function(s) {
@@ -678,14 +678,14 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
             return '<div class="journal-entry" data-page="inbox" data-from="' + esc(fromOf(e)) + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + whose(e) + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span>' + journalSaveBtn() + '<button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') + tagChips(e.tags) +
-                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version — the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b>' + inTag + '</div>' +
+                '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version, the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b>' + inTag + '</div>' +
                 (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(fromOf(e) === 'gm' ? 'The GM' : e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
                 '<textarea class="journal-notes" placeholder="Your notes about this…">' + esc(e.notes || '') + '</textarea>' + sentLine(e) + shareControls() + '</div></div>';
         }).join('');
         var empty = (!nAll && !personal ? '<div class="journal-empty" data-page="all">' + (iRunIt ? 'Nothing in this journal yet. What you show your players is listed here, and + Note writes a page of your own.' : 'Nothing in this journal yet. What a GM shows you is kept here with its caption, and + Note writes a page of your own. It stays on this computer and works without a session.') + '</div>' : '')
-                  + (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet — press + Note.</div>' : '')
+                  + (!nMine ? '<div class="journal-empty" data-page="mine">No pages of your own here yet. Press + Note.</div>' : '')
                   + (!inbox.length && !personal ? '<div class="journal-empty" data-page="inbox">' + (iRunIt ? 'Nothing shared with you yet.' : 'Nothing received yet.') + '</div>' : '')
-                  + (!nSent && !personal ? '<div class="journal-empty" data-page="sent">' + (iRunIt ? 'Nothing shown to the players yet.' : 'Nothing sent yet — while in a session, pick "Share with…" on any page.') + '</div>' : '');
+                  + (!nSent && !personal ? '<div class="journal-empty" data-page="sent">' + (iRunIt ? 'Nothing shown to the players yet.' : 'Nothing sent yet. While in a session, pick "Share with…" on any page.') + '</div>' : '');
         var sentRows = sent.map(function(s) {
             var thumb = s.kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(s.text || '').slice(0, 160)) + '</div>'
                       : picRef(s.src) ? '<img class="journal-thumb" src="' + esc(picRef(s.src)) + '" alt="" title="Open">' : '<div class="journal-thumb journal-thumb-text">(removed)</div>';
@@ -1526,7 +1526,7 @@ function renderHandouts() {
     // labeled by the character they play. Connected players get a handout at once; others when they join.
     var givePlayers = Object.keys(camp.players || {})
         .filter(function(pid) { return !(camp.bannedPlayers && camp.bannedPlayers[pid]); })
-        .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p), pn = typeof p.gmName === 'string' && p.gmName.trim() ? p.gmName.trim() : typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return { id: pid, label: pa ? (pa + (pn ? ' — ' + pn : '')) : (pn || 'A player') }; })   // 1.6.3 (finding 35): never a profile id
+        .map(function(pid) { var p = camp.players[pid] || {}, pa = playsOf(camp, pid, p), pn = typeof p.gmName === 'string' && p.gmName.trim() ? p.gmName.trim() : typeof p.name === 'string' && p.name.trim() ? p.name.trim() : ''; return { id: pid, label: pa ? (pa + (pn ? ' (' + pn + ')' : '')) : (pn || 'A player') }; })   // 1.6.3 (finding 35): never a profile id
         .sort(function(a, b) { return String(a.label).localeCompare(String(b.label)); });
     var giveOpts = '<option value="">Give to…</option><option value="*">Anyone (the whole table)</option>'
         + givePlayers.map(function(p) { return '<option value="' + esc(p.id) + '">' + esc(p.label) + '</option>'; }).join('');
@@ -1545,7 +1545,7 @@ function renderHandouts() {
             '<input class="field handout-title" value="' + esc(h.title || '') + '" placeholder="Title">' +
             (h.kind === 'text' ? '<textarea class="field handout-text" placeholder="The text the players read">' + esc(h.text || '') + '</textarea>' : '') +
             '<textarea class="field handout-caption" placeholder="' + (h.kind === 'text' ? 'Short note under it (optional)' : 'Caption the players see (optional)') + '">' + esc(h.caption || '') + '</textarea>' +
-            '<input class="field handout-tags" value="' + esc((Array.isArray(h.tags) ? h.tags : []).join(', ')) + '" placeholder="Tags — faces, places, letters… (comma-separated; players see them and can search by them)" title="Tags sort the panel and travel with the handout">' +
+            '<input class="field handout-tags" value="' + esc((Array.isArray(h.tags) ? h.tags : []).join(', ')) + '" placeholder="Tags: faces, places, letters… (comma-separated; players see them and can search by them)" title="Tags sort the panel and travel with the handout">' +
             '<div class="handout-meta">' + (seen.length ? 'Seen by ' + esc(seen.join(', ')) : 'Not shown to anyone yet') + (queued.length ? ' · queued for ' + esc(queued.join(', ')) : '') + (attached.length ? ' · attached to ' + esc(attached.join('; ')) : '') + '</div>' +
             '<label class="handout-auto" title="Every player receives this the next time they connect (once each), without you pressing anything"><input type="checkbox" class="handout-auto-box"' + (h.autoOnJoin ? ' checked' : '') + '> Give to every player when they join</label>' +
             '<div class="handout-actions">' +
@@ -1712,7 +1712,7 @@ function niceName(file) {
     n = n.replace(/^[a-z0-9]{6,10}_(?=.)/, '');          // the uploader's random tag
     n = n.replace(/[_-]\d{2,4}$/, '');                   // a size suffix such as _160
     n = n.replace(/\s*[—–-]\s*token$/i, '').replace(/_token$/i, '');   // token pictures named after their character
-    n = n.replace(/[_]+/g, ' ').replace(/\s+-\s+/g, ' — ').replace(/\s{2,}/g, ' ').trim();
+    n = n.replace(/[_]+/g, ' ').replace(/\s+-\s+/g, ' \u2013 ').replace(/\s{2,}/g, ' ').trim();
     return n || 'Handout';
 }
 var _pickGrid = ui('handoutPickGrid');

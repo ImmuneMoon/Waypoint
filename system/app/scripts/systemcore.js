@@ -7960,17 +7960,17 @@ function resolveAll(sys, char, F, tctx, ropts) {   // tctx: tokenCtx(...) = { fa
         if (k === 'text' || k === 'select' || k === 'notes') { e.value = storedOf(f, char); e.text = String(e.value); }
         else if (k === 'item-list') { e.value = storedOf(f, char); e.text = ''; if (!(ropts && ropts.noRows) && f.list && typeof f.list.throwIf === 'string' && f.list.throwIf) listThrowShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.stand)) listStand(f, e, r); if (!(ropts && ropts.noRows) && sys.fields.some(function(x) { return isObj(x) && x.kind === 'item-list' && isObj(x.list) && isObj(x.list.stand) && x.list.stand.from === f.id; })) listHere(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.tiles) && Array.isArray(f.list.tiles.boxes)) listTileBoxes(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.tiles) && Array.isArray(f.list.tiles.states)) listTileStates(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.cols) && f.list.cols.length) listCells(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.counters) && f.list.counters.length) listCts(f, e, r, F); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.feeds) && f.list.feeds.length) listFeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && (x.needs || x.needsWhy); })) listNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.showIf; })) listRollShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && [].concat(Array.isArray(f.list.rolls) ? f.list.rolls : [], Array.isArray(f.list.counters) ? f.list.counters : []).some(function(x) { return isObj(x) && Array.isArray(x.alt); })) listAltNames(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.badges) && f.list.badges.length) listBadges(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(function(x) { return isObj(x) && x.show === '@fig'; })) listRollFigs(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.rolls) && f.list.rolls.some(moneyThen)) listMoney(f, e, r, sys, char, F); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.needs === 'string' && f.list.on.needs) listOnNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.on) && typeof f.list.on.showIf === 'string' && f.list.on.showIf) listOnShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && Array.isArray(f.list.subject) && typeof f.list.subjectIf === 'string' && f.list.subjectIf) listSubjectShow(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.load) && typeof f.list.load.needs === 'string' && f.list.load.needs) listLdNeeds(f, e, r); if (!(ropts && ropts.noRows) && f.list && isObj(f.list.chamber) && typeof f.list.chamber.needs === 'string' && f.list.chamber.needs) listChNeeds(f, e, r); }   // a carried list; sheets.js renders it, not a number. F5a1: its columns' cells and totals
         else if (k === 'effects') { e.value = storedOf(f, char); e.text = ''; e.active = activeEffects(sys, e.value); }   // 5h: the rows; e.active names the ones switched on
-        else if (k === 'number' && f.override !== undefined) { var ov = r(f.key); if (ov && typeof ov === 'object' && ov.error) { e.error = ov.error.message; e.text = '\u2014'; e.value = storedOf(f, char); } else { e.value = typeof ov === 'number' ? ov : storedOf(f, char); e.text = figText(f, e.value); } if (r.overOn(f.key)) e.over = true; }   // 205 (6): e.over while it reads its override (the sheet closes it)
+        else if (k === 'number' && f.override !== undefined) { var ov = r(f.key); if (ov && typeof ov === 'object' && ov.error) { e.error = ov.error.message; e.text = '–'; e.value = storedOf(f, char); } else { e.value = typeof ov === 'number' ? ov : storedOf(f, char); e.text = figText(f, e.value); } if (r.overOn(f.key)) e.over = true; }   // 205 (6): e.over while it reads its override (the sheet closes it)
         else if (k === 'toggle' || k === 'number') { var tv = r(f.key); e.value = (tv === undefined || (tv && typeof tv === 'object')) ? storedOf(f, char) : tv; e.text = k === 'number' ? figText(f, e.value) : fmtNum(e.value); }   // 5h: through the resolver, so an effect shows; 1.5.4: a number by its decimals and grouping
         else {
             var v = r(f.key);
-            if (v && typeof v === 'object' && v.error) { e.error = v.error.message; e.text = '—'; }
+            if (v && typeof v === 'object' && v.error) { e.error = v.error.message; e.text = '–'; }
             else { e.value = v; e.text = k === 'resource' ? fmtNum(v) : figText(f, v); }   // 1.5.4: a formula and a skill by their decimals and grouping
             if (k === 'resource') { var m = r(f.key + '.max'); if (m && typeof m === 'object' && m.error) { e.max = null; if (!e.error) e.error = m.error.message; } else { e.max = m; e.text = fmtNum(e.value) + ' / ' + fmtNum(m); } }
             if (k === 'skill') { var rk = r(f.key + '.ranks'); e.ranks = rk; }
         }
         var dt = (k === 'number' || k === 'toggle' || k === 'formula' || k === 'skill') ? r.detail(f.key) : null;   // 5h: where the value came from — only when an effect touched it
-        if (autoKindOf(f) && f.auto !== undefined) { var avA = isObj(char) && isObj(char.values) ? char.values[f.id] : undefined; if (avA === undefined || avA === null || avA === '') { e.auto = 1; var arA = r(f.key); if (arA && typeof arA === 'object' && arA.error) { e.error = arA.error.message; e.text = '\u2014'; } else if (k === 'text') { e.value = typeof arA === 'string' ? arA : ''; e.text = e.value; } } }   // 1.6.2 (auto apply): worked out until typed
+        if (autoKindOf(f) && f.auto !== undefined) { var avA = isObj(char) && isObj(char.values) ? char.values[f.id] : undefined; if (avA === undefined || avA === null || avA === '') { e.auto = 1; var arA = r(f.key); if (arA && typeof arA === 'object' && arA.error) { e.error = arA.error.message; e.text = '–'; } else if (k === 'text') { e.value = typeof arA === 'string' ? arA : ''; e.text = e.value; } } }   // 1.6.2 (auto apply): worked out until typed
         if (dt) { var b0 = base0(f.key); e.base = b0 !== undefined ? b0 : dt.base; e.mods = dt.mods; e.via = dt.via; }
         if (k === 'formula' || k === 'resource') { var ur = r.unrounded(k === 'resource' ? f.key + '.max' : f.key); if (ur !== undefined) e[k === 'resource' ? 'maxUnrounded' : 'unrounded'] = ur; }   // clarity package: only where the rounding changed it
         if (k === 'resource') { var dm = r.detail(f.key + '.max'); if (dm) { var bm = base0(f.key + '.max'); e.maxBase = bm !== undefined ? bm : dm.base; e.maxMods = dm.mods; e.maxVia = dm.via; } }
@@ -8084,9 +8084,9 @@ function listCells(f, e, r) {
     var rows = Array.isArray(e.value) ? e.value : [], cells = map(), foot = map();
     rows.forEach(function(row) {
         var id = rowIdOf(row); if (!id) return;
-        cells[id] = f.list.cols.map(function(c) { if (typeof c.showIf === 'string') { var cs = false; try { cs = r.needsOk(f, row, c.showIf) === true; } catch (x) { cs = false; } if (!cs) return null; } var v = r.cell(f, row, c.key); return v && typeof v === 'object' && v.error ? { key: c.key, error: String(v.error.message || 'error'), text: '\u2014' } : plusInto({ key: c.key, value: v, text: colText(c, v) }, f, row, c, v, r); });
+        cells[id] = f.list.cols.map(function(c) { if (typeof c.showIf === 'string') { var cs = false; try { cs = r.needsOk(f, row, c.showIf) === true; } catch (x) { cs = false; } if (!cs) return null; } var v = r.cell(f, row, c.key); return v && typeof v === 'object' && v.error ? { key: c.key, error: String(v.error.message || 'error'), text: '–' } : plusInto({ key: c.key, value: v, text: colText(c, v) }, f, row, c, v, r); });
     });
-    var tot = function(k) { var v = r(f.key + '.' + k); return v && typeof v === 'object' && v.error ? { error: String(v.error.message || 'error'), text: '\u2014' } : v === undefined ? null : { value: v, text: statNumText(v) }; };
+    var tot = function(k) { var v = r(f.key + '.' + k); return v && typeof v === 'object' && v.error ? { error: String(v.error.message || 'error'), text: '–' } : v === undefined ? null : { value: v, text: statNumText(v) }; };
     f.list.cols.forEach(function(c) { if (c.foot === true) { var t = tot(c.key); if (t) foot[c.key] = t; } });
     (Array.isArray(f.list.stats) ? f.list.stats : []).forEach(function(s) { if (s.show === true && !(Array.isArray(s.labels) && s.labels.length)) { var t = tot(s.key); if (t) foot[s.key] = t; } });
     e.cells = cells; e.foot = foot;
@@ -8394,8 +8394,8 @@ function fmtNum(v) { if (typeof v === 'boolean') return v ? 'yes' : 'no'; if (ty
 function headerEntry(f, e, metric, sys) {   // metric (1.5.4): the viewer's Measurement system, true for Metric and false for Imperial; absent, the field as stored (an export)
     if (!f || !e) return null;
     if (f.kind === 'toggle') return e.value === true ? { chip: true, text: f.label } : null;
-    if (e.error) return { text: '\u2014', error: String(e.error) };
-    if (e.text === undefined || e.text === null || e.text === '') return { text: '\u2014', empty: true };
+    if (e.error) return { text: '–', error: String(e.error) };
+    if (e.text === undefined || e.text === null || e.text === '') return { text: '–', empty: true };
     var numeric = (f.kind === 'number' || f.kind === 'formula' || f.kind === 'skill') && typeof e.value === 'number' && !e.label;   // a named value is a word, never red or green
     var ht = f.kind === 'text' && !!cleanFieldUnit(f.unit, 'text');   // 1.5.4: a height or a weight, by the half of the viewer's setting (with none told, as stored)
     var out = { text: ht ? (metric === true || metric === false ? textWords(f, String(e.text), metric) : e.text) : f.unit && !e.label ? (f.kind === 'resource' ? e.text + ' ' + f.unit + unitTail(f, e.value, e.text, metric, e.max, typeof e.max === 'number' ? fmtNum(e.max) : '') : unitWords(f, e.value, e.text, metric)) : e.text };   // Stage 6: a named value is a word (no unit); 1.5.4: a measure in metric too under Metric, in the field's own form
@@ -9060,7 +9060,7 @@ function statAsk(sys, char, fieldId, rowId, stats, F, opts) {
     var nw = null; (Array.isArray(r.value) ? r.value : []).forEach(function(x) { if (!nw && isObj(x) && rowIdOf(x) === rowId) nw = x; });
     var d0 = rowDef(sys, rw), d1 = nw ? rowDef(sys, nw) : null; if (!d0 || !d1) return { ok: false, reason: 'missing' };
     var seen = function(row) { var ovP = cleanOv(row.ov, asp), dP = rowDef(sys, Object.assign({}, row, { ov: ovP || undefined })); return { stats: (dP && rowStats(dP.def.stats, asp)) || {} }; }, p0 = seen(rw), p1 = seen(nw);   // the row as the owner's own copy reads it: a choice kept from players, set on the copy or held by the entry, reads as theirs does, so the answer never tells that one is set
-    var fr = [], to = [], show = function(st, v) { return typeof v === 'number' ? fmtNum(v) : typeof v === 'string' && v ? v : st && st.kind === 'pick' ? '\u2014' : '0'; };
+    var fr = [], to = [], show = function(st, v) { return typeof v === 'number' ? fmtNum(v) : typeof v === 'string' && v ? v : st && st.kind === 'pick' ? '–' : '0'; };
     keys.forEach(function(k) { var st = statDefOf(spec, k), lb = st ? (st.label || st.key) : k, x = rowStat(spec, d0.def, k), y = rowStat(spec, d1.def, k); if (JSON.stringify(rowStat(asp, p0, k)) === JSON.stringify(rowStat(asp, p1, k))) return; fr.push(lb + ' ' + show(st, x)); to.push(lb + ' ' + show(st, y)); });
     if (!fr.length) return { ok: false, reason: 'same' };
     return { ok: true, change: { kind: 'stat', f: fieldId, row: rowId, label: cutText((f.label || f.key) + ': ' + (d0.def.name || 'Item'), 120), from: cutText(fr.join(', '), 80), to: cutText(to.join(', '), 80), ov: { stats: stats }, accept: !heldAny, held: heldAny } };
@@ -9232,7 +9232,7 @@ function staleOf(sys, chars, pid) {
 // one Review line a field that differs (a 'value' change). An effects list is play, not a sheet: never offered. On a list, the rows its player
 // does not hold (a kept curse, a GM-only row) stay as they are. { changes, left } or null where nothing could be read
 function revBrief(f, v) {
-    if (v === undefined || v === null || v === '') return '—';
+    if (v === undefined || v === null || v === '') return '–';
     if (Array.isArray(v)) return v.length + (v.length === 1 ? ' row' : ' rows');
     if (typeof v === 'boolean') return v ? 'on' : 'off';
     if (typeof v === 'number') return fmtNum(v);
@@ -9312,7 +9312,7 @@ function revRowWords(sys, ov, nv, f) {   // what differs in a list, by the rows'
     var byId = map(), from = [], to = []; (Array.isArray(ov) ? ov : []).forEach(function(y) { if (isObj(y) && y.hid !== 1) byId[rowIdOf(y)] = y; });
     (Array.isArray(nv) ? nv : []).forEach(function(x) { if (!isObj(x) || x.hid === 1) return; var k = rowIdOf(x), y = byId[k]; delete byId[k]; if (!y) to.push('New: ' + revRowWord(sys, x)); else if (JSON.stringify(y) !== JSON.stringify(x)) { var wY = revRowWord(sys, y), wX = revRowWord(sys, x), dR = revRowDiff(f, y, x, wY === wX); from.push(wY + dR.a); to.push(wX + dR.b); } });
     Object.keys(byId).forEach(function(k) { from.push(revRowWord(sys, byId[k])); to.push('Gone: ' + revRowWord(sys, byId[k])); });
-    return { from: cutText(from.join(', ') || '—', LIMITS.upWords), to: cutText(to.join(', ') || '—', LIMITS.upWords) };
+    return { from: cutText(from.join(', ') || '–', LIMITS.upWords), to: cutText(to.join(', ') || '–', LIMITS.upWords) };
 }
 function revProposal(sys, char, fill, F, opts) {
     if (!isObj(sys) || !Array.isArray(sys.fields) || !isObj(char) || !isObj(fill)) return null;

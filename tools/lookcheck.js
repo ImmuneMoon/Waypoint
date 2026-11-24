@@ -686,19 +686,19 @@ function runPress(P, win) {
             ['gridLabelsBtn', 'Cell labels', 'Each hex cell shows its name, as A1.', 'Cell labels. On a hex grid each cell shows its column letter and row number, as A1. Kept with this map, and everyone at the table sees them. Press again to take them off.'], 'block', 'block', '-', 'block', '-',   /* 1.6.3 (finding 17, "Into the Grid menu", moved on purpose): Grid opacity's slider beside Label opacity, then the map's scale and its own cell; the last row opens the rest of the grid's look in Settings */
             ['gridOpacityBtn', 'Grid look in Settings&hellip;', 'The stream window&rsquo;s grid and more.', 'The grid&rsquo;s look in Settings (opens Settings)']]],
         ['<div class="shape-menu menu-list" id="shapeMenu">', [['shapeRectBtn', 'Rectangle', '', 'Rectangle'], ['shapeCircBtn', 'Circle', '', 'Circle'], ['shapeDiaBtn', 'Diamond', '', 'Diamond'],
-            ['shapeHexBtn', 'Hexagon', 'Seats onto the cells of a hex grid.', 'Hexagon &mdash; resizes like any shape; centers onto hex grid cells'], '-',
-            ['shapeTriggerBtn', 'Trigger zone', 'Says its message when a character token is dropped inside.', 'Trigger Zone &mdash; fires its Event Message when a character token is dropped inside'],
-            ['shapeHexTriggerBtn', 'Hex trigger', 'A trigger zone the shape of a hex cell.', 'Hex Trigger &mdash; a hex-shaped trigger zone'], '-', 'block', 'block']],
-        ['<div class="shape-menu menu-list" id="addMenu"' + ST + '190px' + C, [['shapeTextBtn', 'Text box', 'Click to place it. Drag to size it.', 'Text &mdash; click to place a text box (drag to size it), or click an existing text box to edit it'],
-            ['addImageBtn', 'Image', 'A picture from this computer.', 'Add Image'], ['imgLibBtn', 'Image Library', 'This campaign&rsquo;s pictures and the shared ones.', 'Image Library &mdash; this campaign\'s pictures, the shared ones, and every campaign\'s'],
-            ['addObjectsBtn', 'Map objects', 'Place what gives cover, by what it is.', 'Map objects &mdash; chairs, tables, crates and the like, each with its own cover'],
+            ['shapeHexBtn', 'Hexagon', 'Seats onto the cells of a hex grid.', 'Hexagon: resizes like any shape; centers onto hex grid cells'], '-',
+            ['shapeTriggerBtn', 'Trigger zone', 'Says its message when a character token is dropped inside.', 'Trigger Zone: fires its Event Message when a character token is dropped inside'],
+            ['shapeHexTriggerBtn', 'Hex trigger', 'A trigger zone the shape of a hex cell.', 'Hex Trigger: a hex-shaped trigger zone'], '-', 'block', 'block']],
+        ['<div class="shape-menu menu-list" id="addMenu"' + ST + '190px' + C, [['shapeTextBtn', 'Text box', 'Click to place it. Drag to size it.', 'Text: click to place a text box (drag to size it), or click an existing text box to edit it'],
+            ['addImageBtn', 'Image', 'A picture from this computer.', 'Add Image'], ['imgLibBtn', 'Image Library', 'This campaign&rsquo;s pictures and the shared ones.', 'Image Library: this campaign\'s pictures, the shared ones, and every campaign\'s'],
+            ['addObjectsBtn', 'Map objects', 'Place what gives cover, by what it is.', 'Map objects: chairs, tables, crates and the like, each with its own cover'],
             ['addPlacePinBtn', 'Place pin', 'A named spot for Places here.', 'Place pin: click the map to set a pin that the map&rsquo;s list of places names'], ['addLegendBtn', 'Legend', 'The places, numbered, on the map.', 'Legend: a numbered list of this map&rsquo;s places, laid on the map'], ['addArriveBtn', 'Arrive here', 'Where a portal&rsquo;s travelers come out.', 'Arrive here: click the map to set where travelers through a portal come out. Only you see it.'],   // 1.6.3: a map's places (places.js), moved on purpose
-            ['importCharBtn', 'Import Character', 'A character file as a ready token.', 'Import Character &mdash; a sheet file as a ready token']]],
+            ['importCharBtn', 'Import Character', 'A character file as a ready token.', 'Import Character: a sheet file as a ready token']]],
         ['<div class="shape-menu menu-list" id="sceneFxMenu"' + ST + '200px' + C, [
-            ['soundBtn', 'Sound', 'Loops and one-shot cues the table hears.', 'Sound &mdash; ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)'],
-            ['musicBtn', 'Music', 'Playlists, and a song a map remembers.', 'Music &mdash; named playlists, a song or playlist remembered per map that plays as you enter, with full GM transport (a VTT feature, per campaign)'],
-            ['fxBtn', 'Visual effects', 'Flashes, weather, bursts and banners.', 'Visual effects &mdash; flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)'],
-            ['videoBtn', 'Video', 'The campaign&rsquo;s videos, in a panel or shown to the table.', 'Video &mdash; the campaign&rsquo;s videos, watched in a panel you move, resize and put full screen (a VTT feature, per campaign)']]],
+            ['soundBtn', 'Sound', 'Loops and one-shot cues the table hears.', 'Sound: ambient loops and one-shot cues for the scene, heard by every player at the table (a VTT feature, per campaign)'],
+            ['musicBtn', 'Music', 'Playlists, and a song a map remembers.', 'Music: named playlists, a song or playlist remembered per map that plays as you enter, with full GM transport (a VTT feature, per campaign)'],
+            ['fxBtn', 'Visual effects', 'Flashes, weather, bursts and banners.', 'Visual effects: flashes, screen shake, weather, bursts and banners on the play map, seen by the players on it (a VTT feature, per campaign)'],
+            ['videoBtn', 'Video', 'The campaign&rsquo;s videos, in a panel or shown to the table.', 'Video: the campaign&rsquo;s videos, watched in a panel you move, resize and put full screen (a VTT feature, per campaign)']]],
         ['<div class="shape-menu menu-list" id="wbMoreMenu" style="bottom:100%; top:auto; flex-direction:column; min-width:200px; left:auto; right:0; transform:none; margin-bottom:10px;">',
             [['layersBtn', 'Layers', 'This map\'s pieces, front to back.', 'This map\'s pieces, front to back. A group and a flattened picture hold their pieces under them. Pick, hide, rename and reorder them there.'], ['clearWbBtn', 'Clear board', 'Removes everything on this map. It asks first.', 'Clear Board']]]];
     const ROW = /^<button class="wb-tool-btn menu-row(?: menu-row-red)?" id="([A-Za-z]+)" title="([^"]*)"(?: hidden)?><span class="mr-ico">((?:<svg class="ico[^>]*>.*<\/svg>)?)<\/span><span class="mr-txt">([^<]+)(?:<small>([^<]+)<\/small>)?<\/span><\/button>$/;
@@ -709,7 +709,7 @@ function runPress(P, win) {
         off.length === 0 && noIcon.length === 0 && count(ix, 'class="wb-tool-btn menu-row') === 39   /* 1.6.4: Add's Arrive here (moved on purpose); 1.6.3: Add's Place pin and Legend (moved on purpose); 1.6.2, backlog 231: Lock this map's structure in Build's options (moved on purpose);  1.6.0: the Environment tool's four ways, and Map objects in Add and in Build; 1.6.2, backlog 39: Flatten selection; backlog 217: Layers (moved on purpose) */, J([off, noIcon]));
     // 2026-10-18: Import Character is an outside sheet reader's own row (none ships with the app): in the page, hidden there, and shown by the reader's own code
     check('Import Character is in the page, its row hidden, the only hidden row of a toolbar menu; the style sheet puts a hidden one away (a menu row would show through its mark), and no public script shows it or wires it; the two scripts that once loaded a sheet reader (whiteboard.js, inspector.js) load no module but a script of the app folder: every import they write (a from, a bare import or an import()) names a file of scripts/ by a plain quoted ./ path, and an import() of anything else fails',
-        count(ix, ' hidden><span class="mr-ico">') === 1 && /id="importCharBtn" title="Import Character &mdash; a sheet file as a ready token" hidden><span class="mr-ico">/.test(ix) && /\n  #importCharBtn\[hidden\] \{ display: none; \}/.test(css)
+        count(ix, ' hidden><span class="mr-ico">') === 1 && /id="importCharBtn" title="Import Character: a sheet file as a ready token" hidden><span class="mr-ico">/.test(ix) && /\n  #importCharBtn\[hidden\] \{ display: none; \}/.test(css)
         && (() => { const rd = f => fs.readFileSync(path.join(app, 'scripts', f), 'utf8'), wb = rd('whiteboard.js'), insp = rd('inspector.js'), both = wb + '\n' + insp, mods = [], bad = [], STAT = /\b(?:from|import)\s*(['"`])([^'"`\n]*)\1/g, DYN = /\bimport\s*\(/g; for (let m = STAT.exec(both); m; m = STAT.exec(both)) if (/\.m?js$|^\.{0,2}\//.test(m[2])) mods.push(m[2]); for (let m = DYN.exec(both); m; m = DYN.exec(both)) { const r = /^\s*(['"`])([^'"`\n$]*)\1\s*[),]/.exec(both.slice(DYN.lastIndex, DYN.lastIndex + 400)); if (r) mods.push(r[2]); else bad.push(both.slice(m.index, m.index + 60)); } return wb.length > 100000 && insp.length > 50000 && !/getElementById\('importCharBtn'\)/.test(wb) && mods.length > 20 && bad.length === 0 && mods.every(p => /^\.\/[\w-]+\.js$/.test(p) && fs.existsSync(path.join(app, 'scripts', p.slice(2)))); })());
     // Build's options end in the three rows that lay a whole map (the map builder: the dungeon, the city, and the world of fold B7). Each
     // drawing was shown to the owner first: the dungeon's row wears Build's own blocks, the city's the drawing picked by prompt on the row's
@@ -1218,7 +1218,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const cmRows = cmKids.map(k => { const m = CROW.exec(k.text); return m ? [m[2], m[4], m[5] || '', m[3], !!m[1]] : k.text === '<div class="rm-rule"></div>' ? '-' : k.text === '<div class="rm-label">Campaign</div>' ? 'label' : k.text === '<div class="rm-list" id="campMenuList"></div>' ? 'list' : '?' + k.text.slice(0, 50); });
     check('the Campaign menu, as the owner passed it drawn: the campaign\'s name stands in the row with the small arrow the toolbar uses, and says in its tooltip what a press gives; its menu is put away in the page and holds, in this order, the list of campaigns, Search, then New, Rename and System with its gray word, then Restore points, Trial run and Make a test copy (1.6.0, campsafe.js), then Delete in red; each of the five is the button it was, with the id, the tooltip and the drawing it had, and a name beside it; the list itself is empty in the page; the page\'s own campaign list stays in the page once, out of sight, inside the same wrap; a player has no such menu',
         J(cmRows) === J(['label', 'list', ['searchCampBtn', 'Search campaigns&hellip;', '', 'Search Campaigns', false], '-', ['newCampBtn', 'New campaign', '', 'Create New Campaign', false], ['renameCampBtn', 'Rename', '', 'Rename Campaign', false],
-            ['systemBtn', 'System', 'Sheets and rolls', 'System &mdash; this campaign&rsquo;s attributes, formulas and rolls (character sheets)', false],
+            ['systemBtn', 'System', 'Sheets and rolls', 'System: this campaign&rsquo;s attributes, formulas and rolls (character sheets)', false],
             ['libraryCampBtn', 'Library&hellip;', '', 'The campaign&rsquo;s library: packs of entries by the thousand, with a search', false], ['campQuestBtn', 'Plan with questions&hellip;', '', 'Answer a few short questions to write a planner called Campaign outline', false], ['storyCampBtn', 'Story view', '', 'The Story view: your planners as arcs and their scene cards as beats', false], ['timelineCampBtn', 'Timeline', '', 'The timeline: eras, dated notes and the sessions played, from centuries to days', false], '-',
             ['pointsCampBtn', 'Restore points&hellip;', '', 'Restore points: make one, or roll this campaign back to one', false], ['trialCampBtn', 'Trial run&hellip;', '', 'Try something out. End it to keep the changes or put the campaign back', false],
             ['testCopyCampBtn', 'Make a test copy', '', 'Copy this campaign as a test copy and open it', false], '-', ['delCampBtn', 'Delete campaign', '', 'Delete Campaign', true]])
@@ -1237,7 +1237,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const drawOf = how => { const at = ix.indexOf(how), m = at < 0 ? null : /<svg class="ico[^"]*" viewBox="0 0 24 24" aria-hidden="true">.*?<\/svg>/.exec(ix.slice(at, ix.indexOf('</button>', at))); return m ? m[0] : '?' + how; };
     const KINDS = ['exportImgBtn', 'exportMapPicBtn', 'exportPdfBtn', 'exportHtmlBtn', 'exportMdBtn', '|', 'exportItemBtn', 'exportMapsBtn', 'exportWbsBtn', 'exportPlannersBtn', 'exportDocsBtn', '|', 'exportCampaignBtn', 'exportShareBtn', 'exportBtn'];
     check('the More menu, as the owner passed it drawn: three dots at the right end of the row, the drawing the play map\'s own More wears, open a menu that is put away in the page and holds, in this order, Export As, Import, then Refresh Waypoint, About Waypoint, Report a problem and Back to the welcome screen, and, since 1.6.0, no part for the folded controls: those stand in the tray the double chevron opens, Sound, Music, Voice, Handouts, Journal and Help; Export As, Import, Refresh and About are the buttons they were, each with its id and its drawing and now its name, and Export As says it opens a list and keeps its thirteen kinds beside it, in their order, each with its id; the row to the welcome screen wears the Waypoint mark and presses the mark itself; Report a problem (backlog 34) presses the link in About, which is in the page once, and keeps the empty slot a row has for a drawing, since no drawing of its own has been shown to the owner; each of the tray\'s six buttons carries no id, wears the drawing of the control it stands for, and names a control that is still in the row, once; the tray stands after the Journal in a wrap of its own, its button a menu\'s, put away until something folds',
-        J(mmSeq) === J(['label:More', 'files', ['id', 'refreshBtn', 'Refresh Waypoint', '', 'drawing', 'Refresh Waypoint &mdash; reloads the app and puts you straight back into your session'], ['id', 'aboutBtn', 'About Waypoint', '', 'drawing', 'About Waypoint'],
+        J(mmSeq) === J(['label:More', 'files', ['id', 'refreshBtn', 'Refresh Waypoint', '', 'drawing', 'Refresh Waypoint: reloads the app and puts you straight back into your session'], ['id', 'aboutBtn', 'About Waypoint', '', 'drawing', 'About Waypoint'],
             ['data-press', 'aboutReportLink', 'Report a problem', '', 'slot', 'Report a problem. Opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there.'],
             ['data-press', 'headerBrand', 'Back to the welcome screen', '', 'mark', 'Back to the welcome screen']])
         && J(filesSeq) === J(['export:saveAsDropdownWrap,saveAsBtn,saveAsMenu,' + KINDS.filter(k => k !== '|').join(','), ['id', 'importBtn', 'Import', '', 'drawing', 'Import. Bring in a campaign, a map, a planner or a page from a file.'], '-'])
@@ -1677,7 +1677,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         wordsOk && syncOk && foldOk && !!pm && pm.textContent === '' && pm.getAttribute('title') === 'Hot' && !none.children.some(k => k.classList.contains('tok-more')) && !piece.children.some(k => k.classList.contains('tok-more')) && !status.classList.contains('mk-x'),
         J([nodes.map(n => n.w), folded, more && more.textContent, said]));
     check('the marks\' own tooltips and the hover card say them in words: a target mark is titled Targeted by its targeter, Down and Dead are titled, a posture chip carries its posture\'s name, and the hover card says the sense line too (the kind sense); the board asks tokMarksSync after every mark is drawn, and the stance chips do after a move with no redraw',
-        wbSrc.includes("tip = esc('Targeted by ' + t.name + (cv ? ' \\u2014 ' + cv.name : ''));") && wbSrc.includes("stEl.title = stv === 'dead' ? 'Dead' : 'Down'; stEl.setAttribute('aria-label', stEl.title);")
+        wbSrc.includes("tip = esc('Targeted by ' + t.name + (cv ? ', ' + cv.name : ''));") && wbSrc.includes("stEl.title = stv === 'dead' ? 'Dead' : 'Down'; stEl.setAttribute('aria-label', stEl.title);")
         && /<span class="chip post" title="' \+ esc\(postAt\.p\.name\)/.test(wbSrc) && wbSrc.includes("var TOKCARD_KINDS = ['mark', 'down', 'fx', 'buff', 'debuff', 'env', 'face', 'stance', 'ranged', 'sense'];")
         && wbSrc.includes("senseSays(window.wpFog.senseWordsOf(wItem.id)).forEach(function(t) { chips.push({ t: t, k: 'sense' }); });")
         && /\} else if \(envEl\) envEl\.remove\(\);\n          tokMarksSync\(el, item\);/.test(wbSrc) && wbSrc.includes("    if (typeof tokMarksSync === 'function') tokMarksSync(el, item);")
@@ -3514,7 +3514,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
             api.draw(); return { api, net, log, html: () => html, press, sw, cur, menu };
         };
         const G = world(); tf.gm = [G.sw(), G.cur()]; G.press('next'); G.press('switch'); tf.gm.push(G.sw(), G.cur()); G.press('next'); G.press('edit'); G.press('end');
-        const m2 = G.menu(); tf.menu2 = [m2.html.includes('data-act="combat-new"'), m2.html.includes('Start another fight here'), /data-act="combat-next" title="Round 5 — Sela is up"/.test(m2.html)]; m2.fire('combat-next'); m2.fire('combat-new'); m2.fire('combat-edit');
+        const m2 = G.menu(); tf.menu2 = [m2.html.includes('data-act="combat-new"'), m2.html.includes('Start another fight here'), /data-act="combat-next" title="Round 5: Sela is up"/.test(m2.html)]; m2.fire('combat-next'); m2.fire('combat-new'); m2.fire('combat-edit');
         G.press('switch'); tf.gm.push(G.sw(), G.cur()); tf.log = G.log.slice();
         const P = world({ role: 'client', me: 'u_b' }); tf.sela = [P.sw(), P.cur()]; P.press('switch'); tf.sela.push(P.sw(), P.cur(), P.log.length);
         const K = world({ role: 'client', me: 'u_a' }); tf.kael = [K.sw(), K.cur()];
@@ -3972,7 +3972,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     // where the drawings stand today: the dice roller's button, its heading and its quick buttons, the roster's Roll all and a row's roll
     const qb = n => '<button data-die="' + n + '">' + (DI ? DI.dieSvg(n) : '?') + n + '</button>', d6 = DI ? DI.dieSvg('d6') : '?', quick = '<span class="ui-seg">' + ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].map(qb).join('') + '</span>' + qb('d100');   /* 1.6.2 (backlog 225): d4 to d20 joined in one .ui-seg, d100 after it, moved on purpose */
     check('the dice roller and the combat roster wear the drawings (the page and whiteboard.js, pinned): the roller\'s button by the message box and its heading the d6, each quick button its own die before its name, Roll all and a row\'s initiative roll the d6, and none of them the old glyph; the pips\' rule in the style sheet; dieicons.js loaded by the sheet and the dice modules',
-        ix.includes('id="diceBtn" title="Roll dice &mdash; or type /roll 2d6 + 3 in the box" aria-label="Roll dice">' + d6 + '</button>') && ix.includes('<span class="notepad-title">' + d6 + ' Roll</span>')
+        ix.includes('id="diceBtn" title="Roll dice, or type /roll 2d6 + 3 in the box" aria-label="Roll dice">' + d6 + '</button>') && ix.includes('<span class="notepad-title">' + d6 + ' Roll</span>')
         && ix.includes('<div class="dice-quick">' + quick + '<button data-coin="1" title="Flip a coin. The card says heads or tails."><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/><path d="M12 6.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>Coin</button><button data-op="+">') && ix.includes('(one rolled or given a number keeps it)">' + d6 + ' Roll all</button>')
         && wbSrc.includes("aria-label=\"Roll initiative\">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class=\"wib wi-die\"></i>') + '</button>'")
         && !/id="diceBtn"[^>]*>&#127922;|&#127922; Roll/.test(ix) && css.includes('  .ico.ico-die .ico-pip { stroke-width: 2.6; }')
@@ -3994,7 +3994,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     {   // 1.6.2, backlog 228 and 229 (the owner, 2026-11-12): sight keeps the eye, Visible to players wears a player with an eye over them, Properties three sliders, opened from a piece's right-click menu and its selection bar and never by a double-click, and a right-click selects what its menu acts on
         const wbP = read('scripts/whiteboard.js'), dmP = read('scripts/datamap.js'), insP = read('scripts/inspector.js');
         check('backlog 228 and 229: the eye means only what a token sees, Visible to players and Properties wear drawings of their own, Properties opens from the right-click row and the selection bar, a double-click opens none, and a right-click selects its piece',
-            ['seen', 'unseen', 'props'].every(n => css.split('  .wi-' + n + ' { --wi:').length === 2) && ix.includes('<button data-st="vis" class="st-vis" title="Visible to players — click to hide"><i class="wib wi-seen"></i></button>')
+            ['seen', 'unseen', 'props'].every(n => css.split('  .wi-' + n + ' { --wi:').length === 2) && ix.includes('<button data-st="vis" class="st-vis" title="Visible to players. Click to hide"><i class="wib wi-seen"></i></button>')
             && ix.includes('<button data-st="props" class="st-props"') && ix.includes('<button data-st="sight" class="st-sight"') && /data-st="sight"[^>]*><i class="wib wi-eye">/.test(ix)
             && wbP.includes("(anyVisible ? 'seen' : 'unseen')") && wbP.includes("if (act === 'props') { if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }") && wbP.includes("action.includes('cm-props')) { cMenu.style.display = 'none'; if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }")
             && wbP.includes("html += '<div class=\"menu-item cm-props\"") && wbP.includes('{ selectedIds = [targetId]; state.selWbIds = [targetId]; state.selWbId = targetId; if (window.appRender) window.appRender(); }')
@@ -4204,7 +4204,7 @@ check('a card that names its character says so on its button and hands that char
     && rootRead('system/app/scripts/net.js').includes("SQ.dmgOnSelf(fullQ || actQ, q.att || (typeof goneQ !== 'undefined' && goneQ ? 'gone' : undefined))) recQ.dmgOn = chQ.id;") && rootRead('system/app/scripts/net.js').includes("SC().dmgOnSelf(entR, o.att || (typeof goneR !== 'undefined' && goneR ? 'gone' : undefined))) rec.dmgOn = o.charId;"));   // 1.6.3, the review of defense fold 0: a card whose soft record is gone still lands on its own character (moved on purpose)
 
 check('a grayed roll, action or switch says its own words to a player and never its formula, which the GM still reads',
-    rootRead('system/app/scripts/sheets.js').split("(r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : ' \\u2014 it needs ' + r.needs);").length === 5
+    rootRead('system/app/scripts/sheets.js').split("(r.needsText || 'Not now') + (typeof isClient === 'function' && isClient() ? '' : typeof needsTip === 'function' ? needsTip(r.needs) : '\\nIt needs ' + r.needs);").length === 5
     && rootRead('system/app/scripts/sheets.js').split("var swW = typeof isClient === 'function' && isClient() ? (S.needsText || 'Not now') :").length === 3);
 
 check('the roster numbers rows of one name, and the sheet that says it is out of date offers Mark all current where more than one is',
@@ -5141,6 +5141,72 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && clS.includes("if (w.nameShow !== undefined && w.nameShow !== false) delete w.nameShow;") && clS.includes("it.meta.nameShow !== undefined && it.meta.nameShow !== false) delete it.meta.nameShow;")
         && ixS.includes('Zoomed out, the names get smaller, and below 40% they go away.') && ixS.includes('untick <b>Show its name on the map</b> in its Properties') && ixS.includes('untick <b>Show names on this map</b> in Map properties'),
         '');
+}
+{
+    // 1.6.4 (Fulllion, 2026-11-23: "please dont use em dashes in anything people read"): no em dash in the words people read. A script's
+    // strings and templates (never its comments or regular expressions, which read old saves and older hosts' words), the page's text
+    // and attributes (never its HTML comments), the style sheet's strings, the installer's shown lines, the release notes, the README and
+    // the integration guide (but for a fenced code block). A string whose em dash is data, not words, has a // dash-ok comment on the
+    // line above it, or at the end of its own line. The scan runs in a child with the parser Node ships, tried first on texts of its own.
+    const DASH_SCAN = String.raw`
+const { Parser } = require('internal/deps/acorn/acorn/dist/acorn');
+const fs = require('fs'), path = require('path');
+const DASH = /—|\\u2014/, HDASH = /—|&mdash;|&#8212;|&#x2014;/i;
+function lineAt(src, pos) { let n = 1; for (let i = 0; i < pos; i++) if (src.charCodeAt(i) === 10) n++; return n; }
+function toks(src) { for (const t of ['module', 'script']) { try { return [...Parser.tokenizer(src, { ecmaVersion: 'latest', sourceType: t, allowHashBang: true, allowReturnOutsideFunction: true })]; } catch (e) {} } return null; }
+function js(name, src) {
+  const all = toks(src); if (!all) return [name + ': could not be read'];
+  const lines = src.split('\n'), out = [];
+  for (const t of all) {
+    if (t.type.label !== 'string' && t.type.label !== 'template') continue;
+    const raw = src.slice(t.start, t.end); if (!DASH.test(raw)) continue;
+    const ln = lineAt(src, t.start), here = lines[ln - 1] || '', above = lines[ln - 2] || '';
+    if (/\/\/\s*dash-ok/.test(here) || /^\s*\/\/\s*dash-ok/.test(above)) continue;
+    out.push(name + ':' + ln + ': ' + raw.slice(0, 90));
+  }
+  return out;
+}
+function blank(m) { return m.replace(/[^\n]/g, ' '); }
+function html(name, src) { const out = []; src.replace(/<!--[\s\S]*?-->/g, blank).split('\n').forEach((l, i) => { if (HDASH.test(l)) out.push(name + ':' + (i + 1) + ': ' + l.trim().slice(0, 90)); }); return out; }
+function css(name, src) { const out = []; src.replace(/\/\*[\s\S]*?\*\//g, blank).split('\n').forEach((l, i) => { if (DASH.test(l)) out.push(name + ':' + (i + 1) + ': ' + l.trim().slice(0, 90)); }); return out; }
+function text(name, src, md) { const out = []; let fence = false; src.split('\n').forEach((l, i) => { if (md && /^\s*\x60\x60\x60/.test(l)) { fence = !fence; return; } if (!fence && /—/.test(l)) out.push(name + ':' + (i + 1) + ': ' + l.trim().slice(0, 90)); }); return out; }
+function iss(name, src) { const out = []; src.split('\n').forEach((l, i) => { const t = l.trim(); if (/^(;|\/\/)/.test(t) || !/—/.test(t)) return; if (/'/.test(t) || /^\w+=/.test(t)) out.push(name + ':' + (i + 1) + ': ' + t.slice(0, 90)); }); return out; }
+const K = { js, html, css, iss, text: (n, s) => text(n, s, false), md: (n, s) => text(n, s, true) };
+const mode = process.argv[1];
+if (mode === 'samples') {
+  const S = JSON.parse(fs.readFileSync(0, 'utf8')); console.log(JSON.stringify(S.map(s => K[s.kind](s.name, s.src).length)));
+} else {
+  const R = process.argv[2], rel = p => path.join(R, p), rd = p => fs.readFileSync(rel(p), 'utf8'), hits = [];
+  const dirJs = d => fs.readdirSync(rel(d)).filter(n => n.endsWith('.js')).sort().forEach(n => hits.push(...js(d + '/' + n, rd(d + '/' + n))));
+  dirJs('system/app/scripts'); dirJs('system/resources/app');
+  hits.push(...html('system/app/index.html', rd('system/app/index.html')));
+  hits.push(...css('system/app/style.css', rd('system/app/style.css')));
+  hits.push(...iss('installer.iss', rd('installer.iss')));
+  ['WHATSNEW.txt', 'system/app/assets/whatsnew.txt'].forEach(f => hits.push(...text(f, rd(f), false)));
+  ['README.md', 'CAMPAIGN_INTEGRATION.md'].forEach(f => hits.push(...text(f, rd(f), true)));
+  console.log(JSON.stringify(hits));
+}`;
+    const cpD = require('child_process'), ROOT_D = require('path').join(__dirname, '..');
+    const dashRun = (args, input) => { const r = cpD.spawnSync(process.execPath, ['--expose-internals', '-e', DASH_SCAN].concat(args), { input: input, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }); try { return JSON.parse(String(r.stdout).trim().split('\n').pop()); } catch (e) { return { err: String(r.stderr || r.stdout).slice(0, 600) }; } };
+    const E = '—', samples = [
+        { kind: 'js', name: 's1', src: "var a = 'one " + E + " two';" },                          // a string: found
+        { kind: 'js', name: 's2', src: "var a = 'one \\u2014 two';" },                            // the escape: found
+        { kind: 'js', name: 's3', src: "// a comment " + E + " here\nvar a = 1; /* " + E + " */" },  // comments: passed over
+        { kind: 'js', name: 's4', src: "var r = /[\\u2013\\u2014]/g, q = /" + E + "/;" },           // regular expressions: passed over
+        { kind: 'js', name: 's5', src: "// dash-ok: names the character\nvar p = ['\\u2014', 'em dash'];" },   // marked as data: passed over
+        { kind: 'js', name: 's6', src: "var t = `a ${1} " + E + " b`;" },                         // a template: found
+        { kind: 'html', name: 's7', src: '<!-- a ' + E + ' note -->\n<b title="x">y</b>' },        // an HTML comment: passed over
+        { kind: 'html', name: 's8', src: '<b title="a ' + E + ' b">y</b>\n<i>z &mdash; w</i>' },    // a title and an entity: two
+        { kind: 'md', name: 's9', src: 'prose ' + E + ' here\n```\ndata ' + E + '\n```' },         // prose found, a fence passed over
+        { kind: 'iss', name: 's10', src: "; a comment " + E + "\nMsg := 'Canceled " + E + " still running';\nVersionInfoDescription=W " + E + " x" },   // two shown lines
+        { kind: 'css', name: 's11', src: '/* ' + E + ' */ .a::before { content: "' + E + '"; }' },  // a string in a rule: found
+    ];
+    const got = dashRun(['samples'], JSON.stringify(samples));
+    check('1.6.4, no em dash in what people read: the scan tried on texts of its own first (a string, an escape and a template found; comments, regular expressions, a line marked dash-ok, an HTML comment and a fenced block passed over; a title and an entity, the installer\'s shown lines and a style sheet\'s string found)',
+        JSON.stringify(got) === JSON.stringify([1, 1, 0, 0, 0, 1, 0, 2, 1, 2, 1]), JSON.stringify(got));
+    const hits = dashRun(['tree', ROOT_D]);
+    check('1.6.4, no em dash in what people read: every script\'s strings, the page, the style sheet, the installer, the shell, the release notes, the README and the integration guide',
+        Array.isArray(hits) && hits.length === 0, Array.isArray(hits) ? hits.length + ' left: ' + hits.slice(0, 12).join(' | ') : JSON.stringify(hits));
 }
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

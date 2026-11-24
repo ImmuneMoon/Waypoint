@@ -180,7 +180,7 @@ function close() { var m = ui('sessionLogModal'); if (m) m.style.display = 'none
 function saveText() {
     var s = W.list.find(function(x) { return x.id === W.at; }); if (!s || !W.lines.length) return;
     var c = getActiveCampaign(), name = c && c.name || 'Campaign';
-    var blob = new Blob([asText(name + ' — game record', s.words.day + ', ' + s.words.span, W.lines, FMT)], { type: 'text/plain' }), a = document.createElement('a');
+    var blob = new Blob([asText(name + ': game record', s.words.day + ', ' + s.words.span, W.lines, FMT)], { type: 'text/plain' }), a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = String(name).replace(/[^A-Za-z0-9]+/g, '-').toLowerCase() + '-game-record.txt';
     document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }

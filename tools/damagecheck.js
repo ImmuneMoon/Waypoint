@@ -1548,7 +1548,7 @@ const j = v => JSON.stringify(v);
                 j([wN.shared, !!wN.btn, sayOf(whB1), !!btnOf(whB1), !!whBtn3]));
             check('1.6.3 (findings 4 and 33) the Take damage window (takeDamage, run for real): a shared sheet\'s word and its button, which gives the token its own sheet and opens the window again for the copy with the damage typed and no word; none on a player\'s screen or for a sheet one token uses; no armor divisor row where neither the card nor the system has one, the step still handed its 1, and the row where the card names one or the system can give one',
                 w1.ok === true && j(w1.shared) === j(['This sheet is shared by 3 tokens on 2 maps. A wound here wounds every one of them.']) && !!w1.btn && w1.btn.textContent === 'Give this token its own sheet first' && j(w1.sent) === j([{ amt: 7, ad: 1 }])
-                && tOf(cW1, 'm1', 't2').charId === 'c_new' && re1T === 'Take damage \u2014 W:Guard 2' && re1A === '11' && re1S === 0
+                && tOf(cW1, 'm1', 't2').charId === 'c_new' && re1T === 'Take damage: W:Guard 2' && re1A === '11' && re1S === 0
                 && w2.shared.length === 0 && !w2.btn && w3.shared.length === 0 && !w1.names.includes('Armor divisor') && !w3.names.includes('Armor divisor') && w4.names.includes('Armor divisor') && w5.names.includes('Armor divisor'),
                 j([w1.shared, w1.sent, re1T, re1A, w1.names, w4.names, w5.names]));
         }
@@ -1561,7 +1561,7 @@ const j = v => JSON.stringify(v);
             const whoN = ['c_1', 'c_2', 'c_3', 'c_4', 'c_5'].map(id => WN(campN, id, chN[id])), noWin = new Function("'use strict';\n" + dfSrc + '\nreturn dmgWhoName;')()(campN, 'c_1', chN.c_1);
             check('1.6.3 (finding 16, dmgWhoName run for real with the strip\'s own rowNameOf): a character is named in the Take damage window as its token on the map on screen reads, the sheet\'s name after it where they differ; tokens of one shared sheet named together; a token reading as its sheet, a waiting token and no token give the sheet\'s name alone; the Who list and the title both ask it',
                 j(whoN) === j(['Freight handler (Duros worker)', 'Guard A, Guard B (Guard)', 'Ana', 'Wait', 'Nowhere']) && noWin === 'Freight handler (Duros worker)'
-                && dfSrc.includes("out.push({ id: cid, name: typeof dmgWhoName === 'function' ? dmgWhoName(camp, cid, ch) : String(ch.name || 'Unnamed').slice(0, 60) })") && twSrc.includes("'Take damage \\u2014 ' + (typeof dmgWhoName === 'function' ? dmgWhoName(camp, charId, c) : (c.name || 'Unnamed'))"), j([whoN, noWin]));
+                && dfSrc.includes("out.push({ id: cid, name: typeof dmgWhoName === 'function' ? dmgWhoName(camp, cid, ch) : String(ch.name || 'Unnamed').slice(0, 60) })") && twSrc.includes("'Take damage: ' + (typeof dmgWhoName === 'function' ? dmgWhoName(camp, charId, c) : (c.name || 'Unnamed'))"), j([whoN, noWin]));
         }
         {   // 1.6.3 (the review of damage): the Who list is the app's own search (uiparts.js find, imported and run on a page of plain objects) with the
             // closed list's keys (wbblast.js texListKeys, sliced and run for real), so an arrow key on it opens it and draws nothing again; a pick draws the

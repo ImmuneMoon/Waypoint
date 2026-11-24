@@ -561,7 +561,7 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
         // ---- the page: the Developer mode switch (settings.js sliced by its markers) and the ~ key (devconsole.js), run on a page of plain objects ----
         {
             const stSrc = readApp('scripts/settings.js'), dA = stSrc.indexOf('// [servercheck:devmode-start]'), dB = stSrc.indexOf('// [servercheck:devmode-end]');
-            const WORDS = 'Developer mode opens tools that can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly. Only type or paste something into them when you know what it does \u2014 never because someone asked you to. Turn Developer mode on?';
+            const WORDS = 'Developer mode opens tools that can change or break your campaigns, your settings and Waypoint itself if they are used incorrectly. Only type or paste something into them when you know what it does, never because someone asked you to. Turn Developer mode on?';
             const LIVE = 'Leave or end the multiplayer session first.', SAID_ON = 'Developer mode is on. Waypoint reloads to finish switching it on.', SAID_OFF = 'Developer mode is off. Waypoint reloads to finish switching it off.';
             const ownD = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
             // the switch on a page of plain objects: the store, the session's store, the question, the toast, the save and settings pushes, the reload and its timer are all recorded; written() says the settings file is on disk, tick() runs the timers

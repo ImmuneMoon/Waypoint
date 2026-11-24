@@ -449,13 +449,13 @@ function savedHtml() {   // the panel's Saved row and This map row, as markup of
 // [fxcheck:saved-end]
 function renderPanel() {
     var body = ui('fxBody'); if (!body) return;
-    if (!featureOn()) { body.innerHTML = '<div class="snd-none">Visual effects are off for this campaign — switch them on in <i class="wib wi-cog"></i> Settings &#9656; This campaign.</div>'; return; }
+    if (!featureOn()) { body.innerHTML = '<div class="snd-none">Visual effects are off for this campaign. Switch them on in <i class="wib wi-cog"></i> Settings &#9656; This campaign.</div>'; return; }
     var line = function(t) { return '<div class="fx-line">' + esc(t) + '</div>'; };   // 1.6.2: what a row does and who sees it, in one gray line
     var chip = function(cls, look, label, extra) { return '<button class="journal-from ' + cls + '" data-look="' + esc(look) + '"' + (extra || '') + '>' + esc(label) + '</button>'; };
     var byRow = function(row) { return PRESETS.filter(function(p) { return p.row === row; }); };
     var here = playersHere();
     var html = '';
-    if (here >= 0) html += '<div class="fx-here' + (here === 0 ? ' none' : '') + '">' + (here === 0 ? 'No players on this map — they will not see it' : here + ' player' + (here === 1 ? '' : 's') + ' on this map') + '</div>';
+    if (here >= 0) html += '<div class="fx-here' + (here === 0 ? ' none' : '') + '">' + (here === 0 ? 'No players on this map, so they will not see it' : here + ' player' + (here === 1 ? '' : 's') + ' on this map') + '</div>';
     html += savedHtml();
     html += '<div class="snd-row"><span class="snd-label">Screen</span>' + byRow('screen').map(function(p) { return chip('fx-screen-btn', p.id, p.label, ' data-id="' + p.id + '"' + (p.fx.kind === 'wash' ? ' title="Held until you clear it: press it again, or Clear"' : '')); }).join('') + '</div>' + line('Tints, flashes or shakes the screen for everyone on this map. A color stays until you clear it.');
     html += '<div class="snd-row"><span class="snd-label">Burst</span>' + byRow('burst').map(function(p) { return chip('fx-burst-btn', p.fx.look, p.label, ' title="Click, then click the map"'); }).join('') + '</div>' + line('Press one, then the map. Everyone on this map sees it go off there.');

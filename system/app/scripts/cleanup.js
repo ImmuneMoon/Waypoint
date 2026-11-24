@@ -329,25 +329,25 @@ function hideWorking() { var d = document.getElementById('cleanupWorkingModal');
 function askOwnership(camp, info, opts) {
     opts = opts || {};
     var name = nameOf(camp), counts = info || inspectCampaign(camp || {});
-    var html = '<p style="margin:0 0 10px;">Is <b>' + esc(name) + '</b> yours? It looks like it may have come from a game you joined, but we’re not sure — so we won’t touch it without asking.</p>'
+    var html = '<p style="margin:0 0 10px;">Is <b>' + esc(name) + '</b> yours? It looks like it may have come from a game you joined, but we’re not sure, so we won’t touch it without asking.</p>'
         + '<p style="margin:0 0 6px; color:var(--dim);">It has ' + counts.maps + ' map' + (counts.maps === 1 ? '' : 's') + ', ' + counts.rooms + ' room' + (counts.rooms === 1 ? '' : 's') + ' and ' + counts.planners + ' planner page' + (counts.planners === 1 ? '' : 's') + (counts.docs ? ' and ' + counts.docs + ' handbook page' + (counts.docs === 1 ? '' : 's') : '') + '.</p>'
         + (counts.planners ? '<p style="margin:0; color:var(--dim); font-size:12px;">Any planner pages in it are yours and will be kept either way.' + (counts.docs ? ' Its handbook pages are kept if you say it is not yours (they could be your own writing).' : '') + '</p>' : counts.docs ? '<p style="margin:0; color:var(--dim); font-size:12px;">Its handbook pages are kept in "Recovered notes" if you say it is not yours.</p>' : '');
     var buttons = opts.isImport
-        ? [{ label: 'Not mine — skip it', value: 'remove', cls: 'ghost' }, { label: 'It’s mine — bring it in', value: 'keep' }]
-        : [{ label: 'Not mine — remove it', value: 'remove', cls: 'ghost danger' }, { label: 'It’s mine — keep it', value: 'keep' }];
+        ? [{ label: 'Not mine, skip it', value: 'remove', cls: 'ghost' }, { label: 'It’s mine, bring it in', value: 'keep' }]
+        : [{ label: 'Not mine, remove it', value: 'remove', cls: 'ghost danger' }, { label: 'It’s mine, keep it', value: 'keep' }];
     return showDialog({ id: 'cleanupAskModal', title: 'Is this campaign yours?', html: html, buttons: buttons, escape: opts.isImport ? 'remove' : undefined });
 }
 
 // After an automatic removal: what went, what came back. One secondary action puts ticked campaigns back from page memory.
 async function showSummary(r, hooks) {
-    var html = '<p style="margin:0 0 10px;">A while ago, a bug could copy a GM’s campaign onto your computer after you left their game — and hide your own. That’s fixed now.</p>';
+    var html = '<p style="margin:0 0 10px;">A while ago, a bug could copy a GM’s campaign onto your computer after you left their game, and hide your own. That’s fixed now.</p>';
     if (r.removed.length) html += '<p style="margin:0 0 10px;"><b>Removed</b> (these belonged to a game you joined): ' + r.removed.map(function(x) { return '«' + esc(x.name) + ' (' + x.maps + ' map' + (x.maps === 1 ? '' : 's') + ')»'; }).join(', ') + '.</p>';
     if (r.recovered.length) html += '<p style="margin:0 0 10px;"><b>Brought back</b> (your own campaigns, from the safety copy of ' + esc(fmtDate(r.recoveredAt)) + '): ' + r.recovered.map(function(n) { return '«' + esc(n) + '»'; }).join(', ') + '.</p>';
     else if (r.pending) html += '<p style="margin:0 0 10px;">One more step: your own campaigns may be in a safety copy that this older Waypoint core can’t open. After the next core update (Settings ▸ Updates shows the steps) Waypoint brings them back and clears the rest out by itself.</p>';
     else if (r.removed.length && r.shellBackups) html += '<p style="margin:0 0 10px;">We looked for your own campaigns in Waypoint’s safety copies but couldn’t find any from before the mix-up.</p>';
     if (r.left.length) html += '<p style="margin:0 0 10px; color:var(--dim);">' + r.left.map(function(n) { return '«' + esc(n) + '»'; }).join(', ') + ' in that safety copy looked like they may have come from a game you joined, so they were not brought back. If they’re yours, Waypoint asks before it clears that copy, and Settings ▸ Snapshots has it meanwhile.</p>';
     html += '<p style="margin:0 0 10px;">' + (r.shellBackups ? 'Waypoint also clears those campaigns out of its safety copies. ' : '') + 'Your Journal and handouts are untouched.</p>';
-    if (r.removed.length) html += '<p style="margin:0; color:var(--dim); font-size:12px;">If you exported a file while you were in that game, it’s outside Waypoint’s reach — delete it by hand.</p>';
+    if (r.removed.length) html += '<p style="margin:0; color:var(--dim); font-size:12px;">If you exported a file while you were in that game, it’s outside Waypoint’s reach. Delete it by hand.</p>';
     var buttons = r.removed.length ? [{ label: 'Something’s missing?', value: 'missing', cls: 'ghost' }, { label: 'OK', value: 'ok' }] : [{ label: 'OK', value: 'ok' }];
     var v = await showDialog({ id: 'cleanupSummaryModal', title: 'Waypoint tidied up your save', html: html, buttons: buttons, escape: 'ok' });
     if (v === 'missing') { var back = await showMissing(hooks); if (!back) return showSummary(r, hooks); }
@@ -385,7 +385,7 @@ async function showMissing(hooks) {
     held.removed = held.removed.filter(function(id) { return ids.indexOf(id) < 0; });
     if (hooks.refresh) hooks.refresh();
     if (hooks.save) hooks.save();
-    say(hooks, 'Put back. Nothing has been deleted. If a campaign is still missing, Settings ▸ Snapshots has older copies — or tell the person who runs your game.');
+    say(hooks, 'Put back. Nothing has been deleted. If a campaign is still missing, Settings ▸ Snapshots has older copies, or tell the person who runs your game.');
     return true;
 }
 

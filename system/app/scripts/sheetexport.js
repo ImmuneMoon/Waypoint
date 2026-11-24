@@ -186,7 +186,7 @@ function charFromJson(view, j, find, findKey) {
 // A list's stat as the sheet shows it (sheets.js statFmt / statText: systemcheck holds the two alike): whole, two decimals from 1 up, three
 // significant digits below; a value name for a whole value inside the stat's names
 function statFmt(v) { if (typeof v !== 'number' || !isFinite(v)) return ''; if (Math.floor(v) === v) return String(v); return Math.abs(v) >= 1 ? String(Number(v.toFixed(2))) : String(Number(v.toPrecision(3))); }
-function statText(st, v) { if (typeof v === 'string') return v || '—'; var L = st && Array.isArray(st.labels) ? st.labels : null; return L && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v < L.length && L[v] ? L[v] : statFmt(v); }
+function statText(st, v) { if (typeof v === 'string') return v || '\u2013'; var L = st && Array.isArray(st.labels) ? st.labels : null; return L && typeof v === 'number' && Math.floor(v) === v && v >= 0 && v < L.length && L[v] ? L[v] : statFmt(v); }
 // 1.5.4: a stat's figure with its unit, and a column's cell with its unit, as the sheet reads them (sheets.js statShown, colShown): a measure
 // in its own form for the setting the page was asked for (metric: true for Metric, false for Imperial, absent as stored), in one of the
 // website's forms the website's own figure (systemcore listWords); a word as before
@@ -204,13 +204,13 @@ function amountWords(sys, text) {
 }
 function fxChangeText(m, labels, sys) { var nm = labels[m.f] || '?'; if (m.op === 'on') return nm + ' on'; if (typeof m.vf === 'string' && m.vf) return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : m.op === 'min' ? ' at most ' : ' by ') + amountWords(sys, m.vf); if (m.op === 'max' || m.op === 'min') return nm + (m.part === 'max' ? ' max' : '') + (m.op === 'max' ? ' at least ' : ' at most ') + fmtNum(m.v); return nm + (m.part === 'max' ? ' max ' : ' ') + (m.v >= 0 ? '+' : '−') + fmtNum(Math.abs(m.v)); }
 function valueText(f, e, metric) {   // metric (1.5.4): the viewer's setting, true for Metric and false for Imperial; absent, as stored
-    if (!e) return '—';
-    if (e.error) return gmOnlyError(String(e.error)) ? 'GM only' : '—';
+    if (!e) return '\u2013';
+    if (e.error) return gmOnlyError(String(e.error)) ? 'GM only' : '\u2013';
     var unit = f.unit && !e.label ? ' ' + f.unit : '';
     if (f.kind === 'toggle') return e.value ? 'on' : 'off';
-    if (f.kind === 'text' || f.kind === 'select') return e.value == null || e.value === '' ? '—' : f.kind === 'text' && (metric === true || metric === false) ? textWords(f, String(e.value), metric) : String(e.value);   // 1.5.4: a height or a weight by the half of the setting
-    if (f.kind === 'resource') return (e.text != null && e.text !== '' ? String(e.text) : '—') + unit;
-    var t = e.text != null && e.text !== '' ? String(e.text) : typeof e.value === 'number' ? fmtNum(e.value) : '—', tu = unit ? unitWords(f, e.value, t, metric) : t;   // 1.5.4: a measure in the field's own form for the setting
+    if (f.kind === 'text' || f.kind === 'select') return e.value == null || e.value === '' ? '\u2013' : f.kind === 'text' && (metric === true || metric === false) ? textWords(f, String(e.value), metric) : String(e.value);   // 1.5.4: a height or a weight by the half of the setting
+    if (f.kind === 'resource') return (e.text != null && e.text !== '' ? String(e.text) : '\u2013') + unit;
+    var t = e.text != null && e.text !== '' ? String(e.text) : typeof e.value === 'number' ? fmtNum(e.value) : '\u2013', tu = unit ? unitWords(f, e.value, t, metric) : t;   // 1.5.4: a measure in the field's own form for the setting
     if ((f.kind === 'number' || f.kind === 'skill') && typeof e.base === 'number' && typeof e.value === 'number' && e.base !== e.value) return tu + ' (base ' + fmtNum(e.base) + ')';
     return tu;
 }
@@ -288,7 +288,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         var f = isObj(q) ? byId[q.id] : null; if (!f) return;
         var h = headerEntry(f, all[f.id], opts.metric); if (!h) return;
         var hl = !h.chip && !h.error && f.kind === 'text' && typeof vals[f.id] === 'string' && h.text === vals[f.id] ? styledText(h.text, lookOf(f, view), false) : null;   // item 35: with its look
-        var hp = li(f.label || f.key, h.chip ? 'on' : h.error ? (gmOnlyError(String(h.error)) ? 'GM only' : '—') : h.text);
+        var hp = li(f.label || f.key, h.chip ? 'on' : h.error ? (gmOnlyError(String(h.error)) ? 'GM only' : '\u2013') : h.text);
         hd.push(hl ? { html: liHtml(f.label || f.key, hl), plain: hp } : hp);
     });
     if (hd.length) B.push(textBlock(ulOf(hd)));
@@ -323,7 +323,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         (Array.isArray(spec.stats) ? spec.stats : []).forEach(function(s) { if (isObj(s) && s.show === true) colsA.push({ t: s.label || s.key, g: function(r, d) { return statShown(s, rowStat(spec, d, s.key), opts.metric); } }); });
         (Array.isArray(spec.cols) ? spec.cols : []).forEach(function(c) {
             if (!isObj(c) || c.hide === true) return;
-            colsA.push({ t: c.label || c.key, g: function(r) { var cs = cells[rowIdOf(r)], v = Array.isArray(cs) ? cs.find(function(x) { return x && x.key === c.key; }) : null; if (!v) return ''; if (v.error) return gmOnlyError(String(v.error)) ? 'GM only' : '—'; return colShown(c, v, opts.metric) + plusText(v); } });
+            colsA.push({ t: c.label || c.key, g: function(r) { var cs = cells[rowIdOf(r)], v = Array.isArray(cs) ? cs.find(function(x) { return x && x.key === c.key; }) : null; if (!v) return ''; if (v.error) return gmOnlyError(String(v.error)) ? 'GM only' : '\u2013'; return colShown(c, v, opts.metric) + plusText(v); } });
         });
         if (isObj(spec.lvl)) colsA.push({ t: spec.lvl.label || 'Level', g: function(r, d) { var v = rowLvl(spec, r, d); return typeof v === 'number' ? statText(spec.lvl, v) : ''; } });
         if (isObj(spec.on)) colsA.push({ t: spec.on.label || 'On', g: function(r) { return rowOn(spec, r) ? 'yes' : 'no'; } });
@@ -355,7 +355,7 @@ function sheetToMarkdown(sys, view, all, opts) {
             if (!isObj(r)) return '';
             var d = typeof r.ref === 'string' ? lib[r.ref] : r; if (!isObj(d)) return '';
             var ch = (Array.isArray(d.mods) ? d.mods : []).filter(isObj).map(function(m) { return fxChangeText(m, labels, sys); }).join(' · ');
-            return '<li>' + esc(plain(String(d.name || 'Effect') + (ch ? ' — ' + ch : '') + (r.on === false ? ' (suspended)' : ''))) + '</li>';
+            return '<li>' + esc(plain(String(d.name || 'Effect') + (ch ? ': ' + ch : '') + (r.on === false ? ' (suspended)' : ''))) + '</li>';
         }).filter(Boolean);
         var label = plain(f.label || f.key || 'Effects');
         B.push(textBlock(items.length ? '<p><b>' + esc(label) + '</b></p><ul>' + items.join('') + '</ul>' : '<p><b>' + esc(label) + ':</b> none</p>'));
@@ -364,7 +364,7 @@ function sheetToMarkdown(sys, view, all, opts) {
         if (!shown(sec)) return;
         var start = B.length, mv = typeof sec.meta === 'string' ? all[sec.meta] : null, meta = '';
         if (isObj(mv) && !mv.error) meta = mv.text != null && mv.text !== '' ? String(mv.text) : typeof mv.value === 'number' ? mv.value + (typeof mv.max === 'number' ? ' / ' + mv.max : '') : '';
-        var title = plain(String(sec.title || '').trim() + (sec.title && meta ? ' — ' + meta : meta)).trim();
+        var title = plain(String(sec.title || '').trim() + (sec.title && meta ? ': ' + meta : meta)).trim();
         if (title) B.push(child ? textBlock('<p><b>' + esc(title) + '</b></p>') : { type: 'h3', title: title });   // an untitled section has no heading, as on the sheet
         var items = [];
         var flush = function() { if (items.length) { B.push(textBlock(ulOf(items))); items = []; } };
@@ -374,7 +374,7 @@ function sheetToMarkdown(sys, view, all, opts) {
                 var f = byId[pl.id]; if (!f) return;
                 if (f.kind === 'item-list') { flush(); listBlock(f, pl); return; }
                 if (f.kind === 'effects') { flush(); fxBlock(f); return; }
-                if (f.kind === 'notes') { flush(); var nt = all[f.id] && typeof all[f.id].value === 'string' ? all[f.id].value : typeof vals[f.id] === 'string' ? vals[f.id] : ''; var nh = '<p><b>' + esc(plain(f.label || f.key)), ns = nt && nt === vals[f.id] ? styledText(nt, lookOf(f, view), true) : null; if (ns && (nh + '</b><br>' + ns + '</p>').length > DOC_LIMITS.html) ns = null; /* item 35: with its look, unless the block would then be longer than the sanitiser reads */ B.push(textBlock(nh + (nt ? '</b><br>' + (ns || lines(nt)) : ':</b> —') + '</p>')); return; }
+                if (f.kind === 'notes') { flush(); var nt = all[f.id] && typeof all[f.id].value === 'string' ? all[f.id].value : typeof vals[f.id] === 'string' ? vals[f.id] : ''; var nh = '<p><b>' + esc(plain(f.label || f.key)), ns = nt && nt === vals[f.id] ? styledText(nt, lookOf(f, view), true) : null; if (ns && (nh + '</b><br>' + ns + '</p>').length > DOC_LIMITS.html) ns = null; /* item 35: with its look, unless the block would then be longer than the sanitiser reads */ B.push(textBlock(nh + (nt ? '</b><br>' + (ns || lines(nt)) : ':</b> \u2013') + '</p>')); return; }
                 var e1 = all[f.id], sl = f.kind === 'text' && e1 && !e1.error && typeof vals[f.id] === 'string' && vals[f.id] !== '' && e1.value === vals[f.id] && valueText(f, e1, opts.metric) === vals[f.id] ? styledText(vals[f.id], lookOf(f, view), false) : null;   // item 35: with its look (1.5.4: a height or a weight read as its other half has none)
                 var sp = li(f.label || f.key, valueText(f, all[f.id], opts.metric));
                 items.push(sl ? { html: liHtml(f.label || f.key, sl), plain: sp } : sp);

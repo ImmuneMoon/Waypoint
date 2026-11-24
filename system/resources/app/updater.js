@@ -51,7 +51,7 @@ const os = require('os');
 const { UPDATE_PUBKEY } = require('./updatekey');
 
 const UA = 'Waypoint-updater';
-const UNSIGNED = 'unsigned update — refused';
+const UNSIGNED = 'unsigned update, refused';
 const CANNOT_SELF = 'this copy cannot install an update by itself';
 const SIG_OK = /^[A-Za-z0-9+/]{86}==$/;   // 64 bytes in base64: the only shape an Ed25519 signature has
 const INSTALLER_NAME = 'Waypoint_Setup.exe';   // the name the installer's signature is over, whatever file it is kept in meanwhile
@@ -68,10 +68,10 @@ const ENVELOPE_CAP = 1024 * 1024;   // the most the list may be: a manifest of a
 const NOTES_MAX = 20000;            // the most characters of notes shown; longer notes are cut, never refused
 const FILES_MAX = 64;               // the most entries of the manifest's file list that are looked at
 const MANIFEST_PREFIX = 'waypoint-manifest\n';   // the words the list's signature begins with: never the start of a file's signed words
-const LIST_UNSIGNED = 'the update list is not signed by Waypoint — no update offered';
-const LIST_BAD = 'the update list could not be read — no update offered';
-const NOT_OURS = "that address is not Waypoint's update site — refused";
-const NOT_LISTED = 'the download is not the file the update list names — refused';   // its length or its digest is not the list's
+const LIST_UNSIGNED = 'the update list is not signed by Waypoint, no update offered';
+const LIST_BAD = 'the update list could not be read, no update offered';
+const NOT_OURS = "that address is not Waypoint's update site, refused";
+const NOT_LISTED = 'the download is not the file the update list names, refused';   // its length or its digest is not the list's
 
 /* The two addresses this shell may fetch from, as origins: { site, siteHost, api, files, apiUrl }. By default they are
    the site and its download host. opts.apiUrl (the list's own address) and opts.filesUrl (an address on the files' host)
@@ -440,18 +440,18 @@ async function applyAppUpdate(opts) {
     // a hot update replaces the app: never without the release's signature, checked with the key this shell carries
     if (typeof pubKey !== 'string' || !pubKey.trim()) throw new Error(UNSIGNED);   // no key configured: nothing can be vouched for
     if (!opts.sig) throw new Error(UNSIGNED);
-    if (!opts.sha256) throw new Error('no checksum published for this update — refused');   // never without its digest (every release ships one)
+    if (!opts.sha256) throw new Error('no checksum published for this update, refused');   // never without its digest (every release ships one)
     const version = plainVersion(opts.version);
     if (!version || opts.appZipName !== 'waypoint-app-' + version + '.zip') throw new Error(UNSIGNED);   // the signed words name the zip and the version: both must be the release's own
     const want = typeof opts.sha256 === 'string' ? opts.sha256.trim().toLowerCase() : '';
-    if (!/^[0-9a-f]{64}$/.test(want)) throw new Error('unreadable checksum — update aborted');   // an empty or odd digest is a failure, not a pass
+    if (!/^[0-9a-f]{64}$/.test(want)) throw new Error('unreadable checksum, update aborted');   // an empty or odd digest is a failure, not a pass
     const sigText = typeof opts.sig === 'string' ? opts.sig.trim() : '';
     if (!verifyUpdate(pubKey, opts.appZipName, want, version, sigText)) throw new Error(UNSIGNED);
     // the signature covers the digest; the digest covers every byte of the zip, fetched from the update hosts alone
     const hosts = updateHosts(opts);
     const zipBuf = await fetchBuffer(opts.appZip, null, null, null, u => updateUrlOk(u, hosts));
     const got = crypto.createHash('sha256').update(zipBuf).digest('hex');
-    if (want !== got) throw new Error('checksum mismatch — update aborted');
+    if (want !== got) throw new Error('checksum mismatch, update aborted');
     const entries = readZip(zipBuf);
     if (!entries.length) throw new Error('empty update archive');
     // the zip may hold "app/..." or the files at its root — strip one common leading folder
@@ -459,7 +459,7 @@ async function applyAppUpdate(opts) {
     const first = entries[0].name.split('/')[0];
     if (entries.every(e => e.name.startsWith(first + '/'))) prefix = first + '/';
     if (!entries.some(e => e.name === prefix + 'index.html')) throw new Error('archive does not contain the app (no index.html)');
-    if (entries.some(e => privateInArchive(e.name.slice(prefix.length)))) throw new Error('the update archive holds a private folder — refused');
+    if (entries.some(e => privateInArchive(e.name.slice(prefix.length)))) throw new Error('the update archive holds a private folder, refused');
     let carried = null;
     try {
         rmrf(newDir); fs.mkdirSync(newDir, { recursive: true });
@@ -475,9 +475,9 @@ async function applyAppUpdate(opts) {
         // the archive must be the version the release (and its signature) names: a mislabelled build never becomes the app
         let inside = null, needs;
         try { const vj = JSON.parse(fs.readFileSync(path.join(newDir, 'version.json'), 'utf8')); inside = vj.version; needs = vj.minShell; } catch (e) { inside = null; }
-        if (inside !== version) throw new Error('the archive is not version ' + version + ' — update aborted');
+        if (inside !== version) throw new Error('the archive is not version ' + version + ', update aborted');
         // the signed archive says itself which core it needs (the manifest beside it is not signed): app files never land on a core older than that
-        if (needs !== undefined && needs !== null && (!plainVersion(needs) || !plainVersion(opts.shellVersion) || cmpVersion(opts.shellVersion, needs) < 0)) throw new Error('this update needs a newer core than this copy has — it comes as the installer');
+        if (needs !== undefined && needs !== null && (!plainVersion(needs) || !plainVersion(opts.shellVersion) || cmpVersion(opts.shellVersion, needs) < 0)) throw new Error('this update needs a newer core than this copy has, so it comes as the installer');
         // the outside sheet reader the maintainer added stays: copied into the new app before the swap
         carried = privateCopy(appDir, path.join(newDir, PRIVATE_DIR));
         // swap: app -> app.prev (replacing any older rollback copy), app.new -> app
@@ -599,7 +599,7 @@ async function runInstaller(opts) {
     let isApp = false; try { isApp = fs.statSync(path.join(appRoot, 'system')).isDirectory(); } catch (e) { isApp = false; }
     if (!isApp) throw new Error(CANNOT_SELF);   // not a copy of Waypoint: nothing is installed anywhere else
     let now = null; try { now = await hashFile(opts.file); } catch (e) { now = null; }
-    if (typeof opts.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(opts.sha256) || now !== opts.sha256) throw new Error('the installer changed after it was checked — not run');
+    if (typeof opts.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(opts.sha256) || now !== opts.sha256) throw new Error('the installer changed after it was checked, not run');
     const spawn = opts.spawn || require('child_process').spawn;
     const child = spawn(opts.file, INSTALLER_ARGS.concat(['/DIR=' + appRoot]), { detached: true, stdio: 'ignore', shell: false });
     if (!child || typeof child.pid !== 'number') {   // it did not start: the reason arrives as an 'error' event

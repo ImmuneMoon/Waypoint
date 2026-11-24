@@ -111,7 +111,7 @@ function stateWords(s) {   // s: { joined, joining, muted, deaf, mode, talking, 
     if (s.deaf) return 'Deafened';
     if (s.listen) return 'Listening only';   // 1.6.3 (finding 21): in voice with no microphone
     if (s.muted) return 'Muted';
-    if (s.mode === 'ptt') return s.talking ? 'Talking' : 'Push to talk — hold ' + bindLabel(s.bind);
+    if (s.mode === 'ptt') return s.talking ? 'Talking' : 'Push to talk: hold ' + bindLabel(s.bind);
     return 'Voice connected';
 }
 

@@ -540,7 +540,7 @@ function barsBox(box, cm) {
     [0, 1].forEach(function(i) {
         var b = arr[i] && typeof arr[i] === 'object' ? arr[i] : null, row = el('div', 'sys-flags sys-tokbar-row'); row.dataset.bi = String(i);
         row.appendChild(el('span', 'sys-num-cap', 'Bar ' + (i + 1)));
-        var opts = [['', '\u2014 none \u2014']].concat(pools.map(function(f) { return [f.id, (f.label || f.key) + (f.vis === 'gm' ? ' (GM only)' : '')]; }));
+        var opts = [['', 'None']].concat(pools.map(function(f) { return [f.id, (f.label || f.key) + (f.vis === 'gm' ? ' (GM only)' : '')]; }));
         if (b && typeof b.f === 'string' && !pools.some(function(f) { return f.id === b.f; })) opts.push([b.f, '(a pool that is gone)']);
         row.appendChild(select('sys-tokbar-pool', opts, b && typeof b.f === 'string' ? b.f : '', 'The pool this bar shows'));
         if (b) {

@@ -1326,8 +1326,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
      that selection back. */
   // [textcheck:bar-start]
   var tsState = { box: null, sel: null, els: null, key: false, run: null, linkDone: null, comp: false, pre: null, last: null, tab: false, away: false };   // away: Esc put the bar away while its box keeps the focus; tab: the last key pressed was Tab (a one-line box it lands in has its text selected, as an input has); box: the box the bar is on; sel: its selection { map, d, s, e, back }; key: the bar was last touched by the keyboard; run: the field and selection a run of Size list steps is on; linkDone: the address Enter has just set, or Escape has just dropped (the Link box's own change event then has nothing left to do); comp: a composition is under way; pre: the selection an edit of the engine's is about to act on; last: the last edit { box, kind, s, e }
-  var TS_SCOPE = ' — the selected characters, or the whole field with nothing selected';
-  var TS_LINK_TITLE = 'Link — a web address (https://…) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off. Type a page\'s name to link to a page or one of its sections.';
+  var TS_SCOPE = ' for the selected characters, or the whole field with nothing selected';
+  var TS_LINK_TITLE = 'Link: a web address (https://…) for the selected characters, or the whole field with nothing selected. Enter sets it, Esc backs out; an empty box takes the link off. Type a page\'s name to link to a page or one of its sections.';
   var TS_LINK_NODE = 'Links the whole node: a click on the node opens it. Type a web address (https://…) and press Enter; Esc backs out; an empty box takes the link off.';
   var TS_LINK_ARROW = 'An arrow cannot hold a link: in a flowchart a link belongs to a node (the Link box on a node’s label links the whole node).';
   var TS_LINK_NODE_BAD = 'A node’s link is a plain web address: it cannot hold a quote, < or >, %%, &# or a ; after a #.';   // said for an address the link rule keeps but a diagram cannot carry (docrender.js diagramLink)
@@ -2050,7 +2050,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var am = tsBlocksOf(tsState.box), sel = tsState.sel, fld = am && sel && tsState.box && sel.map === am.id ? tsField(am.blocks, sel.d) : null, st = null, n = 0;
       if (fld) { st = TF.stateAt(fld.fmt(), fld.text(), sel.s, sel.e); n = Math.abs(sel.e - sel.s); }
       var off = !fld;
-      E.root.setAttribute('aria-label', fld ? 'Text style — ' + tsName(am.blocks, sel.d) : 'Text style');
+      E.root.setAttribute('aria-label', fld ? 'Text style: ' + tsName(am.blocks, sel.d) : 'Text style');
       E.scope.textContent = off ? '' : n ? n + ' selected' : 'Whole field';
       E.scope.title = off ? '' : n ? 'The controls act on the ' + n + ' selected character' + (n === 1 ? '' : 's') + '.' : 'Nothing is selected: the controls act on the whole field.';
       E.b.disabled = E.i.disabled = E.u.disabled = E.s.disabled = off;
@@ -2119,13 +2119,13 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       E.linkLab.appendChild(E.link); root.appendChild(E.linkLab);
       E.pageBtn = mk('button', 'rte-btn ts-pagebtn', 'Page\u2026', TS_PAGE_BTN); E.pageBtn.type = 'button'; E.pageBtn.tabIndex = -1; root.appendChild(E.pageBtn);   // 1.5.6: a link to a page
       root.appendChild(mk('span', 'rte-sep'));
-      E.clear = mk('button', 'rte-btn', 'Tₓ', 'Clear — take the styling off: the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.tabIndex = -1; E.clear.dataset.ts = 'clear';
+      E.clear = mk('button', 'rte-btn', 'Tₓ', 'Clear: take the styling off the selected characters, or the whole field with nothing selected'); E.clear.type = 'button'; E.clear.tabIndex = -1; E.clear.dataset.ts = 'clear';
       root.appendChild(E.clear); root.appendChild(mk('span', 'rte-sep'));
       // 1.6.2: Bullets, on a table's cell only (tsRefresh shows it): a list made of the cell's lines (tsBullets)
-      E.bullets = mk('button', 'rte-btn ts-bullets', '\u2022 List', 'Bullets \u2014 make the lines you picked, or the line the caret is on, a bulleted list; press again to make them plain lines. A line typed with "- " or "\u2022 " at its start is a list item too.'); E.bullets.type = 'button'; E.bullets.tabIndex = -1; E.bullets.dataset.ts = 'bullets'; E.bullets.hidden = true;
+      E.bullets = mk('button', 'rte-btn ts-bullets', '\u2022 List', 'Bullets: make the lines you picked, or the line the caret is on, a bulleted list; press again to make them plain lines. A line typed with "- " or "\u2022 " at its start is a list item too.'); E.bullets.type = 'button'; E.bullets.tabIndex = -1; E.bullets.dataset.ts = 'bullets'; E.bullets.hidden = true;
       root.appendChild(E.bullets);
       E.symWrap = mk('span', 'rte-symwrap');
-      E.symBtn = mk('button', 'rte-btn rte-symbtn', 'Ω', 'Insert a symbol at the caret — arrows, dashes, ellipsis, bullets, maths, checks, quotes'); E.symBtn.type = 'button'; E.symBtn.tabIndex = -1;
+      E.symBtn = mk('button', 'rte-btn rte-symbtn', 'Ω', 'Insert a symbol at the caret: arrows, dashes, ellipsis, bullets, maths, checks, quotes'); E.symBtn.type = 'button'; E.symBtn.tabIndex = -1;
       E.syms = mk('div', 'rte-syms');
       E.symList = (Array.isArray(syms) ? syms : []).map(function(s) { var b = mk('button', 'rte-sym', String(s[0]), String(s[1])); b.type = 'button'; b.tabIndex = -1; b.dataset.sym = String(s[0]); E.syms.appendChild(b); return b; });
       E.symWrap.appendChild(E.symBtn); E.symWrap.appendChild(E.syms); root.appendChild(E.symWrap);
@@ -2412,7 +2412,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       colNames.forEach(function(c, ci) {
           var k = jE.full ? (ci === 0 ? colNames.length : 0) : jE.spans ? jE.spans[ci] : 1;
           if (k === 0) return;
-          html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'—'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 ' + (6 * (k - 1)) + 'px; min-width:' + (70 * k + 6 * (k - 1)) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
+          html += tsBoxHtml('r-col' + (k > 1 ? ' r-span' : ''), jE.full ? 'Sub-heading across the table' : (c||'–'), 'data-idx="'+idx+'" data-ri="'+ri+'" data-ci="'+ci+'"', k > 1 ? 'flex:' + k + ' 1 ' + (6 * (k - 1)) + 'px; min-width:' + (70 * k + 6 * (k - 1)) + 'px;' : '', true, k > 1 && !jE.full ? 'title="Spans ' + k + ' columns. Right-click for Unmerge."' : '');
       });
       html += '<button class="tool ghost b-rowmenu x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="This row: add a row above or below, move it, or make it a full-width row" aria-haspopup="menu" aria-label="Row menu">\u22ef</button>';
       html += '<button class="tool ghost danger del-row x-btn" data-idx="'+idx+'" data-ri="'+ri+'" title="Remove this row"><i class="wib wi-close"></i></button>';
@@ -3000,11 +3000,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       { sep: true },
       { c: 'removeFormat', l: 'T&#8339;', t: 'Clear formatting on the selection' },
       { sep: true },
-      { sym: true, l: '&#937;', t: 'Insert a symbol — arrows, dashes, ellipsis, bullets, maths, checks, quotes' }
+      { sym: true, l: '&#937;', t: 'Insert a symbol: arrows, dashes, ellipsis, bullets, maths, checks, quotes' }
   ];
   // Symbols the bar can drop in at the cursor. Each entry: [character, name].
   var RTE_SYMS = [
       ['\u2192', 'right arrow'], ['\u2190', 'left arrow'], ['\u2194', 'both ways'], ['\u21D2', 'implies'], ['\u2191', 'up'], ['\u2193', 'down'], ['\u21B3', 'then'],
+      // dash-ok: the symbol tray offers the em dash as a character to insert
       ['\u2014', 'em dash'], ['\u2013', 'en dash'], ['\u2026', 'ellipsis'], ['\u2022', 'bullet'], ['\u00B7', 'middle dot'], ['\u25AA', 'small square'], ['\u25B8', 'small triangle'],
       ['\u00D7', 'times'], ['\u00F7', 'divide'], ['\u00B1', 'plus-minus'], ['\u2248', 'about'], ['\u2260', 'not equal'], ['\u2264', 'at most'], ['\u2265', 'at least'], ['\u221E', 'infinity'],
       ['\u00B0', 'degrees'], ['\u00BD', 'half'], ['\u00BC', 'quarter'], ['\u00BE', 'three quarters'], ['\u00B2', 'squared'],
@@ -3012,7 +3013,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       ['\u201C', 'open quote'], ['\u201D', 'close quote'], ['\u2018', 'open single'], ['\u2019', 'apostrophe'], ['\u00AB', 'guillemet open'], ['\u00BB', 'guillemet close'],
       ['\u2122', 'trademark'], ['\u00A9', 'copyright'], ['\u00AE', 'registered'], ['\u2699', 'gear'], ['\u2694', 'crossed swords'], ['\u2620', 'skull'], ['\u2691', 'flag'], ['\u2690', 'empty flag']
   ];
-  var RTE_LINK_TITLE = 'Link \u2014 a web address (https://\u2026) for the selected text, or for the link the caret is in. Enter sets it, Esc backs out; an empty box takes the link off. Type a page\'s name to link to a page or one of its sections. With nothing selected and the caret outside a link there is nothing to link: a text block styles a selection, not the whole block.';
+  var RTE_LINK_TITLE = 'Link: a web address (https://\u2026) for the selected text, or for the link the caret is in. Enter sets it, Esc backs out; an empty box takes the link off. Type a page\'s name to link to a page or one of its sections. With nothing selected and the caret outside a link there is nothing to link: a text block styles a selection, not the whole block.';
   // [sinkcheck:rte-start]
   // The box holds what the preview renders — the page sanitiser's HTML — so a planner from a file runs and loads nothing here either
   function rteInitial(b) {
@@ -3025,7 +3026,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   // Color and size on the selected text: the app's ink row, then Custom, Default and the size steps — constants from textfmt.js. A planner's and a page's
   // text blocks write them into their bar before the symbol tray, and since 1.5.4 the play map's text box does too (inspector.js textStyleHtml).
   function rteLookHtml() {
-      return TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ' \u2014 color the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
+      return TF.PALETTE.map(function(p) { return '<button type="button" class="rte-sw" data-color="' + esc(p[0]) + '" title="' + esc(p[1]) + ': color the selected text" style="background:' + esc(p[0]) + ';" tabindex="-1"></button>'; }).join('')
               + '<label class="rte-sw rte-custom" title="Custom color for the selected text"><input type="color" class="rte-colorpick" value="#d9534f" tabindex="-1"></label>'
               + '<button type="button" class="rte-btn rte-nocolor" title="The default color on the selected text" tabindex="-1">Default</button>'
               + '<select class="rte-size" title="Size of the selected text" tabindex="-1"><option value="">Size\u2026</option><option value="default">Default</option>' + TF.SIZES.map(function(s) { return '<option value="' + esc(s) + '">' + esc(TF.SIZE_NAMES[s] || s) + '</option>'; }).join('') + '</select><span class="rte-sep"></span>';
@@ -4236,7 +4237,7 @@ function openAppearanceMenu(anchor) {
     if (fgPrev) fontOpts += '</optgroup>';
     var m = document.createElement('div'); m.id = 'docAppearanceMenu'; m.className = 'doc-appearance-menu';
     m.innerHTML =
-        '<div class="dam-head">Appearance &mdash; this ' + kind + '</div>' +
+        '<div class="dam-head">Appearance: this ' + kind + '</div>' +
         '<label class="dam-row"><span>Font</span> <select id="damFont">' + fontOpts + '</select></label>' +
         '<label class="dam-row"><span>Text</span> <input type="color" id="damText" value="' + (stC.textColor || cdC.textColor || '#e8e2d0') + '"><button class="dam-clear" data-f="textColor" title="Use the default">&times;</button></label>' +
         '<label class="dam-row"><span>Background</span> <input type="color" id="damBg" value="' + (stC.bgColor || cdC.bgColor || '#181510') + '"><button class="dam-clear" data-f="bgColor" title="Use the default">&times;</button></label>' +
@@ -4245,7 +4246,7 @@ function openAppearanceMenu(anchor) {
         (effImg ? '<label class="dam-row"><span>Dim</span> <input type="range" id="damDim" min="0" max="90" step="5" value="' + dimVal + '"> <span id="damDimVal" class="dam-dimval">' + dimVal + '%</span></label>' : '') +
         '<div class="dam-actions"><button id="damReset" class="tool ghost">Reset this ' + kind + '</button></div>' +
         '<div class="dam-divider"></div>' +
-        '<div class="dam-head">Campaign default &mdash; all pages &amp; sheets</div>' +
+        '<div class="dam-head">Campaign default: all pages &amp; sheets</div>' +
         '<div class="dam-actions"><button id="damSetCamp" class="tool ghost">Use this ' + kind + '&rsquo;s look as the default</button> <button id="damClearCamp" class="tool ghost"' + (Object.keys(cd).length ? '' : ' disabled') + '>Clear default</button></div>';
     document.body.appendChild(m);
     var r = anchor.getBoundingClientRect();

@@ -49,7 +49,7 @@ pendingChecks.push((async () => {
     const p3 = A.api.placeWaiting(A.camp, 'u_a', A.camp.items.m2, null);
     check('F1a placeWaiting: the first makes one waiting token (a circle with their clean name and color, at the spawn spot) and tells the GM once (a toast and a Game Record "char" line); on another map it MOVES there under a fresh id (never two items with one id on a map: a stroke planted with its id cannot collide; the old map loses it, both maps reported); on its own map nothing changes',
         j(p1) === j(['m1']) && j(Object.assign({}, w1, { id: 'x' })) === j({ id: 'x', type: 'circle', waiting: 1, ownerId: 'u_a', w: 60, h: 52, layer: 'middle', name: 'Ana', color: '#112233', x: 100, y: 200 }) && /^wb[a-z0-9]{1,8}$/.test(w1.id)
-        && j(A.out.toasts) === j(['Ana has no character yet \u2014 a waiting token on Inn.']) && j(A.out.logs) === j([['char', 'Ana has no character yet \u2014 a waiting token on Inn']])
+        && j(A.out.toasts) === j(['Ana has no character yet, so a waiting token stands on Inn.']) && j(A.out.logs) === j([['char', 'Ana has no character yet, so a waiting token stands on Inn']])
         && j(p2.slice().sort()) === j(['m1', 'm2']) && A.wb('m1').length === 0 && w2.id !== w1.id && /^wb[a-z0-9]{1,8}$/.test(w2.id) && A.wb('m2').length === 1 && j(p3) === '[]' && A.out.toasts.length === 1, j([p1, w1, p2, p3, A.out.toasts]));
     A.wb('m1').push({ id: 'extra', type: 'circle', waiting: 1, ownerId: 'u_a', x: 0, y: 0 }, { id: 'other', type: 'circle', waiting: 1, ownerId: 'u_b', x: 0, y: 0 });
     const p4 = A.api.placeWaiting(A.camp, 'u_a', A.camp.items.m2, null), r1 = A.api.removeWaiting(A.camp, 'u_a');
@@ -381,7 +381,7 @@ pendingChecks.push((async () => {
         dInv.gives.length === 1 && dInv.gives[0][2] === j({ play: true, pic: true }) && dInv.camp.chars.c_m.invited === undefined && j(dInv.answer) === j([{ ok: true, type: 'char-done-ans', rid: 'd1' }]), j(dInv));
     const invH = hostSend(); invH.net.charReview('u_a', 'c_m', 'Pax', 'invited', ''); const invSent = invH.got.splice(0);
     check('F3b the GM\'s invite reaches its player (host: invited is a known outcome) and reads "asked you to make a character … open it from your card"',
-        j(invSent.map(g => [g[0], g[1].outcome])) === j([['pA', 'invited'], ['pA2', 'invited']]) && j(review({ outcome: 'invited', name: 'Pax' })) === j(['Your GM asked you to make a character: Pax \u2014 open it from your card.']));
+        j(invSent.map(g => [g[0], g[1].outcome])) === j([['pA', 'invited'], ['pA2', 'invited']]) && j(review({ outcome: 'invited', name: 'Pax' })) === j(['Your GM asked you to make a character: Pax. Open it from your card.']));
     const fgS = between('// [netcheck:forget-start]', '// [netcheck:forget-end]', 'forget');
     const fg = answer => { const camp = { id: 'c1', players: { u_a: { name: 'Ana' } }, chars: { c_m: { id: 'c_m', ownerId: 'u_a', making: 1 }, c_k: { id: 'c_k', ownerId: 'u_a' }, c_o: { id: 'c_o', ownerId: 'u_b', making: 1 } } }, asked = [], gone = [];
         const netF = { role: 'host', roster: {}, forgotten: Object.create(null), syncCharGone: (id, only) => gone.push([id, only]) };

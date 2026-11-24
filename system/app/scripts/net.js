@@ -67,7 +67,7 @@ function webJoinOnly() { var W = typeof window !== 'undefined' ? window.wpWebMod
 function webOlderWords(gms) { return 'The GM’s Waypoint' + (gms ? ' ' + gms : '') + ' is newer than this website’s. Try again once the website is updated.'; }
 // [netcheck:webjoin-end]
 function updateMessage(theirs, ours) {
-    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s' + (ours ? ' (' + ours + ')' : '') + '. Update Waypoint, then rejoin: open Settings ▸ Check for updates and press Update now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy — saves and settings are kept).';
+    return 'Your Waypoint (' + (theirs || 'older than 1.1.2') + ') is older than the GM\'s' + (ours ? ' (' + ours + ')' : '') + '. Update Waypoint, then rejoin: open Settings ▸ Check for updates and press Update now (or get the latest Waypoint_Setup.exe from your GM and run it over your copy, which keeps saves and settings).';
 }
 
 var net = {
@@ -619,7 +619,7 @@ function setIndicator(level, text) {
     if (!b) return;
     ['net-ok', 'net-warn', 'net-bad'].forEach(function(c) { b.classList.remove(c); });
     if (level) b.classList.add('net-' + level);
-    b.title = text ? 'Multiplayer — ' + text : 'Multiplayer — host or join a session';
+    b.title = text ? 'Multiplayer: ' + text : 'Multiplayer: host or join a session';
     net.health = level || null;
 }
 net.setIndicator = setIndicator;
@@ -686,8 +686,8 @@ function hbTick() {
         var age0 = now - hostLastSeen;
         if (reconn.pending) { setIndicator('warn', 'reconnecting to the GM'); return; }
         if (age0 > HB_DEAD && !(hostHoldUntil > now)) {   // F2b: nor is a GM who said so
-            setIndicator('bad', 'lost the GM — reconnecting');
-            setStatus('No response from the GM for ' + Math.round(age0 / 1000) + 's — reconnecting…');
+            setIndicator('bad', 'lost the GM, reconnecting');
+            setStatus('No response from the GM for ' + Math.round(age0 / 1000) + 's. Reconnecting…');
             toast('No response from the GM. Reconnecting…');
             hostLastSeen = now;
             try { if (c0) c0.close(); } catch (e) {}   // its close handler starts the reconnect loop
@@ -806,7 +806,7 @@ function renderRoster() {
                     ? '<button class="roster-summon" data-summon="' + escTextRoster(peerKey) + '" title="Summon this player to the map you are on"><i class="wib wi-summon"></i></button>' +
                       '<button class="roster-kick" data-kick="' + escTextRoster(peerKey) + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
                     : '';
-                var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding — will be dropped if silence continues"><i class="wib wi-hourglass"></i></span>' : '';
+                var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding. Will be dropped if silence continues"><i class="wib wi-hourglass"></i></span>' : '';
                 // 1.6.3 (the improvement week's review of multiplayer, finding 34): a player the GM paused alone says so on their chip, beside a
                 // button that lets them play again (net.pausePlayer(id, false), the party chip's own Resume). Before, only the small party chip
                 // showed it, and a GM who resumed the table could forget that one player was still held
@@ -1502,8 +1502,8 @@ function refreshPauseUi() {
     if (banner) {
         banner.style.display = frozenMe && !reconMe ? 'block' : 'none';
         if (frozenMe) banner.textContent = net.paused
-            ? 'The GM paused the table — chat is still open.'
-            : 'The GM paused you — chat is still open.';
+            ? 'The GM paused the table. Chat is still open.'
+            : 'The GM paused you. Chat is still open.';
     }
     if (banner && frozenMe && !net.paused && !net.selfPaused && net.selfHeld) banner.textContent = heldBanner();   // 1.6.0 (backlog 190): held for a new sheet
     document.body.classList.toggle('net-paused', !!((net.paused || ((net.selfPaused || net.selfHeld || net.reconnecting) && isClient)) && net.active));   // always a true or a false: toggle with undefined flips the class (found live, 2026-10-30: the map dimmed with no pause)
@@ -2488,17 +2488,17 @@ function itemNotice(ch, name, what, by) {   // by (1.5.4 One at a time): the row
         if (ts && tnow - ts.at < TRY_QUIET_MS) { ts.more++; return; }
         var more = ts ? ts.more : 0; _triedSaid[tk] = { at: tnow, more: 0 };
     }
-    var t = what === 'bound-pick' ? who + ' picked up ' + nm + ' — bound: it stays until you remove it.'
-        : what === 'curse-pick' ? who + ' picked up ' + nm + ' — curse on contact: if they drop it, you keep it on their sheet.'
-        : what === 'bound-try' ? who + ' tried to remove ' + nm + ' — it stays (bound).'
-        : what === 'eq-bound-on' ? who + ' switched on ' + nm + ' — bound: it stays on until you switch it off.'   // Stage 6 F4b: the equip lock
-        : what === 'eq-curse-on' ? who + ' switched on ' + nm + ' — curse on contact: if they switch it off, you keep it on.'
-        : what === 'eq-bound-try' ? who + ' tried to switch off ' + nm + ' — it stays on (bound).'
-        : what === 'eq-held-try' ? who + ' tried to switch on ' + (by || 'an item') + ' — ' + nm + ' is bound and stays on, so it stays off.'   // 1.5.4 One at a time
-        : what === 'eq-move-try' ? who + ' tried to change ' + nm + ' — it is bound and stays on, and another row of that group is on.'
-        : what === 'eq-curse-off' ? who + ' switched off ' + nm + ' — it stays on, out of their sight, until you switch it off.'
-        : what === 'pick-over' ? who + ' changed ' + nm + ' — their pick replaced the hidden choice you set (set it again on the row if you want it back).'
-        : who + ' dropped ' + nm + ' — kept on their sheet, out of their sight, until you remove it.';
+    var t = what === 'bound-pick' ? who + ' picked up ' + nm + '. It is bound, so it stays until you remove it.'
+        : what === 'curse-pick' ? who + ' picked up ' + nm + '. Curse on contact: if they drop it, you keep it on their sheet.'
+        : what === 'bound-try' ? who + ' tried to remove ' + nm + '. It stays, since it is bound.'
+        : what === 'eq-bound-on' ? who + ' switched on ' + nm + '. It is bound, so it stays on until you switch it off.'   // Stage 6 F4b: the equip lock
+        : what === 'eq-curse-on' ? who + ' switched on ' + nm + '. Curse on contact: if they switch it off, you keep it on.'
+        : what === 'eq-bound-try' ? who + ' tried to switch off ' + nm + '. It stays on, since it is bound.'
+        : what === 'eq-held-try' ? who + ' tried to switch on ' + (by || 'an item') + '. ' + nm + ' is bound and stays on, so it stays off.'   // 1.5.4 One at a time
+        : what === 'eq-move-try' ? who + ' tried to change ' + nm + '. It is bound and stays on, and another row of that group is on.'
+        : what === 'eq-curse-off' ? who + ' switched off ' + nm + '. It stays on, out of their sight, until you switch it off.'
+        : what === 'pick-over' ? who + ' changed ' + nm + '. Their pick replaced the hidden choice you set. Set it again on the row if you want it back.'
+        : who + ' dropped ' + nm + '. It is kept on their sheet, out of their sight, until you remove it.';
     if (more) t += ' (' + more + ' more ' + (more === 1 ? 'try' : 'tries') + ' since the last notice)';
     toast(t); logEvent('items', t);
 }
@@ -4395,7 +4395,7 @@ var notepadTimer = null;
 // cleaned again there. It is editable only so that it has a caret, as the read-only box it replaced had: every edit is canceled.
 // _pad.on: 0 not asked yet, 1 the pad is a host of the text box, 2 refused. _pad.mode: how the box is dressed now, 'write' or 'read'.
 var _pad = { fmt: undefined, font: '', on: 0, mode: '', gen: 0 };
-var PAD_WRITE = 'Notes for the whole table — everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.', PAD_READ = 'The GM has not written anything yet.';
+var PAD_WRITE = 'Notes for the whole table. Everyone sees this as you type. Gone when you put it away or the session ends; anyone can save it to their Journal.', PAD_READ = 'The GM has not written anything yet.';
 function padCore() { var L = typeof window !== 'undefined' ? window.wpLook : null; return L && typeof L.makeRec === 'function' && typeof L.cleanRec === 'function' && L.RULES && L.RULES.PAD ? L : null; }
 function padBox() { var w = typeof window !== 'undefined' ? window.wpTextBox : null; return w && typeof w.host === 'function' && typeof w.dress === 'function' && typeof w.fill === 'function' ? w : null; }
 // A pad that is put away, or a session that ends, takes the pad's look with it and its steps too: the field says who it is with a number that
@@ -4622,7 +4622,7 @@ net.notepadInput = function(text) {   // the pad changed under the GM's hand: it
         var text = String(net.notepad.text || '');
         if (!String(text).trim()) { toast('Nothing on the notepad yet.'); return; }
         var meta = net.role === 'host' ? notepadMsg() : net.notepad;
-        if (window.wpJournalAddNote) window.wpJournalAddNote(meta, 'Table notes — ' + new Date().toLocaleDateString(), text, meta && meta.look);   // with its look: the GM's own as it would be sent, a player's as the host sent it. The Journal cleans it again for the text it stores
+        if (window.wpJournalAddNote) window.wpJournalAddNote(meta, 'Table notes, ' + new Date().toLocaleDateString(), text, meta && meta.look);   // with its look: the GM's own as it would be sent, a player's as the host sent it. The Journal cleans it again for the text it stores
     });
     var pb = ui('netNotepadBtn'); if (pb) pb.addEventListener('click', function() {
         if (!(net.active && net.role === 'host')) { toast('Host a session first. The notepad is for the table.'); return; }
@@ -5579,7 +5579,7 @@ net.whereIs = function(pid) {
 function healBindings(camp) {
     var S = SC(); if (!S || !S.migrateBindings || !camp) return;
     var r = S.migrateBindings(camp, { link: false });
-    r.guesses.forEach(function(g) { var ch = (camp && camp.chars && typeof g.id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, g.id) ? camp.chars[g.id] : null), rec = own(camp.players, g.pid) ? camp.players[g.pid] : null; if (ch) logEvent('char', ((rec && rec.name) || 'A player') + ' plays ' + ch.name + ' (their other characters are kept) \u2014 change it in System \u25B8 Characters'); });
+    r.guesses.forEach(function(g) { var ch = (camp && camp.chars && typeof g.id === 'string' && Object.prototype.hasOwnProperty.call(camp.chars, g.id) ? camp.chars[g.id] : null), rec = own(camp.players, g.pid) ? camp.players[g.pid] : null; if (ch) logEvent('char', ((rec && rec.name) || 'A player') + ' plays ' + ch.name + ' (their other characters are kept). Change it in System \u25B8 Characters'); });
 }
 // The campaign's sheets feature: off, characters do not drive tokens (every owned one counts as in play; none is made on arrival)
 function sheetsOnFor(camp) { return !window.wpVtt || !window.wpVtt.campaignOn || window.wpVtt.campaignOn('sheets', camp) !== false; }
@@ -5714,7 +5714,7 @@ function placeWaiting(camp, pid, map, landRoomId, near) {
     w.x = spot.x; w.y = spot.y;
     if (window.wpSeatCell) window.wpSeatCell(w, map); else if (window.wpSeatHex) window.wpSeatHex(w, map);
     map.whiteboard = map.whiteboard || []; map.whiteboard.push(w); add(map.id);
-    if (!keep) { var t = nm + ' has no character yet \u2014 a waiting token on ' + ((map.meta || {}).title || 'a map'); toast(t + '.'); logEvent('char', t); }
+    if (!keep) { var t = nm + ' has no character yet, so a waiting token stands on ' + ((map.meta || {}).title || 'a map'); toast(t + '.'); logEvent('char', t); }
     return maps;
 }
 // After the resolver (op) or a tidy (null): place, move or remove player pid's waiting token for the map they are on. Returns the maps it changed.
@@ -6069,7 +6069,7 @@ function queueJoin(conn, prof, why) {
     if (pendingJoins.some(function(j) { return j.conn === conn; })) return;
     if (why === 'nokey' && prof && typeof liveDupOf === 'function' && liveDupOf(conn, prof.id)) { denyJoin(conn, 'That player identity is already at the table.'); return; }   // 1.6.3 (finding 17): a known name with no proof of its key while another connection of theirs is live: refused as before, never put to the GM
     if (why === 'nokey' && prof && typeof _noKeyOut !== 'undefined' && own(_noKeyOut, prof.id)) { denyJoin(conn, 'The GM declined your request to join.'); return; }   // 1.6.3 (finding 2): the GM turned away this name without its key: refused again with no question (a proof of the key never comes here)
-    if (pendingJoins.length >= 12) { denyJoin(conn, 'The table is busy — try again in a moment.'); return; }
+    if (pendingJoins.length >= 12) { denyJoin(conn, 'The table is busy. Try again in a moment.'); return; }
     try { conn.send({ type: 'wait' }); } catch (e) { sendFailed(e); }
     pendingJoins.push({ conn: conn, prof: prof, why: why || '' });
     processNextApproval();
@@ -6087,7 +6087,7 @@ function unboundNotice(prof) {
     var more = ts ? ts.more : 0, ks = Object.keys(_unboundSaid);
     if (!ts && ks.length >= UNBOUND_IDS_MAX) delete _unboundSaid[ks[0]];
     delete _unboundSaid[id]; _unboundSaid[id] = { at: now, more: 0 };
-    var t = ((prof && prof.name) || 'A player') + ' was turned away: their app holds this table\u2019s key, but its answer was made over a different connection than the one that reached you. Nothing for you to answer \u2014 if it keeps happening, check with them another way.';
+    var t = ((prof && prof.name) || 'A player') + ' was turned away: their app holds this table\u2019s key, but its answer was made over a different connection than the one that reached you. Nothing for you to answer. If it keeps happening, check with them another way.';
     if (more) t += ' (' + more + ' more ' + (more === 1 ? 'try' : 'tries') + ' since the last notice)';
     toast(t); logEvent('table', t);
     return true;
@@ -6270,7 +6270,7 @@ function processNextApproval() {
     // one that closed meanwhile decides nothing, so a pile of stale questions from a flaky link never keeps a returning player out for the night
     var goneQ = function() { return !next.conn.open; };
     var approvalGone = function() { toast((next.prof.name || 'A player') + ' stopped waiting, so their question went away.'); processNextApproval(); };
-    var hint = next.why ? ' — a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
+    var hint = next.why ? '. It is a name this table already knows, but without its table key (a fresh install, or someone else using that name)' : '';
     var who = next.prof.name || 'A player', sameOf = campQ && typeof sameCandidates === 'function' ? sameCandidates(campQ, next.prof.id, net.roster) : [];
     var askSame = function() {   // 1.5.7: the known players in one list, most recently seen first; Cancel goes back to the first question. 1.6.0: it opens on the joiner's name or on none, and lists what moves
         var pk = typeof playerPick === 'function' ? playerPick(campQ, sameOf, 'Same person as', { name: next.prof.name }) : null;
@@ -6374,14 +6374,14 @@ function wireShapeOk(msg) {
 // words and asks ONCE whether to trust the table that answered (never on Enter) — a yes holds for the next join of that code alone.
 // The check is asynchronous (WebCrypto): while it runs, what the host sends behind its snapshot waits in order (bounded), and is read after it.
 var SNAP_HOLD_MAX = 256;
-var SNAP_REFUSED = 'This table\u2019s GM is not the one you know from this room code \u2014 the GM may have reinstalled, or someone else is at that code.';
-var SNAP_ASK = 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer \u2014 or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?';
+var SNAP_REFUSED = 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled, or someone else is at that code.';
+var SNAP_ASK = 'This table\u2019s GM is not the one you know from this room code. The GM may have reinstalled or moved to another computer, or someone else is at that code. If you are not sure, ask your GM before you say yes. Trust this table\u2019s GM from now on, and join?';
 // A host that did not PROVE itself in time is not a host that proved itself as someone else: the GM's own app may only be slow (its link, a busy
 // moment). So it has words of its own, it is never marked as refused (an automatic reconnect's round comes back to it), and a yes to its question
 // is a yes to waiting for it with no clock on the join that follows (the player is at the keyboard, and a GM's Allow takes a person's time) —
 // never to a table with no key: whatever answers is still judged by what this app knows.
 var HOST_LATE = 'A table answered at this room code but did not show in time that it is your GM\u2019s.';
-var HOST_LATE_ASK = 'The table at this room code did not show in time that it is your GM\u2019s. It may only be slow \u2014 or someone else is at that code. Join again and wait for it as long as it takes? Your app still checks that it is your GM before you are joined.';
+var HOST_LATE_ASK = 'The table at this room code did not show in time that it is your GM\u2019s. It may only be slow, or someone else is at that code. Join again and wait for it as long as it takes? Your app still checks that it is your GM before you are joined.';
 var _joinTrust = { refused: null, asked: false, accept: null, said: false, saidLate: false, was: null, bad: Object.create(null) }, _snapAccept = null;   // bad: the room ids whose host this join or reconnect refused
 function joinTrustReset() { _joinTrust = { refused: null, asked: false, accept: _snapAccept, said: false, saidLate: false, was: null, bad: Object.create(null) }; _snapAccept = null; }   // a join the player began: what the last one refused is forgotten; a yes just given is good for this join
 function snapHeld(msg, conn) {
@@ -6643,7 +6643,7 @@ function handleMessage(msg, conn) {
                 // as a dialog (a dialog here would land on top of a pending Allow/Deny)
                 newerSeen[theirV] = true;
                 toast((prof.name || 'A player') + ' is joining on Waypoint ' + theirV + '. That is newer than your ' + APP_VERSION + '. Update when this session is over: Settings ▸ Check for updates.');
-                logEvent('session', (prof.name || 'A player') + ' joined on a newer Waypoint (' + theirV + ' vs ' + APP_VERSION + ') — update after the session');
+                logEvent('session', (prof.name || 'A player') + ' joined on a newer Waypoint (' + theirV + ' vs ' + APP_VERSION + '). Update after the session');
             }
         }
         var pwEl = ui('netPassInput');
@@ -6652,7 +6652,7 @@ function handleMessage(msg, conn) {
         // already at the lockout is refused in the lockout's words and not counted again, as before
         var pwMiss = function() {
             var nowM = Date.now(), fM = own(_pwFails, prof.id) ? _pwFails[prof.id].filter(function(t) { return nowM - t <= PW_LOCK_MS; }) : [];
-            if (fM.length >= PW_LOCK_FAILS) { _pwFails[prof.id] = fM; denyJoin(conn, 'Too many wrong passwords under that name — try again in a minute.'); return; }
+            if (fM.length >= PW_LOCK_FAILS) { _pwFails[prof.id] = fM; denyJoin(conn, 'Too many wrong passwords under that name. Try again in a minute.'); return; }
             var ksPw = Object.keys(_pwFails);
             if (ksPw.length >= 500) { ksPw.forEach(function(k) { if (k !== prof.id && _pwFails[k].every(function(t) { return nowM - t > PW_LOCK_MS; })) delete _pwFails[k]; }); ksPw = Object.keys(_pwFails); if (ksPw.length >= 500) delete _pwFails[ksPw[0]]; }   // a guessing run under ever new names holds no more than this many records
             fM.push(nowM); _pwFails[prof.id] = fM;
@@ -6670,7 +6670,7 @@ function handleMessage(msg, conn) {
             var campSat = pwRight ? null : getActiveCampaign(), recSat = campSat && campSat.players && own(campSat.players, prof.id) ? campSat.players[prof.id] : null;
             if (!pwRight && own(_satIds, prof.id) && recSat && typeof recSat.key === 'string' && recSat.key) pwSat = true;
             else {
-                if (failsPw.length >= PW_LOCK_FAILS) { denyJoin(conn, 'Too many wrong passwords under that name — try again in a minute.'); return; }   // a guessing run under one name locks that name out, briefly; a player under another name is not kept waiting by it
+                if (failsPw.length >= PW_LOCK_FAILS) { denyJoin(conn, 'Too many wrong passwords under that name. Try again in a minute.'); return; }   // a guessing run under one name locks that name out, briefly; a player under another name is not kept waiting by it
                 if (!pwRight) { pwMiss(); return; }
             }
         }
@@ -6738,7 +6738,7 @@ function handleMessage(msg, conn) {
         if (keyA && nonceA && chA) hmacHex(keyA, authData(nonceA, conn.peer, chA.mine, chA.theirs)).then(sayA); else sayA(null);
     // [netcheck:gate-end]
     } else if (msg.type === 'wait' && net.role === 'client') {
-        setStatus('Connected — waiting for the GM to let you in…');
+        setStatus('Connected. Waiting for the GM to let you in…');
     } else if (msg.type === 'gmhello' && net.role === 'client') {
         hostHail(msg, conn);   // security (2026-10-01): the host's early proof — taken from the host this app dialed, before the snapshot, once; judged as a snapshot is, storing nothing
     } else if ((msg.type === 'denied' || msg.type === 'kicked') && net.role === 'client') {
@@ -6773,7 +6773,7 @@ function handleMessage(msg, conn) {
         syncSessionButtons();
         if (window.wpTrackers && typeof window.wpTrackers.receive === 'function') window.wpTrackers.receive([], 0);   // backlog 29: a whole campaign from the host: none of its trackers until it sends them
         var webJ = typeof webJoinOnly === 'function' && webJoinOnly();   // 1.5.5: a website's plan that joins tables alone has no campaign of the player's own to speak of (webmode.js)
-        setStatus(webJ ? 'Connected. You are at the GM’s table.' : 'Connected — you are at the GM’s table. Your own campaigns are untouched and come back when you leave the session.');   // the owner, 2026-10-04: a player asked where their own campaigns had gone
+        setStatus(webJ ? 'Connected. You are at the GM’s table.' : 'Connected. You are at the GM’s table. Your own campaigns are untouched and come back when you leave the session.');   // the owner, 2026-10-04: a player asked where their own campaigns had gone
         var backS = conn.wpRetry === true && !conn.wpBackSaid; conn.wpBackSaid = true;
         toast(backS ? 'Reconnected ✓' : webJ ? 'Campaign synced from host.' : 'Campaign synced from host. Your own campaigns come back when you leave.');   // security (2026-10-01): a reconnect is said when the table is taken — once per connection, in place of the synced notice (the app shows one notice at a time) — never for a connection that merely opened (whoever answers at the code could raise it at every dial)
         if (window.wpVtt) window.wpVtt.joined();   // seed this table's off-list and queue the join notice
@@ -7122,10 +7122,10 @@ function handleMessage(msg, conn) {
     } else if (msg.type === 'char-review' && net.role === 'client') {   // Onboarding F3: what the GM did with our character
         // [netcheck:charreview-start]
         if (!net.foreign || net.stream || conn.peer !== net.syncedPeer) return;
-        var OUT_R = { back: 'Your GM sent back ', removed: 'Your GM removed ', locked: 'Your GM closed ', invited: 'Your GM asked you to make a character: ' }, TAIL_R = { back: ' to fill in (press Edit sheet, then Done when it is finished)', locked: ' again: you change only the fields that are always yours', invited: ' \u2014 open it from your card' };
+        var OUT_R = { back: 'Your GM sent back ', removed: 'Your GM removed ', locked: 'Your GM closed ', invited: 'Your GM asked you to make a character: ' }, TAIL_R = { back: ' to fill in (press Edit sheet, then Done when it is finished)', locked: ' again: you change only the fields that are always yours', invited: '. Open it from your card' };
         if (typeof msg.outcome !== 'string' || !Object.prototype.hasOwnProperty.call(OUT_R, msg.outcome)) return;
         var nmR = cleanCharName(msg.name) || 'your character', ntR = typeof msg.note === 'string' ? msg.note.replace(/[\u0000-\u001f\u007f\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) : '';
-        toast(OUT_R[msg.outcome] + nmR + (Object.prototype.hasOwnProperty.call(TAIL_R, msg.outcome) ? TAIL_R[msg.outcome] : '') + (ntR ? ': ' + ntR : '.'));
+        toast(OUT_R[msg.outcome] + nmR + (Object.prototype.hasOwnProperty.call(TAIL_R, msg.outcome) ? TAIL_R[msg.outcome] : '') + (ntR ? (msg.outcome === 'invited' ? '. The GM\u2019s note: ' : ': ') + ntR : '.'));   // an invite's tail is a sentence of its own, so the note follows as another
         // [netcheck:charreview-end]
     } else if (msg.type === 'char-upload-done' && net.role === 'client') {   // U2: what the GM did with it
         var campD = getActiveCampaign(), chD = campD && campD.chars && typeof msg.charId === 'string' && Object.prototype.hasOwnProperty.call(campD.chars, msg.charId) ? campD.chars[msg.charId] : null;
@@ -9037,7 +9037,7 @@ function scheduleReconnect() {
     reconn.tries++;
     var slowR = reconn.tries > RECONNECT_TRIES;
     setIndicator('warn', slowR ? 'reconnecting to the GM, still trying' : 'reconnecting to the GM (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')');
-    setStatus(slowR ? 'Connection lost. Still trying now and then, for five minutes in all. If the GM restarts Waypoint and hosts again, you will reattach automatically.' : 'Connection lost — reconnecting (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')… If the GM restarts Waypoint and hosts again, you will reattach automatically.');
+    setStatus(slowR ? 'Connection lost. Still trying now and then, for five minutes in all. If the GM restarts Waypoint and hosts again, you will reattach automatically.' : 'Connection lost. Reconnecting (attempt ' + reconn.tries + ' of ' + RECONNECT_TRIES + ')… If the GM restarts Waypoint and hosts again, you will reattach automatically.');
     if (reconn.tries === 1) toast('Connection lost. Reconnecting, for a few minutes if need be…');
     reconn.timer = setTimeout(function() { joinSession(reconn.code, reconn.name, true); }, typeof reconnWait === 'function' ? reconnWait(reconn.tries) : (reconn.tries === 1 ? 1200 : 2500));
 }
@@ -9212,10 +9212,10 @@ function wireConn(conn) {
     conn.on('iceStateChanged', function(st) {
         if (!net.active || !conn.open) return;
         if (st === 'disconnected') {
-            if (net.role === 'client') { setIndicator('warn', 'link to the GM interrupted'); setStatus('Link to the GM interrupted — waiting for it to recover…'); }
+            if (net.role === 'client') { setIndicator('warn', 'link to the GM interrupted'); setStatus('Link to the GM interrupted. Waiting for it to recover…'); }
             else { var pd = net.roster[conn.peer]; if (pd && !pd.stale) { pd.stale = true; renderRoster(); } }
         } else if (st === 'failed' || st === 'closed') {
-            if (net.role === 'client') { setIndicator('bad', 'lost the GM — reconnecting'); }
+            if (net.role === 'client') { setIndicator('bad', 'lost the GM, reconnecting'); }
             try { conn.close(); } catch (e) {}   // the close handler drops them (host) or starts the reconnect loop (client)
         } else if (st === 'connected' || st === 'completed') {
             if (net.role === 'client') setIndicator('ok', 'connected to the GM');
@@ -9966,7 +9966,7 @@ function startHosting(forceFresh) {
     // 30 s) until it is free. Only a registration that never opened takes the next generation or a new code. A peer this table has let go of
     // (leaveSession nulls net.peer before it destroys it) is never registered again.
     var opened = false, taken = false, closing = false, rereg = 0, reregTimer = null;
-    var codeLine = function() { return 'Hosting \u2014 room code: ' + showCode(code); };
+    var codeLine = function() { return 'Hosting. Room code: ' + showCode(code); };
     var sayDrop = function(text) { if (!(typeof signalHost === 'function' && signalHost())) { setStatus(text); return; } setTimeout(function() { if (!closing && net.peer === peer && peer.disconnected) setStatus(text); }, 5000); };   // 1.6.2 (backlog 220): the app's own server closes its socket about each hour and the table takes it back: said only where that takes longer than a few seconds
     peer.on('open', function() {
         if (net.peer !== peer) return;
@@ -9974,7 +9974,7 @@ function startHosting(forceFresh) {
         rememberHostCode(code);
         if (opened) {   // registered again after the link to the signaling service dropped: the table never stopped
             setStatus(codeLine());
-            if (taken) { taken = false; toast('Your room code is yours again. New players can join.'); logEvent('table', 'Room code free again \u2014 new players can join'); }   // a 'table' line: the log reads a 'session' line that is no start as the session's end
+            if (taken) { taken = false; toast('Your room code is yours again. New players can join.'); logEvent('table', 'Room code free again. New players can join'); }   // a 'table' line: the log reads a 'session' line that is no start as the session's end
             return;
         }
         opened = true;
@@ -9998,7 +9998,7 @@ function startHosting(forceFresh) {
         toast((resumed ? 'Hosting resumed with the same room code. Players can rejoin as before.' : 'Hosting started. Share the room code.') + (sbW ? ' ' + sbW : ''));
         if (sbW) logEvent('table', sbW);
         if (typeof window !== 'undefined' && window.wpRecord) window.wpRecord.start(getActiveCampaign(), showCode(code), !!resumed);   // 1.6.0: the game record opens with the table
-        logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ' — room ' + showCode(code));
+        logEvent('session', (resumed ? 'Session resumed' : 'Session started') + ', room ' + showCode(code));
         var campH = getActiveCampaign(), Sh = SC(); if (campH && campH.system && Sh && Sh.stampRows) Sh.stampRows(campH.system, campH.chars || {});   // Stage 6: a legacy row of a GM-only item gets its own id before anything is sent
         net.applyingRemote = true; save(true); net.applyingRemote = false;
     });
@@ -10024,8 +10024,8 @@ function startHosting(forceFresh) {
         var type = err && err.type;
         if (type === 'unavailable-id') {
             if (opened) {   // the table is live: its name was registered by someone else while the link to the service was down
-                setStatus('Hosting \u2014 your room code is in use somewhere else: players at the table stay connected, but new players cannot join until it is free.');
-                if (!taken) { taken = true; toast('Your room code is in use somewhere else. Players at the table stay connected; new players cannot join until it is free. For a new code, end the session and host again.'); logEvent('table', 'Room code in use elsewhere \u2014 new players cannot join until it is free'); }
+                setStatus('Hosting, but your room code is in use somewhere else: players at the table stay connected, but new players cannot join until it is free.');
+                if (!taken) { taken = true; toast('Your room code is in use somewhere else. Players at the table stay connected; new players cannot join until it is free. For a new code, end the session and host again.'); logEvent('table', 'Room code in use elsewhere. New players cannot join until it is free'); }
                 return;
             }
             closing = true;
@@ -10044,7 +10044,7 @@ function startHosting(forceFresh) {
         }
         if (type === 'invalid-key' && !opened) { var planW = typeof SIGNAL_PLAN === 'string' ? SIGNAL_PLAN : 'This plan joins tables.'; closing = true; try { peer.destroy(); } catch (e) {} if (typeof fightsBack === 'function') fightsBack(); setStatus(planW); toast(planW); return; }   // 1.6.2 (backlog 220): the app's own server refused this host's key; no next generation
         if (opened) {   // a live table: the room code stays in the status line — a stranger's bad dial is nothing of the GM's, and a dropped signaling link is said beside the code
-            if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') sayDrop(codeLine() + ' \u2014 the link that lets new players find you dropped; reconnecting. Players at the table are not affected.');
+            if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') sayDrop(codeLine() + '. The link that lets new players find you dropped. Reconnecting. Players at the table are not affected.');
             return;
         }
         if (typeof fightsBack === 'function') fightsBack();   // 1.6.2: a table that never opened gives a fight it held (fightsHold) back on this machine, or the save keeps it unseen and the next fight writes over it
@@ -10178,7 +10178,7 @@ function joinSession(code, name, isRetry, probe) {
             hostWait(conn);   // security (2026-10-01): a host this app knows the GM of has HOST_PROOF_MS to prove itself (its 'gmhello'); one that does not is not waited on
             startHeartbeat();
             renderRoster();
-            setStatus('Connected — waiting for campaign snapshot...');
+            setStatus('Connected. Waiting for campaign snapshot...');
         });
         wireConn(conn);
     });
@@ -12190,7 +12190,7 @@ if (_chatInput) _chatInput.addEventListener('keydown', function(e) { e.stopPropa
 
 /* ---------- player history & ban list ---------- */
 function fmtDay(ts) {
-    if (!ts) return '—';
+    if (!ts) return '\u2013';
     var d = new Date(ts);
     return d.toLocaleDateString() + ' ' + (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes();
 }
@@ -12238,7 +12238,7 @@ function renderPlayersPanel() {
                 : '<button class="tool ghost player-act" data-ban="' + escTextRoster(pid) + '">Ban</button>') +
             (typeof nameWanters === 'function' ? nameWanters(camp, pid).map(function(wid) { return '<button class="tool ghost player-act" data-namegive="' + escTextRoster(wid) + '" data-namefrom="' + escTextRoster(pid) + '" title="Give this name to the player who wants it. This one is given a name for now and picks another.">Give ' + escTextRoster(cleanRosterName(p.name)) + ' to ' + escTextRoster(recName(players[wid], 'them')) + '</button>'; }).join('') : '') +   // 1.6.4: the name a player wants (refused them, or taken back from them), given in one press
             '<button class="tool ghost player-act" data-rename="' + escTextRoster(pid) + '" title="Set the name everyone at this table sees for this player. Their own name in the app and on the website stays theirs.">Rename&hellip;</button>' +   // 1.6.4: the table name, the GM's alone
-            '<button class="tool ghost player-act" data-forget="' + escTextRoster(pid) + '" title="Remove from history — they\'ll need approval to join again">Forget</button>' +
+            '<button class="tool ghost player-act" data-forget="' + escTextRoster(pid) + '" title="Remove from history. They\'ll need approval to join again">Forget</button>' +
             (!online[pid] && ids.some(function(o) { return o !== pid && !online[o]; }) ? '<button class="tool ghost player-act" data-merge="' + escTextRoster(pid) + '" title="Fold this record into another of the same person, such as their website account: the other keeps its name and takes this one\'s character, tokens and history">Merge into&hellip;</button>' : '') +   // 1.5.6
             '</div>';
     });
@@ -12817,7 +12817,7 @@ function syncSessionButtons() {
     netPaneSync();
     var cbtn = ui('chatBtn');
     var diceOn = !!(window.wpVtt && window.wpVtt.on('dice'));
-    if (cbtn) { cbtn.classList.toggle('needs-session', !net.active && !diceOn); cbtn.dataset.tip = net.active ? 'Table chat and dice' : diceOn ? 'Table chat and dice — chat needs a session; dice roll here anyway' : 'Table chat — needs a session (host or join one first)'; cbtn.removeAttribute('title'); }
+    if (cbtn) { cbtn.classList.toggle('needs-session', !net.active && !diceOn); cbtn.dataset.tip = net.active ? 'Table chat and dice' : diceOn ? 'Table chat and dice. Chat needs a session, and dice roll here anyway' : 'Table chat needs a session (host or join one first)'; cbtn.removeAttribute('title'); }
     var hosting = !!(net.active && net.role === 'host');
     var endB = ui('netEndBtn'), leaveB = ui('netLeaveBtn');
     if (endB) endB.style.display = hosting ? 'block' : 'none';

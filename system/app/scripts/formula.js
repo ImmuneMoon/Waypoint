@@ -375,7 +375,7 @@ Parser.prototype.expectClose = function(openTok) {
 };
 Parser.prototype.call = function(nameTok, pos) {
     var f = FUNCS[nameTok.v];
-    if (!f) { var s = suggest(nameTok.text, Object.keys(FUNCS)); fail('Unknown function ' + q(nameTok.text) + (s ? ' — did you mean ' + q(s) + '?' : '.'), nameTok.pos, nameTok.len); }
+    if (!f) { var s = suggest(nameTok.text, Object.keys(FUNCS)); fail('Unknown function ' + q(nameTok.text) + (s ? '. Did you mean ' + q(s) + '?' : '.'), nameTok.pos, nameTok.len); }
     if (WORDS_FN[nameTok.v]) return this.wordsCall(nameTok, pos, f);
     var open = this.next(); this.enter(open);
     var args = [];
@@ -642,7 +642,7 @@ function resolveName(node, c) {
     else found = false;
     if (!found) {
         var cands = c.known || (c.vars && typeof c.vars === 'object' ? objectNames(c.vars) : null), s = suggest(node.text, cands);
-        fail('Unknown name ' + q(node.text) + (s ? ' — did you mean ' + q(s) + '?' : '.'), node.pos, node.len);
+        fail('Unknown name ' + q(node.text) + (s ? '. Did you mean ' + q(s) + '?' : '.'), node.pos, node.len);
     }
     if (val && typeof val === 'object' && val.error) {
         var msg = String(val.error.message || 'could not be evaluated');
@@ -664,7 +664,7 @@ function wordsOf(node, c) {
         if (typeof c.vars === 'function') { val = c.vars(node.v, node.text); found = val !== undefined; }
         else if (c.vars && typeof c.vars === 'object') { var r = lookupObject(c.vars, node.v); found = r.found && r.value !== undefined; val = r.value; }
         else found = false;
-        if (!found) { var cands = c.known || (c.vars && typeof c.vars === 'object' ? objectNames(c.vars) : null), s = suggest(node.text, cands); fail('Unknown name ' + q(node.text) + (s ? ' \u2014 did you mean ' + q(s) + '?' : '.'), node.pos, node.len); }
+        if (!found) { var cands = c.known || (c.vars && typeof c.vars === 'object' ? objectNames(c.vars) : null), s = suggest(node.text, cands); fail('Unknown name ' + q(node.text) + (s ? '. Did you mean ' + q(s) + '?' : '.'), node.pos, node.len); }
         if (val && typeof val === 'object' && val.error) fail(node.text + ': ' + String(val.error.message || 'could not be evaluated'), node.pos, node.len);
         w = typeof val === 'string' ? val : typeof val === 'number' && isFinite(val) ? fmt(val) : typeof val === 'boolean' ? (val ? '1' : '0') : '';
     }

@@ -424,9 +424,23 @@ pendingChecks.push((async () => {
             check('1.6.0 a turn\'s end (fightStep with the turnended slice, run for real): a forward step ends the turn of the row that was on, in the round it was on and before the new round and the next turn begin, the hook handed that row alone; a step back ends nothing, and a turn ended once in a round is not ended again after a correction; a held turn does not end, the next one does; a step back at the first turn ends nothing',
                 j(E1.seq) === j(['end A r1 t0 m1', 'start B', 'end B r1 t0 m1', 'start C', 'end C r1 t0 m1', 'start D', 'end D r1 t0 m1', 'round 2', 'start A', 'round 1', 'start D', 'round 2', 'start A', 'end A r2 t0 m1', 'start B'])
                 && E1.c.eh === 2 && j(E2.seq) === j(['start C', 'end C r1 t0 m1', 'start D']) && E3.seq.every(x => x.indexOf('end') !== 0), j([E1.seq, E2.seq, E3.seq]));
+            {   // 1.6.4 (the full test's gap #20): extra whole turns, taken right after the character's own turn (fightStep with the turnended slice, run for real)
+                const mkX = (turn, waiting) => { const seq = [], toasts = [], left = Object.assign({}, waiting), net = { role: 'host', combats: { m1: { mapId: 'm1', round: 1, turn: turn, rows: ['A', 'B', 'C', 'D'].map(x => ({ id: x, name: x, tokId: 't' + x, init: 0, src: null })) } } };
+                    const take = (c, row) => { if (!(left[row.id] > 0)) return false; left[row.id] -= 1; return true; };
+                    new Function('net', 'own', 'toast', 'logEvent', 'mapTitleOf', 'broadcastCombats', 'combatRefresh', 'roundChanged', 'turnStarted', 'window', 'getActiveCampaign', 'turnExtraTake', "'use strict';\n" + hsSrc + '\n' + ordersSrc + '\n' + teS)(net, H.own, t => toasts.push(t), () => {}, () => 'Hall', () => {}, () => {},
+                        (m, c) => seq.push('round ' + c.round), (m, c) => seq.push('start ' + c.rows[c.turn].id + (c.xr ? ' again ' + c.xr : '')), { wpSheets: { turnEndHook: (m, c) => { seq.push('end ' + c.rows[0].id + ' r' + c.round); } } }, () => ({ system: { combat: { turn: {} } } }), take);
+                    return { seq, toasts, net, c: net.combats.m1 }; };
+                const X1 = mkX(0, { B: 2 }); for (let i = 0; i < 4; i++) X1.net.combatStep('m1', 1); const x1 = { seq: X1.seq, tn: X1.c.tn, xr: X1.c.xr, round: X1.c.round, on: X1.c.rows[X1.c.turn].id };
+                const X2 = mkX(3, { D: 1 }); X2.net.combatStep('m1', 1); X2.net.combatStep('m1', 1); const x2 = { seq: X2.seq, round: X2.c.round, on: X2.c.rows[X2.c.turn].id };
+                const X3 = mkX(1, { B: 1 }); X3.net.combatStep('m1', -1); const x3 = { seq: X3.seq, on: X3.c.rows[X3.c.turn].id };
+                check('1.6.4 gap #20 extra turns (fightStep with the turnended slice, run for real): a character with extra turns waiting takes them right after its own turn ends, each a whole turn of its own whose start and end are lived once each, the round and the order kept and the turn\'s serial moving on; then play goes on to the next row; on the round\'s last row the new round waits until they are had; a step back takes none',
+                    j(x1) === j({ seq: ['end A r1', 'start B', 'end B r1', 'start B again 1', 'end B r1', 'start B again 2', 'end B r1', 'start C'], tn: 4, xr: undefined, round: 1, on: 'C' })
+                    && j(x2) === j({ seq: ['end D r1', 'start D again 1', 'end D r1', 'round 2', 'start A'], round: 2, on: 'A' }) && j(x3) === j({ seq: ['start A'], on: 'A' }) && X1.toasts.filter(t => t === 'B takes an extra turn.').length === 2,
+                    j([x1, x2, x3, X1.toasts]));
+            }
             check('1.6.0 a turn\'s end (source): fightReachKept carries how far a fight\'s turn ends have gone through a roster edit, as it carries its turn starts; fightStep asks turnEnded through typeof, before the new round',
                 /if \(typeof had\.eh === 'number'\) f\.eh = had\.eh;[^\n]*\n    if \(had\.et && typeof had\.et === 'object'\) f\.et = had\.et;/.test(src)
-                && /if \(endRow && typeof turnEnded === 'function'\) turnEnded\(mapId, c, endRow, r0, t0\);[^\n]*\n    if \(c\.round > r0 && typeof combatNewRound === 'function'\)/.test(require('./checkkit').part('netfight.js')));
+                && /if \(endRow && typeof turnEnded === 'function'\) turnEnded\(mapId, c, endRow, r0, t0\);[^\n]*\n    delete c\.xr;[^\n]*\n    if \(c\.round > r0 && typeof combatNewRound === 'function'\)/   /* 1.6.4 (gap #20, moved on purpose): the turns had again in a row end as play moves on */.test(require('./checkkit').part('netfight.js')));
         }
         const hmSrc = between('// [netcheck:turnholdmsg-start]', '// [netcheck:turnholdmsg-end]', 'turnholdmsg');
         const runHM = (msg, o) => { o = o || {}; const calls = [];
@@ -1210,7 +1224,7 @@ pendingChecks.push((async () => {
     const sysF = Sx.cleanSystem({ v: 1, name: 'F', fields: [{ id: 'f_fx', key: 'Effects', kind: 'effects' }], rolls: [], effects: [{ id: 'e_c', name: 'Charge', dur: '10 turns', mods: [] }], combat: { turn: { acts: [{ key: 'Action', n: 1 }] } } }, { F: Fx, gmView: true });
     const mkW = o => {
         o = o || {};
-        const ev = [], toasts = [], logs = [], cal = [], marks = [], loads = [];
+        const ev = [], toasts = [], logs = [], cal = [], marks = [], loads = [], fe = [];   // fe (1.6.4, gap #4): each fight-end hook the sheets were asked for
         const tok = (id, charId, ownerId) => ({ id, type: 'image', isChar: true, charId, ownerId: ownerId || null, x: 0, y: 0, w: 50, h: 50 });
         const fx = id => ({ f_fx: [{ id, ref: 'e_c', on: true, t: { left: 30, at: 0 } }] });   // banked, as a fight's start leaves them
         const camp = { id: 'k', clock: { t: 0 }, system: sysF,
@@ -1223,7 +1237,7 @@ pendingChecks.push((async () => {
             combats: { mDocks: { mapId: 'mDocks', round: 3, turn: 1, rows: [row('t_kael', 'Kael'), row('t_u7', 'Unit 7')] }, mBridge: { mapId: 'mBridge', round: 1, turn: 0, rows: [row('t_u9', 'Unit 9')] } },
             syncCharDelta: () => {}, videoStop: () => {}, libReset: () => {} };
         if (o.sela) net.combats.mBridge.rows.push(row('t_sela', 'Sela'));
-        const win = { wpVtt: { on: k => (k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: () => {} }, wpCalendarCore: Cx, wpCalendar: { ownTime: () => false, second: () => { cal.push(net.active); ev.push('calendar'); } } };   // 152 fold 4: an end hands its closing round to ownTime and the clock to second (once a fight), where fightEnded was asked
+        const win = { wpVtt: { on: k => (k === 'calendar' ? o.calendar === true : true) }, wpSheets: { charChanged: () => {}, fightEndHook: (mid, c) => { fe.push(mid + ':' + c.round + ':' + c.rows.map(r => r.name).join('+') + ':' + (Object.prototype.hasOwnProperty.call(net.combats, mid) ? 'standing' : 'gone')); return 1; } }, wpCalendarCore: Cx, wpCalendar: { ownTime: () => false, second: () => { cal.push(net.active); ev.push('calendar'); } } };   // 152 fold 4: an end hands its closing round to ownTime and the clock to second (once a fight), where fightEnded was asked
         const broadcast = msg => { packCheck(msg); ev.push('broadcast:' + msg.type); conns.forEach(c => { if (c.open && net.roster[c.peer]) c.send(msg); }); };
         const noop = () => {}, env = { net, window: win, getActiveCampaign: () => camp, SC: () => Sx, own: (ob, k) => !!ob && Object.prototype.hasOwnProperty.call(ob, k), broadcast, sendFailed: e => { throw e; }, logEvent: (k, t) => logs.push(k + ':' + t), toast: t => toasts.push(t),
             render: noop, moveMode: () => 'refuse', saveRemoteSoon: noop, pushChat: noop, anyFog: () => false, fogDrop: () => null, marksEnd: mid => marks.push(mid), _lastSent: {},
@@ -1236,7 +1250,7 @@ pendingChecks.push((async () => {
         api.combatSaw('mDocks', 'u_a', 't_u7');   // and Kael's player has seen Unit 7 in this fight
         const atOf = () => { const out = {}; Object.keys(camp.chars).forEach(id => { const t = camp.chars[id].values.f_fx[0].t; out[id] = t.at > 0 ? 'run' : 'banked'; }); return out; };
         const acts = () => conns[0].sent.filter(m => m.type === 'acts-left').map(m => m.charId + ':' + J(m.left));
-        return { net, camp, api, ev, toasts, logs, cal, marks, loads, conns, atOf, acts, seen: () => api.combatSeen('mDocks', 'u_a', 't_u7') };
+        return { net, camp, api, ev, toasts, logs, cal, marks, loads, conns, atOf, acts, fe, seen: () => api.combatSeen('mDocks', 'u_a', 't_u7') };
     };
     const runs = (W, silent) => { W.api.leaveSession(silent); return { cal: W.cal, ev: W.ev, at: W.atOf(), spent: J(W.net.turnSpent), acts: W.acts(), marks: W.marks, seen: W.seen(), combats: J(W.net.combats), toasts: W.toasts, logs: W.logs, loads: W.loads.length }; };
     const allRun = { c_kael: 'run', c_u7: 'run', c_u9: 'run' }, allBanked = { c_kael: 'banked', c_u7: 'banked', c_u9: 'banked' }, kaelSpent = J({ c_kael: { Action: 1 } });
@@ -1268,6 +1282,13 @@ pendingChecks.push((async () => {
         && J(g4) === J(selaBanked) && J(g5) === J({ combats: ['mDocks', 'mBridge'], cal: 0, sent: 0, toasts: 0 })
         && J(eGot) === J({ combats: ['mBridge'], cal: [true], toasts: ['Combat ended on Docks.'], logs: [ended[0]], marks: ['mDocks'], seen: false, spent: selaSpent, acts: ['c_kael:null'], sent: ['combats:mBridge'], at: selaBanked }),
         J([g0, g1, g2, g3, g4, g5, eGot]));
+    {   // 1.6.4 (the full test's gap #4): the rules that run as a fight ends, asked once for the fight the GM ends with End, while it still stands as it ended
+        const EF = mkW({ sela: true }); EF.net.combatSet('mDocks', null);
+        const LF = mkW(); LF.api.leaveSession(false);
+        const DF = mkW(); delete DF.camp.items.mDocks; DF.net.itemGone('k', 'mDocks', 'Docks');
+        check('1.6.4 gap #4 (run for real): End combat asks the sheets\' fight-end hook once, for that fight alone (Docks, round 3, Kael and Unit 7), before the fight is taken away; the session\'s end and a deleted map ask it for none',
+            J(EF.fe) === J(['mDocks:3:Kael+Unit 7:standing']) && J(LF.fe) === '[]' && J(DF.fe) === '[]', J([EF.fe, LF.fe, DF.fe]));
+    }
     const dlgJs = fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'scripts', 'dialogs.js'), 'utf8');
     check('fold 0 (source): End, the session\'s end and a deleted map end a fight in one place (combatOver); the session\'s end asks it right after its drags go back, before the end is said and while the table is still on, never in the stream window; a deleted map asks it only on an active host, before the players are told, with the name it was handed; dialogs.js\'s two deletes of an item hand on the name the item had',
         (src.match(/combatOver\(/g) || []).length === 4 && /\} else if \(!combat\) combatOver\(fid, had\);/.test(require('./checkkit').part('netfight.js')) && /var fightsOver = wasHost && !net\.stream && typeof combatsOverAll === 'function' \? combatsOverAll\(\) : 0;/.test(lvS)
@@ -1657,7 +1678,7 @@ pendingChecks.push((async () => {
         && [runAI({ charId: 'c_p', left: {} }, { peer: 'o' }), runAI({ charId: 'x', left: {} }), runAI({ charId: 'c_p', left: [1] })].every(r => !r.seen.length), j([ai1, ai2]));
     const T = src.replace(/\r\n/g, '\n');
     check('T4 the presses on the host (source): a player\'s roll with a cost spends it once it is a valid roll, before it is recorded (refused: a roll-deny with why); a player\'s apply action once its change is worked out, before it lands; turnStarted refills, the combat\'s end clears',
-        /var whyQ = Dq\.checkTableRoll\(resQ\); if \(whyQ\) \{ denyQ\(whyQ\); return; \}\n\s*if \(actQ && actQ\.cost && chQ && typeof actSpend === 'function'\) \{ var costQ = actSpend\(campQ, turnChQ\.id, net\.roster\[conn\.peer\], actQ\.cost, conn, turnChQ\.name, false, actQ\.costN\); if \(costQ\) \{ denyQ\('error', \{ error: \{ message: costQ, pos: 0, len: 0 \} \}\); return; \} \}/.test(T)
+        /var whyQ = Dq\.checkTableRoll\(resQ\); if \(whyQ\) \{ denyQ\(whyQ\); return; \}\n\s*(?:if \(actQ && actQ\.mv && chQ && typeof moveCostSpend === 'function'\) \{ var mvQ = moveCostSpend\(campQ, turnChQ\.id, net\.roster\[conn\.peer\], actQ, conn, turnChQ\.name, true\); if \(mvQ\) \{ denyQ\('error', \{ error: \{ message: mvQ, pos: 0, len: 0 \} \}\); return; \} \}[^\n]*\n\s*)?if \(actQ && actQ\.cost && chQ && typeof actSpend === 'function'\) \{ var costQ = actSpend\(campQ, turnChQ\.id, net\.roster\[conn\.peer\], actQ\.cost, conn, turnChQ\.name, false, actQ\.costN\); if \(costQ\) \{ denyQ\('error', \{ error: \{ message: costQ, pos: 0, len: 0 \} \}\); return; \} \}/.test(T)
         && /if \(!resA\.ok\) \{ denyA\(resA\.reason, resA\.message\); return; \}\n\s*var costA = costDoneA \? '' : typeof actSpend === 'function' \? actSpend\(campA, qa\.charId, profA, actA\.cost, conn, chA\.name, false, actA\.costN\) : ''; if \(costA\) \{ denyA\('error', costA\); return; \}/.test(T)
         && /try \{ turnActsStart\(mapId, c\); \} catch \(e\)/.test(T) && /if \(had\) \{ try \{ turnActsEnd\(mapId, had\); \} catch \(e\)/.test(T));
 })());

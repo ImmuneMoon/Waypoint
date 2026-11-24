@@ -435,6 +435,12 @@ function validateSystem(sys, F) {
         if (typeof c.table === 'string') { if (!resultOf(sys, c.table)) errors.push({ id: id, prop: prop, message: 'That result table is not in this system any more.' }); if (c.by) checkFormula(own, prop, c.by, true, vis, lf); return true; }
         if (typeof c.tag === 'string') { if (!tagOf(sys, c.tag)) errors.push({ id: id, prop: prop, message: 'That mark is not in this system any more.' }); return true; }   // 1.6.2 (vehicles, fold (c))
         if (typeof c.shared === 'string') { if (!valueDef(sys, c.shared)) errors.push({ id: id, prop: prop, message: 'That shared value is not in this system any more.' }); checkFormula(own, prop, c.formula, c.roll === true, vis, lf); return true; }
+        if (c.give === 'act' || c.give === 'turn') {   // 1.6.4 (the full test's gap #20): more of a turn's action this turn, or extra turns; how many is required
+            var gvActs = isObj(sys.combat) && isObj(sys.combat.turn) && Array.isArray(sys.combat.turn.acts) ? sys.combat.turn.acts : [];
+            if (c.give === 'act' && !gvActs.some(function(a) { return isObj(a) && typeof a.key === 'string' && lower(a.key) === lower(c.act); })) errors.push({ id: id, prop: prop, message: 'Give: that action is not one the Combat tab’s Turns allow any more.' });
+            if (!c.formula) errors.push({ id: id, prop: prop, message: 'Give: say how many it gives, such as 1.' }); else checkFormula(own, prop, c.formula, c.roll === true, vis, lf);
+            return true;
+        }
         if (typeof c.deck === 'string') { if (!deckOf(sys.decks, c.deck)) errors.push({ id: id, prop: prop, message: 'That deck is not in this system any more.' }); if (c.shuffle !== true) checkFormula(own, prop, c.formula, c.roll === true, vis, lf); return true; }
         return false;
     }

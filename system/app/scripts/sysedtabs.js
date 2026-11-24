@@ -23,6 +23,24 @@ function clockBox(cls, v) {   // 1.6.2 (G10)
 function costHow(cls, v) {   // 1.6.2 (G10): how many of that action one press spends
     var w = el('label', 'sys-check sys-costhowrow'), b = el('input', cls + ' field'); b.type = 'number'; b.min = '1'; b.max = String(LIMITS.costN); b.step = '1'; b.value = String(typeof v === 'number' ? v : 1); b.title = 'How many of that action one press spends'; w.appendChild(document.createTextNode('How many ')); w.appendChild(b); return w;
 }
+// 1.6.4 (the full test's gap #22): what a roll or an apply action costs of its turn's move, beside what it costs of the actions: none, half the move,
+// a set distance, or Leaves at most a distance (0 ends the move), in the system's move unit (systemcore moveCostInto keeps it). Offered where the
+// Combat tab has a Move per turn, or the entry already names one. Its own listeners, and classes no handler of the Rolls tab reads
+function moveCostBox(ent) {
+    var w = el('span', 'sys-mvcost'), t = typeof draft !== 'undefined' && draft && draft.combat && draft.combat.turn ? draft.combat.turn : null; if (!(t && t.move) && !ent.mv) return w;
+    var said = function(re) { markDirty(); if (re) renderAll(); else if (typeof patchErrors === 'function') patchErrors(); };
+    var s = select('sys-mvcost-kind', [['', 'Costs no move'], ['half', 'Costs half the move'], ['set', 'Costs some move'], ['most', 'Leaves at most']], ent.mv === 'half' || ent.mv === 'set' || ent.mv === 'most' ? ent.mv : '', 'What one press costs of the turn\u2019s move in a fight, on its character\u2019s own turn: half of it (standing up), a set distance (mounting), or it leaves at most a distance of what is left (0 ends the move). Not enough left: the fight\u2019s Move limit says what happens');
+    s.addEventListener('change', function(e) { e.stopPropagation(); if (s.value === 'half') { ent.mv = 'half'; delete ent.mvN; } else if (s.value === 'set' || s.value === 'most') { ent.mv = s.value; if (typeof ent.mvN !== 'number') ent.mvN = s.value === 'set' ? 1 : 0; } else { delete ent.mv; delete ent.mvN; } said(true); });
+    w.appendChild(s);
+    if (ent.mv === 'set' || ent.mv === 'most') {
+        var b = el('input', 'sys-mvcost-n field'); b.type = 'number'; b.min = ent.mv === 'set' ? '0.01' : '0'; b.max = String(LIMITS.moveCost); b.step = 'any'; b.value = String(typeof ent.mvN === 'number' ? ent.mvN : 0);
+        b.title = 'How far, in the unit of the Combat tab\u2019s Move per turn' + (t && t.unit ? ' (' + t.unit + ')' : '');
+        b.addEventListener('input', function(e) { e.stopPropagation(); var v = Number(b.value); if (b.value !== '' && isFinite(v) && v >= 0) ent.mvN = Math.min(LIMITS.moveCost, Math.round(v * 100) / 100); said(false); });
+        b.addEventListener('change', function(e) { e.stopPropagation(); });
+        w.appendChild(b);
+    }
+    return w;
+}
 function drawHow(v) {   // 1.6.2 (draw several at once): how many cards a roll draws first
     var w = el('label', 'sys-check sys-drawnrow'), b = el('input', 'sys-roll-drawn field'); b.type = 'number'; b.min = '1'; b.max = '20'; b.step = '1'; b.value = String(typeof v === 'number' ? v : 1); b.title = 'How many cards one press draws first. Its formulas read them all: how many, a number added up, or the highest or lowest'; w.appendChild(document.createTextNode('How many ')); w.appendChild(b); return w;
 }
@@ -1166,7 +1184,7 @@ function onChange(e) {
         else if (c.indexOf('sys-costhow') >= 0) { var chN = Math.floor(Number(t.value)); if (chN >= 2 && chN <= LIMITS.costN) r.costN = chN; else delete r.costN; }   // 1.6.2 (G10)
         else if (c.indexOf('sys-roll-cost') >= 0) { if (t.value) r.cost = t.value; else { delete r.cost; delete r.costN; } markDirty(); renderAll(); return; }   // turn-based combat T1
         else if (c.indexOf('sys-roll-near') >= 0) { if (t.value === 'near' || t.value === 'target') r.to = t.value; else delete r.to; }   // 1.5.9: Applies to (Save keeps it only on a roll that is not the initiative)
-        else if (c.indexOf('sys-roll-each') >= 0) { delete r.round; if (t.value === 'round' || t.value === 'turn' || t.value === 'turnEnd') { r.each = t.value; if (!Array.isArray(r.apply) && r.by !== 'gm' && r.by !== 'owner') r.by = 'owner'; } else { delete r.each; delete r.by; } markDirty(); renderAll(); return; }   // 1.5.9: a roll is due for its player until another is picked   // Stage 6 HUD G10 + turn-based combat T2b
+        else if (c.indexOf('sys-roll-each') >= 0) { delete r.round; if (t.value === 'round' || t.value === 'turn' || t.value === 'turnEnd' || t.value === 'fightOver') { r.each = t.value; if (!Array.isArray(r.apply) && r.by !== 'gm' && r.by !== 'owner') r.by = 'owner'; } else { delete r.each; delete r.by; } markDirty(); renderAll(); return; }   // 1.5.9: a roll is due for its player until another is picked   // Stage 6 HUD G10 + turn-based combat T2b
         else if (c.indexOf('sys-roll-by') >= 0) { if (t.value === 'gm' || t.value === 'owner') r.by = t.value; else delete r.by; }
         else if (c.indexOf('sys-roll-xs') >= 0) { if (crossEdit(r, c, t) === 'all') { markDirty(); renderAll(); return; } }   // 1.5.9 (book es/et plan 4a): When a value crosses
         else if (c.indexOf('sys-roll-evu') >= 0 || c.indexOf('sys-roll-evrest') >= 0 || c.indexOf('sys-roll-evwait') >= 0 || c.indexOf('sys-roll-ifu') >= 0 || c.indexOf('sys-roll-iffresh') >= 0 || c.indexOf('sys-roll-evask') >= 0 || c.indexOf('sys-roll-evhold') >= 0 || c.indexOf('sys-roll-ifhold') >= 0 || c.indexOf('sys-roll-tnote') >= 0) everyEdit(r, c, t);   // item 20 K5; backlog 152, fold 5: Waits in a fight, In a fight's unit and tick, Ask me first; 1.5.5: Only while its needs hold, in both rows
@@ -1697,5 +1715,5 @@ function bundleSaved(sp) {
 }
 // [syszipcheck:import-end]
 // [split:body-end]
-return { autoBox: autoBox, clockBox: clockBox, costHow: costHow, costOptions: costOptions, drawHow: drawHow, entryNames: entryNames, entryPick: entryPick, errGo: errGo, errSay: errSay, errWhere: errWhere, exportSystem: exportSystem, fieldWord: fieldWord, grantBox: grantBox, grantEntries: grantEntries, grantListFor: grantListFor, grantName: grantName, grantSays: grantSays, importFile: importFile, itemOfRow: itemOfRow, keyWord: keyWord, lvlBoxSays: lvlBoxSays, mergeFile: mergeFile, onChange: onChange, onClick: onClick, onInput: onInput, pickModel: pickModel, pickMove: pickMove, pickOne: pickOne, pickOpen: pickOpen, renderAll: renderAll, rowFocusBack: rowFocusBack, rowFocusOf: rowFocusOf, runTest: runTest, standSays: standSays, startFrom: startFrom, starterSaved: starterSaved, startersFill: startersFill, startersLoad: startersLoad, turnActs: turnActs, turnBox: turnBox, turnHoldSays: turnHoldSays, turnRunSays: turnRunSays };   // [split:glue]
+return { autoBox: autoBox, clockBox: clockBox, costHow: costHow, moveCostBox: moveCostBox, costOptions: costOptions, drawHow: drawHow, entryNames: entryNames, entryPick: entryPick, errGo: errGo, errSay: errSay, errWhere: errWhere, exportSystem: exportSystem, fieldWord: fieldWord, grantBox: grantBox, grantEntries: grantEntries, grantListFor: grantListFor, grantName: grantName, grantSays: grantSays, importFile: importFile, itemOfRow: itemOfRow, keyWord: keyWord, lvlBoxSays: lvlBoxSays, mergeFile: mergeFile, onChange: onChange, onClick: onClick, onInput: onInput, pickModel: pickModel, pickMove: pickMove, pickOne: pickOne, pickOpen: pickOpen, renderAll: renderAll, rowFocusBack: rowFocusBack, rowFocusOf: rowFocusOf, runTest: runTest, standSays: standSays, startFrom: startFrom, starterSaved: starterSaved, startersFill: startersFill, startersLoad: startersLoad, turnActs: turnActs, turnBox: turnBox, turnHoldSays: turnHoldSays, turnRunSays: turnRunSays };   // [split:glue]
 }   // [split:glue]

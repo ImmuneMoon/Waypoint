@@ -193,6 +193,8 @@ function runTimeRules(fires, words, at, back, when) {
 function roundHook(mapId, combat) { return timedHook(mapId, combat, 'round'); }
 function turnHook(mapId, combat) { return timedHook(mapId, combat, 'turn'); }
 function turnEndHook(mapId, combat) { return timedHook(mapId, combat, 'turnEnd'); }   // 1.6.0: combat holds the row whose turn just ended as its turn, in the round it ended
+// 1.6.4 (the full test's gap #4): as the GM ends a fight, every character it held, once each, with the fight as it stood at its end (CombatRound reads its last round)
+function fightEndHook(mapId, combat) { return timedHook(mapId, combat, 'fightOver'); }
 // [split:body-end]
-return { roundHook: roundHook, runTimeRules: runTimeRules, timedHook: timedHook, turnEndHook: turnEndHook, turnHook: turnHook };   // [split:glue]
+return { fightEndHook: fightEndHook, roundHook: roundHook, runTimeRules: runTimeRules, timedHook: timedHook, turnEndHook: turnEndHook, turnHook: turnHook };   // [split:glue]
 }   // [split:glue]

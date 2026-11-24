@@ -1034,6 +1034,7 @@ function refreshErrorsNow() {
         var ev = r && typeof r === 'object' && r.every && typeof r.every === 'object' && !Array.isArray(r.every) ? r.every : null, msg = ''; if (!ev) return;
         if (!(typeof ev.n === 'number' && isFinite(ev.n) && Math.floor(ev.n) === ev.n && ev.n >= 1 && ev.n <= 1000)) msg = 'By the clock: every 1 to 1000 (a whole number), or Save drops it.';
         else if (typeof ev.u !== 'string' || !ev.u) msg = 'By the clock: pick what it counts in, or Save drops it.';
+        else if (ev.real !== undefined && typeof cleanEvery === 'function' && !cleanEvery(ev)) msg = ev.u !== 'min' && ev.u !== 'hour' ? 'By the clock: real time counts in minutes or hours, so Save drops it.' : 'By the clock: that is no kind of real time Save knows, so Save drops it.';   // 1.6.4 (gap 7)
         else if (typeof cleanEvery === 'function' && !cleanEvery(ev)) msg = 'By the clock: ' + ev.u + (ev.u.toLowerCase() === 'round' ? ' is In a fight\u2019s unit, so Save drops it.' : ' is no unit it can count in, so Save drops it.');   // backlog 152: as the cleaner reads it since fold 1, a round being In a fight's alone
         else if (['min', 'hour', 'day', 'week'].indexOf(ev.u) < 0 && evUnits[ev.u.toLowerCase()] !== 1) msg = 'By the clock: ' + ev.u + ' is no time unit of yours (the Combat tab\u2019s Turns box), so it runs by nothing and players never see it.';
         if (msg) (errorsById[r.id] = Array.isArray(errorsById[r.id]) ? errorsById[r.id] : []).push({ message: msg });

@@ -280,9 +280,15 @@ Building a system: tables, levels and minutes of play (draft for Fulllion)
   Levels it may be, a level's needs and what a level grants. A player's
   press that would break one is refused in the same words. Yours goes
   through, and you are told.
-- A row's counter can count by minutes of play: real time while you
-  host the table and it is not paused. So a power used once an hour of
-  play is a counter that counts down, and an action that needs it at 0.
+- A row's counter, and a rule's By the clock, can count real time now,
+  every so many minutes or hours. Pick which: Minutes of play (while
+  you host the table and have not paused it), Real time at the table
+  (that, and only while the character's player is connected) or Real
+  minutes (while the campaign is open, hosted or played alone). So a
+  power used once an hour of play is a counter that counts down, with
+  an action that needs it at 0. A pool that comes back once an hour of
+  play is an apply action that adds to it, by minutes of play every 1
+  hour, and its runs are said as By the clock's are.
 
 Plainer words (draft for Fulllion)
 - Waypoint VTT's own words no longer use long dashes. Tooltips and

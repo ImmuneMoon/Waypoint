@@ -107,6 +107,11 @@ function timeMode(camp) { var t = camp && camp.turnRules && typeof camp.turnRule
 function tablePaused() { var n = net(); return !!(n && n.active && n.paused); }
 function isPc(ch) { return !!ch && ch.npc !== true && typeof ch.ownerId === 'string' && !!ch.ownerId; }
 function clockRules(sys) { return sys && Array.isArray(sys.rolls) ? sys.rolls.filter(function(r) { return r && (r.every || r.inFight); }) : []; }   // 152: By the clock, In a fight, or both
+// [calendarcheck:gameside-start]
+// 1.6.4 (the full test's gap 7): a rule as the game clock counts it. One whose By the clock counts real time is counted by realRules alone, so it
+// keeps only its In a fight here (a copy), or is no rule of the game clock at all
+function gameSide(r) { if (!r || !r.every || !r.every.real) return r; if (!r.inFight) return null; var g = Object.assign({}, r); delete g.every; return g; }
+// [calendarcheck:gameside-end]
 function sysUnits(sys) { return sys && sys.combat && sys.combat.turn && Array.isArray(sys.combat.turn.units) ? sys.combat.turn.units : []; }
 function commitAcc(acc, live) {   // live (1.5.4): the clock ran by itself — written quietly, and not at all when the counts did not move
     var camp = getActiveCampaign(); if (!camp || isPlayer()) return;
@@ -174,7 +179,7 @@ function ownTime(groups) {   // the one counter: each group's spans, once, to th
 // only: a stretch that waited, counted now for the rules it asked for alone
 function groupRules(camp, sys, g, spans, only) {
     var mode = timeMode(camp), fight = g.kind === 'fight', cal = clockOn(); if (!sys || mode === 'off' || tablePaused() || (!fight && !cal)) return false;
-    var rules = clockRules(sys); if (!cal || (fight && g.inOnly === true)) rules = rules.filter(function(r) { return !!r.inFight; }).map(function(r) { var m = { id: r.id, label: r.label, inFight: r.inFight }; if (r.ask === true) m.ask = true; return m; });   // By the clock needs the Calendar, as it always has
+    var rules = clockRules(sys).map(gameSide).filter(Boolean); if (!cal || (fight && g.inOnly === true)) rules = rules.filter(function(r) { return !!r.inFight; }).map(function(r) { var m = { id: r.id, label: r.label, inFight: r.inFight }; if (r.ask === true) m.ask = true; return m; });   // By the clock needs the Calendar, as it always has
     if (!rules.length || !Object.keys(spans).length) return false;
     var asks = function(r) { return g.ask === true || (mode === 'confirm' && !fight) || r.ask === true; };
     var now = only ? [] : rules.filter(function(r) { return !asks(r); }), later = only ? rules.filter(function(r) { return only === true || only.indexOf(r.id) >= 0; }) : rules.filter(asks);
@@ -446,6 +451,44 @@ function bellWords(camp, sys, it) {   // "Kael: Brace waits for your word. 2 run
     return (ch && typeof ch.name === 'string' && ch.name ? ch.name : 'A character') + ': ' + (rl && typeof rl.label === 'string' && rl.label ? rl.label : 'A rule') + ' waits for your word. '
         + (n === 1 ? '1 run' + (w ? ', due in ' + w : '') : n + ' runs' + (w ? ', the first due in ' + w : '')) + '.';
 }
+// [calendarcheck:realrules-start]
+// 1.6.4 (the full test's gap 7; Fulllion, 2026-11-24, by prompt: a time rule "By real minutes of play" that refills a sheet's pool, with its runs, its
+// panel and Save): the time rules whose By the clock counts real time of this kind (systemcore REAL_TIME), counted for each character by the real
+// seconds nettime realPlayTick hands on (spans: { charId: seconds }, a minute or so at a time, only while that kind counts for that character).
+// Each count is kept with the game clock's (camp.clock.acc, under the rule's id), in real seconds. Each full step runs once, at most 500 a go,
+// through sheets.js runTimeRules, so its summary, its lines in the Time rules panel and its player's line are a game-clock run's own. Time
+// rules Off counts and runs nothing; Ask me, or a rule ticked Ask me first, waits in the bell for the GM's word; an NPC whose rules the GM switched
+// off is counted and never run. It needs no Calendar, and knows no rest, no fight and no needs held (the cleaner keeps none beside real)
+function realRules(spans, kind) {
+    var camp = getActiveCampaign(), sys = sysNow(), S = typeof window !== 'undefined' ? window.wpSystemCore : null;
+    if (!camp || isPlayer() || !sys || !S || typeof S.realEverySecs !== 'function' || !spans || typeof spans !== 'object') return false;   // guard: the GM's own machine, with a system
+    var mode = timeMode(camp); if (mode === 'off') return false;
+    var rules = clockRules(sys).filter(function(r) { return r.every && r.every.real === kind; }); if (!rules.length) return false;
+    var ck = clockOf(camp) || { t: 0 }, acc = JSON.parse(JSON.stringify(ck.acc || {})), fires = [];
+    Object.keys(spans).forEach(function(c) {
+        var s = spans[c]; if (!HELD_ID.test(c) || !hasOwn(camp.chars, c) || typeof s !== 'number' || !isFinite(s) || !(s > 0)) return;
+        rules.forEach(function(r) {
+            var per = S.realEverySecs(r.every); if (!(per > 0)) return;
+            var m = hasOwn(acc, c) && acc[c] && typeof acc[c] === 'object' ? acc[c] : (acc[c] = {}), tot = (hasOwn(m, r.id) && typeof m[r.id] === 'number' ? m[r.id] : 0) + s, n = Math.floor(tot / per + 1e-9), left = Math.round((tot - n * per) * 1000) / 1000;
+            if (left > 0) m[r.id] = left; else delete m[r.id]; if (!Object.keys(m).length) delete acc[c];
+            if (n > 0) fires.push({ c: c, r: r.id, n: Math.min(500, n) });
+        });
+    });
+    commitAcc(acc, true);
+    if (!fires.length) return false;
+    var off = offOf(camp), w = realSpanWords(kind, spans), go = [], wait = [];
+    fires.forEach(function(f) { var rl = rules.filter(function(r) { return r.id === f.r; })[0]; if (off(f.c)) return; (mode === 'confirm' || (rl && rl.ask === true) ? wait : go).push(f); });
+    if (window.wpStepLog) window.wpStepLog('realrules v1', 'fired', { kind: kind, run: go.length, wait: wait.length });
+    if (go.length && window.wpSheets && window.wpSheets.runTimeRules) window.wpSheets.runTimeRules(go, w);
+    if (wait.length) bellUp(camp, sys, wait, w);
+    return true;
+}
+function realSpanWords(kind, spans) {   // "1 minute of play", what a run's summary is headed with: the longest span handed on, in whole minutes, by its kind's words
+    var S = window.wpSystemCore, k = S && S.REAL_TIME && S.REAL_TIME[kind] ? S.REAL_TIME[kind] : null, most = 0;
+    Object.keys(spans).forEach(function(c) { if (typeof spans[c] === 'number' && spans[c] > most) most = spans[c]; });
+    var m = Math.max(1, Math.round(most / 60)); return (m === 1 ? '1 minute ' : m + ' minutes ') + (k ? k.per : 'of real time');
+}
+// [calendarcheck:realrules-end]
 function bellUp(camp, sys, fires, w) {   // fires { c, r, n, x?, rd? } that came due in one stretch, its words w: each joins its character and rule's item. true where the bell holds them
     var N = typeof window !== 'undefined' ? window.wpNotices : null; if (!camp || isPlayer() || !N || typeof N.wait !== 'function' || !Array.isArray(fires) || !fires.length) return false;
     var b = bellOf(camp.id, true), said = [], fresh = false, ww = typeof w === 'string' ? w : '';
@@ -1427,5 +1470,5 @@ function dateNow() {
 function dateNamesOf(camp, t) { var CCx = window.wpCalendarCore; return CCx && CCx.dateNames ? CCx.dateNames(camp.system && camp.system.calendar ? camp.system.calendar : null, t) : null; }
 setDateSource(dateNow);
 function words() { var camp = getActiveCampaign(), ck = clockOf(camp); if (!ck || (window.wpVtt && !window.wpVtt.on('calendar'))) return ''; return fmtWhen(sysCal(), ck.t); }   // 1.6.0: the game's time in words, for the game record
-window.wpCalendar = { restReverted: function(charId, fields) { return restReverted(getActiveCampaign(), charId, fields); }, restName: function() { var r = restNow(getActiveCampaign()); return r ? r.name : ''; }, sessionBegan: sessionBegan, timeData: timeData, openDay: openDay, words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun };
+window.wpCalendar = { restReverted: function(charId, fields) { return restReverted(getActiveCampaign(), charId, fields); }, restName: function() { var r = restNow(getActiveCampaign()); return r ? r.name : ''; }, sessionBegan: sessionBegan, timeData: timeData, openDay: openDay, words: words, refresh: refresh, ownTime: ownTime, second: second, fightBegan: fightBegan, open: openWin, close: closeWin, moveTo: moveTo, rulesRun: rulesRun, setRulesRun: setRulesRun, realRules: realRules };   // realRules (1.6.4, gap 7): the host's real clock (nettime realPlayTick) hands each kind's minutes here
 export { refresh, ownTime, second, fightBegan, openWin, closeWin, moveTo, rulesRun, setRulesRun };

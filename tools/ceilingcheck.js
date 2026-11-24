@@ -23,7 +23,7 @@ const j = JSON.stringify;
     const timed = (name, bound, f) => { const [r, ms] = cpu(f), lim = bound * slow; said.push([name, Math.round(ms), Math.round(lim)]); check('at the ceilings: ' + name + ' stays under ' + Math.round(lim) + ' ms (' + Math.round(ms) + ' ms)', ms < lim, Math.round(ms)); return r; };
 
     /* ---------- the figures, one place ---------- */
-    const HOLDS = { fields: 6000, rolls: 1600, sections: 1000, placements: 8000, items: 2000, carried: 1500, effects: 2000, listStats: 640, entryStats: 640, listCols: 200, rowCounters: 120, rowRolls: 160, applyChanges: 120, labels: 640, pickOpts: 480, tables: 240, tableCols: 160, tableRows: 640, tableCells: 120000, links: 80, env: 80, senses: 80, budgets: 80, postures: 120, rollCalls: 40, needs: 80 };
+    const HOLDS = { fields: 6000, rolls: 1600, sections: 1000, placements: 8000, items: 2000, carried: 1500, effects: 2000, listStats: 640, entryStats: 640, listCols: 200, rowCounters: 120, rowRolls: 160, applyChanges: 120, labels: 640, pickOpts: 480, tables: 240, tableCols: 160, tableRows: 640, tableCells: 120000, results: 1000, resultRows: 200, resultRowsAll: 10000, resultDepth: 8, links: 80, env: 80, senses: 80, budgets: 80, postures: 120, rollCalls: 40, needs: 80 };
     check('the ceilings stand in one place (systemcore LIMITS), and the figures below are the ones this suite was set at', Object.keys(HOLDS).every(k => L[k] === HOLDS[k]), j(Object.keys(HOLDS).filter(k => L[k] !== HOLDS[k]).map(k => [k, L[k]])));
     check('what stays a shape stays small: three tie steps, sixteen places', L.initTies === 3 && /\bOVER_PLACES = 16\b/.test(read('systemcore.js')), L.initTies);
     const dc = read('dicecore.js'), dcNum = k => Number((new RegExp('\\b' + k + ': (\\d+)').exec(dc) || [])[1]);
@@ -186,6 +186,17 @@ const j = JSON.stringify;
         check('a list of 150 rows or fewer draws every row, as it always did', rowsIn(small).length === 149 && !small.children.some(k => /sheet-rows-more/.test(String(k.className))), rowsIn(small).length);
         const win2 = { wpPrintCopy: true }, P = mkW(true, win2), paper = fe('div'); P.itemListInto(paper, fL, ch, rowsL.slice(0, 200), gm, false, true, true, res);
         check('a print draws every row, however long the list', rowsIn(paper).length === 200, rowsIn(paper).length);
+    }
+
+    /* ---------- result tables at their ceilings (1.6.4, the full test's gap 9) ---------- */
+    {
+        const resT = Array.from({ length: L.results }, (_, i) => ({ key: 'Q' + i, label: 'Oracle ' + i, dice: '1d10', vis: i % 7 ? 'all' : 'gm', rows: Array.from({ length: L.resultRowsAll / L.results }, (_, k) => ({ lo: k + 1, hi: k + 1, words: 'Line ' + k + ' of a long oracle table', next: k === 0 ? 'Q' + ((i + 1) % L.results) : undefined })) }));
+        const rsG = timed('cleanResults, 1,000 tables and 10,000 rows, GM', 400, () => S.cleanResults(resT, true));
+        timed('cleanResults, the players view', 400, () => S.cleanResults(rsG, false));
+        check('result tables at their ceilings are kept whole: every table and every row', rsG.length === L.results && rsG.reduce((a, t) => a + t.rows.length, 0) === L.resultRowsAll, rsG.length);
+        const sysR = S.cleanSystem({ v: 1, name: 'Oracles', fields: [{ id: 'f_n', key: 'N', kind: 'number' }], results: resT, rolls: [{ id: 'r_go', label: 'Go', apply: [{ table: 'Q0', by: '1' }] }] }, { F, gmView: true }), kR = { id: 'c', name: 'C', values: {} };
+        const goR = timed('a roll that chains through 8 tables of 1,000', 200, () => S.applyAct(sysR, kR, sysR.rolls[0], S.makeResolver(sysR, kR, F, null), F, null, null, undefined, { random: f => 1 }, null, { now: 0 }));
+        check('a chain through tables that loop ends at LIMITS.resultDepth', goR.ok === true && goR.lines.length === L.resultDepth, j(goR.lines && goR.lines.length));
     }
 
     /* ---------- a table the editor could not draw ---------- */

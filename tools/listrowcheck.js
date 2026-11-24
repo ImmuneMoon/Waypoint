@@ -1010,5 +1010,37 @@ const j = v => JSON.stringify(v);
             && /act === 'scch' \|\| act === 'scend'/.test(wbS) && ixS.includes('<b>Kept for the scene</b>'));
     }
 
+    {   // 1.6.4 (the full test's gap 10): a list's action or Then moves its own row's level, judged by the one judge of a level (applyRowOp's set)
+        const J = JSON.stringify, rd = f => fs.readFileSync(path.join(app, 'scripts', f), 'utf8').replace(/\r\n/g, '\n');
+        const RAW = { v: 1, name: 'Lv', rolls: [], sheet: { sections: [] },
+            items: [{ id: 'i_sw', name: 'Swordplay', grants: [{ list: 'f_tr', entry: 'i_scar', from: 3 }] }, { id: 'i_ax', name: 'Axe work' }, { id: 'i_lo', name: 'Old lore', lvlOnly: [[1, 3]] }, { id: 'i_scar', name: 'Old scar' }],
+            fields: [{ id: 'f_sk', key: 'Skills', label: 'Skills', kind: 'item-list', vis: 'all', list: { lvl: { label: 'Rank', min: 0, max: 10, def: 0, caps: [{ at: 6, n: 1, up: true }] },
+                rolls: [{ label: 'Train', apply: [{ lv: true, formula: '1', add: true }, { lv: true, formula: '9', add: true }] }, { label: 'Master', apply: [{ lv: true, formula: '15', set: true }] }, { label: 'Forget', apply: [{ lv: true, formula: '2' }] }, { label: 'Study', formula: '3d6', then: [{ lv: true, formula: '1', add: true, when: 'hit' }] }] } },
+                { id: 'f_tr', key: 'Traits', label: 'Traits', kind: 'item-list', vis: 'all', list: { rolls: [{ label: 'Up', apply: [{ lv: true, formula: '1', add: true }] }] } }] };
+        const g = cleanSystem(RAW, { F, gmView: true }), p = cleanSystem(RAW, { F, gmView: false }), rl = sy => sy.fields.find(x => x.id === 'f_sk').list.rolls;
+        check('gap 10: a list\u2019s change keeps This row\u2019s level, once per when (a second of the same when is dropped), the same in both views; on a list with no level it is no change, and the validator says why on the raw system',
+            J(rl(g)[0].apply) === J([{ lv: true, formula: '1', add: true }]) && J(rl(g)[3].then) === J([{ lv: true, formula: '1', add: true, when: 'hit' }]) && J(rl(p)) === J(rl(g)) && J(g.fields[1].list.rolls[0].apply) === J([{ f: '', formula: '1', add: true }])
+            && validateSystem(RAW, F).errors.some(e => /needs a list with levels, and this list has none/.test(e.message)) && !validateSystem(g, F).errors.some(e => e.id === 'f_sk'), J([rl(g), validateSystem(RAW, F).errors.map(e => e.message)]));
+        const ch = () => ({ id: 'c', name: 'Ilsa', ownerId: 'u', values: { f_sk: [{ id: 'w_sw', defId: 'i_sw', qty: 1, lvl: 2 }, { id: 'w_ax', defId: 'i_ax', qty: 1, lvl: 6 }, { id: 'w_lo', defId: 'i_lo', qty: 1, lvl: 3 }], f_tr: [] } });
+        const press = (c, ri, row, fxo) => S.applyAct(g, c, rl(g)[ri], makeResolver(g, c, F, null), F, null, { f: 'f_sk', r: row }, undefined, { random: f => f }, null, fxo || { now: 0 });
+        const c = ch(), r1 = press(c, 0, 'w_sw'); Object.assign(c.values, r1.ok ? r1.values : {});
+        check('gap 10: Add raises the row\u2019s level, the card names it by the list\u2019s word, and what the new level grants comes with it',
+            r1.ok === true && c.values.f_sk[0].lvl === 3 && J(r1.lines) === J([{ f: 'f_sk', n: 'Swordplay: Rank', d: 1, v: 3 }]) && c.values.f_tr.length === 1 && c.values.f_tr[0].defId === 'i_scar' && c.values.f_tr[0].gr === 'w_sw', J(r1));
+        press(c, 0, 'w_sw'); Object.assign(c.values, press(c, 0, 'w_sw').values); Object.assign(c.values, press(c, 0, 'w_sw').values); const at5 = c.values.f_sk[0].lvl, r6 = press(c, 0, 'w_sw');
+        check('gap 10: a press that would break At most at a level is refused whole, in the words a change by hand says, and nothing moves', at5 === 5 && r6.ok === false && r6.message === 'Skills holds at most 1 row at Rank 6 or higher.' && !('values' in r6), J([at5, r6]));
+        const g6 = press(c, 0, 'w_sw', { now: 0, gmHand: true }), o6 = press(c, 0, 'w_sw', { now: 0, gmOwn: true });
+        check('gap 10: the GM\u2019s hand (a Then the GM lands, or the GM\u2019s own press) passes and is told, as by hand', g6.ok === true && g6.values.f_sk[0].lvl === 6 && J(g6.lvlSays) === J(['Skills holds at most 1 row at Rank 6 or higher. Now it holds 2.']) && o6.ok === true && J(o6.lvlSays) === J(g6.lvlSays), J([g6, o6]));
+        const rLo = press(ch(), 0, 'w_lo'), rSub = press(ch(), 2, 'w_sw'), rSet = press(ch(), 1, 'w_ax', { now: 0, gmHand: true }), rLoD = press(ch(), 2, 'w_lo');
+        check('gap 10: Levels it may be refuses a level its entry may not stand at; Subtract lowers, to a level the entry allows too, and stops at the list\u2019s lowest; Set stops at its highest',
+            rLo.ok === false && rLo.message === 'Old lore may only be Rank 1 to 3.' && rSub.ok === true && rSub.values.f_sk[0].lvl === 0 && J(rSub.lines[0]) === J({ f: 'f_sk', n: 'Swordplay: Rank', d: -2, v: 0 }) && rSet.values.f_sk[1].lvl === 10 && rSet.lines[0].set === true && rLoD.ok === true && rLoD.values.f_sk[2].lvl === 1, J([rLo, rSub.lines, rSet.lines, rLoD]));
+        check('gap 10: a card that moves its own row\u2019s level is its owner\u2019s, as its quantity is', S.applyScope(g, ch(), rl(g)[0], false, F) === 'owner');
+        const atSrc = rd('sheets.js').slice(rd('sheets.js').indexOf('function applyTitle(r, sys, spec) {'), rd('sheets.js').indexOf('function rollPick(r)')), atF = new Function('fieldById', atSrc + '\nreturn applyTitle;')(S.fieldById);
+        const ed = kit.part('sysedlist.js'), er = kit.part('sysedroll.js');
+        check('gap 10: the Lists tab offers This row\u2019s level by the list\u2019s word, only on a list with levels; picking it writes lv; its button says Its Rank + 1; Help says it',
+            atF(rl(g)[0], g, g.fields[0].list) === 'Its Rank + 1' && ed.includes("opts.push(['lv', sp && sp.lvl && typeof sp.lvl === 'object' ? 'This row\\u2019s ' + (typeof sp.lvl.label === 'string' && sp.lvl.label.trim() ? sp.lvl.label.trim() : 'level')") && ed.includes(": ch.lv === true ? 'lv' :")
+            && er.includes("else if (v === 'lv') ch.lv = true;") && rd('../index.html').includes('a change can also Add to, Subtract from or Set <b>This row&rsquo;s level</b>'), atF(rl(g)[0], g, g.fields[0].list));
+        check('gap 10: the host tells the GM where it lands a press (a player\u2019s, a Then, its own)', (rd('net.js').match(/toast\((resA|taQ|taR)\.lvlSays\.join\(' '\)\)/g) || []).length === 3 && rd('sheets.js').includes("toast(res.lvlSays.join(' '))") && rd('sheets.js').includes('gmOwn: true });'));
+    }
+
     await T.finish();
 })();

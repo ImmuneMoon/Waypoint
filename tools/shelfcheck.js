@@ -457,7 +457,8 @@ const drawSrc = sliceOf(ps, 'draw');
         && count(dp, "    if (!made) return false;") === 1 && dp.indexOf("    if (!made) return false;") < dp.indexOf("    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened\n    return true;\n}\n") && count(dp, "    if (window.wpPageShelf && window.wpPageShelf.opened) window.wpPageShelf.opened(id);   // 1.5.4 (pageshelf.js): one of the last pages opened\n    return true;\n}\n") === 1 && count(dp, 'wpPageShelf') === 12 && !dp.includes('\r') && count(dp, '\0') === 3);
     check('the page: the Pages button and its shelf sit on the play map\'s toolbar in a part of it that is the GM\'s alone, the shelf empty until it is drawn; the tree\'s menu has the pin where Open over the map is; the page panel\'s head has its pin before the window button',
         /<div style="position:relative; display:inline-block;" class="gm-only">\n\s*<button class="wb-tool-btn" id="pagesBtn" title="[^"<>]+"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="[^"<>]+"\/><\/svg><\/button>\n\s*<div class="shape-menu page-shelf" id="pagesMenu"><\/div>\n\s*<\/div>/.test(ix)
-        && /><i class="wib wi-dup"><\/i> Open in a new window<\/div>\n    <div class="menu-item ctx-docwin-only wib wi-pin" id="ctxPinPage" style="padding:8px 16px; cursor:pointer;" title="[^"<>]+">Pin for the session<\/div>/.test(ix)
+        // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+        && /><i class="wib wi-dup"><\/i> Open in a new window<\/div>\n    <div class="menu-item ctx-docwin-only wib wi-pin ctx-row" id="ctxPinPage" title="[^"<>]+">Pin for the session<\/div>/.test(ix)
         && /<span class="docpanel-title" id="docPanelTitle">Document<\/span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="[^"<>]+"><i class=\"wib wi-pin\"><\/i><\/button><button class="tool ghost notepad-btn" id="docPanelPop"/.test(ix)
         && ['pagesBtn', 'pagesMenu', 'ctxPinPage', 'docPanelPin'].every(id => count(ix, 'id="' + id + '"') === 1) && /\n\s*\.floating-toolbar \.shape-menu\.page-shelf \{ flex-direction: column; [^\n]*overflow-y: auto;/.test(css) && /\n\s*\.page-shelf \.ps-pin\.on, #docPanelPin\.on \{ filter: none; opacity: 1; \}/.test(css));
 }
@@ -487,7 +488,8 @@ const drawSrc = sliceOf(ps, 'draw');
         && /function cmdkHintSync\(\) \{ var h = document\.getElementById\('cmdkHint'\); if \(h\) h\.textContent = cmdkHint\(_cmdkShown\[_cmdkIdx\]\); \}/.test(mainS)
         && /: '<div class="cmdk-empty">No matches\.<\/div>';\n        cmdkHintSync\(\);\n    \}/.test(mainS) && /if \(act\) act\.scrollIntoView\(\{ block: 'nearest' \}\);\n                cmdkHintSync\(\);/.test(mainS) && count(mainS, 'cmdkGo(') === 3);
     check('the page has the line under the list, drawn as text, hidden while it is empty; the module is loaded once, after floats.js, whose view it asks',
-        count(ix, '<div id="cmdkList" style="max-height:46vh; overflow-y:auto;"></div>\n        <div id="cmdkHint" class="cmdk-hint" role="status"></div>') === 1 && /\n\s*\.cmdk-hint:empty \{ display: none; \}/.test(css) && /\n\s*\.cmdk-hint \{ padding: 7px 16px; /.test(css)
+        // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+        count(ix, '<div id="cmdkList" class="cmdk-list"></div>\n        <div id="cmdkHint" class="cmdk-hint" role="status"></div>') === 1 && /\n\s*\.cmdk-hint:empty \{ display: none; \}/.test(css) && /\n\s*\.cmdk-hint \{ padding: 7px 16px; /.test(css)
         && count(ix, 'scripts/pageshelf.js') === 1 && ix.includes('<script type="module" src="scripts/floats.js"></script>\n<script type="module" src="scripts/pageshelf.js"></script>\n'));
 }
 

@@ -537,7 +537,8 @@ pendingChecks.push((async () => {
         }
         check('1.5.6 a time rule\'s notes reach a player as they chose (backlog 173, the owner: "notify the player privately, with the option of them turning off these notifications, or change how often they come in"; timeNote run for real): every time as ever, and with no choice or one that is no choice; Off none; gathered into one note every 10 minutes or every hour; what waits let go when the table ends; the host marks its notes kind time, and a player\'s app routes only a whisper from the GM so marked; Settings\' row',
             ok && kit.part('nettime.js').includes("ts: Date.now(), kind: 'time' };") && kit.part('nettime.js').includes("if (typeof timeNote === 'function') timeNote(m); else pushChat(m);   // 1.5.6: the GM's own chat") && kit.part('nettime.js').includes("logEvent('time', t);   // the Game Record keeps every line") && flat.includes("if (msg.kind === 'time' && lineH.scope === 'whisper' && fromH.gm && typeof timeNote === 'function') timeNote(lineH); else pushChat(lineH);")
-            && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<select id="setTimeNotes" class="field"'), JSON.stringify([A.pushed.length, B.pushed.length, cBefore, cTimers, C.pushed.map(m => m.text), dMs, D.pushed.length, E.pushed.length]));
+            // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+            && fs.readFileSync(path.join(__dirname, '..', 'system', 'app', 'index.html'), 'utf8').includes('<select id="setTimeNotes" class="field set-opt-select"'), JSON.stringify([A.pushed.length, B.pushed.length, cBefore, cTimers, C.pushed.map(m => m.text), dMs, D.pushed.length, E.pushed.length]));
     }
 
 // 1.6.3 (the improvement week's combat review, finding 6: a new round held the GM's screen about 3 s and a fight's end about 4 s, each character

@@ -200,7 +200,13 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             && /function byKey\(camp\) \{ return keyIndex\(camp && camp\.library, entriesOf\); \}/.test(lbS) && /var idx = bare \? ownCore\(camp\.system\) : byKey\(camp\), res = coreOf\(/.test(lbS)
             && /after\(\);\n\s*if \(window\.wpLibraryWin && window\.wpLibraryWin\.refresh\) \{ try \{ window\.wpLibraryWin\.refresh\(\); \} catch \(e\) \{ console\.error\(e\); \} \}[^\n]*\n(\s*if \(mine\.state === 'ready'\) migrateItems\(camp\);[^\n]*\n)?\s*return mine;/.test(lbS)
             && /window\.wpLibrary = \{[^\n]*, ready: ready, setMeta: setMeta[, ]/.test(lbS));
-        const zOf = id => { const m = new RegExp('<div id="' + id + '" style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : NaN; };
+        // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose. A window's z-index is read from its own
+        // style where it keeps one, else from the rule of the style sheet whose last part names the most of the window's classes (a later rule winning a tie)
+        const cssZ = fs.readFileSync(path.join(app, 'style.css'), 'utf8').replace(/\r\n/g, '\n');
+        const zClass = id => { const c = new RegExp('<div id="' + id + '" class="([^"]*)"').exec(hmS); if (!c) return NaN; const cls = c[1].split(/\s+/); let best = NaN, most = 0;
+            for (const r of cssZ.matchAll(/\n[ \t]*([^{}\n]+?) ?\{[^}\n]*?z-index: ?(\d+);/g)) for (const sel of r[1].split(',')) { const last = sel.trim().split(/\s+/).pop(); if (!/^(\.[\w-]+)+$/.test(last)) continue; const need = last.slice(1).split('.'); if (need.every(k => cls.includes(k)) && need.length >= most) { best = +r[2]; most = need.length; } }
+            return best; };
+        const zOf = id => { const m = new RegExp('<div id="' + id + '"[^>]* style="[^"]*z-index:(\\d+)').exec(hmS); return m ? Number(m[1]) : zClass(id); };
         check('L2a the window sits above the System editor and below its questions, loads after the store, opens from the Items tab, and Help describes it',
             zOf('libraryModal') > zOf('systemModal') && zOf('libraryModal') < zOf('customConfirm') && zOf('libraryModal') < zOf('customPrompt')
             && hmS.indexOf('scripts/librarywin.js') > hmS.indexOf('scripts/library.js') && hmS.indexOf('scripts/library.js') > 0

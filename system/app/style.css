@@ -7717,6 +7717,14 @@ textarea.handout-notes { min-height: 64px; resize: vertical; }
 .ctx-opens-now { color: var(--dim); font-size: 11px; }
 /* [inline-b-end] */
 
+/* 1.6.4 (Fulllion, "Move them"): the inline styles the scripts wrote into their own markup, moved here so that a look reaches them. Two blocks, one for
+   each half of the move (c: the Properties panel, the planner and the files beside them; d: the board and the rest). Like the blocks above they stand
+   after the components they restyle, so a rule here wins as the inline style did, and before the looks, so a look can reach it. */
+/* [inline-c-start] */
+/* [inline-c-end] */
+/* [inline-d-start] */
+/* [inline-d-end] */
+
 /* 1.6.4: the looks (Fulllion, 2026-11-24, after the look page's renders: "lets go with slate and keep the other two for options that people can pick
    from if they want to change the look"). A look is the app's colors and the shape of its common parts: windows, buttons, switches, boxes, the rail,
    section titles, the welcome screen's cards, the top row and the toolbar. html[data-look] says which (boottheme.js writes it before the style

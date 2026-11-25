@@ -5208,5 +5208,24 @@ if (mode === 'samples') {
     check('1.6.4, no em dash in what people read: every script\'s strings, the page, the style sheet, the installer, the shell, the release notes, the README and the integration guide',
         Array.isArray(hits) && hits.length === 0, Array.isArray(hits) ? hits.length + ' left: ' + hits.slice(0, 12).join(' | ') : JSON.stringify(hits));
 }
+{
+    // 1.6.4 (Fulllion, 2026-11-24: "the window bar should always blend with the current screen in waypoint, for instance, the waypoint home screen
+    // is a different shade than the top window bar"): winbar.js's pure half, sliced by its winblend markers and run for real
+    const wb = read('scripts/winbar.js'), wa = wb.indexOf('// [lookcheck:winblend-start]'), wz = wb.indexOf('// [lookcheck:winblend-end]');
+    const W = (wa >= 0 && wz > wa) ? new Function('WB_POINTS', 'WB_BUTTONS', wb.slice(wa, wz) + '\nreturn { rgbaOf, over, stackColor, hexOf, modeOf, inkFor, pointsX };')(12, 150) : null;
+    const op = (r, g, b) => ({ r, g, b, a: 1 });
+    check('1.6.4, the window bar blends with the screen under it (winbar.js winblend, run for real): a color read in each form a browser computes, a stack laid down as a browser paints it (a dimmed backdrop over the welcome screen, a see-through layer over nothing but the page), the color most points agree on, an ink that reads on it, and the points read clear of the system\'s buttons',
+        !!W && JSON.stringify(W.rgbaOf('rgb(16, 20, 27)')) === JSON.stringify(op(16, 20, 27)) && W.rgbaOf('rgba(0, 0, 0, 0.7)').a === 0.7 && W.rgbaOf('rgb(1 2 3 / 50%)').a === 0.5 && W.rgbaOf('transparent').a === 0 && W.rgbaOf('red') === null && W.rgbaOf(null) === null
+        && W.hexOf(W.stackColor([op(16, 20, 27)])) === '#10141b' && W.hexOf(W.stackColor([{ r: 0, g: 0, b: 0, a: 0.7 }, op(16, 20, 27), op(255, 255, 255)])) === '#050608'
+        && W.hexOf(W.stackColor([{ r: 255, g: 255, b: 255, a: 0.5 }], op(0, 0, 0))) === '#808080' && W.hexOf(W.stackColor([], op(9, 9, 9))) === '#090909'
+        && W.modeOf(['#111111', '#222222', '#111111', '', '#222222']) === '#111111' && W.modeOf([]) === ''
+        && W.inkFor('#10141b') === '#e9e9f0' && W.inkFor('#f4f1ea') === '#1f1d24' && W.inkFor('nonsense') === '#e9e9f0'
+        && W.pointsX(1280).length === 12 && W.pointsX(1280).every(x => x >= 8 && x <= 1280 - 150) && W.pointsX(100).every(x => x >= 0 && x <= 16),
+        W ? JSON.stringify([W.hexOf(W.stackColor([{ r: 0, g: 0, b: 0, a: 0.7 }, op(16, 20, 27)])), W.pointsX(1280), W.pointsX(100)]) : 'no slice');
+    check('1.6.4, the window bar is told what stands under it: the strip takes that color and an ink on it, the shell is told only a color that changed and only while the system draws its buttons, and it looks again after a press, a key, a change of the page\'s root or body and every half second',
+        /function say\(\) \{\n    if \(!barShown\(\) \|\| document\.hidden\) return;/.test(wb) && wb.includes('var color = underColor(); if (!color) return;') && wb.includes('var symbol = inkFor(color);')
+        && wb.includes("if (bar.style.backgroundColor !== color) { bar.style.backgroundColor = color; bar.style.color = symbol; }") && wb.includes('var k = color + symbol; if (k === _said) return;')
+        && wb.includes("['pointerup', 'keyup'].forEach(function(t) { document.addEventListener(t, saySoon, true); });") && /var WB_LOOK_MS = 500;/.test(wb) && wb.includes('if (el === bar || bar.contains(el)) continue;'));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

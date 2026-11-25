@@ -8,7 +8,10 @@
    - openerSame() compares this window's boot read with the main window's, for a window the main window opened (a pop-out or the stream window).
      Only where a side's boot read is still under way, or the main window is from before this module, are the two windows' wpAppVersion compared
      instead; where either side's read failed it answers "same", since wpAppVersion is not the release a window's files came from.
-   - Every read of version.json gives up after 4 seconds and answers as a failed read does, so a read that never settles holds nothing up.
+   - A caller never waits more than 4 seconds on a read of version.json. The boot read is still kept when it lands later, so a slow start
+     leaves the check on; a later read that takes too long is aborted.
+   - A look answers "same", "changed" or "not known". A look that cannot tell (a read that failed or took too long) leaves a cover up as it is,
+     so one bad read never uncovers a window that is still on another release.
    - watch() looks once the page knows its version and every 30 seconds after. Where the main window that opened this one is still open it asks
      openerSame(); where there is none, or it was closed, it asks check(), since this window still talks over the app's channel to whatever main
      window is open later. A change must be seen twice, on two looks at least 5 seconds apart, before one notice covers the window: on the
@@ -25,8 +28,9 @@ import { stepLog } from './steplog.js';
 // Every word this module says, in one place, to go to the owner as a draft. stale: a main window whose release moved (the starters say it);
 // staleAlone: a window of its own that runs an older release than the one now served, its main window gone or newer (the cover says it, and
 // its one button closes the window, since a key that would reload it is stopped while the cover is up); opener: a window of its own that runs
-// a newer release than the main window that opened it; differ: the two run different releases and which is newer cannot be told; close: the
-// cover's one button.
+// a newer release than the main window that opened it; differ: the two run different releases and which is newer cannot be told; changed: a
+// window of its own with no main window whose release is not plainly older than the one served (a release taken back, or versions that are
+// not plain numbers); close: the cover's one button.
 // Late reads left as they are, on purpose: sounds.json, the tutorial's pictures, assets/whatsnew.txt and assets/legal.txt. Each is a picture or
 // a text shown as it is, never trusted as code or as settings, so a newer release's copy does no harm.
 var RELEASE_WORDS = {
@@ -34,6 +38,7 @@ var RELEASE_WORDS = {
     staleAlone: 'Waypoint was updated since this window opened. Close it, then open it again from the main window.',
     opener: 'Waypoint was updated since the main window opened. Reload the main window, then open this one again.',
     differ: 'This window and the main window run different versions of Waypoint. Reload the main window, then open this one again.',
+    changed: 'Waypoint changed version since this window opened. Close it, then open it again from the main window.',
     close: 'Close this window'
 };
 var RELEASE_LOOK_MS = 30000;   // how often a window of its own looks again at the main window's version
@@ -48,30 +53,47 @@ function releaseMake(W, log) {
     var watching = false;
     // The version a version.json answer names, or null: a plain short text, never anything else
     function versionOf(j) { var v = j && typeof j === 'object' ? j.version : null; return (typeof v === 'string' || typeof v === 'number') && String(v).trim() ? String(v).trim().slice(0, 40) : null; }
-    // Reads the app folder's version.json once, past every cache. Answers the version, or null where it cannot be read or takes longer than
-    // RELEASE_READ_MS (the page's own timer, never the window stand-in's, so a suite's clock of second looks counts no read); never rejects
-    function readVersion() {
+    // Reads the app folder's version.json once, past every cache, with no time limit. Answers the version, or null where it cannot be read;
+    // never rejects. ctl, where given, is an AbortController whose signal the fetch takes
+    function fetchVersion(ctl) {
         try {
             if (typeof W.fetch !== 'function') return Promise.resolve(null);
-            var read = Promise.resolve(W.fetch('version.json', { cache: 'no-store' })).then(function(r) { return r && r.ok !== false && typeof r.json === 'function' ? r.json() : null; }).then(versionOf, function() { return null; });
-            if (typeof setTimeout !== 'function') return read;
-            return new Promise(function(done) {
-                var t = setTimeout(function() { done(null); }, RELEASE_READ_MS);
-                read.then(function(v) { if (typeof clearTimeout === 'function') clearTimeout(t); done(v); });
-            });
+            var opts = { cache: 'no-store' }; if (ctl && ctl.signal) opts.signal = ctl.signal;
+            return Promise.resolve(W.fetch('version.json', opts)).then(function(r) { return r && r.ok !== false && typeof r.json === 'function' ? r.json() : null; }).then(versionOf, function() { return null; });
         } catch (e) { return Promise.resolve(null); }
+    }
+    // A promise of what p answers, or null once RELEASE_READ_MS has passed first (the page's own timer, never the window stand-in's, so a
+    // suite's clock of second looks counts no read). onLate runs where the time ran out first
+    function limited(p, onLate) {
+        if (typeof setTimeout !== 'function') return p;
+        return new Promise(function(done) {
+            var t = setTimeout(function() { done(null); if (onLate) try { onLate(); } catch (e) {} }, RELEASE_READ_MS);
+            p.then(function(v) { if (typeof clearTimeout === 'function') clearTimeout(t); done(v); });
+        });
+    }
+    // A later read of version.json: given up and aborted after RELEASE_READ_MS. Answers the version, or null; never rejects
+    function readVersion() {
+        var ctl = null; try { if (typeof AbortController === 'function') ctl = new AbortController(); } catch (e) {}
+        return limited(fetchVersion(ctl), function() { if (ctl) ctl.abort(); });
     }
     // One line to the app's log for a change found, with the two versions alone (at: where it was found)
     function note(at, was, now) { var k = at + '|' + was + '|' + now; if (said[k]) return; said[k] = 1; try { log('changed', { at: at, was: was, now: now }); } catch (e) {} }
     var bootV = null;   // the version this page started on, once its read has settled; null until then and where the read failed
     var bootDone = false;   // whether that read has settled, so a null bootV tells a read under way from one that failed
-    var boot = readVersion().then(function(v) { bootV = v; bootDone = true; return v; });   // read once as the module loads
+    // Read once as the module loads, with no time limit: a slow read is this page's own release when it lands, so it is kept then (bootV).
+    // boot is what check() waits on, at most RELEASE_READ_MS; past that check() cannot tell, until the read lands
+    var bootLate = false;   // the boot read is still under way past RELEASE_READ_MS: no window compares wpAppVersion in its place after that
+    var bootRaw = fetchVersion(null).then(function(v) { bootV = v; bootDone = true; return v; });
+    var boot = limited(bootRaw, function() { if (!bootDone) bootLate = true; }).then(function(v) { return v || bootV; });
     // bootNow(): the version this page read from its own version.json as it loaded, at once: null until that read settles or where it failed.
     // Another window of the app reads it here (openerSame), since a window's wpAppVersion is the newer of two reads, not the release its files
     // came from
     function bootNow() { return bootV; }
-    // bootFailed(): whether the boot read has settled with no version (it failed, or took too long). Another window reads it here too
+    // bootFailed(): whether the boot read has settled with no version (it failed). A read still under way, however long, is not failed: its
+    // answer is kept when it lands. Another window reads it here too
     function bootFailed() { return bootDone && !bootV; }
+    // bootSlow(): whether the boot read is still under way past RELEASE_READ_MS. Another window reads it here too
+    function bootSlow() { return bootLate && !bootDone; }
     // Which of two versions is newer by their numbers, part by part: 1 where a is newer, -1 where b is, 0 where they read the same, and null
     // where either is not plain numbers and dots
     function versionCmp(a, b) {
@@ -81,45 +103,62 @@ function releaseMake(W, log) {
         return 0;
     }
     var lastPair = null;   // the two versions openerSame last found differing: [this window's, the main window's]
-    // check(): a promise of true where the release is the one this page started on, false where version.json now names another, and true
-    // where either read failed. Never rejects
-    function check() {
+    // checkState(): a promise of what this page's release is now: { state: 'same' }, { state: 'changed', was, now } where version.json names
+    // another release than the one this page started on, or { state: 'unknown' } where either read failed or took too long. Never rejects
+    function checkState() {
         return boot.then(function(was) {
-            if (!was) return true;
-            return readVersion().then(function(now) { if (!now || now === was) return true; note('check', was, now); return false; });
-        }, function() { return true; });
+            was = was || bootV;
+            if (!was) return { state: 'unknown' };
+            return readVersion().then(function(now) {
+                if (!now) return { state: 'unknown' };
+                if (now === was) return { state: 'same' };
+                note('check', was, now); return { state: 'changed', was: was, now: now };
+            });
+        }, function() { return { state: 'unknown' }; });
+    }
+    // check(): a promise of true where the release is the one this page started on, false where version.json now names another, and true
+    // where it cannot tell (a read that failed or took too long): no work is ever blocked on a failed read. Never rejects
+    function check() {
+        return checkState().then(function(r) { return r.state !== 'changed'; }, function() { return true; });
     }
     // Whether the window that opened this one is still there: 'none' where there is no opener, it is this window itself or it was closed;
     // 'live' otherwise (an opener that cannot be read counts as live, since nothing can be told about it, and openerSame then answers same)
     function openerState() {
         try { var op = W.opener; if (!op || op === W || op.closed) return 'none'; return 'live'; } catch (e) { return 'live'; }
     }
-    // openerSame(): false only where this window was opened by the app's main window, the main window is still open and the two run different
-    // releases; true otherwise (no opener, an opener closed or not readable, a version not known yet). Each window's release is the version it
-    // read from its own version.json as it loaded (bootNow, the opener's through its own wpRelease). Where either read failed (bootFailed) it
-    // answers true: a window's wpAppVersion is the newer of two reads, and on a desktop with an older shell it is the shell's version when the
-    // window's own read failed. Only where a read is still under way, or the main window is from before this module (no wpRelease), are the two
-    // windows' wpAppVersion compared
-    function openerSame() {
+    // openerState3(): what this window is next to the main window that opened it: 'same', 'changed' (the two run different releases),
+    // 'unknown', or 'unreadable' (the main window cannot be read, as after it went to another site: mismatch then reads this window's own
+    // version.json). No opener, or one closed, is 'same'. Each window's release is the version it read from its own version.json as it loaded
+    // (bootNow, the opener's through its own wpRelease). Where either read failed (bootFailed), or is still under way past its 4 seconds
+    // (bootSlow), it is 'unknown': a window's wpAppVersion is the newer of two reads, and on a desktop with an older shell it is the shell's
+    // version when the window's own read failed. Only in a read's first 4 seconds, or where the main window is from before this module (no
+    // wpRelease), are the two windows' wpAppVersion compared
+    function openerState3() {
         var op = null, theirs = null, theirsBoot = null, theirsFailed = false;
         try {
-            op = W.opener; if (!op || op === W || op.closed) return true;
+            op = W.opener; if (!op || op === W || op.closed) return 'same';
             var rel = op.wpRelease;
-            if (rel && typeof rel.bootNow === 'function') { theirsBoot = rel.bootNow(); theirsFailed = typeof rel.bootFailed === 'function' && rel.bootFailed() === true; }
+            if (rel && typeof rel.bootNow === 'function') {
+                theirsBoot = rel.bootNow();
+                theirsFailed = (typeof rel.bootFailed === 'function' && rel.bootFailed() === true) || (typeof rel.bootSlow === 'function' && rel.bootSlow() === true);
+            }
             theirs = op.wpAppVersion;
-        } catch (e) { return true; }
-        if (bootFailed() || theirsFailed) return true;
+        } catch (e) { return 'unreadable'; }
+        if (bootFailed() || bootSlow() || theirsFailed) return 'unknown';
         var ours, other;
         if (typeof theirsBoot === 'string' && theirsBoot && typeof bootV === 'string' && bootV) { ours = bootV; other = theirsBoot; }
         else {
             ours = W.wpAppVersion; other = theirs;
-            if (typeof other !== 'string' || !other || typeof ours !== 'string' || !ours) return true;
+            if (typeof other !== 'string' || !other || typeof ours !== 'string' || !ours) return 'unknown';
         }
-        if (other === ours) return true;
+        if (other === ours) return 'same';
         lastPair = [ours, other];
         note('opener', ours, other);
-        return false;
+        return 'changed';
     }
+    // openerSame(): false only where this window was opened by the app's main window, the main window is still open and the two run different
+    // releases; true otherwise, where it cannot tell too (openerState3)
+    function openerSame() { var s = openerState3(); return s !== 'changed'; }
     // The words for windows that differ, by which is newer (lastPair): the main window newer, this window is the old one, and closing it and
     // opening it again from the main window is the cure; this window newer, the main window must be reloaded first; neither told, the words
     // that hold either way
@@ -189,24 +228,33 @@ function releaseMake(W, log) {
         ['keydown', 'keyup', 'keypress'].forEach(function(t) { W.addEventListener(t, guardKey, true); });
         ['pointerdown', 'mousedown', 'click', 'dblclick', 'contextmenu', 'auxclick', 'paste'].forEach(function(t) { W.addEventListener(t, guardPress, true); });
     }
-    // What one look finds: a promise of null where nothing changed, else the key of the words the cover would say. Where the main window that
-    // opened this one is still open it is asked (openerSame, at once); where there is none and this is a window of its own, this window's own
-    // version.json is read again (check). Never rejects
+    // What one look finds: a promise of null where nothing changed, 'unknown' where it cannot tell, else the key of the words the cover would
+    // say. Where the main window that opened this one is still open it is asked (openerState3, at once); where there is none and this is a
+    // window of its own, this window's own version.json is read again (checkState), and the words follow which way the version moved: plainly
+    // newer than this window's, the words for an old window; anything else (a release taken back, versions that are not plain numbers), the
+    // words that hold either way. Never rejects
     function mismatch() {
         try {
-            if (openerState() === 'live') return Promise.resolve(openerSame() === false ? openerKind() : null);
+            var s = openerState() === 'live' ? openerState3() : 'none';
+            if (s !== 'none' && s !== 'unreadable') return Promise.resolve(s === 'changed' ? openerKind() : s === 'unknown' ? 'unknown' : null);
             if (!secondary()) return Promise.resolve(null);
-            return check().then(function(same) { return same === false ? 'staleAlone' : null; }, function() { return null; });
-        } catch (e) { return Promise.resolve(null); }
+            return checkState().then(function(r) {
+                if (r.state === 'unknown') return 'unknown';
+                if (r.state !== 'changed') return null;
+                return versionCmp(r.now, r.was) === 1 ? 'staleAlone' : 'changed';
+            }, function() { return 'unknown'; });
+        } catch (e) { return Promise.resolve('unknown'); }
     }
     var lookQ = Promise.resolve(true);   // the looks run one after another, never two at once
     var pending = false;   // a change was seen once and waits for its second look
     var pendGen = 0;   // which waiting second look counts: raised whenever a look finds nothing, so an older timer does nothing
-    // What a look does with what it found. Nothing changed: no second look waits, and a cover up comes down. A change, with no cover up: the
+    // What a look does with what it found. Not known: no second look waits, and a cover up stays as it is, words and all. Nothing changed: no
+    // second look waits, and a cover up comes down. A change, with no cover up: the
     // first time it is noted and a second look is asked for RELEASE_CONFIRM_MS later (on the window's setTimeout, so a suite drives it on its own
     // clock); the second look (confirming) puts the cover up. With no setTimeout at hand the next look that still finds it confirms it.
     // Answers true where nothing changed
     function lookApply(kind, confirming) {
+        if (kind === 'unknown') { pending = false; pendGen++; return true; }
         if (!kind) { pending = false; pendGen++; coverHide(); return true; }
         if (coverUp()) { coverWords(RELEASE_WORDS[kind] || RELEASE_WORDS.differ); return false; }
         if (confirming || (pending && typeof W.setTimeout !== 'function')) { pending = false; coverShow(RELEASE_WORDS[kind] || RELEASE_WORDS.differ); return false; }
@@ -237,7 +285,7 @@ function releaseMake(W, log) {
         if (typeof W.setInterval === 'function') W.setInterval(function() { look(); }, RELEASE_LOOK_MS);
         return true;
     }
-    return { check: check, openerSame: openerSame, watch: watch, look: look, coverShow: coverShow, words: RELEASE_WORDS, boot: function() { return boot; }, bootNow: bootNow, bootFailed: bootFailed, versionCmp: versionCmp };
+    return { check: check, openerSame: openerSame, watch: watch, look: look, coverShow: coverShow, words: RELEASE_WORDS, boot: function() { return boot; }, bootNow: bootNow, bootFailed: bootFailed, bootSlow: bootSlow, versionCmp: versionCmp, checkState: checkState };
 }
 // [relcheck:core-end]
 

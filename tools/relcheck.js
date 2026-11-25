@@ -324,6 +324,13 @@ function fire(W, type, target, extra) { const e = event(type, target, extra); (W
         check('versionCmp(): by number, part by part, null for what is not plain numbers', R.versionCmp('1.6.10', '1.6.9') === 1 && R.versionCmp('1.6.4', '1.6.5') === -1 && R.versionCmp('1.6', '1.6.0') === 0 && R.versionCmp('1.6.4-b', '1.6.4') === null);
     }
     check('the module\'s words: plain sentences, no dash or semicolon, the stale and opener words ask to reload', /^Waypoint was updated since this window opened\. Reload it to go on\.$/.test(make(makeWin(), () => {}).words.stale) && /^Waypoint was updated since the main window opened\. Reload the main window, then open this one again\.$/.test(make(makeWin(), () => {}).words.opener) && /^Waypoint was updated since this window opened\. Close it, then open it again from the main window\.$/.test(make(makeWin(), () => {}).words.staleAlone) && /^This window and the main window run different versions of Waypoint\. Reload the main window, then open this one again\.$/.test(make(makeWin(), () => {}).words.differ) && /^Waypoint changed version since this window opened\. Close it, then open it again from the main window\.$/.test(make(makeWin(), () => {}).words.changed) &&!/[–—;]/.test(j(make(makeWin(), () => {}).words)));
+    {
+        // found by hand on the merged code: the pop-out's rule hides every child of the body it does not name, and the cover then stood hidden while
+        // its guards stopped every key and press. Every rule of style.css that hides children of the body in a window of its own keeps the cover
+        const cssRel = fs.readFileSync(path.join(SCRIPTS, '..', 'style.css'), 'utf8');
+        const hides = (cssRel.match(/body\.(?:popout-mode|stream-mode|popout-[a-z]+)\s*>\s*\*?:not\([^{]*\{[^}]*display:\s*none/g) || []);
+        check('every rule that hides the body\'s children in a pop-out or the stream window keeps the cover (#releaseCover), so it is never hidden while it holds the keys', hides.length >= 1 && hides.every(r => r.includes(':not(#releaseCover)')), JSON.stringify(hides));
+    }
     check('the module writes no style and no markup of its own, imports steplog.js alone and publishes window.wpRelease', !/\.style\.|innerHTML|insertAdjacentHTML/.test(relSrc) && (relSrc.match(/^import /gm) || []).length === 1 && relSrc.includes("import { stepLog } from './steplog.js';") && relSrc.includes("window.wpRelease = releaseMake(window, function(step, facts) { stepLog('release v1', step, facts); });"));
 
     /* ---- the starters (sysedtabs.js): nothing read from a newer release ---- */

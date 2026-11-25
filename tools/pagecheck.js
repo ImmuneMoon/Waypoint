@@ -1927,7 +1927,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && camp.items.p1.meta.status === 'next' && camp.items.p1.blocks[0].id === 'b_a' && J(order) === J([10, 20, 30]) && mapNo === null && gone === null, J([made, order]));
             const ix = read('index.html');
             check('1.6.3 Duplicate stands on a planner\'s and a page\'s row menu, after Rename, with the app\'s own Duplicate drawing, and its handler asks dupItem and opens the copy',
-                /<div class="menu-item" id="ctxRenameItem"[^\n]*\n\s*<div class="menu-item ctx-docwin-only" id="ctxDuplicateItem" [^>]*><i class="wib wi-dup"><\/i> Duplicate<\/div>/.test(ix)
+                // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+                /<div class="menu-item ctx-row" id="ctxRenameItem"[^\n]*\n\s*<div class="menu-item ctx-docwin-only ctx-row" id="ctxDuplicateItem" [^>]*><i class="wib wi-dup"><\/i> Duplicate<\/div>/.test(ix)
                 && dl.includes("var made = dupItem(camp, id, title, getMapChildren(camp, getMapParentId(camp, it), it.type),") && dl.includes('camp.activeItemId = made.id;'));
         }
         // ---- finding 41: a card's form spreads to its row of cards while it is open ----

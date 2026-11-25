@@ -905,7 +905,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         && mainSrc.includes('  // [lookcheck:corner-end]\n  applyCorner();\n') && count(mainSrc, 'applyCorner();') === 1
         && setSrc.includes("    applyGridOpacity();\n    if (window.wpApplyCorner) window.wpApplyCorner();   // 107: the zoom buttons and the pointer location are back at once\n"), J(cg));
     const tb = count(setSrc, "[['setRulersBtn', 'rulers'], ['setZoomCtlBtn', 'zoom'], ['setPointerPosBtn', 'pointer'], ['setSelBarBtn', 'selbar']].forEach(function(r) { var b = ui(r[0]); if (b) b.addEventListener('click', function() { viewSwitch(r[1]); }); });\n");
-    const GREY = '<div style="font-size:10.5px; color:var(--dim); line-height:1.4;">', row = (label, state, id, btn, grey) => '        <div class="set-sw-row" style="margin-bottom:8px;">\n            <div class="set-field-label" style="display:flex; justify-content:space-between;">' + label + ' <span id="' + state + '" style="color:var(--dim);"></span></div>\n'
+    // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+    const GREY = '<div class="set-help">', row = (label, state, id, btn, grey) => '        <div class="set-sw-row">\n            <div class="set-field-label set-label-row">' + label + ' <span id="' + state + '" class="set-state"></span></div>\n'
         + '            <button class="tool ghost set-sw" id="' + id + '" role="switch" aria-checked="false">' + btn + '</button>\n            ' + GREY + grey + '</div>\n        </div>\n';
     check('Settings, On my screen has the three switches in a row each (1.6.2, backlog 171: a switch at the row\'s right, moved on purpose), the rulers as before and the two new ones under it: its name, how it stands, its button, and a gray line that says what it is; each button presses the one function, no other code writes the three keys, and the row\'s word follows the key',
         tb === 1 && ix.includes(row('Coordinate rulers', 'setRulersState', 'setRulersBtn', 'Toggle Rulers', 'The number strips along the top and left edges of a map.')
@@ -1618,7 +1619,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
         const runOk = J(['none', 'fade', null, 1, {}].map(H.of)) === J(['none', 'fade', 'fade', 'fade', 'fade']) && J(seen) === J([true, false, false, false, false, true]) && (() => { try { new Function('document', hs + '\nreturn hiddenLookApply;')(null)('none'); return true; } catch (e) { return false; } })();
         check('Hidden pieces on my map (Settings, this machine\'s own): Faded as ever, Invisible the body\'s one word hid-none (hiddenLookOf and hiddenLookApply, run for real: anything but none is Faded, no document throws nothing), read and kept as wp_hiddenLook; the style sheet hides a GM-hidden piece by visibility under that word, and the stand-in an older host sends draws nothing and holds no cloud',
             runOk && /\n  body\.hid-none \.wb-item\.wb-hidden-gm \{ visibility: hidden; \}/.test(css) && css.includes('\n  .wb-item.wb-hidden-ph { visibility: hidden !important; pointer-events: none !important; }') && !css.includes('ph-cloud') && !wbH.includes('ph-cloud')
-            && st.includes("try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}") && st.includes("try { localStorage.setItem('wp_hiddenLook', hv); } catch (e) {}") && /<select id="setHiddenLook" class="field"[^>]*><option value="fade">Faded<\/option><option value="none">Invisible<\/option><\/select>/.test(ix)
+            && st.includes("try { _hid0 = hiddenLookOf(localStorage.getItem('wp_hiddenLook')); } catch (e) {}") && st.includes("try { localStorage.setItem('wp_hiddenLook', hv); } catch (e) {}") /* 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose */ && /<select id="setHiddenLook" class="field set-opt-select"[^>]*><option value="fade">Faded<\/option><option value="none">Invisible<\/option><\/select>/.test(ix)
             && ix.includes('pick Invisible under <b>Hidden pieces on my map</b> in Settings.'), J([runOk, seen]));
     }
 }
@@ -1643,7 +1644,8 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     check('Token marks on my map (1.6.3, Fulllion: "full marks only near the pointer, or when zoomed in by default"): settings.js run for real: anything but always is Near the pointer or zoomed in, the body\'s word tokmk-always for Always; tokmk-far below 100% zoom (a hair under counts as at it, no zoom that reads is never far); --mkz scales a mark with the map under Always, never under 60% of its own size on screen nor over it; no document throws nothing',
         runOk, J([modes, far]));
     check('Token marks on my map, the wiring: Settings has the row beside Wall marks with its gray line and both choices, kept as wp_tokMarks (Always alone stored), the other windows of this computer following it; main.js tells the setting the zoom at both places it sets it; fog.js follows it for the sense line and the light\'s name',
-        /<select id="setTokMarks" class="field"[^>]*><option value="near">Near the pointer or zoomed in<\/option><option value="always">Always, scaled with the token<\/option><\/select><\/label>/.test(ix)
+        // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+        /<select id="setTokMarks" class="field set-opt-select"[^>]*><option value="near">Near the pointer or zoomed in<\/option><option value="always">Always, scaled with the token<\/option><\/select><\/label>/.test(ix)
         && ix.indexOf('id="setTokMarks"') > ix.indexOf('id="setWallMarks"') && ix.indexOf('id="setTokMarks"') < ix.indexOf('id="setLibDrag"')
         && st.includes("try { _tm0 = tokMarksOf(localStorage.getItem('wp_tokMarks')); } catch (e) {}") && st.includes("if (v === 'always') localStorage.setItem('wp_tokMarks', v); else localStorage.removeItem('wp_tokMarks');") && st.includes("if (e && e.key === 'wp_tokMarks')")
         && count(mainSrc, 'if (window.wpTokMarks) window.wpTokMarks.zoom(state.zoomLevel);') === 2
@@ -2961,10 +2963,19 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const rx = s => s.replace(/[.*+?^(){}|$[\]\\]/g, '\\$&');
     // a z-index: the first rule of the style sheet that opens with the selector (on one line or several), or '@id' as the page writes it on the element
     const zCss = sel => { const m = new RegExp('\\n[ \\t]*' + rx(sel) + ' ?\\{[^}]*?z-index: ?(\\d+);').exec(css); return m ? +m[1] : NaN; };
-    /* 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose */   // an element's z-index is read inline, or from the rule of the inline styles' block that names a class of its own
+    // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose. An element's z-index is read from
+    // its own style where it keeps one, else from the rule of the style sheet whose last part names the most of the element's classes (a later rule
+    // winning a tie), as the windows' backdrops and the right-click menus now carry theirs in classes
+    const zInline = id => { const m = new RegExp(' id="' + rx(id) + '"[^>]*? style="[^"]*?z-index: ?(\\d+)[;"]').exec(ix); return m ? +m[1] : NaN; };
+    const zClass = id => {
+        const m = new RegExp('<[a-z]+ id="' + rx(id) + '"[^>]*? class="([^"]*)"').exec(ix) || new RegExp('<[a-z]+ class="([^"]*)"[^>]*? id="' + rx(id) + '"').exec(ix); if (!m) return NaN;
+        const cls = m[1].split(/\s+/); let best = NaN, most = 0;
+        for (const r of css.matchAll(/\n[ \t]*([^{}\n]+?) ?\{[^}\n]*?z-index: ?(\d+);/g)) for (const sel of r[1].split(',')) { const last = sel.trim().split(/\s+/).pop(); if (!/^(\.[\w-]+)+$/.test(last)) continue; const need = last.slice(1).split('.'); if (need.every(c => cls.includes(c)) && need.length >= most) { best = +r[2]; most = need.length; } }
+        return best; };
+    // a rule of the first half's block may name the element by its id and a class of its own (#partyMenu.party-menu-box): read that where no class rule answers
     const zBlock = css.slice(css.indexOf('/* [inline-a-start] */'), css.indexOf('/* [inline-a-end] */')), zBlk = sel => { const m = new RegExp('\\n' + rx(sel) + ' ?\\{[^}]*?z-index: ?(\\d+);').exec(zBlock); return m ? +m[1] : NaN; };
-    const zTag = id => { const m = new RegExp(' id="' + rx(id) + '"[^>]*? style="[^"]*?z-index: ?(\\d+)[;"]').exec(ix); if (m) return +m[1];
-        const t = new RegExp('<[a-z]+ [^>]*?id="' + rx(id) + '"[^>]*>').exec(ix), cl = t && / class="([^"]*)"/.exec(t[0]), zs = (cl ? cl[1].split(/\s+/) : []).map(c => [zBlk('.' + c), zBlk('#' + id + '.' + c)]).reduce((a, b) => a.concat(b), []).filter(z => !isNaN(z)); return zs.length === 1 ? zs[0] : NaN; };
+    const zIdCls = id => { const t = new RegExp('<[a-z]+ [^>]*?id="' + rx(id) + '"[^>]*>').exec(ix), cl = t && / class="([^"]*)"/.exec(t[0]), zs = (cl ? cl[1].split(/\s+/) : []).map(c => zBlk('#' + id + '.' + c)).filter(z => !isNaN(z)); return zs.length === 1 ? zs[0] : NaN; };
+    const zTag = id => { const z = zInline(id); if (!isNaN(z)) return z; const c = zClass(id); return isNaN(c) ? zIdCls(id) : c; };
     const zOf = s => s.charAt(0) === '@' ? zTag(s.slice(1)) : zCss(s);
     const REST = zOf('.floating-toolbar'), OPEN = zOf('.floating-toolbar:has(.shape-menu.show)'), SEL = zOf('#selToolbar');
     const fm = /\nvar FLOAT_IDS = (\[[^\]]*\]);/.exec(flSrc), FLOATS = fm ? JSON.parse(fm[1].replace(/'/g, '"')) : [];
@@ -3608,7 +3619,7 @@ const swSrc = sliceOf(setSrc, 'viewswitch'), cornerSrc = sliceOf(mainSrc, 'corne
     const h3 = (/<h3 [^>]*>((?:(?!<\/h3>)[\s\S])*?id="combatMapName"[\s\S]*?)<\/h3>/.exec(ix) || [])[1] || '';
     const kids = []; { let depth = 0, at = 0, txt = ''; const re = /<(\/?)([a-z0-9]+)\b[^>]*>/gi; let m; while ((m = re.exec(h3))) { if (depth === 0) txt += h3.slice(at, m.index); if (!m[1]) { if (depth === 0) kids.push(m[2].toLowerCase()); if (!/^(br|img|input|path)$/i.test(m[2]) && !/\/>$/.test(m[0])) depth++; } else depth--; at = re.lastIndex; } if (depth === 0) txt += h3.slice(at); kids.push('text:' + txt.trim()); }
     check('the combat roster\'s title reads as one (found live 2026-10-17: "Combat —" stood at the left and the map\'s name in the middle, since the title spreads its parts across its width): its words and the map\'s name are one part of the title, standing together at the left, and the close button the other; nothing of the title stands outside them',
-        J(kids) === J(['span', 'button', 'text:']) && /^<span>Combat on <span id="combatMapName" style="color:var\(--ink\); font-weight:500;"><\/span><\/span> <button id="combatCloseBtn"/.test(h3) && count(ix, 'id="combatMapName"') === 1,
+        J(kids) === J(['span', 'button', 'text:']) /* 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose */ && /^<span>Combat on <span id="combatMapName" class="win-name"><\/span><\/span> <button id="combatCloseBtn"/.test(h3) && count(ix, 'id="combatMapName"') === 1,
         J([kids, h3.slice(0, 160)]));
 
     // 5. a tool's options stop under the top row: Build's, in a window 700 high, opened with their top under the 41 px row, where Material could not
@@ -4604,7 +4615,7 @@ check('Properties floats (backlog 217, the owner: "Floating window"): over the m
         && J(k1) === J(['-', '(Data Map)']) && J(k2) === J(['data', 1, 'none', 'Cellar opens on its Data Map.']) && k3 === 1 && k4 === 'data'
         && J(k5) === J([false, 2, 'Cellar opens on the campaign\u2019s choice, its Data Map.']) && J(k6) === J([false, 2]) && J(k7) === J(['-', '(As last left)'])
         && ioO.includes("if (o !== 'last') { if (again) return; v = o; }") && ioO.includes("var nx = opensTake(); again = !nx && state.viewMapId === am.id; o = nx || opensOf(getActiveCampaign(), am); }")
-        && count(htO, 'id="setMapOpens"') === 1 && count(htO, 'class="menu-item ctx-map-only ctx-opens"') === 4
+        && count(htO, 'id="setMapOpens"') === 1 /* 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose */ && count(htO, 'class="menu-item ctx-map-only ctx-opens ctx-row"') === 4
         && stO.includes("moS.value = camp && (camp.opensOn === 'visual' || camp.opensOn === 'data') ? camp.opensOn : '';") && stO.includes("if (val) camp.opensOn = val; else delete camp.opensOn;")
         && require('./checkkit').part('netfog.js').includes('delete camp.opensOn;') && count(netO, "'fxEffect', 'opensOn'].forEach") === 2
         && J(av) === J(['data', 'data', 'visual', 'data', 'data', 'visual', 'visual', 'visual', 'visual', 'data', 'data']) && mnO.includes("      if(!activeMap) { renderNoMap(); return; }\n      state.viewMapId = activeMap.id;")
@@ -5298,7 +5309,8 @@ if (mode === 'samples') {
         [ix, 'id="netLeaveBtn"', ['door-open'], B], [ix, 'id="netHostBtn"', ['cast'], B], [ix, 'id="netInviteBtn"', ['chain'], B],
         [ix, 'id="sysAddItem"', ['plus'], B], [ix, 'aria-controls="sysKeyItems"', ['help'], B], [ix, 'id="combatTickAllBtn"', ['check'], B], [ix, 'id="combatAddBtn"', ['plus'], B],
         [ix, 'id="ctxNewParentItem"', ['stairs-up'], D], [ix, 'id="ctxNewChildItem"', ['plus'], D], [ix, 'id="ctxRenameItem"', ['pen'], D], [ix, 'id="ctxMoveUp"', ['arrup'], D], [ix, 'id="ctxMoveDown"', ['arrdown'], D],
-        [ix, 'ctx-status" data-status="next"', ['play'], D], [ix, 'ctx-status" data-status=""', ['close'], D], [ix, 'id="ctxSetups"', ['setups'], D], [ix, 'id="ctxDeleteItem"', ['bin'], D],
+        // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+        [ix, 'ctx-status ctx-row" data-status="next"', ['play'], D], [ix, 'ctx-status ctx-row ctx-row-dim" data-status=""', ['close'], D], [ix, 'id="ctxSetups"', ['setups'], D], [ix, 'id="ctxDeleteItem"', ['bin'], D],
         [ix, 'id="imgLibPreviewAdd"', ['plus'], B], [ix, 'id="videoCloseBtn"', ['close'], B], [ix, 'id="docPanelClose"', ['close'], B], [ix, 'id="chatSendBtn"', ['send'], B],
         [wbSrc, 'combat-up" title="Move up"', ['arrup'], B], [wbSrc, 'combat-down" title="Move down"', ['arrdown'], B], [wbSrc, 'combat-del" title="Remove this row"', ['close'], B],
         [wbSrc, 'data-act="hold" title=', ['pause'], B], [wbSrc, 'data-act="setoff"', ['burst'], B], [wbSrc, 'data-act="pickopen"', ['nextturn'], B], [wbSrc, 'data-act="act" data-row=', ['check', 'play'], B],

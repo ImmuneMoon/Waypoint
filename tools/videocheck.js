@@ -439,7 +439,8 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             zOf('#streamCover') < zOf('#streamBar') && zOf('#streamBar') === 100000
             && /\n  #streamBar\.covered \.stream-fight \{ display: none; \}/.test(cssM) && !/#streamBar\.covered [^{\n]*(select|stream-grp|streamHideBtn)/.test(cssM)
             && /body\.web-no-host #netEndBtn, body\.web-no-host #settingsModal \.set-stream,/.test(cssM)
-            && /<div class="gm-only set-stream"><!--[^\n]*-->\n\s*<div class="set-field-label" style="margin-top:14px;">Stream window<\/div>\n\s*<button class="tool ghost" id="setStreamBtn"/.test(ixM)
+            // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+            && /<div class="gm-only set-stream"><!--[^\n]*-->\n\s*<div class="set-field-label set-above-14">Stream window<\/div>\n\s*<button class="tool ghost set-full" id="setStreamBtn"/.test(ixM)
             && sjM.includes('\nwindow.wpStreamRefused = streamWebJoin;\n'), j([zOf('#streamCover'), zOf('#streamBar')]));
     }
 

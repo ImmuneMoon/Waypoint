@@ -427,7 +427,8 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
             mu4.includes("    if (offMine()) { var popO = el('div', 'music-pillpop'); pillPop = popO; offPill(popO); showPill(popO); return; }")
             && so4.includes("var mine = !st.on && !!(window.wpVtt && typeof window.wpVtt.whyOff === 'function' && window.wpVtt.whyOff('sound') === 'local');") && so4.includes("b.classList.toggle('off-mine', mine);")
             && so4.includes("var onB = ui('soundOnBtn'); if (onB) onB.style.display = mine ? '' : 'none';") && so4.includes("if (e.target.id === 'soundOnBtn') { if (window.wpVtt) window.wpVtt.setLocal('sound', false); pop.style.display = 'none'; refresh(); }")
-            && ix4.includes('<button type="button" class="tool ghost" id="soundOnBtn" style="display:none; width:100%; margin:4px 0 2px;">Turn sound back on for me</button>')
+            // 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose
+            && ix4.includes('<button type="button" class="tool ghost snd-pop-btn" id="soundOnBtn" style="display:none;">Turn sound back on for me</button>')
             && css4.includes('#musicInd.off-mine::after, #soundInd.off-mine::after {') && css4.includes('#musicInd.off-mine, #soundInd.off-mine { opacity: .7; }')
             && rd4('system/app/scripts/vtt.js').split('    if (window.wpSoundSync) window.wpSoundSync();' + NL + '    if (window.wpMusicSync) window.wpMusicSync();' + NL).length === 6 && mu4.includes('window.wpMusicSync = sync;')
             && ix4.includes('A feature you switched off for yourself keeps its icon: <b>Music</b> and <b>Sound</b> stay in the top bar, struck through, and a click offers <b>Turn back on for me</b>.'));

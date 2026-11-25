@@ -7512,6 +7512,208 @@
    the rules of the parts they style, so they win as the inline styles did, and before the looks, so a look can reach them. Each rule names
    its element by a class of its own where it can, and by its id only where that is what keeps it as it was. */
 /* [inline-b-start] */
+/* The windows' backdrops: the dark layer a window stands on, under the window bar and over the whole app. A window keeps its own
+   display:none inline, which a script sets to flex to show it. win-dark is the older, darker shade; win-low stands under the others
+   (99999); win-library stands over the System editor, and win-upload, a player's sheet update, over the library. */
+.win-backdrop { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: var(--overlay); z-index: 100000; align-items: center; justify-content: center; }
+.win-backdrop.win-dark { background: rgba(0,0,0,0.7); }
+.win-backdrop.win-low { z-index: 99999; }
+.win-backdrop.win-library { z-index: 100004; }
+.win-backdrop.win-upload { z-index: 100005; }
+/* The quick jump's backdrop: lighter, over every window, its box high up the screen */
+.win-backdrop.cmdk-backdrop { background: rgba(0,0,0,0.6); z-index: 100001; align-items: flex-start; padding-top: 12vh; box-sizing: border-box; }
+/* A handout on screen: the darkest backdrop, over the Handouts window that may have opened it */
+.win-backdrop.handout-backdrop { background: rgba(0,0,0,0.85); z-index: 100001; }
+
+/* A window's box: its ground, gold edge and corners (win-frame), and the padding and column most windows lay their parts out in (win-box).
+   Each window's own size follows, and a window whose ground or padding differs says so in its own rule. */
+.win-frame { background: var(--panel2); border: 1px solid var(--gold); border-radius: 8px; }
+.win-box { padding: 22px; display: flex; flex-direction: column; }
+.sheetview-box { width: 480px; max-width: 92vw; max-height: 84vh; }
+.imglib-box { background: var(--bg2); padding: 20px; width: 720px; max-width: 94vw; height: 78vh; }
+.handouts-box { width: 720px; max-width: 94vw; height: 82vh; }
+.handout-box { padding: 18px; max-width: 92vw; max-height: 92vh; gap: 10px; align-items: center; }
+.cal-win { width: 560px; max-width: 94vw; max-height: 88vh; gap: 10px; overflow-y: auto; }
+.snd-lib-frame { padding: 18px 22px; }
+.combat-box { width: 560px; max-width: 94vw; max-height: 86vh; }
+.cast-box { width: 560px; max-width: 94vw; max-height: 84vh; }
+.journal-box { width: 760px; max-width: 94vw; height: 84vh; }
+.players-box { width: 520px; max-width: 92vw; max-height: 82vh; }
+.docimport-box { padding: 20px; width: min(640px, 94vw); max-height: 88vh; gap: 10px; }
+.importchoice-box { padding: 20px; width: 380px; }
+/* The quick jump's box, its search box and its list of what it found */
+.cmdk-box { background: var(--bg2); border: 1px solid var(--gold); border-radius: 10px; width: 560px; max-width: 92vw; box-shadow: 0 12px 40px rgba(0,0,0,0.6); overflow: hidden; }
+.cmdk-input { width: 100%; box-sizing: border-box; padding: 14px 16px; background: var(--panel2); border: none; border-bottom: 1px solid var(--edge); color: var(--ink); font-size: 15px; outline: none; }
+.cmdk-list { max-height: 46vh; overflow-y: auto; }
+
+/* A window's title row: the gold title at the left and its buttons at the right (win-title), or a plain gold title (win-heading).
+   win-flush takes every margin off, win-nowrap keeps the title on one line, win-title-gap spaces its parts, and win-title-end
+   pushes a button to the far end. win-name is a campaign's or a map's name inside a title, in the page's own ink. */
+.win-title { margin-top: 0; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
+.win-heading { margin-top: 0; color: var(--gold); }
+.win-flush { margin: 0; }
+.win-nowrap { white-space: nowrap; }
+.win-title-gap { gap: 10px; }
+.win-title-end { margin-left: auto; }
+.win-name { color: var(--ink); font-weight: 500; }
+/* The looks give a window's titles the ink of the page ("the looks", late in this sheet), which the inline gold beat: these titles keep
+   their gold, named as the looks name a window, a little more particular */
+[id$="Modal"]:not(#docReaderModal) h3:is(.win-title, .win-heading):not(.doc-view h3) { color: var(--gold); }
+/* What a window says under its title (win-intro, win-intro-sm), its row of buttons at the top (win-toolbar), its row of chips
+   (win-chips), the list that scrolls and takes the room left (win-scroll), its note at the foot (win-foot-note, win-foot-long)
+   and its buttons at the foot (win-actions). The Handouts window's picture picker keeps a grid rule of its own by its id, which
+   the inline style beat, so the list there is named by the window's id. */
+.win-intro { color: var(--dim); font-size: 12px; line-height: 1.45; margin-bottom: 10px; }
+.win-intro-sm { color: var(--dim); font-size: 11.5px; line-height: 1.5; margin-bottom: 10px; }
+.win-toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.win-chips { margin-bottom: 8px; }
+.win-scroll, #handoutsModal .win-scroll { overflow-y: auto; flex: 1; }
+.win-scroll-pad { padding-right: 6px; }
+.win-foot-note { color: var(--dim); font-size: 10.5px; margin-top: 10px; }
+.win-foot-long { color: var(--dim); font-size: 10.5px; margin-top: 10px; line-height: 1.5; }
+.win-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+/* Rows of controls anywhere: one that takes the room left in its row, or an empty span that pushes what follows to the far end
+   (row-grow, also inside a joined row of buttons that share its width alike), a box sized with its border (fit-box), controls side by
+   side (ctl-row), buttons one under the other (btn-stack), a button with less padding than a plain one (btn-snug), and a label that
+   holds its list on the same line (inline-pick) */
+.row-grow, .ui-seg.ui-seg-wide > .row-grow { flex: 1; }
+.fit-box { box-sizing: border-box; }
+.ctl-row { display: flex; gap: 6px; }
+.btn-stack { display: flex; flex-direction: column; gap: 8px; }
+.tool.btn-snug { padding: 4px 10px; }
+.inline-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+
+/* Settings: the space between one setting and the next, above it (set-above-N) or under it (set-below-N), and a small spacer. The
+   blocks that already wear a class of their own keep it: a switch's row (set-sw-row), Open your profile, the welcome screen's
+   choice, Developer mode, and the snapshots, whose margin rule by the parts' id the inline style beat, so it is named by that id too. */
+.set-above-4 { margin-top: 4px; }
+.set-above-6 { margin-top: 6px; }
+.set-above-8 { margin-top: 8px; }
+.set-above-10 { margin-top: 10px; }
+.set-above-14 { margin-top: 14px; }
+.set-below-6 { margin-bottom: 6px; }
+.set-below-8 { margin-bottom: 8px; }
+.set-below-10 { margin-bottom: 10px; }
+.set-below-12 { margin-bottom: 12px; }
+.set-below-14 { margin-bottom: 14px; }
+.set-spacer { height: 6px; }
+.set-sw-row { margin-bottom: 8px; }
+.set-profile-open { margin-bottom: 12px; }
+.set-welcome { margin-top: 6px; }
+.set-devmode { margin-bottom: 12px; }
+#setPartsBody .set-snaps { margin-top: 14px; }
+/* Settings' gray words: the line under a setting (set-help, set-help-long, and a feature's line and role under This campaign), a
+   switch's state beside its name (set-state), the words while the snapshots load (set-loading), the opening words of a part (set-intro), and the multiplayer part's notes (set-mp-note,
+   set-relay-note) with the link in them (set-help-link). The Developer mode line keeps its own space above it, over a rule of the
+   switch rows that the inline style beat. The line on where the saves live keeps a margin rule of its own by the
+   parts' id, which the inline style beat, so it is named by that id too. */
+.set-help, .set-vtt-help, .set-vtt-role { font-size: 10.5px; color: var(--dim); line-height: 1.4; }
+.set-help-long { color: var(--dim); font-size: 10.5px; line-height: 1.5; margin-top: 6px; }
+#settingsModal :is(.set-sw-row, .set-devmode) > div.set-help-long:not(.set-field-label) { margin-top: 6px; }
+.set-state { color: var(--dim); }
+.set-loading { color: var(--dim); }
+.set-intro { color: var(--dim); font-size: 11px; line-height: 1.5; margin-bottom: 8px; }
+.set-mp-note { font-size: 11px; color: var(--dim); margin-top: 4px; line-height: 1.4; }
+.set-relay-note { font-size: 11px; color: var(--dim); line-height: 1.45; margin-bottom: 6px; }
+.set-help-link { color: var(--gold); }
+#setPartsBody .set-saves { font-size: 10.5px; color: var(--dim); margin-top: 10px; line-height: 1.5; }
+/* Settings' rows: a label with a state at its far end (set-label-row), a choice or a tick on one dim line (set-opt-row, its list
+   set-opt-select, set-opt-gap for the one that stands apart), a label a click ticks (set-tick-row), a campaign rule with its list
+   at the far end (set-move-mode, a little under a feature's switch, and over the rest of This campaign as its first row), the
+   stream window's choices (set-stream-row), a tick on its own line (set-check-row) and a button on its own line among the look rows (set-btn-line). A list a part keeps narrow is named by its tag,
+   since a list of the app's own sizes itself by its tag and its class. */
+.set-label-row { display: flex; justify-content: space-between; }
+.set-opt-row { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--dim); margin: -2px 0 8px; }
+.set-opt-gap { margin: 10px 0 8px; }
+.set-tick-row { cursor: pointer; }
+select.set-opt-select { width: auto; font-size: 10.5px; padding: 1px 4px; }
+.set-move-mode { display: flex; gap: 8px; align-items: center; font-size: 12px; }
+.set-vtt-row > .set-move-mode { margin-top: 6px; }
+#setVttCampBlock > .set-move-mode { margin-bottom: 10px; }
+.set-move-mode > select.map-select { margin-left: auto; }
+.set-stream-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--dim); margin-top: 6px; }
+.set-check-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; cursor: pointer; }
+.set-btn-line { margin: -4px 0 8px; }
+/* Settings' controls as wide as their part (set-full, and set-full-box with its border inside that width) */
+.set-full { width: 100%; }
+.set-full-box, select.set-full-box { width: 100%; box-sizing: border-box; }
+/* Settings, This campaign: the gold line that names the campaign, its name in the page's ink, the New campaigns block under a
+   rule and its gold heading */
+.set-camp-label { color: var(--gold); margin-bottom: 8px; }
+.set-camp-name { color: var(--ink); }
+.set-defaults { margin-top: 14px; border-top: 1px solid var(--edge); padding-top: 10px; }
+.set-new-label { color: var(--gold); margin-bottom: 4px; }
+/* Settings, Saves and backups and Updates: the list of snapshots, the row of update buttons a script shows, and the version button
+   at the foot */
+.set-snap-list { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.set-update-row { margin-top: 8px; gap: 8px; }
+.set-version-row { text-align: center; margin-top: 14px; }
+.tool.set-version-btn { font-size: 11px; color: var(--dim); padding: 2px 10px; }
+
+/* The Image Library: its row of search and buttons, the search box, the list of whose pictures (a script shows it), the tag menu
+   (its own id rule is wider, which the inline style beat, so it is named by the window's id) and the bar of what is picked */
+.imglib-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.imglib-search { flex: 1; min-width: 0; box-sizing: border-box; }
+.imglib-source { align-items: center; gap: 6px; }
+#imgLibModal .img-cat-menu { position: fixed; flex-direction: column; min-width: 180px; z-index: 100001; }
+.imglib-selbar { align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+/* Handouts: the picture picker's search row; a handout on screen with its title row, its picture, its words, its caption, the
+   player's notes and the line that says it was saved. The words stay selectable while a sheet is arranged by dragging, as the
+   inline style kept them, so they are named by their tag too. A scene's own rule for the picture weighs two ids, which the inline
+   style beat, so the picture is named by both ids. */
+.handout-pick-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.handout-head { display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px; }
+#handoutModal #handoutImg.handout-img { max-width: 88vw; max-height: 70vh; object-fit: contain; border-radius: 6px; background: #000; }
+div.handout-view-text { max-width: min(88vw, 760px); max-height: 70vh; overflow-y: auto; white-space: pre-wrap; line-height: 1.55; color: var(--ink); text-align: left; padding: 4px 10px; user-select: text; }
+.handout-view-caption { max-width: 88vw; color: var(--ink); line-height: 1.5; white-space: pre-wrap; text-align: center; }
+.handout-notes-wrap { width: min(88vw, 760px); flex-direction: column; gap: 4px; }
+.handout-notes-label { font-size: 11px; letter-spacing: .06em; color: var(--dim); text-transform: uppercase; }
+textarea.handout-notes { min-height: 64px; resize: vertical; }
+.handout-fresh { color: var(--dim); font-size: 11px; align-items: center; gap: 10px; }
+.tool.handout-fresh-btn { padding: 3px 10px; font-size: 11px; }
+
+/* The speaker's popover: its two buttons as wide as the popover, which a script shows */
+.snd-pop-btn { width: 100%; margin: 4px 0 2px; }
+/* The table notepad: the two buttons at its foot */
+.notepad-foot-btns { display: flex; gap: 4px; }
+/* Characters of a campaign: the search box kept narrow */
+.chars-filter { max-width: 220px; }
+/* The combat roster: its list of rows, the row that adds one */
+.combat-rows { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; min-height: 80px; }
+.combat-add-row { display: flex; gap: 6px; margin-top: 10px; align-items: center; }
+/* Importing a Markdown file: the guide's button, the summary, the rows and notes it will write, and the foot with its buttons */
+.tool.docimport-guide-btn { font-size: 12px; }
+.docimport-summary { color: var(--ink); font-size: 13px; margin: 0; }
+.docimport-rows { overflow-y: auto; flex: 1; min-height: 80px; max-height: 44vh; border: 1px solid var(--edge); border-radius: 6px; padding: 4px; }
+.docimport-notes { max-height: 18vh; overflow-y: auto; }
+.docimport-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.docimport-btns { display: flex; gap: 8px; }
+/* Importing data: what the file holds, in the page's own ink */
+.importchoice-summary { color: var(--ink); font-size: 13px; margin-bottom: 16px; }
+
+/* Table Chat: the panel (its corner, right and bottom, and its z-index stay inline: floats.js reads them as its place and
+   sheets.js raisePanel reads its z-index), its head with the title and buttons, the log, the foot with the To list and the box */
+.chat-panel { position: fixed; width: 320px; max-height: 420px; background: var(--panel2); border: 1px solid var(--gold); border-radius: 10px; box-shadow: var(--shadow); flex-direction: column; }
+.chat-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--edge); cursor: move; }
+.chat-title { color: var(--gold); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+.chat-head-btns { display: flex; gap: 2px; }
+.chat-log { flex: 1; overflow-y: auto; padding: 10px 12px; font-size: 13px; min-height: 120px; max-height: 280px; }
+.chat-foot { padding: 8px; border-top: 1px solid var(--edge); display: flex; flex-direction: column; gap: 6px; }
+.chat-to { width: 100%; box-sizing: border-box; }
+
+/* The right-click menus of a link on the Data Map and of the left panel: the box (a script shows it), its rows, the gray and the red
+   rows, its rules, the Opens on heading and the word beside the campaign's choice. The left panel's rows keep a rule of their own by
+   the menu's id (a state, a status mark), which the inline style beat, so they are named by that id. */
+.ctx-menu { position: fixed; z-index: 100000; flex-direction: column; background: var(--panel2); border: 1px solid var(--gold); box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; border-radius: 4px; min-width: 120px; }
+.ctx-menu.ctx-menu-wide { min-width: 150px; }
+#sidebarContextMenu .ctx-row { padding: 8px 16px; cursor: pointer; }
+#sidebarContextMenu .ctx-row.ctx-row-dim.ctx-status { color: var(--dim); }
+#sidebarContextMenu .ctx-row.ctx-row-danger { color: var(--red); }
+.ctx-divider { height: 1px; background: var(--border); margin: 4px 0; }
+.ctx-label { padding: 4px 16px 2px; color: var(--dim); font-size: 11px; }
+.ctx-opens-now { color: var(--dim); font-size: 11px; }
 /* [inline-b-end] */
 
 /* 1.6.4: the looks (Fulllion, 2026-11-24, after the look page's renders: "lets go with slate and keep the other two for options that people can pick

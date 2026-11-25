@@ -460,6 +460,16 @@ process.on('exit', code => { if (!summed && !code) { console.log('\nFAIL      th
                 && l0.titleBarStyle === 'hidden' && j(l0.titleBarOverlay) === j(light.titleBarOverlay)
                 && W.by.wbGood.code === 200 && W.by.wbBad.code === 400 && W.by.wbJunk.code === 400 && W.by.wbGet.code !== 200 && W.by.wbDark.code === 200
                 && j(W.r.overlays) === j([{ color: '#e6e2d9', symbolColor: '#1f1d24', height: 26 }, { color: '#1c1c26', symbolColor: '#e9e9f0', height: 26 }]) && j(L.r.overlays) === '[]' && W.r.errors.length === 0, j([w0, l0, W.by, W.r.overlays, W.r.errors, W.err]));
+            // 1.6.4 (the installed build's test: plain Ctrl+= did not zoom in, only Ctrl+Shift+= did): shellguard.zoomInKey and the key handler every window has
+            const zk = sgW.zoomInKey, KD = (o) => Object.assign({ type: 'keyDown' }, o);
+            check('plain Ctrl+= zooms in (shellguard.zoomInKey, run for real; 1.6.4, the installed build\'s test): Ctrl+= and Cmd+= going down are Zoom in; Ctrl+Shift+= (the menu\'s own Ctrl+Plus), Ctrl+Alt+=, = alone, a key going up and anything that is no key event are not',
+                zk(KD({ control: true, code: 'Equal', key: '=' })) === true && zk(KD({ meta: true, key: '=' })) === true && zk(KD({ control: true, shift: true, code: 'Equal', key: '+' })) === false
+                && zk(KD({ control: true, alt: true, code: 'Equal', key: '=' })) === false && zk(KD({ code: 'Equal', key: '=' })) === false && zk({ type: 'keyUp', control: true, code: 'Equal', key: '=' }) === false
+                && [null, undefined, 7, 'x', []].every(v => zk(v) === false));
+            const Z = await stub([['wc1', { do: 'wc', url: '{OWN}/?popout=doc:a/b' }], ['zIn', { do: 'key', wc: 0, input: KD({ control: true, code: 'Equal', key: '=' }) }], ['zIn1', { do: 'key', wc: 1, input: KD({ control: true, code: 'Equal', key: '=' }) }],
+                ['zShift', { do: 'key', wc: 0, input: KD({ control: true, shift: true, code: 'Equal', key: '+' }) }], ['zUp', { do: 'key', wc: 0, input: { type: 'keyUp', control: true, code: 'Equal', key: '=' } }], ['zState', { do: 'state' }]]);
+            check('plain Ctrl+= in every window (main.js run for real over the stand-in; 1.6.4): it is taken and zooms that window in by half a level, as the View menu\'s Zoom in does, the main window and a pop-out alike; Ctrl+Shift+= is left to the menu and a key going up does nothing',
+                Z.ok && Z.by.zIn.prevented === true && Z.by.zIn1.prevented === true && Z.by.zShift.prevented === false && Z.by.zUp.prevented === false && j(Z.by.zState.zoom) === j([0.5, 0.5]) && Z.r.errors.length === 0, j([Z.by, Z.r.errors]));
             const devSrc = fs.readFileSync(path.join(__dirname, 'dev-server.js'), 'utf8');
             check('the dev server answers the window bar\'s colors and sets nothing (1.6.4): a page in a browser that asks is answered, since the dev server mirrors the shell\'s routes',
                 /if \(url\.pathname === '\/api\/winbar' && req\.method === 'POST'\) \{ res\.writeHead\(200/.test(devSrc));

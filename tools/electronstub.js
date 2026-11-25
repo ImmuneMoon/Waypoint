@@ -44,6 +44,7 @@ function newContents() {
     wc.executeJavaScript = () => Promise.resolve(false);   // 1.6.3: the page asked by closeGuard needs to ask nothing here
     wc.isDevToolsOpened = () => wc.devOpen;
     wc.closeDevTools = () => { wc.devOpen = false; wc.closed++; };
+    wc.zoom = 0; wc.getZoomLevel = () => wc.zoom; wc.setZoomLevel = z => { wc.zoom = z; };   // 1.6.4: Ctrl+= zooms in a half step
     contents.push(wc);
     return wc;
 }
@@ -144,7 +145,7 @@ async function play(plan, port) {
             else if (step.do === 'ask') { let granted = 'no handler'; if (rec.ask) rec.ask(step.wc === null ? null : wc, step.perm, g => { granted = g; }, step.noDetails ? undefined : { requestingUrl: step.url, isMainFrame: true }); r = { granted }; }
             else if (step.do === 'check') { r = { granted: rec.check ? rec.check(step.wc === null ? null : wc, step.perm, step.origin, {}) : 'no handler' }; }
             else if (step.do === 'http') { r = await request(step, port); r.ext = ext(); }
-            else if (step.do === 'state') { r = { menus: rec.menus.length, menu: rec.menus[rec.menus.length - 1], devOpen: contents.map(c => c.devOpen), closed: contents.map(c => c.closed) }; }
+            else if (step.do === 'state') { r = { menus: rec.menus.length, menu: rec.menus[rec.menus.length - 1], devOpen: contents.map(c => c.devOpen), closed: contents.map(c => c.closed), zoom: contents.map(c => c.zoom) }; }
             else r = { error: 'unknown step' };
         } catch (e) { r = { threw: String(e && e.message || e) }; }
         out.push(r);

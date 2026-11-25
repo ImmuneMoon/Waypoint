@@ -168,6 +168,15 @@ function menuTemplate(dev, platform) {
     if (platform === 'darwin') t.unshift({ role: 'appMenu' }, { role: 'editMenu' });   // there the menu is where Quit, Copy and Paste live
     return t;
 }
+// 1.6.4 (the installed build's test of 2026-11-24: plain Ctrl+= did not zoom in, only Ctrl+Shift+= did). The View menu's Zoom in answers
+// Ctrl+Plus, which is Shift and = on most keyboards, so every window also takes plain Ctrl+= (Cmd+= on a Mac) as Zoom in, by the menu's own
+// half a zoom level (install's key handler). Only a key going down, with no Shift or Alt: Ctrl+Shift+= is still the menu's, so it never zooms twice.
+function zoomInKey(input) {
+    if (!input || typeof input !== 'object' || input.type !== 'keyDown') return false;
+    if (!(input.control || input.meta) || input.shift || input.alt) return false;
+    const code = String(input.code || ''), key = String(input.key || '');
+    return code === 'Equal' || (!code && key === '=');
+}
 // The keys that open the developer tools: Ctrl+Shift+I / J / C (Cmd+Alt on a Mac) and F12.
 function devToolsKey(input) {
     if (!input || typeof input !== 'object') return false;
@@ -287,7 +296,10 @@ function install(electron, opts) {
         });
         wc.on('will-attach-webview', (e) => { e.preventDefault(); });
         // Developer mode off: the keys that open the developer tools do nothing, and tools opened any other way are closed at once
-        wc.on('before-input-event', (e, input) => { if (!dev && devToolsKey(input)) e.preventDefault(); });
+        wc.on('before-input-event', (e, input) => {
+            if (!dev && devToolsKey(input)) { e.preventDefault(); return; }
+            if (zoomInKey(input)) { let at = ''; try { at = String(wc.getURL() || ''); } catch (er) { at = ''; } if (at.indexOf('devtools://') === 0) return; e.preventDefault(); try { wc.setZoomLevel(wc.getZoomLevel() + 0.5); } catch (er) { /* gone meanwhile */ } }   // 1.6.4: plain Ctrl+= zooms in, as the menu's Zoom in does (zoomInKey)
+        });
         wc.on('devtools-opened', () => { if (!dev) { try { wc.closeDevTools(); } catch (e) { /* gone meanwhile */ } } });
         // a right-click in a text box, or on selected words: Cut, Copy, Paste and Select all as the field allows (editMenuTemplate);
         // the developer tools' own window keeps its own menu
@@ -428,4 +440,4 @@ function scratchSystemDir(ownSystem, named) {
 }
 
 module.exports = { ownOrigin, isOwn, childWindowOk, childWindowOptions, webLinkOk, releaseLink, PERMS_ASK, PERMS_CHECK, permOk,
-    devModeOf, zoomOf, WINBAR_H, barColor, barStart, menuTemplate, devToolsKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };
+    devModeOf, zoomOf, WINBAR_H, barColor, barStart, menuTemplate, devToolsKey, zoomInKey, editMenuTemplate, SIGNAL_HOST, SIGNAL_OWN, pagePolicy, pageHeaders, savesType, install, listenLoopback, holdText, holdOf, lockNext, HOLD_ASK_MS, scratchSystemDir, closeGuard };

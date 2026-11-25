@@ -266,7 +266,7 @@
             </div>
             <button class="rm-row" id="refreshBtn" title="Refresh Waypoint: reloads the app and puts you straight back into your session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4h17v16h-17zM3.5 7.5h17M15.3 12.2a3.4 3.4 0 1 0 .1 3.4M15.6 9.8l-.3 2.4-2.4-.3"/></svg><span>Refresh Waypoint</span></button>
             <button class="rm-row" id="aboutBtn" title="About Waypoint"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM12 11v5.6M12 7.5h.01"/></svg><span>About Waypoint</span></button>
-            <button class="rm-row" data-press="aboutReportLink" title="Report a problem. Opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there."><span class="rm-slot"></span><span>Report a problem</span></button>
+            <button class="rm-row" data-press="aboutReportLink" title="Report a problem. Opens a new issue page on GitHub in your web browser, with Waypoint&rsquo;s version and what it runs on filled in. Nothing is sent until you send it there."><i class="wib wi-flag" style="color:var(--dim)"></i><span>Report a problem</span></button>
             <button class="rm-row" data-press="headerBrand" title="Back to the welcome screen"><img src="icon.ico" alt="" class="rm-mark"><span>Back to the welcome screen</span></button>
           </div>
         </div>
@@ -3800,7 +3800,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
   <div class="layout-wrapper">
     <nav id="leftRail" aria-label="The left panel&rsquo;s sections" hidden>
       <button class="rail-btn gm-only" id="railPrep" aria-pressed="false" title="Prep. Tonight&rsquo;s cards beside the map. G opens it too."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5h17v14h-17zM9.5 5v14M5.6 8.8h1.8M5.6 12h1.8M5.6 15.2h1.8"/></svg></button>
-      <button class="rail-btn rail-all" id="railAll" aria-pressed="false" title="Show all. Every section of the left panel, one under another.">All</button>
+      <button class="rail-btn rail-all" id="railAll" aria-pressed="false" title="Show all. Every section of the left panel, one under another." aria-label="Show all"><i class="wib wi-allsecs" style="font-size:14px"></i></button>
       <button class="rail-btn" id="railHandbook" data-rail="handbook" aria-pressed="false" title="Handbook. Shows the pages alone in the left panel."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2-1.3-4.6-1.8-8-1.5v13c3.4-.3 6 .2 8 1.5 2-1.3 4.6-1.8 8-1.5V5c-3.4-.3-6 .2-8 1.5zM12 6.5v13"/></svg></button>
       <button class="rail-btn gm-only" id="railPlanners" data-rail="planners" aria-pressed="false" title="Planners. Shows your planners alone in the left panel."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6zM10 10v6l5-3z"/></svg></button>
       <button class="rail-btn gm-only" id="railMaps" data-rail="maps" aria-pressed="false" title="Maps. Shows the maps alone in the left panel."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2zM9 4.5v13M15 6.5v13"/></svg></button>
@@ -3849,11 +3849,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div style="position:relative; display:inline-block;">
                 <button class="wb-tool-btn" id="dataCenterBtn" title="Center Data Map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg></button>
                 <div class="shape-menu" id="dataCenterMenu" style="bottom:100%; top:auto; flex-direction:column; min-width: 130px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
-                    <button class="wb-tool-btn" id="dataCenterCanvasBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on canvas</button>
-                    <button class="wb-tool-btn" id="dataCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;">Center on items</button>
-                    <button class="wb-tool-btn" id="dataFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Zoom and pan to frame every room (Shift+1)">Fit to content</button>
-                    <button class="wb-tool-btn" id="dataEditLayoutBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="Drag the toolbar and boxes of the Data Map where you want them. Esc or Done to finish.">Edit layout&hellip;</button>
-                    <button class="wb-tool-btn" id="dataMapPropsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0;" title="This map&rsquo;s own settings, its categories among them, in the Properties panel. Its X closes it.">Map properties</button>
+                    <button class="wb-tool-btn" id="dataCenterCanvasBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0; gap:6px;"><i class="wib wi-target"></i>Center on canvas</button>
+                    <button class="wb-tool-btn" id="dataCenterItemsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0; gap:6px;"><i class="wib wi-target"></i>Center on items</button>
+                    <button class="wb-tool-btn" id="dataFitBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0; gap:6px;" title="Zoom and pan to frame every room (Shift+1)"><i class="wib wi-corners"></i>Fit to content</button>
+                    <button class="wb-tool-btn" id="dataEditLayoutBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0; gap:6px;" title="Drag the toolbar and boxes of the Data Map where you want them. Esc or Done to finish."><i class="wib wi-props"></i>Edit layout&hellip;</button>
+                    <button class="wb-tool-btn" id="dataMapPropsBtn" style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 0; gap:6px;" title="This map&rsquo;s own settings, its categories among them, in the Properties panel. Its X closes it."><i class="wib wi-props"></i>Map properties</button>
                     <div class="draw-menu-label">New rooms</div>
                     <button class="wb-tool-btn view-tick on" id="dataRoomMapBtn" role="menuitemcheckbox" aria-checked="true" title="Ticked, a room you add here makes a map of its own, named as the room and nested under this one, and you place its portal on the play map. Untick it for rooms that are only notes. This computer keeps it."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>A new room makes its own map</button>
                 </div>
@@ -4219,8 +4219,8 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                   </div>
                   <div id="fogPaintNote" style="font-size:10.5px; color:var(--dim); line-height:1.4; max-width:210px;"></div>
                   <div class="draw-menu-row">
-                      <button class="draw-style-btn" id="fogRevealAll" title="Show the whole map (a lit scene)">Reveal all</button>
-                      <button class="draw-style-btn" id="fogCoverAll" title="Hide everything except cells you reveal by hand">Cover all</button>
+                      <button class="draw-style-btn" id="fogRevealAll" title="Show the whole map (a lit scene)"><i class="wib wi-eye"></i> Reveal all</button>
+                      <button class="draw-style-btn" id="fogCoverAll" title="Hide everything except cells you reveal by hand"><i class="wib wi-fog"></i> Cover all</button>
                   </div>
                   <button type="button" class="menu-fold" id="fogFoldLight" aria-expanded="false" aria-controls="fogLightVision" title="How lit this map is, how its tokens see, and the grid a map with none is measured by"><span>Light and vision on this map</span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg></button>
                   <div class="menu-fold-body" id="fogLightVision" hidden>
@@ -4368,11 +4368,11 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="tool-pair" style="position:relative; display:inline-block;">
                 <button class="wb-tool-btn" id="wbCenterBtn" title="Center Play Map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 10.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></svg></button><button class="wb-tool-btn tool-chev" id="viewOptBtn" data-for="wbCenterBtn" title="View menu" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 5v16H5z"/></svg></button>
                 <div class="shape-menu" id="wbCenterMenu" style="bottom:100%; top:auto; flex-direction:column; min-width: 130px; left:50%; transform:translateX(-50%); margin-bottom:10px;">
-                    <button class="wb-tool-btn view-row" id="wbCenterCanvasBtn">Center on canvas</button>
-                    <button class="wb-tool-btn view-row" id="wbCenterItemsBtn">Center on items</button>
-                    <button class="wb-tool-btn view-row" id="wbCenterCharBtn" title="Jump the camera to your character token">Center on character</button>
-                    <button class="wb-tool-btn view-row" id="wbFitBtn" title="Zoom and pan to frame everything, or just the selection (Shift+1)">Fit to content</button>
-                    <button class="wb-tool-btn view-row" id="wbEditLayoutBtn" title="Drag the toolbars and boxes of the map where you want them. Esc or Done to finish.">Edit layout&hellip;</button>
+                    <button class="wb-tool-btn view-row" id="wbCenterCanvasBtn" style="padding-left:12px; gap:8px;"><i class="wib wi-target"></i>Center on canvas</button>
+                    <button class="wb-tool-btn view-row" id="wbCenterItemsBtn" style="padding-left:12px; gap:8px;"><i class="wib wi-target"></i>Center on items</button>
+                    <button class="wb-tool-btn view-row" id="wbCenterCharBtn" title="Jump the camera to your character token" style="padding-left:12px; gap:8px;"><i class="wib wi-person"></i>Center on character</button>
+                    <button class="wb-tool-btn view-row" id="wbFitBtn" title="Zoom and pan to frame everything, or just the selection (Shift+1)" style="padding-left:12px; gap:8px;"><i class="wib wi-corners"></i>Fit to content</button>
+                    <button class="wb-tool-btn view-row" id="wbEditLayoutBtn" title="Drag the toolbars and boxes of the map where you want them. Esc or Done to finish." style="padding-left:12px; gap:8px;"><i class="wib wi-props"></i>Edit layout&hellip;</button>
                     <div class="draw-menu-label view-show-label">Show</div>
                     <button class="wb-tool-btn view-tick on" id="wbRulersBtn" role="menuitemcheckbox" aria-checked="true" title="The pixel rulers along the top and left edges of the map. The same switch as Coordinate rulers in Settings."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Rulers</button>
                     <button class="wb-tool-btn view-tick on" id="wbZoomCtlBtn" role="menuitemcheckbox" aria-checked="true" title="The zoom buttons at the top right of the map. The mouse wheel zooms either way. The same switch as Zoom buttons in Settings."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Zoom buttons</button>
@@ -4396,7 +4396,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
           <div class="tool-pair" style="position:relative;">
               <button class="wb-tool-btn" id="wbGridBtn" title="Grid Options"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/></svg></button><button class="wb-tool-btn tool-chev" id="gridOptBtn" data-for="wbGridBtn" title="Grid menu" aria-haspopup="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 5v16H5z"/></svg></button>
               <div class="shape-menu menu-list" id="gridMenu">
-                  <button class="wb-tool-btn menu-row" id="gridOffBtn" title="Off"><span class="mr-ico"></span><span class="mr-txt">Off</span></button>
+                  <button class="wb-tool-btn menu-row" id="gridOffBtn" title="Off"><span class="mr-ico"><i class="wib wi-gridoff" style="font-size:15px"></i></span><span class="mr-txt">Off</span></button>
                   <button class="wb-tool-btn menu-row" id="gridSqBtn" title="Square"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/></svg></span><span class="mr-txt">Square</span></button>
                   <button class="wb-tool-btn menu-row" id="gridHexBtn" title="Hex"><span class="mr-ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4h9l4.5 8-4.5 8h-9L3 12l4.5-8z"/></svg></span><span class="mr-txt">Hex</span></button>
                   <div class="menu-rule"></div>
@@ -4426,7 +4426,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                           <div class="draw-menu-label">Grid cell on the board</div>
                           <div class="draw-menu-row"><label class="compass-lab" id="measureCellLab" for="measureCellPx">Cell size</label><input type="number" class="cell-num" id="measureCellPx" min="10" max="1000" step="1" title="How many board pixels one cell is across, or one hex row high. 50 for squares and 52 for hexes is the usual size"><span class="cell-unit">px</span></div>
                           <div class="draw-menu-row"><label class="compass-lab" for="measureCellOx">Offset</label><input type="number" class="cell-num" id="measureCellOx" step="1" title="How far right the grid is moved, in board pixels"><input type="number" class="cell-num" id="measureCellOy" step="1" title="How far down the grid is moved, in board pixels"></div>
-                          <div class="draw-menu-row"><button class="draw-style-btn" id="measureCellFit" title="Click two points of a grid printed on a map picture and say how many cells apart they are. The grid then fits the picture, and the picture stays where it is">Fit grid to picture</button><button class="draw-style-btn" id="measureCellReset" title="Back to the usual cell, 50 px squares or 52 px hex rows, from the board&rsquo;s corner">Usual size</button></div>
+                          <div class="draw-menu-row"><button class="draw-style-btn" id="measureCellFit" title="Click two points of a grid printed on a map picture and say how many cells apart they are. The grid then fits the picture, and the picture stays where it is"><i class="wib wi-aligngrid"></i> Fit grid to picture</button><button class="draw-style-btn" id="measureCellReset" title="Back to the usual cell, 50 px squares or 52 px hex rows, from the board&rsquo;s corner"><i class="wib wi-undo"></i> Usual size</button></div>
                           <label class="draw-menu-row compass-tick" title="When the cell size changes, ask whether to resize the tokens on the map. Unticked, they always resize. Kept on this computer"><input type="checkbox" id="measureCellAsk"> Ask before tokens resize</label>
                       </div>
                   </div>
@@ -4444,7 +4444,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                         <button class="draw-style-btn snap-mode-btn" data-mode="both" title="Both. Neighbors first, and the grid takes drops in open space."><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg> Both</button>
                     </div>
                     <div style="font-size:10.5px; color:var(--dim); max-width:210px; line-height:1.4; margin-top:4px;">Grid seats pieces in cells. Items lines pieces up with each other. Both does the two, neighbors first.</div>
-                    <div class="draw-menu-row" style="margin-top:8px;"><button class="draw-style-btn" id="snapOffBtn" style="flex:1;">Turn snapping off</button></div>
+                    <div class="draw-menu-row" style="margin-top:8px;"><button class="draw-style-btn wib wi-snapoff" id="snapOffBtn" style="flex:1;">Turn snapping off</button></div>
                 </div>
             </div>
       </div>
@@ -4530,20 +4530,20 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                 <button data-st="color" class="st-color" title="Color"><span class="st-color-chip"></span></button>
                 <div class="st-color-pop" hidden></div>
                 <div class="st-sep"></div>
-                <button data-st="down" title="Send backward">&#9660;</button>
-                <button data-st="up" title="Bring forward">&#9650;</button>
+                <button data-st="down" title="Send backward"><i class="wib wi-arrdown"></i></button>
+                <button data-st="up" title="Bring forward"><i class="wib wi-arrup"></i></button>
                 <div class="st-sep"></div>
                 <button data-st="group" class="st-group" title="Group"><i class="wib wi-chain"></i></button>
-                <button data-st="fit" class="st-fit" title="Fit to grid cells">&#8862;</button>
+                <button data-st="fit" class="st-fit" title="Fit to grid cells"><i class="wib wi-fitcells"></i></button>
                 <button data-st="ratio" class="st-ratio" title="Lock proportions: resizing keeps the shape, and Shift while dragging reshapes it freely"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke-dasharray="2.2 1.6"/><path d="M4.5 11.5 L11.5 4.5"/><path d="M11.5 8 V4.5 H8"/><path d="M4.5 8 V11.5 H8"/><g class="ratio-lock"><rect x="8.4" y="9.6" width="6.4" height="4.8" rx="0.9" fill="currentColor" stroke="none"/><path d="M9.8 9.6 V8.3 a1.8 1.8 0 0 1 3.6 0 V9.6" stroke-width="1.3"/></g></svg></button>
                 <button data-st="lock" class="st-lock" title="Unlocked. Click to lock"><i class="wib wi-anchor-off"></i></button>
                 <button data-st="vis" class="st-vis" title="Visible to players. Click to hide"><i class="wib wi-seen"></i></button>
-                <button data-st="fog" class="st-fog" title="Mark as a play area: with fog on, only marked items are fogged (scenes stay lit)">&#9635;</button>
+                <button data-st="fog" class="st-fog" title="Mark as a play area: with fog on, only marked items are fogged (scenes stay lit)"><i class="wib wi-playarea"></i></button>
                 <div class="st-sep"></div>
                 <button data-st="props" class="st-props" title="Properties: this piece's settings, at the right edge"><i class="wib wi-props"></i></button>
                 <button data-st="dup" class="st-dup" title="Duplicate: a full copy, settings and data included (Ctrl+D)"><i class="wib wi-dup"></i></button>
                 <button data-st="del" title="Delete" style="color:var(--red);"><i class="wib wi-bin"></i></button>
-                <button data-st="fold" class="st-fold" title="Fold this bar to one small button, so it covers less of the map. Press it again to open the bar">&#9666;</button>
+                <button data-st="fold" class="st-fold" title="Fold this bar to one small button, so it covers less of the map. Press it again to open the bar"><i class="wib wi-chevl"></i></button>
             </div>
             <svg id="tagLayer"></svg>
             <svg id="measureLayer"></svg>
@@ -4817,12 +4817,12 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
                     <button class="tool ghost" id="netPassShow" type="button" aria-pressed="false" aria-label="Show the password" title="Show the password"><i class="wib wi-eye"></i></button>
                 </div>
             </div>
-            <button class="tool" id="netHostBtn" style="width:100%;">Start hosting this campaign</button>
+            <button class="tool" id="netHostBtn" style="width:100%;"><i class="wib wi-cast"></i> Start hosting this campaign</button>
             <div id="netHostInfo" style="display:none; margin-top:10px; text-align:center;">
                 <div style="color:var(--dim); font-size:12px;" title="Send this to your players. It changes every session you end on purpose.">Room code</div>
                 <div style="display:flex; gap:8px; align-items:center; justify-content:center;">
                     <span id="netCode" style="font-family:monospace; font-size:24px; font-weight:bold; color:var(--gold); letter-spacing:3px;"></span>
-                    <span class="ui-seg"><button class="tool ghost" id="netCopyBtn" title="Copy code" style="padding:2px 8px;"><i class="wib wi-clip"></i></button><button class="tool ghost" id="netInviteBtn" title="Copy a short line with a join link and the room code to paste to your players. The password is never in it." style="padding:2px 10px;">Copy invite</button></span>
+                    <span class="ui-seg"><button class="tool ghost" id="netCopyBtn" title="Copy code" style="padding:2px 8px;"><i class="wib wi-clip"></i></button><button class="tool ghost" id="netInviteBtn" title="Copy a short line with a join link and the room code to paste to your players. The password is never in it." style="padding:2px 10px;"><i class="wib wi-chain"></i> Copy invite</button></span>
                 </div>
                 <div id="netCodeWhere" class="set-line"></div>
                 <div style="color:var(--dim); font-size:11px; line-height:1.45; margin-top:6px;"><i class="wib wi-bulb"></i> Send this code to your players, then <b>close this window</b>. The session keeps running while you work. Reopen it any time with the <i class="wib wi-globe"></i> button to see who's here, pause, or summon.</div>
@@ -4881,7 +4881,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div id="netVttLine" style="display:none; color:var(--dim); font-size:11px; margin:-6px 0 10px;" title="The VTT features this table runs with, set per campaign in Settings &#9656; This campaign (the GM's campaign decides; players can switch a feature off for themselves there)"></div>
         <button class="tool ghost" id="netPlayersBtn" style="width:100%; margin-bottom:8px;" title="Everyone who has ever joined this campaign, and who's banned from it"><i class="wib wi-people"></i> Player History &amp; Bans</button>
         <button class="tool ghost danger no-back" id="netEndBtn" style="width:100%; display:none;" title="End the session for everyone: players get a clean &quot;session ended&quot;, return to their own campaigns, and the room code is retired."><i class="wib wi-stop"></i> End session for everyone</button>
-        <button class="tool ghost danger" id="netLeaveBtn" style="width:100%;">Leave session</button>
+        <button class="tool ghost danger" id="netLeaveBtn" style="width:100%;"><i class="wib wi-door-open"></i> Leave session</button>
     </div>
 </div>
 
@@ -5567,7 +5567,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="ilp-side">
                 <div id="imgLibPreviewName" class="ilp-name"></div>
                 <div id="imgLibPreviewMeta" class="ilp-meta"></div>
-                <span class="ui-seg ui-seg-col"><button class="tool" id="imgLibPreviewAdd">Add to map</button><button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></span>
+                <span class="ui-seg ui-seg-col"><button class="tool" id="imgLibPreviewAdd"><i class="wib wi-plus"></i> Add to map</button><button class="tool ghost" id="imgLibPreviewScene" title="Show this picture big to everyone or to some players, without putting it on the map"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9.5h14v10H5zM5 17l4-3.5 3 2.5 2-1.5 5 3.5M12 2.5v3.5M7 4l1.5 2.5M17 4l-1.5 2.5"/></svg> Show as a scene&hellip;</button></span>
                 <button class="tool ghost" id="imgLibPreviewCat" title="Give this picture a tag (it can wear several)">Tags&hellip;</button>
                 <button class="tool ghost danger no-back" id="imgLibPreviewDel" title="Delete this picture file from your saves folder (confirm needed, and says where it is used)">Delete picture</button>
                 <button class="tool ghost" id="imgLibPreviewBack">&larr; Back to the library</button>
@@ -5722,7 +5722,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 </div>
 <!-- Campaign videos (1.5.0, item 21): the GM's Video panel — the library, a player you move, resize and put full screen, and the row that shows it live to the table; a player's side of a showing uses the same panel (video.js) -->
 <div id="videoPanel" role="dialog" aria-label="Video" style="display:none;">
-    <div id="videoHead"><span class="notepad-title"><i class="wib wi-film"></i> Video</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="videoFullBtn" title="Full screen (Esc comes back)" disabled><i class="wib wi-corners"></i></button><button class="tool ghost notepad-btn" id="videoCloseBtn" title="Close the panel">&times;</button></div>
+    <div id="videoHead"><span class="notepad-title"><i class="wib wi-film"></i> Video</span><span style="flex:1;"></span><button class="tool ghost notepad-btn" id="videoFullBtn" title="Full screen (Esc comes back)" disabled><i class="wib wi-corners"></i></button><button class="tool ghost notepad-btn" id="videoCloseBtn" title="Close the panel"><i class="wib wi-close"></i></button></div>
     <div id="videoStage" style="display:none;"><video id="videoEl" controls playsinline preload="metadata"></video><video id="videoLive" playsinline></video><div id="videoWatchBar" class="video-watchbar"><button class="tool ghost notepad-btn wib wi-sound" id="videoMuteBtn" aria-pressed="false" title="Its sound is on: press to mute it on this screen"></button><input type="range" id="videoVol" min="0" max="100" step="1" value="100" aria-label="Volume on this screen" title="Its volume on this screen" data-typed data-unit="%"><span id="videoWatchNote" class="video-watchnote" role="status"></span></div><div id="videoCaption" class="video-caption"></div></div>
     <div id="videoTable" style="display:none;"></div>
     <div id="videoBody"></div>
@@ -5740,7 +5740,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 <template id="hudTpl"><div class="hud-panel" role="dialog" aria-label="HUD"><div class="hud-head"><img class="hud-portrait" alt="" style="display:none;"><span class="hud-titles"><span class="hud-namerow"><span class="wp-glyph hud-ico-wave" aria-hidden="true"></span><span class="hud-name notepad-title"></span></span><span class="hud-sub notepad-who"></span></span><button class="tool ghost notepad-btn sheet-endturn hud-endturn" title="End your turn: play moves on to the next in the order" style="display:none;">End turn</button><button class="tool ghost notepad-btn hud-sheet" title="Open the character sheet"><span class="wp-glyph hud-ico-user" aria-hidden="true"></span></button><button class="tool ghost notepad-btn hud-close" title="Close (Esc)">&times;</button></div><div class="hud-body"></div><div class="hud-foot"></div><div class="sheet-resize hud-resize" title="Drag to resize (double-click: the default size)"></div></div></template>
 <!-- Doc panel (1.5.0): a planner/handbook popped over the map, read-only + live (docpanel.js) -->
 <div id="docPanel" style="display:none;">
-    <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="Pin this page for the session: it goes on the Pages shelf of the play map"><i class="wib wi-pin"></i></button><button class="tool ghost notepad-btn" id="docPanelPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="docPanelClose" title="Close the panel and every tab in it (Esc)">&times;</button></div>
+    <div id="docPanelHead"><span class="docpanel-title" id="docPanelTitle">Document</span><button class="tool ghost notepad-btn" id="docPanelPin" aria-pressed="false" title="Pin this page for the session: it goes on the Pages shelf of the play map"><i class="wib wi-pin"></i></button><button class="tool ghost notepad-btn" id="docPanelPop" title="Pop out into its own window (drag it to another monitor); dock it back from there"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.2A1.2 1.2 0 0 0 2 4.7v8.1A1.2 1.2 0 0 0 3.2 14h8.1a1.2 1.2 0 0 0 1.2-1.2V9.5"/><path d="M9.5 2.5H14v4.5"/><path d="M14 2.5 7.5 9"/></svg></button><button class="tool ghost notepad-btn" id="docPanelClose" title="Close the panel and every tab in it (Esc)"><i class="wib wi-close"></i></button></div>
     <div id="docPanelTabs" class="docpanel-tabs" role="toolbar" aria-label="Pages open in this panel" style="display:none;"></div>
     <div id="docPanelSearchRow">
         <button class="tool ghost notepad-btn" id="docPanelOutline" title="Outline: the headings of this page. Click one to jump to it.">Outline</button>
@@ -5811,7 +5811,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div class="sys-split"><div class="sys-pick"><input type="search" id="sysRollFind" class="field sys-find" placeholder="Find a roll" aria-label="Find a roll"><div id="sysRollList" class="sys-pick-list" role="listbox" aria-label="Rolls"></div><div class="sys-note sys-pick-none" hidden>No roll holds those words.</div></div><div id="sysRollRows" class="sys-rows"></div></div>
         </div>
         <div id="sysItems" class="sys-tab" style="display:none;">
-            <div class="sys-toolbar"><button class="tool" id="sysAddItem" title="Add an item">+ Item</button><button class="tool ghost" id="sysOpenLibrary" title="The campaign&rsquo;s library: packs of entries by the thousand, with a search"><i class="wib wi-lib"></i> Library&hellip;</button><span class="sys-note">An item can carry a <b>blast area</b> and a <b>damage roll</b>. A character carries items on the sheet and throws one from there. A GM-only item stays off the players&rsquo; list, and its formulas stay on your computer. One you give a character still reaches its owner, by name and notes. An item in a list with <b>stats</b> gets a box for each. Items move into the library&rsquo;s <b>Items</b> pack the next time the campaign opens.</span><button class="tool ghost sys-key-btn" data-key="items" aria-expanded="false" aria-controls="sysKeyItems" title="What each tick of a row on this tab does">What the ticks mean</button></div>
+            <div class="sys-toolbar"><button class="tool" id="sysAddItem" title="Add an item"><i class="wib wi-plus"></i> Item</button><button class="tool ghost" id="sysOpenLibrary" title="The campaign&rsquo;s library: packs of entries by the thousand, with a search"><i class="wib wi-lib"></i> Library&hellip;</button><span class="sys-note">An item can carry a <b>blast area</b> and a <b>damage roll</b>. A character carries items on the sheet and throws one from there. A GM-only item stays off the players&rsquo; list, and its formulas stay on your computer. One you give a character still reaches its owner, by name and notes. An item in a list with <b>stats</b> gets a box for each. Items move into the library&rsquo;s <b>Items</b> pack the next time the campaign opens.</span><button class="tool ghost sys-key-btn" data-key="items" aria-expanded="false" aria-controls="sysKeyItems" title="What each tick of a row on this tab does"><i class="wib wi-help"></i> What the ticks mean</button></div>
             <div class="sys-key" id="sysKeyItems" hidden><b>Levels it may be</b><small>The levels it exists at, such as 2, 4 or 3 to 5. A player is refused any other.</small><b>per level</b><small>The change counts once for each level of the row.</small><b>Figure by level</b><small>A change gives a figure for each level, such as 1: +2, 2: 0.</small><b>Only while switched on</b><small>The item&rsquo;s changes count only while its row is switched on.</small><b>Pays back</b><small>A row a grant gives counts as bought, so its cost can be left out of a total.</small><b>When added again</b><small>An effect added again while on replaces its time, keeps the longer or adds the two.</small><b>Counts at</b><small>A fight takes a turn off an effect at its turn's start, or at its end.</small><b>Ends with</b><small>The rest that ends an effect, or No rest. Its Duration is then not read for that.</small></div>
             <div class="sys-split"><div class="sys-pick"><input type="search" id="sysItemFind" class="field sys-find" placeholder="Find an item" aria-label="Find an item"><div id="sysItemList" class="sys-pick-list" role="listbox" aria-label="Items"></div><div class="sys-note sys-pick-none" hidden>No item holds those words.</div></div><div id="sysItemRows" class="sys-rows"></div></div>
         </div>
@@ -5855,7 +5855,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div id="combatHelp" style="color:var(--dim); font-size:11.5px; line-height:1.5; margin-bottom:10px;" title="Higher goes first, and ties keep their place. Drag a row, or use its arrows, to set the order by hand. The tokens you picked come ticked. With none picked, those who target each other on this map come ticked.">Tick who is in the fight and give each an initiative. Higher goes first.</div>
         <div id="combatRows" style="overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:4px; min-height:80px;"></div>
         <div class="combat-key"><i class="wib wi-starf"></i> A token with no picture of its own. <i class="wib wi-spark"></i> A row you added.</div>
-        <div style="display:flex; gap:6px; margin-top:10px; align-items:center;"><button class="tool ghost" id="combatTickAllBtn" title="Tick every row that may join this fight but the hidden ones, which you tick one at a time">Tick all</button><input id="combatAddName" class="field" placeholder="Something with no token, such as a trap or a swarm" style="flex:1;"><button class="tool ghost" id="combatAddBtn">+ Add row</button><button class="tool ghost" id="combatRollAllBtn" title="Roll your system&rsquo;s initiative roll for every ticked character that has no number yet (one rolled or given a number keeps it)"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg> Roll all</button></div>
+        <div style="display:flex; gap:6px; margin-top:10px; align-items:center;"><button class="tool ghost" id="combatTickAllBtn" title="Tick every row that may join this fight but the hidden ones, which you tick one at a time"><i class="wib wi-check"></i> Tick all</button><input id="combatAddName" class="field" placeholder="Something with no token, such as a trap or a swarm" style="flex:1;"><button class="tool ghost" id="combatAddBtn"><i class="wib wi-plus"></i> Add row</button><button class="tool ghost" id="combatRollAllBtn" title="Roll your system&rsquo;s initiative roll for every ticked character that has no number yet (one rolled or given a number keeps it)"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg> Roll all</button></div>
         <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px;"><button class="tool ghost" id="combatCancelBtn">Cancel</button><button class="tool" id="combatStartBtn">Start combat</button></div>
     </div>
 </div>
@@ -6085,7 +6085,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
         <div style="display:flex; gap:6px;">
             <input type="text" id="chatInput" data-mentions placeholder="Message, or /roll 2d6 + 3, or @ to mention" style="flex:1; box-sizing:border-box;">
             <button class="tool ghost icon" id="diceBtn" title="Roll dice, or type /roll 2d6 + 3 in the box" aria-label="Roll dice"><svg class="ico ico-die" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path class="ico-pip" d="M8.5 8.5h0M12 12h0M15.5 15.5h0"/></svg></button>
-            <button class="tool" id="chatSendBtn">Send</button>
+            <button class="tool" id="chatSendBtn"><i class="wib wi-send"></i> Send</button>
         </div>
     </div>
 </div>
@@ -6094,17 +6094,17 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
 
 <div id="edgeMenu" class="dropdown" style="display:none; position:fixed; z-index:100000; flex-direction:column; background:var(--panel2); border:1px solid var(--gold); box-shadow:0 4px 12px rgba(0,0,0,0.5); padding:4px 0; border-radius:4px; min-width:150px;"></div>
 <div id="sidebarContextMenu" class="dropdown" style="display:none; position:fixed; z-index:100000; flex-direction:column; background:var(--panel2); border:1px solid var(--gold); box-shadow:0 4px 12px rgba(0,0,0,0.5); padding:4px 0; border-radius:4px; min-width:120px;">
-    <div class="menu-item" id="ctxNewParentItem" style="padding:8px 16px; cursor:pointer;" title="A new map that wraps this one: this map moves under it, and the new map gets a portal node leading here">&#8593; New Parent Map</div>
-    <div class="menu-item" id="ctxNewChildItem" style="padding:8px 16px; cursor:pointer;">+ New Child Map</div>
-    <div class="menu-item" id="ctxRenameItem" style="padding:8px 16px; cursor:pointer;">Rename</div>
+    <div class="menu-item" id="ctxNewParentItem" style="padding:8px 16px; cursor:pointer;" title="A new map that wraps this one: this map moves under it, and the new map gets a portal node leading here"><i class="wib wi-stairs-up"></i> New Parent Map</div>
+    <div class="menu-item" id="ctxNewChildItem" style="padding:8px 16px; cursor:pointer;"><i class="wib wi-plus"></i> New Child Map</div>
+    <div class="menu-item" id="ctxRenameItem" style="padding:8px 16px; cursor:pointer;"><i class="wib wi-pen"></i> Rename</div>
     <div class="menu-item ctx-docwin-only" id="ctxDuplicateItem" style="padding:8px 16px; cursor:pointer;" title="Make a copy of this planner or page, every block in it, right after it in the list. Anything nested under it stays with the original."><i class="wib wi-dup"></i> Duplicate</div>
-    <div class="menu-item ctx-move" id="ctxMoveUp" style="padding:8px 16px; cursor:pointer;" title="Move this above the row before it, among its siblings. Anything nested under it comes along.">&#8593; Move Up</div>
-    <div class="menu-item ctx-move" id="ctxMoveDown" style="padding:8px 16px; cursor:pointer;" title="Move this below the row after it, among its siblings. Anything nested under it comes along.">&#8595; Move Down</div>
+    <div class="menu-item ctx-move" id="ctxMoveUp" style="padding:8px 16px; cursor:pointer;" title="Move this above the row before it, among its siblings. Anything nested under it comes along."><i class="wib wi-arrup"></i> Move Up</div>
+    <div class="menu-item ctx-move" id="ctxMoveDown" style="padding:8px 16px; cursor:pointer;" title="Move this below the row after it, among its siblings. Anything nested under it comes along."><i class="wib wi-arrdown"></i> Move Down</div>
     <div class="menu-divider ctx-planner-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
-    <div class="menu-item ctx-planner-only ctx-status" data-status="next" style="padding:8px 16px; cursor:pointer;" title="The scene you play next, only one at a time; it shows in the play-map right-click menu">&#9654; Mark as Next</div>
+    <div class="menu-item ctx-planner-only ctx-status" data-status="next" style="padding:8px 16px; cursor:pointer;" title="The scene you play next, only one at a time; it shows in the play-map right-click menu"><i class="wib wi-next"></i> Mark as Next</div>
     <div class="menu-item ctx-planner-only ctx-status" data-status="played" style="padding:8px 16px; cursor:pointer;"><i class="wib wi-check"></i> Mark Played</div>
     <div class="menu-item ctx-planner-only ctx-status" data-status="skipped" style="padding:8px 16px; cursor:pointer;"><i class="wib wi-next"></i> Mark Skipped</div>
-    <div class="menu-item ctx-planner-only ctx-status" data-status="" style="padding:8px 16px; cursor:pointer; color:var(--dim);">Clear status</div>
+    <div class="menu-item ctx-planner-only ctx-status" data-status="" style="padding:8px 16px; cursor:pointer; color:var(--dim);"><i class="wib wi-close"></i> Clear status</div>
     <div class="menu-divider ctx-doc-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-doc-only" id="ctxDocPlayers" style="padding:8px 16px; cursor:pointer;" title="Whether players at your table receive this page. Hidden pages never leave your machine; while hosting, hiding one removes it from every player at once."><i class="wib wi-unseen"></i> Hide from players</div>
     <div class="menu-divider ctx-docwin-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
@@ -6114,7 +6114,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-divider ctx-map-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-item ctx-map-only" id="ctxLockItem" style="padding:8px 16px; cursor:pointer;" title="A locked map is closed both ways: players cannot travel to it (portals, warps and room links into it are refused) and players who are on it cannot leave it through a portal. You can still summon or bring them. A map a player is not on is not on their machine: they hold its name alone until they arrive, and again once they leave."><i class="wib wi-lock"></i> Lock for players</div>
     <div class="menu-item ctx-map-only" id="ctxLockNest" style="padding:8px 16px; cursor:pointer;" title="Lock this map together with every map nested under it: a whole module at once."><i class="wib wi-lock"></i> Lock this and every map under it</div>
-    <div class="menu-item ctx-map-only" id="ctxSetups" style="padding:8px 16px; cursor:pointer;" title="Named saves of this map's tokens, fog and lights, restored from a list">Set-ups&hellip;</div>
+    <div class="menu-item ctx-map-only" id="ctxSetups" style="padding:8px 16px; cursor:pointer;" title="Named saves of this map's tokens, fog and lights, restored from a list"><i class="wib wi-setups"></i> Set-ups&hellip;</div>
     <div class="menu-item ctx-map-only" id="ctxUnlockNest" style="padding:8px 16px; cursor:pointer;" title="Open this map and every map nested under it to players again."><i class="wib wi-unlock"></i> Unlock this and every map under it</div>
     <div class="menu-divider ctx-map-only" style="height:1px; background:var(--border); margin:4px 0;"></div>
     <div class="menu-label ctx-map-only" id="ctxOpensHead" style="padding:4px 16px 2px; color:var(--dim); font-size:11px;">Opens on</div>
@@ -6123,7 +6123,7 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
     <div class="menu-item ctx-map-only ctx-opens" data-opens="data" style="padding:8px 16px; cursor:pointer;" title="Open this map on its Data Map each time">Data Map</div>
     <div class="menu-item ctx-map-only ctx-opens" data-opens="last" style="padding:8px 16px; cursor:pointer;" title="Open this map on the view it was last left in">As last left</div>
     <div class="menu-divider" style="height:1px; background:var(--border); margin:4px 0;"></div>
-    <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);">Delete</div>
+    <div class="menu-item danger" id="ctxDeleteItem" style="padding:8px 16px; cursor:pointer; color:var(--red);"><i class="wib wi-bin"></i> Delete</div>
 </div>
 
 <!-- Start a campaign with questions (1.6.2, backlog 166 e): campquest.js. Fixed words; the answers become one planner, Campaign outline -->

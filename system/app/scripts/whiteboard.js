@@ -3535,7 +3535,7 @@ window.wpFitToGrid = fitToGrid;
               }
           }
           var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
-          if (!isClient && ownerId && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) items.push({ act: 'trkHide', label: (window.wpTrackers.hidden(ownerId) ? '\u2611 ' : '\u2610 ') + 'Hide table trackers from ' + pw.hideW });   // backlog 29: the owner, "gm but for the whole table or specific players"
+          if (!isClient && ownerId && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) items.push({ act: 'trkHide', ico: 'check', check: window.wpTrackers.hidden(ownerId), label: 'Hide table trackers from ' + pw.hideW });   // backlog 29: the owner, "gm but for the whole table or specific players"
           if (!isClient && am && am.type === 'map' && !(hosting && connected)) items.push({ act: 'bring', ico: 'bring', label: 'Bring ' + name + ' here (this map)' });
           if (window.wpNet && window.wpNet.active && !hosting && !window.wpStream) items.push({ act: 'target', ico: 'target', label: 'Target ' + name });
           if (loc && loc.tok && window.wpSheets && (!isClient ? true : (loc.tok.charId && window.wpSheets.canOpen(loc.tok.charId)))) items.push({ act: 'sheet', ico: 'clip', label: (loc.tok.charId ? 'Sheet\u2026' : 'New character sheet\u2026') });   // character sheets (1.5.0)
@@ -3549,9 +3549,12 @@ window.wpFitToGrid = fitToGrid;
           window.wpClampMenu(menu, cx, cy);
       }
       window.wpPartyMenuFor = openPartyMenu;
+      // Each row is a button: its drawing (ico), then its words. A row that is a tick (check: true or false, as Hide table trackers is) is said to a
+      // screen reader as a checkbox, and while unticked its drawing stays out of sight but keeps its room, so the words of a ticked and an
+      // unticked row stand in one place (1.6.4, Fulllion, 2026-11-25, "Use these drawings": the typed box glyphs gave way to the check drawing)
       function fillPartyMenu(items, key) {
           menu.innerHTML = items.map(function(i) {
-              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + ' style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + (i.ico ? '<i class="wib wi-' + i.ico + '"></i> ' : '') + esc(i.label) + '</button>';
+              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + (i.check !== undefined ? ' role="menuitemcheckbox" aria-checked="' + (i.check ? 'true' : 'false') + '"' : '') + ' style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + (i.ico ? '<i class="wib wi-' + i.ico + '"' + (i.check === false ? ' style="visibility:hidden"' : '') + '></i> ' : '') + esc(i.label) + '</button>';
           }).join('');
       }
       // Onboarding F0: what the GM can give a player — their own characters first (the one they play: its token onto their map; a kept one:
@@ -6733,6 +6736,9 @@ if(_el_wbSnapBtn) {
         document.querySelectorAll('.snap-mode-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.mode === state.snapMode); });
         var off = document.getElementById('snapOffBtn');
         if (off) off.textContent = state.snap ? 'Turn snapping off' : 'Turn snapping on';   // 1.6.3 (finding 37): plain words, the power glyph left out
+        // 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the row's drawing is a class of the button itself, since the words above are set as text. It
+        // wears snapping-off only while a press turns snapping off; "Turn snapping on" has no drawing of its own, so it shows the words alone
+        if (off) { off.classList.toggle('wib', !!state.snap); off.classList.toggle('wi-snapoff', !!state.snap); }
         _el_wbSnapBtn.classList.toggle('active', !!state.snap);
         var ds = document.getElementById('snapBtn');
         if (ds) ds.classList.toggle('active', !!state.snap);
@@ -7067,8 +7073,9 @@ function renderCombatModal() {
             + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + stateT + '</span>'
             + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll"' + (deckS ? ' style="display:none"' : '') + ' title="Roll initiative from the character sheet. A player&rsquo;s roll goes to the table. An NPC&rsquo;s goes to you alone unless NPC initiative rolls in Settings says Everyone, and so does one that reads a GM-only value. Players see the order" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
             + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '"' + (deckS ? ' style="display:none"' : '') + (clockS ? ' title="Count. Higher acts first. A row at 0 or less never acts" aria-label="Count"' : ' title="Initiative. Higher goes first"') + '>'
-            + '<span class="ui-seg combat-moves"><button class="tool ghost combat-up" title="Move up">&#9650;</button><button class="tool ghost combat-down" title="Move down">&#9660;</button></span>'
-            + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row">&times;</button>' : '')
+            // 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the arrows and the x are the app's own drawings, each named by its tooltip
+            + '<span class="ui-seg combat-moves"><button class="tool ghost combat-up" title="Move up"><i class="wib wi-arrup"></i></button><button class="tool ghost combat-down" title="Move down"><i class="wib wi-arrdown"></i></button></span>'
+            + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row"><i class="wib wi-close"></i></button>' : '')
             + '</div>';
     }).join('') || '<div style="color:var(--dim); padding:8px;">No character tokens on this map. Add a custom row below, or place tokens first.</div>';
     // 1.6.3 (finding 35): a picture whose file is gone shows the plain face a token with no picture has, never the browser's broken picture. A listener, never an attribute
@@ -7221,7 +7228,7 @@ function holdAsk(anchor, sys, done) {
 }
 function stripHeldNamed(r, host, nameH) {   // a held row under holdNames: its words for the GM and its holder, in esc; the GM's Set off
     var said = host ? (r.holdFor && r.holdFor.text) || '' : typeof r.hf === 'string' ? r.hf : '';
-    return '<span class="combat-strip-held" data-tip="' + esc(said ? 'Holding for: ' + said : 'Holding their turn until something sets it off') + '">held ' + nameH + (said ? ': ' + esc(said) : '') + '</span>' + (host ? '<button class="combat-strip-btn" data-act="setoff" data-row="' + esc(String(r.id)) + '" title="Set off: this hold\u2019s action comes now, before the turn goes on">Set off</button>' : '');
+    return '<span class="combat-strip-held" data-tip="' + esc(said ? 'Holding for: ' + said : 'Holding their turn until something sets it off') + '">held ' + nameH + (said ? ': ' + esc(said) : '') + '</span>' + (host ? '<button class="combat-strip-btn" data-act="setoff" data-row="' + esc(String(r.id)) + '" title="Set off: this hold\u2019s action comes now, before the turn goes on"><i class="wib wi-burst"></i> Set off</button>' : '');
 }
 // [sinkcheck:holdask-end]
 function stripMoveHtml(n, fid, c, map) {
@@ -7281,7 +7288,7 @@ function renderCombatStrip() {
     var pickH = '';
     if (chS && (host || mine)) {
         var pkOpen = strip.wpPickOpen === fidS, pkL = SCc.chosenPicks(c.rows, c.turn);
-        pickH = '<button class="combat-strip-btn' + (pkOpen ? ' is-open' : '') + '" data-act="pickopen" title="' + (pkL.round ? 'Everyone has gone this round: pick who opens round ' + (c.round + 1) : 'Pick who goes next from those who have not gone this round') + (host ? '' : '. It ends your turn') + '">Pick next</button>';
+        pickH = '<button class="combat-strip-btn' + (pkOpen ? ' is-open' : '') + '" data-act="pickopen" title="' + (pkL.round ? 'Everyone has gone this round: pick who opens round ' + (c.round + 1) : 'Pick who goes next from those who have not gone this round') + (host ? '' : '. It ends your turn') + '"><i class="wib wi-nextturn"></i> Pick next</button>';
         if (pkOpen) pickH += '<span class="combat-strip-picks">' + pkL.at.map(function(i) { var pr = c.rows[i] || {}, prN = esc(String(pr.name || 'Someone')); return '<button class="combat-strip-btn combat-strip-pick' + (nxC && nxC.at === i ? ' is-next' : '') + '" data-act="pick" data-row="' + esc(String(pr.id || '')) + '" title="' + prN + (pkL.round ? ' opens round ' + (c.round + 1) : ' goes next') + '">' + prN + '</button>'; }).join('') + '</span>';
     }
     strip.style.display = 'flex';
@@ -7292,7 +7299,7 @@ function renderCombatStrip() {
     var campH = typeof getActiveCampaign === 'function' ? getActiveCampaign() : null, holdStay = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdAct === 'stay'), holdNm = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.holdNames === true), holdNext = !!(campH && campH.system && campH.system.combat && campH.system.combat.turn && campH.system.combat.turn.hold === 'next');   // 1.6.0: a system that keeps its order, and one whose holds name what sets them off
     // 1.6.3 (the combat review, finding 13): on a counting clock a row at 0 or less never gets a turn, so the GM's strip names it, in the strip's menu
     var neverH = host && irC && irC.clock && typeof irC.clock === 'object' ? c.rows.filter(function(r) { return !!r && !((typeof clockBegin === 'function' ? clockBegin(c, r.id, r.init) : Number(r.init)) > 0); }).map(function(r) { return '<span class="combat-strip-held combat-strip-never" data-tip="On the counting clock a row at 0 or less never acts. Give it a count in the roster">never acts ' + nameOf(r) + '</span>'; }).join('') : '';
-    var heldH = c.rows.map(function(r, i) { if (r && r.sf === 1) return '<span class="combat-strip-held" data-tip="Their hold was set off: they act before the turn goes on">acts now ' + nameOf(r) + '</span>'; if (holdNm && typeof stripHeldNamed === 'function') return r && r.held === 1 && i !== c.turn ? stripHeldNamed(r, host, nameOf(r)) : ''; return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="' + (holdStay ? 'Holding their turn: they may act now, and Done ends the hold' : 'Holding their turn: Act puts them right after whoever is acting') + '">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="' + (holdStay ? 'Done: the hold ends and the order stays as it is' : 'Act now: right after whoever is acting') + '">' + (holdStay ? 'Done' : 'Act') + '</button>' : '') : ''; }).join('');
+    var heldH = c.rows.map(function(r, i) { if (r && r.sf === 1) return '<span class="combat-strip-held" data-tip="Their hold was set off: they act before the turn goes on">acts now ' + nameOf(r) + '</span>'; if (holdNm && typeof stripHeldNamed === 'function') return r && r.held === 1 && i !== c.turn ? stripHeldNamed(r, host, nameOf(r)) : ''; return r && r.held === 1 && i !== c.turn ? '<span class="combat-strip-held" data-tip="' + (holdStay ? 'Holding their turn: they may act now, and Done ends the hold' : 'Holding their turn: Act puts them right after whoever is acting') + '">held ' + nameOf(r) + '</span>' + (host || (typeof r.tokId === 'string' && myTokIds[r.tokId] === 1) ? '<button class="combat-strip-btn" data-act="act" data-row="' + esc(r.id) + '" title="' + (holdStay ? 'Done: the hold ends and the order stays as it is' : 'Act now: right after whoever is acting') + '"><i class="wib wi-' + (holdStay ? 'check' : 'play') + '"></i> ' + (holdStay ? 'Done' : 'Act') + '</button>' : '') : ''; }).join('');
     // drawn again only when it changed (found live, 2026-10-17): a redraw between a press and its click took the button pressed off the page, so
     // the press did nothing. What was written last is kept on the strip, since a hover moves each title into data-tip and the page's markup changes
     var html = (idsS.length > 1 ? '<button class="combat-strip-btn combat-strip-switch" data-act="switch" title="' + idsS.length + ' fights run on this map: show the next one. This changes nothing for anyone else">' + (atS + 1) + ' of ' + idsS.length + '</button>' : '')
@@ -7305,13 +7312,13 @@ function renderCombatStrip() {
         + (nxt && (nxt !== cur || typeof nxAt === 'number') && nxt.hid !== 1 ? '<span class="combat-strip-next" data-tip="' + (chS ? 'Up next: the next in the order who has not gone this round' : 'Up next') + '">next ' + nameOf(nxt) + (nxC && nxC.round ? ', opening round ' + (c.round + 1) : '') + '</span>' : '')   // 1.6.2: a fight of one names nobody next
         + (mine ? '<button class="combat-strip-btn combat-strip-endturn" data-act="endturn" title="End your turn: play moves on to the next in the order' + (chS ? ' who has not gone. Pick next chooses another' : '') + '"><i class="wib wi-endturn"></i> End turn</button>' : '')
         + pickH + neverH
-        + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on. ' + (holdStay ? 'They act while held, and Done ends the hold.' : 'Act later puts them right after whoever is acting.') + (holdNext ? ' The hold lasts to their next turn.' : ' A hold not used by the round&rsquo;s end is lost.')) + '">Hold</button>' : '') + heldH)
-        + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn"><i class="wib wi-nextturn"></i></button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat">&times;</button>' : '');
+        + (chS ? '' : (host || mine ? '<button class="combat-strip-btn" data-act="hold" title="' + (holdNm ? 'Hold this turn and say what sets it off: play moves on, and it lasts to this character&rsquo;s next turn' : 'Hold this turn: play moves on. ' + (holdStay ? 'They act while held, and Done ends the hold.' : 'Act later puts them right after whoever is acting.') + (holdNext ? ' The hold lasts to their next turn.' : ' A hold not used by the round&rsquo;s end is lost.')) + '"><i class="wib wi-pause"></i> Hold</button>' : '') + heldH)
+        + (host ? '<button class="combat-strip-btn" data-act="next" title="Next turn"><i class="wib wi-nextturn"></i></button><button class="combat-strip-btn" data-act="edit" title="Combat roster"><i class="wib wi-pen"></i></button><button class="combat-strip-btn danger" data-act="end" title="End combat"><i class="wib wi-close"></i></button>' : '');
     // backlog 219 (the owner, 2026-11-10, by prompt, from the sheet docs/sheets/fight-in-bar-sheet.html: "A. A segment of the row"): the fight is a part of the trackers
     // bar's own row (trackers.js draws it there) and keeps the round, the arrows and whose turn it is; the rest is a menu under its last button, this screen's alone.
     // A player on their own turn keeps their move, actions and End turn in sight, and the stream window shows who is next and has no menu
     var moreOn = !(typeof window !== 'undefined' && window.wpStream) && (/combat-strip-(side|held|picks|next)|data-act="(pickopen|hold|edit|end|act)"/.test(html) || (!mine && /combat-strip-(move|acts)/.test(html))), moreOpen = moreOn && strip.wpMoreOpen === fidS;
-    if (moreOn) html += '<button class="combat-strip-btn combat-strip-morebtn" data-act="more" aria-haspopup="true" aria-expanded="' + (moreOpen ? 'true' : 'false') + '" title="The rest of the fight: who is next' + (host ? ', what is left of the turn, Hold, the roster and End combat' : mine ? ' and Hold' : '') + '">&#8943;</button>';
+    if (moreOn) html += '<button class="combat-strip-btn combat-strip-morebtn" data-act="more" aria-haspopup="true" aria-expanded="' + (moreOpen ? 'true' : 'false') + '" title="The rest of the fight: who is next' + (host ? ', what is left of the turn, Hold, the roster and End combat' : mine ? ' and Hold' : '') + '"><i class="wib wi-dots"></i></button>';
     if (strip.classList) strip.classList[mine ? 'add' : 'remove']('is-mine');
     if (strip.wpDrawn !== html) { strip.innerHTML = html; strip.wpDrawn = html; }
     if (typeof stripInBar === 'function') stripInBar();
@@ -7589,18 +7596,18 @@ function tableMenuParts(e, role) {
     function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
     function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '"><i class="wib wi-bring"></i> Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
     if (role === 'client') {
-        html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)">Leave session</div>';
+        html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)"><i class="wib wi-door-open"></i> Leave session</div>';
     } else {
         var nxW = window.wpPageShelf && typeof window.wpPageShelf.nextScene === 'function' ? window.wpPageShelf.nextScene() : null, nextScene = nxW && camp && camp.items[nxW.id] ? camp.items[nxW.id] : (camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null);   // 1.6.2 (backlog 166 d): at tonight's scene
-        if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '"' + (nxW && nxW.at && nxW.id === nextScene.id && /^[A-Za-z0-9_-]{1,64}$/.test(nxW.at) ? ' data-at="' + esc(nxW.at) + '"' : '') + ' title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
+        if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '"' + (nxW && nxW.at && nxW.id === nextScene.id && /^[A-Za-z0-9_-]{1,64}$/.test(nxW.at) ? ' data-at="' + esc(nxW.at) + '"' : '') + ' title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself."><i class="wib wi-play"></i> Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
         var scnPg = window.wpPageShelf && typeof window.wpPageShelf.scenePage === 'function' ? window.wpPageShelf.scenePage() : null;   // 1.6.0 (pageshelf.js): the map's scene page, opened by the one rule as Next scene is
         if (scnPg) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(scnPg.id) + '" title="This map\'s scene page. Shift+P opens it too. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the page itself."><i class="wib wi-mask"></i> Scene page: ' + esc(scnPg.title) + '</div>';
         var amPin = getActiveMap(), isPinned = !!(camp && amPin && Array.isArray(camp.pinnedMaps) && camp.pinnedMaps.indexOf(amPin.id) >= 0);
-        if (amPin && amPin.type === 'map' && window.wpSetups) html += '<div class="menu-item cm-session" data-act="setups" title="Named saves of this map\u2019s tokens, fog and lights, restored from a list">Set-ups\u2026</div>';   // backlog 31
+        if (amPin && amPin.type === 'map' && window.wpSetups) html += '<div class="menu-item cm-session" data-act="setups" title="Named saves of this map\u2019s tokens, fog and lights, restored from a list"><i class="wib wi-setups"></i> Set-ups\u2026</div>';   // backlog 31
         var scSys = camp && camp.system && Array.isArray(camp.system.scenes) ? camp.system.scenes : [], scNow = amPin && amPin.meta && typeof amPin.meta.scene === 'string' ? amPin.meta.scene : '';   // 1.6.2: the scene's channel on this map
         var dkSys = camp && camp.system && Array.isArray(camp.system.dark) ? camp.system.dark : [], dkNow = amPin && amPin.meta && typeof amPin.meta.dark === 'string' ? amPin.meta.dark : '';   // 1.6.2: the map's darkness step
         if (amPin && amPin.type === 'map' && dkSys.length && window.wpCanPersistLocal && window.wpCanPersistLocal()) { html += head('Darkness'); html += '<div class="menu-item cm-session" data-act="dkst" data-k="lit" title="No darkness on this map">' + (!dkNow ? '<i class="wib wi-check"></i> ' : '') + 'Lit</div>'; dkSys.forEach(function(st, i) { if (st && typeof st.label === 'string') html += '<div class="menu-item cm-session" data-act="dkst" data-k="' + i + '" title="Every cell of this map is at this step, but where a shape sets its own or a light lights it">' + (st.key === dkNow ? '<i class="wib wi-check"></i> ' : '') + esc(st.label) + '</div>'; }); }
-        if (amPin && amPin.type === 'map' && scSys.length && window.wpCanPersistLocal && window.wpCanPersistLocal()) { html += head('Scene'); scSys.forEach(function(sc, i) { if (sc && typeof sc.label === 'string') html += '<div class="menu-item cm-session" data-act="scch" data-k="' + i + '" title="Rolls read the scene as this channel">' + (sc.key === scNow ? '<i class="wib wi-check"></i> ' : '') + esc(sc.label) + '</div>'; }); if (scNow) html += '<div class="menu-item cm-session" data-act="scend" title="No channel, and every reaction kept on this map goes">End the scene</div>'; }
+        if (amPin && amPin.type === 'map' && scSys.length && window.wpCanPersistLocal && window.wpCanPersistLocal()) { html += head('Scene'); scSys.forEach(function(sc, i) { if (sc && typeof sc.label === 'string') html += '<div class="menu-item cm-session" data-act="scch" data-k="' + i + '" title="Rolls read the scene as this channel">' + (sc.key === scNow ? '<i class="wib wi-check"></i> ' : '') + esc(sc.label) + '</div>'; }); if (scNow) html += '<div class="menu-item cm-session" data-act="scend" title="No channel, and every reaction kept on this map goes"><i class="wib wi-stop"></i> End the scene</div>'; }
         if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="mapprops" title="This map\u2019s own settings, its scene page among them, in the Properties panel. Its X closes it."><i class="wib wi-props"></i> Map properties</div>';   // 1.6.2: the Properties tab at the map's edge was the way to them with nothing selected (the owner removed it, 2026-11-14)
         if (amPin && amPin.type === 'map') html += '<div class="menu-item cm-session" data-act="pin" title="Pinned maps sit at the top of the Maps list"><i class="wib wi-pin"></i> ' + (isPinned ? 'Unpin this map' : 'Pin this map') + '</div>';
         if (role !== 'host') html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
@@ -7614,7 +7621,7 @@ function tableMenuParts(e, role) {
                 html += '<div class="menu-item cm-session" data-act="combat-next" title="Round ' + combatM.round + ': ' + esc(curM.name || '') + ' is up"><i class="wib wi-fight"></i> Next Turn</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-prev"><i class="wib wi-back"></i> Previous Turn</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-edit"><i class="wib wi-pen"></i> Combat Roster\u2026</div>';
-                html += '<div class="menu-item cm-session" data-act="combat-end" style="color:var(--danger)">End Combat</div>';
+                html += '<div class="menu-item cm-session" data-act="combat-end" style="color:var(--danger)"><i class="wib wi-close"></i> End Combat</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-new" title="Another fight on this map, with its own order and rounds. A token is in one fight at a time"><i class="wib wi-fight"></i> Start another fight here\u2026</div>';
             } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns"><i class="wib wi-fight"></i> Start combat\u2026</div>';
             html += '<div class="menu-item cm-session" data-act="notepad"><i class="wib wi-note"></i> ' + (n.notepad && n.notepad.on ? (typeof n.notepadHidden === 'function' && n.notepadHidden() ? 'Show Table Notepad' : 'Put Away Table Notepad') : 'Open Table Notepad') + '</div>';
@@ -7623,7 +7630,7 @@ function tableMenuParts(e, role) {
             html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-lock"></i> Allow travel between maps' : '<i class="wib wi-unlock"></i> Lock travel between maps')   /* 1.6.2 (backlog 230): every lock shows how it stands now */ + '</div>';
             html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '<i class="wib wi-play"></i> Resume the table' : '<i class="wib wi-pause"></i> Pause the table') + '</div>';
             html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
-            html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)">End session for everyone</div>';
+            html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)"><i class="wib wi-stop"></i> End session for everyone</div>';
         }
     }
     function wire(cMenu) {
@@ -7942,7 +7949,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-anchor-off"></i> Lock in place' : '<i class="wib wi-anchor"></i> Unlock so it can move') + '</div>';
                 html += structRowHtml(structRow(am));   // 231: the whole map's structure, locked or freed with one press
                 html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
-                html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
+                html += '<div class="menu-item cm-del" style="color:var(--danger)"><i class="wib wi-bin"></i> Delete</div>';
                 html += '<div class="menu-divider"></div>';
             } else if (!(window.wpNet && (window.wpNet.foreign || (window.wpNet.active && window.wpNet.role === 'client')))) html += '<div class="menu-item cm-props" title="Open this room&rsquo;s settings at the right edge of the map: its notes, who is here, its place on the play map"><i class="wib wi-props"></i> Properties</div>';   // 1.6.2: on the Data Map too, the room the right-click selected
 
@@ -7953,10 +7960,10 @@ document.addEventListener('contextmenu', function(e) {
                         var it = am.whiteboard.find(x=>x.id===id);
                         return it && it.groupId === isGrouped;
                     });
-                    if (allSameGroup) html += '<div class="menu-item cm-ungroup">Ungroup</div>';
-                    else html += '<div class="menu-item cm-group">Group</div>';
+                    if (allSameGroup) html += '<div class="menu-item cm-ungroup"><i class="wib wi-ungroup"></i> Ungroup</div>';
+                    else html += '<div class="menu-item cm-group"><i class="wib wi-group"></i> Group</div>';
                 } else if (firstItem && firstItem.groupId) {
-                    html += '<div class="menu-item cm-ungroup">Ungroup</div>';
+                    html += '<div class="menu-item cm-ungroup"><i class="wib wi-ungroup"></i> Ungroup</div>';
                 }
                 
                 // Check if merge drawings is possible (all selected are open pen strokes — never a freeform fill region)
@@ -7965,7 +7972,7 @@ document.addEventListener('contextmenu', function(e) {
                     return it && it.type === 'path' && it.tip !== 'fill' && !it.locked;   // 1.6.3, the review of 87d9b6e0: a locked line (a wall laid by Build, the map's structure) is never merged away without a word
                 });
                 if (allPaths) {
-                    html += '<div class="menu-item cm-merge">Merge drawings</div>';
+                    html += '<div class="menu-item cm-merge"><i class="wib wi-merge"></i> Merge drawings</div>';
                 }
                 if (selectedIds.length > 1) {
                     html += '<div class="menu-item cm-align-row" style="display:flex; align-items:center; gap:3px; cursor:default;">' +
@@ -7990,7 +7997,7 @@ document.addEventListener('contextmenu', function(e) {
                     var it = am.whiteboard.find(function(x) { return x.id === sid; });
                     return it && !it.aboveGrid;
                 });
-                html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '&#9650; Show above grid' : '&#9660; Put under grid') + '</div>';
+                html += '<div class="menu-item cm-grid">' + (anyUnderGrid ? '<i class="wib wi-arrup"></i> Show above grid' : '<i class="wib wi-arrdown"></i> Put under grid') + '</div>';
                 var swRow = showRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.6.2: a drawing to show, only where the selection holds a pen drawing
                 if (swRow) html += swRow.html;
                 var mnRow = mineRow(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }));   // 1.5.8 explosives: a placed mine set off by hand
@@ -8020,8 +8027,8 @@ document.addEventListener('contextmenu', function(e) {
             var flRow = isWb && typeof flatRows === 'function' ? flatRows(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); })) : null;   // 1.6.2 (backlog 39): Flatten, and Unflatten
             if (flRow) html += flRow.html + '<div class="menu-divider"></div>';
             // 1.6.2 (the owner: "stacking folded"): one Order row opens the four stacking rows in place
-            html += '<div class="menu-item cm-order" aria-expanded="false" title="Bring to front, forward, backward or send to back">Order &#9656;</div>';
-            html += '<div class="cm-stackrows" hidden><div class="menu-item cm-front">Bring to front</div><div class="menu-item cm-fwd">Bring forward</div><div class="menu-item cm-bwd">Send backward</div><div class="menu-item cm-back">Send to back</div></div>';
+            html += '<div class="menu-item cm-order" aria-expanded="false" title="Bring to front, forward, backward or send to back"><i class="wib wi-unflatten"></i> Order <i class="wib wi-chev"></i></div>';
+            html += '<div class="cm-stackrows" hidden><div class="menu-item cm-front"><i class="wib wi-tofront"></i> Bring to front</div><div class="menu-item cm-fwd"><i class="wib wi-arrup"></i> Bring forward</div><div class="menu-item cm-bwd"><i class="wib wi-arrdown"></i> Send backward</div><div class="menu-item cm-back"><i class="wib wi-toback"></i> Send to back</div></div>';
 
             if (isWb) {
                 var curOp = Math.round(((firstItem && firstItem.opacity != null) ? firstItem.opacity : 1) * 100);
@@ -8034,7 +8041,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-divider"></div>';
                 html += '<div class="menu-item cm-status-alive"><i class="wib wi-heart"></i> Alive</div>';
                 html += '<div class="menu-item cm-status-down"><i class="wib wi-heartbreak"></i> Incapacitated</div>';
-                html += '<div class="menu-item cm-status-dead">&#9760; Dead</div>';
+                html += '<div class="menu-item cm-status-dead"><i class="wib wi-dead"></i> Dead</div>';
                 html += stanceMenuHtml(firstItem);
                 html += tokenSensesLine(firstItem);   // senses S3: its senses, read-only
             }
@@ -8051,14 +8058,14 @@ document.addEventListener('contextmenu', function(e) {
                 var pausedTok = window.wpNet.isPlayerPaused && window.wpNet.isPlayerPaused(firstItem.ownerId);
                 html += '<div class="menu-item cm-player-pause">' + (pausedTok ? '<i class="wib wi-play"></i> Resume this player' : '<i class="wib wi-pause"></i> Pause this player') + '</div>';
             }
-            if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) html += '<div class="menu-item cm-trk-hide">' + (window.wpTrackers.hidden(firstItem.ownerId) ? '&#9745; ' : '&#9744; ') + 'Hide table trackers from them</div>';   // backlog 29
+            if (isWb && firstItem && firstItem.isChar && firstItem.ownerId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && !window.wpStream && window.wpTrackers && window.wpTrackers.on && window.wpTrackers.on()) html += '<div class="menu-item cm-trk-hide" role="menuitemcheckbox" aria-checked="' + (window.wpTrackers.hidden(firstItem.ownerId) ? 'true' : 'false') + '"><i class="wib wi-check"' + (window.wpTrackers.hidden(firstItem.ownerId) ? '' : ' style="visibility:hidden"') + '></i> Hide table trackers from them</div>';   // backlog 29; 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): a tick row, its check drawing shown only while ticked and kept out of sight otherwise, so its words stay put
             if (isWb && firstItem && firstItem.id && !firstItem.hidden && window.wpFx && window.wpVtt && window.wpVtt.on('fx')) html += '<div class="menu-item cm-pulse"><i class="wib wi-spark"></i> Pulse</div>';
             if (!isWb) html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';   // the data map keeps them at its foot: the play map has them first
             if (isWb && firstItem && (firstItem.isChar || firstItem.charName)) html += '<div class="menu-item cm-cast-save"><i class="wib wi-starf"></i> Save to Campaign Cast</div>';
             var osN = isWb && firstItem && firstItem.isChar && window.wpSheets && window.wpSheets.ownSheetCount ? window.wpSheets.ownSheetCount(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : 0;   // 1.6.2 (backlog 237): the GM's alone (ownSheetCount answers 0 elsewhere), where a picked token shares its sheet with another
             if (osN) html += '<div class="menu-item cm-own-sheet" title="A copy of the sheet for ' + (osN === 1 ? 'this token' : 'each of them') + ', so a hit on one no longer hurts the others"><i class="wib wi-dup"></i> ' + (osN === 1 && selectedIds.length === 1 ? 'Give this token its own sheet' : 'Give ' + osN + (osN === 1 ? ' token its own sheet' : ' tokens their own sheets')) + '</div>';
-            if (isWb && firstItem && firstItem.isChar && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && window.wpCanPersistLocal && window.wpCanPersistLocal()) html += '<div class="menu-item cm-encounter-save" title="Save the selected character tokens as an encounter group in the Image Library, placed again in one press">Save as an encounter group\u2026</div>';   // backlog 31
-            if (!isWb) html += '<div class="menu-item cm-del" style="color:var(--danger)">Delete</div>';
+            if (isWb && firstItem && firstItem.isChar && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && window.wpCanPersistLocal && window.wpCanPersistLocal()) html += '<div class="menu-item cm-encounter-save" title="Save the selected character tokens as an encounter group in the Image Library, placed again in one press"><i class="wib wi-people"></i> Save as an encounter group\u2026</div>';   // backlog 31
+            if (!isWb) html += '<div class="menu-item cm-del" style="color:var(--danger)"><i class="wib wi-bin"></i> Delete</div>';
 
             cMenu.innerHTML = html;
             cMenu.style.display = 'flex';
@@ -8133,7 +8140,7 @@ document.addEventListener('contextmenu', function(e) {
             if (typeof action === 'string' && action.includes('cm-props')) { cMenu.style.display = 'none'; if (window.wpOpenRightPanel) window.wpOpenRightPanel(); return; }   // 1.6.2 (backlog 229): the piece, or on the Data Map the room, the right-click selected
 
             if (typeof action === 'string' && (action.includes('cm-opacity') || action.includes('cm-align-row') || action.includes('align-btn') || action.includes('cm-stance') || action.includes('cm-stackrows'))) return; // control rows keep the menu open
-            if (typeof action === 'string' && action.includes('cm-order')) { var stk = cMenu.querySelector('.cm-stackrows'); if (stk) { stk.hidden = !stk.hidden; ce.target.setAttribute('aria-expanded', stk.hidden ? 'false' : 'true'); ce.target.innerHTML = 'Order ' + (stk.hidden ? '&#9656;' : '&#9662;'); placeMenu(cMenu); } return; }   // 1.6.2: Order opens its four rows and keeps the menu up
+            if (typeof action === 'string' && action.includes('cm-order')) { var stk = cMenu.querySelector('.cm-stackrows'); if (stk) { stk.hidden = !stk.hidden; ce.target.setAttribute('aria-expanded', stk.hidden ? 'false' : 'true'); ce.target.innerHTML = '<i class="wib wi-unflatten"></i> Order <i class="wib wi-' + (stk.hidden ? 'chev' : 'chevdown') + '"></i>'; placeMenu(cMenu); } return; }   // 1.6.4: its drawing, then its words, then the small arrow drawn right while shut and down while open; 1.6.2: Order opens its four rows and keeps the menu up
             if (typeof action === 'string' && isWb && action.includes('cm-effects')) { var itFx = am.whiteboard.find(function(x) { return x.id === selectedIds[0]; }); if (itFx) setTimeout(function() { showTokenFxMenu(itFx); }, 0); return; }   // conditions C2: the menu becomes its Effects list, once this click is done (swapped now, the clicked line would be gone from the menu and the page would read it as a click outside)
 
             if (isWb) {

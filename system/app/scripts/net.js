@@ -804,7 +804,7 @@ function renderRoster() {
                 var peerKey = Object.keys(net.roster).find(function(k) { return net.roster[k] === p; });
                 var kick = net.role === 'host'
                     ? '<button class="roster-summon" data-summon="' + escTextRoster(peerKey) + '" title="Summon this player to the map you are on"><i class="wib wi-summon"></i></button>' +
-                      '<button class="roster-kick" data-kick="' + escTextRoster(peerKey) + '" title="Remove this player (they stay out for the rest of the session)">&times;</button>'
+                      '<button class="roster-kick" data-kick="' + escTextRoster(peerKey) + '" title="Remove this player (they stay out for the rest of the session)"><i class="wib wi-close"></i></button>'
                     : '';
                 var staleMark = p.stale ? '<span class="roster-stale-mark" title="Not responding. Will be dropped if silence continues"><i class="wib wi-hourglass"></i></span>' : '';
                 // 1.6.3 (the improvement week's review of multiplayer, finding 34): a player the GM paused alone says so on their chip, beside a

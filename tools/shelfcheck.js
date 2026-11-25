@@ -742,7 +742,7 @@ const drawSrc = sliceOf(ps, 'draw');
 {
     check('Next scene, on the play map\'s right-click menu, opens by the same rule and decides nothing itself: a plain click over the map, Ctrl a window, Alt the planner; its tooltip says so',
         count(wb, "else if (act === 'scene') { if (window.wpPageShelf) window.wpPageShelf.open(it.dataset.id, window.wpPageShelf.wayNow(ce), it.dataset.at ? { at: it.dataset.at } : undefined); }") === 1 && !/act === 'scene'\) \{[^\n]*activeItemId/.test(wb)
-        && count(wb, 'title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself.">&#9654; Next scene: ') === 1 && /it\.addEventListener\('click', function\(ce\) \{/.test(wb));
+        && count(wb, 'title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself."><i class="wib wi-play"></i> Next scene: ') === 1 /* 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the play drawing in place of the typed triangle (moved on purpose) */ && /it\.addEventListener\('click', function\(ce\) \{/.test(wb));
 }
 
 /* ---------- the page panel's tabs (docpanel.js) ---------- */
@@ -827,7 +827,7 @@ const tabsSrc = dpSlice('tabs'), tabdoSrc = dpSlice('tabdo');
         && count(dpS, "strip.addEventListener('auxclick', function(e) { var tab = e.button === 1 && e.target.closest ? e.target.closest('.docpanel-tab') : null; if (tab) { e.preventDefault(); tabClose(tab.dataset.id); } });") === 1
         && count(dpS, "openId: function() { return openId; }, tabs: function() { return tabs.slice(); } };") === 1 && !/innerHTML = [^;]*tab/i.test(dpS));
     check('the page: the strip stands under the panel\'s head, empty and hidden until a second page is open; its close mark is drawn by the style sheet, so the script stays plain ASCII beside its NUL bytes; the head\'s close button says it closes every tab',
-        /id="docPanelClose" title="Close the panel and every tab in it \(Esc\)">&times;<\/button><\/div>\n    <div id="docPanelTabs" class="docpanel-tabs" role="toolbar" aria-label="Pages open in this panel" style="display:none;"><\/div>\n    <div id="docPanelSearchRow">/.test(ix)
+        /id="docPanelClose" title="Close the panel and every tab in it \(Esc\)"><i class="wib wi-close"><\/i><\/button><\/div>\n    <div id="docPanelTabs" class="docpanel-tabs" role="toolbar" aria-label="Pages open in this panel" style="display:none;"><\/div>\n    <div id="docPanelSearchRow">/.test(ix) /* 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the close drawing in place of the typed x (moved on purpose) */
         && /\n\s*\.docpanel-tab-x::before \{ content: "\\00d7"; \}/.test(css) && /\n\s*\.docpanel-tab\.on \{ background: var\(--panel2\); border-color: var\(--gold\); opacity: 1; \}/.test(css) && /\n\s*\.docpanel-tabs \{ display: flex; [^\n]*overflow-x: auto;/.test(css)
         && !/[^\x00-\x7f]/.test(tabsSrc + tabdoSrc) && !dpS.includes('\r') && count(dpS, '\0') === 3);
 }

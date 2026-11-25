@@ -290,7 +290,8 @@ function prepCardEl(camp, c, open, pinnedPl, wide) {
     if (c.toks > 0) {
         var fl = prepEl('div', 'prep-fight'), fa = prepRef(prepBtn('prep-fb prep-findall', '', 'Bring them into view on the map, selected'), c);
         var fn = prepEl('span', 'prep-fight-n', prepCount(c.toks, 'token', 'tokens') + ' here'); fn.title = 'The tokens on this map that this card names in the first cell of a row'; fl.appendChild(fn);
-        fl.appendChild(prepRef(prepBtn('prep-fb prep-sel', 'Select them', 'Select the tokens on this map that its table names'), c));
+        // 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): Select them wears the pointer drawing before its words, as Find wears its marker
+        var sb = prepRef(prepBtn('prep-fb prep-sel', '', 'Select the tokens on this map that its table names'), c); sb.appendChild(prepEl('i', 'wib wi-pointer')); sb.appendChild(document.createTextNode(' Select them')); fl.appendChild(sb);
         fa.appendChild(prepEl('i', 'wib wi-marker')); fa.appendChild(document.createTextNode(' Find')); fl.appendChild(fa);
         body.appendChild(fl);
     }
@@ -373,8 +374,9 @@ function prepDraw(root, camp, m, st, x) {
             if (r.small) nm.appendChild(prepEl('small', '', r.small)); tx.appendChild(nm);
             if (r.line) tx.appendChild(prepEl('span', 'prep-ln', r.line)); if (r.line2) tx.appendChild(prepEl('span', 'prep-ln', r.line2));
             pp.appendChild(tx);
-            if (r.card) { var cb = prepBtn('prep-chip', 'Card', 'Open this person\u2019s card'); cb.dataset.pl = r.card.pl; cb.dataset.i = String(r.card.i); if (r.card.at) cb.dataset.at = r.card.at; pp.appendChild(cb); }
-            if (r.make === true) { var mk = prepBtn('prep-chip prep-make', 'Make a card', 'Make a person card for ' + r.name + ' in a planner you pick, with this name and note'); mk.dataset.t = r.t; mk.dataset.name = r.name; if (r.tok) mk.dataset.tok = r.tok; mk.setAttribute('aria-haspopup', 'menu'); pp.appendChild(mk); }
+            // 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the two chips wear their drawings before their words, a person for Card and a plus for Make a card
+            if (r.card) { var cb = prepBtn('prep-chip', '', 'Open this person\u2019s card'); cb.appendChild(prepEl('i', 'wib wi-person')); cb.appendChild(document.createTextNode(' Card')); cb.dataset.pl = r.card.pl; cb.dataset.i = String(r.card.i); if (r.card.at) cb.dataset.at = r.card.at; pp.appendChild(cb); }
+            if (r.make === true) { var mk = prepBtn('prep-chip prep-make', '', 'Make a person card for ' + r.name + ' in a planner you pick, with this name and note'); mk.appendChild(prepEl('i', 'wib wi-plus')); mk.appendChild(document.createTextNode(' Make a card')); mk.dataset.t = r.t; mk.dataset.name = r.name; if (r.tok) mk.dataset.tok = r.tok; mk.setAttribute('aria-haspopup', 'menu'); pp.appendChild(mk); }
             if (r.tok) { var fb = prepBtn('prep-ib prep-findtok wib wi-marker', '', 'Find on the map'); fb.setAttribute('aria-label', 'Find ' + r.name + ' on the map'); fb.dataset.tok = r.tok; pp.appendChild(fb); }
             box.appendChild(pp);
         });

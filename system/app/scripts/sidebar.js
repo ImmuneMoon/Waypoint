@@ -689,7 +689,8 @@ function treeMenu(row) {
                 var childBtn = document.getElementById('ctxNewChildItem');
                 if (childBtn) {
                     childBtn.style.display = isTreeItem(it) ? 'block' : 'none';
-                    if (it) childBtn.textContent = it.type === 'planner' ? '+ New Child Planner' : it.type === 'doc' ? '+ New Child Page' : '+ New Child Map';
+                    // 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the row wears the plus drawing before its words, as the page writes it
+                    if (it) childBtn.innerHTML = '<i class="wib wi-plus"></i> ' + (it.type === 'planner' ? 'New Child Planner' : it.type === 'doc' ? 'New Child Page' : 'New Child Map');
                 }
                 // Move Up / Move Down: shown for any map or planner, grayed at the ends of its sibling list.
                 var isOrderable = isTreeItem(it);
@@ -706,7 +707,8 @@ function treeMenu(row) {
                 var parentBtn = document.getElementById('ctxNewParentItem');
                 if (parentBtn) {
                     parentBtn.style.display = isTreeItem(it) ? 'block' : 'none';
-                    if (it) parentBtn.innerHTML = it.type === 'planner' ? '&#8593; New Parent Planner' : it.type === 'doc' ? '&#8593; New Parent Page' : '&#8593; New Parent Map';
+                    // 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the stairs up drawing in place of the typed arrow, as the page writes it
+                    if (it) parentBtn.innerHTML = '<i class="wib wi-stairs-up"></i> ' + (it.type === 'planner' ? 'New Parent Planner' : it.type === 'doc' ? 'New Parent Page' : 'New Parent Map');
                 }
                 // Handbook page: the players switch (the same flip as the editor's button)
                 var isDocCtx = !!(it && it.type === 'doc');

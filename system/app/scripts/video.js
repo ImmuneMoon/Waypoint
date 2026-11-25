@@ -38,7 +38,7 @@ function metaOf(v) { return [v.dur ? fmtDur(v.dur) : '', fmtSize(v.size), v.w &&
 function rowsHtml(list, activeId) {
     return list.map(function(v) {
         return '<div class="vid-row' + (v.id === activeId ? ' active' : '') + '" data-id="' + esc(v.id) + '">'
-            + '<button class="tool ghost vid-show" title="Watch it here">&#9654;</button>'
+            + '<button class="tool ghost vid-show" title="Watch it here"><i class="wib wi-play"></i></button>'
             + '<input class="vid-name" value="' + esc(v.name) + '" maxlength="60" aria-label="Name" title="Rename it: players see this name when it plays">'
             + '<span class="vid-meta">' + esc(metaOf(v)) + '</span>'
             + '<button class="tool ghost vid-del" title="Delete the video (and its file from your saves folder)"><i class="wib wi-bin"></i></button></div>';
@@ -83,7 +83,7 @@ function liveWords(all, names, waiting) {
 function tableHtml(m) {   // m: { host, live, loop, all, players: [{ id, name, on }], words }
     var loopTick = '<label class="vid-tick" title="Play it round and round until you stop it (a mood clip). Without it, a video that reaches its end closes on the players&rsquo; screens by itself"><input type="checkbox" class="vid-loop"' + (m.loop ? ' checked' : '') + '> Loop</label>';
     if (!m.host) return '<div class="vid-table"><span class="vid-note">Host a table (<i class="wib wi-globe"></i>) to show this video to your players.</span>' + loopTick + '</div>';
-    if (m.live) return '<div class="vid-table"><button class="tool vid-stop" title="Stop showing it: it closes on the players&rsquo; screens">&#9632; Stop showing</button><span class="vid-live-line" role="status">&#9679; ' + esc(m.words) + '</span>' + loopTick + '</div>';
+    if (m.live) return '<div class="vid-table"><button class="tool vid-stop" title="Stop showing it: it closes on the players&rsquo; screens"><i class="wib wi-stop"></i> Stop showing</button><span class="vid-live-line" role="status">&#9679; ' + esc(m.words) + '</span>' + loopTick + '</div>';
     var ticks = '<label class="vid-tick"><input type="checkbox" class="vid-all"' + (m.all ? ' checked' : '') + '> Everyone</label>'
         + m.players.map(function(p) { return '<label class="vid-tick"><input type="checkbox" class="vid-who" data-pid="' + esc(p.id) + '"' + (m.all ? ' disabled checked' : p.on ? ' checked' : '') + '> ' + esc(p.name) + '</label>'; }).join('');
     return '<div class="vid-table"><button class="tool vid-go" title="Show this video live to the players ticked here: they see and hear what plays in your panel. You play, pause and seek for everyone"><i class="wib wi-cast"></i> Show to players</button><span class="vid-aud" role="group" aria-label="Show to">' + ticks + '</span>' + loopTick + '</div>';

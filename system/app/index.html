@@ -461,6 +461,7 @@
                           </li>
                           <li><b>Settings</b> lists its parts down its left side, and one part shows at a time.<ul>
                                   <li>On my screen holds the choices of this computer alone, such as the rulers, the theme and how dice land. This campaign holds the switches that reach your table.</li>
+                                  <li><b>Look</b> picks how Waypoint is drawn on your computer. <b>Slate</b> is its own: cool blue-gray, see-through windows and round buttons. <b>Lantern</b> is warm charcoal with soft corners. <b>Ink</b> is flat and square with capital titles. Each has a dark and a light side, which the theme switch picks.</li>
                                   <li><b>Text size</b> draws all of Waypoint larger or smaller, from 90 to 150 percent. Words, buttons and windows grow together, and the map keeps its own zoom. In a web browser, its own zoom does this.</li>
                                   <li><b>Easy-read font</b> draws Waypoint&rsquo;s own words in Atkinson Hyperlegible, made by the Braille Institute so that letters are hard to mix up. A text set in a font of its own keeps it. Atkinson Hyperlegible is in every Font list too.</li>
                                   <li><b>App font</b> picks the font for Waypoint&rsquo;s own words on your computer. Left on <b>The campaign&rsquo;s</b>, it follows the campaign&rsquo;s default look, and with none it is Waypoint&rsquo;s own. Easy-read font wins while it is ticked.</li>
@@ -5200,6 +5201,9 @@ Plain paragraphs are text: **bold**, *italic*, ~~strike~~, &lt;u&gt;underline&lt
             <div style="font-size:10.5px; color:var(--dim); line-height:1.4;">Only on this computer. In multiplayer every player picks their own.</div>
         </div>
             <div class="set-cap">How things look</div>
+            <div class="set-field-label">Look</div>
+            <div class="set-look-row"><span class="ui-seg" id="setLook" role="radiogroup" aria-label="Look"><button type="button" class="tool" role="radio" data-look="slate" title="Cool blue-gray, see-through windows and round buttons. Waypoint's own look.">Slate</button><button type="button" class="tool" role="radio" data-look="lantern" title="Warm charcoal, solid windows and soft corners.">Lantern</button><button type="button" class="tool" role="radio" data-look="ink" title="Flat and square, near black, capital titles.">Ink</button></span></div>
+            <div class="set-line">How Waypoint is drawn, in dark or light. Only on this computer.</div>
             <div class="set-field-label">Theme</div>
             <div class="theme-switch-row"><span class="theme-switch-icon" aria-hidden="true"><i class="wib wi-sun"></i></span><button class="theme-switch" id="setThemeBtn" role="switch" aria-checked="true" title="Dark / light toggle"><span class="theme-knob"></span></button><span class="theme-switch-icon" aria-hidden="true"><i class="wib wi-moon"></i></span></div>
             <label style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim); margin:-2px 0 8px; cursor:pointer;" title="Skip screen shake and shorten flashes on this machine (photosensitivity or a slow graphics card). Your setting only."><input type="checkbox" id="setFxReduced"> <span class="set-name"><span>Reduce motion</span><small>Skips screen shake and shortens flashes.</small></span></label>

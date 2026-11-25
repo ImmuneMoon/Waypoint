@@ -17,6 +17,13 @@ Names on the map
   every name on a map with Show names on this map in Map properties.
   Your players' pins follow, and Places here still lists every place.
 
+Three looks (draft for Fulllion)
+- Waypoint has a new look, Slate: cool blue-gray, see-through windows
+  and round buttons, with the top row floating as its own bar.
+- Prefer something else? Settings, On my screen, Look also has Lantern,
+  warm charcoal with soft corners, and Ink, flat and square. Each one has
+  a dark and a light side.
+
 The window bar (draft for Fulllion)
 - The desktop app's window has no system title bar any more. Its
   minimize, maximize and close buttons sit on a slim strip in the app's

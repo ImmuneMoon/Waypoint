@@ -88,7 +88,7 @@
   .app{display:flex;flex-direction:column;height:100vh}
   /* 1.6.4: the window bar (scripts/winbar.js). In the desktop app the system draws its three buttons over the top right corner and this strip is the ground they stand on, in the top row's own colors; --winbar is the height the system gives them, 0 in a browser, on a website and in a window of its own, so the strip is there only where they are. A box the app pins near the window's top keeps below it: an overlay that covers the window starts at var(--winbar) and is that much shorter, a banner's or a floating box's first top is moved down by it, and a height worked out from 100vh takes it off, so with --winbar 0 (a browser, the website, a window of its own, the stream window) nothing moves at all */
   :root { --winbar: env(titlebar-area-height, 0px); }
-  #winBar { flex: none; height: var(--winbar); background: var(--bg2); color: var(--ink); -webkit-app-region: drag; }
+  #winBar { flex: none; height: var(--winbar); background: var(--winbar-bg, var(--bg2)); color: var(--ink); -webkit-app-region: drag; }
   /* the viewing of 2026-11-09 (the owner, by prompt: "One font (Recommended)"): a button, a list and a text box take the app’s font, never the browser’s own Arial; any rule that names a font of its own still wins */
   button, input, select, textarea { font-family: inherit; }
   a.wp-mention { display: inline-block; padding: 0 7px; margin: 0 1px; border-radius: 10px; background: rgba(224,165,79,0.14); color: var(--gold); text-decoration: none; font-weight: 500; line-height: 1.45; }   /* 1.6.2 (backlog 166 f): a mention, a chip in its current name */
@@ -507,6 +507,21 @@
   .tool.modal-close:hover { color: var(--gold); }
   .tool.on{background:var(--gold);color:#1a1a1a;border-color:var(--gold);font-weight:700}
   .tool.danger:hover{border-color:var(--red);color:var(--red)}
+  /* 1.6.4: the looks' buttons and switches (the rest of the looks stands late in the sheet, "1.6.4: the looks"). They stand here, right after the base
+     rules of .tool and .seg-btn and the base states above, so a state (.tool.on, .tool.ghost, .tool.modal-close), a joined row (.ui-seg > .tool) and
+     every rule that sizes one particular button (.sys-btn, .sheet-pm, .sheet-item-roll and the rest) still win by weight or by coming later */
+  :where(html[data-look="slate"]:not([data-theme="light"])) .tool { background:rgba(148,163,184,.08); border-color:rgba(148,163,184,.2); }
+  :where(html[data-look="slate"][data-theme="light"]) .tool { background:rgba(30,41,59,.05); border-color:rgba(30,41,59,.15); }
+  :where(html[data-look="slate"]) .tool { border-radius:99px; padding-left:13px; padding-right:13px; }
+  :where(html[data-look="slate"]) .tool.modal-close { border-radius:99px; }
+  :where(html[data-look="slate"]) .seg-btn { border-radius:99px; }
+  :where(html[data-look="lantern"]) .tool { border-radius:8px; border-color:var(--edge); }
+  :where(html[data-look="lantern"][data-theme="light"]) .tool { background:var(--panel); }
+  :where(html[data-look="lantern"]:not([data-theme="light"])) .tool:not(:disabled):hover { border-color:rgba(255,255,255,.22); }
+  :where(html[data-look="lantern"]) .seg-btn { border-radius:8px; }
+  :where(html[data-look="ink"]) .tool { border-radius:2px; text-transform:uppercase; letter-spacing:.06em; font-size:11px; padding:6px 10px; background:var(--panel); }
+  :where(html[data-look="ink"]) .tool.modal-close { border-radius:2px; }
+  :where(html[data-look="ink"]) .seg-btn { border-radius:2px; text-transform:uppercase; letter-spacing:.06em; font-size:11px; }
   .save-note{font-size:11px;color:var(--faint);letter-spacing:.04em;white-space:nowrap;min-width:92px;text-align:right}
   .save-note b{color:var(--green)}
 
@@ -3650,6 +3665,7 @@
 
   /* Appearance switch (Settings): sun on the left, moon on the right, the knob slides between */
   .theme-switch-row { display: flex; align-items: center; gap: 10px; }
+  .set-look-row + .set-line { margin: 4px 0 10px; }   /* 1.6.4: the Look choice's line, with room before Theme */
   .theme-switch-icon { font-size: 16px; line-height: 1; }
   .theme-switch { position: relative; width: 52px; height: 28px; border-radius: 14px; border: 1px solid var(--edge); background: var(--bg2); cursor: pointer; padding: 0; transition: background .2s, border-color .2s; flex: 0 0 auto; }
   .theme-switch:hover { border-color: var(--gold); }
@@ -7009,6 +7025,105 @@
 .cal-rest-go { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .cal-rest-go .cal-restcall-map { flex: 1 1 140px; min-width: 120px; width: auto; }
 .cal-rest-npc { display: block; margin: 2px 0 2px 4px; }
+
+/* 1.6.4: the looks (Fulllion, 2026-11-24, after the look page's renders: "lets go with slate and keep the other two for options that people can pick
+   from if they want to change the look"). A look is the app's colors and the shape of its common parts: windows, buttons, switches, boxes, the rail,
+   section titles, the welcome screen's cards, the top row and the toolbar. html[data-look] says which (boottheme.js writes it before the style
+   sheet is read, from wp_look, Slate where none is kept), html[data-theme] says dark or light as before, and Settings, On my screen, Look picks it
+   (settings.js). Each look has a dark half and a light half.
+   - The colors are the shared names most of this sheet reads (--bg, --panel, --edge, --ink and the rest), set by html[data-look] with or without
+     [data-theme="light"], which outweighs :root and the light theme's own block wherever they stand. The surfaces stay solid (--panel, --panel2,
+     --deep): a held table column, a pinned heading and a sticky bar paint over what scrolls under them.
+   - The shapes are written :where(html[data-look]) so each weighs exactly what the rule it reshapes weighs and wins only by coming later. A state
+     (.tool.on, :hover), a joined row (.ui-seg, a box with its arrows), a sheet's own accent and anything more particular keep their own look. The
+     buttons' and switches' shapes stand early in the sheet, right after their base rules ("the looks' buttons and switches"), so every rule that sizes
+     one particular button still wins; the rest stands here, late, after the rules it reshapes. !important stands only where the render's shape
+     must beat a window's own id rule (a window's corners, edge and shadow, and Ink's capital window titles).
+   - Slate's glass (a blur behind a see-through bar) is on the map's floating toolbars and the welcome cards alone: a blur makes a box a containing
+     block for what it holds (the text bar inside a sheet or the Journal) and costs a frame wherever the map moves behind it. It turns solid where
+     the system asks for less transparency.
+   - --winbar-bg is the ground the window bar's strip wears (#winBar, winbar.js), the ground directly around the top row in each look.
+   A look never adds or removes a control. Rules after the layout editor's comment below are the layout editor's alone (layoutcheck), so a look's
+   rule goes here. */
+html[data-look="slate"]:not([data-theme="light"]) { --bg:#10141b; --bg2:#121721; --panel:#161b24; --panel2:#1e2430; --edge:rgba(148,163,184,.2); --ink:#e7ebf2; --dim:#8e99aa; --faint:#647083;
+  --gold:#e8b05a; --bg3:#141922; --deep:#10141c; --plate:rgba(148,163,184,.16); --hdr-top:#10141b; --canvas-a:#172030; --canvas-b:#10141b; --canvas-c:#0b0e14;
+  --shadow:0 24px 60px rgba(0,0,0,.5); --winbar-bg:#10141b; }
+html[data-look="slate"][data-theme="light"] { --bg:#eef1f5; --bg2:#e6eaf0; --panel:#ffffff; --panel2:#f8fafc; --edge:rgba(30,41,59,.14); --ink:#1b2330; --dim:#5a6577; --faint:#8a94a4;
+  --gold:#a8690f; --bg3:#e9edf2; --deep:#ffffff; --plate:rgba(30,41,59,.06); --hdr-top:#eef1f5; --canvas-a:#eef2f7; --canvas-b:#e5eaf1; --canvas-c:#d9dfe8;
+  --shadow:0 24px 60px rgba(20,30,50,.18); --winbar-bg:#eef1f5; }
+html[data-look="lantern"]:not([data-theme="light"]) { --bg:#141418; --bg2:#111115; --panel:#18181d; --panel2:#1f1f25; --edge:rgba(255,255,255,.10); --ink:#ecebf1; --dim:#9b9aa8; --faint:#6c6b78;
+  --bg3:#16161b; --deep:#111115; --plate:#26262d; --hdr-top:#111115; --canvas-a:#18181e; --canvas-b:#131317; --canvas-c:#0f0f12;
+  --shadow:0 18px 48px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.4); --winbar-bg:#111115; }
+html[data-look="lantern"][data-theme="light"] { --bg:#f1eee8; --bg2:#ebe7df; --panel:#fdfcfa; --panel2:#f6f3ed; --edge:rgba(60,45,20,.14); --ink:#22201d; --dim:#6a6458; --faint:#9a9384;
+  --gold:#a86f14; --bg3:#eeeae2; --deep:#faf8f4; --plate:#efebe3; --hdr-top:#faf8f4; --canvas-a:#f3f0ea; --canvas-b:#ebe7df; --canvas-c:#e2ddd3;
+  --shadow:0 18px 48px rgba(40,30,10,.16), 0 0 0 1px rgba(40,30,10,.05); --winbar-bg:#faf8f4; }
+html[data-look="ink"]:not([data-theme="light"]) { --bg:#0d0d0f; --bg2:#0a0a0b; --panel:#121214; --panel2:#18181b; --edge:#2e2e33; --ink:#f4f3f0; --dim:#8f8e8a; --faint:#5f5e5a;
+  --gold:#f0b357; --bg3:#101012; --deep:#0a0a0b; --plate:#1f1f23; --hdr-top:#0a0a0b; --canvas-a:#111113; --canvas-b:#0d0d0f; --canvas-c:#09090a;
+  --shadow:0 14px 40px rgba(0,0,0,.75); --winbar-bg:#0a0a0b; }
+html[data-look="ink"][data-theme="light"] { --bg:#fafafa; --bg2:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --edge:#d6d6d3; --ink:#0f0f10; --dim:#6b6b68; --faint:#9c9c98;
+  --gold:#9a640e; --bg3:#f2f2f1; --deep:#ffffff; --plate:#efefed; --hdr-top:#ffffff; --canvas-a:#f6f6f5; --canvas-b:#eeeeec; --canvas-c:#e6e6e4;
+  --shadow:0 14px 40px rgba(0,0,0,.14); --winbar-bg:#ffffff; }
+/* the top row's look weighs body and header, more than the row's own rule and less than the hidden row's, which keeps its own bar (no ground, no edge) */
+body.row-hidden:not(.tour-on) header { margin:0; border-radius:0; }   /* the hidden row's bar floats on its own, in any look */
+
+/* Slate: cool blue-gray, pill buttons and switches, round corners (10, 12, 16 and 20), the top row a floating rounded bar, glass toolbars */
+:where(html[data-look="slate"]) body { background:var(--bg); }
+:where(html[data-look="slate"]:not([data-theme="light"])) body header { background:rgba(16,20,28,.75); border:1px solid rgba(148,163,184,.18); }
+:where(html[data-look="slate"][data-theme="light"]) body header { background:rgba(255,255,255,.72); border:1px solid rgba(30,41,59,.12); }
+:where(html[data-look="slate"]) body header { margin:8px 8px 0; border-radius:16px; }
+:where(html[data-look="slate"]) :is([id$="Modal"]:not(#docReaderModal) > div:first-child, #sheetPanel, .set-box) { border-radius:20px !important; border:1px solid var(--edge) !important; box-shadow:var(--shadow) !important; }
+:where(html[data-look="slate"]) :is([id$="Modal"]:not(#docReaderModal), #sheetPanel) h3:not(.doc-view h3) { color:var(--ink); }
+:where(html[data-look="slate"]:not([data-theme="light"])) .sheet-sec-title { color:var(--sheet-accent, #9fb0c8); letter-spacing:.02em; }
+:where(html[data-look="slate"]:not([data-theme="light"])) .section-title { color:#9fb0c8; letter-spacing:.02em; }
+:where(html[data-look="slate"][data-theme="light"]) .sheet-sec-title { color:var(--sheet-accent, #4b5a70); letter-spacing:.02em; }
+:where(html[data-look="slate"][data-theme="light"]) .section-title { color:#4b5a70; letter-spacing:.02em; }
+:where(html[data-look="slate"]) .rail-btn { border-radius:12px; }
+:where(html[data-look="slate"]) :is(.field, select, input[type=text], input[type=number], input[type=search], textarea) { border-radius:10px; }
+:where(html[data-look="slate"]:not([data-theme="light"])) :is(.wc-card, .wc-profile) { background:rgba(30,38,52,.55); border-color:rgba(148,163,184,.18); }
+:where(html[data-look="slate"][data-theme="light"]) :is(.wc-card, .wc-profile) { background:rgba(255,255,255,.62); border-color:rgba(30,41,59,.12); }
+:where(html[data-look="slate"]) :is(.wc-card, .wc-profile) { border-radius:20px; backdrop-filter:blur(10px); }
+:where(html[data-look="slate"]:not([data-theme="light"])) .floating-toolbar { background:rgba(18,22,30,.7); box-shadow:0 12px 34px rgba(0,0,0,.45); }
+:where(html[data-look="slate"][data-theme="light"]) .floating-toolbar { background:rgba(255,255,255,.74); box-shadow:0 12px 34px rgba(20,30,50,.18); }
+:where(html[data-look="slate"]) .floating-toolbar { border-radius:20px; border-color:var(--edge); backdrop-filter:blur(14px); }
+:where(html[data-look="slate"]) .wb-tool-btn { border-radius:12px; }
+@media (prefers-reduced-transparency: reduce) {
+  :where(html[data-look="slate"]:not([data-theme="light"])) :is(body header, .floating-toolbar, .wc-card, .wc-profile) { background:#161b24; }
+  :where(html[data-look="slate"][data-theme="light"]) :is(body header, .floating-toolbar, .wc-card, .wc-profile) { background:#ffffff; }
+  :where(html[data-look="slate"]) :is(.floating-toolbar, .wc-card, .wc-profile) { backdrop-filter:none; }
+}
+
+/* Lantern: warm charcoal (or warm paper in light), soft corners (6, 8, 9 and 14), a lit glow on what is on */
+:where(html[data-look="lantern"]) body { background:var(--bg); }
+:where(html[data-look="lantern"]) body header { background:var(--hdr-top); border-bottom:1px solid var(--edge); }
+:where(html[data-look="lantern"]:not([data-theme="light"])) :is([id$="Modal"]:not(#docReaderModal) > div:first-child, #sheetPanel, .set-box) { box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.06) !important; }
+:where(html[data-look="lantern"][data-theme="light"]) :is([id$="Modal"]:not(#docReaderModal) > div:first-child, #sheetPanel, .set-box) { box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.8) !important; }
+:where(html[data-look="lantern"]) :is([id$="Modal"]:not(#docReaderModal) > div:first-child, #sheetPanel, .set-box) { border-radius:14px !important; border:1px solid var(--edge) !important; }
+:where(html[data-look="lantern"]) :is([id$="Modal"]:not(#docReaderModal), #sheetPanel) h3:not(.doc-view h3) { color:var(--ink); }
+:where(html[data-look="lantern"]) .sheet-sec-title { color:var(--sheet-accent, var(--dim)); letter-spacing:.03em; }
+:where(html[data-look="lantern"]) .section-title { color:var(--dim); letter-spacing:.03em; }
+:where(html[data-look="lantern"]:not([data-theme="light"])) :is(.tool.on, .wb-tool-btn.active, .seg-btn.active) { box-shadow:0 0 0 1px rgba(0,0,0,.25), 0 4px 14px rgba(224,165,79,.30); }
+:where(html[data-look="lantern"][data-theme="light"]) :is(.tool.on, .wb-tool-btn.active, .seg-btn.active) { box-shadow:0 0 0 1px rgba(60,45,20,.12), 0 4px 12px rgba(168,111,20,.25); }
+:where(html[data-look="lantern"]) .rail-btn { border-radius:9px; }
+:where(html[data-look="lantern"]) :is(.field, select, input[type=text], input[type=number], input[type=search], textarea) { border-radius:6px; }
+:where(html[data-look="lantern"]:not([data-theme="light"])) :is(.wc-card, .wc-profile) { background:linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.01)), #18181d; box-shadow:inset 0 1px 0 rgba(255,255,255,.05); }
+:where(html[data-look="lantern"][data-theme="light"]) :is(.wc-card, .wc-profile) { background:linear-gradient(180deg, #ffffff, #f8f6f1); box-shadow:0 1px 2px rgba(40,30,10,.06); }
+:where(html[data-look="lantern"]) :is(.wc-card, .wc-profile) { border-radius:14px; }
+:where(html[data-look="lantern"]:not([data-theme="light"])) .floating-toolbar { box-shadow:0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.35); }
+:where(html[data-look="lantern"][data-theme="light"]) .floating-toolbar { box-shadow:0 10px 28px rgba(40,30,10,.18); }
+:where(html[data-look="lantern"]) .floating-toolbar { border-radius:14px; border-color:var(--edge); background:var(--hdr-top); }
+
+/* Ink: flat and square (2 to 6), near black or white, capital titles and button words */
+:where(html[data-look="ink"]) body { background:var(--bg); }
+:where(html[data-look="ink"]) body header { background:var(--hdr-top); border-bottom:1px solid var(--edge); }
+:where(html[data-look="ink"]) :is([id$="Modal"]:not(#docReaderModal) > div:first-child, #sheetPanel, .set-box) { border-radius:4px !important; border:1px solid var(--edge) !important; box-shadow:var(--shadow) !important; }
+:where(html[data-look="ink"]) :is([id$="Modal"]:not(#docReaderModal), #sheetPanel) h3:not(.doc-view h3) { color:var(--ink); text-transform:uppercase; letter-spacing:.09em; font-size:13px !important; }
+:where(html[data-look="ink"]) .sheet-sec-title { color:var(--sheet-accent, var(--ink)); letter-spacing:.12em; }
+:where(html[data-look="ink"]) .section-title { color:var(--ink); letter-spacing:.12em; }
+:where(html[data-look="ink"]) .rail-btn { border-radius:3px; }
+:where(html[data-look="ink"]) :is(.field, select, input[type=text], input[type=number], input[type=search], textarea) { border-radius:2px; }
+:where(html[data-look="ink"]) :is(.wc-card, .wc-profile) { border-radius:4px; border-left:2px solid var(--gold); }
+:where(html[data-look="ink"]) .floating-toolbar { border-radius:6px; border-color:var(--edge); background:var(--hdr-top); }
+:where(html[data-look="ink"]) .wb-tool-btn { border-radius:4px; }
 
 /* 1.6.2 (backlog 224): the layout editor (layout.js). Every rule waits for body.lay-on, which layout.js writes only while a layout is set,
    the map's area is wide enough and the view is a map, so with no layout, on a narrow area and in the stream window the page is as before.

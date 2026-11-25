@@ -409,8 +409,9 @@ function openPill() {
     var slider = el('input'); slider.type = 'range'; slider.min = 0; slider.max = 100; slider.value = Math.round(mvol * 100); slider.className = 'music-vol'; slider.addEventListener('input', function() { setVolume(Number(slider.value) / 100); });
     row.appendChild(mute); row.appendChild(slider); pop.appendChild(row);
     if (window.wpUi) window.wpUi.typed(slider, { unit: '%', label: 'Music volume in percent' });   // 1.6.2: a slider's figure typed
-    if (canWrite()) { var open = el('button', 'tool ghost music-pillpop-open', 'Open music panel'); open.addEventListener('click', function() { closePill(); openPanel(); }); pop.appendChild(open); }
-    var off = el('button', 'tool ghost music-pillpop-off', 'Turn music off for me'); off.title = 'Settings ▸ This campaign'; off.addEventListener('click', function() { if (window.wpVtt && window.wpVtt.setLocal) { window.wpVtt.setLocal('music', true); } closePill(); }); pop.appendChild(off);
+    // 1.6.4 (Fulllion, 2026-11-25, by prompt: "Use these drawings"): the two word buttons wear a drawing before their words, the pop-out and music switched off
+    if (canWrite()) { var open = el('button', 'wib wi-popout tool ghost music-pillpop-open', 'Open music panel'); open.addEventListener('click', function() { closePill(); openPanel(); }); pop.appendChild(open); }
+    var off = el('button', 'wib wi-musicoff tool ghost music-pillpop-off', 'Turn music off for me'); off.title = 'Settings ▸ This campaign'; off.addEventListener('click', function() { if (window.wpVtt && window.wpVtt.setLocal) { window.wpVtt.setLocal('music', true); } closePill(); }); pop.appendChild(off);
     showPill(pop);
 }
 
@@ -587,9 +588,10 @@ function renderPanel() {
     m.playlists.forEach(function(pl) {
         var row = el('div', 'music-pl' + (pl.id === selPl ? ' sel' : ''));
         var nm = el('span', 'music-pl-name', pl.name + '  (' + pl.tracks.length + ')'); nm.addEventListener('click', function() { selPl = pl.id === selPl ? null : pl.id; renderPanel(); }); row.appendChild(nm);
-        var play0 = el('button', 'tool ghost', '▶'); play0.title = 'Play this playlist'; play0.addEventListener('click', function() { play({ kind: 'playlist', id: pl.id, loop: 'list', shuffle: st.shuffle }); }); row.appendChild(play0);
+        // 1.6.4 (Fulllion, 2026-11-25, by prompt: "Use these drawings"): Play and Delete wear their drawings in place of a typed glyph, and say their names to a screen reader
+        var play0 = el('button', 'wib wi-play tool ghost'); play0.title = 'Play this playlist'; play0.ariaLabel = play0.title; play0.addEventListener('click', function() { play({ kind: 'playlist', id: pl.id, loop: 'list', shuffle: st.shuffle }); }); row.appendChild(play0);
         var ren = el('button', 'tool ghost wib wi-pen'); ren.title = 'Rename'; ren.addEventListener('click', function() { if (window.wpPrompt) window.wpPrompt('Rename playlist', pl.name, function(v) { if (v == null) return; pl.name = cleanName(v, pl.name); save(true); renderPanel(); }); }); row.appendChild(ren);
-        var del = el('button', 'tool ghost music-del', '×'); del.title = 'Delete this playlist'; del.addEventListener('click', function() { var mw = campMusicW(); mw.playlists = mw.playlists.filter(function(x) { return x.id !== pl.id; }); if (selPl === pl.id) selPl = null; save(true); renderPanel(); }); row.appendChild(del);
+        var del = el('button', 'wib wi-bin tool ghost music-del'); del.title = 'Delete this playlist'; del.ariaLabel = del.title; del.addEventListener('click', function() { var mw = campMusicW(); mw.playlists = mw.playlists.filter(function(x) { return x.id !== pl.id; }); if (selPl === pl.id) selPl = null; save(true); renderPanel(); }); row.appendChild(del);
         plWrap.appendChild(row);
         if (pl.id === selPl) {
             var tl = el('div', 'music-pl-tracks');

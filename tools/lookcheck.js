@@ -5268,5 +5268,50 @@ if (mode === 'samples') {
         && cssP.includes('  .sheet-field.sheet-tile .sheet-pmstep:not(.sheet-steppers-inside *):not(#sheetPrint *) { flex-direction: column; height: auto; }')
         && cssP.includes('  :is(.sheet-steppers-inside, #sheetPrint) .sheet-pmstep { display: contents; }'));
 }
+{
+    // 1.6.4 (Fulllion, 2026-11-25, by prompt: "Use these drawings", and "Drawing before the words" for the sheet head): the controls that wore a typed
+    // glyph or no drawing at all wear one of the app's own drawings. A room's entry card and its picture row, a map category's delete, a piece's
+    // commands, the Layers list's folds and moves, the music popover and a playlist's row, a list row's remove (or its Buy off menu), a look's Add a
+    // color, the sheet head with its More menu, and a page block's head tools and a table row's menu. Each is held here to its drawing by the words
+    // it stands with, and the glyph it wore before is gone from that very place
+    const insD = read('scripts/inspector.js'), musD = read('scripts/music.js'), shD = read('scripts/sheets.js'), plD = read('scripts/planner.js'), ixD = read('index.html');
+    const hA = ixD.indexOf('<div id="sheetHead">'), headD = hA < 0 ? '' : ixD.slice(hA, ixD.indexOf('\n', hA));
+    // the sheet head: the two classes first on the button itself, so the drawing stands before whatever words a script writes into it
+    const HEAD_D = [['sheetEndTurn', 'endturn'], ['sheetName', 'pen'], ['sheetDone', 'check'], ['sheetPic', 'pic'], ['sheetUpload', 'up'], ['sheetReview', 'clip'],
+        ['sheetUnlock', 'unlock'], ['sheetNotes', 'note'], ['sheetEdit', 'pen'], ['sheetAsPlayer', 'person'], ['sheetArrange', 'arrange'], ['sheetHideFig', 'hide'],
+        ['sheetHideRolls', 'hide'], ['sheetTemplate', 'dup'], ['sheetFromTemplate', 'plus'], ['sheetDelete', 'bin']];
+    const headMiss = HEAD_D.filter(([id, d]) => !new RegExp('<button class="wib wi-' + d + ' [^"]*" id="' + id + '"').test(headD)).map(x => x[0]);
+    const WANT = [
+        [insD, 'char-portrait-btn" data-idx="\'+i+\'"><i class="wib wi-pic"></i> \'+(c.portrait?'],
+        [insD, 'data-idx="\'+i+\'" style="flex:0 0 auto;"><i class="wib wi-close"></i></button>'],
+        [insD, 'del-char" aria-label="Remove Character" data-idx="\'+i+\'"><i class="wib wi-close"></i> Remove</button>'],
+        [insD, 'id="fImgClearBtn"><i class="wib wi-close"></i> Remove</button>'],
+        [insD, 'style="padding:2px 6px;"><i class="wib wi-bin"></i></button>'],
+        [insD, '<i class="wib wi-fitcells"></i> Fit to grid cells</button>'], [insD, '<i class="wib wi-aligngrid"></i> Align its grid</button>'],
+        [insD, '<i class="wib wi-corners"></i> Trim to cells</button>'], [insD, '<i class="wib wi-pic"></i> Whole picture</button>'], [insD, '<i class="wib wi-bin"></i> Delete</button>'],
+        [insD, '<i class="wib wi-\' + (sh ? \'chev\' : \'chevdown\') + \'"></i></button>'], [insD, '<i class="wib wi-\' + (gs ? \'chev\' : \'chevdown\') + \'"></i></button>'],
+        [insD, '<i class="wib wi-arrup"></i></button>'], [insD, '<i class="wib wi-arrdown"></i></button></span>'],
+        [musD, "el('button', 'wib wi-popout tool ghost music-pillpop-open', 'Open music panel')"], [musD, "el('button', 'wib wi-musicoff tool ghost music-pillpop-off', 'Turn music off for me')"],
+        [musD, "var play0 = el('button', 'wib wi-play tool ghost'); play0.title = 'Play this playlist'; play0.ariaLabel = play0.title;"],
+        [musD, "var del = el('button', 'wib wi-bin tool ghost music-del'); del.title = 'Delete this playlist'; del.ariaLabel = del.title;"],
+        [shD, "el('button', 'wib wi-' + (boH ? 'dots' : 'close') + ' tool ghost sheet-item-rm'"], [shD, "tag(el('button', 'wib wi-plus tool ghost sheet-look-x'), 'ca')"],
+        [shD, "el('button', 'wib wi-dots tool ghost notepad-btn sheet-more-btn'); btn.id = 'sheetMoreBtn';"],
+        [shD, "ulB.classList.toggle('wi-lock', c.unlocked === 1); ulB.classList.toggle('wi-unlock', c.unlocked !== 1);"], [shD, "edB.classList.toggle('wi-pen', lockedS); edB.classList.toggle('wi-lock', !lockedS);"],
+        [plD, '<i class="wib wi-check"></i> Done</button>'], [plD, '<i class="wib wi-scroll"></i> Hand out'],
+        [plD, 'aria-label="Move up"><i class="wib wi-arrup"></i></button>'], [plD, 'aria-label="Move down"><i class="wib wi-arrdown"></i></button>'],
+        [plD, 'aria-label="Row menu"><i class="wib wi-dots"></i></button>']];
+    const wantMiss = WANT.map((w, i) => w[0].includes(w[1]) ? -1 : i).filter(i => i >= 0);
+    // the glyphs they wore are gone from those very places
+    const GONE = [[insD, '&#8862; Fit to grid cells'], [insD, "(sh ? '&#9656;' : '&#9662;')"], [insD, "(gs ? '&#9656;' : '&#9662;')"], [insD, '">&#9650;</button>'], [insD, '">&#9660;</button>'],
+        [insD, 'style="flex:0 0 auto;">&times;</button>'], [musD, "el('button', 'tool ghost', '▶')"], [musD, "'tool ghost music-del', '×'); del.title"],
+        [shD, "boH ? '⋯' : '×'"], [shD, "'tool ghost sheet-look-x', '+'"], [shD, "sheet-more-btn', '\\u22ef'"],
+        [plD, 'above it">▲</button>'], [plD, 'below it">▼</button>'], [plD, 'aria-label="Row menu">\\u22ef</button>']];
+    const goneMiss = GONE.map((g, i) => g[0].includes(g[1]) ? i : -1).filter(i => i >= 0);
+    // every drawing named is one style.css draws
+    const cssD = read('style.css'), named = ['pic', 'close', 'bin', 'fitcells', 'aligngrid', 'corners', 'chev', 'chevdown', 'arrup', 'arrdown', 'popout', 'musicoff', 'play', 'dots', 'plus', 'lock', 'unlock',
+        'endturn', 'pen', 'check', 'up', 'clip', 'note', 'person', 'arrange', 'hide', 'dup', 'scroll'].filter(n => !cssD.includes('  .wi-' + n + ' { --wi: url('));
+    check('1.6.4, the controls with a typed glyph or no drawing wear the app\'s own drawings ("Use these drawings"): a room\'s entry card and picture row, a map category\'s delete, a piece\'s commands, the Layers list\'s folds and moves, the music popover and a playlist\'s row, a row\'s remove or Buy off menu, a look\'s Add a color, the sheet head and its More menu (the drawing first on the button, following Edit sheet and Unlock for player as they turn), a page block\'s head tools and a table row\'s menu; the glyphs they wore are gone',
+        hA > 0 && !headMiss.length && !wantMiss.length && !goneMiss.length && !named.length, JSON.stringify({ headMiss, wantMiss, goneMiss, named }));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

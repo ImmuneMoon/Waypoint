@@ -3483,7 +3483,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             JSON.stringify(p2) === before && /whole number/.test(typo) && saves.length === 1 && /no longer on this map/.test(toasts[toasts.length - 1]) && prompts.length === 0);
         check('Align its grid is wired: the placement hands its click on, Properties offers it for a map picture on a gridded map beside Fit to grid cells, and its button presses wpAlignPic',
             wbA.includes("    if (P.align) { alignStep(P.align, sx, sy); return; }") && wbA.indexOf('// [buildcheck:alignpic-start]') > wbA.indexOf('function fitToGrid(')
-            && /w\.type === 'image' && !w\.isChar && !w\.waiting \? '<button class="tool ghost" id="wbAlignPic" title="[^"]+">Align its grid<\/button>'/.test(insA) && insA.includes("if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });"));
+            && /w\.type === 'image' && !w\.isChar && !w\.waiting \? '<button class="tool ghost" id="wbAlignPic" title="[^"]+"><i class="wib wi-aligngrid"><\/i> Align its grid<\/button>'/.test(insA) /* 1.6.4: the control now wears its drawing (Fulllion, 2026-11-25, "Use these drawings"), moved on purpose */ && insA.includes("if (_el_wbAlignPic) _el_wbAlignPic.addEventListener('click', function() { if (window.wpAlignPic) window.wpAlignPic(w); });"));
         const ixA = read('system/app/index.html');
         check('Align its grid is said in Help and both release notes', ixA.includes('<b>Align its grid</b>') && [read('WHATSNEW.txt'), read('system/app/assets/whatsnew.txt')].every(t => t.includes('Align its grid')));
     }

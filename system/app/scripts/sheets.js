@@ -2143,9 +2143,11 @@ function renderSheet() {
     var dlB = ui('sheetDownload'); if (dlB) dlB.style.display = canOpen(c.id) && !c.partial ? '' : 'none';   // Onboarding F2a: whoever may open it takes it away
     var dnB = ui('sheetDone'); if (dnB) { var dnOn = isClient() && own && !c.partial && (c.making === 1 || c.unlocked === 1); dnB.style.display = dnOn ? '' : 'none'; }   // Onboarding F3: the owner's Done
     var nmB = ui('sheetName'); if (nmB) nmB.style.display = isClient() && own && !c.partial && c.making === 1 ? '' : 'none';   // renamed only while in the making (owner)
-    var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock for player' : 'Unlock for player'; ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
+    // 1.6.4 (Fulllion, 2026-11-25, by prompt: "Use these drawings"): Unlock for player and Edit sheet wear their drawing on the button itself (index.html), so it stands before the words written here,
+    // and it follows the words: an open lock beside Unlock for player and a pen beside Edit sheet, a shut lock beside either Lock
+    var ulB = ui('sheetUnlock'); if (ulB) { var ulOn = gm && !!c.ownerId && !c.npc && c.making !== 1 && c.review !== 1; ulB.style.display = ulOn ? '' : 'none'; if (ulOn) { ulB.textContent = c.unlocked === 1 ? 'Lock for player' : 'Unlock for player'; ulB.classList.toggle('wi-lock', c.unlocked === 1); ulB.classList.toggle('wi-unlock', c.unlocked !== 1); ulB.title = c.unlocked === 1 ? 'Lock it again: its player keeps only the fields they may always change' : 'Let its player fill in every field they can see (they press Done when finished)'; } }
     // [systemcheck:sheetedit-start]
-    var edB = ui('sheetEdit'); if (edB) { var edOn = !c.partial && c.making !== 1 && (gm ? canWrite() : own); edB.style.display = edOn ? '' : 'none'; if (edOn) { edB.textContent = lockedS ? 'Edit sheet' : 'Lock sheet'; edB.classList.toggle('on', !lockedS); edB.title = lockedS ? 'This sheet is locked. Rolls, pools, switches, effects and what you carry still work. Edit sheet lets you change its stats, levels, lists and notes' : 'Lock the sheet again, so that a slip while you play changes none of its stats'; } }
+    var edB = ui('sheetEdit'); if (edB) { var edOn = !c.partial && c.making !== 1 && (gm ? canWrite() : own); edB.style.display = edOn ? '' : 'none'; if (edOn) { edB.textContent = lockedS ? 'Edit sheet' : 'Lock sheet'; edB.classList.toggle('on', !lockedS); edB.classList.toggle('wi-pen', lockedS); edB.classList.toggle('wi-lock', !lockedS); edB.title = lockedS ? 'This sheet is locked. Rolls, pools, switches, effects and what you carry still work. Edit sheet lets you change its stats, levels, lists and notes' : 'Lock the sheet again, so that a slip while you play changes none of its stats'; } }
     p.classList.toggle('sheet-editing', !lockedS);
     // [systemcheck:sheetedit-end]
     var arrH = ui('sheetArrange'); if (arrH) arrH.style.display = gm && canWrite() && !c.partial ? '' : 'none';   // 1.6.2
@@ -3433,7 +3435,8 @@ function rmPartsN(sysR, c, f, rowId) {
 }
 function itemRmBtn(entry, def, c, f) {
     var boH = typeof buyOffHere === 'function' && buyOffHere(entry, f);   // 1.6.4 Buy off: on such a list the row's button is a ⋯ menu that holds Buy off and the plain Remove, never a Buy off beside the ×
-    var rm = el('button', 'tool ghost sheet-item-rm' + (boH ? ' sheet-item-more' : ''), boH ? '⋯' : '×'); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : boH ? 'Buy off or remove ' + def.name : 'Remove ' + def.name; rm.ariaLabel = rm.title;
+    // 1.6.4 (Fulllion, 2026-11-25, by prompt: "Use these drawings"): the remove button wears the close drawing, and on a list that may be bought off the dots of its menu, in place of a typed glyph
+    var rm = el('button', 'wib wi-' + (boH ? 'dots' : 'close') + ' tool ghost sheet-item-rm' + (boH ? ' sheet-item-more' : '')); rm.title = entry.hid === 1 ? 'Dispel: remove ' + def.name + ' from the character' : boH ? 'Buy off or remove ' + def.name : 'Remove ' + def.name; rm.ariaLabel = rm.title;
     if (typeof layHere === 'function' && layHere(entry, f, 'qty')) { rm.disabled = true; rm.title = 'Laid by a row of another list: it goes when that row goes'; rm.ariaLabel = rm.title; }   // 1.6.2 Laid from
     rm.addEventListener('click', function() { if (boH && typeof buyOffMenu === 'function') buyOffMenu(rm, entry, def, c, f); else itemRmGo(entry, def, c, f); }); return rm;
 }
@@ -3986,7 +3989,7 @@ function finishFields(c, f, fz, pn, rec, names, rm) {   // one finish's boxes: a
         var cx = tag(el('button', 'wib wi-close tool ghost sheet-look-x'), 'cx' + i); cx.type = 'button'; cx.title = 'Take this color off'; cx.setAttribute('aria-label', cx.title); cx.addEventListener('click', function() { fz.colors.splice(i, 1); renderViews(c.id); });
         cw.appendChild(ci); cw.appendChild(cx);
     });
-    if (fz.colors.length < ROW_LOOK.colors) { var ca = tag(el('button', 'tool ghost sheet-look-x', '+'), 'ca'); ca.type = 'button'; ca.title = 'Add a color, up to ' + ROW_LOOK.colors; ca.setAttribute('aria-label', ca.title); ca.addEventListener('click', function() { fz.colors.push('#808080'); renderViews(c.id); }); cw.appendChild(ca); }
+    if (fz.colors.length < ROW_LOOK.colors) { var ca = tag(el('button', 'wib wi-plus tool ghost sheet-look-x'), 'ca'); ca.type = 'button'; ca.title = 'Add a color, up to ' + ROW_LOOK.colors; ca.setAttribute('aria-label', ca.title); ca.addEventListener('click', function() { fz.colors.push('#808080'); renderViews(c.id); }); cw.appendChild(ca); }
     row.appendChild(cw);
     var fi = tag(el('input', 'field sheet-look-finish'), 'f'); fi.type = 'text'; fi.maxLength = ROW_LOOK.finish; fi.placeholder = 'Finish: polished, matte, weathered'; fi.value = typeof fz.finish === 'string' ? fz.finish : ''; fi.addEventListener('input', function() { fz.finish = fi.value; }); row.appendChild(fi);
     var mi = tag(el('input', 'field sheet-look-marks'), 'm'); mi.type = 'text'; mi.maxLength = ROW_LOOK.marks; mi.placeholder = 'Markings, patterns, engraving, trim'; mi.value = typeof fz.markings === 'string' ? fz.markings : ''; mi.addEventListener('input', function() { fz.markings = mi.value; }); row.appendChild(mi);
@@ -8084,7 +8087,8 @@ function sheetMoreOpen(on) {
 }
 function sheetMoreWire() {
     var head = ui('sheetHead'), after = ui('sheetAsPlayer'); if (!head || ui('sheetMoreBtn')) return;
-    var btn = el('button', 'tool ghost notepad-btn sheet-more-btn', '\u22ef'); btn.id = 'sheetMoreBtn'; btn.type = 'button';
+    // 1.6.4 (Fulllion, 2026-11-25, by prompt: "Use these drawings"): the More button wears the dots drawing in place of a typed ellipsis; its aria-label below names it
+    var btn = el('button', 'wib wi-dots tool ghost notepad-btn sheet-more-btn'); btn.id = 'sheetMoreBtn'; btn.type = 'button';
     btn.title = 'More: upload a file, unlock for its player, arrange, download, delete'; btn.setAttribute('aria-label', 'More'); btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
     var menu = el('div', 'sheet-more-menu'); menu.id = 'sheetMoreMenu'; menu.setAttribute('role', 'menu'); menu.hidden = true;
     SHEET_MORE.forEach(function(id) {

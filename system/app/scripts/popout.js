@@ -97,6 +97,7 @@ function popPart(it, id) {
 const spec = new URLSearchParams(location.search).get('popout');
 if (spec) {
     window.wpPopout = true;
+    if (typeof window.wpRelease === 'object' && window.wpRelease && typeof window.wpRelease.watch === 'function') window.wpRelease.watch();   // 1.6.4: covered where the main window runs another release (releasecheck.js)
     document.body.classList.add('popout-mode');
     var colon = spec.indexOf(':');
     var kind = colon >= 0 ? spec.slice(0, colon) : spec;

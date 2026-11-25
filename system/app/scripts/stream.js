@@ -79,6 +79,7 @@ const on = new URLSearchParams(location.search).get('stream') === '1' && !stream
 if (!on && !new URLSearchParams(location.search).get('popout') && typeof BroadcastChannel === 'function') gmViewWire(window, BroadcastChannel, setInterval);   // the main window alone: a window of its own has no view to say
 if (on) {
     window.wpStream = true;
+    if (typeof window.wpRelease === 'object' && window.wpRelease && typeof window.wpRelease.watch === 'function') window.wpRelease.watch();   // 1.6.4: covered where the main window runs another release (releasecheck.js)
     document.body.classList.add('stream-mode', 'net-client');
     document.title = 'Waypoint VTT: Stream';
     // Borrow the player-side rules: nothing editable, nothing saved, hidden things hidden.

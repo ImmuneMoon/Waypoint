@@ -164,6 +164,13 @@ The stream window [DRAFT]
 - On a website plan with no hosting, Open stream window says why it is
   not there, rather than opening a second copy of Waypoint VTT.
 
+A window left open across an update [DRAFT]
+- On the website, a sheet, a page or the stream window you opened from
+  the main window now asks you to reload once Waypoint VTT was updated
+  meanwhile, and takes no presses until then.
+- A starter system is no longer read from a newer version than the one
+  your page runs, and Save HTML uses the look your page already has.
+
 The System editor, a last look [DRAFT]
 - Pressing a point budget's fault takes you to that budget's own box,
   not the first one's.

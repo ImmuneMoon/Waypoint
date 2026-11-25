@@ -1431,9 +1431,27 @@ function cleanStarters(j) {
     });
     return out;
 }
+// 1.6.4: a starter is a file a release ships, cleaned by this page's own cleaner. On Waypoint's website a tab left open across a release would
+// read the newer release's starter, whose settings this page may drop. So each read of a starter asks the release check first (releasecheck.js,
+// window.wpRelease), which answers true where it cannot tell, and reads nothing from a newer release. starterSame answers a promise of true or
+// false and never rejects; with no release check at hand it is true, so the desktop app and the dev server read as they always did. starterStale
+// is what a read answers with then: an Error whose say holds the module's own words, for the one notice
+function starterSame() {
+    var R = typeof window !== 'undefined' ? window.wpRelease : null;
+    if (!R || typeof R.check !== 'function') return Promise.resolve(true);
+    return Promise.resolve(R.check()).then(function(s) { return s !== false; }, function() { return true; });
+}
+function starterStale() {
+    var R = typeof window !== 'undefined' ? window.wpRelease : null, e = new Error('stale');
+    e.say = R && R.words && typeof R.words.stale === 'string' ? R.words.stale : '';
+    return e;
+}
 function startersLoad() {
     if (_starters) return Promise.resolve(_starters);
-    return fetch('assets/systems/starters.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) { _starters = cleanStarters(j); return _starters; }).catch(function() { return null; });
+    return starterSame().then(function(same) {
+        if (!same) { var w = starterStale().say; if (w) toast(w); return null; }   // 1.6.4: a newer release's list is never read
+        return fetch('assets/systems/starters.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) { _starters = cleanStarters(j); return _starters; }).catch(function() { return null; });
+    });
 }
 // [sysedcheck:about-start]
 // 1.6.4 (backlog: a system's About text; asked 2026-11-23 by the system build): the Rules tab's About this system box. Two boxes under captions:
@@ -1472,8 +1490,11 @@ function startersFill(sel, list) {   // the Start from list: Start from, Blank, 
     list.forEach(function(s) { var o = document.createElement('option'); o.value = s.id; o.textContent = s.name; sel.appendChild(o); });
 }
 function starterOf(id) { return (_starters || []).filter(function(s) { return s.id === id; })[0] || null; }
-function starterPacksGet(st) {   // the starter's packs as text, all or none
-    return Promise.all(st.packs.map(function(p) { return fetch('assets/systems/' + p, { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.text(); }); }));
+function starterPacksGet(st) {   // the starter's packs as text, all or none (1.6.4: none from a newer release, starterStale)
+    return starterSame().then(function(same) {
+        if (!same) throw starterStale();
+        return Promise.all(st.packs.map(function(p) { return fetch('assets/systems/' + p, { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.text(); }); }));
+    });
 }
 function starterSaved() {   // after Save: the waiting packs written, and said
     var sp = _starterPacks; starterPacksSet(null); if (sp && sp.bundle === true && typeof bundleSaved === 'function') return bundleSaved(sp);   // 1.6.4: a system's .zip read back waits the same way, with its pictures (bundleSaved, below); Save waits on the promise it answers
@@ -1492,7 +1513,7 @@ function starterSaved() {   // after Save: the waiting packs written, and said
 function starterFetch(id) {
     return startersLoad().then(function() {
         var st = starterOf(id); if (!st) throw new Error('none');
-        return fetch('assets/systems/' + st.id + '.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) {
+        return starterSame().then(function(same) { if (!same) throw starterStale(); return fetch('assets/systems/' + st.id + '.json', { cache: 'no-store' }); }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) {   // 1.6.4: a newer release's starter is never read; campsafe.js says its words
             var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('bad');
             var cm = c.combat && typeof c.combat === 'object' && !Array.isArray(c.combat) ? c.combat : null;
             if (!(cm && cm.hpResource)) { var pl = (c.fields || []).filter(function(f) { return !!f && f.kind === 'resource' && typeof f.id === 'string' && !!f.id; })[0]; if (pl) { if (!cm) cm = c.combat = { blastAuto: 'full', blastRoller: 'owner', hpResource: '' }; cm.hpResource = pl.id; } }
@@ -1533,11 +1554,11 @@ function startFrom(id) {
     var go = function() {
         if (id === 'blank') { apply(emptySystem()); return; }
         var st = starterOf(id);
-        fetch('assets/systems/' + id + '.json', { cache: 'no-store' }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) {
+        starterSame().then(function(same) { if (!same) throw starterStale(); return fetch('assets/systems/' + id + '.json', { cache: 'no-store' }); }).then(function(r) { if (!r.ok) throw new Error('missing'); return r.json(); }).then(function(j) {   // 1.6.4: nothing read from a newer release
             var c = cleanSystem(j, { F: F(), gmView: true }); if (!c) throw new Error('bad');
             if (!st || !st.packs) { apply(c); return; }
             return starterPacksGet(st).then(function(texts) { apply(c, { name: st.name, texts: texts }); });
-        }).catch(function() { toast('That preset could not be loaded.'); });
+        }).catch(function(e) { toast(e && e.say ? e.say : 'That preset could not be loaded.'); });   // 1.6.4: a newer release says the release check's own words (starterStale)
     };
     // 1.6.3 (the review of the System editor, findings 12 and 38): asked whenever the draft holds anything, in words that say it replaces all of it,
     // by a button that names the act

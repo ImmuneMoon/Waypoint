@@ -32,7 +32,7 @@
    (a pop-out, the stream window). */
 
 // [floatcheck:esc-start]
-var ESC_ASIDE = ['customConfirm', 'customPrompt', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupMissingModal', 'cleanupBackupModal', 'frameModal', 'genModal', 'cityModal', 'worldModal', 'shotModal', 'imgLibPreview'];
+var ESC_ASIDE = ['customConfirm', 'customPrompt', 'cleanupAskModal', 'cleanupSummaryModal', 'cleanupMissingModal', 'cleanupBackupModal', 'frameModal', 'genModal', 'cityModal', 'worldModal', 'shotModal', 'imgLibPreview', 'releaseCover'];   // 1.6.4: releaseCover, a window of its own covered while the main window runs another release (releasecheck.js), never closes on Escape
 var ESC_RIGHT = ['contextMenu', 'sidebarContextMenu', 'edgeMenu', 'charMenu', 'sceneMenu', 'trkMenu', 'presPop'];   // the right-click menus: put away by their display
 var ESC_OWN_MENUS = '#pageNavMenu, #pageLinkMenu, #namedInMenu, #mentionMenu:not([hidden]), .snd-on-pop, .hold-ask, .face-pop, .sheet-dl-pop, .dice-modpop, .sys-glyph-pop, .lib-pick, .rte-symwrap.open, #pbeAddMenu, #nameMenu, #sheetMoreMenu:not([hidden]), #fightMenu:not([hidden]), #prepMakeMenu, #tbMenu';   // menus whose own listener takes Escape
 var ESC_ROW_MENUS = ['campMenu', 'moreMenu', 'notesMenu', 'rowTray'];   // the top row's (toprow.js): put away by hidden

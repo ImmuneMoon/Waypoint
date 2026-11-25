@@ -492,6 +492,40 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
   }
 
+  // [relcheck:savecss-start]
+  // 1.6.4: the style sheet this page already has loaded, for Save HTML where a newer release is now served (saveStyleCss below). On Waypoint's
+  // website a tab left open across a release would otherwise fetch the newer release's style.css and lay it over this release's markup. The
+  // sheet is found by its address (ending in style.css) and its rules joined as the browser reads them (a rule's cssText is valid CSS; the
+  // comments are lost, and so is any rule the browser does not understand). Only where no such sheet can be read (none found, or its rules not
+  // readable) is the file fetched. Answers a promise of the text
+  function loadedStyleCss(doc, fetchFn) {
+      try {
+          var sheets = doc && doc.styleSheets ? doc.styleSheets : [];
+          for (var i = 0; i < sheets.length; i++) {
+              var sh = sheets[i], href = sh && typeof sh.href === 'string' ? sh.href.split(/[?#]/)[0] : '';
+              if (!/(^|\/)style\.css$/.test(href)) continue;
+              var rules = sh.cssRules, parts = [];
+              if (!rules) continue;
+              for (var r = 0; r < rules.length; r++) parts.push(rules[r].cssText);
+              return Promise.resolve(parts.join('\n'));
+          }
+      } catch (e) {}
+      return fetchFn('style.css').then(function(r) { return r.text(); });
+  }
+  // 1.6.4 (the review of the release check, finding 4): what Save HTML embeds. Where the release check (rel, window.wpRelease) answers true,
+  // which it does on the same release and wherever it cannot tell, style.css is fetched exactly as it was before the release check, so the file
+  // saved is byte for byte what it always was (the browser's own reading of the rules would drop a rule it does not know, such as a Firefox-only
+  // one). Only where it answers false, a newer release now served, are the loaded sheet's rules used (loadedStyleCss, which fetches where they
+  // cannot be read). With no release check at hand it fetches. Answers a promise of the text
+  function saveStyleCss(doc, fetchFn, rel) {
+      var same;
+      try { same = rel && typeof rel.check === 'function' ? Promise.resolve(rel.check()) : Promise.resolve(true); } catch (e) { same = Promise.resolve(true); }
+      return same.then(function(s) { return s; }, function() { return true; }).then(function(s) {
+          if (s !== false) return fetchFn('style.css').then(r => r.text());
+          return loadedStyleCss(doc, fetchFn);
+      });
+  }
+  // [relcheck:savecss-end]
   var _el_exportHtmlBtn = document.getElementById('exportHtmlBtn');
 
 if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
@@ -513,7 +547,7 @@ if(_el_exportHtmlBtn) _el_exportHtmlBtn.addEventListener('click', function() {
       // the review of pages reveal (finding 3): a page with a block kept back asks first (io.js keptAsk). As players read it saves the drawn
       // page with every kept block left out (io.js keptCut); With what I kept back saves it whole, each kept block marked as on screen
       var KX = window.wpKeptExport, askK = KX && KX.ask ? KX.ask : function(it, a, then) { then(false); };
-      askK(activeMap, showConfirm, function(players) { run(function() { return fetch('style.css').then(r => r.text()).then(function(css) {
+      askK(activeMap, showConfirm, function(players) { run(function() { return saveStyleCss(document, fetch, window.wpRelease).then(function(css) {
           var pvX = document.getElementById('plannerPreview'), navX = window.wpPageNav;
           if (navX && navX.strip) navX.strip(pvX);   // the page as drawn: an export carries no fold and no fold arrow (pagenav.js)
           var campX = getActiveCampaign(), content = players === true && KX && KX.cut ? KX.cut(pvX, campX && campX.items) : pvX.innerHTML;

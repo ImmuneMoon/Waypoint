@@ -144,6 +144,9 @@ jobs:
       - name: startercheck — a starter system with its packs
         if: ${{ !cancelled() }}
         run: node tools/startercheck.js
+      - name: relcheck, a window or a starter from a newer release of the website asks to reload
+        if: ${{ !cancelled() }}
+        run: node tools/relcheck.js
       - name: syszipcheck — a system exported whole as one .zip with its packs and pictures, and read back
         if: ${{ !cancelled() }}
         run: node tools/syszipcheck.js

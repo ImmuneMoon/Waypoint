@@ -50,7 +50,7 @@ function el(doc, tag, cls, text) { var e = doc.createElement(tag); if (cls) e.cl
 function valBox(doc, label, unit, valCls, text) {
     var box = el(doc, 'span', 'ui-val'), inp = el(doc, 'input', valCls || '');
     inp.type = 'text'; inp.setAttribute('inputmode', text === 'neg' ? 'text' : text ? 'numeric' : 'decimal'); inp.setAttribute('spellcheck', 'false'); inp.setAttribute('aria-label', label || 'Value'); inp.setAttribute('autocomplete', 'off');
-    box.appendChild(inp); if (unit) box.appendChild(el(doc, 'span', 'ui-unit', unit));
+    box.appendChild(inp); if (unit) box.appendChild(el(doc, 'span', /^[A-Za-z]/.test(unit) ? 'ui-unit ui-unit-word' : 'ui-unit', unit));   // 1.6.4: a unit that is a word (steps, yd) stands a space after its figure, where % sits close
     box.addEventListener('mousedown', function(ev) { if (ev.target !== inp) { ev.preventDefault(); inp.focus(); inp.select(); } });   // a press on the frame or the unit types in the box
     box.addEventListener('click', function(ev) { if (ev.target !== inp) ev.preventDefault(); });   // and never hands the press on to a label's own control (a slider in the label)
     return { box: box, inp: inp };

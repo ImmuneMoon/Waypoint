@@ -703,6 +703,32 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'system', 'res
     if (!setErr && J(setOut) === J(['profile|profile|flex', 'vtt|vtt|flex', 'vtt|vtt|flex', 'vtt|vtt|flex', 'profile|profile|none', 'vtt|vtt|flex', 'vtt|vtt|none']))
         console.log('ok        1.6.3 (the release click test, finding 41) the tour\'s This campaign step shows the This campaign part of Settings on its first opening of a session (settings.js\'s parts module and the settour slice run for real, with toggle events fired later as a browser fires them): the code before showed Profile, the part the window had just picked; the part shown before comes back when the step is left, and This campaign stays where it was the part before');
     else { bad++; console.log('FAIL      the This campaign step and Settings\' parts: ' + (setErr || J(setOut))); }
+    // 1.6.4, the by-hand check of caa75e43: Settings' search (setPartsMake's find, run for real) on a part of plain objects. A name that
+    // stands as a row of its own (.set-field-label) belongs with the rows under it up to the next name or caption: searching "theme" shows
+    // the name Theme, its six looks and the line under them, and searching a word only the looks hold (their aria-label, a button's title)
+    // shows them with their name; another name's rows stay put away. The control, the row loop before the fold: the line under the looks stays put away
+    let findOut = null, findErr = '';
+    try {
+        const row = (cls, text, attrs, kids) => { const miss = new Set(); return { cls, text, attrs: attrs || {}, kids: kids || [], miss, children: [], textContent: text, matches: () => false, querySelector: () => null,
+            querySelectorAll: () => kids || [], getAttribute: k => (attrs && k in attrs ? attrs[k] : null), classList: { contains: c => c === cls || miss.has(c), add: c => miss.add(c), remove: c => miss.delete(c) } }; };
+        const btn = t => row('tool', t, { title: t + ' look' });
+        const make = () => [row('set-cap', 'How things look'), row('set-field-label', 'Theme'), row('set-themes', 'Slate Lantern Ink', { 'aria-label': 'Theme' }, [btn('Slate'), btn('Lantern'), btn('Ink')]),
+            row('set-line', 'How Waypoint is drawn.'), row('set-field-label', 'Grid opacity'), row('ui-slide', '', { title: 'How strongly the grid lines draw' }), row('set-line', 'Only on this computer.')];
+        const run = (slice, q) => {
+            const rows = make(), body = { children: rows }, g = { hidden: false, style: {}, open: true, getAttribute: k => (k === 'data-group' ? 'screen' : null), querySelector: s2 => (s2 === '.set-group-body' ? body : null), classList: { add() {}, remove() {} } };
+            const box = { classList: { add() {}, remove() {} } }, none = { hidden: true }, find = { value: q };
+            const doc = { querySelectorAll: s2 => (s2 === '#settingsModal details.set-group' ? [g] : []), getElementById: id => (id === 'setBox' ? box : id === 'setFindNone' ? none : id === 'setFind' ? find : null), createElement: () => ({ setAttribute() {}, addEventListener() {}, classList: { toggle() {} } }), querySelector: () => null };
+            const store = { getItem: () => null, setItem() {} };
+            const P = new Function('"use strict";' + nl + slice + nl + 'return setPartsMake;')()(doc, {}, store);
+            P.find(q); return rows.map(r => r.miss.has('set-miss') ? '-' : '+').join('') + (none.hidden ? '' : ' none');
+        };
+        const sp = setLf.slice(spA, spZ);
+        const oldSp = sp.replace(/            \/\/ 1\.6\.4 \(the by-hand check[^]*?rows\.forEach\(function\(r, i\) \{ if \(show\[i\]\) hit = true; else r\.classList\.add\('set-miss'\); \}\);/, "            setRowsOf(body).forEach(function(r) {\n                var w = setWordsOf(r), ok = words.every(function(x) { return w.indexOf(x) >= 0; });\n                if (ok) hit = true; else r.classList.add('set-miss');\n            });");
+        findOut = { theme: run(sp, 'theme'), lantern: run(sp, 'lantern'), grid: run(sp, 'grid'), drawn: run(sp, 'drawn'), nothing: run(sp, 'zebra'), old: oldSp !== sp ? run(oldSp, 'theme') : 'no control' };
+    } catch (e) { findErr = String(e && e.stack || e); }
+    if (!findErr && J(findOut) === J({ theme: '-+++---', lantern: '-++----', grid: '----+++', drawn: '-+-+---', nothing: '------- none', old: '-++----' }))
+        console.log('ok        1.6.4 (the by-hand check of caa75e43) Settings\' search shows a name with the rows under it and a control with its name: "theme" shows Theme, its six looks and the line under them; a word only the looks hold shows them with their name; another name\'s rows stay put away (setPartsMake\'s find run for real; with the row loop before the fold the line under the looks stays put away)');
+    else { bad++; console.log('FAIL      Settings\' search with a name and its rows: ' + (findErr || J(findOut))); }
     // Finding 48: where a card stands (the cardspot slice run for real). With no rectangle to keep clear of it is exactly what place() gave
     // before; Designing the sheet keeps clear of the System editor's tabs and its Sheet | HUD row; Dice stands beside Table Chat.
     let spotOut = null, spotErr = '';

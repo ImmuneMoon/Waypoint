@@ -1916,8 +1916,8 @@ function setRowsOf(el) {
 }
 function setWordsOf(el) {
     var t = String(el.textContent || '');
-    if (el.querySelectorAll) Array.prototype.forEach.call(el.querySelectorAll('[title], [placeholder]'), function(c) { t += ' ' + (c.getAttribute('title') || '') + ' ' + (c.getAttribute('placeholder') || ''); });
-    if (el.getAttribute && el.getAttribute('title')) t += ' ' + el.getAttribute('title');
+    if (el.querySelectorAll) Array.prototype.forEach.call(el.querySelectorAll('[title], [placeholder], [aria-label]'), function(c) { t += ' ' + (c.getAttribute('title') || '') + ' ' + (c.getAttribute('placeholder') || '') + ' ' + (c.getAttribute('aria-label') || ''); });
+    if (el.getAttribute) t += ' ' + (el.getAttribute('title') || '') + ' ' + (el.getAttribute('aria-label') || '');   // 1.6.4: a group of buttons names itself by its aria-label (the Theme's six looks)
     return setFold(t);
 }
 function setPartsMake(doc, win, store) {
@@ -1988,10 +1988,18 @@ function setPartsMake(doc, win, store) {
             if (!setShown(g, win)) return;
             var body = g.querySelector('.set-group-body'), hit = false;
             if (!g.open) g.open = true;
-            setRowsOf(body).forEach(function(r) {
-                var w = setWordsOf(r), ok = words.every(function(x) { return w.indexOf(x) >= 0; });
-                if (ok) hit = true; else r.classList.add('set-miss');
+            // 1.6.4 (the by-hand check of caa75e43: "theme" showed the name Theme and none of its six looks): a name standing as a row of its own
+            // (.set-field-label) belongs with the rows under it, up to the next name or caption, so a match on the name shows them, and a match on
+            // one of them shows its name
+            var rows = setRowsOf(body), oks = rows.map(function(r) { var w = setWordsOf(r); return words.every(function(x) { return w.indexOf(x) >= 0; }); });
+            var isName = function(r) { return !!(r.classList && r.classList.contains('set-field-label')); }, isCap = function(r) { return !!(r.classList && r.classList.contains('set-cap')); };
+            var show = oks.slice(), nm = -1;
+            rows.forEach(function(r, i) {
+                if (isName(r) || isCap(r)) { nm = isName(r) ? i : -1; return; }
+                if (nm >= 0 && oks[nm]) show[i] = true;
+                if (nm >= 0 && oks[i]) show[nm] = true;
             });
+            rows.forEach(function(r, i) { if (show[i]) hit = true; else r.classList.add('set-miss'); });
             if (!hit) g.classList.add('set-miss'); else any = true;
         });
         if (none) none.hidden = any;

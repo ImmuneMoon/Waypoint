@@ -7081,10 +7081,22 @@
   #charsModal #sysCharRows { overflow-y: auto; min-height: 0; flex: 1; }
 
 
+/* 1.6.4 (Fulllion, 2026-11-25: "Move the inline styles"): the page's own styles, moved out of its markup (index.html before the Settings window). They stand after
+   the rules of the parts they style, so they win as the inline styles did, and before the looks, so a look can reach them. Each rule names
+   its element by a class of its own where it can, and by its id only where that is what keeps it as it was. */
+/* [inline-a-start] */
+/* [inline-a-end] */
+
 /* 1.6.2 (backlog 138 (j), fold R5): the rest map in the call box */
 .cal-rest-go { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .cal-rest-go .cal-restcall-map { flex: 1 1 140px; min-width: 120px; width: auto; }
 .cal-rest-npc { display: block; margin: 2px 0 2px 4px; }
+
+/* 1.6.4 (Fulllion, 2026-11-25: "Move the inline styles"): the page's own styles, moved out of its markup (index.html from the Settings window on). They stand after
+   the rules of the parts they style, so they win as the inline styles did, and before the looks, so a look can reach them. Each rule names
+   its element by a class of its own where it can, and by its id only where that is what keeps it as it was. */
+/* [inline-b-start] */
+/* [inline-b-end] */
 
 /* 1.6.4: the looks (Fulllion, 2026-11-24, after the look page's renders: "lets go with slate and keep the other two for options that people can pick
    from if they want to change the look"). A look is the app's colors and the shape of its common parts: windows, buttons, switches, boxes, the rail,

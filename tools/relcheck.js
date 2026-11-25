@@ -2,10 +2,12 @@
    On Waypoint's website a release is pinned by a cookie every tab shares, so a tab left open across a release loads the newer release's files
    while it runs its own code. The module's core is run for real on a page of plain objects, with a stand-in fetch, a stand-in opener and a clock
    of the suite's own: check() (the same version, another, a read that fails), openerSame() (no opener, a closed or unreadable one, one of the
-   same version or another), watch() (only in a window of its own, at once and every 30 seconds), and the cover (elements and text nodes only,
-   its one button closing the window, every key and press stopped but its own). Then the places that ask it, run where they can be: the four
-   reads of a starter system (sysedtabs.js) read nothing from a newer release, Save HTML (main.js) embeds the style sheet the page has loaded
-   and fetches it only where it cannot be read, and the wiring is pinned (index.html, popout.js, stream.js, esckey.js, campsafe.js, the style
+   same version or another, by each window's boot read or else their wpAppVersion), watch() (only in a window of its own, at once and every 30
+   seconds, a change seen on two looks 5 seconds apart before the cover goes up, its own version.json read where the main window is gone), and the
+   cover (elements and text nodes only, its one button closing the window, every key and press stopped but its own, taken down once the windows
+   match). Then the places that ask it, run where they can be: the four
+   reads of a starter system (sysedtabs.js) read nothing from a newer release, Save HTML (main.js) fetches style.css as before on the same
+   release and embeds the loaded sheet only where a newer release is served, and the wiring is pinned (index.html, popout.js, stream.js, esckey.js, campsafe.js, the style
    sheet, Help and both release notes). Usage: node tools/relcheck.js   (exit 1 on any failure) */
 'use strict';
 require('./srcjoin').install();   // a split giant script reads joined, exactly as it was before the split (tools/srcjoin.js)
@@ -19,7 +21,7 @@ const readRoot = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\
 function slice(src, name) { const a = src.indexOf('// [' + name + '-start]'), b = src.indexOf('// [' + name + '-end]'); if (a < 0 || b < a) throw new Error('no slice ' + name); return src.slice(a, b); }
 const j = JSON.stringify;
 const tick = () => new Promise(r => setTimeout(r, 0));
-const settle = async () => { for (let i = 0; i < 6; i++) await tick(); };
+const settle = async () => { for (let i = 0; i < 24; i++) await tick(); };
 
 /* ---- a page of plain objects ---- */
 // Elements and text nodes alone: innerHTML is refused, so a cover made with markup fails here
@@ -28,12 +30,15 @@ function makeDoc() {
     function node(tag) {
         const n = { tag: tag, kids: [], attrs: {}, id: '', className: '', parent: null, on: {}, focused: false,
             appendChild(k) { k.parent = n; n.kids.push(k); return k; },
+            get parentNode() { return n.parent; },
+            removeChild(k) { const i = n.kids.indexOf(k); if (i >= 0) { n.kids.splice(i, 1); k.parent = null; } return k; },
             setAttribute(k, v) { n.attrs[k] = String(v); },
             addEventListener(t, fn) { (n.on[t] = n.on[t] || []).push(fn); },
             contains(x) { for (let p = x; p; p = p.parent) if (p === n) return true; return false; },
             focus() { doc.active = n; },
             querySelector(sel) { const cls = sel.replace(/^\./, ''); let hit = null; walk(n, x => { if (!hit && x !== n && typeof x.className === 'string' && x.className.split(' ').indexOf(cls) >= 0) hit = x; }); return hit; },
             get textContent() { let s = ''; walk(n, x => { if (x.tag === '#text') s += x.data; }); return s; },
+            set textContent(v) { n.kids.forEach(k => { k.parent = null; }); n.kids = [{ tag: '#text', data: String(v), kids: [] }]; },
             set innerHTML(v) { doc.markup = true; throw new Error('innerHTML is refused on this page'); } };
         return n;
     }
@@ -54,11 +59,15 @@ function makeWin(o) {
         document: makeDoc(),
         fetch(u, opts) { W.fetched++; W.lastFetch = [u, opts]; if (W.failRead) return Promise.reject(new Error('offline')); const v = W.files.version; return Promise.resolve(v === null ? { ok: false } : { ok: true, json: () => Promise.resolve(typeof v === 'string' ? { version: v } : v) }); },
         setInterval(fn, ms) { W.timers.push([fn, ms]); return W.timers.length; },
+        later: [], setTimeout(fn, ms) { W.later.push([fn, ms]); return W.later.length; },
         addEventListener(t, fn, cap) { (W.heard[t] = W.heard[t] || []).push([fn, cap]); },
         close() { W.closed++; } };
     return W;
 }
 function event(type, target, extra) { const e = Object.assign({ type: type, target: target, stopped: false, prevented: false, cancelable: true, stopImmediatePropagation() { e.stopped = true; }, preventDefault() { e.prevented = true; } }, extra || {}); return e; }
+// The suite's own clock for the second look: runs every timer the module asked for (setTimeout), in order, then lets the looks settle.
+// Answers the delays the timers were asked for
+async function runLater(W) { const run = W.later.splice(0), ms = run.map(t => t[1]); run.forEach(t => t[0]()); await settle(); return ms; }
 function fire(W, type, target, extra) { const e = event(type, target, extra); (W.heard[type] || []).forEach(p => p[0](e)); return e; }
 
 (async function() {
@@ -120,6 +129,8 @@ function fire(W, type, target, extra) { const e = event(type, target, extra); (W
         await settle();
         check('watch(): nothing is covered before the page knows its version', W.document.getElementById('releaseCover') === null);
         W.wpAppVersion = '1.6.5'; readyGo('1.6.5'); await settle();
+        check('the first look that finds another release shows nothing yet and asks for a second look 5 seconds later', W.document.getElementById('releaseCover') === null && j(W.later.map(t => t[1])) === j([5000]), j(W.later.map(t => t[1])));
+        await runLater(W);
         const cov = W.document.getElementById('releaseCover');
         check('the cover goes up once the page knows its version and the main window runs another', !!cov && cov.className === 'release-cover' && cov.parent === W.document.body);
         const words = cov && cov.querySelector('release-cover-words'), btn = cov && cov.querySelector('release-cover-close');
@@ -151,18 +162,112 @@ function fire(W, type, target, extra) { const e = event(type, target, extra); (W
         check('the stream window watches, and the same version shows no cover', W.timers.length === 1 && W.document.getElementById('releaseCover') === null);
         W.timers[0][0](); await settle();
         check('a look while nothing changed shows nothing', W.document.getElementById('releaseCover') === null);
-        op.wpAppVersion = '1.6.5'; W.timers[0][0](); await settle();
-        check('the 30 second look covers the window once the main window runs another release', !!W.document.getElementById('releaseCover') && W.document.getElementById('releaseCover').querySelector('release-cover-words').textContent === R.words.opener);
+        op.wpAppVersion = '1.6.5'; W.timers[0][0](); await settle(); await runLater(W);
+        check('the 30 second look covers the window once the main window runs a newer release, saying to close this window and open it again', !!W.document.getElementById('releaseCover') && W.document.getElementById('releaseCover').querySelector('release-cover-words').textContent === R.words.staleAlone);
     }
     {
         // a page that never says its version: the wp-version word is heard too
         const op = { wpAppVersion: '1.6.4' }, W = makeWin({ search: '?popout=chat:', opener: op }), R = make(W, () => {});
         R.watch(); await settle();
         check('with no version promise at hand nothing is covered yet', W.document.getElementById('releaseCover') === null);
-        W.wpAppVersion = '1.6.5'; W.document.listeners.filter(p => p[0] === 'wp-version').forEach(p => p[1]()); await settle();
+        W.wpAppVersion = '1.6.5'; W.document.listeners.filter(p => p[0] === 'wp-version').forEach(p => p[1]()); await settle(); await runLater(W);
         check('the page\'s wp-version word makes it look again', !!W.document.getElementById('releaseCover'));
     }
-    check('the module\'s words: plain sentences, no dash or semicolon, the stale and opener words ask to reload', /^Waypoint was updated since this window opened\. Reload it to go on\.$/.test(make(makeWin(), () => {}).words.stale) && /^Waypoint was updated since the main window opened\. Reload the main window, then open this one again\.$/.test(make(makeWin(), () => {}).words.opener) && !/[–—;]/.test(j(make(makeWin(), () => {}).words)));
+
+    /* ---- the review of the release check: a change seen twice, a cover that comes down, a main window that is gone, each window's boot read ---- */
+    {
+        // finding 1: on the desktop app Update Now and Restore reload a window of its own at once and the main window about 900 ms later
+        const op = { wpAppVersion: '1.6.4' }, W = makeWin({ search: '?popout=doc:c1/p1', opener: op, app: '1.6.5', ready: Promise.resolve('1.6.5') }), R = make(W, () => {});
+        R.watch(); await settle();
+        check('a change the first look finds waits for a second look 5 seconds later, with no cover yet', W.document.getElementById('releaseCover') === null && j(W.later.map(t => t[1])) === j([5000]));
+        W.timers[0][0](); await settle();
+        check('a further look while the second one waits asks for no other and shows nothing', W.later.length === 1 && W.document.getElementById('releaseCover') === null);
+        op.wpAppVersion = '1.6.5';   // the main window reloads onto the same release within the delay
+        await runLater(W);
+        check('a change that clears within the delay never shows the cover', W.document.getElementById('releaseCover') === null && W.later.length === 0);
+        op.wpAppVersion = '1.6.6'; await R.look(); await settle();
+        check('a change found again later starts its own wait', W.later.length === 1 && W.document.getElementById('releaseCover') === null);
+        await runLater(W);
+        const cov = W.document.getElementById('releaseCover');
+        check('a change that persists on the second look shows the cover (the main window newer: the words for an old window)', !!cov && cov.querySelector('release-cover-words').textContent === R.words.staleAlone);
+        W.timers[0][0](); await settle();
+        check('a look while the change stands keeps the one cover up', W.document.body.kids.filter(k => k.id === 'releaseCover').length === 1);
+        op.wpAppVersion = '1.6.5'; W.timers[0][0](); await settle();
+        check('a cover up comes down once the main window runs the same release again', W.document.getElementById('releaseCover') === null && W.document.body.kids.length === 0);
+        const e1 = fire(W, 'keydown', W.document.body, { key: 'Escape' }), e2 = fire(W, 'click', W.document.body);
+        check('with the cover down the guards let every key and press through again', !e1.stopped && !e1.prevented && !e2.stopped && !e2.prevented);
+        // an older timer from a wait that was cleared does nothing
+        op.wpAppVersion = '1.6.6'; await R.look(); await settle();
+        const stale = W.later.splice(0); op.wpAppVersion = '1.6.5'; await R.look(); await settle(); op.wpAppVersion = '1.6.6'; await R.look(); await settle();
+        stale.forEach(t => t[0]()); await settle();
+        check('a timer left from a wait that was cleared puts no cover up', W.document.getElementById('releaseCover') === null && W.later.length === 1);
+    }
+    {
+        // finding 2: a window of its own whose main window was closed reads its own version.json again
+        const op = { wpAppVersion: '1.6.4', closed: false }, W = makeWin({ search: '?popout=chat:', opener: op, app: '1.6.4', ready: Promise.resolve('1.6.4') }), R = make(W, () => {});
+        R.watch(); await settle();
+        const before = W.fetched;
+        op.closed = true; W.timers[0][0](); await settle();
+        check('with its main window closed, a look reads this window\'s own version.json again, and the same release shows nothing', W.fetched > before && W.later.length === 0 && W.document.getElementById('releaseCover') === null, j([before, W.fetched]));
+        W.files.version = '1.6.5'; W.timers[0][0](); await settle();
+        check('its own version.json naming another release waits for the second look first', W.document.getElementById('releaseCover') === null && W.later.length === 1);
+        await runLater(W);
+        const cov = W.document.getElementById('releaseCover');
+        check('the second look puts the cover up with the words for a window whose main window is gone', !!cov && cov.querySelector('release-cover-words').textContent === R.words.staleAlone);
+        W.files.version = '1.6.4'; W.timers[0][0](); await settle();
+        check('the cover comes down where this window\'s release is served again', W.document.getElementById('releaseCover') === null);
+        const W2 = makeWin({ search: '?stream=1', opener: null, ready: Promise.resolve('1.6.4') }), R2 = make(W2, () => {});
+        R2.watch(); await settle(); W2.files.version = '1.6.5'; W2.timers[0][0](); await settle(); await runLater(W2);
+        check('a window of its own with no opener at all does the same', !!W2.document.getElementById('releaseCover') && W2.document.getElementById('releaseCover').querySelector('release-cover-words').textContent === R2.words.staleAlone);
+        const W3 = makeWin({ opener: null }), R3 = make(W3, () => {}); await settle(); W3.files.version = '1.6.5';
+        const ans3 = await R3.look(); await settle(); await runLater(W3);
+        check('the main window never covers itself, whatever its version.json says', ans3 === true && W3.document.getElementById('releaseCover') === null && W3.later.length === 0);
+    }
+    {
+        // finding 3: each window's release is the version it read from its own version.json as it loaded
+        const W = makeWin({ version: '1.6.4' }), R = make(W, () => {});
+        check('bootNow() is null until the boot read settles', R.bootNow() === null);
+        await settle();
+        check('bootNow() then answers the version this page read as it loaded', R.bootNow() === '1.6.4');
+        W.files.version = '1.6.5'; await R.check();
+        check('bootNow() keeps the boot read whatever is served later', R.bootNow() === '1.6.4');
+        const Wf = makeWin(); Wf.failRead = true; const Rf = make(Wf, () => {}); await settle();
+        check('bootNow() is null where the boot read failed', Rf.bootNow() === null);
+        const mk = async (ours, theirBoot, appOurs, appTheirs) => { const op = { wpAppVersion: appTheirs }; if (theirBoot !== undefined) op.wpRelease = { bootNow: () => theirBoot }; const Wx = makeWin({ version: ours, app: appOurs, opener: op }), Rx = make(Wx, () => {}); await settle(); return Rx.openerSame(); };
+        check('openerSame(): the two boot reads differing answers false, though both wpAppVersion agree', await mk('1.6.4', '1.6.5', '1.6.5', '1.6.5') === false);
+        check('openerSame(): the two boot reads agreeing answers true, though the wpAppVersion differ', await mk('1.6.4', '1.6.4', '1.6.4', '1.6.5') === true);
+        check('openerSame(): an opener from before this module (no wpRelease) falls back to the two wpAppVersion', await mk('1.6.4', undefined, '1.6.4', '1.6.5') === false && await mk('1.6.4', undefined, '1.6.5', '1.6.5') === true);
+        check('openerSame(): an opener whose boot read is not known falls back to the two wpAppVersion', await mk('1.6.4', null, '1.6.4', '1.6.5') === false && await mk('1.6.4', null, '1.6.4', '1.6.4') === true);
+        check('openerSame(): this window\'s boot read failed answers true, whatever the two wpAppVersion say (an older shell\'s version after a hot update)', await mk(null, '1.6.5', '1.6.4', '1.6.4') === true && await mk(null, '1.6.4', '1.6.4', '1.6.5') === true && await mk(null, undefined, '1.6.3', '1.6.4') === true);
+        const mkF = async (theirFailed, appOurs, appTheirs) => { const op = { wpAppVersion: appTheirs, wpRelease: { bootNow: () => null, bootFailed: () => theirFailed } }; const Wx = makeWin({ version: '1.6.4', app: appOurs, opener: op }), Rx = make(Wx, () => {}); await settle(); return Rx.openerSame(); };
+        check('openerSame(): the main window\'s boot read failed answers true; one still under way falls back to the two wpAppVersion', await mkF(true, '1.6.4', '1.6.3') === true && await mkF(false, '1.6.4', '1.6.3') === false);
+        const Wp = makeWin({ version: '1.6.4', app: '1.6.4', opener: { wpAppVersion: '1.6.3' } }), Rp = make(Wp, () => {});
+        check('openerSame(): this window\'s boot read still under way falls back to the two wpAppVersion', Rp.bootFailed() === false && Rp.openerSame() === false);
+        check('bootFailed(): false while the read is under way and where it found a version, true where it failed', R.bootFailed() === false && Rf.bootFailed() === true);
+    }
+    {
+        // the second review, finding 1: a read of version.json that never settles gives up after 4 seconds and answers as a failed read does
+        const W = makeWin(); W.fetch = () => new Promise(() => {}); const R = make(W, () => {});
+        const t0 = Date.now(), ans = await R.check();
+        check('a read that never settles answers same (true) once its 4 seconds are up, and the boot read then counts as failed', ans === true && R.bootFailed() === true && Date.now() - t0 >= 3900 && Date.now() - t0 < 6000, Date.now() - t0);
+        check('the read\'s time limit is the page\'s own timer, never the window stand-in\'s, so a suite\'s clock of second looks counts no read', W.later.length === 0 && /var RELEASE_READ_MS = 4000;/.test(relSrc));
+    }
+    {
+        // the second review, finding 0: the words follow which side is newer, and a cover already up says the new words where that changes
+        const op = { wpAppVersion: '1.6.4' }, W = makeWin({ search: '?popout=doc:c1/p1', opener: op, app: '1.6.5', ready: Promise.resolve('1.6.5') }), R = make(W, () => {});
+        R.watch(); await settle(); await runLater(W);
+        const words = () => { const c = W.document.getElementById('releaseCover'); return c ? c.querySelector('release-cover-words').textContent : null; };
+        check('this window newer than its main window: the cover asks to reload the main window first', words() === R.words.opener);
+        op.wpAppVersion = '1.6.6'; W.timers[0][0](); await settle();
+        check('the main window reloaded onto a newer release while the cover stood: the same cover now says to close this window and open it again', words() === R.words.staleAlone && W.document.body.kids.filter(k => k.id === 'releaseCover').length === 1);
+        op.closed = true; W.files.version = '1.6.6'; W.timers[0][0](); await settle();
+        check('the main window closed while the cover stood: the cover follows this window\'s own read', words() === R.words.staleAlone);
+        const op2 = { wpAppVersion: 'beta-2' }, W2 = makeWin({ search: '?stream=1', opener: op2, app: 'beta-1', ready: Promise.resolve('beta-1') }), R2 = make(W2, () => {});
+        R2.watch(); await settle(); await runLater(W2);
+        check('versions that are not plain numbers: the words that hold whichever is newer', !!W2.document.getElementById('releaseCover') && W2.document.getElementById('releaseCover').querySelector('release-cover-words').textContent === R2.words.differ);
+        check('versionCmp(): by number, part by part, null for what is not plain numbers', R.versionCmp('1.6.10', '1.6.9') === 1 && R.versionCmp('1.6.4', '1.6.5') === -1 && R.versionCmp('1.6', '1.6.0') === 0 && R.versionCmp('1.6.4-b', '1.6.4') === null);
+    }
+    check('the module\'s words: plain sentences, no dash or semicolon, the stale and opener words ask to reload', /^Waypoint was updated since this window opened\. Reload it to go on\.$/.test(make(makeWin(), () => {}).words.stale) && /^Waypoint was updated since the main window opened\. Reload the main window, then open this one again\.$/.test(make(makeWin(), () => {}).words.opener) && /^Waypoint was updated since this window opened\. Close it, then open it again from the main window\.$/.test(make(makeWin(), () => {}).words.staleAlone) && /^This window and the main window run different versions of Waypoint\. Reload the main window, then open this one again\.$/.test(make(makeWin(), () => {}).words.differ) &&!/[–—;]/.test(j(make(makeWin(), () => {}).words)));
     check('the module writes no style and no markup of its own, imports steplog.js alone and publishes window.wpRelease', !/\.style\.|innerHTML|insertAdjacentHTML/.test(relSrc) && (relSrc.match(/^import /gm) || []).length === 1 && relSrc.includes("import { stepLog } from './steplog.js';") && relSrc.includes("window.wpRelease = releaseMake(window, function(step, facts) { stepLog('release v1', step, facts); });"));
 
     /* ---- the starters (sysedtabs.js): nothing read from a newer release ---- */
@@ -216,7 +321,8 @@ function fire(W, type, target, extra) { const e = event(type, target, extra); (W
     /* ---- Save HTML (main.js): the loaded style sheet ---- */
     {
         const mainS = read('scripts/main.js');
-        const fn = new Function(slice(mainS, 'relcheck:savecss').replace(/^\s*\/\/.*$/gm, '') + '\nreturn loadedStyleCss;')();
+        const both = new Function(slice(mainS, 'relcheck:savecss').replace(/^\s*\/\/.*$/gm, '') + '\nreturn { loadedStyleCss: loadedStyleCss, saveStyleCss: saveStyleCss };')();
+        const fn = both.loadedStyleCss, save = both.saveStyleCss;
         const fetched = [], fetchFn = (u) => { fetched.push(u); return Promise.resolve({ text: () => Promise.resolve('FETCHED') }); };
         const sheet = (href, rules) => ({ href: href, cssRules: rules.map(r => ({ cssText: r })) });
         const a = await fn({ styleSheets: [sheet('https://fonts.example/x.css', ['nope {}']), sheet('http://localhost:3999/style.css', ['a { color: red; }', 'b { color: blue; }'])] }, fetchFn);
@@ -228,7 +334,21 @@ function fire(W, type, target, extra) { const e = event(type, target, extra); (W
         check('a sheet whose rules cannot be read falls back to the fetch, as before', c === 'FETCHED' && j(fetched) === j(['style.css']));
         const d = await fn({ styleSheets: [sheet('http://localhost/mystyle.css2', ['x {}'])] }, fetchFn), e = await fn({}, fetchFn);
         check('with no such sheet loaded it fetches style.css, as before', d === 'FETCHED' && e === 'FETCHED' && fetched.length === 3);
-        check('Save HTML asks it, and style.css is fetched nowhere in main.js but its fallback', mainS.includes("run(function() { return loadedStyleCss(document, fetch).then(function(css) {") && (mainS.match(/fetch\('style\.css'\)/g) || []).length === 0 && slice(mainS, 'relcheck:savecss').includes("fetchFn('style.css')"));
+        // saveStyleCss: the same release fetches style.css exactly as Save HTML did before the release check; only a newer release reads the
+        // loaded sheet's rules (the review of the release check, finding 4)
+        const FILE = 'input.sheet-range::-moz-range-thumb { -moz-appearance: none; }\n/* a comment */\na { color: red; }\n';
+        const fileFetch = [], fileFn = (u) => { fileFetch.push(u); return Promise.resolve({ text: () => Promise.resolve(FILE) }); };
+        const loaded = { styleSheets: [sheet('http://localhost:3999/style.css', ['a { color: red; }'])] };
+        const rel = (ans) => ({ check: () => ans });
+        const s1 = await save(loaded, fileFn, rel(Promise.resolve(true)));
+        check('Save HTML on the same release fetches style.css as before and embeds it byte for byte, Firefox-only rules and comments kept', s1 === FILE && j(fileFetch) === j(['style.css']), j([s1, fileFetch]));
+        const s2 = await save(loaded, fileFn, rel(Promise.resolve(false)));
+        check('Save HTML where a newer release is served embeds the loaded sheet\'s rules and fetches nothing', s2 === 'a { color: red; }' && fileFetch.length === 1, j([s2, fileFetch]));
+        const s3 = await save({}, fileFn, rel(Promise.resolve(false)));
+        check('a newer release with no loaded sheet that can be read falls back to the fetch', s3 === FILE && fileFetch.length === 2);
+        const s4 = await save(loaded, fileFn, null), s5 = await save(loaded, fileFn, rel(Promise.reject(new Error('x')))), s6 = await save(loaded, fileFn, { check() { throw new Error('y'); } });
+        check('with no release check, one that fails or one that throws, Save HTML fetches as before', s4 === FILE && s5 === FILE && s6 === FILE && fileFetch.length === 5);
+        check('Save HTML asks saveStyleCss with the release check, and style.css is fetched only through it as before', mainS.includes("run(function() { return saveStyleCss(document, fetch, window.wpRelease).then(function(css) {") && (mainS.match(/fetch\('style\.css'\)/g) || []).length === 0 && slice(mainS, 'relcheck:savecss').includes("if (s !== false) return fetchFn('style.css').then(r => r.text());") && slice(mainS, 'relcheck:savecss').includes("fetchFn('style.css')"));
     }
 
     /* ---- wiring ---- */

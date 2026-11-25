@@ -2601,8 +2601,8 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'h2' || b.type === 'h3') {
 
               html += pbeCap(b.type === 'h3' ? 'Sub-heading' : 'Section heading') + tsBoxHtml('field b-title', b.type === 'h3' ? 'Sub-heading' : 'Section heading', 'data-idx="'+idx+'"', 'width:100%;');
-              if (!isDocEd && b.type === 'h2') html += '<div class="fc-opts" style="margin-top:6px;"><label title="How the blocks under this section stand, up to the next section or title. As cards they sit side by side, as many in a row as there is room for. Text and charts still take the whole row.">Blocks under it <select class="b-h2cards" data-idx="'+idx+'"><option value=""' + (secCards ? '' : ' selected') + '>One column</option><option value="cards"' + (secCards ? ' selected' : '') + '>Cards</option></select></label>' + (secCards ? '<label title="How wide one card is. A smaller size puts more cards in a row.">Card size <select class="b-h2size" data-idx="'+idx+'">' + CC.CARD_SIZES.map(function(z) { return '<option value="' + z + '"' + (secCards === z ? ' selected' : '') + '>' + z.charAt(0).toUpperCase() + z.slice(1) + '</option>'; }).join('') + '</select></label>' : '') + '</div>';
-              if (isDocEd && b.type === 'h2') html += '<div class="fc-opts" style="margin-top:6px;"><label title="Everything under this section, up to the next section or title, flows in this many columns">Columns <select class="b-h2cols" data-idx="'+idx+'">' + [1, 2, 3].map(function(n) { return '<option value="' + n + '"' + (secCols === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>';
+              if (!isDocEd && b.type === 'h2') html += '<div class="fc-opts plan-opts-top"><label title="How the blocks under this section stand, up to the next section or title. As cards they sit side by side, as many in a row as there is room for. Text and charts still take the whole row.">Blocks under it <select class="b-h2cards" data-idx="'+idx+'"><option value=""' + (secCards ? '' : ' selected') + '>One column</option><option value="cards"' + (secCards ? ' selected' : '') + '>Cards</option></select></label>' + (secCards ? '<label title="How wide one card is. A smaller size puts more cards in a row.">Card size <select class="b-h2size" data-idx="'+idx+'">' + CC.CARD_SIZES.map(function(z) { return '<option value="' + z + '"' + (secCards === z ? ' selected' : '') + '>' + z.charAt(0).toUpperCase() + z.slice(1) + '</option>'; }).join('') + '</select></label>' : '') + '</div>';
+              if (isDocEd && b.type === 'h2') html += '<div class="fc-opts plan-opts-top"><label title="Everything under this section, up to the next section or title, flows in this many columns">Columns <select class="b-h2cols" data-idx="'+idx+'">' + [1, 2, 3].map(function(n) { return '<option value="' + n + '"' + (secCols === n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>';
 
           } else if (b.type === 'oneline' || b.type === 'lede' || b.type === 'text' || b.type === 'callout' || b.type === 'flare') {
 
@@ -2611,48 +2611,48 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           } else if (b.type === 'image') {
               html += '<div class="b-img-row"><div class="b-img-thumb">' + (picRef(b.src) ? '<img src="' + esc(picRef(b.src)) + '" alt="">' : '<span>No picture yet</span>') + '</div>'
                     + '<div class="b-img-ctl"><div class="fc-opts">' + (picRef(b.src) && window.wpScene ? '<button class="tool ghost b-img-scene" data-idx="' + idx + '" title="Show this picture big to everyone or to some players at your table">Show as a scene…</button>' : '') + '<button class="tool ghost b-img-pick" data-idx="' + idx + '" title="Pick a picture already in this campaign">Choose from library…</button>'
-                    + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '" style="display:none;"></label>'
+                    + '<label class="tool ghost b-img-uplabel" title="Upload a picture from your computer">Upload…<input type="file" accept="image/*" class="b-img-upload" data-idx="' + idx + '"></label>'
                     + (isDocEd ? '' : '<label>Width <select class="b-imgw" data-idx="' + idx + '">' + [25, 33, 50, 66, 75, 100].map(function(w) { return '<option value="' + w + '"' + ((b.width || 100) === w ? ' selected' : '') + '>' + w + '%</option>'; }).join('') + '</select></label>'
                     + '<label>Align <select class="b-imga" data-idx="' + idx + '">' + [['left', 'Left'], ['center', 'Center'], ['right', 'Right']].map(function(o) { return '<option value="' + o[0] + '"' + ((b.align || 'center') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>') + '</div>'
                     + pbeCap('Caption') + tsBoxHtml('field b-caption', 'Caption (optional)', 'data-idx="' + idx + '"', 'width:100%;') + '</div></div>';
           } else if (b.type === 'raw') {
 
-              html += '<textarea class="field b-content" placeholder="Raw HTML..." data-idx="'+idx+'" style="width:100%; height:120px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
+              html += '<textarea class="field b-content plan-raw-code" placeholder="Raw HTML..." data-idx="'+idx+'">'+esc(b.content||'')+'</textarea>';
 
           } else if (b.type === 'rule') {
-              html += '<div style="color:var(--dim); font-size:12px;">A horizontal line across the page. Nothing to edit; move or delete it with the buttons above.</div>';
+              html += '<div class="plan-rule-note">A horizontal line across the page. Nothing to edit; move or delete it with the buttons above.</div>';
           } else if (b.type === 'diagram') {
 
-              html += '<textarea class="field b-content" placeholder="Mermaid flowchart code..." data-idx="'+idx+'" style="width:100%; height:150px; font-family:monospace;">'+esc(b.content||'')+'</textarea>';
+              html += '<textarea class="field b-content plan-mermaid-code" placeholder="Mermaid flowchart code..." data-idx="'+idx+'">'+esc(b.content||'')+'</textarea>';
 
           } else if (b.type === 'node' || b.type === 'table') {
               var plain = b.mode === 'table' || b.type === 'table';   // a page's table block is the node grid in table mode, without the mode switch
               var kd = b.type === 'node' ? CC.kindOf(b) : CC.KINDS.table;   // backlog 107 step 3: the kind of card, and what it calls its fields
-              if (b.type === 'node') html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="What this card is. A scene to play, a person, a place, a clue, or a plain table of information. Switching keeps every field.">' + CC.ORDER.map(function(k) { return '<option value="' + (k === 'scene' ? 'node' : k) + '"' + (kd.key === k ? ' selected' : '') + '>' + esc(CC.KINDS[k].label) + '</option>'; }).join('') + '</select></label>' + (plain ? '' : ' <button type="button" class="tool ghost name-btn b-namebtn" data-idx="'+idx+'" title="Make a name for this card: a person or a place">Name</button>') + (kd.key === 'scene' ? ' <label class="b-when-l" title="Where this scene stands in your sessions. Tonight is the one the Pages shelf\u2019s Next scene opens at.">Session <select class="b-when" data-idx="'+idx+'">' + [['', 'Not set'], ['ahead', 'Ahead'], ['tonight', 'Tonight'], ['played', 'Played']].map(function(o) { return '<option value="' + o[0] + '"' + (CC.sessionOf(b) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' : '') + (kd.tick && kd.key !== 'scene' ? ' <label class="b-done-l" title="' + (kd.key === 'clue' ? 'Tick it once the players have found this clue' : 'Tick it once this scene has been played') + '"><input type="checkbox" class="b-done" data-idx="'+idx+'"' + (b.done === true ? ' checked' : '') + '> ' + esc(kd.tick) + '</label>' : '') + '</div>';   // 1.6.2 (backlog 147): a card's title from the name button
+              if (b.type === 'node') html += '<div class="fc-opts plan-opts-snug"><label>Mode <select class="b-mode" data-idx="'+idx+'" title="What this card is. A scene to play, a person, a place, a clue, or a plain table of information. Switching keeps every field.">' + CC.ORDER.map(function(k) { return '<option value="' + (k === 'scene' ? 'node' : k) + '"' + (kd.key === k ? ' selected' : '') + '>' + esc(CC.KINDS[k].label) + '</option>'; }).join('') + '</select></label>' + (plain ? '' : ' <button type="button" class="tool ghost name-btn b-namebtn" data-idx="'+idx+'" title="Make a name for this card: a person or a place">Name</button>') + (kd.key === 'scene' ? ' <label class="b-when-l" title="Where this scene stands in your sessions. Tonight is the one the Pages shelf\u2019s Next scene opens at.">Session <select class="b-when" data-idx="'+idx+'">' + [['', 'Not set'], ['ahead', 'Ahead'], ['tonight', 'Tonight'], ['played', 'Played']].map(function(o) { return '<option value="' + o[0] + '"' + (CC.sessionOf(b) === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' : '') + (kd.tick && kd.key !== 'scene' ? ' <label class="b-done-l" title="' + (kd.key === 'clue' ? 'Tick it once the players have found this clue' : 'Tick it once this scene has been played') + '"><input type="checkbox" class="b-done" data-idx="'+idx+'"' + (b.done === true ? ' checked' : '') + '> ' + esc(kd.tick) + '</label>' : '') + '</div>';   // 1.6.2 (backlog 147): a card's title from the name button
               html += pbeCap(plain ? 'Table title' : kd.title) + tsBoxHtml('field b-title', plain ? 'Table title (optional)' : kd.title, 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
               if (!plain) {
-                  html += pbeCap('Also known as') + '<input type="text" class="field b-aka" data-idx="'+idx+'" value="' + esc(CC.akaText(b.aka)) + '" placeholder="Other names, with commas between them (optional)" title="Other names this card goes by. Search and quick jump find it by any of them." style="margin-bottom:6px; width:100%;">';
+                  html += pbeCap('Also known as') + '<input type="text" class="field b-aka plan-aka" data-idx="'+idx+'" value="' + esc(CC.akaText(b.aka)) + '" placeholder="Other names, with commas between them (optional)" title="Other names this card goes by. Search and quick jump find it by any of them.">';
                   html += pbeCap(kd.tag) + tsBoxHtml('field b-sub', kd.tag + ' (optional)', 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
                   html += pbeCap(kd.must) + tsBoxHtml('field b-must', kd.mustPh, 'data-idx="'+idx+'"', 'margin-bottom:6px; width:100%;');
                   if (kd.sheet) { var campS = getActiveCampaign(), chS = campS && campS.chars && typeof campS.chars === 'object' ? Object.keys(campS.chars).map(function(cid) { return { id: cid, name: String((campS.chars[cid] && campS.chars[cid].name) || cid) }; }).sort(function(x, y) { return x.name.localeCompare(y.name); }) : [];
-                      html += '<div class="fc-opts" style="margin-bottom:6px;"><label>Sheet <select class="b-sheet" data-idx="'+idx+'" title="The character sheet this person has, if any"><option value="">(none)</option>' + chS.map(function(o) { return '<option value="' + esc(o.id) + '"' + (b.sheet === o.id ? ' selected' : '') + '>' + esc(o.name) + '</option>'; }).join('') + '</select></label></div>'; }
+                      html += '<div class="fc-opts plan-opts-snug"><label>Sheet <select class="b-sheet" data-idx="'+idx+'" title="The character sheet this person has, if any"><option value="">(none)</option>' + chS.map(function(o) { return '<option value="' + esc(o.id) + '"' + (b.sheet === o.id ? ' selected' : '') + '>' + esc(o.name) + '</option>'; }).join('') + '</select></label></div>'; }
                   var campL = getActiveCampaign();
                   var mapsL = campL ? Object.values(campL.items).filter(function(i) { return i.type === 'map'; }).sort(function(x, y) { return String(x.meta.title || '').localeCompare(String(y.meta.title || '')); }) : [];
                   var linkedMap = b.linkMapId && campL ? campL.items[b.linkMapId] : null;
-                  html += '<div class="fc-opts" style="margin-bottom:10px;"><label>' + esc(kd.map) + ' <select class="b-linkmap" data-idx="'+idx+'" title="' + (kd.key === 'scene' ? 'The map this scene plays on; the preview gets an Open link' : 'The map, and the room, this card belongs to. The preview gets an Open link.') + '"><option value="">(none)</option>' + mapsL.map(function(m) { return '<option value="'+esc(m.id)+'"'+(b.linkMapId === m.id ? ' selected' : '')+'>'+esc(m.meta.title || m.id)+'</option>'; }).join('') + '</select></label>';
+                  html += '<div class="fc-opts plan-opts-gap"><label>' + esc(kd.map) + ' <select class="b-linkmap" data-idx="'+idx+'" title="' + (kd.key === 'scene' ? 'The map this scene plays on; the preview gets an Open link' : 'The map, and the room, this card belongs to. The preview gets an Open link.') + '"><option value="">(none)</option>' + mapsL.map(function(m) { return '<option value="'+esc(m.id)+'"'+(b.linkMapId === m.id ? ' selected' : '')+'>'+esc(m.meta.title || m.id)+'</option>'; }).join('') + '</select></label>';
                   if (linkedMap) html += '<label>Room <select class="b-linkroom" data-idx="'+idx+'" title="Land in this room"><option value="">(map as a whole)</option>' + (linkedMap.rooms || []).map(function(r) { return '<option value="'+esc(r.id)+'"'+(b.linkRoomId === r.id ? ' selected' : '')+'>'+esc(r.name || r.id)+'</option>'; }).join('') + '</select></label>';
                   html += '</div>';
               }
-              if (b.type === 'node' && !plain) html += '<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
+              if (b.type === 'node' && !plain) html += '<div class="fc-opts plan-opts-gap"><label>Plays <select class="b-cue" data-idx="'+idx+'" title="A sound, a song, a playlist or a saved effect. The card gets a Play button that starts it for the table.">' + cueOptions(b.cue) + '</select></label></div>';   // 1.6.2 (backlog 166 g)
               var colNames = tbEdCols(b, plain, kd);   // the names of the columns, as the editor's boxes are drawn for them (tbEdCols)
               if (!b.rows) b.rows = [];
-              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label>' + (plain ? '<label title="Keep this table\u2019s heading row in sight at the top while the table is read, as a pinned header row does. The editor always keeps it in sight."><input type="checkbox" class="b-tpin" data-idx="'+idx+'"' + (b.pin === true ? ' checked' : '') + '> Pin heading row</label>' : '') + '<span style="color:var(--dim); font-size:11px;">Headers below, then one line of boxes per row. Right-click a header or a cell, or press a row\u2019s \u22ef, to add, move or merge.</span></div>';   // 1.6.2: the pin (tablefollow.js), true only
+              html += '<div class="fc-opts"><label>Columns <select class="b-ncols" data-idx="'+idx+'" title="How many columns the table has">' + Array.from({ length: TABLE_COLS }, function(_, i) { return i + 1; }).map(function(n) { return '<option value="'+n+'"'+(colNames.length === n ? ' selected' : '')+'>'+n+'</option>'; }).join('') + '</select></label>' + (plain ? '<label title="Keep this table\u2019s heading row in sight at the top while the table is read, as a pinned header row does. The editor always keeps it in sight."><input type="checkbox" class="b-tpin" data-idx="'+idx+'"' + (b.pin === true ? ' checked' : '') + '> Pin heading row</label>' : '') + '<span class="plan-tbl-hint">Headers below, then one line of boxes per row. Right-click a header or a cell, or press a row\u2019s \u22ef, to add, move or merge.</span></div>';   // 1.6.2: the pin (tablefollow.js), true only
               if (tbBig(b)) html += tbCardHtml(b, idx);   // 1.6.2: a big table is a card here and is edited in a window of its own (tbBig)
               else {
               html += '<div class="grouped-fields b-table"><div class="row-h b-heads">';
               var hjE = headJoin(b, colNames.length);   // 1.6.2, merged headings: a merged heading's box takes its columns' room (as a merged cell's does), one under it has none
               colNames.forEach(function(c, ci) { var hk = hjE ? hjE[ci] : 1; if (hk === 0) return; html += tsBoxHtml('b-colhead' + (hk > 1 ? ' r-span' : ''), 'Column '+(ci+1), 'data-idx="'+idx+'" data-ci="'+ci+'"', hk > 1 ? 'flex:' + hk + ' 1 ' + (6 * (hk - 1)) + 'px; min-width:' + (70 * hk + 6 * (hk - 1)) + 'px;' : '', true, hk > 1 ? 'title="Heading over ' + hk + ' columns. Right-click for Unmerge."' : 'title="Header of column '+(ci+1)+'. Right-click to add, move or delete a column, or to merge it with the next."'); });   // heads and cells take line breaks (tsMulti)
-              html += '<div style="width:68px; height:31px; flex:0 0 68px;"></div></div>';   // over a row's two buttons (its menu and its x)
+              html += '<div class="plan-head-pad"></div></div>';   // over a row's two buttons (its menu and its x)
               b.rows.forEach(function(r, ri) { html += tbRowEdHtml(b, idx, ri, colNames); });   // one row's boxes (tbRowEdHtml, which + Add Row also asks)
               html += '</div>';
               html += '<button class="tool ghost add-row" data-idx="'+idx+'">+ Add Row</button>';
@@ -2665,11 +2665,11 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
               html += '<div class="row-h fc-opts">';
               html += '<select data-idx="'+idx+'" class="fc-dir" title="Which way the chart flows"><option value="TD"'+(fdir==='TD'?' selected':'')+'>Top to bottom</option><option value="LR"'+(fdir==='LR'?' selected':'')+'>Left to right</option><option value="BT"'+(fdir==='BT'?' selected':'')+'>Bottom to top</option><option value="RL"'+(fdir==='RL'?' selected':'')+'>Right to left</option></select>';
               html += '<select data-idx="'+idx+'" class="fc-space" title="Room between nodes"><option value="compact"'+(fsp==='compact'?' selected':'')+'>Compact</option><option value="normal"'+(fsp==='normal'?' selected':'')+'>Normal spacing</option><option value="wide"'+(fsp==='wide'?' selected':'')+'>Wide spacing</option></select>';
-              html += '<label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--dim);">Zoom <input type="range" min="50" max="300" step="10" value="'+fz+'" data-idx="'+idx+'" class="fc-zoom" style="width:110px;"> <span class="fc-zoom-val">'+fz+'%</span></label>';
+              html += '<label class="plan-zoom-l">Zoom <input type="range" min="50" max="300" step="10" value="'+fz+'" data-idx="'+idx+'" class="fc-zoom"> <span class="fc-zoom-val">'+fz+'%</span></label>';
               html += '<button class="tool ghost fc-reset-pos" data-idx="'+idx+'" title="Put every node back to the size and place the chart gives it"'+((b.nodePos && Object.keys(b.nodePos).length) || (b.nodeSize && Object.keys(b.nodeSize).length) ? '' : ' style="display:none;"')+'>Reset tweaks</button>';
               html += '</div>';
-              html += '<div style="font-size:11px; color:var(--dim); margin-bottom:8px;">In the preview: drag a node to nudge it, drag its corner square to resize it, drag the box\'s corner to resize the box. Enter in a label starts a new line.</div>';
-              html += '<div style="margin-bottom:5px;"><strong>Nodes:</strong></div>';
+              html += '<div class="plan-fc-hint">In the preview: drag a node to nudge it, drag its corner square to resize it, drag the box\'s corner to resize the box. Enter in a label starts a new line.</div>';
+              html += '<div class="plan-fc-head"><strong>Nodes:</strong></div>';
 
               b.nodes.forEach(function(n, ni) {
 
@@ -2677,7 +2677,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += '<div class="row-h">';
 
-                  html += '<input type="text" value="'+esc(n.id||'')+'" placeholder="ID (n1)" data-idx="'+idx+'" data-ni="'+ni+'" class="fc-n-id" style="flex: 0 0 60px;">';
+                  html += '<input type="text" value="'+esc(n.id||'')+'" placeholder="ID (n1)" data-idx="'+idx+'" data-ni="'+ni+'" class="fc-n-id">';
 
                   html += tsBoxHtml('field fc-n-text fc-grow', 'Label (Enter for a new line)', 'data-idx="'+idx+'" data-ni="'+ni+'"', 'flex: 1; min-width:0; min-height:31px; line-height:1.3; padding:6px 8px;', true);
 
@@ -2689,17 +2689,17 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += '<select data-idx="'+idx+'" data-ni="'+ni+'" class="fc-n-color"><option value="gold"'+(n.color==='gold'?' selected':'')+'>Gold</option><option value="blue"'+(n.color==='blue'?' selected':'')+'>Blue</option><option value="green"'+(n.color==='green'?' selected':'')+'>Green</option><option value="red"'+(n.color==='red'?' selected':'')+'>Red</option><option value="violet"'+(n.color==='violet'?' selected':'')+'>Violet</option><option value="neutral"'+(n.color==='neutral'?' selected':'')+'>Neutral</option></select>';
 
-                  html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div>'; // spacer to align inputs
+                  html += '<div class="plan-fc-pad"></div>'; // spacer to align inputs
 
                   html += '</div></div>';
 
               });
 
-              html += '<button class="tool ghost add-fc-n" data-idx="'+idx+'" style="margin-bottom:12px;">+ Add Node</button>';
+              html += '<button class="tool ghost add-fc-n" data-idx="'+idx+'">+ Add Node</button>';
 
               
 
-              html += '<div style="margin-bottom:5px;"><strong>Arrows:</strong></div>';
+              html += '<div class="plan-fc-head"><strong>Arrows:</strong></div>';
 
               b.edges.forEach(function(e, ei) {
 
@@ -2717,9 +2717,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
                   html += tsBoxHtml('fc-e-text', 'Label (optional)', 'data-idx="'+idx+'" data-ei="'+ei+'"', 'flex: 1; min-width:0;');
 
-                  html += '<select data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-style" style="flex: 1;"><option value="solid"'+(e.style==='solid'?' selected':'')+'>Solid Line</option><option value="dotted"'+(e.style==='dotted'?' selected':'')+'>Dotted Line</option></select>';
+                  html += '<select data-idx="'+idx+'" data-ei="'+ei+'" class="fc-e-style"><option value="solid"'+(e.style==='solid'?' selected':'')+'>Solid Line</option><option value="dotted"'+(e.style==='dotted'?' selected':'')+'>Dotted Line</option></select>';
 
-                  html += '<div style="width:31px; height:31px; flex:0 0 31px;"></div>'; // spacer to align inputs
+                  html += '<div class="plan-fc-pad"></div>'; // spacer to align inputs
 
                   html += '</div></div>';
 
@@ -2731,7 +2731,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
 
           if (isDocEd && LAYOUT_TYPES[b.type]) html += layoutRowHtml(idx, b, secCols);
           if (isDocEd) html += seeRowHtml(idx, b, getActiveCampaign());   // 1.6.3 (finding 18): Players see this, and who still sees a block kept back
-          if (!isDocEd && secCards && CC.wideMay(b)) html += '<div class="fc-opts" style="margin-top:6px;"><label class="b-wide-l" title="This one takes the whole row of its section, beside no other card"><input type="checkbox" class="b-wide" data-idx="'+idx+'"' + (CC.wideOn(b) ? ' checked' : '') + '> Wide card</label></div>';
+          if (!isDocEd && secCards && CC.wideMay(b)) html += '<div class="fc-opts plan-opts-top"><label class="b-wide-l" title="This one takes the whole row of its section, beside no other card"><input type="checkbox" class="b-wide" data-idx="'+idx+'"' + (CC.wideOn(b) ? ' checked' : '') + '> Wide card</label></div>';
           html += '</div>';
 
       });
@@ -3844,7 +3844,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       var blocks = Array.isArray(activeMap.blocks) ? activeMap.blocks : [];
       var _pCss = docStyleCss(mergeDocStyle(camp && camp.docStyle, activeMap.meta && activeMap.meta.style));
       var html = '<div class="wrap"' + (_pCss ? ' style="' + _pCss + '"' : '') + '>';
-      if (blocks.length === 0) html += typeof empty === 'string' ? empty : '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your document.</div>';
+      if (blocks.length === 0) html += typeof empty === 'string' ? empty : '<div class="plan-empty">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your document.</div>';
       var ccS = typeof CC === 'object' && CC && typeof CC.cleanCards === 'function' ? CC : null, cardsOn = '';   // 1.6.2 (backlog 107 (a)): the size of the card section the walk is in, '' in none
       blocks.forEach(function(b, _bi) {
           if (!b || typeof b !== 'object') return;
@@ -4106,7 +4106,7 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (window.wpDocPanel) window.wpDocPanel.refresh();   // a doc popped over the map stays in sync with edits made here (sig-checked)
 
       if (activeMap.type === 'doc') {   // a page renders through the shared renderer (docrender.js): escaped text, sanitized prose, as a player gets it, but for the blocks kept back from players, which it draws marked (1.6.3, finding 18: the preview no longer is exactly what every player reads)
-          preview.innerHTML = renderDoc(activeMap, { who: seeNames, mermaid: !!window.mermaid, docStyle: (getActiveCampaign() || {}).docStyle, empty: '<div style="color:var(--dim); font-style:italic; text-align:center; padding-top: 100px;">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
+          preview.innerHTML = renderDoc(activeMap, { who: seeNames, mermaid: !!window.mermaid, docStyle: (getActiveCampaign() || {}).docStyle, empty: '<div class="plan-empty">This is the live preview pane.<br><br>Add blocks in the editor on the left to start building your page.</div>' });
           runPreviewMermaid(activeMap.id);
           return;
       }
@@ -4249,7 +4249,7 @@ function openAppearanceMenu(anchor) {
         '<label class="dam-row"><span>Font</span> <select id="damFont">' + fontOpts + '</select></label>' +
         '<label class="dam-row"><span>Text</span> <input type="color" id="damText" value="' + (stC.textColor || cdC.textColor || '#e8e2d0') + '"><button class="dam-clear" data-f="textColor" title="Use the default">&times;</button></label>' +
         '<label class="dam-row"><span>Background</span> <input type="color" id="damBg" value="' + (stC.bgColor || cdC.bgColor || '#181510') + '"><button class="dam-clear" data-f="bgColor" title="Use the default">&times;</button></label>' +
-        '<label class="dam-row"><span>Bg image</span> <button id="damBgImg" class="tool ghost" style="flex:1">' + (effImg ? 'Change picture&hellip;' : 'Choose picture&hellip;') + '</button><button class="dam-clear" data-f="bgImage" title="Remove this ' + kind + '&rsquo;s own picture (back to the default)"' + (stC.bgImage ? '' : ' style="visibility:hidden"') + '>&times;</button></label>' +   // × only for the page's OWN picture: an inherited campaign picture can't be removed here (that is Clear default), only re-dimmed
+        '<label class="dam-row"><span>Bg image</span> <button id="damBgImg" class="tool ghost">' + (effImg ? 'Change picture&hellip;' : 'Choose picture&hellip;') + '</button><button class="dam-clear" data-f="bgImage" title="Remove this ' + kind + '&rsquo;s own picture (back to the default)"' + (stC.bgImage ? '' : ' style="visibility:hidden"') + '>&times;</button></label>' +   // × only for the page's OWN picture: an inherited campaign picture can't be removed here (that is Clear default), only re-dimmed
         (effImg ? '<img class="dam-bgthumb" src="' + esc(effImg) + '" alt="">' : '') +
         (effImg ? '<label class="dam-row"><span>Dim</span> <input type="range" id="damDim" min="0" max="90" step="5" value="' + dimVal + '"> <span id="damDimVal" class="dam-dimval">' + dimVal + '%</span></label>' : '') +
         '<div class="dam-actions"><button id="damReset" class="tool ghost">Reset this ' + kind + '</button></div>' +

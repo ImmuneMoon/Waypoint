@@ -955,12 +955,12 @@ async function loadSnapshots() {
     var rows = null;
     try { var r = await fetch('/api/backups', { cache: 'no-store' }); if (r.ok) rows = await r.json(); } catch (e) {}
     if (!Array.isArray(rows)) {
-        list.innerHTML = '<div style="color:var(--dim); line-height:1.5;">Listing snapshots from here needs the current core, which comes as the installer. The launch backups are still written to the saves folder under <b>backups</b>. <button class="tool ghost" id="setSnapCoreBtn" style="padding:2px 8px; font-size:11px;">Show the steps</button></div>';
+        list.innerHTML = '<div class="snap-core-note">Listing snapshots from here needs the current core, which comes as the installer. The launch backups are still written to the saves folder under <b>backups</b>. <button class="tool ghost snap-core-btn" id="setSnapCoreBtn">Show the steps</button></div>';
         var cb = ui('setSnapCoreBtn'); if (cb) cb.addEventListener('click', function() { showInstallerSteps(coreInfo()); });
         var nb = ui('setSnapNowBtn'); if (nb) nb.disabled = true;
         return;
     }
-    if (!rows.length) { list.innerHTML = '<div style="color:var(--dim);">No snapshots yet. One is taken at every launch.</div>'; return; }
+    if (!rows.length) { list.innerHTML = '<div class="snap-empty">No snapshots yet. One is taken at every launch.</div>'; return; }
     list.innerHTML = rows.map(function(b) {
         return '<div class="snap-row" data-file="' + esc(b.file) + '"><span class="snap-when">' + esc(new Date(b.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })) + '</span><span class="snap-kind">' + snapLabel(b) + '</span><span class="snap-size">' + fmtBytes(b.size) + '</span>'
             + '<button class="tool ghost snap-restore" title="Replace the save with this copy and reload (the save as it is now is snapshotted first)">Restore</button>'

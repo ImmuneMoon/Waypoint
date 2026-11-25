@@ -996,7 +996,7 @@ if(_el_searchMapsBtn) _el_searchMapsBtn.addEventListener('click', function() {
 
               if (title.toLowerCase().indexOf(q) !== -1 || q === '') {
 
-                  html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="'+esc(k)+'">' + esc(title) + '</button>';
+                  html += '<button class="tool ghost search-hit" data-id="'+esc(k)+'">' + esc(title) + '</button>';
 
               }
 
@@ -1093,7 +1093,7 @@ export {
               var c = state.appState.campaigns[k], name = String(c.name || 'Unnamed Campaign');
               if (q && name.toLowerCase().indexOf(q) === -1) return;
               var nMaps = Object.values(c.items || {}).filter(function(i) { return i.type === 'map'; }).length, nPl = Object.values(c.items || {}).filter(function(i) { return i.type === 'planner'; }).length, nPg = Object.values(c.items || {}).filter(function(i) { return i.type === 'doc'; }).length;
-              html += '<button class="tool ghost" style="text-align:left; padding:8px;" data-id="' + esc(k) + '">' + esc(name) + (k === state.appState.activeCampaignId ? ' <span style="color:var(--gold); font-size:11px;">current</span>' : '') + '<span style="color:var(--dim); font-size:11px; float:right;">' + nMaps + ' map' + (nMaps === 1 ? '' : 's') + ' · ' + nPl + ' planner' + (nPl === 1 ? '' : 's') + (nPg ? ' · ' + nPg + ' page' + (nPg === 1 ? '' : 's') : '') + '</span></button>';
+              html += '<button class="tool ghost search-hit" data-id="' + esc(k) + '">' + esc(name) + (k === state.appState.activeCampaignId ? ' <span class="camp-hit-now">current</span>' : '') + '<span class="camp-hit-count">' + nMaps + ' map' + (nMaps === 1 ? '' : 's') + ' · ' + nPl + ' planner' + (nPl === 1 ? '' : 's') + (nPg ? ' · ' + nPg + ' page' + (nPg === 1 ? '' : 's') : '') + '</span></button>';
           });
           if (!html) html = '<div class="muted">No campaigns match.</div>';
           res.innerHTML = html;

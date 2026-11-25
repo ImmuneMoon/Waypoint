@@ -377,7 +377,7 @@
   .wi-plus { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4.5v15M4.5 12h15'/%3E%3C/svg%3E"); }
   .wi-chev { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.5 6l6 6-6 6'/%3E%3C/svg%3E"); }
   .wi-chevdown { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9.5l6 6 6-6'/%3E%3C/svg%3E"); }
-  .wi-dots { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5h.01M12 12h.01M12 19h.01'/%3E%3C/svg%3E"); }
+  .wi-dots { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5h.01M12 12h.01M12 19h.01' stroke-width='2.9'/%3E%3C/svg%3E"); }
   .wi-popout { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.5 5H5a1.6 1.6 0 0 0-1.6 1.6v12.4A1.6 1.6 0 0 0 5 20.6h12.4a1.6 1.6 0 0 0 1.6-1.6v-4.6M14 3.5h6.5V10M20.5 3.5L11 13'/%3E%3C/svg%3E"); }
   .wi-musicoff { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8.5 17.5V6.4l10.5-2.6v11.2M8.5 10.4l10.5-2.6'/%3E%3Ccircle cx='6' cy='17.5' r='2.5'/%3E%3Ccircle cx='16.5' cy='15' r='2.5'/%3E%3Cpath d='M3 3l18 18'/%3E%3C/svg%3E"); }
   .wi-help { --wi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM9.4 9.6a2.7 2.7 0 1 1 3.9 2.4c-.8.4-1.3 1-1.3 1.9M12 16.9h.01'/%3E%3C/svg%3E"); }
@@ -773,7 +773,11 @@
     body.seeas-on:not(.net-client):not(.stream-mode) #whiteboardWrap { box-shadow: inset 0 0 0 2px rgba(227,166,59,.55); }
     #wbEdgeTools #wbCenterMenu { bottom: -80px !important; max-height: calc(100vh - 274px - var(--winbar)); overflow-y: auto; }   /* the tallest of the column's menus stands on the column's foot, and scrolls in a short window: no row is cut off */
     .wb-tool-btn.view-row, .wb-tool-btn.view-tick { flex: 0 0 auto; width: 100%; height: auto; border-radius: 0; font-size: 12px; justify-content: flex-start; white-space: nowrap; }
-    .wb-tool-btn.view-row { padding: 7px 12px 7px 34px; }   /* an action's words begin where a tick's words do */
+    .wb-tool-btn.view-row { padding: 7px 12px; gap: 8px; }   /* 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): an action wears its drawing where a tick wears its mark, so its words begin where a tick's words do */
+    #dataCenterCanvasBtn, #dataCenterItemsBtn, #dataFitBtn, #dataEditLayoutBtn, #dataMapPropsBtn { gap: 6px; }   /* 1.6.4: the Data Map's center menu rows, each with its drawing before its words */
+    [data-press="aboutReportLink"] > .wi-flag { color: var(--dim); }   /* 1.6.4: Report a problem's drawing in the dim its siblings' drawings wear */
+    #railAll > .wi-allsecs { font-size: 14px; }   /* 1.6.4: the rail's All wears its drawing at the size of its siblings' */
+    #gridOffBtn .wi-gridoff { font-size: 15px; }   /* 1.6.4: Grid Off's drawing at the size of Square's and Hex's */
     .wb-tool-btn.view-tick { padding: 7px 12px; gap: 8px; }
     .wb-tool-btn.view-tick > .ico { width: 14px; height: 14px; color: var(--gold); visibility: hidden; }
     .wb-tool-btn.view-tick.on > .ico { visibility: visible; }

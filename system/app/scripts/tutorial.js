@@ -864,7 +864,7 @@ var STEPS = [
       help: ['whiteboard', 'Containers'],
       before: function() { var camp = tutorialCampaign(); if (camp && !(camp.tutorialChest >= 1)) { ensureTutorialChest(camp); camp.tutorialChest = 1; save(true); } openItem('map_tut_ground'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); if (window.wpBoxes) window.wpBoxes.open('tut_wb_chest'); } },
     { target: '#whiteboardWrap', title: 'Square grids, square tokens',
-      html: '<b>The Inn</b> runs on a <b>square grid</b>, and its tokens are square pictures that fill one cell each. Drag one with <b>Snap</b> on and it seats in a cell. <b>&#8862; Fit to grid</b> sizes a selection to whole cells. A picture keeps its shape as you resize it, and <kbd>Shift</kbd> lets you stretch it. Tokens the app places take the grid&rsquo;s shape: a hexagon, a square, or a circle with no grid. Right-click a picture token for <b>Frame picture&hellip;</b> to choose the part that shows.',
+      html: '<b>The Inn</b> runs on a <b>square grid</b>, and its tokens are square pictures that fill one cell each. Drag one with <b>Snap</b> on and it seats in a cell. <b><i class="wib wi-fitcells"></i> Fit to grid</b> sizes a selection to whole cells. A picture keeps its shape as you resize it, and <kbd>Shift</kbd> lets you stretch it. Tokens the app places take the grid&rsquo;s shape: a hexagon, a square, or a circle with no grid. Right-click a picture token for <b>Frame picture&hellip;</b> to choose the part that shows.',
       help: ['grids', 'Grids'],
       before: function() { openItem('map_tut_inn'); goView('visual'); state.selWbId = null; state.selWbIds = []; render(); } },
     { target: '#whiteboardWrap', title: 'No grid at all',

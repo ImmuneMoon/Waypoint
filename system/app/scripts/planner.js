@@ -402,7 +402,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   function pbeToolBack(i, cls) {
       var ed = document.getElementById('plannerEditorWrap'), form = ed ? ed.querySelector('.planner-block-edit[data-idx="' + i + '"]') : null, tools = form ? Array.prototype.slice.call(form.querySelectorAll('.block-tools button')) : [];
       var b = tools.filter(function(t) { return t.classList.contains(cls); })[0];
-      if (b && (cls === 'mv-up' ? i <= 0 : cls === 'mv-dn' ? i >= ((getActiveMap() || {}).blocks || []).length - 1 : false)) b = tools.filter(function(t) { return !t.classList.contains(cls); })[0] || b;   // at the end it can go no further: the other arrow
+      // At the end a block can go no further, so the focus goes to the other arrow (1.6.4: the two arrows now stand joined in one .ui-seg frame,
+      // and the old pick of the first button that was not this arrow landed on Done, not on the other arrow).
+      if (b && (cls === 'mv-up' ? i <= 0 : cls === 'mv-dn' ? i >= ((getActiveMap() || {}).blocks || []).length - 1 : false)) b = tools.filter(function(t) { return t.classList.contains(cls === 'mv-up' ? 'mv-dn' : 'mv-up'); })[0] || b;
       if (b) { try { b.focus({ preventScroll: true }); } catch (e) {} }
   }
   function pgFace(pv, i) { return pv ? pv.querySelector('.pv-blk[data-blk="' + i + '"]') : null; }
@@ -768,12 +770,12 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
   var tbHere = {};
   function tbCells(b) { return (Array.isArray(b.rows) ? b.rows.length : 0) * tsCols(b).length; }
   function tbBig(b) { return !!b && typeof b.id === 'string' && !Object.prototype.hasOwnProperty.call(tbHere, b.id) && tbCells(b) > TABLE_BIG; }
-  // The card a big table is in the editor: its size in words, and its two buttons. Numbers alone, no stored text
+  // The card a big table is in the editor: its size in words, and its two buttons, joined in one .ui-seg frame since 1.6.4. Numbers alone, no stored text
   function tbCardHtml(b, idx) {
       var rows = Array.isArray(b.rows) ? b.rows.length : 0, cols = tsCols(b).length;
       return '<div class="b-bigtable"><p>This table has <b>' + tbCells(b).toLocaleString('en-US') + '</b> cells, in ' + rows + ' rows and ' + cols + ' columns. It opens for editing in a window of its own, so this editor stays quick.</p>'
-          + '<div class="fc-opts"><button type="button" class="tool b-tablewin" data-idx="' + idx + '" title="Edit every cell of this table in a big window of its own. Your changes save here as you make them.">Edit in its own window</button>'
-          + '<button type="button" class="tool ghost b-tablehere" data-idx="' + idx + '" title="Draw every cell of this table here, until you close the app. A table this big makes the editor slow.">Edit here</button></div></div>';
+          + '<div class="fc-opts"><span class="ui-seg"><button type="button" class="tool b-tablewin" data-idx="' + idx + '" title="Edit every cell of this table in a big window of its own. Your changes save here as you make them.">Edit in its own window</button>'
+          + '<button type="button" class="tool ghost b-tablehere" data-idx="' + idx + '" title="Draw every cell of this table here, until you close the app. A table this big makes the editor slow.">Edit here</button></span></div></div>';
   }
   var TB_OPS = { cell: 1, head: 1, addRow: 1, delRow: 1, merge: 1, unmerge: 1, full: 1, headMerge: 1, headUnmerge: 1 };
   function tbWhole(v, lo, hi) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi; }
@@ -2583,8 +2585,9 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
           html += '<div class="planner-block-edit" data-idx="'+idx+'">';
 
           html += '<div class="block-head"><span>' + esc(blockName(b)) + '</span>';
+          // 1.6.4: Move up and Move down stand joined in one .ui-seg frame (Fulllion, 2026-11-25: "Join the button rows"); pbeToolBack still finds each by its class
 
-          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button>' + (handoutOk(b) ? '<button type="button" class="tool ghost b-handout" data-idx="'+idx+'" title="Make a text handout from this block’s words. You check them in Handouts, then show it to the table or give it to one player.">Hand out…</button>' : '') + '<button class="tool ghost mv-up" data-idx="'+idx+'">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'">▼</button><button type="button" class="tool ghost dup-blk" data-idx="'+idx+'" title="Duplicate: put a copy of this block right after it" aria-label="Duplicate this block"><i class="wib wi-dup"></i></button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
+          html += '<div class="block-tools"><button type="button" class="tool pg-done" data-idx="'+idx+'" title="Done: close this block and go back to the page (Esc)">Done</button>' + (handoutOk(b) ? '<button type="button" class="tool ghost b-handout" data-idx="'+idx+'" title="Make a text handout from this block’s words. You check them in Handouts, then show it to the table or give it to one player.">Hand out…</button>' : '') + '<span class="ui-seg"><button class="tool ghost mv-up" data-idx="'+idx+'" title="Move up: put this block before the one above it">▲</button><button class="tool ghost mv-dn" data-idx="'+idx+'" title="Move down: put this block after the one below it">▼</button></span><button type="button" class="tool ghost dup-blk" data-idx="'+idx+'" title="Duplicate: put a copy of this block right after it" aria-label="Duplicate this block"><i class="wib wi-dup"></i></button><button class="tool ghost danger del-blk" data-idx="'+idx+'"><i class="wib wi-close"></i></button></div></div>';
 
           
 
@@ -4251,7 +4254,8 @@ function openAppearanceMenu(anchor) {
         '<div class="dam-actions"><button id="damReset" class="tool ghost">Reset this ' + kind + '</button></div>' +
         '<div class="dam-divider"></div>' +
         '<div class="dam-head">Campaign default: all pages &amp; sheets</div>' +
-        '<div class="dam-actions"><button id="damSetCamp" class="tool ghost">Use this ' + kind + '&rsquo;s look as the default</button> <button id="damClearCamp" class="tool ghost"' + (Object.keys(cd).length ? '' : ' disabled') + '>Clear default</button></div>';
+        // 1.6.4: the two campaign-default buttons are joined in one .ui-seg frame (Fulllion, 2026-11-25: "Join the button rows"); wide, so a long label wraps in a narrow menu
+        '<div class="dam-actions"><span class="ui-seg ui-seg-wide"><button id="damSetCamp" class="tool ghost">Use this ' + kind + '&rsquo;s look as the default</button><button id="damClearCamp" class="tool ghost"' + (Object.keys(cd).length ? '' : ' disabled') + '>Clear default</button></span></div>';
     document.body.appendChild(m);
     var r = anchor.getBoundingClientRect();
     m.style.top = (r.bottom + 5) + 'px';

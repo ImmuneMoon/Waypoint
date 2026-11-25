@@ -280,7 +280,8 @@ import { cssColor, num, picRef } from './safecore.js';   // a campaign from a fi
 
              (picRef(r.image) ? '<img class="room-image-preview" src="'+esc(picRef(r.image))+'" alt="Room image">' : ''))+
 
-             '<div class="row" style="margin-bottom:13px;"><button class="tool ghost" id="fImgBtn"><i class="wib wi-pic"></i> '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</div>'+
+             // 1.6.4: the room's picture button and its Remove stand joined in one .ui-seg frame (Fulllion, 2026-11-25: "Join the button rows")
+             '<div class="row" style="margin-bottom:13px;"><span class="ui-seg"><button class="tool ghost" id="fImgBtn"><i class="wib wi-pic"></i> '+(r.image?'Change Image':'Set Room Image')+'</button>'+(r.image?'<button class="tool ghost danger" id="fImgClearBtn">Remove</button>':'')+'</span></div>'+
 
              '<div class="field"><label for="fName">Name</label><input id="fName" value="'+esc(r.name)+'"></div>'+
              (typeof roomPlaceRowHtml === 'function' ? roomPlaceRowHtml(r, activeMap) : '')+
@@ -985,10 +986,14 @@ if(_el_addCatBtn) _el_addCatBtn.addEventListener('click', function() {
             else html += '<button id="groupMultiBtn" class="tool ghost" style="width:100%; margin-bottom:10px;">Group elements</button>';
             
             html += '<div class="field" style="margin-top:15px"><label>Layering (all selected)</label></div>';
-            html += '<button id="multiBringFrontBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Bring to front</button>';
-            html += '<button id="multiBringFwdBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Bring forward</button>';
-            html += '<button id="multiSendBwdBtn" class="tool ghost" style="width:100%; margin-bottom:5px">Send backward</button>';
-            html += '<button id="multiSendBackBtn" class="tool ghost" style="width:100%; margin-bottom:15px">Send to back</button>';
+            // 1.6.4: the four layer buttons stand in one column frame of the shared .ui-seg (Fulllion, 2026-11-25: "Join the button rows"); the frame
+            // stretches each to the full width, so they lose their own width and margins, and the frame keeps the space after the last
+            html += '<span class="ui-seg ui-seg-col" style="margin-bottom:15px">';
+            html += '<button id="multiBringFrontBtn" class="tool ghost">Bring to front</button>';
+            html += '<button id="multiBringFwdBtn" class="tool ghost">Bring forward</button>';
+            html += '<button id="multiSendBwdBtn" class="tool ghost">Send backward</button>';
+            html += '<button id="multiSendBackBtn" class="tool ghost">Send to back</button>';
+            html += '</span>';
             
             html += '<div class="divider"></div><button class="tool ghost danger" id="wbDelMulti" style="width:100%">Delete all selected</button>';
             

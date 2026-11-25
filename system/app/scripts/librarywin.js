@@ -420,7 +420,9 @@ function picField(form, value) {
     var paint = function() { b.textContent = ''; var v = inp.value; if (v) { var im = document.createElement('img'); im.className = 'lib-pic-cur'; im.alt = ''; im.src = /^[/]saves[/]images[/]/.test(v) && v.indexOf('..') < 0 ? v : ''; b.appendChild(im); } else b.appendChild(document.createTextNode('Choose')); x.hidden = !v; };
     b.addEventListener('click', function(ev) { ev.preventDefault(); if (!window.wpPickImage) return; window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) { inp.value = src; paint(); inp.dispatchEvent(new Event('input', { bubbles: true })); } }); });
     x.addEventListener('click', function(ev) { ev.preventDefault(); inp.value = ''; paint(); inp.dispatchEvent(new Event('input', { bubbles: true })); });
-    paint(); row.appendChild(inp); row.appendChild(b); row.appendChild(x); form.appendChild(row); return inp;
+    // 1.6.4: Choose and its × stand joined in one .ui-seg frame (Fulllion, 2026-11-25: "Join the button rows"), so the × no longer falls to the next row of the grid
+    var seg = el('span', 'ui-seg'); seg.appendChild(b); seg.appendChild(x);
+    paint(); row.appendChild(inp); row.appendChild(seg); form.appendChild(row); return inp;
 }
 function field(form, id, label, value, opts) {
     opts = opts || {}; var row = el('label', 'lib-frow' + (opts.area ? ' lib-frow-area' : '') + (opts.rowCls ? ' ' + opts.rowCls : '')); row.appendChild(el('span', 'lib-flabel', label));
@@ -1189,12 +1191,13 @@ function renderBulk(form, ids) {
     var row = function(label, title) { var r = el('div', 'lib-frow'); r.appendChild(el('span', 'lib-flabel', label)); var c = el('div', 'lib-ctl'); r.appendChild(c); if (title) r.title = title; form.appendChild(r); return c; };
     var btn = function(parent, text, fn, cls) { var b = el('button', 'tool' + (cls ? ' ' + cls : ''), text); b.type = 'button'; b.addEventListener('click', fn); parent.appendChild(b); return b; };
     var c1 = row('To a pack', 'A move keeps each entry’s id, so rows that point at it still find it; a copy gets a new id and no key');
-    if (others.length) { var to = select(others.map(function(p) { return [p.id, p.name]; }), others[0].id); c1.appendChild(to); btn(c1, 'Move', function() { moveTo(to.value, false); }); btn(c1, 'Copy', function() { moveTo(to.value, true); }, 'ghost'); }
+    if (others.length) { var to = select(others.map(function(p) { return [p.id, p.name]; }), others[0].id); c1.appendChild(to); var mseg = el('span', 'ui-seg'); c1.appendChild(mseg); btn(mseg, 'Move', function() { moveTo(to.value, false); }); btn(mseg, 'Copy', function() { moveTo(to.value, true); }, 'ghost'); }   // 1.6.4: Move and Copy joined in one .ui-seg frame ("Join the button rows")
     else c1.appendChild(el('span', 'lib-note', 'Make another pack to move or copy to.'));
     catList(form);
     var c2 = row('Category'), cat = el('input', 'field'); cat.type = 'text'; cat.maxLength = 40; cat.setAttribute('list', 'libCats'); c2.appendChild(cat); btn(c2, 'Set', function() { bulk({ category: cat.value }); });
     var c3 = row('Tags', 'Comma separated: Add puts them beside each entry’s own, Replace puts them instead'), tg = el('input', 'field'); tg.type = 'text'; tg.maxLength = 220; tg.placeholder = 'comma, separated'; c3.appendChild(tg);
-    btn(c3, 'Add', function() { bulk({ addTags: tagList(tg.value) }); }); btn(c3, 'Replace', function() { bulk({ tags: tagList(tg.value) }); }, 'ghost');
+    var tseg = el('span', 'ui-seg'); c3.appendChild(tseg);   // 1.6.4: Add and Replace joined in one .ui-seg frame ("Join the button rows")
+    btn(tseg, 'Add', function() { bulk({ addTags: tagList(tg.value) }); }); btn(tseg, 'Replace', function() { bulk({ tags: tagList(tg.value) }); }, 'ghost');
     var c4 = row('Who sees them'), vs = select(VIS, 'all'); c4.appendChild(vs); btn(c4, 'Set', function() { bulk({ vis: vs.value }); });
     var c5 = row('Picture', 'One of your Image Library pictures for every chosen entry. It shows on a sheet’s row, a container’s tile and a trade'), pseg = el('span', 'ui-seg lib-bulk-pic'); c5.appendChild(pseg);   // 1.6.2 (backlog 226): a picture on many entries at once, through bulkSet as the rest
     btn(pseg, 'Set picture…', function() { var at = { pid: pid, ids: ids.slice() }; if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) bulk({ pic: src }, at); }); }, 'ghost lib-bulk-picset');

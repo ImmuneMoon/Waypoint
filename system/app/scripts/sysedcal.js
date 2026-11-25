@@ -197,7 +197,10 @@ function leapFollow(cal, op, i, j) {
 function otherAt(o) { var v = o && typeof o.at === 'number' && isFinite(o.at) ? Math.floor(o.at) : 0; return v > 0 ? v : 0; }
 function calStrip(wrap, cal) {
     var m = calMain(), os = Array.isArray(m.others) ? m.others : [], st = el('div', 'sys-flags sys-cal-cals');
-    [null].concat(os).forEach(function(o, k) { var nm = k ? (o && typeof o.name === 'string' && o.name.trim() ? o.name : 'Calendar ' + (k + 1)) : 'The main calendar', b = el('button', 'tool ghost sys-btn sys-cal-pick' + (k === _calK ? ' on' : ''), nm); b.dataset.act = 'calpick'; b.dataset.k = String(k); b.title = k ? 'Edit this calendar: the same days, counted its own way' : 'Edit the calendar the game keeps'; b.ariaPressed = k === _calK ? 'true' : 'false'; st.appendChild(b); });
+    // 1.6.4: the calendar picks stand joined in one .ui-seg frame (Fulllion, 2026-11-25: "Join the button rows"); + Another calendar stays apart, after it.
+    // The frame wraps (ui-seg-wrap) where five calendars do not fit the tab's width
+    var seg = el('span', 'ui-seg ui-seg-wrap'); st.appendChild(seg);
+    [null].concat(os).forEach(function(o, k) { var nm = k ? (o && typeof o.name === 'string' && o.name.trim() ? o.name : 'Calendar ' + (k + 1)) : 'The main calendar', b = el('button', 'tool ghost sys-btn sys-cal-pick' + (k === _calK ? ' on' : ''), nm); b.dataset.act = 'calpick'; b.dataset.k = String(k); b.title = k ? 'Edit this calendar: the same days, counted its own way' : 'Edit the calendar the game keeps'; b.ariaPressed = k === _calK ? 'true' : 'false'; seg.appendChild(b); });
     var add = el('button', 'tool ghost sys-btn sys-cal-oadd', '+ Another calendar'); add.dataset.act = 'calother'; add.disabled = os.length >= CAL_LIMITS.others; add.title = add.disabled ? 'At most ' + CAL_LIMITS.others : 'The same days as another people counts them. The Calendar shows the day in each, and the top row the one you pick'; st.appendChild(add);
     wrap.appendChild(st);
     if (!_calK) return;

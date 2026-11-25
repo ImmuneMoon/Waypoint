@@ -247,7 +247,9 @@ function draw() {
         } else card.step.remove();
         var pk = el('button', 'tool ghost box-picbtn', 'Picture'); pk.type = 'button'; pk.title = 'A picture for this item in this container. The item keeps it when it is taken.';
         pk.addEventListener('click', function() { if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src !== 'string') return; setPic(sel.fid, sel.rowId, src); }); });
-        var seg = el('span', 'box-seg'); seg.appendChild(pk); card.acts.appendChild(seg);   // the two picture buttons as one joined pair (the owner, 2026-11-12, of A's layout)
+        // The two picture buttons as one joined pair (the owner, 2026-11-12, of A's layout). 1.6.4: the frame is the app's shared .ui-seg (Fulllion, 2026-11-25:
+        // "Join the button rows"); box-seg stays as a name for it
+        var seg = el('span', 'ui-seg box-seg'); seg.appendChild(pk); card.acts.appendChild(seg);
         if (sel.own) { var np = el('button', 'tool ghost box-nopic', 'Item\u2019s picture'); np.type = 'button'; np.title = 'Take this picture off, and show the item\u2019s own again'; np.addEventListener('click', function() { setPic(sel.fid, sel.rowId, ''); }); seg.appendChild(np); }
         var rm = el('button', 'tool ghost danger box-rm', 'Take out'); rm.type = 'button'; rm.title = 'Take this item out of the container';
         rm.addEventListener('click', function() { _box.sel = null; change(sel.fid, { op: 'remove', rowId: sel.rowId }, 'remove', ['.box-tile', '.box-item', '.box-lib']); });

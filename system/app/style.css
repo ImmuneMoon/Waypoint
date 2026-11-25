@@ -2142,6 +2142,29 @@
   .ui-seg:not(:has(> :not(:disabled):not([style*="pointer-events: none"]):not([style*="display: none"]):not([hidden]))) { opacity: .45; }   /* a frame whose parts are all off fades with them */
   .ui-seg.ui-seg-col { display: flex; flex-direction: column; width: 100%; box-sizing: border-box; }
   .ui-seg.ui-seg-col > * + *, .ui-seg.ui-seg-col > .tool + .tool, .ui-seg.ui-seg-col > button + button { border-left: 0; border-top: 0; box-shadow: 0 -1px 0 var(--edge); }
+  /* 1.6.4 (Fulllion, 2026-11-25: "Join the button rows"): the rows of choices built before the shared .ui-seg read as one control too, each
+     family by its own classes, so no markup a script or a suite reads changes. A row of a toolbar menu that holds nothing but two or more
+     choice buttons (Imperial | Metric, the pen's tips, the fog's brushes and strokes, the Radius tool's shapes) is one frame whose buttons
+     stand one hairline apart, so a row that wraps (the Radius tool's four shapes, Build's five) still reads as one; a dialog's choice chips
+     (.gen-seg: Save map as picture, the three generators) the same; and the Tile size chips and the Environment tool's widths, which share a
+     row with a caption, touch with one edge between them. The picked button keeps its gold fill. The Radius tool's two rows of actions
+     (Explode, Undo last throw and Sound on a blast; Explode and Cancel) are no choice and stay apart. */
+  .draw-menu-row:has(> .draw-style-btn + .draw-style-btn):not(:has(> :not(.draw-style-btn))):not(:has(> #blastUndoThrow, > #blastExplodeNo)), .gen-seg { gap: 1px; padding: 0; background: var(--edge); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+  .draw-menu-row:has(> .draw-style-btn + .draw-style-btn):not(:has(> :not(.draw-style-btn))):not(:has(> #blastUndoThrow, > #blastExplodeNo)) > .draw-style-btn { border-radius: 0; background: var(--deep); flex-grow: 1; }
+  .draw-menu-row:has(> .draw-style-btn + .draw-style-btn):not(:has(> :not(.draw-style-btn))):not(:has(> #blastUndoThrow, > #blastExplodeNo)) > .draw-style-btn:hover:not(.active) { background: color-mix(in srgb, var(--deep), var(--ink) 9%); }
+  .draw-menu-row:has(> .draw-style-btn + .draw-style-btn):not(:has(> :not(.draw-style-btn))):not(:has(> #blastUndoThrow, > #blastExplodeNo)) > .draw-style-btn.active { background: var(--gold); }
+  .gen-seg { border-radius: 6px; }
+  .gen-seg > .gen-chip { border: 0; border-radius: 0; }
+  .gen-seg > .gen-chip:hover:not(.on) { background: color-mix(in srgb, var(--panel), var(--ink) 9%); }
+  .tile-row, .fm-tiles { gap: 0; }
+  .tile-row .tile-cap { margin-right: 7px; }
+  .env-menu .env-widths { gap: 0; }
+  .env-menu .env-note { margin-left: 6px; }
+  :is(.tile-chip, .env-menu .env-w) + :is(.tile-chip, .env-w) { margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  :is(.tile-chip, .env-menu .env-w):has(+ :is(.tile-chip, .env-w)) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  :is(.tile-chip, .env-menu .env-w):is(.on, :hover, :focus-visible) { position: relative; z-index: 1; }   /* its whole edge shows over its neighbour's */
+  .obj-formbar.ui-seg { gap: 0; flex-wrap: nowrap; }
+  .obj-formbar.ui-seg > .tool { flex: 1 1 auto; }
   /* a choice of a few, one picked (uiparts.js pick): a caption, a joined row of buttons, one gray line saying what the picked one does */
   .ui-pick { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .ui-pick-cap { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
@@ -2153,13 +2176,10 @@
   .ui-find > .ui-find-sel { flex: 1 1 9em; max-width: 18em; }
   .ui-find:focus-within { border-color: var(--gold); }
   /* backlog 225, the page's own pairs: the roller's quick dice drop their own frames inside the seg and fit its width; Update now and Get
-     installer are each shown or hidden by the script, so the seg goes when neither shows; the selection's four layer buttons are drawn
-     by inspector.js, one under another, so they are joined in place, one frame from Bring to front to Send to back */
+     installer are each shown or hidden by the script, so the seg goes when neither shows (the selection's four layer buttons, joined in
+     place here by their ids before, stand in a column seg of inspector.js's own since 1.6.4) */
   .dice-quick .ui-seg > button { border: 0; border-radius: 0; padding: 2px 6px; }
   #setUpdateRow > .ui-seg:not(:has(> button:not([style*="none"]))) { display: none; }
-  #multiBringFrontBtn, #multiBringFwdBtn, #multiSendBwdBtn { margin-bottom: 0 !important; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-  #multiBringFwdBtn, #multiSendBwdBtn, #multiSendBackBtn { margin-top: -1px; border-top-left-radius: 0; border-top-right-radius: 0; }
-  #multiBringFrontBtn:hover, #multiBringFwdBtn:hover, #multiSendBwdBtn:hover, #multiSendBackBtn:hover { position: relative; z-index: 1; }
   /* backlog 225, the sheets' pairs: a System editor row's ▲ ▼ (.sys-moves, its × apart), a list's Open all | Close all, a set's All on |
      All off, Tiles | List and the tile drawer's four arrows, the stale bar's Review | Mark current. Inside the frame a button has no border of its
      own, so the pointer shows on its fill */
@@ -3356,6 +3376,7 @@
   .fc-opts input[type=range] { width: 110px; accent-color: var(--gold); cursor: pointer; }
   .fc-opts .fc-zoom-val { min-width: 38px; color: var(--ink); font-variant-numeric: tabular-nums; }
   .fc-opts .tool { height: 31px; padding: 0 10px; font-size: 12px; margin-left: auto; }
+  .fc-opts > .ui-seg { margin-left: auto; }   /* 1.6.4: the big table's two ways to edit, joined, stand at the card's right as the first button did */
   .grouped-fields .tool.x-btn { width: 31px; height: 31px; padding: 0; flex: 0 0 31px; display: flex; align-items: center; justify-content: center; }
   #plannerPreviewWrap { width: 50%; padding: 20px; overflow-y: auto; background: var(--bg); color: var(--ink); }
   
@@ -4235,7 +4256,7 @@
   #boxBody .box-lockline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; } #boxBody .box-lockcap { color: var(--dim); min-width: 70px; } #boxBody .box-locknote { font-size: 11.5px; }
   #boxBody .box-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border: 1px solid var(--edge); border-radius: 12px; font-size: 12px; } #boxBody .box-chipx { background: none; border: 0; color: var(--dim); cursor: pointer; font: inherit; padding: 0 4px; line-height: 1; } #boxBody .box-chipx:hover { color: var(--ink); }
   #boxBody .box-lock select { background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 12px; color-scheme: dark; } #boxBody .box-lock .tool { height: 26px; padding: 0 9px; font-size: 12px; }
-  #boxBody .box-lockbox { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 10px; background: var(--bg); border-radius: 8px; text-align: center; } #boxBody .box-lockbig { font-size: 30px; color: var(--gold); } #boxBody .box-lockbtns { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; } #boxBody .box-lockbtns .tool { height: 28px; padding: 0 12px; font-size: 12px; border-color: var(--gold); color: var(--gold); } #boxBody .box-lockwho { color: var(--dim); font-size: 11.5px; }   /* fold 2b: the lock */ #boxBody .box-seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; } #boxBody .box-seg .tool { border: 0; border-radius: 0; } #boxBody .box-seg .tool + .tool { border-left: 1px solid var(--edge); } #boxBody .box-acts .box-rm { color: var(--red); border-color: rgba(224,90,90,0.4); }
+  #boxBody .box-lockbox { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 10px; background: var(--bg); border-radius: 8px; text-align: center; } #boxBody .box-lockbig { font-size: 30px; color: var(--gold); } #boxBody .box-lockbtns { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; } #boxBody .box-lockbtns .tool { height: 28px; padding: 0 12px; font-size: 12px; border-color: var(--gold); color: var(--gold); } #boxBody .box-lockwho { color: var(--dim); font-size: 11.5px; }   /* fold 2b: the lock */    #boxBody .box-acts .box-rm { color: var(--red); border-color: rgba(224,90,90,0.4); }
   #boxBody .box-add { display: flex; flex-wrap: wrap; gap: 6px; } #boxBody .box-add select { flex: 1 1 140px; min-width: 0; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 6px; font: inherit; font-size: 12px; color-scheme: dark; }
   /* 1.6.4: beside Lock, what players see while it is locked; the GM's tick Players may put in; a player's Put in; a See-through container's tiles to look at */
   #boxBody .box-lockhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; } #boxBody .box-seewrap { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; } #boxBody .box-seewrap .box-lockcap { min-width: 0; }

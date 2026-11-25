@@ -3101,7 +3101,8 @@ function picPicker(inp) {
     var put = function(v) { inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); paint(); };   // onInput holds its line (the review)
     b.addEventListener('click', function(e) { e.preventDefault(); if (!window.wpPickImage) { toast('The Image Library is not available here.'); return; } window.wpPickImage(function(src) { if (typeof src === 'string' && /^[/]saves[/]images[/]/.test(src)) put(src); }); });
     x.addEventListener('click', function(e) { e.preventDefault(); put(''); });
-    paint(); wrap.appendChild(b); wrap.appendChild(x); return wrap;
+    // 1.6.4: Picture and its × stand joined in one .ui-seg frame (Fulllion, 2026-11-25: "Join the button rows")
+    var seg = el('span', 'ui-seg'); seg.appendChild(b); seg.appendChild(x); paint(); wrap.appendChild(seg); return wrap;
 }
 function glyphButton(inp, title) {   // title: the button's own words where its box is not one to type in (the Library window's Icon, a hidden box)
     var b = el('button', 'tool ghost sys-btn sys-glyph-btn'); b.type = 'button'; b.title = typeof title === 'string' && title ? title : 'Pick an icon (or type an emoji)';
@@ -3124,7 +3125,8 @@ function glyphPicker(inp, anchor, repaint) {
     closeGlyphPicker();
     var host = (anchor && anchor.closest && anchor.closest('#libraryModal')) || ui('systemModal') || document.body, pop = el('div', 'sys-glyph-pop'); _glyphPop = pop;   // 1.6.3: the Library window's Icon uses this picker too, and its window stands over the System editor
     var tabsRow = el('div', 'sys-glyph-tabs'), tIcons = el('button', 'tool ghost sys-btn sys-glyph-tab', 'Icons'), tEmoji = el('button', 'tool ghost sys-btn sys-glyph-tab', 'Emoji');
-    tIcons.type = 'button'; tEmoji.type = 'button'; tabsRow.appendChild(tIcons); tabsRow.appendChild(tEmoji); pop.appendChild(tabsRow);
+    tIcons.type = 'button'; tEmoji.type = 'button';
+    var tabsSeg = el('span', 'ui-seg ui-seg-wide'); tabsSeg.appendChild(tIcons); tabsSeg.appendChild(tEmoji); tabsRow.appendChild(tabsSeg); pop.appendChild(tabsRow);   // 1.6.4: Icons and Emoji joined in one .ui-seg frame ("Join the button rows")
     var q = el('input', 'field sys-glyph-q'); q.type = 'text'; q.spellcheck = false; q.autocomplete = 'off'; pop.appendChild(q);
     var grid = el('div', 'sys-glyph-grid'); pop.appendChild(grid);
     var none = el('button', 'tool ghost sys-btn sys-glyph-none', 'No icon'); none.type = 'button'; pop.appendChild(none);
@@ -5318,8 +5320,9 @@ var _fxTicker = null;
 function fxTimerCtl(r, d, f, c, sys, editable) {
     var camp = getActiveCampaign();
     if (!editable || (isClient() && camp && camp.turnRules && camp.turnRules.timers === 'gm') || !(lastsSecs(d, sys) > 0)) return null;
-    var box = el('span', 'sheet-fx-timer'), t = r.t;
-    var mk = function(act, ico, tip) { var b = el('button', 'wib wi-' + ico + ' tool ghost sheet-pm sheet-fx-tbtn'); b.type = 'button'; b.title = tip; b.addEventListener('click', function(e) { e.stopPropagation(); commitEffect(c, f, { op: 'timer', rowId: r.id, act: act }); }); box.appendChild(b); };
+    // 1.6.4: the buttons stand joined in one .ui-seg frame inside the box (Fulllion, 2026-11-25: "Join the button rows"); the box keeps its own place on the row
+    var box = el('span', 'sheet-fx-timer'), seg = el('span', 'ui-seg'), t = r.t; box.appendChild(seg);
+    var mk = function(act, ico, tip) { var b = el('button', 'wib wi-' + ico + ' tool ghost sheet-pm sheet-fx-tbtn'); b.type = 'button'; b.title = tip; b.addEventListener('click', function(e) { e.stopPropagation(); commitEffect(c, f, { op: 'timer', rowId: r.id, act: act }); }); seg.appendChild(b); };
     if (t && t.p === 1) mk('resume', 'play', 'Resume the countdown'); else if (t) mk('pause', 'pause', 'Pause the countdown (what is left is held)');
     mk('reset', 'refresh', 'Start its full time again');
     if (t) mk('dismiss', 'stop', 'Stop the countdown: it stays until someone ends it');

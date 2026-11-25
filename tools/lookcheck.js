@@ -5245,5 +5245,17 @@ if (mode === 'samples') {
         && mainL.includes("ctx.fillStyle = lookColor('--bg3', lightM ? '#e6e2d9' : '#15151c');") && mainL.includes("ctx.strokeStyle = lookColor('--ink', lightM ? '#1f1d24' : '#ffffff');"),
         JSON.stringify(['slate', 'lantern', 'ink'].map(L => [ground(tb(L)), ground(zb(L))])));
 }
+{
+    // 1.6.4 (Fulllion, 2026-11-25: "the dropdown menu on pills doesnt look great", then "in dropdowns that descend from pills"): the list a
+    // dropdown opens is drawn by the page in each look's colors, never the system's square list, and a dropdown that shows several rows keeps its own
+    const cssD = read('style.css'), SEL = 'select:not([multiple]):not([size])';
+    const lay = cssD.indexOf('/* 1.6.2 (backlog 224): the layout editor (layout.js).'), at = cssD.indexOf(':where(html[data-look]) ' + SEL + ' { appearance:base-select;');
+    check('1.6.4, a dropdown\'s list wears the look: every dropdown that opens a list is drawn by the page (base-select) at its old height, its list a panel of the look\'s ground, edge and shadow with the picked row in gold, each look with its own corners, one that shows several rows left as it was, and all of it in the looks\' part of the sheet, before the layout editor\'s rules',
+        at > 0 && at < lay && cssD.includes(':where(html[data-look]) ' + SEL + ' { appearance:base-select; min-block-size:0; }')
+        && cssD.includes(':where(html[data-look]) ' + SEL + '::picker(select) { appearance:base-select; background:var(--panel); color:var(--ink); border:1px solid var(--edge); box-shadow:var(--shadow);')
+        && cssD.includes(':where(html[data-look]) ' + SEL + ' option:checked { color:var(--gold);')
+        && ['slate', 'lantern', 'ink'].every(L => cssD.includes(':where(html[data-look="' + L + '"]) ' + SEL + '::picker(select) { border-radius:'))
+        && !/base-select[^;]*;[^}]*\}[^\n]*\n?/.test(cssD.slice(0, at)), at + ' ' + lay);
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

@@ -7043,34 +7043,37 @@
      block for what it holds (the text bar inside a sheet or the Journal) and costs a frame wherever the map moves behind it. It turns solid where
      the system asks for less transparency.
    - --winbar-bg is the ground the window bar's strip wears (#winBar, winbar.js), the ground directly around the top row in each look.
+   - --ruler-bg and --ruler-line are the coordinate rulers' ground and lines, which main.js renderRulers reads with the look's --dim for their
+     words (lookColor); the minimap's canvas is drawn on the look's --bg3 with the view framed in its --ink (renderMinimap). The zoom box wears
+     each look's toolbar ground, edge, corners and shadow, and the minimap's box the same ground made a little more solid, since it fades at rest.
    A look never adds or removes a control. Rules after the layout editor's comment below are the layout editor's alone (layoutcheck), so a look's
    rule goes here. */
 html[data-look="slate"]:not([data-theme="light"]) { --bg:#10141b; --bg2:#121721; --panel:#161b24; --panel2:#1e2430; --edge:rgba(148,163,184,.2); --ink:#e7ebf2; --dim:#8e99aa; --faint:#647083;
-  --gold:#e8b05a; --bg3:#141922; --deep:#10141c; --plate:rgba(148,163,184,.16); --hdr-top:#10141b; --canvas-a:#172030; --canvas-b:#10141b; --canvas-c:#0b0e14;
-  --shadow:0 24px 60px rgba(0,0,0,.5); --winbar-bg:#10141b; }
+  --gold:#e8b05a; --bg3:#141922; --deep:#10141c; --plate:rgba(148,163,184,.16); --hdr-top:#121721; --canvas-a:#172030; --canvas-b:#10141b; --canvas-c:#0b0e14;
+  --shadow:0 24px 60px rgba(0,0,0,.5); --winbar-bg:#121721; --ruler-bg:rgba(16,20,27,.88); --ruler-line:rgba(148,163,184,.26); }
 html[data-look="slate"][data-theme="light"] { --bg:#eef1f5; --bg2:#e6eaf0; --panel:#ffffff; --panel2:#f8fafc; --edge:rgba(30,41,59,.14); --ink:#1b2330; --dim:#5a6577; --faint:#8a94a4;
-  --gold:#a8690f; --bg3:#e9edf2; --deep:#ffffff; --plate:rgba(30,41,59,.06); --hdr-top:#eef1f5; --canvas-a:#eef2f7; --canvas-b:#e5eaf1; --canvas-c:#d9dfe8;
-  --shadow:0 24px 60px rgba(20,30,50,.18); --winbar-bg:#eef1f5; }
+  --gold:#a8690f; --bg3:#e9edf2; --deep:#ffffff; --plate:rgba(30,41,59,.06); --hdr-top:#e6eaf0; --canvas-a:#eef2f7; --canvas-b:#e5eaf1; --canvas-c:#d9dfe8;
+  --shadow:0 24px 60px rgba(20,30,50,.18); --winbar-bg:#e6eaf0; --ruler-bg:rgba(238,241,245,.92); --ruler-line:rgba(30,41,59,.26); }
 html[data-look="lantern"]:not([data-theme="light"]) { --bg:#141418; --bg2:#111115; --panel:#18181d; --panel2:#1f1f25; --edge:rgba(255,255,255,.10); --ink:#ecebf1; --dim:#9b9aa8; --faint:#6c6b78;
   --bg3:#16161b; --deep:#111115; --plate:#26262d; --hdr-top:#111115; --canvas-a:#18181e; --canvas-b:#131317; --canvas-c:#0f0f12;
-  --shadow:0 18px 48px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.4); --winbar-bg:#111115; }
+  --shadow:0 18px 48px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.4); --winbar-bg:#111115; --ruler-bg:rgba(17,17,21,.88); --ruler-line:rgba(255,255,255,.18); }
 html[data-look="lantern"][data-theme="light"] { --bg:#f1eee8; --bg2:#ebe7df; --panel:#fdfcfa; --panel2:#f6f3ed; --edge:rgba(60,45,20,.14); --ink:#22201d; --dim:#6a6458; --faint:#9a9384;
   --gold:#a86f14; --bg3:#eeeae2; --deep:#faf8f4; --plate:#efebe3; --hdr-top:#faf8f4; --canvas-a:#f3f0ea; --canvas-b:#ebe7df; --canvas-c:#e2ddd3;
-  --shadow:0 18px 48px rgba(40,30,10,.16), 0 0 0 1px rgba(40,30,10,.05); --winbar-bg:#faf8f4; }
+  --shadow:0 18px 48px rgba(40,30,10,.16), 0 0 0 1px rgba(40,30,10,.05); --winbar-bg:#faf8f4; --ruler-bg:rgba(250,248,244,.92); --ruler-line:rgba(60,45,20,.26); }
 html[data-look="ink"]:not([data-theme="light"]) { --bg:#0d0d0f; --bg2:#0a0a0b; --panel:#121214; --panel2:#18181b; --edge:#2e2e33; --ink:#f4f3f0; --dim:#8f8e8a; --faint:#5f5e5a;
   --gold:#f0b357; --bg3:#101012; --deep:#0a0a0b; --plate:#1f1f23; --hdr-top:#0a0a0b; --canvas-a:#111113; --canvas-b:#0d0d0f; --canvas-c:#09090a;
-  --shadow:0 14px 40px rgba(0,0,0,.75); --winbar-bg:#0a0a0b; }
+  --shadow:0 14px 40px rgba(0,0,0,.75); --winbar-bg:#0a0a0b; --ruler-bg:rgba(10,10,11,.92); --ruler-line:rgba(255,255,255,.2); }
 html[data-look="ink"][data-theme="light"] { --bg:#fafafa; --bg2:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --edge:#d6d6d3; --ink:#0f0f10; --dim:#6b6b68; --faint:#9c9c98;
   --gold:#9a640e; --bg3:#f2f2f1; --deep:#ffffff; --plate:#efefed; --hdr-top:#ffffff; --canvas-a:#f6f6f5; --canvas-b:#eeeeec; --canvas-c:#e6e6e4;
-  --shadow:0 14px 40px rgba(0,0,0,.14); --winbar-bg:#ffffff; }
+  --shadow:0 14px 40px rgba(0,0,0,.14); --winbar-bg:#ffffff; --ruler-bg:rgba(255,255,255,.94); --ruler-line:rgba(0,0,0,.24); }
 /* the top row's look weighs body and header, more than the row's own rule and less than the hidden row's, which keeps its own bar (no ground, no edge) */
 body.row-hidden:not(.tour-on) header { margin:0; border-radius:0; }   /* the hidden row's bar floats on its own, in any look */
 
-/* Slate: cool blue-gray, pill buttons and switches, round corners (10, 12, 16 and 20), the top row a floating rounded bar, glass toolbars */
+/* Slate: cool blue-gray, pill buttons and switches, round corners (10, 12, 16 and 20), glass toolbars. The top row runs edge to edge in the left
+   panel's own color, so the row and the panel are one frame around the map (Fulllion, 2026-11-25, of the floating rounded row it had: "idk if
+   I like the pillbar up top, left the side bar clashes with it visually", then by prompt "A. Joined frame") */
 :where(html[data-look="slate"]) body { background:var(--bg); }
-:where(html[data-look="slate"]:not([data-theme="light"])) body header { background:rgba(16,20,28,.75); border:1px solid rgba(148,163,184,.18); }
-:where(html[data-look="slate"][data-theme="light"]) body header { background:rgba(255,255,255,.72); border:1px solid rgba(30,41,59,.12); }
-:where(html[data-look="slate"]) body header { margin:8px 8px 0; border-radius:16px; }
+:where(html[data-look="slate"]) body header { background:var(--hdr-top); border-bottom:1px solid var(--edge); }
 :where(html[data-look="slate"]) :is([id$="Modal"]:not(#docReaderModal) > div:first-child, #sheetPanel, .set-box) { border-radius:20px !important; border:1px solid var(--edge) !important; box-shadow:var(--shadow) !important; }
 :where(html[data-look="slate"]) :is([id$="Modal"]:not(#docReaderModal), #sheetPanel) h3:not(.doc-view h3) { color:var(--ink); }
 :where(html[data-look="slate"]:not([data-theme="light"])) .sheet-sec-title { color:var(--sheet-accent, #9fb0c8); letter-spacing:.02em; }
@@ -7086,10 +7089,21 @@ body.row-hidden:not(.tour-on) header { margin:0; border-radius:0; }   /* the hid
 :where(html[data-look="slate"][data-theme="light"]) .floating-toolbar { background:rgba(255,255,255,.74); box-shadow:0 12px 34px rgba(20,30,50,.18); }
 :where(html[data-look="slate"]) .floating-toolbar { border-radius:20px; border-color:var(--edge); backdrop-filter:blur(14px); }
 :where(html[data-look="slate"]) .wb-tool-btn { border-radius:12px; }
+:where(html[data-look="slate"]:not([data-theme="light"])) #zoomBox { background:rgba(18,22,30,.7); box-shadow:0 12px 34px rgba(0,0,0,.45); }
+:where(html[data-look="slate"][data-theme="light"]) #zoomBox { background:rgba(255,255,255,.74); box-shadow:0 12px 34px rgba(20,30,50,.18); }
+:where(html[data-look="slate"]) #zoomBox { border-radius:18px; border-color:var(--edge); backdrop-filter:blur(14px); }
+:where(html[data-look="slate"]:not([data-theme="light"])) #minimap { background:rgba(18,22,30,.88); }
+:where(html[data-look="slate"][data-theme="light"]) #minimap { background:rgba(255,255,255,.88); }
+:where(html[data-look="slate"]) #minimap { border-radius:14px; border-color:var(--edge); }
+:where(html[data-look="slate"]) #minimap canvas { border-radius:10px; }
+:where(html[data-look="slate"]) #minimapToggle { border-radius:0 14px 0 8px; }
 @media (prefers-reduced-transparency: reduce) {
-  :where(html[data-look="slate"]:not([data-theme="light"])) :is(body header, .floating-toolbar, .wc-card, .wc-profile) { background:#161b24; }
-  :where(html[data-look="slate"][data-theme="light"]) :is(body header, .floating-toolbar, .wc-card, .wc-profile) { background:#ffffff; }
+  :where(html[data-look="slate"]:not([data-theme="light"])) :is(.floating-toolbar, .wc-card, .wc-profile) { background:#161b24; }
+  :where(html[data-look="slate"][data-theme="light"]) :is(.floating-toolbar, .wc-card, .wc-profile) { background:#ffffff; }
   :where(html[data-look="slate"]) :is(.floating-toolbar, .wc-card, .wc-profile) { backdrop-filter:none; }
+  :where(html[data-look="slate"]:not([data-theme="light"])) :is(#zoomBox, #minimap) { background:#161b24; }
+  :where(html[data-look="slate"][data-theme="light"]) :is(#zoomBox, #minimap) { background:#ffffff; }
+  :where(html[data-look="slate"]) #zoomBox { backdrop-filter:none; }
 }
 
 /* Lantern: warm charcoal (or warm paper in light), soft corners (6, 8, 9 and 14), a lit glow on what is on */
@@ -7111,6 +7125,12 @@ body.row-hidden:not(.tour-on) header { margin:0; border-radius:0; }   /* the hid
 :where(html[data-look="lantern"]:not([data-theme="light"])) .floating-toolbar { box-shadow:0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.35); }
 :where(html[data-look="lantern"][data-theme="light"]) .floating-toolbar { box-shadow:0 10px 28px rgba(40,30,10,.18); }
 :where(html[data-look="lantern"]) .floating-toolbar { border-radius:14px; border-color:var(--edge); background:var(--hdr-top); }
+:where(html[data-look="lantern"]:not([data-theme="light"])) #zoomBox { box-shadow:0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.35); }
+:where(html[data-look="lantern"][data-theme="light"]) #zoomBox { box-shadow:0 10px 28px rgba(40,30,10,.18); }
+:where(html[data-look="lantern"]) #zoomBox { border-radius:12px; border-color:var(--edge); background:var(--hdr-top); }
+:where(html[data-look="lantern"]) #minimap { border-radius:10px; border-color:var(--edge); background:var(--hdr-top); }
+:where(html[data-look="lantern"]) #minimap canvas { border-radius:7px; }
+:where(html[data-look="lantern"]) #minimapToggle { border-radius:0 10px 0 6px; }
 
 /* Ink: flat and square (2 to 6), near black or white, capital titles and button words */
 :where(html[data-look="ink"]) body { background:var(--bg); }
@@ -7124,6 +7144,10 @@ body.row-hidden:not(.tour-on) header { margin:0; border-radius:0; }   /* the hid
 :where(html[data-look="ink"]) :is(.wc-card, .wc-profile) { border-radius:4px; border-left:2px solid var(--gold); }
 :where(html[data-look="ink"]) .floating-toolbar { border-radius:6px; border-color:var(--edge); background:var(--hdr-top); }
 :where(html[data-look="ink"]) .wb-tool-btn { border-radius:4px; }
+:where(html[data-look="ink"]) #zoomBox { border-radius:6px; border-color:var(--edge); background:var(--hdr-top); }
+:where(html[data-look="ink"]) #minimap { border-radius:4px; border-color:var(--edge); background:var(--hdr-top); }
+:where(html[data-look="ink"]) #minimap canvas { border-radius:2px; }
+:where(html[data-look="ink"]) #minimapToggle { border-radius:0 4px 0 3px; }
 
 /* 1.6.2 (backlog 224): the layout editor (layout.js). Every rule waits for body.lay-on, which layout.js writes only while a layout is set,
    the map's area is wide enough and the view is a map, so with no layout, on a narrow area and in the stream window the page is as before.

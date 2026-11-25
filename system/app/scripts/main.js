@@ -1652,6 +1652,12 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
     /* ---------- coordinate rulers ---------- */
     var RULER_STEPS = [25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 
+    // 1.6.4, the looks: a color of the look in use, read from the style sheet's custom property of that name (style.css, the looks: --ruler-bg,
+    // --ruler-line, --dim, --bg3, --ink), else the color given, which is what the rulers and the minimap drew before the looks. The rulers and
+    // the minimap are canvases, so no rule of the style sheet reaches what they draw; Settings' Look draws them again when the look changes
+    function lookColor(name, fb) {
+        try { var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || fb; } catch (e) { return fb; }
+    }
     function renderRulers() {
         if (window.wpCellLabels) window.wpCellLabels();   // backlog 34: a hex map's cell labels follow the view as the rulers do, whether the rulers show or not (whiteboard.js)
         var top = document.getElementById('rulerTop');
@@ -1679,7 +1685,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         }
 
         var lightR = document.documentElement.getAttribute('data-theme') === 'light';   // the rulers follow the theme
-        var bg = lightR ? 'rgba(239,236,229,0.92)' : 'rgba(21,21,28,0.85)', line = lightR ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.22)', txt = lightR ? '#5d5964' : '#9a9aad';
+        var bg = lookColor('--ruler-bg', lightR ? 'rgba(239,236,229,0.92)' : 'rgba(21,21,28,0.85)'), line = lookColor('--ruler-line', lightR ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.22)'), txt = lookColor('--dim', lightR ? '#5d5964' : '#9a9aad');   // 1.6.4: the look's own (lookColor)
 
         var ctxT = top.getContext('2d');
         ctxT.clearRect(0, 0, W, 18);
@@ -1787,7 +1793,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
         var ctx = cv.getContext('2d');
         ctx.clearRect(0, 0, W, H);
         var lightM = document.documentElement.getAttribute('data-theme') === 'light';
-        ctx.fillStyle = lightM ? '#e6e2d9' : '#15151c';
+        ctx.fillStyle = lookColor('--bg3', lightM ? '#e6e2d9' : '#15151c');   // 1.6.4: the look's own ground (lookColor)
         ctx.fillRect(0, 0, W, H);
         items.forEach(function(i) {
             ctx.fillStyle = i.c;
@@ -1795,7 +1801,7 @@ if(_el_fileIn) _el_fileIn.addEventListener('change', function(e) {
             ctx.fillRect(i.x * sc + ox, i.y * sc + oy, Math.max(2, i.w * sc), Math.max(2, i.h * sc));
         });
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = lightM ? '#1f1d24' : '#ffffff';
+        ctx.strokeStyle = lookColor('--ink', lightM ? '#1f1d24' : '#ffffff');   // 1.6.4: the frame of the view in the look's own ink
         ctx.lineWidth = 1.5;
         if (turnRect) { ctx.beginPath(); turnRect.forEach(function(p, i) { if (i) ctx.lineTo(p.x * sc + ox, p.y * sc + oy); else ctx.moveTo(p.x * sc + ox, p.y * sc + oy); }); ctx.closePath(); ctx.stroke(); }
         else ctx.strokeRect(vx * sc + ox, vy * sc + oy, vw * sc, vh * sc);

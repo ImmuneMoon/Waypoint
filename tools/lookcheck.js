@@ -5227,5 +5227,23 @@ if (mode === 'samples') {
         && wb.includes("if (bar.style.backgroundColor !== color) { bar.style.backgroundColor = color; bar.style.color = symbol; }") && wb.includes('var k = color + symbol; if (k === _said) return;')
         && wb.includes("['pointerup', 'keyup'].forEach(function(t) { document.addEventListener(t, saySoon, true); });") && /var WB_LOOK_MS = 500;/.test(wb) && wb.includes('if (el === bar || bar.contains(el)) continue;'));
 }
+{
+    // 1.6.4, the looks (Fulllion, 2026-11-24: Slate the app's own, Lantern and Ink to pick): the rulers, the minimap and the zoom box wear the look
+    // in use. Every look and theme names the rulers' ground and lines; the zoom box takes each look's toolbar ground, edge, corners and shadow
+    // and the minimap the look's ground and corners; main.js reads the canvases' colors from the look and keeps what it drew before as the fallback
+    const cssL = read('style.css'), mainL = read('scripts/main.js');
+    const blocks = ['html[data-look="slate"]:not([data-theme="light"]) {', 'html[data-look="slate"][data-theme="light"] {', 'html[data-look="lantern"]:not([data-theme="light"]) {', 'html[data-look="lantern"][data-theme="light"] {', 'html[data-look="ink"]:not([data-theme="light"]) {', 'html[data-look="ink"][data-theme="light"] {'];
+    const varsOk = blocks.every(b => { const a = cssL.indexOf('\n' + b); if (a < 0) return false; const body = cssL.slice(a, cssL.indexOf('}', a)); return /--ruler-bg:rgba\([\d,.]+\);/.test(body) && /--ruler-line:rgba\([\d,.]+\);/.test(body); });
+    const tb = sel => (cssL.match(new RegExp('\\n:where\\(html\\[data-look="' + sel + '"\\][^\\n]*\\) \\.floating-toolbar \\{([^}]*)\\}', 'g')) || []).join(' ');
+    const zb = sel => (cssL.match(new RegExp('\\n:where\\(html\\[data-look="' + sel + '"\\][^\\n]*\\) #zoomBox \\{([^}]*)\\}', 'g')) || []).join(' ');
+    const ground = t => (t.match(/background:[^;]+;/g) || []).sort().join('|');
+    check('1.6.4, the rulers, the minimap and the zoom box wear the look in use: each of the six looks and themes names the rulers\' ground and lines, the zoom box takes each look\'s toolbar ground and its edge, the minimap the look\'s ground and corners, the glass turning solid where less transparency is asked for, and main.js reads the canvases\' colors from the look (lookColor) with what it drew before as the fallback',
+        varsOk && ['slate', 'lantern', 'ink'].every(L => ground(tb(L)) === ground(zb(L)) && zb(L).includes('border-color:var(--edge)') && cssL.includes(':where(html[data-look="' + L + '"]) #minimap {') && cssL.includes(':where(html[data-look="' + L + '"]) #minimapToggle {'))
+        && cssL.includes('  :where(html[data-look="slate"]) #zoomBox { backdrop-filter:none; }\n')
+        && mainL.includes("    function lookColor(name, fb) {\n        try { var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || fb; } catch (e) { return fb; }\n    }\n")
+        && mainL.includes("var bg = lookColor('--ruler-bg', lightR ? 'rgba(239,236,229,0.92)' : 'rgba(21,21,28,0.85)'), line = lookColor('--ruler-line', lightR ? 'rgba(0,0,0,0.28)' : 'rgba(255,255,255,0.22)'), txt = lookColor('--dim', lightR ? '#5d5964' : '#9a9aad');")
+        && mainL.includes("ctx.fillStyle = lookColor('--bg3', lightM ? '#e6e2d9' : '#15151c');") && mainL.includes("ctx.strokeStyle = lookColor('--ink', lightM ? '#1f1d24' : '#ffffff');"),
+        JSON.stringify(['slate', 'lantern', 'ink'].map(L => [ground(tb(L)), ground(zb(L))])));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

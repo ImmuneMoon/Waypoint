@@ -1731,7 +1731,8 @@ function stanceNode(c, gm) {
         em.addEventListener('click', function() { stepBy(-1); });
         ep.addEventListener('click', function() { stepBy(1); });
         ei.addEventListener('change', function() { if (isFinite(Number(ei.value))) setSt({ elevation: eu.yd(ei.value) }); });
-        er.appendChild(em); er.appendChild(ei); er.appendChild(ep); er.appendChild(el('span', 'sheet-unit', eu.unit)); wrap.appendChild(er);
+        var est = el('span', 'ui-step sheet-pmstep'); est.role = 'group'; est.ariaLabel = 'Elevation';   // 1.6.4: one counter, as a pool's ("Yes, do the counters")
+        est.appendChild(em); est.appendChild(ei); est.appendChild(ep); er.appendChild(est); er.appendChild(el('span', 'sheet-unit', eu.unit)); wrap.appendChild(er);
     }
     var mt = t.map.meta && typeof t.map.meta.title === 'string' ? t.map.meta.title.slice(0, 60) : ''; if (mt) wrap.appendChild(el('span', 'sheet-dial-map', 'on ' + mt));
     if (!gm && t.tok.locked) wrap.appendChild(el('span', 'wib wi-anchor sheet-dial-map', 'Locked by the GM'));
@@ -5895,7 +5896,11 @@ function fieldNodeBody(f, c, e, gm, own, sysArg, plc) {   // plc (F4b): the sect
         // the review of the sheet picks: the box still steps by one with the up and down arrow keys, as the number box it replaced did, from what it
         // reads now (what was typed, else the figure shown), through commit as - and + do (commit clamps); with any key held the arrows are the page's
         ci.addEventListener('keydown', function(ev) { if ((ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') || ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return; ev.preventDefault(); var pk = typeof poolTyped === 'function' ? poolTyped(ci.value, cur) : null, base = pk ? pk.value : cur; ci._wpTyped = false; commit(c, f, { cur: base + (ev.key === 'ArrowUp' ? 1 : -1) }); });   // 1.6.3 (finding 18): -7 and +3 change it, a plain number sets it, an empty or unreadable box puts the old figure back, never 0
-        r.appendChild(minus); r.appendChild(ci); r.appendChild(plus); r.appendChild(mx);
+        // 1.6.4 (Fulllion, 2026-11-25: "Yes, do the counters"): the minus, the box and the plus stand in the shared counter's frame (.ui-step), one
+        // control, while the box is still the one a change is typed in (-7, +3) and every handler above is its own. Under the look's arrows inside
+        // the box, and on paper, the style sheet makes the frame step aside (.sheet-pmstep), so the three are laid out there as before.
+        var pst = el('span', 'ui-step sheet-pmstep'); pst.role = 'group'; pst.ariaLabel = f.label || 'Pool';
+        pst.appendChild(minus); pst.appendChild(ci); pst.appendChild(plus); r.appendChild(pst); r.appendChild(mx);
         if (f.reset) {   // Fold B: fill back to the max (the host clamps it like any edit)
             var rs = el('button', 'tool ghost sheet-pm sheet-reset', '\u21bb'); rs.dataset.fid = f.id; rs.dataset.part = 'reset';
             var fb = typeof fillBarred === 'function' && fillBarred(); rs.title = fb ? 'The GM fills pools at this table' : max === null ? 'No max to fill to' : 'Back to full (' + fmtNum(max) + ')'; rs.disabled = !use || max === null || cur === max || fb;   // K5b

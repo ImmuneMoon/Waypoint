@@ -5545,6 +5545,17 @@
   .sheet-field.sheet-tile.sheet-kind-skill .sheet-total { font-size: 18px; color: var(--ink); font-weight: 700; }
   .sheet-field.sheet-tile .sheet-cur { font-size: 18px; font-weight: 700; width: 58px; height: 32px; }
   .sheet-field.sheet-tile .sheet-pm { padding: 0 6px; }
+  /* 1.6.4 (Fulllion, 2026-11-25: "Yes, do the counters"): a pool's and the Elevation row's minus, box and plus stand in the shared counter's frame
+     (.ui-step, sheets.js .sheet-pmstep), the box still a field a change is typed in, drawn inside the frame with a hairline either side. In a
+     tile the counter stands upright, minus over the box over plus, as the three stood there before. Under the look's arrows inside the box
+     and on paper the frame steps aside (display: contents) and the three are laid out by their own rules, as before. */
+  .sheet-pmstep:not(.sheet-steppers-inside *):not(#sheetPrint *) > .sheet-cur { height: 100%; margin: 0; border: 0; border-left: 1px solid var(--edge); border-right: 1px solid var(--edge); border-radius: 0; background: transparent; box-shadow: none; }
+  .sheet-field.sheet-tile .sheet-pmstep:not(.sheet-steppers-inside *):not(#sheetPrint *) { flex-direction: column; height: auto; }
+  .sheet-field.sheet-tile .sheet-pmstep:not(.sheet-steppers-inside *):not(#sheetPrint *) > button { flex: 0 0 22px; width: auto; height: 22px; }
+  .sheet-field.sheet-tile .sheet-pmstep:not(.sheet-steppers-inside *):not(#sheetPrint *) > .sheet-cur { height: 32px; border: 0; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge); }
+  :is(.sheet-steppers-inside, #sheetPrint) .sheet-pmstep { display: contents; }
+  .sheet-steppers-inside .sheet-pmstep > button { height: 28px; border: 1px solid var(--edge); border-radius: 6px; color: var(--ink); }
+  .sheet-steppers-inside .sheet-pmstep > button:hover:not(:disabled) { border-color: var(--gold); background: transparent; }
   .sheet-field.sheet-tile .sheet-bar { display: none; }
   /* The top of the sheet (Stages 5c/5d, reworked after the owner's reference note "the tabs don't move up or down"): the header block
      (.sheet-head: identity rows, ledger figures) scrolls away like content; the FRAME (the pinned band + the tab strip) is the one
@@ -6154,8 +6165,8 @@
   .sheet-stance.sheet-row { grid-column: 1 / -1; }
   .sheet-stance-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .sheet-stance-row > .sheet-label { min-width: 64px; }
-  .sheet-stance-row:has(> input.sheet-num) { flex-wrap: nowrap; }   /* 1.6.3 (found by hand on 2026-11-20): the Elevation row keeps its label, minus, box, plus and unit on one line; its box took the whole width (input.field is 100%) and pushed them onto three lines in a HUD */
-  .sheet-stance-row > input.sheet-num { flex: 0 1 4.5em; width: 4.5em; min-width: 3em; text-align: center; }
+  .sheet-stance-row:has(> .sheet-pmstep) { flex-wrap: nowrap; }   /* 1.6.3 (found by hand on 2026-11-20): the Elevation row keeps its label, minus, box, plus and unit on one line; its box took the whole width (input.field is 100%) and pushed them onto three lines in a HUD */
+  .sheet-stance-row .sheet-pmstep > input.sheet-num { flex: 0 1 4.5em; width: 4.5em; min-width: 3em; text-align: center; }
   .sheet-dial.sheet-row { grid-column: 1 / -1; }
   .sheet-dial-svg { width: 132px; height: 132px; flex: none; }
   .sheet-dial-svg:focus-visible, .sheet-dial-seg:focus-visible { outline: 2px solid var(--sheet-accent, var(--gold)); outline-offset: 1px; }

@@ -5257,5 +5257,16 @@ if (mode === 'samples') {
         && ['slate', 'lantern', 'ink'].every(L => cssD.includes(':where(html[data-look="' + L + '"]) ' + SEL + '::picker(select) { border-radius:'))
         && !/base-select[^;]*;[^}]*\}[^\n]*\n?/.test(cssD.slice(0, at)), at + ' ' + lay);
 }
+{
+    // 1.6.4 (Fulllion, 2026-11-25: "Yes, do the counters"): a pool's and the Elevation row's minus, box and plus stand in the shared counter's frame,
+    // the box still a typed field, and the frame steps aside under the look's arrows inside the box and on paper
+    const shP = read('scripts/sheets.js'), cssP = read('style.css');
+    check('1.6.4, a pool\'s and the Elevation row\'s counter is the shared one: its minus, box and plus stand in a .ui-step (sheet-pmstep), the box drawn inside the frame, upright in a tile, and the frame stepping aside under the arrows inside the box and on paper',
+        shP.includes("var pst = el('span', 'ui-step sheet-pmstep'); pst.role = 'group';") && shP.includes("pst.appendChild(minus); pst.appendChild(ci); pst.appendChild(plus); r.appendChild(pst); r.appendChild(mx);")
+        && shP.includes("var est = el('span', 'ui-step sheet-pmstep'); est.role = 'group';") && shP.includes("est.appendChild(em); est.appendChild(ei); est.appendChild(ep); er.appendChild(est);")
+        && cssP.includes('  .sheet-pmstep:not(.sheet-steppers-inside *):not(#sheetPrint *) > .sheet-cur { height: 100%;')
+        && cssP.includes('  .sheet-field.sheet-tile .sheet-pmstep:not(.sheet-steppers-inside *):not(#sheetPrint *) { flex-direction: column; height: auto; }')
+        && cssP.includes('  :is(.sheet-steppers-inside, #sheetPrint) .sheet-pmstep { display: contents; }'));
+}
 console.log('\n' + pass + ' passed, ' + fail + ' failed.');
 if (fail) process.exit(1);

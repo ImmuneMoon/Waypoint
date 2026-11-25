@@ -288,13 +288,13 @@ function showDialog(opts) {
     return new Promise(function(resolve) {
         var old = document.getElementById(opts.id); if (old) old.remove();
         var overlay = document.createElement('div'); overlay.id = opts.id;
-        overlay.style.cssText = 'display:flex; position:fixed; top:var(--winbar, 0px); left:0; width:100%; height:calc(100% - var(--winbar, 0px)); background:var(--overlay); z-index:' + Z_INDEX + '; align-items:center; justify-content:center;';
+        overlay.className = 'cu-overlay'; overlay.style.zIndex = String(Z_INDEX);   // 1.6.4: its look in the style sheet (.cu-overlay), its layer from Z_INDEX here, as before
         var box = document.createElement('div');
-        box.style.cssText = 'background:var(--panel2); color:var(--ink); padding:22px; border:1px solid var(--gold); border-radius:8px; width:480px; max-width:92vw; max-height:88vh; overflow-y:auto; box-sizing:border-box; font-size:13.5px; line-height:1.5; box-shadow:var(--shadow);';
-        var h = document.createElement('h3'); h.textContent = opts.title; h.style.cssText = 'margin:0 0 12px; color:var(--gold);';
-        var body = document.createElement('div'); body.innerHTML = opts.html || '';
+        box.className = 'cu-box';
+        var h = document.createElement('h3'); h.textContent = opts.title; h.className = 'cu-title';
+        var body = document.createElement('div'); body.className = 'cu-body'; body.innerHTML = opts.html || '';
         if (opts.render) opts.render(body);
-        var row = document.createElement('div'); row.style.cssText = 'display:flex; justify-content:flex-end; gap:10px; margin-top:16px; flex-wrap:wrap;';
+        var row = document.createElement('div'); row.className = 'cu-row';
         var downOnBackdrop = false;
         function finish(v) { document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(v); }
         function onKey(e) {
@@ -317,7 +317,7 @@ function showDialog(opts) {
 function showWorking() {
     if (document.getElementById('cleanupWorkingModal')) return;
     var d = document.createElement('div'); d.id = 'cleanupWorkingModal';
-    d.style.cssText = 'position:fixed; top:calc(56px + var(--winbar, 0px)); left:50%; transform:translateX(-50%); z-index:' + Z_INDEX + '; background:var(--panel2); color:var(--dim); border:1px solid var(--edge); border-radius:8px; padding:8px 14px; font-size:13px;';
+    d.className = 'cu-working'; d.style.zIndex = String(Z_INDEX);   // 1.6.4: its look in the style sheet (.cu-working), its layer from Z_INDEX here, as before
     d.textContent = 'Checking your save…';
     document.body.appendChild(d);
 }
@@ -329,9 +329,9 @@ function hideWorking() { var d = document.getElementById('cleanupWorkingModal');
 function askOwnership(camp, info, opts) {
     opts = opts || {};
     var name = nameOf(camp), counts = info || inspectCampaign(camp || {});
-    var html = '<p style="margin:0 0 10px;">Is <b>' + esc(name) + '</b> yours? It looks like it may have come from a game you joined, but we’re not sure, so we won’t touch it without asking.</p>'
-        + '<p style="margin:0 0 6px; color:var(--dim);">It has ' + counts.maps + ' map' + (counts.maps === 1 ? '' : 's') + ', ' + counts.rooms + ' room' + (counts.rooms === 1 ? '' : 's') + ' and ' + counts.planners + ' planner page' + (counts.planners === 1 ? '' : 's') + (counts.docs ? ' and ' + counts.docs + ' handbook page' + (counts.docs === 1 ? '' : 's') : '') + '.</p>'
-        + (counts.planners ? '<p style="margin:0; color:var(--dim); font-size:12px;">Any planner pages in it are yours and will be kept either way.' + (counts.docs ? ' Its handbook pages are kept if you say it is not yours (they could be your own writing).' : '') + '</p>' : counts.docs ? '<p style="margin:0; color:var(--dim); font-size:12px;">Its handbook pages are kept in "Recovered notes" if you say it is not yours.</p>' : '');
+    var html = '<p class="cu-p">Is <b>' + esc(name) + '</b> yours? It looks like it may have come from a game you joined, but we’re not sure, so we won’t touch it without asking.</p>'
+        + '<p class="cu-p-tight cu-dim">It has ' + counts.maps + ' map' + (counts.maps === 1 ? '' : 's') + ', ' + counts.rooms + ' room' + (counts.rooms === 1 ? '' : 's') + ' and ' + counts.planners + ' planner page' + (counts.planners === 1 ? '' : 's') + (counts.docs ? ' and ' + counts.docs + ' handbook page' + (counts.docs === 1 ? '' : 's') : '') + '.</p>'
+        + (counts.planners ? '<p class="cu-p-last cu-dim cu-small">Any planner pages in it are yours and will be kept either way.' + (counts.docs ? ' Its handbook pages are kept if you say it is not yours (they could be your own writing).' : '') + '</p>' : counts.docs ? '<p class="cu-p-last cu-dim cu-small">Its handbook pages are kept in "Recovered notes" if you say it is not yours.</p>' : '');
     var buttons = opts.isImport
         ? [{ label: 'Not mine, skip it', value: 'remove', cls: 'ghost' }, { label: 'It’s mine, bring it in', value: 'keep' }]
         : [{ label: 'Not mine, remove it', value: 'remove', cls: 'ghost danger' }, { label: 'It’s mine, keep it', value: 'keep' }];
@@ -340,14 +340,14 @@ function askOwnership(camp, info, opts) {
 
 // After an automatic removal: what went, what came back. One secondary action puts ticked campaigns back from page memory.
 async function showSummary(r, hooks) {
-    var html = '<p style="margin:0 0 10px;">A while ago, a bug could copy a GM’s campaign onto your computer after you left their game, and hide your own. That’s fixed now.</p>';
-    if (r.removed.length) html += '<p style="margin:0 0 10px;"><b>Removed</b> (these belonged to a game you joined): ' + r.removed.map(function(x) { return '«' + esc(x.name) + ' (' + x.maps + ' map' + (x.maps === 1 ? '' : 's') + ')»'; }).join(', ') + '.</p>';
-    if (r.recovered.length) html += '<p style="margin:0 0 10px;"><b>Brought back</b> (your own campaigns, from the safety copy of ' + esc(fmtDate(r.recoveredAt)) + '): ' + r.recovered.map(function(n) { return '«' + esc(n) + '»'; }).join(', ') + '.</p>';
-    else if (r.pending) html += '<p style="margin:0 0 10px;">One more step: your own campaigns may be in a safety copy that this older Waypoint core can’t open. After the next core update (Settings ▸ Updates shows the steps) Waypoint brings them back and clears the rest out by itself.</p>';
-    else if (r.removed.length && r.shellBackups) html += '<p style="margin:0 0 10px;">We looked for your own campaigns in Waypoint’s safety copies but couldn’t find any from before the mix-up.</p>';
-    if (r.left.length) html += '<p style="margin:0 0 10px; color:var(--dim);">' + r.left.map(function(n) { return '«' + esc(n) + '»'; }).join(', ') + ' in that safety copy looked like they may have come from a game you joined, so they were not brought back. If they’re yours, Waypoint asks before it clears that copy, and Settings ▸ Snapshots has it meanwhile.</p>';
-    html += '<p style="margin:0 0 10px;">' + (r.shellBackups ? 'Waypoint also clears those campaigns out of its safety copies. ' : '') + 'Your Journal and handouts are untouched.</p>';
-    if (r.removed.length) html += '<p style="margin:0; color:var(--dim); font-size:12px;">If you exported a file while you were in that game, it’s outside Waypoint’s reach. Delete it by hand.</p>';
+    var html = '<p class="cu-p">A while ago, a bug could copy a GM’s campaign onto your computer after you left their game, and hide your own. That’s fixed now.</p>';
+    if (r.removed.length) html += '<p class="cu-p"><b>Removed</b> (these belonged to a game you joined): ' + r.removed.map(function(x) { return '«' + esc(x.name) + ' (' + x.maps + ' map' + (x.maps === 1 ? '' : 's') + ')»'; }).join(', ') + '.</p>';
+    if (r.recovered.length) html += '<p class="cu-p"><b>Brought back</b> (your own campaigns, from the safety copy of ' + esc(fmtDate(r.recoveredAt)) + '): ' + r.recovered.map(function(n) { return '«' + esc(n) + '»'; }).join(', ') + '.</p>';
+    else if (r.pending) html += '<p class="cu-p">One more step: your own campaigns may be in a safety copy that this older Waypoint core can’t open. After the next core update (Settings ▸ Updates shows the steps) Waypoint brings them back and clears the rest out by itself.</p>';
+    else if (r.removed.length && r.shellBackups) html += '<p class="cu-p">We looked for your own campaigns in Waypoint’s safety copies but couldn’t find any from before the mix-up.</p>';
+    if (r.left.length) html += '<p class="cu-p cu-dim">' + r.left.map(function(n) { return '«' + esc(n) + '»'; }).join(', ') + ' in that safety copy looked like they may have come from a game you joined, so they were not brought back. If they’re yours, Waypoint asks before it clears that copy, and Settings ▸ Snapshots has it meanwhile.</p>';
+    html += '<p class="cu-p">' + (r.shellBackups ? 'Waypoint also clears those campaigns out of its safety copies. ' : '') + 'Your Journal and handouts are untouched.</p>';
+    if (r.removed.length) html += '<p class="cu-p-last cu-dim cu-small">If you exported a file while you were in that game, it’s outside Waypoint’s reach. Delete it by hand.</p>';
     var buttons = r.removed.length ? [{ label: 'Something’s missing?', value: 'missing', cls: 'ghost' }, { label: 'OK', value: 'ok' }] : [{ label: 'OK', value: 'ok' }];
     var v = await showDialog({ id: 'cleanupSummaryModal', title: 'Waypoint tidied up your save', html: html, buttons: buttons, escape: 'ok' });
     if (v === 'missing') { var back = await showMissing(hooks); if (!back) return showSummary(r, hooks); }
@@ -359,11 +359,11 @@ async function showMissing(hooks) {
     var camps = campaignsOf(orig), boxes = [];
     var v = await showDialog({
         id: 'cleanupMissingModal', title: 'Something’s missing?',
-        html: '<p style="margin:0 0 10px;">Tick the ones that are yours. Only those go back; the rest stay removed.</p>',
+        html: '<p class="cu-p">Tick the ones that are yours. Only those go back; the rest stay removed.</p>',
         render: function(body) {
             held.removed.forEach(function(id) {
                 var c = camps[id]; if (!c) return;
-                var lab = document.createElement('label'); lab.style.cssText = 'display:flex; gap:8px; align-items:center; padding:4px 0; cursor:pointer;';
+                var lab = document.createElement('label'); lab.className = 'cu-pick';
                 var cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = id;
                 lab.appendChild(cb); lab.appendChild(document.createTextNode(nameOf(c)));
                 body.appendChild(lab); boxes.push(cb);
@@ -541,7 +541,7 @@ async function runSweep(hooks) {
             if (busy() || dialogOpen()) { leave = true; break; }
             var ans = await showDialog({
                 id: 'cleanupBackupModal', title: 'An older safety copy',
-                html: '<p style="margin:0;">An older safety copy also has <b>' + esc(nameOf(uc)) + '</b>, which isn’t in your save now. Bring it back before we clear that copy out?</p>',
+                html: '<p class="cu-p-last">An older safety copy also has <b>' + esc(nameOf(uc)) + '</b>, which isn’t in your save now. Bring it back before we clear that copy out?</p>',
                 buttons: [{ label: 'No, clear it', value: 'clear', cls: 'ghost' }, { label: 'Bring it back', value: 'bring' }], escape: 'leave'
             });
             if (ans === 'bring') {

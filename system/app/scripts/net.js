@@ -11610,7 +11610,7 @@ function chatTextInto(tx, text, men) {
 // [netcheck:chatmen-end]
 function chatEntryNode(m) {   // one text entry, built from nodes: nothing from the wire is ever parsed as HTML
     var whisper = m.scope === 'whisper', wrap = document.createElement('div');
-    wrap.style.cssText = whisper ? 'margin-bottom:7px; border-left:2px solid var(--violet); padding-left:7px; font-style:italic;' : 'margin-bottom:7px;';
+    wrap.className = whisper ? 'chat-entry chat-whisper' : 'chat-entry';   // 1.6.4: its look in the style sheet (.chat-entry, .chat-whisper)
     var who = document.createElement('b'); who.style.color = playerColor(m.from); who.textContent = m.from.id === net.myId ? 'You' : (typeof chatWho === 'function' ? chatWho(m.from) : (m.from.name || 'Player')); wrap.appendChild(who);   // 1.6.4: on the GM's side, the GM's own name for the player
     if (m.from.gm) { var g = document.createElement('span'); g.className = 'chat-gm'; g.textContent = 'GM'; wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(g); }
     if (whisper) { var t = document.createElement('span'); t.className = 'chat-tag'; t.textContent = whisperTag(m); wrap.appendChild(document.createTextNode(' ')); wrap.appendChild(t); }   // 1.6.3 (finding 12): whisper to whom
@@ -12383,7 +12383,7 @@ function renderPlayersPanel() {
         outs.forEach(function(o) {
             var why = o.how === 'removed' ? 'Removed from the table this session.' : o.how === 'nokey' ? 'Turned away when they asked without their table key. With the key they still come straight in.' : 'Turned away when they asked to join.';
             html += '<div class="player-row banned">' +
-                '<span class="roster-dot" style="background:#555;">\u2715</span>' +
+                '<span class="roster-dot roster-dot-out">\u2715</span>' +
                 '<div class="player-info"><div><b>' + escTextRoster(o.name) + '</b></div>' +
                 '<div class="player-meta">' + escTextRoster(why) + '</div></div>' +
                 '<button class="tool ghost player-act" data-letin="' + escTextRoster(o.id) + '" title="Let them join again this session. A player who holds the table key comes straight in, anyone else is asked about first.">Let back in</button></div>';
@@ -12396,7 +12396,7 @@ function renderPlayersPanel() {
         html += '<div class="players-section">Banned (no longer in history)</div>';
         strayBans.forEach(function(pid) {
             html += '<div class="player-row banned">' +
-                '<span class="roster-dot" style="background:#555;">✕</span>' +
+                '<span class="roster-dot roster-dot-out">✕</span>' +
                 '<div class="player-info"><div><b>' + escTextRoster(bans[pid].name || pid) + '</b> <span class="player-bantag">BANNED</span></div>' +
                 '<div class="player-meta">banned ' + fmtDay(bans[pid].bannedAt) + '</div></div>' +
                 '<button class="tool ghost player-act" data-unban="' + escTextRoster(pid) + '">Unban</button></div>';

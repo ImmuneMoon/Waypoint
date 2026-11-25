@@ -178,15 +178,14 @@ function tokMarksSync(el, item) {
 function stanceMenuHtml(it) {
     var eOn = stanceOn('elevation'), pOn = stanceOn('posture');
     if (!eOn && !pOn) return '';
-    var ctl = 'padding:2px 4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;';
     var html = '<div class="menu-divider"></div>', gWords = eOn ? groundWords(it, getActiveMap()) : '';   // item 19b H5: the ground it stands on, beside its own Elevation
-    if (eOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Elevation' + (gWords ? ' <span class="cm-stance stance-ground" style="color:var(--dim); font-size:11px;" title="The ground this token stands on, added to its own elevation">' + esc(gWords) + '</span>' : '') + '</span>'
+    if (eOn) html += '<div class="menu-item cm-stance wbm-row"><span class="cm-stance wbm-label">Elevation' + (gWords ? ' <span class="cm-stance stance-ground wbm-small" title="The ground this token stands on, added to its own elevation">' + esc(gWords) + '</span>' : '') + '</span>'
         + '<button class="cm-stance align-btn stance-elev" data-d="-1" title="' + stepWords(-1) + '">&minus;</button>'
-        + '<input class="cm-stance stance-elev-in num-stepped" type="number" step="' + ydStep() + '" value="' + ydBox(tokenElevation(it)) + '" style="width:54px; ' + ctl + '">'
-        + '<span class="cm-stance" style="color:var(--dim);">' + lenUnit() + '</span>'
+        + '<input class="cm-stance stance-elev-in num-stepped wbm-box" type="number" step="' + ydStep() + '" value="' + ydBox(tokenElevation(it)) + '">'
+        + '<span class="cm-stance wbm-unit">' + lenUnit() + '</span>'
         + '<button class="cm-stance align-btn stance-elev" data-d="1" title="' + stepWords(1) + '">+</button></div>';   // item 19 H1: in the viewer's unit; 1.5.4: a step of one yard in both
-    if (pOn) html += '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Posture</span>'
-        + '<select class="cm-stance stance-post" style="' + ctl + '">' + postureOptionsHtml(it) + '</select></div>';
+    if (pOn) html += '<div class="menu-item cm-stance wbm-row"><span class="cm-stance wbm-label">Posture</span>'
+        + '<select class="cm-stance stance-post wbm-box">' + postureOptionsHtml(it) + '</select></div>';
     return html;
 }
 // [sinkcheck:postopts-start]
@@ -267,7 +266,7 @@ function newOwnPicture(tok) {
 function showStanceMenu(e, tok) {
     var cMenu = document.getElementById('contextMenu'); if (!cMenu) return;
     cMenu.onclick = null;   // a machine that hosted earlier in this run still holds the GM's item menu's handler: a player's rows are never its business
-    var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item" style="color:var(--dim); cursor:default;"><i class="wib wi-anchor"></i> Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
+    var rows = tok.locked ? (stanceOn('elevation') || stanceOn('posture') ? '<div class="menu-divider"></div><div class="menu-item wbm-note"><i class="wib wi-anchor"></i> Locked by the GM</div>' : '') : (stanceMenuHtml(tok) || '');   // a locked token is frozen for its player
     var sheetRow = tok.charId && window.wpSheets && window.wpSheets.canOpen(tok.charId) ? '<div class="menu-item cm-sheet-own"><i class="wib wi-clip"></i> Sheet&hellip;</div>' : '';
     var hudRow = tok.charId && window.wpSheets && window.wpSheets.hudFor && window.wpSheets.hudFor(tok.charId) ? '<div class="menu-item cm-hud-own"><i class="wib wi-hud"></i> HUD&hellip;</div>' : '';   // HUD frame (HF2b)
     var picRow = ownPicOk(tok) ? '<div class="menu-item cm-pic-own"><i class="wib wi-pic"></i> New picture&hellip;</div>' : '';   // the token creator: their own picture, framed
@@ -275,7 +274,7 @@ function showStanceMenu(e, tok) {
     rows += ownLightHtml(tok);   // lighting L5: their own light
     rows += tokenSensesLine(tok);   // senses S3: its senses, read-only
     if (!rows && !sheetRow && !hudRow && !picRow && !fxRow) return;
-    cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + fxRow + picRow + rows.replace('<div class="menu-divider"></div>', '');
+    cMenu.innerHTML = '<div class="menu-item wbm-head">' + esc(tok.charName || 'Your token') + '</div>' + sheetRow + hudRow + fxRow + picRow + rows.replace('<div class="menu-divider"></div>', '');
     cMenu.style.display = 'flex';
     placeMenu(cMenu, e);
     var ownSheet = cMenu.querySelector('.cm-sheet-own'); if (ownSheet) ownSheet.addEventListener('click', function(ce) { ce.stopPropagation(); cMenu.style.display = 'none'; window.wpSheets.openSheet(tok.charId); });
@@ -299,12 +298,12 @@ function ownLightPicks() {
 function ownLightHtml(tok) {
     var n = window.wpNet, C = window.wpFogCore; if (!tok || !tok.isChar || tok.waiting || tok.locked || tok.hidden || !n || !n.tokLight || !C || !C.cleanLight) return '';
     var L = C.cleanLight(tok.light), picks = ownLightPicks(); if (!L && !picks.length) return '';
-    if (tok.lightLock === true) return '<div class="menu-item" style="color:var(--dim); cursor:default;"><i class="wib wi-lock"></i> Light locked by the GM</div>';
+    if (tok.lightLock === true) return '<div class="menu-item wbm-note"><i class="wib wi-lock"></i> Light locked by the GM</div>';
     var word = function(u) { return u === 'ft' ? 'ft' : u === 'm' ? 'm' : u === 'cells' ? 'cells' : 'yd'; }, cur = -1;
     if (L && L.name) picks.forEach(function(k) { if (cur < 0 && k.p.name === L.name && k.p.bright === L.bright && k.p.dim === L.dim && word(k.p.unit) === word(L.unit)) cur = k.i; });
     var opts = L ? '<option value="off"' + (L.off ? ' selected' : '') + '>Off</option>' + (cur < 0 ? '<option value="on"' + (L.off ? '' : ' selected') + '>' + (L.name ? esc(L.name) : 'Its light') + '</option>' : '') : '<option value="" selected>No light</option>';
     picks.forEach(function(k) { opts += '<option value="' + k.i + '"' + (L && !L.off && cur === k.i ? ' selected' : '') + '>' + esc(k.p.name) + ' (' + esc(String(Number(k.p.bright) || 0)) + ' / ' + esc(String(Number(k.p.dim) || 0)) + ' ' + word(k.p.unit) + ')</option>'; });
-    return '<div class="menu-item cm-stance" style="display:flex; align-items:center; gap:6px; cursor:default;"><span class="cm-stance" style="flex:1;">Light</span><select class="cm-stance own-light" title="Your token&rsquo;s light: off, on, or one of the lights your GM offers" style="max-width:190px; padding:2px 4px; background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:4px;">' + opts + '</select></div>';
+    return '<div class="menu-item cm-stance wbm-row"><span class="cm-stance wbm-label">Light</span><select class="cm-stance own-light wbm-box" title="Your token&rsquo;s light: off, on, or one of the lights your GM offers">' + opts + '</select></div>';
 }
 function askOwnLight(tok, value) {
     var n = window.wpNet, am = getActiveMap(); if (!n || !n.tokLight || !am || !tok || typeof value !== 'string' || value === '') return;
@@ -341,7 +340,7 @@ function tokenSensesLine(tok) {
         words.push(t + (e.why === 'null' ? ': fails here' : ': off' + (e.why === 'blind' ? ' while blind' : f && typeof f.label === 'string' && f.label ? ', ' + f.label : '')));   // senses S7a: a null area
     });
     if (!words.length) return '';
-    return '<div class="menu-item cm-senses" style="color:var(--dim); cursor:default; white-space:normal; max-width:280px; font-size:11px;">Senses: ' + esc(words.join(' · ')) + '</div>';
+    return '<div class="menu-item cm-senses">Senses: ' + esc(words.join(' · ')) + '</div>';
 }
 // [sinkcheck:senseline-end]
 
@@ -719,11 +718,11 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
                   if (wItem.type === 'trigger' && !wItem.nodeId) {
                       // a trigger zone is GM prep: its card shows the name and the message it fires; players get nothing
                       if (window.wpNet && window.wpNet.active && window.wpNet.role === 'client') return;
-                      tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
+                      tt.innerHTML = '<div class="room tt-card tt-edge-gold">' +
                                      '<div class="rn">' + esc(wItem.name || 'Trigger zone') + '</div>' +
-                                     '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; text-transform:none; letter-spacing:0;">' + esc(wItem.eventMessage || 'No event message yet. Write one in Properties.') + '</div>' +
-                                     '<div class="rc" style="color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">Trigger zone \u00b7 fires when a character token is dropped here</div>' +
-                                     (zoneHidMe(wItem) ? '<div class="rc" style="color:var(--steel); font-size:11px; text-transform:none; letter-spacing:0;">Players do not see this zone. Its message still comes up for them.</div>' : '') + '</div>';   // 1.6.3 (finding 8): a zone players do not see says so, in fixed words
+                                     '<div class="rc tt-message">' + esc(wItem.eventMessage || 'No event message yet. Write one in Properties.') + '</div>' +
+                                     '<div class="rc tt-words">Trigger zone \u00b7 fires when a character token is dropped here</div>' +
+                                     (zoneHidMe(wItem) ? '<div class="rc tt-words tt-steel">Players do not see this zone. Its message still comes up for them.</div>' : '') + '</div>';   // 1.6.3 (finding 8): a zone players do not see says so, in fixed words
                       if (wItem.targetMapId) portalPicFill(tt, wItem.targetMapId);   // 1.6.0: a portal drawn as a zone shows the map it leads to too
                       tt.style.display = 'block';
                       return;
@@ -732,11 +731,11 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
                       var plain = (wItem.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
                       var wordCount = plain ? plain.split(' ').length : 0;
                       var isClient = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
-                      tt.innerHTML = '<div class="room" style="border-left-color:var(--blue); margin:0; pointer-events:none;">' +
+                      tt.innerHTML = '<div class="room tt-card tt-edge-blue">' +
                                      '<div class="rn">Text box</div>' +
-                                     '<div class="rc" style="color:var(--dim); font-size:11px;">' + wordCount + ' word' + (wordCount === 1 ? '' : 's') +
+                                     '<div class="rc tt-dim">' + wordCount + ' word' + (wordCount === 1 ? '' : 's') +
                                      (wItem.hidden ? ' &middot; hidden from players' : '') + '</div>' +
-                                     (isClient ? '' : '<div class="rc" style="color:var(--gold); font-size:11px;">Double-click to edit &middot; color swatch sets the text color</div>') +
+                                     (isClient ? '' : '<div class="rc tt-hint">Double-click to edit &middot; color swatch sets the text color</div>') +
                                      '</div>';
                       tt.style.display = 'block';
                       return;
@@ -744,9 +743,9 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
 
                   var wtW = !wItem.nodeId && !wItem.targetMapId && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') ? wallWords(wItem, window.wpFogCore) : null;
                   if (wtW) {   // 1.6.2: what a wall is, in words: the GM's own card, as a trigger zone's is
-                      tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
+                      tt.innerHTML = '<div class="room tt-card tt-edge-gold">' +
                                      '<div class="rn">' + esc(wtW[0]) + '</div>' +
-                                     '<div class="rc" style="color:var(--dim); font-size:11px; text-transform:none; letter-spacing:0;">' + esc(wtW[1]) + '</div></div>';
+                                     '<div class="rc tt-words">' + esc(wtW[1]) + '</div></div>';
                       tt.style.display = 'block';
                       return;
                   }
@@ -756,10 +755,10 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
                       var destP = campP && campP.items[wItem.targetMapId];
                       var isClientP = window.wpNet && window.wpNet.active && window.wpNet.role === 'client';
                       var lockTipP = portalLockTip(wItem, getActiveMap(), !!isClientP);   // a portal's own lock: said under where it leads
-                      tt.innerHTML = '<div class="room" style="border-left-color:var(--gold); margin:0; pointer-events:none;">' +
+                      tt.innerHTML = '<div class="room tt-card tt-edge-gold">' +
                                      '<div class="rn">' + esc(wItem.name || (wItem.type === 'trigger' ? 'Portal zone' : 'Portal')) + '</div>' +
-                                     '<div class="rc" style="color:var(--gold)">&rarr; ' + esc(destP && destP.meta && destP.meta.title || 'another map') + '</div>' +
-                                     lockTipP + (lockTipP && isClientP ? '' : '<div class="rc" style="color:var(--dim); font-size:11px;">' + portalWayWords(wItem, isClientP) + '</div>') +
+                                     '<div class="rc tt-gold">&rarr; ' + esc(destP && destP.meta && destP.meta.title || 'another map') + '</div>' +
+                                     lockTipP + (lockTipP && isClientP ? '' : '<div class="rc tt-dim">' + portalWayWords(wItem, isClientP) + '</div>') +
                                      '</div>';
                       if (destP) portalPicFill(tt, wItem.targetMapId);   // 1.6.0: a small picture of the map it leads to, beside its name
                       tt.style.display = 'block';
@@ -788,21 +787,21 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
                   var destTT = r.targetMapId && getActiveCampaign() ? getActiveCampaign().items[r.targetMapId] : null;
                   var destRoomTT = destTT && r.targetRoomId ? (destTT.rooms || []).find(function(x) { return x.id === r.targetRoomId; }) : null;
                   var lockTT = destTT && destTT.meta && destTT.meta.playerLock ? ' \u00b7 ' + (isClientTT ? 'closed for now' : 'locked for players') : '';
-                  var destLine = destTT ? '<div class="rn" style="color:var(--gold);">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + lockTT + '</div>' : '';
+                  var destLine = destTT ? '<div class="rn tt-gold">\u2192 ' + esc(destTT.meta && destTT.meta.title || r.targetMapId) + (destRoomTT ? ' \u00b7 ' + esc(destRoomTT.name || '') : '') + lockTT + '</div>' : '';
                   var lockTipTT = portalLockTip(wItem, activeMap, !!isClientTT);   // a portal's own lock: a player is told it is locked in place of how to travel
-                  var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc" style="color:var(--gold)">' + portalWayWords(wItem, isClientTT) + '</div>') : '';
+                  var travelHint = r.targetMapId ? destLine + (lockTipTT && isClientTT ? '' : '<div class="rc tt-gold">' + portalWayWords(wItem, isClientTT) + '</div>') : '';
 
-                  var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" style="width:100%; height:90px; object-fit:cover; border-radius:4px; margin-bottom:6px; display:block;">' : '';
+                  var thumb = r.image ? '<img src="'+esc(resolveImg(r.image))+'" loading="lazy" decoding="async" class="tt-thumb">' : '';
 
                   var ccol = /^(#[0-9a-fA-F]{3,8}|(rgb|hsl)a?\([\d.,\s%]+\)|[a-zA-Z]{1,20}|var\(--[\w-]+\))$/.test(String(c.color || '')) ? c.color : '#888';   // a category color is a color, never markup (it lands in a style attribute)
-                  tt.innerHTML = '<div class="room" style="border-left-color:'+ccol+'; margin:0; pointer-events:none;">' +
+                  tt.innerHTML = '<div class="room tt-card" style="border-left-color:'+ccol+';">' +
 
                                  thumb +
 
                                  '<div class="rn">'+esc(r.name||'(unnamed)')+'</div>' +
 
                                  '<div class="rc" style="color:'+ccol+'">'+esc(c.label)+'</div>' +
-                                 (!isClientTT && r.notes ? '<div class="rc" style="color:var(--ink); font-size:11px; white-space:pre-wrap; margin-top:4px; text-transform:none; letter-spacing:0;">' + esc(String(r.notes).slice(0, 320)) + (String(r.notes).length > 320 ? '\u2026' : '') + '</div>' : '') +   // GM only: the room's notes ride the hover card
+                                 (!isClientTT && r.notes ? '<div class="rc tt-message tt-notes">' + esc(String(r.notes).slice(0, 320)) + (String(r.notes).length > 320 ? '\u2026' : '') + '</div>' : '') +   // GM only: the room's notes ride the hover card
 
                                  travelHint + lockTipTT +
 
@@ -1180,7 +1179,7 @@ export { armPlacement, cellSnap, closeDrawMenu, disarmPlacement, getActiveCampai
 
               if(!el.querySelector('svg')) {
 
-                  el.innerHTML = '<svg width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;"><path /></svg>';
+                  el.innerHTML = '<svg class="wb-path-svg" width="100%" height="100%" preserveAspectRatio="none"><path /></svg>';
 
               }
 
@@ -3554,7 +3553,7 @@ window.wpFitToGrid = fitToGrid;
       // unticked row stand in one place (1.6.4, Fulllion, 2026-11-25, "Use these drawings": the typed box glyphs gave way to the check drawing)
       function fillPartyMenu(items, key) {
           menu.innerHTML = items.map(function(i) {
-              return '<button class="wb-tool-btn party-menu-item' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + (i.check !== undefined ? ' role="menuitemcheckbox" aria-checked="' + (i.check ? 'true' : 'false') + '"' : '') + ' style="width:100%; border-radius:0; font-size:12px; height:auto; padding:8px 10px; text-align:left;">' + (i.ico ? '<i class="wib wi-' + i.ico + '"' + (i.check === false ? ' style="visibility:hidden"' : '') + '></i> ' : '') + esc(i.label) + '</button>';
+              return '<button class="wb-tool-btn party-menu-item party-menu-row' + (i.dim ? ' dim' : '') + '" data-act="' + i.act + '" data-key="' + esc(key) + '"' + (i.cid ? ' data-cid="' + esc(i.cid) + '"' : '') + (i.check !== undefined ? ' role="menuitemcheckbox" aria-checked="' + (i.check ? 'true' : 'false') + '"' : '') + '>' + (i.ico ? '<i class="wib wi-' + i.ico + '"' + (i.check === false ? ' style="visibility:hidden"' : '') + '></i> ' : '') + esc(i.label) + '</button>';
           }).join('');
       }
       // Onboarding F0: what the GM can give a player — their own characters first (the one they play: its token onto their map; a kept one:
@@ -3682,7 +3681,7 @@ window.wpFitToGrid = fitToGrid;
       var cMenu = document.getElementById('contextMenu'); if (!cMenu || !canTarget(tok)) return false;
       cMenu.onclick = null;   // as showStanceMenu: a machine that hosted earlier in this run still holds the GM's item menu's handler
       var mine = targetedByMe(tok);
-      cMenu.innerHTML = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + esc(tok.charName || tok.name || 'Token') + '</div>'
+      cMenu.innerHTML = '<div class="menu-item wbm-head">' + esc(tok.charName || tok.name || 'Token') + '</div>'
           + '<div class="menu-item cm-target" title="' + (mine ? 'Stop targeting it (Esc does too)' : 'Mark it as your target: everyone sees a small copy of your token on it (T while pointing at a token does the same)') + '">' + (mine ? '<i class="wib wi-ring"></i> Clear target' : '<i class="wib wi-target"></i> Target') + '</div>';
       cMenu.style.display = 'flex';
       placeMenu(cMenu, e);
@@ -3748,7 +3747,7 @@ window.wpFitToGrid = fitToGrid;
   function portalLockOn(item, map) { var FC = window.wpFogCore; return !!(item && item.portalLock === true && FC && typeof FC.isPortal === 'function' && FC.isPortal(item, map)); }
   function portalLockTip(item, map, client) {
       if (!portalLockOn(item, map)) return '';
-      return '<div class="rc" style="color:var(--gold); font-size:11px;">' + '<i class="wib wi-lock"></i> ' + esc(client === true ? 'Locked. The GM will unlock it when the time comes' : 'Locked for players. Right-click it to unlock') + '</div>';
+      return '<div class="rc tt-hint">' + '<i class="wib wi-lock"></i> ' + esc(client === true ? 'Locked. The GM will unlock it when the time comes' : 'Locked for players. Right-click it to unlock') + '</div>';
   }
   function portalLockRow(items, map) {
       var n = window.wpNet, FC = window.wpFogCore;
@@ -4738,14 +4737,14 @@ window.wpFitToGrid = fitToGrid;
   }
   var _fxFind = '';
   function tokenFxMenuHtml(tok, m) {
-      var h = '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">Effects: ' + esc(tok.charName || tok.name || 'Token') + '</div>';
-      if (!m.rows.length && m.char) h += '<div class="menu-item" style="color:var(--dim); cursor:default;">No effects in the system&rsquo;s library.</div>';
-      if (m.rows.length > 12) h += '<div class="menu-item cm-fx-find"><input class="field cm-fx-q" type="text" placeholder="Find an effect&hellip;" aria-label="Find an effect" maxlength="60"></div><div class="menu-item cm-fx-none" style="display:none; color:var(--dim); cursor:default;">No effect of that name.</div>';   // 1.6.0: a long list has a search at its top
+      var h = '<div class="menu-item wbm-head">Effects: ' + esc(tok.charName || tok.name || 'Token') + '</div>';
+      if (!m.rows.length && m.char) h += '<div class="menu-item wbm-note">No effects in the system&rsquo;s library.</div>';
+      if (m.rows.length > 12) h += '<div class="menu-item cm-fx-find"><input class="field cm-fx-q" type="text" placeholder="Find an effect&hellip;" aria-label="Find an effect" maxlength="60"></div><div class="menu-item cm-fx-none wbm-note" style="display:none;">No effect of that name.</div>';   // 1.6.0: a long list has a search at its top
       m.rows.forEach(function(r, k) {
           var inert = r.auto === true && !r.rowId;   // conditions C4: on by its own formula, with no row to end: nothing to click
           h += '<div class="menu-item cm-fx' + (r.on ? ' on' : '') + (inert ? ' auto' : '') + '"' + (inert ? '' : ' data-fi="' + k + '"') + '>' + (r.on ? '&#9745; ' : '&#9744; ') + fxIconHtml(r.icon) + ' ' + esc(r.name) + (r.gm ? ' <span class="cm-fx-tag gm">GM</span>' : '') + (r.auto === true ? ' <span class="cm-fx-tag">auto</span>' : '') + (r.rowId && !r.on ? ' <span class="cm-fx-tag">off</span>' : '') + '</div>';
       });
-      if (!m.char) h += '<div class="menu-divider"></div><div class="menu-item cm-fx-new" style="gap:4px; cursor:default;"><input class="field cm-fx-name" maxlength="60" placeholder="New effect&hellip;" style="width:110px;"><select class="field cm-fx-tone"><option value="">Neutral</option><option value="buff">Buff</option><option value="debuff">Debuff</option></select><button class="tool ghost cm-fx-add" type="button">Add</button></div>';
+      if (!m.char) h += '<div class="menu-divider"></div><div class="menu-item cm-fx-new"><input class="field cm-fx-name" maxlength="60" placeholder="New effect&hellip;"><select class="field cm-fx-tone"><option value="">Neutral</option><option value="buff">Buff</option><option value="debuff">Debuff</option></select><button class="tool ghost cm-fx-add" type="button">Add</button></div>';
       return h;
   }
   // 1.6.3 (the combat review, finding 21; Fulllion's pick of 2026-11-20: a token's Effects menu gets an optional rounds box beside each effect, which
@@ -6392,7 +6391,6 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
           pat.appendChild(g);
       });
       defs.appendChild(pat); svg.appendChild(defs); svg.appendChild(mk('rect', { width: '100%', height: '100%', fill: 'url(#wpGridOwn)' }));
-      svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible';
       if (old) old.remove();
       overlay.appendChild(svg);
       overlay.style.backgroundImage = 'none';
@@ -6445,7 +6443,7 @@ if(_el_shapeHexTriggerBtn) _el_shapeHexTriggerBtn.addEventListener('click', func
       var mw = (need.x1 - need.x0) / 2, mh = (need.y1 - need.y0) / 2, box = { x0: need.x0 - mw, y0: need.y0 - mh, x1: need.x1 + mw, y1: need.y1 + mh };
       var d = gridLinesPath(type, cell, box); if (d === null) return tile();
       var NS = 'http://www.w3.org/2000/svg', svg = old;
-      if (!svg) { svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'grid-lines'); svg.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible'; overlay.appendChild(svg); }
+      if (!svg) { svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'grid-lines'); overlay.appendChild(svg); }
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       [['rgba(0,0,0,' + alpha + ')', 3], ['rgba(255,255,255,' + alpha + ')', type === 'square' ? 1 : 1.2]].forEach(function(st) {
           var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', st[0]); p.setAttribute('stroke-width', String(st[1])); svg.appendChild(p);
@@ -6846,7 +6844,7 @@ function groupPlace(gid) {
 function groupsLibraryHtml(filter) {
     var camp = getActiveCampaign(); if (!camp || !Array.isArray(camp.groups) || !camp.groups.length) return ''; var q = (filter || '').toLowerCase(), list = camp.groups.filter(function(g) { return g && (!q || String(g.name || '').toLowerCase().indexOf(q) >= 0); });
     if (!list.length) return '';
-    return '<div class="img-lib-folder group-head" style="color:var(--gold);"><span>Groups</span><span class="cast-head-note">Press one to place it at the center of your view. NPCs not ticked Unique get fresh sheets</span></div>'
+    return '<div class="img-lib-folder group-head"><span>Groups</span><span class="cast-head-note">Press one to place it at the center of your view. NPCs not ticked Unique get fresh sheets</span></div>'
         + '<div class="group-grid">' + list.map(function(g) { return '<div class="group-cell" data-gid="' + esc(g.id) + '" title="' + esc(g.name) + ': press to place it"><span class="group-name">' + esc(g.name) + '</span><small class="group-count">' + g.pieces.length + (g.pieces.length === 1 ? ' token' : ' tokens') + '</small><button class="tool ghost group-del" data-gid="' + esc(g.id) + '" title="Delete this group">&times;</button></div>'; }).join('') + '</div>';
 }
 // [systemcheck:castplace-start]
@@ -6902,10 +6900,10 @@ function castLibraryHtml(filter) {
     var q = (filter || '').toLowerCase();
     var list = Object.values(castOf(camp)).filter(function(c) { return !q || String(c.name || '').toLowerCase().indexOf(q) >= 0; }).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     _castOrder = list.map(function(c) { return c.id; });   // the shown order, for Shift-click runs
-    if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span><i class="wib wi-starf"></i> Campaign Cast</span><span class="cast-head-note">Empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
-    return '<div class="img-lib-folder cast-head" style="color:var(--gold);"><span><i class="wib wi-starf"></i> Campaign Cast</span><span class="cast-head-note">Click a face for a closer look; Ctrl-click to pick several; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
-        + '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell' + (_castSel[c.id] ? ' picked' : '') + '" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ': ' + esc(c.charStats) : '') + '. Click for a closer look; Ctrl-click to pick several">' + (picRef(c.src) ? '<img src="' + encodeURI(picRef(c.src)) + '" loading="lazy" alt="">' : '<div style="height:100%; display:flex; align-items:center; justify-content:center; color:var(--gold); font-size:24px;"><i class="wib wi-starf"></i></div>') + '<div class="img-lib-name"><i class="wib wi-starf"></i> ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
-        + '<div class="img-lib-folder" style="margin-top:8px;">Pictures</div>';
+    if (!list.length) return q ? '' : '<div class="img-lib-folder cast-head"><span><i class="wib wi-starf"></i> Campaign Cast</span><span class="cast-head-note">Empty. Right-click a character token on a play map and choose Save to Campaign Cast; it will show here for quick re-use</span></div>';
+    return '<div class="img-lib-folder cast-head"><span><i class="wib wi-starf"></i> Campaign Cast</span><span class="cast-head-note">Click a face for a closer look; Ctrl-click to pick several; its \u00d7 button drops the number in Copies straight onto the map</span></div>'
+        + '<div class="img-lib-grid">' + list.map(function(c) { return '<div class="img-lib-cell cast-cell' + (_castSel[c.id] ? ' picked' : '') + '" data-cid="' + esc(c.id) + '" title="' + esc(c.name) + (c.charStats ? ': ' + esc(c.charStats) : '') + '. Click for a closer look; Ctrl-click to pick several">' + (picRef(c.src) ? '<img src="' + encodeURI(picRef(c.src)) + '" loading="lazy" alt="">' : '<div class="cast-cell-noface"><i class="wib wi-starf"></i></div>') + '<div class="img-lib-name"><i class="wib wi-starf"></i> ' + esc(c.name) + '</div><button class="tool ghost cast-cell-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies">&times;' + castBatch() + '</button></div>'; }).join('') + '</div>'
+        + '<div class="img-lib-folder lib-pictures-head">Pictures</div>';
 }
 function viewCentre() {
     var wrap = document.getElementById('whiteboardWrap'), z = state.zoomLevel || 1;
@@ -6926,15 +6924,15 @@ function setCastBatch(v) {
 function castMenuHtml(camp) {
     var list = Object.values(castOf(camp)).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     // One row; the members live in a flyout so the rest of the menu keeps its size whatever the cast holds
-    if (!list.length) return '<div class="menu-item cm-session" data-act="cast-manage" title="Right-click a character token and choose Save to Campaign Cast to fill it"><i class="wib wi-starf"></i> Campaign Cast <span style="color:var(--dim); font-size:11px;">(empty)</span></div>';
-    var html = '<div class="menu-item cm-cast-open" title="Click a member to place a copy here, ×5 for five"><span><i class="wib wi-starf"></i> Campaign Cast</span><span style="color:var(--dim); font-size:11px;">' + list.length + '</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
-    html += '<div class="cm-sub-head">' + (list.length > 8 ? '<input type="text" class="cm-filter" placeholder="Filter the cast\u2026">' : '<span style="flex:1; color:var(--dim); font-size:11px;">One copy per click</span>')
+    if (!list.length) return '<div class="menu-item cm-session" data-act="cast-manage" title="Right-click a character token and choose Save to Campaign Cast to fill it"><i class="wib wi-starf"></i> Campaign Cast <span class="wbm-count">(empty)</span></div>';
+    var html = '<div class="menu-item cm-cast-open" title="Click a member to place a copy here, ×5 for five"><span><i class="wib wi-starf"></i> Campaign Cast</span><span class="wbm-count">' + list.length + '</span><span class="wbm-chev">&#8250;</span><div class="cm-sub">';
+    html += '<div class="cm-sub-head">' + (list.length > 8 ? '<input type="text" class="cm-filter" placeholder="Filter the cast\u2026">' : '<span class="wbm-say">One copy per click</span>')
           + '<label class="cm-batch-wrap" title="How many copies the \u00d7 button drops (1\u201350)">\u00d7<input type="number" class="cm-batch" min="1" max="50" value="' + castBatch() + '"></label></div>';
     list.forEach(function(c) {
-        html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" data-name="' + esc((c.name || '').toLowerCase()) + '" style="display:flex; align-items:center; gap:8px;">'
-              + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="" style="width:20px; height:20px; object-fit:cover; border-radius:4px;">' : '<i class="wib wi-starf"></i>')
-              + '<span style="flex:1;">' + esc(c.name) + '</span>'
-              + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies here" style="padding:1px 7px; font-size:10.5px;">&times;' + castBatch() + '</button></div>';
+        html += '<div class="menu-item cm-session cm-cast-row" data-act="cast" data-cid="' + esc(c.id) + '" data-name="' + esc((c.name || '').toLowerCase()) + '">'
+              + (picRef(c.src) ? '<img class="cast-row-face" src="' + esc(picRef(c.src)) + '" alt="">' : '<i class="wib wi-starf"></i>')
+              + '<span class="cast-row-name">' + esc(c.name) + '</span>'
+              + '<button class="tool ghost cm-cast-five" data-cid="' + esc(c.id) + '" title="Drop ' + castBatch() + ' copies here">&times;' + castBatch() + '</button></div>';
     });
     html += '<div class="menu-divider"></div><div class="menu-item cm-session" data-act="cast-manage"><i class="wib wi-pen"></i> Manage Cast…</div></div></div>';
     return html;
@@ -7070,14 +7068,14 @@ function renderCombatModal() {
             + '<span class="combat-grip" title="Drag to reorder">&#8942;</span>'
             + '<input type="checkbox" class="combat-on"' + (r.on ? ' checked' : '') + (r.busy ? ' disabled title="In another fight on this map: a token is in one fight at a time"' : ' title="In the fight"') + '>'
             + (r.src ? '<img class="combat-face" src="' + esc(resolveImg(r.src)) + '" alt="">' : '<span class="combat-face combat-face-empty" title="' + (r.custom ? 'A row you added' : 'A token with no picture of its own') + '">' + (r.custom ? '<i class="wib wi-spark"></i>' : '<i class="wib wi-starf"></i>') + '</span>')
-            + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag" style="color:var(--gold); border-color:var(--gold);">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + stateT + '</span>'
+            + '<span class="combat-name">' + findName(r.name, r.tokId, !!findOf(combatDraft.mapId, r.tokId, findHere, amHere, state.viewMode)) + dupT + (r.party ? ' <span class="combat-tag">party</span>' : '') + (r.targeted ? ' <span class="combat-tag combat-targeted">' + r.targeted + '</span>' : '') + (r.custom ? ' <span class="combat-tag">custom</span>' : '') + (r.busy ? ' <span class="combat-tag">in another fight on ' + esc(mapNm) + '</span>' : '') + stateT + '</span>'
             + (r.charId && window.wpSheets && window.wpSheets.hasInitRoll() ? '<button class="tool ghost combat-roll"' + (deckS ? ' style="display:none"' : '') + ' title="Roll initiative from the character sheet. A player&rsquo;s roll goes to the table. An NPC&rsquo;s goes to you alone unless NPC initiative rolls in Settings says Everyone, and so does one that reads a GM-only value. Players see the order" aria-label="Roll initiative">' + (window.wpDieIcons && typeof window.wpDieIcons.dieSvg === 'function' ? window.wpDieIcons.dieSvg('d6') : '<i class="wib wi-die"></i>') + '</button>' : '')
             + '<input type="number" class="combat-init field" value="' + (r.init || 0) + '"' + (deckS ? ' style="display:none"' : '') + (clockS ? ' title="Count. Higher acts first. A row at 0 or less never acts" aria-label="Count"' : ' title="Initiative. Higher goes first"') + '>'
             // 1.6.4 (Fulllion, 2026-11-25, "Use these drawings"): the arrows and the x are the app's own drawings, each named by its tooltip
             + '<span class="ui-seg combat-moves"><button class="tool ghost combat-up" title="Move up"><i class="wib wi-arrup"></i></button><button class="tool ghost combat-down" title="Move down"><i class="wib wi-arrdown"></i></button></span>'
             + (r.custom ? '<button class="tool ghost danger combat-del" title="Remove this row"><i class="wib wi-close"></i></button>' : '')
             + '</div>';
-    }).join('') || '<div style="color:var(--dim); padding:8px;">No character tokens on this map. Add a custom row below, or place tokens first.</div>';
+    }).join('') || '<div class="combat-empty">No character tokens on this map. Add a custom row below, or place tokens first.</div>';
     // 1.6.3 (finding 35): a picture whose file is gone shows the plain face a token with no picture has, never the browser's broken picture. A listener, never an attribute
     if (typeof list.querySelectorAll === 'function') Array.prototype.forEach.call(list.querySelectorAll('img.combat-face'), function(im) { im.addEventListener('error', function() { var sp = document.createElement('span'); sp.className = 'combat-face combat-face-empty'; sp.title = 'Its picture file is missing'; sp.innerHTML = '<i class="wib wi-starf"></i>'; if (im.parentNode) im.parentNode.replaceChild(sp, im); }, { once: true }); });
     m.style.display = 'flex';
@@ -7523,9 +7521,9 @@ function openCastModal() {
     var entries = Object.values(castOf(camp)).sort(function(a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     list.innerHTML = entries.length ? entries.map(function(c) {
         return '<div class="cast-row" data-cid="' + esc(c.id) + '">' + (picRef(c.src) ? '<img src="' + esc(picRef(c.src)) + '" alt="">' : '<div class="cast-thumb-empty"><i class="wib wi-starf"></i></div>')
-             + '<div style="flex:1; min-width:0;"><input class="field cast-name" value="' + esc(c.name) + '" placeholder="Name"><input class="field cast-stats" value="' + esc(c.charStats || '') + '" placeholder="Line under the name (optional)" style="margin-top:4px; font-size:12px;"></div>'
+             + '<div class="cast-row-fields"><input class="field cast-name" value="' + esc(c.name) + '" placeholder="Name"><input class="field cast-stats" value="' + esc(c.charStats || '') + '" placeholder="Line under the name (optional)"></div>'
              + '<button class="tool ghost danger cast-del" title="Remove from the cast (tokens already placed stay)">&times;</button></div>';
-    }).join('') : '<div style="color:var(--dim); padding:12px; line-height:1.5;">Nothing saved yet. Right-click a character token on a play map and choose <b>Save to Campaign Cast</b>; then right-click empty space to drop copies.</div>';
+    }).join('') : '<div class="list-empty-note">Nothing saved yet. Right-click a character token on a play map and choose <b>Save to Campaign Cast</b>; then right-click empty space to drop copies.</div>';
     m.style.display = 'flex';
 }
 var _castList = document.getElementById('castList');
@@ -7593,10 +7591,10 @@ function tableMenuParts(e, role) {
     var wrap = document.getElementById('whiteboardWrap'), b = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 }, z = state.zoomLevel || 1;
     var pt = wrap ? { x: wbX(e.clientX, e.clientY, b, wrap), y: wbY(e.clientX, e.clientY, b, wrap) } : { x: e.clientX / z, y: e.clientY / z };
     var players = camp && camp.players ? Object.keys(camp.players).map(function(id) { return { id: id, name: (n && typeof n.recName === 'function' ? n.recName(camp.players[id], id) : camp.players[id].name || id) }; }).sort(function(a, c) { return a.name.localeCompare(c.name); }).slice(0, 12) : [];
-    function head(label) { return '<div class="menu-item" style="color:var(--dim); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; cursor:default;">' + label + '</div>'; }
+    function head(label) { return '<div class="menu-item wbm-head">' + label + '</div>'; }
     function bringItems() { return players.map(function(p) { return '<div class="menu-item cm-session" data-act="bring" data-pid="' + esc(p.id) + '"><i class="wib wi-bring"></i> Bring ' + esc(p.name) + ' here</div>'; }).join(''); }
     if (role === 'client') {
-        html += head('Session') + '<div class="menu-item cm-session" data-act="leave" style="color:var(--danger)"><i class="wib wi-door-open"></i> Leave session</div>';
+        html += head('Session') + '<div class="menu-item cm-session wbm-danger" data-act="leave"><i class="wib wi-door-open"></i> Leave session</div>';
     } else {
         var nxW = window.wpPageShelf && typeof window.wpPageShelf.nextScene === 'function' ? window.wpPageShelf.nextScene() : null, nextScene = nxW && camp && camp.items[nxW.id] ? camp.items[nxW.id] : (camp ? Object.values(camp.items).find(function(it) { return it.type === 'planner' && it.meta && it.meta.status === 'next'; }) : null);   // 1.6.2 (backlog 166 d): at tonight's scene
         if (nextScene) html += '<div class="menu-item cm-session" data-act="scene" data-id="' + esc(nextScene.id) + '"' + (nxW && nxW.at && nxW.id === nextScene.id && /^[A-Za-z0-9_-]{1,64}$/.test(nxW.at) ? ' data-at="' + esc(nxW.at) + '"' : '') + ' title="The planner marked Next. A click opens it over the map. Ctrl+click opens a new window. Alt+click opens the planner itself."><i class="wib wi-play"></i> Next scene: ' + esc(nextScene.meta.title || 'planner') + '</div><div class="menu-divider"></div>';
@@ -7621,7 +7619,7 @@ function tableMenuParts(e, role) {
                 html += '<div class="menu-item cm-session" data-act="combat-next" title="Round ' + combatM.round + ': ' + esc(curM.name || '') + ' is up"><i class="wib wi-fight"></i> Next Turn</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-prev"><i class="wib wi-back"></i> Previous Turn</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-edit"><i class="wib wi-pen"></i> Combat Roster\u2026</div>';
-                html += '<div class="menu-item cm-session" data-act="combat-end" style="color:var(--danger)"><i class="wib wi-close"></i> End Combat</div>';
+                html += '<div class="menu-item cm-session wbm-danger" data-act="combat-end"><i class="wib wi-close"></i> End Combat</div>';
                 html += '<div class="menu-item cm-session" data-act="combat-new" title="Another fight on this map, with its own order and rounds. A token is in one fight at a time"><i class="wib wi-fight"></i> Start another fight here\u2026</div>';
             } else html += '<div class="menu-item cm-session" data-act="combat" title="Pick who is in the fight, give initiative, run the turns"><i class="wib wi-fight"></i> Start combat\u2026</div>';
             html += '<div class="menu-item cm-session" data-act="notepad"><i class="wib wi-note"></i> ' + (n.notepad && n.notepad.on ? (typeof n.notepadHidden === 'function' && n.notepadHidden() ? 'Show Table Notepad' : 'Put Away Table Notepad') : 'Open Table Notepad') + '</div>';
@@ -7630,7 +7628,7 @@ function tableMenuParts(e, role) {
             html += '<div class="menu-item cm-session" data-act="travel">' + (n.travelLocked ? '<i class="wib wi-lock"></i> Allow travel between maps' : '<i class="wib wi-unlock"></i> Lock travel between maps')   /* 1.6.2 (backlog 230): every lock shows how it stands now */ + '</div>';
             html += '<div class="menu-item cm-session" data-act="pause">' + (n.paused ? '<i class="wib wi-play"></i> Resume the table' : '<i class="wib wi-pause"></i> Pause the table') + '</div>';
             html += '<div class="menu-item cm-session" data-act="log"><i class="wib wi-scroll"></i> Game Record\u2026</div>';
-            html += '<div class="menu-item cm-session" data-act="end" style="color:var(--danger)"><i class="wib wi-stop"></i> End session for everyone</div>';
+            html += '<div class="menu-item cm-session wbm-danger" data-act="end"><i class="wib wi-stop"></i> End session for everyone</div>';
         }
     }
     function wire(cMenu) {
@@ -7722,7 +7720,7 @@ function groupRollModel(map, ids) {
 }
 function groupRollHtml(m) {
     if (!m) return '';
-    var h = '<div class="menu-item cm-grp-open" title="A check for everyone picked, as the system judges a group roll: the lowest target rolls once, or everyone rolls and enough must pass"><span><i class="wib wi-die"></i> Group roll</span><span style="margin-left:auto; color:var(--dim);">&#8250;</span><div class="cm-sub">';
+    var h = '<div class="menu-item cm-grp-open" title="A check for everyone picked, as the system judges a group roll: the lowest target rolls once, or everyone rolls and enough must pass"><span><i class="wib wi-die"></i> Group roll</span><span class="wbm-chev">&#8250;</span><div class="cm-sub">';
     m.rolls.forEach(function(r, i) { h += '<div class="menu-item cm-grp-roll" data-i="' + i + '">' + gmEsc(String(r.label).slice(0, 60)) + '</div>'; });
     return h + '</div></div>';
 }
@@ -7949,7 +7947,7 @@ document.addEventListener('contextmenu', function(e) {
                 html += '<div class="menu-item cm-lock" title="' + (anyUnlocked ? 'It stays where it is: no drag and no resize until you unlock it, and a player&rsquo;s token is frozen for its player too. On a door this is not the lock of the door itself.' : 'It can be dragged and resized again.') + '">' + (anyUnlocked ? '<i class="wib wi-anchor-off"></i> Lock in place' : '<i class="wib wi-anchor"></i> Unlock so it can move') + '</div>';
                 html += structRowHtml(structRow(am));   // 231: the whole map's structure, locked or freed with one press
                 html += '<div class="menu-item cm-dup"><i class="wib wi-dup"></i> Duplicate</div>';
-                html += '<div class="menu-item cm-del" style="color:var(--danger)"><i class="wib wi-bin"></i> Delete</div>';
+                html += '<div class="menu-item cm-del wbm-danger"><i class="wib wi-bin"></i> Delete</div>';
                 html += '<div class="menu-divider"></div>';
             } else if (!(window.wpNet && (window.wpNet.foreign || (window.wpNet.active && window.wpNet.role === 'client')))) html += '<div class="menu-item cm-props" title="Open this room&rsquo;s settings at the right edge of the map: its notes, who is here, its place on the play map"><i class="wib wi-props"></i> Properties</div>';   // 1.6.2: on the Data Map too, the room the right-click selected
 
@@ -7975,8 +7973,8 @@ document.addEventListener('contextmenu', function(e) {
                     html += '<div class="menu-item cm-merge"><i class="wib wi-merge"></i> Merge drawings</div>';
                 }
                 if (selectedIds.length > 1) {
-                    html += '<div class="menu-item cm-align-row" style="display:flex; align-items:center; gap:3px; cursor:default;">' +
-                        '<span style="font-size:11px; color:var(--dim); margin-right:2px;">Align</span>' +
+                    html += '<div class="menu-item cm-align-row">' +
+                        '<span class="align-label">Align</span>' +
                         '<button class="align-btn" data-al="left" title="Align left edges">&#8676;</button>' +
                         '<button class="align-btn" data-al="ch" title="Align horizontal centers">&#8596;</button>' +
                         '<button class="align-btn" data-al="right" title="Align right edges">&#8677;</button>' +
@@ -7984,7 +7982,7 @@ document.addEventListener('contextmenu', function(e) {
                         '<button class="align-btn" data-al="cv" title="Align vertical centers">&#8597;</button>' +
                         '<button class="align-btn" data-al="bottom" title="Align bottom edges">&#8615;</button>' +
                         (selectedIds.length > 2 ?
-                        '<span style="font-size:11px; color:var(--dim); margin:0 2px 0 6px;">Space</span>' +
+                        '<span class="align-label align-label-space">Space</span>' +
                         '<button class="align-btn" data-al="dh" title="Distribute evenly, horizontally">&#8644;</button>' +
                         '<button class="align-btn" data-al="dv" title="Distribute evenly, vertically">&#8645;</button>' : '') +
                         '</div>';
@@ -8033,7 +8031,7 @@ document.addEventListener('contextmenu', function(e) {
             if (isWb) {
                 var curOp = Math.round(((firstItem && firstItem.opacity != null) ? firstItem.opacity : 1) * 100);
                 html += '<div class="menu-divider"></div>';
-                html += '<div class="menu-item cm-opacity" style="display:flex; align-items:center; gap:6px; cursor:default;">Opacity <input type="range" id="cmOpacitySlider" min="10" max="100" value="' + curOp + '" style="flex:1; min-width:80px;"> <span id="cmOpacityVal" style="min-width:34px; text-align:right;">' + curOp + '%</span></div>';
+                html += '<div class="menu-item cm-opacity wbm-row">Opacity <input type="range" id="cmOpacitySlider" min="10" max="100" value="' + curOp + '"> <span id="cmOpacityVal">' + curOp + '%</span></div>';
             }
 
             html += '<div class="menu-divider"></div>';
@@ -8065,7 +8063,7 @@ document.addEventListener('contextmenu', function(e) {
             var osN = isWb && firstItem && firstItem.isChar && window.wpSheets && window.wpSheets.ownSheetCount ? window.wpSheets.ownSheetCount(selectedIds.map(function(sid) { return am.whiteboard.find(function(x) { return x.id === sid; }); }).filter(Boolean)) : 0;   // 1.6.2 (backlog 237): the GM's alone (ownSheetCount answers 0 elsewhere), where a picked token shares its sheet with another
             if (osN) html += '<div class="menu-item cm-own-sheet" title="A copy of the sheet for ' + (osN === 1 ? 'this token' : 'each of them') + ', so a hit on one no longer hurts the others"><i class="wib wi-dup"></i> ' + (osN === 1 && selectedIds.length === 1 ? 'Give this token its own sheet' : 'Give ' + osN + (osN === 1 ? ' token its own sheet' : ' tokens their own sheets')) + '</div>';
             if (isWb && firstItem && firstItem.isChar && !(window.wpNet && window.wpNet.active && window.wpNet.role === 'client') && window.wpCanPersistLocal && window.wpCanPersistLocal()) html += '<div class="menu-item cm-encounter-save" title="Save the selected character tokens as an encounter group in the Image Library, placed again in one press"><i class="wib wi-people"></i> Save as an encounter group\u2026</div>';   // backlog 31
-            if (!isWb) html += '<div class="menu-item cm-del" style="color:var(--danger)"><i class="wib wi-bin"></i> Delete</div>';
+            if (!isWb) html += '<div class="menu-item cm-del wbm-danger"><i class="wib wi-bin"></i> Delete</div>';
 
             cMenu.innerHTML = html;
             cMenu.style.display = 'flex';

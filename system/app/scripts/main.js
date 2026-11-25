@@ -84,7 +84,6 @@ import { getRoomInspectorHtml, attachRoomInspectorEvents, renderInspector,  rend
       if (!sizer) {
           sizer = document.createElement('div');
           sizer.className = 'zoom-scroll-sizer';
-          sizer.style.cssText = 'position:absolute; left:0; top:0; width:1px; height:1px; pointer-events:none; visibility:hidden;';
           wrap.appendChild(sizer);
       }
       var bw = scaledEl.offsetWidth, bh = scaledEl.offsetHeight;   // untransformed layout base (30000)

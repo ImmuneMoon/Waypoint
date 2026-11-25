@@ -654,8 +654,8 @@ export function wbImgLib() {   // [split:glue]
       var html = ''; _imgLibOrder = [];
       var pickable = !_imgLibPick || _imgLibPicker;
       Object.keys(byFolder).sort().forEach(function(label) {
-          if (label) html += '<div style="color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin:12px 0 6px;">' + esc(label) + ' <span style="color:var(--dim);">(' + byFolder[label].length + ')</span></div>';
-          html += '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px;">';
+          if (label) html += '<div class="img-lib-group-head">' + esc(label) + ' <span class="img-lib-group-count">(' + byFolder[label].length + ')</span></div>';
+          html += '<div class="img-lib-grid">';
           byFolder[label].forEach(function(im) {
               _imgLibOrder.push(im.path);
               html += '<div class="img-lib-cell' + (_imgLibSel[im.path] ? ' picked' : '') + '" data-src="' + esc(im.path) + '" data-name="' + esc(im.name) + '">' +
@@ -673,7 +673,7 @@ export function wbImgLib() {   // [split:glue]
           : _imgLibScope === 'unfiled' ? 'Nothing unfiled: every picture belongs to a campaign.'
           : 'No images match.';
       var showGroups = !_imgLibPick && !_imgLibPicker && state.viewMode === 'visual' && _imgLibScope === 'camp' && (grid.dataset.cast === '1' || !soleTag());   // backlog 31: groups in this campaign's pictures, and wherever the cast shows
-      grid.innerHTML = (showGroups ? groupsLibraryHtml(filter) : '') + (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div style="color:var(--dim); padding:20px; text-align:center;">' + empty + '</div>';
+      grid.innerHTML = (showGroups ? groupsLibraryHtml(filter) : '') + (grid.dataset.cast ? castLibraryHtml(filter) : '') + html || '<div class="img-lib-empty">' + empty + '</div>';
       if (!grid.dataset.quiet) { grid.dataset.quiet = '1'; grid.addEventListener('error', function(e) { var t = e.target; if (t && t.tagName === 'IMG') { t.style.visibility = 'hidden'; if (t.parentNode && t.parentNode.classList) t.parentNode.classList.add('pic-missing'); } }, true); }   // 1.6.2 (backlog 227): a picture whose file is gone stays a quiet empty cell
       var label = !_imgLibCat || _imgLibCat === '__bymap', hint = _imgLibPicker ? 'Ctrl-click to pick it to bring in' : 'Right-click to tag it; Ctrl-click to pick several';
       Array.prototype.forEach.call(grid.querySelectorAll('.img-lib-cell[data-src]'), function(cell) { TagCore.cellTags(document, cell, imgCatsOf(cell.dataset.src), label, hint); });
@@ -697,39 +697,39 @@ export function wbImgLib() {   // [split:glue]
       selectBtnSync();
       var allB = '<button class="tool ghost" data-act="all" title="Pick every picture shown now">Select all shown</button>', doneB = _imgLibSelMode ? '<button class="tool ghost" data-act="done" title="A plain click looks at a picture again; what is picked stays picked">Done</button>' : '';
       if (_imgLibPicker === 'shared') {   // shared pictures are already every campaign's: nothing to bring
-          bar.innerHTML = '<span style="color:var(--dim);">Shared pictures are available in every campaign already. Find them under the Shared chip.</span><button class="tool ghost" data-act="back">← Back</button>';
+          bar.innerHTML = '<span class="lib-bar-say">Shared pictures are available in every campaign already. Find them under the Shared chip.</span><button class="tool ghost" data-act="back">← Back</button>';
           bar.style.display = 'flex'; return;
       }
       if (_imgLibPicker) {   // bringing pictures in from another campaign or Unfiled
           var meC = getActiveCampaign();
-          bar.innerHTML = '<span style="color:var(--gold);">' + (n ? n + ' picked' : 'Pick pictures to bring in') + '</span>'
+          bar.innerHTML = '<span class="lib-bar-count">' + (n ? n + ' picked' : 'Pick pictures to bring in') + '</span>'
               + (n ? '<button class="tool" data-act="bring">Bring ' + n + ' into ' + esc((meC && meC.name) || 'this campaign') + '</button>' : '') + allB + doneB + (n ? '<button class="tool ghost" data-act="clear">Clear</button>' : '')
               + '<button class="tool ghost" data-act="back">\u2190 Back</button>'
-              + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown. Nothing is copied: this campaign remembers them</span>';
+              + '<span class="lib-bar-note">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown. Nothing is copied: this campaign remembers them</span>';
           bar.style.display = 'flex'; return;
       }
       var nCast = Object.keys(_castSel).length;
       if (nCast && !_imgLibPick) {   // cast picks own the bar (they clear the picture selection, so only one type is ever non-empty)
           var canC = state.viewMode === 'visual' && getActiveMap() && getActiveMap().type === 'map';
-          bar.innerHTML = '<span style="color:var(--gold);"><i class="wib wi-starf"></i> ' + nCast + ' cast picked</span>'
+          bar.innerHTML = '<span class="lib-bar-count"><i class="wib wi-starf"></i> ' + nCast + ' cast picked</span>'
               + '<button class="tool" data-act="add-cast"' + (canC ? '' : ' disabled title="Open a play map first"') + '>Add ' + nCast + ' to map</button>'
               + '<button class="tool ghost" data-act="clear">Clear</button>'
-              + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run</span>';
+              + '<span class="lib-bar-note">Ctrl-click picks, Shift-click a run</span>';
           bar.style.display = 'flex'; return;
       }
       if (!n && _imgLibSelMode && !_imgLibPick) {   // Select is on and nothing is picked yet
-          bar.innerHTML = '<span style="color:var(--gold);">Click pictures to pick them</span>' + allB + doneB
-              + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Then Tags\u2026 gives them a tag, or takes one away, all at once</span>';
+          bar.innerHTML = '<span class="lib-bar-count">Click pictures to pick them</span>' + allB + doneB
+              + '<span class="lib-bar-note">Then Tags\u2026 gives them a tag, or takes one away, all at once</span>';
           bar.style.display = 'flex'; return;
       }
       if (!n || _imgLibPick) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
       var canPlace = state.viewMode === 'visual' && getActiveMap() && getActiveMap().type === 'map';
-      bar.innerHTML = '<span style="color:var(--gold);">' + n + ' picked</span>'
+      bar.innerHTML = '<span class="lib-bar-count">' + n + ' picked</span>'
           + '<button class="tool" data-act="add-map" title="Lay them out in a block at the center of your view"' + (canPlace ? '' : ' disabled title="Open a play map first"') + '>Add ' + n + ' to map</button>'
           + '<button class="tool ghost" data-act="cat" title="Every tag, marked when all or some of them have it: a click gives it to all, or takes it from all">Tags\u2026</button>'
           + allB + doneB
           + '<button class="tool ghost" data-act="clear">Clear</button>'
-          + '<span style="color:var(--dim); font-size:11px; margin-left:auto;">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown</span>';
+          + '<span class="lib-bar-note">Ctrl-click picks, Shift-click a run, Ctrl+A everything shown</span>';
       bar.style.display = 'flex';
   }
   function castCells() { var g = document.getElementById('imgLibGrid'); return g ? Array.prototype.slice.call(g.querySelectorAll('.cast-cell[data-cid]')) : []; }
@@ -804,7 +804,7 @@ export function wbImgLib() {   // [split:glue]
       var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
       imgLibLift(true);
       document.getElementById('imgLibModal').style.display = 'flex';
-      document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
+      document.getElementById('imgLibGrid').innerHTML = '<div class="img-lib-loading">Loading…</div>';
       try { _imgLibCache = await (await fetch('/api/list-images')).json(); } catch (e) { _imgLibCache = []; }
       renderImgLib(document.getElementById('imgLibSearch').value);
   };
@@ -814,7 +814,7 @@ export function wbImgLib() {   // [split:glue]
       _imgLibSel = {}; _imgLibLastPick = null; _imgLibSelMode = false; _imgLibPicker = null; _imgLibStash = null; _imgIndex = null; _imgLibScope = 'camp';
       var copiesEl = document.getElementById('imgLibCopies'); if (copiesEl) copiesEl.value = castBatch();
       document.getElementById('imgLibModal').style.display = 'flex';
-      document.getElementById('imgLibGrid').innerHTML = '<div style="color:var(--dim); padding:20px;">Loading…</div>';
+      document.getElementById('imgLibGrid').innerHTML = '<div class="img-lib-loading">Loading…</div>';
       try {
           _imgLibCache = await (await fetch('/api/list-images')).json();
       } catch(e) { _imgLibCache = []; }
@@ -981,7 +981,7 @@ export function wbImgLib() {   // [split:glue]
       document.getElementById('imgLibPreviewImg').src = picRef(c.src) ? encodeURI(picRef(c.src))
           : 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><circle cx="60" cy="60" r="52" fill="' + (cssColor(c.color) || '#4db3d3') + '"/></svg>');
       document.getElementById('imgLibPreviewName').textContent = c.name || 'Character';
-      document.getElementById('imgLibPreviewMeta').innerHTML = '<div style="color:var(--gold);"><i class="wib wi-starf"></i> Campaign Cast</div>' + (c.charStats ? '<div>' + esc(c.charStats) + '</div>' : '<div style="color:var(--dim);">No stat line</div>');
+      document.getElementById('imgLibPreviewMeta').innerHTML = '<div class="lib-preview-cast"><i class="wib wi-starf"></i> Campaign Cast</div>' + (c.charStats ? '<div>' + esc(c.charStats) + '</div>' : '<div class="lib-preview-none">No stat line</div>');
       var add = document.getElementById('imgLibPreviewAdd');
       add.textContent = castBatch() > 1 ? 'Add ×' + castBatch() + ' to map' : 'Add to map';
       add.title = 'Place ' + (c.name || 'this character') + ' on the current play map (the number in Copies)';

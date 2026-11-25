@@ -966,7 +966,7 @@ const j = v => JSON.stringify(v);
         // ownLightHtml
         const tok5 = extra => Object.assign({ id: 't1', isChar: true, ownerId: 'u_me' }, extra || {});
         const torchOn = { bright: 20, dim: 40, unit: 'ft', name: 'Torch' }, customL = { bright: 7, dim: 9 };
-        const optsOf5 = html => { const m = /<select class="cm-stance own-light"[^>]*>([\s\S]*?)<\/select>/.exec(html); return m ? Array.from(m[1].matchAll(/<option value="([^"]*)"( selected)?>([^<]*)<\/option>/g)).map(x => [x[1], !!x[2], x[3]]) : null; };
+        const optsOf5 = html => { const m = /<select class="cm-stance own-light wbm-box"[^>]*>([\s\S]*?)<\/select>/.exec(html); return m ? Array.from(m[1].matchAll(/<option value="([^"]*)"( selected)?>([^<]*)<\/option>/g)).map(x => [x[1], !!x[2], x[3]]) : null; };
         const emptyH = [A5.ownLightHtml(null), A5.ownLightHtml(undefined), A5.ownLightHtml(tok5({ isChar: false, light: torchOn })), A5.ownLightHtml({ id: 'l1', type: 'light', light: torchOn }), A5.ownLightHtml(tok5({ waiting: true, light: torchOn })), A5.ownLightHtml(tok5({ locked: true, light: torchOn })), A5.ownLightHtml(tok5({ hidden: true, light: torchOn })),
             mk5({ noNet: true }).ownLightHtml(tok5({ light: torchOn })), mk5({ net: {} }).ownLightHtml(tok5({ light: torchOn })), mk5({ net: null }).ownLightHtml(tok5({ light: torchOn })), mk5({ noFogCore: true }).ownLightHtml(tok5({ light: torchOn })),
             mk5({ sys: sysNoPick }).ownLightHtml(tok5()), mk5({ sys: null }).ownLightHtml(tok5()), mk5({ sys: sysNoPick }).ownLightHtml(tok5({ light: { bright: 0, dim: 0 } })), mk5({ sys: sysNoPick }).ownLightHtml(tok5({ lightLock: true })), mk5({ sys: null }).ownLightHtml(tok5({ light: 'Torch' }))];
@@ -975,7 +975,7 @@ const j = v => JSON.stringify(v);
         const lockH = [A5.ownLightHtml(tok5({ light: torchOn, lightLock: true })), A5.ownLightHtml(tok5({ lightLock: true })), mk5({ sys: null }).ownLightHtml(tok5({ light: customL, lightLock: true }))];
         const notLockH = [A5.ownLightHtml(tok5({ light: torchOn, lightLock: 'true' })), A5.ownLightHtml(tok5({ light: torchOn, lightLock: 1 })), A5.ownLightHtml(tok5({ light: torchOn, lightLock: false }))];
         check('L5 a light the GM locked says so in its player\'s menu, with nothing to choose; only a lock that is exactly true locks',
-            lockH.every(h => /^<div class="menu-item" [^>]*><i class="wib wi-lock"><\/i> Light locked by the GM<\/div>$/.test(h) && !/<select|<option|own-light/.test(h)) && notLockH.every(h => !/Light locked/.test(h) && !!optsOf5(h)), j(lockH));
+            lockH.every(h => /^<div class="menu-item wbm-note"><i class="wib wi-lock"><\/i> Light locked by the GM<\/div>$/.test(h) && !/<select|<option|own-light/.test(h)) && notLockH.every(h => !/Light locked/.test(h) && !!optsOf5(h)), j(lockH));
         const lblT = 'Torch (20 / 40 ft)', lblH = SC5.esc(HOST5) + ' (5 / 10 yd)';
         const oNone = optsOf5(A5.ownLightHtml(tok5())), oOnMatch = optsOf5(A5.ownLightHtml(tok5({ light: torchOn }))), oOffMatch = optsOf5(A5.ownLightHtml(tok5({ light: Object.assign({ off: true }, torchOn) })));
         const oCustOn = optsOf5(A5.ownLightHtml(tok5({ light: customL }))), oCustOff = optsOf5(A5.ownLightHtml(tok5({ light: { bright: 7, dim: 9, off: true } })));
@@ -995,7 +995,7 @@ const j = v => JSON.stringify(v);
             && j(oHostOwn) === j([['off', false, 'Off'], ['on', true, SC5.esc(HOST5)], ['1', false, lblT], ['3', false, lblH]]) && j(oNoPicks) === j([['off', false, 'Off'], ['on', true, 'Torch']]), j([oUnticked, oRadii, oUnit, oHostOwn, oNoPicks]));
         check('L5 the light row is safe markup: every choice\'s value is off, on, nothing or digits alone, exactly one choice is shown as chosen, and a preset\'s or a light\'s name reaches the menu as text (escaped), never as a tag',
             allO5.every(o => Array.isArray(o) && o.length > 0 && o.every(x => /^(off|on||[0-9]{1,3})$/.test(x[0])) && o.filter(x => x[1]).length === 1) && SC5.esc(HOST5) !== HOST5 && [hHost, hHostOwn, A5.ownLightHtml(tok5())].every(h => h.indexOf('<img') < 0 && h.indexOf(SC5.esc(HOST5)) > 0 && !/onerror=alert\(1\)>/.test(h))
-            && /^<div class="menu-item cm-stance"[^>]*><span class="cm-stance"[^>]*>Light<\/span><select class="cm-stance own-light"[^>]*>(<option value="[^"<>]*"( selected)?>[^<>]*<\/option>)+<\/select><\/div>$/.test(hHost), hHost);
+            && /^<div class="menu-item cm-stance wbm-row"><span class="cm-stance wbm-label">Light<\/span><select class="cm-stance own-light wbm-box"[^>]*>(<option value="[^"<>]*"( selected)?>[^<>]*<\/option>)+<\/select><\/div>$/.test(hHost), hHost);
 
         // askOwnLight
         const ask5 = (value, opt, tok) => { const a = mk5(opt); a.askOwnLight(tok === undefined ? tok5() : tok, value); return a.calls; };
@@ -1053,7 +1053,7 @@ const j = v => JSON.stringify(v);
             && /\} else if \(action\.includes\('cm-light'\)\) \{\n\s*var gmLitNow = gmLightToggle\(selectedIds\.map\(function\(sid\) \{ return am\.whiteboard\.find\(function\(x\) \{ return x\.id === sid; \}\); \}\)\);\n\s*if \(gmLitNow\) \{ var wentL = gmLitNow\.apply\(\); if \(window\.wpFog\) \{ window\.wpFog\.invalidateVision\(\); window\.wpFog\.redraw\(\); \} import\('\.\/io\.js'\)\.then\(m => m\.toast\(wentL === 'off' \? 'Light off\.' : 'Light on\.'\)\); \}\n\s*\} else if \(action\.includes\('cm-grid'\)\) \{/.test(wb5));
         check('L5 the GM\'s light row is matched by its own branch alone: no other menu action\'s word is found in "menu-item cm-light", "cm-light" is found in no other row\'s class, and the player\'s light row keeps the menu open as the other control rows do',
             others5.length > 10 && others5.every(x => 'menu-item cm-light'.indexOf(x) < 0) && rowClasses5.length > 10 && rowClasses5.filter(c => c.indexOf('cm-light') >= 0).length === 1 && rowClasses5.filter(c => c.indexOf('cm-light') >= 0)[0] === 'menu-item cm-light'
-            && !/cm-light[-\w]/.test(wb5) && others5.indexOf('cm-stance') >= 0 && /<select class="cm-stance own-light"/.test(olSrc) && /^<div class="menu-item cm-stance"/.test(A5.ownLightHtml(tok5())), j(others5.filter(x => 'menu-item cm-light'.indexOf(x) >= 0)));
+            && !/cm-light[-\w]/.test(wb5) && others5.indexOf('cm-stance') >= 0 && /<select class="cm-stance own-light wbm-box"/.test(olSrc) && /^<div class="menu-item cm-stance wbm-row"/.test(A5.ownLightHtml(tok5())) /* 1.6.4 (Fulllion, "Move them"): the inline style moved to the style sheet, moved on purpose */ , j(others5.filter(x => 'menu-item cm-light'.indexOf(x) >= 0)));
 
         // the lock in a token's Properties (inspector.js lightFieldHtml, sliced by its markers and run for real; its handler pinned)
         const lfA = in5.indexOf('// [sinkcheck:lightfield-start]'), lfZ = in5.indexOf('// [sinkcheck:lightfield-end]'), lfSrc = lfA >= 0 && lfZ > lfA ? in5.slice(lfA, lfZ) : '';

@@ -90,7 +90,7 @@ var _cv = null, _rig = null, _noGl = false, _ctx2 = null, _show = null;
 function canvasOf() {
     if (_cv) return _cv;
     _cv = document.createElement('canvas'); _cv.id = 'dice3dLayer'; _cv.setAttribute('aria-hidden', 'true');
-    _cv.style.cssText = 'position:fixed; left:0; top:0; width:0; height:0; pointer-events:none; display:none; border-radius:8px;';
+    _cv.style.display = 'none';   // 1.6.4: its place and shape in the style sheet (#dice3dLayer); it stays hidden until a roll shows it
     document.body.appendChild(_cv);
     _cv.addEventListener('webglcontextlost', function(e) { e.preventDefault(); _rig = null; _noGl = false; });
     return _cv;

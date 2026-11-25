@@ -546,7 +546,7 @@ var journalShown = [];   // the journals the window last drew, with the names it
 // screen, and the window is not drawn again when the GM switches campaigns, so a download made after a switch reads the rows from here
 var journalSentDrawn = {};
 // A row's own save button (1.6.3): an icon alone, so the row's words stay what they were for a search and for opening it
-function journalSaveBtn() { return '<button class="tool ghost journal-save" title="Save this page as a file to read offline" aria-label="Save this page as a file" style="padding:2px 6px;"><i class="wib wi-disk"></i></button>'; }
+function journalSaveBtn() { return '<button class="tool ghost journal-save" title="Save this page as a file to read offline" aria-label="Save this page as a file"><i class="wib wi-disk"></i></button>'; }
 // The journal of the campaign on screen: the GM's own campaign, or the table this app sits at (one journal per campaign per GM)
 function journalHere() {
     var n = window.wpNet, own = ownCampaignKey();
@@ -583,7 +583,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
     m.style.display = 'flex';
     badge(0);
     var list = ui('journalList');
-    list.innerHTML = '<div style="color:var(--dim); padding:14px;">Loading your journal…</div>';
+    list.innerHTML = '<div class="journal-loading">Loading your journal…</div>';
     var journals = await listJournals();
     var here = journalHere();
     // The campaign on screen always has its journal, empty or not, under the name the campaign has now. The GM's own is the GM's
@@ -611,7 +611,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
         var sent = iRunIt ? sentRecords(j.campId) : [];
         journalSentDrawn[j.campId] = sent;   // kept for a download after a campaign switch (journalDocOf)
         var page = personal ? 'mine' : (journalPage[j.campId] || journalDefaultPage());
-        var runBy = j.gm && !iRunIt && !/^gm$/i.test(j.gm.trim()) ? ' <span style="color:var(--dim); font-weight:normal; font-size:11px;">run by ' + esc(j.gm) + '</span>' : '';
+        var runBy = j.gm && !iRunIt && !/^gm$/i.test(j.gm.trim()) ? ' <span class="journal-runby">run by ' + esc(j.gm) + '</span>' : '';
         // inbox: everything received (the GM's handouts, other players' shares); own pages are the rest
         var inbox = j.entries.filter(function(e) { return e.kind !== 'note'; });
         var nMine = j.entries.length - inbox.length;
@@ -660,7 +660,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
             var thumb = kind === 'text' ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(text).slice(0, 160)) + '</div>' : '<img class="journal-thumb" src="' + esc(picRef(e.src)) + '" alt="" title="Open">';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(e.id) + ':' + esc(s.at) + '" data-kind="' + kind + '" data-sent="1"' + whose(e) + (kind === 'text' ? ' data-text="' + esc(String(text)) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(e.title || (e.kind === 'note' ? 'A note' : 'Handout')) + '</div>' + (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') +
-                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span style="opacity:.7;">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + inTag + ' ' + journalSaveBtn() + '</div>' +
+                '<div class="journal-when">Sent to <b>' + esc(s.to === 'gm' ? 'GM' : s.to === '*' ? 'everyone at once' : s.name) + '</b> <span class="journal-at">' + new Date(s.at).toLocaleString() + '</span>' + (e.kind !== 'note' && e.notes ? ' · with your notes' : '') + inTag + ' ' + journalSaveBtn() + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this send…">' + esc((j.sentNotes || {})['sent:' + e.id + ':' + s.at] || '') + '</textarea></div></div>';
         }).join('');
         var head = '<div class="journal-camp"><b>' + esc(journalName(j)) + '</b>' + runBy + tabs + ' <button class="tool ghost journal-add" data-camp="' + esc(j.campId) + '" title="Write a page of your own">+ Note</button></div>';
@@ -668,7 +668,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
             if (e.kind === 'note') {
                 return '<div class="journal-entry journal-own" data-page="mine" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="note"' + whose(e) + '>' +
                     '<div class="journal-body">' +
-                    '<div style="display:flex; gap:6px; align-items:center;"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title">' + journalSaveBtn() + '<button class="tool ghost journal-open" title="Open this note to read it: a web address in it is a link there" style="padding:2px 8px;">Open</button><button class="tool ghost danger journal-del" title="Delete this note" style="padding:2px 8px;">&times;</button></div>' +
+                    '<div class="journal-note-head"><input class="field journal-note-title" value="' + esc(e.title || '') + '" placeholder="Title">' + journalSaveBtn() + '<button class="tool ghost journal-open" title="Open this note to read it: a web address in it is a link there">Open</button><button class="tool ghost danger journal-del" title="Delete this note">&times;</button></div>' +
                     '<textarea class="journal-notes journal-note-body" placeholder="Write…">' + esc(e.text || '') + '</textarea>' +
                     '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + ' · your note' + inTag + '</div>' + sentLine(e) + shareControls() + '</div></div>';
             }
@@ -676,7 +676,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
                 ? '<div class="journal-thumb journal-thumb-text" title="Open">' + esc(String(e.text || '').slice(0, 160)) + '</div>'
                 : '<img class="journal-thumb" src="' + esc(picRef(e.src)) + '" alt="" title="Open">';
             return '<div class="journal-entry" data-page="inbox" data-from="' + esc(fromOf(e)) + '" data-camp="' + esc(j.campId) + '" data-id="' + esc(e.id) + '" data-kind="' + esc(e.kind || 'image') + '"' + whose(e) + (e.kind === 'text' ? ' data-text="' + esc(String(e.text || '')) + '"' : '') + '>' + thumb +
-                '<div class="journal-body"><div class="journal-title" style="display:flex; align-items:center; gap:6px;"><span style="flex:1;">' + esc(e.title || 'Handout') + '</span>' + journalSaveBtn() + '<button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)" style="padding:2px 8px;">&times;</button></div>' +
+                '<div class="journal-body"><div class="journal-title journal-title-row"><span class="journal-title-text">' + esc(e.title || 'Handout') + '</span>' + journalSaveBtn() + '<button class="tool ghost danger journal-del" title="Remove this from your journal (the sender keeps theirs)">&times;</button></div>' +
                 (e.caption ? '<div class="journal-caption">' + esc(e.caption) + '</div>' : '') + tagChips(e.tags) +
                 '<div class="journal-when">' + new Date(e.receivedAt || 0).toLocaleString() + (e.from ? ' · updated version, the earlier one is kept below' : '') + ' · from <b>' + esc(fromName(e)) + '</b>' + inTag + '</div>' +
                 (e.sharedBy && e.sharedNotes ? '<div class="journal-shared"><div class="journal-shared-who">' + esc(fromOf(e) === 'gm' ? 'The GM' : e.sharedBy) + ' wrote</div>' + esc(e.sharedNotes) + '</div>' : '') +
@@ -691,7 +691,7 @@ async function openJournal(keep) {   // keep (true only): drawn again where it s
                       : picRef(s.src) ? '<img class="journal-thumb" src="' + esc(picRef(s.src)) + '" alt="" title="Open">' : '<div class="journal-thumb journal-thumb-text">(removed)</div>';
             return '<div class="journal-entry journal-sentrow" data-page="sent" data-to="' + esc(s.to.map(function(t) { return t.pid || ''; }).join(' ')) + '" data-camp="' + esc(j.campId) + '" data-id="sent:' + esc(s.hid) + '" data-kind="' + (s.kind === 'text' ? 'text' : 'image') + '" data-sent="1" data-mine="1"' + (s.kind === 'text' ? ' data-text="' + esc(String(s.text || '')) + '"' : '') + '>' + thumb +
                 '<div class="journal-body"><div class="journal-title">' + esc(s.title) + '</div>' + (s.caption ? '<div class="journal-caption">' + esc(s.caption) + '</div>' : '') + tagChips(s.tags) +
-                '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + inTag + ' ' + journalSaveBtn() + '</div>' +
+                '<div class="journal-when">Shown to ' + s.to.map(function(t) { return esc(t.name) + ' <span class="journal-at">' + new Date(t.at).toLocaleString() + '</span>'; }).join(', ') + inTag + ' ' + journalSaveBtn() + '</div>' +
                 '<textarea class="journal-notes" placeholder="Your notes about this handout…">' + esc((j.sentNotes || {})['sent:' + s.hid] || '') + '</textarea></div></div>';
         }).join('');
         return '<div class="journal-section' + (here && j.campId === here.key ? ' here' : '') + '" data-camp="' + esc(j.campId) + '" data-page="' + page + '" data-show="' + esc(show) + '" data-from="' + esc(from) + '" data-to="' + esc(to) + '">' + head + chipRows + empty + sentRows + mySentRows + entries + '</div>';
@@ -750,7 +750,7 @@ function wordScore(term, words) {
 // [sinkcheck:journalshare-start]
 function sentLine(e, inner) {
     var to = e && Array.isArray(e.sentTo) ? e.sentTo.filter(function(t) { return t && typeof t === 'object'; }) : [];
-    var s = to.length ? 'Sent to ' + to.slice().reverse().map(function(t) { return esc(t.name) + ' <span style="opacity:.7;">' + new Date(Number(t.at) || 0).toLocaleString() + '</span>'; }).join(', ') : '';
+    var s = to.length ? 'Sent to ' + to.slice().reverse().map(function(t) { return esc(t.name) + ' <span class="journal-at">' + new Date(Number(t.at) || 0).toLocaleString() + '</span>'; }).join(', ') : '';
     return inner ? s : '<div class="journal-when journal-sent">' + s + '</div>';
 }
 function shareControls() {
@@ -1519,7 +1519,7 @@ function renderHandouts() {
     var clrA = ui('handoutClearAll'); if (clrA) clrA.disabled = !Object.keys(handoutsOf(camp)).length;   // Clear all: nothing to clear, nothing to press
     var hs = Object.values(handoutsOf(camp)).sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
     if (handoutTag) hs = hs.filter(function(h) { return (Array.isArray(h.tags) ? h.tags : []).indexOf(handoutTag) >= 0; });
-    if (!hs.length) { list.innerHTML = '<div style="color:var(--dim); padding:12px; line-height:1.5;">No handouts yet. Press <b>+ Picture handout</b> for a picture from your campaign, such as a place, a face or a letter, or <b>+ Text handout</b> for a written page. Then show it to the table or to one player, or attach it to a room so whoever walks in sees it.</div>'; return; }
+    if (!hs.length) { list.innerHTML = '<div class="list-empty-note">No handouts yet. Press <b>+ Picture handout</b> for a picture from your campaign, such as a place, a face or a letter, or <b>+ Text handout</b> for a written page. Then show it to the table or to one player, or attach it to a room so whoever walks in sees it.</div>'; return; }
     var rooms = [];
     Object.values(camp.items).forEach(function(m) { if (m.type !== 'map') return; (m.rooms || []).forEach(function(r) { if (r.handoutId) rooms.push({ hid: r.handoutId, label: (r.name || 'room') + ' · ' + (m.meta && m.meta.title || m.id) }); }); });
     // Give-to targets: only THIS campaign's registered players (camp.players never crosses campaigns),
@@ -1685,7 +1685,7 @@ var _newBtn = ui('handoutNewBtn');
 if (_newBtn) _newBtn.addEventListener('click', async function() {
     var grid = ui('handoutPickGrid'), pick = ui('handoutPick');
     pick.style.display = 'flex';
-    grid.innerHTML = '<div style="color:var(--dim); padding:10px;">Loading pictures…</div>';
+    grid.innerHTML = '<div class="handout-pick-say">Loading pictures…</div>';
     var imgs = [];
     try { imgs = await (await fetch('/api/list-images')).json(); } catch (e) {}
     imgs = (imgs || []).filter(function(i) { return !/^journal(\/|$)/.test(i.folder || ''); });
@@ -1695,12 +1695,12 @@ if (_newBtn) _newBtn.addEventListener('click', async function() {
     var draw = function() {
         var pool = showAll ? allImgs : imgs;
         var rows = pool.filter(function(i) { return !q || (i.name + ' ' + i.folder).toLowerCase().indexOf(q) >= 0; });
-        var toggle = window.wpImgScope && campH && allImgs.length !== imgs.length ? '<label style="display:block; font-size:11px; color:var(--dim); margin:0 0 6px;"><input type="checkbox" class="handout-pick-all"' + (showAll ? ' checked' : '') + '> Show every campaign\'s pictures (' + allImgs.length + ')</label>' : '';
+        var toggle = window.wpImgScope && campH && allImgs.length !== imgs.length ? '<label class="handout-pick-allrow"><input type="checkbox" class="handout-pick-all"' + (showAll ? ' checked' : '') + '> Show every campaign\'s pictures (' + allImgs.length + ')</label>' : '';
         grid.innerHTML = toggle + rowsHtml(rows);
         var cb = grid.querySelector('.handout-pick-all'); if (cb) cb.addEventListener('change', function() { showAll = this.checked; draw(); });
     };
     var rowsHtml = function(rows) {
-        return rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + encodeURI(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(niceName(i.name)) + '</div></div>'; }).join('') : '<div style="color:var(--dim); padding:10px;">No pictures match.</div>';
+        return rows.length ? rows.map(function(i) { return '<div class="img-lib-cell handout-pick-cell" data-src="' + esc(i.path) + '" title="' + esc(i.folder + '/' + i.name) + '"><img src="' + encodeURI(i.path) + '" loading="lazy" alt=""><div class="img-lib-name">' + esc(niceName(i.name)) + '</div></div>'; }).join('') : '<div class="handout-pick-say">No pictures match.</div>';
     };
     draw();
     ui('handoutPickSearch').oninput = function() { q = this.value.toLowerCase(); draw(); };

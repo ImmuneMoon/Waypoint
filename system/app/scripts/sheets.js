@@ -1196,7 +1196,7 @@ function charSelectHtml(w) {
     if (pcs.length) opts += '<optgroup label="Player characters">' + pcs.map(optOf).join('') + '</optgroup>';
     if (npcs.length) opts += '<optgroup label="NPCs">' + npcs.map(optOf).join('') + '</optgroup>';
     opts += '<option value="__new">New character from this token&hellip;</option>';
-    return '<div class="field"><label for="wbCharSel">Character (sheet)</label><select id="wbCharSel">' + opts + '</select>' + (cur ? '<button class="tool ghost" id="wbCharOpen" style="width:100%; margin-top:4px;" title="Open this character\'s sheet over the play map">Open sheet</button>' : '') + (cur && hudFor(cur) ? '<button class="tool ghost" id="wbHudOpen" style="width:100%; margin-top:4px;" title="Open this character\'s HUD over the play map">Open HUD</button>' : '') + '</div>';
+    return '<div class="field"><label for="wbCharSel">Character (sheet)</label><select id="wbCharSel">' + opts + '</select>' + (cur ? '<button class="tool ghost char-sheet-btn" id="wbCharOpen" title="Open this character\'s sheet over the play map">Open sheet</button>' : '') + (cur && hudFor(cur) ? '<button class="tool ghost char-sheet-btn" id="wbHudOpen" title="Open this character\'s HUD over the play map">Open HUD</button>' : '') + '</div>';
 }
 function wireCharSelect(w, rerender) {
     var sel = ui('wbCharSel'); if (!sel) return;

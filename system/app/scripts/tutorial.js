@@ -1257,11 +1257,11 @@ function drawButtons() {
     var box = tour.card.querySelector('.tour-btns'), step = STEPS[tour.i]; if (!box || !step) return;
     var html = '';
     if (tour.asking) {
-        html = '<span class="tour-ask">End the tour here? Your place is kept: <b>Help &#9656; Tutorial</b> resumes it at this step.</span><span style="flex:1"></span><button class="tool" id="tourStay">Keep going</button><button class="tool ghost" id="tourEndNow">End the tour</button>';
+        html = '<span class="tour-ask">End the tour here? Your place is kept: <b>Help &#9656; Tutorial</b> resumes it at this step.</span><span class="tour-spacer"></span><button class="tool" id="tourStay">Keep going</button><button class="tool ghost" id="tourEndNow">End the tour</button>';
     } else if (step.finish) {
         html = '<button class="tool ghost" id="tourDiscardEnd">Discard the Tutorial campaign</button><button class="tool" id="tourKeepEnd">Keep it &amp; finish</button>';
     } else {
-        html = '<button class="tool ghost" id="tourSkip">Skip tour</button><button class="tool ghost" id="tourTry" title="Put this card away and use the app yourself. Resume tour brings this step back, set up as it is now.">Try it yourself</button><span style="flex:1"></span>' + (tour.i > 0 ? '<button class="tool ghost" id="tourBack">&larr; Back</button>' : '') + '<button class="tool" id="tourNext">Next &rarr;</button>';
+        html = '<button class="tool ghost" id="tourSkip">Skip tour</button><button class="tool ghost" id="tourTry" title="Put this card away and use the app yourself. Resume tour brings this step back, set up as it is now.">Try it yourself</button><span class="tour-spacer"></span>' + (tour.i > 0 ? '<button class="tool ghost" id="tourBack">&larr; Back</button>' : '') + '<button class="tool" id="tourNext">Next &rarr;</button>';
     }
     box.innerHTML = html;
     var q = function(id) { return tour.card.querySelector('#' + id); };
@@ -1404,7 +1404,7 @@ function syncPane() {
     if (secWrap) {
         secWrap.textContent = '';
         sectionSpans().forEach(function(sp, k) {
-            var b = document.createElement('button'); b.className = 'tool ghost'; b.style.fontSize = '11px'; b.textContent = (k + 1) + '. ' + sp.label;
+            var b = document.createElement('button'); b.className = 'tool ghost tour-sec-jump'; b.textContent = (k + 1) + '. ' + sp.label;
             b.addEventListener('click', function() { startTour(sp.start); });
             secWrap.appendChild(b);
         });

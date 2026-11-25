@@ -7721,6 +7721,117 @@ textarea.handout-notes { min-height: 64px; resize: vertical; }
    each half of the move (c: the Properties panel, the planner and the files beside them; d: the board and the rest). Like the blocks above they stand
    after the components they restyle, so a rule here wins as the inline style did, and before the looks, so a look can reach it. */
 /* [inline-c-start] */
+/* What each rule below held as an inline style in the scripts' own markup until 1.6.4 (half c: inspector.js, planner.js, dialogs.js,
+   settings.js, sheets.js, fx.js and tutorial.js). Every value is the very one the inline style wrote. An inline style outweighed every rule
+   of the sheet, so each rule here is scoped by the id of the box its element is always drawn in (#inspector, #plannerBlocks and the rest):
+   an id and a class outweigh every rule written for these elements before this block (.field input, .field.check-row, .cat-label, .muted,
+   .grouped-fields .row-h select, .fc-opts label, a look's .tool), and stand early enough that a look written after them can still reach them. */
+
+/* Properties (inspector.js, #inspector): the small gray lines under a field or a tick, each at its own distance from what it explains */
+#inspector .insp-hint { margin: -2px 0 6px; font-size: 10.5px; }         /* the usual line under a tick or a field, pulled up close to it */
+#inspector .insp-hint-snug { margin: -4px 0 6px; font-size: 10.5px; }    /* closer still: Blind by its character's sheet */
+#inspector .insp-hint-sense { margin: -1px 0 4px; font-size: 10.5px; }   /* under a sense's own range: why it is off here */
+#inspector .insp-hint-list { margin: 0 0 4px; font-size: 10.5px; }       /* closing a list of ticks (Not noticed by, a null area's senses, a hazard) */
+#inspector .insp-hint-flat { margin: 0 0 6px; font-size: 10.5px; }       /* a line standing on its own: the sight arc, the token bars' own */
+#inspector .insp-hint-low { margin: 4px 0 6px; font-size: 10.5px; }      /* the token bars' line where the system sets them */
+#inspector .insp-aside { margin: -4px 0 10px; }                          /* a note after a field: the link's quick menu, a tool that is off */
+#inspector .insp-note { margin-top: 4px; }                               /* a note under a box (a hidden token, a new roster entry) */
+#inspector .insp-note-above { margin-bottom: 4px; }                      /* a note over the roster boxes it explains */
+#inspector .insp-note-close { margin-top: 3px; }                         /* a note right under a text box's control */
+#inspector .insp-tick-tight { margin-bottom: 4px; }                      /* a tick in a list of ticks, closer to the next */
+#inspector .insp-h2-sub { font-weight: normal; font-size: 11px; }        /* the word after a heading's name (Link, the kind of piece) */
+#inspector .insp-h2-add { padding: 2px 6px; float: right; }              /* + Add at the right of a heading */
+/* rows and boxes */
+#inspector .insp-flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }   /* a link's two ends; a light's two radii */
+#inspector .insp-char-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }   /* a room's character: picture and name */
+#inspector .insp-row-gap { margin-bottom: 13px; }                        /* a room's picture buttons */
+#inspector .insp-row-top { margin-top: 8px; }                            /* Set Map Center to Node */
+#inspector .insp-field-sep { margin-top: 10px; }                         /* the Category Library field */
+#inspector .insp-field-gap { margin-top: 15px; }                         /* Layering, for several pieces at once */
+#inspector .insp-seg-gap { margin-bottom: 15px; }                        /* the layering buttons, joined */
+#inspector .insp-cat-edit { display: flex; gap: 5px; align-items: center; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 6px; margin-top: 5px; border: 1px solid var(--edge); }   /* a room's category, edited in place */
+#inspector .cat-row { display: flex; gap: 5px; margin-bottom: 5px; align-items: center; }   /* a map's category: color, name, save and delete */
+#inspector .insp-libpick { display: flex; gap: 5px; align-items: center; }   /* the Category Library's list and Add */
+#inspector .insp-libbtns { display: flex; gap: 5px; margin-top: 5px; }        /* Add all missing and Save all to library */
+#inspector .insp-lib-manage { margin-top: 6px; }                         /* Manage library, folded */
+#inspector .insp-summary { cursor: pointer; }
+#inspector .insp-lib-list { margin-top: 5px; }
+#inspector .insp-lib-row { display: flex; gap: 5px; align-items: center; margin-bottom: 3px; }   /* one saved category */
+#inspector .insp-lib-name { flex: 1; font-size: 12px; }
+#inspector .insp-vis-tick { display: flex; align-items: center; gap: 8px; margin: 0; text-transform: none; cursor: pointer; }   /* Visible to players */
+#inspector .insp-marker-row { display: flex; gap: 6px; align-items: center; margin-top: 5px; }   /* a portal's Marker */
+#inspector .insp-nowrap { white-space: nowrap; }
+#inspector .insp-slider-row { display: flex; gap: 8px; align-items: center; }   /* a slider and its number (pen size, text size) */
+#inspector .insp-pair { display: flex; gap: 8px; }                        /* Rotation's slider and its number */
+#inspector .insp-door-row { display: flex; gap: 6px; align-items: center; }   /* a door's side list */
+#inspector .insp-sense-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 2px 0; }   /* a token's own range for a sense */
+#inspector .insp-sense-name { flex: 1 1 120px; min-width: 0; }
+#inspector .wb-tokbar { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: 4px 0; }   /* one of a token's own bars */
+#inspector .insp-bar-label { width: 38px; }
+/* boxes and buttons */
+#inspector .insp-grow { flex: 1; }                                       /* takes the rest of its row */
+#inspector .insp-fixed { flex: 0 0 auto; }                               /* keeps its own size in its row (a portrait's Remove) */
+#inspector .insp-full { width: 100%; }
+#inspector .insp-full-below { width: 100%; margin-top: 5px; }
+#inspector .insp-full-sep { width: 100%; margin-bottom: 10px; }          /* Group, Ungroup */
+#inspector .insp-wait-act { width: 100%; margin-top: 6px; }              /* a waiting token's three hands, where no card holds them */
+#inspector .char-sheet-btn { width: 100%; margin-top: 4px; }             /* Open sheet and Open HUD under Character (sheet) (sheets.js) */
+#inspector .insp-btn-slim { padding: 2px 8px; }                          /* a small button in a row: swap a link's ends, Add a category */
+#inspector .insp-btn-tiny { padding: 2px 6px; }                          /* a category's delete */
+#inspector .insp-btn-mini { padding: 0 6px; font-size: 10px; }           /* remove a category from the library */
+#inspector .insp-align-btn { flex: 1; padding: 3px 0; }                  /* a text box's alignment buttons */
+#inspector .insp-swatch-pick { width: 24px; height: 24px; padding: 0; border: none; background: none; cursor: pointer; }   /* a category's color */
+#inspector .insp-catname { flex: 1; padding: 4px 6px; }                  /* a room's category name, edited in place */
+#inspector .insp-cat-new { font-style: italic; }                         /* + Create New Category... */
+#inspector .insp-charname { margin-bottom: 0; flex: 1; }                 /* a room character's name */
+#inspector .insp-ref { font-weight: normal; font-size: 11px; }           /* a room character's reference */
+#inspector .insp-roster-ref { font-weight: normal; font-size: 11px; margin-top: 4px; }   /* a token's roster reference */
+#inspector .insp-num-short { width: 56px; }                              /* a number beside its slider (pen size, text size) */
+#inspector .insp-num-deg { width: 60px; }                                /* Rotation in degrees */
+#inspector .insp-num-radius { width: 64px; }                             /* a light's two radii */
+#inspector .insp-num-cost { width: 48px; margin-left: 4px; }             /* difficult terrain's cost */
+#inspector .wb-sense-ov { width: 78px; }                                 /* a token's own range for a sense */
+#inspector .wb-tokbar-name { flex: 2 1 60px; min-width: 0; }
+#inspector .wb-tokbar-cur, #inspector .wb-tokbar-max { flex: 1 1 44px; min-width: 0; }
+#inspector .insp-seen-color { height: 30px; padding: 2px; }               /* a secret door's Seen as color */
+#elementListItems { display: flex; flex-direction: column; gap: 5px; }   /* the Elements list and Layers (inspector.js renderElementList) */
+
+/* the planner's editor (planner.js, #plannerBlocks): a block's options and the flowchart's boxes */
+#plannerBlocks .plan-opts-top { margin-top: 6px; }                        /* a section's layout, Wide card */
+#plannerBlocks .plan-opts-snug { margin-bottom: 6px; }                    /* a card's Mode, a person's Sheet */
+#plannerBlocks .plan-opts-gap { margin-bottom: 10px; }                    /* a card's map, Plays */
+#plannerBlocks .b-img-upload { display: none; }                           /* the picture block's file box: its label opens it */
+#plannerBlocks .plan-raw-code { width: 100%; height: 120px; font-family: monospace; }    /* a Raw HTML block */
+#plannerBlocks .plan-mermaid-code { width: 100%; height: 150px; font-family: monospace; }   /* a diagram block's code */
+#plannerBlocks .plan-rule-note { color: var(--dim); font-size: 12px; }    /* a horizontal line: nothing to edit */
+#plannerBlocks .plan-aka { margin-bottom: 6px; width: 100%; }             /* a card's Also known as */
+#plannerBlocks .plan-tbl-hint { color: var(--dim); font-size: 11px; }     /* a table's how-to line */
+#plannerBlocks .plan-head-pad { width: 68px; height: 31px; flex: 0 0 68px; }   /* over a table row's two buttons */
+#plannerBlocks .plan-zoom-l { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }   /* a flowchart's Zoom */
+#plannerBlocks .fc-zoom { width: 110px; }
+#plannerBlocks .plan-fc-hint { font-size: 11px; color: var(--dim); margin-bottom: 8px; }   /* a flowchart's how-to line */
+#plannerBlocks .plan-fc-head { margin-bottom: 5px; }                      /* Nodes:, Arrows: */
+#plannerBlocks .fc-n-id { flex: 0 0 60px; }
+#plannerBlocks .plan-fc-pad { width: 31px; height: 31px; flex: 0 0 31px; }   /* lines a node's or an arrow's boxes up with the row above */
+#plannerBlocks .add-fc-n { margin-bottom: 12px; }
+#plannerBlocks .fc-e-style { flex: 1; }
+.doc-view .plan-empty { color: var(--dim); font-style: italic; text-align: center; padding-top: 100px; }   /* an empty planner or page in its preview */
+#damBgImg { flex: 1; }                                                    /* the page look menu's Bg image */
+
+/* the left panel's searches (dialogs.js): a found map or campaign, left-aligned in its list */
+#mapSearchResults .search-hit, #campSearchResults .search-hit { text-align: left; padding: 8px; }
+#campSearchResults .camp-hit-now { color: var(--gold); font-size: 11px; }    /* current */
+#campSearchResults .camp-hit-count { color: var(--dim); font-size: 11px; float: right; }   /* how many maps, planners and pages */
+
+/* Settings, the snapshots (settings.js loadSnapshots) */
+#setSnapList .snap-core-note { color: var(--dim); line-height: 1.5; }
+#setSnapList .snap-core-btn { padding: 2px 8px; font-size: 11px; }
+#setSnapList .snap-empty { color: var(--dim); }
+
+/* Visual effects (fx.js), the tour (tutorial.js) */
+#fxBanner { flex: 1; }                                                    /* the Banner's words take the rest of its row */
+#tourCard .tour-spacer { flex: 1; }                                       /* pushes the tour card's last buttons to its right */
+#tourSections .tour-sec-jump { font-size: 11px; }                         /* Help, Tutorial: a section of the tour */
 /* [inline-c-end] */
 /* [inline-d-start] */
 /* [inline-d-end] */

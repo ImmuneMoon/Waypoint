@@ -31,6 +31,24 @@ const ix = read('index.html'), css = read('style.css'), wbSrc = read('scripts/wh
 const ordersOf = () => { const s = require('./checkkit').part('netfight.js'), a = s.indexOf('// [netcheck:orders-start]'), z = s.indexOf('// [netcheck:orders-end]'); return a >= 0 && z > a ? s.slice(a, z) : ''; };   // the fights' orders, in netfight.js, a part of net.js
 const sliceOf = (src, name) => { const A = '// [lookcheck:' + name + '-start]', Z = '// [lookcheck:' + name + '-end]', a = src.indexOf(A), z = src.indexOf(Z); return a >= 0 && z > a && count(src, A) === 1 && count(src, Z) === 1 ? src.slice(a + A.length, z) : ''; };
 
+// 1.6.4 (Fulllion, "Move them"), half c: the inline styles that inspector.js, planner.js, dialogs.js, settings.js, sheets.js (with its parts),
+// campquest.js, fx.js and tutorial.js wrote into their own markup moved to the style sheet's block [inline-c], so a look reaches them. A style
+// attribute whose value holds only fixed text (no quote that joins a value worked out at run time) may stand only where it is listed here, with
+// its reason, so an inline style cannot come back unnoticed. Kept: a room's picture and a character's portrait written into a GM note on the
+// board (inspector.js: the note is saved and drawn on every screen, where it is content), the flowchart's Reset tweaks hidden until a node is
+// moved and the page look menu's x hidden until a picture is set (planner.js: shown later by a redraw), two forms the page sanitiser keeps,
+// named in a comment (planner.js), and the tour's section menu, hidden until its button opens it (tutorial.js).
+{
+    const FILES_C = ['scripts/inspector.js', 'scripts/planner.js', 'scripts/dialogs.js', 'scripts/settings.js', 'scripts/sheets.js', 'scripts/campquest.js', 'scripts/fx.js', 'scripts/tutorial.js'];
+    const KEPT_C = { 'scripts/inspector.js': { 'width:100%; border-radius:6px; margin-bottom:8px; display:block;': 1, 'width:22px; height:22px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:5px;': 1 },
+        'scripts/planner.js': { 'display:none;': 1, 'visibility:hidden': 1, 'color:#rrggbb': 1, 'font-size:<step>': 1 },
+        'scripts/tutorial.js': { 'display:none;': 1 } };
+    const staticOf = src => { const n = {}; (src.match(/style="[^"]*"/g) || []).map(a => a.slice(7, -1)).filter(v => v.indexOf("'") < 0).forEach(v => { n[v] = (n[v] || 0) + 1; }); return n; };
+    const leftC = FILES_C.map(f => { const src = read(f), got = staticOf(src), want = KEPT_C[f] || {}; const extra = Object.keys(got).filter(v => got[v] !== want[v]).map(v => f + ': ' + v + ' x' + got[v]); const cssT = (src.match(/\.style\.cssText = '[^']*'/g) || []).map(v => f + ': ' + v); return extra.concat(cssT); }).reduce((a, b) => a.concat(b), []);
+    const missC = FILES_C.map(f => { const got = staticOf(read(f)), want = KEPT_C[f] || {}; return Object.keys(want).filter(v => got[v] !== want[v]).map(v => f + ': kept ' + v); }).reduce((a, b) => a.concat(b), []);
+    check('1.6.4, half c of the scripts\' inline styles: Properties, the planner, the searches, Settings\' snapshots, the sheet\'s Open buttons, Visual effects and the tour write no fixed inline style but the kept few, so every look reaches them', !leftC.length && !missC.length && css.includes('/* [inline-c-start] */') && css.includes('\n#inspector .insp-hint { margin: -2px 0 6px; font-size: 10.5px; }'), J(leftC.concat(missC).slice(0, 8)));
+}
+
 /* ---------- the inventory: every control around the play map, by its id, as it stood on 2026-10-06 before the look work ---------- */
 // The toolbar and its menus, then what stands around the map (the rulers, the party and turn strips, the join card, the zoom box, the
 // panes' grips, the minimap). A new control is added to this list when it is built; none is ever taken off it without the owner's word.
@@ -5360,10 +5378,10 @@ if (mode === 'samples') {
     const headMiss = HEAD_D.filter(([id, d]) => !new RegExp('<button class="wib wi-' + d + ' [^"]*" id="' + id + '"').test(headD)).map(x => x[0]);
     const WANT = [
         [insD, 'char-portrait-btn" data-idx="\'+i+\'"><i class="wib wi-pic"></i> \'+(c.portrait?'],
-        [insD, 'data-idx="\'+i+\'" style="flex:0 0 auto;"><i class="wib wi-close"></i></button>'],
+        [insD, 'char-portrait-clear insp-fixed" title="Remove Portrait" aria-label="Remove Portrait" data-idx="\'+i+\'"><i class="wib wi-close"></i></button>'],   // moved on purpose in 1.6.4: its inline style moved to the class insp-fixed
         [insD, 'del-char" aria-label="Remove Character" data-idx="\'+i+\'"><i class="wib wi-close"></i> Remove</button>'],
         [insD, 'id="fImgClearBtn"><i class="wib wi-close"></i> Remove</button>'],
-        [insD, 'style="padding:2px 6px;"><i class="wib wi-bin"></i></button>'],
+        [insD, 'cat-del insp-btn-tiny" aria-label="Delete Category" title="Delete Category" data-id="\'+esc(k)+\'"><i class="wib wi-bin"></i></button>'],   // moved on purpose in 1.6.4: its inline style moved to the class insp-btn-tiny
         [insD, '<i class="wib wi-fitcells"></i> Fit to grid cells</button>'], [insD, '<i class="wib wi-aligngrid"></i> Align its grid</button>'],
         [insD, '<i class="wib wi-corners"></i> Trim to cells</button>'], [insD, '<i class="wib wi-pic"></i> Whole picture</button>'], [insD, '<i class="wib wi-bin"></i> Delete</button>'],
         [insD, '<i class="wib wi-\' + (sh ? \'chev\' : \'chevdown\') + \'"></i></button>'], [insD, '<i class="wib wi-\' + (gs ? \'chev\' : \'chevdown\') + \'"></i></button>'],

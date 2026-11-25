@@ -113,7 +113,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             && P.pvCueMsg('?popout=sheet%3Ac1', { dataset: { k: 'p', id: 'p_1' } }) === null && P.pvCueMsg('?popout=doc%3Ak1%2Fp', { dataset: { k: 'q', id: 'x' } }) === null, J(msg));
         const plC = read('scripts/planner.js'), ixC = read('index.html');
         check('166 g wired (pinned): the editor\u2019s Plays list under a card\u2019s map, the preview\u2019s Play button, the press in the preview, the panel over the map and a window of its own; Help says it',
-            plC.includes('<div class="fc-opts" style="margin-bottom:10px;"><label>Plays <select class="b-cue"') && plC.includes('class="tool ghost pv-cue" data-k="') && plC.includes("_el_plannerPreviewEl.addEventListener('click', pvCueGo);") && plC.includes("_el_docPanelBodyEl.addEventListener('click', pvCueGo);")
+            /* 1.6.4 (Fulllion, "Move them"): the scripts' inline style moved to the style sheet's class, moved on purpose */ plC.includes('<div class="fc-opts plan-opts-gap"><label>Plays <select class="b-cue"') && plC.includes('class="tool ghost pv-cue" data-k="') && plC.includes("_el_plannerPreviewEl.addEventListener('click', pvCueGo);") && plC.includes("_el_docPanelBodyEl.addEventListener('click', pvCueGo);")
             && plC.includes('else if (pvCueOk(e.data, getActiveCampaign())) cuePlay(e.data.k, e.data.id);') && ixC.includes('<b>Plays</b>'));
     }
 

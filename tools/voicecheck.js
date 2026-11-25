@@ -238,7 +238,7 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
     const ix = read('index.html');
     check('the page loads voicecore before voice.js, once each, after the video module; the microphone is a control of the top row\'s Table group after Music, put away until a table is on, and its popover is in the page once with its two parts',
         ix.indexOf('<script type="module" src="scripts/video.js"></script>\n<script type="module" src="scripts/voicecore.js"></script>\n<script type="module" src="scripts/voice.js"></script>\n') > 0
-        && /<button class="tool ghost icon" id="musicInd"[^\n]*\n\s*<button class="tool ghost icon" id="voiceInd" title="Voice: talk with the table" style="display:none; position:relative;">/.test(ix)
+        && /<button class="tool ghost icon row-badge-host" id="musicInd"[^\n]*\n\s*<button class="tool ghost icon row-badge-host" id="voiceInd" title="Voice: talk with the table" style="display:none;">/.test(ix) && read('style.css').includes(NL + '.row-badge-host { position: relative; }') /* 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose */
         && (ix.match(/ id="voicePop"/g) || []).length === 1 && /<div id="voicePop" style="display:none;" role="dialog" aria-label="Voice">\n\s*<div id="voiceNow" class="snd-now" role="status"><\/div>\n\s*<div id="voiceBody"><\/div>\n\s*<\/div>/.test(ix));
     const vs = voiceSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     check('voice.js writes no markup, sends only its two words over the table\'s connection, never offers as a player and never answers as the host, and keeps what it keeps under its own keys of this computer',

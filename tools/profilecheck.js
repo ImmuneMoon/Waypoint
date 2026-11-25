@@ -148,7 +148,7 @@ const app = p => path.join(__dirname, '..', 'system', 'app', p), read = p => fs.
             && yes.mem.get('wp_hostId') === OLD.id && yes.mem.get('wp_gmSign') === '{"k":1}' && yes.mem.get('wp_theme') === 'light' && yes.order[0] === 'hostId' && yes.order.indexOf('set:wp_profile') < yes.order.indexOf('unlink:start-over')
             && yes.order.includes('unlink:start-over') && yes.ACCT.linked === false && yes.order.includes('draw') && J(yes.steps) === J(['over-asked', 'over']), J([yes.order, np, [...yes.mem.keys()], yes.steps]));
         check('the button is in the Profile window, styled as danger, and Help and both release notes say it',
-            pw.includes('<button class="tool ghost danger no-back" id="profStartOverBtn" type="button"') && pwS.includes("var over = ui('profStartOverBtn'); if (over) over.addEventListener('click', profStartOver);")
+            pw.includes('<button class="tool ghost danger no-back prof-over-btn" id="profStartOverBtn" type="button"') && read('style.css').includes(NL + '.prof-over-btn { width: 100%; }') /* 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose */ && pwS.includes("var over = ui('profStartOverBtn'); if (over) over.addEventListener('click', profStartOver);")
             && ix.includes('<li><b>Start over as a new player</b> is at the bottom of your profile.') && ix.includes('<li>To be yourself again, open a saved profile, paste a profile code from another computer, or link your account.</li>')
             && [read('assets/whatsnew.txt'), fs.readFileSync(path.join(__dirname, '..', 'WHATSNEW.txt'), 'utf8')].every(t => t.replace(/\r\n/g, NL).includes('- Start over as a new player, at the bottom of your profile, forgets every')), '');
     }

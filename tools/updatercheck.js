@@ -1850,7 +1850,9 @@ process.on('exit', code => { if (!summed && !code) { console.log(NL + 'FAIL     
             const ixS = read('system/app/index.html'), cssS = read('system/app/style.css'), stS = read('system/app/scripts/settings.js');
             const mA = ixS.indexOf('<div id="wcMain">'), mB = ixS.indexOf('<div class="wc-actions">', mA), headS = mA > 0 && mB > mA ? ixS.slice(mA, mB) : '';
             const tagOf = id => (ixS.match(new RegExp('<button class="([^"]*)" id="' + id + '" title="([^"]*)">([^<]*)</button>')) || []).slice(1);
-            const zTagS = id => +((ixS.match(new RegExp(' id="' + id + '"[^>]*? style="[^"]*?z-index: ?(\\d+)')) || [])[1]);
+            /* 1.6.4 (Fulllion, 2026-11-25, "Move the inline styles"): the style moved to the style sheet, moved on purpose */
+            const zBlockS = cssS.slice(cssS.indexOf('/* [inline-a-start] */'), cssS.indexOf('/* [inline-a-end] */'));
+            const zTagS = id => { const m = ixS.match(new RegExp(' id="' + id + '"[^>]*? style="[^"]*?z-index: ?(\\d+)')); if (m) return +m[1]; const c = ixS.match(new RegExp('<div id="' + id + '" class="([a-z-]+)"')), r = c && zBlockS.match(new RegExp('\\n\\.' + c[1] + ' \\{[^}]*?z-index: (\\d+);')); return r ? +r[1] : NaN; };
             const lift = +((cssS.match(/\n  #toast\.show\.wc-over \{ z-index: (\d+); transition: opacity \.2s, transform \.2s; \}\n/) || [])[1]);
             const ruleS = (cssS.match(/\n  #wcUpdate \{([^}]*)\}/) || [])[1] || '', barRule = (cssS.match(/\n  #updateBanner \{([^}]*)\}/) || [])[1] || '';
             const partS = (r, p) => (r.match(new RegExp('(?:^|[;{\\s])' + p + ': ?([^;]+);')) || [])[1];

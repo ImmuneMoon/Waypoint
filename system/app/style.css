@@ -7085,6 +7085,422 @@
    the rules of the parts they style, so they win as the inline styles did, and before the looks, so a look can reach them. Each rule names
    its element by a class of its own where it can, and by its id only where that is what keeps it as it was. */
 /* [inline-a-start] */
+/* The top row: the mark that leads back to the welcome screen */
+.header-brand { cursor: pointer; }
+/* The top row: a button that holds a count or a mark on its corner */
+.row-badge-host { position: relative; }
+/* The top row: the pause button's drawing size. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#sessionPauseBtn.row-pause-btn { font-size: 14px; line-height: 1; }
+/* The top row: Table Chat's count of unread messages, in red */
+.row-badge-chat { position: absolute; top: -4px; right: -4px; background: var(--red); color: #fff; font-size: 9px; min-width: 14px; height: 14px; line-height: 14px; border-radius: 7px; text-align: center; padding: 0 2px; }
+/* The top row: the Journal's and the bell's counts, in gold */
+.row-badge { position: absolute; top: -4px; right: -4px; background: var(--gold); color: #1a1408; font-size: 9px; min-width: 14px; height: 14px; line-height: 14px; border-radius: 7px; text-align: center; padding: 0 2px; }
+/* A window's dim backdrop at the usual layer */
+.window-shade { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: rgba(0,0,0,0.7); z-index: 99999; align-items: center; justify-content: center; }
+/* A window's dim backdrop: the Terms and Privacy window, over the usual windows */
+.window-shade-legal { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: rgba(0,0,0,0.7); z-index: 100000; align-items: center; justify-content: center; }
+/* A window's dim backdrop: a question or a prompt, over every window */
+.window-shade-question { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: rgba(0,0,0,0.7); z-index: 100010; align-items: center; justify-content: center; }
+/* A window's dim backdrop: Your profile */
+.window-shade-profile { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: rgba(0,0,0,0.7); z-index: 100001; align-items: center; justify-content: center; }
+/* A window's dim backdrop: the dice painter */
+.window-shade-paint { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: rgba(0,0,0,0.7); z-index: 100002; align-items: center; justify-content: center; }
+/* A window's backdrop in the overlay color: the core update's steps */
+.window-shade-installer { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: var(--overlay); z-index: 100002; align-items: center; justify-content: center; }
+/* A window's backdrop in the overlay color: what a table turned off */
+.window-shade-notice { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: var(--overlay); z-index: 100003; align-items: center; justify-content: center; }
+/* A window's backdrop in the overlay color: sending a choice to the table */
+.window-shade-push { position: fixed; top: var(--winbar); left: 0; width: 100%; height: calc(100% - var(--winbar)); background: var(--overlay); z-index: 100000; align-items: center; justify-content: center; }
+/* A window's title row with its close button at the right. The looks make a window's title ink by naming the window; this names the window and its box as well, so the gold still wins, as it did inline */
+.window-title-row, #installerModal .installer-box > h3.window-title-row:not(.doc-view h3), #vttNoticeModal .notice-box > h3.window-title-row:not(.doc-view h3), #vttPushModal .push-box > h3.window-title-row:not(.doc-view h3), #dicePaintModal #dicePaintTitle.window-title-row, #profileModal .prof-box > h3.window-title-row:not(.doc-view h3) { margin-top: 0; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
+/* A small window's title in gold. The looks make a window's title ink by naming the window; this names the window and its box as well, so the gold still wins, as it did inline */
+.window-title, #campSearchModal .search-box > h3.window-title:not(.doc-view h3), #plannerSearchModal .search-box > h3.window-title:not(.doc-view h3), #docSearchModal .search-box > h3.window-title:not(.doc-view h3), #mapSearchModal .search-box > h3.window-title:not(.doc-view h3) { margin-top: 0; color: var(--gold); }
+/* A small window's box to type in, as wide as the window. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+.window-input, #docSearchInput.window-input { width: 100%; box-sizing: border-box; margin-bottom: 15px; }
+/* A window's buttons at its foot, at the right */
+.window-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+/* About Waypoint: its box */
+.about-box { background: var(--bg2); padding: 24px; border: 1px solid var(--gold); border-radius: 8px; width: 440px; max-height: 85vh; overflow-y: auto; text-align: center; }
+/* About Waypoint: the name */
+.about-title { margin-top: 0; margin-bottom: 2px; color: var(--gold); }
+/* About Waypoint: the version line */
+.about-version { color: var(--dim); font-size: 11px; margin-bottom: 10px; }
+/* About Waypoint: what the app is */
+.about-lede { color: var(--ink); margin-bottom: 6px; }
+/* About Waypoint: the line that no AI runs inside */
+.about-no-ai { color: var(--ink-dim); font-size: 12px; margin-bottom: 18px; }
+/* About Waypoint: the two makers side by side */
+.about-makers { display: flex; justify-content: center; gap: 28px; margin-bottom: 16px; }
+/* About Waypoint: one maker, its logo over its words */
+.about-maker { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+/* About Waypoint: a maker's logo */
+.about-maker-logo { width: 56px; height: 56px; object-fit: contain; }
+/* About Waypoint: what a maker did */
+.about-maker-role { font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: .08em; }
+/* About Waypoint: a maker's name */
+.about-maker-name { font-size: 13px; color: var(--ink); font-weight: 600; }
+/* About Waypoint: a maker's name as a link. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#aboutModal .about-maker-link { font-size: 13px; color: var(--blue); font-weight: 600; text-decoration: none; }
+/* About Waypoint: Contact and bug reports */
+.about-contact { border-top: 1px solid var(--edge); padding-top: 14px; margin-bottom: 14px; text-align: left; }
+/* About Waypoint: Contact's heading */
+.about-contact-head { font-size: 12px; color: var(--ink-dim); margin-bottom: 4px; }
+/* About Waypoint: the address and its Copy button */
+.about-contact-row { display: flex; align-items: center; gap: 8px; }
+/* About Waypoint: the address. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#aboutEmail.about-email { font-size: 12px; color: var(--blue); user-select: all; }
+/* About Waypoint: the Copy button */
+.about-copy-btn { padding: 2px 8px; font-size: 11px; }
+/* About Waypoint: a line under the address */
+.about-note { font-size: 11px; color: var(--ink-dim); margin-top: 6px; line-height: 1.5; }
+/* About Waypoint: the link to report a bug. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#aboutReportLink.about-report-link { color: var(--blue); font-weight: 600; }
+/* About Waypoint: the credits line */
+.about-credits { font-size: 11px; color: var(--ink-dim); text-align: center; margin-bottom: 10px; }
+/* About Waypoint: the row of links at its foot */
+.about-links { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+/* Terms and Privacy: its box */
+.legal-box { background: var(--bg2); padding: 24px; border: 1px solid var(--gold); border-radius: 8px; width: 620px; max-width: 92vw; max-height: 85vh; display: flex; flex-direction: column; }
+/* Terms and Privacy: the words, which scroll */
+.legal-body { overflow-y: auto; white-space: pre-wrap; font-size: 12.5px; line-height: 1.6; color: var(--ink); text-align: left; padding-right: 8px; }
+/* Help: its box */
+.help-box { background: var(--bg2); padding: 24px; border: 1px solid var(--gold); border-radius: 8px; width: 780px; max-width: 94vw; height: 80vh; display: flex; flex-direction: column; }
+/* Help: its title row */
+.help-title { margin-top: 0; margin-bottom: 14px; color: var(--gold); display: flex; justify-content: space-between; }
+/* Help: the search box's row */
+.help-search-row { margin-bottom: 12px; }
+/* Help: the list of parts beside the part shown */
+.help-columns { display: flex; gap: 16px; flex: 1; min-height: 0; }
+/* Help: the part shown, which scrolls */
+.help-pane-scroll { flex: 1; overflow-y: auto; min-width: 0; padding-right: 8px; }
+/* Help: the tour's buttons */
+.tour-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+/* Help: the tour's sections */
+.tour-sections-wrap { margin: 2px 0 10px; }
+/* Help: the words before the tour's sections */
+.tour-sections-label { font-size: 11px; color: var(--dim); margin-bottom: 5px; }
+/* Help: the tour's section buttons */
+.tour-sections { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Help: the tour's version */
+.tour-version { color: var(--dim); }
+/* Help: a page in the handbook format */
+.help-code { font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+/* Help: the handbook template's button */
+.help-template-row { margin-top: 6px; }
+/* The left panel: a section title's small buttons */
+.section-btn { padding: 2px 6px; margin: 0; }
+/* The left panel: the first small button of a section title, pushed to the right */
+.section-btn-first { padding: 2px 6px; margin: 0 0 0 auto; }
+/* A toolbar: a button that holds the menu that opens over it */
+.bar-menu-host { position: relative; display: inline-block; }
+/* A toolbar: a tool and its options, the options placed from it */
+.bar-pair-host { position: relative; }
+/* A toolbar: Center's menu, a column above its button. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.center-menu:not(.help-chip-in) { bottom: 100%; top: auto; flex-direction: column; min-width: 130px; left: 50%; transform: translateX(-50%); margin-bottom: 10px; }
+/* The Data Map's toolbar: a row of Center's menu. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#dataCenterMenu .center-menu-row { width: 100%; border-radius: 0; font-size: 12px; height: auto; padding: 8px 0; }
+/* Undo and Redo, dim until there is a step to take. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#main .history-btn { opacity: 0.5; pointer-events: none; }
+/* The Data Map's toolbar: Link's menu above its button. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#linkMenu.link-menu-place { bottom: 100%; top: auto; left: 50%; transform: translateX(-50%); margin-bottom: 10px; }
+/* The Data Map's toolbar: Link's line of help */
+.link-menu-hint { font-size: 11px; color: var(--dim); line-height: 1.4; }
+/* A button that clears or deletes, in red. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#main .delete-ink { color: var(--red); }
+/* The play map's toolbar: Add's menu above its button. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#addMenu.add-menu-place { bottom: 100%; top: auto; flex-direction: column; min-width: 190px; left: 50%; transform: translateX(-50%); margin-bottom: 10px; }
+/* The play map's toolbar: Scene's menu above its button. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#sceneFxMenu.scene-menu-place { bottom: 100%; top: auto; flex-direction: column; min-width: 200px; left: 50%; transform: translateX(-50%); margin-bottom: 10px; }
+/* The play map's toolbar: More's menu, above its button at the right. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#wbMoreMenu.more-menu-place { bottom: 100%; top: auto; flex-direction: column; min-width: 200px; left: auto; right: 0; transform: none; margin-bottom: 10px; }
+/* A color swatch: white */
+.swatch-white { background: #e9e9f0; }
+/* A color swatch: black */
+.swatch-black { background: #1a1a1a; }
+/* A color swatch: red */
+.swatch-red { background: #d9534f; }
+/* A color swatch: gold */
+.swatch-gold { background: #e0a54f; }
+/* A color swatch: green */
+.swatch-green { background: #5cb87a; }
+/* A color swatch: blue */
+.swatch-blue { background: #4db3d3; }
+/* A color swatch: violet */
+.swatch-violet { background: #b98cff; }
+/* Build's color swatch: stone gray */
+.swatch-stone { background: #5a5663; }
+/* Build's color swatch: dark stone */
+.swatch-dark-stone { background: #3f3b47; }
+/* Build's color swatch: dark wood */
+.swatch-dark-wood { background: #6b4a2a; }
+/* Build's color swatch: wood */
+.swatch-wood { background: #7a5634; }
+/* Build's color swatch: water blue */
+.swatch-water { background: #2e5d86; }
+/* Build's color swatch: rubble gray */
+.swatch-rubble { background: #55505c; }
+/* Build's color swatch: grass green */
+.swatch-grass { background: #4b6b36; }
+/* Build's color swatch: street gray */
+.swatch-street { background: #6b6672; }
+/* Build's color swatch: roof red */
+.swatch-roof { background: #7a3f33; }
+/* Build's color swatch: wall stone */
+.swatch-wall { background: #4a4753; }
+/* The pen's size dot: thin */
+.size-dot-thin { width: 5px; height: 5px; }
+/* The pen's size dot: normal */
+.size-dot-normal { width: 8px; height: 8px; }
+/* The pen's size dot: thick */
+.size-dot-thick { width: 12px; height: 12px; }
+/* The pen's size dot: heavy */
+.size-dot-heavy { width: 16px; height: 16px; }
+/* The pen's size dot: marker */
+.size-dot-marker { width: 20px; height: 20px; }
+/* A tool's options: a slider as wide as the options. A typed slider is put in a .ui-slide as the page loads, whose rules size it; this names the slider itself, so they do not */
+#main .menu-slider { width: 100%; }
+/* The eraser's options: its size slider. A typed slider is put in a .ui-slide as the page loads, whose rules size it; this names the slider itself, so they do not */
+#eraserSize.eraser-slider { width: 150px; }
+/* A tool's options: a figure beside its slider, in gray */
+.menu-value { color: var(--dim); }
+/* The eraser's options: the Eraser Mode label, a little apart */
+.menu-label-apart { margin-top: 8px; }
+/* The eraser's options: what each mode does */
+.eraser-note { font-size: 10.5px; color: var(--dim); max-width: 190px; line-height: 1.4; }
+/* Fill's options: the flood fill row */
+.fill-flood-row { margin-top: 4px; }
+/* Fill's options: a row close under the one before */
+.fill-opt-row { margin-top: 2px; }
+/* A tool's options: a tick with its words */
+.opt-tick { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--dim); cursor: pointer; }
+/* A tool's options: a list with its words, taking the row */
+.opt-pick-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--dim); flex: 1; }
+/* A tool's options: a list of patterns */
+.opt-pick { flex: 1; font-size: 11px; }
+/* Fill's options: the list of kinds of terrain */
+.opt-pick-narrow { flex: 1; min-width: 0; font-size: 11px; }
+/* A tool's options: what moving into a cell costs */
+.opt-cost-box { width: 44px; font-size: 11px; }
+/* Fill's options: the line at the foot */
+.fill-note { font-size: 10.5px; color: var(--dim); max-width: 200px; line-height: 1.4; }
+/* Build's options: a corridor's width, with its words */
+.opt-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--dim); }
+/* Build's options: the corridor's width list */
+.opt-small-pick { font-size: 11px; }
+/* Build's options: the With walls tick, after the width */
+.opt-tick-after { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--dim); margin-left: 10px; }
+/* A tool's options: a list that takes the row. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#main .menu-pick { flex: 1; padding: 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+/* A tool's options: a figure to type. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#main .menu-num { width: 70px; padding: 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+/* A tool's options: a narrow figure to type. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#main .menu-num-narrow { width: 64px; padding: 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+/* The Radius tool's options: a cone's angle. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#blastAngle.menu-num-angle { width: 56px; padding: 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+/* The fog's options: the default Sight. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#fogSight.menu-num-wide { width: 80px; padding: 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+/* The fog's options: the Sight's unit. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#fogSightUnit.menu-unit-pick { padding: 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+/* A tool's options: words to type that take the row. The looks reshape a field or a toolbar button by its class; its selector holds an id as well, so it keeps its shape, as it did inline */
+#blastExplodeForm .menu-text { flex: 1; min-width: 0; padding: 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--edge); border-radius: 4px; }
+/* A tool's options: a unit after a figure */
+.menu-unit { font-size: 11px; color: var(--dim); }
+/* The Radius tool's options: a line of gray words */
+.blast-line { font-size: 11px; color: var(--dim); }
+/* A tool's options: a gray note */
+.menu-note { font-size: 11px; color: var(--dim); max-width: 210px; line-height: 1.4; }
+/* A tool's options: a smaller gray note */
+.menu-note-small { font-size: 10.5px; color: var(--dim); line-height: 1.4; max-width: 210px; }
+/* The Radius tool's options: Explode's words before a box */
+.explode-label { font-size: 11px; color: var(--dim); width: 50px; flex: none; }
+/* The Radius tool's options: Explode's tick for the token it stands on. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#blastExplodeForm #blastHitCentreRow.explode-tick { align-items: center; gap: 6px; cursor: pointer; font-size: 12px; }
+/* The fog's options: a tick of this map. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#wbFloatingToolbar #fogMenu .fog-tick-row { align-items: center; gap: 6px; cursor: pointer; }
+/* The fog's options: a smaller tick. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#fogMenu #fogLightVision .fog-tick-small, #fogMenu #fogCampBox .fog-tick-small { align-items: center; gap: 6px; cursor: pointer; font-size: 11px; color: var(--dim); }
+/* The fog's options: the row of the campaign's defaults. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#fogMenu #fogCampBox .fog-camp-row { gap: 6px; margin-top: 2px; }
+/* The fog's options: a line under the Sight */
+.fog-sight-note { margin: 2px 0 4px; font-size: 10.5px; }
+/* The fog's options: the senses' words */
+.fog-senses-text { flex: 1; font-size: 11px; color: var(--dim); }
+/* The fog's options: a gray line under a part */
+.fog-sub-note { font-size: 11px; color: var(--dim); padding: 0 2px 4px; }
+/* Snap's options: the note on snapping */
+.snap-note { font-size: 10.5px; color: var(--dim); max-width: 210px; line-height: 1.4; margin-top: 4px; }
+/* Snap's options: the row of its off button */
+.snap-off-row { margin-top: 8px; }
+/* A button or a box that takes an equal share of its row. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style. Help draws a copy of such a button, which keeps the class and loses its id */
+#snapMenu #snapOffBtn.row-share, #netPaneHostBtn.row-share, #netPaneJoinBtn.row-share, #setAvatarBtn.row-share, #setProfSaveBtn.row-share, #setProfOpenBtn.row-share, #setProfCopyBtn.row-share, #setProfPasteBtn.row-share, .row-share, .help-chip .row-share { flex: 1; }
+/* The party's menu, a column the script places. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#partyMenu.party-menu-box { position: fixed; flex-direction: column; min-width: 200px; z-index: 99998; }
+/* The play map's right-click menu */
+.context-menu-box { position: absolute; z-index: 90020; flex-direction: column; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; border-radius: 4px; min-width: 150px; }
+/* A planner picture's right-click menu */
+.scene-menu-box { position: fixed; flex-direction: column; min-width: 180px; z-index: 100001; }
+/* The planner's editor, the left half */
+.planner-editor-pane { width: 50%; border-right: 1px solid var(--edge); display: flex; flex-direction: column; overflow-y: auto; background: var(--bg2); padding: 15px; }
+/* The planner's editor: the buttons at its foot */
+.planner-editor-foot { margin-top: 15px; display: flex; gap: 8px; }
+/* Properties: the title in its head */
+.prop-head-title { flex: 1; }
+/* A question or a prompt: its box */
+.question-box { background: var(--panel2); padding: 20px; border: 1px solid var(--gold); border-radius: 8px; width: 300px; }
+/* A question: its title */
+.question-title { margin-top: 0; margin-bottom: 15px; color: var(--gold); }
+/* A question or a prompt: its buttons */
+.question-buttons { display: flex; justify-content: flex-end; gap: 10px; }
+/* A search window: its box */
+.search-box { background: var(--panel2); padding: 20px; border: 1px solid var(--gold); border-radius: 8px; width: 400px; max-height: 80vh; display: flex; flex-direction: column; }
+/* A search window: its results, which scroll */
+.search-results { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 5px; max-height: 50vh; }
+/* A search window: its foot */
+.search-foot { display: flex; justify-content: flex-end; margin-top: 15px; }
+/* Multiplayer: its box */
+.net-box { background: var(--panel2); padding: 22px; border: 1px solid var(--gold); border-radius: 8px; width: 420px; max-width: 92vw; max-height: 88vh; overflow-y: auto; box-sizing: border-box; }
+/* Multiplayer: its title, which stays at the top as the window scrolls. The looks make a window's title ink by naming the window; this names the window and its box as well, so the gold still wins, as it did inline */
+#netModal .net-box > h3.net-head:not(.doc-view h3) { margin: -22px -22px 0; padding: 22px 22px 8px; position: sticky; top: -22px; z-index: 2; background: var(--panel2); color: var(--gold); display: flex; justify-content: space-between; }
+/* Multiplayer: what is going on */
+.net-status { color: var(--dim); font-size: 13px; line-height: 1.35; min-height: 2.7em; margin: 4px 0 14px; }
+/* Multiplayer: the name row */
+.net-name-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+/* Multiplayer: the name box */
+.net-name-input { flex: 1; box-sizing: border-box; }
+/* Multiplayer: Host a table and Join a table. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.net-pane-bar:not(.help-chip-in) { margin-bottom: 12px; }
+/* Multiplayer: the Host part and the Join part. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.net-pane:not(.help-chip-in) { border: 1px solid var(--edge); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+/* Multiplayer: a part's heading */
+.net-section-label { color: var(--gold); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+/* Multiplayer: a choice with its words */
+.net-field { margin-bottom: 10px; }
+/* Multiplayer: the words over a choice */
+.net-field-label { color: var(--dim); font-size: 11px; margin-bottom: 4px; }
+/* Multiplayer: a list or a box as wide as its part */
+.net-wide-input { width: 100%; box-sizing: border-box; }
+/* Multiplayer: a button as wide as its part */
+.net-wide-btn { width: 100%; }
+/* Multiplayer: the table's code and what to do with it. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.net-host-info:not(.help-chip-in) { margin-top: 10px; text-align: center; }
+/* Multiplayer: the words over the code */
+.net-code-label { color: var(--dim); font-size: 12px; }
+/* Multiplayer: the code with Copy and Copy invite */
+.net-code-row { display: flex; gap: 8px; align-items: center; justify-content: center; }
+/* Multiplayer: the room code */
+.net-code { font-family: monospace; font-size: 24px; font-weight: bold; color: var(--gold); letter-spacing: 3px; }
+/* Multiplayer: Copy */
+.net-copy-btn { padding: 2px 8px; }
+/* Multiplayer: Copy invite */
+.net-invite-btn { padding: 2px 10px; }
+/* Multiplayer: a line under the code */
+.net-code-note { color: var(--dim); font-size: 11px; line-height: 1.45; margin-top: 6px; }
+/* Multiplayer: a button of the table, one under another */
+.net-host-action { margin-top: 8px; width: 100%; }
+/* Multiplayer: Open stream window */
+.net-stream-btn { margin: 8px 0; width: 100%; }
+/* Multiplayer: a tick of new players */
+.net-tick { display: flex; gap: 6px; align-items: center; color: var(--dim); font-size: 12px; margin-top: 6px; }
+/* Multiplayer: the list of what a new player makes */
+.net-make-select { width: 100%; box-sizing: border-box; margin-top: 6px; }
+/* Multiplayer: the code box and Join. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.net-join-row:not(.help-chip-in) { display: flex; gap: 8px; margin-bottom: 8px; }
+/* Multiplayer: the room code to type. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#netCodeInput.net-code-input { flex: 1; box-sizing: border-box; font-family: monospace; text-transform: uppercase; }
+/* Multiplayer: who is connected */
+.net-roster { color: var(--dim); font-size: 12px; margin-bottom: 12px; }
+/* Multiplayer: the line on what the table turned off */
+.net-vtt-line { color: var(--dim); font-size: 11px; margin: -6px 0 10px; }
+/* Multiplayer: Player History */
+.net-players-btn { width: 100%; margin-bottom: 8px; }
+/* The core update's steps: its box */
+.installer-box { background: var(--panel2); padding: 22px 24px; border: 1px solid var(--gold); border-radius: 8px; width: 520px; max-width: 94vw; max-height: 88vh; overflow-y: auto; line-height: 1.55; }
+/* The core update's steps: the words before the steps */
+.installer-intro { margin: 0 0 10px; }
+/* The core update's steps: the steps' heading */
+.installer-steps-head { margin: 0 0 6px; color: var(--dim); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; }
+/* The core update's steps: the steps */
+.installer-step-list { margin: 0 0 12px; padding-left: 22px; }
+/* The core update's steps: the line after the steps */
+.installer-note { margin: 0 0 14px; color: var(--dim); font-size: 12px; }
+/* The core update's steps: its buttons */
+.installer-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+/* What a table turned off: its box */
+.notice-box { background: var(--panel2); padding: 22px 24px; border: 1px solid var(--gold); border-radius: 8px; width: 480px; max-width: 94vw; max-height: 88vh; overflow-y: auto; line-height: 1.55; }
+/* What a table turned off: the words at its top */
+.notice-intro { margin: 0 0 10px; color: var(--dim); font-size: 12.5px; }
+/* What a table turned off: a list of features */
+.notice-list { margin: 0 0 6px; padding-left: 22px; }
+/* What a table turned off: the line under a list */
+.notice-list-note { margin: 0 0 10px; color: var(--dim); font-size: 11.5px; }
+/* Sending a choice to the table: its box */
+.push-box { background: var(--panel2); padding: 22px; border: 1px solid var(--gold); border-radius: 8px; width: 520px; max-width: 94vw; max-height: 86vh; display: flex; flex-direction: column; }
+/* Sending a choice to the table: the words at its top */
+.push-intro { color: var(--dim); font-size: 11.5px; line-height: 1.5; margin-bottom: 10px; }
+/* Sending a choice to the table: the rows, which scroll */
+.push-rows { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; min-height: 80px; }
+/* The welcome screen */
+.welcome-screen { position: fixed; inset: var(--winbar) 0 0 0; z-index: 100000; background: var(--bg); overflow: auto; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; }
+/* The welcome screen: the picture you press to change */
+.wc-avatar { cursor: pointer; }
+/* The welcome screen: the room code to type */
+.wc-code-input { font-family: monospace; text-transform: uppercase; }
+/* The dice painter: the line under its title */
+.paint-lead { margin: -8px 0 12px; }
+/* The dice painter: its foot */
+.paint-foot { display: flex; justify-content: space-between; gap: 8px; }
+/* Your profile: its box */
+.prof-box { background: var(--bg2); padding: 22px; border: 1px solid var(--gold); border-radius: 8px; width: 460px; max-width: 92vw; max-height: 85vh; overflow-y: auto; }
+/* Your profile: the line under its title */
+.prof-lead { margin: -8px 0 14px; }
+/* Your profile: the picture and its buttons */
+.prof-face-row { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+/* Your profile: the picture's buttons and line */
+.prof-face-side { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+/* Your profile: Clear beside a picture's button. Its selector holds an id as well, so that a wider rule of the same property loses to it, as it did to the inline style */
+#setAvatarClearBtn.prof-clear-btn { padding: 4px 10px; flex: 0 0 auto; }
+/* Your profile: the line under the picture's buttons */
+.prof-face-note { font-size: 10.5px; color: var(--dim); line-height: 1.4; }
+/* Your profile: the name. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.prof-name-field:not(.help-chip-in) { margin-bottom: 14px; }
+/* Your profile: the name box */
+.prof-wide-input { width: 100%; box-sizing: border-box; }
+/* Your profile: the color row */
+.prof-color-row { margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+/* Your profile: a label in a row */
+.prof-inline-label { margin: 0; }
+/* Your profile: the color box */
+.prof-color-input { width: 40px; height: 26px; padding: 0; border: 1px solid var(--edge); background: none; cursor: pointer; }
+/* Your profile: Clear beside the color */
+.prof-color-clear { padding: 4px 10px; }
+/* Your profile: a gray line at the end of a row */
+.prof-row-note { font-size: 10.5px; color: var(--dim); flex: 1; line-height: 1.35; }
+/* Your profile: the token face row */
+.prof-face-pick-row { margin: 10px 0 6px; display: flex; align-items: center; gap: 10px; }
+/* Your profile: the token face button */
+.prof-face-btn { padding: 3px 8px; }
+/* Your profile: On another computer */
+.set-carry { margin: 12px 0 6px; }
+/* Your profile: a row of buttons */
+.prof-btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Your profile: a further row of buttons. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.prof-btn-row-more:not(.help-chip-in) { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+/* Your profile: the website account and cloud saves */
+.set-acct { margin-top: 12px; }
+/* Your profile: the account name's label */
+.acct-name-label { margin-top: 8px; }
+/* Your profile: the account name row */
+.acct-name-row { display: flex; gap: 6px; }
+/* Your profile: cloud saves' tick */
+.cloud-auto-tick { margin-top: 4px; }
+/* Your profile: Sync now's row */
+.cloud-sync-row { display: flex; gap: 6px; margin-top: 6px; }
+/* Your profile: Tables that know you */
+.prof-tables { margin-top: 16px; }
+/* Your profile: Start over. Help wraps its copy of a button in here in a span that wears these classes too, which this leaves alone */
+.prof-over:not(.help-chip-in) { margin-top: 16px; }
+/* Your profile: Start over's button */
+.prof-over-btn { width: 100%; }
 /* [inline-a-end] */
 
 /* 1.6.2 (backlog 138 (j), fold R5): the rest map in the call box */
